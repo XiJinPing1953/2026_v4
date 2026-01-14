@@ -13,7 +13,7 @@ export default {
 </script>
 
 <style lang="scss">
-@use "@/uni.scss" as *;
+@import "@/uni.scss";
 
 page {
 	background: var(--crm-bg);
