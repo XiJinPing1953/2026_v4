@@ -1,12 +1,14 @@
 'use strict'
 
 const crypto = require('crypto')
+const bcrypt = require('bcryptjs')
 const db = uniCloud.database()
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 
-const SUPERADMIN_USERNAME = 'superadmin'
-const SUPERADMIN_PASSWORD = 'y7ez5CGAbivZkeP'
+const SUPERADMIN_USERNAME = process.env.SUPERADMIN_USERNAME || ''
+const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || ''
+const BCRYPT_SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS || 10)
 
 async function recordLog(user, action, detail = {}) {
 	try {
@@ -23,8 +25,18 @@ async function recordLog(user, action, detail = {}) {
 	}
 }
 
-function hashPassword(password) {
-	return crypto.createHash('sha256').update(password).digest('hex')
+function hasSuperAdminConfig() {
+	return Boolean(SUPERADMIN_USERNAME && SUPERADMIN_PASSWORD)
+}
+
+async function hashPassword(password) {
+	const rounds = Number.isFinite(BCRYPT_SALT_ROUNDS) ? BCRYPT_SALT_ROUNDS : 10
+	return bcrypt.hash(password, rounds)
+}
+
+async function verifyPassword(password, passwordHash) {
+	if (!passwordHash) return false
+	return bcrypt.compare(password, passwordHash)
 }
 
 function stripSensitive(user) {
@@ -34,12 +46,17 @@ function stripSensitive(user) {
 }
 
 async function ensureSuperAdmin() {
+	if (!hasSuperAdminConfig()) {
+		console.warn('[crm-auth] SUPERADMIN env not configured')
+		return null
+	}
+
 	const existing = await users.where({ username: SUPERADMIN_USERNAME }).limit(1).get()
 	if (existing.data && existing.data.length) return existing.data[0]
 
 	const doc = {
 		username: SUPERADMIN_USERNAME,
-		password_hash: hashPassword(SUPERADMIN_PASSWORD),
+		password_hash: await hashPassword(SUPERADMIN_PASSWORD),
 		role: 'superadmin',
 		created_at: Date.now()
 	}
@@ -78,7 +95,7 @@ exports.main = async (event, context) => {
 
 		const doc = {
 			username,
-			password_hash: hashPassword(password),
+			password_hash: await hashPassword(password),
 			role: 'admin',
 			created_at: Date.now()
 		}
@@ -92,15 +109,12 @@ exports.main = async (event, context) => {
 		const { username, password } = data
 		if (!username || !password) return { code: 400, msg: '缺少账号或密码' }
 
-		const res = await users
-			.where({
-				username,
-				password_hash: hashPassword(password)
-			})
-			.get()
-
+		const res = await users.where({ username }).get()
 		const user = res.data[0]
 		if (!user) return { code: 400, msg: '账号或密码错误' }
+
+		const matched = await verifyPassword(password, user.password_hash)
+		if (!matched) return { code: 400, msg: '账号或密码错误' }
 
 		const newToken = await issueToken(user._id)
 		await recordLog(user, 'login', {})
@@ -160,7 +174,7 @@ exports.main = async (event, context) => {
 		const now = Date.now()
 		const doc = {
 			username,
-			password_hash: hashPassword(password),
+			password_hash: await hashPassword(password),
 			role,
 			created_at: now,
 			updated_at: now
