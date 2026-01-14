@@ -1,63 +1,67 @@
-state: ok
-updated: 2026-01-14
-repo: 2026_v4
-branch: main
-
 # STATE
 
-本文件用于在多轮对话/多次提交之间持久化项目状态，避免上下文丢失。
+`STATE.md` 是本仓库工作状态的单一事实来源（SSOT）。本文件必须以“追加日志（append-only）”方式维护：任何状态变化/补充说明都只能在文件末尾追加新条目，禁止回写/改写历史内容。
 
-## 使用规则（必须遵守）
-- `STATE.md` 是“当前工作状态”的单一事实来源（SSOT）。
-- 每次开始一段工作前：先更新「当前目标 / 下一步 / 风险与阻塞」。
-- 每次提交代码后：在「Commit 记录」新增/补全对应条目（目的、影响面、后续）。
-- Todo/Task 只写“下一步可以直接执行的动作”，避免空泛描述。
+## 每条变更记录格式（必填）
 
-## 当前目标（Current Objective）
-- （待填写）
+> 每次提交代码、或做出会影响协作判断的变更，都必须追加一条记录（可引用 commit SHA）。
 
-## 当前上下文（Context Snapshot）
-- 产品/业务背景：uni-app（Vue3 + Vite）+ uniCloud（支付宝云）前后端分离重构
-- 关键约束：页面瘦身；兼容逻辑仅允许在 `src/services/mappers/**`
+- 做了什么：
+- 改动文件列表：
+- 验证输出要点：
+- 剩余问题：
 
-## 下一步（Next Actions / Todo）
-- [ ] （待填写）
+## 日志（Append-only）
 
-## 阻塞与风险（Blockers / Risks）
-- （待填写）
+### 2026-01-14 CURRENT — 下一步进入 B2 核心模型
+- 做了什么：确认当前方向为「阶段 B2：定义核心模型（Bottle/Sale/Filling/Customer/Vehicle/Anomaly/Log/User）」。
+- 改动文件列表：无（状态更新）。
+- 验证输出要点：无。
+- 剩余问题：需要产出模型字段/索引/云函数接口的最小清单，并落到 `src/services/models` + `src/services/mappers`（阶段 B3）。
 
-## 决策记录（Decisions）
-- （待填写）
+### 2026-01-14 bed6f8a — docs: add STATE template and embed project docs
+- 做了什么：新增 `STATE.md` 模板；在 README 嵌入项目结构/重构备忘录文档。
+- 改动文件列表：
+  - `README.md`
+  - `STATE.md`
+- 验证输出要点：该提交未在 `STATE.md` 中记录任何执行输出；本次补写记录未复跑构建/测试。
+- 剩余问题：需要把 `STATE.md` 约束收敛为“严格追加日志”，并补全各 commit 的文件清单/验证信息/遗留问题。
 
-## 约束清单（Non‑Negotiables）
-- 官方规则优先（uni-app / uniCloud 结构与配置不可随意改动）
-- 前后端分离：业务规则与数据访问在云函数
-- 页面只做编排：`src/pages/**` 禁止堆业务计算/兼容逻辑
+### 2026-01-14 7873e56 — chore: silence sass deprecation warnings in build
+- 做了什么：降低构建日志噪音，避免 sass 弃用警告干扰后续排障。
+- 改动文件列表：
+  - `src/App.vue`
+  - `vite.config.js`
+- 验证输出要点：该提交未在 `STATE.md` 中记录 `npm run build`/`npm run dev` 输出；本次补写记录未复跑构建。
+- 剩余问题：需要在一次可复现的构建环境下确认警告确实消失，并在依赖升级后回归检查。
 
-## Commit 记录（初始条目）
+### 2026-01-14 a41c37e — feat: secure crm-auth with bcrypt
+- 做了什么：为 `crm-auth` 引入 bcrypt 哈希/校验，提升登录链路安全性。
+- 改动文件列表：
+  - `README.md`
+  - `uniCloud-alipay/cloudfunctions/crm-auth/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-auth/package.json`
+- 验证输出要点：该提交未在 `STATE.md` 中记录云端部署/本地调用验证输出；本次补写记录未复跑调用链路。
+- 剩余问题：需要补齐错误码与边界用例（错误密码/缺失 token/续期等），并确认环境变量（如 `BCRYPT_SALT_ROUNDS`）在实际运行环境生效。
 
-> 说明：这里记录“为什么做 / 改了什么范围 / 需要跟进什么”，不要复制粘贴 diff。
+### 2026-01-14 6e471e8 — feat: add crm-auth cloudfunction
+- 做了什么：建立最小可用的鉴权云函数入口，为后续业务云函数提供统一鉴权能力。
+- 改动文件列表：
+  - `README.md`
+  - `uniCloud-alipay/cloudfunctions/crm-auth/index.js`
+- 验证输出要点：该提交未在 `STATE.md` 中记录云端部署/本地调用验证输出；本次补写记录未复跑调用链路。
+- 剩余问题：需要完善权限模型（角色/权限点）与统一错误码规范，并补齐部署/调用验证记录。
 
-### 7873e56 — chore: silence sass deprecation warnings in build (2026-01-14)
-- 目的：降低构建噪音，避免未来 sass 行为变化导致的构建风险。
-- 影响范围：构建/样式相关配置（待补充具体文件）。
-- 验证点：本地 `npm run build` 无新增警告（待执行/记录）。
-- 后续：如上游依赖升级，复查警告是否再次出现。
-
-### a41c37e — feat: secure crm-auth with bcrypt (2026-01-14)
-- 目的：提升 `crm-auth` 登录链路安全性，避免明文/弱校验。
-- 影响范围：云函数鉴权逻辑、环境变量（如盐轮数等）。
-- 验证点：正确账号可登录；错误密码/缺失 token 正确拒绝；续期行为正确。
-- 后续：补齐边界用例与错误码规范（待补充）。
-
-### 6e471e8 — feat: add crm-auth cloudfunction (2026-01-14)
-- 目的：建立最小可用的鉴权云函数，为后续业务云函数提供统一入口。
-- 影响范围：`uniCloud-alipay/cloudfunctions/crm-auth`、前端 auth 调用封装。
-- 验证点：云端部署与本地调用链路打通。
-- 后续：完善权限模型与角色（待补充）。
-
-### 253ae1d — feat: add base list/table/filter scaffolds (2026-01-14)
-- 目的：先补齐通用 UI 基建（筛选/列表/表格），为业务页迁移铺路。
-- 影响范围：`src/components/base/**`、相关页面/组合式逻辑（待补充）。
-- 验证点：列表/表格/筛选在工作台或示例页可正常渲染。
-- 后续：统一交互规范（空态/加载/错误）并补文档。
+### 2026-01-14 253ae1d — feat: add base list/table/filter scaffolds
+- 做了什么：补齐通用 UI 基建（筛选条/列表/表格/Skeleton/useQuery），为业务页迁移提供统一组件与交互约束。
+- 改动文件列表：
+  - `README.md`
+  - `src/components/base/AppFilterBar.vue`
+  - `src/components/base/AppList.vue`
+  - `src/components/base/AppListItem.vue`
+  - `src/components/base/AppSkeleton.vue`
+  - `src/components/base/AppTable.vue`
+  - `src/composables/useQuery.js`
+  - `src/uni.scss`
+- 验证输出要点：该提交未在 `STATE.md` 中记录页面渲染/交互验证输出；本次补写记录未复跑本地运行。
+- 剩余问题：需要统一空态/加载/错误态交互规范，并挑选一个示例页做端到端验证后再进入业务迁移。
