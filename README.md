@@ -31,6 +31,7 @@
 - A3 基建：`useQuery`、`AppSkeleton`、`uni.scss` 主题变量扩展。
 - A1 基建：`AppFilterBar` 筛选条。
 - A2 基建：`AppList`、`AppListItem`、`AppTable`。
+- B1 完成：`crm-auth` 云函数（登录/鉴权/续期）。
 
 ## 接下来的计划（严格执行）
 ### 阶段 A：通用基建（进行中）
@@ -39,7 +40,7 @@
 - A3 useQuery + Skeleton（已完成）
 
 ### 阶段 B：核心模型与登录链路
-- B1 补齐 `crm-auth` 云函数（登录/鉴权/续期）
+- B1 补齐 `crm-auth` 云函数（登录/鉴权/续期）（已完成）
 - B2 定义核心模型（Bottle/Sale/Filling/Customer/Vehicle/Anomaly/Log/User）
 - B3 建立 `services/models` 与 `services/mappers`
 
