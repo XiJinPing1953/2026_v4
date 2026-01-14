@@ -10,19 +10,14 @@
 - 兼容隔离：历史字段兼容仅允许在 `src/services/mappers/**`。
 - 新模型优先：不盲拷旧结构，核心模型清晰（Bottle/Sale/Filling/Customer/Vehicle/Anomaly/Log/User）。
 
-## 目录结构（必须遵守）
-- `src/` 前端源码根目录
-  - `pages/` 页面容器（只做编排）
-  - `components/base/` 基础组件（Button/Card/Tag/...）
-  - `components/domain/` 领域组件（SaleForm/AnomalyCard/...）
-  - `composables/` 组合式逻辑（页面不写复杂逻辑）
-  - `services/`
-    - `api/` 统一云函数调用封装与错误处理
-    - `models/` 核心模型
-    - `mappers/` 旧字段/历史数据映射
-  - `utils/` 纯工具函数
-- `uniCloud-alipay/` 云函数与数据库
-- `docs/` 文档与约束
+## Todo/Task/STATE 持久化（必须遵守）
+
+为了让多人协作/多轮对话/多次提交保持一致，本项目使用 `STATE.md` 做工作状态持久化：
+
+- `STATE.md`：单一事实来源（SSOT），用于记录“当前目标、下一步动作、阻塞风险、关键决策、Commit 记录”。
+- 每次开始一段工作前：先更新 `STATE.md` 的「当前目标/下一步/阻塞与风险」。
+- 每次提交代码后：在 `STATE.md` 的「Commit 记录」为该 commit 补充“为什么做/影响范围/验证点/后续”。
+- Todo/Task 只写可直接执行的动作（例如“补齐 crm-auth 续期用例与错误码”），避免“优化/重构一下”这类空泛描述。
 
 ## 当前进度（已完成）
 - 基础页面：登录页、工作台页（`src/pages`）。
@@ -68,3 +63,93 @@
 - 所有重构迁移严格按阶段推进，不跨阶段堆叠。
 - 页面不承载业务与兼容逻辑；所有兼容仅在 `mappers`。
 - 每次迁移必须先完善基建，再进入业务页面。
+
+## 文档（已嵌入）
+
+以下两份文档会作为 README 的长期约束随仓库一起被查看（源文件仍保留在 `docs/` 目录，建议以源文件为准同步更新）。
+
+### docs/PROJECT_STRUCTURE.md（嵌入）
+<!-- BEGIN EMBED: docs/PROJECT_STRUCTURE.md -->
+# 2026_v4 目录结构与约束
+
+本项目是 **uni-app（Vue3 + Vite）+ uniCloud（支付宝云）** 的前后端分离重建工程。
+
+## 目录结构（必须遵守）
+
+- `src/`：前端源码根目录（遵循官方 vite 模板约定）
+  - `src/pages/`：页面容器（只做编排，尽量短）
+  - `src/pages.json`：路由与 tabBar 配置
+  - `src/manifest.json`：应用配置（含 `appid`），uniCloud 关联依赖此处
+  - `src/main.js` / `src/App.vue`：入口
+  - `src/static/`：静态资源
+  - `src/uni.scss`：全局样式/主题变量
+  - `src/components/`：组件库
+    - `src/components/base/`：基础组件（Button/Card/Modal/Tag…），不含业务
+    - `src/components/domain/`：领域组件（SaleForm/BottleTimeline/AnomalyCard…）
+  - `src/composables/`：组合式逻辑（页面不写复杂逻辑，抽到这里）
+  - `src/services/`：数据与业务服务层（统一 API、鉴权、映射、模型）
+    - `src/services/api/`：统一云函数调用封装（含 401/错误处理）
+    - `src/services/models/`：核心模型定义（新结构）
+    - `src/services/mappers/`：旧字段/历史数据映射层（如需兼容，仅限此处）
+  - `src/utils/`：纯工具函数（格式化、日期、排序等）
+
+- `uniCloud-alipay/`：uniCloud 根目录（支付宝云空间，遵循 uniCloud 官方结构）
+  - `uniCloud-alipay/cloudfunctions/`：云函数
+  - `uniCloud-alipay/database/`：数据库 schema/索引等
+
+- `docs/`：文档与约束
+
+## 与目录相关的重构原则
+
+1) 页面只做编排：`src/pages/**` 不允许堆业务计算/状态同步/兼容逻辑。
+2) 复杂展示组件化：所有复杂 UI 归入 `src/components/**`，页面不写大段模板。
+3) 数据获取解耦：页面通过 `src/composables/**` 调度，实际请求在 `src/services/api/**`。
+4) 兼容隔离：历史字段兼容只允许在 `src/services/mappers/**`，严禁扩散到页面/组件。
+5) 官方规则优先：`src/manifest.json`、`uniCloud-alipay/` 位置与结构不得随意变更。
+<!-- END EMBED: docs/PROJECT_STRUCTURE.md -->
+
+### docs/REFACTORING_MEMO.md（嵌入）
+<!-- BEGIN EMBED: docs/REFACTORING_MEMO.md -->
+# 2026_v4 重构备忘录（必须遵守）
+
+本文件是 `2026_v4` 项目的长期约束与执行准则，用于避免“旧堆积代码”复现。
+
+## 最高优先级：官方规则
+
+- 前端项目结构、配置文件位置、构建方式：严格遵循 **uni-app（Vue3 + Vite）官方模板**。
+- 云函数/数据库：严格遵循 **uniCloud 官方规则**，并以当前已绑定的支付宝云空间为准。
+
+## 架构原则
+
+### 1) 前后端分离
+- 前端：UI/交互/编排。
+- 后端（uniCloud）：数据访问、权限校验、核心业务规则与写入。
+- 禁止把“状态更新/业务计算/兼容修补”堆在页面文件里。
+
+### 2) 重新定义核心模型（不盲拷旧结构）
+- 不继承旧项目里大量历史字段与兼容逻辑（例如存瓶兼容字段）。
+- 新项目以清晰模型为主：Bottle / Sale / Filling / Customer / Vehicle / Anomaly / Log / User。
+- 如必须兼容历史数据：通过 **迁移/映射层** 处理，不允许页面到处写兼容 if。
+
+### 3) 页面瘦身：页面只做编排
+- `src/pages/**` 应尽量短：路由参数、调 composable、组合组件、布局编排。
+- 复杂展示与交互必须组件化：列表、筛选条、表单分段、时间线、异常卡片、统计卡片等。
+- 复杂业务计算抽离到 composable / service / 云函数。
+
+### 4) 分阶段推进（按优先级）
+1. **组件化拆分**（最小风险、立竿见影，优先级高）
+2. **逻辑抽离**（显著降低页面复杂度，优先级中高）
+3. **性能与数据层优化**（明确瓶颈后投入，优先级中）
+
+## 约定与落地要求
+
+- 统一 API 调用入口：前端必须通过 `src/services/api/**` 调云函数，统一 401/错误处理。
+- 统一 Auth：token 存储/过期处理由 `src/services/auth.js` 负责。
+- 统一导航：跳登录、重置会话由 `src/services/navigation.js` 负责。
+- 统一 UI：基础组件放在 `src/components/base/**`，领域组件放在 `src/components/domain/**`。
+
+## 禁止事项（Hard No）
+- 禁止直接复制旧项目的数据结构到新模型。
+- 禁止在页面文件内堆业务计算/状态同步/复杂渲染逻辑。
+- 禁止为“兼容历史字段”牺牲新模型清晰性（应通过迁移/映射层解决）。
+<!-- END EMBED: docs/REFACTORING_MEMO.md -->
