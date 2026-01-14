@@ -14,11 +14,23 @@
 
 /* 颜色变量 */
 
-/* 行为相关颜色 */
-$uni-color-primary: #007aff;
-$uni-color-success: #4cd964;
-$uni-color-warning: #f0ad4e;
-$uni-color-error: #dd524d;
+/* 行为相关颜色（统一为商务蓝白 SaaS 风格） */
+$uni-color-primary: #2563eb;
+$uni-color-success: #16a34a;
+$uni-color-warning: #f59e0b;
+$uni-color-error: #dc2626;
+
+/* CRM 主题变量（CSS Variables） */
+:root {
+	--crm-bg: #f5f7fb;
+	--crm-surface: #ffffff;
+	--crm-text: #0f172a;
+	--crm-text-muted: #64748b;
+	--crm-border: #e5e7eb;
+	--crm-primary: #2563eb;
+	--crm-primary-weak: rgba(37, 99, 235, 0.12);
+}
+
 
 /* 文字基本颜色 */
 $uni-text-color: #333; // 基本色
