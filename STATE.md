@@ -206,3 +206,14 @@
 - 剩余问题：
   - 需要接入云函数保存与列表刷新。
 
+### 2026-01-14 CURRENT — 基础信息两行三列布局
+- 做了什么：
+  - 基础信息调整为两行三列布局，配送员拆为两列，单价+单位合并一列。
+- 改动文件列表：
+  - `src/components/domain/sale/SaleBasicInfoCard.vue`
+  - `src/pages/sale/edit.vue`
+  - `STATE.md`
+- 验证输出要点：未运行 `npm run dev` / `npm run build`。
+- 剩余问题：
+  - 需要接入云函数保存与列表刷新。
+

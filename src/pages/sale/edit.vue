@@ -58,7 +58,8 @@ import SaleSettlementCard from '@/components/domain/sale/SaleSettlementCard.vue'
 const form = reactive({
 	date: '',
 	customerName: '',
-	deliveryMan: '',
+	deliveryMan1: '',
+	deliveryMan2: '',
 	vehicleNo: '',
 	priceUnit: 'kg',
 	unitPrice: ''
@@ -93,7 +94,8 @@ function onSubmit() {
 	const payload = normalizeSaleDraft({
 		date: form.date,
 		customerName: form.customerName,
-		delivery1: form.deliveryMan,
+		delivery1: form.deliveryMan1,
+		delivery2: form.deliveryMan2,
 		carNo: form.vehicleNo,
 		priceUnit: form.priceUnit,
 		unitPrice: form.unitPrice,
