@@ -11,18 +11,18 @@
 			<AppList :loading="loading" :empty="list.length === 0" empty-title="暂无销售单">
 				<AppListItem
 					v-for="item in list"
-					:key="item.id"
-					:title="item.customerName"
+					:key="item._id"
+					:title="item.customer_name"
 					:subtitle="item.date"
-					:status="item.status"
+					:status="item.payment_status"
 					status-kind="info"
 					clickable
 					@click="onOpen(item)"
 				>
 					<template #meta>
-						<AppTag kind="soft">{{ item.priceUnit }}</AppTag>
-						<text>应收 {{ item.shouldReceive }}</text>
-						<text>已收 {{ item.amountReceived }}</text>
+						<AppTag kind="soft">{{ item.price_unit }}</AppTag>
+						<text>应收 {{ item.should_receive }}</text>
+						<text>已收 {{ item.amount_received }}</text>
 					</template>
 					<template #footer>
 						<AppButton kind="ghost" size="sm" @click.stop="onEdit(item)">编辑</AppButton>
@@ -49,8 +49,26 @@ import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppTag from '@/components/base/AppTag.vue'
 
-const loading = ref(false)
+import { useQuery } from '@/composables/useQuery'
+import { listSalesV2 } from '@/services/sale'
+
 const list = ref([])
+
+const { loading, run: fetchList } = useQuery(
+	async () => {
+		const res = await listSalesV2({
+			keyword: filters.keyword,
+			dateStart: filters.dateStart,
+			dateEnd: filters.dateEnd,
+			priceUnit: filters.priceUnit,
+			page: 1,
+			pageSize: 50
+		})
+		if (res?.code !== 0) return []
+		return res.data || []
+	},
+	{ immediate: false, initialData: [] }
+)
 
 const filters = reactive({
 	keyword: '',
@@ -59,17 +77,29 @@ const filters = reactive({
 	priceUnit: ''
 })
 
-function onSearch() {}
+async function onSearch() {
+	const data = await fetchList()
+	list.value = data || []
+}
 function onReset() {
 	filters.keyword = ''
 	filters.dateStart = ''
 	filters.dateEnd = ''
 	filters.priceUnit = ''
+	list.value = []
 }
-function onAdd() {}
-function onOpen(item) {}
-function onEdit(item) {}
-function onDetail(item) {}
+function onAdd() {
+	uni.navigateTo({ url: '/pages/sale/edit' })
+}
+function onOpen(item) {
+	void item
+}
+function onEdit(item) {
+	void item
+}
+function onDetail(item) {
+	void item
+}
 </script>
 
 <style scoped>

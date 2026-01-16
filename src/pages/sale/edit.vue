@@ -46,7 +46,7 @@ import { reactive, ref } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppButton from '@/components/base/AppButton.vue'
-import { normalizeSaleDraft } from '@/services/models'
+import { createSaleV2 } from '@/services/sale'
 import SaleBasicInfoCard from '@/components/domain/sale/SaleBasicInfoCard.vue'
 import SaleBottleLinesCard from '@/components/domain/sale/SaleBottleLinesCard.vue'
 import SaleDepositCard from '@/components/domain/sale/SaleDepositCard.vue'
@@ -90,32 +90,27 @@ const backItems = ref([])
 const depositRows = ref([])
 const agentSaleRows = ref([])
 
-function onSubmit() {
-	const payload = normalizeSaleDraft({
-		date: form.date,
-		customerName: form.customerName,
-		delivery1: form.deliveryMan1,
-		delivery2: form.deliveryMan2,
-		carNo: form.vehicleNo,
-		priceUnit: form.priceUnit,
-		unitPrice: form.unitPrice,
-		flow_index_prev: flow.flowPrev,
-		flow_index_curr: flow.flowCurr,
-		flow_volume_m3: flow.flowVolume,
-		flow_theory_ratio: flow.flowRatio,
-		truckNo: truck.truckNo,
-		truckOutGross: truck.truckOutGross,
-		truckBackGross: truck.truckBackGross,
-		truckSaleNet: truck.truckSaleNet,
-		paymentStatus: settlement.paymentStatus,
-		amountReceived: settlement.amountReceived,
-		paymentNote: settlement.paymentNote,
-		outItems: outItems.value,
-		backItems: backItems.value,
-		depositRows: depositRows.value,
-		agentSaleRows: agentSaleRows.value
-	})
-	void payload
+async function onSubmit() {
+	try {
+		const result = await createSaleV2({
+			form,
+			flow,
+			truck,
+			settlement,
+			outItems: outItems.value,
+			backItems: backItems.value,
+			depositRows: depositRows.value,
+			agentSaleRows: agentSaleRows.value
+		})
+		if (result?.code !== 0) return
+		uni.showToast({ title: '保存成功', icon: 'success' })
+		setTimeout(() => {
+			uni.navigateBack({ delta: 1 })
+		}, 400)
+	} catch (err) {
+		console.error('create sale failed', err)
+		uni.showToast({ title: '保存失败', icon: 'none' })
+	}
 }
 
 function onCancel() {}

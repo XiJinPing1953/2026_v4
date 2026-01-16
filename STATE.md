@@ -231,3 +231,21 @@
 - 剩余问题：
   - 需要接入云函数保存与列表刷新。
 
+### 2026-01-14 CURRENT — 接入 crm-sale 保存与列表
+- 做了什么：
+  - 新增 `crm-sale` 云函数（`createV2/updateV2/listV2`），用于保存与查询销售单。
+  - 新增前端 `src/services/sale.js`，页面仅调用服务层，保持页面薄。
+  - 销售录入页 `onSubmit` 调用 `createV2`；销售列表页 `onSearch` 调用 `listV2`。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `src/services/sale.js`
+  - `src/pages/sale/edit.vue`
+  - `src/pages/sale/list.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `lsp_diagnostics`：`src/pages/sale/edit.vue`、`src/pages/sale/list.vue` 无诊断。
+  - 未运行 `npm run dev` / `npm run build`；未在云端部署并验证云函数调用。
+- 剩余问题：
+  - 需要部署 `crm-sale` 到 uniCloud 并实测登录 token + create/list 链路。
+  - 需要补齐瓶子状态同步/异常检测相关逻辑（后续阶段）。
+
