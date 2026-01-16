@@ -123,6 +123,21 @@
   - 出/回/存瓶与代理出站组件仍为占位，需要接入明细录入 UI。
   - 需要接入云函数保存。
 
+### 2026-01-14 CURRENT — C1 明细录入组件
+- 做了什么：
+  - 出/回瓶、存瓶、代理出站卡片支持增删行与基础录入。
+  - 销售录入页已绑定明细数组并参与 `normalizeSaleDraft()` 汇总。
+- 改动文件列表：
+  - `src/components/domain/sale/SaleBottleLinesCard.vue`
+  - `src/components/domain/sale/SaleDepositCard.vue`
+  - `src/components/domain/sale/SaleAgentSaleCard.vue`
+  - `src/pages/sale/edit.vue`
+  - `STATE.md`
+- 验证输出要点：未运行 `npm run dev` / `npm run build`。
+- 剩余问题：
+  - 需对瓶号/重量输入做校验与自动计算（gross/tare -> net）。
+  - 需接入云函数保存与列表刷新。
+
 ### 2026-01-14 CURRENT — Sale 全函数注释补充
 
 

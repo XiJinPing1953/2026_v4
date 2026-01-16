@@ -5,8 +5,21 @@
 		</AppSection>
 
 		<AppSection title="出瓶">
-			<SaleBottleLinesCard @add="onAddOut" />
+			<SaleBottleLinesCard v-model="outItems" />
 		</AppSection>
+
+		<AppSection title="回瓶">
+			<SaleBottleLinesCard v-model="backItems" />
+		</AppSection>
+
+		<AppSection title="存瓶">
+			<SaleDepositCard v-model="depositRows" />
+		</AppSection>
+
+		<AppSection title="代理出站">
+			<SaleAgentSaleCard v-model="agentSaleRows" />
+		</AppSection>
+
 
 		<AppSection title="回瓶">
 			<SaleBottleLinesCard @add="onAddBack" />
@@ -86,11 +99,6 @@ const outItems = reactive([])
 const backItems = reactive([])
 const depositRows = reactive([])
 const agentSaleRows = reactive([])
-
-function onAddOut() {}
-function onAddBack() {}
-function onAddDeposit() {}
-function onAddAgent() {}
 
 function onSubmit() {
 	const payload = normalizeSaleDraft({
