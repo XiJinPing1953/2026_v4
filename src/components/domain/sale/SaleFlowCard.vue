@@ -1,9 +1,11 @@
 <template>
 	<AppCard>
-		<AppInput :model-value="modelValue.flowPrev" label="上次表数" placeholder="数字" @update:modelValue="(v) => update('flowPrev', v)" />
-		<AppInput :model-value="modelValue.flowCurr" label="本次表数" placeholder="数字" @update:modelValue="(v) => update('flowCurr', v)" />
-		<AppInput :model-value="modelValue.flowVolume" label="用气量" placeholder="m3" @update:modelValue="(v) => update('flowVolume', v)" />
-		<AppInput :model-value="modelValue.flowRatio" label="理论系数" placeholder="可选" @update:modelValue="(v) => update('flowRatio', v)" />
+		<view class="card-body">
+			<AppInput :model-value="modelValue.flowPrev" label="上次表数" placeholder="数字" @update:modelValue="(v) => update('flowPrev', v)" />
+			<AppInput :model-value="modelValue.flowCurr" label="本次表数" placeholder="数字" @update:modelValue="(v) => update('flowCurr', v)" />
+			<AppInput :model-value="modelValue.flowVolume" label="用气量" placeholder="m3" @update:modelValue="(v) => update('flowVolume', v)" />
+			<AppInput :model-value="modelValue.flowRatio" label="理论系数" placeholder="可选" @update:modelValue="(v) => update('flowRatio', v)" />
+		</view>
 	</AppCard>
 </template>
 
@@ -24,3 +26,11 @@ function update(key, value) {
 	emit('update:modelValue', { ...props.modelValue, [key]: value })
 }
 </script>
+
+<style scoped>
+.card-body {
+	display: flex;
+	flex-direction: column;
+	gap: 16rpx;
+}
+</style>

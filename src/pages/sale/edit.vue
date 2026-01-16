@@ -1,8 +1,9 @@
 <template>
 	<AppPage title="销售录入" subtitle="统一录入瓶装/整车/代理出站">
-		<AppSection title="基础信息">
-			<SaleBasicInfoCard v-model="form" />
-		</AppSection>
+		<view class="sale-edit">
+			<AppSection title="基础信息">
+				<SaleBasicInfoCard v-model="form" />
+			</AppSection>
 
 		<AppSection title="出瓶">
 			<SaleBottleLinesCard v-model="outItems" />
@@ -32,10 +33,11 @@
 			<SaleSettlementCard v-model="settlement" />
 		</AppSection>
 
-		<AppSection>
-			<AppButton @click="onSubmit">保存</AppButton>
-			<AppButton kind="ghost" @click="onCancel">取消</AppButton>
-		</AppSection>
+			<AppSection>
+				<AppButton @click="onSubmit">保存</AppButton>
+				<AppButton kind="ghost" @click="onCancel">取消</AppButton>
+			</AppSection>
+		</view>
 	</AppPage>
 </template>
 
@@ -118,4 +120,9 @@ function onCancel() {}
 </script>
 
 <style scoped>
+.sale-edit {
+	display: flex;
+	flex-direction: column;
+	gap: 18rpx;
+}
 </style>

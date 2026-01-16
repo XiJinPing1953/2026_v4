@@ -171,3 +171,20 @@
 - 剩余问题：
   - 需要接入云函数保存与列表刷新。
 
+### 2026-01-14 CURRENT — 销售表单 UI 间距优化
+- 做了什么：
+  - 为销售录入页与领域卡片增加间距/分组样式，提升可读性。
+- 改动文件列表：
+  - `src/pages/sale/edit.vue`
+  - `src/components/domain/sale/SaleBasicInfoCard.vue`
+  - `src/components/domain/sale/SaleBottleLinesCard.vue`
+  - `src/components/domain/sale/SaleDepositCard.vue`
+  - `src/components/domain/sale/SaleFlowCard.vue`
+  - `src/components/domain/sale/SaleTruckCard.vue`
+  - `src/components/domain/sale/SaleAgentSaleCard.vue`
+  - `src/components/domain/sale/SaleSettlementCard.vue`
+  - `STATE.md`
+- 验证输出要点：未运行 `npm run dev` / `npm run build`。
+- 剩余问题：
+  - 需要接入云函数保存与列表刷新。
+
