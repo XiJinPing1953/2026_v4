@@ -12,6 +12,10 @@
 					</view>
 				</view>
 			</view>
+			<view class="summary">
+				<text class="summary-label">本次存瓶数</text>
+				<text class="summary-value">{{ rows.length }}</text>
+			</view>
 			<view class="actions">
 				<AppButton kind="ghost" @click="addRow">添加存瓶</AppButton>
 			</view>
@@ -70,6 +74,21 @@ function removeRow(index) {
 	grid-template-columns: minmax(0, 1fr) auto;
 	gap: 12rpx;
 	align-items: end;
+}
+.summary {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 10rpx 14rpx;
+	background: rgba(37, 99, 235, 0.08);
+	border-radius: 12rpx;
+}
+.summary-label {
+	color: var(--crm-text-muted);
+}
+.summary-value {
+	font-weight: 600;
+	color: var(--crm-text);
 }
 .actions {
 	display: flex;

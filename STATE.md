@@ -217,3 +217,17 @@
 - 剩余问题：
   - 需要接入云函数保存与列表刷新。
 
+### 2026-01-14 CURRENT — 旧版交互对齐（出/回瓶/存瓶/代理）
+- 做了什么：
+  - 出/回瓶支持内联新增按钮、净重合计展示与候选瓶号占位区。
+  - 存瓶显示本次存瓶数汇总。
+  - 代理出站增加灌装合计与内联新增按钮。
+- 改动文件列表：
+  - `src/components/domain/sale/SaleBottleLinesCard.vue`
+  - `src/components/domain/sale/SaleDepositCard.vue`
+  - `src/components/domain/sale/SaleAgentSaleCard.vue`
+  - `STATE.md`
+- 验证输出要点：未运行 `npm run dev` / `npm run build`。
+- 剩余问题：
+  - 需要接入云函数保存与列表刷新。
+
