@@ -11,6 +11,18 @@
 			"style": {
 				"navigationBarTitleText": "登录"
 			}
+		},
+		{
+			"path": "pages/sale/list",
+			"style": {
+				"navigationBarTitleText": "销售列表"
+			}
+		},
+		{
+			"path": "pages/sale/edit",
+			"style": {
+				"navigationBarTitleText": "销售录入"
+			}
 		}
 	],
 

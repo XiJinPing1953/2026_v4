@@ -101,21 +101,25 @@
   - `STATE.md`
 - 验证输出要点：未运行 `npm run dev` / `npm run build`。
 - 剩余问题：
-  - 仍需完成 B3（models index + mappers 占位）并接入页面。
+- 仍需完成 B3（models index + mappers 占位）并接入页面。
 
-### 2026-01-14 CURRENT — B3 models/mappers 入口建立
+### 2026-01-14 CURRENT — C1 销售页面骨架与模型接入
 - 做了什么：
-  - 新增 `src/services/models/index.js` 统一导出 `Sale` 规范化方法。
-  - 新增 `src/services/mappers/index.js` 作为兼容层入口占位。
+  - 新增销售列表与录入页面骨架（无业务逻辑）。
+  - 在录入页内接入 `normalizeSaleDraft()` 生成 payload（尚未提交云端）。
+  - 更新路由 `pages.json` 增加 sale/list 与 sale/edit。
 - 改动文件列表：
-  - `src/services/models/index.js`
-  - `src/services/mappers/index.js`
+  - `src/pages/sale/list.vue`
+  - `src/pages/sale/edit.vue`
+  - `src/pages.json`
   - `STATE.md`
 - 验证输出要点：未运行 `npm run dev` / `npm run build`。
 - 剩余问题：
-  - 需要在 C1 接入 `normalizeSaleDraft()` 至 sale 页面流程。
+  - 需要接入真实出/回/存瓶明细组件与代理出站录入组件。
+  - 需要接入真实提交云函数（crm-sale）。
 
 ### 2026-01-14 CURRENT — Sale 全函数注释补充
+
 - 做了什么：
   - 为 `sale.js` 每个函数补充友好注释，标注职责与清理规则。
 - 改动文件列表：
