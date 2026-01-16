@@ -6,14 +6,20 @@
 			</view>
 			<view v-else class="rows">
 				<view v-for="(row, index) in rows" :key="index" class="row">
-					<AppInput :model-value="row.bottle_no" label="瓶号" placeholder="瓶号" @update:modelValue="(v) => updateRow(index, 'bottle_no', v)" />
-					<AppInput :model-value="row.gross" label="毛重" placeholder="kg" @update:modelValue="(v) => updateRow(index, 'gross', v)" />
-					<AppInput :model-value="row.tare" label="皮重" placeholder="kg" @update:modelValue="(v) => updateRow(index, 'tare', v)" />
-					<AppInput :model-value="row.net" label="净重" placeholder="kg" @update:modelValue="(v) => updateRow(index, 'net', v)" />
-					<AppButton kind="ghost" size="sm" @click="removeRow(index)">删除</AppButton>
+					<view class="row-grid">
+						<AppInput :model-value="row.bottle_no" label="瓶号" placeholder="瓶号" @update:modelValue="(v) => updateRow(index, 'bottle_no', v)" />
+						<AppInput :model-value="row.gross" label="毛重" placeholder="kg" @update:modelValue="(v) => updateRow(index, 'gross', v)" />
+						<AppInput :model-value="row.tare" label="皮重" placeholder="kg" @update:modelValue="(v) => updateRow(index, 'tare', v)" />
+						<AppInput :model-value="row.net" label="净重" placeholder="kg" @update:modelValue="(v) => updateRow(index, 'net', v)" />
+					</view>
+					<view class="row-actions">
+						<AppButton kind="ghost" size="sm" @click="removeRow(index)">删除</AppButton>
+					</view>
 				</view>
 			</view>
-			<AppButton kind="ghost" @click="addRow">新增行</AppButton>
+			<view class="actions">
+				<AppButton kind="ghost" @click="addRow">新增行</AppButton>
+			</view>
 		</view>
 	</AppCard>
 </template>
@@ -57,11 +63,29 @@ function removeRow(index) {
 .rows {
 	display: flex;
 	flex-direction: column;
-	gap: 12rpx;
+	gap: 16rpx;
 }
 .row {
 	display: flex;
 	flex-direction: column;
+	gap: 10rpx;
+}
+.row-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 12rpx;
+}
+.row-actions {
+	display: flex;
+	justify-content: flex-end;
+}
+.actions {
+	display: flex;
+	justify-content: flex-end;
+}
+@media (max-width: 600px) {
+	.row-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
 }
 </style>

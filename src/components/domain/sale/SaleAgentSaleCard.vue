@@ -6,13 +6,19 @@
 			</view>
 			<view v-else class="rows">
 				<view v-for="(row, index) in rows" :key="index" class="row">
-					<AppInput :model-value="row.bottle_no" label="瓶号" placeholder="瓶号" @update:modelValue="(v) => updateRow(index, 'bottle_no', v)" />
-					<AppInput :model-value="row.fill_weight" label="灌装重量" placeholder="kg" @update:modelValue="(v) => updateRow(index, 'fill_weight', v)" />
-					<AppInput :model-value="row.address" label="配送地址" placeholder="客户地址" @update:modelValue="(v) => updateRow(index, 'address', v)" />
-					<AppButton kind="ghost" size="sm" @click="removeRow(index)">删除</AppButton>
+					<view class="row-grid">
+						<AppInput :model-value="row.bottle_no" label="瓶号" placeholder="瓶号" @update:modelValue="(v) => updateRow(index, 'bottle_no', v)" />
+						<AppInput :model-value="row.fill_weight" label="灌装重量" placeholder="kg" @update:modelValue="(v) => updateRow(index, 'fill_weight', v)" />
+						<AppInput :model-value="row.address" label="配送地址" placeholder="客户地址" @update:modelValue="(v) => updateRow(index, 'address', v)" />
+					</view>
+					<view class="row-actions">
+						<AppButton kind="ghost" size="sm" @click="removeRow(index)">删除</AppButton>
+					</view>
 				</view>
 			</view>
-			<AppButton kind="ghost" @click="addRow">添加代理行</AppButton>
+			<view class="actions">
+				<AppButton kind="ghost" @click="addRow">添加代理行</AppButton>
+			</view>
 		</view>
 	</AppCard>
 </template>
@@ -56,11 +62,29 @@ function removeRow(index) {
 .rows {
 	display: flex;
 	flex-direction: column;
-	gap: 12rpx;
+	gap: 16rpx;
 }
 .row {
 	display: flex;
 	flex-direction: column;
+	gap: 10rpx;
+}
+.row-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 12rpx;
+}
+.row-actions {
+	display: flex;
+	justify-content: flex-end;
+}
+.actions {
+	display: flex;
+	justify-content: flex-end;
+}
+@media (max-width: 600px) {
+	.row-grid {
+		grid-template-columns: 1fr;
+	}
 }
 </style>

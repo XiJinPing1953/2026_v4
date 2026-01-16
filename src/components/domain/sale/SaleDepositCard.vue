@@ -6,11 +6,15 @@
 			</view>
 			<view v-else class="rows">
 				<view v-for="(row, index) in rows" :key="index" class="row">
-					<AppInput :model-value="row.bottle_no" label="瓶号" placeholder="瓶号" @update:modelValue="(v) => updateRow(index, v)" />
-					<AppButton kind="ghost" size="sm" @click="removeRow(index)">删除</AppButton>
+					<view class="row-grid">
+						<AppInput :model-value="row.bottle_no" label="瓶号" placeholder="瓶号" @update:modelValue="(v) => updateRow(index, v)" />
+						<AppButton kind="ghost" size="sm" @click="removeRow(index)">删除</AppButton>
+					</view>
 				</view>
 			</view>
-			<AppButton kind="ghost" @click="addRow">添加存瓶</AppButton>
+			<view class="actions">
+				<AppButton kind="ghost" @click="addRow">添加存瓶</AppButton>
+			</view>
 		</view>
 	</AppCard>
 </template>
@@ -54,11 +58,21 @@ function removeRow(index) {
 .rows {
 	display: flex;
 	flex-direction: column;
-	gap: 12rpx;
+	gap: 16rpx;
 }
 .row {
 	display: flex;
 	flex-direction: column;
+	gap: 10rpx;
+}
+.row-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
 	gap: 12rpx;
+	align-items: end;
+}
+.actions {
+	display: flex;
+	justify-content: flex-end;
 }
 </style>

@@ -188,3 +188,21 @@
 - 剩余问题：
   - 需要接入云函数保存与列表刷新。
 
+### 2026-01-14 CURRENT — 销售表单紧凑布局
+- 做了什么：
+  - 出/回瓶改为四列紧凑布局，减少纵向空白。
+  - 存瓶与代理出站改为多列栅格布局，按钮右对齐。
+  - 基础/流量/整车/收款改为双列栅格。
+- 改动文件列表：
+  - `src/components/domain/sale/SaleBasicInfoCard.vue`
+  - `src/components/domain/sale/SaleBottleLinesCard.vue`
+  - `src/components/domain/sale/SaleDepositCard.vue`
+  - `src/components/domain/sale/SaleFlowCard.vue`
+  - `src/components/domain/sale/SaleTruckCard.vue`
+  - `src/components/domain/sale/SaleAgentSaleCard.vue`
+  - `src/components/domain/sale/SaleSettlementCard.vue`
+  - `STATE.md`
+- 验证输出要点：未运行 `npm run dev` / `npm run build`。
+- 剩余问题：
+  - 需要接入云函数保存与列表刷新。
+

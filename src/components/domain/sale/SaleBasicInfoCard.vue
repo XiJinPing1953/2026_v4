@@ -1,6 +1,6 @@
 <template>
 	<AppCard>
-		<view class="card-body">
+		<view class="grid-2">
 			<AppInput :model-value="modelValue.date" label="日期" placeholder="YYYY-MM-DD" @update:modelValue="(v) => update('date', v)" />
 			<AppInput :model-value="modelValue.customerName" label="客户" placeholder="客户名称" @update:modelValue="(v) => update('customerName', v)" />
 			<AppInput :model-value="modelValue.deliveryMan" label="配送员" placeholder="姓名/组合" @update:modelValue="(v) => update('deliveryMan', v)" />
@@ -30,9 +30,14 @@ function update(key, value) {
 </script>
 
 <style scoped>
-.card-body {
-	display: flex;
-	flex-direction: column;
+.grid-2 {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 16rpx;
+}
+@media (max-width: 600px) {
+	.grid-2 {
+		grid-template-columns: 1fr;
+	}
 }
 </style>

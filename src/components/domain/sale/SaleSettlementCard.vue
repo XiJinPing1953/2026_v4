@@ -1,6 +1,6 @@
 <template>
 	<AppCard>
-		<view class="card-body">
+		<view class="grid-2">
 			<AppInput :model-value="modelValue.paymentStatus" label="付款状态" placeholder="未付 / 挂账" @update:modelValue="(v) => update('paymentStatus', v)" />
 			<AppInput :model-value="modelValue.amountReceived" label="已收金额" placeholder="数字" @update:modelValue="(v) => update('amountReceived', v)" />
 			<AppInput :model-value="modelValue.paymentNote" label="备注" placeholder="可选" @update:modelValue="(v) => update('paymentNote', v)" />
@@ -27,9 +27,14 @@ function update(key, value) {
 </script>
 
 <style scoped>
-.card-body {
-	display: flex;
-	flex-direction: column;
+.grid-2 {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 16rpx;
+}
+@media (max-width: 600px) {
+	.grid-2 {
+		grid-template-columns: 1fr;
+	}
 }
 </style>
