@@ -103,22 +103,28 @@
 - 剩余问题：
 - 仍需完成 B3（models index + mappers 占位）并接入页面。
 
-### 2026-01-14 CURRENT — C1 销售页面骨架与模型接入
+### 2026-01-14 CURRENT — C1 表单组件拆分
 - 做了什么：
-  - 新增销售列表与录入页面骨架（无业务逻辑）。
-  - 在录入页内接入 `normalizeSaleDraft()` 生成 payload（尚未提交云端）。
-  - 更新路由 `pages.json` 增加 sale/list 与 sale/edit。
+  - 新增 `src/components/domain/sale` 下的表单区块组件（基础信息/出回瓶/存瓶/流量/整车/代理/收款）。
+  - 销售录入页改用领域组件，并保持页面薄。
+  - `normalizeSaleDraft()` 仍由页面统一汇总提交。
 - 改动文件列表：
-  - `src/pages/sale/list.vue`
+  - `src/components/domain/sale/SaleBasicInfoCard.vue`
+  - `src/components/domain/sale/SaleBottleLinesCard.vue`
+  - `src/components/domain/sale/SaleDepositCard.vue`
+  - `src/components/domain/sale/SaleFlowCard.vue`
+  - `src/components/domain/sale/SaleTruckCard.vue`
+  - `src/components/domain/sale/SaleAgentSaleCard.vue`
+  - `src/components/domain/sale/SaleSettlementCard.vue`
   - `src/pages/sale/edit.vue`
-  - `src/pages.json`
   - `STATE.md`
 - 验证输出要点：未运行 `npm run dev` / `npm run build`。
 - 剩余问题：
-  - 需要接入真实出/回/存瓶明细组件与代理出站录入组件。
-  - 需要接入真实提交云函数（crm-sale）。
+  - 出/回/存瓶与代理出站组件仍为占位，需要接入明细录入 UI。
+  - 需要接入云函数保存。
 
 ### 2026-01-14 CURRENT — Sale 全函数注释补充
+
 
 - 做了什么：
   - 为 `sale.js` 每个函数补充友好注释，标注职责与清理规则。
