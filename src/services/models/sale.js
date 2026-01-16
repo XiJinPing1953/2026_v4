@@ -1,11 +1,13 @@
 const BIZ_MODES = ['bottle', 'truck', 'agent_sale']
 const PRICE_UNITS = ['kg', 'bottle', 'm3']
 
+// 轻量清理：去空白并统一成字符串
 function normalizeString(value) {
 	if (value == null) return ''
 	return String(value).trim()
 }
 
+// 数值兜底：空值/NaN 统一回退
 function toNumber(value, fallback = null) {
 	if (value === '' || value == null) return fallback
 	const num = Number(value)
@@ -13,6 +15,7 @@ function toNumber(value, fallback = null) {
 	return num
 }
 
+// 判定车牌号：用于过滤非瓶号输入
 function isPlateNumber(value) {
 	const str = normalizeString(value)
 	if (!str) return false
@@ -20,6 +23,7 @@ function isPlateNumber(value) {
 	return /^(京|津|沪|渝|冀|豫|云|辽|黑|湘|皖|鲁|新|苏|浙|赣|鄂|桂|甘|晋|蒙|陕|吉|闽|贵|粤|青|藏|川|宁|琼|使|领|WJ|警|学|挂|港|澳|临|军)[A-Z][A-Z0-9]{4,5}$/i.test(str)
 }
 
+// 清理瓶号：去空白、统一大写、过滤车牌/占位符
 function normalizeBottleNo(value) {
 	const no = normalizeString(value).toUpperCase()
 	if (!no || no === 'TRUCK-NO') return ''
@@ -27,6 +31,7 @@ function normalizeBottleNo(value) {
 	return no
 }
 
+// 规范出/回瓶明细：补 net、去重、过滤脏瓶号
 function normalizeBottleRows(rows = []) {
 	const seen = new Set()
 	return rows
@@ -53,6 +58,7 @@ function normalizeBottleRows(rows = []) {
 		.filter(Boolean)
 }
 
+// 规范存瓶：去重并生成标准结构
 function normalizeDepositRows(rows = []) {
 	const seen = new Set()
 	return rows
@@ -66,6 +72,7 @@ function normalizeDepositRows(rows = []) {
 		.map((no) => ({ bottle_no: no, bottle_id: null }))
 }
 
+// 规范代理出站：保留有效灌装行并去重
 function normalizeAgentSaleRows(rows = []) {
 	const seen = new Set()
 	return rows
@@ -86,6 +93,7 @@ function normalizeAgentSaleRows(rows = []) {
 		.filter((row) => row && row.fill_weight > 0)
 }
 
+// 存瓶串：显式 + 隐式合并，按业务模式过滤
 function buildDepositRaw(outItems, backItems, explicitDepositNos, bizMode) {
 	if (bizMode === 'truck' || bizMode === 'agent_sale') return ''
 	const backSet = new Set(backItems.map((item) => item.bottle_no))
@@ -101,6 +109,7 @@ function buildDepositRaw(outItems, backItems, explicitDepositNos, bizMode) {
 	return all.join(' / ')
 }
 
+// 流量结算：统一清理与公式计算
 function normalizeFlow(base, priceUnit, totalNetWeight) {
 	let flowIndexPrev = toNumber(base.flow_index_prev, null)
 	let flowIndexCurr = toNumber(base.flow_index_curr, null)
@@ -144,6 +153,7 @@ function normalizeFlow(base, priceUnit, totalNetWeight) {
 	}
 }
 
+// 入口：将表单草稿规范化为后端可用 payload
 function normalizeSaleDraft(input = {}) {
 	const bizMode = BIZ_MODES.includes(input.bizMode) ? input.bizMode : 'bottle'
 	const priceUnit = PRICE_UNITS.includes(input.priceUnit) ? input.priceUnit : 'kg'

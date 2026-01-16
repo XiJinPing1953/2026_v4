@@ -102,3 +102,13 @@
 - 验证输出要点：未运行 `npm run dev` / `npm run build`。
 - 剩余问题：
   - 仍需完成 B3（models index + mappers 占位）并接入页面。
+
+### 2026-01-14 CURRENT — Sale 全函数注释补充
+- 做了什么：
+  - 为 `sale.js` 每个函数补充友好注释，标注职责与清理规则。
+- 改动文件列表：
+  - `src/services/models/sale.js`
+  - `STATE.md`
+- 验证输出要点：未运行 `npm run dev` / `npm run build`。
+- 剩余问题：
+  - 仍需完成 B3（models index + mappers 占位）并接入页面。
