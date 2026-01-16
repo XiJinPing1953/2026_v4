@@ -92,3 +92,13 @@
 - 剩余问题：
   - 需根据该模型补充 `src/services/models/index.js` 与 `src/services/mappers` 占位（B3）。
   - 需将 `normalizeSaleDraft()` 接入后续 sale 页面（C1）。
+
+### 2026-01-14 CURRENT — Sale 必要注释补充
+- 做了什么：
+  - 在 `sale.js` 增加三处必要注释：车牌过滤、m3 金额公式、模式隔离。
+- 改动文件列表：
+  - `src/services/models/sale.js`
+  - `STATE.md`
+- 验证输出要点：未运行 `npm run dev` / `npm run build`。
+- 剩余问题：
+  - 仍需完成 B3（models index + mappers 占位）并接入页面。

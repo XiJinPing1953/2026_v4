@@ -16,6 +16,7 @@ function toNumber(value, fallback = null) {
 function isPlateNumber(value) {
 	const str = normalizeString(value)
 	if (!str) return false
+	// 车牌号必须过滤掉，避免被误当作瓶号参与流转/存瓶
 	return /^(京|津|沪|渝|冀|豫|云|辽|黑|湘|皖|鲁|新|苏|浙|赣|鄂|桂|甘|晋|蒙|陕|吉|闽|贵|粤|青|藏|川|宁|琼|使|领|WJ|警|学|挂|港|澳|临|军)[A-Z][A-Z0-9]{4,5}$/i.test(str)
 }
 
@@ -119,6 +120,7 @@ function normalizeFlow(base, priceUnit, totalNetWeight) {
 
 	const unitPrice = toNumber(base.unit_price, 0)
 	const flowUnitPrice = unitPrice
+	// m3 强制口径：应收 = flow_volume_m3 * unit_price
 	const flowAmountShould = priceUnit === 'm3' && flowVolumeM3 != null
 		? Number((flowVolumeM3 * flowUnitPrice).toFixed(2))
 		: null
@@ -175,6 +177,7 @@ function normalizeSaleDraft(input = {}) {
 	let depositRows = normalizeDepositRows(input.depositRows)
 	let agentSaleRows = normalizeAgentSaleRows(input.agentSaleRows)
 
+	// 模式隔离：非本模式字段必须清空，避免脏数据落库
 	if (bizMode === 'agent_sale') {
 		outItems = agentSaleRows.map((item) => ({
 			bottle_no: item.bottle_no,
