@@ -103,6 +103,18 @@
 - 剩余问题：
   - 仍需完成 B3（models index + mappers 占位）并接入页面。
 
+### 2026-01-14 CURRENT — B3 models/mappers 入口建立
+- 做了什么：
+  - 新增 `src/services/models/index.js` 统一导出 `Sale` 规范化方法。
+  - 新增 `src/services/mappers/index.js` 作为兼容层入口占位。
+- 改动文件列表：
+  - `src/services/models/index.js`
+  - `src/services/mappers/index.js`
+  - `STATE.md`
+- 验证输出要点：未运行 `npm run dev` / `npm run build`。
+- 剩余问题：
+  - 需要在 C1 接入 `normalizeSaleDraft()` 至 sale 页面流程。
+
 ### 2026-01-14 CURRENT — Sale 全函数注释补充
 - 做了什么：
   - 为 `sale.js` 每个函数补充友好注释，标注职责与清理规则。
