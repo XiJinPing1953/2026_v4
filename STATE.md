@@ -65,3 +65,17 @@
   - `src/uni.scss`
 - 验证输出要点：该提交未在 `STATE.md` 中记录页面渲染/交互验证输出；本次补写记录未复跑本地运行。
 - 剩余问题：需要统一空态/加载/错误态交互规范，并挑选一个示例页做端到端验证后再进入业务迁移。
+
+### 2026-01-14 CURRENT — Sale 模型与规范化（B2 起步）
+- 做了什么：
+  - 新增 `Sale` 前端模型规范化逻辑（支持 `bottle/truck/agent_sale` 三模式与 `kg/bottle/m3` 计价）。
+  - 明确 `price_unit=m3` 时强制 `flow_volume_m3 * unit_price`，并保留瓶装流转明细用于库存/异常检测。
+  - TRUCK 模式按“特殊瓶号容器/车辆实体”处理，避免使用车牌字段冒充瓶号。
+  - 代理出站（agent_sale）保留，行项目由灌装记录生成，自动转出瓶（无回瓶）。
+- 改动文件列表：
+  - `src/services/models/sale.js`
+  - `.gitignore`
+- 验证输出要点：未运行 `npm run dev` / `npm run build`；未部署/调用云函数。
+- 剩余问题：
+  - 需根据该模型补充 `src/services/models/index.js` 与 `src/services/mappers` 占位（B3）。
+  - 需将 `normalizeSaleDraft()` 接入后续 sale 页面（C1）。

@@ -7,3 +7,4 @@ dist
 temp
 *.local
 .env.local
+/docs/about_crm_*.json
