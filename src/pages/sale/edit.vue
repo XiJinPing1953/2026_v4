@@ -20,25 +20,12 @@
 			<SaleAgentSaleCard v-model="agentSaleRows" />
 		</AppSection>
 
-
-		<AppSection title="回瓶">
-			<SaleBottleLinesCard @add="onAddBack" />
-		</AppSection>
-
-		<AppSection title="存瓶">
-			<SaleDepositCard @add="onAddDeposit" />
-		</AppSection>
-
 		<AppSection title="流量结算">
 			<SaleFlowCard v-model="flow" />
 		</AppSection>
 
 		<AppSection title="整车">
 			<SaleTruckCard v-model="truck" />
-		</AppSection>
-
-		<AppSection title="代理出站">
-			<SaleAgentSaleCard @add="onAddAgent" />
 		</AppSection>
 
 		<AppSection title="收款">

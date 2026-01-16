@@ -148,4 +148,15 @@
   - `STATE.md`
 - 验证输出要点：未运行 `npm run dev` / `npm run build`。
 - 剩余问题：
-  - 仍需完成 B3（models index + mappers 占位）并接入页面。
+- 仍需完成 B3（models index + mappers 占位）并接入页面。
+
+### 2026-01-14 CURRENT — 修复 sale/edit.vue 重复区块
+- 做了什么：
+  - 移除 `sale/edit.vue` 中重复的回瓶/存瓶/代理出站区块，避免重复渲染与无效事件引用。
+- 改动文件列表：
+  - `src/pages/sale/edit.vue`
+  - `STATE.md`
+- 验证输出要点：未运行 `npm run dev` / `npm run build`。
+- 剩余问题：
+  - 需要接入云函数保存与列表刷新。
+
