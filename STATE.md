@@ -160,3 +160,14 @@
 - 剩余问题：
   - 需要接入云函数保存与列表刷新。
 
+### 2026-01-14 CURRENT — 修复明细行无响应与刷新消失
+- 做了什么：
+  - 将明细数组从 `reactive([])` 改为 `ref([])`，确保 `v-model` 的数组更新能驱动 UI。
+  - `normalizeSaleDraft()` 通过 `.value` 传入最新明细数组。
+- 改动文件列表：
+  - `src/pages/sale/edit.vue`
+  - `STATE.md`
+- 验证输出要点：未运行 `npm run dev` / `npm run build`。
+- 剩余问题：
+  - 需要接入云函数保存与列表刷新。
+

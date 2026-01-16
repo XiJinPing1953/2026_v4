@@ -40,7 +40,7 @@
 </template>
 
 <script setup>
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppButton from '@/components/base/AppButton.vue'
@@ -82,10 +82,10 @@ const settlement = reactive({
 	paymentNote: ''
 })
 
-const outItems = reactive([])
-const backItems = reactive([])
-const depositRows = reactive([])
-const agentSaleRows = reactive([])
+const outItems = ref([])
+const backItems = ref([])
+const depositRows = ref([])
+const agentSaleRows = ref([])
 
 function onSubmit() {
 	const payload = normalizeSaleDraft({
@@ -106,10 +106,10 @@ function onSubmit() {
 		paymentStatus: settlement.paymentStatus,
 		amountReceived: settlement.amountReceived,
 		paymentNote: settlement.paymentNote,
-		outItems,
-		backItems,
-		depositRows,
-		agentSaleRows
+		outItems: outItems.value,
+		backItems: backItems.value,
+		depositRows: depositRows.value,
+		agentSaleRows: agentSaleRows.value
 	})
 	void payload
 }
