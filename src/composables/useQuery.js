@@ -1,10 +1,30 @@
 import { ref } from 'vue'
 
+const queryCache = new Map()
+
+function getCache(key, ttl) {
+	if (!key) return null
+	const item = queryCache.get(key)
+	if (!item) return null
+	if (ttl == null) return item.value
+	if (Date.now() - item.ts > ttl) {
+		queryCache.delete(key)
+		return null
+	}
+	return item.value
+}
+
+function setCache(key, value) {
+	if (!key) return
+	queryCache.set(key, { value, ts: Date.now() })
+}
+
 export function useQuery(fetcher, options = {}) {
 	const data = ref(options.initialData ?? null)
 	const loading = ref(false)
 	const error = ref('')
 	const empty = ref(false)
+	const lastRunAt = ref(0)
 
 	function resolveEmpty(value) {
 		if (typeof options.isEmpty === 'function') {
@@ -16,6 +36,20 @@ export function useQuery(fetcher, options = {}) {
 	}
 
 	async function run(...args) {
+		const cacheKey = typeof options.cacheKey === 'function' ? options.cacheKey(...args) : options.cacheKey
+		const cacheTTL = options.cacheTTL
+		const throttleMs = Number(options.throttleMs || 0)
+		const now = Date.now()
+		if (throttleMs > 0 && now - lastRunAt.value < throttleMs) return data.value
+		lastRunAt.value = now
+
+		const cached = getCache(cacheKey, cacheTTL)
+		if (cached != null) {
+			data.value = cached
+			empty.value = resolveEmpty(cached)
+			return cached
+		}
+
 		loading.value = true
 		error.value = ''
 		try {
@@ -23,6 +57,7 @@ export function useQuery(fetcher, options = {}) {
 			const finalData = options.transform ? options.transform(result) : result
 			data.value = finalData
 			empty.value = resolveEmpty(finalData)
+			setCache(cacheKey, finalData)
 			options.onSuccess?.(finalData, result)
 			return finalData
 		} catch (err) {

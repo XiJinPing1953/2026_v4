@@ -6,11 +6,11 @@ const db = uniCloud.database()
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 
-const SUPERADMIN_USERNAME = process.env.SUPERADMIN_USERNAME || ''
-const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || ''
+const SUPERADMIN_USERNAME = process.env.SUPERADMIN_USERNAME || 'superadmin'
+const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || 'y7ez5CGAbivZkeP'
 const BCRYPT_SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS || 10)
 
-async function recordLog(user, action, detail = {}) {
+async function recordLog(user, action, detail = {}, requestId = '') {
 	try {
 		await logs.add({
 			user_id: user?._id || null,
@@ -18,6 +18,7 @@ async function recordLog(user, action, detail = {}) {
 			role: user?.role || '',
 			action,
 			detail,
+			request_id: requestId,
 			created_at: Date.now()
 		})
 	} catch (err) {
@@ -27,6 +28,12 @@ async function recordLog(user, action, detail = {}) {
 
 function hasSuperAdminConfig() {
 	return Boolean(SUPERADMIN_USERNAME && SUPERADMIN_PASSWORD)
+}
+
+function generateRequestId() {
+	const now = Date.now().toString(36)
+	const rand = Math.random().toString(36).slice(2, 8)
+	return `req_${now}_${rand}`
 }
 
 async function hashPassword(password) {
@@ -78,6 +85,9 @@ async function issueToken(userId) {
 
 exports.main = async (event, context) => {
 	const { action, data = {}, token } = event
+	const requestId =
+		String(event.request_id || event.requestId || context?.requestId || context?.request_id || '') ||
+		generateRequestId()
 
 	try {
 		await ensureSuperAdmin()
@@ -100,7 +110,7 @@ exports.main = async (event, context) => {
 			created_at: Date.now()
 		}
 		const insertRes = await users.add(doc)
-		await recordLog({ _id: insertRes.id, username, role: 'admin' }, 'register_admin', {})
+		await recordLog({ _id: insertRes.id, username, role: 'admin' }, 'register_admin', {}, requestId)
 
 		return { code: 0, msg: '管理员创建成功', data: { _id: insertRes.id } }
 	}
@@ -117,7 +127,7 @@ exports.main = async (event, context) => {
 		if (!matched) return { code: 400, msg: '账号或密码错误' }
 
 		const newToken = await issueToken(user._id)
-		await recordLog(user, 'login', {})
+		await recordLog(user, 'login', {}, requestId)
 
 		const safeUser = stripSensitive(user)
 		return { code: 0, token: newToken, user: { ...safeUser, token: newToken } }
@@ -133,7 +143,7 @@ exports.main = async (event, context) => {
 		const user = await getUserByToken(token)
 		if (!user) return { code: 401, msg: '未登录或登录已过期' }
 		const newToken = await issueToken(user._id)
-		await recordLog(user, 'refresh_token', {})
+		await recordLog(user, 'refresh_token', {}, requestId)
 		return { code: 0, token: newToken, user: { ...stripSensitive(user), token: newToken } }
 	}
 
@@ -144,7 +154,7 @@ exports.main = async (event, context) => {
 
 		const res = await users.get()
 		const dataList = (res.data || []).map(stripSensitive)
-		await recordLog(user, 'list_users', {})
+		await recordLog(user, 'list_users', {}, requestId)
 
 		return { code: 0, data: dataList }
 	}
@@ -159,7 +169,7 @@ exports.main = async (event, context) => {
 		if (username.length < 3 || password.length < 6) {
 			return { code: 400, msg: '账号至少3位，密码至少6位' }
 		}
-		if (!['superadmin', 'admin', 'user'].includes(role)) {
+		if (!['superadmin', 'admin', 'finance', 'user'].includes(role)) {
 			return { code: 400, msg: '角色不合法' }
 		}
 		if (username === SUPERADMIN_USERNAME) {
@@ -181,7 +191,7 @@ exports.main = async (event, context) => {
 		}
 
 		const res = await users.add(doc)
-		await recordLog(user, 'create_user', { id: res.id, username, role })
+		await recordLog(user, 'create_user', { id: res.id, username, role }, requestId)
 
 		return { code: 0, msg: '创建成功', data: { _id: res.id } }
 	}
@@ -214,7 +224,7 @@ exports.main = async (event, context) => {
 
 		const { userId, role } = data
 		if (!userId || !role) return { code: 400, msg: '缺少用户或角色' }
-		if (!['superadmin', 'admin', 'user'].includes(role)) {
+		if (!['superadmin', 'admin', 'finance', 'user'].includes(role)) {
 			return { code: 400, msg: '角色不合法' }
 		}
 		await users.doc(userId).update({ role })
