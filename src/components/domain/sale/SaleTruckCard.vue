@@ -1,10 +1,10 @@
 <template>
-	<AppCard>
-		<view class="grid-2">
-			<AppInput :model-value="modelValue.truckNo" label="TRUCK 瓶号" placeholder="TRUCK-xxxx" @update:modelValue="(v) => update('truckNo', v)" />
-			<AppInput :model-value="modelValue.truckOutGross" label="出厂毛重" placeholder="kg" @update:modelValue="(v) => update('truckOutGross', v)" />
-			<AppInput :model-value="modelValue.truckBackGross" label="回厂毛重" placeholder="kg" @update:modelValue="(v) => update('truckBackGross', v)" />
-			<AppInput :model-value="modelValue.truckSaleNet" label="计费净重" placeholder="kg" @update:modelValue="(v) => update('truckSaleNet', v)" />
+	<AppCard :padding="size === 'sm' ? '24rpx' : '32rpx'">
+		<view class="truck-grid" :class="{ 'truck-grid--sm': size === 'sm' }">
+			<AppInput :model-value="modelValue.truckNo" label="车牌号 / 罐车号" placeholder="例如 冀A396VN" :size="size" @update:modelValue="(v) => update('truckNo', v)" />
+			<AppInput :model-value="modelValue.truckOutGross" label="出厂毛重" placeholder="kg" :size="size" @update:modelValue="(v) => update('truckOutGross', v)" />
+			<AppInput :model-value="modelValue.truckBackGross" label="回厂毛重" placeholder="kg" :size="size" @update:modelValue="(v) => update('truckBackGross', v)" />
+			<AppInput :model-value="modelValue.truckSaleNet" label="计费净重" placeholder="kg" :size="size" @update:modelValue="(v) => update('truckSaleNet', v)" />
 		</view>
 	</AppCard>
 </template>
@@ -17,7 +17,8 @@ const props = defineProps({
 	modelValue: {
 		type: Object,
 		default: () => ({})
-	}
+	},
+	size: { type: String, default: 'md' }
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -28,13 +29,18 @@ function update(key, value) {
 </script>
 
 <style scoped>
-.grid-2 {
+.truck-grid {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-columns: repeat(2, 1fr);
+	gap: 24rpx;
+}
+
+.truck-grid--sm {
 	gap: 16rpx;
 }
+
 @media (max-width: 600px) {
-	.grid-2 {
+	.truck-grid {
 		grid-template-columns: 1fr;
 	}
 }

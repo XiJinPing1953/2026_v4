@@ -1,28 +1,34 @@
 <template>
-	<AppCard>
+	<AppCard :padding="size === 'sm' ? '20rpx' : '32rpx'">
 		<view class="card-body">
 			<view v-if="rows.length === 0">
 				<AppEmpty title="暂无代理出站" subtitle="点击下方按钮新增" />
 			</view>
 			<view v-else class="rows">
-				<view v-for="(row, index) in rows" :key="index" class="row">
+				<view v-for="(row, index) in rows" :key="index" class="row-item">
 					<view class="row-grid">
-						<AppInput :model-value="row.bottle_no" label="瓶号" placeholder="瓶号" @update:modelValue="(v) => updateRow(index, 'bottle_no', v)" />
-						<AppInput :model-value="row.fill_weight" label="灌装重量" placeholder="kg" @update:modelValue="(v) => updateRow(index, 'fill_weight', v)" />
-						<AppInput :model-value="row.address" label="配送地址" placeholder="客户地址" @update:modelValue="(v) => updateRow(index, 'address', v)" />
-					</view>
-					<view class="row-actions">
-						<AppButton v-if="index === rows.length - 1" class="inline-add" kind="ghost" size="sm" @click="addRow">新增</AppButton>
-						<AppButton kind="ghost" size="sm" @click="removeRow(index)">删除</AppButton>
+						<view class="grid-item">
+							<AppInput :model-value="row.bottle_no" label="瓶号" placeholder="瓶号" :size="size" @update:modelValue="(v) => updateRow(index, 'bottle_no', v)" />
+						</view>
+						<view class="grid-item">
+							<AppInput :model-value="row.fill_weight" label="灌装重量" placeholder="kg" :size="size" @update:modelValue="(v) => updateRow(index, 'fill_weight', v)" />
+						</view>
+						<view class="grid-item address-cell">
+							<AppInput :model-value="row.address" label="配送地址" placeholder="客户地址" :size="size" @update:modelValue="(v) => updateRow(index, 'address', v)" />
+							<view class="btn-del" @click="removeRow(index)">
+								<AppIcon name="close" size="28rpx" color="#ef4444" />
+							</view>
+						</view>
 					</view>
 				</view>
 			</view>
-			<view class="summary">
-				<text class="summary-label">灌装合计</text>
-				<text class="summary-value">{{ totalFillWeight }} kg</text>
-			</view>
-			<view class="actions">
-				<AppButton kind="ghost" @click="addRow">添加代理行</AppButton>
+			
+			<view class="footer-row">
+				<view class="summary-box">
+					<text class="summary-label">灌装合计:</text>
+					<text class="summary-value">{{ totalFillWeight }} kg</text>
+				</view>
+				<AppButton kind="ghost" size="sm" @click="addRow" icon="plus">添加代理行</AppButton>
 			</view>
 		</view>
 	</AppCard>
@@ -34,9 +40,11 @@ import AppCard from '@/components/base/AppCard.vue'
 import AppEmpty from '@/components/base/AppEmpty.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
+import AppIcon from '@/components/base/AppIcon.vue'
 
 const props = defineProps({
-	modelValue: { type: Array, default: () => [] }
+	modelValue: { type: Array, default: () => [] },
+	size: { type: String, default: 'md' }
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -69,53 +77,90 @@ function removeRow(index) {
 .card-body {
 	display: flex;
 	flex-direction: column;
-	gap: 12rpx;
+	gap: 16rpx;
 }
+
 .rows {
 	display: flex;
 	flex-direction: column;
-	gap: 16rpx;
+	gap: 20rpx;
 }
-.row {
+
+.row-item {
 	display: flex;
 	flex-direction: column;
-	gap: 10rpx;
+	gap: 12rpx;
+	padding-bottom: 16rpx;
+	border-bottom: 1rpx dashed #f1f5f9;
 }
+
+.row-item:last-child {
+	border-bottom: none;
+	padding-bottom: 0;
+}
+
 .row-grid {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
+	grid-template-columns: repeat(3, 1fr);
 	gap: 12rpx;
+	align-items: flex-end;
 }
-.row-actions {
+
+.address-cell {
+	position: relative;
+	padding-right: 48rpx;
+}
+
+.btn-del {
+	position: absolute;
+	right: 0;
+	bottom: 24rpx;
+	width: 40rpx;
+	height: 40rpx;
 	display: flex;
-	justify-content: flex-end;
-	gap: 8rpx;
+	align-items: center;
+	justify-content: center;
+	background: #fef2f2;
+	border-radius: 50%;
 }
-.inline-add {
-	padding: 0 16rpx;
-}
-.summary {
+
+.footer-row {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 10rpx 14rpx;
-	background: rgba(37, 99, 235, 0.08);
-	border-radius: 12rpx;
+	margin-top: 12rpx;
+	padding-top: 16rpx;
+	border-top: 1rpx solid #f1f5f9;
 }
-.summary-label {
-	color: var(--crm-text-muted);
-}
-.summary-value {
-	font-weight: 600;
-	color: var(--crm-text);
-}
-.actions {
+
+.summary-box {
 	display: flex;
-	justify-content: flex-end;
+	align-items: center;
+	gap: 8rpx;
 }
+
+.summary-label {
+	font-size: 24rpx;
+	color: #64748b;
+}
+
+.summary-value {
+	font-size: 30rpx;
+	font-weight: 700;
+	color: #0f172a;
+}
+
 @media (max-width: 600px) {
 	.row-grid {
 		grid-template-columns: 1fr;
+	}
+	.address-cell {
+		padding-right: 0;
+	}
+	.btn-del {
+		top: -40rpx;
+		right: 0;
+		bottom: auto;
 	}
 }
 </style>

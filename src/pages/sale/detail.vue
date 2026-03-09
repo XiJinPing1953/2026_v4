@@ -1,11 +1,11 @@
 <template>
-	<SaleEditView :record-id="recordId" />
+	<SaleDetailView :record-id="recordId" />
 </template>
 
 <script setup>
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import SaleEditView from '@/components/domain/sale/SaleEditView.vue'
+import SaleDetailView from '@/components/domain/sale/SaleDetailView.vue'
 
 const recordId = ref('')
 
@@ -14,4 +14,3 @@ onLoad((options) => {
 	recordId.value = id ? String(id) : ''
 })
 </script>
-
