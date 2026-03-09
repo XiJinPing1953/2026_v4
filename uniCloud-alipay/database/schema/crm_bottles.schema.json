@@ -1,0 +1,44 @@
+{
+  "bsonType": "object",
+  "description": "CRM bottles (master data)",
+  "additionalProperties": false,
+  "required": [
+    "bottle_no",
+    "tare_weight",
+    "status",
+    "current_customer_id",
+    "current_customer_name",
+    "remark",
+    "is_active",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "bottle_no": { "bsonType": "string" },
+    "tare_weight": { "bsonType": ["number", "null"] },
+    "status": {
+      "bsonType": "string",
+      "enum": ["unknown", "in_station", "at_customer", "scrapped", "lost"]
+    },
+    "current_customer_id": { "bsonType": ["string", "null"] },
+    "current_customer_name": { "bsonType": "string" },
+    "remark": { "bsonType": "string" },
+    "is_active": { "bsonType": "bool" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "bottle_no": 1 }, "name": "bottle_no", "unique": true },
+    { "key": { "status": 1 }, "name": "idx_status" },
+    { "key": { "current_customer_id": 1 }, "name": "idx_current_customer_id" },
+    { "key": { "is_active": 1, "updated_at": -1 }, "name": "idx_active_updated_at" },
+    { "key": { "updated_at": -1 }, "name": "idx_updated_at" }
+  ]
+}

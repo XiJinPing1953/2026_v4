@@ -1,0 +1,34 @@
+{
+  "bsonType": "object",
+  "description": "CRM vehicles (clean model)",
+  "additionalProperties": false,
+  "required": [
+    "uniq_key",
+    "plate_no",
+    "remark",
+    "is_active",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "uniq_key": { "bsonType": "string" },
+    "plate_no": { "bsonType": "string" },
+    "remark": { "bsonType": "string" },
+    "is_active": { "bsonType": "bool" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "uniq_key": 1 }, "name": "uniq_key", "unique": true },
+    { "key": { "plate_no": 1 }, "name": "idx_plate_no" },
+    { "key": { "is_active": 1, "updated_at": -1 }, "name": "idx_active_updated_at" },
+    { "key": { "updated_at": -1 }, "name": "idx_updated_at" }
+  ]
+}

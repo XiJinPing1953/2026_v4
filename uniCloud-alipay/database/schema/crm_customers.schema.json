@@ -1,0 +1,48 @@
+{
+  "bsonType": "object",
+  "description": "CRM customers (clean model)",
+  "additionalProperties": false,
+  "required": [
+    "uniq_key",
+    "name",
+    "short_name",
+    "contact",
+    "phone",
+    "address",
+    "remark",
+    "is_active",
+    "default_unit_price",
+    "default_price_unit",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "uniq_key": { "bsonType": "string" },
+    "name": { "bsonType": "string" },
+    "short_name": { "bsonType": "string" },
+    "contact": { "bsonType": "string" },
+    "phone": { "bsonType": "string" },
+    "address": { "bsonType": "string" },
+    "remark": { "bsonType": "string" },
+    "is_active": { "bsonType": "bool" },
+    "default_unit_price": { "bsonType": ["number", "null"] },
+    "default_price_unit": { "bsonType": "string", "enum": ["kg", "bottle", "m3"] },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "uniq_key": 1 }, "name": "uniq_key", "unique": true },
+    { "key": { "name": 1 }, "name": "idx_name" },
+    { "key": { "phone": 1 }, "name": "idx_phone" },
+    { "key": { "is_active": 1 }, "name": "idx_is_active" },
+    { "key": { "is_active": 1, "updated_at": -1 }, "name": "idx_active_updated_at" },
+    { "key": { "updated_at": -1 }, "name": "idx_updated_at" }
+  ]
+}

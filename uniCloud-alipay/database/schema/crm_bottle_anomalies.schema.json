@@ -1,0 +1,38 @@
+{
+  "bsonType": "object",
+  "description": "Bottle anomalies (flow issues)",
+  "additionalProperties": false,
+  "required": [
+    "bottle_no",
+    "anomaly_type",
+    "status",
+    "note",
+    "context",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "bottle_no": { "bsonType": "string" },
+    "anomaly_type": { "bsonType": "string" },
+    "fingerprint": { "bsonType": "string" },
+    "status": { "bsonType": "string", "enum": ["open", "resolved"] },
+    "note": { "bsonType": "string" },
+    "context": { "bsonType": "object" },
+    "resolved_by": { "bsonType": ["string", "null"] },
+    "resolved_by_name": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "status": 1, "created_at": -1 }, "name": "idx_status_created_at" },
+    { "key": { "bottle_no": 1, "created_at": -1 }, "name": "idx_bottle_no_created_at" },
+    { "key": { "fingerprint": 1, "status": 1 }, "name": "idx_fingerprint_status" }
+  ]
+}

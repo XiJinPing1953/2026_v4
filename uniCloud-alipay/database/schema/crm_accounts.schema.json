@@ -1,0 +1,46 @@
+{
+  "bsonType": "object",
+  "description": "Chart of accounts (accounting)",
+  "additionalProperties": false,
+  "required": [
+    "code",
+    "name",
+    "type",
+    "direction",
+    "level",
+    "parent_code",
+    "is_active",
+    "remark",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "code": { "bsonType": "string" },
+    "name": { "bsonType": "string" },
+    "type": {
+      "bsonType": "string",
+      "enum": ["asset", "liability", "equity", "revenue", "expense", "cost", "other"]
+    },
+    "direction": { "bsonType": "string", "enum": ["debit", "credit"] },
+    "level": { "bsonType": "number" },
+    "parent_code": { "bsonType": ["string", "null"] },
+    "is_active": { "bsonType": "bool" },
+    "remark": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "code": 1 }, "name": "uniq_code", "unique": true },
+    { "key": { "parent_code": 1 }, "name": "idx_parent_code" },
+    { "key": { "type": 1 }, "name": "idx_type" },
+    { "key": { "is_active": 1, "code": 1 }, "name": "idx_active_code" },
+    { "key": { "updated_at": -1 }, "name": "idx_updated_at" }
+  ]
+}

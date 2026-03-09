@@ -1,0 +1,46 @@
+{
+  "bsonType": "object",
+  "description": "Collection followups",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "customer_id",
+    "customer_name",
+    "action_type",
+    "result",
+    "note",
+    "operator_id",
+    "operator_name",
+    "created_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+
+    "task_id": { "bsonType": "string" },
+    "customer_id": { "bsonType": "string" },
+    "customer_name": { "bsonType": "string" },
+
+    "action_type": { "bsonType": "string" },
+    "result": { "bsonType": "string" },
+
+    "amount_collected": { "bsonType": ["number", "null"] },
+    "note": { "bsonType": "string" },
+    "next_followup_at": { "bsonType": ["number", "null"] },
+
+    "operator_id": { "bsonType": "string" },
+    "operator_name": { "bsonType": "string" },
+
+    "created_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "task_id": 1, "created_at": -1 }, "name": "idx_task_created" },
+    { "key": { "customer_id": 1, "created_at": -1 }, "name": "idx_customer_created" },
+    { "key": { "operator_id": 1, "created_at": -1 }, "name": "idx_operator_created" }
+  ]
+}

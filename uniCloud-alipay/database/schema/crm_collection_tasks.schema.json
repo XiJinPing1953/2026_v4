@@ -1,0 +1,65 @@
+{
+  "bsonType": "object",
+  "description": "Collection tasks (business-level receivable followups)",
+  "additionalProperties": false,
+  "required": [
+    "customer_id",
+    "customer_name",
+    "date_from",
+    "date_to",
+    "amount_should",
+    "amount_received",
+    "amount_unpaid",
+    "status",
+    "priority",
+    "owner_name",
+    "latest_note",
+    "source",
+    "range_key",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+
+    "customer_id": { "bsonType": "string" },
+    "customer_name": { "bsonType": "string" },
+
+    "date_from": { "bsonType": "string" },
+    "date_to": { "bsonType": "string" },
+
+    "sale_count": { "bsonType": ["number", "null"] },
+    "amount_should": { "bsonType": "number" },
+    "amount_received": { "bsonType": "number" },
+    "amount_unpaid": { "bsonType": "number" },
+
+    "status": { "bsonType": "string" },
+    "priority": { "bsonType": "string" },
+
+    "owner_id": { "bsonType": ["string", "null"] },
+    "owner_name": { "bsonType": "string" },
+
+    "last_followup_at": { "bsonType": ["number", "null"] },
+    "next_followup_at": { "bsonType": ["number", "null"] },
+
+    "latest_note": { "bsonType": "string" },
+    "source": { "bsonType": "string" },
+    "range_key": { "bsonType": "string" },
+
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "status": 1, "next_followup_at": 1 }, "name": "idx_status_next" },
+    { "key": { "owner_id": 1, "status": 1, "updated_at": -1 }, "name": "idx_owner_status_updated" },
+    { "key": { "customer_id": 1, "date_from": 1, "date_to": 1 }, "name": "idx_customer_range" },
+    { "key": { "amount_unpaid": -1 }, "name": "idx_unpaid" },
+    { "key": { "range_key": 1 }, "name": "uniq_range_key", "unique": true }
+  ]
+}

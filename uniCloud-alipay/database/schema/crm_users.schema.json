@@ -1,0 +1,24 @@
+{
+  "bsonType": "object",
+  "description": "CRM users (auth)",
+  "additionalProperties": true,
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "username": { "bsonType": "string" },
+    "password_hash": { "bsonType": "string" },
+    "role": { "bsonType": "string" },
+    "token": { "bsonType": "string" },
+    "token_updated_at": { "bsonType": "number" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "username": 1 }, "name": "idx_username", "unique": true }
+  ]
+}

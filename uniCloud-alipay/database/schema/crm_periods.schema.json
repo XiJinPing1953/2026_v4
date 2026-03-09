@@ -1,0 +1,31 @@
+{
+  "bsonType": "object",
+  "description": "Accounting periods",
+  "additionalProperties": false,
+  "required": [
+    "period",
+    "status",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "period": { "bsonType": "string" },
+    "status": { "bsonType": "string", "enum": ["open", "closed"] },
+    "closed_at": { "bsonType": ["number", "null"] },
+    "closed_by": { "bsonType": ["string", "null"] },
+    "closed_by_name": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "period": 1 }, "name": "uniq_period", "unique": true },
+    { "key": { "status": 1 }, "name": "idx_status" }
+  ]
+}

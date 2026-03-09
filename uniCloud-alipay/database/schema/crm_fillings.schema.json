@@ -1,0 +1,37 @@
+{
+  "bsonType": "object",
+  "description": "CRM fillings (filling records)",
+  "additionalProperties": false,
+  "required": [
+    "date",
+    "bottle_no",
+    "fill_weight",
+    "address",
+    "remark",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "date": { "bsonType": "string" },
+    "bottle_no": { "bsonType": "string" },
+    "fill_weight": { "bsonType": "number" },
+    "address": { "bsonType": "string" },
+    "remark": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" },
+    "created_by": { "bsonType": ["string", "null"] },
+    "created_by_name": { "bsonType": "string" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "date": -1, "created_at": -1 }, "name": "idx_date_created_at" },
+    { "key": { "bottle_no": 1 }, "name": "idx_bottle_no" },
+    { "key": { "bottle_no": 1, "date": -1 }, "name": "idx_bottle_date" }
+  ]
+}

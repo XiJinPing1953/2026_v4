@@ -1,0 +1,43 @@
+{
+  "bsonType": "object",
+  "description": "Voucher entries (lines)",
+  "additionalProperties": false,
+  "required": [
+    "voucher_id",
+    "voucher_no",
+    "date",
+    "period",
+    "account_code",
+    "account_name",
+    "direction",
+    "amount",
+    "summary",
+    "created_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "voucher_id": { "bsonType": "string" },
+    "voucher_no": { "bsonType": "string" },
+    "date": { "bsonType": "string" },
+    "period": { "bsonType": "string" },
+    "account_code": { "bsonType": "string" },
+    "account_name": { "bsonType": "string" },
+    "direction": { "bsonType": "string", "enum": ["debit", "credit"] },
+    "amount": { "bsonType": "number" },
+    "summary": { "bsonType": "string" },
+    "aux": { "bsonType": "object" },
+    "created_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "voucher_id": 1 }, "name": "idx_voucher_id" },
+    { "key": { "account_code": 1, "date": 1 }, "name": "idx_account_date" },
+    { "key": { "period": 1 }, "name": "idx_period" },
+    { "key": { "account_code": 1, "aux.customer_id": 1, "date": -1 }, "name": "idx_account_customer_date" }
+  ]
+}

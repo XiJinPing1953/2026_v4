@@ -1,5 +1,5 @@
 {
-	"pages": [ //pages数组中第一项表示应用启动页，参考：https://uniapp.dcloud.io/collocation/pages
+	"pages": [
 		{
 			"path": "pages/index/index",
 			"style": {
@@ -23,6 +23,174 @@
 			"style": {
 				"navigationBarTitleText": "销售录入"
 			}
+		},
+		{
+			"path": "pages/sale/detail",
+			"style": {
+				"navigationBarTitleText": "销售详情"
+			}
+		},
+		{
+			"path": "pages/customer/list",
+			"style": {
+				"navigationBarTitleText": "客户列表"
+			}
+		},
+		{
+			"path": "pages/customer/edit",
+			"style": {
+				"navigationBarTitleText": "客户录入"
+			}
+		},
+		{
+			"path": "pages/bottle/anomaly",
+			"style": {
+				"navigationBarTitleText": "流转异常"
+			}
+		},
+		{
+			"path": "pages/bottle/list",
+			"style": {
+				"navigationBarTitleText": "瓶档列表"
+			}
+		},
+		{
+			"path": "pages/bottle/edit",
+			"style": {
+				"navigationBarTitleText": "瓶档录入"
+			}
+		},
+		{
+			"path": "pages/bottle/movement",
+			"style": {
+				"navigationBarTitleText": "流转记录"
+			}
+		},
+		{
+			"path": "pages/bottle/timeline",
+			"style": {
+				"navigationBarTitleText": "单瓶时间线"
+			}
+		},
+		{
+			"path": "pages/bottle/loss",
+			"style": {
+				"navigationBarTitleText": "损耗统计"
+			}
+		},
+		{
+			"path": "pages/vehicle/list",
+			"style": {
+				"navigationBarTitleText": "车辆列表"
+			}
+		},
+		{
+			"path": "pages/vehicle/edit",
+			"style": {
+				"navigationBarTitleText": "车辆录入"
+			}
+		},
+		{
+			"path": "pages/delivery/list",
+			"style": {
+				"navigationBarTitleText": "配送员列表"
+			}
+		},
+		{
+			"path": "pages/delivery/edit",
+			"style": {
+				"navigationBarTitleText": "配送员录入"
+			}
+		},
+		{
+			"path": "pages/filling/list",
+			"style": {
+				"navigationBarTitleText": "灌装记录"
+			}
+		},
+		{
+			"path": "pages/filling/edit",
+			"style": {
+				"navigationBarTitleText": "灌装录入"
+			}
+		},
+		{
+			"path": "pages/accounting/account-list",
+			"style": {
+				"navigationBarTitleText": "科目表"
+			}
+		},
+		{
+			"path": "pages/accounting/account-edit",
+			"style": {
+				"navigationBarTitleText": "科目录入"
+			}
+		},
+		{
+			"path": "pages/accounting/voucher-list",
+			"style": {
+				"navigationBarTitleText": "凭证列表"
+			}
+		},
+		{
+			"path": "pages/accounting/voucher-edit",
+			"style": {
+				"navigationBarTitleText": "凭证录入"
+			}
+		},
+		{
+			"path": "pages/accounting/ledger-general",
+			"style": {
+				"navigationBarTitleText": "总账"
+			}
+		},
+		{
+			"path": "pages/accounting/ledger-sub",
+			"style": {
+				"navigationBarTitleText": "明细账"
+			}
+		},
+		{
+			"path": "pages/accounting/trial-balance",
+			"style": {
+				"navigationBarTitleText": "试算平衡"
+			}
+		},
+		{
+			"path": "pages/accounting/report-summary",
+			"style": {
+				"navigationBarTitleText": "报表汇总"
+			}
+		},
+		{
+			"path": "pages/accounting/period-list",
+			"style": {
+				"navigationBarTitleText": "账期管理"
+			}
+		},
+		{
+			"path": "pages/accounting/receivable-detail",
+			"style": {
+				"navigationBarTitleText": "往来明细"
+			}
+		},
+		{
+			"path": "pages/collection/task-list",
+			"style": {
+				"navigationBarTitleText": "追款任务"
+			}
+		},
+		{
+			"path": "pages/collection/task-detail",
+			"style": {
+				"navigationBarTitleText": "追款详情"
+			}
+		},
+		{
+			"path": "pages/log/list",
+			"style": {
+				"navigationBarTitleText": "操作日志"
+			}
 		}
 	],
 
@@ -32,5 +200,4 @@
 		"navigationBarBackgroundColor": "#F5F7FB",
 		"backgroundColor": "#F5F7FB"
 	}
-
 }
