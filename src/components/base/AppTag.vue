@@ -12,16 +12,38 @@ defineProps({
 
 <style scoped>
 .tag {
-	padding: 8rpx 14rpx;
-	border-radius: 999rpx;
+	padding: 4rpx 16rpx;
+	border-radius: var(--crm-radius-md);
 	align-self: flex-start;
+	border: 1rpx solid transparent;
 }
 .tag__text {
-	font-size: 22rpx;
+	font-size: 20rpx;
 	font-weight: 700;
+	text-transform: uppercase;
 }
-.tag--info { background: rgba(37, 99, 235, 0.10); color: #1d4ed8; }
-.tag--success { background: rgba(22, 163, 74, 0.10); color: #15803d; }
-.tag--warning { background: rgba(245, 158, 11, 0.12); color: #b45309; }
-.tag--danger { background: rgba(220, 38, 38, 0.10); color: #b91c1c; }
+.tag--info { 
+	background: #f3f3f3; 
+	color: #181818; 
+	border-color: #dddbda;
+}
+.tag--success { 
+	background: #dff0d8; 
+	color: #2e844a; 
+	border-color: #c9e2b3;
+}
+.tag--warning { 
+	background: #fcf8e3; 
+	color: #fe9339; 
+	border-color: #faebcc;
+}
+.tag--danger { 
+	background: #f2dede; 
+	color: #ea001e; 
+	border-color: #ebccd1;
+}
+.tag--soft {
+	background: #eef2f7;
+	color: #0b5cab;
+}
 </style>

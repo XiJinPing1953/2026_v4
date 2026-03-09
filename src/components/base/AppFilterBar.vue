@@ -29,31 +29,31 @@ defineEmits(['search', 'reset'])
 
 <style scoped>
 .filter {
-	background: var(--crm-surface);
-	border-radius: var(--crm-radius-lg);
-	border: 1rpx solid var(--crm-border-weak);
-	box-shadow: var(--crm-shadow-sm);
-	padding: 18rpx;
+	background: #fff;
+	border-radius: var(--crm-radius-sm);
+	border: 1rpx solid var(--crm-border);
+	padding: 24rpx;
 	display: flex;
 	flex-direction: column;
-	gap: var(--crm-gap-sm);
+	gap: 24rpx;
 }
 
 .filter__title {
-	font-size: var(--crm-font-sm);
+	font-size: 24rpx;
 	font-weight: 700;
-	color: var(--crm-text);
+	color: var(--crm-text-muted);
+	text-transform: uppercase;
 }
 
 .filter__fields {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: var(--crm-gap-sm);
+	gap: 24rpx;
 }
 
 .filter__actions {
 	display: flex;
-	gap: var(--crm-gap-sm);
+	gap: 16rpx;
 	justify-content: flex-end;
 }
 

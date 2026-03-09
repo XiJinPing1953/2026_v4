@@ -15,25 +15,26 @@ defineProps({
 
 <style scoped>
 .empty {
-	padding: 36rpx 18rpx;
+	padding: 48rpx 24rpx;
 	border: 1rpx dashed var(--crm-border);
-	border-radius: 18rpx;
-	background: #fff;
+	border-radius: var(--crm-radius-sm);
+	background: #fcfcfc;
 	text-align: center;
 }
 .empty__title {
-	font-size: 28rpx;
-	font-weight: 800;
-	color: var(--crm-text);
+	font-size: 26rpx;
+	font-weight: 700;
+	color: var(--crm-text-muted);
+	text-transform: uppercase;
 }
 .empty__sub {
-	margin-top: 8rpx;
+	margin-top: 12rpx;
 	display: block;
 	font-size: 24rpx;
 	color: var(--crm-text-muted);
 }
 .empty__action {
-	margin-top: 16rpx;
+	margin-top: 24rpx;
 	display: flex;
 	justify-content: center;
 }

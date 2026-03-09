@@ -21,20 +21,25 @@ defineProps({
 <style scoped>
 .section {
 	background: #fff;
-	border-radius: 18rpx;
-	padding: 18rpx;
-	box-shadow: 0 10rpx 28rpx rgba(17, 24, 39, 0.06);
+	border-radius: var(--crm-radius-sm);
+	border: 1rpx solid var(--crm-border);
+	overflow: hidden;
 }
 .section__header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	margin-bottom: 12rpx;
+	padding: 16rpx 24rpx;
+	background: #f8f8f8;
+	border-bottom: 1rpx solid var(--crm-border);
 }
 .section__title {
-	font-size: 30rpx;
-	font-weight: 800;
+	font-size: 28rpx;
+	font-weight: 700;
 	color: var(--crm-text);
+}
+.section__body {
+	padding: 24rpx;
 }
 .section__actions {
 	display: flex;

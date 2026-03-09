@@ -1,24 +1,39 @@
 <template>
 	<view class="item" :class="{ 'item--clickable': clickable }" @click="$emit('click')">
-		<view v-if="title || subtitle || status || $slots.header" class="item__header">
-			<view class="item__heading">
-				<slot name="header">
-					<text v-if="title" class="item__title">{{ title }}</text>
-					<text v-if="subtitle" class="item__subtitle">{{ subtitle }}</text>
+		<view class="item__main">
+			<!-- Left Icon -->
+			<view v-if="icon || $slots.icon" class="item__icon-wrapper" :class="iconClass">
+				<slot name="icon">
+					<AppIcon :name="icon" size="40rpx" color="#fff" />
 				</slot>
 			</view>
-			<AppTag v-if="status" :kind="statusKind">{{ status }}</AppTag>
-			<view v-if="$slots.headerActions" class="item__header-actions">
-				<slot name="headerActions" />
+
+			<!-- Header Content -->
+			<view class="item__content">
+				<view class="item__row">
+					<view class="item__heading">
+						<slot name="header">
+							<text v-if="title" class="item__title">{{ title }}</text>
+							<text v-if="subtitle" class="item__subtitle">{{ subtitle }}</text>
+						</slot>
+					</view>
+					<view class="item__right">
+						<AppTag v-if="status" :kind="statusKind" size="sm">{{ status }}</AppTag>
+						<slot name="right" />
+					</view>
+				</view>
+				
+				<!-- Meta Info (Tags etc) -->
+				<view v-if="$slots.meta" class="item__meta">
+					<slot name="meta" />
+				</view>
 			</view>
 		</view>
 
-		<view v-if="$slots.meta" class="item__meta">
-			<slot name="meta" />
-		</view>
 		<view v-if="$slots.default" class="item__body">
 			<slot />
 		</view>
+		
 		<view v-if="$slots.footer" class="item__footer">
 			<slot name="footer" />
 		</view>
@@ -27,13 +42,16 @@
 
 <script setup>
 import AppTag from '@/components/base/AppTag.vue'
+import AppIcon from '@/components/base/AppIcon.vue'
 
 defineProps({
 	title: { type: String, default: '' },
 	subtitle: { type: String, default: '' },
 	status: { type: String, default: '' },
 	statusKind: { type: String, default: 'info' },
-	clickable: { type: Boolean, default: false }
+	clickable: { type: Boolean, default: false },
+	icon: { type: String, default: '' },
+	iconClass: { type: String, default: 'bg-primary' }
 })
 
 defineEmits(['click'])
@@ -41,72 +59,106 @@ defineEmits(['click'])
 
 <style scoped>
 .item {
-	background: var(--crm-surface);
-	border-radius: var(--crm-radius-lg);
-	padding: 18rpx;
-	border: 1rpx solid var(--crm-border-weak);
-	box-shadow: var(--crm-shadow-sm);
+	background: #fff;
+	border-radius: var(--crm-radius-sm);
+	padding: 24rpx;
+	border: 1rpx solid var(--crm-border);
 	display: flex;
 	flex-direction: column;
-	gap: var(--crm-gap-sm);
-}
-
-.item--clickable {
-	transition: transform 0.12s ease, box-shadow 0.12s ease;
+	gap: 16rpx;
+	transition: background 0.2s;
+	position: relative;
+	overflow: hidden;
 }
 
 .item--clickable:active {
-	transform: translateY(2rpx);
-	box-shadow: var(--crm-shadow-md);
+	background: #f3f3f3;
 }
 
-.item__header {
+.item__main {
 	display: flex;
+	gap: 24rpx;
 	align-items: flex-start;
+}
+
+.item__icon-wrapper {
+	width: 80rpx;
+	height: 80rpx;
+	border-radius: var(--crm-radius-sm);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.item__content {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 4rpx;
+	min-width: 0;
+}
+
+.item__row {
+	display: flex;
 	justify-content: space-between;
-	gap: var(--crm-gap-sm);
+	align-items: flex-start;
+	gap: 20rpx;
 }
 
 .item__heading {
 	display: flex;
 	flex-direction: column;
-	gap: 6rpx;
+	gap: 4rpx;
+	flex: 1;
 }
 
 .item__title {
-	font-size: var(--crm-font-md);
+	font-size: 28rpx;
 	font-weight: 700;
 	color: var(--crm-text);
+	line-height: 1.4;
 }
 
 .item__subtitle {
-	font-size: var(--crm-font-sm);
+	font-size: 24rpx;
 	color: var(--crm-text-muted);
+}
+
+.item__right {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 8rpx;
 }
 
 .item__meta {
+	margin-top: 8rpx;
 	display: flex;
 	flex-wrap: wrap;
-	gap: var(--crm-gap-xs);
-	color: var(--crm-text-muted);
-	font-size: var(--crm-font-sm);
+	gap: 12rpx;
+	align-items: center;
 }
 
 .item__body {
-	display: flex;
-	flex-direction: column;
-	gap: var(--crm-gap-xs);
+	padding-top: 16rpx;
+	border-top: 1rpx solid var(--crm-border);
 }
 
 .item__footer {
 	display: flex;
 	justify-content: flex-end;
-	gap: var(--crm-gap-sm);
+	gap: 16rpx;
+	margin-top: 8rpx;
 }
 
-.item__header-actions {
-	display: flex;
-	gap: var(--crm-gap-xs);
-	align-items: center;
-}
+/* SLDS Inspired Icon Colors */
+.bg-primary { background: #0176d3; }
+.bg-success { background: #2e844a; }
+.bg-warning { background: #fe9339; }
+.bg-danger { background: #ea001e; }
+.bg-info { background: #0b5cab; }
+.bg-purple { background: #7c3aed; }
+.bg-teal { background: #00a1e0; }
+.bg-emerald { background: #00b19d; }
 </style>

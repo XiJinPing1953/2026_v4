@@ -1,28 +1,42 @@
 <template>
-	<view class="card" :class="variant ? `card--${variant}` : ''">
-		<view v-if="title" class="card__title">{{ title }}</view>
-		<slot />
+	<view class="card" :class="[variant ? `card--${variant}` : '']" :style="{ padding: padding }">
+		<view v-if="title" class="card__header">
+			<text class="card__title">{{ title }}</text>
+		</view>
+		<view class="card__body">
+			<slot />
+		</view>
 	</view>
 </template>
 
 <script setup>
 defineProps({
 	title: { type: String, default: '' },
-	variant: { type: String, default: '' }
+	variant: { type: String, default: '' },
+	padding: { type: String, default: '24rpx' }
 })
 </script>
 
 <style scoped>
 .card {
 	background: #fff;
-	border-radius: 16rpx;
-	padding: 20rpx;
-	box-shadow: 0 10rpx 28rpx rgba(17, 24, 39, 0.06);
+	border-radius: var(--crm-radius-sm);
+	border: 1rpx solid var(--crm-border);
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+.card__header {
+	padding: 16rpx 24rpx;
+	border-bottom: 1rpx solid var(--crm-border);
+	background: #f8f8f8;
 }
 .card__title {
-	font-size: 30rpx;
+	font-size: 28rpx;
 	font-weight: 700;
-	color: #111827;
-	margin-bottom: 12rpx;
+	color: var(--crm-text);
+}
+.card__body {
+	flex: 1;
 }
 </style>
