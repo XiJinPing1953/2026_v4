@@ -8,3 +8,9 @@ temp
 *.local
 .env.local
 /docs/about_crm_*.json
+.trae/
+u_want/
+state/import/.DS_Store
+state/import/legacy_v2_to_v4/*
+!state/import/legacy_v2_to_v4/README.md
+!state/import/legacy_v2_to_v4/.gitignore

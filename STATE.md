@@ -3126,3 +3126,33 @@
 - 剩余问题：
   - 本次为代码与本地数据口径验证，尚未在线上云环境完成 `cycleLossV1` 实际调用回归。
   - 当前仅支持单瓶统计；全量瓶统计与批量巡检仍待下一阶段扩展。
+
+### 2026-03-11 CURRENT — 仓库清理第一批（去重页面 + 导入资料本地化）
+- 做了什么：
+  - 删除未被 `pages.json` 使用、且仅自引用跳转的旧会计页面实现，避免双路径并存：
+    - `src/pages/accounting/account/edit.vue`
+    - `src/pages/accounting/account/list.vue`
+    - `src/pages/accounting/ledger/general.vue`
+    - `src/pages/accounting/ledger/sub.vue`
+    - `src/pages/accounting/voucher/edit.vue`
+    - `src/pages/accounting/voucher/list.vue`
+  - 更新根 `.gitignore`，将临时资料与导入产物切换为“默认不入库”：
+    - `.trae/`
+    - `u_want/`
+    - `state/import/legacy_v2_to_v4/*`（保留 `README.md` 与目录内 `.gitignore`）
+  - 新增 `state/import/legacy_v2_to_v4/.gitignore`，固定导入目录仅跟踪说明文件。
+- 改动文件列表：
+  - `.gitignore`
+  - `state/import/legacy_v2_to_v4/.gitignore`
+  - `src/pages/accounting/account/edit.vue`
+  - `src/pages/accounting/account/list.vue`
+  - `src/pages/accounting/ledger/general.vue`
+  - `src/pages/accounting/ledger/sub.vue`
+  - `src/pages/accounting/voucher/edit.vue`
+  - `src/pages/accounting/voucher/list.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已执行引用检查：旧路径仅在旧页面文件内自引用，不在 `pages.json` 与域组件导航中使用。
+  - 本批次不改运行时业务逻辑；构建验证在提交前统一执行。
+- 剩余问题：
+  - `u_want/` 与 `state/import/**` 既有历史文件将通过索引清理（`git rm --cached`）从仓库移除，但本地文件保留，需在本批提交中完成。
