@@ -36,3 +36,12 @@ export async function updateBottleV1(data) {
 		data
 	})
 }
+
+export async function auditBottleUniqueFieldsV1(params = {}) {
+	return callCloud('crm-bottle', {
+		action: 'auditUniqueFieldsV1',
+		data: {
+			sampleLimit: params.sampleLimit || 20
+		}
+	})
+}

@@ -19,32 +19,147 @@
 						<text class="pill-value">{{ activeLabel }}</text>
 					</view>
 					<view class="info-pill">
-						<text class="pill-label">标准皮重</text>
-						<text class="pill-value">{{ tareSummary }}</text>
+						<text class="pill-label">钢瓶下检</text>
+						<text class="pill-value">{{ bottleNextSummary }}</text>
 					</view>
 					<view class="info-pill">
-						<text class="pill-label">当前客户</text>
-						<text class="pill-value">{{ holderSummary }}</text>
+						<text class="pill-label">压力表下检</text>
+						<text class="pill-value">{{ gaugeNextSummary }}</text>
 					</view>
 				</view>
 			</AppCard>
 
 			<view class="form-body">
-				<AppSection title="基础信息">
+				<AppSection title="钢瓶本体信息">
 					<view class="form-grid">
-						<view class="form-item span-2">
-							<AppInput v-model="form.bottle_no" label="钢瓶编号" placeholder="请输入瓶身上唯一编号" prefix-icon="bottle" size="sm" />
+						<view class="form-item">
+							<AppInput v-model="form.bottle_no" label="单位内编号" placeholder="现有钢瓶编号" prefix-icon="bottle" size="sm" />
 						</view>
 						<view class="form-item">
-							<AppInput v-model="form.tare_weight" label="标准皮重" placeholder="0.00" size="sm" />
+							<AppInput v-model="form.filling_company" label="充装单位" placeholder="例如：无极县新拓能源开发有限公司" size="sm" />
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.registration_mark" label="登记证标号" placeholder="例如：瓶32冀A02039(23)" size="sm" />
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.equipment_type" label="设备品种" placeholder="例如：焊接气瓶" size="sm" />
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.product_no" label="产品编号" placeholder="例如：DA16-02-002" size="sm" />
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.qr_code" label="二维码号" placeholder="例如：02546000665" size="sm" />
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.manufacturer" label="制造单位" placeholder="例如：河北润丰低温设备有限公司" size="sm" />
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.volume_l" label="容积（L）" placeholder="例如：100" size="sm" />
+						</view>
+						<view class="form-item">
+							<picker class="picker-full" mode="date" :value="form.manufacture_date" @change="onManufactureDateChange">
+								<AppInput :model-value="form.manufacture_date" label="制造日期" placeholder="请选择制造日期" disabled prefix-icon="calendar" size="sm" />
+							</picker>
+						</view>
+						<view class="form-item">
+							<picker class="picker-full" mode="date" :value="form.scrap_due_date" @change="onScrapDueDateChange">
+								<AppInput :model-value="form.scrap_due_date" label="报废期限" placeholder="请选择报废期限" disabled prefix-icon="calendar" size="sm" />
+							</picker>
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.tare_weight" label="标准皮重（kg）" placeholder="0.00（选填）" size="sm" />
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.current_customer_name" label="持有客户" placeholder="当前所在客户名称（选填）" prefix-icon="user" size="sm" />
 						</view>
 						<view class="form-item">
 							<picker class="picker-full" mode="selector" :range="statusOptions" range-key="label" @change="onStatusChange">
 								<AppInput :model-value="statusLabel" label="当前流向" placeholder="请选择状态" disabled prefix-icon="list" size="sm" />
 							</picker>
 						</view>
-						<view class="form-item span-2">
-							<AppInput v-model="form.current_customer_name" label="持有客户" placeholder="当前所在客户名称" prefix-icon="user" size="sm" />
+					</view>
+				</AppSection>
+
+				<AppSection title="钢瓶检验">
+					<view class="form-grid">
+						<view class="form-item">
+							<picker class="picker-full" mode="date" :value="form.bottle_check_date" @change="onBottleCheckDateChange">
+								<AppInput :model-value="form.bottle_check_date" label="检验日期" placeholder="请选择检验日期" disabled prefix-icon="calendar" size="sm" />
+							</picker>
+						</view>
+						<view class="form-item">
+							<picker class="picker-full" mode="selector" :range="cycleOptions" range-key="label" @change="onBottleCycleChange">
+								<AppInput :model-value="bottleCycleLabel" label="检测周期" placeholder="请选择周期" disabled prefix-icon="list" size="sm" />
+							</picker>
+						</view>
+						<view class="form-item">
+							<picker class="picker-full" mode="date" :value="form.bottle_next_check_date" @change="onBottleNextCheckDateChange">
+								<AppInput :model-value="form.bottle_next_check_date" label="下次检验日期" placeholder="自动生成或手动选择" disabled prefix-icon="calendar" size="sm" />
+							</picker>
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.bottle_check_fee" label="检测费用（元）" placeholder="选填" size="sm" />
+						</view>
+					</view>
+				</AppSection>
+
+				<AppSection title="压力表信息">
+					<view class="form-grid">
+						<view class="form-item">
+							<AppInput v-model="form.pressure_gauge_no" label="压力表号" placeholder="唯一数字编号" size="sm" />
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.pressure_gauge_manufacturer" label="生产厂家" placeholder="选填" size="sm" />
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.pressure_gauge_range_min" label="压力下限" placeholder="例如：0" size="sm" />
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.pressure_gauge_range_max" label="压力上限" placeholder="例如：2.8" size="sm" />
+						</view>
+						<view class="form-item">
+							<picker class="picker-full" mode="date" :value="form.pressure_gauge_check_date" @change="onGaugeCheckDateChange">
+								<AppInput :model-value="form.pressure_gauge_check_date" label="检验日期" placeholder="请选择检验日期" disabled prefix-icon="calendar" size="sm" />
+							</picker>
+						</view>
+						<view class="form-item">
+							<picker class="picker-full" mode="selector" :range="cycleOptions" range-key="label" @change="onGaugeCycleChange">
+								<AppInput :model-value="gaugeCycleLabel" label="检测周期" placeholder="请选择周期" disabled prefix-icon="list" size="sm" />
+							</picker>
+						</view>
+						<view class="form-item">
+							<picker class="picker-full" mode="date" :value="form.pressure_gauge_next_check_date" @change="onGaugeNextCheckDateChange">
+								<AppInput :model-value="form.pressure_gauge_next_check_date" label="下次检验日期" placeholder="自动生成或手动选择" disabled prefix-icon="calendar" size="sm" />
+							</picker>
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.pressure_gauge_check_fee" label="检测费用（元）" placeholder="选填" size="sm" />
+						</view>
+					</view>
+				</AppSection>
+
+				<AppSection title="安全阀信息（2个阀共用检测）">
+					<view class="form-grid">
+						<view class="form-item">
+							<AppInput :model-value="String(form.safety_valve_count)" label="安全阀数量" disabled size="sm" />
+						</view>
+						<view class="form-item">
+							<picker class="picker-full" mode="date" :value="form.safety_valve_check_date" @change="onValveCheckDateChange">
+								<AppInput :model-value="form.safety_valve_check_date" label="检测日期" placeholder="请选择检测日期" disabled prefix-icon="calendar" size="sm" />
+							</picker>
+						</view>
+						<view class="form-item">
+							<picker class="picker-full" mode="selector" :range="cycleOptions" range-key="label" @change="onValveCycleChange">
+								<AppInput :model-value="valveCycleLabel" label="检测周期" placeholder="请选择周期" disabled prefix-icon="list" size="sm" />
+							</picker>
+						</view>
+						<view class="form-item">
+							<picker class="picker-full" mode="date" :value="form.safety_valve_next_check_date" @change="onValveNextCheckDateChange">
+								<AppInput :model-value="form.safety_valve_next_check_date" label="下次检测日期" placeholder="自动生成或手动选择" disabled prefix-icon="calendar" size="sm" />
+							</picker>
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.safety_valve_check_fee" label="检测费用（元）" placeholder="选填" size="sm" />
 						</view>
 					</view>
 				</AppSection>
@@ -81,6 +196,8 @@ const props = defineProps({
 	recordId: { type: String, default: '' }
 })
 
+const CHECK_CYCLE_MONTHS = [6, 12, 24, 36]
+
 const recordId = toRef(props, 'recordId')
 const submitting = ref(false)
 
@@ -97,11 +214,44 @@ const activeOptions = [
 	{ label: '已停用', value: false }
 ]
 
+const cycleOptions = [
+	{ label: '半年', value: 6 },
+	{ label: '1 年', value: 12 },
+	{ label: '2 年', value: 24 },
+	{ label: '3 年', value: 36 }
+]
+
 const form = reactive({
 	bottle_no: '',
+	filling_company: '',
+	registration_mark: '',
+	equipment_type: '',
+	product_no: '',
+	qr_code: '',
+	manufacturer: '',
+	volume_l: '',
+	manufacture_date: '',
+	scrap_due_date: '',
 	tare_weight: '',
 	status: 'unknown',
 	current_customer_name: '',
+	bottle_check_date: '',
+	bottle_next_check_date: '',
+	bottle_check_cycle_months: 12,
+	bottle_check_fee: '',
+	pressure_gauge_no: '',
+	pressure_gauge_manufacturer: '',
+	pressure_gauge_range_min: '',
+	pressure_gauge_range_max: '',
+	pressure_gauge_check_date: '',
+	pressure_gauge_next_check_date: '',
+	pressure_gauge_cycle_months: 12,
+	pressure_gauge_check_fee: '',
+	safety_valve_count: 2,
+	safety_valve_check_date: '',
+	safety_valve_next_check_date: '',
+	safety_valve_cycle_months: 12,
+	safety_valve_check_fee: '',
 	remark: '',
 	is_active: true
 })
@@ -113,15 +263,86 @@ const statusLabel = computed(() => {
 
 const activeLabel = computed(() => (form.is_active ? '启用中' : '已停用'))
 
-const tareSummary = computed(() => {
-	const value = String(form.tare_weight || '').trim()
-	return value ? `${value} kg` : '未填写'
-})
+const bottleCycleLabel = computed(() => getCycleLabel(form.bottle_check_cycle_months))
+const gaugeCycleLabel = computed(() => getCycleLabel(form.pressure_gauge_cycle_months))
+const valveCycleLabel = computed(() => getCycleLabel(form.safety_valve_cycle_months))
 
-const holderSummary = computed(() => {
-	const value = String(form.current_customer_name || '').trim()
-	return value || '库内待命'
-})
+const bottleNextSummary = computed(() => normalizeString(form.bottle_next_check_date) || '未设置')
+const gaugeNextSummary = computed(() => normalizeString(form.pressure_gauge_next_check_date) || '未设置')
+
+function normalizeString(value) {
+	if (value == null) return ''
+	return String(value).trim()
+}
+
+function toDisplayNumber(value) {
+	if (value == null || value === '') return ''
+	return String(value)
+}
+
+function toNullableNumber(value) {
+	const text = normalizeString(value)
+	if (!text) return null
+	const num = Number(text)
+	return Number.isFinite(num) ? num : NaN
+}
+
+function isValidDateString(value) {
+	const text = normalizeString(value)
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false
+	const [year, month, day] = text.split('-').map((item) => Number(item))
+	if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false
+	if (month < 1 || month > 12) return false
+	const maxDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
+	return day >= 1 && day <= maxDay
+}
+
+function addMonths(dateText, months) {
+	if (!isValidDateString(dateText)) return ''
+	const [year, month, day] = dateText.split('-').map((item) => Number(item))
+	const totalMonth = month - 1 + Number(months || 0)
+	const targetYear = year + Math.floor(totalMonth / 12)
+	const targetMonth = ((totalMonth % 12) + 12) % 12
+	const maxDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate()
+	const safeDay = Math.min(day, maxDay)
+	const y = String(targetYear).padStart(4, '0')
+	const m = String(targetMonth + 1).padStart(2, '0')
+	const d = String(safeDay).padStart(2, '0')
+	return `${y}-${m}-${d}`
+}
+
+function isCycleValid(value) {
+	return CHECK_CYCLE_MONTHS.includes(Number(value))
+}
+
+function normalizeCycle(value, fallback = 12) {
+	const num = Number(value)
+	if (Number.isInteger(num) && CHECK_CYCLE_MONTHS.includes(num)) return num
+	return fallback
+}
+
+function getCycleLabel(value) {
+	const item = cycleOptions.find((opt) => opt.value === Number(value))
+	return item?.label || '未设置'
+}
+
+function autoBottleNextDate() {
+	if (!isValidDateString(form.bottle_check_date)) return
+	if (!isCycleValid(form.bottle_check_cycle_months)) return
+	form.bottle_next_check_date = addMonths(form.bottle_check_date, form.bottle_check_cycle_months)
+}
+
+function autoGaugeNextDate() {
+	if (!isValidDateString(form.pressure_gauge_check_date)) return
+	if (!isCycleValid(form.pressure_gauge_cycle_months)) return
+	form.pressure_gauge_next_check_date = addMonths(form.pressure_gauge_check_date, form.pressure_gauge_cycle_months)
+}
+
+function autoValveNextDate() {
+	if (!isValidDateString(form.safety_valve_check_date)) return
+	if (!isCycleValid(form.safety_valve_cycle_months)) return
+	form.safety_valve_next_check_date = addMonths(form.safety_valve_check_date, form.safety_valve_cycle_months)
+}
 
 function onStatusChange(e) {
 	const idx = Number(e?.detail?.value)
@@ -135,6 +356,65 @@ function onActiveChange(e) {
 	if (item) form.is_active = Boolean(item.value)
 }
 
+function onManufactureDateChange(e) {
+	form.manufacture_date = e?.detail?.value || ''
+}
+
+function onScrapDueDateChange(e) {
+	form.scrap_due_date = e?.detail?.value || ''
+}
+
+function onBottleCheckDateChange(e) {
+	form.bottle_check_date = e?.detail?.value || ''
+	autoBottleNextDate()
+}
+
+function onBottleCycleChange(e) {
+	const idx = Number(e?.detail?.value)
+	const item = cycleOptions[idx]
+	if (!item) return
+	form.bottle_check_cycle_months = item.value
+	autoBottleNextDate()
+}
+
+function onBottleNextCheckDateChange(e) {
+	form.bottle_next_check_date = e?.detail?.value || ''
+}
+
+function onGaugeCheckDateChange(e) {
+	form.pressure_gauge_check_date = e?.detail?.value || ''
+	autoGaugeNextDate()
+}
+
+function onGaugeCycleChange(e) {
+	const idx = Number(e?.detail?.value)
+	const item = cycleOptions[idx]
+	if (!item) return
+	form.pressure_gauge_cycle_months = item.value
+	autoGaugeNextDate()
+}
+
+function onGaugeNextCheckDateChange(e) {
+	form.pressure_gauge_next_check_date = e?.detail?.value || ''
+}
+
+function onValveCheckDateChange(e) {
+	form.safety_valve_check_date = e?.detail?.value || ''
+	autoValveNextDate()
+}
+
+function onValveCycleChange(e) {
+	const idx = Number(e?.detail?.value)
+	const item = cycleOptions[idx]
+	if (!item) return
+	form.safety_valve_cycle_months = item.value
+	autoValveNextDate()
+}
+
+function onValveNextCheckDateChange(e) {
+	form.safety_valve_next_check_date = e?.detail?.value || ''
+}
+
 async function loadRecord(id) {
 	const res = await getBottleV1({ _id: id })
 	if (res?.code !== 0 || !res?.data) {
@@ -143,11 +423,37 @@ async function loadRecord(id) {
 	}
 	const doc = res.data
 	form.bottle_no = doc.bottle_no || ''
-	form.tare_weight = doc.tare_weight == null ? '' : String(doc.tare_weight)
+	form.filling_company = doc.filling_company || ''
+	form.registration_mark = doc.registration_mark || ''
+	form.equipment_type = doc.equipment_type || ''
+	form.product_no = doc.product_no || ''
+	form.qr_code = doc.qr_code || ''
+	form.manufacturer = doc.manufacturer || ''
+	form.volume_l = toDisplayNumber(doc.volume_l)
+	form.manufacture_date = doc.manufacture_date || ''
+	form.scrap_due_date = doc.scrap_due_date || ''
+	form.tare_weight = toDisplayNumber(doc.tare_weight)
 	form.status = doc.status || 'unknown'
 	form.current_customer_name = doc.current_customer_name || ''
+	form.bottle_check_date = doc.bottle_check_date || ''
+	form.bottle_next_check_date = doc.bottle_next_check_date || ''
+	form.bottle_check_cycle_months = normalizeCycle(doc.bottle_check_cycle_months, 12)
+	form.bottle_check_fee = toDisplayNumber(doc.bottle_check_fee)
+	form.pressure_gauge_no = doc.pressure_gauge_no || ''
+	form.pressure_gauge_manufacturer = doc.pressure_gauge_manufacturer || ''
+	form.pressure_gauge_range_min = toDisplayNumber(doc.pressure_gauge_range_min)
+	form.pressure_gauge_range_max = toDisplayNumber(doc.pressure_gauge_range_max)
+	form.pressure_gauge_check_date = doc.pressure_gauge_check_date || ''
+	form.pressure_gauge_next_check_date = doc.pressure_gauge_next_check_date || ''
+	form.pressure_gauge_cycle_months = normalizeCycle(doc.pressure_gauge_cycle_months, 12)
+	form.pressure_gauge_check_fee = toDisplayNumber(doc.pressure_gauge_check_fee)
+	form.safety_valve_count = 2
+	form.safety_valve_check_date = doc.safety_valve_check_date || ''
+	form.safety_valve_next_check_date = doc.safety_valve_next_check_date || ''
+	form.safety_valve_cycle_months = normalizeCycle(doc.safety_valve_cycle_months, 12)
+	form.safety_valve_check_fee = toDisplayNumber(doc.safety_valve_check_fee)
 	form.remark = doc.remark || ''
-	form.is_active = Boolean(doc.is_active)
+	form.is_active = doc.is_active !== false
 }
 
 watch(
@@ -159,21 +465,103 @@ watch(
 	{ immediate: true }
 )
 
+function assert(condition, message) {
+	if (condition) return true
+	uni.showToast({ title: message, icon: 'none' })
+	return false
+}
+
 async function onSubmit() {
 	if (submitting.value) return
-	if (!String(form.bottle_no || '').trim()) {
-		uni.showToast({ title: '钢瓶号必填', icon: 'none' })
-		return
+
+	const requiredTextChecks = [
+		{ value: form.bottle_no, msg: '单位内编号必填' },
+		{ value: form.filling_company, msg: '充装单位必填' },
+		{ value: form.registration_mark, msg: '登记证标号必填' },
+		{ value: form.equipment_type, msg: '设备品种必填' },
+		{ value: form.product_no, msg: '产品编号必填' },
+		{ value: form.qr_code, msg: '二维码号必填' },
+		{ value: form.pressure_gauge_no, msg: '压力表号必填' }
+	]
+
+	for (const item of requiredTextChecks) {
+		if (!assert(Boolean(normalizeString(item.value)), item.msg)) return
 	}
+
+	const volume = toNullableNumber(form.volume_l)
+	if (!assert(typeof volume === 'number' && volume > 0, '容积必须为大于 0 的数字')) return
+
+	const pressureMin = toNullableNumber(form.pressure_gauge_range_min)
+	const pressureMax = toNullableNumber(form.pressure_gauge_range_max)
+	if (!assert(typeof pressureMin === 'number' && pressureMin >= 0, '压力下限必须为非负数字')) return
+	if (!assert(typeof pressureMax === 'number' && pressureMax >= 0, '压力上限必须为非负数字')) return
+	if (!assert(pressureMin <= pressureMax, '压力下限不能大于上限')) return
+
+	const requiredDates = [
+		{ value: form.manufacture_date, msg: '制造日期必填且格式正确' },
+		{ value: form.scrap_due_date, msg: '报废期限必填且格式正确' },
+		{ value: form.bottle_check_date, msg: '钢瓶检验日期必填且格式正确' },
+		{ value: form.bottle_next_check_date, msg: '钢瓶下次检验日期必填且格式正确' },
+		{ value: form.pressure_gauge_check_date, msg: '压力表检验日期必填且格式正确' },
+		{ value: form.pressure_gauge_next_check_date, msg: '压力表下次检验日期必填且格式正确' },
+		{ value: form.safety_valve_check_date, msg: '安全阀检测日期必填且格式正确' },
+		{ value: form.safety_valve_next_check_date, msg: '安全阀下次检测日期必填且格式正确' }
+	]
+
+	for (const item of requiredDates) {
+		if (!assert(isValidDateString(item.value), item.msg)) return
+	}
+
+	if (!assert(isCycleValid(form.bottle_check_cycle_months), '钢瓶检测周期无效')) return
+	if (!assert(isCycleValid(form.pressure_gauge_cycle_months), '压力表检测周期无效')) return
+	if (!assert(isCycleValid(form.safety_valve_cycle_months), '安全阀检测周期无效')) return
+
+	const tareWeight = toNullableNumber(form.tare_weight)
+	if (!assert(tareWeight == null || (typeof tareWeight === 'number' && tareWeight >= 0), '标准皮重必须为非负数字')) return
+
+	const bottleCheckFee = toNullableNumber(form.bottle_check_fee)
+	if (!assert(bottleCheckFee == null || (typeof bottleCheckFee === 'number' && bottleCheckFee >= 0), '钢瓶检测费用必须为非负数字')) return
+
+	const gaugeCheckFee = toNullableNumber(form.pressure_gauge_check_fee)
+	if (!assert(gaugeCheckFee == null || (typeof gaugeCheckFee === 'number' && gaugeCheckFee >= 0), '压力表检测费用必须为非负数字')) return
+
+	const valveCheckFee = toNullableNumber(form.safety_valve_check_fee)
+	if (!assert(valveCheckFee == null || (typeof valveCheckFee === 'number' && valveCheckFee >= 0), '安全阀检测费用必须为非负数字')) return
 
 	submitting.value = true
 	try {
 		const payload = {
-			bottle_no: String(form.bottle_no || '').trim(),
-			tare_weight: String(form.tare_weight || '').trim() === '' ? null : Number(form.tare_weight),
+			bottle_no: normalizeString(form.bottle_no),
+			filling_company: normalizeString(form.filling_company),
+			registration_mark: normalizeString(form.registration_mark),
+			equipment_type: normalizeString(form.equipment_type),
+			product_no: normalizeString(form.product_no),
+			qr_code: normalizeString(form.qr_code),
+			manufacturer: normalizeString(form.manufacturer),
+			volume_l: volume,
+			manufacture_date: normalizeString(form.manufacture_date),
+			scrap_due_date: normalizeString(form.scrap_due_date),
+			tare_weight: tareWeight,
 			status: form.status,
-			current_customer_name: String(form.current_customer_name || '').trim(),
-			remark: String(form.remark || '').trim(),
+			current_customer_name: normalizeString(form.current_customer_name),
+			bottle_check_date: normalizeString(form.bottle_check_date),
+			bottle_next_check_date: normalizeString(form.bottle_next_check_date),
+			bottle_check_cycle_months: Number(form.bottle_check_cycle_months),
+			bottle_check_fee: bottleCheckFee,
+			pressure_gauge_no: normalizeString(form.pressure_gauge_no),
+			pressure_gauge_manufacturer: normalizeString(form.pressure_gauge_manufacturer),
+			pressure_gauge_range_min: pressureMin,
+			pressure_gauge_range_max: pressureMax,
+			pressure_gauge_check_date: normalizeString(form.pressure_gauge_check_date),
+			pressure_gauge_next_check_date: normalizeString(form.pressure_gauge_next_check_date),
+			pressure_gauge_cycle_months: Number(form.pressure_gauge_cycle_months),
+			pressure_gauge_check_fee: gaugeCheckFee,
+			safety_valve_count: 2,
+			safety_valve_check_date: normalizeString(form.safety_valve_check_date),
+			safety_valve_next_check_date: normalizeString(form.safety_valve_next_check_date),
+			safety_valve_cycle_months: Number(form.safety_valve_cycle_months),
+			safety_valve_check_fee: valveCheckFee,
+			remark: normalizeString(form.remark),
 			is_active: form.is_active
 		}
 

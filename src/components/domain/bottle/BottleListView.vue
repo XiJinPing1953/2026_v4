@@ -100,7 +100,7 @@
 						v-for="item in list"
 						:key="item._id"
 						:title="item.bottle_no"
-						:subtitle="item.current_customer_name || '库内待命'"
+						:subtitle="item.filling_company || item.current_customer_name || '库内待命'"
 						:status="statusText(item.status)"
 						:status-kind="statusKind(item.status)"
 						icon="bottle"
@@ -110,9 +110,11 @@
 					>
 						<template #right>
 							<view class="info-box">
-								<text class="info-label">标准皮重</text>
+								<text class="info-label">容积 / 皮重</text>
 								<view class="price-box">
-									<text class="price-value">{{ item.tare_weight || '--' }}</text>
+									<text class="price-value">{{ formatVolume(item.volume_l) }}</text>
+									<text class="price-symbol">L /</text>
+									<text class="price-value">{{ formatWeight(item.tare_weight) }}</text>
 									<text class="price-symbol">kg</text>
 								</view>
 							</view>
@@ -121,7 +123,9 @@
 						<template #meta>
 							<view class="meta-tags">
 								<AppTag kind="soft" class="tag-item">{{ item.is_active ? '在用' : '停用' }}</AppTag>
-								<text v-if="item.last_check_date" class="mode-label">检: {{ item.last_check_date }}</text>
+								<text v-if="item.product_no" class="mode-label">产品: {{ item.product_no }}</text>
+								<text v-if="item.bottle_next_check_date" class="mode-label">瓶检: {{ item.bottle_next_check_date }}</text>
+								<text v-if="item.pressure_gauge_next_check_date" class="mode-label">表检: {{ item.pressure_gauge_next_check_date }}</text>
 							</view>
 						</template>
 						
@@ -337,6 +341,18 @@ function getBottleIconColor(status) {
 	if (status === 'in_station') return 'bg-teal'
 	if (status === 'at_customer') return 'bg-emerald'
 	return 'bg-primary'
+}
+
+function formatVolume(value) {
+	const num = Number(value)
+	if (!Number.isFinite(num) || num <= 0) return '--'
+	return Number.isInteger(num) ? String(num) : num.toFixed(2)
+}
+
+function formatWeight(value) {
+	const num = Number(value)
+	if (!Number.isFinite(num) || num < 0) return '--'
+	return Number.isInteger(num) ? String(num) : num.toFixed(2)
 }
 
 function onAdd() {

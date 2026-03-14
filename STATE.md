@@ -3156,3 +3156,40 @@
   - 本批次不改运行时业务逻辑；构建验证在提交前统一执行。
 - 剩余问题：
   - `u_want/` 与 `state/import/**` 既有历史文件将通过索引清理（`git rm --cached`）从仓库移除，但本地文件保留，需在本批提交中完成。
+
+### 2026-03-13 CURRENT — 钢瓶档案扩展（压力表/安全阀 + 检测周期）
+- 做了什么：
+  - 钢瓶模型与前端校验口径升级：
+    - `src/services/models/bottle.js` 增加钢瓶/压力表/安全阀核心字段校验，补充日期格式、周期值（6/12/24/36）、压力区间与费用非负校验。
+  - 钢瓶云函数 `crm-bottle` 扩展：
+    - `createV1/updateV1` 接入“身份+检验链”必填校验，统一数值与日期校验。
+    - 新增压力区间规则：`pressure_gauge_range_min <= pressure_gauge_range_max`。
+    - 新增云端唯一校验：`bottle_no`、`qr_code`、`pressure_gauge_no`（返回明确冲突文案）。
+    - 新增只读巡检接口 `auditUniqueFieldsV1`，用于上线唯一索引前检查空值与重复值。
+  - 钢瓶编辑页重构：
+    - `BottleEditView` 拆分为钢瓶本体、钢瓶检验、压力表信息、安全阀信息（2 个阀共享）与档案管理。
+    - 所有日期字段改为 `picker mode="date"`。
+    - 钢瓶/压力表/安全阀均支持“半年/1年/2年/3年”周期，变更检验日期或周期后自动回填下次检验日期，并允许手动覆盖。
+  - 钢瓶列表小改展示：
+    - 保持现有筛选与分页不变，仅新增容积/皮重与检验到期信息标签展示（瓶检/表检）。
+  - 数据库 schema 扩展：
+    - `crm_bottles.schema.json` 新增钢瓶本体、压力表、安全阀相关字段定义，并补充 `qr_code`、`pressure_gauge_no` 索引（非唯一）。
+  - 服务层补充：
+    - `src/services/bottle.js` 新增 `auditBottleUniqueFieldsV1` 调用入口。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleEditView.vue`
+  - `src/components/domain/bottle/BottleListView.vue`
+  - `src/services/bottle.js`
+  - `src/services/models/bottle.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - `uniCloud-alipay/database/schema/crm_bottles.schema.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check src/services/models/bottle.js`
+    - `node --check src/services/bottle.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+    - `npm run build:h5`（`DONE  Build complete.`）
+    - `npm run build:mp-alipay`（`DONE  Build complete.`）
+- 剩余问题：
+  - 按迁移策略，数据库层 `qr_code` 与 `pressure_gauge_no` 的唯一索引需在云环境执行 `auditUniqueFieldsV1` 巡检并完成脏数据清洗后再开启，避免索引构建失败。
