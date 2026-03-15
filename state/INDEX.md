@@ -7,6 +7,7 @@
 
 ## 阶段摘要
 - `state/PHASE_B2_CUSTOMER.md`
+- `state/PHASE_B3_BOTTLE_PROFILE.md`
 - `state/PHASE_C1_SALE.md`
 
 ## 使用方式

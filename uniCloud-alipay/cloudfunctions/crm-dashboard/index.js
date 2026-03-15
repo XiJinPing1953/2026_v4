@@ -74,6 +74,15 @@ function getRecentDates(days) {
 	return dates
 }
 
+function addDaysDateCN(dateText, days) {
+	const text = normalizeString(dateText)
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return ''
+	const [year, month, day] = text.split('-').map((item) => Number(item))
+	const date = new Date(Date.UTC(year, month - 1, day))
+	date.setUTCDate(date.getUTCDate() + Number(days || 0))
+	return formatDateCN(date)
+}
+
 function getMonthRange(date) {
 	const y = date.getUTCFullYear()
 	const m = date.getUTCMonth() + 1
@@ -107,6 +116,21 @@ async function fetchAll(collection, where, field) {
 		page += 1
 	}
 	return list
+}
+
+async function countInspectionDueByField(field, today, dueEnd) {
+	const validDateRx = db.RegExp({ regexp: '^\\d{4}-\\d{2}-\\d{2}$', options: '' })
+	const overdueWhere = dbCmd.and([{ [field]: validDateRx }, { [field]: dbCmd.lt(today) }])
+	const dueWhere = dbCmd.and([{ [field]: validDateRx }, { [field]: dbCmd.gte(today) }, { [field]: dbCmd.lte(dueEnd) }])
+	const overdueRes = await bottles.where(overdueWhere).count()
+	const dueRes = await bottles.where(dueWhere).count()
+	const overdue = Number(overdueRes.total || 0)
+	const due60 = Number(dueRes.total || 0)
+	return {
+		overdue,
+		due_60d: due60,
+		total: overdue + due60
+	}
 }
 
 function computeAmounts({ bizMode, priceUnit, unitPrice, outItems, backItems, agentRows, truckSaleNet, flow }) {
@@ -249,6 +273,14 @@ async function summaryV1(user, data, requestId) {
 	})
 	const distributionValues = [distMap.missing_back, distMap.missing_fill, distMap.continuous_out]
 
+	const todayDate = formatDateCN(getCNDate())
+	const dueEndDate = addDaysDateCN(todayDate, 60)
+	const bottleDue = await countInspectionDueByField('bottle_next_check_date', todayDate, dueEndDate)
+	const gaugeDue = await countInspectionDueByField('pressure_gauge_next_check_date', todayDate, dueEndDate)
+	const valveDue = await countInspectionDueByField('safety_valve_next_check_date', todayDate, dueEndDate)
+	const dueOverdueTotal = Number(bottleDue.overdue || 0) + Number(gaugeDue.overdue || 0) + Number(valveDue.overdue || 0)
+	const due60Total = Number(bottleDue.due_60d || 0) + Number(gaugeDue.due_60d || 0) + Number(valveDue.due_60d || 0)
+
 	const result = {
 		kpi: {
 			anomaly_open: anomalyOpen,
@@ -267,12 +299,24 @@ async function summaryV1(user, data, requestId) {
 		overview: {
 			bars: trendWeek.slice(-6)
 		},
-		distribution: {
-			labels: ['缺回瓶', '缺灌装', '连续出瓶'],
-			values: distributionValues
-		},
-		updated_at: Date.now()
-	}
+			distribution: {
+				labels: ['缺回瓶', '缺灌装', '连续出瓶'],
+				values: distributionValues
+			},
+			inspection_due: {
+				total: {
+					overdue: dueOverdueTotal,
+					due_60d: due60Total,
+					total: dueOverdueTotal + due60Total
+				},
+				bottle: bottleDue,
+				gauge: gaugeDue,
+				valve: valveDue,
+				today: todayDate,
+				due_end: dueEndDate
+			},
+			updated_at: Date.now()
+		}
 
 	await recordLog(user, 'dashboard_summary_v1', { days }, requestId)
 	return { code: 0, data: result }

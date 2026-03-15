@@ -87,20 +87,29 @@
 
 				<view class="dashboard__content">
 					<!-- KPI 横向一行 -->
-					<view class="kpi-row">
-						<AppStatCard
-							class="kpi-card"
-							label="异常监控"
+						<view class="kpi-row">
+							<AppStatCard
+								class="kpi-card"
+								label="异常监控"
 							:value="stats.anomaly"
 							hint="待处理"
 							icon="alert"
 							:delta="kpiDelta.anomaly"
-							:trend="kpiTrend.anomaly"
-							@click="go('/pages/bottle/anomaly')"
-						/>
-						<AppStatCard
-							class="kpi-card"
-							label="本月销售"
+								:trend="kpiTrend.anomaly"
+								@click="go('/pages/bottle/anomaly')"
+							/>
+							<AppStatCard
+								class="kpi-card"
+								label="检验到期提醒"
+								:value="stats.inspectionDue"
+								hint="项"
+								icon="calendar"
+								:delta="kpiDelta.inspectionDue"
+								@click="go('/pages/bottle/list')"
+							/>
+							<AppStatCard
+								class="kpi-card"
+								label="本月销售"
 							:value="stats.sales"
 							hint="元"
 							icon="chart"
@@ -291,21 +300,31 @@
 					</view>
 				</view>
 
-				<view class="rail-card">
-					<text class="rail-title">今日待办</text>
-					<view class="todo-list">
-						<view class="todo-item" @click="go('/pages/bottle/anomaly')">
-							<view class="todo-dot bg-alert"></view>
-							<text class="todo-text">异常待处理</text>
-							<text class="todo-count">{{ stats.anomaly }}</text>
-						</view>
-						<view class="todo-item">
-							<view class="todo-dot bg-asset"></view>
-							<text class="todo-text">待回收钢瓶</text>
-							<text class="todo-count">-</text>
+					<view class="rail-card">
+						<text class="rail-title">今日待办</text>
+						<view class="todo-list">
+							<view class="todo-item" @click="go('/pages/bottle/anomaly')">
+								<view class="todo-dot bg-alert"></view>
+								<text class="todo-text">异常待处理</text>
+								<text class="todo-count">{{ stats.anomaly }}</text>
+							</view>
+							<view class="todo-item" @click="goInspectionDue('bottle')">
+								<view class="todo-dot bg-asset"></view>
+								<text class="todo-text">瓶检到期</text>
+								<text class="todo-count">{{ formatInspectionDueCount(inspectionDue.bottle) }}</text>
+							</view>
+							<view class="todo-item" @click="goInspectionDue('gauge')">
+								<view class="todo-dot bg-asset"></view>
+								<text class="todo-text">表检到期</text>
+								<text class="todo-count">{{ formatInspectionDueCount(inspectionDue.gauge) }}</text>
+							</view>
+							<view class="todo-item" @click="goInspectionDue('valve')">
+								<view class="todo-dot bg-asset"></view>
+								<text class="todo-text">阀检到期</text>
+								<text class="todo-count">{{ formatInspectionDueCount(inspectionDue.valve) }}</text>
+							</view>
 						</view>
 					</view>
-				</view>
 
 			</view>
 		</view>
@@ -330,6 +349,7 @@ requireLogin()
 
 const stats = reactive({
 	anomaly: '-',
+	inspectionDue: '-',
 	sales: '-',
 	atCustomer: '-',
 	inStation: '-'
@@ -337,6 +357,7 @@ const stats = reactive({
 
 const kpiDelta = reactive({
 	anomaly: '',
+	inspectionDue: '',
 	sales: '',
 	atCustomer: '',
 	inStation: ''
@@ -344,9 +365,16 @@ const kpiDelta = reactive({
 
 const kpiTrend = reactive({
 	anomaly: '',
+	inspectionDue: '',
 	sales: '',
 	atCustomer: '',
 	inStation: ''
+})
+
+const inspectionDue = reactive({
+	bottle: { overdue: 0, due_60d: 0 },
+	gauge: { overdue: 0, due_60d: 0 },
+	valve: { overdue: 0, due_60d: 0 }
 })
 
 const sparklinePoints = ref([0, 0, 0, 0, 0, 0, 0])
@@ -384,6 +412,24 @@ function applyDashboard(data) {
 	stats.sales = formatNumber(kpi.sales_month)
 	stats.atCustomer = formatNumber(kpi.at_customer)
 	stats.inStation = formatNumber(kpi.in_station)
+	const dueData = data.inspection_due || {}
+	const dueTotal = dueData.total || {}
+	const dueOverdue = Number(dueTotal.overdue || 0)
+	const due60 = Number(dueTotal.due_60d || 0)
+	stats.inspectionDue = formatNumber(Number(dueTotal.total || dueOverdue + due60))
+	kpiDelta.inspectionDue = `过${dueOverdue}/近${due60}`
+	inspectionDue.bottle = {
+		overdue: Number(dueData.bottle?.overdue || 0),
+		due_60d: Number(dueData.bottle?.due_60d || 0)
+	}
+	inspectionDue.gauge = {
+		overdue: Number(dueData.gauge?.overdue || 0),
+		due_60d: Number(dueData.gauge?.due_60d || 0)
+	}
+	inspectionDue.valve = {
+		overdue: Number(dueData.valve?.overdue || 0),
+		due_60d: Number(dueData.valve?.due_60d || 0)
+	}
 
 	const delta = kpi.delta || {}
 	kpiDelta.sales = delta.sales || ''
@@ -422,6 +468,19 @@ useQuery(
 
 function go(url) {
 	uni.navigateTo({ url })
+}
+
+function formatInspectionDueCount(row) {
+	const overdue = Number(row?.overdue || 0)
+	const due60 = Number(row?.due_60d || 0)
+	return `过${overdue}/近${due60}`
+}
+
+function goInspectionDue(module) {
+	const row = inspectionDue[module] || {}
+	const overdue = Number(row.overdue || 0)
+	const state = overdue > 0 ? 'overdue' : 'due_60d'
+	go(`/pages/bottle/list?inspection_due_module=${encodeURIComponent(module)}&inspection_due_state=${encodeURIComponent(state)}`)
 }
 </script>
 
@@ -629,7 +688,7 @@ function go(url) {
 /* KPI 横向一行 */
 .kpi-row {
 	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 	gap: 16px;
 }
 
