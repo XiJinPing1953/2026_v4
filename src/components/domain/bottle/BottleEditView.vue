@@ -97,9 +97,6 @@
 								<AppInput :model-value="form.bottle_next_check_date" label="下次检验日期" placeholder="自动生成或手动选择" disabled prefix-icon="calendar" size="sm" />
 							</picker>
 						</view>
-						<view class="form-item">
-							<AppInput v-model="form.bottle_check_fee" label="检测费用（元）" placeholder="选填" size="sm" />
-						</view>
 					</view>
 				</AppSection>
 
@@ -132,9 +129,6 @@
 								<AppInput :model-value="form.pressure_gauge_next_check_date" label="下次检验日期" placeholder="自动生成或手动选择" disabled prefix-icon="calendar" size="sm" />
 							</picker>
 						</view>
-						<view class="form-item">
-							<AppInput v-model="form.pressure_gauge_check_fee" label="检测费用（元）" placeholder="选填" size="sm" />
-						</view>
 					</view>
 				</AppSection>
 
@@ -157,9 +151,6 @@
 							<picker class="picker-full" mode="date" :value="form.safety_valve_next_check_date" @change="onValveNextCheckDateChange">
 								<AppInput :model-value="form.safety_valve_next_check_date" label="下次检测日期" placeholder="自动生成或手动选择" disabled prefix-icon="calendar" size="sm" />
 							</picker>
-						</view>
-						<view class="form-item">
-							<AppInput v-model="form.safety_valve_check_fee" label="检测费用（元）" placeholder="选填" size="sm" />
 						</view>
 					</view>
 				</AppSection>
@@ -238,7 +229,6 @@ const form = reactive({
 	bottle_check_date: '',
 	bottle_next_check_date: '',
 	bottle_check_cycle_months: 12,
-	bottle_check_fee: '',
 	pressure_gauge_no: '',
 	pressure_gauge_manufacturer: '',
 	pressure_gauge_range_min: '',
@@ -246,12 +236,10 @@ const form = reactive({
 	pressure_gauge_check_date: '',
 	pressure_gauge_next_check_date: '',
 	pressure_gauge_cycle_months: 12,
-	pressure_gauge_check_fee: '',
 	safety_valve_count: 2,
 	safety_valve_check_date: '',
 	safety_valve_next_check_date: '',
 	safety_valve_cycle_months: 12,
-	safety_valve_check_fee: '',
 	remark: '',
 	is_active: true
 })
@@ -438,7 +426,6 @@ async function loadRecord(id) {
 	form.bottle_check_date = doc.bottle_check_date || ''
 	form.bottle_next_check_date = doc.bottle_next_check_date || ''
 	form.bottle_check_cycle_months = normalizeCycle(doc.bottle_check_cycle_months, 12)
-	form.bottle_check_fee = toDisplayNumber(doc.bottle_check_fee)
 	form.pressure_gauge_no = doc.pressure_gauge_no || ''
 	form.pressure_gauge_manufacturer = doc.pressure_gauge_manufacturer || ''
 	form.pressure_gauge_range_min = toDisplayNumber(doc.pressure_gauge_range_min)
@@ -446,12 +433,10 @@ async function loadRecord(id) {
 	form.pressure_gauge_check_date = doc.pressure_gauge_check_date || ''
 	form.pressure_gauge_next_check_date = doc.pressure_gauge_next_check_date || ''
 	form.pressure_gauge_cycle_months = normalizeCycle(doc.pressure_gauge_cycle_months, 12)
-	form.pressure_gauge_check_fee = toDisplayNumber(doc.pressure_gauge_check_fee)
 	form.safety_valve_count = 2
 	form.safety_valve_check_date = doc.safety_valve_check_date || ''
 	form.safety_valve_next_check_date = doc.safety_valve_next_check_date || ''
 	form.safety_valve_cycle_months = normalizeCycle(doc.safety_valve_cycle_months, 12)
-	form.safety_valve_check_fee = toDisplayNumber(doc.safety_valve_check_fee)
 	form.remark = doc.remark || ''
 	form.is_active = doc.is_active !== false
 }
@@ -519,15 +504,6 @@ async function onSubmit() {
 	const tareWeight = toNullableNumber(form.tare_weight)
 	if (!assert(tareWeight == null || (typeof tareWeight === 'number' && tareWeight >= 0), '标准皮重必须为非负数字')) return
 
-	const bottleCheckFee = toNullableNumber(form.bottle_check_fee)
-	if (!assert(bottleCheckFee == null || (typeof bottleCheckFee === 'number' && bottleCheckFee >= 0), '钢瓶检测费用必须为非负数字')) return
-
-	const gaugeCheckFee = toNullableNumber(form.pressure_gauge_check_fee)
-	if (!assert(gaugeCheckFee == null || (typeof gaugeCheckFee === 'number' && gaugeCheckFee >= 0), '压力表检测费用必须为非负数字')) return
-
-	const valveCheckFee = toNullableNumber(form.safety_valve_check_fee)
-	if (!assert(valveCheckFee == null || (typeof valveCheckFee === 'number' && valveCheckFee >= 0), '安全阀检测费用必须为非负数字')) return
-
 	submitting.value = true
 	try {
 		const payload = {
@@ -547,7 +523,6 @@ async function onSubmit() {
 			bottle_check_date: normalizeString(form.bottle_check_date),
 			bottle_next_check_date: normalizeString(form.bottle_next_check_date),
 			bottle_check_cycle_months: Number(form.bottle_check_cycle_months),
-			bottle_check_fee: bottleCheckFee,
 			pressure_gauge_no: normalizeString(form.pressure_gauge_no),
 			pressure_gauge_manufacturer: normalizeString(form.pressure_gauge_manufacturer),
 			pressure_gauge_range_min: pressureMin,
@@ -555,12 +530,10 @@ async function onSubmit() {
 			pressure_gauge_check_date: normalizeString(form.pressure_gauge_check_date),
 			pressure_gauge_next_check_date: normalizeString(form.pressure_gauge_next_check_date),
 			pressure_gauge_cycle_months: Number(form.pressure_gauge_cycle_months),
-			pressure_gauge_check_fee: gaugeCheckFee,
 			safety_valve_count: 2,
 			safety_valve_check_date: normalizeString(form.safety_valve_check_date),
 			safety_valve_next_check_date: normalizeString(form.safety_valve_next_check_date),
 			safety_valve_cycle_months: Number(form.safety_valve_cycle_months),
-			safety_valve_check_fee: valveCheckFee,
 			remark: normalizeString(form.remark),
 			is_active: form.is_active
 		}

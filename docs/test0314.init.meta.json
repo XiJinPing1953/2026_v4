@@ -1,0 +1,8 @@
+{
+  "batch_id": "import:test0314:env-00jxuffegf2n:202603141050",
+  "total": 133,
+  "csv": "/Users/wangbo/Downloads/2026_v4/docs/test0314.cleaned_for_upload.csv",
+  "output": "/Users/wangbo/Downloads/2026_v4/uniCloud-alipay/database/crm_bottles.init_data.json",
+  "ids_file": "/Users/wangbo/Downloads/2026_v4/docs/test0314.rollback_ids.json",
+  "generated_at": "2026-03-14T10:50:54.930Z"
+}

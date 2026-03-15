@@ -33,7 +33,12 @@
     "build:mp-xhs": "uni build -p mp-xhs",
     "build:quickapp-webview": "uni build -p quickapp-webview",
     "build:quickapp-webview-huawei": "uni build -p quickapp-webview-huawei",
-    "build:quickapp-webview-union": "uni build -p quickapp-webview-union"
+    "build:quickapp-webview-union": "uni build -p quickapp-webview-union",
+    "bottle:upload:dry": "node scripts/uploadBottlesFromCsv.cjs",
+    "bottle:upload": "node scripts/uploadBottlesFromCsv.cjs --execute",
+    "bottle:initdata:export": "node scripts/exportBottlesInitData.cjs",
+    "bottle:upsert:console:build": "node scripts/buildBottleUpsertConsoleScript.cjs",
+    "bottle:upsert:run": "node scripts/upsertBottlesByBottleNo.cjs"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-4080720251210001",

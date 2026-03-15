@@ -1,0 +1,12 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "provider": "alipay",
+  "command": "cli cloud functions --initdatabase --prj 2026_v4 --provider alipay",
+  "batch_id": "import:test0314:env-00jxuffegf2n:202603141050",
+  "output": [
+    "[支付宝云:xintuonengyuan]上传初始数据(crm_bottles.init_data.json)",
+    "[支付宝云:xintuonengyuan]初始化云数据库完成",
+    "0:cloud functions:OK"
+  ],
+  "executed_at": "2026-03-15T10:17:01+08:00"
+}

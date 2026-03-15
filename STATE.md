@@ -3212,3 +3212,317 @@
   - 目标是确保“测试数据到位后可无缝续跑”，避免上下文丢失。
 - 剩余问题：
   - 仍需等待测试数据后执行手工回归与线上唯一字段巡检，再决定 PR #2 合并与唯一索引落地窗口。
+
+### 2026-03-14 CURRENT — test0314 测试数据清洗 + 自动上传脚本
+- 做了什么：
+  - 基于 `docs/test0314.csv` 生成清洗上传文件 `docs/test0314.cleaned_for_upload.csv`：
+    - 压力值拆分为 `压力值最小/压力值最大`，并将最小值统一置为 `0`。
+    - 安全阀检测日期统一填充为 `2026-02-28`，安全阀下次检验日期统一填充为 `2027-02-27`。
+    - 去除原文件尾部空列，表头重命名为可区分字段（钢瓶/压力表日期不再重名）。
+  - 按用户要求删除清洗文件第 `71` 行，解决重复压力表号冲突（当前清洗文件无 `pressure_gauge_no` 重复键）。
+  - 新增自动上传脚本 `scripts/uploadBottlesFromCsv.cjs`：
+    - 支持 `--execute` 真实写入与默认 `dry-run` 预演。
+    - 支持从 CSV 映射到 `crm-bottle createV1` 所需字段，自动推断钢瓶/压力表/安全阀检测周期（6/12/24/36）。
+    - 兼容 `CRM_TOKEN` 或 `CRM_USERNAME/CRM_PASSWORD` 登录获取业务 token。
+    - 通过 uniCloud client API（需 `UNI_SPACE_ID` + `UNI_CLIENT_SECRET`）批量调用云函数并输出上传报告。
+  - `package.json` 增加命令：
+    - `npm run bottle:upload:dry`
+    - `npm run bottle:upload`
+- 改动文件列表：
+  - `docs/test0314.cleaned_for_upload.csv`
+  - `scripts/uploadBottlesFromCsv.cjs`
+  - `package.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check scripts/uploadBottlesFromCsv.cjs`
+    - `npm run bottle:upload:dry -- --dry-run-sample 2`
+      - 解析行数：`133`
+      - 周期推断样例：钢瓶 `36`、压力表 `6`、安全阀 `12`
+  - 已检查清洗文件唯一性：`pressure_gauge_no` 重复键数 `0`。
+- 剩余问题：
+  - 真实上传需要提供云空间配置（`UNI_SPACE_ID`、`UNI_CLIENT_SECRET`）及 CRM 登录凭据（`CRM_TOKEN` 或账号密码）。
+  - 本次未在无凭据环境执行 `--execute` 写库验证。
+
+### 2026-03-14 CURRENT — env-00jxuffegf2n 真实写库（initdatabase 导入）
+- 做了什么：
+  - 新增导出脚本 `scripts/exportBottlesInitData.cjs`：
+    - 将 `docs/test0314.cleaned_for_upload.csv` 转换为 `uniCloud-alipay/database/crm_bottles.init_data.json`。
+    - 自动补齐 `crm_bottles` 必需字段（`current_customer_id/current_customer_name/remark/is_active/created_at/updated_at`）。
+    - 生成可回退 `_id` 列表文件 `docs/test0314.rollback_ids.json`（`imp0314_00001` ...）。
+    - 导出元信息 `docs/test0314.init.meta.json`（含 `batch_id`）。
+  - `package.json` 新增脚本：
+    - `npm run bottle:initdata:export`
+  - 使用 HBuilder CLI 在支付宝云空间 `env-00jxuffegf2n` 执行真实导入：
+    - `cli cloud functions --initdatabase --prj 2026_v4 --provider alipay`
+    - CLI 输出包含：`上传初始数据(crm_bottles.init_data.json)`、`初始化云数据库完成`。
+  - 新增回退说明 `docs/test0314.rollback.md`，按 `remark` 或 `_id` 批量删除本次导入数据。
+  - 记录执行结果 `docs/test0314.import.result.json`。
+- 改动文件列表：
+  - `scripts/exportBottlesInitData.cjs`
+  - `package.json`
+  - `uniCloud-alipay/database/crm_bottles.init_data.json`
+  - `docs/test0314.init.meta.json`
+  - `docs/test0314.rollback_ids.json`
+  - `docs/test0314.rollback.md`
+  - `docs/test0314.import.result.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check scripts/exportBottlesInitData.cjs`
+    - `npm run bottle:initdata:export`（导出 `133` 条）
+    - `cli cloud functions --initdatabase --prj 2026_v4 --provider alipay`（返回 `0:cloud functions:OK`）
+- 剩余问题：
+  - HBuilder CLI `initdatabase` 输出不含逐条写入计数；如需二次确认，请在云控制台按本批次 `remark` 做数量核对。
+
+### 2026-03-15 CURRENT — crm-bottle-batch-ops 切换为严格 update-only（预检失败整批中止）
+- 做了什么：
+  - 修正 `uniCloud-alipay/cloudfunctions/crm-bottle-batch-ops/index.js`：
+    - 新增 `precheckPayload()`，在真正写入前做全量预检：
+      - `bottle_no` 为空 -> 失败；
+      - payload 内重复 `bottle_no` -> 失败；
+      - 数据库内缺失 `bottle_no` -> 失败；
+      - 数据库内同 `bottle_no` 多条 -> 失败。
+    - 预检不通过时，直接返回 `aborted=true`，并给出 `abort_reason`，整批不写入。
+    - 仅在预检通过后才执行“备份 + 按 `_id` 更新”；不调用 `crm_bottles.add()`，避免新增。
+  - 在用户已回档数据库后，执行：
+    - `cli cloud runfunction --prj 2026_v4 --provider alipay --name crm-bottle-batch-ops`
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-batch-ops/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-batch-ops/index.js`
+    - `cli cloud runfunction --prj 2026_v4 --provider alipay --name crm-bottle-batch-ops`
+      - 日志时间：`2026-03-15 11:42:03` 开始，`2026-03-15 11:44:04` 完成。
+  - 已确认当前函数写路径为 `bottles.doc(existing._id).update(patch)`；未包含 `crm_bottles` 的新增调用。
+- 剩余问题：
+  - 当前 HBuilder CLI 运行链路未回传函数返回体，无法直接拿到 `updated/missing` 数字；如需精确审计值，需补一条“结果落库/可查询”链路。
+
+### 2026-03-15 CURRENT — 修复 bottle_no 类型不一致导致 0 更新（string/number 双类型命中）
+- 做了什么：
+  - 修正 `crm-bottle-batch-ops` 的匹配逻辑：
+    - 新增 `normalizeBottleNo()`，统一键值比较规则（trim + uppercase）。
+    - 新增 `buildBottleNoQueryTokens()`，对纯数字瓶号同时使用 `"134"` 与 `134` 两种 token 查询。
+    - `buildBottleNoMap()` 改为 `dbCmd.in(queryTokens)`，解决数据库内 `bottle_no` 为 number、payload 为 string 时无法命中的问题。
+  - 重新执行云函数：
+    - `cli cloud runfunction --prj 2026_v4 --provider alipay --name crm-bottle-batch-ops`
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-batch-ops/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-batch-ops/index.js`
+    - `cli cloud runfunction --prj 2026_v4 --provider alipay --name crm-bottle-batch-ops`
+      - 日志时间：`2026-03-15 12:32:38` 开始，`2026-03-15 12:34:39` 完成。
+- 剩余问题：
+  - HBuilder CLI 仍未回传函数返回体，无法直接打印 `updated/missing` 数字；当前以“执行完成 + 数据侧刷新核验”为准。
+
+### 2026-03-15 CURRENT — 修复“备份失败阻断更新”导致 0 更新
+- 做了什么：
+  - 调整 `crm-bottle-batch-ops` 更新循环：
+    - 备份写入 `crm_bottles_import_backups` 失败时，仅记录 `backup_failed`，不再 `continue` 跳过本条更新。
+    - 这样即使备份集合权限/结构异常，也不会导致整批 `updated=0`。
+  - 再次执行云函数：
+    - `cli cloud runfunction --prj 2026_v4 --provider alipay --name crm-bottle-batch-ops`
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-batch-ops/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-batch-ops/index.js`
+    - `cli cloud runfunction --prj 2026_v4 --provider alipay --name crm-bottle-batch-ops`
+      - 日志时间：`2026-03-15 13:20:49` 开始，`2026-03-15 13:22:50` 完成。
+- 剩余问题：
+  - CLI 仍无函数返回体，更新条数需通过页面刷新或额外结果落库来核验。
+
+### 2026-03-15 CURRENT — test0314 成功导入（update-only 验证通过）
+- 做了什么：
+  - 在浏览器控制台触发云函数 `crm-bottle-batch-ops`，执行 update-only 批量更新（不新增）。
+  - 成功返回结果：`code=0`、`payload_total=133`、`upsert.matched=133`、`upsert.updated=133`、`upsert.missing=[]`。
+- 改动文件列表：
+  - `STATE.md`
+- 验证输出要点：
+  - `crm-bottle listV1` 正常返回；
+  - `crm-bottle-batch-ops` 返回 `updated=133`，说明本批 133 条均已命中并更新成功。
+- 剩余问题：
+  - 后续批次继续沿用 update-only 链路；禁止使用 `initdatabase` 作为导入方式（会产生新增风险）。
+
+### 2026-03-15 CURRENT — 钢瓶列表补充安全阀检测日期展示
+- 做了什么：
+  - 在钢瓶列表卡片的标签行新增“阀检”展示，字段为 `safety_valve_check_date`。
+  - 保持原有“产品/瓶检/表检”展示样式和布局不变。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleListView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 本次为模板层小改，未运行 `npm run build`；建议前端页面手工刷新确认标签显示。
+- 剩余问题：
+  - 如需显示“安全阀下次检测日期”，可在同位置追加 `safety_valve_next_check_date` 标签。
+
+### 2026-03-15 CURRENT — 安全阀标签改为展示下次检测日期
+- 做了什么：
+  - 钢瓶列表中“阀检”标签由 `safety_valve_check_date`（检测日期）切换为 `safety_valve_next_check_date`（下次检测日期）。
+  - 与现有“瓶检/表检”统一为“下次检验日期”口径。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleListView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 模板层字段映射调整，未运行构建；建议页面刷新后人工确认展示。
+- 剩余问题：
+  - 如需更明确语义，可将文案由“阀检”改为“阀下检”。
+
+### 2026-03-15 CURRENT — 移除钢瓶/压力表/安全阀三项检测费用
+- 做了什么：
+  - 在钢瓶编辑页移除三处“检测费用（元）”输入框（钢瓶检验、压力表检验、安全阀检验）。
+  - 提交逻辑不再校验或提交 `bottle_check_fee`、`pressure_gauge_check_fee`、`safety_valve_check_fee` 三个字段，避免写入/覆盖费用。
+  - 编辑加载逻辑不再回填上述三个费用字段。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleEditView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `rg` 检查 `BottleEditView.vue` 内已无上述三个费用字段引用。
+  - 未运行构建命令；建议页面手工打开“新建/编辑钢瓶”确认三项费用输入框已消失。
+- 剩余问题：
+  - 后端仍兼容接收这三个字段（仅前端不再提交），历史数据不会被删除。
+
+### 2026-03-15 CURRENT — 钢瓶档案新增“按筛选导出 CSV”
+- 做了什么：
+  - 在钢瓶列表区新增“导出筛选”按钮，按当前筛选条件（关键词/流向/启用状态）导出全部命中数据。
+  - 导出实现为分页拉取全量（`listV1` 分页循环）并生成 CSV。
+  - 导出文件名包含筛选信息与时间戳，格式：`钢瓶档案_{流向}_{启用}_{关键词}_{条数}条_{YYYYMMDD_HHmmss}.csv`。
+  - 导出字段覆盖钢瓶本体、压力表、安全阀及状态信息，不包含已移除的三项检测费用字段。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleListView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 当前文件下载实现依赖浏览器能力（H5）；非 H5 端会提示“请在浏览器端导出”。
+
+### 2026-03-15 CURRENT — 钢瓶导出按瓶号自然排序
+- 做了什么：
+  - 调整钢瓶导出逻辑：导出前按 `bottle_no` 进行自然排序。
+  - 排序规则：纯数字瓶号按数值升序（`1,2,3...10`），混合编号按字母数字自然序。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleListView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：`npm run build:h5`。
+- 剩余问题：
+  - 当前只影响导出文件顺序，不改变列表页原有排序（列表仍按 `updated_at desc`）。
+
+### 2026-03-15 CURRENT — 钢瓶瓶号规则筛选（单选）与导出命名增强
+- 做了什么：
+  - 列表/导出新增瓶号规则参数：`bottle_no_mode`（`all|numeric|prefix`）与 `bottle_no_prefix`（仅 `prefix` 使用）。
+  - 后端 `crm-bottle listV1` 增强筛选：
+    - `numeric` => `bottle_no` 匹配 `^[0-9]+$`；
+    - `prefix` => `bottle_no` 匹配 `^前缀`（不区分大小写）；
+    - `prefix` 但前缀为空返回 `400` 明确错误。
+  - 前端钢瓶列表新增“瓶号规则”单选与“前缀输入框”（仅前缀模式显示）。
+  - 查询/导出都加前置校验：前缀模式必须填写前缀。
+  - 筛选标签、重置、缓存键、查询参数、导出参数全部纳入瓶号规则。
+  - 导出文件名新增规则片段：`瓶号-全部/瓶号-纯数字/瓶号-前缀N`。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleListView.vue`
+  - `src/services/bottle.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 本期仍未实现 Excel 式“值列表多选/计数/全选反选”弹层（按阶段规划留到后续）。
+
+### 2026-03-15 CURRENT — 检验批次筛选放宽 + 列表默认瓶号自然升序
+- 做了什么：
+  - 检验批次筛选语义调整为“检验日期必填、下次检验日期可选”：
+    - 仅填检验日期可筛批次；
+    - 同时填写检验日期+下次检验日期为精确匹配；
+    - 仅填下次日期前端阻止、后端 `400` 拒绝。
+  - 钢瓶列表、批量 filter 预览样本、批量 filter 执行目标集统一改为按瓶号自然排序键升序。
+  - 新增排序键落库字段：`bottle_no_sort_group`、`bottle_no_sort_num`、`bottle_no_sort_text`、`bottle_no_sort_key`。
+  - 新建/编辑钢瓶时自动写入排序键；`crm-bottle-batch-ops` 导入更新时也同步写入排序键，避免后续导入破坏排序。
+  - 新增一次性回填 action：`crm-bottle/backfillBottleSortKeysV1`（支持 `preview`、`limit`、`force`）。
+  - 导出文件名中的批次片段支持单日期与双日期两种形态。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleListView.vue`
+  - `src/services/bottle.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-batch-ops/index.js`
+  - `uniCloud-alipay/database/schema/crm_bottles.schema.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-batch-ops/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 线上数据需执行一次 `backfillBottleSortKeysV1` 后，旧记录才能完全按新排序键稳定分页排序。
+
+### 2026-03-15 CURRENT — 列表页增加瓶号自然排序前端兜底
+- 做了什么：
+  - 在钢瓶列表结果落地时增加前端自然排序，保证当前页显示顺序与导出一致（数字优先、自然升序）。
+  - 该兜底用于覆盖“后端排序键尚未回填/未部署”阶段的展示不稳定问题。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleListView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 该兜底保证“当前页有序”；跨页全局稳定顺序仍依赖后端排序键与 `backfillBottleSortKeysV1` 回填完成。
+
+### 2026-03-15 CURRENT — 钢瓶到期提醒（提前60天）工作台入口 + 列表筛选联动
+- 做了什么：
+  - 工作台新增“检验到期提醒”KPI与“今日待办”三检分项（瓶检/表检/阀检），展示 `过期/60天内` 数量并可点击跳转钢瓶列表。
+  - 钢瓶列表新增“到期提醒模块 + 到期提醒状态”筛选，支持与现有筛选条件 `AND` 叠加，并纳入筛选标签、导出文件名、批量更新 `filter` 选择器。
+  - 页面路由新增到期提醒参数透传与预置应用：支持从工作台携带 `inspection_due_module`、`inspection_due_state` 直达列表并自动生效。
+  - 后端 `crm-bottle listV1` 增加到期提醒筛选逻辑：
+    - `overdue`: `next_check_date < today`
+    - `due_60d`: `today <= next_check_date <= today+60`
+    - 模块映射：瓶检/表检/阀检分别对应各自下次检验日期字段。
+  - 后端 `crm-dashboard summaryV1` 返回三检到期统计：`inspection_due.total/bottle/gauge/valve`（含 `overdue`、`due_60d`、`total`）。
+- 改动文件列表：
+  - `src/components/domain/dashboard/DashboardHome.vue`
+  - `src/components/domain/bottle/BottleListView.vue`
+  - `src/pages/bottle/list.vue`
+  - `src/services/bottle.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-dashboard/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-dashboard/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 本期为站内实时提醒，不含短信/订阅消息推送。
+
+### 2026-03-15 BASELINE — 钢瓶档案 V1 封版验收清单（可继续增量导入）
+- 已验收功能清单：
+  - 钢瓶档案扩展字段已落地（钢瓶本体 + 压力表 + 安全阀，安全阀按“2个共用一组检测字段”建模）。
+  - 三检日期均采用日期选择器；检测周期支持 `6/12/24/36` 月；下次检验日期支持“自动计算 + 手动覆盖”。
+  - 列表展示已统一为“瓶检/表检/阀检 下次检验日期”口径。
+  - 三项检测费用已从前后端主链路移除（不再作为业务必需字段）。
+  - 导出能力已支持“按当前筛选全量导出”，文件名含关键筛选片段，导出顺序为瓶号自然升序。
+  - 瓶号规则筛选已支持 `全部/纯数字/前缀`；纯数字支持区间分段；列表/导出/批量 `filter` 语义一致。
+  - 检验批次筛选已支持“检验日期必填、下次日期可选精确匹配”，并可多模块 `AND` 叠加。
+  - 批量检验更新已支持“按筛选全量/勾选子集”、模块可多选、预览与执行分离、失败清单返回。
+  - 工作台与列表已接通“到期提醒（提前60天）”，按瓶检/表检/阀检分开统计 `已过期/60天内`。
+  - 数据导入链路基线已固定为 `crm-bottle-batch-ops update-only`（禁止 `initdatabase` 覆写式导入）。
+- 回滚点（代码）：
+  - 若封版后发现回归，优先使用 `git revert <baseline_commit_sha>` 回滚单次发布提交。
+  - 若需临时切回封版快照排障，可 `git checkout bottle-v1.0-20260315`（只读排查，不在 detached HEAD 上继续开发）。
+  - 批量检验与导入异常优先关闭入口开关/停用按钮，再做代码回滚，避免继续写入脏数据。
+- 回滚点（数据）：
+  - 导入回滚统一用 `docs/test0314.rollback.batch.js` + `docs/test0314.rollback_ids.json` 或按批次 `remark` 精确删除。
+  - 执行批量检验前保留预览结果与请求参数；如误更新，按失败/命中清单做反向批量修正。
+  - 任何后续导入仍以“`payload=matched=updated，missing=0` 同类结果”为验收门槛，不满足则中止上线。

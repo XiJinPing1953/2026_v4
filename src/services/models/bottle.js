@@ -113,21 +113,6 @@ function validateBottleDraftV1(input = {}) {
 		if (!(typeof tare === 'number' && tare >= 0)) return { ok: false, msg: '皮重必须为非负数字' }
 	}
 
-	if (input.bottle_check_fee != null || input.bottleCheckFee != null) {
-		const fee = toNumber(input.bottle_check_fee ?? input.bottleCheckFee, null)
-		if (!(typeof fee === 'number' && fee >= 0)) return { ok: false, msg: '钢瓶检测费用必须为非负数字' }
-	}
-
-	if (input.pressure_gauge_check_fee != null || input.pressureGaugeCheckFee != null) {
-		const fee = toNumber(input.pressure_gauge_check_fee ?? input.pressureGaugeCheckFee, null)
-		if (!(typeof fee === 'number' && fee >= 0)) return { ok: false, msg: '压力表检测费用必须为非负数字' }
-	}
-
-	if (input.safety_valve_check_fee != null || input.safetyValveCheckFee != null) {
-		const fee = toNumber(input.safety_valve_check_fee ?? input.safetyValveCheckFee, null)
-		if (!(typeof fee === 'number' && fee >= 0)) return { ok: false, msg: '安全阀检测费用必须为非负数字' }
-	}
-
 	if (input.safety_valve_count != null || input.safetyValveCount != null) {
 		const count = Number(input.safety_valve_count ?? input.safetyValveCount)
 		if (!Number.isInteger(count) || count !== 2) return { ok: false, msg: '安全阀数量固定为 2' }
