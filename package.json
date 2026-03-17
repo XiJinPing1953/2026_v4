@@ -38,7 +38,9 @@
     "bottle:upload": "node scripts/uploadBottlesFromCsv.cjs --execute",
     "bottle:initdata:export": "node scripts/exportBottlesInitData.cjs",
     "bottle:upsert:console:build": "node scripts/buildBottleUpsertConsoleScript.cjs",
-    "bottle:upsert:run": "node scripts/upsertBottlesByBottleNo.cjs"
+    "bottle:upsert:run": "node scripts/upsertBottlesByBottleNo.cjs",
+    "filling:no-sale:cleanup:dry": "node scripts/cleanupNoSaleMovements.cjs",
+    "filling:no-sale:cleanup": "node scripts/cleanupNoSaleMovements.cjs --execute"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-4080720251210001",

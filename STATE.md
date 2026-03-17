@@ -3526,3 +3526,159 @@
   - 导入回滚统一用 `docs/test0314.rollback.batch.js` + `docs/test0314.rollback_ids.json` 或按批次 `remark` 精确删除。
   - 执行批量检验前保留预览结果与请求参数；如误更新，按失败/命中清单做反向批量修正。
   - 任何后续导入仍以“`payload=matched=updated，missing=0` 同类结果”为验收门槛，不满足则中止上线。
+
+### 2026-03-15 CURRENT — 灌装记录批量能力（批量新增 + 批量改日期）
+- 做了什么：
+  - 灌装模块移除“灌装地点（address）”：
+    - 前端灌装录入页删除地点输入与摘要展示；
+    - 灌装列表删除地点标签及“站内/外出”统计口径；
+    - 后端 `createV1/updateV1/batchCreateV1/listV1` 不再读写/统计 `address`；
+    - `crm_fillings` schema 已彻底移除 `address` 字段定义，与前后端口径一致。
+  - 灌装列表新增“批量新增灌装”操作区：
+    - 统一填写 `日期/备注/默认净重`，并通过多行文本批量粘贴（每行 `瓶号,净重` 或仅 `瓶号`）。
+    - 支持“预览 -> 二次确认 -> 执行”链路，预览返回可新增条数、无效行数、重复行数与样例瓶号。
+  - 云函数 `crm-filling` 新增 `batchCreateV1`：
+    - 参数：`preview`、`date`、`remark`、`default_fill_weight`、`batch_text`。
+    - 执行时写入 `crm_fillings`，并同步写入 `crm_bottle_movements(fill)`。
+    - 自动拦截“批量内容内重复瓶号”和“同日期同瓶号已存在”记录，按失败明细返回。
+    - 执行后触发 `crm-bottle-anomaly.touchV2`，保持异常结果同步。
+  - 灌装列表新增“批量改日期”操作区，支持两种范围：
+    - 按当前筛选全量（需填写至少一个筛选条件）；
+    - 勾选子集（列表内勾选记录）。
+  - 支持“预览 -> 二次确认 -> 执行”链路，执行结果返回总数/成功/失败及失败明细。
+  - 云函数 `crm-filling` 新增 `batchUpdateDateV1`：
+    - 参数：`preview`、`scope_mode`、`selector`、`new_date`。
+    - 执行时同步更新 `crm_fillings.date/updated_at` 与对应 `crm_bottle_movements` 的 `date/event_day/event_at`。
+    - 批量更新成功后触发 `crm-bottle-anomaly.touchV2`，保持异常结果实时同步。
+    - 单批上限 `2000` 条，超限返回提示缩小范围。
+  - 日志映射新增 `filling_batch_create_v1`、`filling_batch_update_date_v1`。
+- 改动文件列表：
+  - `src/components/domain/filling/FillingEditView.vue`
+  - `src/components/domain/filling/FillingListView.vue`
+  - `src/services/filling.js`
+  - `src/services/models/log.js`
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `uniCloud-alipay/database/schema/crm_fillings.schema.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+    - `node --check src/services/filling.js`
+    - `node --check src/services/models/log.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 本期已覆盖“批量新增 + 批量改日期”；“更多批量字段（地点/备注的批量改值）”可作为下一阶段。
+
+### 2026-03-16 CURRENT — 灌装P0（作业类型 + 操作人筛选展示）
+- 做了什么：
+  - 灌装数据模型扩展 `record_type/operator/operator_id`：
+    - `createV1/updateV1/batchCreateV1` 写入作业类型与操作人信息；
+    - `getV1/listV1` 对历史记录做读时归一（`record_type` 默认 `normal_fill`，`operator` 回退 `created_by_name`）。
+  - 灌装列表筛选增强：
+    - 新增 `操作人` 与 `作业类型` 筛选参数，和原有 `瓶号/日期` 一起按 `AND` 生效；
+    - `batchUpdateDateV1` 的 `scope_mode=filter` 复用同一筛选构造器，批量命中口径与列表一致。
+  - 灌装前端交互增强：
+    - `FillingEditView` 新增“作业类型”选择并随单条保存；
+    - `FillingListView` 新增“操作人 + 作业类型”筛选控件与 chip；
+    - 列表项 `meta` 增加“作业类型标签 + 操作人标签”展示；
+    - “批量新增灌装”新增作业类型选择并透传到后端。
+  - `crm_fillings` schema 新增字段与索引：
+    - 字段：`record_type/operator/operator_id`；
+    - 索引：`idx_record_type_date`、`idx_operator_date`。
+- 改动文件列表：
+  - `src/components/domain/filling/FillingEditView.vue`
+  - `src/components/domain/filling/FillingListView.vue`
+  - `src/services/filling.js`
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `uniCloud-alipay/database/schema/crm_fillings.schema.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+    - `node --check src/services/filling.js`
+    - `node --check src/services/models/log.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 已在下一条 `2026-03-16 CURRENT — 灌装P1` 完成“操作人模糊检索”。
+
+### 2026-03-16 CURRENT — 灌装P1（操作人模糊检索 + 同日同瓶拦截）
+- 做了什么：
+  - 操作人筛选改为模糊匹配：
+    - `crm-filling listV1` 使用 `db.RegExp(i)` 对 `operator` 与 `created_by_name` 做包含匹配；
+    - 前端筛选输入提示改为“输入操作人（模糊）”。
+  - 重复录入防护（同日期 + 同瓶号）：
+    - `createV1` 新增前校验重复，命中返回 `409`；
+    - `updateV1` 保存前校验（排除自身），命中返回 `409`；
+    - `batchUpdateDateV1` 执行时逐条校验，若目标日期已存在同瓶号则该条失败并进入失败清单（部分成功策略不变）。
+- 改动文件列表：
+  - `src/components/domain/filling/FillingListView.vue`
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+    - `node --check src/services/filling.js`
+    - `node --check src/services/models/log.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 目前重复防护基于应用层校验，若后续并发写入升高，建议补 `bottle_no + date` 唯一索引做最终兜底。
+
+### 2026-03-16 CURRENT — 灌装P2（操作人改配送员选择，默认陈铁栓）
+- 做了什么：
+  - 灌装单条录入/编辑页改为“操作人下拉选择”：
+    - 操作人来源为 `crm_delivery_men` 在岗列表（分页拉取汇总）；
+    - 新建记录默认选中 `陈铁栓`，若不存在则回退首个在岗配送员；
+    - 编辑历史记录时，若原操作人不在当前在岗列表，自动注入为临时选项避免丢失。
+  - 批量新增灌装改为“操作人下拉选择”：
+    - 批量面板新增操作人选择控件；
+    - 默认同样为 `陈铁栓`（缺失时回退首个在岗配送员）；
+    - 预览/执行提交时强制要求操作人已选择。
+  - 服务透传补齐：
+    - `batchCreateFillingsV1` 增加 `operator/operator_id` 透传到 `crm-filling.batchCreateV1`。
+- 改动文件列表：
+  - `src/components/domain/filling/FillingEditView.vue`
+  - `src/components/domain/filling/FillingListView.vue`
+  - `src/services/filling.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check src/services/filling.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+    - `node --check src/services/models/log.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 当前“操作人筛选”仍保留模糊输入（列表筛选口径不变）；如需也改为配送员下拉，可在下一步切换筛选控件。
+
+### 2026-03-17 CURRENT — 灌装收尾（里程碑提交前）
+- 做了什么：
+  - 修复“删除后列表不即时刷新”问题：`FillingListView` 新增强制刷新版本键，删除/查询/刷新/批量执行后统一绕过 10 秒缓存，避免删除后短时间读到旧列表。
+  - 补齐收尾文档：
+    - `docs/filling.regression.checklist.md`（回归清单）
+    - `docs/filling.smoke.playbook.md`（全链路冒烟与回滚手册）
+  - 保留并纳入本轮灌装改造成果（作业类型分流、联想输入、批量预览明细化、批量改日期、no_sale 清洗脚本与执行文档）。
+- 改动文件列表：
+  - `STATE.md`
+  - `package.json`
+  - `src/components/base/AppInput.vue`
+  - `src/components/domain/filling/FillingEditView.vue`
+  - `src/components/domain/filling/FillingListView.vue`
+  - `src/services/filling.js`
+  - `src/services/models/log.js`
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `uniCloud-alipay/database/schema/crm_fillings.schema.json`
+  - `docs/filling.no_sale_cleanup.playbook.md`
+  - `docs/filling.no_sale_cleanup.browser.playbook.md`
+  - `docs/filling.regression.checklist.md`
+  - `docs/filling.smoke.playbook.md`
+  - `scripts/cleanupNoSaleMovements.cjs`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 线上“异常/损耗口径一致性”需按 `docs/filling.smoke.playbook.md` 在真实空间完成一次人工冒烟并留验收截图。

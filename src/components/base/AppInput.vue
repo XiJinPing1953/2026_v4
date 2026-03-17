@@ -18,6 +18,7 @@
 				:placeholder="placeholder"
 				:confirm-type="confirmType"
 				:disabled="disabled || readonly"
+				:focus="focus"
 				@input="onInput"
 				@confirm="$emit('confirm', $event)"
 				@blur="handleBlur"
@@ -40,7 +41,8 @@ const props = defineProps({
 	type: { type: String, default: 'text' },
 	confirmType: { type: String, default: 'done' },
 	prefixIcon: { type: String, default: '' },
-	size: { type: String, default: 'md' }
+	size: { type: String, default: 'md' },
+	focus: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:modelValue', 'confirm', 'blur', 'focus', 'input'])

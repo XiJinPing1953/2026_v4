@@ -50,6 +50,8 @@ const ACTION_LABEL_MAP = {
 	filling_get_v1: '查询灌装记录详情',
 	filling_update_v1: '更新灌装记录',
 	filling_remove_v1: '删除灌装记录',
+	filling_batch_create_v1: '批量新增灌装记录',
+	filling_batch_update_date_v1: '批量修改灌装日期',
 	filling_list_v1: '查询灌装记录',
 	filling_anomaly_touch_v2_failed: '灌装后异常增量扫描失败',
 
