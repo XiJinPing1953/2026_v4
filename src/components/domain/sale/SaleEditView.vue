@@ -639,7 +639,7 @@ async function onSubmit() {
 		} else {
 			uni.showToast({ title: savedWithOverride ? '已核对并保存' : '保存成功', icon: 'success' })
 		}
-		uni.navigateBack({ delta: 1 })
+		navigateAfterSave()
 	} catch (err) {
 		const failure = resolveSubmitFailure(err)
 		console.error('save sale failed', failure, err)
@@ -699,6 +699,15 @@ function resolveSubmitFailure(err) {
 }
 
 function onCancel() {
+	uni.navigateBack({ delta: 1 })
+}
+
+function navigateAfterSave() {
+	// 新建保存后固定返回销售列表；编辑保持返回上一页
+	if (!recordId.value) {
+		uni.redirectTo({ url: '/pages/sale/list' })
+		return
+	}
 	uni.navigateBack({ delta: 1 })
 }
 
