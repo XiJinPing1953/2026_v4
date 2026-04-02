@@ -6865,3 +6865,16 @@
   - `npm run build:mp-alipay`（通过）
 - 剩余问题：
   - 线上若仍是旧版 `crm-customer`，时间范围与“已结清”筛选不会生效；需同步部署云函数。
+
+### 2026-04-02 CURRENT — 修复瓶子查询浮窗/入口右侧拖拽边界过宽
+- 做了什么：
+  - 调整 `AppBottleQueryFloat` 拖拽边界算法：触发按钮与查询面板统一走 `clampTriggerPosition/clampPanelPosition`，减少硬编码边距造成的右侧不可达区域。
+  - 视口尺寸改为优先读取 H5 实时可视区（`visualViewport/innerWidth/clientWidth`），并在 `window resize` 与 `visualViewport resize` 时重算约束并回收位置，避免页面尺寸变化后边界失真。
+  - 保留原有拖拽交互与点击防误触逻辑，不改查询业务逻辑。
+- 改动文件列表：
+  - `src/components/base/AppBottleQueryFloat.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `npm run build:h5`（通过）
+- 剩余问题：
+  - 需你在实际设备/端侧拖拽复测；若某端仍有安全区偏差，再按端侧单独校准边界预留。

@@ -140,6 +140,7 @@ const loading = ref(false)
 const searched = ref(false)
 const keyword = ref('')
 const timeline = ref(buildTimelineDefault())
+const DRAG_EDGE_GAP = 2
 const metrics = reactive({
 	windowWidth: 390,
 	windowHeight: 844,
@@ -329,25 +330,86 @@ function clamp(value, min, max) {
 	return Math.min(Math.max(value, min), max)
 }
 
-function initMetrics() {
+function resolveViewportSizeByWindow() {
+	if (typeof window === 'undefined') return { width: 0, height: 0 }
+	const visualWidth = Number(window?.visualViewport?.width || 0)
+	const visualHeight = Number(window?.visualViewport?.height || 0)
+	const innerWidth = Number(window?.innerWidth || 0)
+	const innerHeight = Number(window?.innerHeight || 0)
+	const docWidth = Number(window?.document?.documentElement?.clientWidth || 0)
+	const docHeight = Number(window?.document?.documentElement?.clientHeight || 0)
+	return {
+		width: Math.round(Math.max(visualWidth, innerWidth, docWidth)),
+		height: Math.round(Math.max(visualHeight, innerHeight, docHeight))
+	}
+}
+
+function getTriggerBounds() {
+	return {
+		minX: DRAG_EDGE_GAP,
+		maxX: Math.max(DRAG_EDGE_GAP, metrics.windowWidth - metrics.triggerSize - DRAG_EDGE_GAP),
+		minY: DRAG_EDGE_GAP,
+		maxY: Math.max(DRAG_EDGE_GAP, metrics.windowHeight - metrics.triggerSize - DRAG_EDGE_GAP)
+	}
+}
+
+function getPanelBounds() {
+	return {
+		minX: 0,
+		maxX: Math.max(0, metrics.windowWidth - metrics.panelWidth),
+		minY: 0,
+		maxY: Math.max(0, metrics.windowHeight - metrics.panelHeight)
+	}
+}
+
+function clampTriggerPosition(x, y) {
+	const bounds = getTriggerBounds()
+	triggerPosition.x = clamp(x, bounds.minX, bounds.maxX)
+	triggerPosition.y = clamp(y, bounds.minY, bounds.maxY)
+}
+
+function clampPanelPosition(x, y) {
+	const bounds = getPanelBounds()
+	panelPosition.x = clamp(x, bounds.minX, bounds.maxX)
+	panelPosition.y = clamp(y, bounds.minY, bounds.maxY)
+}
+
+function initMetrics({ preservePosition = false } = {}) {
+	const currentTrigger = { x: triggerPosition.x, y: triggerPosition.y }
+	const currentPanel = { x: panelPosition.x, y: panelPosition.y }
 	try {
 		const sys = uni.getSystemInfoSync()
-		metrics.windowWidth = Number(sys.windowWidth || 390)
-		metrics.windowHeight = Number(sys.windowHeight || 844)
+		const h5Viewport = resolveViewportSizeByWindow()
+		const resolvedWidth = Number(h5Viewport.width || sys.windowWidth || 0)
+		const resolvedHeight = Number(h5Viewport.height || sys.windowHeight || 0)
+		metrics.windowWidth = Math.max(resolvedWidth, 390)
+		metrics.windowHeight = Math.max(resolvedHeight, 844)
 		metrics.triggerSize = Math.max(48, Math.round(uni.upx2px(96)))
 		metrics.triggerMargin = Math.max(12, Math.round(uni.upx2px(40)))
 		metrics.panelWidth = Math.min(metrics.windowWidth - 16, Math.max(320, Math.round(uni.upx2px(760))))
 		metrics.panelHeight = Math.min(metrics.windowHeight - 24, Math.max(420, Math.round(uni.upx2px(1300))))
 	} catch (err) {
+		const h5Viewport = resolveViewportSizeByWindow()
+		metrics.windowWidth = Math.max(h5Viewport.width || 0, 390)
+		metrics.windowHeight = Math.max(h5Viewport.height || 0, 844)
 		metrics.triggerSize = 48
 		metrics.triggerMargin = 20
 		metrics.panelWidth = 380
 		metrics.panelHeight = 620
 	}
-	triggerPosition.x = Math.max(metrics.windowWidth - metrics.triggerSize - metrics.triggerMargin, metrics.triggerMargin)
-	triggerPosition.y = Math.max(metrics.windowHeight - metrics.triggerSize - metrics.triggerMargin * 2, metrics.triggerMargin)
-	panelPosition.x = Math.max(metrics.windowWidth - metrics.panelWidth - metrics.triggerMargin, 8)
-	panelPosition.y = Math.max(12, Math.min(32, metrics.windowHeight - metrics.panelHeight - 12))
+	if (preservePosition) {
+		clampTriggerPosition(currentTrigger.x, currentTrigger.y)
+		clampPanelPosition(currentPanel.x, currentPanel.y)
+		return
+	}
+	clampTriggerPosition(
+		Math.max(metrics.windowWidth - metrics.triggerSize - metrics.triggerMargin, metrics.triggerMargin),
+		Math.max(metrics.windowHeight - metrics.triggerSize - metrics.triggerMargin * 2, metrics.triggerMargin)
+	)
+	clampPanelPosition(
+		Math.max(metrics.windowWidth - metrics.panelWidth - metrics.triggerMargin, 8),
+		Math.max(12, Math.min(32, metrics.windowHeight - metrics.panelHeight - 12))
+	)
 }
 
 function openPanel() {
@@ -461,12 +523,10 @@ function handleMouseMove(event) {
 	const dy = y - mouseDrag.startY
 	if (Math.abs(dx) > 4 || Math.abs(dy) > 4) mouseDrag.moved = true
 	if (mouseDrag.active === 'trigger') {
-		triggerPosition.x = clamp(mouseDrag.originX + dx, 8, metrics.windowWidth - metrics.triggerSize - 8)
-		triggerPosition.y = clamp(mouseDrag.originY + dy, 8, metrics.windowHeight - metrics.triggerSize - 8)
+		clampTriggerPosition(mouseDrag.originX + dx, mouseDrag.originY + dy)
 		return
 	}
-	panelPosition.x = clamp(mouseDrag.originX + dx, 0, Math.max(0, metrics.windowWidth - metrics.panelWidth))
-	panelPosition.y = clamp(mouseDrag.originY + dy, 0, Math.max(0, metrics.windowHeight - metrics.panelHeight))
+	clampPanelPosition(mouseDrag.originX + dx, mouseDrag.originY + dy)
 }
 
 function handleMouseUp() {
@@ -486,12 +546,10 @@ function handleTouchMove(event) {
 	const dy = point.y - touchDrag.startY
 	if (Math.abs(dx) > 4 || Math.abs(dy) > 4) touchDrag.moved = true
 	if (touchDrag.active === 'trigger') {
-		triggerPosition.x = clamp(touchDrag.originX + dx, 8, metrics.windowWidth - metrics.triggerSize - 8)
-		triggerPosition.y = clamp(touchDrag.originY + dy, 8, metrics.windowHeight - metrics.triggerSize - 8)
+		clampTriggerPosition(touchDrag.originX + dx, touchDrag.originY + dy)
 		return
 	}
-	panelPosition.x = clamp(touchDrag.originX + dx, 0, Math.max(0, metrics.windowWidth - metrics.panelWidth))
-	panelPosition.y = clamp(touchDrag.originY + dy, 0, Math.max(0, metrics.windowHeight - metrics.panelHeight))
+	clampPanelPosition(touchDrag.originX + dx, touchDrag.originY + dy)
 }
 
 function handleTouchEnd() {
@@ -503,6 +561,10 @@ function handleTouchEnd() {
 	touchDrag.moved = false
 }
 
+function handleViewportResize() {
+	initMetrics({ preservePosition: true })
+}
+
 onMounted(() => {
 	initMetrics()
 	if (typeof window !== 'undefined') {
@@ -511,6 +573,8 @@ onMounted(() => {
 		window.addEventListener('touchmove', handleTouchMove, touchMoveOptions)
 		window.addEventListener('touchend', handleTouchEnd)
 		window.addEventListener('touchcancel', handleTouchEnd)
+		window.addEventListener('resize', handleViewportResize)
+		window.visualViewport?.addEventListener('resize', handleViewportResize)
 	}
 })
 
@@ -521,6 +585,8 @@ onBeforeUnmount(() => {
 		window.removeEventListener('touchmove', handleTouchMove, touchMoveOptions)
 		window.removeEventListener('touchend', handleTouchEnd)
 		window.removeEventListener('touchcancel', handleTouchEnd)
+		window.removeEventListener('resize', handleViewportResize)
+		window.visualViewport?.removeEventListener('resize', handleViewportResize)
 	}
 })
 </script>
