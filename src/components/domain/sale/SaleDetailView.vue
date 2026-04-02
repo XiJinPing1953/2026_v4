@@ -34,12 +34,16 @@
 						<text class="info-value">{{ bizModeText(detail.biz_mode) }}</text>
 					</view>
 					<view class="info-item info-item--inline">
-						<text class="info-label">计价单位</text>
-						<text class="info-value">{{ detail.price_unit || '-' }}</text>
+						<text class="info-label">配送车辆</text>
+						<text class="info-value">{{ deliveryVehicleText }}</text>
 					</view>
 					<view class="info-item info-item--inline">
-						<text class="info-label">单价</text>
-						<text class="info-value">¥{{ formatMoney(detail.unit_price) }}</text>
+						<text class="info-label">配送员</text>
+						<text class="info-value">{{ deliveryManText }}</text>
+					</view>
+					<view class="info-item info-item--inline">
+						<text class="info-label">计价单位 / 单价</text>
+						<text class="info-value">{{ priceUnitAndPriceText }}</text>
 					</view>
 					<view class="info-item span-3">
 						<text class="info-label">业务备注</text>
@@ -347,6 +351,14 @@ const outRows = computed(() => normalizeBottleRows(detail.value?.out_items))
 const backRows = computed(() => normalizeBottleRows(detail.value?.back_items))
 const depositRows = computed(() => normalizeDepositRows(detail.value?.deposit_rows))
 const agentRows = computed(() => normalizeAgentRows(detail.value?.agent_sale_items))
+const deliveryVehicleText = computed(() =>
+	normalizeString(detail.value?.car_no) || normalizeString(detail.value?.truck_no) || '-'
+)
+const deliveryManText = computed(() => normalizeString(detail.value?.delivery_man) || '-')
+const priceUnitAndPriceText = computed(() => {
+	const unit = normalizeString(detail.value?.price_unit) || '-'
+	return `¥${formatMoney(detail.value?.unit_price)}/${unit}`
+})
 const isTruckMode = computed(() => normalizeString(detail.value?.biz_mode) === 'truck')
 const hasRelatedData = computed(
 	() => outRows.value.length > 0 || backRows.value.length > 0 || depositRows.value.length > 0 || agentRows.value.length > 0 || isTruckMode.value
