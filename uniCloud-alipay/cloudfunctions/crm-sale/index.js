@@ -3106,6 +3106,13 @@ function computeSaleAmountsForDoc(doc) {
 	return { bizMode, amounts }
 }
 
+function computeSaleBottleQuantity(doc) {
+	const bizMode = normalizeBizModeValue(doc && doc.biz_mode)
+	if (bizMode === 'agent_sale') return Array.isArray(doc && doc.agent_sale_items) ? doc.agent_sale_items.length : 0
+	if (bizMode === 'bottle') return Array.isArray(doc && doc.out_items) ? doc.out_items.length : 0
+	return 0
+}
+
 async function computeSaleListSummary(where, filters = {}) {
 	const settlementScope = normalizeSettlementScope(filters.settlementScope || filters.settlement_scope)
 	const hasRemark = normalizeHasRemarkFilter(filters.hasRemark || filters.has_remark)
@@ -3113,6 +3120,7 @@ async function computeSaleListSummary(where, filters = {}) {
 	const summary = {
 		total: 0,
 		paid: 0,
+		paid_bottle_count: 0,
 		partial: 0,
 		unpaid: 0,
 		should_receive_total: 0,
@@ -3127,8 +3135,10 @@ async function computeSaleListSummary(where, filters = {}) {
 		agent_sale_net_weight: 0,
 		receivable_outstanding_total: 0,
 		receivable_outstanding_count: 0,
+		receivable_outstanding_bottle_count: 0,
 		refund_outstanding_total: 0,
 		refund_outstanding_count: 0,
+		refund_outstanding_bottle_count: 0,
 		overpaid_total: 0,
 		overpaid_count: 0,
 		overrefund_total: 0,
@@ -3191,9 +3201,13 @@ async function computeSaleListSummary(where, filters = {}) {
 				const outstanding = fix2(effectiveShouldReceive - amountReceived)
 				const status = normalizePaymentStatusValue(doc && doc.payment_status)
 				const netWeight = toNumber(row && row.total_net_weight, 0)
+				const bottleQuantity = computeSaleBottleQuantity(doc)
 
 				summary.total += 1
-			if (status === 'paid') summary.paid += 1
+			if (status === 'paid') {
+				summary.paid += 1
+				summary.paid_bottle_count += bottleQuantity
+			}
 			else if (status === 'partial') summary.partial += 1
 			else summary.unpaid += 1
 
@@ -3206,6 +3220,7 @@ async function computeSaleListSummary(where, filters = {}) {
 				if (outstanding > 0) {
 					summary.receivable_outstanding_total = fix2(summary.receivable_outstanding_total + outstanding)
 					summary.receivable_outstanding_count += 1
+					summary.receivable_outstanding_bottle_count += bottleQuantity
 				} else if (outstanding < 0) {
 					summary.overpaid_total = fix2(summary.overpaid_total + Math.abs(outstanding))
 					summary.overpaid_count += 1
@@ -3214,6 +3229,7 @@ async function computeSaleListSummary(where, filters = {}) {
 				if (outstanding < 0) {
 					summary.refund_outstanding_total = fix2(summary.refund_outstanding_total + Math.abs(outstanding))
 					summary.refund_outstanding_count += 1
+					summary.refund_outstanding_bottle_count += bottleQuantity
 				} else if (outstanding > 0) {
 					summary.overrefund_total = fix2(summary.overrefund_total + outstanding)
 					summary.overrefund_count += 1
@@ -3361,6 +3377,7 @@ async function listV2(user, data) {
 		summary: {
 			total,
 			paid: Number(summary.paid || 0),
+			paid_bottle_count: Number(summary.paid_bottle_count || 0),
 			partial: Number(summary.partial || 0),
 			unpaid: Number(summary.unpaid || 0),
 			should_receive_total: fix2(summary.should_receive_total || 0),
@@ -3375,8 +3392,10 @@ async function listV2(user, data) {
 			agent_sale_net_weight: fix2(summary.agent_sale_net_weight || 0),
 			receivable_outstanding_total: fix2(summary.receivable_outstanding_total || 0),
 			receivable_outstanding_count: Number(summary.receivable_outstanding_count || 0),
+			receivable_outstanding_bottle_count: Number(summary.receivable_outstanding_bottle_count || 0),
 			refund_outstanding_total: fix2(summary.refund_outstanding_total || 0),
 			refund_outstanding_count: Number(summary.refund_outstanding_count || 0),
+			refund_outstanding_bottle_count: Number(summary.refund_outstanding_bottle_count || 0),
 			overpaid_total: fix2(summary.overpaid_total || 0),
 			overpaid_count: Number(summary.overpaid_count || 0),
 			overrefund_total: fix2(summary.overrefund_total || 0),

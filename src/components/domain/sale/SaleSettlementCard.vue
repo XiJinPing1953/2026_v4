@@ -183,7 +183,8 @@ function patchModel(patch) {
 
 .summary-label {
 	font-size: 24rpx;
-	color: #64748b;
+	color: #0f172a;
+	font-weight: 700;
 }
 
 .summary-value {
@@ -194,7 +195,8 @@ function patchModel(patch) {
 
 .summary-formula {
 	font-size: 22rpx;
-	color: #94a3b8;
+	color: #0f172a;
+	font-weight: 700;
 	line-height: 1.4;
 }
 

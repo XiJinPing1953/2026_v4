@@ -144,8 +144,19 @@
 						<view class="overview-grid">
 							<view class="overview-card">
 								<view class="overview-header">
-									<text class="overview-title">近 5 日业务日报</text>
-									<text class="overview-meta">充装与销售按业务日期汇总</text>
+									<view class="overview-header__left">
+										<text class="overview-title">近 5 日业务日报</text>
+										<text class="overview-meta">充装与销售按业务日期汇总</text>
+									</view>
+									<AppButton
+										size="sm"
+										kind="neutral"
+										:loading="dailyReportExporting"
+										:disabled="!dailyReportDisplayRows.length"
+										@click="onExportDailyReport"
+									>
+										一键导出
+									</AppButton>
 								</view>
 								<scroll-view scroll-x class="daily-report-scroll">
 									<view class="daily-report-table">
@@ -483,6 +494,7 @@ const distributionLabels = ref(['缺失类', '连续类', '整车类', '其他']
 const dailyReportRows = ref([])
 const receivableRows = ref([])
 const barValues = ref([0, 0, 0, 0])
+const dailyReportExporting = ref(false)
 const DAILY_REPORT_VISIBLE_DAYS = 5
 
 const dailyReportDisplayRows = computed(() => dailyReportRows.value.slice(0, DAILY_REPORT_VISIBLE_DAYS))
@@ -563,8 +575,18 @@ function formatCompactAmount(value) {
 function formatCompactWeight(value) {
 	const num = Number(value)
 	if (!Number.isFinite(num) || num === 0) return '0kg'
-	if (Math.abs(num) >= 1000) return `${(Math.round((num / 1000) * 10) / 10).toFixed(1)}吨`
+	if (Math.abs(num) >= 1000) return `${formatFixedNoRound(num / 1000, 3)}吨`
 	return `${Math.round(num)}kg`
+}
+
+function formatFixedNoRound(value, digits = 3) {
+	const num = Number(value)
+	if (!Number.isFinite(num)) return '0'
+	const factor = 10 ** Math.max(0, Number(digits) || 0)
+	const sign = num < 0 ? '-' : ''
+	const abs = Math.abs(num)
+	const truncated = Math.trunc(abs * factor) / factor
+	return `${sign}${truncated.toFixed(Math.max(0, Number(digits) || 0))}`
 }
 
 function formatPercent(value) {
@@ -671,6 +693,93 @@ useQuery(
 
 function go(url) {
 	uni.navigateTo({ url })
+}
+
+function escapeCsvValue(value) {
+	const text = String(value ?? '')
+	if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`
+	return text
+}
+
+function formatNowForFile() {
+	const now = new Date()
+	const y = now.getFullYear()
+	const m = String(now.getMonth() + 1).padStart(2, '0')
+	const d = String(now.getDate()).padStart(2, '0')
+	const hh = String(now.getHours()).padStart(2, '0')
+	const mm = String(now.getMinutes()).padStart(2, '0')
+	const ss = String(now.getSeconds()).padStart(2, '0')
+	return `${y}${m}${d}_${hh}${mm}${ss}`
+}
+
+function downloadCsvOnH5(csvText, fileName) {
+	if (typeof window === 'undefined' || typeof document === 'undefined' || typeof Blob === 'undefined') return false
+	const blob = new Blob([`\uFEFF${csvText}`], { type: 'text/csv;charset=utf-8;' })
+	const url = window.URL.createObjectURL(blob)
+	const anchor = document.createElement('a')
+	anchor.href = url
+	anchor.download = fileName
+	document.body.appendChild(anchor)
+	anchor.click()
+	document.body.removeChild(anchor)
+	window.URL.revokeObjectURL(url)
+	return true
+}
+
+function buildDailyReportCsv(rows = []) {
+	const headers = ['日期', '充装瓶数', '充装重量', '地方车次', '地方车重', '车辆次', '车辆重', '客户数', '销售瓶数', '销售重量']
+	const lines = [headers.map(escapeCsvValue).join(',')]
+	rows.forEach((row) => {
+		const cells = [
+			row.date || '',
+			row.fillBottleCount || 0,
+			formatCompactWeight(row.fillBottleWeightKg),
+			row.localCount || 0,
+			formatCompactWeight(row.localWeightKg),
+			row.vehicleCount || 0,
+			formatCompactWeight(row.vehicleWeightKg),
+			row.saleCustomerCount || 0,
+			row.saleBottleCount || 0,
+			formatCompactWeight(row.saleWeightKg)
+		]
+		lines.push(cells.map(escapeCsvValue).join(','))
+	})
+	return lines.join('\n')
+}
+
+function copyText(text) {
+	return new Promise((resolve, reject) => {
+		uni.setClipboardData({
+			data: String(text || ''),
+			success: resolve,
+			fail: reject
+		})
+	})
+}
+
+async function onExportDailyReport() {
+	if (dailyReportExporting.value) return
+	const rows = dailyReportDisplayRows.value || []
+	if (!rows.length) {
+		uni.showToast({ title: '暂无可导出数据', icon: 'none' })
+		return
+	}
+	dailyReportExporting.value = true
+	try {
+		const csvText = buildDailyReportCsv(rows)
+		const fileName = `近5日业务日报_${formatNowForFile()}.csv`
+		const downloaded = downloadCsvOnH5(csvText, fileName)
+		if (downloaded) {
+			uni.showToast({ title: `已导出${rows.length}条`, icon: 'success' })
+			return
+		}
+		await copyText(csvText)
+		uni.showToast({ title: '当前端不支持下载，已复制报表', icon: 'none', duration: 2600 })
+	} catch (err) {
+		uni.showToast({ title: err?.message || '导出失败', icon: 'none', duration: 2600 })
+	} finally {
+		dailyReportExporting.value = false
+	}
 }
 
 async function onLogout() {
@@ -922,6 +1031,13 @@ function goInspectionDue(module) {
 	align-items: center;
 	justify-content: space-between;
 	gap: 12px;
+}
+
+.overview-header__left {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
 }
 
 .overview-title {

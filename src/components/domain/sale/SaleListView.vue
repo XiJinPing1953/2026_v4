@@ -262,6 +262,7 @@ const exporting = ref(false)
 const summary = ref({
 	total: 0,
 	paid: 0,
+	paidBottleCount: 0,
 	partial: 0,
 	unpaid: 0,
 	shouldReceiveTotal: 0,
@@ -281,8 +282,10 @@ const summary = ref({
 	agentSaleNetWeight: 0,
 	receivableOutstandingTotal: 0,
 	receivableOutstandingCount: 0,
+	receivableOutstandingBottleCount: 0,
 	refundOutstandingTotal: 0,
 	refundOutstandingCount: 0,
+	refundOutstandingBottleCount: 0,
 	overpaidTotal: 0,
 	overpaidCount: 0,
 	overrefundTotal: 0,
@@ -386,9 +389,9 @@ const outstandingText = computed(() => formatMoneyStat(summary.value.outstanding
 const totalNetWeightText = computed(() => formatWeightStat(summary.value.totalNetWeight))
 const receivableOutstandingText = computed(() => formatMoneyStat(summary.value.receivableOutstandingTotal))
 const refundOutstandingText = computed(() => formatMoneyStat(summary.value.refundOutstandingTotal))
-const paidHintText = computed(() => `已结清${formatCount(summary.value.paid)}单`)
-const receivableHintText = computed(() => `${formatCount(summary.value.receivableOutstandingCount)}单`)
-const refundHintText = computed(() => `${formatCount(summary.value.refundOutstandingCount)}单`)
+const paidHintText = computed(() => `已结清${formatCount(summary.value.paid)}单 / ${formatCount(summary.value.paidBottleCount)}瓶`)
+const receivableHintText = computed(() => `${formatCount(summary.value.receivableOutstandingCount)}单 / ${formatCount(summary.value.receivableOutstandingBottleCount)}瓶`)
+const refundHintText = computed(() => `${formatCount(summary.value.refundOutstandingCount)}单 / ${formatCount(summary.value.refundOutstandingBottleCount)}瓶`)
 const outstandingHintText = computed(() => {
 	const tags = []
 	if (summary.value.overpaidCount > 0) tags.push(`超收${formatCount(summary.value.overpaidCount)}单`)
@@ -508,6 +511,7 @@ const { loading, run: fetchList } = useQuery(
 			summary: res.summary || {
 				total: 0,
 				paid: 0,
+				paid_bottle_count: 0,
 				partial: 0,
 				unpaid: 0,
 				should_receive_total: 0,
@@ -521,23 +525,25 @@ const { loading, run: fetchList } = useQuery(
 				total_net_weight: 0,
 				bottle_count: 0,
 				truck_count: 0,
-					agent_sale_count: 0,
-					bottle_net_weight: 0,
-					truck_net_weight: 0,
-					agent_sale_net_weight: 0,
-					receivable_outstanding_total: 0,
-					receivable_outstanding_count: 0,
-					refund_outstanding_total: 0,
-					refund_outstanding_count: 0,
-					overpaid_total: 0,
-					overpaid_count: 0,
-					overrefund_total: 0,
-					overrefund_count: 0,
-					prereceive_total: 0,
-					prereceive_count: 0,
-					prerefund_total: 0,
-					prerefund_count: 0
-				}
+				agent_sale_count: 0,
+				bottle_net_weight: 0,
+				truck_net_weight: 0,
+				agent_sale_net_weight: 0,
+				receivable_outstanding_total: 0,
+				receivable_outstanding_count: 0,
+				receivable_outstanding_bottle_count: 0,
+				refund_outstanding_total: 0,
+				refund_outstanding_count: 0,
+				refund_outstanding_bottle_count: 0,
+				overpaid_total: 0,
+				overpaid_count: 0,
+				overrefund_total: 0,
+				overrefund_count: 0,
+				prereceive_total: 0,
+				prereceive_count: 0,
+				prerefund_total: 0,
+				prerefund_count: 0
+			}
 			}
 		},
 	{
@@ -548,6 +554,7 @@ const { loading, run: fetchList } = useQuery(
 				summary: {
 					total: 0,
 					paid: 0,
+					paid_bottle_count: 0,
 					partial: 0,
 					unpaid: 0,
 					should_receive_total: 0,
@@ -564,7 +571,21 @@ const { loading, run: fetchList } = useQuery(
 					agent_sale_count: 0,
 					bottle_net_weight: 0,
 					truck_net_weight: 0,
-					agent_sale_net_weight: 0
+					agent_sale_net_weight: 0,
+					receivable_outstanding_total: 0,
+					receivable_outstanding_count: 0,
+					receivable_outstanding_bottle_count: 0,
+					refund_outstanding_total: 0,
+					refund_outstanding_count: 0,
+					refund_outstanding_bottle_count: 0,
+					overpaid_total: 0,
+					overpaid_count: 0,
+					overrefund_total: 0,
+					overrefund_count: 0,
+					prereceive_total: 0,
+					prereceive_count: 0,
+					prerefund_total: 0,
+					prerefund_count: 0
 				}
 			},
 		cacheTTL: 10000,
@@ -589,6 +610,7 @@ function applyResult(payload) {
 	summary.value = {
 		total: Number(summaryData.total || 0),
 		paid: Number(summaryData.paid || 0),
+		paidBottleCount: Number(summaryData.paid_bottle_count || 0),
 		partial: Number(summaryData.partial || 0),
 		unpaid: Number(summaryData.unpaid || 0),
 		shouldReceiveTotal: toNumber(summaryData.should_receive_total, 0),
@@ -608,8 +630,10 @@ function applyResult(payload) {
 		agentSaleNetWeight: toNumber(summaryData.agent_sale_net_weight, 0),
 		receivableOutstandingTotal: toNumber(summaryData.receivable_outstanding_total, 0),
 		receivableOutstandingCount: Number(summaryData.receivable_outstanding_count || 0),
+		receivableOutstandingBottleCount: Number(summaryData.receivable_outstanding_bottle_count || 0),
 		refundOutstandingTotal: toNumber(summaryData.refund_outstanding_total, 0),
 		refundOutstandingCount: Number(summaryData.refund_outstanding_count || 0),
+		refundOutstandingBottleCount: Number(summaryData.refund_outstanding_bottle_count || 0),
 		overpaidTotal: toNumber(summaryData.overpaid_total, 0),
 		overpaidCount: Number(summaryData.overpaid_count || 0),
 		overrefundTotal: toNumber(summaryData.overrefund_total, 0),

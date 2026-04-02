@@ -66,6 +66,12 @@ function normalizeSettlementMode(value, fallback = 'sale') {
 	return fallback
 }
 
+function normalizeBizModeValue(value) {
+	const text = normalizeString(value)
+	if (text === 'truck' || text === 'agent_sale' || text === 'bottle') return text
+	return 'bottle'
+}
+
 function normalizeBottleNo(value) {
 	return normalizeString(value).toUpperCase().replace(/[\s\r\n\t\u3000]+/g, '')
 }
@@ -163,13 +169,86 @@ async function countInspectionDueByField(field, today, dueEnd) {
 	}
 }
 
-function computeAmounts({ bizMode, priceUnit, unitPrice, outItems, backItems, agentRows, truckSaleNet, flow }) {
-	const outNetTotal = outItems.reduce((sum, item) => sum + toNumber(item.net, 0), 0)
-	const backNetTotal = backItems.reduce((sum, item) => sum + toNumber(item.net, 0), 0)
+function resolveTruckReferenceNetValue(rawTruckGrossDiff, rawTruckOutGross, rawTruckBackGross) {
+	const outGross = rawTruckOutGross === '' || rawTruckOutGross == null ? null : toNumber(rawTruckOutGross, null)
+	const backGross = rawTruckBackGross === '' || rawTruckBackGross == null ? null : toNumber(rawTruckBackGross, null)
+	if (outGross != null && backGross != null) return Math.max(outGross - backGross, 0)
+	const grossDiff = rawTruckGrossDiff === '' || rawTruckGrossDiff == null ? null : toNumber(rawTruckGrossDiff, null)
+	if (grossDiff != null && Number.isFinite(grossDiff) && grossDiff > 0) return grossDiff
+	return 0
+}
+
+function resolveTruckSettlementNetValue(rawTruckSaleNet, rawTruckSettleTare, rawTruckSettleGross) {
+	const settleTare = rawTruckSettleTare === '' || rawTruckSettleTare == null ? null : toNumber(rawTruckSettleTare, null)
+	const settleGross = rawTruckSettleGross === '' || rawTruckSettleGross == null ? null : toNumber(rawTruckSettleGross, null)
+	if (settleTare != null && settleGross != null) return Math.max(settleGross - settleTare, 0)
+	const explicit = rawTruckSaleNet === '' || rawTruckSaleNet == null ? null : toNumber(rawTruckSaleNet, null)
+	if (explicit != null && Number.isFinite(explicit) && explicit > 0) return explicit
+	return 0
+}
+
+function resolveTruckBillableNetValue({
+	priceUnit = 'kg',
+	rawTruckGrossDiff = null,
+	rawTruckSaleNet = null,
+	rawTruckOutGross = null,
+	rawTruckBackGross = null,
+	rawTruckSettleTare = null,
+	rawTruckSettleGross = null
+} = {}) {
+	const referenceNet = resolveTruckReferenceNetValue(rawTruckGrossDiff, rawTruckOutGross, rawTruckBackGross)
+	if (normalizeString(priceUnit) === 'kg') {
+		const settlementNet = resolveTruckSettlementNetValue(rawTruckSaleNet, rawTruckSettleTare, rawTruckSettleGross)
+		if (settlementNet > 0) return settlementNet
+	}
+	return referenceNet
+}
+
+function computeAmounts({
+	settlementMode = 'sale',
+	bizMode,
+	priceUnit,
+	unitPrice,
+	outItems,
+	backItems,
+	agentRows,
+	truckSaleNet,
+	truckOutGross,
+	truckBackGross,
+	truckSettleTare,
+	truckSettleGross,
+	flow
+}) {
+	let outNetTotal = outItems.reduce((sum, item) => sum + toNumber(item.net, 0), 0)
+	let backNetTotal = backItems.reduce((sum, item) => sum + toNumber(item.net, 0), 0)
+	const agentTotalWeight = (Array.isArray(agentRows) ? agentRows : []).reduce((sum, row) => sum + toNumber(row.fill_weight, 0), 0)
 
 	let totalNetWeight = outNetTotal - backNetTotal
 	if (bizMode === 'truck') {
-		totalNetWeight = toNumber(truckSaleNet, 0)
+		totalNetWeight = resolveTruckBillableNetValue({
+			priceUnit,
+			rawTruckGrossDiff: null,
+			rawTruckSaleNet: truckSaleNet,
+			rawTruckOutGross: truckOutGross,
+			rawTruckBackGross: truckBackGross,
+			rawTruckSettleTare: truckSettleTare,
+			rawTruckSettleGross: truckSettleGross
+		})
+	} else if (bizMode === 'agent_sale') {
+		outNetTotal = agentTotalWeight
+		backNetTotal = 0
+		totalNetWeight = agentTotalWeight
+	}
+
+	if (normalizeSettlementMode(settlementMode) === 'customer_flow') {
+		return {
+			out_net_total: outNetTotal,
+			back_net_total: backNetTotal,
+			total_net_weight: totalNetWeight,
+			out_amount: 0,
+			back_amount: 0,
+			should_receive: 0
+		}
 	}
 
 	let outAmount = 0
@@ -177,8 +256,7 @@ function computeAmounts({ bizMode, priceUnit, unitPrice, outItems, backItems, ag
 	let shouldReceive = 0
 
 	if (bizMode === 'agent_sale') {
-		const totalWeight = agentRows.reduce((sum, row) => sum + toNumber(row.fill_weight, 0), 0)
-		outAmount = totalWeight * unitPrice
+		outAmount = agentTotalWeight * unitPrice
 		shouldReceive = outAmount
 	} else if (priceUnit === 'kg') {
 		outAmount = outNetTotal * unitPrice
@@ -194,26 +272,18 @@ function computeAmounts({ bizMode, priceUnit, unitPrice, outItems, backItems, ag
 	}
 
 	return {
+		out_net_total: outNetTotal,
+		back_net_total: backNetTotal,
+		total_net_weight: totalNetWeight,
 		out_amount: fix2(outAmount),
 		back_amount: fix2(backAmount),
 		should_receive: fix2(shouldReceive)
 	}
 }
 
-function resolveTruckSaleNetValue(rawTruckSaleNet, rawTruckOutGross, rawTruckBackGross) {
-	const outGross = toNumber(rawTruckOutGross, null)
-	const backGross = toNumber(rawTruckBackGross, null)
-	if (outGross != null && backGross != null) {
-		const diff = outGross - backGross
-		return diff > 0 ? fix2(diff) : 0
-	}
-	const explicit = toNumber(rawTruckSaleNet, null)
-	return explicit != null && explicit > 0 ? fix2(explicit) : 0
-}
-
 function computeSaleAmount(doc) {
-	const bizMode = normalizeString(doc.biz_mode)
-	const priceUnit = normalizeString(doc.price_unit)
+	const bizMode = normalizeBizModeValue(doc && doc.biz_mode)
+	const priceUnit = normalizeString(doc && doc.price_unit) || 'kg'
 	const settlementMode = priceUnit === 'm3' ? 'customer_flow' : normalizeSettlementMode(doc.settlement_mode, 'sale')
 	if (settlementMode === 'customer_flow') return 0
 	const unitPrice = toNumber(doc.unit_price, 0)
@@ -222,13 +292,26 @@ function computeSaleAmount(doc) {
 	const agentRows = Array.isArray(doc.agent_sale_items) ? doc.agent_sale_items : []
 	const flow = { flow_volume_m3: toNumber(doc.flow_volume_m3, 0) }
 	const amounts = computeAmounts({
+		settlementMode,
 		bizMode,
 		priceUnit,
 		unitPrice,
 		outItems,
 		backItems,
 		agentRows,
-		truckSaleNet: resolveTruckSaleNetValue(doc.truck_gross_diff ?? doc.truck_sale_net, doc.truck_out_gross, doc.truck_back_gross),
+		truckSaleNet: resolveTruckBillableNetValue({
+			priceUnit,
+			rawTruckGrossDiff: doc.truck_gross_diff,
+			rawTruckSaleNet: doc.truck_sale_net,
+			rawTruckOutGross: doc.truck_out_gross,
+			rawTruckBackGross: doc.truck_back_gross,
+			rawTruckSettleTare: doc.truck_settle_tare,
+			rawTruckSettleGross: doc.truck_settle_gross
+		}),
+		truckOutGross: doc.truck_out_gross,
+		truckBackGross: doc.truck_back_gross,
+		truckSettleTare: doc.truck_settle_tare,
+		truckSettleGross: doc.truck_settle_gross,
 		flow
 	})
 	return toNumber(amounts.should_receive, 0)
@@ -236,7 +319,10 @@ function computeSaleAmount(doc) {
 
 function computeBottleShipmentWeight(doc) {
 	const outItems = Array.isArray(doc && doc.out_items) ? doc.out_items : []
-	return fix2(outItems.reduce((sum, item) => sum + toNumber(item && item.net, 0), 0))
+	const backItems = Array.isArray(doc && doc.back_items) ? doc.back_items : []
+	const outNet = outItems.reduce((sum, item) => sum + toNumber(item && item.net, 0), 0)
+	const backNet = backItems.reduce((sum, item) => sum + toNumber(item && item.net, 0), 0)
+	return fix2(outNet - backNet)
 }
 
 function computeAgentShipmentWeight(doc) {
@@ -245,8 +331,17 @@ function computeAgentShipmentWeight(doc) {
 }
 
 function computeTruckShipmentWeight(doc) {
+	const priceUnit = normalizeString(doc && doc.price_unit) || 'kg'
 	return fix2(
-		resolveTruckSaleNetValue(doc && (doc.truck_gross_diff ?? doc.truck_sale_net), doc && doc.truck_out_gross, doc && doc.truck_back_gross)
+		resolveTruckBillableNetValue({
+			priceUnit,
+			rawTruckGrossDiff: doc && doc.truck_gross_diff,
+			rawTruckSaleNet: doc && doc.truck_sale_net,
+			rawTruckOutGross: doc && doc.truck_out_gross,
+			rawTruckBackGross: doc && doc.truck_back_gross,
+			rawTruckSettleTare: doc && doc.truck_settle_tare,
+			rawTruckSettleGross: doc && doc.truck_settle_gross
+		})
 	)
 }
 
@@ -333,6 +428,8 @@ async function summaryV1(user, data, requestId) {
 		truck_sale_net: true,
 		truck_out_gross: true,
 		truck_back_gross: true,
+		truck_settle_tare: true,
+		truck_settle_gross: true,
 		flow_volume_m3: true
 	})
 	const trendMap = {}
@@ -521,6 +618,8 @@ async function summaryV1(user, data, requestId) {
 			truck_sale_net: true,
 			truck_out_gross: true,
 			truck_back_gross: true,
+			truck_settle_tare: true,
+			truck_settle_gross: true,
 			flow_volume_m3: true
 		})
 	let monthTotal = 0
@@ -552,6 +651,8 @@ async function summaryV1(user, data, requestId) {
 			truck_sale_net: true,
 			truck_out_gross: true,
 			truck_back_gross: true,
+			truck_settle_tare: true,
+			truck_settle_gross: true,
 			flow_volume_m3: true
 		})
 	let prevTotal = 0
