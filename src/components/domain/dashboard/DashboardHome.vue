@@ -145,18 +145,34 @@
 							<view class="overview-card">
 								<view class="overview-header">
 									<view class="overview-header__left">
-										<text class="overview-title">近 5 日业务日报</text>
-										<text class="overview-meta">充装与销售按业务日期汇总</text>
+										<text class="overview-title">业务日报</text>
+										<text class="overview-meta">充装与销售按业务日期汇总 · {{ dailyReportRangeLabel }}</text>
 									</view>
-									<AppButton
-										size="sm"
-										kind="neutral"
-										:loading="dailyReportExporting"
-										:disabled="!dailyReportDisplayRows.length"
-										@click="onExportDailyReport"
-									>
-										一键导出
-									</AppButton>
+									<view class="overview-header__right">
+										<scroll-view scroll-x class="daily-range-scroll">
+											<view class="daily-range-cards">
+												<view
+													v-for="item in dailyReportRangeOptions"
+													:key="item.value"
+													:class="['daily-range-card', dailyReportRangePreset === item.value ? 'daily-range-card--active' : '']"
+													@click="onDailyReportRangeChange(item.value)"
+												>
+													<text class="daily-range-card__label">{{ item.label }}</text>
+												</view>
+											</view>
+										</scroll-view>
+										<view class="daily-export-wrap">
+											<AppButton
+												size="sm"
+												kind="neutral"
+												:loading="dailyReportExporting"
+												:disabled="!dailyReportDisplayRows.length"
+												@click="onExportDailyReport"
+											>
+												导出
+											</AppButton>
+										</view>
+									</view>
 								</view>
 								<scroll-view scroll-x class="daily-report-scroll">
 									<view class="daily-report-table">
@@ -438,9 +454,15 @@ import AppMiniBars from '@/components/base/AppMiniBars.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { useQuery } from '@/composables/useQuery'
 import { getDashboardSummaryV1 } from '@/services/dashboard'
+import { listSalesV2 } from '@/services/sale'
 import { clearAuth, getUser } from '@/services/auth'
 import { goLogin } from '@/services/navigation'
 import { normalizeRoleTemplate } from '@/services/pageAclRegistry'
+import {
+	buildDailyReportWorkbookXml,
+	buildDailyReportExportFileName,
+	downloadWorkbookFile as downloadDailyReportWorkbookFile
+} from '@/components/domain/dashboard/exportDailyReportWorkbook'
 
 const { requireLogin, canPageAction, canViewPage } = useAuthGuard()
 requireLogin()
@@ -495,9 +517,28 @@ const dailyReportRows = ref([])
 const receivableRows = ref([])
 const barValues = ref([0, 0, 0, 0])
 const dailyReportExporting = ref(false)
-const DAILY_REPORT_VISIBLE_DAYS = 5
+const dailyReportRangeOptions = [
+	{ value: 'today', label: '当日' },
+	{ value: 'yesterday', label: '前一日' },
+	{ value: 'last3', label: '前三日' },
+	{ value: 'last5', label: '前五日' }
+]
+const dailyReportRangePreset = ref('last5')
 
-const dailyReportDisplayRows = computed(() => dailyReportRows.value.slice(0, DAILY_REPORT_VISIBLE_DAYS))
+const dailyReportDateRange = computed(() => resolveDailyReportDateRange(dailyReportRangePreset.value))
+const dailyReportRangeLabel = computed(() => {
+	const { start, end } = dailyReportDateRange.value
+	if (!start || !end) return '-'
+	return start === end ? start : `${start}~${end}`
+})
+const dailyReportDisplayRows = computed(() => {
+	const { start, end } = dailyReportDateRange.value
+	if (!start || !end) return []
+	return dailyReportRows.value.filter((row) => {
+		const date = String(row?.date || '')
+		return date >= start && date <= end
+	})
+})
 const dailyReportBarValues = computed(() => dailyReportDisplayRows.value.map((row) => Number(row.saleWeightKg || 0)))
 const dailyReportDisplaySummary = computed(() => {
 	const summary = {
@@ -556,6 +597,39 @@ function canView(pagePath) {
 
 function canAction(pagePath, action) {
 	return canPageAction(pagePath, action)
+}
+
+function formatLocalDateYmd(date = new Date()) {
+	const y = date.getFullYear()
+	const m = String(date.getMonth() + 1).padStart(2, '0')
+	const d = String(date.getDate()).padStart(2, '0')
+	return `${y}-${m}-${d}`
+}
+
+function addDaysYmd(baseYmd, days) {
+	const text = String(baseYmd || '').trim()
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return ''
+	const [year, month, day] = text.split('-').map((item) => Number(item))
+	const date = new Date(year, month - 1, day)
+	date.setDate(date.getDate() + Number(days || 0))
+	return formatLocalDateYmd(date)
+}
+
+function resolveDailyReportDateRange(preset) {
+	const today = formatLocalDateYmd(new Date())
+	if (preset === 'today') return { start: today, end: today }
+	if (preset === 'yesterday') {
+		const y = addDaysYmd(today, -1)
+		return { start: y, end: y }
+	}
+	if (preset === 'last3') return { start: addDaysYmd(today, -2), end: today }
+	return { start: addDaysYmd(today, -4), end: today }
+}
+
+function onDailyReportRangeChange(value) {
+	const text = String(value || '')
+	if (!dailyReportRangeOptions.some((item) => item.value === text)) return
+	dailyReportRangePreset.value = text
 }
 
 function formatNumber(value) {
@@ -695,66 +769,35 @@ function go(url) {
 	uni.navigateTo({ url })
 }
 
-function escapeCsvValue(value) {
-	const text = String(value ?? '')
-	if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`
-	return text
-}
-
-function formatNowForFile() {
-	const now = new Date()
-	const y = now.getFullYear()
-	const m = String(now.getMonth() + 1).padStart(2, '0')
-	const d = String(now.getDate()).padStart(2, '0')
-	const hh = String(now.getHours()).padStart(2, '0')
-	const mm = String(now.getMinutes()).padStart(2, '0')
-	const ss = String(now.getSeconds()).padStart(2, '0')
-	return `${y}${m}${d}_${hh}${mm}${ss}`
-}
-
-function downloadCsvOnH5(csvText, fileName) {
-	if (typeof window === 'undefined' || typeof document === 'undefined' || typeof Blob === 'undefined') return false
-	const blob = new Blob([`\uFEFF${csvText}`], { type: 'text/csv;charset=utf-8;' })
-	const url = window.URL.createObjectURL(blob)
-	const anchor = document.createElement('a')
-	anchor.href = url
-	anchor.download = fileName
-	document.body.appendChild(anchor)
-	anchor.click()
-	document.body.removeChild(anchor)
-	window.URL.revokeObjectURL(url)
-	return true
-}
-
-function buildDailyReportCsv(rows = []) {
-	const headers = ['日期', '充装瓶数', '充装重量', '地方车次', '地方车重', '车辆次', '车辆重', '客户数', '销售瓶数', '销售重量']
-	const lines = [headers.map(escapeCsvValue).join(',')]
-	rows.forEach((row) => {
-		const cells = [
-			row.date || '',
-			row.fillBottleCount || 0,
-			formatCompactWeight(row.fillBottleWeightKg),
-			row.localCount || 0,
-			formatCompactWeight(row.localWeightKg),
-			row.vehicleCount || 0,
-			formatCompactWeight(row.vehicleWeightKg),
-			row.saleCustomerCount || 0,
-			row.saleBottleCount || 0,
-			formatCompactWeight(row.saleWeightKg)
-		]
-		lines.push(cells.map(escapeCsvValue).join(','))
-	})
-	return lines.join('\n')
-}
-
-function copyText(text) {
-	return new Promise((resolve, reject) => {
-		uni.setClipboardData({
-			data: String(text || ''),
-			success: resolve,
-			fail: reject
+async function fetchAllSalesRowsForDailyReportExport({ dateStart, dateEnd }) {
+	const rows = []
+	let page = 1
+	let hasMore = true
+	let guard = 0
+	while (hasMore) {
+		if (guard > 500) throw new Error('导出分页异常，请缩小范围后重试')
+		const res = await listSalesV2({
+			dateStart,
+			dateEnd,
+			keyword: '',
+			priceUnit: '',
+			bizMode: '',
+			paymentStatus: '',
+			settlementScope: '',
+			hasRemark: '',
+			remarkTag: '',
+			page,
+			pageSize: 50
 		})
-	})
+		if (res?.code !== 0) throw new Error(res?.msg || '导出查询失败')
+		const pageRows = Array.isArray(res.data) ? res.data : []
+		rows.push(...pageRows)
+		hasMore = Boolean(res?.paging?.hasMore)
+		if (!pageRows.length) break
+		page += 1
+		guard += 1
+	}
+	return rows
 }
 
 async function onExportDailyReport() {
@@ -765,19 +808,26 @@ async function onExportDailyReport() {
 		return
 	}
 	dailyReportExporting.value = true
+	uni.showLoading({ title: '导出中...', mask: true })
 	try {
-		const csvText = buildDailyReportCsv(rows)
-		const fileName = `近5日业务日报_${formatNowForFile()}.csv`
-		const downloaded = downloadCsvOnH5(csvText, fileName)
-		if (downloaded) {
-			uni.showToast({ title: `已导出${rows.length}条`, icon: 'success' })
+		const { start, end } = dailyReportDateRange.value
+		const salesRows = await fetchAllSalesRowsForDailyReportExport({ dateStart: start, dateEnd: end })
+		const workbookText = buildDailyReportWorkbookXml({
+			summaryRows: rows,
+			salesRows,
+			periodLabel: dailyReportRangeLabel.value
+		})
+		const fileName = buildDailyReportExportFileName({ dateStart: start, dateEnd: end })
+		const downloaded = await downloadDailyReportWorkbookFile(workbookText, fileName)
+		if (!downloaded) {
+			uni.showToast({ title: '当前端不支持导出下载', icon: 'none', duration: 2600 })
 			return
 		}
-		await copyText(csvText)
-		uni.showToast({ title: '当前端不支持下载，已复制报表', icon: 'none', duration: 2600 })
+		uni.showToast({ title: `已导出${rows.length}天`, icon: 'success' })
 	} catch (err) {
 		uni.showToast({ title: err?.message || '导出失败', icon: 'none', duration: 2600 })
 	} finally {
+		uni.hideLoading()
 		dailyReportExporting.value = false
 	}
 }
@@ -1028,7 +1078,7 @@ function goInspectionDue(module) {
 
 .overview-header {
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	justify-content: space-between;
 	gap: 12px;
 }
@@ -1040,6 +1090,16 @@ function goInspectionDue(module) {
 	min-width: 0;
 }
 
+.overview-header__right {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 10px;
+	flex: 0 0 auto;
+	max-width: 100%;
+	margin-top: 8px;
+}
+
 .overview-title {
 	font-size: 16px;
 	font-weight: 600;
@@ -1049,6 +1109,45 @@ function goInspectionDue(module) {
 .overview-meta {
 	font-size: 12px;
 	color: #94a3b8;
+}
+
+.daily-range-scroll {
+	width: auto;
+	max-width: 560px;
+}
+
+.daily-range-cards {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	min-width: auto;
+}
+
+.daily-range-card {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 6px 14px;
+	border-radius: 999px;
+	background: #f1f5f9;
+	border: 1px solid #e2e8f0;
+	color: #475569;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.daily-range-card--active {
+	background: #2563eb;
+	border-color: #2563eb;
+	color: #fff;
+}
+
+.daily-export-wrap {
+	width: auto;
+	display: flex;
+	justify-content: center;
 }
 
 .daily-report-scroll {
@@ -1527,9 +1626,24 @@ function goInspectionDue(module) {
 	.overview-grid {
 		grid-template-columns: 1fr;
 	}
+	.overview-header {
+		flex-direction: column;
+	}
+	.overview-header__right {
+		width: 100%;
+		align-items: flex-start;
+		margin-top: 4px;
+		flex-direction: column;
+	}
 	.daily-report-scroll {
 		display: block;
 		overflow-x: auto;
+	}
+	.daily-range-scroll {
+		max-width: 100%;
+	}
+	.daily-export-wrap {
+		justify-content: flex-start;
 	}
 	.daily-report-table {
 		min-width: 980px;

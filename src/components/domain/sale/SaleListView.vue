@@ -1177,7 +1177,10 @@ function buildExportCsv(rows) {
 		'未收金额',
 		'配送员',
 		'车号',
-		'收款状态'
+		'收款状态',
+		'业务备注',
+		'系统备注',
+		'收款备注'
 	]
 	const lines = [headers.map(escapeCsvValue).join(',')]
 	for (const row of rows) {
@@ -1213,6 +1216,9 @@ function buildExportCsv(rows) {
 			row?.delivery_man || '',
 			carNo,
 			paymentStatusText(row?.payment_status),
+			String(row?.remark || '').trim(),
+			String(row?.system_note || '').trim(),
+			String(row?.payment_note || '').trim()
 		]
 		lines.push(cells.map(escapeCsvValue).join(','))
 	}
