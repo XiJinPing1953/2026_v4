@@ -1,0 +1,134 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "bottle_no": "45",
+  "fill_date": "2026-03-30",
+  "resolve_result": {
+    "code": 400,
+    "msg": "未找到瓶号 45 的最近回瓶总重"
+  },
+  "back_sale_source_ids": [
+    "695f0995f2949c968952cf40",
+    "69698e9f189f8622454c1134",
+    "69732a30ee97ef966553c351",
+    "69bbaff789d8371762435b56",
+    "69bbaffc4975ff712e9bc1d7",
+    "69bbb00189d8371762435c62",
+    "69c8adddbf8f8fb98cd03e1b",
+    "69c9e40e96fed1435b9f419d"
+  ],
+  "back_sale_hits": [
+    {
+      "_id": "69c9e40e96fed1435b9f419d",
+      "date": "2026-03-26",
+      "customer_name": "张有伏",
+      "back_items": [
+        {
+          "net": 0,
+          "tare": 106,
+          "gross": 106,
+          "bottle_id": "693fbee16dd837518fa11ffc",
+          "bottle_no": "45"
+        }
+      ]
+    },
+    {
+      "_id": "69c8adddbf8f8fb98cd03e1b",
+      "date": "2026-03-21",
+      "customer_name": "三只熊",
+      "back_items": [
+        {
+          "net": 0,
+          "tare": 106,
+          "gross": 106,
+          "bottle_id": "693fbee16dd837518fa11ffc",
+          "bottle_no": "45"
+        }
+      ]
+    },
+    {
+      "_id": "69bbb00189d8371762435c62",
+      "date": "2026-03-02",
+      "customer_name": "三只熊",
+      "back_items": [
+        {
+          "net": 0,
+          "tare": 106,
+          "gross": 106,
+          "bottle_id": "693fbee16dd837518fa11ffc",
+          "bottle_no": "45"
+        }
+      ]
+    },
+    {
+      "_id": "69bbaffc4975ff712e9bc1d7",
+      "date": "2026-02-19",
+      "customer_name": "三只熊",
+      "back_items": [
+        {
+          "net": 0,
+          "tare": 106,
+          "gross": 106,
+          "bottle_id": "693fbee16dd837518fa11ffc",
+          "bottle_no": "45"
+        }
+      ]
+    },
+    {
+      "_id": "69bbaff789d8371762435b56",
+      "date": "2026-02-08",
+      "customer_name": "三只熊",
+      "back_items": [
+        {
+          "net": 0,
+          "tare": 106,
+          "gross": 106,
+          "bottle_id": "693fbee16dd837518fa11ffc",
+          "bottle_no": "45"
+        }
+      ]
+    },
+    {
+      "_id": "69732a30ee97ef966553c351",
+      "date": "2026-01-23",
+      "customer_name": "保定依护卫生活",
+      "back_items": [
+        {
+          "net": 0,
+          "tare": 106,
+          "gross": 106,
+          "bottle_id": "693fbee16dd837518fa11ffc",
+          "bottle_no": "45"
+        }
+      ]
+    },
+    {
+      "_id": "69698e9f189f8622454c1134",
+      "date": "2026-01-16",
+      "customer_name": "彭少鹏喷塑",
+      "back_items": [
+        {
+          "net": 0,
+          "tare": 106,
+          "gross": 106,
+          "bottle_id": "693fbee16dd837518fa11ffc",
+          "bottle_no": "45"
+        }
+      ]
+    },
+    {
+      "_id": "695f0995f2949c968952cf40",
+      "date": "2026-01-06",
+      "customer_name": "华丰皮革厂-陈永亮",
+      "back_items": [
+        {
+          "net": 0,
+          "tare": 106,
+          "gross": 106,
+          "bottle_id": "693fbee16dd837518fa11ffc",
+          "bottle_no": "45"
+        }
+      ]
+    }
+  ],
+  "back_sale_hit_total": 8
+}

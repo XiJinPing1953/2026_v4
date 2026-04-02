@@ -7,8 +7,26 @@ const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 const vouchers = db.collection('crm_vouchers')
 const entries = db.collection('crm_voucher_entries')
+let ensureActionAcl = null
+try {
+	;({ ensureActionAcl } = require('../common/pageAcl'))
+} catch (err) {
+	console.warn('[crm-voucher] fallback to local pageAcl helpers', err && err.message)
+	;({ ensureActionAcl } = require('./pageAclLocal'))
+}
 
 const DIRECTIONS = ['debit', 'credit']
+const PAGE_ACTION_RULES = {
+	listV1: [{ pagePath: '/pages/accounting/voucher-list', action: 'view' }],
+	getV1: [
+		{ pagePath: '/pages/accounting/voucher-list', action: 'view' },
+		{ pagePath: '/pages/accounting/voucher-edit', action: 'view' }
+	],
+	createV1: [{ pagePath: '/pages/accounting/voucher-edit', action: 'create' }],
+	updateV1: [{ pagePath: '/pages/accounting/voucher-edit', action: 'update' }],
+	postV1: [{ pagePath: '/pages/accounting/voucher-edit', action: 'update' }],
+	unpostV1: [{ pagePath: '/pages/accounting/voucher-edit', action: 'update' }]
+}
 
 async function getUserByToken(token) {
 	if (!token) return null
@@ -331,6 +349,12 @@ exports.main = async (event, context) => {
 
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
+	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, [], {
+		recordLog,
+		requestId,
+		cloudFunction: 'crm-voucher'
+	})
+	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
 	if (action === 'listV1') return listV1(user, data)
 	if (action === 'getV1') return getV1(user, data)

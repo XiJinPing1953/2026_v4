@@ -1,0 +1,111 @@
+{
+  "generated_at": "2026-03-17T09:10:04.891Z",
+  "failed_total": 11,
+  "reason_summary": {
+    "钢瓶档案不存在，请先建档": 11
+  },
+  "unique_bottle_no_total": 11,
+  "unique_bottle_nos": [
+    "N68",
+    "X11",
+    "X34",
+    "X37",
+    "X046",
+    "X047",
+    "X57",
+    "X59",
+    "X61",
+    "X63",
+    "Y179"
+  ],
+  "rows": [
+    {
+      "line_no": 710,
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-10 08:00",
+      "bottle_no": "X047",
+      "msg": "钢瓶档案不存在，请先建档",
+      "source_id": "69636982eef9cb2998aa54f9"
+    },
+    {
+      "line_no": 709,
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-10 08:00",
+      "bottle_no": "X046",
+      "msg": "钢瓶档案不存在，请先建档",
+      "source_id": "69636984fe975fae255a7e03"
+    },
+    {
+      "line_no": 1382,
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-19 08:00",
+      "bottle_no": "N68",
+      "msg": "钢瓶档案不存在，请先建档",
+      "source_id": "696dd45e9755e34a9177671e"
+    },
+    {
+      "line_no": 1527,
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-21 08:00",
+      "bottle_no": "X11",
+      "msg": "钢瓶档案不存在，请先建档",
+      "source_id": "6971656d286f7c8e442414da"
+    },
+    {
+      "line_no": 1528,
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-21 08:00",
+      "bottle_no": "X34",
+      "msg": "钢瓶档案不存在，请先建档",
+      "source_id": "6971656cbd022001be83d48c"
+    },
+    {
+      "line_no": 1529,
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-21 08:00",
+      "bottle_no": "X37",
+      "msg": "钢瓶档案不存在，请先建档",
+      "source_id": "6971656de0ec19e0969c97ad"
+    },
+    {
+      "line_no": 1530,
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-21 08:00",
+      "bottle_no": "X57",
+      "msg": "钢瓶档案不存在，请先建档",
+      "source_id": "6971656d816a3fe15e70a5dd"
+    },
+    {
+      "line_no": 1531,
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-21 08:00",
+      "bottle_no": "X59",
+      "msg": "钢瓶档案不存在，请先建档",
+      "source_id": "6971656de0ec19e0969c9798"
+    },
+    {
+      "line_no": 1532,
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-21 08:00",
+      "bottle_no": "X61",
+      "msg": "钢瓶档案不存在，请先建档",
+      "source_id": "6971656c189f862245dcf3af"
+    },
+    {
+      "line_no": 1533,
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-21 08:00",
+      "bottle_no": "X63",
+      "msg": "钢瓶档案不存在，请先建档",
+      "source_id": "6971656c09664c861297a55b"
+    },
+    {
+      "line_no": 3118,
+      "record_type": "normal_fill",
+      "date": "2026-03-07 08:00",
+      "bottle_no": "Y179",
+      "msg": "钢瓶档案不存在，请先建档",
+      "source_id": "69ae1787149854dda3d78a58"
+    }
+  ]
+}

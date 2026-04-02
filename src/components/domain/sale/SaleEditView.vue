@@ -2,7 +2,6 @@
 	<AppPage :title="recordId ? '修改销售记录' : '新建销售单'" subtitle="EDIT RECORD" icon="edit">
 		<template #headerActions>
 			<AppButton size="sm" kind="neutral" @click="onCancel" :disabled="submitting">取消</AppButton>
-			<AppButton size="sm" kind="primary" @click="onSubmit" :loading="submitting" icon="check">保存并提交</AppButton>
 		</template>
 
 		<view class="edit-container">
@@ -21,9 +20,9 @@
 			</AppCard>
 
 			<view class="form-body">
-				<AppSection title="基础信息">
-					<SaleBasicInfoCard v-model="form" size="sm" />
-				</AppSection>
+					<AppSection title="基础信息" class="section-popover-host">
+						<SaleBasicInfoCard v-model="form" size="sm" />
+					</AppSection>
 
 				<view v-if="showBottleBlocks" class="bottle-sections">
 					<AppSection title="出瓶明细">
@@ -72,18 +71,55 @@
 				</view>
 
 				<AppSection v-if="showAgentBlocks" title="代理出站">
-					<SaleAgentSaleCard v-model="agentSaleRows" size="sm" />
-				</AppSection>
-
-				<AppSection v-if="showFlowBlocks" title="流量结算">
-					<SaleFlowCard v-model="flow" size="sm" />
+					<SaleAgentSaleCard v-model="agentSaleRows" size="sm" :sale-date="form.date" />
 				</AppSection>
 
 				<AppSection v-if="showTruckBlocks" title="整车业务">
-					<SaleTruckCard v-model="truck" size="sm" />
+					<SaleTruckCard v-model="truck" :price-unit="form.priceUnit" size="sm" />
 				</AppSection>
 
-				<AppSection title="收款结算">
+				<AppSection title="销售底单">
+					<view class="ticket-card">
+						<view class="ticket-card__header">
+							<view class="ticket-card__meta">
+								<text class="ticket-card__title">销售底单图片</text>
+								<text class="ticket-card__hint">可选，最多上传 3 张图片</text>
+							</view>
+							<AppButton
+								size="sm"
+								kind="primary"
+								@click="chooseTicketImage"
+								:disabled="submitting || ticketImageUploading || ticketImages.length >= 3"
+							>
+								上传图片（{{ ticketImages.length }}/3）
+							</AppButton>
+						</view>
+						<view v-if="ticketImages.length" class="ticket-card__preview-list">
+							<view v-for="(item, index) in ticketImages" :key="item.localPath || item.fileId || index" class="ticket-card__preview-item">
+								<image class="ticket-card__preview" :src="resolveTicketImagePreview(item)" mode="aspectFill" @click="previewTicketImage(index)" />
+								<view class="ticket-card__actions">
+									<text v-if="item.uploading" class="ticket-card__status">上传中…</text>
+									<text v-else-if="item.fileId" class="ticket-card__status">已上传</text>
+									<AppButton size="sm" kind="neutral" @click="previewTicketImage(index)">预览</AppButton>
+									<AppButton
+										size="sm"
+										kind="outline"
+										@click="removeTicketImage(index)"
+										:disabled="submitting || ticketImageUploading"
+									>
+										移除
+									</AppButton>
+								</view>
+							</view>
+						</view>
+						<view v-else class="ticket-card__empty">
+							<text class="ticket-card__empty-title">未上传销售底单</text>
+							<text class="ticket-card__empty-text">保存时会自动上传到云端，不影响销售单正常提交。</text>
+						</view>
+					</view>
+				</AppSection>
+
+				<AppSection v-if="showSettlementBlocks" title="收款结算">
 					<SaleSettlementCard
 						v-model="settlement"
 						size="sm"
@@ -91,6 +127,26 @@
 						:formula="settlementSummary.formula"
 					/>
 				</AppSection>
+				<AppSection v-else title="对账说明">
+					<view class="settlement-mode-note">
+						<text class="settlement-mode-note__title">该客户按客户对账页流量结算</text>
+						<text class="settlement-mode-note__text">销售单仅记录实际送货重量和流转，不在本单生成应收或登记收款。</text>
+					</view>
+				</AppSection>
+
+				<view class="submit-footer">
+					<AppButton size="md" kind="neutral" @click="onCancel" :disabled="submitting">取消</AppButton>
+					<AppButton
+						v-if="canSubmitSale"
+						size="md"
+						kind="primary"
+						@click="onSubmit"
+						:loading="submitting"
+						icon="check"
+					>
+						保存并提交
+					</AppButton>
+				</view>
 			</view>
 		</view>
 	</AppPage>
@@ -102,6 +158,7 @@ import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppCard from '@/components/base/AppCard.vue'
 import AppButton from '@/components/base/AppButton.vue'
+import { useAuthGuard } from '@/composables/useAuthGuard'
 import { normalizeBottleNo } from '@/services/models'
 import { createSaleV2, getSaleV2, updateSaleV2, getCustomerDepositV1 } from '@/services/sale'
 import { useQuery } from '@/composables/useQuery'
@@ -109,7 +166,6 @@ import { useSaleSettlement } from '@/composables/useSaleSettlement'
 import SaleBasicInfoCard from '@/components/domain/sale/SaleBasicInfoCard.vue'
 import SaleBottleLinesCard from '@/components/domain/sale/SaleBottleLinesCard.vue'
 import SaleDepositCard from '@/components/domain/sale/SaleDepositCard.vue'
-import SaleFlowCard from '@/components/domain/sale/SaleFlowCard.vue'
 import SaleTruckCard from '@/components/domain/sale/SaleTruckCard.vue'
 import SaleAgentSaleCard from '@/components/domain/sale/SaleAgentSaleCard.vue'
 import SaleSettlementCard from '@/components/domain/sale/SaleSettlementCard.vue'
@@ -119,6 +175,8 @@ const props = defineProps({
 })
 
 const recordId = toRef(props, 'recordId')
+const { canPageAction } = useAuthGuard()
+const SALE_LIST_REFRESH_KEY = 'sale:list:refresh'
 
 const form = ref({
 	date: '',
@@ -127,9 +185,13 @@ const form = ref({
 	deliveryMan1: '',
 	deliveryMan2: '',
 	vehicleNo: '',
+	settlementMode: 'sale',
 	bizMode: 'bottle',
 	priceUnit: 'kg',
-	unitPrice: ''
+	unitPrice: '',
+	remark: '',
+	ticketImage: '',
+	ticketImages: []
 })
 
 const flow = ref({
@@ -143,6 +205,9 @@ const truck = ref({
 	truckNo: '',
 	truckOutGross: '',
 	truckBackGross: '',
+	truckSettleTare: '',
+	truckSettleGross: '',
+	truckGrossDiff: '',
 	truckSaleNet: ''
 })
 
@@ -160,11 +225,16 @@ const depositRows = ref([])
 const agentSaleRows = ref([])
 const submitting = ref(false)
 const originBottleSnapshot = ref({ out: [], back: [], deposit: [] })
+const ticketImages = ref([])
 
 const showBottleBlocks = computed(() => form.value.bizMode === 'bottle')
 const showTruckBlocks = computed(() => form.value.bizMode === 'truck')
 const showAgentBlocks = computed(() => form.value.bizMode === 'agent_sale')
-const showFlowBlocks = computed(() => form.value.priceUnit === 'm3')
+const showSettlementBlocks = computed(() => form.value.settlementMode !== 'customer_flow')
+const ticketImageUploading = computed(() => ticketImages.value.some((item) => Boolean(item?.uploading)))
+const canSubmitSale = computed(() =>
+	recordId.value ? canPageAction('/pages/sale/edit', 'update') : canPageAction('/pages/sale/edit', 'create')
+)
 
 const bizModeLabel = computed(() => {
 	const map = {
@@ -210,10 +280,65 @@ const depositMerged = computed(() => {
 	return { count: list.length, list, raw: list.join(' / ') }
 })
 
+function normalizeIdValue(value) {
+	if (value == null) return null
+	if (typeof value === 'object') {
+		return value.$oid || value.oid || value.id || value._id || null
+	}
+	const text = String(value).trim()
+	return text || null
+}
+
 function extractBottleNos(rows) {
 	return (rows || [])
 		.map((row) => normalizeBottleNo(row?.bottle_no))
 		.filter(Boolean)
+}
+
+function toNullableNumber(value) {
+	if (value === '' || value == null) return null
+	const num = Number(value)
+	return Number.isFinite(num) ? num : null
+}
+
+function formatTruckWeight(value) {
+	const num = Number(value)
+	if (!Number.isFinite(num)) return ''
+	if (Number.isInteger(num)) return String(num)
+	return num.toFixed(6).replace(/\.?0+$/, '')
+}
+
+function normalizeTruckNoByRule(value) {
+	const raw = String(value || '').trim().toUpperCase().replace(/\s+/g, '')
+	if (!raw) return ''
+	const prefixed = raw.match(/^TRUCK[-_]?([A-Z0-9]+)$/)
+	if (prefixed && prefixed[1]) return `TRUCK-${prefixed[1]}`
+	const compact = raw.replace(/[^A-Z0-9\u4E00-\u9FA5]/g, '')
+	if (!compact) return ''
+	const plateMatch = compact.match(/^[\u4E00-\u9FA5][A-Z]([A-Z0-9]+)$/)
+	const core = plateMatch && plateMatch[1] ? plateMatch[1] : compact
+	return core ? `TRUCK-${core}` : ''
+}
+
+function resolveTruckReferenceNet(state) {
+	const outGross = toNullableNumber(state?.truckOutGross)
+	const backGross = toNullableNumber(state?.truckBackGross)
+	if (outGross == null || backGross == null) return ''
+	return formatTruckWeight(Math.max(outGross - backGross, 0))
+}
+
+function resolveTruckSettlementNet(state) {
+	const settleGross = toNullableNumber(state?.truckSettleGross)
+	const settleTare = toNullableNumber(state?.truckSettleTare)
+	if (settleGross == null || settleTare == null) return ''
+	return formatTruckWeight(Math.max(settleGross - settleTare, 0))
+}
+
+function normalizeTruckStateByPriceUnit() {
+	const referenceNet = resolveTruckReferenceNet(truck.value)
+	const settlementNet = resolveTruckSettlementNet(truck.value)
+	truck.value.truckGrossDiff = referenceNet
+	truck.value.truckSaleNet = form.value.priceUnit === 'kg' ? settlementNet : referenceNet
 }
 
 const { run: fetchDetail } = useQuery(
@@ -272,6 +397,96 @@ watch(
 	{ immediate: true }
 )
 
+watch(
+	() => form.value.priceUnit,
+	(priceUnit, prevPriceUnit) => {
+		if (!priceUnit || priceUnit === prevPriceUnit) return
+		if (form.value.bizMode === 'truck') {
+			normalizeTruckStateByPriceUnit()
+		}
+		if (priceUnit === 'm3') {
+			form.value.settlementMode = 'customer_flow'
+			settlement.value.paymentMethod = 'on_account'
+			return
+		}
+		if (form.value.settlementMode === 'customer_flow') {
+			form.value.settlementMode = 'sale'
+		}
+	}
+)
+
+watch(
+	() => [form.value.bizMode, form.value.vehicleNo],
+	([mode, vehicleNo], [prevMode, prevVehicleNo] = []) => {
+		if (mode !== 'truck') return
+		const nextAutoTruckNo = normalizeTruckNoByRule(vehicleNo)
+		if (!nextAutoTruckNo) return
+		const currentTruckNo = normalizeTruckNoByRule(truck.value.truckNo)
+		const prevAutoTruckNo = normalizeTruckNoByRule(prevVehicleNo)
+		const switchedToTruck = prevMode !== 'truck'
+		if (!currentTruckNo || switchedToTruck || (prevAutoTruckNo && currentTruckNo === prevAutoTruckNo)) {
+			truck.value.truckNo = nextAutoTruckNo
+		}
+	}
+)
+
+watch(
+	() => settlement.value.paymentStatus,
+	(status) => {
+		const current = String(status || '').trim()
+		if (!current) return
+		if (current === 'unpaid' || current === '未付款') {
+			settlement.value.paymentMethod = 'on_account'
+			return
+		}
+		if (!settlement.value.paymentMethod || settlement.value.paymentMethod === 'on_account') {
+			settlement.value.paymentMethod = 'cash'
+		}
+	},
+	{ immediate: true }
+)
+
+watch(
+	() => form.value.bizMode,
+	(mode, prevMode) => {
+		if (!mode || mode === prevMode) return
+			if (mode === 'bottle') {
+				truck.value = {
+				truckNo: '',
+				truckOutGross: '',
+				truckBackGross: '',
+				truckSettleTare: '',
+				truckSettleGross: '',
+				truckGrossDiff: '',
+				truckSaleNet: ''
+				}
+			agentSaleRows.value = []
+			return
+		}
+		if (mode === 'truck') {
+			outItems.value = []
+			backItems.value = []
+			depositRows.value = []
+			agentSaleRows.value = []
+			return
+		}
+			if (mode === 'agent_sale') {
+				outItems.value = []
+				backItems.value = []
+				depositRows.value = []
+				truck.value = {
+				truckNo: '',
+				truckOutGross: '',
+				truckBackGross: '',
+				truckSettleTare: '',
+				truckSettleGross: '',
+				truckGrossDiff: '',
+				truckSaleNet: ''
+				}
+		}
+	}
+)
+
 async function loadDetail(id) {
 	const data = await fetchDetail(id)
 	if (!data) return
@@ -281,8 +496,12 @@ async function loadDetail(id) {
 		customerId: doc.customer_id || '',
 		customerName: doc.customer_name || '',
 		vehicleNo: doc.car_no || '',
+		settlementMode: (doc.price_unit || 'kg') === 'm3' ? 'customer_flow' : (doc.settlement_mode || 'sale'),
 		priceUnit: doc.price_unit || 'kg',
 		unitPrice: doc.unit_price == null ? '' : String(doc.unit_price),
+		remark: doc.remark || '',
+		ticketImage: doc.ticket_image || '',
+		ticketImages: [],
 		bizMode: doc.biz_mode || 'bottle',
 		deliveryMan1: '',
 		deliveryMan2: ''
@@ -303,12 +522,16 @@ async function loadDetail(id) {
 		truckNo: doc.truck_no || '',
 		truckOutGross: doc.truck_out_gross == null ? '' : String(doc.truck_out_gross),
 		truckBackGross: doc.truck_back_gross == null ? '' : String(doc.truck_back_gross),
+		truckSettleTare: doc.truck_settle_tare == null ? '' : String(doc.truck_settle_tare),
+		truckSettleGross: doc.truck_settle_gross == null ? '' : String(doc.truck_settle_gross),
+		truckGrossDiff: doc.truck_gross_diff == null ? '' : String(doc.truck_gross_diff),
 		truckSaleNet: doc.truck_sale_net == null ? '' : String(doc.truck_sale_net)
 	}
+	normalizeTruckStateByPriceUnit()
 
 	settlement.value = {
 		paymentStatus: doc.payment_status || 'unpaid',
-		paymentMethod: doc.payment_method || 'on_account',
+		paymentMethod: doc.payment_method || ((doc.payment_status || 'unpaid') === 'unpaid' ? 'on_account' : 'cash'),
 		amountReceived: doc.amount_received == null ? '' : String(doc.amount_received),
 		roundingAmount: doc.rounding_amount == null ? '' : String(doc.rounding_amount),
 		paymentNote: doc.payment_note || ''
@@ -337,13 +560,20 @@ async function loadDetail(id) {
 		}))
 		: []
 	depositRows.value = Array.isArray(doc.deposit_rows)
-		? doc.deposit_rows.map((row) => ({ bottle_no: row.bottle_no || '' }))
+		? doc.deposit_rows.map((row) => ({
+			bottle_no: row.bottle_no || '',
+			bottle_id: row.bottle_id || null,
+			suggestions: []
+		}))
 		: []
 	agentSaleRows.value = Array.isArray(doc.agent_sale_items)
 		? doc.agent_sale_items.map((row) => ({
 			bottle_no: row.bottle_no || '',
+			bottle_id: row.bottle_id || null,
 			fill_weight: row.fill_weight == null ? '' : String(row.fill_weight),
-			address: row.address || ''
+			address: row.address || '',
+			filling_record_id: normalizeIdValue(row.filling_record_id),
+			suggestions: []
 		}))
 		: []
 
@@ -352,6 +582,7 @@ async function loadDetail(id) {
 		back: extractBottleNos(backItems.value),
 		deposit: extractBottleNos(depositRows.value)
 	}
+	await applyTicketImages(Array.isArray(doc.ticket_images) ? doc.ticket_images : [doc.ticket_image || ''])
 }
 
 async function onSubmit() {
@@ -375,39 +606,442 @@ async function onSubmit() {
 
 	submitting.value = true
 	try {
-		const payload = {
-			form: form.value,
-			flow: flow.value,
-			truck: truck.value,
-			settlement: settlement.value,
-			outItems: outItems.value,
-			backItems: backItems.value,
-			depositRows: depositRows.value,
-			agentSaleRows: agentSaleRows.value
+		let result = await submitSale(false)
+		if (isBottleFlowWarningResult(result)) {
+			const confirmRes = await uni.showModal({
+				title: '请核对瓶号',
+				content: buildBottleFlowWarningContent(result),
+				confirmText: '继续提交',
+				cancelText: '返回修改'
+			})
+			if (!confirmRes.confirm) return
+			result = await submitSale(true)
 		}
-		const result = recordId.value
-			? await updateSaleV2({ _id: recordId.value, draft: payload })
-			: await createSaleV2(payload)
 		
 		if (result?.code !== 0) {
 			uni.showToast({ title: result?.msg || '保存失败', icon: 'none' })
 			return
 		}
-		
-		uni.showToast({ title: '保存成功', icon: 'success' })
-		setTimeout(() => {
-			uni.navigateBack({ delta: 1 })
-		}, 400)
+		try {
+			uni.setStorageSync(SALE_LIST_REFRESH_KEY, String(Date.now()))
+		} catch (_) {
+			// ignore storage failures
+		}
+		const savedWithOverride = Boolean(result?.data?.bottle_flow_warning_overridden) && Number(result?.data?.bottle_flow_warning_count || 0) > 0
+		const reminder = buildOverCollectionReminder()
+		if (reminder) {
+			await uni.showModal({
+				title: savedWithOverride ? '已核对并保存' : '保存成功',
+				content: reminder,
+				showCancel: false,
+				confirmText: '知道了'
+			})
+		} else {
+			uni.showToast({ title: savedWithOverride ? '已核对并保存' : '保存成功', icon: 'success' })
+		}
+		uni.navigateBack({ delta: 1 })
 	} catch (err) {
-		console.error('save sale failed', err)
-		uni.showToast({ title: '保存失败', icon: 'none' })
+		const failure = resolveSubmitFailure(err)
+		console.error('save sale failed', failure, err)
+		if (failure.timeout) {
+			await uni.showModal({
+				title: '保存请求超时',
+				content: `${failure.message}\n可能已保存成功，请返回销售列表刷新确认。`,
+				showCancel: false,
+				confirmText: '知道了'
+			})
+		} else if (failure.message && failure.message !== '保存失败') {
+			await uni.showModal({
+				title: '保存失败',
+				content: failure.message,
+				showCancel: false,
+				confirmText: '知道了'
+			})
+		} else {
+			uni.showToast({ title: '保存失败', icon: 'none' })
+		}
 	} finally {
 		submitting.value = false
 	}
 }
 
+function buildOverCollectionReminder() {
+	if (form.value.settlementMode === 'customer_flow') return ''
+	const shouldReceive = Number(settlementSummary.value?.settledAmount)
+	const amountReceived = Number(settlement.value?.amountReceived)
+	if (!Number.isFinite(shouldReceive) || !Number.isFinite(amountReceived)) return ''
+	if (shouldReceive <= 0) return ''
+	const overAmount = Number((amountReceived - shouldReceive).toFixed(2))
+	if (!(overAmount > 0)) return ''
+	return `本单应收 ¥${shouldReceive.toFixed(2)}，实收 ¥${amountReceived.toFixed(2)}，多收 ¥${overAmount.toFixed(2)}。\n系统将把该差额作为冲抵款，自动用于后续结算。`
+}
+
+function resolveSubmitFailure(err) {
+	const parts = [
+		err?.userMessage,
+		err?.result?.msg,
+		err?.errMsg,
+		err?.message,
+		err?.cause?.userMessage,
+		err?.cause?.result?.msg,
+		err?.cause?.errMsg,
+		err?.cause?.message
+	]
+	const message = parts
+		.map((item) => String(item || '').trim())
+		.find(Boolean) || '保存失败'
+	const normalized = message.toLowerCase()
+	const timeout = /timeout|timed out|超时|request:fail|network|网络异常/.test(normalized)
+	return {
+		message,
+		timeout
+	}
+}
+
 function onCancel() {
 	uni.navigateBack({ delta: 1 })
+}
+
+async function submitSale(ignoreBottleFlowWarning = false) {
+	const ticketImageIds = await ensureTicketImagesUploaded()
+	const payload = {
+		form: {
+			...form.value,
+			ticketImage: ticketImageIds[0] || '',
+			ticketImages: ticketImageIds
+		},
+		flow: flow.value,
+		truck: truck.value,
+		settlement: settlement.value,
+		outItems: outItems.value,
+		backItems: backItems.value,
+		depositRows: depositRows.value,
+		agentSaleRows: agentSaleRows.value
+	}
+	try {
+		const result = await (recordId.value
+			? updateSaleV2({ _id: recordId.value, draft: payload, ignoreBottleFlowWarning })
+			: createSaleV2(payload, { ignoreBottleFlowWarning }))
+		return result
+	} catch (err) {
+		const wrapped = new Error('云函数调用失败')
+		wrapped.userMessage = String(err?.result?.msg || err?.errMsg || err?.message || '').trim()
+		wrapped.cause = err
+		throw wrapped
+	}
+}
+
+async function chooseTicketImage() {
+	try {
+		const remain = Math.max(3 - ticketImages.value.length, 0)
+		if (!remain) {
+			uni.showToast({ title: '最多上传 3 张', icon: 'none' })
+			return
+		}
+		const res = await uni.chooseImage({
+			count: remain,
+			sizeType: ['compressed'],
+			sourceType: ['album', 'camera']
+		})
+		const paths = extractChooseImagePaths(res)
+		if (!paths.length) return
+		const merged = ticketImages.value.slice()
+		for (const path of paths) {
+			const localPath = String(path || '').trim()
+			if (!localPath) continue
+			const exists = merged.some((item) => String(item?.localPath || '') === localPath)
+			if (exists) continue
+			merged.push({
+				fileId: '',
+				localPath,
+				previewUrl: localPath,
+				uploading: false
+			})
+			if (merged.length >= 3) break
+		}
+		ticketImages.value = merged
+		form.value.ticketImage = merged[0]?.fileId || ''
+		form.value.ticketImages = merged.map((item) => item.fileId).filter(Boolean)
+	} catch (err) {
+		if (String(err?.errMsg || '').includes('cancel')) return
+		uni.showToast({ title: '选择图片失败', icon: 'none' })
+	}
+}
+
+function extractChooseImagePaths(res = null) {
+	const merged = []
+	const pushOne = (value) => {
+		const path = String(value || '').trim()
+		if (!path) return
+		if (!merged.includes(path)) merged.push(path)
+	}
+	;(Array.isArray(res?.tempFilePaths) ? res.tempFilePaths : []).forEach(pushOne)
+	;(Array.isArray(res?.apFilePaths) ? res.apFilePaths : []).forEach(pushOne)
+	;(Array.isArray(res?.tempFiles) ? res.tempFiles : []).forEach((item) => {
+		pushOne(item?.path)
+		pushOne(item?.tempFilePath)
+		pushOne(item?.apFilePath)
+	})
+	return merged
+}
+
+function removeTicketImage(index) {
+	if (ticketImageUploading.value) return
+	const list = ticketImages.value.slice()
+	list.splice(index, 1)
+	ticketImages.value = list
+	const fileIds = list.map((item) => item.fileId).filter(Boolean)
+	form.value.ticketImage = fileIds[0] || ''
+	form.value.ticketImages = fileIds
+}
+
+function resolveTicketImagePreview(item) {
+	if (!item) return ''
+	return String(item.localPath || item.previewUrl || item.fileId || '').trim()
+}
+
+function previewTicketImage(index = 0) {
+	const urls = ticketImages.value.map((item) => resolveTicketImagePreview(item)).filter(Boolean)
+	if (!urls.length) return
+	const current = urls[index] || urls[0]
+	uni.previewImage({
+		urls,
+		current
+	})
+}
+
+async function resolveTicketImageUrls(fileIds = []) {
+	const normalized = Array.from(
+		new Set((fileIds || []).map((item) => String(item || '').trim()).filter(Boolean))
+	)
+	if (!normalized.length) return []
+	try {
+		const res = await uniCloud.getTempFileURL({
+			fileList: normalized
+		})
+		const list = Array.isArray(res?.fileList) ? res.fileList : []
+		const urlMap = new Map()
+		for (const item of list) {
+			const fileId = String(item?.fileID || item?.fileId || '').trim()
+			if (!fileId) continue
+			urlMap.set(fileId, item?.tempFileURL || fileId)
+		}
+		return normalized.map((fileId) => urlMap.get(fileId) || fileId)
+	} catch (err) {
+		return normalized
+	}
+}
+
+async function applyTicketImages(fileIds = []) {
+	const normalized = Array.from(
+		new Set((fileIds || []).map((item) => String(item || '').trim()).filter(Boolean))
+	).slice(0, 3)
+	if (!normalized.length) {
+		ticketImages.value = []
+		form.value.ticketImage = ''
+		form.value.ticketImages = []
+		return
+	}
+	const urls = await resolveTicketImageUrls(normalized)
+	ticketImages.value = normalized.map((fileId, index) => ({
+		fileId,
+		localPath: '',
+		previewUrl: urls[index] || fileId,
+		uploading: false
+	}))
+	form.value.ticketImage = normalized[0] || ''
+	form.value.ticketImages = normalized
+}
+
+async function ensureTicketImagesUploaded() {
+	const list = ticketImages.value.slice(0, 3)
+	const resultIds = []
+	for (let i = 0; i < list.length; i += 1) {
+		const item = list[i] || {}
+		if (!item.localPath) {
+			const fileId = String(item.fileId || '').trim()
+			if (fileId) resultIds.push(fileId)
+			continue
+		}
+		list[i] = { ...item, uploading: true }
+		ticketImages.value = list.slice()
+		try {
+			const attempt = await tryUploadTicketImage({
+				filePath: item.localPath,
+				ext: resolveUploadExt(item.localPath),
+				index: i
+			})
+			if (!attempt.fileId) throw attempt.error || new Error('上传结果缺少 fileID')
+			list[i] = {
+				fileId: attempt.fileId,
+				localPath: '',
+				previewUrl: item.previewUrl || item.localPath || '',
+				uploading: false
+			}
+			resultIds.push(attempt.fileId)
+			ticketImages.value = list.slice()
+		} catch (err) {
+			list[i] = { ...item, uploading: false }
+			ticketImages.value = list.slice()
+			const wrapped = new Error('销售底单上传失败')
+			wrapped.userMessage = buildTicketUploadFailureMessage({
+				index: i,
+				error: err,
+				localPath: item.localPath
+			})
+			wrapped.cause = err
+			throw wrapped
+		}
+	}
+	const normalized = Array.from(new Set(resultIds.map((id) => String(id || '').trim()).filter(Boolean))).slice(0, 3)
+	form.value.ticketImage = normalized[0] || ''
+	form.value.ticketImages = normalized
+	return normalized
+}
+
+async function tryUploadTicketImage({ filePath = '', ext = '.jpg', index = 0 } = {}) {
+	const normalizedPath = String(filePath || '').trim()
+	if (!normalizedPath) {
+		return { fileId: '', error: new Error('上传文件路径为空') }
+	}
+	const normalizedExt = String(ext || '').trim() || '.jpg'
+	const cloudPath = `sale-ticket/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${index}${normalizedExt}`
+	try {
+		const res = await uniCloud.uploadFile({
+			fileType: 'image',
+			cloudPath,
+			filePath: normalizedPath
+		})
+			const fileId = resolveCloudFileIdFromUploadResult(res)
+			if (fileId) return { fileId, error: null }
+			const recoveredId = await recoverCloudFileIdByPath(cloudPath)
+			if (recoveredId) return { fileId: recoveredId, error: null }
+			return { fileId: '', error: new Error('上传结果缺少 fileID') }
+		} catch (err) {
+			const recoveredId = await recoverCloudFileIdByPath(cloudPath)
+			if (recoveredId) return { fileId: recoveredId, error: null }
+			return { fileId: '', error: err || new Error('uploadFile:fail') }
+		}
+}
+
+function inferCloudSpaceId() {
+	const candidates = []
+	const pushOne = (value) => {
+		const text = String(value || '').trim()
+		if (!text) return
+		const match = text.match(/^cloud:\/\/([^/]+)\//)
+		if (!match || !match[1]) return
+		const id = String(match[1]).trim()
+		if (!id) return
+		if (!candidates.includes(id)) candidates.push(id)
+	}
+	pushOne(form.value.ticketImage)
+	;(Array.isArray(form.value.ticketImages) ? form.value.ticketImages : []).forEach(pushOne)
+	;(Array.isArray(ticketImages.value) ? ticketImages.value : []).forEach((item) => {
+		pushOne(item?.fileId)
+		pushOne(item?.previewUrl)
+	})
+	return candidates[0] || 'env-00jxuffegf2n'
+}
+
+async function recoverCloudFileIdByPath(cloudPath = '') {
+	const normalized = String(cloudPath || '').trim().replace(/^\/+/, '')
+	if (!normalized) return ''
+	const spaceId = inferCloudSpaceId()
+	if (!spaceId) return ''
+	const fileId = `cloud://${spaceId}/${normalized}`
+	try {
+		const res = await uniCloud.getTempFileURL({
+			fileList: [fileId]
+		})
+		const list = Array.isArray(res?.fileList) ? res.fileList : []
+		const hit = list.find((item) => {
+			const id = String(item?.fileID || item?.fileId || '').trim()
+			return id === fileId
+		})
+		if (!hit) return ''
+		const code = Number(hit?.code)
+		const tempUrl = String(hit?.tempFileURL || hit?.tempFileUrl || '').trim()
+		if ((Number.isFinite(code) && code === 0) || tempUrl) return fileId
+	} catch (_) {
+		// ignore verify errors
+	}
+	return ''
+}
+
+function resolveCloudFileIdFromUploadResult(result = null) {
+	const direct = String(result?.fileID || result?.fileId || '').trim()
+	if (direct.startsWith('cloud://')) return direct
+	const queue = [result]
+	const seen = new Set()
+	while (queue.length > 0) {
+		const current = queue.shift()
+		if (current == null) continue
+		if (typeof current === 'string') {
+			const text = String(current).trim()
+			const match = text.match(/cloud:\/\/[^\s"'`\\]+/)
+			if (match && match[0]) return match[0]
+			if ((text.startsWith('{') && text.endsWith('}')) || (text.startsWith('[') && text.endsWith(']'))) {
+				try {
+					queue.push(JSON.parse(text))
+				} catch (_) {
+					// ignore parse error
+				}
+			}
+			continue
+		}
+		if (typeof current !== 'object') continue
+		if (seen.has(current)) continue
+		seen.add(current)
+		if (Array.isArray(current)) {
+			current.forEach((item) => queue.push(item))
+			continue
+		}
+		Object.keys(current).forEach((key) => queue.push(current[key]))
+	}
+	return ''
+}
+
+function resolveUploadExt(filePath) {
+	const pathText = String(filePath || '').trim()
+	const extMatch = pathText.match(/\.([a-zA-Z0-9]+)$/)
+	if (extMatch && extMatch[1]) return `.${extMatch[1].toLowerCase()}`
+	return '.jpg'
+}
+
+function buildTicketUploadFailureMessage({ index = 0, error = null, localPath = '' } = {}) {
+	const raw = String(error?.errMsg || error?.message || 'uploadFile:fail').trim() || 'uploadFile:fail'
+	const pathText = String(localPath || '').trim()
+	const shortPath = pathText.length > 40 ? `...${pathText.slice(-40)}` : pathText
+	if (/timeout|timed out|超时|network|网络|request:fail/i.test(raw)) {
+		return `第 ${index + 1} 张底单上传超时或网络异常（${raw}）。请检查网络后重试。`
+	}
+	if (/no such file|not found|文件不存在|file not exist|路径为空/i.test(raw)) {
+		return `第 ${index + 1} 张底单临时文件失效（${raw}）。请重新选择该图片后保存。`
+	}
+	return `第 ${index + 1} 张底单上传失败（${raw}${shortPath ? `，路径 ${shortPath}` : ''}）。`
+}
+
+function isBottleFlowWarningResult(result) {
+	return Number(result?.code || 0) === 409
+		&& Boolean(result?.data?.confirmable)
+		&& String(result?.data?.warning_kind || '') === 'bottle_flow_mismatch'
+		&& Array.isArray(result?.data?.warning_items)
+		&& result.data.warning_items.length > 0
+}
+
+function buildBottleFlowWarningContent(result) {
+	const items = Array.isArray(result?.data?.warning_items) ? result.data.warning_items : []
+	const summaryText = String(result?.data?.summary_text || result?.msg || '发现瓶流转异常，请核对').trim()
+	const preview = items.slice(0, 6).map((item, index) => {
+		const directionText = item?.direction === 'back' ? '回瓶' : '出瓶'
+		const bottleNo = String(item?.bottle_no || '-').trim() || '-'
+		const reason = String(item?.reason || '').trim()
+		return `${index + 1}. ${directionText} ${bottleNo}：${reason}`
+	})
+	if (items.length > preview.length) preview.push(`等 ${items.length} 条，请确认是否仍要继续提交。`)
+	else preview.push('请确认是否仍要继续提交。')
+	return [summaryText, '', ...preview].join('\n')
 }
 </script>
 
@@ -456,6 +1090,22 @@ function onCancel() {
 	display: flex;
 	flex-direction: column;
 	gap: 24rpx;
+}
+
+.submit-footer {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	gap: 12rpx;
+	padding: 8rpx 0 4rpx;
+}
+
+.section-popover-host {
+	overflow: visible;
+}
+
+.section-popover-host :deep(.section__body) {
+	overflow: visible;
 }
 
 .bottle-sections {
@@ -523,5 +1173,122 @@ function onCancel() {
 .deposit-summary__empty {
 	font-size: 22rpx;
 	color: #cbd5e1;
+}
+
+.settlement-mode-note {
+	display: flex;
+	flex-direction: column;
+	gap: 8rpx;
+	padding: 18rpx 20rpx;
+	border: 1rpx solid #dbeafe;
+	border-radius: 16rpx;
+	background: #eff6ff;
+}
+
+.settlement-mode-note__title {
+	font-size: 26rpx;
+	font-weight: 700;
+	color: #1d4ed8;
+}
+
+.settlement-mode-note__text {
+	font-size: 22rpx;
+	line-height: 1.6;
+	color: #475569;
+}
+
+.ticket-card {
+	display: flex;
+	flex-direction: column;
+	gap: 16rpx;
+}
+
+.ticket-card__header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 24rpx;
+}
+
+.ticket-card__meta {
+	display: flex;
+	flex-direction: column;
+	gap: 6rpx;
+}
+
+.ticket-card__title {
+	font-size: 28rpx;
+	font-weight: 700;
+	color: #0f172a;
+}
+
+.ticket-card__hint {
+	font-size: 22rpx;
+	color: #94a3b8;
+}
+
+.ticket-card__preview-list {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240rpx, 1fr));
+	gap: 14rpx;
+}
+
+.ticket-card__preview-item {
+	display: flex;
+	flex-direction: column;
+	gap: 10rpx;
+}
+
+.ticket-card__preview {
+	width: 100%;
+	height: 240rpx;
+	border-radius: 20rpx;
+	background: #f8fafc;
+	border: 1rpx solid #e2e8f0;
+}
+
+.ticket-card__actions {
+	display: flex;
+	align-items: center;
+	gap: 12rpx;
+	flex-wrap: wrap;
+}
+
+.ticket-card__status {
+	font-size: 22rpx;
+	color: #64748b;
+}
+
+.ticket-card__empty {
+	display: flex;
+	flex-direction: column;
+	gap: 8rpx;
+	padding: 28rpx 24rpx;
+	border-radius: 20rpx;
+	background: #f8fafc;
+	border: 1rpx dashed #cbd5e1;
+}
+
+.ticket-card__empty-title {
+	font-size: 26rpx;
+	font-weight: 700;
+	color: #334155;
+}
+
+.ticket-card__empty-text {
+	font-size: 22rpx;
+	color: #94a3b8;
+	line-height: 1.6;
+}
+
+@media (max-width: 600px) {
+	.submit-footer {
+		flex-direction: column-reverse;
+		align-items: stretch;
+	}
+
+	.ticket-card__preview-list {
+		grid-template-columns: 1fr;
+	}
 }
 </style>

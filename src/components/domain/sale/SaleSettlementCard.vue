@@ -12,20 +12,6 @@
 			</view>
 
 			<view class="form-item">
-				<picker class="picker-full" mode="selector" :range="paymentMethodOptions" range-key="label" @change="onPaymentMethodChange">
-					<AppInput 
-						:model-value="paymentMethodLabel" 
-						label="收款方式" 
-						placeholder="请选择结算方式" 
-						prefix-icon="credit-card"
-						:size="size"
-						class="picker-input"
-						disabled 
-					/>
-				</picker>
-			</view>
-
-			<view class="form-item">
 				<picker
 					class="picker-full"
 					mode="selector"
@@ -85,7 +71,7 @@
 import { computed } from 'vue'
 import AppCard from '@/components/base/AppCard.vue'
 import AppInput from '@/components/base/AppInput.vue'
-import { normalizePaymentStatus } from '@/services/models/sale'
+import { normalizePaymentMethod, normalizePaymentStatus } from '@/services/models'
 
 const props = defineProps({
 	modelValue: {
@@ -99,26 +85,19 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
-const paymentMethodOptions = [
-	{ label: '挂账', value: 'on_account' },
-	{ label: '现金', value: 'cash' },
-	{ label: '银行转账', value: 'bank' },
-	{ label: '微信', value: 'wechat' },
-	{ label: '支付宝', value: 'alipay' }
-]
-
 const paymentStatusOptions = [
 	{ label: '未付款', value: 'unpaid' },
 	{ label: '部分付', value: 'partial' },
 	{ label: '已结清', value: 'paid' }
 ]
 
-const paymentMethodLabel = computed(() => {
-	const value = props.modelValue?.paymentMethod || ''
-	return paymentMethodOptions.find((item) => item.value === value)?.label || '挂账'
-})
-
 const normalizedPaymentStatus = computed(() => normalizePaymentStatus(props.modelValue?.paymentStatus))
+const normalizedPaymentMethod = computed(() =>
+	normalizePaymentMethod(props.modelValue?.paymentMethod, {
+		paymentStatus: normalizedPaymentStatus.value,
+		fallback: normalizedPaymentStatus.value === 'unpaid' ? 'on_account' : 'cash'
+	})
+)
 
 const paymentStatusIndex = computed(() => {
 	const idx = paymentStatusOptions.findIndex((item) => item.value === normalizedPaymentStatus.value)
@@ -137,34 +116,34 @@ const shouldReceiveText = computed(() => {
 	return num.toFixed(2)
 })
 
-function onPaymentMethodChange(e) {
-	const idx = Number(e?.detail?.value)
-	const item = paymentMethodOptions[idx]
-	if (!item) return
-	update('paymentMethod', item.value)
-}
-
 function onPaymentStatusChange(e) {
 	const idx = Number(e?.detail?.value)
 	const item = paymentStatusOptions[idx]
 	if (!item) return
-	update('paymentStatus', item.value)
+	const patch = { paymentStatus: item.value }
+	if (item.value === 'unpaid') patch.paymentMethod = 'on_account'
+	else if (normalizedPaymentMethod.value === 'on_account') patch.paymentMethod = 'cash'
+	patchModel(patch)
 }
 
 function update(key, value) {
-	emit('update:modelValue', { ...props.modelValue, [key]: value })
+	patchModel({ [key]: value })
+}
+
+function patchModel(patch) {
+	emit('update:modelValue', { ...props.modelValue, ...patch })
 }
 </script>
 
 <style scoped>
 .settlement-grid {
 	display: grid;
-	grid-template-columns: repeat(4, 1fr);
+	grid-template-columns: repeat(3, 1fr);
 	gap: 24rpx;
 }
 
 .settlement-grid--sm {
-	grid-template-columns: repeat(4, 1fr);
+	grid-template-columns: repeat(3, 1fr);
 	gap: 16rpx;
 }
 

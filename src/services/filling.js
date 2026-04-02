@@ -5,6 +5,8 @@ export async function listFillingsV1(params) {
 		bottle_no: params.bottle_no || params.bottleNo || '',
 		operator: params.operator || '',
 		record_type: params.record_type || params.recordType || '',
+		sale_state: params.sale_state || params.saleState || params.sale_status || params.saleStatus || '',
+		for_export: Boolean(params.for_export ?? params.forExport ?? params.exporting),
 		dateStart: params.dateStart || '',
 		dateEnd: params.dateEnd || '',
 		page: params.page || 1,
@@ -16,10 +18,27 @@ export async function listFillingsV1(params) {
 	})
 }
 
-export async function createFillingV1(data) {
+export async function createFillingV1(data, options = {}) {
+	const payload = { ...(data || {}) }
+	if (options.ignoreBottleFlowWarning || payload.ignoreBottleFlowWarning) {
+		payload.ignore_bottle_flow_warning = true
+		delete payload.ignoreBottleFlowWarning
+	}
 	return callCloud('crm-filling', {
 		action: 'createV1',
-		data
+		data: payload
+	})
+}
+
+export async function resolveFillingFillWeightV1(params = {}) {
+	return callCloud('crm-filling', {
+		action: 'resolveFillWeightV1',
+		data: {
+			date: params.date || '',
+			record_type: params.record_type || params.recordType || '',
+			bottle_no: params.bottle_no || params.bottleNo || params.identifier || '',
+			after_fill_total_weight: params.after_fill_total_weight ?? params.afterFillTotalWeight
+		}
 	})
 }
 
@@ -35,6 +54,7 @@ export async function getFillingV1(params = {}) {
 export async function updateFillingV1(params = {}) {
 	const recordId = params._id || params.id || params.recordId || ''
 	if (!recordId) return { code: 400, msg: '缺少记录 ID' }
+	const ignoreBottleFlowWarning = Boolean(params.ignoreBottleFlowWarning)
 	return callCloud('crm-filling', {
 		action: 'updateV1',
 		data: {
@@ -45,7 +65,8 @@ export async function updateFillingV1(params = {}) {
 			operator: params.operator,
 			operator_id: params.operator_id || params.operatorId,
 			fill_weight: params.fill_weight ?? params.fillWeight,
-			remark: params.remark
+			remark: params.remark,
+			...(ignoreBottleFlowWarning ? { ignore_bottle_flow_warning: true } : {})
 		}
 	})
 }
@@ -82,11 +103,13 @@ export async function batchCreateFillingsV1(params = {}) {
 			preview: Boolean(params.preview),
 			date: params.date || '',
 			record_type: params.record_type || params.recordType || '',
+			input_mode: params.input_mode || params.inputMode || '',
 			operator: params.operator || '',
 			operator_id: params.operator_id || params.operatorId || '',
 			remark: params.remark || '',
 			default_fill_weight: params.default_fill_weight ?? params.defaultFillWeight ?? '',
-			batch_text: params.batch_text ?? params.batchText ?? ''
+			batch_text: params.batch_text ?? params.batchText ?? '',
+			...(params.ignoreBottleFlowWarning ? { ignore_bottle_flow_warning: true } : {})
 		}
 	})
 }

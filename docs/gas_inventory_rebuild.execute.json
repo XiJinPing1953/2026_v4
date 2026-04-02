@@ -1,0 +1,82 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "generated_at": "2026-03-29T07:15:52.090Z",
+  "execute": true,
+  "include_cycle_adjust": false,
+  "backup_before_rebuild": false,
+  "preview": {
+    "preview": true,
+    "dateStart": "",
+    "dateEnd": "",
+    "include_cycle_adjust": false,
+    "backup_before_rebuild": false,
+    "stats": {
+      "gas_in_source_total": 22,
+      "filling_source_total": 4927,
+      "sale_source_total": 1987,
+      "cycle_candidate_total": 0,
+      "preserved_cycle_adjust_total": 2082,
+      "movement_total": 9005,
+      "summary": {
+        "total": 9005,
+        "asset_total_t": -129.708,
+        "station_total_t": -7.647,
+        "in_bottle_total_t": -124.321,
+        "vehicle_total_t": 2.26,
+        "balance_diff_t": 0,
+        "by_kind": {
+          "sale_bottle": 1919,
+          "filling_normal_fill": 4551,
+          "filling_truck_out_no_sale": 84,
+          "sale_agent_sale": 44,
+          "filling_truck_fill": 9,
+          "filling_truck_out_agent_sale": 283,
+          "cycle_adjust": 2082,
+          "gas_in": 22,
+          "sale_truck": 11
+        }
+      }
+    }
+  },
+  "execute_result": {
+    "preview": false,
+    "run_id": "",
+    "backup_before_rebuild": false,
+    "backup_total": 0,
+    "inserted_total": 9005,
+    "stats": {
+      "gas_in_source_total": 22,
+      "filling_source_total": 4927,
+      "sale_source_total": 1987,
+      "cycle_candidate_total": 0,
+      "preserved_cycle_adjust_total": 2082,
+      "movement_total": 9005,
+      "summary": {
+        "total": 9005,
+        "asset_total_t": -129.708,
+        "station_total_t": -7.647,
+        "in_bottle_total_t": -124.321,
+        "vehicle_total_t": 2.26,
+        "balance_diff_t": 0,
+        "by_kind": {
+          "sale_bottle": 1919,
+          "filling_normal_fill": 4551,
+          "filling_truck_out_no_sale": 84,
+          "sale_agent_sale": 44,
+          "filling_truck_fill": 9,
+          "filling_truck_out_agent_sale": 283,
+          "cycle_adjust": 2082,
+          "gas_in": 22,
+          "sale_truck": 11
+        }
+      }
+    }
+  },
+  "post_rebuild_inventory": {
+    "asset_total_t": -129.708,
+    "station_total_t": -7.647,
+    "in_bottle_total_t": -124.321,
+    "vehicle_total_t": 2.26,
+    "balance_diff_t": 0
+  }
+}

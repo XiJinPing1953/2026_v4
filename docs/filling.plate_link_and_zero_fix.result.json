@@ -1,0 +1,406 @@
+{
+  "generated_at": "2026-03-17T11:34:52.757Z",
+  "space_id": "env-00jxuffegf2n",
+  "source_export": "/Users/wangbo/Downloads/2026_v4/docs/export_bottle.json",
+  "no_sale_plate_backfill": {
+    "target": 69,
+    "updated": 69,
+    "unmatched": 0,
+    "failed": [],
+    "updated_items": [
+      {
+        "_id": "69b91a451bfe16da6e6dbdf1",
+        "date": "2026-03-16 08:00",
+        "fill_weight": 429,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AEG780"
+      },
+      {
+        "_id": "69b91a451bfe16da6e6dbdf0",
+        "date": "2026-03-16 08:00",
+        "fill_weight": 350,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A90948"
+      },
+      {
+        "_id": "69b91a411117bf9b461b0631",
+        "date": "2026-03-15 08:00",
+        "fill_weight": 321,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A565PC"
+      },
+      {
+        "_id": "69b91a411bfe16da6e6dbd84",
+        "date": "2026-03-15 08:00",
+        "fill_weight": 369,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AOG111"
+      },
+      {
+        "_id": "69b91a3a1bfe16da6e6dbcbf",
+        "date": "2026-03-13 08:00",
+        "fill_weight": 290,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A808AT"
+      },
+      {
+        "_id": "69b91a3a1bfe16da6e6dbcbe",
+        "date": "2026-03-13 08:00",
+        "fill_weight": 496,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AEG780"
+      },
+      {
+        "_id": "69b91a3a1bfe16da6e6dbcbd",
+        "date": "2026-03-13 08:00",
+        "fill_weight": 395,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A9S143"
+      },
+      {
+        "_id": "69b91a3a1117bf9b461b04ec",
+        "date": "2026-03-13 08:00",
+        "fill_weight": 228,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A90948"
+      },
+      {
+        "_id": "69b91a301bfe16da6e6dbb89",
+        "date": "2026-03-11 08:00",
+        "fill_weight": 450,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AEG780"
+      },
+      {
+        "_id": "69b91a301117bf9b461b02f5",
+        "date": "2026-03-11 08:00",
+        "fill_weight": 342,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A808AT"
+      },
+      {
+        "_id": "69b91a301bfe16da6e6dbb87",
+        "date": "2026-03-11 08:00",
+        "fill_weight": 346,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A263AP"
+      },
+      {
+        "_id": "69b91a2a1bfe16da6e6dbad9",
+        "date": "2026-03-09 08:00",
+        "fill_weight": 313,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AEG780"
+      },
+      {
+        "_id": "69b91a211117bf9b461b0059",
+        "date": "2026-03-07 08:00",
+        "fill_weight": 493,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AOG111"
+      },
+      {
+        "_id": "69b91a211117bf9b461b0058",
+        "date": "2026-03-07 08:00",
+        "fill_weight": 397,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A263AP"
+      },
+      {
+        "_id": "69b91a211bfe16da6e6db9e8",
+        "date": "2026-03-07 08:00",
+        "fill_weight": 279,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A808AT"
+      },
+      {
+        "_id": "69b91a211bfe16da6e6db9e6",
+        "date": "2026-03-07 08:00",
+        "fill_weight": 324,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A565PC"
+      },
+      {
+        "_id": "69b91a1c1bfe16da6e6db945",
+        "date": "2026-03-05 08:00",
+        "fill_weight": 411,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AOG111"
+      },
+      {
+        "_id": "69b91a191bfe16da6e6db8e7",
+        "date": "2026-03-04 08:00",
+        "fill_weight": 280,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AEG780"
+      },
+      {
+        "_id": "69b91a191117bf9b461afedb",
+        "date": "2026-03-04 08:00",
+        "fill_weight": 119,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A9S143"
+      },
+      {
+        "_id": "69b91a171117bf9b461afe7d",
+        "date": "2026-03-03 08:00",
+        "fill_weight": 100,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A8089Z"
+      },
+      {
+        "_id": "69b91a171117bf9b461afe79",
+        "date": "2026-03-03 08:00",
+        "fill_weight": 239,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A808AT"
+      },
+      {
+        "_id": "69b91a131117bf9b461afde2",
+        "date": "2026-03-01 08:00",
+        "fill_weight": 395,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A9S143"
+      },
+      {
+        "_id": "69b91a101117bf9b461afd40",
+        "date": "2026-02-28 08:00",
+        "fill_weight": 400,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A263AP"
+      },
+      {
+        "_id": "69b91a0c1117bf9b461afc61",
+        "date": "2026-02-26 08:00",
+        "fill_weight": 513,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AKG103"
+      },
+      {
+        "_id": "69b91a0c1bfe16da6e6db753",
+        "date": "2026-02-26 08:00",
+        "fill_weight": 408,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AOG111"
+      },
+      {
+        "_id": "69b91a0b1117bf9b461afc19",
+        "date": "2026-02-25 08:00",
+        "fill_weight": 347,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A808AT"
+      },
+      {
+        "_id": "69b91a091bfe16da6e6db6d9",
+        "date": "2026-02-24 08:00",
+        "fill_weight": 464,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A263AP"
+      },
+      {
+        "_id": "69b91a081bfe16da6e6db6d8",
+        "date": "2026-02-24 08:00",
+        "fill_weight": 354,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A565PC"
+      },
+      {
+        "_id": "69b91a081117bf9b461afbad",
+        "date": "2026-02-24 08:00",
+        "fill_weight": 361,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A7888Q"
+      },
+      {
+        "_id": "69b91a081bfe16da6e6db6d7",
+        "date": "2026-02-24 08:00",
+        "fill_weight": 347,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AEG780"
+      },
+      {
+        "_id": "69b91a071bfe16da6e6db6b7",
+        "date": "2026-02-23 08:00",
+        "fill_weight": 489,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A90948"
+      },
+      {
+        "_id": "69b91a071117bf9b461afb78",
+        "date": "2026-02-23 08:00",
+        "fill_weight": 559,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AOG111"
+      },
+      {
+        "_id": "69b91a011bfe16da6e6db5f4",
+        "date": "2026-02-07 08:00",
+        "fill_weight": 92,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AOG111"
+      },
+      {
+        "_id": "69b919fc1bfe16da6e6db591",
+        "date": "2026-02-05 08:00",
+        "fill_weight": 257,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A7888Q"
+      },
+      {
+        "_id": "69b919fc1117bf9b461af9a2",
+        "date": "2026-02-05 08:00",
+        "fill_weight": 430,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A565PC"
+      },
+      {
+        "_id": "69b919f81117bf9b461af8ca",
+        "date": "2026-02-03 08:00",
+        "fill_weight": 235,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A263AP"
+      },
+      {
+        "_id": "69b919f11bfe16da6e6db430",
+        "date": "2026-01-30 08:00",
+        "fill_weight": 520,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AOG111"
+      },
+      {
+        "_id": "69b919ee1bfe16da6e6db3eb",
+        "date": "2026-01-29 08:00",
+        "fill_weight": 320,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A7888Q"
+      },
+      {
+        "_id": "69b919eb1117bf9b461af667",
+        "date": "2026-01-28 08:00",
+        "fill_weight": 450,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AEG780"
+      },
+      {
+        "_id": "69b919eb599120be6c3e9901",
+        "date": "2026-01-28 08:00",
+        "fill_weight": 380,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A565PC"
+      },
+      {
+        "_id": "69b919e81bfe16da6e6db333",
+        "date": "2026-01-27 08:00",
+        "fill_weight": 235,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A263AP"
+      },
+      {
+        "_id": "69b919e88a2e952d8f1bc030",
+        "date": "2026-01-27 08:00",
+        "fill_weight": 336,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A7888Q"
+      },
+      {
+        "_id": "69b919e889d83717620f4575",
+        "date": "2026-01-27 08:00",
+        "fill_weight": 80,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A808AT"
+      },
+      {
+        "_id": "69b919e81117bf9b461af5d4",
+        "date": "2026-01-27 08:00",
+        "fill_weight": 100,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A807AT"
+      },
+      {
+        "_id": "69b919e41bfe16da6e6db2c3",
+        "date": "2026-01-26 08:00",
+        "fill_weight": 294,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A9S143"
+      },
+      {
+        "_id": "69b919e1dcf6a79853ee117c",
+        "date": "2026-01-25 08:00",
+        "fill_weight": 340,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A263AP"
+      },
+      {
+        "_id": "69b919de1117bf9b461af3c5",
+        "date": "2026-01-24 08:00",
+        "fill_weight": 348,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A808AT"
+      },
+      {
+        "_id": "69b919de1bfe16da6e6db1ff",
+        "date": "2026-01-24 08:00",
+        "fill_weight": 480,
+        "operator": "陈铁栓",
+        "bottle_no": "冀A565PC"
+      },
+      {
+        "_id": "69b919d71117bf9b461af2a4",
+        "date": "2026-01-22 08:00",
+        "fill_weight": 578,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AOG111"
+      },
+      {
+        "_id": "69b919d41bfe16da6e6db0f3",
+        "date": "2026-01-21 08:00",
+        "fill_weight": 437,
+        "operator": "陈铁栓",
+        "bottle_no": "冀AKG103"
+      }
+    ],
+    "unmatched_items": []
+  },
+  "zero_restore": {
+    "target_keys": [
+      "2026-01-28 08:00|0",
+      "2026-02-02 08:00|000",
+      "2026-01-28 08:00|000"
+    ],
+    "created": [
+      {
+        "key": "2026-01-28 08:00|0",
+        "date": "2026-01-28 08:00",
+        "bottle_no": "0",
+        "fill_weight": 1036,
+        "row_count_export": 3,
+        "_id": "69b93c634975ff712e73cc7a"
+      }
+    ],
+    "exists": [
+      {
+        "key": "2026-02-02 08:00|000",
+        "date": "2026-02-02 08:00",
+        "bottle_no": "000",
+        "row_count_export": 1,
+        "weight_sum_export": 265
+      },
+      {
+        "key": "2026-01-28 08:00|000",
+        "date": "2026-01-28 08:00",
+        "bottle_no": "000",
+        "row_count_export": 2,
+        "weight_sum_export": 516
+      }
+    ],
+    "failed": []
+  },
+  "summary": {
+    "no_sale_updated": 69,
+    "no_sale_unmatched": 0,
+    "no_sale_failed": 0,
+    "zero_created": 1,
+    "zero_exists": 2,
+    "zero_failed": 0
+  }
+}

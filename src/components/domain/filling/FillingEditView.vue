@@ -42,6 +42,11 @@
 							</picker>
 							</view>
 							<view class="form-item">
+								<picker class="picker-full" mode="selector" :range="recordTypeOptions" range-key="label" @change="onRecordTypeChange">
+									<AppInput :model-value="recordTypeLabel" label="作业类型" placeholder="请选择作业类型" disabled prefix-icon="list" size="sm" />
+								</picker>
+							</view>
+							<view class="form-item">
 								<AppInput
 									v-model="form.bottle_no"
 									:label="bottleInputLabel"
@@ -53,11 +58,6 @@
 						<view class="form-item">
 							<AppInput v-model="form.fill_weight" label="灌装净重" placeholder="0.00" size="sm" />
 						</view>
-							<view class="form-item">
-								<picker class="picker-full" mode="selector" :range="recordTypeOptions" range-key="label" @change="onRecordTypeChange">
-									<AppInput :model-value="recordTypeLabel" label="作业类型" placeholder="请选择作业类型" disabled prefix-icon="list" size="sm" />
-								</picker>
-							</view>
 							<view class="form-item">
 								<picker class="picker-full" mode="selector" :range="operatorOptions" range-key="label" @change="onOperatorChange">
 									<AppInput :model-value="operatorLabel" label="操作人" placeholder="请选择操作人" disabled prefix-icon="user" size="sm" />
@@ -87,8 +87,8 @@ import { searchDeliveriesV1 } from '@/services/delivery'
 
 const RECORD_TYPE_OPTIONS = [
 	{ label: '常规灌装', value: 'normal_fill' },
-	{ label: '随车出液-代理销售', value: 'truck_out_agent_sale' },
-	{ label: '随车出液-未销售', value: 'truck_out_no_sale' }
+	{ label: '代理销售', value: 'truck_out_agent_sale' },
+	{ label: '车辆燃气补给', value: 'truck_out_no_sale' }
 ]
 const DEFAULT_OPERATOR_NAME = '陈铁栓'
 
@@ -164,7 +164,7 @@ const recordTypeLabel = computed(() => {
 const bottleRequired = computed(() => isInventoryLinkedRecordType(form.record_type))
 const bottleInputLabel = computed(() => (bottleRequired.value ? '钢瓶编号' : '钢瓶编号（可空）'))
 const bottleInputPlaceholder = computed(() =>
-	bottleRequired.value ? '请输入瓶号' : '可不填（未销售类型）'
+	bottleRequired.value ? '请输入瓶号' : '可不填（车辆燃气补给类型）'
 )
 const operatorLabel = computed(() => {
 	const current = normalizeString(form.operator)
@@ -228,6 +228,27 @@ function onOperatorChange(e) {
 	setOperatorByOption(option)
 }
 
+function isFillingBottleFlowWarningResult(result) {
+	return Number(result?.code || 0) === 409
+		&& Boolean(result?.data?.confirmable)
+		&& String(result?.data?.warning_kind || '') === 'bottle_flow_mismatch'
+		&& Array.isArray(result?.data?.warning_items)
+		&& result.data.warning_items.length > 0
+}
+
+function buildFillingBottleFlowWarningContent(result) {
+	const items = Array.isArray(result?.data?.warning_items) ? result.data.warning_items : []
+	const summaryText = normalizeString(result?.data?.summary_text || result?.msg || '发现瓶流转异常，请核对')
+	const preview = items.slice(0, 6).map((item, index) => {
+		const bottleNo = normalizeString(item?.bottle_no) || '-'
+		const reason = normalizeString(item?.reason) || '请检查'
+		return `${index + 1}. ${bottleNo}：${reason}`
+	})
+	if (items.length > preview.length) preview.push(`等 ${items.length} 条，请确认是否仍要继续提交。`)
+	else preview.push('请确认是否仍要继续提交。')
+	return [summaryText, '', ...preview].join('\n')
+}
+
 async function loadOperatorOptions() {
 	if (isLoadingOperatorOptions.value) return
 	isLoadingOperatorOptions.value = true
@@ -282,26 +303,42 @@ async function onSubmit() {
 	}
 
 	submitting.value = true
-		try {
-				const payload = {
-					date: String(form.date || '').trim(),
-					bottle_no: bottleNo,
-					record_type: recordType,
-					operator: normalizeString(form.operator),
-					operator_id: normalizeId(form.operator_id),
-					fill_weight: weight,
-					remark: String(form.remark || '').trim()
-				}
-		const result = isEditMode.value
+	try {
+		const payload = {
+			date: String(form.date || '').trim(),
+			bottle_no: bottleNo,
+			record_type: recordType,
+			operator: normalizeString(form.operator),
+			operator_id: normalizeId(form.operator_id),
+			fill_weight: weight,
+			remark: String(form.remark || '').trim()
+		}
+		let result = isEditMode.value
 			? await updateFillingV1({ _id: recordId.value, ...payload })
 			: await createFillingV1(payload)
+		if (isFillingBottleFlowWarningResult(result)) {
+			const confirmRes = await uni.showModal({
+				title: '请核对瓶号',
+				content: buildFillingBottleFlowWarningContent(result),
+				confirmText: '继续提交',
+				cancelText: '返回修改'
+			})
+			if (!confirmRes.confirm) return
+			result = isEditMode.value
+				? await updateFillingV1({ _id: recordId.value, ...payload, ignoreBottleFlowWarning: true })
+				: await createFillingV1(payload, { ignoreBottleFlowWarning: true })
+		}
 
 		if (result?.code !== 0) {
 			uni.showToast({ title: result?.msg || '保存失败', icon: 'none' })
 			return
 		}
 
-		uni.showToast({ title: isEditMode.value ? '更新成功' : '保存成功', icon: 'success' })
+		const savedWithOverride = Boolean(result?.data?.bottle_flow_warning_overridden) && Number(result?.data?.bottle_flow_warning_count || 0) > 0
+		uni.showToast({
+			title: savedWithOverride ? '已核对并保存' : (isEditMode.value ? '更新成功' : '保存成功'),
+			icon: 'success'
+		})
 		setTimeout(() => {
 			uni.navigateBack({ delta: 1 })
 		}, 400)

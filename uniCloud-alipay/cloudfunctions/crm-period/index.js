@@ -5,6 +5,19 @@ const db = uniCloud.database()
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 const periods = db.collection('crm_periods')
+let ensureActionAcl = null
+try {
+	;({ ensureActionAcl } = require('../common/pageAcl'))
+} catch (err) {
+	console.warn('[crm-period] fallback to local pageAcl helpers', err && err.message)
+	;({ ensureActionAcl } = require('./pageAclLocal'))
+}
+const PAGE_ACTION_RULES = {
+	listV1: [{ pagePath: '/pages/accounting/period-list', action: 'view' }],
+	createV1: [{ pagePath: '/pages/accounting/period-list', action: 'create' }],
+	closeV1: [{ pagePath: '/pages/accounting/period-list', action: 'update' }],
+	reopenV1: [{ pagePath: '/pages/accounting/period-list', action: 'update' }]
+}
 
 async function getUserByToken(token) {
 	if (!token) return null
@@ -102,6 +115,12 @@ exports.main = async (event, context) => {
 
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
+	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, [], {
+		recordLog,
+		requestId,
+		cloudFunction: 'crm-period'
+	})
+	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
 	if (action === 'listV1') return listV1(user, data)
 	if (action === 'createV1') return createV1(user, data, requestId)

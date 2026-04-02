@@ -1,0 +1,22 @@
+[
+  {
+    "line": 22,
+    "reasons": [
+      "missing_customer"
+    ],
+    "_id": "695a2e1f0d2b3189a36d7236",
+    "date": "2026-01-01",
+    "biz_mode": "bottle",
+    "customer_name": "昊天干真空"
+  },
+  {
+    "line": 1063,
+    "reasons": [
+      "missing_customer"
+    ],
+    "_id": "6989537d7ae7089a62e82946",
+    "date": "2026-02-07",
+    "biz_mode": "truck",
+    "customer_name": "四公"
+  }
+]

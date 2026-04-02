@@ -1,0 +1,354 @@
+{
+  "generated_at": "2026-03-17T13:10:19.376Z",
+  "input_file": "/Users/wangbo/Downloads/2026_v4/docs/hhh.json",
+  "missing_total": 66,
+  "conflict_same_date_bottle_count": 15,
+  "true_missing_count": 51,
+  "conflicts": [
+    {
+      "line_no": 315,
+      "source_id": "[object Object]",
+      "date": "2026-01-05 08:00",
+      "record_type": "normal_fill",
+      "bottle_no": "59",
+      "fill_weight": 65,
+      "operator": "陈铁栓",
+      "remark": "",
+      "signature": "normal_fill|2026-01-05 08:00|59|65|陈铁栓|",
+      "existing_same_date_bottle": [
+        {
+          "_id": "69b919991bfe16da6e6da956",
+          "date": "2026-01-05 08:00",
+          "record_type": "normal_fill",
+          "bottle_no": "59",
+          "fill_weight": 64,
+          "operator": "陈铁栓",
+          "remark": "",
+          "signature": "normal_fill|2026-01-05 08:00|59|64|陈铁栓|"
+        }
+      ]
+    },
+    {
+      "line_no": 330,
+      "source_id": "[object Object]",
+      "date": "2026-01-05 08:00",
+      "record_type": "normal_fill",
+      "bottle_no": "384",
+      "fill_weight": 55,
+      "operator": "陈铁栓",
+      "remark": "",
+      "signature": "normal_fill|2026-01-05 08:00|384|55|陈铁栓|",
+      "existing_same_date_bottle": [
+        {
+          "_id": "69b9199e1bfe16da6e6da9f3",
+          "date": "2026-01-05 08:00",
+          "record_type": "normal_fill",
+          "bottle_no": "384",
+          "fill_weight": 56,
+          "operator": "陈铁栓",
+          "remark": "",
+          "signature": "normal_fill|2026-01-05 08:00|384|56|陈铁栓|"
+        }
+      ]
+    },
+    {
+      "line_no": 972,
+      "source_id": "[object Object]",
+      "date": "2026-01-14 08:00",
+      "record_type": "normal_fill",
+      "bottle_no": "239",
+      "fill_weight": 180,
+      "operator": "陈铁栓",
+      "remark": "",
+      "signature": "normal_fill|2026-01-14 08:00|239|180|陈铁栓|",
+      "existing_same_date_bottle": [
+        {
+          "_id": "69b919bc8a2e952d8f1bbb33",
+          "date": "2026-01-14 08:00",
+          "record_type": "normal_fill",
+          "bottle_no": "239",
+          "fill_weight": 190,
+          "operator": "陈铁栓",
+          "remark": "",
+          "signature": "normal_fill|2026-01-14 08:00|239|190|陈铁栓|"
+        }
+      ]
+    },
+    {
+      "line_no": 1304,
+      "source_id": "[object Object]",
+      "date": "2026-01-18 08:00",
+      "record_type": "normal_fill",
+      "bottle_no": "375",
+      "fill_weight": 70,
+      "operator": "陈铁栓",
+      "remark": "",
+      "signature": "normal_fill|2026-01-18 08:00|375|70|陈铁栓|",
+      "existing_same_date_bottle": [
+        {
+          "_id": "69b919cc1117bf9b461af0c1",
+          "date": "2026-01-18 08:00",
+          "record_type": "normal_fill",
+          "bottle_no": "375",
+          "fill_weight": 56,
+          "operator": "陈铁栓",
+          "remark": "",
+          "signature": "normal_fill|2026-01-18 08:00|375|56|陈铁栓|"
+        }
+      ]
+    },
+    {
+      "line_no": 1306,
+      "source_id": "[object Object]",
+      "date": "2026-01-18 08:00",
+      "record_type": "normal_fill",
+      "bottle_no": "344",
+      "fill_weight": 69,
+      "operator": "陈铁栓",
+      "remark": "",
+      "signature": "normal_fill|2026-01-18 08:00|344|69|陈铁栓|",
+      "existing_same_date_bottle": [
+        {
+          "_id": "69b919cb1bfe16da6e6dafdb",
+          "date": "2026-01-18 08:00",
+          "record_type": "normal_fill",
+          "bottle_no": "344",
+          "fill_weight": 67,
+          "operator": "陈铁栓",
+          "remark": "",
+          "signature": "normal_fill|2026-01-18 08:00|344|67|陈铁栓|"
+        }
+      ]
+    },
+    {
+      "line_no": 1486,
+      "source_id": "[object Object]",
+      "date": "2026-01-20 08:00",
+      "record_type": "normal_fill",
+      "bottle_no": "259",
+      "fill_weight": 68,
+      "operator": "陈铁栓",
+      "remark": "",
+      "signature": "normal_fill|2026-01-20 08:00|259|68|陈铁栓|",
+      "existing_same_date_bottle": [
+        {
+          "_id": "69b919d21117bf9b461af1e4",
+          "date": "2026-01-20 08:00",
+          "record_type": "normal_fill",
+          "bottle_no": "259",
+          "fill_weight": 69,
+          "operator": "陈铁栓",
+          "remark": "",
+          "signature": "normal_fill|2026-01-20 08:00|259|69|陈铁栓|"
+        }
+      ]
+    },
+    {
+      "line_no": 2178,
+      "source_id": "[object Object]",
+      "date": "2026-01-30 08:00",
+      "record_type": "normal_fill",
+      "bottle_no": "Y149",
+      "fill_weight": 72,
+      "operator": "陈铁栓",
+      "remark": "",
+      "signature": "normal_fill|2026-01-30 08:00|Y149|72|陈铁栓|",
+      "existing_same_date_bottle": [
+        {
+          "_id": "69b919f31bfe16da6e6db482",
+          "date": "2026-01-30 08:00",
+          "record_type": "normal_fill",
+          "bottle_no": "Y149",
+          "fill_weight": 71,
+          "operator": "陈铁栓",
+          "remark": "",
+          "signature": "normal_fill|2026-01-30 08:00|Y149|71|陈铁栓|"
+        }
+      ]
+    },
+    {
+      "line_no": 2277,
+      "source_id": "[object Object]",
+      "date": "2026-01-28 08:00",
+      "record_type": "truck_out_agent_sale",
+      "bottle_no": "0",
+      "fill_weight": 518,
+      "operator": "陈铁栓",
+      "remark": "",
+      "signature": "truck_out_agent_sale|2026-01-28 08:00|0|518|陈铁栓|",
+      "existing_same_date_bottle": [
+        {
+          "_id": "69b93c634975ff712e73cc7a",
+          "date": "2026-01-28 08:00",
+          "record_type": "truck_out_agent_sale",
+          "bottle_no": "0",
+          "fill_weight": 1036,
+          "operator": "陈铁栓",
+          "remark": "legacy恢复:0保留(同日同瓶合并3条)",
+          "signature": "truck_out_agent_sale|2026-01-28 08:00|0|1036|陈铁栓|legacy恢复:0保留(同日同瓶合并3条)"
+        }
+      ]
+    },
+    {
+      "line_no": 2279,
+      "source_id": "[object Object]",
+      "date": "2026-01-28 08:00",
+      "record_type": "truck_out_agent_sale",
+      "bottle_no": "0",
+      "fill_weight": 500,
+      "operator": "陈铁栓",
+      "remark": "",
+      "signature": "truck_out_agent_sale|2026-01-28 08:00|0|500|陈铁栓|",
+      "existing_same_date_bottle": [
+        {
+          "_id": "69b93c634975ff712e73cc7a",
+          "date": "2026-01-28 08:00",
+          "record_type": "truck_out_agent_sale",
+          "bottle_no": "0",
+          "fill_weight": 1036,
+          "operator": "陈铁栓",
+          "remark": "legacy恢复:0保留(同日同瓶合并3条)",
+          "signature": "truck_out_agent_sale|2026-01-28 08:00|0|1036|陈铁栓|legacy恢复:0保留(同日同瓶合并3条)"
+        }
+      ]
+    },
+    {
+      "line_no": 2280,
+      "source_id": "[object Object]",
+      "date": "2026-01-28 08:00",
+      "record_type": "truck_out_agent_sale",
+      "bottle_no": "0",
+      "fill_weight": 18,
+      "operator": "陈铁栓",
+      "remark": "",
+      "signature": "truck_out_agent_sale|2026-01-28 08:00|0|18|陈铁栓|",
+      "existing_same_date_bottle": [
+        {
+          "_id": "69b93c634975ff712e73cc7a",
+          "date": "2026-01-28 08:00",
+          "record_type": "truck_out_agent_sale",
+          "bottle_no": "0",
+          "fill_weight": 1036,
+          "operator": "陈铁栓",
+          "remark": "legacy恢复:0保留(同日同瓶合并3条)",
+          "signature": "truck_out_agent_sale|2026-01-28 08:00|0|1036|陈铁栓|legacy恢复:0保留(同日同瓶合并3条)"
+        }
+      ]
+    },
+    {
+      "line_no": 2282,
+      "source_id": "[object Object]",
+      "date": "2026-01-28 08:00",
+      "record_type": "truck_out_agent_sale",
+      "bottle_no": "000",
+      "fill_weight": 16,
+      "operator": "陈铁栓",
+      "remark": "",
+      "signature": "truck_out_agent_sale|2026-01-28 08:00|000|16|陈铁栓|",
+      "existing_same_date_bottle": [
+        {
+          "_id": "69b919eb1117bf9b461af668",
+          "date": "2026-01-28 08:00",
+          "record_type": "truck_out_agent_sale",
+          "bottle_no": "000",
+          "fill_weight": 500,
+          "operator": "陈铁栓",
+          "remark": "",
+          "signature": "truck_out_agent_sale|2026-01-28 08:00|000|500|陈铁栓|"
+        }
+      ]
+    },
+    {
+      "line_no": 2573,
+      "source_id": "[object Object]",
+      "date": "2026-02-12 08:00",
+      "record_type": "normal_fill",
+      "bottle_no": "27",
+      "fill_weight": 65,
+      "operator": "陈铁栓",
+      "remark": "",
+      "signature": "normal_fill|2026-02-12 08:00|27|65|陈铁栓|",
+      "existing_same_date_bottle": [
+        {
+          "_id": "69b91a06d2176ed4904cf141",
+          "date": "2026-02-12 08:00",
+          "record_type": "normal_fill",
+          "bottle_no": "27",
+          "fill_weight": 67,
+          "operator": "陈铁栓",
+          "remark": "",
+          "signature": "normal_fill|2026-02-12 08:00|27|67|陈铁栓|"
+        }
+      ]
+    },
+    {
+      "line_no": 2730,
+      "source_id": "[object Object]",
+      "date": "2026-02-26 08:00",
+      "record_type": "normal_fill",
+      "bottle_no": "341",
+      "fill_weight": 58,
+      "operator": "陈铁栓",
+      "remark": "",
+      "signature": "normal_fill|2026-02-26 08:00|341|58|陈铁栓|",
+      "existing_same_date_bottle": [
+        {
+          "_id": "69b91a0e1117bf9b461afcc5",
+          "date": "2026-02-26 08:00",
+          "record_type": "normal_fill",
+          "bottle_no": "341",
+          "fill_weight": 55,
+          "operator": "陈铁栓",
+          "remark": "",
+          "signature": "normal_fill|2026-02-26 08:00|341|55|陈铁栓|"
+        }
+      ]
+    },
+    {
+      "line_no": 3214,
+      "source_id": "[object Object]",
+      "date": "2026-03-08 08:00",
+      "record_type": "normal_fill",
+      "bottle_no": "160",
+      "fill_weight": 71,
+      "operator": "陈铁栓",
+      "remark": "",
+      "signature": "normal_fill|2026-03-08 08:00|160|71|陈铁栓|",
+      "existing_same_date_bottle": [
+        {
+          "_id": "69b91a271bfe16da6e6dba94",
+          "date": "2026-03-08 08:00",
+          "record_type": "normal_fill",
+          "bottle_no": "160",
+          "fill_weight": 2,
+          "operator": "陈铁栓",
+          "remark": "",
+          "signature": "normal_fill|2026-03-08 08:00|160|2|陈铁栓|"
+        }
+      ]
+    },
+    {
+      "line_no": 3396,
+      "source_id": "[object Object]",
+      "date": "2026-03-10 08:00",
+      "record_type": "normal_fill",
+      "bottle_no": "174",
+      "fill_weight": 70,
+      "operator": "陈铁栓",
+      "remark": "",
+      "signature": "normal_fill|2026-03-10 08:00|174|70|陈铁栓|",
+      "existing_same_date_bottle": [
+        {
+          "_id": "69b91a2e1117bf9b461b028d",
+          "date": "2026-03-10 08:00",
+          "record_type": "normal_fill",
+          "bottle_no": "174",
+          "fill_weight": 71,
+          "operator": "陈铁栓",
+          "remark": "",
+          "signature": "normal_fill|2026-03-10 08:00|174|71|陈铁栓|"
+        }
+      ]
+    }
+  ]
+}

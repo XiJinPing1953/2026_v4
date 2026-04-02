@@ -1,11 +1,24 @@
 'use strict'
 
+let ensureActionAcl = null
+try {
+	;({ ensureActionAcl } = require('../common/pageAcl'))
+} catch (err) {
+	console.warn('[crm-delivery] fallback to local pageAcl helpers', err && err.message)
+	;({ ensureActionAcl } = require('./pageAclLocal'))
+}
 const db = uniCloud.database()
 const dbCmd = db.command
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 const deliveries = db.collection('crm_delivery_men')
+const PAGE_ACTION_RULES = {
+	listV1: [{ pagePath: '/pages/delivery/list', action: 'view' }],
+	getV1: [{ pagePath: '/pages/delivery/list', action: 'view' }, { pagePath: '/pages/delivery/edit', action: 'view' }],
+	createV1: [{ pagePath: '/pages/delivery/edit', action: 'create' }],
+	updateV1: [{ pagePath: '/pages/delivery/edit', action: 'update' }]
+}
 
 async function getUserByToken(token) {
 	if (!token) return null
@@ -213,6 +226,12 @@ exports.main = async (event, context) => {
 
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
+	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, [], {
+		recordLog,
+		requestId,
+		cloudFunction: 'crm-delivery'
+	})
+	if (!acl.ok) return { code: acl.code, msg: acl.msg }
 
 	if (action === 'listV1') return listV1(user, data)
 	if (action === 'getV1') return getV1(user, data)

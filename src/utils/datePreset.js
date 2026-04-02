@@ -1,0 +1,65 @@
+function pad(value) {
+	return String(value).padStart(2, '0')
+}
+
+export function formatDateInput(value) {
+	const date = value instanceof Date ? new Date(value.getTime()) : new Date(value)
+	if (Number.isNaN(date.getTime())) return ''
+	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+function getToday(baseDate = new Date()) {
+	const date = new Date(baseDate)
+	date.setHours(0, 0, 0, 0)
+	return date
+}
+
+function getWeekStart(baseDate = new Date()) {
+	const date = getToday(baseDate)
+	const day = date.getDay() || 7
+	date.setDate(date.getDate() - day + 1)
+	return date
+}
+
+function getMonthStart(baseDate = new Date()) {
+	const date = getToday(baseDate)
+	date.setDate(1)
+	return date
+}
+
+export function buildDatePresetRange(preset, baseDate = new Date()) {
+	const today = getToday(baseDate)
+	if (preset === 'today') {
+		const text = formatDateInput(today)
+		return { dateStart: text, dateEnd: text }
+	}
+	if (preset === 'week') {
+		return {
+			dateStart: formatDateInput(getWeekStart(today)),
+			dateEnd: formatDateInput(today)
+		}
+	}
+	if (preset === 'month') {
+		return {
+			dateStart: formatDateInput(getMonthStart(today)),
+			dateEnd: formatDateInput(today)
+		}
+	}
+	return {
+		dateStart: '',
+		dateEnd: ''
+	}
+}
+
+export function detectDatePreset(dateStart, dateEnd, baseDate = new Date()) {
+	const start = String(dateStart || '').trim()
+	const end = String(dateEnd || '').trim()
+	if (!start && !end) return 'custom'
+	const todayRange = buildDatePresetRange('today', baseDate)
+	if (start === todayRange.dateStart && end === todayRange.dateEnd) return 'today'
+	const weekRange = buildDatePresetRange('week', baseDate)
+	if (start === weekRange.dateStart && end === weekRange.dateEnd) return 'week'
+	const monthRange = buildDatePresetRange('month', baseDate)
+	if (start === monthRange.dateStart && end === monthRange.dateEnd) return 'month'
+	return 'custom'
+}

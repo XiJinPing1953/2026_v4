@@ -1,0 +1,100 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "scan_limit": 12000,
+  "max_updates": 300,
+  "rounds": [
+    {
+      "round": 1,
+      "phase": "preview",
+      "candidate_total": 1133,
+      "scanned_total": 3879,
+      "to_execute": 300,
+      "pending_total": 833
+    },
+    {
+      "round": 1,
+      "phase": "execute",
+      "success": 300,
+      "failed": 0,
+      "execute_total": 300,
+      "pending_total": 833,
+      "has_more": true
+    },
+    {
+      "round": 2,
+      "phase": "preview",
+      "candidate_total": 833,
+      "scanned_total": 3879,
+      "to_execute": 300,
+      "pending_total": 533
+    },
+    {
+      "round": 2,
+      "phase": "execute",
+      "success": 300,
+      "failed": 0,
+      "execute_total": 300,
+      "pending_total": 533,
+      "has_more": true
+    },
+    {
+      "round": 3,
+      "phase": "preview",
+      "candidate_total": 533,
+      "scanned_total": 3879,
+      "to_execute": 300,
+      "pending_total": 233
+    },
+    {
+      "round": 3,
+      "phase": "execute",
+      "success": 300,
+      "failed": 0,
+      "execute_total": 300,
+      "pending_total": 233,
+      "has_more": true
+    },
+    {
+      "round": 4,
+      "phase": "preview",
+      "candidate_total": 233,
+      "scanned_total": 3879,
+      "to_execute": 233,
+      "pending_total": 0
+    },
+    {
+      "round": 4,
+      "phase": "execute",
+      "success": 233,
+      "failed": 0,
+      "execute_total": 233,
+      "pending_total": 0,
+      "has_more": false
+    },
+    {
+      "round": 5,
+      "phase": "preview",
+      "candidate_total": 0,
+      "scanned_total": 3879,
+      "to_execute": 0,
+      "pending_total": 0
+    }
+  ],
+  "final_preview": {
+    "code": 0,
+    "msg": "ok",
+    "data": {
+      "preview": true,
+      "scan_limit": 12000,
+      "max_updates": 300,
+      "scanned_total": 3879,
+      "candidate_total": 0,
+      "to_execute": 0,
+      "pending_total": 0,
+      "invalid_total": 0,
+      "candidates_sample": [],
+      "invalid_sample": []
+    }
+  },
+  "finished_at": "2026-03-17T13:56:54.805Z"
+}

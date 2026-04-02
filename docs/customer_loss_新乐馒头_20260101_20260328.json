@@ -1,0 +1,5249 @@
+{
+  "request": {
+    "space_id": "env-00jxuffegf2n",
+    "customer_keyword": "新乐馒头",
+    "date_start": "2026-01-01",
+    "date_end": "2026-03-28",
+    "top_days": 20,
+    "top_bottles": 30
+  },
+  "customer": {
+    "_id": "694045c0adf6dbd796e261ca",
+    "name": "新乐馒头",
+    "short_name": "",
+    "default_price_unit": "kg",
+    "default_unit_price": 7
+  },
+  "sales_scope": {
+    "sale_count": 40,
+    "bottle_count": 174
+  },
+  "statement_analysis": null,
+  "statement_analysis_error": "crm-customer-settlement.getCustomerStatementAnalysisV1 失败: {\"code\":500,\"msg\":\"HttpClientRequestTimeoutError: Request timeout for 10000 ms\"}",
+  "loss_breakdown": {
+    "customer": {
+      "_id": "694045c0adf6dbd796e261ca",
+      "name": "新乐馒头"
+    },
+    "date_start": "2026-01-01",
+    "date_end": "2026-03-28",
+    "loss_total_kg": 1521.5,
+    "cycle_loss_count": 173,
+    "manual_loss_count": 3,
+    "bottle_count": 138,
+    "day_count": 36,
+    "sale_count": 40,
+    "days": [
+      {
+        "day": "2026-01-04",
+        "cycle_loss_weight": 25,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 25,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "181",
+          "218",
+          "65",
+          "82"
+        ]
+      },
+      {
+        "day": "2026-01-06",
+        "cycle_loss_weight": 10,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 10,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "207",
+          "89",
+          "Y133",
+          "Y142"
+        ]
+      },
+      {
+        "day": "2026-01-08",
+        "cycle_loss_weight": 26.5,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 26.5,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "149",
+          "16",
+          "340",
+          "35"
+        ]
+      },
+      {
+        "day": "2026-01-10",
+        "cycle_loss_weight": 10,
+        "cycle_loss_count": 6,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 10,
+        "bottle_count": 6,
+        "bottle_nos": [
+          "102",
+          "281",
+          "378",
+          "51",
+          "Y056",
+          "Y111"
+        ]
+      },
+      {
+        "day": "2026-01-12",
+        "cycle_loss_weight": 31,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 31,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "107",
+          "224",
+          "248",
+          "383",
+          "Y155"
+        ]
+      },
+      {
+        "day": "2026-01-14",
+        "cycle_loss_weight": 18,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 18,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "139",
+          "23",
+          "39",
+          "79",
+          "Y056"
+        ]
+      },
+      {
+        "day": "2026-01-16",
+        "cycle_loss_weight": 26,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 26,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "128",
+          "384",
+          "5",
+          "51"
+        ]
+      },
+      {
+        "day": "2026-01-18",
+        "cycle_loss_weight": 43,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 43,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "247",
+          "259",
+          "374",
+          "74"
+        ]
+      },
+      {
+        "day": "2026-01-20",
+        "cycle_loss_weight": 12,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 12,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "23",
+          "341",
+          "384",
+          "66"
+        ]
+      },
+      {
+        "day": "2026-01-22",
+        "cycle_loss_weight": 48,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 48,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "101",
+          "207",
+          "350",
+          "363",
+          "Y056"
+        ]
+      },
+      {
+        "day": "2026-01-24",
+        "cycle_loss_weight": 11,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 11,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "138",
+          "357",
+          "64",
+          "85"
+        ]
+      },
+      {
+        "day": "2026-01-26",
+        "cycle_loss_weight": 15,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 15,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "11",
+          "142",
+          "203",
+          "283",
+          "368"
+        ]
+      },
+      {
+        "day": "2026-01-28",
+        "cycle_loss_weight": 25,
+        "cycle_loss_count": 6,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 25,
+        "bottle_count": 6,
+        "bottle_nos": [
+          "145",
+          "148",
+          "320",
+          "55",
+          "56",
+          "63"
+        ]
+      },
+      {
+        "day": "2026-01-30",
+        "cycle_loss_weight": 42,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 42,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "133",
+          "206",
+          "364",
+          "378",
+          "64"
+        ]
+      },
+      {
+        "day": "2026-02-01",
+        "cycle_loss_weight": 67,
+        "cycle_loss_count": 9,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 67,
+        "bottle_count": 9,
+        "bottle_nos": [
+          "107",
+          "141",
+          "167",
+          "179",
+          "199",
+          "278",
+          "30",
+          "32",
+          "371"
+        ]
+      },
+      {
+        "day": "2026-02-02",
+        "cycle_loss_weight": 63,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 63,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "150",
+          "161",
+          "216",
+          "257"
+        ]
+      },
+      {
+        "day": "2026-02-04",
+        "cycle_loss_weight": 24,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 24,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "177",
+          "226",
+          "375",
+          "388",
+          "56"
+        ]
+      },
+      {
+        "day": "2026-02-06",
+        "cycle_loss_weight": 52,
+        "cycle_loss_count": 7,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 52,
+        "bottle_count": 7,
+        "bottle_nos": [
+          "110",
+          "148",
+          "194",
+          "269",
+          "350",
+          "40",
+          "79"
+        ]
+      },
+      {
+        "day": "2026-02-08",
+        "cycle_loss_weight": 180,
+        "cycle_loss_count": 8,
+        "manual_loss_weight": 3,
+        "manual_loss_count": 1,
+        "loss_total_weight": 183,
+        "bottle_count": 8,
+        "bottle_nos": [
+          "15",
+          "212",
+          "284",
+          "365",
+          "94",
+          "Y015",
+          "Y041",
+          "Y137"
+        ]
+      },
+      {
+        "day": "2026-02-10",
+        "cycle_loss_weight": 45,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 45,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "142",
+          "361",
+          "389",
+          "85",
+          "90"
+        ]
+      },
+      {
+        "day": "2026-02-11",
+        "cycle_loss_weight": 48,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 48,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "112",
+          "233",
+          "31",
+          "33",
+          "92"
+        ]
+      },
+      {
+        "day": "2026-02-12",
+        "cycle_loss_weight": 77,
+        "cycle_loss_count": 7,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 77,
+        "bottle_count": 7,
+        "bottle_nos": [
+          "1",
+          "102",
+          "14",
+          "145",
+          "20",
+          "6",
+          "69"
+        ]
+      },
+      {
+        "day": "2026-02-13",
+        "cycle_loss_weight": 53,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 53,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "204",
+          "33",
+          "51",
+          "66"
+        ]
+      },
+      {
+        "day": "2026-02-21",
+        "cycle_loss_weight": 68,
+        "cycle_loss_count": 3,
+        "manual_loss_weight": 5,
+        "manual_loss_count": 1,
+        "loss_total_weight": 73,
+        "bottle_count": 3,
+        "bottle_nos": [
+          "162",
+          "351",
+          "363"
+        ]
+      },
+      {
+        "day": "2026-02-23",
+        "cycle_loss_weight": 209,
+        "cycle_loss_count": 6,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 209,
+        "bottle_count": 6,
+        "bottle_nos": [
+          "143",
+          "151",
+          "173",
+          "216",
+          "22",
+          "252"
+        ]
+      },
+      {
+        "day": "2026-02-25",
+        "cycle_loss_weight": 32,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 32,
+        "bottle_count": 1,
+        "bottle_nos": [
+          "53"
+        ]
+      },
+      {
+        "day": "2026-02-27",
+        "cycle_loss_weight": 10,
+        "cycle_loss_count": 3,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 10,
+        "bottle_count": 3,
+        "bottle_nos": [
+          "105",
+          "37",
+          "Y082"
+        ]
+      },
+      {
+        "day": "2026-02-28",
+        "cycle_loss_weight": 6,
+        "cycle_loss_count": 3,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 6,
+        "bottle_count": 3,
+        "bottle_nos": [
+          "132",
+          "258",
+          "9"
+        ]
+      },
+      {
+        "day": "2026-03-02",
+        "cycle_loss_weight": 27,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 27,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "143",
+          "218",
+          "52",
+          "88",
+          "91"
+        ]
+      },
+      {
+        "day": "2026-03-04",
+        "cycle_loss_weight": 17,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 17,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "148",
+          "176",
+          "200",
+          "223",
+          "9"
+        ]
+      },
+      {
+        "day": "2026-03-06",
+        "cycle_loss_weight": 45,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 45,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "125",
+          "225",
+          "262",
+          "283",
+          "32"
+        ]
+      },
+      {
+        "day": "2026-03-08",
+        "cycle_loss_weight": 33,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 33,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "111",
+          "19",
+          "345",
+          "388"
+        ]
+      },
+      {
+        "day": "2026-03-10",
+        "cycle_loss_weight": 30,
+        "cycle_loss_count": 3,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 30,
+        "bottle_count": 3,
+        "bottle_nos": [
+          "320",
+          "59",
+          "Y142"
+        ]
+      },
+      {
+        "day": "2026-03-12",
+        "cycle_loss_weight": 13,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 13,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "131",
+          "160",
+          "18",
+          "24",
+          "366"
+        ]
+      },
+      {
+        "day": "2026-03-14",
+        "cycle_loss_weight": 22,
+        "cycle_loss_count": 6,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 22,
+        "bottle_count": 6,
+        "bottle_nos": [
+          "141",
+          "29",
+          "3",
+          "354",
+          "39",
+          "Y003"
+        ]
+      },
+      {
+        "day": "2026-03-16",
+        "cycle_loss_weight": 50,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 50,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "119",
+          "22",
+          "Y040",
+          "Y082",
+          "Y172"
+        ]
+      }
+    ],
+    "top_days": [
+      {
+        "day": "2026-02-23",
+        "cycle_loss_weight": 209,
+        "cycle_loss_count": 6,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 209,
+        "bottle_count": 6,
+        "bottle_nos": [
+          "143",
+          "151",
+          "173",
+          "216",
+          "22",
+          "252"
+        ]
+      },
+      {
+        "day": "2026-02-08",
+        "cycle_loss_weight": 180,
+        "cycle_loss_count": 8,
+        "manual_loss_weight": 3,
+        "manual_loss_count": 1,
+        "loss_total_weight": 183,
+        "bottle_count": 8,
+        "bottle_nos": [
+          "15",
+          "212",
+          "284",
+          "365",
+          "94",
+          "Y015",
+          "Y041",
+          "Y137"
+        ]
+      },
+      {
+        "day": "2026-02-12",
+        "cycle_loss_weight": 77,
+        "cycle_loss_count": 7,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 77,
+        "bottle_count": 7,
+        "bottle_nos": [
+          "1",
+          "102",
+          "14",
+          "145",
+          "20",
+          "6",
+          "69"
+        ]
+      },
+      {
+        "day": "2026-02-21",
+        "cycle_loss_weight": 68,
+        "cycle_loss_count": 3,
+        "manual_loss_weight": 5,
+        "manual_loss_count": 1,
+        "loss_total_weight": 73,
+        "bottle_count": 3,
+        "bottle_nos": [
+          "162",
+          "351",
+          "363"
+        ]
+      },
+      {
+        "day": "2026-02-01",
+        "cycle_loss_weight": 67,
+        "cycle_loss_count": 9,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 67,
+        "bottle_count": 9,
+        "bottle_nos": [
+          "107",
+          "141",
+          "167",
+          "179",
+          "199",
+          "278",
+          "30",
+          "32",
+          "371"
+        ]
+      },
+      {
+        "day": "2026-02-02",
+        "cycle_loss_weight": 63,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 63,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "150",
+          "161",
+          "216",
+          "257"
+        ]
+      },
+      {
+        "day": "2026-02-13",
+        "cycle_loss_weight": 53,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 53,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "204",
+          "33",
+          "51",
+          "66"
+        ]
+      },
+      {
+        "day": "2026-02-06",
+        "cycle_loss_weight": 52,
+        "cycle_loss_count": 7,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 52,
+        "bottle_count": 7,
+        "bottle_nos": [
+          "110",
+          "148",
+          "194",
+          "269",
+          "350",
+          "40",
+          "79"
+        ]
+      },
+      {
+        "day": "2026-03-16",
+        "cycle_loss_weight": 50,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 50,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "119",
+          "22",
+          "Y040",
+          "Y082",
+          "Y172"
+        ]
+      },
+      {
+        "day": "2026-01-22",
+        "cycle_loss_weight": 48,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 48,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "101",
+          "207",
+          "350",
+          "363",
+          "Y056"
+        ]
+      },
+      {
+        "day": "2026-02-11",
+        "cycle_loss_weight": 48,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 48,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "112",
+          "233",
+          "31",
+          "33",
+          "92"
+        ]
+      },
+      {
+        "day": "2026-02-10",
+        "cycle_loss_weight": 45,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 45,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "142",
+          "361",
+          "389",
+          "85",
+          "90"
+        ]
+      },
+      {
+        "day": "2026-03-06",
+        "cycle_loss_weight": 45,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 45,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "125",
+          "225",
+          "262",
+          "283",
+          "32"
+        ]
+      },
+      {
+        "day": "2026-01-18",
+        "cycle_loss_weight": 43,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 43,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "247",
+          "259",
+          "374",
+          "74"
+        ]
+      },
+      {
+        "day": "2026-01-30",
+        "cycle_loss_weight": 42,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 42,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "133",
+          "206",
+          "364",
+          "378",
+          "64"
+        ]
+      },
+      {
+        "day": "2026-03-08",
+        "cycle_loss_weight": 33,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 33,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "111",
+          "19",
+          "345",
+          "388"
+        ]
+      },
+      {
+        "day": "2026-02-25",
+        "cycle_loss_weight": 32,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 32,
+        "bottle_count": 1,
+        "bottle_nos": [
+          "53"
+        ]
+      },
+      {
+        "day": "2026-01-12",
+        "cycle_loss_weight": 31,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 31,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "107",
+          "224",
+          "248",
+          "383",
+          "Y155"
+        ]
+      },
+      {
+        "day": "2026-03-10",
+        "cycle_loss_weight": 30,
+        "cycle_loss_count": 3,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 30,
+        "bottle_count": 3,
+        "bottle_nos": [
+          "320",
+          "59",
+          "Y142"
+        ]
+      },
+      {
+        "day": "2026-03-02",
+        "cycle_loss_weight": 27,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 27,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "143",
+          "218",
+          "52",
+          "88",
+          "91"
+        ]
+      },
+      {
+        "day": "2026-01-08",
+        "cycle_loss_weight": 26.5,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 26.5,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "149",
+          "16",
+          "340",
+          "35"
+        ]
+      },
+      {
+        "day": "2026-01-16",
+        "cycle_loss_weight": 26,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 26,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "128",
+          "384",
+          "5",
+          "51"
+        ]
+      },
+      {
+        "day": "2026-01-04",
+        "cycle_loss_weight": 25,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 25,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "181",
+          "218",
+          "65",
+          "82"
+        ]
+      },
+      {
+        "day": "2026-01-28",
+        "cycle_loss_weight": 25,
+        "cycle_loss_count": 6,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 25,
+        "bottle_count": 6,
+        "bottle_nos": [
+          "145",
+          "148",
+          "320",
+          "55",
+          "56",
+          "63"
+        ]
+      },
+      {
+        "day": "2026-02-04",
+        "cycle_loss_weight": 24,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 24,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "177",
+          "226",
+          "375",
+          "388",
+          "56"
+        ]
+      },
+      {
+        "day": "2026-03-14",
+        "cycle_loss_weight": 22,
+        "cycle_loss_count": 6,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 22,
+        "bottle_count": 6,
+        "bottle_nos": [
+          "141",
+          "29",
+          "3",
+          "354",
+          "39",
+          "Y003"
+        ]
+      },
+      {
+        "day": "2026-01-14",
+        "cycle_loss_weight": 18,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 18,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "139",
+          "23",
+          "39",
+          "79",
+          "Y056"
+        ]
+      },
+      {
+        "day": "2026-03-04",
+        "cycle_loss_weight": 17,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 17,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "148",
+          "176",
+          "200",
+          "223",
+          "9"
+        ]
+      },
+      {
+        "day": "2026-01-26",
+        "cycle_loss_weight": 15,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 15,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "11",
+          "142",
+          "203",
+          "283",
+          "368"
+        ]
+      },
+      {
+        "day": "2026-03-12",
+        "cycle_loss_weight": 13,
+        "cycle_loss_count": 5,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 13,
+        "bottle_count": 5,
+        "bottle_nos": [
+          "131",
+          "160",
+          "18",
+          "24",
+          "366"
+        ]
+      },
+      {
+        "day": "2026-01-20",
+        "cycle_loss_weight": 12,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 12,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "23",
+          "341",
+          "384",
+          "66"
+        ]
+      },
+      {
+        "day": "2026-01-24",
+        "cycle_loss_weight": 11,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 11,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "138",
+          "357",
+          "64",
+          "85"
+        ]
+      },
+      {
+        "day": "2026-01-06",
+        "cycle_loss_weight": 10,
+        "cycle_loss_count": 4,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 10,
+        "bottle_count": 4,
+        "bottle_nos": [
+          "207",
+          "89",
+          "Y133",
+          "Y142"
+        ]
+      },
+      {
+        "day": "2026-01-10",
+        "cycle_loss_weight": 10,
+        "cycle_loss_count": 6,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 10,
+        "bottle_count": 6,
+        "bottle_nos": [
+          "102",
+          "281",
+          "378",
+          "51",
+          "Y056",
+          "Y111"
+        ]
+      },
+      {
+        "day": "2026-02-27",
+        "cycle_loss_weight": 10,
+        "cycle_loss_count": 3,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 10,
+        "bottle_count": 3,
+        "bottle_nos": [
+          "105",
+          "37",
+          "Y082"
+        ]
+      },
+      {
+        "day": "2026-02-28",
+        "cycle_loss_weight": 6,
+        "cycle_loss_count": 3,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 6,
+        "bottle_count": 3,
+        "bottle_nos": [
+          "132",
+          "258",
+          "9"
+        ]
+      }
+    ],
+    "top_bottles": [
+      {
+        "bottle_no": "151",
+        "cycle_loss_weight": 75,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 75,
+        "day_count": 1,
+        "days": [
+          "2026-02-23"
+        ],
+        "sale_ids": [
+          "69bbb2c11501ab29a1bd8665"
+        ]
+      },
+      {
+        "bottle_no": "173",
+        "cycle_loss_weight": 67,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 67,
+        "day_count": 1,
+        "days": [
+          "2026-02-23"
+        ],
+        "sale_ids": [
+          "69bbb2c11501ab29a1bd8665"
+        ]
+      },
+      {
+        "bottle_no": "145",
+        "cycle_loss_weight": 63,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 63,
+        "day_count": 2,
+        "days": [
+          "2026-01-28",
+          "2026-02-12"
+        ],
+        "sale_ids": [
+          "69bbb2c136bc4bac6fd4c706",
+          "6979abc0286f7ce0113d04bd"
+        ]
+      },
+      {
+        "bottle_no": "15",
+        "cycle_loss_weight": 60,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 60,
+        "day_count": 1,
+        "days": [
+          "2026-02-08"
+        ],
+        "sale_ids": [
+          "69bbb2c01501ab29a1bd85f0"
+        ]
+      },
+      {
+        "bottle_no": "257",
+        "cycle_loss_weight": 41,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 41,
+        "day_count": 1,
+        "days": [
+          "2026-02-02"
+        ],
+        "sale_ids": [
+          "6980397121821b795c50fb4d"
+        ]
+      },
+      {
+        "bottle_no": "363",
+        "cycle_loss_weight": 38,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 38,
+        "day_count": 2,
+        "days": [
+          "2026-01-22",
+          "2026-02-21"
+        ],
+        "sale_ids": [
+          "69bbaffd0add39bd434a401d",
+          "6971bc026e5d2d492fc26263"
+        ]
+      },
+      {
+        "bottle_no": "32",
+        "cycle_loss_weight": 36,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 36,
+        "day_count": 2,
+        "days": [
+          "2026-02-01",
+          "2026-03-06"
+        ],
+        "sale_ids": [
+          "69bbb2c31117bf9b46433374",
+          "697fec337ad52d1c399ae916"
+        ]
+      },
+      {
+        "bottle_no": "252",
+        "cycle_loss_weight": 35,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 35,
+        "day_count": 1,
+        "days": [
+          "2026-02-23"
+        ],
+        "sale_ids": [
+          "69bbb2c11501ab29a1bd8665"
+        ]
+      },
+      {
+        "bottle_no": "51",
+        "cycle_loss_weight": 35,
+        "cycle_loss_count": 3,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 35,
+        "day_count": 3,
+        "days": [
+          "2026-01-10",
+          "2026-01-16",
+          "2026-02-13"
+        ],
+        "sale_ids": [
+          "69bbb2c136bc4bac6fd4c710",
+          "6969e3387ae7089a62853063",
+          "6962050d3f1a479d27c53945"
+        ]
+      },
+      {
+        "bottle_no": "247",
+        "cycle_loss_weight": 34,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 34,
+        "day_count": 1,
+        "days": [
+          "2026-01-18"
+        ],
+        "sale_ids": [
+          "696d7bb72eea65354578f77b"
+        ]
+      },
+      {
+        "bottle_no": "Y040",
+        "cycle_loss_weight": 33,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 33,
+        "day_count": 1,
+        "days": [
+          "2026-03-16"
+        ],
+        "sale_ids": [
+          "69bbb2c589d8371762438bda"
+        ]
+      },
+      {
+        "bottle_no": "Y137",
+        "cycle_loss_weight": 33,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 33,
+        "day_count": 1,
+        "days": [
+          "2026-02-08"
+        ],
+        "sale_ids": [
+          "69bbb2c01501ab29a1bd85f0"
+        ]
+      },
+      {
+        "bottle_no": "53",
+        "cycle_loss_weight": 32,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 32,
+        "day_count": 1,
+        "days": [
+          "2026-02-25"
+        ],
+        "sale_ids": [
+          "69bbb2c289d8371762438b68"
+        ]
+      },
+      {
+        "bottle_no": "94",
+        "cycle_loss_weight": 32,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 32,
+        "day_count": 1,
+        "days": [
+          "2026-02-08"
+        ],
+        "sale_ids": [
+          "69bbb2c01501ab29a1bd85f0"
+        ]
+      },
+      {
+        "bottle_no": "Y041",
+        "cycle_loss_weight": 31,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 31,
+        "day_count": 1,
+        "days": [
+          "2026-02-08"
+        ],
+        "sale_ids": [
+          "69bbb2c01501ab29a1bd85f0"
+        ]
+      },
+      {
+        "bottle_no": "112",
+        "cycle_loss_weight": 29,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 29,
+        "day_count": 1,
+        "days": [
+          "2026-02-11"
+        ],
+        "sale_ids": [
+          "69bbb2c089d8371762438b52"
+        ]
+      },
+      {
+        "bottle_no": "162",
+        "cycle_loss_weight": 29,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 29,
+        "day_count": 1,
+        "days": [
+          "2026-02-21"
+        ],
+        "sale_ids": [
+          "69bbaffd0add39bd434a401d"
+        ]
+      },
+      {
+        "bottle_no": "22",
+        "cycle_loss_weight": 26,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 26,
+        "day_count": 2,
+        "days": [
+          "2026-02-23",
+          "2026-03-16"
+        ],
+        "sale_ids": [
+          "69bbb2c589d8371762438bda",
+          "69bbb2c11501ab29a1bd8665"
+        ]
+      },
+      {
+        "bottle_no": "Y056",
+        "cycle_loss_weight": 26,
+        "cycle_loss_count": 3,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 26,
+        "day_count": 3,
+        "days": [
+          "2026-01-10",
+          "2026-01-14",
+          "2026-01-22"
+        ],
+        "sale_ids": [
+          "6971bc026e5d2d492fc26263",
+          "69672d64149854772fa2482c",
+          "6962050d3f1a479d27c53945"
+        ]
+      },
+      {
+        "bottle_no": "320",
+        "cycle_loss_weight": 25,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 25,
+        "day_count": 2,
+        "days": [
+          "2026-01-28",
+          "2026-03-10"
+        ],
+        "sale_ids": [
+          "69bbb2c485d19fd7c4625d96",
+          "6979abc0286f7ce0113d04bd"
+        ]
+      },
+      {
+        "bottle_no": "345",
+        "cycle_loss_weight": 25,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 25,
+        "day_count": 1,
+        "days": [
+          "2026-03-08"
+        ],
+        "sale_ids": [
+          "69bbb2c336bc4bac6fd4c77f"
+        ]
+      },
+      {
+        "bottle_no": "218",
+        "cycle_loss_weight": 24,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 24,
+        "day_count": 2,
+        "days": [
+          "2026-01-04",
+          "2026-03-02"
+        ],
+        "sale_ids": [
+          "69bbb2c236bc4bac6fd4c75e",
+          "695dab3755b337aa1cd9d2f8"
+        ]
+      },
+      {
+        "bottle_no": "224",
+        "cycle_loss_weight": 23,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 23,
+        "day_count": 1,
+        "days": [
+          "2026-01-12"
+        ],
+        "sale_ids": [
+          "6964a9228b0da4f195e08c48"
+        ]
+      },
+      {
+        "bottle_no": "262",
+        "cycle_loss_weight": 23,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 23,
+        "day_count": 1,
+        "days": [
+          "2026-03-06"
+        ],
+        "sale_ids": [
+          "69bbb2c31117bf9b46433374"
+        ]
+      },
+      {
+        "bottle_no": "361",
+        "cycle_loss_weight": 23,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 23,
+        "day_count": 1,
+        "days": [
+          "2026-02-10"
+        ],
+        "sale_ids": [
+          "69bbb2c036bc4bac6fd4c6ed"
+        ]
+      },
+      {
+        "bottle_no": "35",
+        "cycle_loss_weight": 22.5,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 22.5,
+        "day_count": 1,
+        "days": [
+          "2026-01-08"
+        ],
+        "sale_ids": [
+          "69604d6b6e5d2d32f89e463e"
+        ]
+      },
+      {
+        "bottle_no": "66",
+        "cycle_loss_weight": 21,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 21,
+        "day_count": 2,
+        "days": [
+          "2026-01-20",
+          "2026-02-13"
+        ],
+        "sale_ids": [
+          "69bbb2c136bc4bac6fd4c710",
+          "696f2f7c9755e34a91911078"
+        ]
+      },
+      {
+        "bottle_no": "133",
+        "cycle_loss_weight": 20,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 20,
+        "day_count": 1,
+        "days": [
+          "2026-01-30"
+        ],
+        "sale_ids": [
+          "697c448f89bd27ad0669bc9b"
+        ]
+      },
+      {
+        "bottle_no": "40",
+        "cycle_loss_weight": 20,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 20,
+        "day_count": 1,
+        "days": [
+          "2026-02-06"
+        ],
+        "sale_ids": [
+          "69858794189f86f427518f82"
+        ]
+      },
+      {
+        "bottle_no": "148",
+        "cycle_loss_weight": 19,
+        "cycle_loss_count": 3,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 19,
+        "day_count": 3,
+        "days": [
+          "2026-01-28",
+          "2026-02-06",
+          "2026-03-04"
+        ],
+        "sale_ids": [
+          "69bbb2c385d19fd7c4625d7a",
+          "69858794189f86f427518f82",
+          "6979abc0286f7ce0113d04bd"
+        ]
+      },
+      {
+        "bottle_no": "101",
+        "cycle_loss_weight": 18,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 18,
+        "day_count": 1,
+        "days": [
+          "2026-01-22"
+        ],
+        "sale_ids": [
+          "6971bc026e5d2d492fc26263"
+        ]
+      },
+      {
+        "bottle_no": "143",
+        "cycle_loss_weight": 18,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 18,
+        "day_count": 2,
+        "days": [
+          "2026-02-23",
+          "2026-03-02"
+        ],
+        "sale_ids": [
+          "69bbb2c236bc4bac6fd4c75e",
+          "69bbb2c11501ab29a1bd8665"
+        ]
+      },
+      {
+        "bottle_no": "378",
+        "cycle_loss_weight": 17,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 17,
+        "day_count": 2,
+        "days": [
+          "2026-01-10",
+          "2026-01-30"
+        ],
+        "sale_ids": [
+          "697c448f89bd27ad0669bc9b",
+          "6962050d3f1a479d27c53945"
+        ]
+      },
+      {
+        "bottle_no": "107",
+        "cycle_loss_weight": 14,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 14,
+        "day_count": 2,
+        "days": [
+          "2026-01-12",
+          "2026-02-01"
+        ],
+        "sale_ids": [
+          "697fec337ad52d1c399ae916",
+          "6964a9228b0da4f195e08c48"
+        ]
+      },
+      {
+        "bottle_no": "142",
+        "cycle_loss_weight": 14,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 14,
+        "day_count": 2,
+        "days": [
+          "2026-01-26",
+          "2026-02-10"
+        ],
+        "sale_ids": [
+          "69bbb2c036bc4bac6fd4c6ed",
+          "697707022eea6535452cee37"
+        ]
+      },
+      {
+        "bottle_no": "5",
+        "cycle_loss_weight": 14,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 14,
+        "day_count": 1,
+        "days": [
+          "2026-01-16"
+        ],
+        "sale_ids": [
+          "6969e3387ae7089a62853063"
+        ]
+      },
+      {
+        "bottle_no": "33",
+        "cycle_loss_weight": 13,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 13,
+        "day_count": 2,
+        "days": [
+          "2026-02-11",
+          "2026-02-13"
+        ],
+        "sale_ids": [
+          "69bbb2c136bc4bac6fd4c710",
+          "69bbb2c089d8371762438b52"
+        ]
+      },
+      {
+        "bottle_no": "56",
+        "cycle_loss_weight": 13,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 13,
+        "day_count": 2,
+        "days": [
+          "2026-01-28",
+          "2026-02-04"
+        ],
+        "sale_ids": [
+          "6982dc1dbd022020ee0524d9",
+          "6979abc0286f7ce0113d04bd"
+        ]
+      },
+      {
+        "bottle_no": "59",
+        "cycle_loss_weight": 13,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 13,
+        "day_count": 1,
+        "days": [
+          "2026-03-10"
+        ],
+        "sale_ids": [
+          "69bbb2c485d19fd7c4625d96"
+        ]
+      },
+      {
+        "bottle_no": "125",
+        "cycle_loss_weight": 12,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 12,
+        "day_count": 1,
+        "days": [
+          "2026-03-06"
+        ],
+        "sale_ids": [
+          "69bbb2c31117bf9b46433374"
+        ]
+      },
+      {
+        "bottle_no": "39",
+        "cycle_loss_weight": 12,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 12,
+        "day_count": 2,
+        "days": [
+          "2026-01-14",
+          "2026-03-14"
+        ],
+        "sale_ids": [
+          "69bbb2c585d19fd7c4625d9e",
+          "69672d64149854772fa2482c"
+        ]
+      },
+      {
+        "bottle_no": "161",
+        "cycle_loss_weight": 10,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 10,
+        "day_count": 1,
+        "days": [
+          "2026-02-02"
+        ],
+        "sale_ids": [
+          "6980397121821b795c50fb4d"
+        ]
+      },
+      {
+        "bottle_no": "216",
+        "cycle_loss_weight": 10,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 10,
+        "day_count": 2,
+        "days": [
+          "2026-02-02",
+          "2026-02-23"
+        ],
+        "sale_ids": [
+          "69bbb2c11501ab29a1bd8665",
+          "6980397121821b795c50fb4d"
+        ]
+      },
+      {
+        "bottle_no": "351",
+        "cycle_loss_weight": 5,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 5,
+        "manual_loss_count": 1,
+        "loss_total_weight": 10,
+        "day_count": 1,
+        "days": [
+          "2026-02-21"
+        ],
+        "sale_ids": [
+          "69bbaffd0add39bd434a401d"
+        ]
+      },
+      {
+        "bottle_no": "85",
+        "cycle_loss_weight": 10,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 10,
+        "day_count": 2,
+        "days": [
+          "2026-01-24",
+          "2026-02-10"
+        ],
+        "sale_ids": [
+          "69bbb2c036bc4bac6fd4c6ed",
+          "697467f6f08210adb35d4c42"
+        ]
+      },
+      {
+        "bottle_no": "Y015",
+        "cycle_loss_weight": 9,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 9,
+        "day_count": 1,
+        "days": [
+          "2026-02-08"
+        ],
+        "sale_ids": [
+          "69bbb2c01501ab29a1bd85f0"
+        ]
+      },
+      {
+        "bottle_no": "176",
+        "cycle_loss_weight": 8,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 8,
+        "day_count": 1,
+        "days": [
+          "2026-03-04"
+        ],
+        "sale_ids": [
+          "69bbb2c385d19fd7c4625d7a"
+        ]
+      },
+      {
+        "bottle_no": "284",
+        "cycle_loss_weight": 8,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 8,
+        "day_count": 1,
+        "days": [
+          "2026-02-08"
+        ],
+        "sale_ids": [
+          "69bbb2c01501ab29a1bd85f0"
+        ]
+      },
+      {
+        "bottle_no": "64",
+        "cycle_loss_weight": 8,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 8,
+        "day_count": 2,
+        "days": [
+          "2026-01-24",
+          "2026-01-30"
+        ],
+        "sale_ids": [
+          "697c448f89bd27ad0669bc9b",
+          "697467f6f08210adb35d4c42"
+        ]
+      },
+      {
+        "bottle_no": "150",
+        "cycle_loss_weight": 7,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 7,
+        "day_count": 1,
+        "days": [
+          "2026-02-02"
+        ],
+        "sale_ids": [
+          "6980397121821b795c50fb4d"
+        ]
+      },
+      {
+        "bottle_no": "283",
+        "cycle_loss_weight": 7,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 7,
+        "day_count": 2,
+        "days": [
+          "2026-01-26",
+          "2026-03-06"
+        ],
+        "sale_ids": [
+          "69bbb2c31117bf9b46433374",
+          "697707022eea6535452cee37"
+        ]
+      },
+      {
+        "bottle_no": "Y082",
+        "cycle_loss_weight": 7,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 7,
+        "day_count": 2,
+        "days": [
+          "2026-02-27",
+          "2026-03-16"
+        ],
+        "sale_ids": [
+          "69bbb2c589d8371762438bda",
+          "69bbb2c236bc4bac6fd4c74d"
+        ]
+      },
+      {
+        "bottle_no": "119",
+        "cycle_loss_weight": 6,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 6,
+        "day_count": 1,
+        "days": [
+          "2026-03-16"
+        ],
+        "sale_ids": [
+          "69bbb2c589d8371762438bda"
+        ]
+      },
+      {
+        "bottle_no": "141",
+        "cycle_loss_weight": 6,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 6,
+        "day_count": 2,
+        "days": [
+          "2026-02-01",
+          "2026-03-14"
+        ],
+        "sale_ids": [
+          "69bbb2c585d19fd7c4625d9e",
+          "697fec337ad52d1c399ae916"
+        ]
+      },
+      {
+        "bottle_no": "233",
+        "cycle_loss_weight": 6,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 6,
+        "day_count": 1,
+        "days": [
+          "2026-02-11"
+        ],
+        "sale_ids": [
+          "69bbb2c089d8371762438b52"
+        ]
+      },
+      {
+        "bottle_no": "30",
+        "cycle_loss_weight": 6,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 6,
+        "day_count": 1,
+        "days": [
+          "2026-02-01"
+        ],
+        "sale_ids": [
+          "697fec337ad52d1c399ae916"
+        ]
+      },
+      {
+        "bottle_no": "365",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 3,
+        "manual_loss_count": 1,
+        "loss_total_weight": 6,
+        "day_count": 1,
+        "days": [
+          "2026-02-08"
+        ],
+        "sale_ids": [
+          "69bbb2c01501ab29a1bd85f0"
+        ]
+      },
+      {
+        "bottle_no": "388",
+        "cycle_loss_weight": 6,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 6,
+        "day_count": 2,
+        "days": [
+          "2026-02-04",
+          "2026-03-08"
+        ],
+        "sale_ids": [
+          "69bbb2c336bc4bac6fd4c77f",
+          "6982dc1dbd022020ee0524d9"
+        ]
+      },
+      {
+        "bottle_no": "63",
+        "cycle_loss_weight": 6,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 6,
+        "day_count": 1,
+        "days": [
+          "2026-01-28"
+        ],
+        "sale_ids": [
+          "6979abc0286f7ce0113d04bd"
+        ]
+      },
+      {
+        "bottle_no": "Y172",
+        "cycle_loss_weight": 6,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 6,
+        "day_count": 1,
+        "days": [
+          "2026-03-16"
+        ],
+        "sale_ids": [
+          "69bbb2c589d8371762438bda"
+        ]
+      },
+      {
+        "bottle_no": "110",
+        "cycle_loss_weight": 5,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 5,
+        "day_count": 1,
+        "days": [
+          "2026-02-06"
+        ],
+        "sale_ids": [
+          "69858794189f86f427518f82"
+        ]
+      },
+      {
+        "bottle_no": "14",
+        "cycle_loss_weight": 5,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 5,
+        "day_count": 1,
+        "days": [
+          "2026-02-12"
+        ],
+        "sale_ids": [
+          "69bbb2c136bc4bac6fd4c706"
+        ]
+      },
+      {
+        "bottle_no": "194",
+        "cycle_loss_weight": 5,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 5,
+        "day_count": 1,
+        "days": [
+          "2026-02-06"
+        ],
+        "sale_ids": [
+          "69858794189f86f427518f82"
+        ]
+      },
+      {
+        "bottle_no": "207",
+        "cycle_loss_weight": 5,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 5,
+        "day_count": 2,
+        "days": [
+          "2026-01-06",
+          "2026-01-22"
+        ],
+        "sale_ids": [
+          "6971bc026e5d2d492fc26263",
+          "695f034e1c90b6a7cc305ed9"
+        ]
+      },
+      {
+        "bottle_no": "29",
+        "cycle_loss_weight": 5,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 5,
+        "day_count": 1,
+        "days": [
+          "2026-03-14"
+        ],
+        "sale_ids": [
+          "69bbb2c585d19fd7c4625d9e"
+        ]
+      },
+      {
+        "bottle_no": "31",
+        "cycle_loss_weight": 5,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 5,
+        "day_count": 1,
+        "days": [
+          "2026-02-11"
+        ],
+        "sale_ids": [
+          "69bbb2c089d8371762438b52"
+        ]
+      },
+      {
+        "bottle_no": "341",
+        "cycle_loss_weight": 5,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 5,
+        "day_count": 1,
+        "days": [
+          "2026-01-20"
+        ],
+        "sale_ids": [
+          "696f2f7c9755e34a91911078"
+        ]
+      },
+      {
+        "bottle_no": "350",
+        "cycle_loss_weight": 5,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 5,
+        "day_count": 2,
+        "days": [
+          "2026-01-22",
+          "2026-02-06"
+        ],
+        "sale_ids": [
+          "69858794189f86f427518f82",
+          "6971bc026e5d2d492fc26263"
+        ]
+      },
+      {
+        "bottle_no": "37",
+        "cycle_loss_weight": 5,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 5,
+        "day_count": 1,
+        "days": [
+          "2026-02-27"
+        ],
+        "sale_ids": [
+          "69bbb2c236bc4bac6fd4c74d"
+        ]
+      },
+      {
+        "bottle_no": "384",
+        "cycle_loss_weight": 5,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 5,
+        "day_count": 2,
+        "days": [
+          "2026-01-16",
+          "2026-01-20"
+        ],
+        "sale_ids": [
+          "696f2f7c9755e34a91911078",
+          "6969e3387ae7089a62853063"
+        ]
+      },
+      {
+        "bottle_no": "79",
+        "cycle_loss_weight": 5,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 5,
+        "day_count": 2,
+        "days": [
+          "2026-01-14",
+          "2026-02-06"
+        ],
+        "sale_ids": [
+          "69858794189f86f427518f82",
+          "69672d64149854772fa2482c"
+        ]
+      },
+      {
+        "bottle_no": "9",
+        "cycle_loss_weight": 5,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 5,
+        "day_count": 2,
+        "days": [
+          "2026-02-28",
+          "2026-03-04"
+        ],
+        "sale_ids": [
+          "69bbb2c385d19fd7c4625d7a",
+          "69bbb2c289d8371762438b7d"
+        ]
+      },
+      {
+        "bottle_no": "11",
+        "cycle_loss_weight": 4,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 4,
+        "day_count": 1,
+        "days": [
+          "2026-01-26"
+        ],
+        "sale_ids": [
+          "697707022eea6535452cee37"
+        ]
+      },
+      {
+        "bottle_no": "111",
+        "cycle_loss_weight": 4,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 4,
+        "day_count": 1,
+        "days": [
+          "2026-03-08"
+        ],
+        "sale_ids": [
+          "69bbb2c336bc4bac6fd4c77f"
+        ]
+      },
+      {
+        "bottle_no": "131",
+        "cycle_loss_weight": 4,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 4,
+        "day_count": 1,
+        "days": [
+          "2026-03-12"
+        ],
+        "sale_ids": [
+          "69bbb00f89d8371762435de3"
+        ]
+      },
+      {
+        "bottle_no": "179",
+        "cycle_loss_weight": 4,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 4,
+        "day_count": 1,
+        "days": [
+          "2026-02-01"
+        ],
+        "sale_ids": [
+          "697fec337ad52d1c399ae916"
+        ]
+      },
+      {
+        "bottle_no": "20",
+        "cycle_loss_weight": 4,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 4,
+        "day_count": 1,
+        "days": [
+          "2026-02-12"
+        ],
+        "sale_ids": [
+          "69bbb2c136bc4bac6fd4c706"
+        ]
+      },
+      {
+        "bottle_no": "204",
+        "cycle_loss_weight": 4,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 4,
+        "day_count": 1,
+        "days": [
+          "2026-02-13"
+        ],
+        "sale_ids": [
+          "69bbb2c136bc4bac6fd4c710"
+        ]
+      },
+      {
+        "bottle_no": "206",
+        "cycle_loss_weight": 4,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 4,
+        "day_count": 1,
+        "days": [
+          "2026-01-30"
+        ],
+        "sale_ids": [
+          "697c448f89bd27ad0669bc9b"
+        ]
+      },
+      {
+        "bottle_no": "212",
+        "cycle_loss_weight": 4,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 4,
+        "day_count": 1,
+        "days": [
+          "2026-02-08"
+        ],
+        "sale_ids": [
+          "69bbb2c01501ab29a1bd85f0"
+        ]
+      },
+      {
+        "bottle_no": "23",
+        "cycle_loss_weight": 4,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 4,
+        "day_count": 2,
+        "days": [
+          "2026-01-14",
+          "2026-01-20"
+        ],
+        "sale_ids": [
+          "696f2f7c9755e34a91911078",
+          "69672d64149854772fa2482c"
+        ]
+      },
+      {
+        "bottle_no": "278",
+        "cycle_loss_weight": 4,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 4,
+        "day_count": 1,
+        "days": [
+          "2026-02-01"
+        ],
+        "sale_ids": [
+          "697fec337ad52d1c399ae916"
+        ]
+      },
+      {
+        "bottle_no": "3",
+        "cycle_loss_weight": 4,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 4,
+        "day_count": 1,
+        "days": [
+          "2026-03-14"
+        ],
+        "sale_ids": [
+          "69bbb2c585d19fd7c4625d9e"
+        ]
+      },
+      {
+        "bottle_no": "6",
+        "cycle_loss_weight": 4,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 4,
+        "day_count": 1,
+        "days": [
+          "2026-02-12"
+        ],
+        "sale_ids": [
+          "69bbb2c136bc4bac6fd4c706"
+        ]
+      },
+      {
+        "bottle_no": "74",
+        "cycle_loss_weight": 4,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 4,
+        "day_count": 1,
+        "days": [
+          "2026-01-18"
+        ],
+        "sale_ids": [
+          "696d7bb72eea65354578f77b"
+        ]
+      },
+      {
+        "bottle_no": "Y142",
+        "cycle_loss_weight": 4,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 4,
+        "day_count": 2,
+        "days": [
+          "2026-01-06",
+          "2026-03-10"
+        ],
+        "sale_ids": [
+          "69bbb2c485d19fd7c4625d96",
+          "695f034e1c90b6a7cc305ed9"
+        ]
+      },
+      {
+        "bottle_no": "102",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 2,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 2,
+        "days": [
+          "2026-01-10",
+          "2026-02-12"
+        ],
+        "sale_ids": [
+          "69bbb2c136bc4bac6fd4c706",
+          "6962050d3f1a479d27c53945"
+        ]
+      },
+      {
+        "bottle_no": "167",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 1,
+        "days": [
+          "2026-02-01"
+        ],
+        "sale_ids": [
+          "697fec337ad52d1c399ae916"
+        ]
+      },
+      {
+        "bottle_no": "18",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 1,
+        "days": [
+          "2026-03-12"
+        ],
+        "sale_ids": [
+          "69bbb00f89d8371762435de3"
+        ]
+      },
+      {
+        "bottle_no": "19",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 1,
+        "days": [
+          "2026-03-08"
+        ],
+        "sale_ids": [
+          "69bbb2c336bc4bac6fd4c77f"
+        ]
+      },
+      {
+        "bottle_no": "225",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 1,
+        "days": [
+          "2026-03-06"
+        ],
+        "sale_ids": [
+          "69bbb2c31117bf9b46433374"
+        ]
+      },
+      {
+        "bottle_no": "226",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 1,
+        "days": [
+          "2026-02-04"
+        ],
+        "sale_ids": [
+          "6982dc1dbd022020ee0524d9"
+        ]
+      },
+      {
+        "bottle_no": "259",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 1,
+        "days": [
+          "2026-01-18"
+        ],
+        "sale_ids": [
+          "696d7bb72eea65354578f77b"
+        ]
+      },
+      {
+        "bottle_no": "371",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 1,
+        "days": [
+          "2026-02-01"
+        ],
+        "sale_ids": [
+          "697fec337ad52d1c399ae916"
+        ]
+      },
+      {
+        "bottle_no": "375",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 1,
+        "days": [
+          "2026-02-04"
+        ],
+        "sale_ids": [
+          "6982dc1dbd022020ee0524d9"
+        ]
+      },
+      {
+        "bottle_no": "383",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 1,
+        "days": [
+          "2026-01-12"
+        ],
+        "sale_ids": [
+          "6964a9228b0da4f195e08c48"
+        ]
+      },
+      {
+        "bottle_no": "52",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 1,
+        "days": [
+          "2026-03-02"
+        ],
+        "sale_ids": [
+          "69bbb2c236bc4bac6fd4c75e"
+        ]
+      },
+      {
+        "bottle_no": "65",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 1,
+        "days": [
+          "2026-01-04"
+        ],
+        "sale_ids": [
+          "695dab3755b337aa1cd9d2f8"
+        ]
+      },
+      {
+        "bottle_no": "69",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 1,
+        "days": [
+          "2026-02-12"
+        ],
+        "sale_ids": [
+          "69bbb2c136bc4bac6fd4c706"
+        ]
+      },
+      {
+        "bottle_no": "89",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 1,
+        "days": [
+          "2026-01-06"
+        ],
+        "sale_ids": [
+          "695f034e1c90b6a7cc305ed9"
+        ]
+      },
+      {
+        "bottle_no": "90",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 1,
+        "days": [
+          "2026-02-10"
+        ],
+        "sale_ids": [
+          "69bbb2c036bc4bac6fd4c6ed"
+        ]
+      },
+      {
+        "bottle_no": "Y003",
+        "cycle_loss_weight": 3,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 3,
+        "day_count": 1,
+        "days": [
+          "2026-03-14"
+        ],
+        "sale_ids": [
+          "69bbb2c585d19fd7c4625d9e"
+        ]
+      },
+      {
+        "bottle_no": "105",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-02-27"
+        ],
+        "sale_ids": [
+          "69bbb2c236bc4bac6fd4c74d"
+        ]
+      },
+      {
+        "bottle_no": "128",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-01-16"
+        ],
+        "sale_ids": [
+          "6969e3387ae7089a62853063"
+        ]
+      },
+      {
+        "bottle_no": "132",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-02-28"
+        ],
+        "sale_ids": [
+          "69bbb2c289d8371762438b7d"
+        ]
+      },
+      {
+        "bottle_no": "149",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-01-08"
+        ],
+        "sale_ids": [
+          "69604d6b6e5d2d32f89e463e"
+        ]
+      },
+      {
+        "bottle_no": "160",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-03-12"
+        ],
+        "sale_ids": [
+          "69bbb00f89d8371762435de3"
+        ]
+      },
+      {
+        "bottle_no": "177",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-02-04"
+        ],
+        "sale_ids": [
+          "6982dc1dbd022020ee0524d9"
+        ]
+      },
+      {
+        "bottle_no": "199",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-02-01"
+        ],
+        "sale_ids": [
+          "697fec337ad52d1c399ae916"
+        ]
+      },
+      {
+        "bottle_no": "200",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-03-04"
+        ],
+        "sale_ids": [
+          "69bbb2c385d19fd7c4625d7a"
+        ]
+      },
+      {
+        "bottle_no": "203",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-01-26"
+        ],
+        "sale_ids": [
+          "697707022eea6535452cee37"
+        ]
+      },
+      {
+        "bottle_no": "223",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-03-04"
+        ],
+        "sale_ids": [
+          "69bbb2c385d19fd7c4625d7a"
+        ]
+      },
+      {
+        "bottle_no": "24",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-03-12"
+        ],
+        "sale_ids": [
+          "69bbb00f89d8371762435de3"
+        ]
+      },
+      {
+        "bottle_no": "269",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-02-06"
+        ],
+        "sale_ids": [
+          "69858794189f86f427518f82"
+        ]
+      },
+      {
+        "bottle_no": "354",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-03-14"
+        ],
+        "sale_ids": [
+          "69bbb2c585d19fd7c4625d9e"
+        ]
+      },
+      {
+        "bottle_no": "366",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-03-12"
+        ],
+        "sale_ids": [
+          "69bbb00f89d8371762435de3"
+        ]
+      },
+      {
+        "bottle_no": "368",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-01-26"
+        ],
+        "sale_ids": [
+          "697707022eea6535452cee37"
+        ]
+      },
+      {
+        "bottle_no": "374",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-01-18"
+        ],
+        "sale_ids": [
+          "696d7bb72eea65354578f77b"
+        ]
+      },
+      {
+        "bottle_no": "389",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-02-10"
+        ],
+        "sale_ids": [
+          "69bbb2c036bc4bac6fd4c6ed"
+        ]
+      },
+      {
+        "bottle_no": "55",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-01-28"
+        ],
+        "sale_ids": [
+          "6979abc0286f7ce0113d04bd"
+        ]
+      },
+      {
+        "bottle_no": "88",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-03-02"
+        ],
+        "sale_ids": [
+          "69bbb2c236bc4bac6fd4c75e"
+        ]
+      },
+      {
+        "bottle_no": "91",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-03-02"
+        ],
+        "sale_ids": [
+          "69bbb2c236bc4bac6fd4c75e"
+        ]
+      },
+      {
+        "bottle_no": "Y111",
+        "cycle_loss_weight": 2,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 2,
+        "day_count": 1,
+        "days": [
+          "2026-01-10"
+        ],
+        "sale_ids": [
+          "6962050d3f1a479d27c53945"
+        ]
+      },
+      {
+        "bottle_no": "1",
+        "cycle_loss_weight": 1,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 1,
+        "day_count": 1,
+        "days": [
+          "2026-02-12"
+        ],
+        "sale_ids": [
+          "69bbb2c136bc4bac6fd4c706"
+        ]
+      },
+      {
+        "bottle_no": "138",
+        "cycle_loss_weight": 1,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 1,
+        "day_count": 1,
+        "days": [
+          "2026-01-24"
+        ],
+        "sale_ids": [
+          "697467f6f08210adb35d4c42"
+        ]
+      },
+      {
+        "bottle_no": "139",
+        "cycle_loss_weight": 1,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 1,
+        "day_count": 1,
+        "days": [
+          "2026-01-14"
+        ],
+        "sale_ids": [
+          "69672d64149854772fa2482c"
+        ]
+      },
+      {
+        "bottle_no": "16",
+        "cycle_loss_weight": 1,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 1,
+        "day_count": 1,
+        "days": [
+          "2026-01-08"
+        ],
+        "sale_ids": [
+          "69604d6b6e5d2d32f89e463e"
+        ]
+      },
+      {
+        "bottle_no": "181",
+        "cycle_loss_weight": 1,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 1,
+        "day_count": 1,
+        "days": [
+          "2026-01-04"
+        ],
+        "sale_ids": [
+          "695dab3755b337aa1cd9d2f8"
+        ]
+      },
+      {
+        "bottle_no": "248",
+        "cycle_loss_weight": 1,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 1,
+        "day_count": 1,
+        "days": [
+          "2026-01-12"
+        ],
+        "sale_ids": [
+          "6964a9228b0da4f195e08c48"
+        ]
+      },
+      {
+        "bottle_no": "258",
+        "cycle_loss_weight": 1,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 1,
+        "day_count": 1,
+        "days": [
+          "2026-02-28"
+        ],
+        "sale_ids": [
+          "69bbb2c289d8371762438b7d"
+        ]
+      },
+      {
+        "bottle_no": "281",
+        "cycle_loss_weight": 1,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 1,
+        "day_count": 1,
+        "days": [
+          "2026-01-10"
+        ],
+        "sale_ids": [
+          "6962050d3f1a479d27c53945"
+        ]
+      },
+      {
+        "bottle_no": "340",
+        "cycle_loss_weight": 1,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 1,
+        "day_count": 1,
+        "days": [
+          "2026-01-08"
+        ],
+        "sale_ids": [
+          "69604d6b6e5d2d32f89e463e"
+        ]
+      },
+      {
+        "bottle_no": "357",
+        "cycle_loss_weight": 1,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 1,
+        "day_count": 1,
+        "days": [
+          "2026-01-24"
+        ],
+        "sale_ids": [
+          "697467f6f08210adb35d4c42"
+        ]
+      },
+      {
+        "bottle_no": "364",
+        "cycle_loss_weight": 1,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 1,
+        "day_count": 1,
+        "days": [
+          "2026-01-30"
+        ],
+        "sale_ids": [
+          "697c448f89bd27ad0669bc9b"
+        ]
+      },
+      {
+        "bottle_no": "82",
+        "cycle_loss_weight": 1,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 1,
+        "day_count": 1,
+        "days": [
+          "2026-01-04"
+        ],
+        "sale_ids": [
+          "695dab3755b337aa1cd9d2f8"
+        ]
+      },
+      {
+        "bottle_no": "92",
+        "cycle_loss_weight": 1,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 1,
+        "day_count": 1,
+        "days": [
+          "2026-02-11"
+        ],
+        "sale_ids": [
+          "69bbb2c089d8371762438b52"
+        ]
+      },
+      {
+        "bottle_no": "Y133",
+        "cycle_loss_weight": 1,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 1,
+        "day_count": 1,
+        "days": [
+          "2026-01-06"
+        ],
+        "sale_ids": [
+          "695f034e1c90b6a7cc305ed9"
+        ]
+      },
+      {
+        "bottle_no": "Y155",
+        "cycle_loss_weight": 1,
+        "cycle_loss_count": 1,
+        "manual_loss_weight": 0,
+        "manual_loss_count": 0,
+        "loss_total_weight": 1,
+        "day_count": 1,
+        "days": [
+          "2026-01-12"
+        ],
+        "sale_ids": [
+          "6964a9228b0da4f195e08c48"
+        ]
+      }
+    ]
+  },
+  "raw_cycle_loss_rows": [
+    {
+      "bottle_no": "1",
+      "back_date": "2026-02-09",
+      "out_date": "2026-02-12",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 60,
+      "out_net_kg": 65,
+      "theoretical_out_kg": 66,
+      "source_out_id": "69bbb2c136bc4bac6fd4c706"
+    },
+    {
+      "bottle_no": "101",
+      "back_date": "2026-01-21",
+      "out_date": "2026-01-22",
+      "delta_kg": 18,
+      "fill_count": 1,
+      "fill_sum_kg": 66,
+      "out_net_kg": 65,
+      "theoretical_out_kg": 83,
+      "source_out_id": "6971bc026e5d2d492fc26263"
+    },
+    {
+      "bottle_no": "102",
+      "back_date": "2026-02-09",
+      "out_date": "2026-02-12",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 65,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 66,
+      "source_out_id": "69bbb2c136bc4bac6fd4c706"
+    },
+    {
+      "bottle_no": "102",
+      "back_date": "2026-01-09",
+      "out_date": "2026-01-10",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 66,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 65,
+      "source_out_id": "6962050d3f1a479d27c53945"
+    },
+    {
+      "bottle_no": "105",
+      "back_date": "2026-02-08",
+      "out_date": "2026-02-27",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 68,
+      "out_net_kg": 66,
+      "theoretical_out_kg": 68,
+      "source_out_id": "69bbb2c236bc4bac6fd4c74d"
+    },
+    {
+      "bottle_no": "107",
+      "back_date": "2026-01-28",
+      "out_date": "2026-02-01",
+      "delta_kg": 11,
+      "fill_count": 1,
+      "fill_sum_kg": 59,
+      "out_net_kg": 62,
+      "theoretical_out_kg": 73,
+      "source_out_id": "697fec337ad52d1c399ae916"
+    },
+    {
+      "bottle_no": "107",
+      "back_date": "2026-01-11",
+      "out_date": "2026-01-12",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 66,
+      "out_net_kg": 63,
+      "theoretical_out_kg": 66,
+      "source_out_id": "6964a9228b0da4f195e08c48"
+    },
+    {
+      "bottle_no": "11",
+      "back_date": "2026-01-25",
+      "out_date": "2026-01-26",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 65,
+      "theoretical_out_kg": 69,
+      "source_out_id": "697707022eea6535452cee37"
+    },
+    {
+      "bottle_no": "110",
+      "back_date": "2026-02-04",
+      "out_date": "2026-02-06",
+      "delta_kg": 5,
+      "fill_count": 1,
+      "fill_sum_kg": 68,
+      "out_net_kg": 63,
+      "theoretical_out_kg": 68,
+      "source_out_id": "69858794189f86f427518f82"
+    },
+    {
+      "bottle_no": "111",
+      "back_date": "2026-02-09",
+      "out_date": "2026-03-08",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 68,
+      "out_net_kg": 62,
+      "theoretical_out_kg": 66,
+      "source_out_id": "69bbb2c336bc4bac6fd4c77f"
+    },
+    {
+      "bottle_no": "112",
+      "back_date": "2026-02-07",
+      "out_date": "2026-02-11",
+      "delta_kg": 29,
+      "fill_count": 1,
+      "fill_sum_kg": 68,
+      "out_net_kg": 66,
+      "theoretical_out_kg": 95,
+      "source_out_id": "69bbb2c089d8371762438b52"
+    },
+    {
+      "bottle_no": "119",
+      "back_date": "2026-03-15",
+      "out_date": "2026-03-16",
+      "delta_kg": 6,
+      "fill_count": 1,
+      "fill_sum_kg": 65,
+      "out_net_kg": 62,
+      "theoretical_out_kg": 68,
+      "source_out_id": "69bbb2c589d8371762438bda"
+    },
+    {
+      "bottle_no": "125",
+      "back_date": "2026-03-04",
+      "out_date": "2026-03-06",
+      "delta_kg": 12,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 73,
+      "theoretical_out_kg": 85,
+      "source_out_id": "69bbb2c31117bf9b46433374"
+    },
+    {
+      "bottle_no": "128",
+      "back_date": "2026-01-14",
+      "out_date": "2026-01-16",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 72,
+      "source_out_id": "6969e3387ae7089a62853063"
+    },
+    {
+      "bottle_no": "131",
+      "back_date": "2026-03-12",
+      "out_date": "2026-03-12",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 69,
+      "theoretical_out_kg": 73,
+      "source_out_id": "69bbb00f89d8371762435de3"
+    },
+    {
+      "bottle_no": "132",
+      "back_date": "2026-02-04",
+      "out_date": "2026-02-28",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 72,
+      "theoretical_out_kg": 74,
+      "source_out_id": "69bbb2c289d8371762438b7d"
+    },
+    {
+      "bottle_no": "133",
+      "back_date": "2026-01-28",
+      "out_date": "2026-01-30",
+      "delta_kg": 20,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 74,
+      "theoretical_out_kg": 94,
+      "source_out_id": "697c448f89bd27ad0669bc9b"
+    },
+    {
+      "bottle_no": "138",
+      "back_date": "2026-01-22",
+      "out_date": "2026-01-24",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 71,
+      "source_out_id": "697467f6f08210adb35d4c42"
+    },
+    {
+      "bottle_no": "139",
+      "back_date": "2026-01-13",
+      "out_date": "2026-01-14",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 71,
+      "source_out_id": "69672d64149854772fa2482c"
+    },
+    {
+      "bottle_no": "14",
+      "back_date": "2026-02-09",
+      "out_date": "2026-02-12",
+      "delta_kg": 5,
+      "fill_count": 1,
+      "fill_sum_kg": 28,
+      "out_net_kg": 65,
+      "theoretical_out_kg": 70,
+      "source_out_id": "69bbb2c136bc4bac6fd4c706"
+    },
+    {
+      "bottle_no": "141",
+      "back_date": "2026-03-13",
+      "out_date": "2026-03-14",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 74,
+      "source_out_id": "69bbb2c585d19fd7c4625d9e"
+    },
+    {
+      "bottle_no": "141",
+      "back_date": "2026-01-29",
+      "out_date": "2026-02-01",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 71,
+      "theoretical_out_kg": 73,
+      "source_out_id": "697fec337ad52d1c399ae916"
+    },
+    {
+      "bottle_no": "142",
+      "back_date": "2026-02-08",
+      "out_date": "2026-02-10",
+      "delta_kg": 11,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 73,
+      "theoretical_out_kg": 84,
+      "source_out_id": "69bbb2c036bc4bac6fd4c6ed"
+    },
+    {
+      "bottle_no": "142",
+      "back_date": "2026-01-25",
+      "out_date": "2026-01-26",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 72,
+      "theoretical_out_kg": 75,
+      "source_out_id": "697707022eea6535452cee37"
+    },
+    {
+      "bottle_no": "143",
+      "back_date": "2026-02-27",
+      "out_date": "2026-03-02",
+      "delta_kg": 16,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 72,
+      "theoretical_out_kg": 88,
+      "source_out_id": "69bbb2c236bc4bac6fd4c75e"
+    },
+    {
+      "bottle_no": "143",
+      "back_date": "2026-02-15",
+      "out_date": "2026-02-23",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 70,
+      "out_net_kg": 71,
+      "theoretical_out_kg": 73,
+      "source_out_id": "69bbb2c11501ab29a1bd8665"
+    },
+    {
+      "bottle_no": "145",
+      "back_date": "2026-02-09",
+      "out_date": "2026-02-12",
+      "delta_kg": 58,
+      "fill_count": 1,
+      "fill_sum_kg": 55,
+      "out_net_kg": 65,
+      "theoretical_out_kg": 123,
+      "source_out_id": "69bbb2c136bc4bac6fd4c706"
+    },
+    {
+      "bottle_no": "145",
+      "back_date": "2026-01-26",
+      "out_date": "2026-01-28",
+      "delta_kg": 5,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 69,
+      "theoretical_out_kg": 74,
+      "source_out_id": "6979abc0286f7ce0113d04bd"
+    },
+    {
+      "bottle_no": "148",
+      "back_date": "2026-02-08",
+      "out_date": "2026-03-04",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 71,
+      "theoretical_out_kg": 74,
+      "source_out_id": "69bbb2c385d19fd7c4625d7a"
+    },
+    {
+      "bottle_no": "148",
+      "back_date": "2026-02-04",
+      "out_date": "2026-02-06",
+      "delta_kg": 15,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 73,
+      "theoretical_out_kg": 88,
+      "source_out_id": "69858794189f86f427518f82"
+    },
+    {
+      "bottle_no": "148",
+      "back_date": "2026-01-26",
+      "out_date": "2026-01-28",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 73,
+      "theoretical_out_kg": 74,
+      "source_out_id": "6979abc0286f7ce0113d04bd"
+    },
+    {
+      "bottle_no": "149",
+      "back_date": "2026-01-07",
+      "out_date": "2026-01-08",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 72,
+      "source_out_id": "69604d6b6e5d2d32f89e463e"
+    },
+    {
+      "bottle_no": "15",
+      "back_date": "2026-02-06",
+      "out_date": "2026-02-08",
+      "delta_kg": 60,
+      "fill_count": 1,
+      "fill_sum_kg": 55,
+      "out_net_kg": 45,
+      "theoretical_out_kg": 105,
+      "source_out_id": "69bbb2c01501ab29a1bd85f0"
+    },
+    {
+      "bottle_no": "150",
+      "back_date": "2026-01-31",
+      "out_date": "2026-02-02",
+      "delta_kg": 7,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 67,
+      "theoretical_out_kg": 74,
+      "source_out_id": "6980397121821b795c50fb4d"
+    },
+    {
+      "bottle_no": "151",
+      "back_date": "2026-02-14",
+      "out_date": "2026-02-23",
+      "delta_kg": 75,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 0,
+      "theoretical_out_kg": 75,
+      "source_out_id": "69bbb2c11501ab29a1bd8665"
+    },
+    {
+      "bottle_no": "16",
+      "back_date": "2026-01-07",
+      "out_date": "2026-01-08",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 65,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 65,
+      "source_out_id": "69604d6b6e5d2d32f89e463e"
+    },
+    {
+      "bottle_no": "160",
+      "back_date": "2026-03-11",
+      "out_date": "2026-03-12",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 73,
+      "theoretical_out_kg": 75,
+      "source_out_id": "69bbb00f89d8371762435de3"
+    },
+    {
+      "bottle_no": "161",
+      "back_date": "2026-01-31",
+      "out_date": "2026-02-02",
+      "delta_kg": 10,
+      "fill_count": 1,
+      "fill_sum_kg": 58,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 80,
+      "source_out_id": "6980397121821b795c50fb4d"
+    },
+    {
+      "bottle_no": "162",
+      "back_date": "2026-02-12",
+      "out_date": "2026-02-21",
+      "delta_kg": 29,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 44,
+      "theoretical_out_kg": 73,
+      "source_out_id": "69bbaffd0add39bd434a401d"
+    },
+    {
+      "bottle_no": "167",
+      "back_date": "2026-01-29",
+      "out_date": "2026-02-01",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 71,
+      "theoretical_out_kg": 74,
+      "source_out_id": "697fec337ad52d1c399ae916"
+    },
+    {
+      "bottle_no": "173",
+      "back_date": "2026-02-14",
+      "out_date": "2026-02-23",
+      "delta_kg": 67,
+      "fill_count": 1,
+      "fill_sum_kg": 65,
+      "out_net_kg": 0,
+      "theoretical_out_kg": 67,
+      "source_out_id": "69bbb2c11501ab29a1bd8665"
+    },
+    {
+      "bottle_no": "176",
+      "back_date": "2026-02-28",
+      "out_date": "2026-03-04",
+      "delta_kg": 8,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 73,
+      "theoretical_out_kg": 81,
+      "source_out_id": "69bbb2c385d19fd7c4625d7a"
+    },
+    {
+      "bottle_no": "177",
+      "back_date": "2026-02-02",
+      "out_date": "2026-02-04",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 70,
+      "out_net_kg": 71,
+      "theoretical_out_kg": 73,
+      "source_out_id": "6982dc1dbd022020ee0524d9"
+    },
+    {
+      "bottle_no": "179",
+      "back_date": "2026-01-29",
+      "out_date": "2026-02-01",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 71,
+      "theoretical_out_kg": 75,
+      "source_out_id": "697fec337ad52d1c399ae916"
+    },
+    {
+      "bottle_no": "18",
+      "back_date": "2026-03-11",
+      "out_date": "2026-03-12",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 67,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 67,
+      "source_out_id": "69bbb00f89d8371762435de3"
+    },
+    {
+      "bottle_no": "181",
+      "back_date": "2026-01-02",
+      "out_date": "2026-01-04",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 72,
+      "theoretical_out_kg": 73,
+      "source_out_id": "695dab3755b337aa1cd9d2f8"
+    },
+    {
+      "bottle_no": "19",
+      "back_date": "2026-03-02",
+      "out_date": "2026-03-08",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 67,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 67,
+      "source_out_id": "69bbb2c336bc4bac6fd4c77f"
+    },
+    {
+      "bottle_no": "194",
+      "back_date": "2026-02-03",
+      "out_date": "2026-02-06",
+      "delta_kg": 5,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 68,
+      "theoretical_out_kg": 73,
+      "source_out_id": "69858794189f86f427518f82"
+    },
+    {
+      "bottle_no": "199",
+      "back_date": "2026-01-29",
+      "out_date": "2026-02-01",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 72,
+      "theoretical_out_kg": 74,
+      "source_out_id": "697fec337ad52d1c399ae916"
+    },
+    {
+      "bottle_no": "20",
+      "back_date": "2026-02-10",
+      "out_date": "2026-02-12",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 61,
+      "out_net_kg": 67,
+      "theoretical_out_kg": 71,
+      "source_out_id": "69bbb2c136bc4bac6fd4c706"
+    },
+    {
+      "bottle_no": "200",
+      "back_date": "2026-03-02",
+      "out_date": "2026-03-04",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 73,
+      "theoretical_out_kg": 75,
+      "source_out_id": "69bbb2c385d19fd7c4625d7a"
+    },
+    {
+      "bottle_no": "203",
+      "back_date": "2026-01-25",
+      "out_date": "2026-01-26",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 71,
+      "theoretical_out_kg": 73,
+      "source_out_id": "697707022eea6535452cee37"
+    },
+    {
+      "bottle_no": "204",
+      "back_date": "2026-02-09",
+      "out_date": "2026-02-13",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 58,
+      "out_net_kg": 72,
+      "theoretical_out_kg": 76,
+      "source_out_id": "69bbb2c136bc4bac6fd4c710"
+    },
+    {
+      "bottle_no": "206",
+      "back_date": "2026-01-28",
+      "out_date": "2026-01-30",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 74,
+      "source_out_id": "697c448f89bd27ad0669bc9b"
+    },
+    {
+      "bottle_no": "207",
+      "back_date": "2026-01-21",
+      "out_date": "2026-01-22",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 71,
+      "theoretical_out_kg": 73,
+      "source_out_id": "6971bc026e5d2d492fc26263"
+    },
+    {
+      "bottle_no": "207",
+      "back_date": "2026-01-04",
+      "out_date": "2026-01-06",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 69,
+      "theoretical_out_kg": 72,
+      "source_out_id": "695f034e1c90b6a7cc305ed9"
+    },
+    {
+      "bottle_no": "212",
+      "back_date": "2026-02-06",
+      "out_date": "2026-02-08",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 50,
+      "out_net_kg": 72,
+      "theoretical_out_kg": 76,
+      "source_out_id": "69bbb2c01501ab29a1bd85f0"
+    },
+    {
+      "bottle_no": "216",
+      "back_date": "2026-02-14",
+      "out_date": "2026-02-23",
+      "delta_kg": 5,
+      "fill_count": 1,
+      "fill_sum_kg": 70,
+      "out_net_kg": 71,
+      "theoretical_out_kg": 76,
+      "source_out_id": "69bbb2c11501ab29a1bd8665"
+    },
+    {
+      "bottle_no": "216",
+      "back_date": "2026-01-31",
+      "out_date": "2026-02-02",
+      "delta_kg": 5,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 68,
+      "theoretical_out_kg": 73,
+      "source_out_id": "6980397121821b795c50fb4d"
+    },
+    {
+      "bottle_no": "218",
+      "back_date": "2026-02-27",
+      "out_date": "2026-03-02",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 74,
+      "source_out_id": "69bbb2c236bc4bac6fd4c75e"
+    },
+    {
+      "bottle_no": "218",
+      "back_date": "2026-01-03",
+      "out_date": "2026-01-04",
+      "delta_kg": 20,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 73,
+      "theoretical_out_kg": 93,
+      "source_out_id": "695dab3755b337aa1cd9d2f8"
+    },
+    {
+      "bottle_no": "22",
+      "back_date": "2026-03-15",
+      "out_date": "2026-03-16",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 66,
+      "out_net_kg": 65,
+      "theoretical_out_kg": 66,
+      "source_out_id": "69bbb2c589d8371762438bda"
+    },
+    {
+      "bottle_no": "22",
+      "back_date": "2026-02-14",
+      "out_date": "2026-02-23",
+      "delta_kg": 25,
+      "fill_count": 1,
+      "fill_sum_kg": 45,
+      "out_net_kg": 65,
+      "theoretical_out_kg": 90,
+      "source_out_id": "69bbb2c11501ab29a1bd8665"
+    },
+    {
+      "bottle_no": "223",
+      "back_date": "2026-03-02",
+      "out_date": "2026-03-04",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 72,
+      "theoretical_out_kg": 74,
+      "source_out_id": "69bbb2c385d19fd7c4625d7a"
+    },
+    {
+      "bottle_no": "224",
+      "back_date": "2026-01-11",
+      "out_date": "2026-01-12",
+      "delta_kg": 23,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 71,
+      "theoretical_out_kg": 94,
+      "source_out_id": "6964a9228b0da4f195e08c48"
+    },
+    {
+      "bottle_no": "225",
+      "back_date": "2026-03-04",
+      "out_date": "2026-03-06",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 73,
+      "source_out_id": "69bbb2c31117bf9b46433374"
+    },
+    {
+      "bottle_no": "226",
+      "back_date": "2026-02-02",
+      "out_date": "2026-02-04",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 73,
+      "source_out_id": "6982dc1dbd022020ee0524d9"
+    },
+    {
+      "bottle_no": "23",
+      "back_date": "2026-01-18",
+      "out_date": "2026-01-20",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 65,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 65,
+      "source_out_id": "696f2f7c9755e34a91911078"
+    },
+    {
+      "bottle_no": "23",
+      "back_date": "2026-01-14",
+      "out_date": "2026-01-14",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 55,
+      "out_net_kg": 65,
+      "theoretical_out_kg": 68,
+      "source_out_id": "69672d64149854772fa2482c"
+    },
+    {
+      "bottle_no": "233",
+      "back_date": "2026-02-06",
+      "out_date": "2026-02-11",
+      "delta_kg": 6,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 72,
+      "theoretical_out_kg": 78,
+      "source_out_id": "69bbb2c089d8371762438b52"
+    },
+    {
+      "bottle_no": "24",
+      "back_date": "2026-03-11",
+      "out_date": "2026-03-12",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 66,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 66,
+      "source_out_id": "69bbb00f89d8371762435de3"
+    },
+    {
+      "bottle_no": "247",
+      "back_date": "2026-01-17",
+      "out_date": "2026-01-18",
+      "delta_kg": 34,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 69,
+      "theoretical_out_kg": 103,
+      "source_out_id": "696d7bb72eea65354578f77b"
+    },
+    {
+      "bottle_no": "248",
+      "back_date": "2026-01-11",
+      "out_date": "2026-01-12",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 69,
+      "theoretical_out_kg": 70,
+      "source_out_id": "6964a9228b0da4f195e08c48"
+    },
+    {
+      "bottle_no": "252",
+      "back_date": "2026-02-15",
+      "out_date": "2026-02-23",
+      "delta_kg": 35,
+      "fill_count": 1,
+      "fill_sum_kg": 50,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 105,
+      "source_out_id": "69bbb2c11501ab29a1bd8665"
+    },
+    {
+      "bottle_no": "257",
+      "back_date": "2026-01-31",
+      "out_date": "2026-02-02",
+      "delta_kg": 41,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 69,
+      "theoretical_out_kg": 110,
+      "source_out_id": "6980397121821b795c50fb4d"
+    },
+    {
+      "bottle_no": "258",
+      "back_date": "2026-02-26",
+      "out_date": "2026-02-28",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 73,
+      "theoretical_out_kg": 74,
+      "source_out_id": "69bbb2c289d8371762438b7d"
+    },
+    {
+      "bottle_no": "259",
+      "back_date": "2026-01-17",
+      "out_date": "2026-01-18",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 68,
+      "theoretical_out_kg": 71,
+      "source_out_id": "696d7bb72eea65354578f77b"
+    },
+    {
+      "bottle_no": "262",
+      "back_date": "2026-03-04",
+      "out_date": "2026-03-06",
+      "delta_kg": 23,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 69,
+      "theoretical_out_kg": 92,
+      "source_out_id": "69bbb2c31117bf9b46433374"
+    },
+    {
+      "bottle_no": "269",
+      "back_date": "2026-02-03",
+      "out_date": "2026-02-06",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 72,
+      "theoretical_out_kg": 74,
+      "source_out_id": "69858794189f86f427518f82"
+    },
+    {
+      "bottle_no": "278",
+      "back_date": "2026-01-29",
+      "out_date": "2026-02-01",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 71,
+      "theoretical_out_kg": 75,
+      "source_out_id": "697fec337ad52d1c399ae916"
+    },
+    {
+      "bottle_no": "281",
+      "back_date": "2026-01-09",
+      "out_date": "2026-01-10",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 38,
+      "out_net_kg": 71,
+      "theoretical_out_kg": 72,
+      "source_out_id": "6962050d3f1a479d27c53945"
+    },
+    {
+      "bottle_no": "283",
+      "back_date": "2026-03-04",
+      "out_date": "2026-03-06",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 73,
+      "source_out_id": "69bbb2c31117bf9b46433374"
+    },
+    {
+      "bottle_no": "283",
+      "back_date": "2026-01-25",
+      "out_date": "2026-01-26",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 74,
+      "source_out_id": "697707022eea6535452cee37"
+    },
+    {
+      "bottle_no": "284",
+      "back_date": "2026-02-05",
+      "out_date": "2026-02-08",
+      "delta_kg": 8,
+      "fill_count": 1,
+      "fill_sum_kg": 42,
+      "out_net_kg": 69,
+      "theoretical_out_kg": 77,
+      "source_out_id": "69bbb2c01501ab29a1bd85f0"
+    },
+    {
+      "bottle_no": "29",
+      "back_date": "2026-03-13",
+      "out_date": "2026-03-14",
+      "delta_kg": 5,
+      "fill_count": 1,
+      "fill_sum_kg": 67,
+      "out_net_kg": 66,
+      "theoretical_out_kg": 71,
+      "source_out_id": "69bbb2c585d19fd7c4625d9e"
+    },
+    {
+      "bottle_no": "3",
+      "back_date": "2026-03-13",
+      "out_date": "2026-03-14",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 67,
+      "out_net_kg": 63,
+      "theoretical_out_kg": 67,
+      "source_out_id": "69bbb2c585d19fd7c4625d9e"
+    },
+    {
+      "bottle_no": "30",
+      "back_date": "2026-01-29",
+      "out_date": "2026-02-01",
+      "delta_kg": 6,
+      "fill_count": 1,
+      "fill_sum_kg": 67,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 70,
+      "source_out_id": "697fec337ad52d1c399ae916"
+    },
+    {
+      "bottle_no": "31",
+      "back_date": "2026-02-08",
+      "out_date": "2026-02-11",
+      "delta_kg": 5,
+      "fill_count": 1,
+      "fill_sum_kg": 67,
+      "out_net_kg": 66,
+      "theoretical_out_kg": 71,
+      "source_out_id": "69bbb2c089d8371762438b52"
+    },
+    {
+      "bottle_no": "32",
+      "back_date": "2026-03-04",
+      "out_date": "2026-03-06",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 67,
+      "out_net_kg": 66,
+      "theoretical_out_kg": 70,
+      "source_out_id": "69bbb2c31117bf9b46433374"
+    },
+    {
+      "bottle_no": "32",
+      "back_date": "2026-01-29",
+      "out_date": "2026-02-01",
+      "delta_kg": 32,
+      "fill_count": 1,
+      "fill_sum_kg": 65,
+      "out_net_kg": 63,
+      "theoretical_out_kg": 95,
+      "source_out_id": "697fec337ad52d1c399ae916"
+    },
+    {
+      "bottle_no": "320",
+      "back_date": "2026-03-07",
+      "out_date": "2026-03-10",
+      "delta_kg": 16,
+      "fill_count": 1,
+      "fill_sum_kg": 79,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 80,
+      "source_out_id": "69bbb2c485d19fd7c4625d96"
+    },
+    {
+      "bottle_no": "320",
+      "back_date": "2026-01-26",
+      "out_date": "2026-01-28",
+      "delta_kg": 9,
+      "fill_count": 1,
+      "fill_sum_kg": 64,
+      "out_net_kg": 63,
+      "theoretical_out_kg": 72,
+      "source_out_id": "6979abc0286f7ce0113d04bd"
+    },
+    {
+      "bottle_no": "33",
+      "back_date": "2026-02-12",
+      "out_date": "2026-02-13",
+      "delta_kg": 6,
+      "fill_count": 1,
+      "fill_sum_kg": 50,
+      "out_net_kg": 62,
+      "theoretical_out_kg": 68,
+      "source_out_id": "69bbb2c136bc4bac6fd4c710"
+    },
+    {
+      "bottle_no": "33",
+      "back_date": "2026-02-08",
+      "out_date": "2026-02-11",
+      "delta_kg": 7,
+      "fill_count": 1,
+      "fill_sum_kg": 67,
+      "out_net_kg": 65,
+      "theoretical_out_kg": 72,
+      "source_out_id": "69bbb2c089d8371762438b52"
+    },
+    {
+      "bottle_no": "340",
+      "back_date": "2026-01-07",
+      "out_date": "2026-01-08",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 56,
+      "out_net_kg": 55,
+      "theoretical_out_kg": 56,
+      "source_out_id": "69604d6b6e5d2d32f89e463e"
+    },
+    {
+      "bottle_no": "341",
+      "back_date": "2026-01-18",
+      "out_date": "2026-01-20",
+      "delta_kg": 5,
+      "fill_count": 1,
+      "fill_sum_kg": 57,
+      "out_net_kg": 52,
+      "theoretical_out_kg": 57,
+      "source_out_id": "696f2f7c9755e34a91911078"
+    },
+    {
+      "bottle_no": "345",
+      "back_date": "2026-03-07",
+      "out_date": "2026-03-08",
+      "delta_kg": 25,
+      "fill_count": 1,
+      "fill_sum_kg": 59,
+      "out_net_kg": 59,
+      "theoretical_out_kg": 84,
+      "source_out_id": "69bbb2c336bc4bac6fd4c77f"
+    },
+    {
+      "bottle_no": "35",
+      "back_date": "2026-01-06",
+      "out_date": "2026-01-08",
+      "delta_kg": 22.5,
+      "fill_count": 1,
+      "fill_sum_kg": 65,
+      "out_net_kg": 46,
+      "theoretical_out_kg": 68.5,
+      "source_out_id": "69604d6b6e5d2d32f89e463e"
+    },
+    {
+      "bottle_no": "350",
+      "back_date": "2026-02-03",
+      "out_date": "2026-02-06",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 59,
+      "out_net_kg": 56,
+      "theoretical_out_kg": 59,
+      "source_out_id": "69858794189f86f427518f82"
+    },
+    {
+      "bottle_no": "350",
+      "back_date": "2026-01-21",
+      "out_date": "2026-01-22",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 73,
+      "out_net_kg": 72,
+      "theoretical_out_kg": 74,
+      "source_out_id": "6971bc026e5d2d492fc26263"
+    },
+    {
+      "bottle_no": "351",
+      "back_date": "2026-02-15",
+      "out_date": "2026-02-21",
+      "delta_kg": 5,
+      "fill_count": 0,
+      "fill_sum_kg": 0,
+      "out_net_kg": 57,
+      "theoretical_out_kg": 62,
+      "source_out_id": "69bbaffd0add39bd434a401d"
+    },
+    {
+      "bottle_no": "354",
+      "back_date": "2026-03-13",
+      "out_date": "2026-03-14",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 59,
+      "out_net_kg": 58,
+      "theoretical_out_kg": 60,
+      "source_out_id": "69bbb2c585d19fd7c4625d9e"
+    },
+    {
+      "bottle_no": "357",
+      "back_date": "2026-01-23",
+      "out_date": "2026-01-24",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 77,
+      "out_net_kg": 77,
+      "theoretical_out_kg": 78,
+      "source_out_id": "697467f6f08210adb35d4c42"
+    },
+    {
+      "bottle_no": "361",
+      "back_date": "2026-02-06",
+      "out_date": "2026-02-10",
+      "delta_kg": 23,
+      "fill_count": 1,
+      "fill_sum_kg": 53,
+      "out_net_kg": 56,
+      "theoretical_out_kg": 79,
+      "source_out_id": "69bbb2c036bc4bac6fd4c6ed"
+    },
+    {
+      "bottle_no": "363",
+      "back_date": "2026-02-12",
+      "out_date": "2026-02-21",
+      "delta_kg": 34,
+      "fill_count": 1,
+      "fill_sum_kg": 58,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 98,
+      "source_out_id": "69bbaffd0add39bd434a401d"
+    },
+    {
+      "bottle_no": "363",
+      "back_date": "2026-01-21",
+      "out_date": "2026-01-22",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 77,
+      "out_net_kg": 76,
+      "theoretical_out_kg": 80,
+      "source_out_id": "6971bc026e5d2d492fc26263"
+    },
+    {
+      "bottle_no": "364",
+      "back_date": "2026-01-28",
+      "out_date": "2026-01-30",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 58,
+      "out_net_kg": 58,
+      "theoretical_out_kg": 59,
+      "source_out_id": "697c448f89bd27ad0669bc9b"
+    },
+    {
+      "bottle_no": "365",
+      "back_date": "2026-02-06",
+      "out_date": "2026-02-08",
+      "delta_kg": 3,
+      "fill_count": 0,
+      "fill_sum_kg": 0,
+      "out_net_kg": 48,
+      "theoretical_out_kg": 51,
+      "source_out_id": "69bbb2c01501ab29a1bd85f0"
+    },
+    {
+      "bottle_no": "366",
+      "back_date": "2026-03-11",
+      "out_date": "2026-03-12",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 58,
+      "out_net_kg": 58,
+      "theoretical_out_kg": 60,
+      "source_out_id": "69bbb00f89d8371762435de3"
+    },
+    {
+      "bottle_no": "368",
+      "back_date": "2026-01-24",
+      "out_date": "2026-01-26",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 72,
+      "source_out_id": "697707022eea6535452cee37"
+    },
+    {
+      "bottle_no": "37",
+      "back_date": "2026-01-31",
+      "out_date": "2026-02-27",
+      "delta_kg": 5,
+      "fill_count": 1,
+      "fill_sum_kg": 67,
+      "out_net_kg": 65,
+      "theoretical_out_kg": 70,
+      "source_out_id": "69bbb2c236bc4bac6fd4c74d"
+    },
+    {
+      "bottle_no": "371",
+      "back_date": "2026-01-29",
+      "out_date": "2026-02-01",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 58,
+      "out_net_kg": 56,
+      "theoretical_out_kg": 59,
+      "source_out_id": "697fec337ad52d1c399ae916"
+    },
+    {
+      "bottle_no": "374",
+      "back_date": "2026-01-17",
+      "out_date": "2026-01-18",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 72,
+      "out_net_kg": 72,
+      "theoretical_out_kg": 74,
+      "source_out_id": "696d7bb72eea65354578f77b"
+    },
+    {
+      "bottle_no": "375",
+      "back_date": "2026-02-02",
+      "out_date": "2026-02-04",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 51,
+      "out_net_kg": 57,
+      "theoretical_out_kg": 60,
+      "source_out_id": "6982dc1dbd022020ee0524d9"
+    },
+    {
+      "bottle_no": "378",
+      "back_date": "2026-01-27",
+      "out_date": "2026-01-30",
+      "delta_kg": 14,
+      "fill_count": 1,
+      "fill_sum_kg": 68,
+      "out_net_kg": 57,
+      "theoretical_out_kg": 71,
+      "source_out_id": "697c448f89bd27ad0669bc9b"
+    },
+    {
+      "bottle_no": "378",
+      "back_date": "2026-01-07",
+      "out_date": "2026-01-10",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 57,
+      "out_net_kg": 56,
+      "theoretical_out_kg": 59,
+      "source_out_id": "6962050d3f1a479d27c53945"
+    },
+    {
+      "bottle_no": "383",
+      "back_date": "2026-01-11",
+      "out_date": "2026-01-12",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 57,
+      "out_net_kg": 56,
+      "theoretical_out_kg": 59,
+      "source_out_id": "6964a9228b0da4f195e08c48"
+    },
+    {
+      "bottle_no": "384",
+      "back_date": "2026-01-18",
+      "out_date": "2026-01-20",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 77,
+      "out_net_kg": 76,
+      "theoretical_out_kg": 79,
+      "source_out_id": "696f2f7c9755e34a91911078"
+    },
+    {
+      "bottle_no": "384",
+      "back_date": "2026-01-14",
+      "out_date": "2026-01-16",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 57,
+      "out_net_kg": 57,
+      "theoretical_out_kg": 59,
+      "source_out_id": "6969e3387ae7089a62853063"
+    },
+    {
+      "bottle_no": "388",
+      "back_date": "2026-03-07",
+      "out_date": "2026-03-08",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 58,
+      "out_net_kg": 58,
+      "theoretical_out_kg": 59,
+      "source_out_id": "69bbb2c336bc4bac6fd4c77f"
+    },
+    {
+      "bottle_no": "388",
+      "back_date": "2026-02-02",
+      "out_date": "2026-02-04",
+      "delta_kg": 5,
+      "fill_count": 1,
+      "fill_sum_kg": 57,
+      "out_net_kg": 56,
+      "theoretical_out_kg": 61,
+      "source_out_id": "6982dc1dbd022020ee0524d9"
+    },
+    {
+      "bottle_no": "389",
+      "back_date": "2026-02-08",
+      "out_date": "2026-02-10",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 58,
+      "out_net_kg": 58,
+      "theoretical_out_kg": 60,
+      "source_out_id": "69bbb2c036bc4bac6fd4c6ed"
+    },
+    {
+      "bottle_no": "39",
+      "back_date": "2026-03-13",
+      "out_date": "2026-03-14",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 67,
+      "out_net_kg": 66,
+      "theoretical_out_kg": 70,
+      "source_out_id": "69bbb2c585d19fd7c4625d9e"
+    },
+    {
+      "bottle_no": "39",
+      "back_date": "2026-01-13",
+      "out_date": "2026-01-14",
+      "delta_kg": 8,
+      "fill_count": 1,
+      "fill_sum_kg": 65,
+      "out_net_kg": 62,
+      "theoretical_out_kg": 70,
+      "source_out_id": "69672d64149854772fa2482c"
+    },
+    {
+      "bottle_no": "40",
+      "back_date": "2026-01-31",
+      "out_date": "2026-02-06",
+      "delta_kg": 20,
+      "fill_count": 1,
+      "fill_sum_kg": 65,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 84,
+      "source_out_id": "69858794189f86f427518f82"
+    },
+    {
+      "bottle_no": "5",
+      "back_date": "2026-01-14",
+      "out_date": "2026-01-16",
+      "delta_kg": 14,
+      "fill_count": 1,
+      "fill_sum_kg": 66,
+      "out_net_kg": 50,
+      "theoretical_out_kg": 64,
+      "source_out_id": "6969e3387ae7089a62853063"
+    },
+    {
+      "bottle_no": "51",
+      "back_date": "2026-02-11",
+      "out_date": "2026-02-13",
+      "delta_kg": 25,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 89,
+      "source_out_id": "69bbb2c136bc4bac6fd4c710"
+    },
+    {
+      "bottle_no": "51",
+      "back_date": "2026-01-14",
+      "out_date": "2026-01-16",
+      "delta_kg": 8,
+      "fill_count": 1,
+      "fill_sum_kg": 68,
+      "out_net_kg": 62,
+      "theoretical_out_kg": 70,
+      "source_out_id": "6969e3387ae7089a62853063"
+    },
+    {
+      "bottle_no": "51",
+      "back_date": "2026-01-07",
+      "out_date": "2026-01-10",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 66,
+      "out_net_kg": 65,
+      "theoretical_out_kg": 67,
+      "source_out_id": "6962050d3f1a479d27c53945"
+    },
+    {
+      "bottle_no": "52",
+      "back_date": "2026-02-27",
+      "out_date": "2026-03-02",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 67,
+      "out_net_kg": 66,
+      "theoretical_out_kg": 69,
+      "source_out_id": "69bbb2c236bc4bac6fd4c75e"
+    },
+    {
+      "bottle_no": "53",
+      "back_date": "2026-02-14",
+      "out_date": "2026-02-25",
+      "delta_kg": 32,
+      "fill_count": 1,
+      "fill_sum_kg": 55,
+      "out_net_kg": 62,
+      "theoretical_out_kg": 94,
+      "source_out_id": "69bbb2c289d8371762438b68"
+    },
+    {
+      "bottle_no": "55",
+      "back_date": "2026-01-22",
+      "out_date": "2026-01-28",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 66,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 66,
+      "source_out_id": "6979abc0286f7ce0113d04bd"
+    },
+    {
+      "bottle_no": "56",
+      "back_date": "2026-02-01",
+      "out_date": "2026-02-04",
+      "delta_kg": 11,
+      "fill_count": 1,
+      "fill_sum_kg": 39,
+      "out_net_kg": 62,
+      "theoretical_out_kg": 73,
+      "source_out_id": "6982dc1dbd022020ee0524d9"
+    },
+    {
+      "bottle_no": "56",
+      "back_date": "2026-01-27",
+      "out_date": "2026-01-28",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 65,
+      "out_net_kg": 63,
+      "theoretical_out_kg": 65,
+      "source_out_id": "6979abc0286f7ce0113d04bd"
+    },
+    {
+      "bottle_no": "59",
+      "back_date": "2026-02-07",
+      "out_date": "2026-03-10",
+      "delta_kg": 13,
+      "fill_count": 1,
+      "fill_sum_kg": 75,
+      "out_net_kg": 62,
+      "theoretical_out_kg": 75,
+      "source_out_id": "69bbb2c485d19fd7c4625d96"
+    },
+    {
+      "bottle_no": "6",
+      "back_date": "2026-02-10",
+      "out_date": "2026-02-12",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 50,
+      "out_net_kg": 66,
+      "theoretical_out_kg": 70,
+      "source_out_id": "69bbb2c136bc4bac6fd4c706"
+    },
+    {
+      "bottle_no": "63",
+      "back_date": "2026-01-24",
+      "out_date": "2026-01-28",
+      "delta_kg": 6,
+      "fill_count": 1,
+      "fill_sum_kg": 65,
+      "out_net_kg": 59,
+      "theoretical_out_kg": 65,
+      "source_out_id": "6979abc0286f7ce0113d04bd"
+    },
+    {
+      "bottle_no": "64",
+      "back_date": "2026-01-26",
+      "out_date": "2026-01-30",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 64,
+      "out_net_kg": 61,
+      "theoretical_out_kg": 64,
+      "source_out_id": "697c448f89bd27ad0669bc9b"
+    },
+    {
+      "bottle_no": "64",
+      "back_date": "2026-01-22",
+      "out_date": "2026-01-24",
+      "delta_kg": 5,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 66,
+      "theoretical_out_kg": 71,
+      "source_out_id": "697467f6f08210adb35d4c42"
+    },
+    {
+      "bottle_no": "65",
+      "back_date": "2026-01-02",
+      "out_date": "2026-01-04",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 66,
+      "out_net_kg": 63,
+      "theoretical_out_kg": 66,
+      "source_out_id": "695dab3755b337aa1cd9d2f8"
+    },
+    {
+      "bottle_no": "66",
+      "back_date": "2026-02-10",
+      "out_date": "2026-02-13",
+      "delta_kg": 18,
+      "fill_count": 1,
+      "fill_sum_kg": 66,
+      "out_net_kg": 66,
+      "theoretical_out_kg": 84,
+      "source_out_id": "69bbb2c136bc4bac6fd4c710"
+    },
+    {
+      "bottle_no": "66",
+      "back_date": "2026-01-18",
+      "out_date": "2026-01-20",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 66,
+      "out_net_kg": 63,
+      "theoretical_out_kg": 66,
+      "source_out_id": "696f2f7c9755e34a91911078"
+    },
+    {
+      "bottle_no": "69",
+      "back_date": "2026-02-10",
+      "out_date": "2026-02-12",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 67,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 67,
+      "source_out_id": "69bbb2c136bc4bac6fd4c706"
+    },
+    {
+      "bottle_no": "74",
+      "back_date": "2026-01-17",
+      "out_date": "2026-01-18",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 66,
+      "out_net_kg": 62,
+      "theoretical_out_kg": 66,
+      "source_out_id": "696d7bb72eea65354578f77b"
+    },
+    {
+      "bottle_no": "79",
+      "back_date": "2026-02-03",
+      "out_date": "2026-02-06",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 68,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 66,
+      "source_out_id": "69858794189f86f427518f82"
+    },
+    {
+      "bottle_no": "79",
+      "back_date": "2026-01-14",
+      "out_date": "2026-01-14",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 19,
+      "out_net_kg": 62,
+      "theoretical_out_kg": 65,
+      "source_out_id": "69672d64149854772fa2482c"
+    },
+    {
+      "bottle_no": "82",
+      "back_date": "2026-01-02",
+      "out_date": "2026-01-04",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 66,
+      "out_net_kg": 65,
+      "theoretical_out_kg": 66,
+      "source_out_id": "695dab3755b337aa1cd9d2f8"
+    },
+    {
+      "bottle_no": "85",
+      "back_date": "2026-02-06",
+      "out_date": "2026-02-10",
+      "delta_kg": 6,
+      "fill_count": 1,
+      "fill_sum_kg": 30,
+      "out_net_kg": 65,
+      "theoretical_out_kg": 71,
+      "source_out_id": "69bbb2c036bc4bac6fd4c6ed"
+    },
+    {
+      "bottle_no": "85",
+      "back_date": "2026-01-22",
+      "out_date": "2026-01-24",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 66,
+      "out_net_kg": 62,
+      "theoretical_out_kg": 66,
+      "source_out_id": "697467f6f08210adb35d4c42"
+    },
+    {
+      "bottle_no": "88",
+      "back_date": "2026-02-01",
+      "out_date": "2026-03-02",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 68,
+      "out_net_kg": 66,
+      "theoretical_out_kg": 68,
+      "source_out_id": "69bbb2c236bc4bac6fd4c75e"
+    },
+    {
+      "bottle_no": "89",
+      "back_date": "2026-01-04",
+      "out_date": "2026-01-06",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 66,
+      "out_net_kg": 63,
+      "theoretical_out_kg": 66,
+      "source_out_id": "695f034e1c90b6a7cc305ed9"
+    },
+    {
+      "bottle_no": "9",
+      "back_date": "2026-03-02",
+      "out_date": "2026-03-04",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 67,
+      "out_net_kg": 65,
+      "theoretical_out_kg": 67,
+      "source_out_id": "69bbb2c385d19fd7c4625d7a"
+    },
+    {
+      "bottle_no": "9",
+      "back_date": "2026-02-11",
+      "out_date": "2026-02-28",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 67,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 67,
+      "source_out_id": "69bbb2c289d8371762438b7d"
+    },
+    {
+      "bottle_no": "90",
+      "back_date": "2026-02-06",
+      "out_date": "2026-02-10",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 65,
+      "out_net_kg": 64,
+      "theoretical_out_kg": 67,
+      "source_out_id": "69bbb2c036bc4bac6fd4c6ed"
+    },
+    {
+      "bottle_no": "91",
+      "back_date": "2026-02-04",
+      "out_date": "2026-03-02",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 68,
+      "out_net_kg": 66,
+      "theoretical_out_kg": 68,
+      "source_out_id": "69bbb2c236bc4bac6fd4c75e"
+    },
+    {
+      "bottle_no": "92",
+      "back_date": "2026-02-07",
+      "out_date": "2026-02-11",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 67,
+      "out_net_kg": 66,
+      "theoretical_out_kg": 67,
+      "source_out_id": "69bbb2c089d8371762438b52"
+    },
+    {
+      "bottle_no": "94",
+      "back_date": "2026-02-06",
+      "out_date": "2026-02-08",
+      "delta_kg": 32,
+      "fill_count": 1,
+      "fill_sum_kg": 65,
+      "out_net_kg": 63,
+      "theoretical_out_kg": 95,
+      "source_out_id": "69bbb2c01501ab29a1bd85f0"
+    },
+    {
+      "bottle_no": "Y003",
+      "back_date": "2026-03-13",
+      "out_date": "2026-03-14",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 73,
+      "source_out_id": "69bbb2c585d19fd7c4625d9e"
+    },
+    {
+      "bottle_no": "Y015",
+      "back_date": "2026-02-06",
+      "out_date": "2026-02-08",
+      "delta_kg": 9,
+      "fill_count": 1,
+      "fill_sum_kg": 60,
+      "out_net_kg": 71,
+      "theoretical_out_kg": 80,
+      "source_out_id": "69bbb2c01501ab29a1bd85f0"
+    },
+    {
+      "bottle_no": "Y040",
+      "back_date": "2026-03-15",
+      "out_date": "2026-03-16",
+      "delta_kg": 33,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 57,
+      "theoretical_out_kg": 90,
+      "source_out_id": "69bbb2c589d8371762438bda"
+    },
+    {
+      "bottle_no": "Y041",
+      "back_date": "2026-02-05",
+      "out_date": "2026-02-08",
+      "delta_kg": 31,
+      "fill_count": 1,
+      "fill_sum_kg": 60,
+      "out_net_kg": 69,
+      "theoretical_out_kg": 100,
+      "source_out_id": "69bbb2c01501ab29a1bd85f0"
+    },
+    {
+      "bottle_no": "Y056",
+      "back_date": "2026-01-21",
+      "out_date": "2026-01-22",
+      "delta_kg": 22,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 71,
+      "theoretical_out_kg": 93,
+      "source_out_id": "6971bc026e5d2d492fc26263"
+    },
+    {
+      "bottle_no": "Y056",
+      "back_date": "2026-01-12",
+      "out_date": "2026-01-14",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 73,
+      "source_out_id": "69672d64149854772fa2482c"
+    },
+    {
+      "bottle_no": "Y056",
+      "back_date": "2026-01-09",
+      "out_date": "2026-01-10",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 71,
+      "source_out_id": "6962050d3f1a479d27c53945"
+    },
+    {
+      "bottle_no": "Y082",
+      "back_date": "2026-03-15",
+      "out_date": "2026-03-16",
+      "delta_kg": 4,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 69,
+      "theoretical_out_kg": 73,
+      "source_out_id": "69bbb2c589d8371762438bda"
+    },
+    {
+      "bottle_no": "Y082",
+      "back_date": "2026-02-10",
+      "out_date": "2026-02-27",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 71,
+      "theoretical_out_kg": 74,
+      "source_out_id": "69bbb2c236bc4bac6fd4c74d"
+    },
+    {
+      "bottle_no": "Y111",
+      "back_date": "2026-01-09",
+      "out_date": "2026-01-10",
+      "delta_kg": 2,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 69,
+      "theoretical_out_kg": 71,
+      "source_out_id": "6962050d3f1a479d27c53945"
+    },
+    {
+      "bottle_no": "Y133",
+      "back_date": "2026-01-05",
+      "out_date": "2026-01-06",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 69,
+      "theoretical_out_kg": 70,
+      "source_out_id": "695f034e1c90b6a7cc305ed9"
+    },
+    {
+      "bottle_no": "Y137",
+      "back_date": "2026-02-06",
+      "out_date": "2026-02-08",
+      "delta_kg": 33,
+      "fill_count": 1,
+      "fill_sum_kg": 68,
+      "out_net_kg": 68,
+      "theoretical_out_kg": 101,
+      "source_out_id": "69bbb2c01501ab29a1bd85f0"
+    },
+    {
+      "bottle_no": "Y142",
+      "back_date": "2026-03-07",
+      "out_date": "2026-03-10",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 72,
+      "theoretical_out_kg": 73,
+      "source_out_id": "69bbb2c485d19fd7c4625d96"
+    },
+    {
+      "bottle_no": "Y142",
+      "back_date": "2026-01-04",
+      "out_date": "2026-01-06",
+      "delta_kg": 3,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 73,
+      "source_out_id": "695f034e1c90b6a7cc305ed9"
+    },
+    {
+      "bottle_no": "Y155",
+      "back_date": "2026-01-11",
+      "out_date": "2026-01-12",
+      "delta_kg": 1,
+      "fill_count": 1,
+      "fill_sum_kg": 69,
+      "out_net_kg": 70,
+      "theoretical_out_kg": 71,
+      "source_out_id": "6964a9228b0da4f195e08c48"
+    },
+    {
+      "bottle_no": "Y172",
+      "back_date": "2026-03-15",
+      "out_date": "2026-03-16",
+      "delta_kg": 6,
+      "fill_count": 1,
+      "fill_sum_kg": 71,
+      "out_net_kg": 68,
+      "theoretical_out_kg": 74,
+      "source_out_id": "69bbb2c589d8371762438bda"
+    }
+  ],
+  "raw_manual_loss_rows": [
+    {
+      "bottle_no": "166",
+      "out_date": "2026-02-13",
+      "loss_kg": 0,
+      "source_out_id": "69bbb2c136bc4bac6fd4c710",
+      "anomaly_id": "69c342af5cee11b05e84d680"
+    },
+    {
+      "bottle_no": "351",
+      "out_date": "2026-02-21",
+      "loss_kg": 5,
+      "source_out_id": "69bbaffd0add39bd434a401d",
+      "anomaly_id": "69c342c35c28c95aac378c2e"
+    },
+    {
+      "bottle_no": "365",
+      "out_date": "2026-02-08",
+      "loss_kg": 3,
+      "source_out_id": "69bbb2c01501ab29a1bd85f0",
+      "anomaly_id": "69c342c5ea3400db0380db63"
+    }
+  ]
+}

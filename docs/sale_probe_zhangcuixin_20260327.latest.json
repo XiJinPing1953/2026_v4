@@ -1,0 +1,83 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "customer_name": "张翠欣皮厂",
+  "date": "2026-03-27",
+  "total_candidates": 1,
+  "matched_total": 1,
+  "details": [
+    {
+      "_id": "69c8afca59063e84c13ec7bd",
+      "date": "2026-03-27",
+      "customer_name": "赫远皮革北厂-张翠欣皮厂",
+      "biz_mode": "bottle",
+      "out_bottle_nos": [
+        "143",
+        "45"
+      ],
+      "back_bottle_nos": [
+        "163",
+        "217"
+      ],
+      "deposit_bottle_nos": [
+        "143",
+        "45"
+      ],
+      "out_items": [
+        {
+          "net": 57,
+          "tare": 106,
+          "gross": 163,
+          "bottle_id": "693fbee16dd837518fa11ffc",
+          "bottle_no": "45"
+        },
+        {
+          "net": 75,
+          "tare": 117,
+          "gross": 192,
+          "bottle_id": "693fbee16dd837518fa12061",
+          "bottle_no": "143"
+        }
+      ],
+      "back_items": [
+        {
+          "net": 3,
+          "tare": 117,
+          "gross": 120,
+          "bottle_id": "693fbee16dd837518fa120a8",
+          "bottle_no": "217"
+        },
+        {
+          "net": 3,
+          "tare": 117,
+          "gross": 120,
+          "bottle_id": "693fbee16dd837518fa12070",
+          "bottle_no": "163"
+        }
+      ],
+      "deposit_rows": [
+        {
+          "bottle_id": "693fbee16dd837518fa11ffc",
+          "bottle_no": "45"
+        },
+        {
+          "bottle_id": "693fbee16dd837518fa12061",
+          "bottle_no": "143"
+        }
+      ]
+    }
+  ],
+  "deposit_preview": {
+    "customer_id": "694045c0adf6dbd796e26214",
+    "customer_name": "赫远皮革北厂-张翠欣皮厂",
+    "bottles": [
+      "132",
+      "143",
+      "372",
+      "42",
+      "44",
+      "45"
+    ],
+    "raw": "132 / 143 / 372 / 42 / 44 / 45",
+    "count": 6
+  }
+}

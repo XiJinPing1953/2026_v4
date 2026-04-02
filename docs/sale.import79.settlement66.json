@@ -1,0 +1,596 @@
+[
+  {
+    "line_no": 1674,
+    "legacy_id": "69ba417f9755e31c757028f0",
+    "customer_name": "新乐馒头",
+    "date": "2026-03-18",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 2690
+  },
+  {
+    "line_no": 1660,
+    "legacy_id": "69b9fa357ae7080e4eeae544",
+    "customer_name": "土山蛋糕",
+    "date": "2026-03-18",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 740
+  },
+  {
+    "line_no": 1653,
+    "legacy_id": "69b90baa8a5c785fa827e199",
+    "customer_name": "辛集喷塑厂",
+    "date": "2026-03-17",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 2050
+  },
+  {
+    "line_no": 1640,
+    "legacy_id": "69b8e951c3b5c9fe38986468",
+    "customer_name": "云海木业",
+    "date": "2026-03-17",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 930
+  },
+  {
+    "line_no": 1621,
+    "legacy_id": "69b7c1a9286f7cf6749907c7",
+    "customer_name": "新乐馒头",
+    "date": "2026-03-16",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 2430
+  },
+  {
+    "line_no": 1615,
+    "legacy_id": "69b7a9b999c624251d9df47c",
+    "customer_name": "张有伏",
+    "date": "2026-03-16",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 7245
+  },
+  {
+    "line_no": 1613,
+    "legacy_id": "69b7a4b8466d41057d41f4f5",
+    "customer_name": "固营馒头",
+    "date": "2026-03-16",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 620
+  },
+  {
+    "line_no": 1592,
+    "legacy_id": "69b75430bd0220abe8cf0cb6",
+    "customer_name": "云海木业",
+    "date": "2026-03-15",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 500
+  },
+  {
+    "line_no": 1583,
+    "legacy_id": "69b74de73d029cb137606ba9",
+    "customer_name": "底家烧烤",
+    "date": "2026-03-15",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 500
+  },
+  {
+    "line_no": 1580,
+    "legacy_id": "69b74d578b0da47f7845569f",
+    "customer_name": "信诺板厂",
+    "date": "2026-03-15",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 140
+  },
+  {
+    "line_no": 1577,
+    "legacy_id": "69b74c4709664ccb307898e6",
+    "customer_name": "陈建磊板厂",
+    "date": "2026-03-15",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 2030
+  },
+  {
+    "line_no": 1555,
+    "legacy_id": "69b50238fe975feab6e7f4a8",
+    "customer_name": "新乐馒头",
+    "date": "2026-03-14",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 2718
+  },
+  {
+    "line_no": 1529,
+    "legacy_id": "69b3b0d91c90b65dfb07ca47",
+    "customer_name": "云海木业",
+    "date": "2026-03-13",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 1000
+  },
+  {
+    "line_no": 1525,
+    "legacy_id": "69b3a391bd0220abe872bd2c",
+    "customer_name": "陈建磊板厂",
+    "date": "2026-03-13",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 1290
+  },
+  {
+    "line_no": 1516,
+    "legacy_id": "69b380fe816a3fa30fc8e69f",
+    "customer_name": "老马烧烤",
+    "date": "2026-03-13",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 892
+  },
+  {
+    "line_no": 1507,
+    "legacy_id": "69b35aa0816a3fa30fc333cd",
+    "customer_name": "昊天干真空",
+    "date": "2026-03-13",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 420
+  },
+  {
+    "line_no": 1497,
+    "legacy_id": "69b2643799c624251d14a6ad",
+    "customer_name": "天天肉食（黄庄）",
+    "date": "2026-03-12",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 783
+  },
+  {
+    "line_no": 1474,
+    "legacy_id": "69b13099eef9cbb35188fbd0",
+    "customer_name": "陈建磊板厂",
+    "date": "2026-03-11",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 980
+  },
+  {
+    "line_no": 1436,
+    "legacy_id": "69afb5beb9fb23fdbb7e175a",
+    "customer_name": "新乐馒头",
+    "date": "2026-03-10",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 2800
+  },
+  {
+    "line_no": 1415,
+    "legacy_id": "69ae7804f0821036158374ff",
+    "customer_name": "云海木业",
+    "date": "2026-03-09",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 985
+  },
+  {
+    "line_no": 1403,
+    "legacy_id": "69ae59aace5ec9f533522a85",
+    "customer_name": "陈建磊板厂",
+    "date": "2026-03-09",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 2400
+  },
+  {
+    "line_no": 1394,
+    "legacy_id": "69ae2c73ee97ef2e314584ff",
+    "customer_name": "土山蛋糕",
+    "date": "2026-03-09",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 740
+  },
+  {
+    "line_no": 1386,
+    "legacy_id": "69ae15e97ad52d3955540e71",
+    "customer_name": "润信喷塑",
+    "date": "2026-03-08",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 693
+  },
+  {
+    "line_no": 1381,
+    "legacy_id": "69ae1384337a9f72a25507b8",
+    "customer_name": "老厨子谷顺炖鸡",
+    "date": "2026-03-08",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 423
+  },
+  {
+    "line_no": 1375,
+    "legacy_id": "69ae1206652341ddc8157e77",
+    "customer_name": "新乐馒头",
+    "date": "2026-03-08",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 2560
+  },
+  {
+    "line_no": 1338,
+    "legacy_id": "69ab935c7ad52d395519b873",
+    "customer_name": "韩通油条",
+    "date": "2026-03-07",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 495
+  },
+  {
+    "line_no": 1333,
+    "legacy_id": "69ab8ae13f1a47afc07aaec0",
+    "customer_name": "马忠山拉面",
+    "date": "2026-03-07",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 459
+  },
+  {
+    "line_no": 1332,
+    "legacy_id": "69ab8332f2949c72753efa0f",
+    "customer_name": "陈建磊板厂",
+    "date": "2026-03-07",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 1860
+  },
+  {
+    "line_no": 1324,
+    "legacy_id": "69aa72fff2949c727526af86",
+    "customer_name": "保定依护卫生活",
+    "date": "2026-03-06",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 3702
+  },
+  {
+    "line_no": 1320,
+    "legacy_id": "69aa68e121821bd3f4d2b7b7",
+    "customer_name": "新乐馒头",
+    "date": "2026-03-06",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 2355
+  },
+  {
+    "line_no": 1274,
+    "legacy_id": "69a7c594a674f4e24fc3c716",
+    "customer_name": "新乐馒头",
+    "date": "2026-03-04",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 2420
+  },
+  {
+    "line_no": 1243,
+    "legacy_id": "69a521e565234165c780f069",
+    "customer_name": "新乐馒头",
+    "date": "2026-03-02",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 2790
+  },
+  {
+    "line_no": 1226,
+    "legacy_id": "69a4d9418b0da47f78802567",
+    "customer_name": "五记兴",
+    "date": "2026-03-01",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1219,
+    "legacy_id": "69a28a26f08210361566ffcc",
+    "customer_name": "新乐馒头",
+    "date": "2026-02-28",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 755
+  },
+  {
+    "line_no": 1209,
+    "legacy_id": "69a244d4337a9f87bb4cfd10",
+    "customer_name": "陈建磊板厂",
+    "date": "2026-02-28",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 1850
+  },
+  {
+    "line_no": 1200,
+    "legacy_id": "69a12f96f2949c727549e6cc",
+    "customer_name": "新乐馒头",
+    "date": "2026-02-27",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 1750
+  },
+  {
+    "line_no": 1199,
+    "legacy_id": "69a12f4aa7c432ff9ec057cf",
+    "customer_name": "土山蛋糕",
+    "date": "2026-02-27",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 390
+  },
+  {
+    "line_no": 1190,
+    "legacy_id": "69a10344f082103615418299",
+    "customer_name": "东门包子",
+    "date": "2026-02-27",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 568
+  },
+  {
+    "line_no": 1189,
+    "legacy_id": "69a0fb79fe975fd854679175",
+    "customer_name": "广诚皮业",
+    "date": "2026-02-27",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 56
+  },
+  {
+    "line_no": 1179,
+    "legacy_id": "699fdcf5f2949c727529d682",
+    "customer_name": "袁记老豆腐",
+    "date": "2026-02-26",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 135
+  },
+  {
+    "line_no": 1167,
+    "legacy_id": "699e8c71f2949c72750bf6f5",
+    "customer_name": "新乐馒头",
+    "date": "2026-02-25",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 410
+  },
+  {
+    "line_no": 1158,
+    "legacy_id": "699d3d070d2b31ab454d30df",
+    "customer_name": "奇力机柜",
+    "date": "2026-02-24",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 576
+  },
+  {
+    "line_no": 1150,
+    "legacy_id": "699cf80fee97ef2e31aba4b7",
+    "customer_name": "五记兴",
+    "date": "2026-02-23",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 661
+  },
+  {
+    "line_no": 1148,
+    "legacy_id": "699cf77a14985458ebd24125",
+    "customer_name": "大名馒头",
+    "date": "2026-02-23",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 378
+  },
+  {
+    "line_no": 1147,
+    "legacy_id": "699cf6ba2eea6562d4e919aa",
+    "customer_name": "新乐馒头",
+    "date": "2026-02-23",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 1829
+  },
+  {
+    "line_no": 1143,
+    "legacy_id": "699bcaf409664ce9cef1d8a6",
+    "customer_name": "王玲玲拉面",
+    "date": "2026-02-22",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 369
+  },
+  {
+    "line_no": 1132,
+    "legacy_id": "699bc54eb9fb2336837805dc",
+    "customer_name": "老厨子谷顺炖鸡",
+    "date": "2026-02-15",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1111,
+    "legacy_id": "698eb8d509664c6b30ca18a5",
+    "customer_name": "新乐馒头",
+    "date": "2026-02-13",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 5180
+  },
+  {
+    "line_no": 1115,
+    "legacy_id": "698ec48989bd27aeba8d6559",
+    "customer_name": "韩通牛肉汤",
+    "date": "2026-02-13",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 242
+  },
+  {
+    "line_no": 1108,
+    "legacy_id": "698e78458a5c785fa893e8ca",
+    "customer_name": "福惠馒头",
+    "date": "2026-02-13",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 730
+  },
+  {
+    "line_no": 1101,
+    "legacy_id": "698d3f61eef9cbb351a8ca0f",
+    "customer_name": "新乐馒头",
+    "date": "2026-02-12",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 3000
+  },
+  {
+    "line_no": 1091,
+    "legacy_id": "698c145c816a3f8f1d541cd7",
+    "customer_name": "赫远皮革北厂-张翠欣皮厂",
+    "date": "2026-02-11",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1090,
+    "legacy_id": "698bf48b3f1a47100dc1c40b",
+    "customer_name": "新乐馒头",
+    "date": "2026-02-11",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 2775
+  },
+  {
+    "line_no": 1088,
+    "legacy_id": "698bec627ae7089a621b32fa",
+    "customer_name": "鲁家庄炒瓜子",
+    "date": "2026-02-11",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1087,
+    "legacy_id": "698bdf5ba674f4c8f728e6cf",
+    "customer_name": "鲍立雄",
+    "date": "2026-02-11",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 287
+  },
+  {
+    "line_no": 1083,
+    "legacy_id": "698acb0789bd278331dff30d",
+    "customer_name": "新乐馒头",
+    "date": "2026-02-10",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 2665
+  },
+  {
+    "line_no": 1078,
+    "legacy_id": "698ac757bd022020eea3c2a9",
+    "customer_name": "赫远皮革南厂-刘建辉",
+    "date": "2026-02-10",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1074,
+    "legacy_id": "698a980e286f7c3cf529a088",
+    "customer_name": "张有伏",
+    "date": "2026-02-10",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 3788
+  },
+  {
+    "line_no": 1070,
+    "legacy_id": "6989872f3f1a47198a7f5aea",
+    "customer_name": "福惠馒头",
+    "date": "2026-02-09",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 900
+  },
+  {
+    "line_no": 1064,
+    "legacy_id": "69897321a674f4c8f7f8ef9e",
+    "customer_name": "新乐馒头",
+    "date": "2026-02-09",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 2440
+  },
+  {
+    "line_no": 1052,
+    "legacy_id": "698928a0466d41193f30897a",
+    "customer_name": "赫远皮革南厂-刘建辉",
+    "date": "2026-02-08",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1049,
+    "legacy_id": "698927bba674f4c8f7f22567",
+    "customer_name": "新乐馒头",
+    "date": "2026-02-08",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 3190
+  },
+  {
+    "line_no": 1048,
+    "legacy_id": "698926f1a7c432dd4e53fc67",
+    "customer_name": "慧聪皮革厂",
+    "date": "2026-02-08",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 176
+  },
+  {
+    "line_no": 1043,
+    "legacy_id": "69892489a09a9bb9df272b1f",
+    "customer_name": "鲁家庄炒瓜子",
+    "date": "2026-02-08",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 3030
+  },
+  {
+    "line_no": 1037,
+    "legacy_id": "698921130d2b31bc7529d400",
+    "customer_name": "赫远皮革北厂-张翠欣皮厂",
+    "date": "2026-02-08",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 53.5
+  },
+  {
+    "line_no": 1038,
+    "legacy_id": "6989214189bd278331bd1804",
+    "customer_name": "赫远皮革北厂-丁亚军",
+    "date": "2026-02-08",
+    "reason": "settlement_mismatch",
+    "payment_status": "paid",
+    "amount_received": 252
+  }
+]

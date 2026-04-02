@@ -1,0 +1,159 @@
+{
+  "generated_at": "2026-03-19T10:01:57.650Z",
+  "space_id": "env-00jxuffegf2n",
+  "file": "/Users/wangbo/Downloads/2026_v4/docs/客户.json",
+  "file_total": 120,
+  "cloud_total": 120,
+  "only_in_file_total": 3,
+  "only_in_cloud_total": 3,
+  "changed_total": 5,
+  "only_in_file": [
+    {
+      "_id": "69a4d556ce5ec9f5336aa6cd",
+      "name": "蓝峰锅炉",
+      "phone": "13832365805",
+      "contact": "",
+      "address": "南楼",
+      "default_unit_price": 9,
+      "default_price_unit": "kg",
+      "is_active": true,
+      "remark": "3月1日付押金2瓶*5000元=1万元"
+    },
+    {
+      "_id": "69a633f30d2b31ab451e35b3",
+      "name": "丁军龙皮厂",
+      "phone": "13028627815",
+      "contact": "丁军龙",
+      "address": "",
+      "default_unit_price": 7,
+      "default_price_unit": "kg",
+      "is_active": true,
+      "remark": "26年3月3日安装\n30方汽化器一个"
+    },
+    {
+      "_id": "69ab8e3b8b0da47f78222817",
+      "name": "正豪皮革厂-靳占彬",
+      "phone": "15103112144",
+      "contact": "靳占彬",
+      "address": "",
+      "default_unit_price": 7,
+      "default_price_unit": "kg",
+      "is_active": true,
+      "remark": "26年3月7日安装"
+    }
+  ],
+  "only_in_cloud": [
+    {
+      "_id": "69bbb2c31bfe16da6e9cc977",
+      "name": "正豪皮革厂-靳占彬",
+      "phone": "",
+      "contact": "",
+      "address": "",
+      "default_unit_price": null,
+      "default_price_unit": "kg",
+      "is_active": true,
+      "remark": "legacy sale import auto-created"
+    },
+    {
+      "_id": "69bbb2c24f4cace5e7e84eaf",
+      "name": "丁军龙皮厂",
+      "phone": "",
+      "contact": "",
+      "address": "",
+      "default_unit_price": null,
+      "default_price_unit": "kg",
+      "is_active": true,
+      "remark": "legacy sale import auto-created"
+    },
+    {
+      "_id": "69bbb2c24f4cace5e7e84eab",
+      "name": "蓝峰锅炉",
+      "phone": "",
+      "contact": "",
+      "address": "",
+      "default_unit_price": null,
+      "default_price_unit": "kg",
+      "is_active": true,
+      "remark": "legacy sale import auto-created"
+    }
+  ],
+  "changed": [
+    {
+      "key": "张有伏|18203229590",
+      "name": "张有伏",
+      "phone": "18203229590",
+      "file_id": "694045c0adf6dbd796e261c0",
+      "cloud_id": "694045c0adf6dbd796e261c0",
+      "diff": {
+        "default_unit_price": {
+          "file": 5.3,
+          "cloud": 4.7
+        },
+        "remark": {
+          "file": "26年1月21日起改价从5.3元/公斤改成4.7元/公斤\n3月9日改价6.2\n3月16日改价5.3",
+          "cloud": "26年1月21日起改价从5.3元/公斤改成4.7元/公斤"
+        }
+      }
+    },
+    {
+      "key": "肃宁-金颖|13722768558",
+      "name": "肃宁-金颖",
+      "phone": "13722768558",
+      "file_id": "694045c0adf6dbd796e261f9",
+      "cloud_id": "694045c0adf6dbd796e261f9",
+      "diff": {
+        "default_unit_price": {
+          "file": 450,
+          "cloud": 420
+        }
+      }
+    },
+    {
+      "key": "舟山晋业能源有限公司|",
+      "name": "舟山晋业能源有限公司",
+      "phone": "",
+      "file_id": "694045c0adf6dbd796e2621a",
+      "cloud_id": "694045c0adf6dbd796e2621a",
+      "diff": {
+        "default_unit_price": {
+          "file": 5.3,
+          "cloud": 4.5
+        },
+        "remark": {
+          "file": "1月开始单价从5.3元改成4.5元\n3月7日改价6.2元\n3月18日改价5.3元",
+          "cloud": "1月开始单价从5.3元改成4.5元"
+        }
+      }
+    },
+    {
+      "key": "万盛帆布北|",
+      "name": "万盛帆布北",
+      "phone": "",
+      "file_id": "694045c0adf6dbd796e261fc",
+      "cloud_id": "694045c0adf6dbd796e261fc",
+      "diff": {
+        "is_active": {
+          "file": false,
+          "cloud": true
+        },
+        "remark": {
+          "file": "25年7月25日安装汽化器\n26年2月12日拆除",
+          "cloud": ""
+        }
+      }
+    },
+    {
+      "key": "四公|",
+      "name": "四公",
+      "phone": "",
+      "file_id": "698953966e5d2daaa76ba590",
+      "cloud_id": "69bbb2c04f4cace5e7e84e75",
+      "diff": {
+        "remark": {
+          "file": "",
+          "cloud": "legacy sale import auto-created"
+        }
+      }
+    }
+  ]
+}

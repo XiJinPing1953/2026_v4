@@ -1,0 +1,80 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "date": "2026-03-31",
+  "bottle_no": "261",
+  "create_probe": {
+    "code": 409,
+    "msg": "发现 1 条灌装流转预警，请核对瓶号。",
+    "data": {
+      "confirmable": true,
+      "warning_kind": "bottle_flow_mismatch",
+      "warning_items": [
+        {
+          "bottle_no": "261",
+          "last_out_date": "2026-03-29",
+          "last_out_customer_name": "上庄美食美客",
+          "status_code": "out",
+          "reason": "2026-03-29出瓶至\"上庄美食美客\"，未回瓶，请检查"
+        }
+      ],
+      "summary_text": "发现 1 条灌装流转预警，请核对瓶号。"
+    }
+  },
+  "batch_preview_probe": {
+    "code": 0,
+    "msg": "ok",
+    "data": {
+      "date": "2026-03-31",
+      "target_total": 1,
+      "invalid_total": 0,
+      "duplicate_total": 0,
+      "existing_total": 0,
+      "warning_total": 1,
+      "summary_text": "发现 1 条灌装流转预警，请核对瓶号。",
+      "sample_bottle_nos": [
+        "261"
+      ],
+      "create_items": [
+        {
+          "line_no": 1,
+          "bottle_no": "261",
+          "fill_weight": 66,
+          "warning_reason": "2026-03-29出瓶至\"上庄美食美客\"，未回瓶，请检查",
+          "warning_status_code": "out",
+          "warning_last_out_date": "2026-03-29",
+          "warning_last_out_customer_name": "上庄美食美客"
+        }
+      ],
+      "warning_items": [
+        {
+          "bottle_no": "261",
+          "last_out_date": "2026-03-29",
+          "last_out_customer_name": "上庄美食美客",
+          "status_code": "out",
+          "reason": "2026-03-29出瓶至\"上庄美食美客\"，未回瓶，请检查"
+        }
+      ],
+      "existing_items": [],
+      "invalid_items": [],
+      "limit": 2000
+    }
+  },
+  "batch_execute_probe": {
+    "code": 409,
+    "msg": "发现 1 条灌装流转预警，请核对瓶号。",
+    "data": {
+      "confirmable": true,
+      "warning_kind": "bottle_flow_mismatch",
+      "warning_items": [
+        {
+          "bottle_no": "261",
+          "last_out_date": "2026-03-29",
+          "last_out_customer_name": "上庄美食美客",
+          "status_code": "out",
+          "reason": "2026-03-29出瓶至\"上庄美食美客\"，未回瓶，请检查"
+        }
+      ],
+      "summary_text": "发现 1 条灌装流转预警，请核对瓶号。"
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-03-18T15:00:58.388Z",
+  "input": "docs/sale_20260318225227_preclean.fixed.array.json",
+  "total_rows": 1686,
+  "blocked_rows": 1,
+  "pass_rows": 1685,
+  "blocked_preview": [
+    {
+      "line": 1063,
+      "_id": "6989537d7ae7089a62e82946",
+      "customer_name": "四公",
+      "reasons": [
+        "missing_customer"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "started_at": "2026-03-17T10:00:09.415Z",
+  "finished_at": "2026-03-17T10:00:09.416Z",
+  "mode": "dry-run",
+  "input_path": "/Users/wangbo/Downloads/2026_v4/docs/2026.json",
+  "parse_mode": "json-stream-array-wrap",
+  "space_id": "env-00jxuffegf2n",
+  "input_total": 3827,
+  "input_normalized_total": 3827,
+  "input_invalid_total": 0,
+  "input_duplicate_total": 0,
+  "input_by_type": {
+    "normal_fill": 3506,
+    "truck_out_agent_sale": 252,
+    "truck_out_no_sale": 69
+  },
+  "existing_loaded_by_type": {
+    "normal_fill": 3505,
+    "truck_out_agent_sale": 242,
+    "truck_out_no_sale": 69
+  },
+  "already_exists_total": 3816,
+  "target_total": 11,
+  "success_total": 0,
+  "conflict_total": 0,
+  "failed_total": 0,
+  "conflicts_preview": [],
+  "failed_preview": [],
+  "warnings_preview": [],
+  "input_invalid_preview": [],
+  "input_duplicate_preview": []
+}

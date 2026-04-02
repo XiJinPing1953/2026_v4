@@ -1,0 +1,164 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "bottle_no": "368",
+  "fill_date": "2026-03-30",
+  "resolve_result": {
+    "code": 400,
+    "msg": "未找到瓶号 368 的最近回瓶总重"
+  },
+  "back_sale_source_ids": [
+    "695cb9c8f2949c9689290912",
+    "6960713321821b751bab56d8",
+    "69745c26a674f4133ce41590",
+    "697c448f89bd27ad0669bc9b",
+    "69bbaffaf7ac1a41a1adc8da",
+    "69bbb0000add39bd434a40c6",
+    "69bbb00689d8371762435cea",
+    "69bbb00ff7ac1a41a1adcb77",
+    "69bbb01589d8371762435e7e",
+    "69c9c6875c28c95aacad2895"
+  ],
+  "back_sale_hits": [
+    {
+      "_id": "69c9c6875c28c95aacad2895",
+      "date": "2026-03-28",
+      "customer_name": "东西小院",
+      "back_items": [
+        {
+          "net": 2,
+          "tare": 132,
+          "gross": 134,
+          "bottle_id": "693fbee16dd837518fa1213e",
+          "bottle_no": "368"
+        }
+      ]
+    },
+    {
+      "_id": "69bbb01589d8371762435e7e",
+      "date": "2026-03-16",
+      "customer_name": "华丰皮革厂-司兵水",
+      "back_items": [
+        {
+          "net": 1,
+          "tare": 132,
+          "gross": 133,
+          "bottle_id": "693fbee16dd837518fa1213e",
+          "bottle_no": "368"
+        }
+      ]
+    },
+    {
+      "_id": "69bbb00ff7ac1a41a1adcb77",
+      "date": "2026-03-12",
+      "customer_name": "辛集喷塑厂",
+      "back_items": [
+        {
+          "net": 0,
+          "tare": 132,
+          "gross": 132,
+          "bottle_id": "693fbee16dd837518fa1213e",
+          "bottle_no": "368"
+        }
+      ]
+    },
+    {
+      "_id": "69bbb00689d8371762435cea",
+      "date": "2026-03-07",
+      "customer_name": "骏驰机械",
+      "back_items": [
+        {
+          "net": 1,
+          "tare": 132,
+          "gross": 133,
+          "bottle_id": "693fbee16dd837518fa1213e",
+          "bottle_no": "368"
+        }
+      ]
+    },
+    {
+      "_id": "69bbb0000add39bd434a40c6",
+      "date": "2026-02-28",
+      "customer_name": "保定依护卫生活",
+      "back_items": [
+        {
+          "net": 3,
+          "tare": 132,
+          "gross": 135,
+          "bottle_id": "693fbee16dd837518fa1213e",
+          "bottle_no": "368"
+        }
+      ]
+    },
+    {
+      "_id": "69bbaffaf7ac1a41a1adc8da",
+      "date": "2026-02-11",
+      "customer_name": "东西小院",
+      "back_items": [
+        {
+          "net": 20,
+          "tare": 132,
+          "gross": 152,
+          "bottle_id": "693fbee16dd837518fa1213e",
+          "bottle_no": "368"
+        }
+      ]
+    },
+    {
+      "_id": "697c448f89bd27ad0669bc9b",
+      "date": "2026-01-30",
+      "customer_name": "新乐馒头",
+      "back_items": [
+        {
+          "net": 1,
+          "tare": 132,
+          "gross": 133,
+          "bottle_id": "693fbee16dd837518fa1213e",
+          "bottle_no": "368"
+        }
+      ]
+    },
+    {
+      "_id": "69745c26a674f4133ce41590",
+      "date": "2026-01-24",
+      "customer_name": "佳鹏门窗厂-段兴玺",
+      "back_items": [
+        {
+          "net": 1,
+          "tare": 132,
+          "gross": 133,
+          "bottle_id": "693fbee16dd837518fa1213e",
+          "bottle_no": "368"
+        }
+      ]
+    },
+    {
+      "_id": "6960713321821b751bab56d8",
+      "date": "2026-01-09",
+      "customer_name": "正豪皮革厂-张立坡",
+      "back_items": [
+        {
+          "net": 1,
+          "tare": 132,
+          "gross": 133,
+          "bottle_id": "693fbee16dd837518fa1213e",
+          "bottle_no": "368"
+        }
+      ]
+    },
+    {
+      "_id": "695cb9c8f2949c9689290912",
+      "date": "2026-01-03",
+      "customer_name": "上庄美食美客",
+      "back_items": [
+        {
+          "net": 1,
+          "tare": 132,
+          "gross": 133,
+          "bottle_id": "693fbee16dd837518fa1213e",
+          "bottle_no": "368"
+        }
+      ]
+    }
+  ],
+  "back_sale_hit_total": 10
+}

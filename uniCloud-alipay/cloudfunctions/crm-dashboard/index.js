@@ -1,13 +1,26 @@
 'use strict'
 
+let ensureActionAcl = null
+try {
+	;({ ensureActionAcl } = require('../common/pageAcl'))
+} catch (err) {
+	console.warn('[crm-dashboard] fallback to local pageAcl helpers', err && err.message)
+	;({ ensureActionAcl } = require('./pageAclLocal'))
+}
 const db = uniCloud.database()
 const dbCmd = db.command
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 const sales = db.collection('crm_sale_records')
+const fillings = db.collection('crm_fillings')
+const flowSettlements = db.collection('crm_customer_flow_settlements')
+const receipts = db.collection('crm_customer_receipts')
 const bottles = db.collection('crm_bottles')
 const anomalies = db.collection('crm_bottle_anomalies')
+const PAGE_ACTION_RULES = {
+	summaryV1: [{ pagePath: '/pages/index/index', action: 'view' }]
+}
 
 async function getUserByToken(token) {
 	if (!token) return null
@@ -45,6 +58,23 @@ function toNumber(value, fallback = 0) {
 function fix2(value) {
 	const num = Number(value || 0)
 	return Math.round(num * 100) / 100
+}
+
+function normalizeSettlementMode(value, fallback = 'sale') {
+	const text = normalizeString(value)
+	if (text === 'customer_flow' || text === 'sale') return text
+	return fallback
+}
+
+function normalizeBottleNo(value) {
+	return normalizeString(value).toUpperCase().replace(/[\s\r\n\t\u3000]+/g, '')
+}
+
+function normalizeFillingRecordType(value) {
+	const text = normalizeString(value).toLowerCase()
+	if (!text) return 'normal_fill'
+	if (text === 'normal_fill' || text === 'truck_out_agent_sale' || text === 'truck_out_no_sale') return text
+	return 'normal_fill'
 }
 
 function pad2(value) {
@@ -170,9 +200,22 @@ function computeAmounts({ bizMode, priceUnit, unitPrice, outItems, backItems, ag
 	}
 }
 
+function resolveTruckSaleNetValue(rawTruckSaleNet, rawTruckOutGross, rawTruckBackGross) {
+	const outGross = toNumber(rawTruckOutGross, null)
+	const backGross = toNumber(rawTruckBackGross, null)
+	if (outGross != null && backGross != null) {
+		const diff = outGross - backGross
+		return diff > 0 ? fix2(diff) : 0
+	}
+	const explicit = toNumber(rawTruckSaleNet, null)
+	return explicit != null && explicit > 0 ? fix2(explicit) : 0
+}
+
 function computeSaleAmount(doc) {
 	const bizMode = normalizeString(doc.biz_mode)
 	const priceUnit = normalizeString(doc.price_unit)
+	const settlementMode = priceUnit === 'm3' ? 'customer_flow' : normalizeSettlementMode(doc.settlement_mode, 'sale')
+	if (settlementMode === 'customer_flow') return 0
 	const unitPrice = toNumber(doc.unit_price, 0)
 	const outItems = Array.isArray(doc.out_items) ? doc.out_items : []
 	const backItems = Array.isArray(doc.back_items) ? doc.back_items : []
@@ -185,10 +228,80 @@ function computeSaleAmount(doc) {
 		outItems,
 		backItems,
 		agentRows,
-		truckSaleNet: doc.truck_sale_net,
+		truckSaleNet: resolveTruckSaleNetValue(doc.truck_gross_diff ?? doc.truck_sale_net, doc.truck_out_gross, doc.truck_back_gross),
 		flow
 	})
 	return toNumber(amounts.should_receive, 0)
+}
+
+function computeBottleShipmentWeight(doc) {
+	const outItems = Array.isArray(doc && doc.out_items) ? doc.out_items : []
+	return fix2(outItems.reduce((sum, item) => sum + toNumber(item && item.net, 0), 0))
+}
+
+function computeAgentShipmentWeight(doc) {
+	const rows = Array.isArray(doc && doc.agent_sale_items) ? doc.agent_sale_items : []
+	return fix2(rows.reduce((sum, row) => sum + toNumber(row && row.fill_weight, 0), 0))
+}
+
+function computeTruckShipmentWeight(doc) {
+	return fix2(
+		resolveTruckSaleNetValue(doc && (doc.truck_gross_diff ?? doc.truck_sale_net), doc && doc.truck_out_gross, doc && doc.truck_back_gross)
+	)
+}
+
+function detectShipmentMode(doc) {
+	const bizMode = normalizeString(doc && doc.biz_mode)
+	if (bizMode === 'truck') return 'truck'
+	if (bizMode === 'agent_sale') return 'agent'
+	return 'bottle'
+}
+
+function computeShipmentWeight(doc) {
+	const mode = detectShipmentMode(doc)
+	if (mode === 'truck') return computeTruckShipmentWeight(doc)
+	if (mode === 'agent') return computeAgentShipmentWeight(doc)
+	return computeBottleShipmentWeight(doc)
+}
+
+function detectGasFlowMode(doc) {
+	const recordType = normalizeFillingRecordType(doc && doc.record_type)
+	if (recordType === 'truck_out_no_sale') return 'vehicle'
+	if (normalizeBottleNo(doc && doc.bottle_no) === '000') return 'local'
+	return 'bottle'
+}
+
+function buildCustomerKey(doc) {
+	const customerId = normalizeString(doc && doc.customer_id)
+	if (customerId) return `id:${customerId}`
+	const customerName = normalizeString(doc && doc.customer_name)
+	if (customerName) return `name:${customerName}`
+	return ''
+}
+
+function computeSaleBottleCount(doc) {
+	const bizMode = normalizeString(doc && doc.biz_mode)
+	if (bizMode === 'agent_sale') return Array.isArray(doc && doc.agent_sale_items) ? doc.agent_sale_items.length : 0
+	if (bizMode === 'bottle') return Array.isArray(doc && doc.out_items) ? doc.out_items.length : 0
+	return 0
+}
+
+function computeSaleWeight(doc) {
+	const bizMode = normalizeString(doc && doc.biz_mode)
+	if (bizMode === 'truck') return computeTruckShipmentWeight(doc)
+	if (bizMode === 'agent_sale') return computeAgentShipmentWeight(doc)
+	return computeBottleShipmentWeight(doc)
+}
+
+function classifyAnomalyGroup(type) {
+	const normalized = normalizeString(type)
+	if (!normalized) return 'other'
+	if (normalized === 'missing_truck_fill' || normalized === 'truck_return_diff_excess' || normalized === 'missing_truck_back_gross') {
+		return 'truck'
+	}
+	if (normalized.startsWith('continuous_')) return 'continuous'
+	if (normalized.startsWith('missing_')) return 'missing'
+	return 'other'
 }
 
 async function summaryV1(user, data, requestId) {
@@ -205,52 +318,253 @@ async function summaryV1(user, data, requestId) {
 	const inStationRes = await bottles.where({ status: 'in_station' }).count()
 
 	const weekWhere = dbCmd.and([{ date: dbCmd.gte(weekStart) }, { date: dbCmd.lte(weekEnd) }])
-	const weekSales = await fetchAll(sales, weekWhere, { date: true })
-	const trendMap = {}
-	recentDates.forEach((date) => {
-		trendMap[date] = 0
-	})
-	weekSales.forEach((row) => {
-		const key = normalizeString(row.date)
-		if (key && trendMap[key] != null) trendMap[key] += 1
-	})
-	const trendWeek = recentDates.map((date) => trendMap[date] || 0)
-
-	const monthRange = getMonthRange(today)
-	const monthWhere = dbCmd.and([{ date: dbCmd.gte(monthRange.start) }, { date: dbCmd.lte(monthRange.end) }])
-	const monthDocs = await fetchAll(sales, monthWhere, {
+	const weekSales = await fetchAll(sales, weekWhere, {
 		date: true,
 		biz_mode: true,
+		customer_id: true,
+		customer_name: true,
 		price_unit: true,
+		settlement_mode: true,
 		unit_price: true,
 		out_items: true,
 		back_items: true,
 		agent_sale_items: true,
+		truck_gross_diff: true,
 		truck_sale_net: true,
+		truck_out_gross: true,
+		truck_back_gross: true,
 		flow_volume_m3: true
 	})
+	const trendMap = {}
+	const amountTrendMap = {}
+	const dailyReportMap = {}
+	const dailyCustomerMap = {}
+	const receivableMap = {}
+	const receiptMap = {}
+	recentDates.forEach((date) => {
+		trendMap[date] = 0
+		amountTrendMap[date] = 0
+		receivableMap[date] = 0
+		receiptMap[date] = 0
+		dailyCustomerMap[date] = new Set()
+		dailyReportMap[date] = {
+			fill_bottle_count: 0,
+			fill_bottle_weight: 0,
+			local_count: 0,
+			local_weight: 0,
+			vehicle_count: 0,
+			vehicle_weight: 0,
+			sale_customer_count: 0,
+			sale_bottle_count: 0,
+			sale_weight: 0
+		}
+	})
+	weekSales.forEach((row) => {
+		const key = normalizeString(row.date)
+		if (key && trendMap[key] != null) {
+			trendMap[key] += 1
+			const saleAmount = computeSaleAmount(row)
+			amountTrendMap[key] = fix2(amountTrendMap[key] + saleAmount)
+			receivableMap[key] = fix2(receivableMap[key] + saleAmount)
+			const customerKey = buildCustomerKey(row)
+			if (customerKey) dailyCustomerMap[key].add(customerKey)
+			dailyReportMap[key].sale_bottle_count += computeSaleBottleCount(row)
+			dailyReportMap[key].sale_weight = fix2(dailyReportMap[key].sale_weight + computeSaleWeight(row))
+		}
+	})
+	const weekFillings = await fetchAll(fillings, weekWhere, {
+		date: true,
+		bottle_no: true,
+		record_type: true,
+		fill_weight: true
+	})
+	weekFillings.forEach((row) => {
+		const key = normalizeString(row.date)
+		if (key && dailyReportMap[key] != null) {
+			const fillWeight = fix2(toNumber(row.fill_weight, 0))
+			if (fillWeight <= 0) return
+			const gasFlowMode = detectGasFlowMode(row)
+			if (gasFlowMode === 'vehicle') {
+				dailyReportMap[key].vehicle_count += 1
+				dailyReportMap[key].vehicle_weight = fix2(dailyReportMap[key].vehicle_weight + fillWeight)
+				return
+			}
+			if (gasFlowMode === 'local') {
+				dailyReportMap[key].local_count += 1
+				dailyReportMap[key].local_weight = fix2(dailyReportMap[key].local_weight + fillWeight)
+				return
+			}
+			dailyReportMap[key].fill_bottle_count += 1
+			dailyReportMap[key].fill_bottle_weight = fix2(dailyReportMap[key].fill_bottle_weight + fillWeight)
+		}
+	})
+	const weekFlowSettlements = await fetchAll(
+		flowSettlements,
+		dbCmd.and([{ status: 'posted' }, { biz_date: dbCmd.gte(weekStart) }, { biz_date: dbCmd.lte(weekEnd) }]),
+		{ biz_date: true, should_receive: true }
+	)
+	weekFlowSettlements.forEach((row) => {
+		const key = normalizeString(row.biz_date)
+		if (key && amountTrendMap[key] != null) {
+			const amount = toNumber(row.should_receive, 0)
+			amountTrendMap[key] = fix2(amountTrendMap[key] + amount)
+			receivableMap[key] = fix2(receivableMap[key] + amount)
+		}
+	})
+	const weekReceipts = await fetchAll(
+		receipts,
+		dbCmd.and([{ status: 'posted' }, { biz_date: dbCmd.gte(weekStart) }, { biz_date: dbCmd.lte(weekEnd) }]),
+		{ biz_date: true, amount: true }
+	)
+	weekReceipts.forEach((row) => {
+		const key = normalizeString(row.biz_date)
+		if (key && receiptMap[key] != null) receiptMap[key] = fix2(receiptMap[key] + toNumber(row.amount, 0))
+	})
+	const trendWeek = recentDates.map((date) => trendMap[date] || 0)
+	const overviewDates = recentDates.slice(-6)
+	const overviewBars = overviewDates.map((date) => fix2(amountTrendMap[date] || 0))
+	const overviewTotal = fix2(overviewBars.reduce((sum, value) => sum + toNumber(value, 0), 0))
+	let overviewPeakDate = ''
+	let overviewPeakAmount = 0
+	overviewDates.forEach((date, index) => {
+		const value = toNumber(overviewBars[index], 0)
+		if (value > overviewPeakAmount) {
+			overviewPeakAmount = value
+			overviewPeakDate = date
+		}
+	})
+	const overviewAvgAmount = overviewDates.length ? fix2(overviewTotal / overviewDates.length) : 0
+	const dailyReportRows = [...recentDates].reverse().map((date) => {
+		const row = dailyReportMap[date] || {}
+		const saleCustomerCount = dailyCustomerMap[date] ? dailyCustomerMap[date].size : 0
+		const fillTotalWeight = fix2(
+			toNumber(row.fill_bottle_weight, 0) + toNumber(row.local_weight, 0) + toNumber(row.vehicle_weight, 0)
+		)
+		return {
+			date,
+			fill_bottle_count: Number(row.fill_bottle_count || 0),
+			fill_bottle_weight: fix2(row.fill_bottle_weight || 0),
+			local_count: Number(row.local_count || 0),
+			local_weight: fix2(row.local_weight || 0),
+			vehicle_count: Number(row.vehicle_count || 0),
+			vehicle_weight: fix2(row.vehicle_weight || 0),
+			fill_total_weight: fillTotalWeight,
+			sale_customer_count: saleCustomerCount,
+			sale_bottle_count: Number(row.sale_bottle_count || 0),
+			sale_weight: fix2(row.sale_weight || 0)
+		}
+	})
+	const dailyReportSummary = {
+		fill_total_weight_kg: 0,
+		sale_total_weight_kg: 0,
+		customer_count: 0,
+		dominant_channel: '钢瓶灌装',
+		channel_totals: {
+			bottle: 0,
+			local: 0,
+			vehicle: 0
+		}
+	}
+	const weeklyCustomerSet = new Set()
+	dailyReportRows.forEach((row) => {
+		dailyReportSummary.fill_total_weight_kg = fix2(dailyReportSummary.fill_total_weight_kg + toNumber(row.fill_total_weight, 0))
+		dailyReportSummary.sale_total_weight_kg = fix2(dailyReportSummary.sale_total_weight_kg + toNumber(row.sale_weight, 0))
+		dailyReportSummary.channel_totals.bottle = fix2(
+			dailyReportSummary.channel_totals.bottle + toNumber(row.fill_bottle_weight, 0)
+		)
+		dailyReportSummary.channel_totals.local = fix2(
+			dailyReportSummary.channel_totals.local + toNumber(row.local_weight, 0)
+		)
+		dailyReportSummary.channel_totals.vehicle = fix2(
+			dailyReportSummary.channel_totals.vehicle + toNumber(row.vehicle_weight, 0)
+		)
+	})
+	recentDates.forEach((date) => {
+		const set = dailyCustomerMap[date]
+		if (!set) return
+		set.forEach((item) => weeklyCustomerSet.add(item))
+	})
+	dailyReportSummary.customer_count = weeklyCustomerSet.size
+	let dominantChannel = '钢瓶灌装'
+	let dominantValue = dailyReportSummary.channel_totals.bottle
+	if (dailyReportSummary.channel_totals.local > dominantValue) {
+		dominantChannel = '地方车'
+		dominantValue = dailyReportSummary.channel_totals.local
+	}
+	if (dailyReportSummary.channel_totals.vehicle > dominantValue) {
+		dominantChannel = '车辆补给'
+		dominantValue = dailyReportSummary.channel_totals.vehicle
+	}
+	dailyReportSummary.dominant_channel = dominantChannel
+	const receivableRows = recentDates.map((date) => ({
+		date,
+		receivable: fix2(receivableMap[date] || 0),
+		received: fix2(receiptMap[date] || 0)
+	}))
+	const receivableTotal = fix2(receivableRows.reduce((sum, row) => sum + toNumber(row.receivable, 0), 0))
+	const receivedTotal = fix2(receivableRows.reduce((sum, row) => sum + toNumber(row.received, 0), 0))
+	const receivableGap = fix2(receivableTotal - receivedTotal)
+	const collectionRate = receivableTotal > 0 ? fix2((receivedTotal / receivableTotal) * 100) : null
+
+	const monthRange = getMonthRange(today)
+	const monthWhere = dbCmd.and([{ date: dbCmd.gte(monthRange.start) }, { date: dbCmd.lte(monthRange.end) }])
+	const monthDocs = await fetchAll(sales, monthWhere, {
+			date: true,
+			biz_mode: true,
+			price_unit: true,
+			settlement_mode: true,
+			unit_price: true,
+			out_items: true,
+			back_items: true,
+			agent_sale_items: true,
+			truck_gross_diff: true,
+			truck_sale_net: true,
+			truck_out_gross: true,
+			truck_back_gross: true,
+			flow_volume_m3: true
+		})
 	let monthTotal = 0
 	monthDocs.forEach((doc) => {
 		monthTotal += computeSaleAmount(doc)
+	})
+	const monthFlowDocs = await fetchAll(
+		flowSettlements,
+		dbCmd.and([{ status: 'posted' }, { biz_date: dbCmd.gte(monthRange.start) }, { biz_date: dbCmd.lte(monthRange.end) }]),
+		{ should_receive: true }
+	)
+	monthFlowDocs.forEach((doc) => {
+		monthTotal += toNumber(doc.should_receive, 0)
 	})
 	monthTotal = fix2(monthTotal)
 
 	const prevRange = getPrevMonthRange(today)
 	const prevWhere = dbCmd.and([{ date: dbCmd.gte(prevRange.start) }, { date: dbCmd.lte(prevRange.end) }])
 	const prevDocs = await fetchAll(sales, prevWhere, {
-		date: true,
-		biz_mode: true,
-		price_unit: true,
-		unit_price: true,
-		out_items: true,
-		back_items: true,
-		agent_sale_items: true,
-		truck_sale_net: true,
-		flow_volume_m3: true
-	})
+			date: true,
+			biz_mode: true,
+			price_unit: true,
+			settlement_mode: true,
+			unit_price: true,
+			out_items: true,
+			back_items: true,
+			agent_sale_items: true,
+			truck_gross_diff: true,
+			truck_sale_net: true,
+			truck_out_gross: true,
+			truck_back_gross: true,
+			flow_volume_m3: true
+		})
 	let prevTotal = 0
 	prevDocs.forEach((doc) => {
 		prevTotal += computeSaleAmount(doc)
+	})
+	const prevFlowDocs = await fetchAll(
+		flowSettlements,
+		dbCmd.and([{ status: 'posted' }, { biz_date: dbCmd.gte(prevRange.start) }, { biz_date: dbCmd.lte(prevRange.end) }]),
+		{ should_receive: true }
+	)
+	prevFlowDocs.forEach((doc) => {
+		prevTotal += toNumber(doc.should_receive, 0)
 	})
 	prevTotal = fix2(prevTotal)
 
@@ -266,12 +580,12 @@ async function summaryV1(user, data, requestId) {
 	}
 
 	const anomalyDocs = await fetchAll(anomalies, { status: 'open' }, { anomaly_type: true })
-	const distMap = { missing_back: 0, missing_fill: 0, continuous_out: 0 }
+	const distMap = { missing: 0, continuous: 0, truck: 0, other: 0 }
 	anomalyDocs.forEach((row) => {
-		const type = normalizeString(row.anomaly_type)
-		if (distMap[type] != null) distMap[type] += 1
+		const group = classifyAnomalyGroup(row.anomaly_type)
+		distMap[group] = Number(distMap[group] || 0) + 1
 	})
-	const distributionValues = [distMap.missing_back, distMap.missing_fill, distMap.continuous_out]
+	const distributionValues = [distMap.missing, distMap.continuous, distMap.truck, distMap.other]
 
 	const todayDate = formatDateCN(getCNDate())
 	const dueEndDate = addDaysDateCN(todayDate, 60)
@@ -292,15 +606,35 @@ async function summaryV1(user, data, requestId) {
 				salesTrend
 			}
 		},
-		trend: {
-			week: trendWeek,
-			labels: recentDates
-		},
-		overview: {
-			bars: trendWeek.slice(-6)
-		},
+			trend: {
+				week: trendWeek,
+				labels: recentDates
+			},
+			overview: {
+				bars: overviewBars,
+				labels: overviewDates,
+				total_amount: overviewTotal,
+				peak_date: overviewPeakDate,
+				peak_amount: fix2(overviewPeakAmount),
+				avg_amount: overviewAvgAmount
+			},
+			daily_report: {
+				rows: dailyReportRows,
+				fill_total_weight_kg: dailyReportSummary.fill_total_weight_kg,
+				sale_total_weight_kg: dailyReportSummary.sale_total_weight_kg,
+				customer_count: dailyReportSummary.customer_count,
+				dominant_channel: dailyReportSummary.dominant_channel,
+				channel_totals: dailyReportSummary.channel_totals
+			},
+			receivable: {
+				rows: receivableRows,
+				total_receivable: receivableTotal,
+				total_received: receivedTotal,
+				gap_amount: receivableGap,
+				collection_rate: collectionRate
+			},
 			distribution: {
-				labels: ['缺回瓶', '缺灌装', '连续出瓶'],
+				labels: ['缺失类', '连续类', '整车类', '其他'],
 				values: distributionValues
 			},
 			inspection_due: {
@@ -328,6 +662,12 @@ exports.main = async (event, context) => {
 	const requestId = normalizeString(event.request_id || event.requestId || context?.requestId || '') || ''
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
+	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, [], {
+		recordLog,
+		requestId,
+		cloudFunction: 'crm-dashboard'
+	})
+	if (!acl.ok) return { code: acl.code, msg: acl.msg }
 
 	if (action === 'summaryV1') return summaryV1(user, data, requestId)
 	return { code: 400, msg: '未知 action' }

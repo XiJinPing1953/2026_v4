@@ -1,0 +1,53 @@
+{
+  "bsonType": "object",
+  "description": "Natural gas inbound records (ton + CNY/ton)",
+  "additionalProperties": false,
+  "required": [
+    "date",
+    "product_name",
+    "plate_no",
+    "load_weight_t",
+    "gross_weight_t",
+    "tare_weight_t",
+    "net_weight_t",
+    "loss_amount_t",
+    "unit_price_per_ton",
+    "amount",
+    "remark",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "date": { "bsonType": "string" },
+    "product_name": { "bsonType": "string" },
+    "load_weight_t": { "bsonType": "number" },
+    "gross_weight_t": { "bsonType": "number" },
+    "tare_weight_t": { "bsonType": "number" },
+    "net_weight_t": { "bsonType": "number" },
+    "loss_amount_t": { "bsonType": "number" },
+    "unit_price_per_ton": { "bsonType": "number" },
+    "amount": { "bsonType": "number" },
+    "plate_no": { "bsonType": "string" },
+    "tanker_no": { "bsonType": "string" },
+    "sender": { "bsonType": "string" },
+    "factory": { "bsonType": "string" },
+    "remark": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" },
+    "created_by": { "bsonType": ["string", "null"] },
+    "created_by_name": { "bsonType": "string" },
+    "updated_by": { "bsonType": ["string", "null"] },
+    "updated_by_name": { "bsonType": "string" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "date": -1, "created_at": -1 }, "name": "idx_date_created_at" },
+    { "key": { "plate_no": 1, "date": -1 }, "name": "idx_plate_date" }
+  ]
+}

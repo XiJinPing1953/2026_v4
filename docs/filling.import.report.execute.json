@@ -1,0 +1,165 @@
+{
+  "started_at": "2026-03-17T09:06:19.945Z",
+  "finished_at": "2026-03-17T09:09:30.018Z",
+  "mode": "execute",
+  "input_path": "/Users/wangbo/Downloads/2026_v4/docs/2026.json",
+  "parse_mode": "json-stream-array-wrap",
+  "space_id": "env-00jxuffegf2n",
+  "input_total": 3827,
+  "input_normalized_total": 3827,
+  "input_invalid_total": 0,
+  "input_duplicate_total": 0,
+  "input_by_type": {
+    "normal_fill": 3506,
+    "truck_out_agent_sale": 252,
+    "truck_out_no_sale": 69
+  },
+  "existing_loaded_by_type": {
+    "normal_fill": 0,
+    "truck_out_agent_sale": 0,
+    "truck_out_no_sale": 0
+  },
+  "already_exists_total": 0,
+  "target_total": 3827,
+  "success_total": 3816,
+  "conflict_total": 0,
+  "failed_total": 11,
+  "conflicts_preview": [],
+  "failed_preview": [
+    {
+      "line_no": 710,
+      "source_id": "69636982eef9cb2998aa54f9",
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-10 08:00",
+      "bottle_no": "X047",
+      "msg": "钢瓶档案不存在，请先建档",
+      "raw": {
+        "code": 400,
+        "msg": "钢瓶档案不存在，请先建档"
+      }
+    },
+    {
+      "line_no": 709,
+      "source_id": "69636984fe975fae255a7e03",
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-10 08:00",
+      "bottle_no": "X046",
+      "msg": "钢瓶档案不存在，请先建档",
+      "raw": {
+        "code": 400,
+        "msg": "钢瓶档案不存在，请先建档"
+      }
+    },
+    {
+      "line_no": 1382,
+      "source_id": "696dd45e9755e34a9177671e",
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-19 08:00",
+      "bottle_no": "N68",
+      "msg": "钢瓶档案不存在，请先建档",
+      "raw": {
+        "code": 400,
+        "msg": "钢瓶档案不存在，请先建档"
+      }
+    },
+    {
+      "line_no": 1527,
+      "source_id": "6971656d286f7c8e442414da",
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-21 08:00",
+      "bottle_no": "X11",
+      "msg": "钢瓶档案不存在，请先建档",
+      "raw": {
+        "code": 400,
+        "msg": "钢瓶档案不存在，请先建档"
+      }
+    },
+    {
+      "line_no": 1528,
+      "source_id": "6971656cbd022001be83d48c",
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-21 08:00",
+      "bottle_no": "X34",
+      "msg": "钢瓶档案不存在，请先建档",
+      "raw": {
+        "code": 400,
+        "msg": "钢瓶档案不存在，请先建档"
+      }
+    },
+    {
+      "line_no": 1529,
+      "source_id": "6971656de0ec19e0969c97ad",
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-21 08:00",
+      "bottle_no": "X37",
+      "msg": "钢瓶档案不存在，请先建档",
+      "raw": {
+        "code": 400,
+        "msg": "钢瓶档案不存在，请先建档"
+      }
+    },
+    {
+      "line_no": 1530,
+      "source_id": "6971656d816a3fe15e70a5dd",
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-21 08:00",
+      "bottle_no": "X57",
+      "msg": "钢瓶档案不存在，请先建档",
+      "raw": {
+        "code": 400,
+        "msg": "钢瓶档案不存在，请先建档"
+      }
+    },
+    {
+      "line_no": 1531,
+      "source_id": "6971656de0ec19e0969c9798",
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-21 08:00",
+      "bottle_no": "X59",
+      "msg": "钢瓶档案不存在，请先建档",
+      "raw": {
+        "code": 400,
+        "msg": "钢瓶档案不存在，请先建档"
+      }
+    },
+    {
+      "line_no": 1532,
+      "source_id": "6971656c189f862245dcf3af",
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-21 08:00",
+      "bottle_no": "X61",
+      "msg": "钢瓶档案不存在，请先建档",
+      "raw": {
+        "code": 400,
+        "msg": "钢瓶档案不存在，请先建档"
+      }
+    },
+    {
+      "line_no": 1533,
+      "source_id": "6971656c09664c861297a55b",
+      "record_type": "truck_out_agent_sale",
+      "date": "2026-01-21 08:00",
+      "bottle_no": "X63",
+      "msg": "钢瓶档案不存在，请先建档",
+      "raw": {
+        "code": 400,
+        "msg": "钢瓶档案不存在，请先建档"
+      }
+    },
+    {
+      "line_no": 3118,
+      "source_id": "69ae1787149854dda3d78a58",
+      "record_type": "normal_fill",
+      "date": "2026-03-07 08:00",
+      "bottle_no": "Y179",
+      "msg": "钢瓶档案不存在，请先建档",
+      "raw": {
+        "code": 400,
+        "msg": "钢瓶档案不存在，请先建档"
+      }
+    }
+  ],
+  "warnings_preview": [],
+  "input_invalid_preview": [],
+  "input_duplicate_preview": []
+}

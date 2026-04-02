@@ -1,0 +1,3667 @@
+{
+  "code": 0,
+  "msg": "清洗完成",
+  "data": {
+    "preview": false,
+    "confirm_text": "bottle_cleanup_duplicates_v1",
+    "duplicate_group_total": 133,
+    "duplicate_row_total": 133,
+    "sale_row_rewrite_total": 0,
+    "update_canonical_total": 133,
+    "rebuild_status_total": 133,
+    "sample_groups": [
+      {
+        "bottle_no": "1",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fde",
+          "bottle_no": "1",
+          "raw_bottle_no": "1",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "旭昶皮厂",
+          "sale_ref_count": 28,
+          "completeness_score": 25,
+          "updated_at": 1774834918357,
+          "created_at": 1770356127166
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00001",
+            "bottle_no": "1",
+            "raw_bottle_no": "1",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "旭昶皮厂",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918369,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "1",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 1,
+          "bottle_no_sort_text": "1",
+          "bottle_no_sort_key": "0:000000000001:1"
+        }
+      },
+      {
+        "bottle_no": "10",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fd5",
+          "bottle_no": "10",
+          "raw_bottle_no": "10",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "保定依护卫生活",
+          "sale_ref_count": 22,
+          "completeness_score": 25,
+          "updated_at": 1774834918356,
+          "created_at": 1769582674534
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00010",
+            "bottle_no": "10",
+            "raw_bottle_no": "10",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "保定依护卫生活",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "10",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 10,
+          "bottle_no_sort_text": "10",
+          "bottle_no_sort_key": "0:000000000010:10"
+        }
+      },
+      {
+        "bottle_no": "100",
+        "keep": {
+          "_id": "693fbee16dd837518fa12034",
+          "bottle_no": "100",
+          "raw_bottle_no": "100",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "润信喷塑",
+          "sale_ref_count": 27,
+          "completeness_score": 26,
+          "updated_at": 1774834918363,
+          "created_at": 1769824612303
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00099",
+            "bottle_no": "100",
+            "raw_bottle_no": "100",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "润信喷塑",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "100",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 100,
+          "bottle_no_sort_text": "100",
+          "bottle_no_sort_key": "0:000000000100:100"
+        }
+      },
+      {
+        "bottle_no": "101",
+        "keep": {
+          "_id": "693fbee16dd837518fa12035",
+          "bottle_no": "101",
+          "raw_bottle_no": "101",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "货子皮厂",
+          "sale_ref_count": 18,
+          "completeness_score": 26,
+          "updated_at": 1774834918363,
+          "created_at": 1770097268346
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00100",
+            "bottle_no": "101",
+            "raw_bottle_no": "101",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "货子皮厂",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "101",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 101,
+          "bottle_no_sort_text": "101",
+          "bottle_no_sort_key": "0:000000000101:101"
+        }
+      },
+      {
+        "bottle_no": "102",
+        "keep": {
+          "_id": "693fbee16dd837518fa12036",
+          "bottle_no": "102",
+          "raw_bottle_no": "102",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "骏驰机械",
+          "sale_ref_count": 30,
+          "completeness_score": 26,
+          "updated_at": 1774834918363,
+          "created_at": 1770188211342
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00101",
+            "bottle_no": "102",
+            "raw_bottle_no": "102",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "骏驰机械",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "102",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 102,
+          "bottle_no_sort_text": "102",
+          "bottle_no_sort_key": "0:000000000102:102"
+        }
+      },
+      {
+        "bottle_no": "103",
+        "keep": {
+          "_id": "693fbee16dd837518fa12037",
+          "bottle_no": "103",
+          "raw_bottle_no": "103",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "土山蛋糕西厂",
+          "sale_ref_count": 2,
+          "completeness_score": 26,
+          "updated_at": 1773556165892,
+          "created_at": 1767926110591
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00102",
+            "bottle_no": "103",
+            "raw_bottle_no": "103",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "土山蛋糕西厂",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "103",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 103,
+          "bottle_no_sort_text": "103",
+          "bottle_no_sort_key": "0:000000000103:103"
+        }
+      },
+      {
+        "bottle_no": "104",
+        "keep": {
+          "_id": "693fbee16dd837518fa12038",
+          "bottle_no": "104",
+          "raw_bottle_no": "104",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "美食美客清洗部",
+          "sale_ref_count": 20,
+          "completeness_score": 26,
+          "updated_at": 1774834918364,
+          "created_at": 1768876081333
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00103",
+            "bottle_no": "104",
+            "raw_bottle_no": "104",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "美食美客清洗部",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "104",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 104,
+          "bottle_no_sort_text": "104",
+          "bottle_no_sort_key": "0:000000000104:104"
+        }
+      },
+      {
+        "bottle_no": "105",
+        "keep": {
+          "_id": "693fbee16dd837518fa12039",
+          "bottle_no": "105",
+          "raw_bottle_no": "105",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "陈建磊板厂",
+          "sale_ref_count": 24,
+          "completeness_score": 26,
+          "updated_at": 1774834918364,
+          "created_at": 1770193375017
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00104",
+            "bottle_no": "105",
+            "raw_bottle_no": "105",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "陈建磊板厂",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "105",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 105,
+          "bottle_no_sort_text": "105",
+          "bottle_no_sort_key": "0:000000000105:105"
+        }
+      },
+      {
+        "bottle_no": "106",
+        "keep": {
+          "_id": "693fbee16dd837518fa1203b",
+          "bottle_no": "106",
+          "raw_bottle_no": "106",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 9,
+          "completeness_score": 25,
+          "updated_at": 1774839053522,
+          "created_at": 1767923948825
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00105",
+            "bottle_no": "106",
+            "raw_bottle_no": "106",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "华丰皮革厂-司兵水",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "106",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 106,
+          "bottle_no_sort_text": "106",
+          "bottle_no_sort_key": "0:000000000106:106",
+          "current_customer_name": "华丰皮革厂-司兵水",
+          "current_customer_id": "694045c0adf6dbd796e2620c"
+        }
+      },
+      {
+        "bottle_no": "107",
+        "keep": {
+          "_id": "693fbee16dd837518fa1203a",
+          "bottle_no": "107",
+          "raw_bottle_no": "107",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "赫远皮革北厂-邓文普",
+          "sale_ref_count": 25,
+          "completeness_score": 26,
+          "updated_at": 1774834918364,
+          "created_at": 1769991219373
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00106",
+            "bottle_no": "107",
+            "raw_bottle_no": "107",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革北厂-邓文普",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "107",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 107,
+          "bottle_no_sort_text": "107",
+          "bottle_no_sort_key": "0:000000000107:107"
+        }
+      },
+      {
+        "bottle_no": "108",
+        "keep": {
+          "_id": "693fbee16dd837518fa1203d",
+          "bottle_no": "108",
+          "raw_bottle_no": "108",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 25,
+          "completeness_score": 25,
+          "updated_at": 1774834918364,
+          "created_at": 1770448324699
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00107",
+            "bottle_no": "108",
+            "raw_bottle_no": "108",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "108",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 108,
+          "bottle_no_sort_text": "108",
+          "bottle_no_sort_key": "0:000000000108:108"
+        }
+      },
+      {
+        "bottle_no": "109",
+        "keep": {
+          "_id": "imp0314_00108",
+          "bottle_no": "109",
+          "raw_bottle_no": "109",
+          "is_active": true,
+          "status": "unknown",
+          "current_customer_name": "",
+          "sale_ref_count": 0,
+          "completeness_score": 25,
+          "updated_at": 1774834918374,
+          "created_at": 1773485454927
+        },
+        "remove": [
+          {
+            "_id": "693fbee16dd837518fa1203c",
+            "bottle_no": "109",
+            "raw_bottle_no": "109",
+            "is_active": true,
+            "status": "unknown",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918364,
+            "created_at": 1768189613134
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "109",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 109,
+          "bottle_no_sort_text": "109",
+          "bottle_no_sort_key": "0:000000000109:109"
+        }
+      },
+      {
+        "bottle_no": "11",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fd7",
+          "bottle_no": "11",
+          "raw_bottle_no": "11",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 23,
+          "completeness_score": 24,
+          "updated_at": 1774839821262,
+          "created_at": 1770358676748
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00011",
+            "bottle_no": "11",
+            "raw_bottle_no": "11",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革北厂-邓文普",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "11",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 11,
+          "bottle_no_sort_text": "11",
+          "bottle_no_sort_key": "0:000000000011:11",
+          "current_customer_name": "赫远皮革北厂-邓文普",
+          "current_customer_id": "694045c0adf6dbd796e26209"
+        }
+      },
+      {
+        "bottle_no": "110",
+        "keep": {
+          "_id": "693fbee16dd837518fa1203f",
+          "bottle_no": "110",
+          "raw_bottle_no": "110",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "丁军龙皮厂",
+          "sale_ref_count": 29,
+          "completeness_score": 26,
+          "updated_at": 1774834918364,
+          "created_at": 1770358676247
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00109",
+            "bottle_no": "110",
+            "raw_bottle_no": "110",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "丁军龙皮厂",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "110",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 110,
+          "bottle_no_sort_text": "110",
+          "bottle_no_sort_key": "0:000000000110:110"
+        }
+      },
+      {
+        "bottle_no": "111",
+        "keep": {
+          "_id": "693fbee16dd837518fa1203e",
+          "bottle_no": "111",
+          "raw_bottle_no": "111",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "建会涂料厂",
+          "sale_ref_count": 22,
+          "completeness_score": 26,
+          "updated_at": 1774834918364,
+          "created_at": 1769137852056
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00110",
+            "bottle_no": "111",
+            "raw_bottle_no": "111",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "建会涂料厂",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "111",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 111,
+          "bottle_no_sort_text": "111",
+          "bottle_no_sort_key": "0:000000000111:111"
+        }
+      },
+      {
+        "bottle_no": "112",
+        "keep": {
+          "_id": "693fbee16dd837518fa12040",
+          "bottle_no": "112",
+          "raw_bottle_no": "112",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "建会涂料厂",
+          "sale_ref_count": 29,
+          "completeness_score": 26,
+          "updated_at": 1774834918364,
+          "created_at": 1770445171083
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00111",
+            "bottle_no": "112",
+            "raw_bottle_no": "112",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "建会涂料厂",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "112",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 112,
+          "bottle_no_sort_text": "112",
+          "bottle_no_sort_key": "0:000000000112:112"
+        }
+      },
+      {
+        "bottle_no": "113",
+        "keep": {
+          "_id": "693fbee16dd837518fa1204a",
+          "bottle_no": "113",
+          "raw_bottle_no": "113",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "赫远皮革南厂-刘建辉",
+          "sale_ref_count": 28,
+          "completeness_score": 26,
+          "updated_at": 1774834918364,
+          "created_at": 1769137852056
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00112",
+            "bottle_no": "113",
+            "raw_bottle_no": "113",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革南厂-刘建辉",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "113",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 113,
+          "bottle_no_sort_text": "113",
+          "bottle_no_sort_key": "0:000000000113:113"
+        }
+      },
+      {
+        "bottle_no": "114",
+        "keep": {
+          "_id": "693fbee16dd837518fa1204e",
+          "bottle_no": "114",
+          "raw_bottle_no": "114",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "钇达门板厂",
+          "sale_ref_count": 12,
+          "completeness_score": 26,
+          "updated_at": 1774834918364,
+          "created_at": 1770001673742
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00113",
+            "bottle_no": "114",
+            "raw_bottle_no": "114",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "钇达门板厂",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "114",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 114,
+          "bottle_no_sort_text": "114",
+          "bottle_no_sort_key": "0:000000000114:114"
+        }
+      },
+      {
+        "bottle_no": "115",
+        "keep": {
+          "_id": "693fbee16dd837518fa12049",
+          "bottle_no": "115",
+          "raw_bottle_no": "115",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "赫远皮革南厂-刘建辉",
+          "sale_ref_count": 20,
+          "completeness_score": 26,
+          "updated_at": 1774834918364,
+          "created_at": 1770441999882
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00114",
+            "bottle_no": "115",
+            "raw_bottle_no": "115",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革南厂-刘建辉",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "115",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 115,
+          "bottle_no_sort_text": "115",
+          "bottle_no_sort_key": "0:000000000115:115"
+        }
+      },
+      {
+        "bottle_no": "116",
+        "keep": {
+          "_id": "693fbee16dd837518fa12042",
+          "bottle_no": "116",
+          "raw_bottle_no": "116",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "赫远皮革北厂-邓文普",
+          "sale_ref_count": 20,
+          "completeness_score": 26,
+          "updated_at": 1774834918364,
+          "created_at": 1769990013697
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00115",
+            "bottle_no": "116",
+            "raw_bottle_no": "116",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革北厂-邓文普",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "116",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 116,
+          "bottle_no_sort_text": "116",
+          "bottle_no_sort_key": "0:000000000116:116"
+        }
+      },
+      {
+        "bottle_no": "117",
+        "keep": {
+          "_id": "693fbee16dd837518fa12046",
+          "bottle_no": "117",
+          "raw_bottle_no": "117",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "赫远皮革北厂-张翠欣皮厂",
+          "sale_ref_count": 22,
+          "completeness_score": 26,
+          "updated_at": 1774834918364,
+          "created_at": 1768876081332
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00116",
+            "bottle_no": "117",
+            "raw_bottle_no": "117",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革北厂-张翠欣皮厂",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "117",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 117,
+          "bottle_no_sort_text": "117",
+          "bottle_no_sort_key": "0:000000000117:117"
+        }
+      },
+      {
+        "bottle_no": "118",
+        "keep": {
+          "_id": "693fbee16dd837518fa1204b",
+          "bottle_no": "118",
+          "raw_bottle_no": "118",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "华丰皮革厂-王建新",
+          "sale_ref_count": 26,
+          "completeness_score": 26,
+          "updated_at": 1774834918364,
+          "created_at": 1770193302534
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00117",
+            "bottle_no": "118",
+            "raw_bottle_no": "118",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "华丰皮革厂-王建新",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "118",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 118,
+          "bottle_no_sort_text": "118",
+          "bottle_no_sort_key": "0:000000000118:118"
+        }
+      },
+      {
+        "bottle_no": "119",
+        "keep": {
+          "_id": "693fbee16dd837518fa1204c",
+          "bottle_no": "119",
+          "raw_bottle_no": "119",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 24,
+          "completeness_score": 25,
+          "updated_at": 1774838409548,
+          "created_at": 1770193302539
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00118",
+            "bottle_no": "119",
+            "raw_bottle_no": "119",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革北厂-王全民",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "119",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 119,
+          "bottle_no_sort_text": "119",
+          "bottle_no_sort_key": "0:000000000119:119",
+          "current_customer_name": "赫远皮革北厂-王全民",
+          "current_customer_id": "694045c0adf6dbd796e261fe"
+        }
+      },
+      {
+        "bottle_no": "12",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fd8",
+          "bottle_no": "12",
+          "raw_bottle_no": "12",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "美食美客清洗部",
+          "sale_ref_count": 28,
+          "completeness_score": 25,
+          "updated_at": 1773556164862,
+          "created_at": 1769585213237
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00012",
+            "bottle_no": "12",
+            "raw_bottle_no": "12",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "美食美客清洗部",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "12",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 12,
+          "bottle_no_sort_text": "12",
+          "bottle_no_sort_key": "0:000000000012:12"
+        }
+      },
+      {
+        "bottle_no": "120",
+        "keep": {
+          "_id": "693fbee16dd837518fa12041",
+          "bottle_no": "120",
+          "raw_bottle_no": "120",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "大名馒头",
+          "sale_ref_count": 18,
+          "completeness_score": 26,
+          "updated_at": 1774834918364,
+          "created_at": 1770429902195
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00119",
+            "bottle_no": "120",
+            "raw_bottle_no": "120",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "大名馒头",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "120",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 120,
+          "bottle_no_sort_text": "120",
+          "bottle_no_sort_key": "0:000000000120:120"
+        }
+      },
+      {
+        "bottle_no": "121",
+        "keep": {
+          "_id": "693fbee16dd837518fa12043",
+          "bottle_no": "121",
+          "raw_bottle_no": "121",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 21,
+          "completeness_score": 25,
+          "updated_at": 1773556166044,
+          "created_at": 1769742091137
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00120",
+            "bottle_no": "121",
+            "raw_bottle_no": "121",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "121",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 121,
+          "bottle_no_sort_text": "121",
+          "bottle_no_sort_key": "0:000000000121:121"
+        }
+      },
+      {
+        "bottle_no": "122",
+        "keep": {
+          "_id": "693fbee16dd837518fa12044",
+          "bottle_no": "122",
+          "raw_bottle_no": "122",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 19,
+          "completeness_score": 25,
+          "updated_at": 1773556166051,
+          "created_at": 1769824651295
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00121",
+            "bottle_no": "122",
+            "raw_bottle_no": "122",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "122",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 122,
+          "bottle_no_sort_text": "122",
+          "bottle_no_sort_key": "0:000000000122:122"
+        }
+      },
+      {
+        "bottle_no": "123",
+        "keep": {
+          "_id": "693fbee16dd837518fa12045",
+          "bottle_no": "123",
+          "raw_bottle_no": "123",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 19,
+          "completeness_score": 25,
+          "updated_at": 1773556166059,
+          "created_at": 1770013086452
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00122",
+            "bottle_no": "123",
+            "raw_bottle_no": "123",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "123",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 123,
+          "bottle_no_sort_text": "123",
+          "bottle_no_sort_key": "0:000000000123:123"
+        }
+      },
+      {
+        "bottle_no": "124",
+        "keep": {
+          "_id": "693fbee16dd837518fa12047",
+          "bottle_no": "124",
+          "raw_bottle_no": "124",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "华丰皮革厂-亚涛",
+          "sale_ref_count": 24,
+          "completeness_score": 26,
+          "updated_at": 1774834918364,
+          "created_at": 1770084094702
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00123",
+            "bottle_no": "124",
+            "raw_bottle_no": "124",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "华丰皮革厂-亚涛",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918374,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "124",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 124,
+          "bottle_no_sort_text": "124",
+          "bottle_no_sort_key": "0:000000000124:124"
+        }
+      },
+      {
+        "bottle_no": "125",
+        "keep": {
+          "_id": "693fbee16dd837518fa1204d",
+          "bottle_no": "125",
+          "raw_bottle_no": "125",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "上庄美食美客",
+          "sale_ref_count": 20,
+          "completeness_score": 26,
+          "updated_at": 1774839991298,
+          "created_at": 1769990013687
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00124",
+            "bottle_no": "125",
+            "raw_bottle_no": "125",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "125",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 125,
+          "bottle_no_sort_text": "125",
+          "bottle_no_sort_key": "0:000000000125:125"
+        }
+      },
+      {
+        "bottle_no": "126",
+        "keep": {
+          "_id": "693fbee16dd837518fa12048",
+          "bottle_no": "126",
+          "raw_bottle_no": "126",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 16,
+          "completeness_score": 25,
+          "updated_at": 1773556166083,
+          "created_at": 1769990745438
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00125",
+            "bottle_no": "126",
+            "raw_bottle_no": "126",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "126",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 126,
+          "bottle_no_sort_text": "126",
+          "bottle_no_sort_key": "0:000000000126:126"
+        }
+      },
+      {
+        "bottle_no": "127",
+        "keep": {
+          "_id": "693fbee16dd837518fa12050",
+          "bottle_no": "127",
+          "raw_bottle_no": "127",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "鲁家庄炒瓜子",
+          "sale_ref_count": 22,
+          "completeness_score": 26,
+          "updated_at": 1774834918365,
+          "created_at": 1770429902151
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00126",
+            "bottle_no": "127",
+            "raw_bottle_no": "127",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "鲁家庄炒瓜子",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918375,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "127",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 127,
+          "bottle_no_sort_text": "127",
+          "bottle_no_sort_key": "0:000000000127:127"
+        }
+      },
+      {
+        "bottle_no": "128",
+        "keep": {
+          "_id": "693fbee16dd837518fa1204f",
+          "bottle_no": "128",
+          "raw_bottle_no": "128",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "东桥寨洗衣房",
+          "sale_ref_count": 20,
+          "completeness_score": 26,
+          "updated_at": 1774834918364,
+          "created_at": 1770013085855
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00127",
+            "bottle_no": "128",
+            "raw_bottle_no": "128",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "东桥寨洗衣房",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918375,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "128",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 128,
+          "bottle_no_sort_text": "128",
+          "bottle_no_sort_key": "0:000000000128:128"
+        }
+      },
+      {
+        "bottle_no": "129",
+        "keep": {
+          "_id": "693fbee16dd837518fa12051",
+          "bottle_no": "129",
+          "raw_bottle_no": "129",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "骏驰机械",
+          "sale_ref_count": 21,
+          "completeness_score": 26,
+          "updated_at": 1774834918365,
+          "created_at": 1769990745291
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00128",
+            "bottle_no": "129",
+            "raw_bottle_no": "129",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "骏驰机械",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918375,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "129",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 129,
+          "bottle_no_sort_text": "129",
+          "bottle_no_sort_key": "0:000000000129:129"
+        }
+      },
+      {
+        "bottle_no": "13",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fdb",
+          "bottle_no": "13",
+          "raw_bottle_no": "13",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "华昌木业-刘江涛",
+          "sale_ref_count": 22,
+          "completeness_score": 25,
+          "updated_at": 1774834918357,
+          "created_at": 1769991087960
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00013",
+            "bottle_no": "13",
+            "raw_bottle_no": "13",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "华昌木业-刘江涛",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "13",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 13,
+          "bottle_no_sort_text": "13",
+          "bottle_no_sort_key": "0:000000000013:13"
+        }
+      },
+      {
+        "bottle_no": "130",
+        "keep": {
+          "_id": "693fbee16dd837518fa1205b",
+          "bottle_no": "130",
+          "raw_bottle_no": "130",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "土山蛋糕",
+          "sale_ref_count": 18,
+          "completeness_score": 26,
+          "updated_at": 1774834918365,
+          "created_at": 1770188211343
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00129",
+            "bottle_no": "130",
+            "raw_bottle_no": "130",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "土山蛋糕",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918375,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "130",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 130,
+          "bottle_no_sort_text": "130",
+          "bottle_no_sort_key": "0:000000000130:130"
+        }
+      },
+      {
+        "bottle_no": "131",
+        "keep": {
+          "_id": "693fbee16dd837518fa12052",
+          "bottle_no": "131",
+          "raw_bottle_no": "131",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "建会涂料厂",
+          "sale_ref_count": 30,
+          "completeness_score": 26,
+          "updated_at": 1774834918365,
+          "created_at": 1770097366033
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00130",
+            "bottle_no": "131",
+            "raw_bottle_no": "131",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "建会涂料厂",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918375,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "131",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 131,
+          "bottle_no_sort_text": "131",
+          "bottle_no_sort_key": "0:000000000131:131"
+        }
+      },
+      {
+        "bottle_no": "132",
+        "keep": {
+          "_id": "693fbee16dd837518fa12055",
+          "bottle_no": "132",
+          "raw_bottle_no": "132",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 20,
+          "completeness_score": 25,
+          "updated_at": 1774839714989,
+          "created_at": 1770193374819
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00131",
+            "bottle_no": "132",
+            "raw_bottle_no": "132",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革北厂-张翠欣皮厂",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918375,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "132",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 132,
+          "bottle_no_sort_text": "132",
+          "bottle_no_sort_key": "0:000000000132:132",
+          "current_customer_name": "赫远皮革北厂-张翠欣皮厂",
+          "current_customer_id": "694045c0adf6dbd796e26214"
+        }
+      },
+      {
+        "bottle_no": "133",
+        "keep": {
+          "_id": "693fbee16dd837518fa12053",
+          "bottle_no": "133",
+          "raw_bottle_no": "133",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 23,
+          "completeness_score": 25,
+          "updated_at": 1774839991304,
+          "created_at": 1769991219756
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00132",
+            "bottle_no": "133",
+            "raw_bottle_no": "133",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "上庄美食美客",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918375,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "133",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 133,
+          "bottle_no_sort_text": "133",
+          "bottle_no_sort_key": "0:000000000133:133",
+          "current_customer_name": "上庄美食美客",
+          "current_customer_id": "694045c0adf6dbd796e261d2"
+        }
+      },
+      {
+        "bottle_no": "134",
+        "keep": {
+          "_id": "693fbee16dd837518fa12054",
+          "bottle_no": "134",
+          "raw_bottle_no": "134",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "保定依护卫生活",
+          "sale_ref_count": 20,
+          "completeness_score": 26,
+          "updated_at": 1774834918365,
+          "created_at": 1770010478708
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00133",
+            "bottle_no": "134",
+            "raw_bottle_no": "134",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "保定依护卫生活",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918375,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "134",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 134,
+          "bottle_no_sort_text": "134",
+          "bottle_no_sort_key": "0:000000000134:134"
+        }
+      },
+      {
+        "bottle_no": "14",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fda",
+          "bottle_no": "14",
+          "raw_bottle_no": "14",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "华丰皮革厂-陈永亮",
+          "sale_ref_count": 26,
+          "completeness_score": 25,
+          "updated_at": 1774834918356,
+          "created_at": 1770193319868
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00014",
+            "bottle_no": "14",
+            "raw_bottle_no": "14",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "华丰皮革厂-陈永亮",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "14",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 14,
+          "bottle_no_sort_text": "14",
+          "bottle_no_sort_key": "0:000000000014:14"
+        }
+      },
+      {
+        "bottle_no": "15",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fd9",
+          "bottle_no": "15",
+          "raw_bottle_no": "15",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 28,
+          "completeness_score": 24,
+          "updated_at": 1774839991265,
+          "created_at": 1770362844837
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00015",
+            "bottle_no": "15",
+            "raw_bottle_no": "15",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "上庄美食美客",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "15",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 15,
+          "bottle_no_sort_text": "15",
+          "bottle_no_sort_key": "0:000000000015:15",
+          "current_customer_name": "上庄美食美客",
+          "current_customer_id": "694045c0adf6dbd796e261d2"
+        }
+      },
+      {
+        "bottle_no": "16",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fdc",
+          "bottle_no": "16",
+          "raw_bottle_no": "16",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "华浩木业-赵立军",
+          "sale_ref_count": 24,
+          "completeness_score": 25,
+          "updated_at": 1774834918357,
+          "created_at": 1770426353955
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00016",
+            "bottle_no": "16",
+            "raw_bottle_no": "16",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "华浩木业-赵立军",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "16",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 16,
+          "bottle_no_sort_text": "16",
+          "bottle_no_sort_key": "0:000000000016:16"
+        }
+      },
+      {
+        "bottle_no": "17",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fe0",
+          "bottle_no": "17",
+          "raw_bottle_no": "17",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "上庄美食美客",
+          "sale_ref_count": 24,
+          "completeness_score": 25,
+          "updated_at": 1774839991274,
+          "created_at": 1770441999712
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00017",
+            "bottle_no": "17",
+            "raw_bottle_no": "17",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 24,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "17",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 17,
+          "bottle_no_sort_text": "17",
+          "bottle_no_sort_key": "0:000000000017:17"
+        }
+      },
+      {
+        "bottle_no": "18",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fe5",
+          "bottle_no": "18",
+          "raw_bottle_no": "18",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "华昌木业-刘江涛",
+          "sale_ref_count": 17,
+          "completeness_score": 25,
+          "updated_at": 1774834918358,
+          "created_at": 1769501030590
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00018",
+            "bottle_no": "18",
+            "raw_bottle_no": "18",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "华昌木业-刘江涛",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "18",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 18,
+          "bottle_no_sort_text": "18",
+          "bottle_no_sort_key": "0:000000000018:18"
+        }
+      },
+      {
+        "bottle_no": "19",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fe4",
+          "bottle_no": "19",
+          "raw_bottle_no": "19",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "慧聪皮革厂",
+          "sale_ref_count": 21,
+          "completeness_score": 25,
+          "updated_at": 1774834918358,
+          "created_at": 1770271912423
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00019",
+            "bottle_no": "19",
+            "raw_bottle_no": "19",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "慧聪皮革厂",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "19",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 19,
+          "bottle_no_sort_text": "19",
+          "bottle_no_sort_key": "0:000000000019:19"
+        }
+      },
+      {
+        "bottle_no": "2",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fd3",
+          "bottle_no": "2",
+          "raw_bottle_no": "2",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "恒达皮革厂",
+          "sale_ref_count": 22,
+          "completeness_score": 25,
+          "updated_at": 1774834918356,
+          "created_at": 1770367856095
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00002",
+            "bottle_no": "2",
+            "raw_bottle_no": "2",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "恒达皮革厂",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918369,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "2",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 2,
+          "bottle_no_sort_text": "2",
+          "bottle_no_sort_key": "0:000000000002:2"
+        }
+      },
+      {
+        "bottle_no": "20",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fe2",
+          "bottle_no": "20",
+          "raw_bottle_no": "20",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "上庄美食美客",
+          "sale_ref_count": 22,
+          "completeness_score": 25,
+          "updated_at": 1774839991281,
+          "created_at": 1769677225436
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00020",
+            "bottle_no": "20",
+            "raw_bottle_no": "20",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 24,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "20",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 20,
+          "bottle_no_sort_text": "20",
+          "bottle_no_sort_key": "0:000000000020:20"
+        }
+      },
+      {
+        "bottle_no": "21",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fe9",
+          "bottle_no": "21",
+          "raw_bottle_no": "21",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "赫远皮革南厂-杨立辉",
+          "sale_ref_count": 33,
+          "completeness_score": 25,
+          "updated_at": 1774834918358,
+          "created_at": 1770272308549
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00021",
+            "bottle_no": "21",
+            "raw_bottle_no": "21",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革南厂-杨立辉",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "21",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 21,
+          "bottle_no_sort_text": "21",
+          "bottle_no_sort_key": "0:000000000021:21"
+        }
+      },
+      {
+        "bottle_no": "22",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fe3",
+          "bottle_no": "22",
+          "raw_bottle_no": "22",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "新乐馒头",
+          "sale_ref_count": 23,
+          "completeness_score": 25,
+          "updated_at": 1774834918358,
+          "created_at": 1768888050935
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00022",
+            "bottle_no": "22",
+            "raw_bottle_no": "22",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "新乐馒头",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "22",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 22,
+          "bottle_no_sort_text": "22",
+          "bottle_no_sort_key": "0:000000000022:22"
+        }
+      },
+      {
+        "bottle_no": "23",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fe6",
+          "bottle_no": "23",
+          "raw_bottle_no": "23",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 28,
+          "completeness_score": 24,
+          "updated_at": 1774834918358,
+          "created_at": 1770188211341
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00023",
+            "bottle_no": "23",
+            "raw_bottle_no": "23",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 24,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "23",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 23,
+          "bottle_no_sort_text": "23",
+          "bottle_no_sort_key": "0:000000000023:23"
+        }
+      },
+      {
+        "bottle_no": "24",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fe8",
+          "bottle_no": "24",
+          "raw_bottle_no": "24",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 26,
+          "completeness_score": 24,
+          "updated_at": 1774834918358,
+          "created_at": 1770272244420
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00024",
+            "bottle_no": "24",
+            "raw_bottle_no": "24",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 24,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "24",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 24,
+          "bottle_no_sort_text": "24",
+          "bottle_no_sort_key": "0:000000000024:24"
+        }
+      },
+      {
+        "bottle_no": "25",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fe7",
+          "bottle_no": "25",
+          "raw_bottle_no": "25",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "宝泰机械厂",
+          "sale_ref_count": 16,
+          "completeness_score": 25,
+          "updated_at": 1774834918358,
+          "created_at": 1769761596750
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00025",
+            "bottle_no": "25",
+            "raw_bottle_no": "25",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "宝泰机械厂",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "25",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 25,
+          "bottle_no_sort_text": "25",
+          "bottle_no_sort_key": "0:000000000025:25"
+        }
+      },
+      {
+        "bottle_no": "26",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fea",
+          "bottle_no": "26",
+          "raw_bottle_no": "26",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "正豪皮革厂-新恒隆（王志坡）",
+          "sale_ref_count": 22,
+          "completeness_score": 25,
+          "updated_at": 1774834918358,
+          "created_at": 1770367856118
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00026",
+            "bottle_no": "26",
+            "raw_bottle_no": "26",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "正豪皮革厂-新恒隆（王志坡）",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "26",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 26,
+          "bottle_no_sort_text": "26",
+          "bottle_no_sort_key": "0:000000000026:26"
+        }
+      },
+      {
+        "bottle_no": "27",
+        "keep": {
+          "_id": "693fbee16dd837518fa11feb",
+          "bottle_no": "27",
+          "raw_bottle_no": "27",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "鲍立雄",
+          "sale_ref_count": 20,
+          "completeness_score": 25,
+          "updated_at": 1774834918358,
+          "created_at": 1770097268532
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00027",
+            "bottle_no": "27",
+            "raw_bottle_no": "27",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "鲍立雄",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "27",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 27,
+          "bottle_no_sort_text": "27",
+          "bottle_no_sort_key": "0:000000000027:27"
+        }
+      },
+      {
+        "bottle_no": "28",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fed",
+          "bottle_no": "28",
+          "raw_bottle_no": "28",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "恒达皮革厂",
+          "sale_ref_count": 32,
+          "completeness_score": 25,
+          "updated_at": 1774834918359,
+          "created_at": 1770193302561
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00028",
+            "bottle_no": "28",
+            "raw_bottle_no": "28",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "恒达皮革厂",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "28",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 28,
+          "bottle_no_sort_text": "28",
+          "bottle_no_sort_key": "0:000000000028:28"
+        }
+      },
+      {
+        "bottle_no": "29",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fec",
+          "bottle_no": "29",
+          "raw_bottle_no": "29",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "骏驰机械",
+          "sale_ref_count": 32,
+          "completeness_score": 25,
+          "updated_at": 1774834918359,
+          "created_at": 1770448481489
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00029",
+            "bottle_no": "29",
+            "raw_bottle_no": "29",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "骏驰机械",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "29",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 29,
+          "bottle_no_sort_text": "29",
+          "bottle_no_sort_key": "0:000000000029:29"
+        }
+      },
+      {
+        "bottle_no": "3",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fe1",
+          "bottle_no": "3",
+          "raw_bottle_no": "3",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "赫远皮革南厂-刘建辉",
+          "sale_ref_count": 29,
+          "completeness_score": 25,
+          "updated_at": 1774834918358,
+          "created_at": 1770105378121
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00003",
+            "bottle_no": "3",
+            "raw_bottle_no": "3",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革南厂-刘建辉",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918369,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "3",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 3,
+          "bottle_no_sort_text": "3",
+          "bottle_no_sort_key": "0:000000000003:3"
+        }
+      },
+      {
+        "bottle_no": "30",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fee",
+          "bottle_no": "30",
+          "raw_bottle_no": "30",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "广诚皮业",
+          "sale_ref_count": 28,
+          "completeness_score": 25,
+          "updated_at": 1774834918359,
+          "created_at": 1770358676748
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00030",
+            "bottle_no": "30",
+            "raw_bottle_no": "30",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "广诚皮业",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918370,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "30",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 30,
+          "bottle_no_sort_text": "30",
+          "bottle_no_sort_key": "0:000000000030:30"
+        }
+      },
+      {
+        "bottle_no": "31",
+        "keep": {
+          "_id": "693fbee16dd837518fa11ff9",
+          "bottle_no": "31",
+          "raw_bottle_no": "31",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 26,
+          "completeness_score": 24,
+          "updated_at": 1774834918360,
+          "created_at": 1770193374718
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00031",
+            "bottle_no": "31",
+            "raw_bottle_no": "31",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 24,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "31",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 31,
+          "bottle_no_sort_text": "31",
+          "bottle_no_sort_key": "0:000000000031:31"
+        }
+      },
+      {
+        "bottle_no": "32",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fef",
+          "bottle_no": "32",
+          "raw_bottle_no": "32",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "建会涂料厂",
+          "sale_ref_count": 27,
+          "completeness_score": 25,
+          "updated_at": 1774837307683,
+          "created_at": 1770193277922
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00032",
+            "bottle_no": "32",
+            "raw_bottle_no": "32",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 24,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "32",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 32,
+          "bottle_no_sort_text": "32",
+          "bottle_no_sort_key": "0:000000000032:32"
+        }
+      },
+      {
+        "bottle_no": "33",
+        "keep": {
+          "_id": "693fbee16dd837518fa11ff1",
+          "bottle_no": "33",
+          "raw_bottle_no": "33",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "张雷洗衣房",
+          "sale_ref_count": 29,
+          "completeness_score": 25,
+          "updated_at": 1774834918359,
+          "created_at": 1770193375053
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00033",
+            "bottle_no": "33",
+            "raw_bottle_no": "33",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "张雷洗衣房",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918371,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "33",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 33,
+          "bottle_no_sort_text": "33",
+          "bottle_no_sort_key": "0:000000000033:33"
+        }
+      },
+      {
+        "bottle_no": "34",
+        "keep": {
+          "_id": "693fbee16dd837518fa11ff0",
+          "bottle_no": "34",
+          "raw_bottle_no": "34",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "正豪皮革厂-靳占彬",
+          "sale_ref_count": 28,
+          "completeness_score": 25,
+          "updated_at": 1774834918359,
+          "created_at": 1770337278447
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00034",
+            "bottle_no": "34",
+            "raw_bottle_no": "34",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "正豪皮革厂-靳占彬",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918371,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "34",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 34,
+          "bottle_no_sort_text": "34",
+          "bottle_no_sort_key": "0:000000000034:34"
+        }
+      },
+      {
+        "bottle_no": "35",
+        "keep": {
+          "_id": "693fbee16dd837518fa11ff4",
+          "bottle_no": "35",
+          "raw_bottle_no": "35",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "旭昶皮厂",
+          "sale_ref_count": 42,
+          "completeness_score": 25,
+          "updated_at": 1774839476880,
+          "created_at": 1770193374914
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00035",
+            "bottle_no": "35",
+            "raw_bottle_no": "35",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 24,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "35",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 35,
+          "bottle_no_sort_text": "35",
+          "bottle_no_sort_key": "0:000000000035:35"
+        }
+      },
+      {
+        "bottle_no": "36",
+        "keep": {
+          "_id": "693fbee16dd837518fa11ff3",
+          "bottle_no": "36",
+          "raw_bottle_no": "36",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "丁军龙皮厂",
+          "sale_ref_count": 21,
+          "completeness_score": 25,
+          "updated_at": 1774834918359,
+          "created_at": 1769990833223
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00036",
+            "bottle_no": "36",
+            "raw_bottle_no": "36",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "丁军龙皮厂",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918371,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "36",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 36,
+          "bottle_no_sort_text": "36",
+          "bottle_no_sort_key": "0:000000000036:36"
+        }
+      },
+      {
+        "bottle_no": "37",
+        "keep": {
+          "_id": "693fbee16dd837518fa11ff2",
+          "bottle_no": "37",
+          "raw_bottle_no": "37",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 25,
+          "completeness_score": 24,
+          "updated_at": 1773556165109,
+          "created_at": 1770010478755
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00037",
+            "bottle_no": "37",
+            "raw_bottle_no": "37",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 24,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "37",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 37,
+          "bottle_no_sort_text": "37",
+          "bottle_no_sort_key": "0:000000000037:37"
+        }
+      },
+      {
+        "bottle_no": "38",
+        "keep": {
+          "_id": "693fbee16dd837518fa11ff6",
+          "bottle_no": "38",
+          "raw_bottle_no": "38",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 21,
+          "completeness_score": 24,
+          "updated_at": 1774834918359,
+          "created_at": 1770272308550
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00038",
+            "bottle_no": "38",
+            "raw_bottle_no": "38",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 24,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "38",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 38,
+          "bottle_no_sort_text": "38",
+          "bottle_no_sort_key": "0:000000000038:38"
+        }
+      },
+      {
+        "bottle_no": "39",
+        "keep": {
+          "_id": "693fbee16dd837518fa11ff7",
+          "bottle_no": "39",
+          "raw_bottle_no": "39",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "美食美客清洗部",
+          "sale_ref_count": 31,
+          "completeness_score": 25,
+          "updated_at": 1774834918360,
+          "created_at": 1770188211725
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00039",
+            "bottle_no": "39",
+            "raw_bottle_no": "39",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "美食美客清洗部",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918371,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "39",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 39,
+          "bottle_no_sort_text": "39",
+          "bottle_no_sort_key": "0:000000000039:39"
+        }
+      },
+      {
+        "bottle_no": "4",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fd1",
+          "bottle_no": "4",
+          "raw_bottle_no": "4",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "上庄美食美客",
+          "sale_ref_count": 34,
+          "completeness_score": 25,
+          "updated_at": 1774834918356,
+          "created_at": 1770429902170
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00004",
+            "bottle_no": "4",
+            "raw_bottle_no": "4",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "上庄美食美客",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918369,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "4",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 4,
+          "bottle_no_sort_text": "4",
+          "bottle_no_sort_key": "0:000000000004:4"
+        }
+      },
+      {
+        "bottle_no": "40",
+        "keep": {
+          "_id": "693fbee16dd837518fa11ff5",
+          "bottle_no": "40",
+          "raw_bottle_no": "40",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "上庄美食美客",
+          "sale_ref_count": 28,
+          "completeness_score": 25,
+          "updated_at": 1774839991287,
+          "created_at": 1770358676248
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00040",
+            "bottle_no": "40",
+            "raw_bottle_no": "40",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 24,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "40",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 40,
+          "bottle_no_sort_text": "40",
+          "bottle_no_sort_key": "0:000000000040:40"
+        }
+      },
+      {
+        "bottle_no": "41",
+        "keep": {
+          "_id": "693fbee16dd837518fa11ff8",
+          "bottle_no": "41",
+          "raw_bottle_no": "41",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "三只熊",
+          "sale_ref_count": 11,
+          "completeness_score": 26,
+          "updated_at": 1774834918360,
+          "created_at": 1769820090041
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00041",
+            "bottle_no": "41",
+            "raw_bottle_no": "41",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "三只熊",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918371,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "41",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 41,
+          "bottle_no_sort_text": "41",
+          "bottle_no_sort_key": "0:000000000041:41"
+        }
+      },
+      {
+        "bottle_no": "42",
+        "keep": {
+          "_id": "693fbee16dd837518fa11ffa",
+          "bottle_no": "42",
+          "raw_bottle_no": "42",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "赫远皮革北厂-邓文普",
+          "sale_ref_count": 18,
+          "completeness_score": 26,
+          "updated_at": 1774839821306,
+          "created_at": 1769743307866
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00042",
+            "bottle_no": "42",
+            "raw_bottle_no": "42",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "42",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 42,
+          "bottle_no_sort_text": "42",
+          "bottle_no_sort_key": "0:000000000042:42"
+        }
+      },
+      {
+        "bottle_no": "43",
+        "keep": {
+          "_id": "693fbee16dd837518fa12002",
+          "bottle_no": "43",
+          "raw_bottle_no": "43",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 21,
+          "completeness_score": 25,
+          "updated_at": 1774838043218,
+          "created_at": 1770194701093
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00043",
+            "bottle_no": "43",
+            "raw_bottle_no": "43",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革北厂-张翠欣皮厂",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918371,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "43",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 43,
+          "bottle_no_sort_text": "43",
+          "bottle_no_sort_key": "0:000000000043:43",
+          "current_customer_name": "赫远皮革北厂-张翠欣皮厂",
+          "current_customer_id": "694045c0adf6dbd796e26214"
+        }
+      },
+      {
+        "bottle_no": "44",
+        "keep": {
+          "_id": "693fbee16dd837518fa12008",
+          "bottle_no": "44",
+          "raw_bottle_no": "44",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "赫远皮革北厂-丁亚军",
+          "sale_ref_count": 20,
+          "completeness_score": 26,
+          "updated_at": 1774839773740,
+          "created_at": 1770097366033
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00044",
+            "bottle_no": "44",
+            "raw_bottle_no": "44",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "44",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 44,
+          "bottle_no_sort_text": "44",
+          "bottle_no_sort_key": "0:000000000044:44"
+        }
+      },
+      {
+        "bottle_no": "45",
+        "keep": {
+          "_id": "693fbee16dd837518fa11ffc",
+          "bottle_no": "45",
+          "raw_bottle_no": "45",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "赫远皮革北厂-张翠欣皮厂",
+          "sale_ref_count": 17,
+          "completeness_score": 26,
+          "updated_at": 1774838919315,
+          "created_at": 1769820089771
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00045",
+            "bottle_no": "45",
+            "raw_bottle_no": "45",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "张有伏",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918371,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "45",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 45,
+          "bottle_no_sort_text": "45",
+          "bottle_no_sort_key": "0:000000000045:45"
+        }
+      },
+      {
+        "bottle_no": "46",
+        "keep": {
+          "_id": "693fbee16dd837518fa12005",
+          "bottle_no": "46",
+          "raw_bottle_no": "46",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 10,
+          "completeness_score": 25,
+          "updated_at": 1773556165182,
+          "created_at": 1769667587421
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00046",
+            "bottle_no": "46",
+            "raw_bottle_no": "46",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "46",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 46,
+          "bottle_no_sort_text": "46",
+          "bottle_no_sort_key": "0:000000000046:46"
+        }
+      },
+      {
+        "bottle_no": "47",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fff",
+          "bottle_no": "47",
+          "raw_bottle_no": "47",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "三只熊",
+          "sale_ref_count": 15,
+          "completeness_score": 26,
+          "updated_at": 1774834918360,
+          "created_at": 1770194701453
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00047",
+            "bottle_no": "47",
+            "raw_bottle_no": "47",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "三只熊",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918371,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "47",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 47,
+          "bottle_no_sort_text": "47",
+          "bottle_no_sort_key": "0:000000000047:47"
+        }
+      },
+      {
+        "bottle_no": "48",
+        "keep": {
+          "_id": "693fbee16dd837518fa11ffe",
+          "bottle_no": "48",
+          "raw_bottle_no": "48",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 18,
+          "completeness_score": 25,
+          "updated_at": 1774839773733,
+          "created_at": 1770431450913
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00048",
+            "bottle_no": "48",
+            "raw_bottle_no": "48",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革北厂-丁亚军",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918371,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "48",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 48,
+          "bottle_no_sort_text": "48",
+          "bottle_no_sort_key": "0:000000000048:48",
+          "current_customer_name": "赫远皮革北厂-丁亚军",
+          "current_customer_id": "694045c0adf6dbd796e26212"
+        }
+      },
+      {
+        "bottle_no": "49",
+        "keep": {
+          "_id": "693fbee16dd837518fa11ffb",
+          "bottle_no": "49",
+          "raw_bottle_no": "49",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 30,
+          "completeness_score": 25,
+          "updated_at": 1774834918360,
+          "created_at": 1770431450666
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00049",
+            "bottle_no": "49",
+            "raw_bottle_no": "49",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "49",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 49,
+          "bottle_no_sort_text": "49",
+          "bottle_no_sort_key": "0:000000000049:49"
+        }
+      },
+      {
+        "bottle_no": "5",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fd4",
+          "bottle_no": "5",
+          "raw_bottle_no": "5",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "华丰皮革厂-王建新涂浆",
+          "sale_ref_count": 26,
+          "completeness_score": 25,
+          "updated_at": 1774834918356,
+          "created_at": 1770423082552
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00005",
+            "bottle_no": "5",
+            "raw_bottle_no": "5",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "华丰皮革厂-王建新涂浆",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918369,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "5",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 5,
+          "bottle_no_sort_text": "5",
+          "bottle_no_sort_key": "0:000000000005:5"
+        }
+      },
+      {
+        "bottle_no": "50",
+        "keep": {
+          "_id": "693fbee16dd837518fa11ffd",
+          "bottle_no": "50",
+          "raw_bottle_no": "50",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "赫远皮革北厂-丁亚军",
+          "sale_ref_count": 27,
+          "completeness_score": 26,
+          "updated_at": 1774834918360,
+          "created_at": 1769999125709
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00050",
+            "bottle_no": "50",
+            "raw_bottle_no": "50",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革北厂-丁亚军",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918371,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "50",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 50,
+          "bottle_no_sort_text": "50",
+          "bottle_no_sort_key": "0:000000000050:50"
+        }
+      },
+      {
+        "bottle_no": "51",
+        "keep": {
+          "_id": "693fbee16dd837518fa12000",
+          "bottle_no": "51",
+          "raw_bottle_no": "51",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "华丰皮革厂-王建新",
+          "sale_ref_count": 36,
+          "completeness_score": 26,
+          "updated_at": 1774838043207,
+          "created_at": 1770431450664
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00051",
+            "bottle_no": "51",
+            "raw_bottle_no": "51",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "51",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 51,
+          "bottle_no_sort_text": "51",
+          "bottle_no_sort_key": "0:000000000051:51"
+        }
+      },
+      {
+        "bottle_no": "52",
+        "keep": {
+          "_id": "693fbee16dd837518fa12004",
+          "bottle_no": "52",
+          "raw_bottle_no": "52",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "卓盛皮业-管红业",
+          "sale_ref_count": 33,
+          "completeness_score": 26,
+          "updated_at": 1774834918361,
+          "created_at": 1770429902211
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00052",
+            "bottle_no": "52",
+            "raw_bottle_no": "52",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "卓盛皮业-管红业",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918371,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "52",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 52,
+          "bottle_no_sort_text": "52",
+          "bottle_no_sort_key": "0:000000000052:52"
+        }
+      },
+      {
+        "bottle_no": "53",
+        "keep": {
+          "_id": "693fbee16dd837518fa12001",
+          "bottle_no": "53",
+          "raw_bottle_no": "53",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "福惠馒头",
+          "sale_ref_count": 23,
+          "completeness_score": 25,
+          "updated_at": 1774834918360,
+          "created_at": 1769733932667
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00053",
+            "bottle_no": "53",
+            "raw_bottle_no": "53",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "福惠馒头",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918371,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "53",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 53,
+          "bottle_no_sort_text": "53",
+          "bottle_no_sort_key": "0:000000000053:53"
+        }
+      },
+      {
+        "bottle_no": "54",
+        "keep": {
+          "_id": "693fbee16dd837518fa12003",
+          "bottle_no": "54",
+          "raw_bottle_no": "54",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "奇力机柜",
+          "sale_ref_count": 12,
+          "completeness_score": 25,
+          "updated_at": 1774839536621,
+          "created_at": 1767922703528
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00054",
+            "bottle_no": "54",
+            "raw_bottle_no": "54",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 24,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "54",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 54,
+          "bottle_no_sort_text": "54",
+          "bottle_no_sort_key": "0:000000000054:54"
+        }
+      },
+      {
+        "bottle_no": "55",
+        "keep": {
+          "_id": "693fbee16dd837518fa12007",
+          "bottle_no": "55",
+          "raw_bottle_no": "55",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 22,
+          "completeness_score": 25,
+          "updated_at": 1773556165254,
+          "created_at": 1769751696287
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00055",
+            "bottle_no": "55",
+            "raw_bottle_no": "55",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "55",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 55,
+          "bottle_no_sort_text": "55",
+          "bottle_no_sort_key": "0:000000000055:55"
+        }
+      },
+      {
+        "bottle_no": "56",
+        "keep": {
+          "_id": "693fbee16dd837518fa12006",
+          "bottle_no": "56",
+          "raw_bottle_no": "56",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 30,
+          "completeness_score": 25,
+          "updated_at": 1773556165262,
+          "created_at": 1770358676748
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00056",
+            "bottle_no": "56",
+            "raw_bottle_no": "56",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "56",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 56,
+          "bottle_no_sort_text": "56",
+          "bottle_no_sort_key": "0:000000000056:56"
+        }
+      },
+      {
+        "bottle_no": "57",
+        "keep": {
+          "_id": "693fbee16dd837518fa1200a",
+          "bottle_no": "57",
+          "raw_bottle_no": "57",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "赫远皮革北厂-王全民",
+          "sale_ref_count": 29,
+          "completeness_score": 26,
+          "updated_at": 1774834918361,
+          "created_at": 1770449868499
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00057",
+            "bottle_no": "57",
+            "raw_bottle_no": "57",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革北厂-王全民",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918372,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "57",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 57,
+          "bottle_no_sort_text": "57",
+          "bottle_no_sort_key": "0:000000000057:57"
+        }
+      },
+      {
+        "bottle_no": "58",
+        "keep": {
+          "_id": "693fbee16dd837518fa12009",
+          "bottle_no": "58",
+          "raw_bottle_no": "58",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "鲍立雄",
+          "sale_ref_count": 24,
+          "completeness_score": 26,
+          "updated_at": 1774834918361,
+          "created_at": 1770193374676
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00058",
+            "bottle_no": "58",
+            "raw_bottle_no": "58",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "鲍立雄",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918372,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "58",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 58,
+          "bottle_no_sort_text": "58",
+          "bottle_no_sort_key": "0:000000000058:58"
+        }
+      },
+      {
+        "bottle_no": "59",
+        "keep": {
+          "_id": "693fbee16dd837518fa1200b",
+          "bottle_no": "59",
+          "raw_bottle_no": "59",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "赫远皮革北厂-王全民",
+          "sale_ref_count": 23,
+          "completeness_score": 26,
+          "updated_at": 1774834918361,
+          "created_at": 1770449820899
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00059",
+            "bottle_no": "59",
+            "raw_bottle_no": "59",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革北厂-王全民",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918372,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "59",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 59,
+          "bottle_no_sort_text": "59",
+          "bottle_no_sort_key": "0:000000000059:59"
+        }
+      },
+      {
+        "bottle_no": "6",
+        "keep": {
+          "_id": "693fbee16dd837518fa11fdd",
+          "bottle_no": "6",
+          "raw_bottle_no": "6",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "谈下-白永雷",
+          "sale_ref_count": 27,
+          "completeness_score": 25,
+          "updated_at": 1774834918357,
+          "created_at": 1769493484604
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00006",
+            "bottle_no": "6",
+            "raw_bottle_no": "6",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "谈下-白永雷",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1774834918369,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "6",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 6,
+          "bottle_no_sort_text": "6",
+          "bottle_no_sort_key": "0:000000000006:6"
+        }
+      },
+      {
+        "bottle_no": "60",
+        "keep": {
+          "_id": "693fbee16dd837518fa1200c",
+          "bottle_no": "60",
+          "raw_bottle_no": "60",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 29,
+          "completeness_score": 25,
+          "updated_at": 1774839536626,
+          "created_at": 1770449820921
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00060",
+            "bottle_no": "60",
+            "raw_bottle_no": "60",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "奇力机柜",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918372,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "60",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 60,
+          "bottle_no_sort_text": "60",
+          "bottle_no_sort_key": "0:000000000060:60",
+          "current_customer_name": "奇力机柜",
+          "current_customer_id": "694045c0adf6dbd796e261ed"
+        }
+      },
+      {
+        "bottle_no": "61",
+        "keep": {
+          "_id": "693fbee16dd837518fa1200f",
+          "bottle_no": "61",
+          "raw_bottle_no": "61",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "华丰皮革厂-亚涛",
+          "sale_ref_count": 16,
+          "completeness_score": 26,
+          "updated_at": 1774834918361,
+          "created_at": 1770013086452
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00061",
+            "bottle_no": "61",
+            "raw_bottle_no": "61",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "华丰皮革厂-亚涛",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918372,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "61",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 61,
+          "bottle_no_sort_text": "61",
+          "bottle_no_sort_key": "0:000000000061:61"
+        }
+      },
+      {
+        "bottle_no": "62",
+        "keep": {
+          "_id": "693fbee16dd837518fa1200d",
+          "bottle_no": "62",
+          "raw_bottle_no": "62",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "赫远皮革北厂-张翠欣皮厂",
+          "sale_ref_count": 10,
+          "completeness_score": 26,
+          "updated_at": 1774834918361,
+          "created_at": 1769991219756
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00062",
+            "bottle_no": "62",
+            "raw_bottle_no": "62",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "赫远皮革北厂-张翠欣皮厂",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918372,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "62",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 62,
+          "bottle_no_sort_text": "62",
+          "bottle_no_sort_key": "0:000000000062:62"
+        }
+      },
+      {
+        "bottle_no": "63",
+        "keep": {
+          "_id": "693fbee16dd837518fa1200e",
+          "bottle_no": "63",
+          "raw_bottle_no": "63",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "正豪皮革厂-张立坡",
+          "sale_ref_count": 26,
+          "completeness_score": 26,
+          "updated_at": 1774834918361,
+          "created_at": 1769751696287
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00063",
+            "bottle_no": "63",
+            "raw_bottle_no": "63",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "正豪皮革厂-张立坡",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918372,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "63",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 63,
+          "bottle_no_sort_text": "63",
+          "bottle_no_sort_key": "0:000000000063:63"
+        }
+      },
+      {
+        "bottle_no": "64",
+        "keep": {
+          "_id": "693fbee16dd837518fa12010",
+          "bottle_no": "64",
+          "raw_bottle_no": "64",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 23,
+          "completeness_score": 25,
+          "updated_at": 1773556165328,
+          "created_at": 1769991219756
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00064",
+            "bottle_no": "64",
+            "raw_bottle_no": "64",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "64",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 64,
+          "bottle_no_sort_text": "64",
+          "bottle_no_sort_key": "0:000000000064:64"
+        }
+      },
+      {
+        "bottle_no": "65",
+        "keep": {
+          "_id": "693fbee16dd837518fa12011",
+          "bottle_no": "65",
+          "raw_bottle_no": "65",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "奇力机柜",
+          "sale_ref_count": 24,
+          "completeness_score": 26,
+          "updated_at": 1774839536631,
+          "created_at": 1769990402775
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00065",
+            "bottle_no": "65",
+            "raw_bottle_no": "65",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "65",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 65,
+          "bottle_no_sort_text": "65",
+          "bottle_no_sort_key": "0:000000000065:65"
+        }
+      },
+      {
+        "bottle_no": "66",
+        "keep": {
+          "_id": "693fbee16dd837518fa12013",
+          "bottle_no": "66",
+          "raw_bottle_no": "66",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 25,
+          "completeness_score": 25,
+          "updated_at": 1774834918362,
+          "created_at": 1769990894855
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00066",
+            "bottle_no": "66",
+            "raw_bottle_no": "66",
+            "is_active": true,
+            "status": "in_station",
+            "current_customer_name": "",
+            "sale_ref_count": 0,
+            "completeness_score": 25,
+            "updated_at": 1773485454927,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "66",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 66,
+          "bottle_no_sort_text": "66",
+          "bottle_no_sort_key": "0:000000000066:66"
+        }
+      },
+      {
+        "bottle_no": "67",
+        "keep": {
+          "_id": "693fbee16dd837518fa12012",
+          "bottle_no": "67",
+          "raw_bottle_no": "67",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "固营馒头",
+          "sale_ref_count": 18,
+          "completeness_score": 26,
+          "updated_at": 1774834918362,
+          "created_at": 1768789690592
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00067",
+            "bottle_no": "67",
+            "raw_bottle_no": "67",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "固营馒头",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918372,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "67",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 67,
+          "bottle_no_sort_text": "67",
+          "bottle_no_sort_key": "0:000000000067:67"
+        }
+      },
+      {
+        "bottle_no": "68",
+        "keep": {
+          "_id": "693fbee16dd837518fa12014",
+          "bottle_no": "68",
+          "raw_bottle_no": "68",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": "",
+          "sale_ref_count": 16,
+          "completeness_score": 25,
+          "updated_at": 1774837307693,
+          "created_at": 1770429902189
+        },
+        "remove": [
+          {
+            "_id": "imp0314_00068",
+            "bottle_no": "68",
+            "raw_bottle_no": "68",
+            "is_active": true,
+            "status": "at_customer",
+            "current_customer_name": "建会涂料厂",
+            "sale_ref_count": 0,
+            "completeness_score": 26,
+            "updated_at": 1774834918372,
+            "created_at": 1773485454927
+          }
+        ],
+        "merge_patch": {
+          "bottle_no": "68",
+          "bottle_no_sort_group": 0,
+          "bottle_no_sort_num": 68,
+          "bottle_no_sort_text": "68",
+          "bottle_no_sort_key": "0:000000000068:68",
+          "current_customer_name": "建会涂料厂",
+          "current_customer_id": "694045c0adf6dbd796e261ae"
+        }
+      }
+    ],
+    "batch_id": "bottle_duplicate_cleanup_1774840134152",
+    "rebuild_summary": {
+      "target_total": 133,
+      "updated_total": 16,
+      "changed_total": 16,
+      "unchanged_total": 117,
+      "no_movement_total": 1,
+      "pending_same_day_total": 0
+    },
+    "backup_summaries": [
+      {
+        "subtype": "bottle_remove",
+        "row_total": 133,
+        "saved_total": 0,
+        "skipped_total": 133,
+        "disabled_reason": "not found collection"
+      },
+      {
+        "subtype": "canonical_before",
+        "row_total": 133,
+        "saved_total": 0,
+        "skipped_total": 133,
+        "disabled_reason": "not found collection"
+      },
+      {
+        "subtype": "sale_record_before",
+        "row_total": 0,
+        "saved_total": 0,
+        "skipped_total": 0,
+        "disabled_reason": ""
+      }
+    ]
+  }
+}

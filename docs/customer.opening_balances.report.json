@@ -1,0 +1,15 @@
+{
+  "started_at": "2026-03-20T06:59:40.615Z",
+  "space_id": "env-00jxuffegf2n",
+  "execute": true,
+  "result": {
+    "code": 0,
+    "msg": "期初余额迁移已执行",
+    "data": {
+      "execute": true,
+      "total": 120,
+      "updated": 120,
+      "samples": []
+    }
+  }
+}

@@ -1,0 +1,227 @@
+{
+  "generated_at": "2026-03-17T14:26:10.044Z",
+  "files": {
+    "bottle": "/Users/wangbo/Downloads/2026_v4/docs/123.json",
+    "filling": "/Users/wangbo/Downloads/2026_v4/docs/456.json"
+  },
+  "totals": {
+    "bottle_rows": 965,
+    "filling_rows": 3945
+  },
+  "target_exact": {
+    "bottle": {
+      "X046": {
+        "count": 0,
+        "first_line": null,
+        "raw_values": [],
+        "sample": []
+      },
+      "X047": {
+        "count": 0,
+        "first_line": null,
+        "raw_values": [],
+        "sample": []
+      },
+      "X46": {
+        "count": 1,
+        "first_line": 759,
+        "raw_values": [
+          "X46"
+        ],
+        "sample": [
+          {
+            "line": 759,
+            "date": "",
+            "record_type": "",
+            "raw": "X46"
+          }
+        ]
+      },
+      "X47": {
+        "count": 1,
+        "first_line": 682,
+        "raw_values": [
+          "X47"
+        ],
+        "sample": [
+          {
+            "line": 682,
+            "date": "",
+            "record_type": "",
+            "raw": "X47"
+          }
+        ]
+      }
+    },
+    "filling": {
+      "X046": {
+        "count": 1,
+        "first_line": 714,
+        "raw_values": [
+          "X046"
+        ],
+        "sample": [
+          {
+            "line": 714,
+            "date": "2026-01-10 08:00",
+            "record_type": "truck_out_agent_sale",
+            "raw": "X046"
+          }
+        ]
+      },
+      "X047": {
+        "count": 1,
+        "first_line": 711,
+        "raw_values": [
+          "X047"
+        ],
+        "sample": [
+          {
+            "line": 711,
+            "date": "2026-01-10 08:00",
+            "record_type": "truck_out_agent_sale",
+            "raw": "X047"
+          }
+        ]
+      },
+      "X46": {
+        "count": 0,
+        "first_line": null,
+        "raw_values": [],
+        "sample": []
+      },
+      "X47": {
+        "count": 0,
+        "first_line": null,
+        "raw_values": [],
+        "sample": []
+      }
+    }
+  },
+  "target_canonical": {
+    "bottle": {
+      "X046": {
+        "count": 1,
+        "first_line": 759,
+        "raw_values": [
+          "X46"
+        ],
+        "sample": [
+          {
+            "line": 759,
+            "date": "",
+            "record_type": "",
+            "raw": "X46"
+          }
+        ]
+      },
+      "X047": {
+        "count": 1,
+        "first_line": 682,
+        "raw_values": [
+          "X47"
+        ],
+        "sample": [
+          {
+            "line": 682,
+            "date": "",
+            "record_type": "",
+            "raw": "X47"
+          }
+        ]
+      },
+      "X46": {
+        "count": 1,
+        "first_line": 759,
+        "raw_values": [
+          "X46"
+        ],
+        "sample": [
+          {
+            "line": 759,
+            "date": "",
+            "record_type": "",
+            "raw": "X46"
+          }
+        ]
+      },
+      "X47": {
+        "count": 1,
+        "first_line": 682,
+        "raw_values": [
+          "X47"
+        ],
+        "sample": [
+          {
+            "line": 682,
+            "date": "",
+            "record_type": "",
+            "raw": "X47"
+          }
+        ]
+      }
+    },
+    "filling": {
+      "X046": {
+        "count": 1,
+        "first_line": 714,
+        "raw_values": [
+          "X046"
+        ],
+        "sample": [
+          {
+            "line": 714,
+            "date": "2026-01-10 08:00",
+            "record_type": "truck_out_agent_sale",
+            "raw": "X046"
+          }
+        ]
+      },
+      "X047": {
+        "count": 1,
+        "first_line": 711,
+        "raw_values": [
+          "X047"
+        ],
+        "sample": [
+          {
+            "line": 711,
+            "date": "2026-01-10 08:00",
+            "record_type": "truck_out_agent_sale",
+            "raw": "X047"
+          }
+        ]
+      },
+      "X46": {
+        "count": 1,
+        "first_line": 714,
+        "raw_values": [
+          "X046"
+        ],
+        "sample": [
+          {
+            "line": 714,
+            "date": "2026-01-10 08:00",
+            "record_type": "truck_out_agent_sale",
+            "raw": "X046"
+          }
+        ]
+      },
+      "X47": {
+        "count": 1,
+        "first_line": 711,
+        "raw_values": [
+          "X047"
+        ],
+        "sample": [
+          {
+            "line": 711,
+            "date": "2026-01-10 08:00",
+            "record_type": "truck_out_agent_sale",
+            "raw": "X047"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 <template>
-	<AppPage title="客户档案" :subtitle="subtitle" icon="user">
+	<AppPage :title="pageTitle" :subtitle="subtitle" icon="user">
 		<template #headerActions>
-			<AppButton size="sm" kind="primary" icon="plus" @click="onAdd">新增客户</AppButton>
+			<AppButton v-if="canCreateCustomer" size="sm" kind="primary" icon="plus" @click="onAdd">新增客户</AppButton>
 			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch">刷新</AppButton>
 		</template>
 
@@ -49,13 +49,31 @@
 				</template>
 
 				<view class="filter-grid">
-					<AppInput
-						v-model="filters.keyword"
-						label="关键词"
-						placeholder="客户名/联系人/电话"
-						prefix-icon="search"
-						size="sm"
-					/>
+					<view class="search-field">
+						<AppInput
+							v-model="filters.keyword"
+							label="关键词"
+							placeholder="客户名/联系人/电话"
+							prefix-icon="search"
+							size="sm"
+							@input="onKeywordInput"
+							@focus="onKeywordFocus"
+							@blur="onKeywordBlur"
+							@confirm="onKeywordConfirm"
+						/>
+						<view v-if="showSuggestions && suggestions.length" class="suggestions">
+							<view
+								v-for="item in suggestions"
+								:key="item._id || item.name"
+								class="suggestion-item"
+								@click.stop="selectSuggestion(item)"
+								@tap.stop="selectSuggestion(item)"
+							>
+								<text class="suggestion-text">{{ item.name }}</text>
+								<text class="suggestion-sub">{{ [item.contact, item.phone].filter(Boolean).join(' · ') }}</text>
+							</view>
+						</view>
+					</view>
 					<picker class="picker-block" mode="selector" :range="activeOptions" range-key="label" @change="onActiveChange">
 						<AppInput
 							:model-value="activeLabel"
@@ -89,23 +107,32 @@
 					<AppListItem
 						v-for="item in list"
 						:key="item._id"
-						:title="item.name"
-						:subtitle="item.contact || '暂无联系人'"
 						:status="item.is_active ? '启用中' : '已停用'"
 						:status-kind="item.is_active ? 'success' : 'danger'"
 						icon="user"
 						:icon-class="item.is_active ? 'bg-customer' : 'bg-muted'"
 						clickable
-						@click="onEdit(item)"
+						@click="onPrimaryAction(item)"
 					>
+						<template #header>
+							<view class="customer-heading">
+								<text class="customer-heading__title">{{ item.name }}</text>
+								<text class="customer-heading__contact">{{ item.contact || '暂无联系人' }}</text>
+								<view class="customer-heading__deposit">
+									<text class="customer-heading__deposit-count">存瓶 {{ Number(item.deposit_count || 0) }}</text>
+									<text v-if="item.deposit_bottle_nos?.length" class="customer-heading__deposit-nos">{{ item.deposit_bottle_nos.join('、') }}</text>
+									<text v-else class="customer-heading__deposit-empty">暂无存瓶</text>
+								</view>
+							</view>
+						</template>
 						<template #right>
 							<view class="info-box">
-								<text class="info-label">默认单价</text>
+								<text class="info-label">应收欠款</text>
 								<view class="price-box">
 									<text class="price-symbol">¥</text>
-									<text class="price-value">{{ item.default_unit_price || '0' }}</text>
-									<text class="price-unit">/{{ item.default_price_unit || 'kg' }}</text>
+									<text class="price-value" :class="balanceValueClass(item)">{{ formatMoney(item.net_balance) }}</text>
 								</view>
+								<text class="balance-hint">应收 {{ formatMoney(item.receivable_balance) }} / 预付 {{ formatMoney(item.prepay_balance) }}</text>
 							</view>
 						</template>
 						
@@ -116,13 +143,16 @@
 									{{ item.phone }}
 								</AppTag>
 								<AppTag kind="soft" class="tag-item">{{ item.default_price_unit || 'kg' }}</AppTag>
+								<AppTag kind="soft" class="tag-item">应收 {{ formatMoney(item.receivable_balance) }}</AppTag>
+								<AppTag kind="soft" class="tag-item">预付 {{ formatMoney(item.prepay_balance) }}</AppTag>
 								<text v-if="item.short_name" class="mode-label">{{ item.short_name }}</text>
 							</view>
 						</template>
 						
 						<template #footer>
 							<view class="footer-btns">
-								<AppButton kind="ghost" size="sm" @click.stop="onEdit(item)">编辑档案</AppButton>
+								<AppButton v-if="canViewStatement" kind="outline" size="sm" @click.stop="onStatement(item)">客户对账</AppButton>
+								<AppButton v-if="canUpdateCustomer" kind="ghost" size="sm" @click.stop="onEdit(item)">编辑档案</AppButton>
 							</view>
 						</template>
 					</AppListItem>
@@ -137,7 +167,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppList from '@/components/base/AppList.vue'
@@ -148,7 +178,12 @@ import AppTag from '@/components/base/AppTag.vue'
 import AppIcon from '@/components/base/AppIcon.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
 import { useQuery } from '@/composables/useQuery'
+import { useAuthGuard } from '@/composables/useAuthGuard'
 import { listCustomersV1 } from '@/services/customer'
+
+const props = defineProps({
+	entryMode: { type: String, default: 'default' }
+})
 
 const list = ref([])
 const summary = ref({ total: 0, active: 0, inactive: 0, priced: 0 })
@@ -163,6 +198,9 @@ const filters = reactive({
 	keyword: '',
 	activeIndex: 0
 })
+const showSuggestions = ref(false)
+const suggestions = ref([])
+let searchTimer = null
 
 const activeOptions = [
 	{ label: '全部状态', value: 'all' },
@@ -170,11 +208,24 @@ const activeOptions = [
 	{ label: '已停用', value: 'false' }
 ]
 
+const { canPageAction, canViewPage } = useAuthGuard()
+const canCreateCustomer = computed(() => canPageAction('/pages/customer/edit', 'create'))
+const canUpdateCustomer = computed(() => canPageAction('/pages/customer/edit', 'update'))
+const canViewStatement = computed(() => canViewPage('/pages/customer/statement'))
+const normalizedEntryMode = computed(() => (props.entryMode === 'statement' ? 'statement' : 'default'))
+const isStatementEntryMode = computed(() => normalizedEntryMode.value === 'statement')
+
+const pageTitle = computed(() => (isStatementEntryMode.value ? '客户对账' : '客户档案'))
+
 const activeLabel = computed(() => {
 	return activeOptions[filters.activeIndex]?.label || '全部状态'
 })
 
 const subtitle = computed(() => {
+	if (isStatementEntryMode.value) {
+		if (!pager.total) return '按客户进入对账流水'
+		return `选择客户进入对账 · 当前 ${pager.total} 客户`
+	}
 	if (!pager.total) return '维护客户资料与定价策略'
 	return `当前筛选 ${pager.total} 客户`
 })
@@ -208,6 +259,22 @@ function buildIsActiveParam() {
 	if (value === 'true') return true
 	if (value === 'false') return false
 	return undefined
+}
+
+function toNumber(value, fallback = 0) {
+	const num = Number(value)
+	return Number.isFinite(num) ? num : fallback
+}
+
+function formatMoney(value) {
+	return toNumber(value, 0).toFixed(2)
+}
+
+function balanceValueClass(item) {
+	const net = toNumber(item?.net_balance, 0)
+	if (net > 0.009) return 'price-value--danger'
+	if (net < -0.009) return 'price-value--success'
+	return 'price-value--neutral'
 }
 
 const { loading, run: fetchList } = useQuery(
@@ -277,12 +344,57 @@ async function onSearch(resetPage = false) {
 function onReset() {
 	filters.keyword = ''
 	filters.activeIndex = 0
+	suggestions.value = []
+	showSuggestions.value = false
 	onSearch(true)
 }
 
 function onActiveChange(e) {
 	const idx = Number(e?.detail?.value)
 	filters.activeIndex = Number.isFinite(idx) ? idx : 0
+	onSearch(true)
+}
+
+function onKeywordInput(value) {
+	if (searchTimer) clearTimeout(searchTimer)
+	const keyword = String(value || '').trim()
+	if (!keyword) {
+		suggestions.value = []
+		showSuggestions.value = false
+		return
+	}
+	showSuggestions.value = true
+	searchTimer = setTimeout(async () => {
+		try {
+			const res = await listCustomersV1({ keyword, page: 1, pageSize: 8 })
+			suggestions.value = res?.code === 0 ? res.data || [] : []
+		} catch (err) {
+			console.error(err)
+		}
+	}, 250)
+}
+
+function onKeywordFocus() {
+	if (filters.keyword && suggestions.value.length) showSuggestions.value = true
+}
+
+function onKeywordBlur() {
+	setTimeout(() => {
+		showSuggestions.value = false
+	}, 200)
+}
+
+function selectSuggestion(item) {
+	filters.keyword = String(item?.name || '').trim()
+	showSuggestions.value = false
+	onSearch(true)
+}
+
+function onKeywordConfirm() {
+	if (suggestions.value.length) {
+		selectSuggestion(suggestions.value[0])
+		return
+	}
 	onSearch(true)
 }
 
@@ -293,6 +405,23 @@ function onAdd() {
 function onEdit(item) {
 	if (!item?._id) return
 	uni.navigateTo({ url: `/pages/customer/edit?_id=${encodeURIComponent(item._id)}` })
+}
+
+function onStatement(item) {
+	if (!item?._id) return
+	if (!canViewStatement.value) {
+		uni.showToast({ title: '当前账号没有客户对账权限', icon: 'none' })
+		return
+	}
+	uni.navigateTo({ url: `/pages/customer/statement?_id=${encodeURIComponent(item._id)}` })
+}
+
+function onPrimaryAction(item) {
+	if (isStatementEntryMode.value) {
+		onStatement(item)
+		return
+	}
+	onEdit(item)
 }
 
 function onPrevPage() {
@@ -309,6 +438,10 @@ function onNextPage() {
 
 onMounted(() => {
 	onSearch()
+})
+
+onUnmounted(() => {
+	if (searchTimer) clearTimeout(searchTimer)
 })
 
 defineExpose({
@@ -353,6 +486,99 @@ defineExpose({
 	grid-template-columns: repeat(auto-fit, minmax(240rpx, 1fr));
 	gap: 16rpx;
 	align-items: end;
+}
+
+:deep(.section) {
+	overflow: visible;
+}
+
+:deep(.section__body) {
+	overflow: visible;
+}
+
+.search-field {
+	position: relative;
+	z-index: 20;
+}
+
+.suggestions {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: calc(100% + 8rpx);
+	z-index: 20;
+	background: #fff;
+	border: 1rpx solid #dbeafe;
+	border-radius: 20rpx;
+	box-shadow: 0 10rpx 30rpx rgba(15, 23, 42, 0.08);
+	overflow: hidden;
+}
+
+.suggestion-item {
+	padding: 16rpx 20rpx;
+	display: flex;
+	flex-direction: column;
+	gap: 4rpx;
+	border-bottom: 1rpx solid #eef2ff;
+	background: #fff;
+}
+
+.suggestion-item:last-child {
+	border-bottom: none;
+}
+
+.suggestion-text {
+	font-size: 28rpx;
+	font-weight: 600;
+	color: #0f172a;
+}
+
+.suggestion-sub {
+	font-size: 22rpx;
+	color: #64748b;
+}
+
+.customer-heading {
+	display: flex;
+	flex-direction: column;
+	gap: 6rpx;
+}
+
+.customer-heading__title {
+	font-size: 28rpx;
+	font-weight: 700;
+	color: #0f172a;
+	line-height: 1.4;
+}
+
+.customer-heading__contact {
+	font-size: 24rpx;
+	color: #64748b;
+}
+
+.customer-heading__deposit {
+	display: flex;
+	flex-direction: column;
+	gap: 4rpx;
+	margin-top: 4rpx;
+}
+
+.customer-heading__deposit-count {
+	font-size: 22rpx;
+	font-weight: 600;
+	color: #1d4ed8;
+}
+
+.customer-heading__deposit-nos,
+.customer-heading__deposit-empty {
+	font-size: 22rpx;
+	line-height: 1.5;
+	color: #475569;
+	word-break: break-all;
+}
+
+.customer-heading__deposit-empty {
+	color: #94a3b8;
 }
 
 .filter-chips {
@@ -418,6 +644,23 @@ defineExpose({
 	font-size: 36rpx;
 	font-weight: 800;
 	color: var(--crm-text);
+}
+
+.price-value--danger {
+	color: #b91c1c;
+}
+
+.price-value--success {
+	color: #166534;
+}
+
+.price-value--neutral {
+	color: var(--crm-text);
+}
+
+.balance-hint {
+	font-size: 20rpx;
+	color: var(--crm-text-muted);
 }
 
 .price-unit {

@@ -7,6 +7,19 @@ const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 const accounts = db.collection('crm_accounts')
 const entries = db.collection('crm_voucher_entries')
+let ensureActionAcl = null
+try {
+	;({ ensureActionAcl } = require('../common/pageAcl'))
+} catch (err) {
+	console.warn('[crm-ledger] fallback to local pageAcl helpers', err && err.message)
+	;({ ensureActionAcl } = require('./pageAclLocal'))
+}
+const PAGE_ACTION_RULES = {
+	trialBalanceV1: [{ pagePath: '/pages/accounting/trial-balance', action: 'view' }],
+	generalLedgerV1: [{ pagePath: '/pages/accounting/ledger-general', action: 'view' }],
+	subLedgerV1: [{ pagePath: '/pages/accounting/ledger-sub', action: 'view' }],
+	receivableDetailV1: [{ pagePath: '/pages/accounting/receivable-detail', action: 'view' }]
+}
 
 async function getUserByToken(token) {
 	if (!token) return null
@@ -257,6 +270,12 @@ exports.main = async (event, context) => {
 
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
+	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, [], {
+		recordLog,
+		requestId,
+		cloudFunction: 'crm-ledger'
+	})
+	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
 	if (action === 'trialBalanceV1') return trialBalanceV1(user, data, requestId)
 	if (action === 'generalLedgerV1') return generalLedgerV1(user, data, requestId)

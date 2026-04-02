@@ -29,9 +29,22 @@
 
     "biz_mode": { "bsonType": "string" },
     "price_unit": { "bsonType": "string" },
+    "settlement_mode": { "bsonType": ["string", "null"] },
     "unit_price": { "bsonType": ["number", "null"] },
 
     "remark": { "bsonType": "string" },
+    "ticket_image": { "bsonType": ["string", "null"] },
+    "ticket_images": {
+      "bsonType": "array",
+      "items": { "bsonType": "string" }
+    },
+    "remark_normalized": { "bsonType": "string" },
+    "remark_tags": {
+      "bsonType": "array",
+      "items": { "bsonType": "string" }
+    },
+    "system_note": { "bsonType": "string" },
+    "has_remark": { "bsonType": "bool" },
 
     "payment_status": { "bsonType": "string" },
     "amount_received": { "bsonType": ["number", "null"] },
@@ -95,6 +108,11 @@
     "truck_no": { "bsonType": ["string", "null"] },
     "truck_out_gross": { "bsonType": ["number", "null"] },
     "truck_back_gross": { "bsonType": ["number", "null"] },
+    "truck_gross_diff": { "bsonType": ["number", "null"] },
+    "truck_settle_tare": { "bsonType": ["number", "null"] },
+    "truck_settle_gross": { "bsonType": ["number", "null"] },
+    "truck_net_diff_kg": { "bsonType": ["number", "null"] },
+    "truck_loss_kg": { "bsonType": ["number", "null"] },
     "truck_sale_net": { "bsonType": ["number", "null"] },
 
     "flow_index_prev": { "bsonType": ["number", "null"] },
@@ -118,6 +136,8 @@
     { "key": { "customer_id": 1, "date": -1 }, "name": "idx_customer_date" },
     { "key": { "truck_no": 1, "date": -1 }, "name": "idx_truck_date" },
     { "key": { "price_unit": 1, "date": -1 }, "name": "idx_price_unit_date" },
-    { "key": { "biz_mode": 1, "date": -1 }, "name": "idx_biz_mode_date" }
+    { "key": { "biz_mode": 1, "date": -1 }, "name": "idx_biz_mode_date" },
+    { "key": { "has_remark": 1, "date": -1 }, "name": "idx_has_remark_date" },
+    { "key": { "remark_tags": 1, "date": -1 }, "name": "idx_remark_tags_date" }
   ]
 }

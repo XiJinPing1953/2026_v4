@@ -1,0 +1,57 @@
+{
+  "started_at": "2026-03-17T07:16:38.869Z",
+  "finished_at": "2026-03-17T07:16:47.032Z",
+  "space_id": "env-00jxuffegf2n",
+  "endpoint": "https://env-00jxuffegf2n.api-hz.cloudbasefunction.cn",
+  "config_from": "/Users/wangbo/Library/Application Support/HBuilder X/projects/39637144c7c598fa8663d4ea84645a0e/setting.json",
+  "test_date": "2026-03-17",
+  "run_tag": "smoke-20260317_151638",
+  "checks": {
+    "baseline_no_sale_movement_total": 0,
+    "created": [
+      {
+        "label": "A",
+        "id": "69b8ffdb4f4cace5e7b91417",
+        "bottle_no": "4",
+        "record_type": "normal_fill"
+      },
+      {
+        "label": "B",
+        "id": "69b8ffdc4f4cace5e7b91429",
+        "bottle_no": "9",
+        "record_type": "truck_out_agent_sale"
+      },
+      {
+        "label": "C",
+        "id": "69b8ffdc4f4cace5e7b9142f",
+        "bottle_no": "",
+        "record_type": "truck_out_no_sale"
+      }
+    ],
+    "created_get_v1_ok": true,
+    "movement_a_has_fill": true,
+    "movement_b_has_fill": true,
+    "after_create_no_sale_movement_total": 0,
+    "no_sale_movement_delta": 0,
+    "removed": [
+      {
+        "id": "69b8ffdc4f4cace5e7b9142f",
+        "code": 0,
+        "msg": "删除成功"
+      },
+      {
+        "id": "69b8ffdc4f4cace5e7b91429",
+        "code": 0,
+        "msg": "删除成功"
+      },
+      {
+        "id": "69b8ffdb4f4cace5e7b91417",
+        "code": 0,
+        "msg": "删除成功"
+      }
+    ],
+    "removed_get_v1_404": true
+  },
+  "pass": true,
+  "error": ""
+}

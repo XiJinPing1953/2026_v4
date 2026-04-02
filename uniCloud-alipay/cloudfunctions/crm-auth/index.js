@@ -2,6 +2,20 @@
 
 const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
+let authAclHelpers = null
+try {
+	authAclHelpers = require('../common/pageAcl')
+} catch (err) {
+	console.warn('[crm-auth] fallback to local pageAcl helpers', err && err.message)
+	authAclHelpers = require('./pageAclLocal')
+}
+const {
+	normalizeRoleTemplate,
+	buildRoleTemplatePermissions,
+	normalizePagePermissions,
+	sanitizeUser,
+	isSuperAdmin
+} = authAclHelpers
 const db = uniCloud.database()
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
@@ -49,7 +63,16 @@ async function verifyPassword(password, passwordHash) {
 function stripSensitive(user) {
 	if (!user) return null
 	const { password_hash, token, ...rest } = user
-	return rest
+	return sanitizeUser(rest)
+}
+
+function ensureSuperAdminOperator(user) {
+	return isSuperAdmin(user)
+		? null
+		: {
+				code: 403,
+				msg: '仅超级管理员可操作'
+			}
 }
 
 async function ensureSuperAdmin() {
@@ -59,16 +82,55 @@ async function ensureSuperAdmin() {
 	}
 
 	const existing = await users.where({ username: SUPERADMIN_USERNAME }).limit(1).get()
-	if (existing.data && existing.data.length) return existing.data[0]
+	if (existing.data && existing.data.length) {
+		const current = existing.data[0]
+		const patch = {}
+		const resolvedRole = normalizeRoleTemplate(current.role_template || current.role)
+		const targetPermissions = buildRoleTemplatePermissions('superadmin')
+		const currentPermissions = normalizePagePermissions(current.page_permissions, 'superadmin')
+		if (resolvedRole !== 'superadmin') {
+			patch.role = 'superadmin'
+			patch.role_template = 'superadmin'
+		}
+		if (JSON.stringify(currentPermissions) !== JSON.stringify(targetPermissions)) {
+			patch.page_permissions = targetPermissions
+		}
+		if (!current.password_hash) {
+			patch.password_hash = await hashPassword(SUPERADMIN_PASSWORD)
+		}
+		if (Object.keys(patch).length) {
+			patch.updated_at = Date.now()
+			await users.doc(current._id).update(patch)
+			return { ...current, ...patch }
+		}
+		return current
+	}
 
 	const doc = {
 		username: SUPERADMIN_USERNAME,
 		password_hash: await hashPassword(SUPERADMIN_PASSWORD),
 		role: 'superadmin',
-		created_at: Date.now()
+		role_template: 'superadmin',
+		page_permissions: buildRoleTemplatePermissions('superadmin'),
+		created_at: Date.now(),
+		updated_at: Date.now()
 	}
 	const res = await users.add(doc)
 	return { _id: res.id, ...doc }
+}
+
+function buildUserDoc({ username, passwordHash, roleTemplate }) {
+	const role = normalizeRoleTemplate(roleTemplate)
+	const now = Date.now()
+	return {
+		username,
+		password_hash: passwordHash,
+		role,
+		role_template: role,
+		page_permissions: buildRoleTemplatePermissions(role),
+		created_at: now,
+		updated_at: now
+	}
 }
 
 async function getUserByToken(token) {
@@ -104,10 +166,11 @@ exports.main = async (event, context) => {
 		if (!username || !password) return { code: 400, msg: '缺少账号或密码' }
 
 		const doc = {
-			username,
-			password_hash: await hashPassword(password),
-			role: 'admin',
-			created_at: Date.now()
+			...buildUserDoc({
+				username,
+				passwordHash: await hashPassword(password),
+				roleTemplate: 'admin'
+			})
 		}
 		const insertRes = await users.add(doc)
 		await recordLog({ _id: insertRes.id, username, role: 'admin' }, 'register_admin', {}, requestId)
@@ -150,7 +213,8 @@ exports.main = async (event, context) => {
 	if (action === 'listUsers') {
 		const user = await getUserByToken(token)
 		if (!user) return { code: 401, msg: '未登录或登录已过期' }
-		if (user.role !== 'superadmin') return { code: 403, msg: '仅超级管理员可操作' }
+		const denied = ensureSuperAdminOperator(user)
+		if (denied) return denied
 
 		const res = await users.get()
 		const dataList = (res.data || []).map(stripSensitive)
@@ -162,14 +226,16 @@ exports.main = async (event, context) => {
 	if (action === 'createUser') {
 		const user = await getUserByToken(token)
 		if (!user) return { code: 401, msg: '未登录或登录已过期' }
-		if (user.role !== 'superadmin') return { code: 403, msg: '仅超级管理员可操作' }
+		const denied = ensureSuperAdminOperator(user)
+		if (denied) return denied
 
-		const { username, password, role = 'user' } = data || {}
+		const { username, password, role = 'user', role_template = '' } = data || {}
 		if (!username || !password) return { code: 400, msg: '缺少账号或密码' }
 		if (username.length < 3 || password.length < 6) {
 			return { code: 400, msg: '账号至少3位，密码至少6位' }
 		}
-		if (!['superadmin', 'admin', 'finance', 'user'].includes(role)) {
+		const resolvedRole = normalizeRoleTemplate(role_template || role)
+		if (!['superadmin', 'admin', 'finance', 'user'].includes(resolvedRole)) {
 			return { code: 400, msg: '角色不合法' }
 		}
 		if (username === SUPERADMIN_USERNAME) {
@@ -181,17 +247,14 @@ exports.main = async (event, context) => {
 			return { code: 400, msg: '账号已存在' }
 		}
 
-		const now = Date.now()
-		const doc = {
+		const doc = buildUserDoc({
 			username,
-			password_hash: await hashPassword(password),
-			role,
-			created_at: now,
-			updated_at: now
-		}
+			passwordHash: await hashPassword(password),
+			roleTemplate: resolvedRole
+		})
 
 		const res = await users.add(doc)
-		await recordLog(user, 'create_user', { id: res.id, username, role }, requestId)
+		await recordLog(user, 'create_user', { id: res.id, username, role: resolvedRole }, requestId)
 
 		return { code: 0, msg: '创建成功', data: { _id: res.id } }
 	}
@@ -199,7 +262,8 @@ exports.main = async (event, context) => {
 	if (action === 'removeUser') {
 		const user = await getUserByToken(token)
 		if (!user) return { code: 401, msg: '未登录或登录已过期' }
-		if (user.role !== 'superadmin') return { code: 403, msg: '仅超级管理员可操作' }
+		const denied = ensureSuperAdminOperator(user)
+		if (denied) return denied
 
 		const { userId } = data || {}
 		if (!userId) return { code: 400, msg: '缺少用户 ID' }
@@ -220,16 +284,23 @@ exports.main = async (event, context) => {
 	if (action === 'updateRole') {
 		const user = await getUserByToken(token)
 		if (!user) return { code: 401, msg: '未登录或登录已过期' }
-		if (user.role !== 'superadmin') return { code: 403, msg: '仅超级管理员可操作' }
+		const denied = ensureSuperAdminOperator(user)
+		if (denied) return denied
 
-		const { userId, role } = data
+		const { userId, role, role_template = '' } = data
 		if (!userId || !role) return { code: 400, msg: '缺少用户或角色' }
-		if (!['superadmin', 'admin', 'finance', 'user'].includes(role)) {
+		const resolvedRole = normalizeRoleTemplate(role_template || role)
+		if (!['superadmin', 'admin', 'finance', 'user'].includes(resolvedRole)) {
 			return { code: 400, msg: '角色不合法' }
 		}
-		await users.doc(userId).update({ role })
+		await users.doc(userId).update({
+			role: resolvedRole,
+			role_template: resolvedRole,
+			page_permissions: buildRoleTemplatePermissions(resolvedRole),
+			updated_at: Date.now()
+		})
 
-		await recordLog(user, 'update_role', { target: userId, role })
+		await recordLog(user, 'update_role', { target: userId, role: resolvedRole })
 		return { code: 0, msg: '角色已更新' }
 	}
 

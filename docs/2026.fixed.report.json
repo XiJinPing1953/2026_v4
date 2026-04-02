@@ -1,0 +1,378 @@
+{
+  "generated_at": "2026-03-17T11:43:08.506Z",
+  "input": "/Users/wangbo/Downloads/2026_v4/docs/20260317161633_9a623b2d-1421-443b-9ee2-f4ab7772d9f9.json",
+  "parse_mode": "ndjson",
+  "parse_bad_line_count": 0,
+  "parse_bad_lines_preview": [],
+  "config": {
+    "dedup_policy": "oldest",
+    "drop_bottle_zero": false
+  },
+  "stats": {
+    "source_rows": 3897,
+    "transformed_rows": 3897,
+    "cleaned_rows": 3828,
+    "dropped_rows": 69,
+    "record_type_source": {
+      "normal_fill": 3572,
+      "truck_out_agent_sale": 256,
+      "truck_out_no_sale": 69
+    },
+    "record_type_cleaned": {
+      "normal_fill": 3506,
+      "truck_out_agent_sale": 253,
+      "truck_out_no_sale": 69
+    },
+    "no_sale_bottle_no_filled_from_vehicle_total": 69,
+    "duplicate_group_count": 68,
+    "duplicate_extra_row_count": 69,
+    "dedup_by_id_removed": 0
+  },
+  "drop_summary": {
+    "precheck_drop": {},
+    "dedup_drop": {
+      "duplicate_exact_datetime_bottle": 69
+    }
+  },
+  "dropped_preview": {
+    "precheck": [],
+    "dedup": [
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-05 08:00",
+        "bottle_no": "384",
+        "_id": "695dc993a674f496e60a5658"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-05 08:00",
+        "bottle_no": "135",
+        "_id": "695dc993286f7c34c9e8593d"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-05 08:00",
+        "bottle_no": "Y076",
+        "_id": "695dc98d55b337aa1cdc8d7d"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-05 08:00",
+        "bottle_no": "59",
+        "_id": "695dc98e7ae7089a62a456be"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-06 08:00",
+        "bottle_no": "198",
+        "_id": "695e15ca286f7c34c9ef939c"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-09 08:00",
+        "bottle_no": "228",
+        "_id": "6960b8b0466d416255fa4ebd"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-14 08:00",
+        "bottle_no": "239",
+        "_id": "6966fa7ca674f40dbb4ddae7"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "225",
+        "_id": "6969ed14286f7c47aec81d84"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "220",
+        "_id": "6969ed15eef9cbdef09d735f"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "33",
+        "_id": "6969ed150d2b314595b94914"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "78",
+        "_id": "6969ed15286f7c47aec81d9b"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "228",
+        "_id": "6969ed16816a3fc798c49d7f"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "99",
+        "_id": "6969ed16f0821082134e1ffa"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "12",
+        "_id": "6969ed1621392995669a5338"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "88",
+        "_id": "6969ed17ee97ef29c99ded96"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "108",
+        "_id": "6969ed17286f7c47aec81db8"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "252",
+        "_id": "6969ed174b924797966f7711"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "251",
+        "_id": "6969ed17e0ec19a5fa425c0a"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "Y104",
+        "_id": "6969ed18286f7c47aec81dc3"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "226",
+        "_id": "6969ed1821821b751b5bebcd"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "219",
+        "_id": "6969ed1809664cf1d67b6953"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "209",
+        "_id": "6969ed1921392995669a53cd"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "95",
+        "_id": "6969ed19286f7c47aec81dcf"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "35",
+        "_id": "6969ed191c90b6a7ccfd6c38"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "102",
+        "_id": "6969ed19652341e27afb2b0c"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "100",
+        "_id": "6969ed1aa09a9bd54a4d88be"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "263",
+        "_id": "6969ed1aa674f40dbb860a5e"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "Y076",
+        "_id": "6969ed1a189f86224554a9e0"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-16 08:00",
+        "bottle_no": "97",
+        "_id": "6969ed1aa674f40dbb860a6f"
+      },
+      {
+        "reason": "duplicate_exact_datetime_bottle",
+        "date": "2026-01-18 08:00",
+        "bottle_no": "229",
+        "_id": "696d94643d029cb6255d86ee"
+      }
+    ]
+  },
+  "duplicate_groups_preview": [
+    {
+      "date": "2026-01-05 08:00",
+      "bottle_no": "384",
+      "count": 2
+    },
+    {
+      "date": "2026-01-05 08:00",
+      "bottle_no": "135",
+      "count": 2
+    },
+    {
+      "date": "2026-01-05 08:00",
+      "bottle_no": "Y076",
+      "count": 2
+    },
+    {
+      "date": "2026-01-05 08:00",
+      "bottle_no": "59",
+      "count": 2
+    },
+    {
+      "date": "2026-01-06 08:00",
+      "bottle_no": "198",
+      "count": 2
+    },
+    {
+      "date": "2026-01-09 08:00",
+      "bottle_no": "228",
+      "count": 2
+    },
+    {
+      "date": "2026-01-14 08:00",
+      "bottle_no": "239",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "225",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "220",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "33",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "78",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "228",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "99",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "12",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "88",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "108",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "252",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "251",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "Y104",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "226",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "219",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "209",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "95",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "35",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "102",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "100",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "263",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "Y076",
+      "count": 2
+    },
+    {
+      "date": "2026-01-16 08:00",
+      "bottle_no": "97",
+      "count": 2
+    },
+    {
+      "date": "2026-01-18 08:00",
+      "bottle_no": "229",
+      "count": 2
+    }
+  ],
+  "output": {
+    "ndjson": "/Users/wangbo/Downloads/2026_v4/docs/2026.fixed.ndjson",
+    "json_array": "/Users/wangbo/Downloads/2026_v4/docs/2026.fixed.array.json"
+  }
+}

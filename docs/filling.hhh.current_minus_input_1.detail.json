@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-03-17T13:10:19.376Z",
+  "input_file": "/Users/wangbo/Downloads/2026_v4/docs/hhh.json",
+  "current_total": 3828,
+  "input_dedup_total": 3893,
+  "current_minus_input_count": 1,
+  "rows": [
+    {
+      "_id": "69b93c634975ff712e73cc7a",
+      "date": "2026-01-28 08:00",
+      "record_type": "truck_out_agent_sale",
+      "bottle_no": "0",
+      "fill_weight": 1036,
+      "operator": "陈铁栓",
+      "remark": "legacy恢复:0保留(同日同瓶合并3条)",
+      "signature": "truck_out_agent_sale|2026-01-28 08:00|0|1036|陈铁栓|legacy恢复:0保留(同日同瓶合并3条)"
+    }
+  ]
+}

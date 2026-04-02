@@ -1,0 +1,42 @@
+{
+  "X046": [
+    {
+      "id": "69b922801117bf9b461ba34e",
+      "bottle_no": "X046",
+      "status": "in_station",
+      "tare_weight": 353,
+      "is_active": true,
+      "current_customer_name": ""
+    }
+  ],
+  "X46": [
+    {
+      "id": "693fbee16dd837518fa12285",
+      "bottle_no": "X46",
+      "status": "in_station",
+      "tare_weight": 353,
+      "is_active": true,
+      "current_customer_name": ""
+    }
+  ],
+  "X047": [
+    {
+      "id": "69b922801117bf9b461ba353",
+      "bottle_no": "X047",
+      "status": "in_station",
+      "tare_weight": 353,
+      "is_active": true,
+      "current_customer_name": ""
+    }
+  ],
+  "X47": [
+    {
+      "id": "693fbee16dd837518fa12286",
+      "bottle_no": "X47",
+      "status": "in_station",
+      "tare_weight": 353,
+      "is_active": true,
+      "current_customer_name": ""
+    }
+  ]
+}

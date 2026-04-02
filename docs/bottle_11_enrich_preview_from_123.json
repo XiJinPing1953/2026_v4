@@ -1,0 +1,101 @@
+[
+  {
+    "target": "N68",
+    "canonical": "N68",
+    "matches": 1,
+    "source_no": "N068",
+    "source_status": "in_station",
+    "source_tare": 353,
+    "source_customer": ""
+  },
+  {
+    "target": "X11",
+    "canonical": "X11",
+    "matches": 1,
+    "source_no": "X011",
+    "source_status": "in_station",
+    "source_tare": 353,
+    "source_customer": ""
+  },
+  {
+    "target": "X34",
+    "canonical": "X34",
+    "matches": 1,
+    "source_no": "X034",
+    "source_status": "at_customer",
+    "source_tare": 353,
+    "source_customer": "舟山晋业能源有限公司"
+  },
+  {
+    "target": "X37",
+    "canonical": "X37",
+    "matches": 1,
+    "source_no": "X037",
+    "source_status": "in_station",
+    "source_tare": 353,
+    "source_customer": ""
+  },
+  {
+    "target": "X046",
+    "canonical": "X46",
+    "matches": 1,
+    "source_no": "X46",
+    "source_status": "in_station",
+    "source_tare": 353,
+    "source_customer": ""
+  },
+  {
+    "target": "X047",
+    "canonical": "X47",
+    "matches": 1,
+    "source_no": "X47",
+    "source_status": "in_station",
+    "source_tare": 353,
+    "source_customer": ""
+  },
+  {
+    "target": "X57",
+    "canonical": "X57",
+    "matches": 1,
+    "source_no": "X057",
+    "source_status": "in_station",
+    "source_tare": 353,
+    "source_customer": ""
+  },
+  {
+    "target": "X59",
+    "canonical": "X59",
+    "matches": 1,
+    "source_no": "X059",
+    "source_status": "in_station",
+    "source_tare": 353,
+    "source_customer": ""
+  },
+  {
+    "target": "X61",
+    "canonical": "X61",
+    "matches": 1,
+    "source_no": "X061",
+    "source_status": "in_station",
+    "source_tare": 353,
+    "source_customer": ""
+  },
+  {
+    "target": "X63",
+    "canonical": "X63",
+    "matches": 1,
+    "source_no": "X063",
+    "source_status": "in_station",
+    "source_tare": 353,
+    "source_customer": ""
+  },
+  {
+    "target": "Y179",
+    "canonical": "Y179",
+    "matches": 1,
+    "source_no": "Y179",
+    "source_status": "in_station",
+    "source_tare": 119,
+    "source_customer": ""
+  }
+]

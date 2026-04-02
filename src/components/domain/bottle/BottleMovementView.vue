@@ -20,14 +20,30 @@
 					<AppButton size="sm" kind="primary" @click="onSearch(true)">查询</AppButton>
 				</template>
 				<view class="filter-grid">
-					<AppInput
-						v-model="filters.bottleNo"
-						label="瓶号"
-						placeholder="输入瓶号"
-						size="sm"
-						confirm-type="search"
-						@confirm="onSearch(true)"
-					/>
+					<view class="filter-bottle-wrap">
+						<AppInput
+							v-model="filters.bottleNo"
+							label="瓶号"
+							placeholder="输入瓶号联想钢瓶档案"
+							size="sm"
+							confirm-type="search"
+							@input="onBottleInput"
+							@focus="onBottleFocus"
+							@blur="onBottleBlur"
+							@confirm="onBottleConfirm"
+						/>
+						<view v-if="filterBottleSuggestions.length" class="filter-suggestions">
+							<view
+								v-for="item in filterBottleSuggestions"
+								:key="`movement-filter-${item._id || item.bottle_no}`"
+								class="filter-suggestion-item"
+								@tap.stop="selectBottleSuggestion(item)"
+							>
+								<text class="filter-suggestion-no">{{ item.bottle_no }}</text>
+								<text class="filter-suggestion-sub">{{ formatBottleSuggestionSub(item) }}</text>
+							</view>
+						</view>
+					</view>
 					<picker class="picker-block" mode="selector" :range="typeOptions" range-key="label" @change="onTypeChange">
 						<view class="picker-trigger">
 							<AppInput :model-value="typeLabel" label="类型" disabled size="sm" />
@@ -68,13 +84,13 @@
 						@click="onOpenTimeline(item)"
 					>
 						<template #meta>
-							<view class="meta-tags">
-								<AppTag kind="soft">{{ sourceText(item.source_type) }}</AppTag>
-								<text v-if="item.net_weight != null" class="meta-text">净重 {{ item.net_weight }} kg</text>
-								<text v-if="item.loss_weight != null" class="meta-text">损耗 {{ item.loss_weight }} kg</text>
-								<text v-if="item.note" class="meta-text">{{ item.note }}</text>
-							</view>
-						</template>
+								<view class="meta-tags">
+									<AppTag kind="soft">{{ sourceText(item.source_type) }}</AppTag>
+									<text v-if="item.net_weight != null" class="meta-text">净重 {{ item.net_weight }} kg</text>
+									<text v-if="buildLossWeightText(item)" class="meta-text">{{ buildLossWeightText(item) }}</text>
+									<text v-if="item.note" class="meta-text">{{ item.note }}</text>
+								</view>
+							</template>
 					</AppListItem>
 				</AppList>
 
@@ -107,6 +123,7 @@ import AppTag from '@/components/base/AppTag.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
 import { useQuery } from '@/composables/useQuery'
+import { searchBottleSuggestions } from '@/composables/useBottleSuggestions'
 import { listBottleMovementsV1 } from '@/services/bottleMovement'
 
 const list = ref([])
@@ -135,6 +152,13 @@ const pageSizeOptions = [
 	{ label: '100 条', value: 100 },
 	{ label: '200 条', value: 200 }
 ]
+const STATUS_LABEL_MAP = {
+	unknown: '未知',
+	in_station: '在站',
+	at_customer: '在客户',
+	scrapped: '报废',
+	lost: '丢失'
+}
 
 const filters = reactive({
 	bottleNo: '',
@@ -143,6 +167,9 @@ const filters = reactive({
 	dateStart: '',
 	dateEnd: ''
 })
+const filterBottleSuggestions = ref([])
+const filterBottleSuggestLoading = ref(false)
+let filterBottleSuggestTimer = 0
 
 const pager = reactive({
 	page: 1,
@@ -173,6 +200,17 @@ function buildSummary(raw) {
 function normalizeBottleNo(value) {
 	if (value == null) return ''
 	return String(value).trim().toUpperCase().replace(/\s+/g, '')
+}
+
+function getStatusLabel(value) {
+	const key = String(value == null ? '' : value).trim()
+	return STATUS_LABEL_MAP[key] || '未知'
+}
+
+function formatBottleSuggestionSub(item) {
+	const status = getStatusLabel(item && item.status)
+	const customer = String(item?.current_customer_name == null ? '' : item.current_customer_name).trim()
+	return customer ? `${status} · ${customer}` : status
 }
 
 function normalizeDay(value) {
@@ -230,8 +268,38 @@ function applyResult(payload) {
 	summary.value = buildSummary(data.summary)
 }
 
+function clearFilterBottleSuggestTimer() {
+	if (!filterBottleSuggestTimer) return
+	clearTimeout(filterBottleSuggestTimer)
+	filterBottleSuggestTimer = 0
+}
+
+function clearFilterBottleSuggestions() {
+	filterBottleSuggestions.value = []
+	filterBottleSuggestLoading.value = false
+	clearFilterBottleSuggestTimer()
+}
+
+async function fetchFilterBottleSuggestions(keyword) {
+	const targetKeyword = String(keyword == null ? '' : keyword).trim()
+	if (!targetKeyword) {
+		filterBottleSuggestions.value = []
+		filterBottleSuggestLoading.value = false
+		return
+	}
+	filterBottleSuggestLoading.value = true
+	try {
+		const suggestions = await searchBottleSuggestions(targetKeyword, { limit: 20 })
+		if (normalizeBottleNo(filters.bottleNo) !== normalizeBottleNo(targetKeyword)) return
+		filterBottleSuggestions.value = suggestions
+	} finally {
+		filterBottleSuggestLoading.value = false
+	}
+}
+
 async function onSearch(resetPage = false) {
 	if (resetPage) pager.page = 1
+	clearFilterBottleSuggestions()
 	const data = await fetchList()
 	applyResult(data)
 }
@@ -256,8 +324,50 @@ function onReset() {
 	filters.sourceIndex = 0
 	pager.page = 1
 	pager.pageSizeIndex = 1
+	clearFilterBottleSuggestions()
 	initDateRange()
 	onSearch(false)
+}
+
+function onBottleInput(value) {
+	const text = String(value == null ? '' : value).trim()
+	clearFilterBottleSuggestTimer()
+	if (!text) {
+		filterBottleSuggestions.value = []
+		return
+	}
+	filterBottleSuggestTimer = setTimeout(() => {
+		fetchFilterBottleSuggestions(text)
+	}, 180)
+}
+
+function onBottleFocus() {
+	const text = String(filters.bottleNo == null ? '' : filters.bottleNo).trim()
+	if (!text) return
+	clearFilterBottleSuggestTimer()
+	filterBottleSuggestTimer = setTimeout(() => {
+		fetchFilterBottleSuggestions(text)
+	}, 120)
+}
+
+function onBottleBlur() {
+	setTimeout(() => {
+		filterBottleSuggestions.value = []
+	}, 160)
+}
+
+function onBottleConfirm() {
+	const normalized = normalizeBottleNo(filters.bottleNo)
+	if (normalized) filters.bottleNo = normalized
+	clearFilterBottleSuggestions()
+	onSearch(true)
+}
+
+function selectBottleSuggestion(item) {
+	const bottleNo = normalizeBottleNo(item?.bottle_no)
+	if (!bottleNo) return
+	filters.bottleNo = bottleNo
+	clearFilterBottleSuggestions()
 }
 
 function onTypeChange(e) {
@@ -333,6 +443,13 @@ function typeIconClass(type) {
 	return 'bg-primary'
 }
 
+function buildLossWeightText(item) {
+	const value = Number(item && item.loss_weight)
+	if (!Number.isFinite(value) || value === 0) return ''
+	if (value > 0) return `损耗 ${value} kg`
+	return `胀重 ${Math.abs(value)} kg`
+}
+
 function onOpenTimeline(item) {
 	const bottleNo = normalizeBottleNo(item && item.bottle_no)
 	if (!bottleNo) return
@@ -388,6 +505,10 @@ defineExpose({
 	align-items: end;
 }
 
+.filter-bottle-wrap {
+	position: relative;
+}
+
 .picker-block {
 	display: block;
 	width: 100%;
@@ -410,6 +531,48 @@ defineExpose({
 }
 
 .meta-text {
+	font-size: 22rpx;
+	color: var(--crm-text-muted);
+}
+
+.filter-suggestions {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: calc(100% + 8rpx);
+	z-index: 20;
+	display: flex;
+	flex-direction: column;
+	border: 1rpx solid rgba(15, 23, 42, 0.08);
+	border-radius: 24rpx;
+	background: #fff;
+	box-shadow: 0 16rpx 40rpx rgba(15, 23, 42, 0.12);
+	overflow: hidden;
+}
+
+.filter-suggestion-item {
+	display: flex;
+	flex-direction: column;
+	gap: 6rpx;
+	padding: 18rpx 24rpx;
+	border-bottom: 1rpx solid rgba(15, 23, 42, 0.06);
+}
+
+.filter-suggestion-item:last-child {
+	border-bottom: none;
+}
+
+.filter-suggestion-item:active {
+	background: rgba(14, 116, 144, 0.08);
+}
+
+.filter-suggestion-no {
+	font-size: 28rpx;
+	font-weight: 600;
+	color: var(--crm-text);
+}
+
+.filter-suggestion-sub {
 	font-size: 22rpx;
 	color: var(--crm-text-muted);
 }

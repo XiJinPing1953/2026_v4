@@ -1,0 +1,154 @@
+{
+  "code": 0,
+  "msg": "ok",
+  "data": {
+    "preview": true,
+    "scan_limit": 12000,
+    "scanned_total": 3879,
+    "candidate_total": 3828,
+    "invalid_total": 0,
+    "candidates_sample": [
+      {
+        "_id": "69b91a491117bf9b461b07c1",
+        "bottle_no": "Z018",
+        "record_type": "truck_out_agent_sale",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a491bfe16da6e6dbe76",
+        "bottle_no": "Z015",
+        "record_type": "truck_out_agent_sale",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a49599120be6c3e9e14",
+        "bottle_no": "Z014",
+        "record_type": "truck_out_agent_sale",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a491bfe16da6e6dbe71",
+        "bottle_no": "Z010",
+        "record_type": "truck_out_agent_sale",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a491bfe16da6e6dbe6f",
+        "bottle_no": "Z008",
+        "record_type": "truck_out_agent_sale",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a498a2e952d8f1bca7d",
+        "bottle_no": "Z004",
+        "record_type": "truck_out_agent_sale",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a491117bf9b461b07b8",
+        "bottle_no": "Z006",
+        "record_type": "truck_out_agent_sale",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a491bfe16da6e6dbe6d",
+        "bottle_no": "Y172",
+        "record_type": "normal_fill",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a491117bf9b461b07b3",
+        "bottle_no": "Y137",
+        "record_type": "normal_fill",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a491117bf9b461b07b1",
+        "bottle_no": "Y128",
+        "record_type": "normal_fill",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a491117bf9b461b07ac",
+        "bottle_no": "Y111",
+        "record_type": "normal_fill",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a491bfe16da6e6dbe6a",
+        "bottle_no": "Y126",
+        "record_type": "normal_fill",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a481117bf9b461b07aa",
+        "bottle_no": "Y088",
+        "record_type": "normal_fill",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a481bfe16da6e6dbe68",
+        "bottle_no": "Y082",
+        "record_type": "normal_fill",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a481117bf9b461b07a5",
+        "bottle_no": "Y040",
+        "record_type": "normal_fill",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a481117bf9b461b07a3",
+        "bottle_no": "387",
+        "record_type": "normal_fill",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a481bfe16da6e6dbe66",
+        "bottle_no": "376",
+        "record_type": "normal_fill",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a481117bf9b461b079c",
+        "bottle_no": "374",
+        "record_type": "normal_fill",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a481bfe16da6e6dbe64",
+        "bottle_no": "368",
+        "record_type": "normal_fill",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      },
+      {
+        "_id": "69b91a481bfe16da6e6dbe61",
+        "bottle_no": "348",
+        "record_type": "normal_fill",
+        "old_date": "2026-03-16 08:00",
+        "new_date": "2026-03-16"
+      }
+    ],
+    "invalid_sample": []
+  }
+}

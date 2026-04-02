@@ -1,0 +1,44 @@
+{
+  "generated_at": "2026-03-30T08:07:04.517Z",
+  "space_id": "env-00jxuffegf2n",
+  "config_from": "/Users/wangbo/Library/Application Support/HBuilder X/projects/39637144c7c598fa8663d4ea84645a0e/setting.json",
+  "execute": false,
+  "from_bottle_no": "J71",
+  "to_bottle_no": "J76",
+  "bottle_mapping": {
+    "from_rows": [],
+    "to_rows": [
+      {
+        "_id": "693fbee16dd837518fa12248",
+        "bottle_no": "J76",
+        "is_active": true
+      }
+    ],
+    "canonical_to_bottle_id": "693fbee16dd837518fa12248"
+  },
+  "before": {
+    "fillings_from_total": 1,
+    "movements_from_total": 0,
+    "movements_to_total": 4
+  },
+  "plan": {
+    "update_fillings_total": 1,
+    "update_sales_total": 2,
+    "sales_sample": [
+      {
+        "_id": "69c8af8c59063e84c13ec0ce",
+        "date": "2026-03-23",
+        "customer_name": "肃宁-金颖",
+        "biz_mode": "bottle"
+      },
+      {
+        "_id": "69bbb0100add39bd434a43fb",
+        "date": "2026-03-12",
+        "customer_name": "肃宁-金颖",
+        "biz_mode": "bottle"
+      }
+    ]
+  },
+  "execute_result": null,
+  "after": null
+}

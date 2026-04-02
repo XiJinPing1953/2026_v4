@@ -1,14 +1,30 @@
 <script>
+import { syncCurrentUser } from '@/services/auth'
+import { ensureLatestH5Bundle } from '@/services/h5VersionGuard'
+import { goLogin } from '@/services/navigation'
+
 export default {
-  onLaunch: function () {
+  async onLaunch() {
     console.log('App Launch')
+    await ensureLatestH5Bundle({ force: true })
+    await this.bootstrapAuth()
   },
-  onShow: function () {
+  async onShow() {
     console.log('App Show')
+    await ensureLatestH5Bundle()
+    await this.bootstrapAuth()
   },
-  onHide: function () {
+  onHide() {
     console.log('App Hide')
   },
+  methods: {
+    async bootstrapAuth() {
+      const result = await syncCurrentUser({ force: true })
+      if (result?.code === 401) {
+        goLogin()
+      }
+    }
+  }
 }
 </script>
 
@@ -20,4 +36,3 @@ page {
 	color: var(--crm-text);
 }
 </style>
-

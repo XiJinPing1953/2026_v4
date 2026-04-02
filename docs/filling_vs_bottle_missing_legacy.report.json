@@ -1,0 +1,121 @@
+{
+  "generated_at": "2026-03-17T14:21:10.032Z",
+  "reports": [
+    {
+      "label": "about_vs_about",
+      "filling_file": "/Users/wangbo/Downloads/2026_v4/docs/about_crm_filling_records.json",
+      "bottle_file": "/Users/wangbo/Downloads/2026_v4/docs/about_crm_bottles.json",
+      "filling_total": 982,
+      "bottle_total": 912,
+      "bottle_unique_total": 912,
+      "filling_by_type": {
+        "normal_fill": 887,
+        "truck_out_agent_sale": 85,
+        "truck_out_no_sale": 10,
+        "other": 0
+      },
+      "filling_non_empty_bottle_total": 972,
+      "inventory_linked_non_empty_bottle_total": 972,
+      "missing_row_by_type": {
+        "normal_fill": 0,
+        "truck_out_agent_sale": 2,
+        "truck_out_no_sale": 0,
+        "other": 0
+      },
+      "all_record_types_missing_unique_bottle_total": 2,
+      "inventory_linked_missing_unique_bottle_total": 2,
+      "all_record_types_missing_sample": [
+        {
+          "bottle_no": "X046",
+          "count": 1,
+          "types": [
+            "truck_out_agent_sale"
+          ],
+          "first_line": 717,
+          "sample_date": "2026-01-10 08:00",
+          "sample_type": "truck_out_agent_sale"
+        },
+        {
+          "bottle_no": "X047",
+          "count": 1,
+          "types": [
+            "truck_out_agent_sale"
+          ],
+          "first_line": 714,
+          "sample_date": "2026-01-10 08:00",
+          "sample_type": "truck_out_agent_sale"
+        }
+      ],
+      "inventory_linked_missing_sample": [
+        {
+          "bottle_no": "X046",
+          "count": 1,
+          "types": [
+            "truck_out_agent_sale"
+          ],
+          "first_line": 717,
+          "sample_date": "2026-01-10 08:00",
+          "sample_type": "truck_out_agent_sale"
+        },
+        {
+          "bottle_no": "X047",
+          "count": 1,
+          "types": [
+            "truck_out_agent_sale"
+          ],
+          "first_line": 714,
+          "sample_date": "2026-01-10 08:00",
+          "sample_type": "truck_out_agent_sale"
+        }
+      ]
+    },
+    {
+      "label": "hhh_vs_export_bottle",
+      "filling_file": "/Users/wangbo/Downloads/2026_v4/docs/hhh.json",
+      "bottle_file": "/Users/wangbo/Downloads/2026_v4/docs/export_bottle.json",
+      "filling_total": 3948,
+      "bottle_total": 3897,
+      "bottle_unique_total": 609,
+      "filling_by_type": {
+        "normal_fill": 3623,
+        "truck_out_agent_sale": 256,
+        "truck_out_no_sale": 69,
+        "other": 0
+      },
+      "filling_non_empty_bottle_total": 3879,
+      "inventory_linked_non_empty_bottle_total": 3879,
+      "missing_row_by_type": {
+        "normal_fill": 1,
+        "truck_out_agent_sale": 0,
+        "truck_out_no_sale": 0,
+        "other": 0
+      },
+      "all_record_types_missing_unique_bottle_total": 1,
+      "inventory_linked_missing_unique_bottle_total": 1,
+      "all_record_types_missing_sample": [
+        {
+          "bottle_no": "Y145",
+          "count": 1,
+          "types": [
+            "normal_fill"
+          ],
+          "first_line": 3938,
+          "sample_date": "2026-03-17 08:00",
+          "sample_type": "normal_fill"
+        }
+      ],
+      "inventory_linked_missing_sample": [
+        {
+          "bottle_no": "Y145",
+          "count": 1,
+          "types": [
+            "normal_fill"
+          ],
+          "first_line": 3938,
+          "sample_date": "2026-03-17 08:00",
+          "sample_type": "normal_fill"
+        }
+      ]
+    }
+  ]
+}

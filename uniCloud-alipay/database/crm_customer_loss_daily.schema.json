@@ -1,0 +1,50 @@
+{
+  "bsonType": "object",
+  "description": "Customer daily bottle loss summaries for statement analysis",
+  "additionalProperties": false,
+  "required": [
+    "customer_id",
+    "customer_name",
+    "day",
+    "cycle_loss_weight",
+    "cycle_loss_count",
+    "manual_loss_weight",
+    "manual_loss_count",
+    "loss_total_weight",
+    "bottle_count",
+    "bottle_nos",
+    "request_id",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "customer_id": { "bsonType": "string" },
+    "customer_name": { "bsonType": "string" },
+    "day": { "bsonType": "string" },
+    "cycle_loss_weight": { "bsonType": "number" },
+    "cycle_loss_count": { "bsonType": "int" },
+    "manual_loss_weight": { "bsonType": "number" },
+    "manual_loss_count": { "bsonType": "int" },
+    "loss_total_weight": { "bsonType": "number" },
+    "bottle_count": { "bsonType": "int" },
+    "bottle_nos": {
+      "bsonType": "array",
+      "items": { "bsonType": "string" }
+    },
+    "request_id": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "customer_id": 1, "day": 1 }, "name": "uniq_customer_day", "unique": true },
+    { "key": { "day": 1, "customer_id": 1 }, "name": "idx_day_customer" },
+    { "key": { "request_id": 1 }, "name": "idx_request_id" }
+  ]
+}

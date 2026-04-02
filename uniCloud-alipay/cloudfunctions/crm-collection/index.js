@@ -8,12 +8,28 @@ const logs = db.collection('crm_operation_logs')
 const tasks = db.collection('crm_collection_tasks')
 const followups = db.collection('crm_collection_followups')
 const sales = db.collection('crm_sale_records')
+let ensureActionAcl = null
+try {
+	;({ ensureActionAcl } = require('../common/pageAcl'))
+} catch (err) {
+	console.warn('[crm-collection] fallback to local pageAcl helpers', err && err.message)
+	;({ ensureActionAcl } = require('./pageAclLocal'))
+}
 
 const WRITE_ROLES = ['superadmin', 'admin', 'finance']
 const STATUS_LIST = ['open', 'in_progress', 'promised', 'partial_paid', 'paid', 'paused', 'closed']
 const PRIORITY_LIST = ['P0', 'P1', 'P2']
 const FOLLOWUP_ACTION_LIST = ['call', 'visit', 'wechat', 'sms', 'other']
 const FOLLOWUP_RESULT_LIST = ['promised', 'partial_paid', 'paid', 'no_response', 'dispute']
+const PAGE_ACTION_RULES = {
+	listTasksV1: [{ pagePath: '/pages/collection/task-list', action: 'view' }],
+	getTaskV1: [{ pagePath: '/pages/collection/task-detail', action: 'view' }],
+	listFollowupsV1: [{ pagePath: '/pages/collection/task-detail', action: 'view' }],
+	updateTaskV1: [{ pagePath: '/pages/collection/task-detail', action: 'update' }],
+	addFollowupV1: [{ pagePath: '/pages/collection/task-detail', action: 'update' }],
+	recalcTaskV1: [{ pagePath: '/pages/collection/task-detail', action: 'update' }],
+	autoCreateTasksV1: [{ pagePath: '/pages/collection/task-list', action: 'update' }]
+}
 
 async function getUserByToken(token) {
 	if (!token) return null
@@ -163,6 +179,17 @@ function computeAmounts({ bizMode, priceUnit, unitPrice, outItems, backItems, ag
 	}
 }
 
+function resolveTruckSaleNetValue(rawTruckSaleNet, rawTruckOutGross, rawTruckBackGross) {
+	const outGross = toNumber(rawTruckOutGross, null)
+	const backGross = toNumber(rawTruckBackGross, null)
+	if (outGross != null && backGross != null) {
+		const diff = outGross - backGross
+		return diff > 0 ? fix2(diff) : 0
+	}
+	const explicit = toNumber(rawTruckSaleNet, null)
+	return explicit != null && explicit > 0 ? fix2(explicit) : 0
+}
+
 function pickStatusByFollowup(result, defaultStatus) {
 	if (result === 'paid') return 'paid'
 	if (result === 'partial_paid') return 'partial_paid'
@@ -236,7 +263,7 @@ async function aggregateTaskSnapshot(taskDoc, dateFrom, dateTo) {
 		const outItems = Array.isArray(doc.out_items) ? doc.out_items : []
 		const backItems = Array.isArray(doc.back_items) ? doc.back_items : []
 		const agentRows = Array.isArray(doc.agent_sale_items) ? doc.agent_sale_items : []
-		const truckSaleNet = toNumber(doc.truck_sale_net, 0)
+		const truckSaleNet = resolveTruckSaleNetValue(doc.truck_gross_diff ?? doc.truck_sale_net, doc.truck_out_gross, doc.truck_back_gross)
 		const flow = computeFlow(doc, priceUnit)
 		const amounts = computeAmounts({
 			bizMode,
@@ -577,7 +604,7 @@ async function autoCreateTasksV1(user, data, requestId) {
 		const outItems = Array.isArray(doc.out_items) ? doc.out_items : []
 		const backItems = Array.isArray(doc.back_items) ? doc.back_items : []
 		const agentRows = Array.isArray(doc.agent_sale_items) ? doc.agent_sale_items : []
-		const truckSaleNet = toNumber(doc.truck_sale_net, 0)
+		const truckSaleNet = resolveTruckSaleNetValue(doc.truck_gross_diff ?? doc.truck_sale_net, doc.truck_out_gross, doc.truck_back_gross)
 		const flow = computeFlow(doc, priceUnit)
 		const amounts = computeAmounts({
 			bizMode,
@@ -693,6 +720,12 @@ exports.main = async (event, context) => {
 	const requestId = normalizeString(event.request_id || event.requestId || context?.requestId || '')
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
+	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, [], {
+		recordLog,
+		requestId,
+		cloudFunction: 'crm-collection'
+	})
+	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
 	if (action === 'listTasksV1') return listTasksV1(user, data)
 	if (action === 'getTaskV1') return getTaskV1(user, data)

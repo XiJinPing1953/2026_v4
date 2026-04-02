@@ -1,0 +1,110 @@
+[
+  {
+    "_id": "695dc30a99c624286ad88751",
+    "date": "2026-01-03",
+    "customer_name": "宁晋王翊灏",
+    "should_receive": 6778.7,
+    "amount_received": 33278,
+    "overpaid_amount": 26499.3,
+    "payment_status": "paid"
+  },
+  {
+    "_id": "69687dfc466d4108febd4d13",
+    "date": "2026-01-15",
+    "customer_name": "张有伏",
+    "should_receive": 3646.4,
+    "amount_received": 4558,
+    "overpaid_amount": 911.6,
+    "payment_status": "paid"
+  },
+  {
+    "_id": "697d9f717c8de4e86f8db9e7",
+    "date": "2026-01-31",
+    "customer_name": "肃宁-金颖",
+    "should_receive": 6300,
+    "amount_received": 6600,
+    "overpaid_amount": 300,
+    "payment_status": "paid"
+  },
+  {
+    "_id": "69bbaffe89d8371762435bf1",
+    "date": "2026-02-25",
+    "customer_name": "马忠山拉面",
+    "should_receive": 405,
+    "amount_received": 495,
+    "overpaid_amount": 90,
+    "payment_status": "paid"
+  },
+  {
+    "_id": "69bbaff789d8371762435b4d",
+    "date": "2026-02-08",
+    "customer_name": "马忠山拉面",
+    "should_receive": 513,
+    "amount_received": 576,
+    "overpaid_amount": 63,
+    "payment_status": "paid"
+  },
+  {
+    "_id": "6986e6617ad52da757b26945",
+    "date": "2026-02-07",
+    "customer_name": "韩通牛肉汤",
+    "should_receive": 216,
+    "amount_received": 279,
+    "overpaid_amount": 63,
+    "payment_status": "paid"
+  },
+  {
+    "_id": "6976b4d1eef9cbdef0880af6",
+    "date": "2026-01-25",
+    "customer_name": "刘家庄烧鸡",
+    "should_receive": 441,
+    "amount_received": 504,
+    "overpaid_amount": 63,
+    "payment_status": "paid"
+  },
+  {
+    "_id": "698583d19755e32cc92ce300",
+    "date": "2026-02-06",
+    "customer_name": "土山蛋糕",
+    "should_receive": 714,
+    "amount_received": 763,
+    "overpaid_amount": 49,
+    "payment_status": "paid"
+  },
+  {
+    "_id": "6972e6bba674f4133cc82888",
+    "date": "2026-01-23",
+    "customer_name": "润信喷塑",
+    "should_receive": 1316,
+    "amount_received": 1365,
+    "overpaid_amount": 49,
+    "payment_status": "paid"
+  },
+  {
+    "_id": "69bbaffa8a2e952d8f49b9b4",
+    "date": "2026-02-11",
+    "customer_name": "福惠馒头",
+    "should_receive": 749,
+    "amount_received": 770,
+    "overpaid_amount": 21,
+    "payment_status": "paid"
+  },
+  {
+    "_id": "69bbb01489d8371762435e5f",
+    "date": "2026-03-15",
+    "customer_name": "王玲玲拉面",
+    "should_receive": 495,
+    "amount_received": 504,
+    "overpaid_amount": 9,
+    "payment_status": "paid"
+  },
+  {
+    "_id": "6971bc026e5d2d492fc26263",
+    "date": "2026-01-22",
+    "customer_name": "新乐馒头",
+    "should_receive": 2961,
+    "amount_received": 2970,
+    "overpaid_amount": 9,
+    "payment_status": "paid"
+  }
+]

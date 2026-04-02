@@ -1,0 +1,31 @@
+{
+  "generated_at": "2026-03-30T07:44:14.013Z",
+  "space_id": "env-00jxuffegf2n",
+  "bottle_no": "J71",
+  "config_from": "/Users/wangbo/Library/Application Support/HBuilder X/projects/39637144c7c598fa8663d4ea84645a0e/setting.json",
+  "summary": {
+    "filling_total": 1,
+    "movement_total": 0,
+    "cycle_total": 0,
+    "focus_cycle_count": 0
+  },
+  "focus_dates": [
+    "2026-03-05",
+    "2026-01-31",
+    "2026-01-19",
+    "2026-01-15",
+    "2026-01-02"
+  ],
+  "focus_checks": [],
+  "filling_rows": [
+    {
+      "_id": "69c8ae4d68be701c9c472022",
+      "date": "2026-03-22",
+      "bottle_no": "J71",
+      "fill_weight": 70,
+      "record_type": "normal_fill",
+      "operator": "陈铁栓"
+    }
+  ],
+  "movement_rows": []
+}

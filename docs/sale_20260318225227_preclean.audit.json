@@ -1,0 +1,44 @@
+{
+  "generated_at": "2026-03-18T14:55:00.100Z",
+  "input": "docs/20260318225227_2bbf7d6e-a305-4a91-a88c-988dfca2d256.json",
+  "total_rows": 1686,
+  "mode_distribution": {
+    "bottle": 1640,
+    "agent_sale": 36,
+    "truck": 10
+  },
+  "boundary_checks": {
+    "invalid_biz_mode": 0,
+    "missing_customer": 2,
+    "truck_missing_truck_no": 0,
+    "truck_invalid_sale_net": 0,
+    "agent_missing_rows": 0,
+    "bottle_empty_rows": 7
+  },
+  "date_checks": {
+    "invalid_date": 0,
+    "non_iso_date": 0
+  },
+  "duplicate_checks": {
+    "duplicate_id_count": 0,
+    "duplicate_business_tuple_count": 0
+  },
+  "preview": {
+    "invalid_biz_mode_lines": [],
+    "truck_missing_truck_no_lines": [],
+    "truck_invalid_sale_net_lines": [],
+    "agent_missing_rows_lines": [],
+    "bottle_empty_rows_lines": [
+      147,
+      295,
+      564,
+      716,
+      886,
+      1010,
+      1311
+    ],
+    "non_iso_date_examples": [],
+    "duplicate_id_examples": [],
+    "duplicate_tuple_examples": []
+  }
+}

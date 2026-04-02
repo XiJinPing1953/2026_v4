@@ -1,7 +1,7 @@
 <template>
 	<AppPage title="凭证列表" :subtitle="subtitle" icon="document">
 		<template #headerActions>
-			<AppButton size="sm" kind="primary" icon="plus" @click="onAdd">新增凭证</AppButton>
+			<AppButton v-if="canCreateVoucher" size="sm" kind="primary" icon="plus" @click="onAdd">新增凭证</AppButton>
 			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch">刷新</AppButton>
 		</template>
 
@@ -67,8 +67,8 @@
 						:status-kind="item.status === 'posted' ? 'success' : 'warning'"
 						icon="document"
 						:icon-class="item.status === 'posted' ? 'bg-emerald' : 'bg-warning'"
-						clickable
-						@click="onEdit(item)"
+						:clickable="canUpdateVoucher"
+						@click="canUpdateVoucher && onEdit(item)"
 					>
 						<template #meta>
 							<view class="meta-tags">
@@ -78,8 +78,9 @@
 						</template>
 						<template #footer>
 							<view class="footer-btns">
-								<AppButton kind="ghost" size="sm" @click.stop="onEdit(item)">编辑</AppButton>
+								<AppButton v-if="canUpdateVoucher" kind="ghost" size="sm" @click.stop="onEdit(item)">编辑</AppButton>
 								<AppButton
+									v-if="canUpdateVoucher"
 									size="sm"
 									:kind="item.status === 'posted' ? 'ghost' : 'primary'"
 									@click.stop="onTogglePost(item)"
@@ -108,6 +109,7 @@ import AppListItem from '@/components/base/AppListItem.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
+import { useAuthGuard } from '@/composables/useAuthGuard'
 import { useQuery } from '@/composables/useQuery'
 import { listVouchersV1, postVoucherV1, unpostVoucherV1 } from '@/services/voucher'
 
@@ -155,6 +157,9 @@ const filterChips = computed(() => {
 	}
 	return chips
 })
+const { canPageAction } = useAuthGuard()
+const canCreateVoucher = computed(() => canPageAction('/pages/accounting/voucher-edit', 'create'))
+const canUpdateVoucher = computed(() => canPageAction('/pages/accounting/voucher-edit', 'update'))
 
 function clearFilterChip(key) {
 	if (key === 'keyword') filters.keyword = ''

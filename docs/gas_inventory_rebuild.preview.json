@@ -1,0 +1,41 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "generated_at": "2026-03-29T07:13:30.620Z",
+  "execute": false,
+  "include_cycle_adjust": false,
+  "backup_before_rebuild": false,
+  "preview": {
+    "preview": true,
+    "dateStart": "",
+    "dateEnd": "",
+    "include_cycle_adjust": false,
+    "backup_before_rebuild": false,
+    "stats": {
+      "gas_in_source_total": 22,
+      "filling_source_total": 4927,
+      "sale_source_total": 2004,
+      "cycle_candidate_total": 0,
+      "preserved_cycle_adjust_total": 2082,
+      "movement_total": 9022,
+      "summary": {
+        "total": 9022,
+        "asset_total_t": -148.524,
+        "station_total_t": -7.647,
+        "in_bottle_total_t": -130.397,
+        "vehicle_total_t": -10.48,
+        "balance_diff_t": 0,
+        "by_kind": {
+          "sale_bottle": 1932,
+          "filling_normal_fill": 4551,
+          "filling_truck_out_no_sale": 84,
+          "sale_agent_sale": 44,
+          "filling_truck_fill": 9,
+          "filling_truck_out_agent_sale": 283,
+          "cycle_adjust": 2082,
+          "gas_in": 22,
+          "sale_truck": 15
+        }
+      }
+    }
+  }
+}

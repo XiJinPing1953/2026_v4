@@ -16,6 +16,8 @@ const DEFAULT_INPUT_FILES = {
 
 const DEFAULT_INPUT_DIR = '..'
 const DEFAULT_OUTPUT_DIR = 'state/import/legacy_v2_to_v4'
+const DEFAULT_FILLING_RECORD_TYPE = 'normal_fill'
+const FILLING_RECORD_TYPES = new Set(['normal_fill', 'truck_out_agent_sale', 'truck_out_no_sale'])
 
 function parseArgs(argv) {
 	const args = {
@@ -137,6 +139,21 @@ function normalizePlateNo(value) {
 	return toText(value).toUpperCase().replace(/\s+/g, '')
 }
 
+function normalizeFillingRecordType(value, fallback = DEFAULT_FILLING_RECORD_TYPE) {
+	const text = toText(value).toLowerCase()
+	if (!text) return fallback
+	if (FILLING_RECORD_TYPES.has(text)) return text
+	if (text.includes('agent')) return 'truck_out_agent_sale'
+	if (text.includes('no_sale') || text.includes('nosale')) return 'truck_out_no_sale'
+	if (text.includes('normal')) return 'normal_fill'
+	return fallback
+}
+
+function isInventoryLinkedFillingRecordType(value) {
+	const recordType = normalizeFillingRecordType(value, DEFAULT_FILLING_RECORD_TYPE)
+	return recordType === 'normal_fill' || recordType === 'truck_out_agent_sale'
+}
+
 function normalizeDeliveryName(value) {
 	return toText(value).replace(/\s+/g, ' ')
 }
@@ -164,7 +181,29 @@ function splitDeliveryNames(value) {
 
 function normalizeDateString(value, fallbackTs) {
 	const text = toText(value)
-	if (text) return text
+	if (text) {
+		const compactYmd = text.match(/^(\d{4})(\d{2})(\d{2})$/)
+		if (compactYmd) {
+			return `${compactYmd[1]}-${compactYmd[2]}-${compactYmd[3]}`
+		}
+		const ymd = text.match(/^(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D|$)/)
+		if (ymd) {
+			const y = Number(ymd[1])
+			const m = Number(ymd[2])
+			const day = Number(ymd[3])
+			if (Number.isInteger(y) && Number.isInteger(m) && Number.isInteger(day) && m >= 1 && m <= 12) {
+				const maxDay = new Date(Date.UTC(y, m, 0)).getUTCDate()
+				if (day >= 1 && day <= maxDay) {
+					return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+				}
+			}
+		}
+		const parsed = Date.parse(text)
+		if (Number.isFinite(parsed) && parsed > 0) {
+			const d = new Date(parsed)
+			return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+		}
+	}
 	const ts = toTimestamp(fallbackTs, Date.now())
 	const d = new Date(ts)
 	const y = d.getFullYear()
@@ -254,6 +293,7 @@ function normalizePaymentMethod(value, paymentStatus) {
 	if (['bank', '银行', '银行转账', '转账'].includes(text)) return 'bank'
 	if (['wechat', '微信'].includes(text)) return 'wechat'
 	if (['alipay', '支付宝'].includes(text)) return 'alipay'
+	if (['check', 'cheque', '支票'].includes(text)) return 'check'
 	return paymentStatus === 'unpaid' ? 'on_account' : ''
 }
 
@@ -634,14 +674,27 @@ function transformBottles(sourceRows, customerIdByName) {
 function transformFillings(sourceRows) {
 	const dropped = []
 	const transformed = []
+	let noSaleBottleFilledFromVehicle = 0
 	for (const row of sourceRows) {
-		const bottleNo = normalizeBottleNo(row.bottle_no)
+		const recordType = normalizeFillingRecordType(row.record_type, DEFAULT_FILLING_RECORD_TYPE)
+		let bottleNo = normalizeBottleNo(row.bottle_no)
+		if (recordType === 'truck_out_no_sale' && !bottleNo) {
+			const plateNo = normalizePlateNo(row.vehicle_no || row.car_no || row.truck_no)
+			if (plateNo) {
+				bottleNo = plateNo
+				noSaleBottleFilledFromVehicle += 1
+			}
+		}
 		const fillWeight = toNumber(
 			row.fill_weight != null ? row.fill_weight : (row.net_fill != null ? row.net_fill : row.out_net),
 			null
 		)
-		if (!bottleNo) {
-			dropped.push({ reason: 'missing_bottle_no', sourceId: unwrapId(row._id), record_type: toText(row.record_type) })
+		if (isInventoryLinkedFillingRecordType(recordType) && !bottleNo) {
+			dropped.push({
+				reason: 'missing_bottle_no_inventory_linked',
+				sourceId: unwrapId(row._id),
+				record_type: recordType
+			})
 			continue
 		}
 		if (!(fillWeight > 0)) {
@@ -655,15 +708,21 @@ function transformFillings(sourceRows) {
 			date: normalizeDateString(row.date, createdAt),
 			bottle_no: bottleNo,
 			fill_weight: fillWeight,
-			address: toText(row.address),
+			record_type: recordType,
 			remark: toText(row.remark),
+			operator: toText(row.operator || row.created_by_name),
+			operator_id: unwrapId(row.operator_id || row.created_by) || null,
 			created_at: createdAt,
 			updated_at: updatedAt,
 			created_by: unwrapId(row.created_by || row.operator_id) || null,
 			created_by_name: toText(row.operator || row.created_by_name)
 		})
 	}
-	const deduped = uniqBy(transformed, (row) => row._id || `${row.bottle_no}|${row.date}|${row.created_at}`, true)
+	const deduped = uniqBy(
+		transformed,
+		(row) => row._id || `${row.record_type}|${row.bottle_no}|${row.date}|${row.fill_weight}|${row.created_at}`,
+		true
+	)
 	const cleaned = deduped.map((row) => {
 		const out = { ...row }
 		if (!out._id) delete out._id
@@ -675,7 +734,8 @@ function transformFillings(sourceRows) {
 		stats: {
 			source: sourceRows.length,
 			transformed: transformed.length,
-			deduped: deduped.length
+			deduped: deduped.length,
+			no_sale_bottle_no_filled_from_vehicle_total: noSaleBottleFilledFromVehicle
 		}
 	}
 }
@@ -729,7 +789,11 @@ function transformSales(sourceRows, customerIdByName) {
 		let truckNo = toText(row.truck_no) || null
 		let truckOutGross = toNumber(row.truck_out_gross, null)
 		let truckBackGross = toNumber(row.truck_back_gross, null)
-		let truckSaleNet = toNumber(row.truck_sale_net, null)
+		let truckSaleNet = toNumber(row.truck_gross_diff, toNumber(row.truck_sale_net, null))
+		if (truckOutGross != null && truckBackGross != null) {
+			const grossDiff = truckOutGross - truckBackGross
+			truckSaleNet = grossDiff > 0 ? grossDiff : null
+		}
 
 		if (bizMode === 'agent_sale') {
 			outItems = []
@@ -778,7 +842,8 @@ function transformSales(sourceRows, customerIdByName) {
 			truck_no: truckNo,
 			truck_out_gross: truckOutGross,
 			truck_back_gross: truckBackGross,
-			truck_sale_net: truckSaleNet,
+			truck_gross_diff: truckSaleNet,
+			truck_sale_net: null,
 			flow_index_prev: flowIndexPrev,
 			flow_index_curr: flowIndexCurr,
 			flow_volume_m3: flowVolumeM3,
@@ -888,6 +953,10 @@ function transformMovements(saleRows, fillingRows) {
 	}
 
 	for (const row of fillingRows) {
+		const recordType = normalizeFillingRecordType(row && row.record_type, DEFAULT_FILLING_RECORD_TYPE)
+		if (!isInventoryLinkedFillingRecordType(recordType)) {
+			continue
+		}
 		const bottleNo = normalizeBottleNo(row.bottle_no)
 		if (!bottleNo) {
 			dropped.push({ reason: 'filling_missing_bottle_no', sourceId: unwrapId(row._id) })

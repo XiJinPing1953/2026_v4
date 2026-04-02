@@ -1,0 +1,70 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "date_start": "2026-03-01",
+  "date_end": "2026-03-31",
+  "dashboard_sales_month": 1052045,
+  "sales_summary_should_receive_total": 1000744,
+  "sales_rows_should_receive_total": 1000744,
+  "flow_settlement_total": 51290,
+  "expected_dashboard_sales_month": 1052034,
+  "dashboard_minus_expected": 11,
+  "sales_count": 766,
+  "flow_settlement_count": 2,
+  "m3_customer_count": 3,
+  "top_sale_customers": [
+    {
+      "name": "建会涂料厂",
+      "amount": 74821.5
+    },
+    {
+      "name": "上庄美食美客",
+      "amount": 62910
+    },
+    {
+      "name": "张有伏",
+      "amount": 51175.7
+    },
+    {
+      "name": "晨星板厂-韩宇宁",
+      "amount": 48937
+    },
+    {
+      "name": "货子皮厂",
+      "amount": 36463
+    },
+    {
+      "name": "赫远皮革南厂-刘建辉",
+      "amount": 35385
+    },
+    {
+      "name": "新乐馒头",
+      "amount": 34359
+    },
+    {
+      "name": "旭昶皮厂",
+      "amount": 29295
+    },
+    {
+      "name": "赫远皮革北厂-王全民",
+      "amount": 27342
+    },
+    {
+      "name": "赫远皮革北厂-张翠欣皮厂",
+      "amount": 24885
+    },
+    {
+      "name": "赫远皮革北厂-邓文普",
+      "amount": 22862
+    },
+    {
+      "name": "肃宁-金颖",
+      "amount": 22500
+    }
+  ],
+  "top_flow_customers": [
+    {
+      "name": "浩诺",
+      "amount": 51290
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 <template>
-	<AppCard :padding="size === 'sm' ? '20rpx' : '32rpx'">
+	<AppCard class="bottle-lines-card" :padding="size === 'sm' ? '20rpx' : '32rpx'">
 		<view class="card-body">
 			<view class="section-head">
 				<view class="section-title-wrap">
@@ -31,17 +31,32 @@
 				</view>
 			</view>
 			<view v-else class="rows">
-				<view v-for="(row, index) in rows" :key="index" class="row-item">
+				<view v-for="(row, index) in rows" :key="index" :class="['row-item', { 'row-item--suggesting': row.suggestions && row.suggestions.length }]">
 					<view class="row-grid">
-						<view class="grid-item">
+						<view class="grid-item bottle-cell">
 							<text class="field-label">{{ bottleLabel }}</text>
-							<AppInput
-								:model-value="row.bottle_no"
-								:placeholder="bottlePlaceholder"
-								:size="size"
-								@update:modelValue="(v) => onBottleInput(index, v)"
-								@blur="() => onBottleBlur(index)"
-							/>
+							<view class="bottle-input-wrap">
+								<AppInput
+									:model-value="row.bottle_no"
+									:placeholder="bottlePlaceholder"
+									:size="size"
+									@update:modelValue="(v) => onBottleInput(index, v)"
+									@focus="() => onBottleFocus(index)"
+									@blur="() => onBottleBlur(index)"
+									@confirm="() => onBottleConfirm(index)"
+								/>
+								<view v-if="row.suggestions && row.suggestions.length" class="suggestions">
+									<view
+										v-for="item in row.suggestions"
+										:key="item._id || item.bottle_no"
+										class="suggestion-item"
+										@tap.stop="selectSuggestion(index, item)"
+									>
+										<text class="suggestion-no">{{ item.bottle_no }}</text>
+										<text class="suggestion-sub">{{ formatBottleSuggestionSub(item) }}</text>
+									</view>
+								</view>
+							</view>
 						</view>
 						<view class="grid-item">
 							<text class="field-label">毛重 (kg)</text>
@@ -77,20 +92,6 @@
 							</view>
 						</view>
 					</view>
-					
-					<view v-if="row.suggestions && row.suggestions.length" class="suggestions">
-						<view
-							v-for="item in row.suggestions"
-							:key="item._id"
-							class="suggestion-item"
-							@tap.stop="selectSuggestion(index, item)"
-						>
-							<text class="suggestion-no">{{ item.bottle_no }}</text>
-							<text class="suggestion-sub">
-								皮重 {{ formatTare(item.tare_weight) }}kg · {{ statusText(item.status) }}
-							</text>
-						</view>
-					</view>
 				</view>
 			</view>
 
@@ -117,7 +118,7 @@ import AppEmpty from '@/components/base/AppEmpty.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppIcon from '@/components/base/AppIcon.vue'
-import { searchBottlesV1 } from '@/services/bottle'
+import { formatBottleSuggestionSub, normalizeBottleNo, searchBottleSuggestions } from '@/composables/useBottleSuggestions'
 
 const props = defineProps({
 	modelValue: { type: Array, default: () => [] },
@@ -139,14 +140,6 @@ const showBatch = ref(false)
 const batchText = ref('')
 const rows = computed(() => props.modelValue || [])
 const suggestTimers = new Map()
-
-const statusTextMap = {
-	unknown: '未知',
-	in_station: '在站',
-	at_customer: '在客户',
-	scrapped: '报废',
-	lost: '丢失'
-}
 
 const totalNetNumber = computed(() => {
 	return rows.value.reduce((sum, row) => {
@@ -231,7 +224,7 @@ function applyBatch() {
 }
 
 function normalizeKey(value) {
-	return String(value || '').trim().toUpperCase()
+	return normalizeBottleNo(value)
 }
 
 function createRow(no = '') {
@@ -252,10 +245,21 @@ function patchRow(index, patch) {
 }
 
 function onBottleInput(index, value) {
-	patchRow(index, {
+	const row = rows.value[index] || {}
+	const nextBottleNo = normalizeBottleNo(value)
+	const prevBottleNo = normalizeBottleNo(row.bottle_no)
+	const isBottleChanged = nextBottleNo !== prevBottleNo
+	const patch = {
 		bottle_no: value,
 		bottle_id: null,
 		suggestions: []
+	}
+	if (isBottleChanged) {
+		patch.tare = ''
+		if (!row.netManual) patch.net = ''
+	}
+	patchRow(index, {
+		...patch
 	})
 	if (suggestTimers.has(index)) clearTimeout(suggestTimers.get(index))
 	if (!value) return
@@ -265,36 +269,73 @@ function onBottleInput(index, value) {
 	suggestTimers.set(index, timer)
 }
 
+function onBottleFocus(index) {
+	const row = rows.value[index]
+	const keyword = normalizeBottleNo(row?.bottle_no)
+	if (!keyword) return
+	if (suggestTimers.has(index)) clearTimeout(suggestTimers.get(index))
+	const timer = setTimeout(() => {
+		fetchSuggestions(index, keyword)
+	}, 120)
+	suggestTimers.set(index, timer)
+}
+
 function onBottleBlur(index) {
 	setTimeout(() => {
 		const row = rows.value[index]
 		if (!row) return
-		patchRow(index, { suggestions: [] })
+		void onBottleConfirm(index)
 	}, 150)
+}
+
+async function onBottleConfirm(index) {
+	const row = rows.value[index]
+	if (!row) return
+	const keyword = normalizeBottleNo(row.bottle_no)
+	if (!keyword) {
+		patchRow(index, { bottle_no: '', bottle_id: null, suggestions: [] })
+		return
+	}
+	const list = await searchBottleSuggestions(keyword, { limit: 20 })
+	const current = rows.value[index]
+	if (!current || normalizeBottleNo(current.bottle_no) !== keyword) return
+	const exact = (list || []).find((item) => normalizeBottleNo(item && item.bottle_no) === keyword)
+	if (exact) {
+		selectSuggestion(index, exact)
+		return
+	}
+	patchRow(index, {
+		bottle_no: keyword,
+		bottle_id: null,
+		suggestions: []
+	})
 }
 
 async function fetchSuggestions(index, keyword) {
 	const row = rows.value[index]
-	if (!row || row.bottle_no !== keyword) return
-	const res = await searchBottlesV1({ keyword, limit: 20, is_active: true })
-	if (res?.code !== 0) {
-		patchRow(index, { suggestions: [] })
-		return
-	}
-	const list = Array.isArray(res.data) ? res.data : []
+	if (!row) return
+	if (normalizeBottleNo(row.bottle_no) !== normalizeBottleNo(keyword)) return
+	const list = await searchBottleSuggestions(keyword, { limit: 20 })
+	if (normalizeBottleNo((rows.value[index] || {}).bottle_no) !== normalizeBottleNo(keyword)) return
 	patchRow(index, { suggestions: list })
 }
 
 function selectSuggestion(index, item) {
 	const row = rows.value[index] || {}
+	const nextBottleNo = normalizeBottleNo(item && item.bottle_no)
+	const prevBottleNo = normalizeBottleNo(row && row.bottle_no)
+	const isBottleChanged = nextBottleNo !== prevBottleNo
 	const next = {
-		bottle_no: item.bottle_no,
+		bottle_no: nextBottleNo,
 		bottle_id: item._id,
 		suggestions: [],
 		netManual: false
 	}
-	if (!row.tare && item.tare_weight != null) {
-		next.tare = String(item.tare_weight)
+	const tareValue = extractTareWeight(item)
+	if (tareValue != null) {
+		next.tare = String(tareValue)
+	} else if (isBottleChanged) {
+		next.tare = ''
 	}
 	const merged = { ...row, ...next }
 	if (!merged.netManual) {
@@ -344,12 +385,22 @@ function formatTare(value) {
 	return num.toFixed(2)
 }
 
-function statusText(value) {
-	return statusTextMap[value] || '未知'
+function extractTareWeight(item = {}) {
+	const candidates = [item.tare_weight, item.tareWeight, item.tare]
+	for (let i = 0; i < candidates.length; i += 1) {
+		const num = Number(candidates[i])
+		if (Number.isFinite(num)) return num
+	}
+	return null
 }
+
 </script>
 
 <style scoped>
+.bottle-lines-card {
+	overflow: visible;
+}
+
 .card-body {
 	display: flex;
 	flex-direction: column;
@@ -425,11 +476,18 @@ function statusText(value) {
 	flex-direction: column;
 	gap: 18rpx;
 	position: relative;
+	z-index: 1;
+	overflow: visible;
 	padding: 20rpx;
 	background: #fff;
 	border: 1rpx solid #eef2f7;
 	border-radius: 16rpx;
 	box-shadow: 0 4rpx 10rpx rgba(15, 23, 42, 0.04);
+}
+
+.row-item--suggesting {
+	z-index: 30;
+	padding-bottom: 340rpx;
 }
 
 .row-grid {
@@ -446,8 +504,21 @@ function statusText(value) {
 	line-height: 1.2;
 }
 
+.grid-item {
+	min-width: 0;
+}
+
 .grid-item > .field-label {
 	margin-bottom: 8rpx;
+}
+
+.bottle-cell {
+	position: relative;
+	z-index: 20;
+}
+
+.bottle-input-wrap {
+	position: relative;
 }
 
 .net-cell {
@@ -503,19 +574,24 @@ function statusText(value) {
 }
 
 .suggestions {
-	margin-top: 6rpx;
-	border: 1rpx solid var(--crm-border-weak);
-	border-radius: 14rpx;
-	padding: 8rpx 12rpx;
+	position: absolute;
+	top: calc(100% + 8rpx);
+	left: 0;
+	right: 0;
+	z-index: 20;
+	border: 1rpx solid var(--crm-border);
+	border-radius: var(--crm-radius-sm);
 	background: #fff;
 	box-shadow: 0 10rpx 24rpx rgba(15, 23, 42, 0.08);
+	max-height: 320rpx;
+	overflow: auto;
 }
 
 .suggestion-item {
 	display: flex;
-	justify-content: space-between;
-	gap: 12rpx;
-	padding: 8rpx 0;
+	flex-direction: column;
+	gap: 4rpx;
+	padding: 14rpx 16rpx;
 	border-bottom: 1rpx solid #f1f5f9;
 }
 
@@ -528,14 +604,15 @@ function statusText(value) {
 }
 
 .suggestion-no {
-	font-weight: 600;
+	font-size: 24rpx;
+	font-weight: 700;
 	color: var(--crm-text);
 }
 
 .suggestion-sub {
+	display: block;
 	color: var(--crm-text-muted);
-	font-size: var(--crm-font-sm);
-	text-align: right;
+	font-size: 20rpx;
 }
 
 .empty-action {

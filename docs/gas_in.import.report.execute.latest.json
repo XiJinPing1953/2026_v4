@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-03-18T02:49:13.628Z",
+  "mode": "execute",
+  "input": "docs/gas_in.json",
+  "report": "docs/gas_in.import.report.execute.latest.json",
+  "parse_mode": "ndjson",
+  "source_total": 19,
+  "valid_total": 19,
+  "invalid_total": 0,
+  "invalid_sample": [],
+  "summary": {
+    "net_weight_t_total": 398.53,
+    "amount_total": 1451785.4
+  },
+  "execute": {
+    "attempted": 19,
+    "success": 19,
+    "created": 0,
+    "updated": 19,
+    "failed": 0,
+    "warnings": 0,
+    "failed_items": []
+  }
+}

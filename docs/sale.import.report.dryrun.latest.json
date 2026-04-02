@@ -1,0 +1,523 @@
+{
+  "started_at": "2026-03-19T08:24:17.031Z",
+  "finished_at": "2026-03-19T08:24:17.033Z",
+  "mode": "dry-run",
+  "input_path": "/Users/wangbo/Downloads/2026_v4/docs/sale_20260318225227_preclean.fixed.v2.pass.array.json",
+  "parse_mode": "json-array",
+  "space_id": "env-00jxuffegf2n",
+  "input_total": 1686,
+  "input_normalized_total": 1686,
+  "input_invalid_total": 0,
+  "input_duplicate_total": 0,
+  "existing_total": 1607,
+  "already_exists_by_id_total": 1036,
+  "already_exists_by_signature_total": 571,
+  "target_create_total": 79,
+  "success_total": 0,
+  "failed_total": 0,
+  "failed_preview": [],
+  "input_invalid_preview": [],
+  "input_duplicate_preview": [],
+  "already_exists_by_signature_preview": [
+    {
+      "line_no": 1039,
+      "legacy_id": "6989223a2eea654919023648",
+      "customer_name": "马忠山拉面"
+    },
+    {
+      "line_no": 1040,
+      "legacy_id": "698922ba189f86f42795e103",
+      "customer_name": "骏驰机械"
+    },
+    {
+      "line_no": 1041,
+      "legacy_id": "6989232e466d41193f30233e",
+      "customer_name": "中照馒头"
+    },
+    {
+      "line_no": 1042,
+      "legacy_id": "69892447149854b6c0c4f102",
+      "customer_name": "小份菜（上东城）"
+    },
+    {
+      "line_no": 1044,
+      "legacy_id": "6989255deef9cbb35156b43e",
+      "customer_name": "保定依护卫生活"
+    },
+    {
+      "line_no": 1045,
+      "legacy_id": "698925973f1a47198a7600e6",
+      "customer_name": "谷顺斋馒头（谈北路）"
+    },
+    {
+      "line_no": 1046,
+      "legacy_id": "698926376e5d2daaa76779f8",
+      "customer_name": "三只熊"
+    },
+    {
+      "line_no": 1047,
+      "legacy_id": "698926c5f082103615920391",
+      "customer_name": "栾城炒瓜子"
+    },
+    {
+      "line_no": 1050,
+      "legacy_id": "698928228a5c785fa82c12bf",
+      "customer_name": "赫远皮革北厂-王全民"
+    },
+    {
+      "line_no": 1051,
+      "legacy_id": "6989285bc3b5c9fe38a15c81",
+      "customer_name": "老厨子谷顺炖鸡"
+    },
+    {
+      "line_no": 1053,
+      "legacy_id": "698928d17ad52d28a1ef904e",
+      "customer_name": "韩通烧酒"
+    },
+    {
+      "line_no": 1054,
+      "legacy_id": "69892933eef9cbb35157219e",
+      "customer_name": "土山蛋糕"
+    },
+    {
+      "line_no": 1055,
+      "legacy_id": "69892dbb4b9247631565351e",
+      "customer_name": "浩诺"
+    },
+    {
+      "line_no": 1056,
+      "legacy_id": "69893be90d2b31bc752c3d1d",
+      "customer_name": "好运木厂-王闪"
+    },
+    {
+      "line_no": 1057,
+      "legacy_id": "69893d3e286f7c3cf50ebfa5",
+      "customer_name": "清真白记"
+    },
+    {
+      "line_no": 1058,
+      "legacy_id": "69893eaece5ec90cec8d8dad",
+      "customer_name": "华昌木业-刘江涛"
+    },
+    {
+      "line_no": 1059,
+      "legacy_id": "69893fcd9755e32cc975368a",
+      "customer_name": "孙贺涛板厂"
+    },
+    {
+      "line_no": 1060,
+      "legacy_id": "69894accb9fb2395643db82d",
+      "customer_name": "奇力机柜"
+    },
+    {
+      "line_no": 1061,
+      "legacy_id": "69894b25bd022020ee85b1d2",
+      "customer_name": "鲍立雄"
+    },
+    {
+      "line_no": 1062,
+      "legacy_id": "698951d2a09a9bb9df2b8d5f",
+      "customer_name": "佳鹏门窗厂-段兴玺"
+    },
+    {
+      "line_no": 1065,
+      "legacy_id": "6989735dbd022020ee8966cf",
+      "customer_name": "乏马拉面"
+    },
+    {
+      "line_no": 1066,
+      "legacy_id": "6989742c2139299566feb0b9",
+      "customer_name": "东桥寨洗衣房"
+    },
+    {
+      "line_no": 1067,
+      "legacy_id": "69897709816a3f8f1d2036df",
+      "customer_name": "万盛帆布"
+    },
+    {
+      "line_no": 1068,
+      "legacy_id": "69897776e0ec19287b32cfde",
+      "customer_name": "润信喷塑"
+    },
+    {
+      "line_no": 1069,
+      "legacy_id": "698984c53d029c4fa411da9c",
+      "customer_name": "宙达馒头"
+    },
+    {
+      "line_no": 1071,
+      "legacy_id": "6989997509664c6b3067d28c",
+      "customer_name": "建会涂料厂"
+    },
+    {
+      "line_no": 1072,
+      "legacy_id": "698a808e149854b6c0dfe24b",
+      "customer_name": "聚力特"
+    },
+    {
+      "line_no": 1073,
+      "legacy_id": "698a8d19862066d90cd05271",
+      "customer_name": "小份菜（上东城）"
+    },
+    {
+      "line_no": 1075,
+      "legacy_id": "698a98befe975fd854d95df7",
+      "customer_name": "晨星板厂-韩宇宁"
+    },
+    {
+      "line_no": 1076,
+      "legacy_id": "698a9e77a7c432dd4e7244a5",
+      "customer_name": "鸿丰板厂"
+    },
+    {
+      "line_no": 1077,
+      "legacy_id": "698a9f8e9755e32cc99063c8",
+      "customer_name": "环保局"
+    },
+    {
+      "line_no": 1079,
+      "legacy_id": "698ac797189f86f427b85423",
+      "customer_name": "赫远皮革北厂-张翠欣皮厂"
+    },
+    {
+      "line_no": 1080,
+      "legacy_id": "698ac7c98b0da4f195c4be9d",
+      "customer_name": "赫远皮革北厂-丁亚军"
+    },
+    {
+      "line_no": 1081,
+      "legacy_id": "698ac9e1816a3f8f1d3a9a88",
+      "customer_name": "美食美客清洗部"
+    },
+    {
+      "line_no": 1082,
+      "legacy_id": "698aca89149854b6c0e7807a",
+      "customer_name": "上庄美食美客"
+    },
+    {
+      "line_no": 1084,
+      "legacy_id": "698acb4dfe975fd854de2f93",
+      "customer_name": "于底拉面"
+    },
+    {
+      "line_no": 1085,
+      "legacy_id": "698ad95da7c432dd4e77d52b",
+      "customer_name": "赫远皮革南厂-刘建辉"
+    },
+    {
+      "line_no": 1086,
+      "legacy_id": "698bd860bd022020eeb838d1",
+      "customer_name": "宙达馒头"
+    },
+    {
+      "line_no": 1089,
+      "legacy_id": "698bf362f082103615c9d87c",
+      "customer_name": "凯鸿皮业"
+    },
+    {
+      "line_no": 1092,
+      "legacy_id": "698c14f8466d41193f6b696f",
+      "customer_name": "东西小院"
+    },
+    {
+      "line_no": 1093,
+      "legacy_id": "698c1d1f21821b795c41f43b",
+      "customer_name": "小份菜（上东城）"
+    },
+    {
+      "line_no": 1094,
+      "legacy_id": "698c30dbf082103615cfa759",
+      "customer_name": "骏驰机械"
+    },
+    {
+      "line_no": 1095,
+      "legacy_id": "698c323b6523414146ba8dcd",
+      "customer_name": "福惠馒头"
+    },
+    {
+      "line_no": 1096,
+      "legacy_id": "698c3790fe975fd854fada24",
+      "customer_name": "中照馒头"
+    },
+    {
+      "line_no": 1097,
+      "legacy_id": "698d314ef2949c1ec6e7da57",
+      "customer_name": "骏驰机械"
+    },
+    {
+      "line_no": 1098,
+      "legacy_id": "698d31fb4b92476315b58839",
+      "customer_name": "赫远皮革北厂-张翠欣皮厂"
+    },
+    {
+      "line_no": 1099,
+      "legacy_id": "698d3500a7c432dd4ea527af",
+      "customer_name": "慧聪皮革厂"
+    },
+    {
+      "line_no": 1100,
+      "legacy_id": "698d3ec4fe975fd8540d8ab0",
+      "customer_name": "清真白记"
+    },
+    {
+      "line_no": 1102,
+      "legacy_id": "698d67e21c90b6c65e1eba15",
+      "customer_name": "五记兴"
+    },
+    {
+      "line_no": 1103,
+      "legacy_id": "698d6836b9fb2395649023f1",
+      "customer_name": "老厨子谷顺炖鸡"
+    },
+    {
+      "line_no": 1104,
+      "legacy_id": "698d68918a5c785fa880c92b",
+      "customer_name": "鲍立雄"
+    },
+    {
+      "line_no": 1105,
+      "legacy_id": "698d7d35a09a9bb9df7df42d",
+      "customer_name": "万盛帆布北"
+    },
+    {
+      "line_no": 1106,
+      "legacy_id": "698e721a149854b6c02d3c14",
+      "customer_name": "张有伏"
+    },
+    {
+      "line_no": 1107,
+      "legacy_id": "698e72274b92476315cd0dd5",
+      "customer_name": "张有伏"
+    },
+    {
+      "line_no": 1109,
+      "legacy_id": "698e7f4a1c90b6c65e32a4dc",
+      "customer_name": "奇力机柜"
+    },
+    {
+      "line_no": 1110,
+      "legacy_id": "698e93bda09a9bb9df918fb4",
+      "customer_name": "小份菜（上东城）"
+    },
+    {
+      "line_no": 1112,
+      "legacy_id": "698eb99de0ec19287b994400",
+      "customer_name": "袁记老豆腐"
+    },
+    {
+      "line_no": 1113,
+      "legacy_id": "698eb9b7f082103615ffbf62",
+      "customer_name": "华昌木业-刘江涛"
+    },
+    {
+      "line_no": 1114,
+      "legacy_id": "698ebf544b92476315d3b289",
+      "customer_name": "东西小院"
+    },
+    {
+      "line_no": 1116,
+      "legacy_id": "698ed1143f1a47100df90e2f",
+      "customer_name": "中照馒头"
+    },
+    {
+      "line_no": 1117,
+      "legacy_id": "698ed2306523414146ec78c5",
+      "customer_name": "老马烧烤"
+    },
+    {
+      "line_no": 1118,
+      "legacy_id": "698ed623149854b6c0362394",
+      "customer_name": "浩诺"
+    },
+    {
+      "line_no": 1119,
+      "legacy_id": "6990222aeef9cbb351dfeca2",
+      "customer_name": "韩通拉面"
+    },
+    {
+      "line_no": 1120,
+      "legacy_id": "699022567ae7089a626bffb5",
+      "customer_name": "东岗路牛肉汤"
+    },
+    {
+      "line_no": 1121,
+      "legacy_id": "699022e7286f7c56b2991ca7",
+      "customer_name": "清真白记"
+    },
+    {
+      "line_no": 1122,
+      "legacy_id": "69902649816a3f8f1da064a7",
+      "customer_name": "鲁家庄炒瓜子"
+    },
+    {
+      "line_no": 1123,
+      "legacy_id": "6990274e7ae7089a626c6965",
+      "customer_name": "乏马拉面"
+    },
+    {
+      "line_no": 1124,
+      "legacy_id": "699027a1b9fb239564c2546b",
+      "customer_name": "三只熊"
+    },
+    {
+      "line_no": 1125,
+      "legacy_id": "699027cd189f86f427200f3c",
+      "customer_name": "杨双喜拉面"
+    },
+    {
+      "line_no": 1126,
+      "legacy_id": "699028063f1a47100d110c20",
+      "customer_name": "牛春花板面"
+    },
+    {
+      "line_no": 1127,
+      "legacy_id": "69902889c3b5c9fe382b2a96",
+      "customer_name": "小份菜（上东城）"
+    },
+    {
+      "line_no": 1128,
+      "legacy_id": "69902e87fe975fd85444a88e",
+      "customer_name": "东门包子"
+    },
+    {
+      "line_no": 1129,
+      "legacy_id": "69902efe7ae7089a626d0264",
+      "customer_name": "宙达馒头"
+    },
+    {
+      "line_no": 1130,
+      "legacy_id": "69903995337a9f66979e9eb3",
+      "customer_name": "环保局"
+    },
+    {
+      "line_no": 1131,
+      "legacy_id": "699bc51ef2949c7275cede61",
+      "customer_name": "带皮羊肉"
+    },
+    {
+      "line_no": 1133,
+      "legacy_id": "699bc56e89bd2701a617b2c6",
+      "customer_name": "大名馒头"
+    },
+    {
+      "line_no": 1134,
+      "legacy_id": "699bc60fb9fb233683781708",
+      "customer_name": "保定依护卫生活"
+    },
+    {
+      "line_no": 1135,
+      "legacy_id": "699bc641b9fb233683781b13",
+      "customer_name": "宙达馒头"
+    },
+    {
+      "line_no": 1136,
+      "legacy_id": "699bc6a821821b795c3d515b",
+      "customer_name": "新乐馒头"
+    },
+    {
+      "line_no": 1137,
+      "legacy_id": "699bc6d8b9fb2336837828d7",
+      "customer_name": "福惠馒头"
+    },
+    {
+      "line_no": 1138,
+      "legacy_id": "699bc9c089bd2701a6182666",
+      "customer_name": "三只熊"
+    },
+    {
+      "line_no": 1139,
+      "legacy_id": "699bc9eb8b0da47f78b16e08",
+      "customer_name": "天天肉食（黄庄）"
+    },
+    {
+      "line_no": 1140,
+      "legacy_id": "699bca4b89bd2701a61833a2",
+      "customer_name": "保定依护卫生活"
+    },
+    {
+      "line_no": 1141,
+      "legacy_id": "699bca86862066b05b742485",
+      "customer_name": "新乐馒头"
+    },
+    {
+      "line_no": 1142,
+      "legacy_id": "699bcaab0d2b31ab452dbbaa",
+      "customer_name": "牛春花板面"
+    },
+    {
+      "line_no": 1144,
+      "legacy_id": "699bcbfc3f1a4731bee48c57",
+      "customer_name": "任不二牛肉面"
+    },
+    {
+      "line_no": 1145,
+      "legacy_id": "699cf2aabd022020eece7074",
+      "customer_name": "三只熊"
+    },
+    {
+      "line_no": 1146,
+      "legacy_id": "699cf3acf2949c7275e66a1e",
+      "customer_name": "栾城炒瓜子"
+    },
+    {
+      "line_no": 1149,
+      "legacy_id": "699cf7d88a5c785fa87a542b",
+      "customer_name": "老厨子谷顺炖鸡"
+    },
+    {
+      "line_no": 1151,
+      "legacy_id": "699cf83309664ce9ce0861d0",
+      "customer_name": "三只熊"
+    },
+    {
+      "line_no": 1152,
+      "legacy_id": "699cf929e0ec19287b7b62be",
+      "customer_name": "带皮羊肉"
+    },
+    {
+      "line_no": 1153,
+      "legacy_id": "699d0a277ad52d3955c15eed",
+      "customer_name": "东岗路牛肉汤"
+    },
+    {
+      "line_no": 1154,
+      "legacy_id": "699d0ce1286f7c56b2643362",
+      "customer_name": "老马烧烤"
+    },
+    {
+      "line_no": 1155,
+      "legacy_id": "699d0f5999c624e61c580c35",
+      "customer_name": "赫远皮革南厂-刘建辉"
+    },
+    {
+      "line_no": 1156,
+      "legacy_id": "699d17c3b9fb2336839360dd",
+      "customer_name": "清真白记"
+    },
+    {
+      "line_no": 1157,
+      "legacy_id": "699d3aa29755e3a868ad1e51",
+      "customer_name": "谷顺斋馒头（谈北路）"
+    },
+    {
+      "line_no": 1159,
+      "legacy_id": "699d3f7909664ce9ce1100bd",
+      "customer_name": "黑掌柜"
+    },
+    {
+      "line_no": 1160,
+      "legacy_id": "699d3fb699c624251d1ad827",
+      "customer_name": "福惠馒头"
+    },
+    {
+      "line_no": 1161,
+      "legacy_id": "699d4016f082103615eb15db",
+      "customer_name": "鲍立雄"
+    },
+    {
+      "line_no": 1162,
+      "legacy_id": "699d4e991c90b66dd3c3b1bf",
+      "customer_name": "小份菜（上东城）"
+    }
+  ]
+}

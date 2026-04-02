@@ -1,0 +1,33 @@
+{
+  "executed_at": "2026-03-29T05:12:41.689Z",
+  "space_id": "env-00jxuffegf2n",
+  "mode": "execute",
+  "summary": {
+    "total": 3,
+    "activated": 1,
+    "created": 2
+  },
+  "actions": [
+    {
+      "target": "X46",
+      "type": "bottle",
+      "status": "activated",
+      "id": "693fbee16dd837518fa12285",
+      "msg": "钢瓶档案已启用"
+    },
+    {
+      "target": "冀A77K99",
+      "type": "vehicle",
+      "status": "created",
+      "id": "69c8b4c95cee11b05eee98fa",
+      "msg": "车辆档案已创建并启用"
+    },
+    {
+      "target": "冀A300AN",
+      "type": "vehicle",
+      "status": "created",
+      "id": "69c8b4c9ad2f4ad42ebc786e",
+      "msg": "车辆档案已创建并启用"
+    }
+  ]
+}

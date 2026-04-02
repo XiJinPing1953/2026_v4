@@ -1,0 +1,6421 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "generated_at": "2026-03-29T07:21:07.344Z",
+  "source_counts": {
+    "gas_in": 22,
+    "filling": 4927,
+    "sale": 1987,
+    "bottle_movement": 14603,
+    "cycle_candidates": 3446,
+    "movement_docs": 10369
+  },
+  "remote_summary": {
+    "total": 22,
+    "net_weight_t_total": 461.73,
+    "amount_total": 1727956.8,
+    "inventory": {
+      "asset_total_t": 1.652,
+      "station_total_t": -7.647,
+      "in_bottle_total_t": 7.039,
+      "vehicle_total_t": 2.26,
+      "balance_diff_t": 0
+    }
+  },
+  "local_summary": {
+    "total": 10369,
+    "asset_total_t": 1.652,
+    "station_total_t": -7.647,
+    "in_bottle_total_t": 7.039,
+    "vehicle_total_t": 2.26,
+    "balance_diff_t": 0,
+    "by_kind": {
+      "sale_bottle": {
+        "total": 1919,
+        "asset_total_t": -322.999,
+        "station_total_t": 0,
+        "in_bottle_total_t": -322.999,
+        "vehicle_total_t": 0
+      },
+      "filling_normal_fill": {
+        "total": 4551,
+        "asset_total_t": 0,
+        "station_total_t": -340.261,
+        "in_bottle_total_t": 340.261,
+        "vehicle_total_t": 0
+      },
+      "filling_truck_out_no_sale": {
+        "total": 84,
+        "asset_total_t": -28.569,
+        "station_total_t": -28.569,
+        "in_bottle_total_t": 0,
+        "vehicle_total_t": 0
+      },
+      "cycle_adjust": {
+        "total": 3446,
+        "asset_total_t": -11.263,
+        "station_total_t": 0,
+        "in_bottle_total_t": -11.263,
+        "vehicle_total_t": 0
+      },
+      "sale_agent_sale": {
+        "total": 44,
+        "asset_total_t": -44.877,
+        "station_total_t": 0,
+        "in_bottle_total_t": -44.877,
+        "vehicle_total_t": 0
+      },
+      "filling_truck_fill": {
+        "total": 9,
+        "asset_total_t": 0,
+        "station_total_t": -54.63,
+        "in_bottle_total_t": 0,
+        "vehicle_total_t": 54.63
+      },
+      "filling_truck_out_agent_sale": {
+        "total": 283,
+        "asset_total_t": 0,
+        "station_total_t": -45.917,
+        "in_bottle_total_t": 45.917,
+        "vehicle_total_t": 0
+      },
+      "gas_in": {
+        "total": 22,
+        "asset_total_t": 461.73,
+        "station_total_t": 461.73,
+        "in_bottle_total_t": 0,
+        "vehicle_total_t": 0
+      },
+      "sale_truck": {
+        "total": 11,
+        "asset_total_t": -52.37,
+        "station_total_t": 0,
+        "in_bottle_total_t": 0,
+        "vehicle_total_t": -52.37
+      }
+    }
+  },
+  "diff": {
+    "asset_total_t": 0,
+    "station_total_t": 0,
+    "in_bottle_total_t": 0,
+    "vehicle_total_t": 0,
+    "balance_diff_t": 0
+  },
+  "required_opening_t": {
+    "asset": 10.385,
+    "station": 18.774,
+    "in_bottle": 10.626,
+    "vehicle": 6.29
+  },
+  "first_negative": {
+    "asset": {
+      "day": "2026-01-01",
+      "value_t": -0.106,
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "695a25a3ee97ef7e8144a8fb"
+    },
+    "station": {
+      "day": "2026-01-01",
+      "value_t": -0.065,
+      "movement_kind": "filling_normal_fill",
+      "source_type": "filling",
+      "source_id": "69b9198c1bfe16da6e6da7b5"
+    },
+    "inBottle": {
+      "day": "2026-01-01",
+      "value_t": -0.106,
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "695a25a3ee97ef7e8144a8fb"
+    },
+    "vehicle": {
+      "day": "2026-01-24",
+      "value_t": -0.39,
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "69741518ce5ec981ec0739a9"
+    }
+  },
+  "min_state": {
+    "asset": {
+      "value_t": -10.385,
+      "row": {
+        "day": "2026-01-24",
+        "movement_kind": "filling_truck_out_no_sale",
+        "source_type": "filling",
+        "source_id": "69b919de1117bf9b461af3c5"
+      }
+    },
+    "station": {
+      "value_t": -18.774,
+      "row": {
+        "day": "2026-03-26",
+        "movement_kind": "filling_normal_fill",
+        "source_type": "filling",
+        "source_id": "69c8b040ea3400db03e4d839"
+      }
+    },
+    "in_bottle": {
+      "value_t": -10.626,
+      "row": {
+        "day": "2026-01-05",
+        "movement_kind": "sale_bottle",
+        "source_type": "sale",
+        "source_id": "695e0cd49755e34a91534beb"
+      }
+    },
+    "vehicle": {
+      "value_t": -6.29,
+      "row": {
+        "day": "2026-02-04",
+        "movement_kind": "sale_truck",
+        "source_type": "sale",
+        "source_id": "69830fcc3f1a47198aff669e"
+      }
+    }
+  },
+  "top_in_bottle_negative_sources": [
+    {
+      "event_day": "2026-02-04",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "6982ebeb9755e32cc9f7cda5",
+      "value_t": -2.452,
+      "note": "送35瓶回26瓶\n35瓶*420元",
+      "context": {
+        "label": "肃宁-金颖",
+        "date": "2026-02-04",
+        "biz_mode": "bottle",
+        "customer_name": "肃宁-金颖",
+        "total_net_weight_kg": 2452,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 2452,
+        "back_net_total_kg": 0,
+        "remark": "送35瓶回26瓶\n35瓶*420元"
+      }
+    },
+    {
+      "event_day": "2026-03-12",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69bbb0100add39bd434a43fb",
+      "value_t": -1.82,
+      "note": "送26瓶回24瓶",
+      "context": {
+        "label": "肃宁-金颖",
+        "date": "2026-03-12",
+        "biz_mode": "bottle",
+        "customer_name": "肃宁-金颖",
+        "total_net_weight_kg": 1820,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 1820,
+        "back_net_total_kg": 0,
+        "remark": "送26瓶回24瓶"
+      }
+    },
+    {
+      "event_day": "2026-02-07",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "6986f252816a3f8f1defa612",
+      "value_t": -1.791,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-02-07",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-25",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "6976b85ace5ec981ec36cb13",
+      "value_t": -1.712,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-01-25",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-29",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "697b19b0a09a9bd54a8f5fd5",
+      "value_t": -1.708,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-01-29",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-03-23",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69c8af8c59063e84c13ec0ce",
+      "value_t": -1.68,
+      "note": "送24瓶回13瓶\n24瓶*450元",
+      "context": {
+        "label": "肃宁-金颖",
+        "date": "2026-03-23",
+        "biz_mode": "bottle",
+        "customer_name": "肃宁-金颖",
+        "total_net_weight_kg": 1680,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 1680,
+        "back_net_total_kg": 0,
+        "remark": "送24瓶回13瓶\n24瓶*450元"
+      }
+    },
+    {
+      "event_day": "2026-01-27",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "69787cd1a7c43298178b00d5",
+      "value_t": -1.674,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-01-27",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-05",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "698446b121821b795ca6315d",
+      "value_t": -1.548,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-02-05",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-08",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "695f5c192eea65420fa77251",
+      "value_t": -1.515,
+      "note": "多付5962.5元",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-01-08",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": "多付5962.5元"
+      }
+    },
+    {
+      "event_day": "2026-02-02",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "698059448b0da4f195f28382",
+      "value_t": -1.443,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-02-02",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-03-16",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "69bbb2c585d19fd7c4625dac",
+      "value_t": -1.367,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-03-16",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-02",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "695d19d4337a9f895d061bd2",
+      "value_t": -1.304,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-01-02",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-03",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "695dc30a99c624286ad88751",
+      "value_t": -1.279,
+      "note": "50个瓶检测费50个*500元=25000元\n50个瓶遇冷费50个*30=1500元",
+      "context": {
+        "label": "宁晋王翊灏",
+        "date": "2026-01-03",
+        "biz_mode": "agent_sale",
+        "customer_name": "宁晋王翊灏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": "50个瓶检测费50个*500元=25000元\n50个瓶遇冷费50个*30=1500元"
+      }
+    },
+    {
+      "event_day": "2026-03-07",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "69bbb0098a2e952d8f49bbda",
+      "value_t": -1.279,
+      "note": "余73147.4元",
+      "context": {
+        "label": "舟山晋业能源有限公司",
+        "date": "2026-03-07",
+        "biz_mode": "agent_sale",
+        "customer_name": "舟山晋业能源有限公司",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": "余73147.4元"
+      }
+    },
+    {
+      "event_day": "2026-01-10",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "6961f8691c90b6a7cc694e31",
+      "value_t": -1.27,
+      "note": "",
+      "context": {
+        "label": "宁晋王翊灏",
+        "date": "2026-01-10",
+        "biz_mode": "agent_sale",
+        "customer_name": "宁晋王翊灏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-10",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "69636a59c3b5c939b473ec2f",
+      "value_t": -1.26,
+      "note": "余86666.2元",
+      "context": {
+        "label": "舟山晋业能源有限公司",
+        "date": "2026-01-10",
+        "biz_mode": "agent_sale",
+        "customer_name": "舟山晋业能源有限公司",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": "余86666.2元"
+      }
+    },
+    {
+      "event_day": "2026-01-21",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "6971661e89bd275f4476ceb2",
+      "value_t": -1.242,
+      "note": "余81077.2元",
+      "context": {
+        "label": "舟山晋业能源有限公司",
+        "date": "2026-01-21",
+        "biz_mode": "agent_sale",
+        "customer_name": "舟山晋业能源有限公司",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": "余81077.2元"
+      }
+    },
+    {
+      "event_day": "2026-01-31",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "697daf85816a3f9dd2c92773",
+      "value_t": -1.215,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-01-31",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-03-26",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "69c8ae02ad2f4ad42ebc1918",
+      "value_t": -1.182,
+      "note": "24日三通管一根（已归还）",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-03-26",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": "24日三通管一根（已归还）"
+      }
+    },
+    {
+      "event_day": "2026-01-11",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "69635b82eef9cb2998a9161d",
+      "value_t": -1.141,
+      "note": "实付4881.3+余1166",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-01-11",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": "实付4881.3+余1166"
+      }
+    },
+    {
+      "event_day": "2026-03-12",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "69bbb00f8a2e952d8f49bccc",
+      "value_t": -1.134,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-03-12",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-13",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "69bbaffb0add39bd434a3fc8",
+      "value_t": -1.087,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-02-13",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-31",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "697d9f717c8de4e86f8db9e7",
+      "value_t": -1.05,
+      "note": "15瓶*420元\n送15瓶回35瓶\n含运费300元",
+      "context": {
+        "label": "肃宁-金颖",
+        "date": "2026-01-31",
+        "biz_mode": "bottle",
+        "customer_name": "肃宁-金颖",
+        "total_net_weight_kg": 1050,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 1050,
+        "back_net_total_kg": 0,
+        "remark": "15瓶*420元\n送15瓶回35瓶\n含运费300元"
+      }
+    },
+    {
+      "event_day": "2026-03-22",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "69c8adefad2f4ad42ebc17d1",
+      "value_t": -1.038,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-03-22",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-19",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "696dd4bd7c8de4e86f5d67b5",
+      "value_t": -1.029,
+      "note": "",
+      "context": {
+        "label": "宁晋王翊灏",
+        "date": "2026-01-19",
+        "biz_mode": "agent_sale",
+        "customer_name": "宁晋王翊灏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-16",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "6969d4d0466d4108fed57722",
+      "value_t": -0.96,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-01-16",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-20",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "696ee88b1c90b6e946b8ed5a",
+      "value_t": -0.96,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-01-20",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-21",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "697066b2816a3fc7983bd3a8",
+      "value_t": -0.96,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-01-21",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-23",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "697316e009664c8612b868e7",
+      "value_t": -0.96,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-01-23",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-03-20",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69c8ae005c28c95aac983291",
+      "value_t": -0.949,
+      "note": "",
+      "context": {
+        "label": "浩诺",
+        "date": "2026-03-20",
+        "biz_mode": "bottle",
+        "customer_name": "浩诺",
+        "total_net_weight_kg": 949,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 949,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    }
+  ],
+  "top_station_negative_sources": [
+    {
+      "event_day": "2026-01-15",
+      "movement_kind": "filling_truck_fill",
+      "source_type": "filling",
+      "source_id": "69b919c01117bf9b461aeca6",
+      "value_t": -9.65,
+      "note": "去浩诺",
+      "context": {
+        "label": "TRUCK-9335Z",
+        "date": "2026-01-15",
+        "record_type": "normal_fill",
+        "fill_weight_kg": 9650,
+        "remark": "去浩诺"
+      }
+    },
+    {
+      "event_day": "2026-01-02",
+      "movement_kind": "filling_truck_fill",
+      "source_type": "filling",
+      "source_id": "69b919901bfe16da6e6da82e",
+      "value_t": -9.2,
+      "note": "",
+      "context": {
+        "label": "TRUCK-9335Z",
+        "date": "2026-01-02",
+        "record_type": "normal_fill",
+        "fill_weight_kg": 9200,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-03-14",
+      "movement_kind": "filling_truck_fill",
+      "source_type": "filling",
+      "source_id": "69b91a4089d83717620f4e36",
+      "value_t": -7.68,
+      "note": "大罐余3.72米\n余8吨",
+      "context": {
+        "label": "TRUCK-9335Z",
+        "date": "2026-03-14",
+        "record_type": "normal_fill",
+        "fill_weight_kg": 7680,
+        "remark": "大罐余3.72米\n余8吨"
+      }
+    },
+    {
+      "event_day": "2026-02-05",
+      "movement_kind": "filling_truck_fill",
+      "source_type": "filling",
+      "source_id": "69b919fe1117bf9b461af9f1",
+      "value_t": -6.46,
+      "note": "",
+      "context": {
+        "label": "TRUCK-9335Z",
+        "date": "2026-02-05",
+        "record_type": "normal_fill",
+        "fill_weight_kg": 6460,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-04",
+      "movement_kind": "filling_truck_fill",
+      "source_type": "filling",
+      "source_id": "69b919fc1bfe16da6e6db58f",
+      "value_t": -5.96,
+      "note": "",
+      "context": {
+        "label": "TRUCK-9335Z",
+        "date": "2026-02-04",
+        "record_type": "normal_fill",
+        "fill_weight_kg": 5960,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-24",
+      "movement_kind": "filling_truck_fill",
+      "source_type": "filling",
+      "source_id": "69b919e11bfe16da6e6db258",
+      "value_t": -5.38,
+      "note": "",
+      "context": {
+        "label": "TRUCK-9335Z",
+        "date": "2026-01-24",
+        "record_type": "normal_fill",
+        "fill_weight_kg": 5380,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-07",
+      "movement_kind": "filling_truck_fill",
+      "source_type": "filling",
+      "source_id": "69b91a011117bf9b461afa44",
+      "value_t": -4.8,
+      "note": "",
+      "context": {
+        "label": "TRUCK-9335Z",
+        "date": "2026-02-07",
+        "record_type": "normal_fill",
+        "fill_weight_kg": 4800,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-19",
+      "movement_kind": "filling_truck_fill",
+      "source_type": "filling",
+      "source_id": "69b91a071117bf9b461afb74",
+      "value_t": -4.04,
+      "note": "",
+      "context": {
+        "label": "TRUCK-9335Z",
+        "date": "2026-02-19",
+        "record_type": "normal_fill",
+        "fill_weight_kg": 4040,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-23",
+      "movement_kind": "filling_truck_fill",
+      "source_type": "filling",
+      "source_id": "69b919dd1117bf9b461af3aa",
+      "value_t": -1.46,
+      "note": "",
+      "context": {
+        "label": "TRUCK-9335Z",
+        "date": "2026-01-23",
+        "record_type": "normal_fill",
+        "fill_weight_kg": 1460,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-28",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "source_type": "filling",
+      "source_id": "69b93c634975ff712e73cc7a",
+      "value_t": -1.036,
+      "note": "legacy恢复:0保留(同日同瓶合并3条)",
+      "context": {
+        "label": "0",
+        "date": "2026-01-28",
+        "record_type": "truck_out_agent_sale",
+        "fill_weight_kg": 1036,
+        "remark": "legacy恢复:0保留(同日同瓶合并3条)"
+      }
+    },
+    {
+      "event_day": "2026-01-22",
+      "movement_kind": "filling_truck_out_no_sale",
+      "source_type": "filling",
+      "source_id": "69b919d71117bf9b461af2a4",
+      "value_t": -0.578,
+      "note": "",
+      "context": {
+        "label": "冀AOG111",
+        "date": "2026-01-22",
+        "record_type": "truck_out_no_sale",
+        "fill_weight_kg": 578,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-23",
+      "movement_kind": "filling_truck_out_no_sale",
+      "source_type": "filling",
+      "source_id": "69b91a071117bf9b461afb78",
+      "value_t": -0.559,
+      "note": "",
+      "context": {
+        "label": "冀AOG111",
+        "date": "2026-02-23",
+        "record_type": "truck_out_no_sale",
+        "fill_weight_kg": 559,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-03-22",
+      "movement_kind": "filling_truck_out_no_sale",
+      "source_type": "filling",
+      "source_id": "69c8ae4dad2f4ad42ebc1e4c",
+      "value_t": -0.538,
+      "note": "大罐液位0.30米\n清罐后进液",
+      "context": {
+        "label": "冀AEG780",
+        "date": "2026-03-22",
+        "record_type": "truck_out_no_sale",
+        "fill_weight_kg": 538,
+        "remark": "大罐液位0.30米\n清罐后进液"
+      }
+    },
+    {
+      "event_day": "2026-01-30",
+      "movement_kind": "filling_truck_out_no_sale",
+      "source_type": "filling",
+      "source_id": "69b919f11bfe16da6e6db430",
+      "value_t": -0.52,
+      "note": "",
+      "context": {
+        "label": "冀AOG111",
+        "date": "2026-01-30",
+        "record_type": "truck_out_no_sale",
+        "fill_weight_kg": 520,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-26",
+      "movement_kind": "filling_truck_out_no_sale",
+      "source_type": "filling",
+      "source_id": "69b91a0c1117bf9b461afc61",
+      "value_t": -0.513,
+      "note": "",
+      "context": {
+        "label": "冀AKG103",
+        "date": "2026-02-26",
+        "record_type": "truck_out_no_sale",
+        "fill_weight_kg": 513,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-03-19",
+      "movement_kind": "filling_truck_out_no_sale",
+      "source_type": "filling",
+      "source_id": "69c8ae33ad2f4ad42ebc1bf6",
+      "value_t": -0.511,
+      "note": "大罐液位0.44米\n余0.968吨",
+      "context": {
+        "label": "冀AOG111",
+        "date": "2026-03-19",
+        "record_type": "truck_out_no_sale",
+        "fill_weight_kg": 511,
+        "remark": "大罐液位0.44米\n余0.968吨"
+      }
+    },
+    {
+      "event_day": "2026-01-28",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "source_type": "filling",
+      "source_id": "69b919eb1117bf9b461af668",
+      "value_t": -0.5,
+      "note": "",
+      "context": {
+        "label": "000",
+        "date": "2026-01-28",
+        "record_type": "truck_out_agent_sale",
+        "fill_weight_kg": 500,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-03-13",
+      "movement_kind": "filling_truck_out_no_sale",
+      "source_type": "filling",
+      "source_id": "69b91a3a1bfe16da6e6dbcbe",
+      "value_t": -0.496,
+      "note": "进液后充装",
+      "context": {
+        "label": "冀AEG780",
+        "date": "2026-03-13",
+        "record_type": "truck_out_no_sale",
+        "fill_weight_kg": 496,
+        "remark": "进液后充装"
+      }
+    },
+    {
+      "event_day": "2026-03-07",
+      "movement_kind": "filling_truck_out_no_sale",
+      "source_type": "filling",
+      "source_id": "69b91a211117bf9b461b0059",
+      "value_t": -0.493,
+      "note": "",
+      "context": {
+        "label": "冀AOG111",
+        "date": "2026-03-07",
+        "record_type": "truck_out_no_sale",
+        "fill_weight_kg": 493,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-23",
+      "movement_kind": "filling_truck_out_no_sale",
+      "source_type": "filling",
+      "source_id": "69b91a071bfe16da6e6db6b7",
+      "value_t": -0.489,
+      "note": "",
+      "context": {
+        "label": "冀A90948",
+        "date": "2026-02-23",
+        "record_type": "truck_out_no_sale",
+        "fill_weight_kg": 489,
+        "remark": ""
+      }
+    }
+  ],
+  "top_vehicle_negative_sources": [
+    {
+      "event_day": "2026-01-12",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "69697e13a7c4329817710985",
+      "value_t": -8.71,
+      "note": "9335车1月2日去浩诺\n1月12日回站",
+      "context": {
+        "label": "浩诺",
+        "date": "2026-01-12",
+        "biz_mode": "truck",
+        "customer_name": "浩诺",
+        "total_net_weight_kg": 8710,
+        "truck_gross_diff_kg": 8710,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": "9335车1月2日去浩诺\n1月12日回站"
+      }
+    },
+    {
+      "event_day": "2026-03-25",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "69c8ae0959063e84c13e9559",
+      "value_t": -6.78,
+      "note": "3月14日去浩诺3月26日回站",
+      "context": {
+        "label": "浩诺",
+        "date": "2026-03-25",
+        "biz_mode": "truck",
+        "customer_name": "浩诺",
+        "total_net_weight_kg": 6780,
+        "truck_gross_diff_kg": 6780,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": "3月14日去浩诺3月26日回站"
+      }
+    },
+    {
+      "event_day": "2026-01-23",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "697335987ad52d1c39a7eb41",
+      "value_t": -6.04,
+      "note": "",
+      "context": {
+        "label": "浩诺",
+        "date": "2026-01-23",
+        "biz_mode": "truck",
+        "customer_name": "浩诺",
+        "total_net_weight_kg": 6040,
+        "truck_gross_diff_kg": 6040,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-24",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "69741518ce5ec981ec0739a9",
+      "value_t": -5.95,
+      "note": "",
+      "context": {
+        "label": "新乐新天下塑业",
+        "date": "2026-01-24",
+        "biz_mode": "truck",
+        "customer_name": "新乐新天下塑业",
+        "total_net_weight_kg": 5950,
+        "truck_gross_diff_kg": 5950,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-04",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "69830fcc3f1a47198aff669e",
+      "value_t": -5.94,
+      "note": "",
+      "context": {
+        "label": "新乐新天下塑业",
+        "date": "2026-02-04",
+        "biz_mode": "truck",
+        "customer_name": "新乐新天下塑业",
+        "total_net_weight_kg": 5940,
+        "truck_gross_diff_kg": 5940,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-27",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "69bbb0008a2e952d8f49ba6e",
+      "value_t": -5.91,
+      "note": "",
+      "context": {
+        "label": "浩诺",
+        "date": "2026-02-27",
+        "biz_mode": "truck",
+        "customer_name": "浩诺",
+        "total_net_weight_kg": 5910,
+        "truck_gross_diff_kg": 5910,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-24",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "6976b7757ae7089a6270b684",
+      "value_t": -5.34,
+      "note": "",
+      "context": {
+        "label": "新乐新天下塑业",
+        "date": "2026-01-24",
+        "biz_mode": "truck",
+        "customer_name": "新乐新天下塑业",
+        "total_net_weight_kg": 5340,
+        "truck_gross_diff_kg": 5340,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-07",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "69bbb2c036bc4bac6fd4c6df",
+      "value_t": -2.48,
+      "note": "",
+      "context": {
+        "label": "四公",
+        "date": "2026-02-07",
+        "biz_mode": "truck",
+        "customer_name": "四公",
+        "total_net_weight_kg": 2480,
+        "truck_gross_diff_kg": 2480,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-06",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "698684f6466d41193ffda0ab",
+      "value_t": -2.47,
+      "note": "",
+      "context": {
+        "label": "河北盛鑫",
+        "date": "2026-02-06",
+        "biz_mode": "truck",
+        "customer_name": "河北盛鑫",
+        "total_net_weight_kg": 2470,
+        "truck_gross_diff_kg": 2470,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-12",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "69bbaffb0add39bd434a3fd5",
+      "value_t": -1.87,
+      "note": "",
+      "context": {
+        "label": "浩诺",
+        "date": "2026-02-12",
+        "biz_mode": "truck",
+        "customer_name": "浩诺",
+        "total_net_weight_kg": 1870,
+        "truck_gross_diff_kg": 1870,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-05",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "698432284b9247631503864a",
+      "value_t": -0.88,
+      "note": "",
+      "context": {
+        "label": "浩诺",
+        "date": "2026-02-05",
+        "biz_mode": "truck",
+        "customer_name": "浩诺",
+        "total_net_weight_kg": 880,
+        "truck_gross_diff_kg": 880,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    }
+  ],
+  "top_asset_negative_sources": [
+    {
+      "event_day": "2026-01-12",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "69697e13a7c4329817710985",
+      "value_t": -8.71,
+      "note": "9335车1月2日去浩诺\n1月12日回站",
+      "context": {
+        "label": "浩诺",
+        "date": "2026-01-12",
+        "biz_mode": "truck",
+        "customer_name": "浩诺",
+        "total_net_weight_kg": 8710,
+        "truck_gross_diff_kg": 8710,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": "9335车1月2日去浩诺\n1月12日回站"
+      }
+    },
+    {
+      "event_day": "2026-03-25",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "69c8ae0959063e84c13e9559",
+      "value_t": -6.78,
+      "note": "3月14日去浩诺3月26日回站",
+      "context": {
+        "label": "浩诺",
+        "date": "2026-03-25",
+        "biz_mode": "truck",
+        "customer_name": "浩诺",
+        "total_net_weight_kg": 6780,
+        "truck_gross_diff_kg": 6780,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": "3月14日去浩诺3月26日回站"
+      }
+    },
+    {
+      "event_day": "2026-01-23",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "697335987ad52d1c39a7eb41",
+      "value_t": -6.04,
+      "note": "",
+      "context": {
+        "label": "浩诺",
+        "date": "2026-01-23",
+        "biz_mode": "truck",
+        "customer_name": "浩诺",
+        "total_net_weight_kg": 6040,
+        "truck_gross_diff_kg": 6040,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-24",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "69741518ce5ec981ec0739a9",
+      "value_t": -5.95,
+      "note": "",
+      "context": {
+        "label": "新乐新天下塑业",
+        "date": "2026-01-24",
+        "biz_mode": "truck",
+        "customer_name": "新乐新天下塑业",
+        "total_net_weight_kg": 5950,
+        "truck_gross_diff_kg": 5950,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-04",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "69830fcc3f1a47198aff669e",
+      "value_t": -5.94,
+      "note": "",
+      "context": {
+        "label": "新乐新天下塑业",
+        "date": "2026-02-04",
+        "biz_mode": "truck",
+        "customer_name": "新乐新天下塑业",
+        "total_net_weight_kg": 5940,
+        "truck_gross_diff_kg": 5940,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-27",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "69bbb0008a2e952d8f49ba6e",
+      "value_t": -5.91,
+      "note": "",
+      "context": {
+        "label": "浩诺",
+        "date": "2026-02-27",
+        "biz_mode": "truck",
+        "customer_name": "浩诺",
+        "total_net_weight_kg": 5910,
+        "truck_gross_diff_kg": 5910,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-24",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "6976b7757ae7089a6270b684",
+      "value_t": -5.34,
+      "note": "",
+      "context": {
+        "label": "新乐新天下塑业",
+        "date": "2026-01-24",
+        "biz_mode": "truck",
+        "customer_name": "新乐新天下塑业",
+        "total_net_weight_kg": 5340,
+        "truck_gross_diff_kg": 5340,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-07",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "69bbb2c036bc4bac6fd4c6df",
+      "value_t": -2.48,
+      "note": "",
+      "context": {
+        "label": "四公",
+        "date": "2026-02-07",
+        "biz_mode": "truck",
+        "customer_name": "四公",
+        "total_net_weight_kg": 2480,
+        "truck_gross_diff_kg": 2480,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-06",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "698684f6466d41193ffda0ab",
+      "value_t": -2.47,
+      "note": "",
+      "context": {
+        "label": "河北盛鑫",
+        "date": "2026-02-06",
+        "biz_mode": "truck",
+        "customer_name": "河北盛鑫",
+        "total_net_weight_kg": 2470,
+        "truck_gross_diff_kg": 2470,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-04",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "6982ebeb9755e32cc9f7cda5",
+      "value_t": -2.452,
+      "note": "送35瓶回26瓶\n35瓶*420元",
+      "context": {
+        "label": "肃宁-金颖",
+        "date": "2026-02-04",
+        "biz_mode": "bottle",
+        "customer_name": "肃宁-金颖",
+        "total_net_weight_kg": 2452,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 2452,
+        "back_net_total_kg": 0,
+        "remark": "送35瓶回26瓶\n35瓶*420元"
+      }
+    },
+    {
+      "event_day": "2026-02-12",
+      "movement_kind": "sale_truck",
+      "source_type": "sale",
+      "source_id": "69bbaffb0add39bd434a3fd5",
+      "value_t": -1.87,
+      "note": "",
+      "context": {
+        "label": "浩诺",
+        "date": "2026-02-12",
+        "biz_mode": "truck",
+        "customer_name": "浩诺",
+        "total_net_weight_kg": 1870,
+        "truck_gross_diff_kg": 1870,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-03-12",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69bbb0100add39bd434a43fb",
+      "value_t": -1.82,
+      "note": "送26瓶回24瓶",
+      "context": {
+        "label": "肃宁-金颖",
+        "date": "2026-03-12",
+        "biz_mode": "bottle",
+        "customer_name": "肃宁-金颖",
+        "total_net_weight_kg": 1820,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 1820,
+        "back_net_total_kg": 0,
+        "remark": "送26瓶回24瓶"
+      }
+    },
+    {
+      "event_day": "2026-02-07",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "6986f252816a3f8f1defa612",
+      "value_t": -1.791,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-02-07",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-25",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "6976b85ace5ec981ec36cb13",
+      "value_t": -1.712,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-01-25",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-29",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "697b19b0a09a9bd54a8f5fd5",
+      "value_t": -1.708,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-01-29",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-03-23",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69c8af8c59063e84c13ec0ce",
+      "value_t": -1.68,
+      "note": "送24瓶回13瓶\n24瓶*450元",
+      "context": {
+        "label": "肃宁-金颖",
+        "date": "2026-03-23",
+        "biz_mode": "bottle",
+        "customer_name": "肃宁-金颖",
+        "total_net_weight_kg": 1680,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 1680,
+        "back_net_total_kg": 0,
+        "remark": "送24瓶回13瓶\n24瓶*450元"
+      }
+    },
+    {
+      "event_day": "2026-01-27",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "69787cd1a7c43298178b00d5",
+      "value_t": -1.674,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-01-27",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-05",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "698446b121821b795ca6315d",
+      "value_t": -1.548,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-02-05",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-08",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "695f5c192eea65420fa77251",
+      "value_t": -1.515,
+      "note": "多付5962.5元",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-01-08",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": "多付5962.5元"
+      }
+    },
+    {
+      "event_day": "2026-02-02",
+      "movement_kind": "sale_agent_sale",
+      "source_type": "sale",
+      "source_id": "698059448b0da4f195f28382",
+      "value_t": -1.443,
+      "note": "",
+      "context": {
+        "label": "张有伏",
+        "date": "2026-02-02",
+        "biz_mode": "agent_sale",
+        "customer_name": "张有伏",
+        "total_net_weight_kg": 0,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 0,
+        "remark": ""
+      }
+    }
+  ],
+  "top_in_bottle_positive_sources": [
+    {
+      "event_day": "2026-01-28",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "source_type": "filling",
+      "source_id": "69b93c634975ff712e73cc7a",
+      "value_t": 1.036,
+      "note": "legacy恢复:0保留(同日同瓶合并3条)",
+      "context": {
+        "label": "0",
+        "date": "2026-01-28",
+        "record_type": "truck_out_agent_sale",
+        "fill_weight_kg": 1036,
+        "remark": "legacy恢复:0保留(同日同瓶合并3条)"
+      }
+    },
+    {
+      "event_day": "2026-02-09",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69bbaff989d8371762435b76",
+      "value_t": 0.757,
+      "note": "",
+      "context": {
+        "label": "聚力特",
+        "date": "2026-02-09",
+        "biz_mode": "bottle",
+        "customer_name": "聚力特",
+        "total_net_weight_kg": -757,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 757,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-14",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69bbaffcf7ac1a41a1adc8fd",
+      "value_t": 0.739,
+      "note": "票上金额不对",
+      "context": {
+        "label": "鲁家庄炒瓜子",
+        "date": "2026-02-14",
+        "biz_mode": "bottle",
+        "customer_name": "鲁家庄炒瓜子",
+        "total_net_weight_kg": -739,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 739,
+        "remark": "票上金额不对"
+      }
+    },
+    {
+      "event_day": "2026-03-13",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69bbb0108a2e952d8f49bd16",
+      "value_t": 0.651,
+      "note": "[合并自:69bbb011dcf6a7985317e2ab]",
+      "context": {
+        "label": "聚力特",
+        "date": "2026-03-13",
+        "biz_mode": "bottle",
+        "customer_name": "聚力特",
+        "total_net_weight_kg": -651,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 651,
+        "remark": "[合并自:69bbb011dcf6a7985317e2ab]"
+      }
+    },
+    {
+      "event_day": "2026-03-25",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69c8afae59063e84c13ec4e5",
+      "value_t": 0.556,
+      "note": "",
+      "context": {
+        "label": "浩诺",
+        "date": "2026-03-25",
+        "biz_mode": "bottle",
+        "customer_name": "浩诺",
+        "total_net_weight_kg": -556,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 556,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-28",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "source_type": "filling",
+      "source_id": "69b919eb1117bf9b461af668",
+      "value_t": 0.5,
+      "note": "",
+      "context": {
+        "label": "000",
+        "date": "2026-01-28",
+        "record_type": "truck_out_agent_sale",
+        "fill_weight_kg": 500,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-02",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69805c0b6e5d2daaa7b57ede",
+      "value_t": 0.388,
+      "note": "停工",
+      "context": {
+        "label": "华丰皮革厂-陈永亮",
+        "date": "2026-02-02",
+        "biz_mode": "bottle",
+        "customer_name": "华丰皮革厂-陈永亮",
+        "total_net_weight_kg": -388,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 388,
+        "remark": "停工"
+      }
+    },
+    {
+      "event_day": "2026-03-13",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69c8af6859063e84c13ebd0b",
+      "value_t": 0.371,
+      "note": "",
+      "context": {
+        "label": "聚力特",
+        "date": "2026-03-13",
+        "biz_mode": "bottle",
+        "customer_name": "聚力特",
+        "total_net_weight_kg": -371,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 371,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-09",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69bbaff70add39bd434a3f47",
+      "value_t": 0.344,
+      "note": "停工",
+      "context": {
+        "label": "好运木厂-王闪",
+        "date": "2026-02-09",
+        "biz_mode": "bottle",
+        "customer_name": "好运木厂-王闪",
+        "total_net_weight_kg": -344,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 344,
+        "remark": "停工"
+      }
+    },
+    {
+      "event_day": "2026-01-14",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69683347286f7c47aea6fb6e",
+      "value_t": 0.325,
+      "note": "",
+      "context": {
+        "label": "浩诺",
+        "date": "2026-01-14",
+        "biz_mode": "bottle",
+        "customer_name": "浩诺",
+        "total_net_weight_kg": -325,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 325,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-01-07",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "695f52f5149854772f111f23",
+      "value_t": 0.285,
+      "note": "",
+      "context": {
+        "label": "赫远皮革南厂-刘建辉",
+        "date": "2026-01-07",
+        "biz_mode": "bottle",
+        "customer_name": "赫远皮革南厂-刘建辉",
+        "total_net_weight_kg": -285,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 285,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-03-13",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69c8af6859063e84c13ebcf5",
+      "value_t": 0.28,
+      "note": "",
+      "context": {
+        "label": "聚力特",
+        "date": "2026-03-13",
+        "biz_mode": "bottle",
+        "customer_name": "聚力特",
+        "total_net_weight_kg": -280,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 280,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-10",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69bbaffa89d8371762435b87",
+      "value_t": 0.273,
+      "note": "停工",
+      "context": {
+        "label": "上庄美食美客",
+        "date": "2026-02-10",
+        "biz_mode": "bottle",
+        "customer_name": "上庄美食美客",
+        "total_net_weight_kg": -273,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 273,
+        "remark": "停工"
+      }
+    },
+    {
+      "event_day": "2026-02-02",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "source_type": "filling",
+      "source_id": "69b919f61117bf9b461af873",
+      "value_t": 0.265,
+      "note": "",
+      "context": {
+        "label": "000",
+        "date": "2026-02-02",
+        "record_type": "truck_out_agent_sale",
+        "fill_weight_kg": 265,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-10",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69bbaff9f7ac1a41a1adc8be",
+      "value_t": 0.262,
+      "note": "停工",
+      "context": {
+        "label": "晨星板厂-韩宇宁",
+        "date": "2026-02-10",
+        "biz_mode": "bottle",
+        "customer_name": "晨星板厂-韩宇宁",
+        "total_net_weight_kg": -262,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 262,
+        "remark": "停工"
+      }
+    },
+    {
+      "event_day": "2026-03-24",
+      "movement_kind": "sale_bottle",
+      "source_type": "sale",
+      "source_id": "69c8af9d59063e84c13ec2ec",
+      "value_t": 0.247,
+      "note": "票上公斤数少算10公斤",
+      "context": {
+        "label": "货子皮厂",
+        "date": "2026-03-24",
+        "biz_mode": "bottle",
+        "customer_name": "货子皮厂",
+        "total_net_weight_kg": -247,
+        "truck_gross_diff_kg": null,
+        "out_net_total_kg": 0,
+        "back_net_total_kg": 247,
+        "remark": "票上公斤数少算10公斤"
+      }
+    },
+    {
+      "event_day": "2026-02-02",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "source_type": "filling",
+      "source_id": "69b919f8dcf6a79853ee145e",
+      "value_t": 0.207,
+      "note": "",
+      "context": {
+        "label": "Z012",
+        "date": "2026-02-02",
+        "record_type": "truck_out_agent_sale",
+        "fill_weight_kg": 207,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-02",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "source_type": "filling",
+      "source_id": "69b919f81bfe16da6e6db518",
+      "value_t": 0.206,
+      "note": "",
+      "context": {
+        "label": "Z002",
+        "date": "2026-02-02",
+        "record_type": "truck_out_agent_sale",
+        "fill_weight_kg": 206,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-02",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "source_type": "filling",
+      "source_id": "69b919f81117bf9b461af8bb",
+      "value_t": 0.206,
+      "note": "",
+      "context": {
+        "label": "Z001",
+        "date": "2026-02-02",
+        "record_type": "truck_out_agent_sale",
+        "fill_weight_kg": 206,
+        "remark": ""
+      }
+    },
+    {
+      "event_day": "2026-02-02",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "source_type": "filling",
+      "source_id": "69b919f81117bf9b461af8bf",
+      "value_t": 0.206,
+      "note": "",
+      "context": {
+        "label": "Z006",
+        "date": "2026-02-02",
+        "record_type": "truck_out_agent_sale",
+        "fill_weight_kg": 206,
+        "remark": ""
+      }
+    }
+  ],
+  "suspected_duplicate_sales": [],
+  "suspected_duplicate_sale_impact": {
+    "group_total": 0,
+    "extra_row_total": 0,
+    "asset_total_t": 0,
+    "in_bottle_total_t": 0,
+    "vehicle_total_t": 0
+  },
+  "interesting_days": [
+    {
+      "day": "2026-01-05",
+      "asset_total_t": -6.952,
+      "station_total_t": -11.789,
+      "in_bottle_total_t": 4.837,
+      "vehicle_total_t": 0,
+      "kinds": [
+        {
+          "day": "2026-01-05",
+          "movement_kind": "cycle_adjust",
+          "total": 60,
+          "asset_total_t": -0.278,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.278,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-05",
+          "movement_kind": "filling_normal_fill",
+          "total": 137,
+          "asset_total_t": 0,
+          "station_total_t": -11.459,
+          "in_bottle_total_t": 11.459,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-05",
+          "movement_kind": "filling_truck_out_agent_sale",
+          "total": 2,
+          "asset_total_t": 0,
+          "station_total_t": -0.33,
+          "in_bottle_total_t": 0.33,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-05",
+          "movement_kind": "sale_agent_sale",
+          "total": 1,
+          "asset_total_t": -0.33,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.33,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-05",
+          "movement_kind": "sale_bottle",
+          "total": 30,
+          "asset_total_t": -6.344,
+          "station_total_t": 0,
+          "in_bottle_total_t": -6.344,
+          "vehicle_total_t": 0
+        }
+      ]
+    },
+    {
+      "day": "2026-01-04",
+      "asset_total_t": 13.73,
+      "station_total_t": 18.139,
+      "in_bottle_total_t": -4.409,
+      "vehicle_total_t": 0,
+      "kinds": [
+        {
+          "day": "2026-01-04",
+          "movement_kind": "cycle_adjust",
+          "total": 68,
+          "asset_total_t": -0.176,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.176,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-04",
+          "movement_kind": "filling_normal_fill",
+          "total": 26,
+          "asset_total_t": 0,
+          "station_total_t": -2.471,
+          "in_bottle_total_t": 2.471,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-04",
+          "movement_kind": "gas_in",
+          "total": 1,
+          "asset_total_t": 20.61,
+          "station_total_t": 20.61,
+          "in_bottle_total_t": 0,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-04",
+          "movement_kind": "sale_bottle",
+          "total": 35,
+          "asset_total_t": -6.704,
+          "station_total_t": 0,
+          "in_bottle_total_t": -6.704,
+          "vehicle_total_t": 0
+        }
+      ]
+    },
+    {
+      "day": "2026-02-04",
+      "asset_total_t": 10.155,
+      "station_total_t": 13.276,
+      "in_bottle_total_t": -3.141,
+      "vehicle_total_t": 0.02,
+      "kinds": [
+        {
+          "day": "2026-02-04",
+          "movement_kind": "cycle_adjust",
+          "total": 33,
+          "asset_total_t": -0.134,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.134,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-02-04",
+          "movement_kind": "filling_normal_fill",
+          "total": 26,
+          "asset_total_t": 0,
+          "station_total_t": -1.744,
+          "in_bottle_total_t": 1.744,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-02-04",
+          "movement_kind": "filling_truck_fill",
+          "total": 1,
+          "asset_total_t": 0,
+          "station_total_t": -5.96,
+          "in_bottle_total_t": 0,
+          "vehicle_total_t": 5.96
+        },
+        {
+          "day": "2026-02-04",
+          "movement_kind": "gas_in",
+          "total": 1,
+          "asset_total_t": 20.98,
+          "station_total_t": 20.98,
+          "in_bottle_total_t": 0,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-02-04",
+          "movement_kind": "sale_bottle",
+          "total": 11,
+          "asset_total_t": -4.751,
+          "station_total_t": 0,
+          "in_bottle_total_t": -4.751,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-02-04",
+          "movement_kind": "sale_truck",
+          "total": 1,
+          "asset_total_t": -5.94,
+          "station_total_t": 0,
+          "in_bottle_total_t": 0,
+          "vehicle_total_t": -5.94
+        }
+      ]
+    },
+    {
+      "day": "2026-03-08",
+      "asset_total_t": -4.898,
+      "station_total_t": -7.519,
+      "in_bottle_total_t": 2.621,
+      "vehicle_total_t": 0,
+      "kinds": [
+        {
+          "day": "2026-03-08",
+          "movement_kind": "cycle_adjust",
+          "total": 52,
+          "asset_total_t": -0.29,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.29,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-08",
+          "movement_kind": "filling_normal_fill",
+          "total": 99,
+          "asset_total_t": 0,
+          "station_total_t": -7.519,
+          "in_bottle_total_t": 7.519,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-08",
+          "movement_kind": "sale_bottle",
+          "total": 31,
+          "asset_total_t": -4.608,
+          "station_total_t": 0,
+          "in_bottle_total_t": -4.608,
+          "vehicle_total_t": 0
+        }
+      ]
+    },
+    {
+      "day": "2026-02-01",
+      "asset_total_t": -3.678,
+      "station_total_t": -1.424,
+      "in_bottle_total_t": -2.254,
+      "vehicle_total_t": 0,
+      "kinds": [
+        {
+          "day": "2026-02-01",
+          "movement_kind": "cycle_adjust",
+          "total": 41,
+          "asset_total_t": -0.272,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.272,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-02-01",
+          "movement_kind": "filling_normal_fill",
+          "total": 21,
+          "asset_total_t": 0,
+          "station_total_t": -1.424,
+          "in_bottle_total_t": 1.424,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-02-01",
+          "movement_kind": "sale_bottle",
+          "total": 21,
+          "asset_total_t": -3.406,
+          "station_total_t": 0,
+          "in_bottle_total_t": -3.406,
+          "vehicle_total_t": 0
+        }
+      ]
+    },
+    {
+      "day": "2026-01-14",
+      "asset_total_t": -5.23,
+      "station_total_t": -7.411,
+      "in_bottle_total_t": 2.181,
+      "vehicle_total_t": 0,
+      "kinds": [
+        {
+          "day": "2026-01-14",
+          "movement_kind": "cycle_adjust",
+          "total": 51,
+          "asset_total_t": -0.185,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.185,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-14",
+          "movement_kind": "filling_normal_fill",
+          "total": 80,
+          "asset_total_t": 0,
+          "station_total_t": -6.244,
+          "in_bottle_total_t": 6.244,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-14",
+          "movement_kind": "filling_truck_out_no_sale",
+          "total": 4,
+          "asset_total_t": -1.167,
+          "station_total_t": -1.167,
+          "in_bottle_total_t": 0,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-14",
+          "movement_kind": "sale_bottle",
+          "total": 23,
+          "asset_total_t": -3.878,
+          "station_total_t": 0,
+          "in_bottle_total_t": -3.878,
+          "vehicle_total_t": 0
+        }
+      ]
+    },
+    {
+      "day": "2026-03-25",
+      "asset_total_t": -12.34,
+      "station_total_t": -7.705,
+      "in_bottle_total_t": 2.145,
+      "vehicle_total_t": -6.78,
+      "kinds": [
+        {
+          "day": "2026-03-25",
+          "movement_kind": "cycle_adjust",
+          "total": 54,
+          "asset_total_t": -0.034,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.034,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-25",
+          "movement_kind": "filling_normal_fill",
+          "total": 88,
+          "asset_total_t": 0,
+          "station_total_t": -6.639,
+          "in_bottle_total_t": 6.639,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-25",
+          "movement_kind": "filling_truck_out_agent_sale",
+          "total": 5,
+          "asset_total_t": 0,
+          "station_total_t": -0.883,
+          "in_bottle_total_t": 0.883,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-25",
+          "movement_kind": "filling_truck_out_no_sale",
+          "total": 1,
+          "asset_total_t": -0.183,
+          "station_total_t": -0.183,
+          "in_bottle_total_t": 0,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-25",
+          "movement_kind": "sale_agent_sale",
+          "total": 1,
+          "asset_total_t": -0.883,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.883,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-25",
+          "movement_kind": "sale_bottle",
+          "total": 30,
+          "asset_total_t": -4.46,
+          "station_total_t": 0,
+          "in_bottle_total_t": -4.46,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-25",
+          "movement_kind": "sale_truck",
+          "total": 1,
+          "asset_total_t": -6.78,
+          "station_total_t": 0,
+          "in_bottle_total_t": 0,
+          "vehicle_total_t": -6.78
+        }
+      ]
+    },
+    {
+      "day": "2026-01-13",
+      "asset_total_t": 14.915,
+      "station_total_t": 16.937,
+      "in_bottle_total_t": -2.022,
+      "vehicle_total_t": 0,
+      "kinds": [
+        {
+          "day": "2026-01-13",
+          "movement_kind": "cycle_adjust",
+          "total": 55,
+          "asset_total_t": -0.147,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.147,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-13",
+          "movement_kind": "filling_normal_fill",
+          "total": 50,
+          "asset_total_t": 0,
+          "station_total_t": -3.251,
+          "in_bottle_total_t": 3.251,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-13",
+          "movement_kind": "filling_truck_out_agent_sale",
+          "total": 5,
+          "asset_total_t": 0,
+          "station_total_t": -0.932,
+          "in_bottle_total_t": 0.932,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-13",
+          "movement_kind": "gas_in",
+          "total": 1,
+          "asset_total_t": 21.12,
+          "station_total_t": 21.12,
+          "in_bottle_total_t": 0,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-13",
+          "movement_kind": "sale_agent_sale",
+          "total": 1,
+          "asset_total_t": -0.93,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.93,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-13",
+          "movement_kind": "sale_bottle",
+          "total": 29,
+          "asset_total_t": -5.128,
+          "station_total_t": 0,
+          "in_bottle_total_t": -5.128,
+          "vehicle_total_t": 0
+        }
+      ]
+    },
+    {
+      "day": "2026-03-24",
+      "asset_total_t": -4.537,
+      "station_total_t": -2.871,
+      "in_bottle_total_t": -1.666,
+      "vehicle_total_t": 0,
+      "kinds": [
+        {
+          "day": "2026-03-24",
+          "movement_kind": "cycle_adjust",
+          "total": 59,
+          "asset_total_t": 0.242,
+          "station_total_t": 0,
+          "in_bottle_total_t": 0.242,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-24",
+          "movement_kind": "filling_normal_fill",
+          "total": 43,
+          "asset_total_t": 0,
+          "station_total_t": -2.871,
+          "in_bottle_total_t": 2.871,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-24",
+          "movement_kind": "sale_bottle",
+          "total": 32,
+          "asset_total_t": -4.779,
+          "station_total_t": 0,
+          "in_bottle_total_t": -4.779,
+          "vehicle_total_t": 0
+        }
+      ]
+    },
+    {
+      "day": "2026-01-19",
+      "asset_total_t": -6.196,
+      "station_total_t": -7.846,
+      "in_bottle_total_t": 1.65,
+      "vehicle_total_t": 0,
+      "kinds": [
+        {
+          "day": "2026-01-19",
+          "movement_kind": "cycle_adjust",
+          "total": 49,
+          "asset_total_t": -0.047,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.047,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-19",
+          "movement_kind": "filling_normal_fill",
+          "total": 72,
+          "asset_total_t": 0,
+          "station_total_t": -6.437,
+          "in_bottle_total_t": 6.437,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-19",
+          "movement_kind": "filling_truck_out_agent_sale",
+          "total": 12,
+          "asset_total_t": 0,
+          "station_total_t": -1.029,
+          "in_bottle_total_t": 1.029,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-19",
+          "movement_kind": "filling_truck_out_no_sale",
+          "total": 1,
+          "asset_total_t": -0.38,
+          "station_total_t": -0.38,
+          "in_bottle_total_t": 0,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-19",
+          "movement_kind": "sale_agent_sale",
+          "total": 1,
+          "asset_total_t": -1.029,
+          "station_total_t": 0,
+          "in_bottle_total_t": -1.029,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-01-19",
+          "movement_kind": "sale_bottle",
+          "total": 31,
+          "asset_total_t": -4.74,
+          "station_total_t": 0,
+          "in_bottle_total_t": -4.74,
+          "vehicle_total_t": 0
+        }
+      ]
+    },
+    {
+      "day": "2026-02-27",
+      "asset_total_t": -9.494,
+      "station_total_t": -1.944,
+      "in_bottle_total_t": -1.64,
+      "vehicle_total_t": -5.91,
+      "kinds": [
+        {
+          "day": "2026-02-27",
+          "movement_kind": "cycle_adjust",
+          "total": 32,
+          "asset_total_t": -0.077,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.077,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-02-27",
+          "movement_kind": "filling_normal_fill",
+          "total": 28,
+          "asset_total_t": 0,
+          "station_total_t": -1.944,
+          "in_bottle_total_t": 1.944,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-02-27",
+          "movement_kind": "sale_bottle",
+          "total": 21,
+          "asset_total_t": -3.507,
+          "station_total_t": 0,
+          "in_bottle_total_t": -3.507,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-02-27",
+          "movement_kind": "sale_truck",
+          "total": 1,
+          "asset_total_t": -5.91,
+          "station_total_t": 0,
+          "in_bottle_total_t": 0,
+          "vehicle_total_t": -5.91
+        }
+      ]
+    },
+    {
+      "day": "2026-03-16",
+      "asset_total_t": 12.51,
+      "station_total_t": 10.964,
+      "in_bottle_total_t": 1.546,
+      "vehicle_total_t": 0,
+      "kinds": [
+        {
+          "day": "2026-03-16",
+          "movement_kind": "cycle_adjust",
+          "total": 74,
+          "asset_total_t": -0.344,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.344,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-16",
+          "movement_kind": "filling_normal_fill",
+          "total": 110,
+          "asset_total_t": 0,
+          "station_total_t": -7.85,
+          "in_bottle_total_t": 7.85,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-16",
+          "movement_kind": "filling_truck_out_agent_sale",
+          "total": 7,
+          "asset_total_t": 0,
+          "station_total_t": -1.367,
+          "in_bottle_total_t": 1.367,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-16",
+          "movement_kind": "filling_truck_out_no_sale",
+          "total": 2,
+          "asset_total_t": -0.779,
+          "station_total_t": -0.779,
+          "in_bottle_total_t": 0,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-16",
+          "movement_kind": "gas_in",
+          "total": 1,
+          "asset_total_t": 20.96,
+          "station_total_t": 20.96,
+          "in_bottle_total_t": 0,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-16",
+          "movement_kind": "sale_agent_sale",
+          "total": 1,
+          "asset_total_t": -1.367,
+          "station_total_t": 0,
+          "in_bottle_total_t": -1.367,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-16",
+          "movement_kind": "sale_bottle",
+          "total": 33,
+          "asset_total_t": -5.96,
+          "station_total_t": 0,
+          "in_bottle_total_t": -5.96,
+          "vehicle_total_t": 0
+        }
+      ]
+    },
+    {
+      "day": "2026-03-11",
+      "asset_total_t": -6.043,
+      "station_total_t": -7.521,
+      "in_bottle_total_t": 1.478,
+      "vehicle_total_t": 0,
+      "kinds": [
+        {
+          "day": "2026-03-11",
+          "movement_kind": "cycle_adjust",
+          "total": 49,
+          "asset_total_t": -0.152,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.152,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-11",
+          "movement_kind": "filling_normal_fill",
+          "total": 93,
+          "asset_total_t": 0,
+          "station_total_t": -6.383,
+          "in_bottle_total_t": 6.383,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-11",
+          "movement_kind": "filling_truck_out_no_sale",
+          "total": 3,
+          "asset_total_t": -1.138,
+          "station_total_t": -1.138,
+          "in_bottle_total_t": 0,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-11",
+          "movement_kind": "sale_bottle",
+          "total": 27,
+          "asset_total_t": -4.753,
+          "station_total_t": 0,
+          "in_bottle_total_t": -4.753,
+          "vehicle_total_t": 0
+        }
+      ]
+    },
+    {
+      "day": "2026-02-09",
+      "asset_total_t": 0.125,
+      "station_total_t": -1.317,
+      "in_bottle_total_t": 1.442,
+      "vehicle_total_t": 0,
+      "kinds": [
+        {
+          "day": "2026-02-09",
+          "movement_kind": "cycle_adjust",
+          "total": 13,
+          "asset_total_t": -0.028,
+          "station_total_t": 0,
+          "in_bottle_total_t": -0.028,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-02-09",
+          "movement_kind": "filling_normal_fill",
+          "total": 20,
+          "asset_total_t": 0,
+          "station_total_t": -1.317,
+          "in_bottle_total_t": 1.317,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-02-09",
+          "movement_kind": "sale_bottle",
+          "total": 16,
+          "asset_total_t": 0.153,
+          "station_total_t": 0,
+          "in_bottle_total_t": 0.153,
+          "vehicle_total_t": 0
+        }
+      ]
+    },
+    {
+      "day": "2026-03-03",
+      "asset_total_t": -1.871,
+      "station_total_t": -3.283,
+      "in_bottle_total_t": 1.412,
+      "vehicle_total_t": 0,
+      "kinds": [
+        {
+          "day": "2026-03-03",
+          "movement_kind": "cycle_adjust",
+          "total": 21,
+          "asset_total_t": 0.016,
+          "station_total_t": 0,
+          "in_bottle_total_t": 0.016,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-03",
+          "movement_kind": "filling_normal_fill",
+          "total": 43,
+          "asset_total_t": 0,
+          "station_total_t": -2.944,
+          "in_bottle_total_t": 2.944,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-03",
+          "movement_kind": "filling_truck_out_no_sale",
+          "total": 2,
+          "asset_total_t": -0.339,
+          "station_total_t": -0.339,
+          "in_bottle_total_t": 0,
+          "vehicle_total_t": 0
+        },
+        {
+          "day": "2026-03-03",
+          "movement_kind": "sale_bottle",
+          "total": 13,
+          "asset_total_t": -1.548,
+          "station_total_t": 0,
+          "in_bottle_total_t": -1.548,
+          "vehicle_total_t": 0
+        }
+      ]
+    }
+  ],
+  "by_day_and_kind": [
+    {
+      "day": "2026-01-01",
+      "movement_kind": "filling_normal_fill",
+      "total": 60,
+      "asset_total_t": 0,
+      "station_total_t": -4.204,
+      "in_bottle_total_t": 4.204,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-01",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.21,
+      "station_total_t": -0.21,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-01",
+      "movement_kind": "sale_bottle",
+      "total": 28,
+      "asset_total_t": -4.27,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.27,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-02",
+      "movement_kind": "cycle_adjust",
+      "total": 27,
+      "asset_total_t": -0.018,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.018,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-02",
+      "movement_kind": "filling_normal_fill",
+      "total": 54,
+      "asset_total_t": 0,
+      "station_total_t": -3.492,
+      "in_bottle_total_t": 3.492,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-02",
+      "movement_kind": "filling_truck_fill",
+      "total": 1,
+      "asset_total_t": 0,
+      "station_total_t": -9.2,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 9.2
+    },
+    {
+      "day": "2026-01-02",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 7,
+      "asset_total_t": 0,
+      "station_total_t": -1.304,
+      "in_bottle_total_t": 1.304,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-02",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.433,
+      "station_total_t": -0.433,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-02",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.1,
+      "station_total_t": 21.1,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-02",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.304,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.304,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-02",
+      "movement_kind": "sale_bottle",
+      "total": 21,
+      "asset_total_t": -3.7,
+      "station_total_t": 0,
+      "in_bottle_total_t": -3.7,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-03",
+      "movement_kind": "cycle_adjust",
+      "total": 24,
+      "asset_total_t": -0.068,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.068,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-03",
+      "movement_kind": "filling_normal_fill",
+      "total": 64,
+      "asset_total_t": 0,
+      "station_total_t": -5.513,
+      "in_bottle_total_t": 5.513,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-03",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 20,
+      "asset_total_t": 0,
+      "station_total_t": -1.279,
+      "in_bottle_total_t": 1.279,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-03",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.279,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.279,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-03",
+      "movement_kind": "sale_bottle",
+      "total": 28,
+      "asset_total_t": -4.418,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.418,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-04",
+      "movement_kind": "cycle_adjust",
+      "total": 68,
+      "asset_total_t": -0.176,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.176,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-04",
+      "movement_kind": "filling_normal_fill",
+      "total": 26,
+      "asset_total_t": 0,
+      "station_total_t": -2.471,
+      "in_bottle_total_t": 2.471,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-04",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 20.61,
+      "station_total_t": 20.61,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-04",
+      "movement_kind": "sale_bottle",
+      "total": 35,
+      "asset_total_t": -6.704,
+      "station_total_t": 0,
+      "in_bottle_total_t": -6.704,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-05",
+      "movement_kind": "cycle_adjust",
+      "total": 60,
+      "asset_total_t": -0.278,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.278,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-05",
+      "movement_kind": "filling_normal_fill",
+      "total": 137,
+      "asset_total_t": 0,
+      "station_total_t": -11.459,
+      "in_bottle_total_t": 11.459,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-05",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 2,
+      "asset_total_t": 0,
+      "station_total_t": -0.33,
+      "in_bottle_total_t": 0.33,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-05",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -0.33,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.33,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-05",
+      "movement_kind": "sale_bottle",
+      "total": 30,
+      "asset_total_t": -6.344,
+      "station_total_t": 0,
+      "in_bottle_total_t": -6.344,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-06",
+      "movement_kind": "cycle_adjust",
+      "total": 56,
+      "asset_total_t": -0.046,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.046,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-06",
+      "movement_kind": "filling_normal_fill",
+      "total": 84,
+      "asset_total_t": 0,
+      "station_total_t": -6.557,
+      "in_bottle_total_t": 6.557,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-06",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 5,
+      "asset_total_t": 0,
+      "station_total_t": -0.813,
+      "in_bottle_total_t": 0.813,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-06",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.465,
+      "station_total_t": -0.465,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-06",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -0.813,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.813,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-06",
+      "movement_kind": "sale_bottle",
+      "total": 36,
+      "asset_total_t": -5.392,
+      "station_total_t": 0,
+      "in_bottle_total_t": -5.392,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-07",
+      "movement_kind": "cycle_adjust",
+      "total": 42,
+      "asset_total_t": -0.012,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.012,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-07",
+      "movement_kind": "filling_normal_fill",
+      "total": 48,
+      "asset_total_t": 0,
+      "station_total_t": -3.09,
+      "in_bottle_total_t": 3.09,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-07",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.431,
+      "station_total_t": -0.431,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-07",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.1,
+      "station_total_t": 21.1,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-07",
+      "movement_kind": "sale_bottle",
+      "total": 31,
+      "asset_total_t": -4.077,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.077,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-08",
+      "movement_kind": "cycle_adjust",
+      "total": 56,
+      "asset_total_t": -0.171,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.171,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-08",
+      "movement_kind": "filling_normal_fill",
+      "total": 56,
+      "asset_total_t": 0,
+      "station_total_t": -3.607,
+      "in_bottle_total_t": 3.607,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-08",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 8,
+      "asset_total_t": 0,
+      "station_total_t": -1.515,
+      "in_bottle_total_t": 1.515,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-08",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.515,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.515,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-08",
+      "movement_kind": "sale_bottle",
+      "total": 29,
+      "asset_total_t": -4.808,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.808,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-09",
+      "movement_kind": "cycle_adjust",
+      "total": 50,
+      "asset_total_t": -0.108,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.108,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-09",
+      "movement_kind": "filling_normal_fill",
+      "total": 69,
+      "asset_total_t": 0,
+      "station_total_t": -6.117,
+      "in_bottle_total_t": 6.117,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-09",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 4,
+      "asset_total_t": -1.189,
+      "station_total_t": -1.189,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-09",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.04,
+      "station_total_t": 21.04,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-09",
+      "movement_kind": "sale_bottle",
+      "total": 33,
+      "asset_total_t": -5.364,
+      "station_total_t": 0,
+      "in_bottle_total_t": -5.364,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-10",
+      "movement_kind": "cycle_adjust",
+      "total": 44,
+      "asset_total_t": -0.123,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.123,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-10",
+      "movement_kind": "filling_normal_fill",
+      "total": 55,
+      "asset_total_t": 0,
+      "station_total_t": -3.531,
+      "in_bottle_total_t": 3.531,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-10",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 32,
+      "asset_total_t": 0,
+      "station_total_t": -3.445,
+      "in_bottle_total_t": 3.445,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-10",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.477,
+      "station_total_t": -0.477,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-10",
+      "movement_kind": "sale_agent_sale",
+      "total": 3,
+      "asset_total_t": -3.435,
+      "station_total_t": 0,
+      "in_bottle_total_t": -3.435,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-10",
+      "movement_kind": "sale_bottle",
+      "total": 25,
+      "asset_total_t": -4.103,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.103,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-11",
+      "movement_kind": "cycle_adjust",
+      "total": 59,
+      "asset_total_t": -0.053,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.053,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-11",
+      "movement_kind": "filling_normal_fill",
+      "total": 97,
+      "asset_total_t": 0,
+      "station_total_t": -6.56,
+      "in_bottle_total_t": 6.56,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-11",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 6,
+      "asset_total_t": 0,
+      "station_total_t": -1.141,
+      "in_bottle_total_t": 1.141,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-11",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.338,
+      "station_total_t": -0.338,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-11",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.141,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.141,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-11",
+      "movement_kind": "sale_bottle",
+      "total": 35,
+      "asset_total_t": -5.371,
+      "station_total_t": 0,
+      "in_bottle_total_t": -5.371,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-12",
+      "movement_kind": "cycle_adjust",
+      "total": 57,
+      "asset_total_t": -0.213,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.213,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-12",
+      "movement_kind": "filling_normal_fill",
+      "total": 65,
+      "asset_total_t": 0,
+      "station_total_t": -5.829,
+      "in_bottle_total_t": 5.829,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-12",
+      "movement_kind": "sale_bottle",
+      "total": 28,
+      "asset_total_t": -5.728,
+      "station_total_t": 0,
+      "in_bottle_total_t": -5.728,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-12",
+      "movement_kind": "sale_truck",
+      "total": 1,
+      "asset_total_t": -8.71,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": -8.71
+    },
+    {
+      "day": "2026-01-13",
+      "movement_kind": "cycle_adjust",
+      "total": 55,
+      "asset_total_t": -0.147,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.147,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-13",
+      "movement_kind": "filling_normal_fill",
+      "total": 50,
+      "asset_total_t": 0,
+      "station_total_t": -3.251,
+      "in_bottle_total_t": 3.251,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-13",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 5,
+      "asset_total_t": 0,
+      "station_total_t": -0.932,
+      "in_bottle_total_t": 0.932,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-13",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.12,
+      "station_total_t": 21.12,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-13",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -0.93,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.93,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-13",
+      "movement_kind": "sale_bottle",
+      "total": 29,
+      "asset_total_t": -5.128,
+      "station_total_t": 0,
+      "in_bottle_total_t": -5.128,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-14",
+      "movement_kind": "cycle_adjust",
+      "total": 51,
+      "asset_total_t": -0.185,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.185,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-14",
+      "movement_kind": "filling_normal_fill",
+      "total": 80,
+      "asset_total_t": 0,
+      "station_total_t": -6.244,
+      "in_bottle_total_t": 6.244,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-14",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 4,
+      "asset_total_t": -1.167,
+      "station_total_t": -1.167,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-14",
+      "movement_kind": "sale_bottle",
+      "total": 23,
+      "asset_total_t": -3.878,
+      "station_total_t": 0,
+      "in_bottle_total_t": -3.878,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-15",
+      "movement_kind": "cycle_adjust",
+      "total": 63,
+      "asset_total_t": -0.128,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.128,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-15",
+      "movement_kind": "filling_normal_fill",
+      "total": 59,
+      "asset_total_t": 0,
+      "station_total_t": -4.399,
+      "in_bottle_total_t": 4.399,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-15",
+      "movement_kind": "filling_truck_fill",
+      "total": 1,
+      "asset_total_t": 0,
+      "station_total_t": -9.65,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 9.65
+    },
+    {
+      "day": "2026-01-15",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 5,
+      "asset_total_t": 0,
+      "station_total_t": -0.86,
+      "in_bottle_total_t": 0.86,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-15",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.06,
+      "station_total_t": 21.06,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-15",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -0.86,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.86,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-15",
+      "movement_kind": "sale_bottle",
+      "total": 28,
+      "asset_total_t": -5.122,
+      "station_total_t": 0,
+      "in_bottle_total_t": -5.122,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-16",
+      "movement_kind": "cycle_adjust",
+      "total": 48,
+      "asset_total_t": -0.106,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.106,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-16",
+      "movement_kind": "filling_normal_fill",
+      "total": 70,
+      "asset_total_t": 0,
+      "station_total_t": -5.379,
+      "in_bottle_total_t": 5.379,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-16",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 5,
+      "asset_total_t": 0,
+      "station_total_t": -0.96,
+      "in_bottle_total_t": 0.96,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-16",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -0.96,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.96,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-16",
+      "movement_kind": "sale_bottle",
+      "total": 27,
+      "asset_total_t": -4.691,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.691,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-17",
+      "movement_kind": "cycle_adjust",
+      "total": 63,
+      "asset_total_t": -0.095,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.095,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-17",
+      "movement_kind": "filling_normal_fill",
+      "total": 64,
+      "asset_total_t": 0,
+      "station_total_t": -5.001,
+      "in_bottle_total_t": 5.001,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-17",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.288,
+      "station_total_t": -0.288,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-17",
+      "movement_kind": "sale_bottle",
+      "total": 34,
+      "asset_total_t": -6.052,
+      "station_total_t": 0,
+      "in_bottle_total_t": -6.052,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-18",
+      "movement_kind": "cycle_adjust",
+      "total": 64,
+      "asset_total_t": -0.175,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.175,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-18",
+      "movement_kind": "filling_normal_fill",
+      "total": 92,
+      "asset_total_t": 0,
+      "station_total_t": -7.144,
+      "in_bottle_total_t": 7.144,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-18",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 4,
+      "asset_total_t": 0,
+      "station_total_t": -0.768,
+      "in_bottle_total_t": 0.768,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-18",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 2,
+      "asset_total_t": -0.724,
+      "station_total_t": -0.724,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-18",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.03,
+      "station_total_t": 21.03,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-18",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -0.766,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.766,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-18",
+      "movement_kind": "sale_bottle",
+      "total": 29,
+      "asset_total_t": -6.687,
+      "station_total_t": 0,
+      "in_bottle_total_t": -6.687,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-19",
+      "movement_kind": "cycle_adjust",
+      "total": 49,
+      "asset_total_t": -0.047,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.047,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-19",
+      "movement_kind": "filling_normal_fill",
+      "total": 72,
+      "asset_total_t": 0,
+      "station_total_t": -6.437,
+      "in_bottle_total_t": 6.437,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-19",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 12,
+      "asset_total_t": 0,
+      "station_total_t": -1.029,
+      "in_bottle_total_t": 1.029,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-19",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.38,
+      "station_total_t": -0.38,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-19",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.029,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.029,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-19",
+      "movement_kind": "sale_bottle",
+      "total": 31,
+      "asset_total_t": -4.74,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.74,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-20",
+      "movement_kind": "cycle_adjust",
+      "total": 68,
+      "asset_total_t": -0.161,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.161,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-20",
+      "movement_kind": "filling_normal_fill",
+      "total": 84,
+      "asset_total_t": 0,
+      "station_total_t": -6.255,
+      "in_bottle_total_t": 6.255,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-20",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 5,
+      "asset_total_t": 0,
+      "station_total_t": -0.96,
+      "in_bottle_total_t": 0.96,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-20",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -0.96,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.96,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-20",
+      "movement_kind": "sale_bottle",
+      "total": 32,
+      "asset_total_t": -6.386,
+      "station_total_t": 0,
+      "in_bottle_total_t": -6.386,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-21",
+      "movement_kind": "cycle_adjust",
+      "total": 45,
+      "asset_total_t": -0.029,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.029,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-21",
+      "movement_kind": "filling_normal_fill",
+      "total": 50,
+      "asset_total_t": 0,
+      "station_total_t": -4.272,
+      "in_bottle_total_t": 4.272,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-21",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 12,
+      "asset_total_t": 0,
+      "station_total_t": -2.202,
+      "in_bottle_total_t": 2.202,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-21",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 2,
+      "asset_total_t": -0.493,
+      "station_total_t": -0.493,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-21",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.11,
+      "station_total_t": 21.11,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-21",
+      "movement_kind": "sale_agent_sale",
+      "total": 2,
+      "asset_total_t": -2.202,
+      "station_total_t": 0,
+      "in_bottle_total_t": -2.202,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-21",
+      "movement_kind": "sale_bottle",
+      "total": 24,
+      "asset_total_t": -4.751,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.751,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-22",
+      "movement_kind": "cycle_adjust",
+      "total": 57,
+      "asset_total_t": -0.251,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.251,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-22",
+      "movement_kind": "filling_normal_fill",
+      "total": 73,
+      "asset_total_t": 0,
+      "station_total_t": -5.917,
+      "in_bottle_total_t": 5.917,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-22",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.578,
+      "station_total_t": -0.578,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-22",
+      "movement_kind": "sale_bottle",
+      "total": 27,
+      "asset_total_t": -5.524,
+      "station_total_t": 0,
+      "in_bottle_total_t": -5.524,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-23",
+      "movement_kind": "cycle_adjust",
+      "total": 44,
+      "asset_total_t": -0.163,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.163,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-23",
+      "movement_kind": "filling_normal_fill",
+      "total": 69,
+      "asset_total_t": 0,
+      "station_total_t": -5.925,
+      "in_bottle_total_t": 5.925,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-23",
+      "movement_kind": "filling_truck_fill",
+      "total": 1,
+      "asset_total_t": 0,
+      "station_total_t": -1.46,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 1.46
+    },
+    {
+      "day": "2026-01-23",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 5,
+      "asset_total_t": 0,
+      "station_total_t": -0.96,
+      "in_bottle_total_t": 0.96,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-23",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -0.96,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.96,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-23",
+      "movement_kind": "sale_bottle",
+      "total": 25,
+      "asset_total_t": -4.389,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.389,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-23",
+      "movement_kind": "sale_truck",
+      "total": 1,
+      "asset_total_t": -6.04,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": -6.04
+    },
+    {
+      "day": "2026-01-24",
+      "movement_kind": "cycle_adjust",
+      "total": 52,
+      "asset_total_t": -0.179,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.179,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-24",
+      "movement_kind": "filling_normal_fill",
+      "total": 70,
+      "asset_total_t": 0,
+      "station_total_t": -5.222,
+      "in_bottle_total_t": 5.222,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-24",
+      "movement_kind": "filling_truck_fill",
+      "total": 1,
+      "asset_total_t": 0,
+      "station_total_t": -5.38,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 5.38
+    },
+    {
+      "day": "2026-01-24",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 2,
+      "asset_total_t": -0.828,
+      "station_total_t": -0.828,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-24",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.21,
+      "station_total_t": 21.21,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-24",
+      "movement_kind": "sale_bottle",
+      "total": 31,
+      "asset_total_t": -5.471,
+      "station_total_t": 0,
+      "in_bottle_total_t": -5.471,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-24",
+      "movement_kind": "sale_truck",
+      "total": 2,
+      "asset_total_t": -11.29,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": -11.29
+    },
+    {
+      "day": "2026-01-25",
+      "movement_kind": "cycle_adjust",
+      "total": 44,
+      "asset_total_t": -0.202,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.202,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-25",
+      "movement_kind": "filling_normal_fill",
+      "total": 59,
+      "asset_total_t": 0,
+      "station_total_t": -4.225,
+      "in_bottle_total_t": 4.225,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-25",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 9,
+      "asset_total_t": 0,
+      "station_total_t": -1.712,
+      "in_bottle_total_t": 1.712,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-25",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.34,
+      "station_total_t": -0.34,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-25",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.712,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.712,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-25",
+      "movement_kind": "sale_bottle",
+      "total": 26,
+      "asset_total_t": -4.777,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.777,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-26",
+      "movement_kind": "cycle_adjust",
+      "total": 51,
+      "asset_total_t": -0.178,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.178,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-26",
+      "movement_kind": "filling_normal_fill",
+      "total": 64,
+      "asset_total_t": 0,
+      "station_total_t": -5.207,
+      "in_bottle_total_t": 5.207,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-26",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 12,
+      "asset_total_t": 0,
+      "station_total_t": -1.284,
+      "in_bottle_total_t": 1.284,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-26",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.294,
+      "station_total_t": -0.294,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-26",
+      "movement_kind": "sale_agent_sale",
+      "total": 2,
+      "asset_total_t": -1.283,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.283,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-26",
+      "movement_kind": "sale_bottle",
+      "total": 28,
+      "asset_total_t": -4.611,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.611,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-27",
+      "movement_kind": "cycle_adjust",
+      "total": 36,
+      "asset_total_t": -0.109,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.109,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-27",
+      "movement_kind": "filling_normal_fill",
+      "total": 63,
+      "asset_total_t": 0,
+      "station_total_t": -4.904,
+      "in_bottle_total_t": 4.904,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-27",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 9,
+      "asset_total_t": 0,
+      "station_total_t": -1.674,
+      "in_bottle_total_t": 1.674,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-27",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 4,
+      "asset_total_t": -0.751,
+      "station_total_t": -0.751,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-27",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.03,
+      "station_total_t": 21.03,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-27",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.674,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.674,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-27",
+      "movement_kind": "sale_bottle",
+      "total": 21,
+      "asset_total_t": -3.822,
+      "station_total_t": 0,
+      "in_bottle_total_t": -3.822,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-28",
+      "movement_kind": "cycle_adjust",
+      "total": 54,
+      "asset_total_t": -0.47,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.47,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-28",
+      "movement_kind": "filling_normal_fill",
+      "total": 59,
+      "asset_total_t": 0,
+      "station_total_t": -4.427,
+      "in_bottle_total_t": 4.427,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-28",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 2,
+      "asset_total_t": 0,
+      "station_total_t": -1.536,
+      "in_bottle_total_t": 1.536,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-28",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 2,
+      "asset_total_t": -0.83,
+      "station_total_t": -0.83,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-28",
+      "movement_kind": "sale_agent_sale",
+      "total": 2,
+      "asset_total_t": -0.516,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.516,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-28",
+      "movement_kind": "sale_bottle",
+      "total": 28,
+      "asset_total_t": -4.454,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.454,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-29",
+      "movement_kind": "cycle_adjust",
+      "total": 35,
+      "asset_total_t": -0.144,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.144,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-29",
+      "movement_kind": "filling_normal_fill",
+      "total": 47,
+      "asset_total_t": 0,
+      "station_total_t": -3.889,
+      "in_bottle_total_t": 3.889,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-29",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 9,
+      "asset_total_t": 0,
+      "station_total_t": -1.708,
+      "in_bottle_total_t": 1.708,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-29",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.32,
+      "station_total_t": -0.32,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-29",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.708,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.708,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-29",
+      "movement_kind": "sale_bottle",
+      "total": 31,
+      "asset_total_t": -3.741,
+      "station_total_t": 0,
+      "in_bottle_total_t": -3.741,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-30",
+      "movement_kind": "cycle_adjust",
+      "total": 41,
+      "asset_total_t": -0.104,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.104,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-30",
+      "movement_kind": "filling_normal_fill",
+      "total": 54,
+      "asset_total_t": 0,
+      "station_total_t": -4.265,
+      "in_bottle_total_t": 4.265,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-30",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.52,
+      "station_total_t": -0.52,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-30",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.01,
+      "station_total_t": 21.01,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-30",
+      "movement_kind": "sale_bottle",
+      "total": 26,
+      "asset_total_t": -4.133,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.133,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-31",
+      "movement_kind": "cycle_adjust",
+      "total": 22,
+      "asset_total_t": -0.139,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.139,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-31",
+      "movement_kind": "filling_normal_fill",
+      "total": 38,
+      "asset_total_t": 0,
+      "station_total_t": -2.89,
+      "in_bottle_total_t": 2.89,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-31",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 7,
+      "asset_total_t": 0,
+      "station_total_t": -1.215,
+      "in_bottle_total_t": 1.215,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-31",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.215,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.215,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-01-31",
+      "movement_kind": "sale_bottle",
+      "total": 19,
+      "asset_total_t": -2.442,
+      "station_total_t": 0,
+      "in_bottle_total_t": -2.442,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-01",
+      "movement_kind": "cycle_adjust",
+      "total": 41,
+      "asset_total_t": -0.272,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.272,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-01",
+      "movement_kind": "filling_normal_fill",
+      "total": 21,
+      "asset_total_t": 0,
+      "station_total_t": -1.424,
+      "in_bottle_total_t": 1.424,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-01",
+      "movement_kind": "sale_bottle",
+      "total": 21,
+      "asset_total_t": -3.406,
+      "station_total_t": 0,
+      "in_bottle_total_t": -3.406,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-02",
+      "movement_kind": "cycle_adjust",
+      "total": 25,
+      "asset_total_t": -0.248,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.248,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-02",
+      "movement_kind": "filling_normal_fill",
+      "total": 29,
+      "asset_total_t": 0,
+      "station_total_t": -2.511,
+      "in_bottle_total_t": 2.511,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-02",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 8,
+      "asset_total_t": 0,
+      "station_total_t": -1.708,
+      "in_bottle_total_t": 1.708,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-02",
+      "movement_kind": "sale_agent_sale",
+      "total": 2,
+      "asset_total_t": -1.708,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.708,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-02",
+      "movement_kind": "sale_bottle",
+      "total": 14,
+      "asset_total_t": -1.881,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.881,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-03",
+      "movement_kind": "cycle_adjust",
+      "total": 17,
+      "asset_total_t": -0.077,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.077,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-03",
+      "movement_kind": "filling_normal_fill",
+      "total": 55,
+      "asset_total_t": 0,
+      "station_total_t": -3.633,
+      "in_bottle_total_t": 3.633,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-03",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.235,
+      "station_total_t": -0.235,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-03",
+      "movement_kind": "sale_bottle",
+      "total": 16,
+      "asset_total_t": -2.523,
+      "station_total_t": 0,
+      "in_bottle_total_t": -2.523,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-04",
+      "movement_kind": "cycle_adjust",
+      "total": 33,
+      "asset_total_t": -0.134,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.134,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-04",
+      "movement_kind": "filling_normal_fill",
+      "total": 26,
+      "asset_total_t": 0,
+      "station_total_t": -1.744,
+      "in_bottle_total_t": 1.744,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-04",
+      "movement_kind": "filling_truck_fill",
+      "total": 1,
+      "asset_total_t": 0,
+      "station_total_t": -5.96,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 5.96
+    },
+    {
+      "day": "2026-02-04",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 20.98,
+      "station_total_t": 20.98,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-04",
+      "movement_kind": "sale_bottle",
+      "total": 11,
+      "asset_total_t": -4.751,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.751,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-04",
+      "movement_kind": "sale_truck",
+      "total": 1,
+      "asset_total_t": -5.94,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": -5.94
+    },
+    {
+      "day": "2026-02-05",
+      "movement_kind": "cycle_adjust",
+      "total": 22,
+      "asset_total_t": -0.087,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.087,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-05",
+      "movement_kind": "filling_normal_fill",
+      "total": 34,
+      "asset_total_t": 0,
+      "station_total_t": -2.876,
+      "in_bottle_total_t": 2.876,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-05",
+      "movement_kind": "filling_truck_fill",
+      "total": 1,
+      "asset_total_t": 0,
+      "station_total_t": -6.46,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 6.46
+    },
+    {
+      "day": "2026-02-05",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 8,
+      "asset_total_t": 0,
+      "station_total_t": -1.548,
+      "in_bottle_total_t": 1.548,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-05",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 2,
+      "asset_total_t": -0.687,
+      "station_total_t": -0.687,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-05",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.548,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.548,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-05",
+      "movement_kind": "sale_bottle",
+      "total": 18,
+      "asset_total_t": -1.862,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.862,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-05",
+      "movement_kind": "sale_truck",
+      "total": 1,
+      "asset_total_t": -0.88,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": -0.88
+    },
+    {
+      "day": "2026-02-06",
+      "movement_kind": "cycle_adjust",
+      "total": 34,
+      "asset_total_t": -0.083,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.083,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-06",
+      "movement_kind": "filling_normal_fill",
+      "total": 30,
+      "asset_total_t": 0,
+      "station_total_t": -2.585,
+      "in_bottle_total_t": 2.585,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-06",
+      "movement_kind": "sale_bottle",
+      "total": 16,
+      "asset_total_t": -3.068,
+      "station_total_t": 0,
+      "in_bottle_total_t": -3.068,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-06",
+      "movement_kind": "sale_truck",
+      "total": 1,
+      "asset_total_t": -2.47,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": -2.47
+    },
+    {
+      "day": "2026-02-07",
+      "movement_kind": "cycle_adjust",
+      "total": 22,
+      "asset_total_t": -0.075,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.075,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-07",
+      "movement_kind": "filling_normal_fill",
+      "total": 7,
+      "asset_total_t": 0,
+      "station_total_t": -0.469,
+      "in_bottle_total_t": 0.469,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-07",
+      "movement_kind": "filling_truck_fill",
+      "total": 1,
+      "asset_total_t": 0,
+      "station_total_t": -4.8,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 4.8
+    },
+    {
+      "day": "2026-02-07",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 11,
+      "asset_total_t": 0,
+      "station_total_t": -1.791,
+      "in_bottle_total_t": 1.791,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-07",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.092,
+      "station_total_t": -0.092,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-07",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.11,
+      "station_total_t": 21.11,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-07",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.791,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.791,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-07",
+      "movement_kind": "sale_bottle",
+      "total": 19,
+      "asset_total_t": -1.517,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.517,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-07",
+      "movement_kind": "sale_truck",
+      "total": 1,
+      "asset_total_t": -2.48,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": -2.48
+    },
+    {
+      "day": "2026-02-08",
+      "movement_kind": "cycle_adjust",
+      "total": 29,
+      "asset_total_t": -0.416,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.416,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-08",
+      "movement_kind": "filling_normal_fill",
+      "total": 50,
+      "asset_total_t": 0,
+      "station_total_t": -3.59,
+      "in_bottle_total_t": 3.59,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-08",
+      "movement_kind": "sale_bottle",
+      "total": 16,
+      "asset_total_t": -2.548,
+      "station_total_t": 0,
+      "in_bottle_total_t": -2.548,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-09",
+      "movement_kind": "cycle_adjust",
+      "total": 13,
+      "asset_total_t": -0.028,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.028,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-09",
+      "movement_kind": "filling_normal_fill",
+      "total": 20,
+      "asset_total_t": 0,
+      "station_total_t": -1.317,
+      "in_bottle_total_t": 1.317,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-09",
+      "movement_kind": "sale_bottle",
+      "total": 16,
+      "asset_total_t": 0.153,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0.153,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-10",
+      "movement_kind": "cycle_adjust",
+      "total": 11,
+      "asset_total_t": -0.042,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.042,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-10",
+      "movement_kind": "filling_normal_fill",
+      "total": 3,
+      "asset_total_t": 0,
+      "station_total_t": -0.179,
+      "in_bottle_total_t": 0.179,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-10",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 5,
+      "asset_total_t": 0,
+      "station_total_t": -0.806,
+      "in_bottle_total_t": 0.806,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-10",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -0.806,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.806,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-10",
+      "movement_kind": "sale_bottle",
+      "total": 12,
+      "asset_total_t": 0.119,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0.119,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-11",
+      "movement_kind": "cycle_adjust",
+      "total": 22,
+      "asset_total_t": -0.104,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.104,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-11",
+      "movement_kind": "filling_normal_fill",
+      "total": 22,
+      "asset_total_t": 0,
+      "station_total_t": -1.256,
+      "in_bottle_total_t": 1.256,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-11",
+      "movement_kind": "sale_bottle",
+      "total": 11,
+      "asset_total_t": -1.903,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.903,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-12",
+      "movement_kind": "cycle_adjust",
+      "total": 13,
+      "asset_total_t": -0.091,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.091,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-12",
+      "movement_kind": "filling_normal_fill",
+      "total": 24,
+      "asset_total_t": 0,
+      "station_total_t": -1.493,
+      "in_bottle_total_t": 1.493,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-12",
+      "movement_kind": "sale_bottle",
+      "total": 8,
+      "asset_total_t": -0.488,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.488,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-12",
+      "movement_kind": "sale_truck",
+      "total": 1,
+      "asset_total_t": -1.87,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": -1.87
+    },
+    {
+      "day": "2026-02-13",
+      "movement_kind": "cycle_adjust",
+      "total": 23,
+      "asset_total_t": 0.679,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0.679,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-13",
+      "movement_kind": "filling_normal_fill",
+      "total": 1,
+      "asset_total_t": 0,
+      "station_total_t": -0.059,
+      "in_bottle_total_t": 0.059,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-13",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 6,
+      "asset_total_t": 0,
+      "station_total_t": -1.087,
+      "in_bottle_total_t": 1.087,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-13",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.087,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.087,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-13",
+      "movement_kind": "sale_bottle",
+      "total": 11,
+      "asset_total_t": -1.99,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.99,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-14",
+      "movement_kind": "cycle_adjust",
+      "total": 8,
+      "asset_total_t": -0.034,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.034,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-14",
+      "movement_kind": "filling_normal_fill",
+      "total": 4,
+      "asset_total_t": 0,
+      "station_total_t": -0.198,
+      "in_bottle_total_t": 0.198,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-14",
+      "movement_kind": "sale_bottle",
+      "total": 13,
+      "asset_total_t": 0.464,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0.464,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-15",
+      "movement_kind": "filling_normal_fill",
+      "total": 1,
+      "asset_total_t": 0,
+      "station_total_t": -0.067,
+      "in_bottle_total_t": 0.067,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-15",
+      "movement_kind": "sale_bottle",
+      "total": 7,
+      "asset_total_t": 0.379,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0.379,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-19",
+      "movement_kind": "filling_truck_fill",
+      "total": 1,
+      "asset_total_t": 0,
+      "station_total_t": -4.04,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 4.04
+    },
+    {
+      "day": "2026-02-19",
+      "movement_kind": "sale_bottle",
+      "total": 1,
+      "asset_total_t": -0.052,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.052,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-21",
+      "movement_kind": "cycle_adjust",
+      "total": 13,
+      "asset_total_t": -0.201,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.201,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-21",
+      "movement_kind": "sale_bottle",
+      "total": 3,
+      "asset_total_t": -0.781,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.781,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-22",
+      "movement_kind": "cycle_adjust",
+      "total": 2,
+      "asset_total_t": -0.011,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.011,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-22",
+      "movement_kind": "sale_bottle",
+      "total": 2,
+      "asset_total_t": -0.118,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.118,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-23",
+      "movement_kind": "cycle_adjust",
+      "total": 15,
+      "asset_total_t": -0.31,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.31,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-23",
+      "movement_kind": "filling_normal_fill",
+      "total": 25,
+      "asset_total_t": 0,
+      "station_total_t": -1.535,
+      "in_bottle_total_t": 1.535,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-23",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 2,
+      "asset_total_t": -1.048,
+      "station_total_t": -1.048,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-23",
+      "movement_kind": "sale_bottle",
+      "total": 7,
+      "asset_total_t": -0.767,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.767,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-24",
+      "movement_kind": "cycle_adjust",
+      "total": 25,
+      "asset_total_t": -0.119,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.119,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-24",
+      "movement_kind": "filling_normal_fill",
+      "total": 41,
+      "asset_total_t": 0,
+      "station_total_t": -2.644,
+      "in_bottle_total_t": 2.644,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-24",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 4,
+      "asset_total_t": -1.526,
+      "station_total_t": -1.526,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-24",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 20.88,
+      "station_total_t": 20.88,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-24",
+      "movement_kind": "sale_bottle",
+      "total": 10,
+      "asset_total_t": -1.701,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.701,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-25",
+      "movement_kind": "cycle_adjust",
+      "total": 14,
+      "asset_total_t": -0.059,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.059,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-25",
+      "movement_kind": "filling_normal_fill",
+      "total": 35,
+      "asset_total_t": 0,
+      "station_total_t": -2.523,
+      "in_bottle_total_t": 2.523,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-25",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.347,
+      "station_total_t": -0.347,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-25",
+      "movement_kind": "sale_bottle",
+      "total": 10,
+      "asset_total_t": -1.212,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.212,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-26",
+      "movement_kind": "cycle_adjust",
+      "total": 35,
+      "asset_total_t": -0.247,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.247,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-26",
+      "movement_kind": "filling_normal_fill",
+      "total": 58,
+      "asset_total_t": 0,
+      "station_total_t": -4.773,
+      "in_bottle_total_t": 4.773,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-26",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 2,
+      "asset_total_t": -0.921,
+      "station_total_t": -0.921,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-26",
+      "movement_kind": "sale_bottle",
+      "total": 14,
+      "asset_total_t": -3.575,
+      "station_total_t": 0,
+      "in_bottle_total_t": -3.575,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-27",
+      "movement_kind": "cycle_adjust",
+      "total": 32,
+      "asset_total_t": -0.077,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.077,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-27",
+      "movement_kind": "filling_normal_fill",
+      "total": 28,
+      "asset_total_t": 0,
+      "station_total_t": -1.944,
+      "in_bottle_total_t": 1.944,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-27",
+      "movement_kind": "sale_bottle",
+      "total": 21,
+      "asset_total_t": -3.507,
+      "station_total_t": 0,
+      "in_bottle_total_t": -3.507,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-27",
+      "movement_kind": "sale_truck",
+      "total": 1,
+      "asset_total_t": -5.91,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": -5.91
+    },
+    {
+      "day": "2026-02-28",
+      "movement_kind": "cycle_adjust",
+      "total": 34,
+      "asset_total_t": -0.15,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.15,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-28",
+      "movement_kind": "filling_normal_fill",
+      "total": 53,
+      "asset_total_t": 0,
+      "station_total_t": -3.636,
+      "in_bottle_total_t": 3.636,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-28",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.4,
+      "station_total_t": -0.4,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-02-28",
+      "movement_kind": "sale_bottle",
+      "total": 13,
+      "asset_total_t": -2.911,
+      "station_total_t": 0,
+      "in_bottle_total_t": -2.911,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-01",
+      "movement_kind": "cycle_adjust",
+      "total": 29,
+      "asset_total_t": -0.019,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.019,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-01",
+      "movement_kind": "filling_normal_fill",
+      "total": 40,
+      "asset_total_t": 0,
+      "station_total_t": -2.693,
+      "in_bottle_total_t": 2.693,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-01",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.395,
+      "station_total_t": -0.395,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-01",
+      "movement_kind": "sale_bottle",
+      "total": 14,
+      "asset_total_t": -2.422,
+      "station_total_t": 0,
+      "in_bottle_total_t": -2.422,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-02",
+      "movement_kind": "cycle_adjust",
+      "total": 26,
+      "asset_total_t": -0.074,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.074,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-02",
+      "movement_kind": "filling_normal_fill",
+      "total": 19,
+      "asset_total_t": 0,
+      "station_total_t": -1.339,
+      "in_bottle_total_t": 1.339,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-02",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 4,
+      "asset_total_t": 0,
+      "station_total_t": -0.784,
+      "in_bottle_total_t": 0.784,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-02",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.05,
+      "station_total_t": 21.05,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-02",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -0.784,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.784,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-02",
+      "movement_kind": "sale_bottle",
+      "total": 14,
+      "asset_total_t": -2.135,
+      "station_total_t": 0,
+      "in_bottle_total_t": -2.135,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-03",
+      "movement_kind": "cycle_adjust",
+      "total": 21,
+      "asset_total_t": 0.016,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0.016,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-03",
+      "movement_kind": "filling_normal_fill",
+      "total": 43,
+      "asset_total_t": 0,
+      "station_total_t": -2.944,
+      "in_bottle_total_t": 2.944,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-03",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 2,
+      "asset_total_t": -0.339,
+      "station_total_t": -0.339,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-03",
+      "movement_kind": "sale_bottle",
+      "total": 13,
+      "asset_total_t": -1.548,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.548,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-04",
+      "movement_kind": "cycle_adjust",
+      "total": 53,
+      "asset_total_t": -0.568,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.568,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-04",
+      "movement_kind": "filling_normal_fill",
+      "total": 58,
+      "asset_total_t": 0,
+      "station_total_t": -5.048,
+      "in_bottle_total_t": 5.048,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-04",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 2,
+      "asset_total_t": -0.399,
+      "station_total_t": -0.399,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-04",
+      "movement_kind": "sale_bottle",
+      "total": 21,
+      "asset_total_t": -4.591,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.591,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-05",
+      "movement_kind": "cycle_adjust",
+      "total": 39,
+      "asset_total_t": -0.149,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.149,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-05",
+      "movement_kind": "filling_normal_fill",
+      "total": 50,
+      "asset_total_t": 0,
+      "station_total_t": -3.45,
+      "in_bottle_total_t": 3.45,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-05",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.411,
+      "station_total_t": -0.411,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-05",
+      "movement_kind": "sale_bottle",
+      "total": 21,
+      "asset_total_t": -3.75,
+      "station_total_t": 0,
+      "in_bottle_total_t": -3.75,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-06",
+      "movement_kind": "cycle_adjust",
+      "total": 43,
+      "asset_total_t": -0.107,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.107,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-06",
+      "movement_kind": "filling_normal_fill",
+      "total": 65,
+      "asset_total_t": 0,
+      "station_total_t": -4.8,
+      "in_bottle_total_t": 4.8,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-06",
+      "movement_kind": "sale_bottle",
+      "total": 22,
+      "asset_total_t": -4.137,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.137,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-07",
+      "movement_kind": "cycle_adjust",
+      "total": 53,
+      "asset_total_t": -0.12,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.12,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-07",
+      "movement_kind": "filling_normal_fill",
+      "total": 66,
+      "asset_total_t": 0,
+      "station_total_t": -4.467,
+      "in_bottle_total_t": 4.467,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-07",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 7,
+      "asset_total_t": 0,
+      "station_total_t": -1.279,
+      "in_bottle_total_t": 1.279,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-07",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 4,
+      "asset_total_t": -1.493,
+      "station_total_t": -1.493,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-07",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.05,
+      "station_total_t": 21.05,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-07",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.279,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.279,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-07",
+      "movement_kind": "sale_bottle",
+      "total": 30,
+      "asset_total_t": -4.927,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.927,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-08",
+      "movement_kind": "cycle_adjust",
+      "total": 52,
+      "asset_total_t": -0.29,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.29,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-08",
+      "movement_kind": "filling_normal_fill",
+      "total": 99,
+      "asset_total_t": 0,
+      "station_total_t": -7.519,
+      "in_bottle_total_t": 7.519,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-08",
+      "movement_kind": "sale_bottle",
+      "total": 31,
+      "asset_total_t": -4.608,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.608,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-09",
+      "movement_kind": "cycle_adjust",
+      "total": 56,
+      "asset_total_t": -0.175,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.175,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-09",
+      "movement_kind": "filling_normal_fill",
+      "total": 50,
+      "asset_total_t": 0,
+      "station_total_t": -4.273,
+      "in_bottle_total_t": 4.273,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-09",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 4,
+      "asset_total_t": 0,
+      "station_total_t": -0.78,
+      "in_bottle_total_t": 0.78,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-09",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.313,
+      "station_total_t": -0.313,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-09",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -0.778,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.778,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-09",
+      "movement_kind": "sale_bottle",
+      "total": 27,
+      "asset_total_t": -5.324,
+      "station_total_t": 0,
+      "in_bottle_total_t": -5.324,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-10",
+      "movement_kind": "cycle_adjust",
+      "total": 62,
+      "asset_total_t": -0.199,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.199,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-10",
+      "movement_kind": "filling_normal_fill",
+      "total": 70,
+      "asset_total_t": 0,
+      "station_total_t": -4.986,
+      "in_bottle_total_t": 4.986,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-10",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 2,
+      "asset_total_t": 0,
+      "station_total_t": -0.362,
+      "in_bottle_total_t": 0.362,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-10",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 20.15,
+      "station_total_t": 20.15,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-10",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -0.361,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.361,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-10",
+      "movement_kind": "sale_bottle",
+      "total": 29,
+      "asset_total_t": -5.6,
+      "station_total_t": 0,
+      "in_bottle_total_t": -5.6,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-11",
+      "movement_kind": "cycle_adjust",
+      "total": 49,
+      "asset_total_t": -0.152,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.152,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-11",
+      "movement_kind": "filling_normal_fill",
+      "total": 93,
+      "asset_total_t": 0,
+      "station_total_t": -6.383,
+      "in_bottle_total_t": 6.383,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-11",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 3,
+      "asset_total_t": -1.138,
+      "station_total_t": -1.138,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-11",
+      "movement_kind": "sale_bottle",
+      "total": 27,
+      "asset_total_t": -4.753,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.753,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-12",
+      "movement_kind": "cycle_adjust",
+      "total": 63,
+      "asset_total_t": -0.3,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.3,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-12",
+      "movement_kind": "filling_normal_fill",
+      "total": 97,
+      "asset_total_t": 0,
+      "station_total_t": -6.691,
+      "in_bottle_total_t": 6.691,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-12",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 10,
+      "asset_total_t": 0,
+      "station_total_t": -1.87,
+      "in_bottle_total_t": 1.87,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-12",
+      "movement_kind": "sale_agent_sale",
+      "total": 2,
+      "asset_total_t": -1.868,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.868,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-12",
+      "movement_kind": "sale_bottle",
+      "total": 29,
+      "asset_total_t": -7.07,
+      "station_total_t": 0,
+      "in_bottle_total_t": -7.07,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-13",
+      "movement_kind": "cycle_adjust",
+      "total": 55,
+      "asset_total_t": -0.119,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.119,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-13",
+      "movement_kind": "filling_normal_fill",
+      "total": 55,
+      "asset_total_t": 0,
+      "station_total_t": -3.854,
+      "in_bottle_total_t": 3.854,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-13",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 4,
+      "asset_total_t": -1.409,
+      "station_total_t": -1.409,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-13",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 20.93,
+      "station_total_t": 20.93,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-13",
+      "movement_kind": "sale_bottle",
+      "total": 33,
+      "asset_total_t": -3.833,
+      "station_total_t": 0,
+      "in_bottle_total_t": -3.833,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-14",
+      "movement_kind": "cycle_adjust",
+      "total": 45,
+      "asset_total_t": -0.27,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.27,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-14",
+      "movement_kind": "filling_normal_fill",
+      "total": 74,
+      "asset_total_t": 0,
+      "station_total_t": -5.174,
+      "in_bottle_total_t": 5.174,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-14",
+      "movement_kind": "filling_truck_fill",
+      "total": 1,
+      "asset_total_t": 0,
+      "station_total_t": -7.68,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 7.68
+    },
+    {
+      "day": "2026-03-14",
+      "movement_kind": "sale_bottle",
+      "total": 23,
+      "asset_total_t": -3.926,
+      "station_total_t": 0,
+      "in_bottle_total_t": -3.926,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-15",
+      "movement_kind": "cycle_adjust",
+      "total": 64,
+      "asset_total_t": -0.279,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.279,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-15",
+      "movement_kind": "filling_normal_fill",
+      "total": 75,
+      "asset_total_t": 0,
+      "station_total_t": -5.337,
+      "in_bottle_total_t": 5.337,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-15",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 2,
+      "asset_total_t": -0.69,
+      "station_total_t": -0.69,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-15",
+      "movement_kind": "sale_bottle",
+      "total": 30,
+      "asset_total_t": -5.812,
+      "station_total_t": 0,
+      "in_bottle_total_t": -5.812,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-16",
+      "movement_kind": "cycle_adjust",
+      "total": 74,
+      "asset_total_t": -0.344,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.344,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-16",
+      "movement_kind": "filling_normal_fill",
+      "total": 110,
+      "asset_total_t": 0,
+      "station_total_t": -7.85,
+      "in_bottle_total_t": 7.85,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-16",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 7,
+      "asset_total_t": 0,
+      "station_total_t": -1.367,
+      "in_bottle_total_t": 1.367,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-16",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 2,
+      "asset_total_t": -0.779,
+      "station_total_t": -0.779,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-16",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 20.96,
+      "station_total_t": 20.96,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-16",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.367,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.367,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-16",
+      "movement_kind": "sale_bottle",
+      "total": 33,
+      "asset_total_t": -5.96,
+      "station_total_t": 0,
+      "in_bottle_total_t": -5.96,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-17",
+      "movement_kind": "cycle_adjust",
+      "total": 70,
+      "asset_total_t": -1.163,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.163,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-17",
+      "movement_kind": "filling_normal_fill",
+      "total": 100,
+      "asset_total_t": 0,
+      "station_total_t": -7.033,
+      "in_bottle_total_t": 7.033,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-17",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.1,
+      "station_total_t": -0.1,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-17",
+      "movement_kind": "sale_bottle",
+      "total": 31,
+      "asset_total_t": -5.806,
+      "station_total_t": 0,
+      "in_bottle_total_t": -5.806,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-18",
+      "movement_kind": "cycle_adjust",
+      "total": 53,
+      "asset_total_t": -1.485,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.485,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-18",
+      "movement_kind": "filling_normal_fill",
+      "total": 88,
+      "asset_total_t": 0,
+      "station_total_t": -6.247,
+      "in_bottle_total_t": 6.247,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-18",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 5,
+      "asset_total_t": 0,
+      "station_total_t": -0.91,
+      "in_bottle_total_t": 0.91,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-18",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.22,
+      "station_total_t": -0.22,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-18",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -0.91,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.91,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-18",
+      "movement_kind": "sale_bottle",
+      "total": 31,
+      "asset_total_t": -4.76,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.76,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-19",
+      "movement_kind": "cycle_adjust",
+      "total": 58,
+      "asset_total_t": 0.101,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0.101,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-19",
+      "movement_kind": "filling_normal_fill",
+      "total": 63,
+      "asset_total_t": 0,
+      "station_total_t": -4.272,
+      "in_bottle_total_t": 4.272,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-19",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.511,
+      "station_total_t": -0.511,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-19",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.06,
+      "station_total_t": 21.06,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-19",
+      "movement_kind": "sale_bottle",
+      "total": 29,
+      "asset_total_t": -5.189,
+      "station_total_t": 0,
+      "in_bottle_total_t": -5.189,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-20",
+      "movement_kind": "cycle_adjust",
+      "total": 73,
+      "asset_total_t": 0.063,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0.063,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-20",
+      "movement_kind": "filling_normal_fill",
+      "total": 77,
+      "asset_total_t": 0,
+      "station_total_t": -6.628,
+      "in_bottle_total_t": 6.628,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-20",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 5,
+      "asset_total_t": 0,
+      "station_total_t": -0.895,
+      "in_bottle_total_t": 0.895,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-20",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 3,
+      "asset_total_t": -0.754,
+      "station_total_t": -0.754,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-20",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -0.895,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.895,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-20",
+      "movement_kind": "sale_bottle",
+      "total": 31,
+      "asset_total_t": -6.868,
+      "station_total_t": 0,
+      "in_bottle_total_t": -6.868,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-21",
+      "movement_kind": "cycle_adjust",
+      "total": 55,
+      "asset_total_t": -0.017,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.017,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-21",
+      "movement_kind": "filling_normal_fill",
+      "total": 72,
+      "asset_total_t": 0,
+      "station_total_t": -5.428,
+      "in_bottle_total_t": 5.428,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-21",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 2,
+      "asset_total_t": 0,
+      "station_total_t": -0.118,
+      "in_bottle_total_t": 0.118,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-21",
+      "movement_kind": "sale_bottle",
+      "total": 29,
+      "asset_total_t": -4.617,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.617,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-22",
+      "movement_kind": "cycle_adjust",
+      "total": 61,
+      "asset_total_t": -0.04,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.04,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-22",
+      "movement_kind": "filling_normal_fill",
+      "total": 79,
+      "asset_total_t": 0,
+      "station_total_t": -5.471,
+      "in_bottle_total_t": 5.471,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-22",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 6,
+      "asset_total_t": 0,
+      "station_total_t": -1.038,
+      "in_bottle_total_t": 1.038,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-22",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 2,
+      "asset_total_t": -0.821,
+      "station_total_t": -0.821,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-22",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.1,
+      "station_total_t": 21.1,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-22",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.038,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.038,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-22",
+      "movement_kind": "sale_bottle",
+      "total": 30,
+      "asset_total_t": -5.606,
+      "station_total_t": 0,
+      "in_bottle_total_t": -5.606,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-23",
+      "movement_kind": "cycle_adjust",
+      "total": 57,
+      "asset_total_t": 0.176,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0.176,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-23",
+      "movement_kind": "filling_normal_fill",
+      "total": 93,
+      "asset_total_t": 0,
+      "station_total_t": -6.694,
+      "in_bottle_total_t": 6.694,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-23",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 2,
+      "asset_total_t": 0,
+      "station_total_t": -0.131,
+      "in_bottle_total_t": 0.131,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-23",
+      "movement_kind": "sale_bottle",
+      "total": 31,
+      "asset_total_t": -6.212,
+      "station_total_t": 0,
+      "in_bottle_total_t": -6.212,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-24",
+      "movement_kind": "cycle_adjust",
+      "total": 59,
+      "asset_total_t": 0.242,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0.242,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-24",
+      "movement_kind": "filling_normal_fill",
+      "total": 43,
+      "asset_total_t": 0,
+      "station_total_t": -2.871,
+      "in_bottle_total_t": 2.871,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-24",
+      "movement_kind": "sale_bottle",
+      "total": 32,
+      "asset_total_t": -4.779,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.779,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-25",
+      "movement_kind": "cycle_adjust",
+      "total": 54,
+      "asset_total_t": -0.034,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.034,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-25",
+      "movement_kind": "filling_normal_fill",
+      "total": 88,
+      "asset_total_t": 0,
+      "station_total_t": -6.639,
+      "in_bottle_total_t": 6.639,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-25",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 5,
+      "asset_total_t": 0,
+      "station_total_t": -0.883,
+      "in_bottle_total_t": 0.883,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-25",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 1,
+      "asset_total_t": -0.183,
+      "station_total_t": -0.183,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-25",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -0.883,
+      "station_total_t": 0,
+      "in_bottle_total_t": -0.883,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-25",
+      "movement_kind": "sale_bottle",
+      "total": 30,
+      "asset_total_t": -4.46,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.46,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-25",
+      "movement_kind": "sale_truck",
+      "total": 1,
+      "asset_total_t": -6.78,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": -6.78
+    },
+    {
+      "day": "2026-03-26",
+      "movement_kind": "cycle_adjust",
+      "total": 61,
+      "asset_total_t": 0.231,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0.231,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-26",
+      "movement_kind": "filling_normal_fill",
+      "total": 73,
+      "asset_total_t": 0,
+      "station_total_t": -5.572,
+      "in_bottle_total_t": 5.572,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-26",
+      "movement_kind": "filling_truck_out_agent_sale",
+      "total": 5,
+      "asset_total_t": 0,
+      "station_total_t": -0.933,
+      "in_bottle_total_t": 0.933,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-26",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 2,
+      "asset_total_t": -0.848,
+      "station_total_t": -0.848,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-26",
+      "movement_kind": "gas_in",
+      "total": 1,
+      "asset_total_t": 21.04,
+      "station_total_t": 21.04,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-26",
+      "movement_kind": "sale_agent_sale",
+      "total": 1,
+      "asset_total_t": -1.182,
+      "station_total_t": 0,
+      "in_bottle_total_t": -1.182,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-26",
+      "movement_kind": "sale_bottle",
+      "total": 27,
+      "asset_total_t": -4.942,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.942,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-27",
+      "movement_kind": "cycle_adjust",
+      "total": 52,
+      "asset_total_t": 0.173,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0.173,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-27",
+      "movement_kind": "filling_normal_fill",
+      "total": 57,
+      "asset_total_t": 0,
+      "station_total_t": -3.913,
+      "in_bottle_total_t": 3.913,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-27",
+      "movement_kind": "sale_bottle",
+      "total": 29,
+      "asset_total_t": -4.848,
+      "station_total_t": 0,
+      "in_bottle_total_t": -4.848,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-28",
+      "movement_kind": "cycle_adjust",
+      "total": 41,
+      "asset_total_t": 0.103,
+      "station_total_t": 0,
+      "in_bottle_total_t": 0.103,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-28",
+      "movement_kind": "filling_normal_fill",
+      "total": 55,
+      "asset_total_t": 0,
+      "station_total_t": -4.546,
+      "in_bottle_total_t": 4.546,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-28",
+      "movement_kind": "filling_truck_out_no_sale",
+      "total": 4,
+      "asset_total_t": -1.454,
+      "station_total_t": -1.454,
+      "in_bottle_total_t": 0,
+      "vehicle_total_t": 0
+    },
+    {
+      "day": "2026-03-28",
+      "movement_kind": "sale_bottle",
+      "total": 24,
+      "asset_total_t": -3.992,
+      "station_total_t": 0,
+      "in_bottle_total_t": -3.992,
+      "vehicle_total_t": 0
+    }
+  ]
+}

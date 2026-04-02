@@ -1,7 +1,7 @@
 <template>
 	<AppPage title="钢瓶档案" :subtitle="subtitle" icon="bottle">
 		<template #headerActions>
-			<AppButton size="sm" kind="primary" icon="plus" @click="onAdd">新增钢瓶</AppButton>
+			<AppButton v-if="canCreateBottle" size="sm" kind="primary" icon="plus" @click="onAdd">新增钢瓶</AppButton>
 			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch">刷新</AppButton>
 		</template>
 
@@ -367,8 +367,8 @@
 						:status-kind="statusKind(item.status)"
 						icon="bottle"
 						:icon-class="getBottleIconColor(item.status)"
-						clickable
-						@click="onEdit(item)"
+						:clickable="canUpdateBottle"
+						@click="canUpdateBottle && onEdit(item)"
 					>
 						<template #right>
 							<view class="info-box">
@@ -398,7 +398,7 @@
 								<AppButton kind="neutral" size="sm" @click="onToggleBottleSelect(item)">
 									{{ isBottleSelected(item._id) ? '取消勾选' : '勾选子集' }}
 								</AppButton>
-								<AppButton kind="ghost" size="sm" @click="onEdit(item)">修改档案</AppButton>
+								<AppButton v-if="canUpdateBottle" kind="ghost" size="sm" @click="onEdit(item)">修改档案</AppButton>
 							</view>
 						</template>
 					</AppListItem>
@@ -422,6 +422,7 @@ import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppTag from '@/components/base/AppTag.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
+import { useAuthGuard } from '@/composables/useAuthGuard'
 import { useQuery } from '@/composables/useQuery'
 import { batchUpdateInspectionV1, searchBottlesV1 } from '@/services/bottle'
 
@@ -454,6 +455,9 @@ const activeOptions = [
 	{ label: '在用', value: 'true' },
 	{ label: '停用', value: 'false' }
 ]
+const { canPageAction } = useAuthGuard()
+const canCreateBottle = computed(() => canPageAction('/pages/bottle/edit', 'create'))
+const canUpdateBottle = computed(() => canPageAction('/pages/bottle/edit', 'update'))
 const inspectionDueModuleOptions = [
 	{ label: '全部模块', value: '' },
 	{ label: '钢瓶检验', value: 'bottle' },

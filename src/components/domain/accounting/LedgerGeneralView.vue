@@ -9,6 +9,7 @@
 				<AppStatCard class="summary-card" label="记录数" :value="summary.total" hint="条" icon="list" />
 				<AppStatCard class="summary-card" label="借方合计" :value="summary.debit" hint="元" icon="check-circle" />
 				<AppStatCard class="summary-card" label="贷方合计" :value="summary.credit" hint="元" icon="minus-circle" />
+				<AppStatCard class="summary-card" label="冲减后净额" :value="netAmountText" :hint="netAmountHint" icon="wallet" />
 			</view>
 		</template>
 
@@ -94,6 +95,16 @@ const filters = reactive({
 const subtitle = computed(() => {
 	if (!pager.total) return '按科目查看总账明细'
 	return `当前筛选 ${pager.total} 条`
+})
+const netAmount = computed(() => {
+	const debit = Number(summary.value.debit || 0)
+	const credit = Number(summary.value.credit || 0)
+	return Number((debit - credit).toFixed(2))
+})
+const netAmountText = computed(() => netAmount.value.toFixed(2))
+const netAmountHint = computed(() => {
+	if (Math.abs(netAmount.value) < 0.01) return '已冲平'
+	return netAmount.value > 0 ? '净应收' : '净应退'
 })
 const totalPages = computed(() => {
 	const pages = Math.ceil(Number(pager.total || 0) / Number(pager.pageSize || 50))

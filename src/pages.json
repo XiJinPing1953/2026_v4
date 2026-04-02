@@ -43,6 +43,12 @@
 			}
 		},
 		{
+			"path": "pages/customer/statement",
+			"style": {
+				"navigationBarTitleText": "客户对账"
+			}
+		},
+		{
 			"path": "pages/bottle/anomaly",
 			"style": {
 				"navigationBarTitleText": "流转异常"
@@ -112,6 +118,18 @@
 			"path": "pages/filling/edit",
 			"style": {
 				"navigationBarTitleText": "灌装录入"
+			}
+		},
+		{
+			"path": "pages/gas-in/list",
+			"style": {
+				"navigationBarTitleText": "天然气入库"
+			}
+		},
+		{
+			"path": "pages/gas-in/edit",
+			"style": {
+				"navigationBarTitleText": "天然气入库录入"
 			}
 		},
 		{
@@ -190,6 +208,12 @@
 			"path": "pages/log/list",
 			"style": {
 				"navigationBarTitleText": "操作日志"
+			}
+		},
+		{
+			"path": "pages/user/list",
+			"style": {
+				"navigationBarTitleText": "用户管理"
 			}
 		}
 	],

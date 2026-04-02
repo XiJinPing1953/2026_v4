@@ -67,7 +67,7 @@
 							</picker>
 						</view>
 						<view class="form-item">
-							<AppInput v-model="form.tare_weight" label="标准皮重（kg）" placeholder="0.00（选填）" size="sm" />
+							<AppInput v-model="form.tare_weight" label="标准皮重（kg）" placeholder="0.00" size="sm" />
 						</view>
 						<view class="form-item">
 							<AppInput v-model="form.current_customer_name" label="持有客户" placeholder="当前所在客户名称（选填）" prefix-icon="user" size="sm" />
@@ -224,7 +224,7 @@ const form = reactive({
 	manufacture_date: '',
 	scrap_due_date: '',
 	tare_weight: '',
-	status: 'unknown',
+	status: '',
 	current_customer_name: '',
 	bottle_check_date: '',
 	bottle_next_check_date: '',
@@ -246,7 +246,7 @@ const form = reactive({
 
 const statusLabel = computed(() => {
 	const item = statusOptions.find((opt) => opt.value === form.status)
-	return item?.label || '未知状态'
+	return item?.label || '请选择'
 })
 
 const activeLabel = computed(() => (form.is_active ? '启用中' : '已停用'))
@@ -421,7 +421,7 @@ async function loadRecord(id) {
 	form.manufacture_date = doc.manufacture_date || ''
 	form.scrap_due_date = doc.scrap_due_date || ''
 	form.tare_weight = toDisplayNumber(doc.tare_weight)
-	form.status = doc.status || 'unknown'
+	form.status = doc.status || ''
 	form.current_customer_name = doc.current_customer_name || ''
 	form.bottle_check_date = doc.bottle_check_date || ''
 	form.bottle_next_check_date = doc.bottle_next_check_date || ''
@@ -460,49 +460,51 @@ async function onSubmit() {
 	if (submitting.value) return
 
 	const requiredTextChecks = [
-		{ value: form.bottle_no, msg: '单位内编号必填' },
-		{ value: form.filling_company, msg: '充装单位必填' },
-		{ value: form.registration_mark, msg: '登记证标号必填' },
-		{ value: form.equipment_type, msg: '设备品种必填' },
-		{ value: form.product_no, msg: '产品编号必填' },
-		{ value: form.qr_code, msg: '二维码号必填' },
-		{ value: form.pressure_gauge_no, msg: '压力表号必填' }
+		{ value: form.bottle_no, msg: '单位内编号必填' }
 	]
 
 	for (const item of requiredTextChecks) {
 		if (!assert(Boolean(normalizeString(item.value)), item.msg)) return
 	}
 
+	if (!assert(statusOptions.some((item) => item.value === form.status), '当前流向必填')) return
+
+	const tareWeight = toNullableNumber(form.tare_weight)
+	if (!assert(typeof tareWeight === 'number' && tareWeight >= 0, '标准皮重必填且必须为非负数字')) return
+
 	const volume = toNullableNumber(form.volume_l)
-	if (!assert(typeof volume === 'number' && volume > 0, '容积必须为大于 0 的数字')) return
+	if (normalizeString(form.volume_l) && !assert(typeof volume === 'number' && volume > 0, '容积必须为大于 0 的数字')) return
 
 	const pressureMin = toNullableNumber(form.pressure_gauge_range_min)
 	const pressureMax = toNullableNumber(form.pressure_gauge_range_max)
-	if (!assert(typeof pressureMin === 'number' && pressureMin >= 0, '压力下限必须为非负数字')) return
-	if (!assert(typeof pressureMax === 'number' && pressureMax >= 0, '压力上限必须为非负数字')) return
-	if (!assert(pressureMin <= pressureMax, '压力下限不能大于上限')) return
-
-	const requiredDates = [
-		{ value: form.manufacture_date, msg: '制造日期必填且格式正确' },
-		{ value: form.scrap_due_date, msg: '报废期限必填且格式正确' },
-		{ value: form.bottle_check_date, msg: '钢瓶检验日期必填且格式正确' },
-		{ value: form.bottle_next_check_date, msg: '钢瓶下次检验日期必填且格式正确' },
-		{ value: form.pressure_gauge_check_date, msg: '压力表检验日期必填且格式正确' },
-		{ value: form.pressure_gauge_next_check_date, msg: '压力表下次检验日期必填且格式正确' },
-		{ value: form.safety_valve_check_date, msg: '安全阀检测日期必填且格式正确' },
-		{ value: form.safety_valve_next_check_date, msg: '安全阀下次检测日期必填且格式正确' }
-	]
-
-	for (const item of requiredDates) {
-		if (!assert(isValidDateString(item.value), item.msg)) return
+	const hasPressureMin = Boolean(normalizeString(form.pressure_gauge_range_min))
+	const hasPressureMax = Boolean(normalizeString(form.pressure_gauge_range_max))
+	if (hasPressureMin || hasPressureMax) {
+		if (!assert(typeof pressureMin === 'number' && pressureMin >= 0, '压力下限必须为非负数字')) return
+		if (!assert(typeof pressureMax === 'number' && pressureMax >= 0, '压力上限必须为非负数字')) return
+		if (!assert(pressureMin <= pressureMax, '压力下限不能大于上限')) return
 	}
 
-	if (!assert(isCycleValid(form.bottle_check_cycle_months), '钢瓶检测周期无效')) return
-	if (!assert(isCycleValid(form.pressure_gauge_cycle_months), '压力表检测周期无效')) return
-	if (!assert(isCycleValid(form.safety_valve_cycle_months), '安全阀检测周期无效')) return
+	const optionalDates = [
+		{ value: form.manufacture_date, msg: '制造日期格式无效' },
+		{ value: form.scrap_due_date, msg: '报废期限格式无效' },
+		{ value: form.bottle_check_date, msg: '钢瓶检验日期格式无效' },
+		{ value: form.bottle_next_check_date, msg: '钢瓶下次检验日期格式无效' },
+		{ value: form.pressure_gauge_check_date, msg: '压力表检验日期格式无效' },
+		{ value: form.pressure_gauge_next_check_date, msg: '压力表下次检验日期格式无效' },
+		{ value: form.safety_valve_check_date, msg: '安全阀检测日期格式无效' },
+		{ value: form.safety_valve_next_check_date, msg: '安全阀下次检测日期格式无效' }
+	]
 
-	const tareWeight = toNullableNumber(form.tare_weight)
-	if (!assert(tareWeight == null || (typeof tareWeight === 'number' && tareWeight >= 0), '标准皮重必须为非负数字')) return
+	for (const item of optionalDates) {
+		if (normalizeString(item.value) && !assert(isValidDateString(item.value), item.msg)) return
+	}
+
+	if (form.bottle_check_cycle_months != null && !assert(isCycleValid(form.bottle_check_cycle_months), '钢瓶检测周期无效')) return
+	if (form.pressure_gauge_cycle_months != null && !assert(isCycleValid(form.pressure_gauge_cycle_months), '压力表检测周期无效')) return
+	if (form.safety_valve_cycle_months != null && !assert(isCycleValid(form.safety_valve_cycle_months), '安全阀检测周期无效')) return
+
+	if (!assert(Number(form.safety_valve_count) === 2, '安全阀数量固定为 2')) return
 
 	submitting.value = true
 	try {

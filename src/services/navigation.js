@@ -17,3 +17,10 @@ export function handle401(message) {
 		}
 	})
 }
+
+export function handle403(message) {
+	uni.showToast({
+		title: message || '无权限执行该操作',
+		icon: 'none'
+	})
+}

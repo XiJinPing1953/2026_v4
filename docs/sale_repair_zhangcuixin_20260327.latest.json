@@ -1,0 +1,34 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "sale_id": "69c8afca59063e84c13ec7bd",
+  "before": {
+    "out_bottle_nos": [
+      "45",
+      "143"
+    ],
+    "deposit_bottle_nos": [
+      "43",
+      "143"
+    ]
+  },
+  "update_result": {
+    "code": 0,
+    "msg": "更新成功（凭证未同步（缺集合））",
+    "data": {
+      "warning": "凭证未同步（缺集合）",
+      "bottle_flow_warning_overridden": false,
+      "bottle_flow_warning_count": 0,
+      "bottle_status_deposit_reconciled_total": 0
+    }
+  },
+  "after": {
+    "out_bottle_nos": [
+      "45",
+      "143"
+    ],
+    "deposit_bottle_nos": [
+      "45",
+      "143"
+    ]
+  }
+}

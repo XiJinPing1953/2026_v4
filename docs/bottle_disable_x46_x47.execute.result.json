@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-03-17T14:49:38.781Z",
+  "space_id": "env-00jxuffegf2n",
+  "targets": [
+    "X46",
+    "X47"
+  ],
+  "updated": [
+    {
+      "bottle_no": "X46",
+      "_id": "693fbee16dd837518fa12285",
+      "is_active": false
+    },
+    {
+      "bottle_no": "X47",
+      "_id": "693fbee16dd837518fa12286",
+      "is_active": false
+    }
+  ],
+  "failed": [],
+  "summary": {
+    "updated": 2,
+    "failed": 0
+  }
+}

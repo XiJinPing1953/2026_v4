@@ -1,0 +1,26 @@
+{
+  "started_at": "2026-03-21T07:12:01.723Z",
+  "finished_at": "2026-03-21T07:12:02.963Z",
+  "space_id": "env-00jxuffegf2n",
+  "config_from": "/Users/wangbo/Library/Application Support/HBuilder X/projects/39637144c7c598fa8663d4ea84645a0e/setting.json",
+  "mode": "dry-run",
+  "skip_backup": true,
+  "preview": {
+    "preview": true,
+    "run_id": "cleanup_orphan_fill_1774077122483",
+    "scan_limit": 20000,
+    "fillings_total": 3879,
+    "fill_movements_total": 3810,
+    "orphan_total": 0,
+    "orphan_with_legacy_pair_total": 0,
+    "orphan_without_legacy_pair_total": 0,
+    "touched_bottle_total": 0,
+    "skip_backup_requested": true,
+    "backup_collection_primary": "crm_filling_orphan_fill_movement_backups",
+    "backup_collection_fallback": "crm_filling_no_sale_movement_backups",
+    "can_execute": false,
+    "candidate_sample_items": [],
+    "skipped_sample_items": []
+  },
+  "execute": null
+}

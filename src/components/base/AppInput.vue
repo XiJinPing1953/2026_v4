@@ -15,6 +15,8 @@
 				:type="type"
 				:password="type === 'password'"
 				:value="modelValue"
+				:name="name"
+				:autocomplete="autocomplete"
 				:placeholder="placeholder"
 				:confirm-type="confirmType"
 				:disabled="disabled || readonly"
@@ -39,6 +41,8 @@ const props = defineProps({
 	disabled: { type: Boolean, default: false },
 	readonly: { type: Boolean, default: false },
 	type: { type: String, default: 'text' },
+	name: { type: String, default: '' },
+	autocomplete: { type: String, default: '' },
 	confirmType: { type: String, default: 'done' },
 	prefixIcon: { type: String, default: '' },
 	size: { type: String, default: 'md' },
@@ -119,8 +123,17 @@ function handleBlur(e) {
 }
 .field__input {
 	flex: 1;
+	min-width: 0;
+	width: 100%;
 	font-size: 28rpx;
 	color: var(--crm-text);
 	height: 100%;
+	border: none;
+	outline: none;
+	background: transparent;
+	padding: 0;
+	margin: 0;
+	box-sizing: border-box;
+	line-height: 1.4;
 }
 </style>

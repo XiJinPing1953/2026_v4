@@ -3682,3 +3682,3088 @@
     - `npm run build:mp-alipay`
 - 剩余问题：
   - 线上“异常/损耗口径一致性”需按 `docs/filling.smoke.playbook.md` 在真实空间完成一次人工冒烟并留验收截图。
+
+### 2026-03-17 CURRENT — 全量导入前最终验收清单 v1
+- 做了什么：
+  - 新增“钢瓶 + 灌装”全量导入前最终验收清单（v1），统一了发布冻结、回滚准备、钢瓶 update-only 门禁、灌装重复清洗门禁、构建验收与失败即停规则。
+- 改动文件列表：
+  - `docs/full_import_readiness_v1.md`
+  - `STATE.md`
+- 验证输出要点：
+  - 文档型改动，未触发额外构建/语法命令。
+- 剩余问题：
+  - 等你拿到完整源数据后，按清单执行一次“预演（dry-run）”并输出正式导入报告。
+
+### 2026-03-17 CURRENT — 灌装导入规则修正（车牌保留 + 0/000 保留）
+- 做了什么：
+  - 修正灌装清洗脚本 `scripts/cleanLegacyFillingsExport.cjs`：
+    - `truck_out_no_sale` 在 `bottle_no` 为空时，自动回填车牌（`vehicle_no/car_no/truck_no`）到 `bottle_no`。
+    - 默认不再丢弃 `bottle_no=0`（`dropBottleZero` 默认改为 `false`）。
+    - 报告新增 `no_sale_bottle_no_filled_from_vehicle_total` 统计字段。
+  - 修正灌装导入脚本 `scripts/importFillingsFromJson.cjs`：
+    - 同步增加 no_sale 车牌回填兜底。
+    - `fill_weight` 支持从 `fill_weight/net_fill/out_net` 回退取值。
+    - 导入报告新增 `input_no_sale_bottle_filled_from_vehicle_total`。
+  - 修正旧系统转换脚本 `src/services/mappers/legacyImport/convertLegacyExport.cjs`：
+    - `transformFillings` 纳入 `record_type`，并对 no_sale 执行车牌回填；移除 `address` 输出字段。
+    - movement 生成仅对 `normal_fill/truck_out_agent_sale` 生效，`truck_out_no_sale` 不再生成 `fill movement`。
+- 改动文件列表：
+  - `scripts/cleanLegacyFillingsExport.cjs`
+  - `scripts/importFillingsFromJson.cjs`
+  - `src/services/mappers/legacyImport/convertLegacyExport.cjs`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check scripts/cleanLegacyFillingsExport.cjs`
+    - `node --check scripts/importFillingsFromJson.cjs`
+    - `node --check src/services/mappers/legacyImport/convertLegacyExport.cjs`
+    - `node scripts/cleanLegacyFillingsExport.cjs --input docs/20260317161633_9a623b2d-1421-443b-9ee2-f4ab7772d9f9.json --output /tmp/legacy.clean.ndjson --outputArray /tmp/legacy.clean.array.json --report /tmp/legacy.clean.report.json`
+  - 核验结果（基于 `/tmp/legacy.clean.array.json`）：
+    - `truck_out_no_sale=69` 且 `bottle_no` 非空 69 条（车牌）
+    - `TRUCK-*` 共 9 条，全部仍是 `normal_fill`
+    - `bottle_no=0` 保留 1 条，`bottle_no=000` 保留 3 条
+- 剩余问题：
+  - 若要把修正结果直接覆盖为新的导入源（如替换 `docs/2026.json`），需在确认后执行覆盖并跑一次导入 dry-run 报告。
+
+### 2026-03-17 CURRENT — 灌装补传执行 + 瓶档新旧差异复核（基于旧瓶档）
+- 做了什么：
+  - 执行灌装补传（`docs/2026.fixed.array.json`）到云端：
+    - 命令：`node scripts/importFillingsFromJson.cjs --input docs/2026.fixed.array.json --report docs/filling.import.report.reclean.execute.json --space-id env-00jxuffegf2n --execute`
+    - 结果：`already_exists=3827`，`target_total=1`，`success=0`，`conflict=1`，`failed=0`。
+    - 冲突明细：`2026-01-28 08:00 + bottle_no=0`（同日同瓶冲突）。
+  - 复核冲突源数据与现网数据：
+    - 源行（line 1969）是 `fill_weight=518`；
+    - 现网已有同日同瓶记录 `fill_weight=1036`，备注为“同日同瓶合并3条”，因此不能再新增。
+  - 使用真正旧瓶档 `docs/about_crm_bottles.json`（912条）与现网 `crm_bottles` 做全量对比：
+    - 生成：`docs/bottle_compare_with_about_crm_bottles.latest.report.json`
+    - 结果：`old_unique=912`，`current_unique=975`，`intersection=911`，`only_in_old=1`，`only_in_current=64`，`duplicates_in_current=0`。
+    - 进一步明细：`docs/bottle_only_in_current.details.json`（64个新系统独有瓶号列表与时间戳）。
+- 改动文件列表：
+  - `docs/filling.import.report.reclean.execute.json`
+  - `docs/bottle_compare_with_about_crm_bottles.latest.report.json`
+  - `docs/bottle_only_in_current.details.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 灌装补传已执行，未出现写库失败，仅 1 条业务冲突（同日同瓶）。
+  - 瓶档对比已改用旧瓶档数据源（不再使用灌装导出），并确认现网无瓶号重复。
+- 剩余问题：
+  - 仍有 1 个旧档独有瓶号：`TRUCK-9335`；现网对应为 `TRUCK-9335Z`，需业务确认是否同一车辆瓶号命名变更。
+
+### 2026-03-18 CURRENT — 天然气入库 + 三层库存闭环（truck 按销售净重扣主账）
+- 做了什么：
+  - 新增天然气入库能力（吨制 + 元/吨）：
+    - 新增云函数 `crm-gas-in`，支持 `listV1/getV1/createV1/updateV1/removeV1/syncCycleAdjustmentsV1/rebuildInventoryV1/restoreInventoryV1`。
+    - 新增前端页面与服务：`/pages/gas-in/list`、`/pages/gas-in/edit`、`src/services/gasIn.js`。
+    - 列表支持筛选/分页/统计卡/导出；编辑支持车牌联想、自动计算可覆盖、负损耗告警。
+  - 新增三层库存流水集合与口径：
+    - 新增 schema：`crm_gas_in`、`crm_gas_inventory_movements`（含唯一索引 `source_type + source_id + movement_kind`）。
+    - 三层口径：`asset_total_t`（总库存）、`station_total_t`（站内可灌装）、`in_bottle_total_t`（在瓶未售）。
+  - 联动 `crm-filling`：
+    - `normal_fill / truck_out_agent_sale`：`asset 0, station -, in_bottle +`。
+    - `truck_out_no_sale`：`asset -, station -, in_bottle 0`。
+  - 联动 `crm-sale`：
+    - `bottle`：按 `(out_net_total - back_net_total)/1000` 扣 `asset` 与 `in_bottle`。
+    - `agent_sale`：按 `sum(agent_sale_items.fill_weight)/1000` 扣 `asset` 与 `in_bottle`。
+    - `truck`：按 `truck_sale_net/1000`（缺失回退 `out_items.net/1000`）扣 `asset` 与 `in_bottle`。
+    - `truck` 差值 `((out_gross-back_gross)-truck_sale_net)` 仅记分析字段，不入主账扣减。
+  - 闭环与可撤销重建：
+    - `syncCycleAdjustmentsV1`：基于 `back + fills - out` 生成/更新闭环调整流水（幂等键 `source_type=cycle_adjust + source_id + movement_kind`）。
+    - `rebuildInventoryV1(preview/execute)`：全量重建 `gas_in + filling + sale + cycle_adjust`。
+    - 执行前自动备份至 `crm_gas_inventory_movements_backup`，可 `restoreInventoryV1(run_id)` 一键恢复。
+  - 导入链路：
+    - 新增脚本 `scripts/importGasInFromJson.cjs`（支持 `--dry-run/--execute`、json-array/ndjson、`kg->t`、`元/kg->元/吨`、对账报告）。
+    - `package.json` 新增 `gasin:import:dry`、`gasin:import`。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `uniCloud-alipay/database/schema/crm_gas_in.schema.json`
+  - `uniCloud-alipay/database/schema/crm_gas_inventory_movements.schema.json`
+  - `src/services/gasIn.js`
+  - `src/components/domain/gasIn/GasInListView.vue`
+  - `src/components/domain/gasIn/GasInEditView.vue`
+  - `src/pages/gas-in/list.vue`
+  - `src/pages/gas-in/edit.vue`
+  - `src/pages.json`
+  - `src/components/base/AppFloatNav.vue`
+  - `src/components/domain/dashboard/DashboardHome.vue`
+  - `scripts/importGasInFromJson.cjs`
+  - `package.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+    - `node --check scripts/importGasInFromJson.cjs`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+  - 导入脚本 dry-run 样例：
+    - `node scripts/importGasInFromJson.cjs --input docs/gas_in.json --report /tmp/gas_in.import.report.test.json`
+    - 结果：`source_total=19`、`valid_total=19`、`invalid_total=0`（仅预检，未写库）。
+- 剩余问题：
+  - `crm-gas-in` 及 schema 需在云端完成上传后，前端页面与导入脚本才能对线上空间生效。
+
+### 2026-03-18 HOTFIX — 天然气入库页面 500 止血 + UI 收敛
+- 做了什么：
+  - 定位并确认线上 500 根因：支付宝空间缺少集合（`not found collection`），`crm-gas-in.listV1` 直接抛异常导致 HTTP 500。
+  - 云函数止血：
+    - `crm-gas-in` 增加统一 `try/catch`，集合缺失时返回业务可读提示，不再抛 HTTP 500。
+    - `listV1` 在集合未初始化时返回空列表与引导文案（`code=0`）。
+    - `summarizeGasInWhere/getInventorySnapshot` 增加集合缺失容错。
+    - 修正日期区间条件拼装：`dbCmd.and([dbCmd.gte(...), dbCmd.lte(...)])`。
+  - 灌装侧日期筛选同样修正 `dbCmd.and([...])`（`crm-filling`）。
+  - 前端 `GasInListView` 收敛：
+    - 顶栏仅保留“新增/导出”，将“闭环同步/库存重建”下沉到页面操作区。
+    - 新增服务告警条，直接显示云端引导信息，避免只看到网络报错。
+  - 新增备份集合 schema：`crm_gas_inventory_movements_backup.schema.json`（用于重建前备份与恢复）。
+  - 已上传云函数：
+    - `crm-gas-in`（hotfix 已上线）
+    - `crm-filling`（区间条件修正已上线）
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `src/components/domain/gasIn/GasInListView.vue`
+  - `uniCloud-alipay/database/schema/crm_gas_inventory_movements_backup.schema.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 云端探针结果：
+    - `crm-gas-in.listV1` 已从 `HTTP 500` 变为 `HTTP 200 + code=0 + 集合未初始化提示`。
+  - 本地检查通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+    - `npm run build:h5`
+- 剩余问题：
+  - 仍需在云端上传 3 个 schema：`crm_gas_in`、`crm_gas_inventory_movements`、`crm_gas_inventory_movements_backup`，上传后天然气入库页面可正常读写与重建回滚。
+
+### 2026-03-19 CURRENT — 销售3月“备注列优先”优化（原文+标准化+标签）
+- 做了什么：
+  - 后端 `crm-sale` 增加备注派生字段与统一解析：
+    - 新增并写入：`remark_normalized`、`remark_tags`、`system_note`、`has_remark`。
+    - 解析规则覆盖：`ticket_adjust_up/down`、`remove_back_bottle`、`balance_carry`、`material_install`、`cash_mark`、`merge_trace`、`payment_event`、`other`。
+    - `[合并自:xxx]` 从业务备注中识别并写入 `system_note`，保留 `remark` 原文。
+  - `listV2/getV2/createV2/updateV2` 全链路接入备注派生字段：
+    - 列表/详情回读旧数据时自动补算派生字段（兼容历史记录缺字段）。
+    - `listV2` 新增筛选入参：`hasRemark`（yes/no）、`remarkTag`（单选）。
+    - 关键词检索扩展到 `remark/system_note/remark_normalized`。
+  - 前端销售列表增强：
+    - 新增筛选控件：`有无备注`、`备注标签`。
+    - 列表卡片新增“备注摘要（1行截断）+ 标签”。
+    - 导出新增列：`业务备注`、`系统备注`、`备注标签`。
+    - 导出文件名新增备注筛选片段（可追溯）。
+  - 前端销售详情增强：
+    - “业务备注 / 系统备注 / 解析标签”分层展示。
+    - 标签可点击跳转列表并预置筛选（`hasRemark=yes&remarkTag=...`）。
+  - 销售编辑链路修复：
+    - 补充“业务备注”输入项。
+    - 编辑加载/提交均携带 `remark`，避免保存时备注被清空。
+  - 对账脚本新增：
+    - `scripts/reconcileSalesRemarkFromXlsx.cjs`
+    - 支持读取 xlsx 与系统月数据对比，输出 `仅表格有/仅系统有/计数不一致` 三段报告。
+    - `package.json` 新增命令：`sale:remark:reconcile`。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `uniCloud-alipay/database/schema/crm_sale_records.schema.json`
+  - `src/services/sale.js`
+  - `src/components/domain/sale/SaleListView.vue`
+  - `src/components/domain/sale/SaleDetailView.vue`
+  - `src/components/domain/sale/SaleEditView.vue`
+  - `src/components/domain/sale/SaleBasicInfoCard.vue`
+  - `src/pages/sale/list.vue`
+  - `scripts/reconcileSalesRemarkFromXlsx.cjs`
+  - `package.json`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js` 通过。
+  - `node --check scripts/reconcileSalesRemarkFromXlsx.cjs` 通过。
+  - `npm run build:h5` 通过。
+  - `npm run build:mp-alipay` 通过。
+- 剩余问题：
+  - schema 新增字段/索引需要按发布流程上传到云端后生效。
+  - 对账脚本首次运行需传入 `--space-id`（或设置环境变量）并保证本机可读取空间签名信息。
+
+### 2026-03-20 CURRENT — 客户级预付款与欠款结算（销售联动）一期落地
+- 做了什么：
+  - 新增客户结算引擎并落地云函数 `crm-customer-settlement`：
+    - 支持 `previewAllocationV1/createReceiptV1/confirmAllocationV1/getCustomerStatementV1/listCustomerStatementRowsV1/autoApplyPrepayToSaleV1/refreshCustomerBalancesV1/rebuildOpeningBalancesV1`。
+    - 默认 FIFO 分配（最早欠款优先），支持手工分配确认。
+    - 收款口径：先冲历史欠款，余款自动进入预付款。
+  - 销售联动改造（`crm-sale`）：
+    - `createV2/updateV2` 保存后自动调用客户结算引擎执行预付款抵扣，并在有抵扣时二次同步销售凭证。
+    - `quickReceiveV1` 从“单据内改实收”改为“客户级收款入账”，并保持销售详情快捷入口；回款后按最新销售单状态回传。
+    - `removeV2` 删除销售后补触发客户余额刷新，避免客户侧余额漂移。
+  - 客户模型与 schema 扩展：
+    - `crm_customers` 新增余额汇总字段：`receivable_balance/prepay_balance/net_balance/should_receive_total/amount_received_total/last_receipt_at`。
+    - 新增集合 schema：`crm_customer_receipts`、`crm_customer_receipt_allocations`。
+  - 前端页面与服务：
+    - 新增服务 `src/services/customerSettlement.js`。
+    - 新增客户对账页：`/pages/customer/statement` + `CustomerStatementView.vue`。
+    - 对账页包含：客户总览、近100条销售明细、账务流水、登记收款、预览分配、确认入账。
+    - 客户列表卡片新增余额信息（应收/预付/净余额）与“客户对账”入口。
+    - 销售列表与销售详情新增“客户对账”跳转入口。
+    - 销售详情“回款登记”文案与交互调整为“本次回款金额”，语义对齐客户级收款。
+  - 迁移脚本：
+    - 新增 `scripts/initCustomerOpeningBalances.cjs`（支持预览/执行）。
+    - `package.json` 新增命令：`customer:opening:dry`、`customer:opening`。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-customer/index.js`
+  - `uniCloud-alipay/database/schema/crm_customers.schema.json`
+  - `uniCloud-alipay/database/schema/crm_customer_receipts.schema.json`
+  - `uniCloud-alipay/database/schema/crm_customer_receipt_allocations.schema.json`
+  - `src/services/customerSettlement.js`
+  - `src/services/sale.js`
+  - `src/components/domain/customer/CustomerListView.vue`
+  - `src/components/domain/customer/CustomerStatementView.vue`
+  - `src/pages/customer/statement.vue`
+  - `src/components/domain/sale/SaleListView.vue`
+  - `src/components/domain/sale/SaleDetailView.vue`
+  - `src/pages.json`
+  - `scripts/initCustomerOpeningBalances.cjs`
+  - `package.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-customer/index.js`
+    - `node --check scripts/initCustomerOpeningBalances.cjs`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 需云端上传新增 schema（`crm_customer_receipts`、`crm_customer_receipt_allocations`、更新后的 `crm_customers`）与云函数（`crm-customer-settlement`、`crm-sale`、`crm-customer`）后，线上客户对账与客户级回款才会完整生效。
+  - 若历史账号角色为 `user`，客户级收款/自动抵扣已放开；仅“期初重建”仍限制为 `superadmin/admin/finance`。
+
+### 2026-03-20 EXECUTE — 客户期初余额迁移第3/4步实操（env-00jxuffegf2n）
+- 做了什么：
+  - 按操作链路执行 `customer:opening:dry` 与 `customer:opening`。
+  - 过程中发现并修复云端阻塞：
+    - 新增集合名 `crm_customer_receipt_allocations` 超过平台长度限制（>30），改为 `crm_customer_allocations`。
+    - 同步调整 `crm-customer-settlement` 云函数集合名并重新上传云函数。
+    - 通过 HBuilder CLI 上传 schema：
+      - `crm_customer_receipts`
+      - `crm_customer_allocations`
+      - `crm_customers`（云端提示 skip，说明已一致）
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `uniCloud-alipay/database/schema/crm_customer_allocations.schema.json`
+  - `uniCloud-alipay/database/schema/crm_customer_receipts.schema.json`
+  - `docs/customer.opening_balances.report.json`
+  - `STATE.md`
+- 验证输出要点：
+  - Dry-run：`npm run customer:opening:dry -- --space-id env-00jxuffegf2n`
+    - 结果：`code=0`，`total=120`，`updated=0`，返回样例客户余额。
+  - Execute：`npm run customer:opening -- --space-id env-00jxuffegf2n`
+    - 结果：`code=0`，`total=120`，`updated=120`。
+- 剩余问题：
+  - 本地 `uniCloud-alipay/database/` 下为 CLI 上传临时放置了 `*.schema.json` 文件（同名副本）；后续可在确认不再用于 CLI 上传后清理。
+
+### 2026-03-21 CURRENT — 理论损耗统计卡片数值位置微调
+- 做了什么：
+  - 仅调整“理论损耗统计”页顶部汇总卡片的局部样式。
+  - 将数值区从原先偏右、贴近图标的布局，改为更靠左且与图标垂直居中的排列，减少单位/图标与数字的挤压感。
+  - 保持改动范围在页面级样式，不修改全局 `AppStatCard`，避免影响其他统计页。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleLossView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+- 剩余问题：
+  - 当前为页面级视觉微调；若你希望数值统一改成“居中”或“更靠上”的排版，需要再同步确认其他汇总页是否也一起收口。
+
+### 2026-03-23 CURRENT — 灌装录入支持按灌后总重推导净重（过渡方案 v2）
+- 做了什么：
+  - 在 `crm-filling` 云函数增加 `resolveFillWeightV1` 和统一推导逻辑，三种灌装类型都支持按 `灌后总重 - 最近依据值` 反推 `fill_weight`。
+  - `normal_fill` / `truck_out_agent_sale` 改为按最近一次回瓶明细取依据值，优先 `gross`，缺失时回退 `tare + net`；`truck_out_no_sale` 改为按同车最近一次整车销售记录的 `truck_back_gross` 推导。
+  - 扩展 `createV1` / `batchCreateV1` 支持 `input_mode='after_fill_total'`，服务端统一重算净重并校验，不信任前端传值。
+  - 不改 `crm_fillings` schema；总重与推导依据通过标准化后缀追加进 `remark`，保留过渡期追溯信息。
+  - 前端 `FillingListView.vue` 增加单条/批量“双模式”切换，单条总重模式可实时展示命中依据值、依据类型、来源日期/单据、推导净重；批量总重模式支持按记录类型展示瓶号/车牌样式与预览明细。
+  - `src/services/filling.js` 增加 `resolveFillingFillWeightV1` 封装，并把批量新增的 `input_mode` 透传到云端。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `src/components/domain/filling/FillingListView.vue`
+  - `src/services/filling.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 当前“最近回瓶依据”查询依赖 `crm_sale_records.back_items` 的数组字段检索，已在本地构建通过，但仍建议上传云函数后用真实云端样本做一次烟测，确认目标空间对该查询路径的行为与本地假设一致。
+  - 过渡方案仍只正式保存 `fill_weight`；这不会影响库存、损耗和列表统计主流程，但历史记录若要做“按总重重算”仍缺正式留痕字段，后续若需要审计报表应升级为独立字段方案。
+
+### 2026-03-23 CURRENT — 缺灌装修复改为“双入口 + 系统推荐/限制”
+- 做了什么：
+  - `missing_fill` 异常不再沿用单一“修复”确认，前端改成“记损耗 / 补灌装单”双入口，并按 `next_out.net - last_back.net` 自动限制错误选项。
+  - 增重场景只允许“补灌装单”；减重且绝对值不超过 `10kg` 只允许“记损耗”；减重超过 `10kg` 或缺少净重时不给快捷修复，直接提示人工核查。
+  - `crm-bottle-anomaly.resolveV1` 新增可选入参 `resolution_mode`，前端在“记损耗”路径显式传 `loss_accept`；旧调用不传时保持兼容。
+  - “补灌装单”改为跳转灌装列表页的单条录入区预填：带入异常来源、瓶号、默认出瓶日期、默认 `normal_fill`、默认 `net` 模式、建议净重和机器可读备注。
+  - 灌装保存成功后，若来自异常补单入口则自动返回异常页；异常页 wrapper 在 `onShow` 刷新，依赖现有 anomaly touch 让缺灌装自然消失，不强制结案。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleAnomalyView.vue`
+  - `src/pages/bottle/anomaly.vue`
+  - `src/components/domain/filling/FillingListView.vue`
+  - `src/pages/filling/list.vue`
+  - `src/services/bottleAnomaly.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - “补灌装单”目前默认预填 `normal_fill`；这是按当前异常上下文无法稳定反推真实灌装类型做的保守默认，若后续需要更精确回填，需要补充异常来源与灌装类型映射规则。
+  - 异常页返回后的消失/保留依赖现有 anomaly touch 重扫结果；建议云端上传后用真实 `missing_fill` 样本各做一条增重、减重、超阈值回归烟测。
+
+### 2026-03-23 FIX — 修正缺灌装补单预填首屏丢参
+- 做了什么：
+  - 检查后确认“补灌装单”的预填与回跳逻辑代码已写入，但首屏存在路由参数落地竞态：灌装页首次打开时，预填有概率没有真正执行，导致瓶号、日期、建议净重、备注和返回异常页标记都没带上。
+  - `FillingListView.vue` 改为直接监听 wrapper 透传的预填 props，并在存在预填时跳过默认重置，确保首屏一定执行 `applyRoutePreset`。
+  - `src/pages/filling/list.vue` 移除多余的 `routePresetPending` 状态机，避免 wrapper 首次 `onShow` 把待应用预填错误清空。
+- 改动文件列表：
+  - `src/components/domain/filling/FillingListView.vue`
+  - `src/pages/filling/list.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-24 CURRENT — 同日“回瓶 + 出瓶”歧义日改为待后续动作判定
+- 做了什么：
+  - `crm-bottle-anomaly` 新增内部挂起语义：同一瓶同一天同时出现 `back + out` 且当天无 `fill` 时，不再一律按固定顺序判异常；若前序状态已明确则按既有闭环强制解释，否则挂起为“待后续动作”。
+  - 后续第一条有效动作到来时再解歧：`fill` 解释为 `out -> back`、不生成异常；`back` / `out` 解释为 `back -> out`，补一条歧义日 `missing_fill`，若是 `out` 还会继续走现有 `continuous_out` 逻辑。
+  - `crm-bottle-movement` 的周期配对同步复用相同判定，未解歧的同日交叉不再产出 cycle row 或 incomplete row；时间线顶部状态新增 `waiting_next_action / 待后续动作`。
+  - 这会修正 `Y169` 一类“同日既出瓶又回瓶、次日灌装”被误报 `missing_back` 的场景，同时保留“客户 A 直接给客户 B”这类应报 `missing_fill` 的路径。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 这次仅完成仓库实现与本地构建校验，尚未把云函数上传到目标空间；要验证 `Y169` 在线误报是否消失，仍需上传后对真实数据做一次异常页与单瓶时间线烟测。
+
+### 2026-03-24 FIX — 修正 `missing_fill` 跨段复用旧回瓶导致的误配
+- 做了什么：
+  - 收紧 `crm-bottle-anomaly` 扫描状态机在 `out` 分支的收口逻辑：出瓶一旦消费当前回瓶上下文，无论这次是否产出 `missing_fill`，都会清掉 `last_back_event` 并重置 `has_fill_since_last_back`。
+  - 保留 `last_out_event` 与 `last_effective_event=out`，确保后续 `fill` 仍能继续判 `missing_back`，但不能再把更早的回瓶跨段复用到后续出瓶上。
+  - 这会修正 `273` 一类“`03-05 back 73 -> 03-06 out 73 -> 03-09 back 32 -> 03-09 out 32`”被错误串成单条跨段 `missing_fill` 的问题；当前业务口径仍保持“回瓶后未灌装直接出瓶就是异常”，不放宽成直转正常。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 待运行：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - 针对 `273` / `Y169` 的本地状态机回放与受影响瓶定向 reconcile 验证
+- 剩余问题：
+  - 代码修复后仍需上传云函数并对受影响瓶号做定向 reconcile，确认旧的跨段 `missing_fill` 能被 `system-reconcile` 自动收敛。
+
+### 2026-03-24 CURRENT — 销售单提交前增加瓶流转归属预警
+- 做了什么：
+  - `crm-sale.createV2/updateV2` 增加瓶流转软预警：瓶装销售在提交前会校验回瓶是否属于当前客户截至单据日期的应持有瓶集合，以及出瓶是否命中了“最近状态仍为出瓶、尚未回站”的连续出瓶风险。
+  - 回瓶归属校验复用了 `getCustomerDepositV1` 的存瓶口径，抽出内部 helper，并支持编辑旧单时排除当前单据自身影响。
+  - 出瓶可用性校验基于 `crm_bottle_movements` 计算瓶截至单据日期的最新有效状态，并复用现有同日 `back + out` 语义，避免与时间线/异常页口径冲突。
+  - 当存在可疑瓶号且未显式忽略时，接口返回 `409 + confirmable + bottle_flow_mismatch`，不落库；前端销售编辑页收到后弹出“请核对瓶号”确认框，用户确认后带 `ignore_bottle_flow_warning=true` 重试提交。
+  - 创建/更新成功日志补记了是否 override、预警条数和相关瓶号，便于后续审计这类手工放行场景。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `src/services/sale.js`
+  - `src/components/domain/sale/SaleEditView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 待运行：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+    - 销售单回瓶误录 / 连续出瓶的前端提交确认链路烟测
+- 剩余问题：
+  - 第一版仅做提交时软确认，不做输入过程中的行内高亮；若后续误录仍高频，可再补“边录边提示”的轻量行级提醒。
+
+### 2026-03-24 CURRENT — 灌装提交前增加“未回瓶先灌装”软预警
+- 做了什么：
+  - `crm-filling.createV1/updateV1/batchCreateV1` 增加灌装前的瓶流转软预警，仅覆盖按瓶号流转的 `normal_fill` / `truck_out_agent_sale`，`truck_out_no_sale` 不接入。
+  - 云端新增基于 `crm_bottle_movements` 的瓶流转状态 helper，沿用现有同日 `back + out` 语义判断“最近仍为出瓶未回站”或“同日待后续动作”两类风险，并在未显式忽略时返回 `409 + confirmable + bottle_flow_mismatch`。
+  - 单条新增、批量执行、编辑保存三条前端链路统一改成“先弹请核对瓶号，再允许继续提交”，确认后带 `ignore_bottle_flow_warning=true` 重试。
+  - 批量灌装预览结果新增 `warning_total`、`warning_items` 和每条待新增项的预警摘要，执行成功后会提示本次是否带着预警 override 保存。
+  - 创建、更新、批量新增的操作日志补记了是否 override、预警条数和命中的瓶号，便于后续审计这类高风险录入。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `src/services/filling.js`
+  - `src/components/domain/filling/FillingListView.vue`
+  - `src/components/domain/filling/FillingEditView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 这次仍是提交时软预警，不做录入过程中的实时高亮；若后续误灌装误录仍高频，可再补输入期行级提示。
+
+### 2026-03-24 CURRENT — 对齐 `crm-bottle-anomaly` 与单瓶时间线的同日 `back+out` 语义
+- 做了什么：
+  - 修正 `crm-bottle-anomaly` 对“同日 `back + out` 且无 `fill`”的前置状态判断，只要前面仍存在未闭环周期，就不再挂起歧义日，而是按 `out -> back` 解释。
+  - 同步把日内重排条件从“仅 `回瓶后未灌装`”放宽为“任意未闭环回瓶周期”，使 anomaly 扫描与 `crm-bottle-movement` 的周期配对口径保持一致。
+  - 这样像 87 号瓶这类“前一天已回+灌、次日同日 `back+out`”场景，不会再把当日 `back/out` 错挂成同日 `missing_fill`，而会把后续真正未灌装的 `out` 判出来。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - 本地最小序列回放：
+      - 87 场景输出仅剩 `2026-03-17 -> 2026-03-18 missing_fill`
+      - `Y169` 场景输出为空，不再误报
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 线上已有错误 anomaly 记录不会因本地改码自动消失；还需要上传 `crm-bottle-anomaly`，并对受影响瓶号做一次 reconcile / 重扫。
+
+### 2026-03-24 CURRENT — 时间线事件卡片仅显示 open 异常 marker
+- 做了什么：
+  - 调整 `crm-bottle-movement.timelineV1` 的 marker 生成逻辑，事件卡片仅消费 `open` 状态的 anomaly marker，不再把已 `resolved` 的历史异常继续挂在事件行上。
+  - 这样像 87 号瓶这类已经被 `system-reconcile` 修正掉的旧 `continuous_out` / 旧同日 `missing_fill`，仍会保留在“关联异常”列表中，但不会继续污染事件卡片展示。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+- 剩余问题：
+  - 该改动需要重新上传 `crm-bottle-movement` 后才会体现在真实时间线页面。
+
+### 2026-03-24 CURRENT — 单瓶时间线改为按业务语义排序同日事件
+- 做了什么：
+  - 新增前端纯函数 `buildBottleTimelineDisplayEvents`，不再让 `BottleMovementTimelineView` 直接按数据库原始 `type_order` 倒序渲染事件列表。
+  - 时间线同日 `back + out` 现在会按现有闭环语义重排：若前面仍存在未闭环周期，则该日按 `out -> back` 解释；若属于真正的歧义日待后续动作，则继续按挂起规则等待后续事件解歧。
+  - 修复后，87 号这类序列会按你确认的业务顺序显示：从下到上是 `03-16 回瓶 -> 03-16 灌装 -> 03-17 出瓶 -> 03-17 回瓶 -> 03-18 出瓶`，对应异常只应理解为 `2026-03-17 回瓶 -> 2026-03-18 出瓶` 的 `missing_fill`。
+- 改动文件列表：
+  - `src/services/models/bottleTimeline.js`
+  - `src/components/domain/bottle/BottleMovementTimelineView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行：
+    - 最小序列回放（补全 87 的 `2026-03-16 回瓶` 后）输出顺序为：
+      - `2026-03-18:out`
+      - `2026-03-17:back`
+      - `2026-03-17:out`
+      - `2026-03-16:fill`
+      - `2026-03-16:back`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 这是前端排序修正；若线上页面仍显示旧顺序，需要重新发布前端资源后才能看到效果。
+
+### 2026-03-24 CURRENT — `missing_fill` 小幅增重改为“记胀重”并纳入理论损耗统计
+- 做了什么：
+  - 调整 `missing_fill` 的差值判断口径：
+    - `0 < diff <= 10kg` 不再强制补灌装单，改为允许“记胀重修复”；
+    - `diff > 10kg` 仍要求补灌装单；
+    - `-10kg <= diff < 0` 继续按“记损耗修复”；
+    - `diff < -10kg` 继续要求人工核查。
+  - `crm-bottle-anomaly.resolveV1` 新增 `swell_accept` 修复模式；小幅增重会落一条 `manual_fix adjust`，`loss_weight` 记负数，`adjust_reason=missing_fill_swell_accept`，用于后续统计修复胀重。
+  - `crm-bottle-movement.lossStatsV1` 放开原先 `loss_weight > 0` 的过滤，改为同时统计 `missing_fill_loss_accept` 与 `missing_fill_swell_accept`，并返回 `total_swell_kg / swell_record_count / result_type`。
+  - 理论损耗页顶部“总损耗 / 总胀重”改为合并显示完整周期与修复差值；新增“修复胀重”卡片，修复明细改成统一的“异常修复差值明细”。
+  - 流转列表与单瓶时间线的 `manual_fix` 差值文案改为正负分开显示，避免出现“损耗 -1 kg”。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `src/components/domain/bottle/BottleAnomalyView.vue`
+  - `src/components/domain/bottle/BottleLossView.vue`
+  - `src/components/domain/bottle/BottleMovementView.vue`
+  - `src/components/domain/bottle/BottleMovementTimelineView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+    - 最小序列回放：同日 `back + out` 仍按 `out -> back` 显示，不影响既有时间线排序修正。
+- 剩余问题：
+  - 线上要看到 84 号这类 `+1kg` 的“记胀重”入口和理论损耗汇总变化，仍需上传 `crm-bottle-anomaly`、`crm-bottle-movement` 并发布前端。
+
+### 2026-03-24 CURRENT — 同日“多回一出 / 多出一回”按前序状态交错解释
+- 做了什么：
+  - 修正 `crm-bottle-anomaly`、`crm-bottle-movement` 和前端时间线 helper 对“同日存在多条 `back/out` 且无 `fill`”的排序口径，不再把同类事件简单堆在一起。
+  - 新规则改为按前一状态交错解释：
+    - 若上一状态仍是 `out`，当天按 `back -> out -> back -> ...`
+    - 若上一状态存在未闭环回瓶周期，按 `out -> back -> out -> ...`
+  - 这样 83 号这类序列会按你确认的业务顺序解释：从下到上 `2026-02-07 出62 -> 2026-02-14 回37 -> 2026-02-14 出37 -> 2026-02-14 回30`，不再错误地显示成 `回37 -> 回30 -> 出37`。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `src/services/models/bottleTimeline.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - 前端 helper 最小回放：
+      - 83 号显示顺序（上到下）为 `02-14 回30 -> 02-14 出37 -> 02-14 回37 -> 02-07 出62`
+      - 87 / `Y169` 场景未回归
+    - 状态机最小回放：
+      - 83 号会产出 `2026-02-14 回37 -> 2026-02-14 出37`
+      - 以及 `2026-02-14 回30 -> 2026-02-24 出26`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 线上要看到 83 号的最新顺序和异常配对，仍需上传 `crm-bottle-anomaly`、`crm-bottle-movement` 并发布前端。
+
+### 2026-03-24 CURRENT — 流转记录筛选瓶号输入补齐模糊联想
+- 做了什么：
+  - 给流转记录页 `BottleMovementView` 的“记录筛选 -> 瓶号”输入补齐钢瓶档案联想下拉。
+  - 交互对齐灌装单的瓶号联想口径：输入后延迟查询、聚焦时按当前值拉建议、失焦后收起、确认搜索时自动规整成大写无空格。
+  - 联想项展示 `瓶号 + 状态/当前客户`，方便录入时直接判断是否选对钢瓶。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleMovementView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 该改动是前端侧体验增强，需发布前端后线上流转记录筛选页才会看到联想下拉。
+
+### 2026-03-24 CURRENT — 缺灌装补单预填日期改为回瓶日期
+- 做了什么：
+  - 调整缺灌装异常“补灌装单”的预填日期来源，不再默认带 `next_out.date`，改为优先带 `last_back.date`。
+  - 这样从异常页跳去灌装页时，默认灌装日期会落在回瓶当天，避免一进入灌装页就因为“出瓶日在前、未回瓶”触发瓶流转预警。
+  - 出瓶日期仍保留在补单备注里，便于后续追溯这次补单是为哪次直接出瓶补录。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleAnomalyView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 该改动依赖前端发布；发布前线上异常页跳转仍会沿用旧的出瓶日期预填。
+
+### 2026-03-24 CURRENT — 销售记录瓶号联想统一对齐灌装单
+- 做了什么：
+  - 给销售单里所有瓶号录入入口统一接入钢瓶档案模糊联想，覆盖：
+    - 出瓶明细 / 回瓶明细
+    - 存瓶记录
+    - 代理出站
+  - 抽出销售侧共用的瓶号联想 helper，统一复用灌装单单瓶灌装的联想口径：只联想启用钢瓶、展示 `状态 · 当前客户`、确认时自动规整成大写无空格。
+  - 出/回瓶原有联想保留自动回填皮重/净重的便捷逻辑，但联想展示内容改为与灌装单一致。
+  - 编辑已有销售单时，存瓶和代理出站也会保留并透传 `bottle_id`，避免选中过档案后再次保存丢失标识。
+- 改动文件列表：
+  - `src/composables/useBottleSuggestions.js`
+  - `src/components/domain/sale/SaleBottleLinesCard.vue`
+  - `src/components/domain/sale/SaleDepositCard.vue`
+  - `src/components/domain/sale/SaleAgentSaleCard.vue`
+  - `src/components/domain/sale/SaleEditView.vue`
+  - `src/services/models/sale.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 该改动是前端录入体验和前端草稿归一化增强，需发布前端后销售单页面才会看到统一的瓶号联想下拉。
+
+### 2026-03-24 CURRENT — 缺灌装补单返回异常页改为保位置定点刷新
+- 做了什么：
+  - 调整“缺灌装 -> 补灌装单”回流链路，不再依赖异常页 `onShow` 的整页通用刷新。
+  - 异常页跳去灌装页前会记录当前页面滚动位置，并把 `sourceAnomalyId / bottleNo / returnScrollTop` 一并带入补单页。
+  - 灌装保存成功且需要返回异常页时，先发一个“补单已完成”的回流事件，再 `navigateBack`。
+  - 异常页收到该事件后，只对这一个瓶号做 reconcile 扫描，再刷新当前页数据，并用保存的 `scrollTop` 恢复到原位置。
+  - 普通从其他页面返回异常页时，仍保留原来的 `onShow -> refresh` 行为。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleAnomalyView.vue`
+  - `src/components/domain/filling/FillingListView.vue`
+  - `src/pages/bottle/anomaly.vue`
+  - `src/pages/filling/list.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 要在线上看到“补单返回仍停在原位置”的效果，仍需发布前端。
+
+### 2026-03-24 CURRENT — 缺灌装补单回流增加 storage 兜底
+- 做了什么：
+  - 发现“补灌装单保存后返回异常页”的定点刷新链路仅靠 `uni.$emit` 不够稳，部分场景会漏掉回流事件，导致异常页仍走默认整页刷新。
+  - 补充为“双保险”：
+    - 仍保留全局事件通知；
+    - 同时在补单保存成功前把回流 payload 写入本地临时存储。
+  - 异常页 `onShow` 现在优先读取这份临时回流 payload；只要补单保存过，即使事件没命中，也会走“单瓶 reconcile + 当前页刷新 + 恢复原滚动位置”。
+- 改动文件列表：
+  - `src/components/domain/filling/FillingListView.vue`
+  - `src/pages/bottle/anomaly.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 该修正依赖前端发布；发布前线上仍会沿用旧的回流刷新行为。
+
+### 2026-03-24 CURRENT — 新增“连续回瓶”异常类型
+- 做了什么：
+  - 在 `crm-bottle-anomaly` 异常状态机中新增 `continuous_back`，用于识别“上一段回瓶状态还没被出瓶消费掉，又来了新的回瓶”。
+  - 判定口径覆盖两类场景：
+    - `back -> back`
+    - `back -> fill -> back`
+  - 这样 385 号这类 `2026-03-07 出瓶 -> 2026-03-07 回瓶(误录) -> 2026-03-16 回瓶` 会新增一条“连续回瓶”异常，不再只落出后续的缺灌装。
+  - 同步更新了：
+    - 异常类型列表和 reconcile 白名单
+    - 时间线 anomaly marker 映射与单瓶补扫
+    - timeline marker 对 `next_back` 的打点
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `src/services/bottleAnomaly.js`
+  - `src/components/domain/bottle/BottleAnomalyView.vue`
+  - `src/components/domain/bottle/BottleMovementTimelineView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 线上要看到 385 号的“连续回瓶”异常和时间线 marker，仍需上传 `crm-bottle-anomaly`、`crm-bottle-movement` 并发布前端。
+
+### 2026-03-24 CURRENT — 异常类型补齐“缺出瓶”并封禁销售录错类直接修复
+- 做了什么：
+  - 在 `crm-bottle-anomaly` 状态机中新增 `missing_out`（缺出瓶），用于识别 `back -> fill -> back` 这类“已灌装但未出瓶又再次回瓶”的异常。
+  - 将 `continuous_back` 的前端显示文案统一为“连续回瓶”，不再依赖后端类型接口回传后才显示中文。
+  - 对 4 类通常属于销售单瓶号录错的异常封禁直接“修复”：
+    - `missing_back`（缺回瓶）
+    - `missing_out`（缺出瓶）
+    - `continuous_out`（连续出瓶）
+    - `continuous_back`（连续回瓶）
+  - 前端异常列表这 4 类改为显示禁用按钮“回原单修正”，并提示“请回销售单修正，不支持直接标记修复”。
+  - 后端 `resolveV1` 同步拒绝这 4 类直接标记修复，避免前端绕过。
+  - 异常筛选类型和单瓶时间线补扫白名单同步加入 `missing_out`，并保证本地固定映射包含“连续回瓶 / 缺出瓶”。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `src/components/domain/bottle/BottleAnomalyView.vue`
+  - `src/components/domain/bottle/BottleMovementTimelineView.vue`
+  - `src/services/bottleAnomaly.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 线上要看到“连续回瓶 / 缺出瓶”中文文案、筛选项和禁用修复按钮，仍需上传 `crm-bottle-anomaly` 并发布前端。
+  - `missing_out` 属于新增异常类型，建议上传后用一个 `back -> fill -> back` 的真实瓶号做一次单瓶补扫回归，确认异常 note 与时间线 marker 都符合预期。
+
+### 2026-03-24 CURRENT — 修复“缺灌装记损耗点一次不消失”
+- 做了什么：
+  - 分析后确认，问题不是“记损耗没成功”，而是两层叠加：
+    - 历史上可能已存在同指纹的重复 `open missing_fill` 异常，第一次点击只关闭了当前 `_id`；
+    - 前端成功后立即刷新，用户会看到另一条同指纹 open 记录顶上来，体感上像“点一次还在，点第二次才消失”。
+  - 在 `crm-bottle-anomaly.resolveV1` 增加“按指纹批量关闭”：
+    - 解析当前异常的 `fingerprint`
+    - 同时关闭同瓶号、同类型、同指纹的所有 `open` 记录
+    - 返回 `resolved_count` 供前端提示和局部更新使用
+  - 异常页前端在“记损耗/记胀重/通用修复”成功后，先把当前页对应异常做本地移除，再做一次短延时同步刷新，避免云端更新刚完成时用户又看到旧行顶回来。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `src/components/domain/bottle/BottleAnomalyView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 要让线上“点一次即消失”生效，仍需上传 `crm-bottle-anomaly` 并发布前端。
+  - 这次修复解决的是“同指纹重复 open 记录 + 回流时机”问题；若线上仍有极少数残留，建议再抽一个真实瓶号核查是否存在更老的无指纹异常脏数据。
+
+### 2026-03-24 CURRENT — 新增“连续灌装”异常类型
+- 做了什么：
+  - 在 `crm-bottle-anomaly` 状态机中新增 `continuous_fill`（连续灌装），用于识别“前一次灌装尚未被出瓶消费掉，又来了新的灌装”。
+  - 判定口径覆盖两类常见场景：
+    - `回瓶 -> 灌装 -> 灌装`
+    - `缺回瓶 -> 灌装 -> 灌装`
+  - 新增异常上下文：
+    - `last_fill`
+    - `next_fill`
+    - 若存在则补带 `last_back`
+  - 同步更新：
+    - 异常类型列表与筛选项
+    - 单瓶时间线中文映射
+    - 时间线 anomaly marker 打点（上一条灌装 + 下一条灌装）
+    - 单瓶补扫 reconcile 白名单
+  - `continuous_fill` 也按“回原单修正”处理，不开放直接“修复”按钮。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `src/services/bottleAnomaly.js`
+  - `src/components/domain/bottle/BottleAnomalyView.vue`
+  - `src/components/domain/bottle/BottleMovementTimelineView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 线上要看到“连续灌装”类型、筛选项和时间线异常点，仍需上传 `crm-bottle-anomaly`、`crm-bottle-movement` 并发布前端。
+  - 建议上传后用一个真实 `back -> fill -> fill` 的瓶号做单瓶补扫回归，确认会同时在异常列表和时间线上打到两条灌装事件。
+
+### 2026-03-24 CURRENT — 修复缺灌装“手工记损耗/记胀重”重复落调整
+- 做了什么：
+  - 复核后确认：全量扫描不会重复插入 `manual_fix`；你看到的两条“手工修复”来自此前同一缺灌装异常被重复点过，云端当时每次都会新增一条 `adjust` 流转。
+  - 在 `crm-bottle-anomaly.resolveMissingFill` 增加幂等保护：
+    - 以 `anomaly.fingerprint` 作为新的 `manual_fix.source_id`
+    - 插入前按 `瓶号 + event_day + adjust_reason` 预查，并用 `source_id` 或旧版精确特征做 identity 比对
+    - 命中已有同一条修复时不再重复 `add`
+  - 在 `crm-bottle-movement` 的时间线与理论损耗统计增加“缺灌装修复调整”只读去重：
+    - 新版优先按 `source_id`
+    - 旧版无 `source_id` 时按 `瓶号 + 日期 + adjust_reason + loss_weight + note` 去重
+  - 这样可以同时解决：
+    - 以后再点“记损耗/记胀重”不再写出重复调整
+    - 历史已经重复写入的完全相同 `manual_fix` 不再在时间线和损耗统计中双倍显示
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 线上要看到历史重复“手工修复”不再双显，仍需上传 `crm-bottle-anomaly`、`crm-bottle-movement` 并刷新前端。
+  - 这次修复默认只对“完全相同”的缺灌装修复调整做去重；若历史库里存在同日同瓶但文案/重量不完全一致的手工修复脏数据，仍需要单独核查。
+
+### 2026-03-24 CURRENT — 修复“新增连续灌装后全量扫描导致异常翻倍”
+- 做了什么：
+  - 复核后确认，本次“全量扫描后 open/resolved 都翻倍”的根因不是扫描器单纯重复跑，而是异常 `fingerprint` 在后续扩展中被改成了“通用拼接上下文字段”。
+  - 新增 `continuous_fill`、`next_back`、`last_fill` 等上下文字段后，旧异常行和新扫描结果对同一业务异常会生成两套不同指纹，导致：
+    - 扫描阶段把旧 open 异常当成“不存在”，重新插一条新 open
+    - reconcile 阶段又把旧 open 误判成 stale，改成 resolved
+    - 最终表现成 open 和 resolved 同时翻倍
+  - 在 `crm-bottle-anomaly` 把异常身份改回“按类型固定字段生成”的稳定指纹：
+    - `missing_fill = last_back + next_out`
+    - `missing_back = last_out + next_fill`
+    - `missing_out = last_back + next_fill + next_back`
+    - `continuous_out = last_out + next_out`
+    - `continuous_back = last_back + next_back + has_fill_since_last_back`
+    - `continuous_fill = last_back + last_fill + next_fill`
+  - 扫描、reconcile、缺灌装修复幂等都改为使用这套稳定指纹做比对，不再直接优先相信库里历史 `fingerprint`。
+  - 在 `listV1` 增加“先按稳定指纹去重，再分页/统计/筛选”的只读兜底：
+    - 可以把已经翻倍的 open/resolved 异常先在页面上折叠成一条
+    - 统计摘要和异常类型 breakdown 也同步按去重后口径计算
+  - 在 `crm-bottle-movement` 时间线异常去重中，也改成同一套稳定指纹，避免单瓶时间线继续把旧、新两条重复异常同时打点。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 这次修复会阻止之后继续翻倍，并把现有重复异常在列表/时间线上只读折叠；但不会物理删除历史重复 anomaly 文档。
+  - 如果后续要把库里的重复异常真正清理掉，仍建议在上传云函数后做一次“按稳定指纹清理重复 open/resolved”的专项脚本或一轮受控 purge + rebuild。
+
+### 2026-03-24 CURRENT — 线上执行重复异常物理清理（按稳定指纹删重）
+- 做了什么：
+  - 在 `crm-bottle-anomaly` 新增 `cleanupDuplicatesV1`：
+    - 超级管理员可调用；
+    - 按稳定指纹对 `crm_bottle_anomalies` 全量分组；
+    - 每组只保留一条首选记录，其余重复文档物理删除；
+    - 保留规则与当前只读去重一致，并优先保留人工已处理记录，其次再看 open/system-reconcile 和更新时间。
+  - 扩展 `scripts/resetBottleAnomalies.cjs`，支持：
+    - `--cleanup-duplicates`
+    - `--cleanup-max-rows=...`
+  - 已上传 `crm-bottle-anomaly` 到支付宝云空间 `env-00jxuffegf2n`，并执行线上清理。
+- 线上执行结果：
+  - 清理前原始 anomaly 文档：`608`
+  - 稳定指纹去重后应保留：`351`
+  - 实际删除重复文档：`257`
+    - `open`: `26`
+    - `resolved`: `231`
+  - 清理后再次预览确认：
+    - `total_rows = 351`
+    - `duplicate_groups = 0`
+    - `duplicate_rows = 0`
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `scripts/resetBottleAnomalies.cjs`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `node --check scripts/resetBottleAnomalies.cjs`
+    - 线上预览：重复 `257` 条
+    - 线上执行：删除 `257` 条
+    - 线上复核：重复归零
+- 剩余问题：
+  - 当前只上传了 `crm-bottle-anomaly`；若你要让时间线也立即吃到最新的本地只读去重规则，仍需上传 `crm-bottle-movement`。
+
+### 2026-03-24 CURRENT — 修复单瓶时间线查看/切回时异常被“新增后立刻自动关闭”
+- 做了什么：
+  - 复核 6 号瓶后确认，问题不在前端切屏本身，而在 `crm-bottle-anomaly.scanV2` 的同轮 reconcile：
+    - 单瓶时间线页每次进入都会先跑 `scanV2(reconcile=true)`；
+    - 新 anomaly 落库时没有写 `date` 字段；
+    - 稳定指纹重算时优先从 anomaly 文档重建，结果第三段日期变成空串；
+    - 于是同一轮里出现“`round_created = 1`，`round_resolved_stale = 1`”，即刚新增的 open 异常又被当 stale 关闭。
+  - 修正 `buildAnomalyFingerprint()` 的日期回退：
+    - `missing_fill` 优先 `next_out.date`
+    - `missing_back` 优先 `next_fill.date`
+    - `missing_out` 优先 `next_back.date`
+    - `continuous_out` 优先 `next_out.date`
+    - `continuous_back` 优先 `next_back.date`
+    - `continuous_fill` 优先 `next_fill.date`
+  - 修正 anomaly 落库：
+    - `persistAnomaly()` 现在会显式写入 `date: anomaly.date`
+  - 这样即使历史 anomaly 没有 `date` 字段，也能按类型从 context 恢复出稳定指纹；新 anomaly 也不会再出现“刚写入就被本轮 reconcile 误关”的问题。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `npm run build:h5`
+  - 已上传 `crm-bottle-anomaly` 到支付宝云空间 `env-00jxuffegf2n`
+  - 用 6 号瓶远程探针复核：
+    - 修复前：`round_created = 1`、`round_resolved_stale = 1`
+    - 修复后：`round_created = 1`、`round_resolved_stale = 0`
+    - 扫描后 6 号瓶 `continuous_back` 正常保留为 `open`
+- 剩余问题：
+  - 单瓶时间线页当前仍会在进入时自动触发单瓶 `scanV2(reconcile=true)`；这次已经修掉“误自动关闭”，但它依然属于“查看页面会触发写操作”的设计。如果后续你要改成纯只读查看，再单独收口这条交互。
+
+### 2026-03-25 CURRENT — 异常全量扫描安全轮询补强、异常页移除 TOP 瓶号、理论损耗页卡片筛选
+- 做了什么：
+  - 加固前端 `rebuildBottleAnomaliesSafeV2()`：
+    - 默认 `maxRounds` 提高到 `240`，上限放宽到 `600`，避免“20 轮没扫完就停”；
+    - 新增 `maxStallRounds` 与停滞检测，若游标和轮次进度连续不前进，会返回 `408 / stopped_reason=stalled`，避免前端无限续扫；
+    - 返回值新增 `limit_reached` / `stall_rounds`，便于界面准确提示“已扫到上限但未完成”。
+  - 调整异常页“全量扫描异常”按钮参数为更保守的多轮预算：
+    - `maxRounds=240`
+    - `batchBottlesPerRound=18`
+    - `maxMsPerRound=2200`
+    - `maxEventsPerRound=700`
+    - `maxWritesPerRound=160`
+    - `batchSize=160`
+  - 云函数 `crm-bottle-anomaly.rebuildV2()` 默认单轮预算同步收紧：
+    - `max_ms_per_round` 默认值由 `3200` 下调到 `2400`
+    - `max_writes_per_round` 默认值由 `300` 下调到 `180`
+    - rebuild 日志 detail 新增 `bottle_after / current_bottle_no / has_current_scan_cursor`，便于线上定位卡在哪个瓶。
+  - 流转异常页移除“排查视图 -> TOP 瓶号”区域，只保留“按异常类型”统计；前端不再消费 `top_bottles`。
+  - 理论损耗统计页头部 6 张卡片接入点击筛选：
+    - `总损耗` -> 只看损耗周期
+    - `总胀重` -> 只看胀重周期
+    - `完整周期` -> 只看周期明细
+    - `链路不完整` -> 只看链路不完整预览
+    - `修复损耗` -> 只看修复损耗明细
+    - `修复胀重` -> 只看修复胀重明细
+  - 新增“清除卡片筛选”按钮，并给激活卡片增加高亮态。
+  - 为保证分页正确，`crm-bottle-movement` 新增轻量 `result_type` 筛选参数：
+    - `cycleLossV1`：只影响列表与分页总数，不影响头部 summary 总量；
+    - `lossStatsV1`：只影响手工修复列表与总数，不影响头部 summary 总量。
+- 改动文件列表：
+  - `src/services/bottleAnomaly.js`
+  - `src/components/domain/bottle/BottleAnomalyView.vue`
+  - `src/components/domain/bottle/BottleLossView.vue`
+  - `src/services/bottleMovement.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 这次还没有上传云函数和前端；线上要吃到“全量扫描更耐久”和“理论损耗卡片筛选”，仍需发布前端并上传 `crm-bottle-anomaly`、`crm-bottle-movement`。
+
+### 2026-03-25 CURRENT — 代理出站销售自动补全 `回瓶 -> 灌装 -> 出瓶` 钢瓶链路
+- 做了什么：
+  - 在 `crm-sale` 新增代理出站 synthetic movement 构建：
+    - `agent_sale` 销售单保存时，不再只留下 `agent_sale_items`；
+    - 会为每条代理明细自动补两条 `source_type='sale'` 的钢瓶 movement：
+      - `back`：净重固定记 `0kg`
+      - `out`：净重取 `agent_sale_item.fill_weight`
+    - 中间 `fill` 严格复用现有 `truck_out_agent_sale` 灌装 movement，不由销售单重复写第二条 `fill`。
+  - 代理链路的灌装关联改成双路解析：
+    - 优先使用 `agent_sale_item.filling_record_id`
+    - 若前端未带 `filling_record_id`，再回退按“同瓶号 + 同销售日期”匹配同日 `truck_out_agent_sale` 灌装 movement
+    - 若显式关联到的 filling 不是 `truck_out_agent_sale`，或瓶号不匹配，则降级为按销售日期补 `back/out`，并在 movement `note` 留痕。
+  - `crm-sale.updateV2()` 的 `source_type='sale'` movement 删除/重建改成统一覆盖全部业务模式切换：
+    - `bottle -> agent_sale`
+    - `agent_sale -> bottle`
+    - `agent_sale -> truck`
+    - `agent_sale` 明细调整
+    - 避免遗留旧 sale movement。
+  - 编辑销售单时补上 `agent_sale_items[].filling_record_id` 回填，避免已有代理销售单一旦进入编辑页再保存就丢失显式 fill 关联。
+  - `SaleAgentSaleCard` 新增行默认带 `filling_record_id: null`，与后端 payload 结构保持一致。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `src/components/domain/sale/SaleEditView.vue`
+  - `src/components/domain/sale/SaleAgentSaleCard.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 这次只实现了代理出站销售在 create/update/remove 时的自动补链；历史已存在的 `agent_sale` 旧单还没有做一次性 backfill，线上若要让旧代理销售也进入完整异常流转，后续仍需补一轮历史 movement 回填。
+
+### 2026-03-25 CURRENT — 历史代理出站钢瓶链路回填 action 与执行脚本
+- 做了什么：
+  - 在 `crm-sale` 新增 `backfillAgentSaleBottleMovementsV1`：
+    - 仅 `superadmin` 可执行；
+    - 支持按 `sale_id` 或日期范围筛选历史 `agent_sale` 销售单；
+    - 对每张代理出站单重建期望的 synthetic `back/out` movement，并与现有 `source_type='sale'` movement 做签名比对；
+    - `preview` 返回 `rebuild_sales / unchanged_sales / expected_insert_rows / affected_bottles / sample_sales`；
+    - `execute` 要求确认口令 `BACKFILL_AGENT_SALE_BOTTLE_MOVEMENTS`，会删除该销售单旧 `sale` movement，再按新规则重建，并按瓶号触发 anomaly touch，联动更新异常流转。
+  - 回填预览/执行的代理灌装关联改成“共享 linked meta”批量解析：
+    - 先一次性收集目标销售单内全部 `agent_sale_items` 的 `filling_record_id` / `瓶号 + 销售日期`；
+    - 再统一查询 `crm_bottle_movements.fill` 与 `crm_fillings`，避免按销售单逐条重复回查同日代理灌装。
+  - 新增执行脚本 `scripts/backfillAgentSaleBottleMovements.cjs`：
+    - 支持 `--dry-run` / `--execute`；
+    - 支持 `--date-start` / `--date-end` / `--sale-id` / `--max-rows`；
+    - 支持 `--no-touch` 与 `--touch-batch-size`；
+    - 通过支付宝云函数调用 `crm-sale.backfillAgentSaleBottleMovementsV1`，输出预览与正式执行 JSON 结果。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `scripts/backfillAgentSaleBottleMovements.cjs`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+    - `node --check scripts/backfillAgentSaleBottleMovements.cjs`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 云函数与脚本还需在线上执行一次预览/正式回填，才能让历史 `agent_sale` 旧单进入完整 `回瓶 -> 灌装 -> 出瓶` 链路并更新异常流转。
+
+### 2026-03-25 CURRENT — 已执行历史代理出站钢瓶链路回填并重建异常
+- 做了什么：
+  - 已将 `crm-sale` 云函数上传到支付宝云空间 `env-00jxuffegf2n`。
+  - 已执行 `scripts/backfillAgentSaleBottleMovements.cjs --execute`：
+    - 预览结果：历史 `agent_sale` 共 `39` 张、全部缺失代理出站 synthetic movement；
+    - 正式执行：重建 `39` 张销售单、插入 `504` 条 `source_type='sale'` synthetic `back/out` movement，影响 `99` 个瓶号。
+  - 因代理出站回填后的 anomaly touch 返回“未完成”，已追加执行全量异常重建：
+    - `scripts/resetBottleAnomalies.cjs --execute --max-rounds=240 --batch-bottles-per-round=18 --max-ms-per-round=2200 --max-events-per-round=700 --max-writes-per-round=160 --batch-size=160`
+    - 重建结果：`55` 轮、`976` 个瓶、`12181` 条事件、`177` 条 `open` 异常、`done=true`。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `scripts/backfillAgentSaleBottleMovements.cjs`
+  - `STATE.md`
+- 验证输出要点：
+  - 本地：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+    - `node --check scripts/backfillAgentSaleBottleMovements.cjs`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+  - 线上：
+    - `crm-sale` 上传成功（`0:cloud functions:OK`）
+    - 代理出站历史回填执行成功
+    - 异常全量重建执行成功，且 `done=true`
+- 剩余问题：
+  - 回填后再次跑 `backfillAgentSaleBottleMovementsV1` 预览时，`39` 张代理出站单仍会被判为 `movement_signature_mismatch`；当前链路和异常已实际补齐，但回填预览的幂等签名口径还需进一步收口。
+
+### 2026-03-25 CURRENT — 新增整车异常并将 truck_no 从瓶异常口径中剥离
+- 做了什么：
+  - 在 `crm-bottle-anomaly` 中新增 3 类整车异常：
+    - `missing_truck_fill / 缺整车补给`
+    - `truck_return_diff_excess / 整车回站差异过大`
+    - `missing_truck_back_gross / 缺回站总重`
+  - 确认业务口径：
+    - `truck_out_no_sale` 仅代表车辆补给，不算销售；
+    - `biz_mode='truck'` 按车辆链路独立扫描，不再混入钢瓶 `back/fill/out` 异常状态机；
+    - `整车回站差异过大` 阈值固定为 `100kg`。
+  - `crm-bottle-anomaly.rebuildV2` 现已拆成两阶段：
+    - 第一阶段继续扫描钢瓶异常；
+    - 第二阶段按 `truck_no` 扫描整车异常。
+  - `crm-bottle-anomaly.touchV2` 增加 `truck_nos` 入参，支持销售单/车辆补给保存后增量触发整车异常刷新。
+  - 在整车异常扫描时，会把同一 `truck_no` 下旧的瓶异常类型（误混入钢瓶流转的 `missing_* / continuous_*`）自动 `system-reconcile`，用于把 `truck_no` 从现有瓶异常口径中清出去。
+  - 销售云函数 `crm-sale` 的异常 touch 已扩展：
+    - 普通瓶销售仍传 `bottle_nos`；
+    - `biz_mode='truck'` 额外传 `truck_nos`。
+  - 灌装云函数 `crm-filling` 的异常 touch 已扩展：
+    - `truck_out_no_sale` 创建/更新/删除及相关批量操作会传 `truck_nos`；
+    - 不再把车辆补给误当成钢瓶异常增量扫描输入。
+  - 前端异常页已同步：
+    - 新增整车异常类型中文映射与筛选项；
+    - `缺整车补给 / 整车回站差异过大 / 缺回站总重` 统一归为“回原单修正”，禁用直接修复；
+    - 筛选输入标签改为“瓶号/车牌”。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `src/components/domain/bottle/BottleAnomalyView.vue`
+  - `src/components/domain/bottle/BottleMovementTimelineView.vue`
+  - `src/services/bottleAnomaly.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 这次仅完成本地代码与构建校验；线上生效还需要重新上传 `crm-bottle-anomaly` / `crm-sale` / `crm-filling` / `crm-bottle-movement` 并执行一次全量异常重建，才能把历史 `truck_no` 旧瓶异常批量 reconcile 掉并生成新的整车异常。
+
+### 2026-03-25 CURRENT — 修复整车异常漏认历史“车号灌装”补给
+- 做了什么：
+  - 定位 `缺整车补给` 误报根因：整车异常扫描此前只把 `crm_fillings.record_type='truck_out_no_sale'` 识别为车辆补给，漏掉了历史导入里以 `bottle_no=TRUCK-*`、`record_type` 为空或 `normal_fill` 方式记录的“车号灌装”补给。
+  - 在 `crm-bottle-anomaly` 中新增历史兼容口径：
+    - `fetchTruckSupplementRowsByTruckNo` 不再只查 `truck_out_no_sale`；
+    - 对 `bottle_no == truck_no` 的灌装记录，若 `record_type` 为 `truck_out_no_sale`，或该 `truck_no` 形如 `TRUCK-*` 且记录类型为 `normal_fill`，均视为整车补给；
+    - 显式排除 `truck_out_agent_sale`，避免把代理灌装误判为整车补给。
+  - 在 `crm-filling` 中补齐整车异常增量触发：
+    - 新增 `shouldTouchTruckAnomalyForFilling`，让 `truck_out_no_sale` 与历史兼容的 `TRUCK-* + normal_fill` 灌装在创建、更新、删除、批量新增、批量改日期、日期归一化后都能触发 `truck_nos` 异常刷新。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 这次修复的是本地代码口径；线上 `TRUCK-9335Z` 这类历史整车补给误报仍需要重新上传 `crm-bottle-anomaly` / `crm-filling`，再对整车异常执行一次重扫或全量重建，异常才会消失。
+
+### 2026-03-25 CURRENT — 修复同日整车补给导致的残留“缺整车补给”误报
+- 做了什么：
+  - 针对 `TRUCK-9335Z` 这类同一天存在“前一张整车销售 -> 补给 -> 后一张整车销售”的情况，补了一层整车扫描兜底：
+    - 原先 `missing_truck_fill` 只按 `date + created_at` 严格判断补给是否位于两张销售之间；
+    - 现在线上若出现同一天业务、且严格排序下没命中补给，会额外检查同日补给；
+    - 若同日补给重量与 `当前出站总重 - 上次回站总重` 的差值精确匹配，则认定这次已补给，不再报 `缺整车补给`；
+    - 若没有精确匹配，再退回同日任一补给存在即视为已补给的宽松兜底。
+  - 保持原有跨天逻辑不变，只收敛同日油罐车补给的业务日判定。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - 本地回放 `TRUCK-9335Z / 2026-01-24` 组数据，`gapKg = 5380`，补给存在且不应继续报 `缺整车补给`
+- 剩余问题：
+  - 线上还需要重新上传 `crm-bottle-anomaly` 并对整车异常执行一次重扫或全量重建，这条残留异常才会被 reconcile 掉。
+
+### 2026-03-25 CURRENT — 剔除 `TRUCK-*` 进入钢瓶异常扫描，避免时间线反复生成“连续灌装”
+- 做了什么：
+  - 修复 `TRUCK-9335Z` 这类车号仍被单瓶时间线和瓶异常扫描器当成“钢瓶号”处理的问题。
+  - 在 `crm-bottle-anomaly.scanV2` 中新增车号短路：
+    - 若 `bottle_no` 形如 `TRUCK-*`，不再跑钢瓶 `back/fill/out` 状态机；
+    - 直接把该标识下现存的钢瓶异常类型（`missing_* / continuous_*`）批量 `system-reconcile` 关闭。
+  - 在 `crm-bottle-anomaly.touchV2` 中把 `bottle_nos` 里的 `TRUCK-*` 自动挪入 `truck_nos`，避免灌装保存、单瓶时间线后台扫描等入口又把车号送回钢瓶异常扫描器。
+  - 在 `fetchNextBottleNo` 中跳过 `TRUCK-*` 标识，确保后续全量重建的瓶阶段也不再把车号当钢瓶扫描。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+- 剩余问题：
+  - 线上已有的 `TRUCK-*` 钢瓶异常残留，需要重新上传 `crm-bottle-anomaly` 后再触发一次该车号的 `touchV2` 或执行一次全量重建，时间线里的“连续灌装”才会彻底消失。
+
+### 2026-03-25 CURRENT — 已上线清除 `TRUCK-9335Z` 的钢瓶“连续灌装”残留
+- 做了什么：
+  - 已将最新 `crm-bottle-anomaly` 上传到支付宝云空间。
+  - 对 `TRUCK-9335Z` 执行线上单标识扫描 / reconcile，利用新的 `scanV2` 车号短路逻辑，批量关闭该标识下误混入钢瓶流转的 `continuous_fill`。
+- 线上验证结果：
+  - 扫描前：`total=16 / open=10 / resolved=6`
+  - 本轮扫描结果：`round_created=0 / round_resolved_stale=8 / round_scanned_events=0`
+  - 扫描后：`total=16 / open=2 / resolved=14`
+  - 被关闭的 8 条均为 `continuous_fill`，`resolved_by_name=system-reconcile`
+- 保留情况：
+  - `TRUCK-9335Z` 仍保留 2 条整车异常 open：
+    - `missing_truck_fill`
+    - `truck_return_diff_excess`
+  - 这 2 条属于整车口径，不是钢瓶“连续灌装”残留。
+
+### 2026-03-25 CURRENT — 优化整车回站差异异常链路说明，显式体现“上次余量已并入车重基线”
+- 做了什么：
+  - 优化 `truck_return_diff_excess` 的详情文案，不再只堆 `出站/回站/销售净重/差值` 四个数。
+  - 改为显式展示整车链路：
+    - `上次回站总重 -> 中间补给 -> 本次出站总重`
+    - `本次回站总重`
+    - `本次实际减重 = 出站总重 - 回站总重`
+    - `与登记销售净重的差额`
+  - 对正差 / 负差分别给出解释：
+    - 正差：偏向额外损耗、补给漏记或重量录入偏差
+    - 负差：偏向车上仍有结转余量，或销售净重 / 回站总重录入偏大
+  - 在文案中明确说明：`上次余量会自然并入回站总重基线，无需单独再加`，避免再把“历史余量”误当额外链路。
+  - 同步优化 `missing_truck_fill` 文案，直接展示按车重链路推算出的“至少需补给 kg”。
+  - 异常页整车提示文案同步更新，区分整车正差 / 负差语义。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `src/components/domain/bottle/BottleAnomalyView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 后续动作：
+  - 如需线上立刻看到新的整车异常详情，需要重新上传 `crm-bottle-anomaly`，再对目标车辆执行一次整车异常重扫 / reconcile。
+
+### 2026-03-25 CURRENT — 修复整车异常重扫不刷新旧详情的问题
+- 根因：
+  - `crm-bottle-anomaly` 的扫描逻辑命中“同指纹 open 异常”时，只跳过新增，不会把旧异常文档的 `date / note / context` 更新成新规则生成的内容。
+  - 同时 `scanTruckAnomaliesV1` 虽然内部已实现，但云函数 action 分发漏挂，外部无法直接定向触发整车重扫。
+- 做了什么：
+  - 为 open anomaly 新增 `fingerprint -> row` 映射，扫描命中同指纹旧异常时，若 `date / note / context` 有变化，就直接 update 原文档。
+  - 这套“命中即刷新”逻辑同时覆盖：
+    - 钢瓶扫描 `scanV2`
+    - 整车扫描 `scanTruckAnomaliesV1`
+  - 在云函数导出分发中补上 `scanTruckAnomaliesV1` action。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 预期结果：
+  - 重新上传并重扫后，像 `TRUCK-9335Z` 这类已经存在的 open 整车异常，不需要先被 reconcile 掉再重建，也会直接刷新成新的链路说明和差异解释。
+
+### 2026-03-25 CURRENT — 已上线刷新 `TRUCK-9335Z` 整车回站差异详情
+- 做了什么：
+  - 使用带空间环境变量的 HBuilderX CLI 成功上传最新 `crm-bottle-anomaly`。
+  - 通过远程 `scanTruckAnomaliesV1` 对 `TRUCK-9335Z` 做定向整车重扫 / reconcile。
+- 线上验证结果：
+  - 扫描前该车仍有 `1` 条 open 的 `truck_return_diff_excess`，详情还是旧文案。
+  - 本轮扫描结果：`round_created=0 / round_resolved_stale=0 / round_scanned_events=19`
+  - 扫描后该 open 异常保留，但 `note / context / updated_at` 已刷新为新口径：
+    - 展示链路：`2026-01-12回站总重 21600 kg -> 中间补给 9650 kg -> 2026-01-23出站总重 31250 kg`
+    - 显示 `实际减重 6040 kg`
+    - 明确指出 `比登记销售净重 9650 kg 少 3610 kg`
+    - 明确说明：`上次余量会自然并入回站总重基线，无需单独再加`
+- 影响：
+  - 这条异常现在仍存在，但链路说明已经与“车内原有余量 + 中间补给 + 本次实际减重”的业务解释一致。
+
+### 2026-03-27 CURRENT — 销售录入基础信息联想对齐
+- 做了什么：
+  - 将销售录入页基础信息卡片里的 `客户名称 / 配送车辆 / 配送员1 / 配送员2` 联想行为统一成同一口径：
+    - 输入即联想
+    - 聚焦时按当前值重新拉联想；空值时回显最近使用
+    - 回车默认选第一个候选
+    - 选择后写入最近使用列表
+  - 为客户名称补上最近使用缓存与合并展示逻辑，行为与配送车辆、配送员保持一致。
+- 改动文件列表：
+  - `src/components/domain/sale/SaleBasicInfoCard.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — 修复带前缀图标输入框的文本截断
+- 做了什么：
+  - 在全局基础组件 `AppInput` 中补齐输入框样式重置：
+    - `min-width: 0`
+    - `width: 100%`
+    - `border / outline / background / padding / margin` 统一归零
+    - `box-sizing: border-box`
+  - 这次修复的是基础组件层，不只覆盖销售录入页“配送车辆”，其它使用 `prefix-icon` 的输入框也会一起受益。
+- 改动文件列表：
+  - `src/components/base/AppInput.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — 销售基础信息联想对齐单瓶灌装交互
+- 做了什么：
+  - 将销售录入页基础信息卡片里的 `客户名称 / 配送车辆 / 配送员1 / 配送员2` 联想交互改成与“单瓶灌装瓶号输入”一致的节奏：
+    - 非空输入时才触发联想
+    - 聚焦时仅按当前已有输入复查联想
+    - 失焦延时收起候选
+    - 回车只规整当前输入，不再自动选中第一条候选
+  - 同时移除了这 4 个字段的“空态最近使用回显”和“最近使用写回”，避免与单瓶灌装的联想行为不一致。
+  - 联想结果数量统一放宽到 `20` 条，与单瓶灌装瓶号输入保持一致。
+- 改动文件列表：
+  - `src/components/domain/sale/SaleBasicInfoCard.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — 修复销售基础信息候选层点选与溢出
+- 做了什么：
+  - 修复销售录入页基础信息卡片联想候选层在 `客户名称 / 配送车辆 / 配送员1 / 配送员2` 上的层级与点选问题：
+    - 候选项同时监听 `tap` 和 `click`，兼容不同端的点选回填
+    - 候选项 `key` 改为稳定主键，避免车辆/配送员候选渲染异常
+    - 候选层样式对齐到已稳定的销售瓶号联想卡片：
+      - `top: calc(100% + 8rpx)`
+      - `max-height: 320rpx`
+      - `overflow: auto`
+    - 允许 `AppCard` / `card__body` / `form-item` / `info-grid` 溢出显示，避免候选层看得见但点不到
+    - 基础信息字段容器补 `z-index`，避免被同卡片其它区域盖住
+- 改动文件列表：
+  - `src/components/domain/sale/SaleBasicInfoCard.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — 修复基础信息联想层被相邻字段覆盖
+- 做了什么：
+  - 修复销售录入基础信息卡片中联想层被下一行/相邻字段压住的问题：
+    - 当前展开候选的字段容器会动态加 `field-popover-open` 并提升 `z-index`
+    - 不再给所有基础信息字段固定同级 `z-index`，避免同层后渲染节点互相覆盖
+  - 保留候选项 `tap/click` 双事件，确保展开后可正常点选回填
+- 改动文件列表：
+  - `src/components/domain/sale/SaleBasicInfoCard.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — 修复基础信息联想列表滚动失效
+- 做了什么：
+  - 将销售录入基础信息卡片中 `客户名称 / 配送车辆 / 配送员1 / 配送员2` 的联想候选层，从 `view + overflow:auto` 改为 `scroll-view scroll-y`
+  - 解决配送员等长候选列表在部分端上“看得见但不能上下滑动”的问题
+  - 空结果态仍保留普通 `view` 容器，避免无结果时出现空白滚动层
+- 改动文件列表：
+  - `src/components/domain/sale/SaleBasicInfoCard.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — 修复基础信息联想列表底部候选被截断
+- 做了什么：
+  - 将销售录入基础信息卡片的联想候选层拆成两档：
+    - `<= 3` 条：普通 `view` 直接展开，不走滚动容器
+    - `> 3` 条：使用固定高度 `320rpx` 的 `scroll-view`
+  - 为滚动容器内层补 `suggest-list` 和底部留白，避免最后一条候选只显示半截
+  - 这次同时覆盖 `客户名称 / 配送车辆 / 配送员1 / 配送员2`
+- 改动文件列表：
+  - `src/components/domain/sale/SaleBasicInfoCard.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — 基础信息联想层支持向上展开
+- 做了什么：
+  - 为销售录入基础信息卡片的 `客户名称 / 配送车辆 / 配送员1 / 配送员2` 联想层新增可视区探测：
+    - 聚焦并拿到候选后，测量当前字段相对视口的位置
+    - 如果下方空间不足以完整显示候选层，则自动切换为向上展开
+  - 修复“列表到底后只会回弹，但底部仍被屏幕裁掉”的问题；这不是候选内容没渲染，而是原先弹层始终向下展开，超出视口后不可见
+- 改动文件列表：
+  - `src/components/domain/sale/SaleBasicInfoCard.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — 放开基础信息外层 Section 的裁切
+- 做了什么：
+  - 修复销售编辑页 `基础信息` 区块外层 `AppSection` 的 `overflow: hidden` 对联想层的裁切
+  - 仅针对 `基础信息` 这一段加 `section-popover-host`，并放开：
+    - Section 根节点溢出
+    - Section body 溢出
+  - 这次修复的是父级容器裁切，不是联想层自身滚动逻辑
+- 改动文件列表：
+  - `src/components/domain/sale/SaleEditView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — 修正基础信息浮层外层样式命中
+- 做了什么：
+  - 将销售编辑页基础信息联想浮层相关的“放开外层裁切”样式，从不稳定的 `:deep(...)` 根节点写法改为明确类名命中：
+    - `SaleBasicInfoCard` 根节点 `AppCard` 增加 `basic-info-card`
+    - `SaleEditView` 中 `基础信息` 的 `AppSection` 继续使用 `section-popover-host`
+  - 现在会直接命中组件根节点，再向内放开 `card__body / section__body` 溢出
+- 改动文件列表：
+  - `src/components/domain/sale/SaleBasicInfoCard.vue`
+  - `src/components/domain/sale/SaleEditView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — 流量结算表数变更自动回填用气量
+- 做了什么：
+  - 修复销售录入页 `流量结算` 中，填写 `上次表数 / 本次表数` 后 `用气量` 输入框不自动回填的问题
+  - `SaleFlowCard` 现在会在更新 `flowPrev / flowCurr` 时自动计算并写回：
+    - `用气量 = max(本次表数 - 上次表数, 0)`
+  - 数值展示会自动去掉整数的小数尾零，保持与页面其它数值输入一致
+- 改动文件列表：
+  - `src/components/domain/sale/SaleFlowCard.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — 流量结算差值改为十进制精确计算
+- 做了什么：
+  - 修复销售录入页 `流量结算` 中，`上次表数=556993.1`、`本次表数=569469` 一类输入会出现 `12475.900000000023` 的浮点误差
+  - `SaleFlowCard` 的 `用气量` 自动回填不再直接用 JS 浮点减法，改为按输入小数位数做十进制定点计算
+  - 现在会稳定输出 `12475.9`，并继续保持 `本次表数 <= 上次表数` 时回填 `0`
+- 改动文件列表：
+  - `src/components/domain/sale/SaleFlowCard.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — 客户对账页承接 `m3` 计费并新增 `kg / bottle` 经营分析
+- 做了什么：
+  - 销售单新增 `settlement_mode` 口径，`default_price_unit = m3` 的客户默认走 `customer_flow`：
+    - 销售录入页隐藏流量结算与收款结算，只保留实际重量/流转录入
+    - 销售单金额、应收、未收固定归零，不再从销售单直接形成应收
+  - `crm-customer-settlement` 新增流量结算单能力：
+    - `previewFlowSettlementV1`
+    - `createFlowSettlementV1`
+    - `getCustomerStatementAnalysisV1`
+  - 客户对账页新增“经营分析”区块，按客户计价单位切换：
+    - `m3`：流量结算录入、理论重量、阶段实际重量、阶段亏损、历史流量结算单
+    - `kg`：客户阶段理论损耗（只统计钢瓶正损耗，不并入整车）
+    - `bottle`：每公斤参考售价、阶段销售净重、参考kg金额、按瓶/按kg价差（仅经营对比，不参与账务）
+  - 账务流水新增 `flow_settlement` 行类型；客户收款分配支持同时分配到：
+    - 销售单 `sale`
+    - 流量结算单 `flow_settlement`
+  - 新增/更新数据库 schema：
+    - `crm_customer_flow_settlements`
+    - `crm_customer_allocations` 增加 `flow_settlement_id / target_type / target_id / target_title`
+    - `crm_sale_records` 增加 `settlement_mode`
+- 改动文件列表：
+  - `src/components/domain/customer/CustomerStatementView.vue`
+  - `src/services/customerSettlement.js`
+  - `src/components/domain/sale/SaleEditView.vue`
+  - `src/components/domain/sale/SaleBasicInfoCard.vue`
+  - `src/composables/useSaleSettlement.js`
+  - `src/services/models/sale.js`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `uniCloud-alipay/database/schema/crm_sale_records.schema.json`
+  - `uniCloud-alipay/database/schema/crm_customer_allocations.schema.json`
+  - `uniCloud-alipay/database/crm_customer_allocations.schema.json`
+  - `uniCloud-alipay/database/schema/crm_customer_flow_settlements.schema.json`
+  - `uniCloud-alipay/database/crm_customer_flow_settlements.schema.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — 客户经营分析超时兜底与客户损耗统计轻量化
+- 做了什么：
+  - 修复客户对账页“经营分析”在 `kg` 客户上容易触发 `HttpClientRequestTimeoutError: Request timeout for 10000 ms`
+  - 前端云调用基类 `callCloud` 新增可选 `timeout` 参数，客户经营分析接口提升为 `30000ms`
+  - `customerLossSummaryV1` 收紧了最重的查询范围：
+    - 若有结束日期，只加载该日期之前的瓶流转事件
+    - 解析手工 `missing_fill` 修复时，优先按异常 `date` 范围过滤，减少无关 resolved anomaly 扫描
+- 改动文件列表：
+  - `src/services/api/callCloud.js`
+  - `src/services/customerSettlement.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — 客户经营分析内层云函数调用超时修复
+- 做了什么：
+  - 修复客户对账页“经营分析”在 `kg` 客户上仍然报 `HttpClientRequestTimeoutError: Request timeout for 10000 ms`
+  - 根因是 `crm-customer-settlement` 内部调用 `crm-bottle-movement.customerLossSummaryV1` 时仍沿用默认 `10000ms` 超时
+  - 已将这次内层 `uniCloud.callFunction` 调用超时提升到 `30000ms`
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — `kg` 客户经营分析改为必须先选日期范围
+- 做了什么：
+  - 为避免大客户默认按全历史统计“客户阶段理论损耗”导致超时，`kg` 客户的经营分析改成必须先选“开始日期 + 结束日期”才会触发
+  - 前端：
+    - 未选完整日期范围时不再发起理论损耗云调用
+    - 经营分析卡片显示“待选择日期范围”提示
+    - 经营分析区新增独立日期筛选，不再复用“账务流水”的日期控件
+    - `kg` 客户首次进入客户对账页时，经营分析日期默认填“本月”
+  - 后端：
+    - `getCustomerStatementAnalysisV1` 对 `kg` 客户无日期范围请求直接返回 `requires_date_range=true`
+    - 同时增加开始/结束日期顺序校验
+- 改动文件列表：
+  - `src/components/domain/customer/CustomerStatementView.vue`
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-27 CURRENT — 客户理论损耗切到 `customer_id + day` 日汇总表
+- 做了什么：
+  - 为 `kg` 客户经营分析新增持久化汇总表 `crm_customer_loss_daily`
+  - `crm-bottle-movement.customerLossSummaryV1` 不再直接把区间内客户钢瓶全链路结果当场汇总返回，而是：
+    - 先按请求日期范围重建该客户的日损耗汇总
+    - 再从 `customer_id + day` 汇总表读取阶段理论损耗
+  - 日汇总统计口径：
+    - 完整钢瓶周期正损耗，按 `next_out.customer_id` 和 `out_day` 归属到客户和日期
+    - 缺灌装修复里“记损耗”的手工正损耗，按 `next_out.customer_id` 和 `next_out.date` 归属
+  - 汇总表保留：
+    - `cycle_loss_weight / cycle_loss_count`
+    - `manual_loss_weight / manual_loss_count`
+    - `loss_total_weight`
+    - `bottle_count / bottle_nos`
+  - 当前客户对账页仍以日期范围驱动重建和查询；后续若接全历史入口，直接查这张日汇总表即可，不再重建瓶子全链路
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `uniCloud-alipay/database/schema/crm_customer_loss_daily.schema.json`
+  - `uniCloud-alipay/database/crm_customer_loss_daily.schema.json`
+  - `STATE.md`
+- 云端操作提示：
+  - 需要新建集合 `crm_customer_loss_daily`
+  - 上传 `crm-bottle-movement` 云函数
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-28 CURRENT — 新增客户理论损耗只读 breakdown 入口
+- 做了什么：
+  - 在 `crm-bottle-movement` 新增只读 `customerLossBreakdownV1`
+  - 复用现有 `customer_id + day` 日汇总重建逻辑，返回：
+    - 区间总损耗
+    - 按天损耗明细
+    - TOP 亏损日期
+    - TOP 亏损瓶号
+  - 新增一次性脚本 `scripts/analyzeCustomerLoss.cjs`，用于登录线上空间后查询指定客户在指定日期范围内的理论损耗拆解
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `scripts/analyzeCustomerLoss.cjs`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `node --check scripts/analyzeCustomerLoss.cjs`
+    - `npm run build:h5`
+
+### 2026-03-28 CURRENT — 理论损耗页补客户筛选与导出
+- 做了什么：
+  - 在 `/pages/bottle/loss` 对应的理论损耗页新增“客户名称”筛选
+  - `cycleLossV1 / lossStatsV1` 支持按客户名称过滤：
+    - 周期明细按 `out_customer_name` 过滤
+    - 手工修复差值按 `context.next_out.customer_name` 过滤
+  - 理论损耗页新增导出功能：
+    - 支持导出当前筛选结果
+    - 未点卡片筛选时，导出“周期 + 修复差值 + 链路不完整”的合并 CSV
+    - 点了卡片筛选时，导出当前卡片对应的数据
+  - 导出时补齐了客户名称、链路不完整明细所需字段
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleLossView.vue`
+  - `src/services/bottleMovement.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-28 CURRENT — 理论损耗导出改为客户汇总优先
+- 做了什么：
+  - 调整理论损耗页导出结构，默认导出两段：
+    - 客户汇总
+    - 明细
+  - 客户汇总按 `customer_name` 聚合：
+    - 周期损耗
+    - 周期胀重
+    - 修复损耗
+    - 修复胀重
+    - 链路不完整条数
+    - 明细条数
+    - 涉及瓶数
+  - 明细导出排序改为按“客户名称 -> 日期倒序 -> 类别 -> 瓶号”，方便先看客户再查瓶
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleLossView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-28 CURRENT — 理论损耗导出改为 Excel 多工作表
+- 做了什么：
+  - 理论损耗页导出从单个 CSV 改为 Excel 可打开的多工作表文件（`.xls`）
+  - 第一张工作表固定为“客户汇总”
+  - 后续每个客户一张明细工作表，sheet 名按客户名称生成并自动去重/截断
+  - 不引入第三方 xlsx 依赖，直接生成浏览器可下载、Excel/WPS 可识别的多工作表 XML Workbook
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleLossView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-28 CURRENT — 整车销售净重改为毛重差值优先，m3 销售页退出流量结算
+- 做了什么：
+  - 整车销售卡片改成一行四列布局：车牌号、出厂毛重、回厂毛重、销售净重
+  - `销售净重` 语义收口为：
+    - 优先使用手填正数
+    - 否则自动回退为 `出厂毛重 - 回厂毛重`
+    - 历史 `0` 值也按“未填写”处理并回退差值
+  - 销售页移除 `流量结算` 卡片
+  - `m3` 销售单在前后端统一强制走 `customer_flow`：
+    - 销售单只记录实际送货重量
+    - 不在销售单内计费/收款
+    - 详情页和回款入口也按客户对账结算口径展示
+  - 瓶装模式不再允许通过流量表绕过出瓶/回瓶/存瓶录入校验
+- 改动文件列表：
+  - `src/components/domain/sale/SaleTruckCard.vue`
+  - `src/composables/useSaleSettlement.js`
+  - `src/services/models/sale.js`
+  - `src/components/domain/sale/SaleEditView.vue`
+  - `src/components/domain/sale/SaleDetailView.vue`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-28 CURRENT — 客户对账页流量结算改为两行四列，并明确首笔结算口径
+- 做了什么：
+  - 客户对账页 `m3` 客户的“流量结算”表单改成两行四列布局：
+    - 第一行：`结算日期 / 上次表数 / 本次表数 / 表数差值`
+    - 第二行：`理论系数 / 备注`
+  - 新增只读字段 `表数差值`，按十进制定点算法计算 `本次表数 - 上次表数`，避免浮点尾差
+  - 预览区新增：
+    - `表数起点`
+    - `重量统计`
+    - 首笔流量结算的说明文案
+  - 首笔流量结算（无上一张流量结算单）时：
+    - 上次表数允许录系统启用前历史读数
+    - 阶段实际重量仅统计 `2026-01-01` 起系统内销售
+    - 若历史表数起点早于 `2026-01-01`，预览明确提示本次亏损会混入系统启用前用气，仅供参考
+  - 阶段实际重量中的整车销售改为和销售页一致：
+    - 优先取手填 `truck_sale_net`
+    - 否则回退为 `truck_out_gross - truck_back_gross`
+  - 同一阶段内的整车销售和瓶装销售会统一纳入 `actual_weight_kg`
+- 改动文件列表：
+  - `src/components/domain/customer/CustomerStatementView.vue`
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+### 2026-03-28 CURRENT — 整车销售统一放弃“销售净重”概念，改为毛重差值口径
+- 做了什么：
+  - 统一整车销售业务口径：
+    - 放弃“销售净重”概念
+    - 统一改为 `出厂毛重 - 回厂毛重`
+    - 兼容老字段 `truck_sale_net` 仅作为历史数据兜底，不再作为新口径主值
+  - 销售录入页整车卡片：
+    - 第四项改为只读 `毛重差值`
+    - 自动按 `出厂毛重 - 回厂毛重` 回填
+    - 不再把它当作可独立输入概念
+  - 销售草稿校验、结算公式、详情页展示、云端创建/更新校验全部切到同一口径：
+    - 必须满足 `出厂毛重 - 回厂毛重 > 0`
+    - 整车应收按 `毛重差值 × 单价`
+  - 整车异常文案同步改口：
+    - `销售净重` 全部改成 `毛重差值`
+    - 负差解释仍保留“车上可能有结转余量”的说明
+  - 客户结算、经营分析、看板、催收统计、进气库存流水、异常/时间线指纹等仍会用到整车重量的入口，统一改成：
+    - 优先读 `truck_out_gross - truck_back_gross`
+    - 缺失毛重时才回退旧字段 `truck_sale_net`
+- 改动文件列表：
+  - `src/components/domain/sale/SaleTruckCard.vue`
+  - `src/services/models/sale.js`
+  - `src/composables/useSaleSettlement.js`
+  - `src/components/domain/sale/SaleDetailView.vue`
+  - `src/components/domain/bottle/BottleAnomalyView.vue`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-dashboard/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-collection/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+
+## 2026-03-29 20:01 CST
+- 问题：用户管理页打开即提示 `[crm-user]: 用户函数代码语法或逻辑异常`，列表为空。
+- 原因：
+  - `crm-user` 在模块加载阶段直接 `require('bcryptjs')`，但云函数目录缺少 `package.json` 依赖声明。
+  - 导致即使只是调用 `listManageV1/getPermissionRegistryV1`，云函数也会在启动时直接失败。
+- 处理：
+  - 为 `uniCloud-alipay/cloudfunctions/crm-user/` 新增 `package.json`，声明 `bcryptjs` 依赖。
+  - 将 `bcryptjs` 改为延迟加载，仅在 `createV1/resetPasswordV1` 需要哈希密码时再 `require`。
+  - 缺依赖时返回更明确的错误：提示重新上传 `crm-user` 云函数依赖。
+- 影响文件：
+  - `uniCloud-alipay/cloudfunctions/crm-user/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-user/package.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-user/index.js`
+
+## 2026-03-29 20:09 CST
+- 问题补充：
+  - 上传 `crm-user` 后仍报错。
+  - “新增用户”表单被浏览器自动填入当前 `superadmin` 账号密码。
+- 处理：
+  - `crm-user` 增加第二层兜底：优先读取 `../common/pageAcl`，缺失时自动退回函数目录内置的 `pageAclLocal/pageAclRegistryLocal`，避免因未同步上传 `common/` 导致函数启动失败。
+  - 前端 `AppInput` 新增 `name/autocomplete` 透传。
+  - 用户管理页“新增用户/重置密码”输入框显式设置为 `autocomplete="off/new-password"`，降低浏览器自动填充当前管理员账号密码的概率。
+- 影响文件：
+  - `uniCloud-alipay/cloudfunctions/crm-user/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-user/pageAclLocal.js`
+  - `uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js`
+  - `src/components/base/AppInput.vue`
+  - `src/components/domain/user/UserListView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-user/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 20:18 CST
+- 问题补充：
+  - 用户管理页点击“刷新”时偶发 `[crm-user]: 用户函数代码语法或逻辑异常`。
+- 原因收口：
+  - `listManageV1` 使用 `users.orderBy('created_at', 'desc')`，而 `crm_users` schema 当前没有 `created_at` 索引，云端排序可能直接异常。
+  - `crm-user` 外层没有统一 `try/catch`，导致页面只能收到平台泛化报错。
+- 处理：
+  - `listManageV1` 改为 `users.get()` 后本地按 `created_at` 排序，消除索引依赖。
+  - `exports.main` 增加统一 `try/catch`，线上再失败时会直接返回真实 `err.message`。
+- 影响文件：
+  - `uniCloud-alipay/cloudfunctions/crm-user/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-user/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-dashboard/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-collection/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 15:41 CST
+- 作者：Codex
+- 事项：连续灌装异常增加“删除后灌装”修复入口
+- 变更摘要：
+  - `continuous_fill` 异常卡片新增专用按钮“删除后灌装”，默认删除异常上下文中的后一次灌装记录 `next_fill`
+  - 删除动作直接复用 `crm-filling.removeV1`，删除成功后本地先移除对应异常，再同步刷新列表
+  - 异常提示文案同步调整为“建议删除后一次灌装”，未定位到后次灌装记录时保留提示并禁用按钮
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleAnomalyView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 16:41 CST
+- 作者：Codex
+- 事项：全局瓶子查询替换悬浮菜单
+- 变更摘要：
+  - 新增全局组件 `AppBottleQueryFloat`，用悬浮搜索按钮替换原来的展开式悬浮菜单
+  - 查询结果直接复用单瓶时间线接口，展示瓶号、当前状态、销售/灌装统计、当前客户、最后事件和前 10 条流转记录
+  - `AppPage` 不再挂载 `AppFloatNav`，原“工作台 / 销售记录 / 客户档案 / 钢瓶档案 / 车辆档案 / 天然气入库”的悬浮菜单整体下线
+- 改动文件列表：
+  - `src/components/base/AppBottleQueryFloat.vue`
+  - `src/components/base/AppPage.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 16:47 CST
+- 作者：Codex
+- 事项：全局瓶子查询补齐灌装信息与拖动交互
+- 变更摘要：
+  - 查询结果里的灌装行不再显示 `—`，改为优先展示 `净重 xx kg`
+  - 右下角搜索按钮支持拖动，拖动后松手不会误触发打开
+  - 查询面板改为可拖动浮层，拖动区域在面板头部
+  - 展开后的背景去掉模糊，仅保留轻度遮罩
+- 改动文件列表：
+  - `src/components/base/AppBottleQueryFloat.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 16:56 CST
+- 作者：Codex
+- 事项：全局瓶子查询补齐鼠标拖动与非悬浮态透明度
+- 变更摘要：
+  - 悬浮搜索按钮新增鼠标拖动支持，H5 端可直接拖动位置
+  - 查询面板头部新增鼠标拖动支持，拖动时不会误触发关闭/点击
+  - 搜索按钮非悬浮态改为半透明，鼠标移入时恢复不透明
+  - 按钮鼠标拖动后增加 click 抑制，避免拖拽结束误打开面板
+- 改动文件列表：
+  - `src/components/base/AppBottleQueryFloat.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 16:18:00 CST
+
+- 作者：Codex
+- 事项：线上天然气库存账本差异清理与重复销售去重
+- 变更摘要：
+  - 新增运维脚本：
+    - `scripts/cleanupDuplicateSales.cjs`
+    - `scripts/rebuildGasInventoryLedger.cjs`
+  - 清理线上疑似重复销售：
+    - 基于 `docs/gas_inventory_diagnosis.latest.json` 中的 `suspected_duplicate_sales`
+    - 按同签名组保留最早 `_id` 一条，调用 `crm-sale.removeV2` 删除其余重复单
+  - 线上天然气库存账本重建：
+    - 先做轻量预览，确认若保留旧 `cycle_adjust` 会继续残留瓶侧负值
+    - 再执行带 `include_cycle_adjust=true` 的完整重建，彻底用源单重建结果覆盖线上 `crm_gas_inventory_movements`
+  - 重建后复跑诊断，确认：
+    - `current ledger == rebuilt ledger`
+    - 疑似重复销售组清零
+- 线上执行结果：
+  - 重复销售清理：
+    - 预览 `16` 组，额外重复 `17` 条
+    - 实际删除 `17` 条，失败 `0` 条
+    - 报告：
+      - `docs/sale_duplicate_cleanup.preview.json`
+      - `docs/sale_duplicate_cleanup.execute.json`
+  - 天然气库存重建：
+    - 轻量重建（保留旧 `cycle_adjust`）后摘要仍异常：
+      - `asset_total_t=-129.708`
+      - `in_bottle_total_t=-124.321`
+    - 完整重建（重算 `cycle_adjust`）后摘要恢复到源单重建口径：
+      - `asset_total_t=1.652`
+      - `station_total_t=-7.647`
+      - `in_bottle_total_t=7.039`
+      - `vehicle_total_t=2.26`
+    - 报告：
+      - `docs/gas_inventory_rebuild.preview.json`
+      - `docs/gas_inventory_rebuild.preview.full.json`
+      - `docs/gas_inventory_rebuild.execute.json`
+      - `docs/gas_inventory_rebuild.execute.full.json`
+  - 复核诊断：
+    - `docs/gas_inventory_diagnosis.after_full_cleanup.json`
+    - 结果：
+      - 线上 `remote_inventory` 与本地源单重建 `local_inventory` 完全一致
+      - `suspected_duplicate_sales` 变为 `0`
+- 结论要点：
+  - 之前 `在瓶未售净值` 异常巨大，不是正常业务结果，而是：
+    - 一批重复销售单
+    - 以及沿用旧 `cycle_adjust` 的库存账本残差
+  - 这次已在线上同时清掉重复销售和旧残差账本
+- 改动文件列表：
+  - `scripts/cleanupDuplicateSales.cjs`
+  - `scripts/rebuildGasInventoryLedger.cjs`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check scripts/cleanupDuplicateSales.cjs`
+    - `node --check scripts/rebuildGasInventoryLedger.cjs`
+  - 已在线上执行：
+    - `node scripts/cleanupDuplicateSales.cjs --execute --out=docs/sale_duplicate_cleanup.execute.json`
+    - `node scripts/rebuildGasInventoryLedger.cjs --execute --include-cycle-adjust --out=docs/gas_inventory_rebuild.execute.full.json`
+    - `node scripts/analyzeGasInventoryLedger.cjs --out=docs/gas_inventory_diagnosis.after_full_cleanup.json`
+
+## 2026-03-29 15:28:00 CST
+- 作者：Codex
+- 事项：天然气库存四桶诊断与异常源单抓取
+- 变更摘要：
+  - 新增线上诊断脚本 `scripts/analyzeGasInventoryLedger.cjs`：
+    - 直接读取线上 `crm-gas-in / crm-filling / crm-sale / crm-bottle-movement`
+    - 本地重建天然气库存四桶（总资产 / 站内 / 在瓶 / 在车）
+    - 产出 `docs/gas_inventory_diagnosis.latest.json`
+  - 诊断结果确认：
+    - 当前页面汇总读取到的线上账本为：
+      - `asset_total_t = -148.524`
+      - `station_total_t = -7.647`
+      - `in_bottle_total_t = -130.397`
+      - `vehicle_total_t = -10.480`
+    - 但按真实源单重建后的本地账本仅为：
+      - `asset_total_t = -16.446`
+      - `station_total_t = -7.647`
+      - `in_bottle_total_t = 1.681`
+      - `vehicle_total_t = -10.480`
+    - 两者差值集中在：
+      - `asset_total_t = -132.078`
+      - `in_bottle_total_t = -132.078`
+    - 结论：线上 `crm_gas_inventory_movements` 仍残留一批额外的瓶侧负向 movement；问题已不只是期初缺失，而是库存账本与源单重建结果不一致。
+  - 额外抓到的源数据异常：
+    - `16` 组疑似重复销售单，共 `17` 条额外重复行
+    - 对库存的附加影响约：
+      - `asset_total_t = -18.816`
+      - `in_bottle_total_t = -6.076`
+      - `vehicle_total_t = -12.740`
+    - 典型重复：
+      - `2026-02-07` `TRUCK-9335Z` -> `四公` 整车销售 `2480kg` 重复 `3` 次
+      - `2026-02-27` `TRUCK-9335Z` -> `浩诺` 整车销售 `5910kg` 重复 `2` 次
+      - `2026-03-12` `肃宁-金颖` 瓶装销售 `1820kg` 重复 `2` 次
+  - 还计算了四桶避免负数所需的最小期初量：
+    - `asset = 27.468t`
+    - `station = 18.774t`
+    - `in_bottle = 10.626t`
+    - `vehicle = 11.380t`
+- 改动文件列表：
+  - `scripts/analyzeGasInventoryLedger.cjs`
+  - `docs/gas_inventory_diagnosis.latest.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check scripts/analyzeGasInventoryLedger.cjs`
+    - `node scripts/analyzeGasInventoryLedger.cjs --space-id=env-00jxuffegf2n --out=docs/gas_inventory_diagnosis.latest.json`
+
+## 2026-03-29 15:08:00 CST
+- 作者：Codex
+- 事项：天然气库存净值改为四桶口径，单列车载待售
+- 变更摘要：
+  - 将天然气库存快照与重建预览统计从三桶改为四桶：
+    - `总库存净值`
+    - `站内可灌装净值`
+    - `在车待售净值`
+    - `在瓶未售净值`
+  - `TRUCK-*` 车号灌装与整车销售不再隐含在 `balance_diff_t` 里：
+    - `filling_truck_fill` 计入 `vehicle_total_t`
+    - `sale_truck` 从 `vehicle_total_t` 扣减
+  - 对历史错误口径做兼容纠偏：
+    - 若旧 movement 仍是 `filling_normal_fill` 且 `meta.inventory_scope='truck'` 或 `meta.bottle_no` 看起来像 `TRUCK-*`，汇总时按车载待售处理，不再计入 `在瓶未售净值`
+  - 页面顶部摘要卡片新增 `在车待售净值`
+  - 负库存提示文案增加“未归类差额”说明，明确当前仍残留的非站内/非在瓶/非在车的历史残差
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+  - `src/components/domain/gasIn/GasInListView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 13:46
+- 作者：Codex
+- 事项：天然气库存“在瓶未售净值”口径纠偏
+- 变更摘要：
+  - 修正整车销售气量 movement：
+    - `sale_truck` 不再冲减 `in_bottle_delta_t`
+    - 仅冲减天然气总资产，避免把整车销售误算进“在瓶未售净值”
+  - 修正车号灌装 movement：
+    - `TRUCK-*` 且 `record_type=normal_fill` 的车号灌装，不再按普通钢瓶灌装计入 `in_bottle_delta_t`
+    - 改为只从站内可灌装净值转出，保留为车辆链路库存
+  - 天然气库存重建逻辑补齐 `bottle_no` 读取：
+    - 重建时能够正确识别历史车号灌装，避免库存重建后再次把车辆补给混入“在瓶未售净值”
+  - 新增 movement 元信息：
+    - `meta.bottle_no`
+    - `meta.inventory_scope`
+- 影响说明：
+  - “在瓶未售净值”现在只统计真正灌进钢瓶、且尚未售出的气量
+  - 整车销售与 `TRUCK-*` 车号灌装不再污染该指标
+  - 线上历史错误 movement 需上传云函数后执行一次“库存重建”才能完全纠正
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+
+## 2026-03-29 13:55
+- 作者：Codex
+- 事项：天然气入库页重建后摘要仍显示旧值的缓存修复
+- 变更摘要：
+  - 修复 `useQuery` 对 `force: true` 无效的问题：
+    - 之前即使页面主动传入强制刷新，仍会优先命中本地查询缓存
+    - 导致“库存重建”完成后，天然气入库页摘要卡片仍短时间显示旧值
+  - 现改为：
+    - `force: true` 时跳过缓存读取
+    - `force: true` 时跳过节流拦截
+    - 请求完成后仍会写回新缓存
+- 影响说明：
+  - 天然气入库页执行“库存重建”后，摘要卡片会立即读取最新云端结果
+  - 其他传了 `force: true` 的列表/统计页也同步受益
+- 改动文件列表：
+  - `src/composables/useQuery.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 14:05
+- 作者：Codex
+- 事项：天然气库存重建降载与超时兜底
+- 变更摘要：
+  - `库存重建` 默认改为轻量模式：
+    - 不再在每次重建时重扫整批钢瓶闭环差值
+    - 默认保留现有 `cycle_adjust` movement
+    - 闭环差值继续通过单独的“闭环同步”按钮维护
+  - `crm-gas-in.rebuildInventoryV1` 在 `include_cycle_adjust=false` 时：
+    - 直接读取并保留现有 `cycle_adjust` movement
+    - 只重建 `gas_in / filling / sale` 三类天然气库存流水
+  - 前端重建与闭环同步云调用超时统一提升到 `60000ms`
+- 影响说明：
+  - 天然气库存重建耗时显著下降，更不容易出现 `crm-gas-in 函数执行失败`
+  - 本次“在瓶未售净值口径纠偏”不再被最重的闭环扫描阻塞
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+  - `src/components/domain/gasIn/GasInListView.vue`
+  - `src/services/gasIn.js`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 14:14
+- 作者：Codex
+- 事项：天然气库存重建默认取消备份以规避执行失败
+- 变更摘要：
+  - `crm-gas-in.rebuildInventoryV1` 新增 `backup_before_rebuild`
+    - 默认 `false`
+    - 页面“库存重建”改为不自动备份旧流水
+  - 当前页面重建链路进一步收敛为：
+    - 不重扫闭环差值
+    - 不自动备份
+    - 只重建 `gas_in / filling / sale` 三类天然气库存 movement
+  - 前端提示文案同步改成“默认不自动备份旧流水”
+  - 重建调用超时提高到 `120000ms`
+- 影响说明：
+  - 进一步缩短单次重建耗时，降低 `crm-gas-in 函数执行失败` 的概率
+  - 如需保留旧流水备份，后续可单独再加一个“带备份重建”入口
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+  - `src/services/gasIn.js`
+  - `src/components/domain/gasIn/GasInListView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 13:17
+- 作者：Codex
+- 事项：收口 import_new 剩余 3 个档案问题并补跑尾批导入
+- 变更摘要：
+  - 新增一次性线上修复脚本 `scripts/fixImportNewArchives.cjs`：
+    - 查并启用钢瓶 `X46`
+    - 查并创建/启用车辆 `冀A77K99`
+    - 查并创建/启用车辆 `冀A300AN`
+    - 输出修复报告到 `docs/import_new/archive.fix.report.json`
+  - 执行结果：
+    - `X46` 已启用，钢瓶档案 `_id = 693fbee16dd837518fa12285`
+    - `冀A77K99` 已创建并启用，车辆档案 `_id = 69c8b4c95cee11b05eee98fa`
+    - `冀A300AN` 已创建并启用，车辆档案 `_id = 69c8b4c9ad2f4ad42ebc786e`
+  - 补跑剩余导入：
+    - 灌装导入：新增成功 `1` 条，正好收掉之前因 `X46` 未启用失败的那条；其余剩余 `30` 条仍为“同日期同瓶号记录已存在”的业务冲突，不再需要处理
+    - 入库导入：`22` 条全部成功，新增 `2` 条（对应两辆新车），其余 `20` 条命中已有同日同车记录被安全跳过
+- 改动文件列表：
+  - `scripts/fixImportNewArchives.cjs`
+  - `docs/import_new/archive.fix.report.json`
+  - `docs/import_new/filling.import.report.json`
+  - `docs/import_new/gas_in.import.report.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check scripts/fixImportNewArchives.cjs`
+    - `node scripts/fixImportNewArchives.cjs --space-id env-00jxuffegf2n --report docs/import_new/archive.fix.report.json`
+    - `node scripts/fixImportNewArchives.cjs --execute --space-id env-00jxuffegf2n --report docs/import_new/archive.fix.report.json`
+    - `node scripts/importFillingsFromJson.cjs --execute --space-id env-00jxuffegf2n --input docs/import_new/filling_records.json --report docs/import_new/filling.import.report.json`
+    - `node scripts/importGasInFromJson.cjs --execute --space-id env-00jxuffegf2n --input docs/import_new/gas_in_records.json --report docs/import_new/gas_in.import.report.json`
+  - 报告关键结果：
+    - `archive.fix.report.json`：`activated = 1`、`created = 2`
+    - `filling.import.report.json`：`success_total = 1`、`conflict_total = 30`、`failed_total = 0`
+    - `gas_in.import.report.json`：`success = 22`、`created = 2`、`skipped_existing = 20`、`failed = 0`
+- 剩余问题：
+  - `docs/import_new/filling_records.json` 仍有 `30` 条业务冲突，全部是“同日期同瓶号记录已存在”；当前策略保持跳过，不做覆盖更新。
+
+## 2026-03-29 13:28
+- 作者：Codex
+- 事项：修正天然气入库页负库存说明、卡片布局和返回即强刷问题
+- 变更摘要：
+  - 天然气入库页顶部 6 张统计卡改成响应式网格：
+    - 宽屏按 6 列一行展示
+    - 常规宽度自动折行为多列
+    - 窄屏维持单列
+  - 将库存卡片标题改成 `总库存净值 / 站内可灌装净值 / 在瓶未售净值`，并在出现负值时展示说明：
+    - 当前库存是按系统内天然气流水净值计算
+    - 若系统启用前已有期初库存、或历史入库未补齐，会出现负数
+  - 去掉天然气入库列表页的 `onShow` 无脑刷新：
+    - 现在只在新增/编辑保存成功后，通过 `gasIn:list:refresh` 标记触发列表页刷新
+    - 普通切屏返回不再重新加载
+  - 首次进入页面不再强制跳过 `useQuery` 缓存，改为正常命中短缓存
+- 改动文件列表：
+  - `src/components/domain/gasIn/GasInListView.vue`
+  - `src/components/domain/gasIn/GasInEditView.vue`
+  - `src/pages/gas-in/list.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+- 剩余问题：
+  - 当前负库存说明只做了口径澄清，尚未引入天然气期初库存/历史入库补齐功能；若要把负数真正消掉，需要补期初或补全历史入库数据后再做库存重建。
+
+## 2026-03-29 11:55
+- 作者：Codex
+- 事项：工作台左侧主图改为“近7日充装去向”
+- 变更摘要：
+  - 工作台左侧主图区不再使用“近7日出货结构（钢瓶/整车/代理）”
+  - 新口径改为基于近 7 日灌装记录的“近 7 日充装去向”：
+    - `钢瓶灌装`：灌装记录里除地方车 `000`、车辆燃气补给之外的常规钢瓶灌装
+    - `地方车`：灌装记录里 `bottle_no = 000`
+    - `车辆补给`：灌装记录里 `record_type = truck_out_no_sale`
+  - 左图标题、图例、颜色、右侧摘要同步调整为：
+    - `总充装`
+    - `峰值日`
+    - `峰值量`
+    - `主去向`
+  - 摘要与图例文案改成更贴近日常业务口径：
+    - `钢瓶灌装`
+    - `地方车`
+    - `车辆补给`
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-dashboard/index.js`
+  - `src/components/domain/dashboard/DashboardHome.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-dashboard/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 12:02
+- 作者：Codex
+- 事项：工作台左侧主区改为“近7日业务日报”
+- 变更摘要：
+  - 用户确认上一版遗漏了日报右半边“销售”信息后，左侧主区从“近7日充装去向”进一步改为“近7日业务日报”
+  - 新日报按每天一行展示以下字段：
+    - `充装瓶数`
+    - `充装重量`
+    - `地方车次`
+    - `地方车重`
+    - `车辆次`
+    - `车辆重`
+    - `客户数`
+    - `销售瓶数`
+    - `销售重量`
+  - 数据口径明确拆分为：
+    - 灌装侧：
+      - `充装瓶数/充装重量`：近 7 日灌装记录里，除 `000` 和 `truck_out_no_sale` 之外的常规灌装
+      - `地方车次/地方车重`：近 7 日灌装记录里 `bottle_no = 000`
+      - `车辆次/车辆重`：近 7 日灌装记录里 `record_type = truck_out_no_sale`
+    - 销售侧：
+      - `客户数`：按业务日去重后的客户数
+      - `销售瓶数`：瓶装 `out_items` 数量 + 代理销售明细行数
+      - `销售重量`：瓶装出瓶净重 + 整车毛重差值 + 代理销售灌装净重
+  - 左侧摘要同步改为：
+    - `总充装`
+    - `总销售`
+    - `服务客户`
+    - `主去向`
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-dashboard/index.js`
+  - `src/components/domain/dashboard/DashboardHome.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-dashboard/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 11:18
+- 工作台“本月销售”完成线上核数，新增 `scripts/probeDashboardSummary.cjs` 对比工作台 KPI、本月销售单应收、本月 m3 流量结算应收和客户贡献分布。
+- 核数结果：
+  - 线上原始 KPI：`661823.4 元`
+  - 销售单本月应收：`610522.4 元`
+  - m3 流量结算本月应收：`51290 元`
+  - 预期合计：`661812.4 元`
+  - 与工作台差额仅 `11 元`，属于小额舍入差，不是三个月累计。
+- 确认截图里“661.8w”是前端万元格式换算错误，已将工作台 KPI 的 `w` 换算从错误的 `/100` 修正为 `/10000`，`661823.4` 现在会显示为 `66.2w`。
+- 工作台继续清理静态占位：
+  - 移除了顶部搜索框
+  - 移除了右上角静态通知/列表图标与占位头像
+  - 之前已移除“本周 / 本月 / 成员”静态切换
+- 新增/改动文件：
+  - `scripts/probeDashboardSummary.cjs`
+  - `src/components/domain/dashboard/DashboardHome.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check scripts/probeDashboardSummary.cjs`
+  - `node scripts/probeDashboardSummary.cjs --space-id=env-00jxuffegf2n --out=docs/dashboard_sales_probe_current_month.json`
+  - `npm run build:h5`
+  - `npm run build:mp-alipay`
+
+## 2026-03-29 11:42
+- 工作台图表完成业务化替换，不再使用信息密度偏低的“近 6 日销售额 / 7 天趋势”组合。
+- 替换方案：
+  - 主图区改为 `近 7 日出货结构`
+    - 维度：钢瓶 / 整车 / 代理
+    - 口径：按销售业务实际出货重量统计
+    - 摘要：总出货、峰值日、峰值量、主渠道
+  - 右侧小图区改为 `近 7 日新增应收 vs 实收`
+    - 口径：当日新增应收（销售单 + m3 流量结算单）与当日实收（客户收款单）
+    - 摘要：新增应收、实收、差额、回款率
+- 云端 `crm-dashboard.summaryV1` 新增数据结构：
+  - `shipment.rows / total_weight_kg / peak_date / peak_weight_kg / dominant_channel / channel_totals`
+  - `receivable.rows / total_receivable / total_received / gap_amount / collection_rate`
+- 前端 `DashboardHome.vue` 已消费新结构并移除残余顶部占位控件。
+- 改动文件：
+  - `uniCloud-alipay/cloudfunctions/crm-dashboard/index.js`
+  - `src/components/domain/dashboard/DashboardHome.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-dashboard/index.js`
+  - `npm run build:h5`
+  - `npm run build:mp-alipay`
+
+## 2026-03-29 10:33
+- 作者：Codex
+- 事项：工作台数据口径与图表接入修正
+- 变更摘要：
+  - 工作台 KPI `本月销售` 改为按现行结算口径汇总：
+    - 普通销售继续来自销售单
+    - `m3/customer_flow` 客户改为从 `crm_customer_flow_settlements` 汇总
+    - 不再把销售单里的 `m3` 流量字段直接算进工作台金额
+  - `任务分布` 从“老三类异常”改成覆盖当前全部异常类型的分组统计：
+    - `缺失类`
+    - `连续类`
+    - `整车类`
+    - `其他`
+  - `工作概览` 改成真正区别于右侧 `7 天订单趋势` 的图：
+    - 主图显示 `近 6 日销售额`
+    - 右侧补充 `总额 / 峰值日 / 峰值额 / 日均`
+    - 不再重复展示同一份 7 天订单数
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-dashboard/index.js`
+  - `src/components/domain/dashboard/DashboardHome.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-dashboard/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 12:54
+- 作者：Codex
+- 事项：执行 `docs/import_new` 增量导入并收口安全写入策略
+- 执行摘要：
+  - 已确认 `docs/import_new` 下三份源文件均为 `NDJSON`：
+    - `sale_records.json`
+    - `filling_records.json`
+    - `gas_in_records.json`
+  - 已按“旧系统只补新增，不覆盖新系统已修正数据”的口径执行导入：
+    - 销售导入脚本保持 append-only
+    - 灌装导入脚本保持 append-only
+    - 天然气入库导入脚本新增默认保护：命中同日同车旧记录时跳过，不再默认 update
+  - 为避免历史导入被当前瓶流转软预警阻断，已将以下脚本改为默认忽略瓶流转软预警：
+    - `scripts/importSalesFromJson.cjs`
+    - `scripts/importFillingsFromJson.cjs`
+- 脚本改动：
+  - `scripts/importGasInFromJson.cjs`
+    - 新增 `--allow-update-existing`
+    - 默认 `execute` 下命中旧记录时返回 `skip_existing`
+  - `scripts/importSalesFromJson.cjs`
+    - 新增 `--respect-flow-warning`
+    - 默认历史导入自动传 `ignore_bottle_flow_warning = true`
+  - `scripts/importFillingsFromJson.cjs`
+    - 新增 `--respect-flow-warning`
+    - 默认历史导入自动传 `ignore_bottle_flow_warning = true`
+- 实际导入结果：
+  - 销售：
+    - 首轮预检：`待新增 317`
+    - 首轮执行：`成功 124`，其余主要被瓶流转软预警拦截
+    - 脚本收口后补跑：`待新增 195`，`成功 195`，`失败 0`
+    - 当前结论：本批销售增量已全部导入完成
+  - 灌装：
+    - 预检：`原始 4821`，`规范化 4765`，`输入内重复 56`，`待新增 928`
+    - 首轮执行：`成功 441`，`冲突 486`，`失败 1`
+    - 补跑后：`已存在 4278`，`目标新增 487`，`成功 456`，`冲突 30`，`失败 1`
+    - 当前剩余未导入项：
+      - `30` 条：`同日期同瓶号记录已存在，请勿重复录入`
+      - `1` 条：`X46`，原因 `钢瓶档案未启用，不能灌装`
+  - 天然气入库：
+    - `attempted 22`
+    - `success 20`
+    - `created 1`
+    - `skipped_existing 19`
+    - `failed 2`
+    - 当前剩余未导入项：
+      - `冀A77K99`：`车牌未关联启用车辆档案`
+      - `冀A300AN`：`车牌未关联启用车辆档案`
+- 结果说明：
+  - 销售/灌装通过云函数创建，已随业务写入自动更新钢瓶运行状态、流转和异常 touch
+  - 本次没有额外执行钢瓶主档静态字段同步；若后续需补启用 `X46` 或补建车辆档案，应单独处理档案层数据
+- 输出文件：
+  - `docs/import_new/sale.import.report.json`
+  - `docs/import_new/filling.import.report.json`
+  - `docs/import_new/gas_in.import.report.json`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check scripts/importGasInFromJson.cjs`
+    - `node --check scripts/importSalesFromJson.cjs`
+    - `node --check scripts/importFillingsFromJson.cjs`
+
+## 2026-03-29 09:58
+- 作者：Codex
+- 事项：线上执行整车毛重差值历史回填
+- 执行摘要：
+  - 已在支付宝云空间 `env-00jxuffegf2n` 远程调用：
+    - `crm-sale.backfillTruckGrossDiffV1` 预览
+    - `crm-sale.backfillTruckGrossDiffV1` 正式执行
+  - 执行参数：
+    - `clear_legacy = true`
+    - `batch_size = 200`
+- 执行结果：
+  - 预览：
+    - `scanned = 10`
+    - `changed = 10`
+    - `cleared_legacy = 10`
+  - 正式执行：
+    - `scanned = 10`
+    - `changed = 10`
+    - `cleared_legacy = 10`
+- 当前线上状态：
+  - 历史整车销售已补写 `truck_gross_diff`
+  - 历史整车销售遗留 `truck_sale_net` 已同步清空
+  - 整车 schema 迁移已完成到“云函数 + schema + 历史数据”三层一致
+
+## 2026-03-29 09:39
+- 作者：Codex
+- 事项：整车毛重差值 schema 迁移收口
+- 变更摘要：
+  - 确认整车业务新口径已正式切到 `truck_gross_diff`：
+    - 新建/编辑整车销售时正式写入 `truck_gross_diff`
+    - `truck_sale_net` 对新写入统一置空，仅保留历史兼容回读
+  - 补齐剩余兼容读取：
+    - 时间线/异常指纹里最后一处旧字段直读改为优先 `truck_gross_diff`
+    - 旧导出转换、JSON 导入和销售标准化对象统一改为“正式输出新字段、旧字段清空”
+  - `crm-sale` 保留了 `backfillTruckGrossDiffV1`：
+    - 可先预览再执行，把历史 `biz_mode='truck'` 销售补写 `truck_gross_diff`
+    - 可选同步清空遗留 `truck_sale_net`
+- 迁移口径：
+  - 正式字段：`crm_sale_records.truck_gross_diff`
+  - 兼容字段：`crm_sale_records.truck_sale_net`
+  - 读取顺序统一为：
+    - 优先 `truck_out_gross - truck_back_gross`
+    - 其次 `truck_gross_diff`
+    - 最后回退历史 `truck_sale_net`
+- 改动文件列表：
+  - `src/services/models/sale.js`
+  - `src/services/sale.js`
+  - `src/services/mappers/legacyImport/convertLegacyExport.cjs`
+  - `scripts/importSalesFromJson.cjs`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `uniCloud-alipay/database/schema/crm_sale_records.schema.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-dashboard/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-collection/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 17:00 CST
+- 作者：Codex
+- 事项：全局瓶子查询补齐 pointer 拖动与闲置透明度
+- 变更摘要：
+  - `AppBottleQueryFloat` 的右下角搜索按钮新增 `pointerdown + window pointermove/up` 拖动链路，补齐桌面 WebView 下鼠标拖动不生效的问题。
+  - 查询面板头部同样切到 `pointer` 拖动链路，继续保留原有触摸拖动，面板可随意拖动。
+  - 触发按钮闲置态透明度从 `0.68` 下调到 `0.42`，鼠标悬浮时恢复为 `1`。
+  - 为触发按钮和面板头部补了 `touch-action: none`，减少拖动时的浏览器默认手势干扰。
+- 改动文件列表：
+  - `src/components/base/AppBottleQueryFloat.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 17:10 CST
+- 作者：Codex
+- 事项：全局瓶子查询改为把手拖动与全局触摸跟随
+- 变更摘要：
+  - 查询面板头部新增左侧三横拖动把手，拖动入口对齐旧系统样式。
+  - 面板拖动不再绑定整块标题栏，而是绑定拖动把手，避免和关闭按钮、输入区交互混淆。
+  - 触摸拖动链路改成“按下开始、window 级 touchmove 跟随、touchend 结束”，解决手指滑出按钮/标题区后拖动中断的问题。
+  - 右下角放大镜按钮继续支持拖动，并沿用全局跟随链路提升稳定性。
+- 改动文件列表：
+  - `src/components/base/AppBottleQueryFloat.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 17:16 CST
+- 作者：Codex
+- 事项：全局瓶子查询改为仅关闭按钮可关闭
+- 变更摘要：
+  - 查询面板展开后，点击外层遮罩不再关闭面板。
+  - 当前仅保留右上角关闭按钮作为显式关闭入口，避免拖动或误触遮罩导致面板关闭。
+- 改动文件列表：
+  - `src/components/base/AppBottleQueryFloat.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 17:20 CST
+- 作者：Codex
+- 事项：全局瓶子查询遮罩改为不拦截外部点击
+- 变更摘要：
+  - 面板展开后的遮罩层保留轻视觉背景，但不再接管 pointer 事件。
+  - 用户在面板打开时仍可点击页面其他按钮，关闭动作继续只保留右上角关闭按钮。
+- 改动文件列表：
+  - `src/components/base/AppBottleQueryFloat.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 17:34 CST
+- 作者：Codex
+- 事项：销售单新增可选销售底单图片上传
+- 变更摘要：
+  - 新建/编辑销售单时新增“销售底单”区块，支持选择、预览、移除单张图片。
+  - 保存销售单前自动上传图片到云端文件存储，并把 `fileID` 随销售单一起提交。
+  - 销售单 schema、新建接口、更新接口和前端草稿模型统一新增 `ticket_image / ticketImage` 字段。
+- 改动文件列表：
+  - `src/components/domain/sale/SaleEditView.vue`
+  - `src/services/sale.js`
+  - `src/services/models/sale.js`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `uniCloud-alipay/database/schema/crm_sale_records.schema.json`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 17:42 CST
+- 作者：Codex
+- 事项：工作台业务日报改为近五日并补齐对齐汇总
+- 变更摘要：
+  - 左侧日报卡片改为仅展示最近五日，不影响右侧“近7日新增应收 vs 实收”。
+  - 在日报表格底部新增与列对齐的“五日合计”汇总行，补齐充装瓶数、充装重量、地方车、车辆补给、客户数、销售瓶数、销售重量合计。
+  - 右侧摘要同步改成更直接的合计口径：充装瓶数、充装重量、销售瓶数、销售重量、客户数合计和主去向。
+- 改动文件列表：
+  - `src/components/domain/dashboard/DashboardHome.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - 已运行并通过：
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 18:09 CST
+- 作者：Codex
+- 事项：新增用户管理页并补齐页面级 CRUD 权限控制
+- 变更摘要：
+  - 新增仅 `superadmin` 可见的用户管理页，支持新增用户、改角色、重置密码、删除用户、保存页面级 `查/增/改/删` 权限，以及按角色模板回填现有用户权限。
+  - 新增统一页面权限注册表与 ACL helper，`crm-auth`/`crm-user` 返回并保存 `role_template` 与 `page_permissions`，前端新增 `useAuthGuard` 页面视图/动作判断。
+  - 将销售、灌装、天然气入库、钢瓶、车辆、配送员、会计科目、凭证、账期、客户对账、瓶流转异常、工作台导航等页面入口和按钮接到页面权限；无权按钮隐藏，直接调云函数由后端 ACL 统一拒绝。
+  - 将 `crm-sale`、`crm-filling`、`crm-gas-in`、`crm-account`、`crm-voucher`、`crm-ledger`、`crm-report`、`crm-period`、`crm-collection`、`crm-log`、`crm-bottle-movement`、`crm-bottle-anomaly`、`crm-customer-settlement` 接入统一 ACL，并保留高风险维护动作为 `superadmin` 专属。
+- 改动文件列表：
+  - `src/pages.json`
+  - `src/pages/user/list.vue`
+  - `src/components/domain/user/UserListView.vue`
+  - `src/services/user.js`
+  - `src/services/pageAclRegistry.js`
+  - `src/services/pageAcl.js`
+  - `src/composables/useAuthGuard.js`
+  - `src/components/base/AppPage.vue`
+  - `src/components/domain/dashboard/DashboardHome.vue`
+  - `src/components/domain/sale/SaleListView.vue`
+  - `src/components/domain/sale/SaleDetailView.vue`
+  - `src/components/domain/sale/SaleEditView.vue`
+  - `src/components/domain/customer/CustomerListView.vue`
+  - `src/components/domain/bottle/BottleAnomalyView.vue`
+  - `src/components/domain/delivery/DeliveryListView.vue`
+  - `src/components/domain/vehicle/VehicleListView.vue`
+  - `src/components/domain/gasIn/GasInListView.vue`
+  - `src/components/domain/bottle/BottleListView.vue`
+  - `src/components/domain/accounting/AccountListView.vue`
+  - `src/components/domain/accounting/VoucherListView.vue`
+  - `src/components/domain/accounting/PeriodListView.vue`
+  - `src/components/domain/filling/FillingListView.vue`
+  - `src/services/auth.js`
+  - `src/services/navigation.js`
+  - `src/services/api/callCloud.js`
+  - `uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js`
+  - `uniCloud-alipay/cloudfunctions/common/pageAcl.js`
+  - `uniCloud-alipay/cloudfunctions/crm-auth/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-user/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-account/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-voucher/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-ledger/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-report/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-period/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-collection/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-log/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `uniCloud-alipay/database/schema/crm_users.schema.json`
+  - `STATE.md`
+  - 验证输出要点：
+    - 已运行并通过：
+      - `node --check uniCloud-alipay/cloudfunctions/crm-auth/index.js`
+      - `node --check uniCloud-alipay/cloudfunctions/crm-user/index.js`
+      - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-account/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-voucher/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-ledger/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-report/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-period/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-collection/index.js`
+      - `node --check uniCloud-alipay/cloudfunctions/crm-log/index.js`
+      - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+      - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+      - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+
+## 2026-03-29 账号看得见页面但数据全空修复
+
+- 问题结论：
+  - ACL 上线后，多数数据云函数直接依赖 `../common/pageAcl`，一旦云端未同步这份 `common`，函数会在模块加载阶段直接异常。
+  - 前端多处列表页对云函数失败做了“静默回空”，所以用户看到的是“页面能打开，但数据全空”。
+  - 前端登录后没有主动向 `crm-auth/check` 同步当前用户最新权限，导航和真实后端权限可能脱节。
+- 代码调整：
+  - 给所有依赖 `../common/pageAcl` 的云函数增加本地 ACL 兜底：
+    - `pageAclLocal.js`
+    - `pageAclRegistryLocal.js`
+    - 通过 `try/catch` 优先读 `../common/pageAcl`，失败时回退本地副本
+  - 覆盖云函数：
+    - `uniCloud-alipay/cloudfunctions/crm-auth`
+    - `uniCloud-alipay/cloudfunctions/crm-account`
+    - `uniCloud-alipay/cloudfunctions/crm-bottle`
+    - `uniCloud-alipay/cloudfunctions/crm-bottle-anomaly`
+    - `uniCloud-alipay/cloudfunctions/crm-bottle-movement`
+    - `uniCloud-alipay/cloudfunctions/crm-collection`
+    - `uniCloud-alipay/cloudfunctions/crm-customer`
+    - `uniCloud-alipay/cloudfunctions/crm-customer-settlement`
+    - `uniCloud-alipay/cloudfunctions/crm-dashboard`
+    - `uniCloud-alipay/cloudfunctions/crm-delivery`
+    - `uniCloud-alipay/cloudfunctions/crm-filling`
+    - `uniCloud-alipay/cloudfunctions/crm-gas-in`
+    - `uniCloud-alipay/cloudfunctions/crm-ledger`
+    - `uniCloud-alipay/cloudfunctions/crm-log`
+    - `uniCloud-alipay/cloudfunctions/crm-period`
+    - `uniCloud-alipay/cloudfunctions/crm-report`
+    - `uniCloud-alipay/cloudfunctions/crm-sale`
+    - `uniCloud-alipay/cloudfunctions/crm-vehicle`
+    - `uniCloud-alipay/cloudfunctions/crm-voucher`
+  - 前端新增登录态同步：
+    - `src/services/auth.js` 增加 `syncCurrentUser`
+    - `src/App.vue` 在 `onLaunch/onShow` 调 `crm-auth/check`
+  - 前端修复“失败显示为空”：
+    - `src/components/domain/dashboard/DashboardHome.vue`
+    - `src/components/domain/sale/SaleListView.vue`
+    - `src/components/domain/gasIn/GasInListView.vue`
+    - 现在云函数失败会直接 toast 实际错误，不再默默清空列表
+- 验证输出要点：
+  - 已运行并通过：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-auth/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-dashboard/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-gas-in/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-customer/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+    - `node --check uniCloud-alipay/cloudfunctions/crm-log/index.js`
+    - `npm run build:h5`
+    - `npm run build:mp-alipay`
+
+## 2026-03-29 22:20 用户权限与 superadmin 校正
+
+- 背景：
+  - 用户管理和多业务页在 ACL 上线后出现“当前账号能进页面但无数据/偶发云函数异常”的问题。
+  - 排查后确认一个关键成因是：旧 `superadmin` 账号若历史上不是 `role=superadmin`，`crm-auth.ensureSuperAdmin()` 只会“查到即返回”，不会把账号强制校正成真正超级管理员。
+- 处理：
+  - `uniCloud-alipay/cloudfunctions/crm-auth/index.js`
+    - `ensureSuperAdmin()` 改为：已存在的 `superadmin` 账号会强制校正 `role`、`role_template`、`page_permissions`，缺密码哈希时自动补齐。
+    - 超级管理员校验统一改成 `isSuperAdmin()`，不再直接判断 `user.role === 'superadmin'`。
+  - `uniCloud-alipay/cloudfunctions/crm-user/index.js`
+    - 保护 `superadmin`：禁止改角色；保存权限时自动回正为全权；回填权限时按用户名 `superadmin` 强制模板为 `superadmin`。
+  - `src/components/domain/user/UserListView.vue`
+    - 新增用户区域加入浏览器自动填充陷阱，减少 `superadmin` 账号/密码被自动带入。
+    - 选中 `superadmin` 时，权限矩阵、角色、重置模板、重置密码、保存按钮全部只读，并提示“超级管理员固定全权”。
+- 验证：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-auth/index.js`
+  - `node --check uniCloud-alipay/cloudfunctions/crm-user/index.js`
+  - `npm run build:h5`
+  - `npm run build:mp-alipay`
+
+## 2026-03-29 22:45 工作台品牌与退出登录、登录页样式、权限矩阵显示收口
+
+- 背景：
+  - 用户确认当前账号状态已恢复正常，但工作台没有明显的退出登录入口，品牌文案仍保留旧的 `2026 CRM / 运营驾驶舱`。
+  - 登录页品牌和首页不一致，输入框与按钮在桌面端过长。
+  - 用户管理页里 `superadmin` 权限矩阵把“不适用动作”显示成关闭开关，容易误解成超级管理员缺权限。
+  - 一些列表页的 CRUD 支持在权限注册表里缺项，导致授权矩阵不完整。
+- 处理：
+  - `src/App.vue`
+    - 应用启动和切回前台时，登录态同步统一改为 `syncCurrentUser({ force: true })`，减少旧会话缓存导致的页面可见性与真实权限脱节。
+  - `src/components/domain/dashboard/DashboardHome.vue`
+    - 左侧品牌改为 `新拓能源`，移除副标题 `运营驾驶舱`。
+    - 顶栏面包屑改为 `新拓能源 / 工作台`。
+    - 新增当前账号信息和 `退出登录` 按钮，退出时清空本地登录态并回到登录页。
+  - `src/pages/login/login.vue`
+    - 登录页标题改为 `新拓能源`，副标题改为 `账号登录`。
+    - 登录卡片宽度收窄并居中，登录按钮改为较短固定宽度，整体视觉与工作台蓝白风格对齐。
+    - 页脚品牌改为 `Powered by 新拓能源`。
+  - `src/components/domain/user/UserListView.vue`
+    - 权限矩阵中不支持的 `增/改/删` 动作改为显示 `—`，不再显示灰色关闭开关。
+    - 保留 `superadmin` 只读逻辑，明确表达“系统固定全权”而不是“权限缺失”。
+  - `src/services/pageAclRegistry.js`
+  - `uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js`
+    - 补齐明显缺失的 CRUD 支持：
+      - `/pages/sale/list`
+      - `/pages/customer/list`
+      - `/pages/bottle/list`
+      - `/pages/vehicle/list`
+      - `/pages/delivery/list`
+      - `/pages/accounting/account-list`
+      - `/pages/accounting/voucher-list`
+      - `/pages/accounting/period-list`
+    - 云函数目录下所有 `pageAclRegistryLocal.js` 已同步为最新口径，避免只上传单个云函数目录时继续走旧权限注册表。
+- 验证：
+  - `npm run build:h5`
+  - `npm run build:mp-alipay`
+
+## 2026-03-30 00:26 工作台日报表格桌面端自适应回退
+
+- 调整工作台“近 5 日业务日报”表格宽度策略：
+  - 桌面端取消固定 `min-width: 980px`，改为容器内满宽显示，避免需要左右滑动才能看完整列。
+  - 表格外层改为居中布局，整体视觉位置更居中。
+  - 窄屏（`<= 1024px`）保留横向滚动回退，避免移动端挤压过度。
+- 改动文件：
+  - `src/components/domain/dashboard/DashboardHome.vue`
+- 验证：
+  - `npm run build:h5`
+  - `npm run build:mp-alipay`
+## 2026-03-29 23:32 销售记录页本月销售口径对齐工作台
+
+- 销售记录页首张统计卡从“应收总额”改为“本月销售”，独立显示当月 `销售单应收 + 流量结算单应收`，不再复用当前筛选汇总。
+- `crm-sale.listV2` 新增返回 `month_sales_doc_total`、`month_flow_total`、`month_sales_total`、`month_range_start`、`month_range_end`，由云端按当前月份直接汇总销售单与 `crm_customer_flow_settlements`。
+- 保留其余销售记录页统计卡的筛选汇总逻辑不变，避免把“月度口径”和“筛选口径”继续混在一起。
+- 已验证 `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`、`npm run build:h5`、`npm run build:mp-alipay` 通过。
+
+### 2026-03-29 23:38 销售记录页月度口径容错回退
+- 做了什么：为 crm-sale 的本月销售头部汇总增加流量结算查询容错；当 crm_customer_flow_settlements 查询失败时，销售记录页仍可回退为仅统计本月销售单应收，不再拖垮 listV2。
+- 改动文件列表：uniCloud-alipay/cloudfunctions/crm-sale/index.js。
+- 验证输出要点：node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js 通过；构建通过。
+- 剩余问题：若线上未同步流量结算集合或权限异常，销售记录页第一张卡会暂时少算流量结算部分，但不会报函数异常。
+## 2026-03-29 23:58 修复销售记录页月销售卡导致 crm-sale 崩溃
+
+- 背景：销售记录页顶部首卡已改为“本月销售”，`crm-sale.listV2` 会附带返回本月销售单应收与本月流量结算应收合计；线上用户反馈进入销售记录页时报 `[crm-sale]: 用户函数代码语法或逻辑异常`。
+- 原因：新增的 `computeMonthSalesHeadline()` 里误调用了不存在的 `computeSaleAmount()`，线上 `listV2` 在统计本月销售单应收时直接抛 `ReferenceError`。
+- 处理：
+  - 改为复用 `crm-sale` 内部现有的 `computeSaleAmountsForDoc(doc).amounts.should_receive` 口径，不再引用未定义函数。
+  - 保留此前对 `crm_customer_flow_settlements` 查询失败的降级处理，避免集合或权限异常再次拖垮 `listV2`。
+- 验证：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `npm run build:h5`
+  - `npm run build:mp-alipay`
+
+## 2026-03-30 00:21 工作台日报与多页面快捷日期补齐
+
+- 销售记录：
+  - 关键词联想继续保留客户 + 车牌混合候选，并补了 `@tap.stop`，避免移动端点选车牌候选时事件冒泡导致回填失败。
+  - 保持“本月销售”冗余卡已移除后的现状，头部仅保留筛选汇总卡组。
+- 客户档案：
+  - 关键词联想下拉放开父容器裁切，候选点击后可稳定回填。
+  - 客户卡片继续展示 `存瓶 x`，后端 `crm-customer` 已返回 `deposit_count`。
+- 快捷日期：
+  - `销售记录`、`灌装记录` 维持已有 `今日/本周/本月/自定义` 滑块。
+  - 新增到 `天然气入库`、`理论损耗统计`，统一使用 `AppDatePresetBar` 和 `datePreset` 同步逻辑。
+- 工作台：
+  - “近 5 日业务日报”左侧去掉底部“五日合计”行，右侧“业务摘要”保留汇总并压缩成两列。
+  - 在右侧摘要下新增“近5日销售重量”迷你柱状图，提升占位利用率。
+  - 调整 `overview-grid` 侧栏宽度与业务摘要样式，避免信息重复堆叠。
+- 改动文件：
+  - `src/components/domain/sale/SaleListView.vue`
+  - `src/components/domain/customer/CustomerListView.vue`
+  - `src/components/domain/gasIn/GasInListView.vue`
+  - `src/components/domain/bottle/BottleLossView.vue`
+  - `src/components/domain/dashboard/DashboardHome.vue`
+- 验证：
+  - `npm run build:h5`
+  - `npm run build:mp-alipay`
+
+## 2026-03-30 00:34 统一快捷日期滑块顶部位置
+
+- 背景：用户给出快捷日期滑块的标准位置截图，要求各页面统一把快捷日期放在统计区之后、筛选区之前，而不是继续塞在筛选网格内部。
+- 处理：
+  - 将 `销售记录`、`灌装记录`、`天然气入库`、`理论损耗统计` 四页的 `AppDatePresetBar` 统一提到顶部独立一行。
+  - 删除筛选网格内原有的“快捷日期”字段，避免网格内出现额外一格。
+  - 统一新增 `quick-date-strip` 容器样式，保证桌面端按截图基准左对齐展示，窄屏下允许横向滚动兜底。
+- 改动文件：
+  - `src/components/domain/sale/SaleListView.vue`
+  - `src/components/domain/filling/FillingListView.vue`
+  - `src/components/domain/gasIn/GasInListView.vue`
+  - `src/components/domain/bottle/BottleLossView.vue`
+- 验证：
+  - `npm run build:h5`
+  - `npm run build:mp-alipay`
+
+## 2026-03-30 00:48 快捷日期联动查询与客户存瓶详情
+
+- 背景：用户要求点击快捷日期滑块时，对应卡片和筛选结果一起变动；并把同样的顶部滑块位置规则扩到客户对账里的日期范围区块；客户档案卡片需要在联系人下方显示存瓶数和每个瓶号。
+- 处理：
+  - 为 `销售记录`、`灌装记录`、`天然气入库`、`理论损耗统计` 四页的快捷日期滑块补上即时查询逻辑，点击 `今日/本周/本月` 会立刻刷新卡片和列表，而不只是改日期字段。
+  - 在 `客户对账` 页的 `经营分析` 与 `账务流水` 区块新增同样位置的 `AppDatePresetBar`，并在点击快捷日期后分别触发经营分析查询和流水查询。
+  - `crm-customer.listV1` 返回当前客户的 `deposit_bottle_nos`，客户档案列表卡片改成在联系人下方显示 `存瓶 X` 和全部瓶号串，不再只显示一个统计标签。
+- 改动文件：
+  - `src/components/domain/sale/SaleListView.vue`
+  - `src/components/domain/filling/FillingListView.vue`
+  - `src/components/domain/gasIn/GasInListView.vue`
+  - `src/components/domain/bottle/BottleLossView.vue`
+  - `src/components/domain/customer/CustomerStatementView.vue`
+  - `src/components/domain/customer/CustomerListView.vue`
+  - `uniCloud-alipay/cloudfunctions/crm-customer/index.js`
+- 验证：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer/index.js`
+  - `npm run build:h5`
+  - `npm run build:mp-alipay`
+
+## 2026-03-30 01:05 钢瓶当前归属批量重建脚本
+
+- 背景：用户要求把钢瓶当前状态和“在谁家”的归属批量更新，并要求写一个脚本来辅助执行。
+- 处理：
+  - 在 `crm-bottle` 新增 `rebuildCurrentStatusV1`，按 `crm_bottle_movements` 的既有业务排序口径重建钢瓶当前归属。
+  - 重建规则：
+    - 最新有效事件是 `out`：写为 `at_customer`，并回填 `current_customer_id/current_customer_name`
+    - 最新有效事件是 `back/fill`：写为 `in_station`
+    - 无有效事件：写为 `unknown`
+  - 默认跳过：
+    - `TRUCK-*`、`000` 这类伪瓶号
+    - `scrapped/lost` 特殊状态钢瓶
+    - 同日 `back+out` 尚未解歧的钢瓶
+  - 新增脚本 `scripts/rebuildBottleCurrentStatus.cjs`，支持：
+    - 全量或按瓶号执行
+    - `preview` 预览
+    - `--execute` 真正写库
+    - 分批调用云函数，避免单次云函数超时
+- 改动文件：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - `scripts/rebuildBottleCurrentStatus.cjs`
+- 验证：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - `node --check scripts/rebuildBottleCurrentStatus.cjs`
+
+## 2026-03-30 09:42 钢瓶当前归属线上批量重建已执行
+
+- 背景：本地脚本与云端 action 已完成后，用户要求直接把线上钢瓶“当前状态/在谁家”批量更新到位。
+- 处理：
+  - 修复 `crm-bottle.rebuildCurrentStatusV1` 运行时缺失的 `normalizeEventDay()`。
+  - 通过 HBuilder CLI 重新上传 `crm-bottle` 云函数。
+  - 使用 `scripts/rebuildBottleCurrentStatus.cjs --execute` 执行线上批量重建。
+  - 执行结果：
+    - `target_total=1107`
+    - `updated_total=841`
+    - `changed_total=841`
+    - `unchanged_total=256`
+    - `no_movement_total=315`
+    - `pending_same_day_total=1`
+    - `skipped_pseudo_total=9`
+- 结果文件：
+  - `docs/bottle_current_status_rebuild.execute.json`
+- 改动文件：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - `scripts/rebuildBottleCurrentStatus.cjs`
+  - `docs/bottle_current_status_rebuild.execute.json`
+- 验证：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - 线上脚本执行成功，返回 `ok=true`
+
+## 2026-03-30 10:18 销售与灌装写入后实时同步钢瓶当前状态
+
+- 背景：用户要求补上“实时同步瓶状态”，避免后续销售/灌装继续写 `crm_bottle_movements` 但不更新 `crm_bottles.status/current_customer_*`，导致还要再次跑批量重建。
+- 处理：
+  - 在 `crm-sale` 内新增按受影响瓶号即时重算当前状态的 helper，复用当前 movement 流转语义：
+    - `createV2`
+    - `updateV2`
+    - `removeV2`
+    - `backfillAgentSaleBottleMovementsV1`
+    在写完销售 movement 后即时回写 `crm_bottles`。
+  - 在 `crm-filling` 内新增同样的即时重算 helper，并接入：
+    - `createV1`
+    - `updateV1`
+    - `removeV1`
+    - `batchCreateV1`
+    - `batchUpdateDateV1`
+    - `normalizeDatesV1`
+  - 同步规则：
+    - 最新有效事件为 `out`：更新为在客户，并回填 `current_customer_id/current_customer_name`
+    - 最新有效事件为 `back/fill`：更新为在站
+    - `TRUCK-*`、`000` 等伪瓶号默认跳过
+    - 同日 `back+out` 尚未解歧的钢瓶跳过，避免错误覆盖
+  - 销售/灌装日志与返回结果补充：
+    - `bottle_status_updated_total`
+    - `bottle_status_skipped_pending_total`
+- 改动文件：
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+- 验证：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+
+## 2026-03-30 11:10 钢瓶档案重复清洗（线上执行）
+
+- 背景：用户反馈 `crm_bottles` 中存在大量重复档案，要求直接线上清洗；本批重复主要来自 `imp0314_*` 导入副本。
+- 处理：
+  - 在 `crm-bottle.cleanupDuplicatesV1` 中实现按 `bottle_no` 归并清洗：
+    - 规范化 `bottle_no` 后分组；
+    - 以销售引用数、状态优先级、档案完整度、更新时间选主档；
+    - 将重复档案缺失字段合并到主档；
+    - 如有 `crm_sale_records.*.bottle_id` 指向副本则改写到主档；
+    - 删除重复副本后，对受影响瓶号即时重建当前状态。
+  - 新增线上执行脚本：
+    - `scripts/cleanupDuplicateBottles.cjs`
+  - 首次正式执行发现线上缺少 `crm_bottles_import_backups` 集合，补丁改为“备份集合缺失只记日志、不阻断清洗”后重新上传并执行。
+- 线上执行结果：
+  - 预览：`duplicate_group_total=133`、`duplicate_row_total=133`、`sale_row_rewrite_total=0`
+  - 正式执行：删除 `133` 条重复副本，主档合并更新 `133` 条，钢瓶状态重建变更 `16` 条
+  - 备份集合缺失：`bottle_remove` 与 `canonical_before` 均安全跳过，不影响清洗完成
+  - 执行后复查：`duplicate_group_total=0`、`duplicate_row_total=0`
+- 改动文件：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - `scripts/cleanupDuplicateBottles.cjs`
+  - `docs/bottle_duplicate_cleanup.preview.json`
+  - `docs/bottle_duplicate_cleanup.execute.json`
+  - `docs/bottle_duplicate_cleanup.after_preview.json`
+- 验证：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - `node --check scripts/cleanupDuplicateBottles.cjs`
+  - 线上预览执行成功
+  - 线上正式清洗执行成功
+  - 线上复查归零
+
+## 2026-03-30 15:35 历史销售单改瓶号后存瓶残留修复
+
+- 背景：用户反馈编辑历史销售单把瓶号从 `43` 更正为 `45` 后，客户存瓶清单仍出现 `43+45` 共存。
+- 根因：
+  - 销售单实时瓶状态同步的受影响瓶号集合此前未纳入 `deposit_rows`；
+  - 仅按 movement 重算后，部分“存瓶行调整”场景仍可能残留旧客户归属。
+- 修复：
+  - `collectSaleBottleNosFromDoc` 补充 `deposit_rows`；
+  - `ensureBottlesExist` 补充 `depositRows` 入参，避免存瓶行出现“目标瓶不存在不参与同步”；
+  - `buildCustomerDepositBottleSet` 调整为：`deposit_rows` 仅在“无出/回瓶行的纯存瓶补录单”参与存瓶快照，避免“出瓶改号后旧存瓶行残留”导致双瓶并存；
+  - `updateV2` 新增“历史单自动同步存瓶行”兜底：当历史单原本是“出瓶=存瓶”且本次未手工改存瓶行、仅改了出瓶瓶号时，自动将 `deposit_rows` 同步为最新 `out_items`；
+  - 新增 `reconcileBottleCurrentCustomerByDepositSnapshot`：
+    - 在 `createV2 / updateV2 / removeV2` 后，对“受影响客户 + 受影响瓶号”按销售单存瓶口径做归属纠偏；
+    - 只修正 `current_customer_*` 与 `status=at_customer/unknown` 的错挂，不改业务流水。
+  - 日志新增纠偏统计字段：
+    - `bottle_status_deposit_reconciled_total`
+    - `bottle_status_deposit_forced_total`
+    - `bottle_status_deposit_cleared_total`
+    - `bottle_status_deposit_conflict_total`
+- 改动文件：
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+- 验证：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+
+## 2026-03-30 16:05 销售编辑页联想重叠/皮重残留/保存按钮位置修复
+
+- 背景：用户反馈销售编辑存在三类问题：
+  - 瓶号联想下拉覆盖下一行输入区域；
+  - 同行改瓶号时皮重沿用旧瓶（如 `275 -> 375` 后仍显示旧皮重）；
+  - 保存按钮在顶栏，不便于长表单末尾提交。
+- 修复：
+  - `SaleBottleLinesCard.vue`
+    - 瓶号联想面板改为文档流内展示（不再 absolute 悬浮覆盖下一行）；
+    - `selectSuggestion` 改为“新瓶号命中即覆盖皮重”，并在新瓶无皮重时清空旧皮重；
+    - `onBottleConfirm` 增加“精确瓶号自动匹配联想并回填”逻辑，避免仅回填瓶号不回填皮重。
+  - `SaleDepositCard.vue`
+    - 同步调整联想面板展示方式与 `onBottleConfirm` 精确匹配回填逻辑，避免同类重叠问题复现。
+  - `SaleEditView.vue`
+    - 将“保存并提交”从页头移至页面内容最底部操作区；
+    - 保留取消按钮，并在小屏下改为纵向按钮布局。
+- 改动文件：
+  - `src/components/domain/sale/SaleBottleLinesCard.vue`
+  - `src/components/domain/sale/SaleDepositCard.vue`
+  - `src/components/domain/sale/SaleEditView.vue`
+- 验证：
+  - `npm run build:h5`
+
+## 2026-03-30 16:42 销售改单存瓶未同步根因修复 + 张翠欣皮厂定向修复
+
+- 用户复现：`张翠欣皮厂 2026-03-27` 历史单重保存后，`out_items` 已是 `45/143`，但 `deposit_rows` 仍残留 `43/143`。
+- 根因定位：
+  - `updateV2` 中“出瓶改号自动同步存瓶行”逻辑未实际生效；
+  - 该逻辑误放到了 `createV2`，并引用了未定义变量 `existing`，导致修复未命中且存在潜在创建崩溃风险。
+- 修复：
+  - `crm-sale/index.js`
+    - 移除 `createV2` 中误放的自动同步分支；
+    - 在 `updateV2` 恢复并启用自动同步：
+      - 当本次未手工改 `deposit_rows`（与历史一致）且 `deposit_rows` 与本次 `out_items` 不一致时，自动按 `out_items` 重建 `deposit_rows`；
+    - `depositRows` 改为 `let` 以支持自动重建回写。
+  - 销售编辑输入补强：
+    - `SaleBottleLinesCard.vue`
+      - 同行改瓶号时立刻清空旧皮重/净重（净重仅在非手填模式下清空）；
+      - 失焦时自动执行精确匹配确认，回填新瓶皮重；
+      - 联想面板改为“行内撑高 + 绝对层展示”组合，避免压住下一行；
+    - `SaleDepositCard.vue`
+      - 同步失焦精确匹配与联想面板撑高机制，避免重叠复现。
+- 云端定向修复执行：
+  - 脚本：`scripts/repairSaleDepositFromOut.cjs`
+  - 目标单：`69c8afca59063e84c13ec7bd`（张翠欣皮厂，2026-03-27）
+  - 修复前：`deposit_bottle_nos=[43,143]`
+  - 修复后：`deposit_bottle_nos=[45,143]`
+  - 复查文件：
+    - `docs/sale_repair_zhangcuixin_20260327.latest.json`
+    - `docs/sale_probe_zhangcuixin_20260327.latest.json`
+- 验证：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `npm run build:h5`
+
+## 2026-03-30 18:18 灌装总重推导“已回瓶但提示找不到依据”修复
+
+- 背景：用户反馈灌装总重模式下，瓶号 `368` 提示“未找到最近回瓶总重”，但该瓶实际已有多条回瓶记录。
+- 复现与定位：
+  - 云端复现：`crm-filling.resolveFillWeightV1` 对 `368` 返回 `code=400`。
+  - 取数核查显示 `368` 最近回瓶（`2026-03-28`）在销售单 `back_items` 中存在且包含 `gross/tare/net`。
+  - 根因是总重推导只依赖 `crm_sale_records` 的嵌套条件命中，旧/混合数据形态下存在漏匹配，导致依据丢失。
+- 修复：
+  - `findLatestBackBasisByBottleNo` 改为三段式查找（按可靠性降级）：
+    1. **优先按 `crm_bottle_movements` 的 `back + sale` 事件反查销售单**，再从 `back_items` 取 `gross` 或 `tare+net`。
+    2. 再走销售单嵌套条件查询（并补充纯数字瓶号的 number/string 双候选）。
+    3. 最后按最近有回瓶行的销售单兜底扫描（限量）并做规范化比对。
+  - 新增内部辅助函数：
+    - `buildBackBottleWhereCandidates`
+    - `fetchSaleDocsByIds`
+    - `pickBasisFromSaleDocByBottleNo`
+    - `findLatestBackBasisByBottleNoFromMovements`
+    - `findLatestBackBasisByBottleNoFromSales`
+    - `findLatestBackBasisByBottleNoByRecentScan`
+  - 新增诊断脚本：
+    - `scripts/probeFillBasisByBottle.cjs`（可抓取 resolve 结果 + 对应回瓶源单原始字段）。
+- 改动文件：
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `scripts/probeFillBasisByBottle.cjs`
+  - `docs/fill_basis_probe_368_20260330.json`
+  - `docs/fill_basis_probe_45_20260330.json`
+- 验证：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `node --check scripts/probeFillBasisByBottle.cjs`
+  - 线上探针确认 bug 复现与数据依据存在（修复前基线）。
+
+## 2026-03-30 15:08 H5 发布缓存兜底（版本探针 + 构建产物标记）
+
+- 背景：
+  - 用户出现“代码已改但前端网页仍是旧效果”，强刷后恢复，属于典型浏览器命中旧 `index.html` 缓存。
+  - 排查发现当前 `npm run build:h5` 主产物在 `dist/build/h5`，旧目录 `dist/build/web` 可能残留历史包。
+- 修复：
+  - 新增 `src/services/h5VersionGuard.js`：
+    - H5 生产环境在 `onLaunch/onShow` 拉取 `/version.json`（`no-store`）；
+    - 对比当前入口脚本与远端入口脚本，不一致时自动一次性强制刷新（带 `__h5v` 标记防循环）。
+  - `src/App.vue` 接入 `ensureLatestH5Bundle`，在鉴权前先做版本自检。
+  - 新增 `scripts/writeH5Version.cjs`，构建后自动生成 `version.json`：
+    - 自动识别并写入 `dist/build/h5`（主）；
+    - 若存在 `dist/build/web` 也同步写入，兼容历史发布习惯。
+  - `package.json` 增加 `postbuild:h5` 自动执行版本文件生成。
+  - `index.html` 增加 no-cache meta（辅助手段）。
+- 改动文件：
+  - `src/services/h5VersionGuard.js`
+  - `src/App.vue`
+  - `scripts/writeH5Version.cjs`
+  - `package.json`
+  - `index.html`
+- 验证：
+  - `npm run build:h5`
+  - 产物确认：
+    - `dist/build/h5/version.json` 已生成，入口指向当前 `index-*.js`
+    - H5 主包时间戳更新：`dist/build/h5/assets/index-*.js`
+
+## 2026-03-31 费用收款与记账链路收敛（payment_method 全链路 + 凭证分录修正）
+
+- 做了什么：
+  - 前端销售结算与客户对账补齐“收款方式（挂账/现金/转账/微信/支付宝）”输入，并接入服务层请求参数，避免收费链路丢字段。
+  - 销售云函数 `crm-sale` 在 `createV2/updateV2/quickReceiveV1` 中统一校验并落库 `payment_method`，并把回款登记同步到客户结算引擎。
+  - 记账分录修正：`syncSaleVoucher` 改为按 `payment_method` 选择借方科目（1001/1002/1002-WECHAT/1002-ALIPAY），不再将实收一律计入应收账款。
+  - 客户结算云函数 `crm-customer-settlement` 收款单落库补齐 `payment_method`，并在账务流水返回中透出，前端流水详情可直接看到收款方式。
+- 改动文件列表：
+  - `src/services/models/settlement.js`
+  - `src/services/models/index.js`
+  - `src/services/models/sale.js`
+  - `src/services/sale.js`
+  - `src/composables/useSaleSettlement.js`
+  - `src/components/domain/sale/SaleSettlementCard.vue`
+  - `src/components/domain/sale/SaleEditView.vue`
+  - `src/components/domain/sale/SaleDetailView.vue`
+  - `src/services/customerSettlement.js`
+  - `src/components/domain/customer/CustomerStatementView.vue`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 历史销售/收款数据存在 `payment_method` 为空的旧记录，当前改动只保证新写入链路一致；如需历史补齐，建议增加 dry-run + execute 的批量回填 action（按 `payment_status/amount_received` 推断并产出审计报告）。
+
+## 2026-03-31 收款区间分配 + 支票方式 + 骏驰机械单据修复
+
+- 做了什么：
+  - 客户结算引擎改为强制区间分配（`allocation_mode=period`），`previewAllocationV1/createReceiptV1/confirmAllocationV1` 全部要求 `allocation_start_date/allocation_end_date`，不再默认“最早欠款优先”。
+  - 收款与分配落库新增区间审计字段：`allocation_mode/allocation_start_date/allocation_end_date`（收款单与分配明细均透出到账务流水 meta）。
+  - 新增 `repairReceiptAllocationV1`（dry-run/execute）用于“回滚原分配 -> 按新区间重分配 -> 可选修正收款方式”。
+  - 全链路补齐 `payment_method=check`（支票）：前端收款方式选项、前后端归一化、会计科目映射 `1002-CHECK`。
+  - 销售详情快捷回款入口与客户对账入口统一为区间分配参数透传。
+  - 已执行骏驰机械样本修复：`receipt_id=69c9ea38836c2b0268862bc9`，区间 `2026-02-01~2026-03-20`，收款方式 `cash -> wechat`。
+- 关键改动文件：
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `src/components/domain/customer/CustomerStatementView.vue`
+  - `src/components/domain/sale/SaleDetailView.vue`
+  - `src/components/domain/sale/SaleSettlementCard.vue`
+  - `src/services/customerSettlement.js`
+  - `src/services/sale.js`
+  - `src/services/models/settlement.js`
+  - `src/services/mappers/legacyImport/convertLegacyExport.cjs`
+  - `uniCloud-alipay/database/crm_customer_receipts.schema.json`
+  - `uniCloud-alipay/database/crm_customer_allocations.schema.json`
+  - `uniCloud-alipay/database/schema/crm_customer_receipts.schema.json`
+  - `uniCloud-alipay/database/schema/crm_customer_allocations.schema.json`
+  - `docs/ACCOUNTING.md`
+- 验证：
+  - 语法：
+    - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+    - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`（通过）
+  - 构建：
+    - `npm run build:h5`（通过）
+    - `npm run build:mp-alipay`（通过）
+  - 云端修复：
+    - dry-run 结果：`/tmp/junchi_receipt_repair_preview.json`（`code=0`，`next_allocations_count=12`，`payment_method_before=cash`，`payment_method_after=wechat`）
+    - execute 结果：`/tmp/junchi_receipt_repair_execute.json`（`code=0`，`success_count=1`，`rollback_total=19446`，`applied.allocated_total=19446`）
+    - 修复后复核：`/tmp/junchi_receipt_probe_after_repair.json`（收款方式为 `wechat`，分配日期落在 `2026-02-04~2026-03-20`）
+- 剩余问题：
+  - 当前历史批量修复仍以“显式 items 入参”执行，适合小范围精准修复；后续若要全客户批量治理，建议增加批处理编排与分批回滚点。
+
+### 2026-04-01 CURRENT — 流量金额三位截断修复（3384.115 保存精度）
+- 做了什么：
+  - 修复 `crm-customer-settlement` 流量客户金额精度链路：流量金额统一按三位小数截断（不四舍五入），并补齐 `create/update flow settlement`、`create/update receipt`、`create prepay`、`confirm allocation`、`autoApplyPrepayToFlowSettlement` 的三位精度与状态判断。
+  - 修复流量客户对账接口输出精度：`getCustomerStatementV1`、`listCustomerStatementRowsV1`、`exportCustomerStatementV1` 的收款/分配/余额金额按客户计价口径返回（m3 为三位）。
+  - 修复前端 `CustomerStatementModule` 金额格式化浮点误差：改为基于字符串+BigInt 的固定小数截断显示与输入规范化，避免 `3384.115` 被显示/提交为 `3384.110` 之类误差。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js` 通过。
+  - `npm run build:h5` 通过。
+  - `npm run build:mp-alipay` 通过。
+- 剩余问题：
+  - 需在云端部署最新 `crm-customer-settlement` 后，用流量客户实测 `3384.115` 录入、保存、回显与再次编辑全链路一致性。
+
+### 2026-04-01 CURRENT — 修复销售列表顶部卡片与导出统计口径不一致
+- 做了什么：
+  - 核实销售列表顶部卡片汇总逻辑 `computeSaleListSummary` 与导出行口径，发现汇总扫描字段缺失。
+  - 在 `crm-sale` 汇总查询的字段投影中补齐 `settlement_mode`、`truck_out_gross`、`truck_back_gross`、`truck_settle_tare`、`truck_settle_gross`，确保与列表/导出使用的 `buildSaleListRow + computeSaleAmountsForDoc` 计算输入一致。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js` 通过。
+- 剩余问题：
+  - 需部署 `crm-sale` 后按你给的区间（`2026-03-01` 到 `2026-03-31`）复测：顶部卡片与导出汇总是否一致。
+
+### 2026-04-01 CURRENT — 客户对账导出功能补齐（H5 + 小程序）
+- 做了什么：
+  - 在客户对账导出工具中新增跨端导出能力：H5 维持浏览器下载；非 H5（含 uni 小程序端）改为写入本地文件并尝试 `openDocument` 打开。
+  - 对账页导出按钮调用从 `downloadWorkbookOnH5` 切换为统一 `downloadWorkbookFile`，避免小程序端点击导出无效。
+- 改动文件列表：
+  - `src/components/domain/customer/statement/exportWorkbook.js`
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check src/components/domain/customer/statement/exportWorkbook.js` 通过。
+  - `npm run build:h5` 通过。
+  - `npm run build:mp-alipay` 通过。
+- 剩余问题：
+  - 需在支付宝小程序真机或开发者工具实测导出后的文档打开链路（`openDocument` 受端侧能力与文件类型支持影响）。

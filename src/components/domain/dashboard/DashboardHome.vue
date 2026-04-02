@@ -7,57 +7,68 @@
 						<view class="brand__icon">
 							<AppIcon name="home" size="32rpx" />
 						</view>
-						<view class="brand__text">
-							<text class="brand__name">2026 CRM</text>
-							<text class="brand__desc">运营驾驶舱</text>
-						</view>
+					<view class="brand__text">
+						<text class="brand__name">新拓能源</text>
+					</view>
 					</view>
 
 					<view class="nav-group">
 						<text class="nav-title">主导航</text>
-						<view class="nav-item nav-item--active" @click="go('/pages/index/index')">
+						<view v-if="canView('/pages/index/index')" class="nav-item nav-item--active" @click="go('/pages/index/index')">
 							<AppIcon name="home" size="24rpx" />
 							<text>工作台</text>
 						</view>
-						<view class="nav-item" @click="go('/pages/sale/list')">
+						<view v-if="canView('/pages/sale/list')" class="nav-item" @click="go('/pages/sale/list')">
 							<AppIcon name="document" size="24rpx" />
 							<text>销售记录</text>
 						</view>
-						<view class="nav-item" @click="go('/pages/customer/list')">
+						<view v-if="canView('/pages/customer/list')" class="nav-item" @click="go('/pages/customer/list')">
 							<AppIcon name="user" size="24rpx" />
 							<text>客户档案</text>
 						</view>
-						<view class="nav-item" @click="go('/pages/bottle/list')">
+						<view v-if="canView('/pages/customer/list')" class="nav-item" @click="go('/pages/customer/list?scene=statement')">
+							<AppIcon name="wallet" size="24rpx" />
+							<text>客户对账</text>
+						</view>
+						<view v-if="canView('/pages/bottle/list')" class="nav-item" @click="go('/pages/bottle/list')">
 							<AppIcon name="bottle" size="24rpx" />
 							<text>钢瓶档案</text>
 						</view>
-						<view class="nav-item" @click="go('/pages/vehicle/list')">
+						<view v-if="canView('/pages/vehicle/list')" class="nav-item" @click="go('/pages/vehicle/list')">
 							<AppIcon name="truck" size="24rpx" />
 							<text>车辆档案</text>
 						</view>
-						<view class="nav-item" @click="go('/pages/delivery/list')">
+						<view v-if="canView('/pages/delivery/list')" class="nav-item" @click="go('/pages/delivery/list')">
 							<AppIcon name="user" size="24rpx" />
 							<text>配送员档案</text>
 						</view>
-						<view class="nav-item" @click="go('/pages/filling/list')">
+						<view v-if="canView('/pages/filling/list')" class="nav-item" @click="go('/pages/filling/list')">
 							<AppIcon name="list" size="24rpx" />
 							<text>灌装记录</text>
 						</view>
-						<view class="nav-item" @click="go('/pages/bottle/loss')">
+						<view v-if="canView('/pages/gas-in/list')" class="nav-item" @click="go('/pages/gas-in/list')">
+							<AppIcon name="truck" size="24rpx" />
+							<text>天然气入库</text>
+						</view>
+						<view v-if="canView('/pages/bottle/loss')" class="nav-item" @click="go('/pages/bottle/loss')">
 							<AppIcon name="chart" size="24rpx" />
 							<text>损耗统计</text>
 						</view>
-						<view class="nav-item" @click="go('/pages/accounting/report-summary')">
+						<view v-if="canView('/pages/accounting/report-summary')" class="nav-item" @click="go('/pages/accounting/report-summary')">
 							<AppIcon name="chart" size="24rpx" />
 							<text>财务报表</text>
 						</view>
-						<view class="nav-item" @click="go('/pages/collection/task-list')">
+						<view v-if="canView('/pages/collection/task-list')" class="nav-item" @click="go('/pages/collection/task-list')">
 							<AppIcon name="credit-card" size="24rpx" />
 							<text>追款任务</text>
 						</view>
-						<view v-if="canViewOperationLog" class="nav-item" @click="go('/pages/log/list')">
+						<view v-if="canView('/pages/log/list')" class="nav-item" @click="go('/pages/log/list')">
 							<AppIcon name="list" size="24rpx" />
 							<text>操作日志</text>
+						</view>
+						<view v-if="canView('/pages/user/list')" class="nav-item" @click="go('/pages/user/list')">
+							<AppIcon name="user" size="24rpx" />
+							<text>用户管理</text>
 						</view>
 					</view>
 				</view>
@@ -66,22 +77,15 @@
 			<view class="dashboard__main">
 				<view class="dashboard__topbar">
 					<view class="topbar-left">
-						<text class="breadcrumb">CRM / 工作台</text>
+						<text class="breadcrumb">新拓能源 / 工作台</text>
 						<text class="page-title">工作台</text>
 					</view>
-					<view class="topbar-search">
-						<AppIcon name="search" size="24rpx" />
-						<input class="topbar-search__input" placeholder="搜索业务、客户、单据" placeholder-style="color:#94a3b8;font-size:12px;" />
-						<text class="topbar-search__hint">Ctrl + K</text>
-					</view>
-					<view class="topbar-actions">
-						<view class="topbar-icon">
-							<AppIcon name="alert" size="22rpx" />
+					<view class="topbar-right">
+						<view class="session-chip">
+							<text class="session-chip__name">{{ currentUsername }}</text>
+							<text class="session-chip__role">{{ currentRoleLabel }}</text>
 						</view>
-						<view class="topbar-icon">
-							<AppIcon name="list" size="22rpx" />
-						</view>
-						<view class="avatar">WY</view>
+						<AppButton size="sm" kind="outline" @click="onLogout">退出登录</AppButton>
 					</view>
 				</view>
 
@@ -137,117 +141,171 @@
 						/>
 					</view>
 
-					<view class="overview-grid">
-						<view class="overview-card">
-							<view class="overview-header">
-								<text class="overview-title">工作概览</text>
-								<view class="overview-tabs">
-									<text class="overview-tab overview-tab--active">本周</text>
-									<text class="overview-tab">本月</text>
-									<text class="overview-tab">成员</text>
+						<view class="overview-grid">
+							<view class="overview-card">
+								<view class="overview-header">
+									<text class="overview-title">近 5 日业务日报</text>
+									<text class="overview-meta">充装与销售按业务日期汇总</text>
+								</view>
+								<scroll-view scroll-x class="daily-report-scroll">
+									<view class="daily-report-table">
+										<view class="daily-report-head daily-report-row">
+											<text class="daily-report-cell daily-report-cell--date">日期</text>
+											<text class="daily-report-cell">充装瓶数</text>
+											<text class="daily-report-cell">充装重量</text>
+											<text class="daily-report-cell">地方车次</text>
+											<text class="daily-report-cell">地方车重</text>
+											<text class="daily-report-cell">车辆次</text>
+											<text class="daily-report-cell">车辆重</text>
+											<text class="daily-report-cell">客户数</text>
+											<text class="daily-report-cell">销售瓶数</text>
+											<text class="daily-report-cell">销售重量</text>
+										</view>
+										<view v-for="row in dailyReportDisplayRows" :key="row.date" class="daily-report-row">
+											<text class="daily-report-cell daily-report-cell--date">{{ row.date }}</text>
+											<text class="daily-report-cell">{{ row.fillBottleCount }}</text>
+											<text class="daily-report-cell">{{ formatCompactWeight(row.fillBottleWeightKg) }}</text>
+											<text class="daily-report-cell">{{ row.localCount }}</text>
+											<text class="daily-report-cell">{{ formatCompactWeight(row.localWeightKg) }}</text>
+											<text class="daily-report-cell">{{ row.vehicleCount }}</text>
+											<text class="daily-report-cell">{{ formatCompactWeight(row.vehicleWeightKg) }}</text>
+											<text class="daily-report-cell">{{ row.saleCustomerCount }}</text>
+											<text class="daily-report-cell">{{ row.saleBottleCount }}</text>
+											<text class="daily-report-cell">{{ formatCompactWeight(row.saleWeightKg) }}</text>
+										</view>
+									</view>
+								</scroll-view>
+							</view>
+
+							<view class="overview-aside">
+								<text class="overview-aside__title">业务摘要</text>
+								<view class="overview-summary">
+									<view class="overview-summary__item">
+										<text class="overview-summary__label">充装瓶数合计</text>
+										<text class="overview-summary__value">{{ dailyReportDisplaySummary.fillBottleCount }}</text>
+									</view>
+									<view class="overview-summary__item">
+										<text class="overview-summary__label">充装重量合计</text>
+										<text class="overview-summary__value">{{ formatCompactWeight(dailyReportDisplaySummary.fillTotalWeightKg) }}</text>
+									</view>
+									<view class="overview-summary__item">
+										<text class="overview-summary__label">销售瓶数合计</text>
+										<text class="overview-summary__value">{{ dailyReportDisplaySummary.saleBottleCount }}</text>
+									</view>
+									<view class="overview-summary__item">
+										<text class="overview-summary__label">销售重量合计</text>
+										<text class="overview-summary__value">{{ formatCompactWeight(dailyReportDisplaySummary.saleWeightKg) }}</text>
+									</view>
+									<view class="overview-summary__item">
+										<text class="overview-summary__label">客户数合计</text>
+										<text class="overview-summary__value">{{ dailyReportDisplaySummary.saleCustomerCount }}</text>
+									</view>
+								</view>
+								<view class="overview-mini-chart">
+									<view class="overview-mini-chart__head">
+										<text class="overview-mini-chart__title">近5日销售重量</text>
+										<text class="overview-mini-chart__value">{{ formatCompactWeight(dailyReportDisplaySummary.saleWeightKg) }}</text>
+									</view>
+									<AppMiniBars :values="dailyReportBarValues" :height="68" :bar-width="18" :gap="10" color="#2563eb" />
+									<view class="overview-mini-chart__labels">
+										<text v-for="row in dailyReportDisplayRows" :key="`label-${row.date}`" class="overview-mini-chart__label">{{ shortDateLabel(row.date) }}</text>
+									</view>
 								</view>
 							</view>
-							<view class="overview-chart">
-								<view
-									v-for="(height, index) in overviewHeights"
-									:key="index"
-									class="overview-bar"
-									:style="{ height: `${height}%` }"
-								/>
-							</view>
 						</view>
-
-						<view class="overview-aside">
-							<text class="overview-aside__title">本周优化方向</text>
-							<view class="overview-chips">
-								<text class="overview-chip">时效</text>
-								<text class="overview-chip">流程</text>
-								<text class="overview-chip">产出</text>
-							</view>
-							<text class="overview-aside__hint">聚焦高频异常与出入库节奏</text>
-						</view>
-					</view>
 
 					<AppSection class="dashboard-card" title="业务管理">
 						<view class="nav-grid">
-							<view class="nav-grid-item" @click="go('/pages/sale/edit')">
+							<view v-if="canAction('/pages/sale/edit', 'create')" class="nav-grid-item" @click="go('/pages/sale/edit')">
 								<view class="nav-icon bg-sales"><AppIcon name="plus" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">新增销售</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/sale/list')">
+							<view v-if="canView('/pages/sale/list')" class="nav-grid-item" @click="go('/pages/sale/list')">
 								<view class="nav-icon bg-sales"><AppIcon name="document" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">销售记录</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/customer/list')">
+							<view v-if="canView('/pages/customer/list')" class="nav-grid-item" @click="go('/pages/customer/list')">
 								<view class="nav-icon bg-customer"><AppIcon name="user" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">客户档案</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/bottle/list')">
+							<view v-if="canView('/pages/customer/list')" class="nav-grid-item" @click="go('/pages/customer/list?scene=statement')">
+								<view class="nav-icon bg-finance"><AppIcon name="wallet" color="#fff" size="30rpx" /></view>
+								<text class="nav-text">客户对账</text>
+							</view>
+							<view v-if="canView('/pages/bottle/list')" class="nav-grid-item" @click="go('/pages/bottle/list')">
 								<view class="nav-icon bg-asset"><AppIcon name="bottle" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">钢瓶档案</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/vehicle/list')">
+							<view v-if="canView('/pages/vehicle/list')" class="nav-grid-item" @click="go('/pages/vehicle/list')">
 								<view class="nav-icon bg-asset"><AppIcon name="truck" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">车辆档案</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/delivery/list')">
+							<view v-if="canView('/pages/delivery/list')" class="nav-grid-item" @click="go('/pages/delivery/list')">
 								<view class="nav-icon bg-customer"><AppIcon name="user" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">配送员档案</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/filling/list')">
+							<view v-if="canView('/pages/filling/list')" class="nav-grid-item" @click="go('/pages/filling/list')">
 								<view class="nav-icon bg-asset"><AppIcon name="list" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">灌装记录</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/bottle/movement')">
+							<view v-if="canView('/pages/gas-in/list')" class="nav-grid-item" @click="go('/pages/gas-in/list')">
+								<view class="nav-icon bg-asset"><AppIcon name="truck" color="#fff" size="30rpx" /></view>
+								<text class="nav-text">天然气入库</text>
+							</view>
+							<view v-if="canView('/pages/bottle/movement')" class="nav-grid-item" @click="go('/pages/bottle/movement')">
 								<view class="nav-icon bg-asset"><AppIcon name="search" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">流转明细</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/bottle/anomaly')">
+							<view v-if="canView('/pages/bottle/anomaly')" class="nav-grid-item" @click="go('/pages/bottle/anomaly')">
 								<view class="nav-icon bg-alert"><AppIcon name="alert" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">异常处理</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/bottle/loss')">
+							<view v-if="canView('/pages/bottle/loss')" class="nav-grid-item" @click="go('/pages/bottle/loss')">
 								<view class="nav-icon bg-alert"><AppIcon name="chart" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">损耗统计</text>
+							</view>
+							<view v-if="canView('/pages/user/list')" class="nav-grid-item" @click="go('/pages/user/list')">
+								<view class="nav-icon bg-customer"><AppIcon name="user" color="#fff" size="30rpx" /></view>
+								<text class="nav-text">用户管理</text>
 							</view>
 						</view>
 					</AppSection>
 
 					<AppSection class="dashboard-card" title="财务核算">
 						<view class="nav-grid">
-							<view class="nav-grid-item" @click="go('/pages/accounting/voucher-list')">
+							<view v-if="canView('/pages/accounting/voucher-list')" class="nav-grid-item" @click="go('/pages/accounting/voucher-list')">
 								<view class="nav-icon bg-finance"><AppIcon name="document" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">凭证管理</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/accounting/account-list')">
+							<view v-if="canView('/pages/accounting/account-list')" class="nav-grid-item" @click="go('/pages/accounting/account-list')">
 								<view class="nav-icon bg-finance"><AppIcon name="list" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">会计科目</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/accounting/ledger-general')">
+							<view v-if="canView('/pages/accounting/ledger-general')" class="nav-grid-item" @click="go('/pages/accounting/ledger-general')">
 								<view class="nav-icon bg-finance"><AppIcon name="search" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">总账查询</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/accounting/ledger-sub')">
+							<view v-if="canView('/pages/accounting/ledger-sub')" class="nav-grid-item" @click="go('/pages/accounting/ledger-sub')">
 								<view class="nav-icon bg-finance"><AppIcon name="document" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">明细账</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/accounting/trial-balance')">
+							<view v-if="canView('/pages/accounting/trial-balance')" class="nav-grid-item" @click="go('/pages/accounting/trial-balance')">
 								<view class="nav-icon bg-finance"><AppIcon name="wallet" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">试算平衡</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/accounting/report-summary')">
+							<view v-if="canView('/pages/accounting/report-summary')" class="nav-grid-item" @click="go('/pages/accounting/report-summary')">
 								<view class="nav-icon bg-finance"><AppIcon name="chart" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">报表中心</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/accounting/receivable-detail')">
+							<view v-if="canView('/pages/accounting/receivable-detail')" class="nav-grid-item" @click="go('/pages/accounting/receivable-detail')">
 								<view class="nav-icon bg-finance"><AppIcon name="list" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">往来明细</text>
 							</view>
-							<view class="nav-grid-item" @click="go('/pages/accounting/period-list')">
+							<view v-if="canView('/pages/accounting/period-list')" class="nav-grid-item" @click="go('/pages/accounting/period-list')">
 								<view class="nav-icon bg-finance"><AppIcon name="calendar" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">账期管理</text>
 							</view>
-							<view v-if="canViewOperationLog" class="nav-grid-item" @click="go('/pages/log/list')">
+							<view v-if="canView('/pages/log/list')" class="nav-grid-item" @click="go('/pages/log/list')">
 								<view class="nav-icon bg-finance"><AppIcon name="list" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">操作日志</text>
 							</view>
@@ -260,11 +318,11 @@
 				<view class="rail-card">
 					<text class="rail-title">快捷操作</text>
 					<view class="quick-actions">
-						<view class="quick-btn bg-sales" @click="go('/pages/sale/edit')">
+						<view v-if="canAction('/pages/sale/edit', 'create')" class="quick-btn bg-sales" @click="go('/pages/sale/edit')">
 							<AppIcon name="plus" color="#fff" size="36rpx" />
 							<text class="quick-btn-text">新增销售</text>
 						</view>
-						<view class="quick-btn bg-asset" @click="go('/pages/filling/list')">
+						<view v-if="canAction('/pages/filling/list', 'create')" class="quick-btn bg-asset" @click="go('/pages/filling/list')">
 							<AppIcon name="bottle" color="#fff" size="36rpx" />
 							<text class="quick-btn-text">灌装入库</text>
 						</view>
@@ -272,18 +330,39 @@
 				</view>
 
 				<view class="rail-card">
-					<text class="rail-title">7 天趋势</text>
-						<view class="mini-chart mini-chart--full">
-							<AppSparkline
-								:points="sparklinePoints"
-								:width="240"
-								:height="90"
-								stroke="var(--crm-primary)"
-								fill="rgba(1, 118, 211, 0.18)"
-								:show-area="true"
-							/>
-							<text class="mini-caption">本周订单</text>
+					<text class="rail-title">近 7 日新增应收 vs 实收</text>
+					<view class="receivable-chart">
+						<view v-for="row in receivableChartRows" :key="row.date" class="receivable-day">
+							<view class="receivable-bars">
+								<view class="receivable-bar receivable-bar--receivable" :style="{ height: `${row.receivableHeight}%` }"></view>
+								<view class="receivable-bar receivable-bar--received" :style="{ height: `${row.receivedHeight}%` }"></view>
+							</view>
+							<text class="receivable-label">{{ row.label }}</text>
 						</view>
+					</view>
+					<view class="receivable-legend">
+						<view class="shipment-legend__item">
+							<view class="shipment-legend__dot receivable-legend__dot--receivable"></view>
+							<text class="shipment-legend__label">新增应收</text>
+							<text class="shipment-legend__value">{{ formatCompactAmount(receivableSummary.totalReceivable) }}</text>
+						</view>
+						<view class="shipment-legend__item">
+							<view class="shipment-legend__dot receivable-legend__dot--received"></view>
+							<text class="shipment-legend__label">实收</text>
+							<text class="shipment-legend__value">{{ formatCompactAmount(receivableSummary.totalReceived) }}</text>
+						</view>
+						<view class="shipment-legend__item">
+							<view class="shipment-legend__dot receivable-legend__dot--gap"></view>
+							<text class="shipment-legend__label">差额</text>
+							<text class="shipment-legend__value">{{ formatCompactAmount(receivableSummary.gapAmount) }}</text>
+						</view>
+						<view class="shipment-legend__item">
+							<view class="shipment-legend__dot receivable-legend__dot--rate"></view>
+							<text class="shipment-legend__label">回款率</text>
+							<text class="shipment-legend__value">{{ formatPercent(receivableSummary.collectionRate) }}</text>
+						</view>
+					</view>
+					<text class="mini-caption">按业务日期统计应收与当日实收</text>
 				</view>
 
 				<view class="rail-card">
@@ -296,7 +375,13 @@
 							:gap="8"
 							color="var(--crm-warning)"
 						/>
-						<text class="mini-caption">按类型统计</text>
+						<view class="mini-legend">
+							<view v-for="(label, index) in distributionLabels" :key="label" class="mini-legend__item">
+								<text class="mini-legend__label">{{ label }}</text>
+								<text class="mini-legend__value">{{ barValues[index] || 0 }}</text>
+							</view>
+						</view>
+						<text class="mini-caption">按异常分组统计</text>
 					</view>
 				</view>
 
@@ -337,15 +422,18 @@ import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
 import AppIcon from '@/components/base/AppIcon.vue'
-import AppSparkline from '@/components/base/AppSparkline.vue'
+import AppButton from '@/components/base/AppButton.vue'
 import AppMiniBars from '@/components/base/AppMiniBars.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { useQuery } from '@/composables/useQuery'
-import { getUser } from '@/services/auth'
 import { getDashboardSummaryV1 } from '@/services/dashboard'
+import { clearAuth, getUser } from '@/services/auth'
+import { goLogin } from '@/services/navigation'
+import { normalizeRoleTemplate } from '@/services/pageAclRegistry'
 
-const { requireLogin } = useAuthGuard()
+const { requireLogin, canPageAction, canViewPage } = useAuthGuard()
 requireLogin()
+const currentUser = ref(getUser() || null)
 
 const stats = reactive({
 	anomaly: '-',
@@ -376,33 +464,124 @@ const inspectionDue = reactive({
 	gauge: { overdue: 0, due_60d: 0 },
 	valve: { overdue: 0, due_60d: 0 }
 })
+const dailyReportSummary = reactive({
+	fillTotalWeightKg: 0,
+	saleTotalWeightKg: 0,
+	customerCount: 0,
+	bottleFillWeightKg: 0,
+	localWeightKg: 0,
+	vehicleWeightKg: 0
+})
+const receivableSummary = reactive({
+	totalReceivable: 0,
+	totalReceived: 0,
+	gapAmount: 0,
+	collectionRate: null
+})
+const distributionLabels = ref(['缺失类', '连续类', '整车类', '其他'])
 
-const sparklinePoints = ref([0, 0, 0, 0, 0, 0, 0])
-const overviewBars = ref([0, 0, 0, 0, 0, 0])
-const barValues = ref([0, 0, 0])
-const currentUser = ref(getUser() || null)
+const dailyReportRows = ref([])
+const receivableRows = ref([])
+const barValues = ref([0, 0, 0, 0])
+const DAILY_REPORT_VISIBLE_DAYS = 5
 
-const overviewHeights = computed(() => {
-	const values = overviewBars.value.length ? overviewBars.value : [0, 0, 0, 0, 0, 0]
-	const max = Math.max(...values, 1)
-	return values.map((value) => Math.max(Math.round((Number(value) / max) * 100), 6))
+const dailyReportDisplayRows = computed(() => dailyReportRows.value.slice(0, DAILY_REPORT_VISIBLE_DAYS))
+const dailyReportBarValues = computed(() => dailyReportDisplayRows.value.map((row) => Number(row.saleWeightKg || 0)))
+const dailyReportDisplaySummary = computed(() => {
+	const summary = {
+		fillBottleCount: 0,
+		fillBottleWeightKg: 0,
+		localCount: 0,
+		localWeightKg: 0,
+		vehicleCount: 0,
+		vehicleWeightKg: 0,
+		saleCustomerCount: 0,
+		saleBottleCount: 0,
+		saleWeightKg: 0,
+		fillTotalWeightKg: 0
+	}
+	dailyReportDisplayRows.value.forEach((row) => {
+		summary.fillBottleCount += Number(row.fillBottleCount || 0)
+		summary.fillBottleWeightKg = fix2(summary.fillBottleWeightKg + Number(row.fillBottleWeightKg || 0))
+		summary.localCount += Number(row.localCount || 0)
+		summary.localWeightKg = fix2(summary.localWeightKg + Number(row.localWeightKg || 0))
+		summary.vehicleCount += Number(row.vehicleCount || 0)
+		summary.vehicleWeightKg = fix2(summary.vehicleWeightKg + Number(row.vehicleWeightKg || 0))
+		summary.saleCustomerCount += Number(row.saleCustomerCount || 0)
+		summary.saleBottleCount += Number(row.saleBottleCount || 0)
+		summary.saleWeightKg = fix2(summary.saleWeightKg + Number(row.saleWeightKg || 0))
+	})
+	summary.fillTotalWeightKg = fix2(summary.fillBottleWeightKg + summary.localWeightKg + summary.vehicleWeightKg)
+	return summary
 })
 
-const canViewOperationLog = computed(() => {
-	const role = normalizeRole(currentUser.value?.role)
-	return ['superadmin', 'admin', 'finance'].includes(role)
+const receivableChartRows = computed(() => {
+	const rows = receivableRows.value.length ? receivableRows.value : []
+	const max = Math.max(
+		...rows.map((row) => Math.max(Number(row.receivable || 0), Number(row.received || 0))),
+		1
+	)
+	return rows.map((row) => ({
+		date: row.date,
+		label: shortDateLabel(row.date),
+		receivableHeight: Number(row.receivable || 0) > 0 ? Math.max(Math.round((Number(row.receivable || 0) / max) * 100), 8) : 0,
+		receivedHeight: Number(row.received || 0) > 0 ? Math.max(Math.round((Number(row.received || 0) / max) * 100), 8) : 0
+	}))
 })
+
+const currentUsername = computed(() => String(currentUser.value?.username || '当前账号'))
+const currentRoleLabel = computed(() => {
+	const role = normalizeRoleTemplate(currentUser.value?.role_template || currentUser.value?.role || 'user')
+	if (role === 'superadmin') return '超级管理员'
+	if (role === 'admin') return '管理员'
+	if (role === 'finance') return '财务'
+	return '普通用户'
+})
+
+function canView(pagePath) {
+	return canViewPage(pagePath)
+}
+
+function canAction(pagePath, action) {
+	return canPageAction(pagePath, action)
+}
 
 function formatNumber(value) {
 	const num = Number(value)
 	if (!Number.isFinite(num)) return '-'
-	if (Math.abs(num) >= 10000) return `${Math.round(num / 100) / 10}w`
+	if (Math.abs(num) >= 10000) return `${(Math.round((num / 10000) * 10) / 10).toFixed(1)}w`
 	return Math.round(num).toString()
 }
 
-function normalizeRole(value) {
-	if (value == null) return ''
-	return String(value).trim().toLowerCase()
+function formatCompactAmount(value) {
+	const num = Number(value)
+	if (!Number.isFinite(num) || num === 0) return '¥0'
+	if (Math.abs(num) >= 10000) return `¥${(Math.round((num / 10000) * 10) / 10).toFixed(1)}w`
+	return `¥${Math.round(num)}`
+}
+
+function formatCompactWeight(value) {
+	const num = Number(value)
+	if (!Number.isFinite(num) || num === 0) return '0kg'
+	if (Math.abs(num) >= 1000) return `${(Math.round((num / 1000) * 10) / 10).toFixed(1)}吨`
+	return `${Math.round(num)}kg`
+}
+
+function formatPercent(value) {
+	const num = Number(value)
+	if (!Number.isFinite(num)) return '-'
+	return `${num.toFixed(1)}%`
+}
+
+function fix2(value) {
+	const num = Number(value || 0)
+	return Math.round(num * 100) / 100
+}
+
+function shortDateLabel(value) {
+	const text = String(value || '').trim()
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return text || '-'
+	return text.slice(5)
 }
 
 function applyDashboard(data) {
@@ -435,18 +614,39 @@ function applyDashboard(data) {
 	kpiDelta.sales = delta.sales || ''
 	kpiTrend.sales = delta.salesTrend || ''
 
-	const trend = data.trend || {}
-	if (Array.isArray(trend.week)) sparklinePoints.value = trend.week
+	const dailyReport = data.daily_report || {}
+	dailyReportRows.value = Array.isArray(dailyReport.rows)
+		? dailyReport.rows.map((row) => ({
+				date: String(row.date || ''),
+				fillBottleCount: Number(row.fill_bottle_count || 0),
+				fillBottleWeightKg: Number(row.fill_bottle_weight || 0),
+				localCount: Number(row.local_count || 0),
+				localWeightKg: Number(row.local_weight || 0),
+				vehicleCount: Number(row.vehicle_count || 0),
+				vehicleWeightKg: Number(row.vehicle_weight || 0),
+				saleCustomerCount: Number(row.sale_customer_count || 0),
+				saleBottleCount: Number(row.sale_bottle_count || 0),
+				saleWeightKg: Number(row.sale_weight || 0)
+			}))
+		: []
+	dailyReportSummary.fillTotalWeightKg = Number(dailyReport.fill_total_weight_kg || 0)
+	dailyReportSummary.saleTotalWeightKg = Number(dailyReport.sale_total_weight_kg || 0)
+	dailyReportSummary.customerCount = Number(dailyReport.customer_count || 0)
+	dailyReportSummary.bottleFillWeightKg = Number(dailyReport.channel_totals?.bottle || 0)
+	dailyReportSummary.localWeightKg = Number(dailyReport.channel_totals?.local || 0)
+	dailyReportSummary.vehicleWeightKg = Number(dailyReport.channel_totals?.vehicle || 0)
 
-	const overview = data.overview || {}
-	if (Array.isArray(overview.bars) && overview.bars.length) {
-		overviewBars.value = overview.bars
-	} else if (Array.isArray(trend.week)) {
-		overviewBars.value = trend.week.slice(-6)
-	}
+	const receivable = data.receivable || {}
+	receivableRows.value = Array.isArray(receivable.rows) ? receivable.rows : []
+	receivableSummary.totalReceivable = Number(receivable.total_receivable || 0)
+	receivableSummary.totalReceived = Number(receivable.total_received || 0)
+	receivableSummary.gapAmount = Number(receivable.gap_amount || 0)
+	receivableSummary.collectionRate =
+		receivable.collection_rate == null || receivable.collection_rate === '' ? null : Number(receivable.collection_rate)
 
 	const distribution = data.distribution || {}
 	if (Array.isArray(distribution.values)) barValues.value = distribution.values
+	if (Array.isArray(distribution.labels) && distribution.labels.length) distributionLabels.value = distribution.labels
 }
 
 useQuery(
@@ -462,12 +662,29 @@ useQuery(
 		immediate: true,
 		cacheTTL: 8000,
 		throttleMs: 300,
-		onSuccess: applyDashboard
+		onSuccess: applyDashboard,
+		onError(err) {
+			uni.showToast({ title: err?.message || '工作台数据加载失败', icon: 'none' })
+		}
 	}
 )
 
 function go(url) {
 	uni.navigateTo({ url })
+}
+
+async function onLogout() {
+	const confirmed = await new Promise((resolve) => {
+		uni.showModal({
+			title: '退出登录',
+			content: '确认退出当前账号吗？',
+			success: (res) => resolve(Boolean(res.confirm)),
+			fail: () => resolve(false)
+		})
+	})
+	if (!confirmed) return
+	clearAuth()
+	goLogin()
 }
 
 function formatInspectionDueCount(row) {
@@ -547,17 +764,13 @@ function goInspectionDue(module) {
 .brand__text {
 	display: flex;
 	flex-direction: column;
+	gap: 2px;
 }
 
 .brand__name {
 	font-size: 18px;
 	font-weight: 700;
 	color: #0f172a;
-}
-
-.brand__desc {
-	font-size: 12px;
-	color: #94a3b8;
 }
 
 .nav-group {
@@ -614,6 +827,14 @@ function goInspectionDue(module) {
 	gap: 4px;
 }
 
+.topbar-right {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
 .breadcrumb {
 	font-size: 12px;
 	color: #94a3b8;
@@ -625,57 +846,26 @@ function goInspectionDue(module) {
 	color: #0f172a;
 }
 
-.topbar-search {
-	flex: 1;
-	max-width: 360px;
-	background: #f1f5f9;
-	border-radius: 999px;
-	padding: 8px 14px;
+.session-chip {
 	display: flex;
-	align-items: center;
-	gap: 8px;
-	color: #64748b;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 2px;
+	padding: 6px 12px;
+	border-radius: 12px;
+	border: 1px solid #e2e8f0;
+	background: #f8fafc;
 }
 
-.topbar-search__input {
-	flex: 1;
-	font-size: 14px;
+.session-chip__name {
+	font-size: 13px;
+	font-weight: 600;
 	color: #0f172a;
 }
 
-.topbar-search__hint {
-	font-size: 12px;
-	color: #94a3b8;
-}
-
-.topbar-actions {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-}
-
-.topbar-icon {
-	width: 32px;
-	height: 32px;
-	border-radius: 10px;
-	background: #f1f5f9;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+.session-chip__role {
+	font-size: 11px;
 	color: #64748b;
-}
-
-.avatar {
-	width: 36px;
-	height: 36px;
-	border-radius: 50%;
-	background: #e2e8f0;
-	color: #1e293b;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 12px;
-	font-weight: 600;
 }
 
 /* 内容区 */
@@ -712,7 +902,7 @@ function goInspectionDue(module) {
 
 .overview-grid {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) 220px;
+	grid-template-columns: minmax(0, 1fr) 280px;
 	gap: 16px;
 }
 
@@ -740,38 +930,103 @@ function goInspectionDue(module) {
 	color: #0f172a;
 }
 
-.overview-tabs {
-	display: flex;
-	gap: 10px;
+.overview-meta {
 	font-size: 12px;
-}
-
-.overview-tab {
-	padding: 4px 8px;
-	border-radius: 999px;
 	color: #94a3b8;
-	background: #f1f5f9;
 }
 
-.overview-tab--active {
-	color: #1e293b;
-	background: #e0f2fe;
+.daily-report-scroll {
+	width: 100%;
+	display: flex;
+	justify-content: center;
 }
 
-.overview-chart {
-	display: grid;
-	grid-template-columns: repeat(6, 1fr);
-	align-items: end;
-	gap: 10px;
-	height: 120px;
-	padding: 8px 6px;
-	background: #f8fafc;
+.daily-report-table {
+	width: 100%;
+	min-width: 0;
+	border: 1px solid #e2e8f0;
 	border-radius: 14px;
+	overflow: hidden;
+	background: #f8fafc;
 }
 
-.overview-bar {
-	background: linear-gradient(180deg, rgba(37, 99, 235, 0.9), rgba(37, 99, 235, 0.4));
-	border-radius: 10px 10px 6px 6px;
+.daily-report-row {
+	display: grid;
+	grid-template-columns: 140px repeat(9, minmax(0, 1fr));
+}
+
+.daily-report-head {
+	background: #eff6ff;
+}
+
+.daily-report-row + .daily-report-row {
+	border-top: 1px solid #e2e8f0;
+}
+
+.daily-report-cell {
+	padding: 12px 10px;
+	font-size: 12px;
+	color: #334155;
+	text-align: center;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.daily-report-head .daily-report-cell {
+	font-weight: 700;
+	color: #0f172a;
+}
+
+.daily-report-cell--date {
+	text-align: left;
+	font-weight: 600;
+	color: #0f172a;
+}
+
+.shipment-legend {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px 12px;
+}
+
+.shipment-legend__item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.shipment-legend__dot {
+	width: 10px;
+	height: 10px;
+	border-radius: 999px;
+	flex: none;
+}
+
+.shipment-legend__dot--bottle {
+	background: #2563eb;
+}
+
+.shipment-legend__dot--local {
+	background: #0ea5e9;
+}
+
+.shipment-legend__dot--vehicle {
+	background: #10b981;
+}
+
+.shipment-legend__label {
+	flex: 1;
+	font-size: 12px;
+	color: #94a3b8;
+	white-space: nowrap;
+}
+
+.shipment-legend__value {
+	font-size: 12px;
+	font-weight: 600;
+	color: #0f172a;
+	white-space: nowrap;
 }
 
 .overview-aside {
@@ -791,24 +1046,79 @@ function goInspectionDue(module) {
 	color: #0f172a;
 }
 
-.overview-chips {
+.overview-summary {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px 12px;
+}
+
+.overview-summary__item {
 	display: flex;
-	flex-wrap: wrap;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 4px;
+	padding: 10px 12px;
+	border-radius: 14px;
+	background: #f8fafc;
+	border: 1px solid #eef2f7;
+	min-width: 0;
+}
+
+.overview-summary__item:last-child {
+	grid-column: 1 / -1;
+}
+
+.overview-summary__label {
+	font-size: 12px;
+	color: #94a3b8;
+}
+
+.overview-summary__value {
+	font-size: 15px;
+	font-weight: 600;
+	color: #0f172a;
+}
+
+.overview-mini-chart {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 12px;
+	border-radius: 16px;
+	background: linear-gradient(180deg, #f8fbff 0%, #f1f6ff 100%);
+	border: 1px solid #dbeafe;
+}
+
+.overview-mini-chart__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.overview-mini-chart__title {
+	font-size: 12px;
+	font-weight: 600;
+	color: #475569;
+}
+
+.overview-mini-chart__value {
+	font-size: 14px;
+	font-weight: 700;
+	color: #0f172a;
+}
+
+.overview-mini-chart__labels {
+	display: grid;
+	grid-template-columns: repeat(5, minmax(0, 1fr));
 	gap: 8px;
 }
 
-.overview-chip {
-	padding: 4px 10px;
-	border-radius: 999px;
-	font-size: 12px;
-	color: #2563eb;
-	background: rgba(37, 99, 235, 0.12);
-}
-
-.overview-aside__hint {
-	font-size: 12px;
+.overview-mini-chart__label {
+	font-size: 11px;
 	color: #94a3b8;
-	line-height: 1.4;
+	text-align: center;
+	white-space: nowrap;
 }
 
 /* 导航网格 */
@@ -901,6 +1211,98 @@ function goInspectionDue(module) {
 	font-size: 12px;
 	color: #94a3b8;
 	text-align: center;
+}
+
+.receivable-chart {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	align-items: end;
+	gap: 8px;
+	height: 150px;
+	padding: 8px 0 0;
+}
+
+.receivable-day {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+}
+
+.receivable-bars {
+	height: 104px;
+	width: 100%;
+	display: flex;
+	align-items: flex-end;
+	justify-content: center;
+	gap: 4px;
+}
+
+.receivable-bar {
+	width: 12px;
+	border-radius: 8px 8px 4px 4px;
+	min-height: 2px;
+}
+
+.receivable-bar--receivable {
+	background: linear-gradient(180deg, rgba(37, 99, 235, 0.92), rgba(96, 165, 250, 0.68));
+}
+
+.receivable-bar--received {
+	background: linear-gradient(180deg, rgba(245, 158, 11, 0.95), rgba(251, 191, 36, 0.72));
+}
+
+.receivable-label {
+	font-size: 11px;
+	color: #94a3b8;
+	white-space: nowrap;
+}
+
+.receivable-legend {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px 12px;
+}
+
+.receivable-legend__dot--receivable {
+	background: #2563eb;
+}
+
+.receivable-legend__dot--received {
+	background: #f59e0b;
+}
+
+.receivable-legend__dot--gap {
+	background: #64748b;
+}
+
+.receivable-legend__dot--rate {
+	background: #8b5cf6;
+}
+
+.mini-legend {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px 12px;
+	width: 100%;
+}
+
+.mini-legend__item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	font-size: 12px;
+	color: #64748b;
+}
+
+.mini-legend__label {
+	color: #94a3b8;
+}
+
+.mini-legend__value {
+	color: #0f172a;
+	font-weight: 600;
 }
 
 /* 右侧栏卡片 */
@@ -1009,8 +1411,19 @@ function goInspectionDue(module) {
 	.overview-grid {
 		grid-template-columns: 1fr;
 	}
-	.topbar-search {
-		display: none;
+	.daily-report-scroll {
+		display: block;
+		overflow-x: auto;
+	}
+	.daily-report-table {
+		min-width: 980px;
+	}
+	.topbar-right {
+		width: 100%;
+		justify-content: space-between;
+	}
+	.session-chip {
+		align-items: flex-start;
 	}
 }
 

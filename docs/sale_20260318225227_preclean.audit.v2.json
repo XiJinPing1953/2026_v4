@@ -1,0 +1,51 @@
+{
+  "generated_at": "2026-03-18T14:58:08.339Z",
+  "input": "docs/20260318225227_2bbf7d6e-a305-4a91-a88c-988dfca2d256.json",
+  "total_rows": 1686,
+  "pass_rows": 1684,
+  "blocked_rows": 2,
+  "mode_distribution": {
+    "bottle": 1640,
+    "agent_sale": 36,
+    "truck": 10
+  },
+  "boundary_checks": {
+    "invalid_biz_mode": 0,
+    "missing_customer": 2,
+    "truck_missing_truck_no": 0,
+    "truck_invalid_sale_net": 0,
+    "agent_missing_rows": 0,
+    "bottle_missing_evidence": 0,
+    "invalid_date": 0,
+    "non_iso_date": 0
+  },
+  "outputs": {
+    "pass": "docs/sale_20260318225227_preclean.pass.array.json",
+    "blocked": "docs/sale_20260318225227_preclean.blocked.array.json"
+  },
+  "preview": {
+    "blocked": [
+      {
+        "line": 22,
+        "reasons": [
+          "missing_customer"
+        ],
+        "_id": "695a2e1f0d2b3189a36d7236",
+        "date": "2026-01-01",
+        "biz_mode": "bottle",
+        "customer_name": "昊天干真空"
+      },
+      {
+        "line": 1063,
+        "reasons": [
+          "missing_customer"
+        ],
+        "_id": "6989537d7ae7089a62e82946",
+        "date": "2026-02-07",
+        "biz_mode": "truck",
+        "customer_name": "四公"
+      }
+    ],
+    "non_iso_date": []
+  }
+}

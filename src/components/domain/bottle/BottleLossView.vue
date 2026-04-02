@@ -1,19 +1,68 @@
 <template>
 	<AppPage title="理论损耗统计" subtitle="按 回瓶 + 灌装 - 出瓶 计算" icon="chart">
 		<template #headerActions>
+			<AppButton v-if="activeSummaryFilter" size="sm" kind="ghost" :disabled="loading" @click="clearSummaryFilter">清除卡片筛选</AppButton>
+			<AppButton size="sm" kind="neutral" icon="document" :disabled="loading || exporting" @click="onExport">导出</AppButton>
 			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch(false)">刷新</AppButton>
 		</template>
 
 		<template #highlights>
 			<view class="summary-row">
-				<AppStatCard class="summary-card" label="总损耗" :value="summary.loss_total_kg" hint="kg" icon="alert" />
-				<AppStatCard class="summary-card" label="总胀重" :value="summary.swell_total_kg" hint="kg" icon="plus" />
-				<AppStatCard class="summary-card" label="完整周期" :value="summary.cycle_count" hint="轮" icon="list" />
-				<AppStatCard class="summary-card" label="链路不完整" :value="summary.incomplete_count" hint="条" icon="bottle" />
+				<AppStatCard
+					:class="['summary-card', { 'summary-card--active': isSummaryFilterActive(SUMMARY_FILTER_KEYS.CYCLE_LOSS) }]"
+					label="总损耗"
+					:value="formatKg(totalLossKg)"
+					hint="kg"
+					icon="alert"
+					@click="onSummaryCardFilter(SUMMARY_FILTER_KEYS.CYCLE_LOSS)"
+				/>
+				<AppStatCard
+					:class="['summary-card', { 'summary-card--active': isSummaryFilterActive(SUMMARY_FILTER_KEYS.CYCLE_SWELL) }]"
+					label="总胀重"
+					:value="formatKg(totalSwellKg)"
+					hint="kg"
+					icon="plus"
+					@click="onSummaryCardFilter(SUMMARY_FILTER_KEYS.CYCLE_SWELL)"
+				/>
+				<AppStatCard
+					:class="['summary-card', { 'summary-card--active': isSummaryFilterActive(SUMMARY_FILTER_KEYS.CYCLE_ALL) }]"
+					label="完整周期"
+					:value="summary.cycle_count"
+					hint="轮"
+					icon="list"
+					@click="onSummaryCardFilter(SUMMARY_FILTER_KEYS.CYCLE_ALL)"
+				/>
+				<AppStatCard
+					:class="['summary-card', { 'summary-card--active': isSummaryFilterActive(SUMMARY_FILTER_KEYS.INCOMPLETE) }]"
+					label="链路不完整"
+					:value="summary.incomplete_count"
+					hint="条"
+					icon="bottle"
+					@click="onSummaryCardFilter(SUMMARY_FILTER_KEYS.INCOMPLETE)"
+				/>
+				<AppStatCard
+					:class="['summary-card', { 'summary-card--active': isSummaryFilterActive(SUMMARY_FILTER_KEYS.MANUAL_LOSS) }]"
+					label="修复损耗"
+					:value="formatKg(manualLoss.summary.total_loss_kg)"
+					hint="kg"
+					icon="alert"
+					@click="onSummaryCardFilter(SUMMARY_FILTER_KEYS.MANUAL_LOSS)"
+				/>
+				<AppStatCard
+					:class="['summary-card', { 'summary-card--active': isSummaryFilterActive(SUMMARY_FILTER_KEYS.MANUAL_SWELL) }]"
+					label="修复胀重"
+					:value="formatKg(manualLoss.summary.total_swell_kg)"
+					hint="kg"
+					icon="plus"
+					@click="onSummaryCardFilter(SUMMARY_FILTER_KEYS.MANUAL_SWELL)"
+				/>
 			</view>
 		</template>
 
 		<view class="view-body">
+			<view class="quick-date-strip">
+				<AppDatePresetBar v-model="datePreset" @update:modelValue="onDatePresetChange" />
+			</view>
 			<AppSection title="筛选条件">
 				<template #actions>
 					<AppButton kind="ghost" size="sm" @click="onReset">重置</AppButton>
@@ -21,18 +70,19 @@
 				</template>
 				<view class="filter-grid">
 					<AppInput v-model="filters.bottle_no" label="瓶号" placeholder="输入瓶号" prefix-icon="search" size="sm" />
-					<picker class="picker-block" mode="date" @change="(e) => (filters.dateStart = e.detail.value)">
+					<AppInput v-model="filters.customer_name" label="客户名称" placeholder="输入客户名称" prefix-icon="search" size="sm" />
+					<picker class="picker-block" mode="date" @change="onDateStartChange">
 						<AppInput :model-value="filters.dateStart" label="开始日期" placeholder="选择开始日期" prefix-icon="calendar" readonly size="sm" />
 					</picker>
-					<picker class="picker-block" mode="date" @change="(e) => (filters.dateEnd = e.detail.value)">
+					<picker class="picker-block" mode="date" @change="onDateEndChange">
 						<AppInput :model-value="filters.dateEnd" label="结束日期" placeholder="选择结束日期" prefix-icon="calendar" readonly size="sm" />
 					</picker>
 				</view>
 			</AppSection>
 
-			<AppSection title="周期明细">
+			<AppSection v-if="showCycleSection" :title="cycleSectionTitle">
 				<template #actions>
-					<text class="section-hint">共 {{ pager.total }} 条 · 第 {{ pager.page }} / {{ totalPages }} 页</text>
+					<text class="section-hint">{{ cycleScopeHint }} · 共 {{ pager.total }} 条 · 第 {{ pager.page }} / {{ totalPages }} 页</text>
 				</template>
 				<AppList :loading="loading" :empty="list.length === 0" :empty-title="mainEmptyTitle">
 					<AppListItem
@@ -61,7 +111,27 @@
 				</view>
 			</AppSection>
 
-			<AppSection title="链路不完整预览">
+				<AppSection v-if="showManualSection" :title="manualSectionTitle">
+				<template #actions>
+					<text class="section-hint">
+						{{ manualScopeHint }}
+					</text>
+				</template>
+					<AppList :loading="loading" :empty="manualLoss.list.length === 0" :empty-title="searched ? '暂无修复差值记录' : '查询后可查看修复差值明细'">
+						<AppListItem
+							v-for="(item, index) in manualLoss.list"
+							:key="item._id || `${item.event_day || '-'}:${item.bottle_no || '-'}:${index}`"
+							:title="`${item.event_day || '-'} · 瓶号 ${item.bottle_no || '-'}`"
+							:subtitle="item.note || '缺灌装修复差值'"
+							:status="buildManualAdjustLabel(item)"
+							:status-kind="buildManualAdjustKind(item)"
+							icon="alert"
+							:icon-class="buildManualAdjustIconClass(item)"
+						/>
+					</AppList>
+				</AppSection>
+
+			<AppSection v-if="showIncompleteSection" title="链路不完整预览">
 				<template #actions>
 					<text class="section-hint">共 {{ summary.incomplete_count }} 条（预览 {{ incompletePreview.length }} 条）</text>
 				</template>
@@ -96,13 +166,25 @@ import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppTag from '@/components/base/AppTag.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
-import { getBottleCycleLossV1 } from '@/services/bottleMovement'
+import AppDatePresetBar from '@/components/base/AppDatePresetBar.vue'
+import { getBottleCycleLossV1, getBottleLossStatsV1 } from '@/services/bottleMovement'
+import { buildDatePresetRange, detectDatePreset } from '@/utils/datePreset'
 
 const PAGE_SIZE = 50
+const SUMMARY_FILTER_KEYS = {
+	CYCLE_ALL: 'cycle_all',
+	CYCLE_LOSS: 'cycle_loss',
+	CYCLE_SWELL: 'cycle_swell',
+	INCOMPLETE: 'incomplete',
+	MANUAL_LOSS: 'manual_loss',
+	MANUAL_SWELL: 'manual_swell'
+}
 const loading = ref(false)
+const exporting = ref(false)
 const list = ref([])
 const incompletePreview = ref([])
 const searched = ref(false)
+const activeSummaryFilter = ref('')
 const summary = ref({
 	cycle_count: 0,
 	loss_count: 0,
@@ -110,7 +192,23 @@ const summary = ref({
 	swell_count: 0,
 	swell_total_kg: 0,
 	exact_count: 0,
+	bottle_count: 0,
+	scanned_event_count: 0,
+	scope_mode: 'single',
 	incomplete_count: 0
+})
+const manualLoss = ref({
+	summary: {
+		total_loss_kg: 0,
+		total_swell_kg: 0,
+		loss_record_count: 0,
+		swell_record_count: 0,
+		record_count: 0,
+		bottle_count: 0,
+		daily: []
+	},
+	list: [],
+	total: 0
 })
 const pager = reactive({
 	page: 1,
@@ -121,17 +219,78 @@ const pager = reactive({
 
 const filters = reactive({
 	bottle_no: '',
+	customer_name: '',
 	dateStart: '',
 	dateEnd: ''
 })
+const datePreset = ref('custom')
 
 const totalPages = computed(() => {
 	const pages = Math.ceil(Number(pager.total || 0) / Number(pager.pageSize || PAGE_SIZE))
 	return pages > 0 ? pages : 1
 })
 
+const totalLossKg = computed(() => round2(Number(summary.value?.loss_total_kg || 0) + Number(manualLoss.value?.summary?.total_loss_kg || 0)))
+const totalSwellKg = computed(() => round2(Number(summary.value?.swell_total_kg || 0) + Number(manualLoss.value?.summary?.total_swell_kg || 0)))
+const cycleResultTypeFilter = computed(() => {
+	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.CYCLE_LOSS) return 'loss'
+	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.CYCLE_SWELL) return 'swell'
+	return ''
+})
+const manualResultTypeFilter = computed(() => {
+	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.MANUAL_LOSS) return 'loss'
+	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.MANUAL_SWELL) return 'swell'
+	return ''
+})
+const showCycleSection = computed(() =>
+	['', SUMMARY_FILTER_KEYS.CYCLE_ALL, SUMMARY_FILTER_KEYS.CYCLE_LOSS, SUMMARY_FILTER_KEYS.CYCLE_SWELL].includes(activeSummaryFilter.value)
+)
+const showManualSection = computed(() =>
+	['', SUMMARY_FILTER_KEYS.MANUAL_LOSS, SUMMARY_FILTER_KEYS.MANUAL_SWELL].includes(activeSummaryFilter.value)
+)
+const showIncompleteSection = computed(() => ['', SUMMARY_FILTER_KEYS.INCOMPLETE].includes(activeSummaryFilter.value))
+
+const scopeHint = computed(() => {
+	const scopeMode = String(summary.value?.scope_mode || '').trim().toLowerCase()
+	const bottleCount = Number(summary.value?.bottle_count || 0)
+	if (scopeMode === 'single' && String(filters.bottle_no || '').trim()) return '单瓶口径'
+	if (scopeMode === 'global') return `全局口径（${bottleCount} 瓶）`
+	return '全局口径'
+})
+
+const cycleSectionTitle = computed(() => {
+	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.CYCLE_LOSS) return '损耗周期明细'
+	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.CYCLE_SWELL) return '胀重周期明细'
+	return '周期明细'
+})
+
+const cycleScopeHint = computed(() => {
+	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.CYCLE_LOSS) return `${scopeHint.value} · 已筛选损耗周期`
+	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.CYCLE_SWELL) return `${scopeHint.value} · 已筛选胀重周期`
+	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.CYCLE_ALL) return `${scopeHint.value} · 已筛选完整周期`
+	return scopeHint.value
+})
+
+const manualSectionTitle = computed(() => {
+	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.MANUAL_LOSS) return '修复损耗明细'
+	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.MANUAL_SWELL) return '修复胀重明细'
+	return '异常修复差值明细'
+})
+
+const manualScopeHint = computed(() => {
+	const label =
+		activeSummaryFilter.value === SUMMARY_FILTER_KEYS.MANUAL_LOSS
+			? '已筛选修复损耗'
+			: activeSummaryFilter.value === SUMMARY_FILTER_KEYS.MANUAL_SWELL
+				? '已筛选修复胀重'
+				: ''
+	return `${label ? `${label} · ` : ''}共 ${manualLoss.value.total} 条 · 涉及 ${manualLoss.value.summary.bottle_count || 0} 瓶`
+})
+
 const mainEmptyTitle = computed(() => {
-	if (!searched.value) return '请输入瓶号并点击查询'
+	if (!searched.value) return '点击查询查看损耗统计'
+	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.CYCLE_LOSS) return '暂无损耗周期'
+	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.CYCLE_SWELL) return '暂无胀重周期'
 	return '暂无周期明细'
 })
 
@@ -141,8 +300,237 @@ function round2(value) {
 	return Math.round(num * 100) / 100
 }
 
+function normalizeString(value) {
+	return value == null ? '' : String(value).trim()
+}
+
 function formatKg(value) {
 	return `${round2(value)}`
+}
+
+function formatExportNumber(value) {
+	const num = Number(value)
+	if (!Number.isFinite(num)) return ''
+	if (Number.isInteger(num)) return String(num)
+	return num.toFixed(6).replace(/\.?0+$/, '')
+}
+
+function toCsvCell(value) {
+	const text = value == null ? '' : String(value)
+	if (text.includes('"') || text.includes(',') || text.includes('\n')) return `"${text.replace(/"/g, '""')}"`
+	return text
+}
+
+function formatExportTimestamp(date = new Date()) {
+	const y = date.getFullYear()
+	const m = String(date.getMonth() + 1).padStart(2, '0')
+	const d = String(date.getDate()).padStart(2, '0')
+	const hh = String(date.getHours()).padStart(2, '0')
+	const mm = String(date.getMinutes()).padStart(2, '0')
+	const ss = String(date.getSeconds()).padStart(2, '0')
+	return `${y}${m}${d}_${hh}${mm}${ss}`
+}
+
+function formatDateCompact(value) {
+	return normalizeString(value).replace(/-/g, '')
+}
+
+function normalizeFileNamePart(value, fallback = '全部') {
+	const text = normalizeString(value)
+	if (!text) return fallback
+	return text.replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, '').slice(0, 24) || fallback
+}
+
+function buildLossExportFileName(total) {
+	const scopePart =
+		activeSummaryFilter.value === SUMMARY_FILTER_KEYS.CYCLE_LOSS
+			? '损耗周期'
+			: activeSummaryFilter.value === SUMMARY_FILTER_KEYS.CYCLE_SWELL
+				? '胀重周期'
+				: activeSummaryFilter.value === SUMMARY_FILTER_KEYS.CYCLE_ALL
+					? '完整周期'
+					: activeSummaryFilter.value === SUMMARY_FILTER_KEYS.MANUAL_LOSS
+						? '修复损耗'
+						: activeSummaryFilter.value === SUMMARY_FILTER_KEYS.MANUAL_SWELL
+							? '修复胀重'
+							: activeSummaryFilter.value === SUMMARY_FILTER_KEYS.INCOMPLETE
+								? '链路不完整'
+								: '全部'
+	const start = normalizeString(filters.dateStart)
+	const end = normalizeString(filters.dateEnd)
+	let datePart = '日期-全部'
+	if (start && end) datePart = `日期-${formatDateCompact(start)}_${formatDateCompact(end)}`
+	else if (start) datePart = `日期-${formatDateCompact(start)}_今`
+	else if (end) datePart = `日期-起_${formatDateCompact(end)}`
+	const bottlePart = `瓶号-${normalizeFileNamePart(filters.bottle_no, '全部')}`
+	const customerPart = `客户-${normalizeFileNamePart(filters.customer_name, '全部')}`
+	return `理论损耗_${scopePart}_${datePart}_${bottlePart}_${customerPart}_${total}条_${formatExportTimestamp()}.xls`
+}
+
+function buildLossSummaryRows(rows = []) {
+	const summaryMap = new Map()
+	for (const row of rows) {
+		const customerName = normalizeString(row?.customer_name) || '未填写'
+		if (!summaryMap.has(customerName)) {
+			summaryMap.set(customerName, {
+				customer_name: customerName,
+				cycle_loss_kg: 0,
+				cycle_swell_kg: 0,
+				manual_loss_kg: 0,
+				manual_swell_kg: 0,
+				incomplete_count: 0,
+				row_count: 0,
+				bottle_nos: new Set()
+			})
+		}
+		const target = summaryMap.get(customerName)
+		target.row_count += 1
+		const bottleNo = normalizeString(row?.bottle_no)
+		if (bottleNo) target.bottle_nos.add(bottleNo)
+		if (row?.category === '链路不完整') {
+			target.incomplete_count += 1
+			continue
+		}
+		const delta = Number(row?.delta_kg)
+		if (!Number.isFinite(delta) || delta === 0) continue
+		if (row?.category === '修复差值') {
+			if (delta > 0) target.manual_loss_kg += delta
+			else target.manual_swell_kg += Math.abs(delta)
+			continue
+		}
+		if (delta > 0) target.cycle_loss_kg += delta
+		else target.cycle_swell_kg += Math.abs(delta)
+	}
+	return Array.from(summaryMap.values())
+		.map((row) => ({
+			...row,
+			cycle_loss_kg: round2(row.cycle_loss_kg),
+			cycle_swell_kg: round2(row.cycle_swell_kg),
+			manual_loss_kg: round2(row.manual_loss_kg),
+			manual_swell_kg: round2(row.manual_swell_kg),
+			bottle_count: row.bottle_nos.size
+		}))
+		.sort((a, b) => {
+			const aScore = a.cycle_loss_kg + a.manual_loss_kg + a.incomplete_count * 0.001
+			const bScore = b.cycle_loss_kg + b.manual_loss_kg + b.incomplete_count * 0.001
+			if (bScore !== aScore) return bScore - aScore
+			return a.customer_name.localeCompare(b.customer_name)
+		})
+}
+
+function escapeXml(value) {
+	return String(value ?? '')
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&apos;')
+}
+
+function sanitizeSheetName(value) {
+	const text = normalizeString(value).replace(/[:\\/?*\[\]]/g, ' ').replace(/\s+/g, ' ').trim()
+	return (text || '未填写').slice(0, 31)
+}
+
+function ensureUniqueSheetName(name, used) {
+	const base = sanitizeSheetName(name) || 'Sheet'
+	let candidate = base
+	let index = 1
+	while (used.has(candidate)) {
+		const suffix = `_${index}`
+		candidate = `${base.slice(0, Math.max(31 - suffix.length, 1))}${suffix}`
+		index += 1
+	}
+	used.add(candidate)
+	return candidate
+}
+
+function buildWorksheetXml(name, columns, rows) {
+	const headerXml = `<Row>${columns.map((col) => `<Cell><Data ss:Type="String">${escapeXml(col.label)}</Data></Cell>`).join('')}</Row>`
+	const rowXml = rows
+		.map((row) => {
+			const cells = columns.map((col) => {
+				const raw = col.get(row)
+				const num = typeof raw === 'number' ? raw : Number(raw)
+				if (raw != null && raw !== '' && Number.isFinite(num) && String(raw).trim() === String(num)) {
+					return `<Cell><Data ss:Type="Number">${num}</Data></Cell>`
+				}
+				return `<Cell><Data ss:Type="String">${escapeXml(raw == null ? '' : raw)}</Data></Cell>`
+			})
+			return `<Row>${cells.join('')}</Row>`
+		})
+		.join('')
+	return `<Worksheet ss:Name="${escapeXml(name)}"><Table>${headerXml}${rowXml}</Table></Worksheet>`
+}
+
+function buildLossWorkbookXml(rows = []) {
+	const summaryColumns = [
+		{ label: '客户名称', get: (row) => normalizeString(row.customer_name) },
+		{ label: '周期损耗(kg)', get: (row) => formatExportNumber(row.cycle_loss_kg) },
+		{ label: '周期胀重(kg)', get: (row) => formatExportNumber(row.cycle_swell_kg) },
+		{ label: '修复损耗(kg)', get: (row) => formatExportNumber(row.manual_loss_kg) },
+		{ label: '修复胀重(kg)', get: (row) => formatExportNumber(row.manual_swell_kg) },
+		{ label: '链路不完整(条)', get: (row) => formatExportNumber(row.incomplete_count) },
+		{ label: '明细条数', get: (row) => formatExportNumber(row.row_count) },
+		{ label: '涉及瓶数', get: (row) => formatExportNumber(row.bottle_count) }
+	]
+	const detailColumns = [
+		{ label: '类别', get: (row) => normalizeString(row.category) },
+		{ label: '结果', get: (row) => normalizeString(row.result_label) },
+		{ label: '日期', get: (row) => normalizeString(row.day) },
+		{ label: '瓶号', get: (row) => normalizeString(row.bottle_no) },
+		{ label: '客户名称', get: (row) => normalizeString(row.customer_name) },
+		{ label: '回瓶日期', get: (row) => normalizeString(row.back_date) },
+		{ label: '回瓶净重(kg)', get: (row) => formatExportNumber(row.back_net_kg) },
+		{ label: '灌装次数', get: (row) => formatExportNumber(row.fill_count) },
+		{ label: '灌装总重(kg)', get: (row) => formatExportNumber(row.fill_sum_kg) },
+		{ label: '理论出重(kg)', get: (row) => formatExportNumber(row.theoretical_out_kg) },
+		{ label: '出瓶日期', get: (row) => normalizeString(row.out_date) },
+		{ label: '实际出瓶(kg)', get: (row) => formatExportNumber(row.out_net_kg) },
+		{ label: '差值(kg)', get: (row) => formatExportNumber(row.delta_kg) },
+		{ label: '详情', get: (row) => normalizeString(row.detail) },
+		{ label: '来源ID', get: (row) => normalizeString(row.source_id) }
+	]
+	const summaryRows = buildLossSummaryRows(rows)
+	const rowsByCustomer = new Map()
+	for (const row of rows) {
+		const customerName = normalizeString(row?.customer_name) || '未填写'
+		if (!rowsByCustomer.has(customerName)) rowsByCustomer.set(customerName, [])
+		rowsByCustomer.get(customerName).push(row)
+	}
+	const usedSheetNames = new Set()
+	const sheets = [buildWorksheetXml(ensureUniqueSheetName('客户汇总', usedSheetNames), summaryColumns, summaryRows)]
+	for (const summaryRow of summaryRows) {
+		const customerName = normalizeString(summaryRow.customer_name) || '未填写'
+		const customerRows = rowsByCustomer.get(customerName) || []
+		sheets.push(buildWorksheetXml(ensureUniqueSheetName(customerName, usedSheetNames), detailColumns, customerRows))
+	}
+	return [
+		'<?xml version="1.0"?>',
+		'<?mso-application progid="Excel.Sheet"?>',
+		'<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"',
+		' xmlns:o="urn:schemas-microsoft-com:office:office"',
+		' xmlns:x="urn:schemas-microsoft-com:office:excel"',
+		' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"',
+		' xmlns:html="http://www.w3.org/TR/REC-html40">',
+		sheets.join(''),
+		'</Workbook>'
+	].join('')
+}
+
+function downloadWorkbookOnH5(workbookText, fileName) {
+	if (typeof window === 'undefined' || typeof document === 'undefined' || typeof Blob === 'undefined') return false
+	const blob = new Blob([`\uFEFF${workbookText}`], { type: 'application/vnd.ms-excel;charset=utf-8;' })
+	const url = window.URL.createObjectURL(blob)
+	const anchor = document.createElement('a')
+	anchor.href = url
+	anchor.download = fileName
+	anchor.style.display = 'none'
+	document.body.appendChild(anchor)
+	anchor.click()
+	document.body.removeChild(anchor)
+	window.URL.revokeObjectURL(url)
+	return true
 }
 
 function buildResultLabel(type) {
@@ -190,6 +578,20 @@ function buildIncompleteLabel(reason) {
 	return reason || '链路不完整'
 }
 
+function buildManualAdjustLabel(item) {
+	const weight = Math.abs(round2(item?.loss_weight))
+	if (item?.result_type === 'swell') return `胀重 ${formatKg(weight)} kg`
+	return `损耗 ${formatKg(weight)} kg`
+}
+
+function buildManualAdjustKind(item) {
+	return item?.result_type === 'swell' ? 'warning' : 'danger'
+}
+
+function buildManualAdjustIconClass(item) {
+	return item?.result_type === 'swell' ? 'bg-warning' : 'bg-danger'
+}
+
 function resetResultState() {
 	list.value = []
 	incompletePreview.value = []
@@ -200,7 +602,23 @@ function resetResultState() {
 		swell_count: 0,
 		swell_total_kg: 0,
 		exact_count: 0,
+		bottle_count: 0,
+		scanned_event_count: 0,
+		scope_mode: 'single',
 		incomplete_count: 0
+	}
+	manualLoss.value = {
+		summary: {
+			total_loss_kg: 0,
+			total_swell_kg: 0,
+			loss_record_count: 0,
+			swell_record_count: 0,
+			record_count: 0,
+			bottle_count: 0,
+			daily: []
+		},
+		list: [],
+		total: 0
 	}
 	pager.page = 1
 	pager.pageSize = PAGE_SIZE
@@ -211,19 +629,34 @@ function resetResultState() {
 async function fetchList() {
 	loading.value = true
 	try {
-		const res = await getBottleCycleLossV1({
-			bottle_no: filters.bottle_no,
-			dateStart: filters.dateStart,
-			dateEnd: filters.dateEnd,
-			page: pager.page,
-			pageSize: pager.pageSize
-		})
-		if (res?.code !== 0) {
-			uni.showToast({ title: res?.msg || '查询失败', icon: 'none' })
+		const [cycleRes, manualRes] = await Promise.all([
+			getBottleCycleLossV1({
+				bottle_no: filters.bottle_no,
+				customer_name: filters.customer_name,
+				dateStart: filters.dateStart,
+				dateEnd: filters.dateEnd,
+				resultType: cycleResultTypeFilter.value,
+				page: pager.page,
+				pageSize: pager.pageSize
+			}),
+			getBottleLossStatsV1({
+				bottle_no: filters.bottle_no,
+				customer_name: filters.customer_name,
+				dateStart: filters.dateStart,
+				dateEnd: filters.dateEnd,
+				resultType: manualResultTypeFilter.value,
+				page: 1,
+				pageSize: 50
+			})
+		])
+
+		if (cycleRes?.code !== 0) {
+			uni.showToast({ title: cycleRes?.msg || '查询失败', icon: 'none' })
 			resetResultState()
 			return
 		}
-		const payload = res.data || {}
+
+		const payload = cycleRes.data || {}
 		list.value = Array.isArray(payload.list) ? payload.list : []
 		incompletePreview.value = Array.isArray(payload.incomplete_preview) ? payload.incomplete_preview : []
 		summary.value = payload.summary || {
@@ -233,6 +666,9 @@ async function fetchList() {
 			swell_count: 0,
 			swell_total_kg: 0,
 			exact_count: 0,
+			bottle_count: 0,
+			scanned_event_count: 0,
+			scope_mode: 'single',
 			incomplete_count: 0
 		}
 		const paging = payload.paging || {}
@@ -240,6 +676,37 @@ async function fetchList() {
 		pager.pageSize = Number(paging.pageSize || pager.pageSize || PAGE_SIZE)
 		pager.total = Number(paging.total || 0)
 		pager.hasMore = Boolean(paging.hasMore)
+
+		if (manualRes?.code === 0) {
+			const manualPayload = manualRes.data || {}
+				manualLoss.value = {
+					summary: manualPayload.summary || {
+						total_loss_kg: 0,
+						total_swell_kg: 0,
+						loss_record_count: 0,
+						swell_record_count: 0,
+						record_count: 0,
+						bottle_count: 0,
+						daily: []
+				},
+				list: Array.isArray(manualPayload.list) ? manualPayload.list : [],
+				total: Number(manualPayload.total || 0)
+			}
+		} else {
+				manualLoss.value = {
+					summary: {
+						total_loss_kg: 0,
+						total_swell_kg: 0,
+						loss_record_count: 0,
+						swell_record_count: 0,
+						record_count: 0,
+						bottle_count: 0,
+						daily: []
+				},
+				list: [],
+				total: 0
+			}
+		}
 	} finally {
 		loading.value = false
 	}
@@ -248,12 +715,22 @@ async function fetchList() {
 async function onSearch(resetPage = false) {
 	searched.value = true
 	if (resetPage) pager.page = 1
-	if (!String(filters.bottle_no || '').trim()) {
-		uni.showToast({ title: '请输入瓶号', icon: 'none' })
-		resetResultState()
-		return
-	}
 	await fetchList()
+}
+
+function isSummaryFilterActive(key) {
+	return activeSummaryFilter.value === key
+}
+
+async function onSummaryCardFilter(key) {
+	activeSummaryFilter.value = activeSummaryFilter.value === key ? '' : key
+	await onSearch(true)
+}
+
+async function clearSummaryFilter() {
+	if (!activeSummaryFilter.value) return
+	activeSummaryFilter.value = ''
+	await onSearch(true)
 }
 
 async function onPrevPage() {
@@ -268,12 +745,215 @@ async function onNextPage() {
 	await onSearch(false)
 }
 
+async function onDatePresetChange(value) {
+	datePreset.value = value
+	if (value === 'custom') return
+	const range = buildDatePresetRange(value, new Date())
+	filters.dateStart = range.dateStart
+	filters.dateEnd = range.dateEnd
+	await onSearch(true)
+}
+
+function syncDatePreset() {
+	datePreset.value = detectDatePreset(filters.dateStart, filters.dateEnd, new Date())
+}
+
+function onDateStartChange(e) {
+	filters.dateStart = e?.detail?.value || ''
+	syncDatePreset()
+}
+
+function onDateEndChange(e) {
+	filters.dateEnd = e?.detail?.value || ''
+	syncDatePreset()
+}
+
 function onReset() {
 	filters.bottle_no = ''
+	filters.customer_name = ''
 	filters.dateStart = ''
 	filters.dateEnd = ''
+	datePreset.value = 'custom'
+	activeSummaryFilter.value = ''
 	searched.value = false
 	resetResultState()
+}
+
+async function fetchAllCycleRowsForExport() {
+	const allRows = []
+	const pageSize = 200
+	let page = 1
+	let hasMore = true
+	let incompleteList = []
+	let guard = 0
+	while (hasMore) {
+		guard += 1
+		if (guard > 500) throw new Error('导出分页异常，请缩小筛选后重试')
+		const res = await getBottleCycleLossV1({
+			bottle_no: filters.bottle_no,
+			customer_name: filters.customer_name,
+			dateStart: filters.dateStart,
+			dateEnd: filters.dateEnd,
+			resultType: cycleResultTypeFilter.value,
+			page,
+			pageSize,
+			includeIncompleteList: page === 1
+		})
+		if (res?.code !== 0) throw new Error(res?.msg || '导出查询失败')
+		const payload = res.data || {}
+		const rows = Array.isArray(payload.list) ? payload.list : []
+		allRows.push(...rows)
+		if (page === 1) incompleteList = Array.isArray(payload.incomplete_list) ? payload.incomplete_list : []
+		const paging = payload.paging || {}
+		const total = Number(paging.total || allRows.length)
+		hasMore = Boolean(paging.hasMore) || page * pageSize < total
+		page += 1
+	}
+	return { cycleRows: allRows, incompleteList }
+}
+
+async function fetchAllManualRowsForExport() {
+	const allRows = []
+	const pageSize = 200
+	let page = 1
+	let hasMore = true
+	let guard = 0
+	while (hasMore) {
+		guard += 1
+		if (guard > 500) throw new Error('导出分页异常，请缩小筛选后重试')
+		const res = await getBottleLossStatsV1({
+			bottle_no: filters.bottle_no,
+			customer_name: filters.customer_name,
+			dateStart: filters.dateStart,
+			dateEnd: filters.dateEnd,
+			resultType: manualResultTypeFilter.value,
+			page,
+			pageSize
+		})
+		if (res?.code !== 0) throw new Error(res?.msg || '导出查询失败')
+		const payload = res.data || {}
+		const rows = Array.isArray(payload.list) ? payload.list : []
+		allRows.push(...rows)
+		const total = Number(payload.total || allRows.length)
+		hasMore = page * pageSize < total
+		page += 1
+	}
+	return allRows
+}
+
+function buildCycleExportRows(rows = []) {
+	return rows.map((row) => ({
+		category: '周期',
+		result_label: buildResultLabel(row?.result_type),
+		day: normalizeString(row?.out_date || row?.out_day),
+		bottle_no: normalizeString(row?.bottle_no),
+		customer_name: normalizeString(row?.out_customer_name),
+		back_date: normalizeString(row?.back_date),
+		back_net_kg: row?.back_net_kg,
+		fill_count: row?.fill_count,
+		fill_sum_kg: row?.fill_sum_kg,
+		theoretical_out_kg: row?.theoretical_out_kg,
+		out_date: normalizeString(row?.out_date),
+		out_net_kg: row?.out_net_kg,
+		delta_kg: row?.delta_kg,
+		detail: buildCycleSubtitle(row),
+		source_id: normalizeString(row?.source_out_id)
+	}))
+}
+
+function buildManualExportRows(rows = []) {
+	return rows.map((row) => ({
+		category: '修复差值',
+		result_label: row?.result_type === 'swell' ? '胀重' : '损耗',
+		day: normalizeString(row?.event_day),
+		bottle_no: normalizeString(row?.bottle_no),
+		customer_name: normalizeString(row?.customer_name),
+		back_date: '',
+		back_net_kg: '',
+		fill_count: '',
+		fill_sum_kg: '',
+		theoretical_out_kg: '',
+		out_date: '',
+		out_net_kg: '',
+		delta_kg: row?.loss_weight,
+		detail: normalizeString(row?.note || row?.adjust_reason || '缺灌装修复差值'),
+		source_id: normalizeString(row?._id)
+	}))
+}
+
+function buildIncompleteExportRows(rows = []) {
+	return rows.map((row) => ({
+		category: '链路不完整',
+		result_label: buildIncompleteLabel(row?.reason),
+		day: normalizeString(row?.event_day),
+		bottle_no: normalizeString(row?.bottle_no),
+		customer_name: normalizeString(row?.customer_name),
+		back_date: '',
+		back_net_kg: '',
+		fill_count: '',
+		fill_sum_kg: '',
+		theoretical_out_kg: '',
+		out_date: normalizeString(row?.event_date),
+		out_net_kg: '',
+		delta_kg: '',
+		detail: normalizeString(row?.detail),
+		source_id: normalizeString(row?.source_id)
+	}))
+}
+
+function sortExportRows(rows = []) {
+	return [...rows].sort((a, b) => {
+		const customerDiff = normalizeString(a.customer_name).localeCompare(normalizeString(b.customer_name))
+		if (customerDiff !== 0) return customerDiff
+		const dayDiff = normalizeString(b.day).localeCompare(normalizeString(a.day))
+		if (dayDiff !== 0) return dayDiff
+		const categoryDiff = normalizeString(a.category).localeCompare(normalizeString(b.category))
+		if (categoryDiff !== 0) return categoryDiff
+		return normalizeString(a.bottle_no).localeCompare(normalizeString(b.bottle_no))
+	})
+}
+
+async function onExport() {
+	if (exporting.value) return
+	exporting.value = true
+	uni.showLoading({ title: '正在导出...', mask: true })
+	try {
+		const [{ cycleRows, incompleteList }, manualRows] = await Promise.all([fetchAllCycleRowsForExport(), fetchAllManualRowsForExport()])
+		let exportRows = []
+		if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.INCOMPLETE) {
+			exportRows = buildIncompleteExportRows(incompleteList)
+		} else if (
+			[SUMMARY_FILTER_KEYS.CYCLE_ALL, SUMMARY_FILTER_KEYS.CYCLE_LOSS, SUMMARY_FILTER_KEYS.CYCLE_SWELL].includes(activeSummaryFilter.value)
+		) {
+			exportRows = buildCycleExportRows(cycleRows)
+		} else if ([SUMMARY_FILTER_KEYS.MANUAL_LOSS, SUMMARY_FILTER_KEYS.MANUAL_SWELL].includes(activeSummaryFilter.value)) {
+			exportRows = buildManualExportRows(manualRows)
+		} else {
+			exportRows = [
+				...buildCycleExportRows(cycleRows),
+				...buildManualExportRows(manualRows),
+				...buildIncompleteExportRows(incompleteList)
+			]
+		}
+		const sortedRows = sortExportRows(exportRows)
+		if (!sortedRows.length) {
+			uni.showToast({ title: '没有可导出的数据', icon: 'none' })
+			return
+		}
+		const workbookText = buildLossWorkbookXml(sortedRows)
+		const fileName = buildLossExportFileName(sortedRows.length)
+		const downloaded = downloadWorkbookOnH5(workbookText, fileName)
+		if (!downloaded) {
+			uni.showToast({ title: '当前端暂不支持Excel下载，请在浏览器端导出', icon: 'none', duration: 2800 })
+			return
+		}
+		uni.showToast({ title: `已导出${sortedRows.length}条`, icon: 'success' })
+	} catch (err) {
+		uni.showToast({ title: err?.message || '导出失败', icon: 'none', duration: 2600 })
+	} finally {
+		uni.hideLoading()
+		exporting.value = false
+	}
 }
 </script>
 
@@ -284,6 +964,13 @@ function onReset() {
 	gap: 24rpx;
 }
 
+.quick-date-strip {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	overflow-x: auto;
+}
+
 .summary-row {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(220rpx, 1fr));
@@ -291,11 +978,42 @@ function onReset() {
 	width: 100%;
 }
 
+.summary-card {
+	min-height: 176rpx;
+}
+
+.summary-card--active {
+	box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18), 0 14px 28px rgba(37, 99, 235, 0.12);
+}
+
+:deep(.summary-card .stat__content) {
+	align-items: center;
+	gap: 20rpx;
+}
+
+:deep(.summary-card .stat__value-wrap) {
+	align-items: flex-start;
+}
+
+:deep(.summary-card .stat__value) {
+	width: auto;
+	text-align: left;
+}
+
+:deep(.summary-card .stat__icon) {
+	flex-shrink: 0;
+}
+
 .filter-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(240rpx, 1fr));
 	gap: 16rpx;
 	align-items: end;
+}
+
+.picker-label {
+	font-size: 24rpx;
+	color: var(--crm-text-muted);
 }
 
 .section-hint {

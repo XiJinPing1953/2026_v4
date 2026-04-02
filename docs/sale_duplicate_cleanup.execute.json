@@ -1,0 +1,691 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "generated_at": "2026-03-29T07:15:16.324Z",
+  "execute": true,
+  "from_diagnosis": "/Users/wangbo/Downloads/2026_v4/docs/gas_inventory_diagnosis.latest.json",
+  "source_sale_total": 0,
+  "duplicate_group_total": 16,
+  "duplicate_extra_row_total": 17,
+  "groups": [
+    {
+      "signature": "truck|2026-02-07|69bbb2c04f4cace5e7e84e75|TRUCK-9335Z|2480|28320|25840",
+      "biz_mode": "truck",
+      "date": "2026-02-07",
+      "customer_name": "四公",
+      "truck_no": "TRUCK-9335Z",
+      "keep_row": {
+        "_id": "69bbb2c036bc4bac6fd4c6df",
+        "date": "2026-02-07",
+        "customer_name": "四公",
+        "biz_mode": "truck",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69c8adbcad2f4ad42ebc12f9",
+          "date": "2026-02-07",
+          "customer_name": "四公",
+          "biz_mode": "truck",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "",
+          "created_at": null,
+          "updated_at": null
+        },
+        {
+          "_id": "69c8af5e399332b2a451a41c",
+          "date": "2026-02-07",
+          "customer_name": "四公",
+          "biz_mode": "truck",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 3
+    },
+    {
+      "signature": "truck|2026-02-12|695db77e8b0da45f294afbee|TRUCK-9335Z|1870|25840|23970",
+      "biz_mode": "truck",
+      "date": "2026-02-12",
+      "customer_name": "浩诺",
+      "truck_no": "TRUCK-9335Z",
+      "keep_row": {
+        "_id": "69bbaffb0add39bd434a3fd5",
+        "date": "2026-02-12",
+        "customer_name": "浩诺",
+        "biz_mode": "truck",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69c8adbcad2f4ad42ebc1307",
+          "date": "2026-02-12",
+          "customer_name": "浩诺",
+          "biz_mode": "truck",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 2
+    },
+    {
+      "signature": "bottle|2026-02-13|694045c0adf6dbd796e261ca|746|5|741",
+      "biz_mode": "bottle",
+      "date": "2026-02-13",
+      "customer_name": "新乐馒头",
+      "truck_no": "",
+      "keep_row": {
+        "_id": "69bbb2c136bc4bac6fd4c710",
+        "date": "2026-02-13",
+        "customer_name": "新乐馒头",
+        "biz_mode": "bottle",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69c8af5f91ffaeab57740814",
+          "date": "2026-02-13",
+          "customer_name": "新乐馒头",
+          "biz_mode": "bottle",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 2
+    },
+    {
+      "signature": "bottle|2026-02-14|694045c0adf6dbd796e261dd|53|0|53",
+      "biz_mode": "bottle",
+      "date": "2026-02-14",
+      "customer_name": "三只熊",
+      "truck_no": "",
+      "keep_row": {
+        "_id": "69bbaffcf7ac1a41a1adc902",
+        "date": "2026-02-14",
+        "customer_name": "三只熊",
+        "biz_mode": "bottle",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69bbaffd0add39bd434a402e",
+          "date": "2026-02-14",
+          "customer_name": "三只熊",
+          "biz_mode": "bottle",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 2
+    },
+    {
+      "signature": "truck|2026-02-27|695db77e8b0da45f294afbee|TRUCK-9335Z|5910|27430|21520",
+      "biz_mode": "truck",
+      "date": "2026-02-27",
+      "customer_name": "浩诺",
+      "truck_no": "TRUCK-9335Z",
+      "keep_row": {
+        "_id": "69bbb0008a2e952d8f49ba6e",
+        "date": "2026-02-27",
+        "customer_name": "浩诺",
+        "biz_mode": "truck",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69c8adbdbf8f8fb98cd03ac7",
+          "date": "2026-02-27",
+          "customer_name": "浩诺",
+          "biz_mode": "truck",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 2
+    },
+    {
+      "signature": "bottle|2026-03-06|694045c0adf6dbd796e261b0|626|15|611",
+      "biz_mode": "bottle",
+      "date": "2026-03-06",
+      "customer_name": "保定依护卫生活",
+      "truck_no": "",
+      "keep_row": {
+        "_id": "69bbb2c336bc4bac6fd4c76e",
+        "date": "2026-03-06",
+        "customer_name": "保定依护卫生活",
+        "biz_mode": "bottle",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69c8af6259063e84c13ebc6d",
+          "date": "2026-03-06",
+          "customer_name": "保定依护卫生活",
+          "biz_mode": "bottle",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 2
+    },
+    {
+      "signature": "bottle|2026-03-07|694045c0adf6dbd796e26212|137|3|134",
+      "biz_mode": "bottle",
+      "date": "2026-03-07",
+      "customer_name": "赫远皮革北厂-丁亚军",
+      "truck_no": "",
+      "keep_row": {
+        "_id": "69bbb008f7ac1a41a1adca64",
+        "date": "2026-03-07",
+        "customer_name": "赫远皮革北厂-丁亚军",
+        "biz_mode": "bottle",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69c8af6291ffaeab57740852",
+          "date": "2026-03-07",
+          "customer_name": "赫远皮革北厂-丁亚军",
+          "biz_mode": "bottle",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 2
+    },
+    {
+      "signature": "bottle|2026-03-09|694045c0adf6dbd796e261d2|327|9|318",
+      "biz_mode": "bottle",
+      "date": "2026-03-09",
+      "customer_name": "上庄美食美客",
+      "truck_no": "",
+      "keep_row": {
+        "_id": "69bbb00bf7ac1a41a1adcacf",
+        "date": "2026-03-09",
+        "customer_name": "上庄美食美客",
+        "biz_mode": "bottle",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69c8af6359063e84c13ebc82",
+          "date": "2026-03-09",
+          "customer_name": "上庄美食美客",
+          "biz_mode": "bottle",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 2
+    },
+    {
+      "signature": "bottle|2026-03-11|694045c0adf6dbd796e261fa|594|-20|614",
+      "biz_mode": "bottle",
+      "date": "2026-03-11",
+      "customer_name": "聚力特",
+      "truck_no": "",
+      "keep_row": {
+        "_id": "69bbb00d4975ff712e9bc38c",
+        "date": "2026-03-11",
+        "customer_name": "聚力特",
+        "biz_mode": "bottle",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69c8af6559063e84c13ebca5",
+          "date": "2026-03-11",
+          "customer_name": "聚力特",
+          "biz_mode": "bottle",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 2
+    },
+    {
+      "signature": "bottle|2026-03-12|694045c0adf6dbd796e261f9|1820|0|1820",
+      "biz_mode": "bottle",
+      "date": "2026-03-12",
+      "customer_name": "肃宁-金颖",
+      "truck_no": "",
+      "keep_row": {
+        "_id": "69bbb0100add39bd434a43fb",
+        "date": "2026-03-12",
+        "customer_name": "肃宁-金颖",
+        "biz_mode": "bottle",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "送26瓶回24瓶",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69c8af6791ffaeab577408bc",
+          "date": "2026-03-12",
+          "customer_name": "肃宁-金颖",
+          "biz_mode": "bottle",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "送26瓶回24瓶",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 2
+    },
+    {
+      "signature": "bottle|2026-03-12|694045c0adf6dbd796e261ca|328|12|316",
+      "biz_mode": "bottle",
+      "date": "2026-03-12",
+      "customer_name": "新乐馒头",
+      "truck_no": "",
+      "keep_row": {
+        "_id": "69bbb00f89d8371762435de3",
+        "date": "2026-03-12",
+        "customer_name": "新乐馒头",
+        "biz_mode": "bottle",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "票上金额少算42元",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69c8af6591ffaeab5774088c",
+          "date": "2026-03-12",
+          "customer_name": "新乐馒头",
+          "biz_mode": "bottle",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "票上金额少算42元",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 2
+    },
+    {
+      "signature": "bottle|2026-03-14|694045c0adf6dbd796e26218|148|4|144",
+      "biz_mode": "bottle",
+      "date": "2026-03-14",
+      "customer_name": "华丰皮革厂-亚涛",
+      "truck_no": "",
+      "keep_row": {
+        "_id": "69bbb013f7ac1a41a1adcc13",
+        "date": "2026-03-14",
+        "customer_name": "华丰皮革厂-亚涛",
+        "biz_mode": "bottle",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69c8af6a399332b2a451a605",
+          "date": "2026-03-14",
+          "customer_name": "华丰皮革厂-亚涛",
+          "biz_mode": "bottle",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 2
+    },
+    {
+      "signature": "bottle|2026-03-14|694045c0adf6dbd796e26210|146|13|133",
+      "biz_mode": "bottle",
+      "date": "2026-03-14",
+      "customer_name": "赫远皮革南厂-杨立辉",
+      "truck_no": "",
+      "keep_row": {
+        "_id": "69bbb0118a2e952d8f49bd56",
+        "date": "2026-03-14",
+        "customer_name": "赫远皮革南厂-杨立辉",
+        "biz_mode": "bottle",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69c8af6959063e84c13ebd1e",
+          "date": "2026-03-14",
+          "customer_name": "赫远皮革南厂-杨立辉",
+          "biz_mode": "bottle",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 2
+    },
+    {
+      "signature": "bottle|2026-03-15|694045c0adf6dbd796e26207|125|1|124",
+      "biz_mode": "bottle",
+      "date": "2026-03-15",
+      "customer_name": "恒达皮革厂",
+      "truck_no": "",
+      "keep_row": {
+        "_id": "69bbb01389d8371762435e54",
+        "date": "2026-03-15",
+        "customer_name": "恒达皮革厂",
+        "biz_mode": "bottle",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69c8af6a91ffaeab577408e7",
+          "date": "2026-03-15",
+          "customer_name": "恒达皮革厂",
+          "biz_mode": "bottle",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 2
+    },
+    {
+      "signature": "bottle|2026-03-18|694045c0adf6dbd796e261ce|124|5|119",
+      "biz_mode": "bottle",
+      "date": "2026-03-18",
+      "customer_name": "华浩木业-赵立军",
+      "truck_no": "",
+      "keep_row": {
+        "_id": "69bbb019f7ac1a41a1adcce6",
+        "date": "2026-03-18",
+        "customer_name": "华浩木业-赵立军",
+        "biz_mode": "bottle",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69c8af6b91ffaeab577408f7",
+          "date": "2026-03-18",
+          "customer_name": "华浩木业-赵立军",
+          "biz_mode": "bottle",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 2
+    },
+    {
+      "signature": "bottle|2026-03-20|695db77e8b0da45f294afbee|949|0|949",
+      "biz_mode": "bottle",
+      "date": "2026-03-20",
+      "customer_name": "浩诺",
+      "truck_no": "",
+      "keep_row": {
+        "_id": "69c8ae005c28c95aac983291",
+        "date": "2026-03-20",
+        "customer_name": "浩诺",
+        "biz_mode": "bottle",
+        "truck_no": "",
+        "total_net_weight_kg": null,
+        "truck_gross_diff_kg": 0,
+        "remark": "",
+        "created_at": null,
+        "updated_at": null
+      },
+      "remove_rows": [
+        {
+          "_id": "69c8afadad2f4ad42ebc3290",
+          "date": "2026-03-20",
+          "customer_name": "浩诺",
+          "biz_mode": "bottle",
+          "truck_no": "",
+          "total_net_weight_kg": null,
+          "truck_gross_diff_kg": 0,
+          "remark": "",
+          "created_at": null,
+          "updated_at": null
+        }
+      ],
+      "total": 2
+    }
+  ],
+  "removed": [
+    {
+      "_id": "69c8adbcad2f4ad42ebc12f9",
+      "signature": "truck|2026-02-07|69bbb2c04f4cace5e7e84e75|TRUCK-9335Z|2480|28320|25840",
+      "date": "2026-02-07",
+      "customer_name": "四公",
+      "msg": "删除成功（凭证未同步删除（缺集合））"
+    },
+    {
+      "_id": "69c8af5e399332b2a451a41c",
+      "signature": "truck|2026-02-07|69bbb2c04f4cace5e7e84e75|TRUCK-9335Z|2480|28320|25840",
+      "date": "2026-02-07",
+      "customer_name": "四公",
+      "msg": "删除成功（凭证未同步删除（缺集合））"
+    },
+    {
+      "_id": "69c8adbcad2f4ad42ebc1307",
+      "signature": "truck|2026-02-12|695db77e8b0da45f294afbee|TRUCK-9335Z|1870|25840|23970",
+      "date": "2026-02-12",
+      "customer_name": "浩诺",
+      "msg": "删除成功（凭证未同步删除（缺集合））"
+    },
+    {
+      "_id": "69c8af5f91ffaeab57740814",
+      "signature": "bottle|2026-02-13|694045c0adf6dbd796e261ca|746|5|741",
+      "date": "2026-02-13",
+      "customer_name": "新乐馒头",
+      "msg": "删除成功（凭证未同步删除（缺集合））"
+    },
+    {
+      "_id": "69bbaffd0add39bd434a402e",
+      "signature": "bottle|2026-02-14|694045c0adf6dbd796e261dd|53|0|53",
+      "date": "2026-02-14",
+      "customer_name": "三只熊",
+      "msg": "删除成功（凭证未同步删除（缺集合））"
+    },
+    {
+      "_id": "69c8adbdbf8f8fb98cd03ac7",
+      "signature": "truck|2026-02-27|695db77e8b0da45f294afbee|TRUCK-9335Z|5910|27430|21520",
+      "date": "2026-02-27",
+      "customer_name": "浩诺",
+      "msg": "删除成功（凭证未同步删除（缺集合））"
+    },
+    {
+      "_id": "69c8af6259063e84c13ebc6d",
+      "signature": "bottle|2026-03-06|694045c0adf6dbd796e261b0|626|15|611",
+      "date": "2026-03-06",
+      "customer_name": "保定依护卫生活",
+      "msg": "删除成功（凭证未同步删除（缺集合）；异常增量扫描未完成，请在异常页继续扫描）"
+    },
+    {
+      "_id": "69c8af6291ffaeab57740852",
+      "signature": "bottle|2026-03-07|694045c0adf6dbd796e26212|137|3|134",
+      "date": "2026-03-07",
+      "customer_name": "赫远皮革北厂-丁亚军",
+      "msg": "删除成功（凭证未同步删除（缺集合））"
+    },
+    {
+      "_id": "69c8af6359063e84c13ebc82",
+      "signature": "bottle|2026-03-09|694045c0adf6dbd796e261d2|327|9|318",
+      "date": "2026-03-09",
+      "customer_name": "上庄美食美客",
+      "msg": "删除成功（凭证未同步删除（缺集合））"
+    },
+    {
+      "_id": "69c8af6559063e84c13ebca5",
+      "signature": "bottle|2026-03-11|694045c0adf6dbd796e261fa|594|-20|614",
+      "date": "2026-03-11",
+      "customer_name": "聚力特",
+      "msg": "删除成功（凭证未同步删除（缺集合））"
+    },
+    {
+      "_id": "69c8af6791ffaeab577408bc",
+      "signature": "bottle|2026-03-12|694045c0adf6dbd796e261f9|1820|0|1820",
+      "date": "2026-03-12",
+      "customer_name": "肃宁-金颖",
+      "msg": "删除成功（凭证未同步删除（缺集合）；异常增量扫描未完成，请在异常页继续扫描）"
+    },
+    {
+      "_id": "69c8af6591ffaeab5774088c",
+      "signature": "bottle|2026-03-12|694045c0adf6dbd796e261ca|328|12|316",
+      "date": "2026-03-12",
+      "customer_name": "新乐馒头",
+      "msg": "删除成功（凭证未同步删除（缺集合））"
+    },
+    {
+      "_id": "69c8af6a399332b2a451a605",
+      "signature": "bottle|2026-03-14|694045c0adf6dbd796e26218|148|4|144",
+      "date": "2026-03-14",
+      "customer_name": "华丰皮革厂-亚涛",
+      "msg": "删除成功（凭证未同步删除（缺集合））"
+    },
+    {
+      "_id": "69c8af6959063e84c13ebd1e",
+      "signature": "bottle|2026-03-14|694045c0adf6dbd796e26210|146|13|133",
+      "date": "2026-03-14",
+      "customer_name": "赫远皮革南厂-杨立辉",
+      "msg": "删除成功（凭证未同步删除（缺集合））"
+    },
+    {
+      "_id": "69c8af6a91ffaeab577408e7",
+      "signature": "bottle|2026-03-15|694045c0adf6dbd796e26207|125|1|124",
+      "date": "2026-03-15",
+      "customer_name": "恒达皮革厂",
+      "msg": "删除成功（凭证未同步删除（缺集合））"
+    },
+    {
+      "_id": "69c8af6b91ffaeab577408f7",
+      "signature": "bottle|2026-03-18|694045c0adf6dbd796e261ce|124|5|119",
+      "date": "2026-03-18",
+      "customer_name": "华浩木业-赵立军",
+      "msg": "删除成功（凭证未同步删除（缺集合））"
+    },
+    {
+      "_id": "69c8afadad2f4ad42ebc3290",
+      "signature": "bottle|2026-03-20|695db77e8b0da45f294afbee|949|0|949",
+      "date": "2026-03-20",
+      "customer_name": "浩诺",
+      "msg": "删除成功（凭证未同步删除（缺集合））"
+    }
+  ],
+  "failed": [],
+  "removed_total": 17,
+  "failed_total": 0
+}

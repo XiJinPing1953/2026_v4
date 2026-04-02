@@ -5,6 +5,13 @@ const dbCmd = db.command
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
+let ensureActionAcl = null
+try {
+	;({ ensureActionAcl } = require('../common/pageAcl'))
+} catch (err) {
+	console.warn('[crm-log] fallback to local pageAcl helpers', err && err.message)
+	;({ ensureActionAcl } = require('./pageAclLocal'))
+}
 
 const READ_ROLES = ['superadmin', 'admin', 'finance']
 const AUTH_ACTIONS = [
@@ -17,6 +24,9 @@ const AUTH_ACTIONS = [
 	'update_role',
 	'user_list_v1'
 ]
+const PAGE_ACTION_RULES = {
+	listOperationLogsV1: [{ pagePath: '/pages/log/list', action: 'view' }]
+}
 
 function normalizeString(value) {
 	if (value == null) return ''
@@ -235,6 +245,12 @@ exports.main = async (event, context) => {
 	const requestId = normalizeString(event.request_id || event.requestId || context?.requestId || '')
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
+	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, [], {
+		recordLog: recordForbidden,
+		requestId,
+		cloudFunction: 'crm-log'
+	})
+	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
 	if (action === 'listOperationLogsV1') return listOperationLogsV1(user, data, requestId)
 	return { code: 400, msg: '未知 action' }

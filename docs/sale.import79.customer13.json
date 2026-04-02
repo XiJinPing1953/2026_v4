@@ -1,0 +1,119 @@
+[
+  {
+    "line_no": 1675,
+    "legacy_id": "69ba41c4a09a9b8b7ac2b3c8",
+    "customer_name": "丁军龙皮厂",
+    "date": "2026-03-18",
+    "reason": "customer_missing",
+    "payment_status": "unpaid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1657,
+    "legacy_id": "69b9ef5af082103615a05034",
+    "customer_name": "正豪皮革厂-靳占彬",
+    "date": "2026-03-17",
+    "reason": "customer_missing",
+    "payment_status": "unpaid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1595,
+    "legacy_id": "69b7608dee97ef2e312b8d0d",
+    "customer_name": "正豪皮革厂-靳占彬",
+    "date": "2026-03-16",
+    "reason": "customer_missing",
+    "payment_status": "unpaid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1581,
+    "legacy_id": "69b74d898b0da47f78455b3e",
+    "customer_name": "丁军龙皮厂",
+    "date": "2026-03-15",
+    "reason": "customer_missing",
+    "payment_status": "unpaid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1539,
+    "legacy_id": "69b4b0961498540872e6b473",
+    "customer_name": "丁军龙皮厂",
+    "date": "2026-03-14",
+    "reason": "customer_missing",
+    "payment_status": "unpaid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1514,
+    "legacy_id": "69b380b21c90b65dfb0107c6",
+    "customer_name": "正豪皮革厂-靳占彬",
+    "date": "2026-03-13",
+    "reason": "customer_missing",
+    "payment_status": "unpaid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1422,
+    "legacy_id": "69af71fe7ae7084c92c5b3de",
+    "customer_name": "正豪皮革厂-靳占彬",
+    "date": "2026-03-10",
+    "reason": "customer_missing",
+    "payment_status": "unpaid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1419,
+    "legacy_id": "69af63b889bd2701a6e2b83f",
+    "customer_name": "丁军龙皮厂",
+    "date": "2026-03-10",
+    "reason": "customer_missing",
+    "payment_status": "unpaid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1352,
+    "legacy_id": "69abd9478b0da47f782b014e",
+    "customer_name": "正豪皮革厂-靳占彬",
+    "date": "2026-03-07",
+    "reason": "customer_missing",
+    "payment_status": "unpaid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1336,
+    "legacy_id": "69ab8ee1ee97ef2e3106c369",
+    "customer_name": "正豪皮革厂-靳占彬",
+    "date": "2026-03-07",
+    "reason": "customer_missing",
+    "payment_status": "unpaid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1252,
+    "legacy_id": "69a63434149854dda3195dcf",
+    "customer_name": "丁军龙皮厂",
+    "date": "2026-03-03",
+    "reason": "customer_missing",
+    "payment_status": "unpaid",
+    "amount_received": 0
+  },
+  {
+    "line_no": 1223,
+    "legacy_id": "69a4d5dbbd0220abe809ec59",
+    "customer_name": "蓝峰锅炉",
+    "date": "2026-03-01",
+    "reason": "customer_missing",
+    "payment_status": "paid",
+    "amount_received": 1332
+  },
+  {
+    "line_no": 1063,
+    "legacy_id": "6989537d7ae7089a62e82946",
+    "customer_name": "四公",
+    "date": "2026-02-07",
+    "reason": "customer_missing",
+    "payment_status": "paid",
+    "amount_received": 11150
+  }
+]

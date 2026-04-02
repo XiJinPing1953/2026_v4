@@ -6,6 +6,16 @@ const logs = db.collection('crm_operation_logs')
 const accounts = db.collection('crm_accounts')
 const entries = db.collection('crm_voucher_entries')
 const reports = db.collection('crm_reports')
+let ensureActionAcl = null
+try {
+	;({ ensureActionAcl } = require('../common/pageAcl'))
+} catch (err) {
+	console.warn('[crm-report] fallback to local pageAcl helpers', err && err.message)
+	;({ ensureActionAcl } = require('./pageAclLocal'))
+}
+const PAGE_ACTION_RULES = {
+	summaryV1: [{ pagePath: '/pages/accounting/report-summary', action: 'view' }]
+}
 
 async function getUserByToken(token) {
 	if (!token) return null
@@ -129,6 +139,12 @@ exports.main = async (event, context) => {
 
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
+	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, [], {
+		recordLog,
+		requestId,
+		cloudFunction: 'crm-report'
+	})
+	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
 	if (action === 'summaryV1') return summaryV1(user, data, requestId)
 

@@ -1,0 +1,3060 @@
+{
+  "generated_at": "2026-03-21T06:54:40.049Z",
+  "space_id": "env-00jxuffegf2n",
+  "config_from": "/Users/wangbo/Library/Application Support/HBuilder X/projects/39637144c7c598fa8663d4ea84645a0e/setting.json",
+  "summary": {
+    "fillings_total": 3879,
+    "fill_movements_total": 6176,
+    "orphan_filling_movements_total": 2366,
+    "orphan_with_legacy_pair_total": 2366,
+    "orphan_without_legacy_pair_total": 0,
+    "affected_bottle_total": 561
+  },
+  "top_bottles": [
+    {
+      "bottle_no": "Z012",
+      "count": 12
+    },
+    {
+      "bottle_no": "Z010",
+      "count": 11
+    },
+    {
+      "bottle_no": "Z018",
+      "count": 11
+    },
+    {
+      "bottle_no": "33",
+      "count": 10
+    },
+    {
+      "bottle_no": "377",
+      "count": 10
+    },
+    {
+      "bottle_no": "Z001",
+      "count": 10
+    },
+    {
+      "bottle_no": "Z002",
+      "count": 10
+    },
+    {
+      "bottle_no": "Z004",
+      "count": 10
+    },
+    {
+      "bottle_no": "Z014",
+      "count": 10
+    },
+    {
+      "bottle_no": "17",
+      "count": 9
+    },
+    {
+      "bottle_no": "28",
+      "count": 9
+    },
+    {
+      "bottle_no": "30",
+      "count": 9
+    },
+    {
+      "bottle_no": "49",
+      "count": 9
+    },
+    {
+      "bottle_no": "60",
+      "count": 9
+    },
+    {
+      "bottle_no": "79",
+      "count": 9
+    },
+    {
+      "bottle_no": "148",
+      "count": 9
+    },
+    {
+      "bottle_no": "226",
+      "count": 9
+    },
+    {
+      "bottle_no": "361",
+      "count": 9
+    },
+    {
+      "bottle_no": "Y002",
+      "count": 9
+    },
+    {
+      "bottle_no": "Y006",
+      "count": 9
+    },
+    {
+      "bottle_no": "Y076",
+      "count": 9
+    },
+    {
+      "bottle_no": "Y172",
+      "count": 9
+    },
+    {
+      "bottle_no": "Z006",
+      "count": 9
+    },
+    {
+      "bottle_no": "Z008",
+      "count": 9
+    },
+    {
+      "bottle_no": "Z015",
+      "count": 9
+    },
+    {
+      "bottle_no": "4",
+      "count": 8
+    },
+    {
+      "bottle_no": "8",
+      "count": 8
+    },
+    {
+      "bottle_no": "16",
+      "count": 8
+    },
+    {
+      "bottle_no": "21",
+      "count": 8
+    },
+    {
+      "bottle_no": "35",
+      "count": 8
+    },
+    {
+      "bottle_no": "39",
+      "count": 8
+    },
+    {
+      "bottle_no": "52",
+      "count": 8
+    },
+    {
+      "bottle_no": "56",
+      "count": 8
+    },
+    {
+      "bottle_no": "58",
+      "count": 8
+    },
+    {
+      "bottle_no": "83",
+      "count": 8
+    },
+    {
+      "bottle_no": "98",
+      "count": 8
+    },
+    {
+      "bottle_no": "100",
+      "count": 8
+    },
+    {
+      "bottle_no": "151",
+      "count": 8
+    },
+    {
+      "bottle_no": "199",
+      "count": 8
+    },
+    {
+      "bottle_no": "203",
+      "count": 8
+    }
+  ],
+  "orphans_sample": [
+    {
+      "movement_id": "69899670b97e97dd99d36029",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "83",
+      "net_weight": 67,
+      "source_type": "filling",
+      "source_id": "695c5109f2949c96891faad4",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198c1bfe16da6e6da7b9",
+          "source_id": "69b9198c1bfe16da6e6da7b8",
+          "date": "2026-01-01",
+          "net_weight": 67
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3602a",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "30",
+      "net_weight": 65,
+      "source_type": "filling",
+      "source_id": "695c51097ae7089a6288f50b",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198c1bfe16da6e6da7ba",
+          "source_id": "69b9198c599120be6c3e9402",
+          "date": "2026-01-01",
+          "net_weight": 65
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3602b",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "189",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c51091c90b6a7ccfecf51",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198c1bfe16da6e6da7c5",
+          "source_id": "69b9198c1bfe16da6e6da7c4",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3602c",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "29",
+      "net_weight": 65,
+      "source_type": "filling",
+      "source_id": "695c510a286f7c34c9cc01f7",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198c1bfe16da6e6da7b6",
+          "source_id": "69b9198c1bfe16da6e6da7b5",
+          "date": "2026-01-01",
+          "net_weight": 65
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3602d",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y126",
+      "net_weight": 71,
+      "source_type": "filling",
+      "source_id": "695c510a2eea65420f6e6f3e",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1117bf9b461ae334",
+          "source_id": "69b9198d1117bf9b461ae333",
+          "date": "2026-01-01",
+          "net_weight": 71
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3602e",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "252",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c510ae0ec19a5fa42e18c",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198c8a2e952d8f1bb5e4",
+          "source_id": "69b9198c8a2e952d8f1bb5e2",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3602f",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "289",
+      "net_weight": 151,
+      "source_type": "filling",
+      "source_id": "695c510b862066edb7eef08d",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198c8a2e952d8f1bb5e1",
+          "source_id": "69b9198c8a2e952d8f1bb5e0",
+          "date": "2026-01-01",
+          "net_weight": 151
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36030",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "305",
+      "net_weight": 146,
+      "source_type": "filling",
+      "source_id": "695c510b4b92471a50a9c26c",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198c89d83717620f3c55",
+          "source_id": "69b9198c89d83717620f3c54",
+          "date": "2026-01-01",
+          "net_weight": 146
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36031",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "335",
+      "net_weight": 154,
+      "source_type": "filling",
+      "source_id": "695c510b99c624286abe6ad8",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198ddcf6a79853ee068a",
+          "source_id": "69b9198d1bfe16da6e6da7d1",
+          "date": "2026-01-01",
+          "net_weight": 154
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36032",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "329",
+      "net_weight": 155,
+      "source_type": "filling",
+      "source_id": "695c510c55b337aa1cc042da",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198ddcf6a79853ee0689",
+          "source_id": "69b9198d1bfe16da6e6da7d0",
+          "date": "2026-01-01",
+          "net_weight": 155
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36033",
+      "date": "2026-01-01 08:00",
+      "event_day": "2026-01-01",
+      "bottle_no": "52",
+      "net_weight": 61,
+      "source_type": "filling",
+      "source_id": "695b565e4b92471a5098fc21",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1117bf9b461ae33a",
+          "source_id": "69b9198d1117bf9b461ae339",
+          "date": "2026-01-01",
+          "net_weight": 61
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36034",
+      "date": "2026-01-01 08:00",
+      "event_day": "2026-01-01",
+      "bottle_no": "158",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "6966e1c6b9fb23c0ca0d230a",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1bfe16da6e6da7d7",
+          "source_id": "69b9198d1bfe16da6e6da7d5",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36035",
+      "date": "2026-01-01 08:00",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y006",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "6966e294862066edb7b1501b",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198ddcf6a79853ee0691",
+          "source_id": "69b9198d1bfe16da6e6da7d9",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36036",
+      "date": "2026-01-01 09:06",
+      "event_day": "2026-01-01",
+      "bottle_no": "355",
+      "net_weight": 53,
+      "source_type": "filling",
+      "source_id": "695b550c6e5d2d32f842d1c9",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198ddcf6a79853ee0693",
+          "source_id": "69b9198ddcf6a79853ee0692",
+          "date": "2026-01-01",
+          "net_weight": 53
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36037",
+      "date": "2026-01-01 09:11",
+      "event_day": "2026-01-01",
+      "bottle_no": "270",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5535e0ec19a5fa31bf5c",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1117bf9b461ae33f",
+          "source_id": "69b9198d1117bf9b461ae33e",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36038",
+      "date": "2026-01-01 10:07",
+      "event_day": "2026-01-01",
+      "bottle_no": "378",
+      "net_weight": 52,
+      "source_type": "filling",
+      "source_id": "695b3947862066edb7dc36d1",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1bfe16da6e6da7dc",
+          "source_id": "69b9198d1bfe16da6e6da7db",
+          "date": "2026-01-01",
+          "net_weight": 52
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36039",
+      "date": "2026-01-01 10:07",
+      "event_day": "2026-01-01",
+      "bottle_no": "167",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5551f0821045dd0e7591",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1117bf9b461ae341",
+          "source_id": "69b9198d1117bf9b461ae340",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3603a",
+      "date": "2026-01-01 10:09",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y076",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b558be0ec19a5fa31c6f1",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198ddcf6a79853ee06a4",
+          "source_id": "69b9198ddcf6a79853ee06a3",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3603b",
+      "date": "2026-01-01 10:09",
+      "event_day": "2026-01-01",
+      "bottle_no": "11",
+      "net_weight": 67,
+      "source_type": "filling",
+      "source_id": "695b55a66e5d2d32f842ddd5",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198ddcf6a79853ee06a2",
+          "source_id": "69b9198d1bfe16da6e6da7de",
+          "date": "2026-01-01",
+          "net_weight": 67
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3603c",
+      "date": "2026-01-01 10:10",
+      "event_day": "2026-01-01",
+      "bottle_no": "259",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b55c47ae7089a62782e18",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e8a2e952d8f1bb5f4",
+          "source_id": "69b9198e1117bf9b461ae34e",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3603d",
+      "date": "2026-01-01 10:10",
+      "event_day": "2026-01-01",
+      "bottle_no": "263",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b55dc286f7c34c9bbc873",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e8a2e952d8f1bb5f6",
+          "source_id": "69b9198e8a2e952d8f1bb5f5",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3603e",
+      "date": "2026-01-01 10:10",
+      "event_day": "2026-01-01",
+      "bottle_no": "51",
+      "net_weight": 65,
+      "source_type": "filling",
+      "source_id": "695b55f1f2949c96890f0b42",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1bfe16da6e6da7e3",
+          "source_id": "69b9198d1bfe16da6e6da7e2",
+          "date": "2026-01-01",
+          "net_weight": 65
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3603f",
+      "date": "2026-01-01 10:10",
+      "event_day": "2026-01-01",
+      "bottle_no": "112",
+      "net_weight": 65,
+      "source_type": "filling",
+      "source_id": "695b560cce5ec95e33ccbd12",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1117bf9b461ae34b",
+          "source_id": "69b9198d1117bf9b461ae34a",
+          "date": "2026-01-01",
+          "net_weight": 65
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36040",
+      "date": "2026-01-01 10:11",
+      "event_day": "2026-01-01",
+      "bottle_no": "160",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5632c3b5c943f7cb36b3",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1bfe16da6e6da7eb",
+          "source_id": "69b9198e1bfe16da6e6da7ea",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36041",
+      "date": "2026-01-01 10:12",
+      "event_day": "2026-01-01",
+      "bottle_no": "361",
+      "net_weight": 56,
+      "source_type": "filling",
+      "source_id": "695b564999c624286aae43a5",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e89d83717620f3c71",
+          "source_id": "69b9198e1117bf9b461ae353",
+          "date": "2026-01-01",
+          "net_weight": 56
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36042",
+      "date": "2026-01-01 10:12",
+      "event_day": "2026-01-01",
+      "bottle_no": "150",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5675286f7c34c9bbd441",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1117bf9b461ae354",
+          "source_id": "69b9198e8a2e952d8f1bb5f8",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36043",
+      "date": "2026-01-01 10:13",
+      "event_day": "2026-01-01",
+      "bottle_no": "68",
+      "net_weight": 66,
+      "source_type": "filling",
+      "source_id": "695b568ace5ec95e33ccc659",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1bfe16da6e6da7ee",
+          "source_id": "69b9198e1bfe16da6e6da7ed",
+          "date": "2026-01-01",
+          "net_weight": 66
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36044",
+      "date": "2026-01-01 10:13",
+      "event_day": "2026-01-01",
+      "bottle_no": "21",
+      "net_weight": 65,
+      "source_type": "filling",
+      "source_id": "695b56a86523410ebe86c790",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1117bf9b461ae35a",
+          "source_id": "69b9198e1117bf9b461ae359",
+          "date": "2026-01-01",
+          "net_weight": 65
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36045",
+      "date": "2026-01-01 10:14",
+      "event_day": "2026-01-01",
+      "bottle_no": "148",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b56bda7c43298176e9e39",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e599120be6c3e941d",
+          "source_id": "69b9198e1bfe16da6e6da7f3",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36046",
+      "date": "2026-01-01 10:14",
+      "event_day": "2026-01-01",
+      "bottle_no": "71",
+      "net_weight": 66,
+      "source_type": "filling",
+      "source_id": "695b56d47c8de46b1187ee0c",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1bfe16da6e6da7f8",
+          "source_id": "69b9198edcf6a79853ee06ba",
+          "date": "2026-01-01",
+          "net_weight": 66
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36047",
+      "date": "2026-01-01 10:14",
+      "event_day": "2026-01-01",
+      "bottle_no": "19",
+      "net_weight": 65,
+      "source_type": "filling",
+      "source_id": "695b56f1286f7c34c9bbe023",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1bfe16da6e6da7f0",
+          "source_id": "69b9198e1bfe16da6e6da7ef",
+          "date": "2026-01-01",
+          "net_weight": 65
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36048",
+      "date": "2026-01-01 10:15",
+      "event_day": "2026-01-01",
+      "bottle_no": "134",
+      "net_weight": 71,
+      "source_type": "filling",
+      "source_id": "695b5710ee97ef7e815a2b0d",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e89d83717620f3c7a",
+          "source_id": "69b9198e8a2e952d8f1bb602",
+          "date": "2026-01-01",
+          "net_weight": 71
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36049",
+      "date": "2026-01-01 10:15",
+      "event_day": "2026-01-01",
+      "bottle_no": "105",
+      "net_weight": 66,
+      "source_type": "filling",
+      "source_id": "695b572f337a9f895de2d0fe",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198edcf6a79853ee06bd",
+          "source_id": "69b9198edcf6a79853ee06bc",
+          "date": "2026-01-01",
+          "net_weight": 66
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3604a",
+      "date": "2026-01-01 10:16",
+      "event_day": "2026-01-01",
+      "bottle_no": "373",
+      "net_weight": 56,
+      "source_type": "filling",
+      "source_id": "695b57457c8de46b1187f74e",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1bfe16da6e6da804",
+          "source_id": "69b9198e1bfe16da6e6da803",
+          "date": "2026-01-01",
+          "net_weight": 56
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3604b",
+      "date": "2026-01-01 10:16",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y082",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5765fe975fae25c65db6",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e8a2e952d8f1bb604",
+          "source_id": "69b9198e8a2e952d8f1bb603",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3604c",
+      "date": "2026-01-01 10:17",
+      "event_day": "2026-01-01",
+      "bottle_no": "360",
+      "net_weight": 56,
+      "source_type": "filling",
+      "source_id": "695b577dee97ef7e815a34f8",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1117bf9b461ae36c",
+          "source_id": "69b9198e89d83717620f3c7d",
+          "date": "2026-01-01",
+          "net_weight": 56
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3604d",
+      "date": "2026-01-01 10:17",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y086",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b57a121821b751b4dacc4",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1bfe16da6e6da809",
+          "source_id": "69b9198e1bfe16da6e6da808",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3604e",
+      "date": "2026-01-01 10:18",
+      "event_day": "2026-01-01",
+      "bottle_no": "370",
+      "net_weight": 56,
+      "source_type": "filling",
+      "source_id": "695b57b5862066edb7def1ff",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e8a2e952d8f1bb60d",
+          "source_id": "69b9198e8a2e952d8f1bb60c",
+          "date": "2026-01-01",
+          "net_weight": 56
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3604f",
+      "date": "2026-01-01 10:18",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y133",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b57d9189f86de201b2fee",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e8a2e952d8f1bb60e",
+          "source_id": "69b9198e1117bf9b461ae371",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36050",
+      "date": "2026-01-01 10:19",
+      "event_day": "2026-01-01",
+      "bottle_no": "387",
+      "net_weight": 55,
+      "source_type": "filling",
+      "source_id": "695b57fc6e5d2d32f8431230",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1117bf9b461ae376",
+          "source_id": "69b9198e1117bf9b461ae375",
+          "date": "2026-01-01",
+          "net_weight": 55
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36051",
+      "date": "2026-01-01 10:19",
+      "event_day": "2026-01-01",
+      "bottle_no": "213",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5817e0ec19a5fa321792",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e8a2e952d8f1bb610",
+          "source_id": "69b9198e8a2e952d8f1bb60f",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36052",
+      "date": "2026-01-01 10:20",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y172",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5832fe975fae25c67714",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae37f",
+          "source_id": "69b9198f1117bf9b461ae37e",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36053",
+      "date": "2026-01-01 10:20",
+      "event_day": "2026-01-01",
+      "bottle_no": "57",
+      "net_weight": 64,
+      "source_type": "filling",
+      "source_id": "695b5847a7c43298176ec769",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da80c",
+          "source_id": "69b9198f1bfe16da6e6da80b",
+          "date": "2026-01-01",
+          "net_weight": 64
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36054",
+      "date": "2026-01-01 10:20",
+      "event_day": "2026-01-01",
+      "bottle_no": "49",
+      "net_weight": 63,
+      "source_type": "filling",
+      "source_id": "695b586621392995668cf2ab",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae379",
+          "source_id": "69b9198f1117bf9b461ae378",
+          "date": "2026-01-01",
+          "net_weight": 63
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36055",
+      "date": "2026-01-01 10:21",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y041",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b587be0ec19a5fa322023",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da810",
+          "source_id": "69b9198f599120be6c3e9426",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36056",
+      "date": "2026-01-01 10:21",
+      "event_day": "2026-01-01",
+      "bottle_no": "220",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b58a34b92471a50993054",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da80f",
+          "source_id": "69b9198f1bfe16da6e6da80e",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36057",
+      "date": "2026-01-01 10:22",
+      "event_day": "2026-01-01",
+      "bottle_no": "351",
+      "net_weight": 56,
+      "source_type": "filling",
+      "source_id": "695b58bf21821b751b4dcdb7",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da81c",
+          "source_id": "69b9198f1bfe16da6e6da81b",
+          "date": "2026-01-01",
+          "net_weight": 56
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36058",
+      "date": "2026-01-01 10:23",
+      "event_day": "2026-01-01",
+      "bottle_no": "366",
+      "net_weight": 56,
+      "source_type": "filling",
+      "source_id": "695b59943d029c834b06cfb8",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f599120be6c3e9427",
+          "source_id": "69b9198fdcf6a79853ee06d4",
+          "date": "2026-01-01",
+          "net_weight": 56
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36059",
+      "date": "2026-01-01 10:26",
+      "event_day": "2026-01-01",
+      "bottle_no": "384",
+      "net_weight": 26,
+      "source_type": "filling",
+      "source_id": "695b59bfce5ec95e33cd1638",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198fdcf6a79853ee06d6",
+          "source_id": "69b9198fdcf6a79853ee06d5",
+          "date": "2026-01-01",
+          "net_weight": 26
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3605a",
+      "date": "2026-01-01 10:27",
+      "event_day": "2026-01-01",
+      "bottle_no": "177",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b59d5b9fb23b053ab12b4",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f89d83717620f3c92",
+          "source_id": "69b9198f8a2e952d8f1bb619",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3605b",
+      "date": "2026-01-01 10:27",
+      "event_day": "2026-01-01",
+      "bottle_no": "172",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b59f18a5c785fa8c13baa",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae386",
+          "source_id": "69b9198f1117bf9b461ae385",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3605c",
+      "date": "2026-01-01 10:28",
+      "event_day": "2026-01-01",
+      "bottle_no": "217",
+      "net_weight": 36,
+      "source_type": "filling",
+      "source_id": "695b5a1d55b337aa1caf9d26",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae38d",
+          "source_id": "69b9198f1117bf9b461ae38a",
+          "date": "2026-01-01",
+          "net_weight": 36
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3605d",
+      "date": "2026-01-01 10:28",
+      "event_day": "2026-01-01",
+      "bottle_no": "152",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5a3c7ae7089a62789485",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f8a2e952d8f1bb61b",
+          "source_id": "69b9198f8a2e952d8f1bb61a",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3605e",
+      "date": "2026-01-01 10:29",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y008",
+      "net_weight": 70,
+      "source_type": "filling",
+      "source_id": "695b5a57f2949c96890f7636",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da822",
+          "source_id": "69b9198f1bfe16da6e6da821",
+          "date": "2026-01-01",
+          "net_weight": 70
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3605f",
+      "date": "2026-01-01 10:29",
+      "event_day": "2026-01-01",
+      "bottle_no": "34",
+      "net_weight": 65,
+      "source_type": "filling",
+      "source_id": "695b5a906523410ebe8723a9",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da823",
+          "source_id": "69b9198f599120be6c3e942a",
+          "date": "2026-01-01",
+          "net_weight": 65
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36060",
+      "date": "2026-01-01 10:30",
+      "event_day": "2026-01-01",
+      "bottle_no": "188",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5ae60d2b3189a381c3ab",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da828",
+          "source_id": "69b9198f1bfe16da6e6da826",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36061",
+      "date": "2026-01-01 10:32",
+      "event_day": "2026-01-01",
+      "bottle_no": "202",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5afc0d2b3189a381c53c",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae394",
+          "source_id": "69b9198f1117bf9b461ae393",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36062",
+      "date": "2026-01-01 10:32",
+      "event_day": "2026-01-01",
+      "bottle_no": "199",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5b18286f7c34c9bc3efe",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da827",
+          "source_id": "69b9198fdcf6a79853ee06df",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36063",
+      "date": "2026-01-01 10:32",
+      "event_day": "2026-01-01",
+      "bottle_no": "377",
+      "net_weight": 56,
+      "source_type": "filling",
+      "source_id": "695b5b38f0821045dd0f0b98",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da82c",
+          "source_id": "69b9198f1bfe16da6e6da82b",
+          "date": "2026-01-01",
+          "net_weight": 56
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360d8",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "64",
+      "net_weight": 64,
+      "source_type": "filling",
+      "source_id": "695c54161c90b6a7ccfef894",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f8a2e952d8f1bb629",
+          "source_id": "69b9198f89d83717620f3ca9",
+          "date": "2026-01-02",
+          "net_weight": 64
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360d9",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "63",
+      "net_weight": 64,
+      "source_type": "filling",
+      "source_id": "695c54173f1a479d2759cde4",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae39a",
+          "source_id": "69b9198f1117bf9b461ae399",
+          "date": "2026-01-02",
+          "net_weight": 64
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360da",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "186",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c541e149854772fd72f7a",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae39f",
+          "source_id": "69b9198f1117bf9b461ae39e",
+          "date": "2026-01-02",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360db",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "41",
+      "net_weight": 55,
+      "source_type": "filling",
+      "source_id": "695c54237ad52d1c39fcf44d",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae398",
+          "source_id": "69b9198f1117bf9b461ae397",
+          "date": "2026-01-02",
+          "net_weight": 55
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360dc",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "Z001",
+      "net_weight": 187,
+      "source_type": "filling",
+      "source_id": "695d0c33ee97ef7e817c978a",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919901bfe16da6e6da837",
+          "source_id": "69b919901bfe16da6e6da836",
+          "date": "2026-01-02",
+          "net_weight": 187
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360dd",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "Z002",
+      "net_weight": 187,
+      "source_type": "filling",
+      "source_id": "695d0c34652341e27a106ff3",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919901bfe16da6e6da835",
+          "source_id": "69b919901bfe16da6e6da834",
+          "date": "2026-01-02",
+          "net_weight": 187
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360de",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "Z018",
+      "net_weight": 186,
+      "source_type": "filling",
+      "source_id": "695d0c347c8de46b11aa2909",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b91990599120be6c3e943b",
+          "source_id": "69b91990599120be6c3e943a",
+          "date": "2026-01-02",
+          "net_weight": 186
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360df",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "Z012",
+      "net_weight": 186,
+      "source_type": "filling",
+      "source_id": "695d0c348b0da45f29423dc4",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b91990dcf6a79853ee06f1",
+          "source_id": "69b91990dcf6a79853ee06ef",
+          "date": "2026-01-02",
+          "net_weight": 186
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e0",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "Z016",
+      "net_weight": 186,
+      "source_type": "filling",
+      "source_id": "695d0c35b9fb23c0ca5bf54e",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919901117bf9b461ae3a7",
+          "source_id": "69b919901117bf9b461ae3a6",
+          "date": "2026-01-02",
+          "net_weight": 186
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e1",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "Z014",
+      "net_weight": 186,
+      "source_type": "filling",
+      "source_id": "695d0c358b0da45f29423dd4",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919901bfe16da6e6da847",
+          "source_id": "69b919901bfe16da6e6da846",
+          "date": "2026-01-02",
+          "net_weight": 186
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e2",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "Z020",
+      "net_weight": 186,
+      "source_type": "filling",
+      "source_id": "695d0c35eef9cb299837c727",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919908a2e952d8f1bb631",
+          "source_id": "69b9199089d83717620f3cb2",
+          "date": "2026-01-02",
+          "net_weight": 186
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e3",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "TRUCK-9335Z",
+      "net_weight": 9200,
+      "source_type": "filling",
+      "source_id": "69718b343f1a4797e91bc6ae",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919901bfe16da6e6da830",
+          "source_id": "69b919901bfe16da6e6da82e",
+          "date": "2026-01-02",
+          "net_weight": 9200
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e4",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "116",
+      "net_weight": 63,
+      "source_type": "filling",
+      "source_id": "695c5412286f7c34c9cc3fa6",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919911bfe16da6e6da863",
+          "source_id": "69b919911bfe16da6e6da862",
+          "date": "2026-01-02",
+          "net_weight": 63
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e5",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "Y003",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c5412bd022001befb83d5",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b91992599120be6c3e945d",
+          "source_id": "69b91992dcf6a79853ee073f",
+          "date": "2026-01-02",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e6",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "214",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c54139755e34a913208c9",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919911bfe16da6e6da87a",
+          "source_id": "69b91991dcf6a79853ee072e",
+          "date": "2026-01-02",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e7",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "31",
+      "net_weight": 63,
+      "source_type": "filling",
+      "source_id": "695c5413652341e27affb34f",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919901117bf9b461ae3b4",
+          "source_id": "69b919901117bf9b461ae3b2",
+          "date": "2026-01-02",
+          "net_weight": 63
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e8",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "98",
+      "net_weight": 49,
+      "source_type": "filling",
+      "source_id": "695c5414862066edb7ef1aba",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919911bfe16da6e6da861",
+          "source_id": "69b919911bfe16da6e6da860",
+          "date": "2026-01-02",
+          "net_weight": 49
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e9",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "181",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c5414bd022001befb83e1",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919911117bf9b461ae3ef",
+          "source_id": "69b919911117bf9b461ae3ed",
+          "date": "2026-01-02",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360ea",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "169",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c54143d029c834b177054",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919911bfe16da6e6da871",
+          "source_id": "69b919911bfe16da6e6da870",
+          "date": "2026-01-02",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360eb",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "222",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c541599c624286abe9553",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919911bfe16da6e6da87c",
+          "source_id": "69b919911bfe16da6e6da87b",
+          "date": "2026-01-02",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899672b97e97dd99d360ec",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "Y055",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c54154b92471a50a9ee00",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919921117bf9b461ae40e",
+          "source_id": "69b919921117bf9b461ae40c",
+          "date": "2026-01-02",
+          "net_weight": 69
+        }
+      ]
+    }
+  ],
+  "orphans_with_legacy_pair_sample": [
+    {
+      "movement_id": "69899670b97e97dd99d36029",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "83",
+      "net_weight": 67,
+      "source_type": "filling",
+      "source_id": "695c5109f2949c96891faad4",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198c1bfe16da6e6da7b9",
+          "source_id": "69b9198c1bfe16da6e6da7b8",
+          "date": "2026-01-01",
+          "net_weight": 67
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3602a",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "30",
+      "net_weight": 65,
+      "source_type": "filling",
+      "source_id": "695c51097ae7089a6288f50b",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198c1bfe16da6e6da7ba",
+          "source_id": "69b9198c599120be6c3e9402",
+          "date": "2026-01-01",
+          "net_weight": 65
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3602b",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "189",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c51091c90b6a7ccfecf51",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198c1bfe16da6e6da7c5",
+          "source_id": "69b9198c1bfe16da6e6da7c4",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3602c",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "29",
+      "net_weight": 65,
+      "source_type": "filling",
+      "source_id": "695c510a286f7c34c9cc01f7",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198c1bfe16da6e6da7b6",
+          "source_id": "69b9198c1bfe16da6e6da7b5",
+          "date": "2026-01-01",
+          "net_weight": 65
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3602d",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y126",
+      "net_weight": 71,
+      "source_type": "filling",
+      "source_id": "695c510a2eea65420f6e6f3e",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1117bf9b461ae334",
+          "source_id": "69b9198d1117bf9b461ae333",
+          "date": "2026-01-01",
+          "net_weight": 71
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3602e",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "252",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c510ae0ec19a5fa42e18c",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198c8a2e952d8f1bb5e4",
+          "source_id": "69b9198c8a2e952d8f1bb5e2",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3602f",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "289",
+      "net_weight": 151,
+      "source_type": "filling",
+      "source_id": "695c510b862066edb7eef08d",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198c8a2e952d8f1bb5e1",
+          "source_id": "69b9198c8a2e952d8f1bb5e0",
+          "date": "2026-01-01",
+          "net_weight": 151
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36030",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "305",
+      "net_weight": 146,
+      "source_type": "filling",
+      "source_id": "695c510b4b92471a50a9c26c",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198c89d83717620f3c55",
+          "source_id": "69b9198c89d83717620f3c54",
+          "date": "2026-01-01",
+          "net_weight": 146
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36031",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "335",
+      "net_weight": 154,
+      "source_type": "filling",
+      "source_id": "695c510b99c624286abe6ad8",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198ddcf6a79853ee068a",
+          "source_id": "69b9198d1bfe16da6e6da7d1",
+          "date": "2026-01-01",
+          "net_weight": 154
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36032",
+      "date": "2026-01-01 07:59",
+      "event_day": "2026-01-01",
+      "bottle_no": "329",
+      "net_weight": 155,
+      "source_type": "filling",
+      "source_id": "695c510c55b337aa1cc042da",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198ddcf6a79853ee0689",
+          "source_id": "69b9198d1bfe16da6e6da7d0",
+          "date": "2026-01-01",
+          "net_weight": 155
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36033",
+      "date": "2026-01-01 08:00",
+      "event_day": "2026-01-01",
+      "bottle_no": "52",
+      "net_weight": 61,
+      "source_type": "filling",
+      "source_id": "695b565e4b92471a5098fc21",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1117bf9b461ae33a",
+          "source_id": "69b9198d1117bf9b461ae339",
+          "date": "2026-01-01",
+          "net_weight": 61
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36034",
+      "date": "2026-01-01 08:00",
+      "event_day": "2026-01-01",
+      "bottle_no": "158",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "6966e1c6b9fb23c0ca0d230a",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1bfe16da6e6da7d7",
+          "source_id": "69b9198d1bfe16da6e6da7d5",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36035",
+      "date": "2026-01-01 08:00",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y006",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "6966e294862066edb7b1501b",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198ddcf6a79853ee0691",
+          "source_id": "69b9198d1bfe16da6e6da7d9",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36036",
+      "date": "2026-01-01 09:06",
+      "event_day": "2026-01-01",
+      "bottle_no": "355",
+      "net_weight": 53,
+      "source_type": "filling",
+      "source_id": "695b550c6e5d2d32f842d1c9",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198ddcf6a79853ee0693",
+          "source_id": "69b9198ddcf6a79853ee0692",
+          "date": "2026-01-01",
+          "net_weight": 53
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36037",
+      "date": "2026-01-01 09:11",
+      "event_day": "2026-01-01",
+      "bottle_no": "270",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5535e0ec19a5fa31bf5c",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1117bf9b461ae33f",
+          "source_id": "69b9198d1117bf9b461ae33e",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36038",
+      "date": "2026-01-01 10:07",
+      "event_day": "2026-01-01",
+      "bottle_no": "378",
+      "net_weight": 52,
+      "source_type": "filling",
+      "source_id": "695b3947862066edb7dc36d1",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1bfe16da6e6da7dc",
+          "source_id": "69b9198d1bfe16da6e6da7db",
+          "date": "2026-01-01",
+          "net_weight": 52
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36039",
+      "date": "2026-01-01 10:07",
+      "event_day": "2026-01-01",
+      "bottle_no": "167",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5551f0821045dd0e7591",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1117bf9b461ae341",
+          "source_id": "69b9198d1117bf9b461ae340",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3603a",
+      "date": "2026-01-01 10:09",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y076",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b558be0ec19a5fa31c6f1",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198ddcf6a79853ee06a4",
+          "source_id": "69b9198ddcf6a79853ee06a3",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3603b",
+      "date": "2026-01-01 10:09",
+      "event_day": "2026-01-01",
+      "bottle_no": "11",
+      "net_weight": 67,
+      "source_type": "filling",
+      "source_id": "695b55a66e5d2d32f842ddd5",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198ddcf6a79853ee06a2",
+          "source_id": "69b9198d1bfe16da6e6da7de",
+          "date": "2026-01-01",
+          "net_weight": 67
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3603c",
+      "date": "2026-01-01 10:10",
+      "event_day": "2026-01-01",
+      "bottle_no": "259",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b55c47ae7089a62782e18",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e8a2e952d8f1bb5f4",
+          "source_id": "69b9198e1117bf9b461ae34e",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3603d",
+      "date": "2026-01-01 10:10",
+      "event_day": "2026-01-01",
+      "bottle_no": "263",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b55dc286f7c34c9bbc873",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e8a2e952d8f1bb5f6",
+          "source_id": "69b9198e8a2e952d8f1bb5f5",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3603e",
+      "date": "2026-01-01 10:10",
+      "event_day": "2026-01-01",
+      "bottle_no": "51",
+      "net_weight": 65,
+      "source_type": "filling",
+      "source_id": "695b55f1f2949c96890f0b42",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1bfe16da6e6da7e3",
+          "source_id": "69b9198d1bfe16da6e6da7e2",
+          "date": "2026-01-01",
+          "net_weight": 65
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3603f",
+      "date": "2026-01-01 10:10",
+      "event_day": "2026-01-01",
+      "bottle_no": "112",
+      "net_weight": 65,
+      "source_type": "filling",
+      "source_id": "695b560cce5ec95e33ccbd12",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198d1117bf9b461ae34b",
+          "source_id": "69b9198d1117bf9b461ae34a",
+          "date": "2026-01-01",
+          "net_weight": 65
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36040",
+      "date": "2026-01-01 10:11",
+      "event_day": "2026-01-01",
+      "bottle_no": "160",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5632c3b5c943f7cb36b3",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1bfe16da6e6da7eb",
+          "source_id": "69b9198e1bfe16da6e6da7ea",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36041",
+      "date": "2026-01-01 10:12",
+      "event_day": "2026-01-01",
+      "bottle_no": "361",
+      "net_weight": 56,
+      "source_type": "filling",
+      "source_id": "695b564999c624286aae43a5",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e89d83717620f3c71",
+          "source_id": "69b9198e1117bf9b461ae353",
+          "date": "2026-01-01",
+          "net_weight": 56
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36042",
+      "date": "2026-01-01 10:12",
+      "event_day": "2026-01-01",
+      "bottle_no": "150",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5675286f7c34c9bbd441",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1117bf9b461ae354",
+          "source_id": "69b9198e8a2e952d8f1bb5f8",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36043",
+      "date": "2026-01-01 10:13",
+      "event_day": "2026-01-01",
+      "bottle_no": "68",
+      "net_weight": 66,
+      "source_type": "filling",
+      "source_id": "695b568ace5ec95e33ccc659",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1bfe16da6e6da7ee",
+          "source_id": "69b9198e1bfe16da6e6da7ed",
+          "date": "2026-01-01",
+          "net_weight": 66
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36044",
+      "date": "2026-01-01 10:13",
+      "event_day": "2026-01-01",
+      "bottle_no": "21",
+      "net_weight": 65,
+      "source_type": "filling",
+      "source_id": "695b56a86523410ebe86c790",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1117bf9b461ae35a",
+          "source_id": "69b9198e1117bf9b461ae359",
+          "date": "2026-01-01",
+          "net_weight": 65
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36045",
+      "date": "2026-01-01 10:14",
+      "event_day": "2026-01-01",
+      "bottle_no": "148",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b56bda7c43298176e9e39",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e599120be6c3e941d",
+          "source_id": "69b9198e1bfe16da6e6da7f3",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36046",
+      "date": "2026-01-01 10:14",
+      "event_day": "2026-01-01",
+      "bottle_no": "71",
+      "net_weight": 66,
+      "source_type": "filling",
+      "source_id": "695b56d47c8de46b1187ee0c",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1bfe16da6e6da7f8",
+          "source_id": "69b9198edcf6a79853ee06ba",
+          "date": "2026-01-01",
+          "net_weight": 66
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36047",
+      "date": "2026-01-01 10:14",
+      "event_day": "2026-01-01",
+      "bottle_no": "19",
+      "net_weight": 65,
+      "source_type": "filling",
+      "source_id": "695b56f1286f7c34c9bbe023",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1bfe16da6e6da7f0",
+          "source_id": "69b9198e1bfe16da6e6da7ef",
+          "date": "2026-01-01",
+          "net_weight": 65
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36048",
+      "date": "2026-01-01 10:15",
+      "event_day": "2026-01-01",
+      "bottle_no": "134",
+      "net_weight": 71,
+      "source_type": "filling",
+      "source_id": "695b5710ee97ef7e815a2b0d",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e89d83717620f3c7a",
+          "source_id": "69b9198e8a2e952d8f1bb602",
+          "date": "2026-01-01",
+          "net_weight": 71
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36049",
+      "date": "2026-01-01 10:15",
+      "event_day": "2026-01-01",
+      "bottle_no": "105",
+      "net_weight": 66,
+      "source_type": "filling",
+      "source_id": "695b572f337a9f895de2d0fe",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198edcf6a79853ee06bd",
+          "source_id": "69b9198edcf6a79853ee06bc",
+          "date": "2026-01-01",
+          "net_weight": 66
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3604a",
+      "date": "2026-01-01 10:16",
+      "event_day": "2026-01-01",
+      "bottle_no": "373",
+      "net_weight": 56,
+      "source_type": "filling",
+      "source_id": "695b57457c8de46b1187f74e",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1bfe16da6e6da804",
+          "source_id": "69b9198e1bfe16da6e6da803",
+          "date": "2026-01-01",
+          "net_weight": 56
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3604b",
+      "date": "2026-01-01 10:16",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y082",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5765fe975fae25c65db6",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e8a2e952d8f1bb604",
+          "source_id": "69b9198e8a2e952d8f1bb603",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3604c",
+      "date": "2026-01-01 10:17",
+      "event_day": "2026-01-01",
+      "bottle_no": "360",
+      "net_weight": 56,
+      "source_type": "filling",
+      "source_id": "695b577dee97ef7e815a34f8",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1117bf9b461ae36c",
+          "source_id": "69b9198e89d83717620f3c7d",
+          "date": "2026-01-01",
+          "net_weight": 56
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3604d",
+      "date": "2026-01-01 10:17",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y086",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b57a121821b751b4dacc4",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1bfe16da6e6da809",
+          "source_id": "69b9198e1bfe16da6e6da808",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3604e",
+      "date": "2026-01-01 10:18",
+      "event_day": "2026-01-01",
+      "bottle_no": "370",
+      "net_weight": 56,
+      "source_type": "filling",
+      "source_id": "695b57b5862066edb7def1ff",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e8a2e952d8f1bb60d",
+          "source_id": "69b9198e8a2e952d8f1bb60c",
+          "date": "2026-01-01",
+          "net_weight": 56
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3604f",
+      "date": "2026-01-01 10:18",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y133",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b57d9189f86de201b2fee",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e8a2e952d8f1bb60e",
+          "source_id": "69b9198e1117bf9b461ae371",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36050",
+      "date": "2026-01-01 10:19",
+      "event_day": "2026-01-01",
+      "bottle_no": "387",
+      "net_weight": 55,
+      "source_type": "filling",
+      "source_id": "695b57fc6e5d2d32f8431230",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e1117bf9b461ae376",
+          "source_id": "69b9198e1117bf9b461ae375",
+          "date": "2026-01-01",
+          "net_weight": 55
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36051",
+      "date": "2026-01-01 10:19",
+      "event_day": "2026-01-01",
+      "bottle_no": "213",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5817e0ec19a5fa321792",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198e8a2e952d8f1bb610",
+          "source_id": "69b9198e8a2e952d8f1bb60f",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36052",
+      "date": "2026-01-01 10:20",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y172",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5832fe975fae25c67714",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae37f",
+          "source_id": "69b9198f1117bf9b461ae37e",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36053",
+      "date": "2026-01-01 10:20",
+      "event_day": "2026-01-01",
+      "bottle_no": "57",
+      "net_weight": 64,
+      "source_type": "filling",
+      "source_id": "695b5847a7c43298176ec769",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da80c",
+          "source_id": "69b9198f1bfe16da6e6da80b",
+          "date": "2026-01-01",
+          "net_weight": 64
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36054",
+      "date": "2026-01-01 10:20",
+      "event_day": "2026-01-01",
+      "bottle_no": "49",
+      "net_weight": 63,
+      "source_type": "filling",
+      "source_id": "695b586621392995668cf2ab",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae379",
+          "source_id": "69b9198f1117bf9b461ae378",
+          "date": "2026-01-01",
+          "net_weight": 63
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36055",
+      "date": "2026-01-01 10:21",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y041",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b587be0ec19a5fa322023",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da810",
+          "source_id": "69b9198f599120be6c3e9426",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36056",
+      "date": "2026-01-01 10:21",
+      "event_day": "2026-01-01",
+      "bottle_no": "220",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b58a34b92471a50993054",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da80f",
+          "source_id": "69b9198f1bfe16da6e6da80e",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36057",
+      "date": "2026-01-01 10:22",
+      "event_day": "2026-01-01",
+      "bottle_no": "351",
+      "net_weight": 56,
+      "source_type": "filling",
+      "source_id": "695b58bf21821b751b4dcdb7",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da81c",
+          "source_id": "69b9198f1bfe16da6e6da81b",
+          "date": "2026-01-01",
+          "net_weight": 56
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36058",
+      "date": "2026-01-01 10:23",
+      "event_day": "2026-01-01",
+      "bottle_no": "366",
+      "net_weight": 56,
+      "source_type": "filling",
+      "source_id": "695b59943d029c834b06cfb8",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f599120be6c3e9427",
+          "source_id": "69b9198fdcf6a79853ee06d4",
+          "date": "2026-01-01",
+          "net_weight": 56
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36059",
+      "date": "2026-01-01 10:26",
+      "event_day": "2026-01-01",
+      "bottle_no": "384",
+      "net_weight": 26,
+      "source_type": "filling",
+      "source_id": "695b59bfce5ec95e33cd1638",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198fdcf6a79853ee06d6",
+          "source_id": "69b9198fdcf6a79853ee06d5",
+          "date": "2026-01-01",
+          "net_weight": 26
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3605a",
+      "date": "2026-01-01 10:27",
+      "event_day": "2026-01-01",
+      "bottle_no": "177",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b59d5b9fb23b053ab12b4",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f89d83717620f3c92",
+          "source_id": "69b9198f8a2e952d8f1bb619",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3605b",
+      "date": "2026-01-01 10:27",
+      "event_day": "2026-01-01",
+      "bottle_no": "172",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b59f18a5c785fa8c13baa",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae386",
+          "source_id": "69b9198f1117bf9b461ae385",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3605c",
+      "date": "2026-01-01 10:28",
+      "event_day": "2026-01-01",
+      "bottle_no": "217",
+      "net_weight": 36,
+      "source_type": "filling",
+      "source_id": "695b5a1d55b337aa1caf9d26",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae38d",
+          "source_id": "69b9198f1117bf9b461ae38a",
+          "date": "2026-01-01",
+          "net_weight": 36
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3605d",
+      "date": "2026-01-01 10:28",
+      "event_day": "2026-01-01",
+      "bottle_no": "152",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5a3c7ae7089a62789485",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f8a2e952d8f1bb61b",
+          "source_id": "69b9198f8a2e952d8f1bb61a",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3605e",
+      "date": "2026-01-01 10:29",
+      "event_day": "2026-01-01",
+      "bottle_no": "Y008",
+      "net_weight": 70,
+      "source_type": "filling",
+      "source_id": "695b5a57f2949c96890f7636",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da822",
+          "source_id": "69b9198f1bfe16da6e6da821",
+          "date": "2026-01-01",
+          "net_weight": 70
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d3605f",
+      "date": "2026-01-01 10:29",
+      "event_day": "2026-01-01",
+      "bottle_no": "34",
+      "net_weight": 65,
+      "source_type": "filling",
+      "source_id": "695b5a906523410ebe8723a9",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da823",
+          "source_id": "69b9198f599120be6c3e942a",
+          "date": "2026-01-01",
+          "net_weight": 65
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36060",
+      "date": "2026-01-01 10:30",
+      "event_day": "2026-01-01",
+      "bottle_no": "188",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5ae60d2b3189a381c3ab",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da828",
+          "source_id": "69b9198f1bfe16da6e6da826",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36061",
+      "date": "2026-01-01 10:32",
+      "event_day": "2026-01-01",
+      "bottle_no": "202",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5afc0d2b3189a381c53c",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae394",
+          "source_id": "69b9198f1117bf9b461ae393",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36062",
+      "date": "2026-01-01 10:32",
+      "event_day": "2026-01-01",
+      "bottle_no": "199",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695b5b18286f7c34c9bc3efe",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da827",
+          "source_id": "69b9198fdcf6a79853ee06df",
+          "date": "2026-01-01",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899670b97e97dd99d36063",
+      "date": "2026-01-01 10:32",
+      "event_day": "2026-01-01",
+      "bottle_no": "377",
+      "net_weight": 56,
+      "source_type": "filling",
+      "source_id": "695b5b38f0821045dd0f0b98",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1bfe16da6e6da82c",
+          "source_id": "69b9198f1bfe16da6e6da82b",
+          "date": "2026-01-01",
+          "net_weight": 56
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360d8",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "64",
+      "net_weight": 64,
+      "source_type": "filling",
+      "source_id": "695c54161c90b6a7ccfef894",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f8a2e952d8f1bb629",
+          "source_id": "69b9198f89d83717620f3ca9",
+          "date": "2026-01-02",
+          "net_weight": 64
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360d9",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "63",
+      "net_weight": 64,
+      "source_type": "filling",
+      "source_id": "695c54173f1a479d2759cde4",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae39a",
+          "source_id": "69b9198f1117bf9b461ae399",
+          "date": "2026-01-02",
+          "net_weight": 64
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360da",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "186",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c541e149854772fd72f7a",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae39f",
+          "source_id": "69b9198f1117bf9b461ae39e",
+          "date": "2026-01-02",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360db",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "41",
+      "net_weight": 55,
+      "source_type": "filling",
+      "source_id": "695c54237ad52d1c39fcf44d",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b9198f1117bf9b461ae398",
+          "source_id": "69b9198f1117bf9b461ae397",
+          "date": "2026-01-02",
+          "net_weight": 55
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360dc",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "Z001",
+      "net_weight": 187,
+      "source_type": "filling",
+      "source_id": "695d0c33ee97ef7e817c978a",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919901bfe16da6e6da837",
+          "source_id": "69b919901bfe16da6e6da836",
+          "date": "2026-01-02",
+          "net_weight": 187
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360dd",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "Z002",
+      "net_weight": 187,
+      "source_type": "filling",
+      "source_id": "695d0c34652341e27a106ff3",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919901bfe16da6e6da835",
+          "source_id": "69b919901bfe16da6e6da834",
+          "date": "2026-01-02",
+          "net_weight": 187
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360de",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "Z018",
+      "net_weight": 186,
+      "source_type": "filling",
+      "source_id": "695d0c347c8de46b11aa2909",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b91990599120be6c3e943b",
+          "source_id": "69b91990599120be6c3e943a",
+          "date": "2026-01-02",
+          "net_weight": 186
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360df",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "Z012",
+      "net_weight": 186,
+      "source_type": "filling",
+      "source_id": "695d0c348b0da45f29423dc4",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b91990dcf6a79853ee06f1",
+          "source_id": "69b91990dcf6a79853ee06ef",
+          "date": "2026-01-02",
+          "net_weight": 186
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e0",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "Z016",
+      "net_weight": 186,
+      "source_type": "filling",
+      "source_id": "695d0c35b9fb23c0ca5bf54e",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919901117bf9b461ae3a7",
+          "source_id": "69b919901117bf9b461ae3a6",
+          "date": "2026-01-02",
+          "net_weight": 186
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e1",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "Z014",
+      "net_weight": 186,
+      "source_type": "filling",
+      "source_id": "695d0c358b0da45f29423dd4",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919901bfe16da6e6da847",
+          "source_id": "69b919901bfe16da6e6da846",
+          "date": "2026-01-02",
+          "net_weight": 186
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e2",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "Z020",
+      "net_weight": 186,
+      "source_type": "filling",
+      "source_id": "695d0c35eef9cb299837c727",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919908a2e952d8f1bb631",
+          "source_id": "69b9199089d83717620f3cb2",
+          "date": "2026-01-02",
+          "net_weight": 186
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e3",
+      "date": "2026-01-02 08:00",
+      "event_day": "2026-01-02",
+      "bottle_no": "TRUCK-9335Z",
+      "net_weight": 9200,
+      "source_type": "filling",
+      "source_id": "69718b343f1a4797e91bc6ae",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919901bfe16da6e6da830",
+          "source_id": "69b919901bfe16da6e6da82e",
+          "date": "2026-01-02",
+          "net_weight": 9200
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e4",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "116",
+      "net_weight": 63,
+      "source_type": "filling",
+      "source_id": "695c5412286f7c34c9cc3fa6",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919911bfe16da6e6da863",
+          "source_id": "69b919911bfe16da6e6da862",
+          "date": "2026-01-02",
+          "net_weight": 63
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e5",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "Y003",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c5412bd022001befb83d5",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b91992599120be6c3e945d",
+          "source_id": "69b91992dcf6a79853ee073f",
+          "date": "2026-01-02",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e6",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "214",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c54139755e34a913208c9",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919911bfe16da6e6da87a",
+          "source_id": "69b91991dcf6a79853ee072e",
+          "date": "2026-01-02",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e7",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "31",
+      "net_weight": 63,
+      "source_type": "filling",
+      "source_id": "695c5413652341e27affb34f",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919901117bf9b461ae3b4",
+          "source_id": "69b919901117bf9b461ae3b2",
+          "date": "2026-01-02",
+          "net_weight": 63
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e8",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "98",
+      "net_weight": 49,
+      "source_type": "filling",
+      "source_id": "695c5414862066edb7ef1aba",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919911bfe16da6e6da861",
+          "source_id": "69b919911bfe16da6e6da860",
+          "date": "2026-01-02",
+          "net_weight": 49
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360e9",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "181",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c5414bd022001befb83e1",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919911117bf9b461ae3ef",
+          "source_id": "69b919911117bf9b461ae3ed",
+          "date": "2026-01-02",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360ea",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "169",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c54143d029c834b177054",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919911bfe16da6e6da871",
+          "source_id": "69b919911bfe16da6e6da870",
+          "date": "2026-01-02",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899671b97e97dd99d360eb",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "222",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c541599c624286abe9553",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919911bfe16da6e6da87c",
+          "source_id": "69b919911bfe16da6e6da87b",
+          "date": "2026-01-02",
+          "net_weight": 69
+        }
+      ]
+    },
+    {
+      "movement_id": "69899672b97e97dd99d360ec",
+      "date": "2026-01-02 08:05",
+      "event_day": "2026-01-02",
+      "bottle_no": "Y055",
+      "net_weight": 69,
+      "source_type": "filling",
+      "source_id": "695c54154b92471a50a9ee00",
+      "legacy_match_count": 1,
+      "legacy_match_samples": [
+        {
+          "movement_id": "69b919921117bf9b461ae40e",
+          "source_id": "69b919921117bf9b461ae40c",
+          "date": "2026-01-02",
+          "net_weight": 69
+        }
+      ]
+    }
+  ],
+  "orphans_without_legacy_pair_sample": []
+}

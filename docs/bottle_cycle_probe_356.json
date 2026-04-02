@@ -1,0 +1,308 @@
+{
+  "generated_at": "2026-03-24T14:03:41.623Z",
+  "space_id": "env-00jxuffegf2n",
+  "bottle_no": "356",
+  "config_from": "/Users/wangbo/Library/Application Support/HBuilder X/projects/39637144c7c598fa8663d4ea84645a0e/setting.json",
+  "summary": {
+    "filling_total": 8,
+    "movement_total": 22,
+    "cycle_total": 7,
+    "focus_cycle_count": 0
+  },
+  "focus_dates": [
+    "2026-03-05",
+    "2026-01-31",
+    "2026-01-19",
+    "2026-01-15",
+    "2026-01-02"
+  ],
+  "focus_checks": [],
+  "filling_rows": [
+    {
+      "_id": "69b9199d1117bf9b461ae622",
+      "date": "2026-01-05",
+      "bottle_no": "356",
+      "fill_weight": 56,
+      "record_type": "normal_fill",
+      "operator": "陈铁栓"
+    },
+    {
+      "_id": "69b919a71bfe16da6e6dab33",
+      "date": "2026-01-08",
+      "bottle_no": "356",
+      "fill_weight": 57,
+      "record_type": "normal_fill",
+      "operator": "陈铁栓"
+    },
+    {
+      "_id": "69b919cf1bfe16da6e6db050",
+      "date": "2026-01-19",
+      "bottle_no": "356",
+      "fill_weight": 72,
+      "record_type": "normal_fill",
+      "operator": "陈铁栓"
+    },
+    {
+      "_id": "69c298ec9eef0ad07f13ec2e",
+      "date": "2026-01-22",
+      "bottle_no": "356",
+      "fill_weight": 76,
+      "record_type": "normal_fill",
+      "operator": "陈铁栓"
+    },
+    {
+      "_id": "69b919f81117bf9b461af8b2",
+      "date": "2026-02-02",
+      "bottle_no": "356",
+      "fill_weight": 58,
+      "record_type": "normal_fill",
+      "operator": "陈铁栓"
+    },
+    {
+      "_id": "69b91a041117bf9b461afae9",
+      "date": "2026-02-09",
+      "bottle_no": "356",
+      "fill_weight": 58,
+      "record_type": "normal_fill",
+      "operator": "陈铁栓"
+    },
+    {
+      "_id": "69b91a0f1bfe16da6e6db7ac",
+      "date": "2026-02-26",
+      "bottle_no": "356",
+      "fill_weight": 58,
+      "record_type": "normal_fill",
+      "operator": "陈铁栓"
+    },
+    {
+      "_id": "69b91a391bfe16da6e6dbc99",
+      "date": "2026-03-12",
+      "bottle_no": "356",
+      "fill_weight": 58,
+      "record_type": "normal_fill",
+      "operator": "陈铁栓"
+    }
+  ],
+  "movement_rows": [
+    {
+      "_id": "69899674b97e97dd99d36217",
+      "date": "2026-01-04",
+      "type": "back",
+      "source_type": "sale",
+      "source_id": "695daf7ffe975fae25f00554",
+      "net_weight": 2,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69b9199d1117bf9b461ae623",
+      "date": "2026-01-05",
+      "type": "fill",
+      "source_type": "legacy_import",
+      "source_id": "69b9199d1117bf9b461ae622",
+      "net_weight": 56,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69899676b97e97dd99d3631d",
+      "date": "2026-01-05",
+      "type": "out",
+      "source_type": "sale",
+      "source_id": "695e01d5b9fb23c0ca6bba58",
+      "net_weight": 56,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "6989967bb97e97dd99d364c8",
+      "date": "2026-01-07",
+      "type": "back",
+      "source_type": "sale",
+      "source_id": "695f1cadee97ef7e81a01cd0",
+      "net_weight": 2,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69b919a71bfe16da6e6dab34",
+      "date": "2026-01-08",
+      "type": "fill",
+      "source_type": "legacy_import",
+      "source_id": "69b919a71bfe16da6e6dab33",
+      "net_weight": 57,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "6989967fb97e97dd99d3669c",
+      "date": "2026-01-09",
+      "type": "out",
+      "source_type": "sale",
+      "source_id": "6960c059ee97ef494d55825f",
+      "net_weight": 57,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69899691b97e97dd99d36db4",
+      "date": "2026-01-18",
+      "type": "back",
+      "source_type": "sale",
+      "source_id": "696d76d10d2b314595f7bcbe",
+      "net_weight": 22,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69b919cf599120be6c3e9784",
+      "date": "2026-01-19",
+      "type": "fill",
+      "source_type": "legacy_import",
+      "source_id": "69b919cf1bfe16da6e6db050",
+      "net_weight": 72,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69899698b97e97dd99d370c7",
+      "date": "2026-01-21",
+      "type": "out",
+      "source_type": "sale",
+      "source_id": "69703a4b21392995660e9b5b",
+      "net_weight": 72,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69899699b97e97dd99d3711e",
+      "date": "2026-01-22",
+      "type": "back",
+      "source_type": "sale",
+      "source_id": "69717acdee97ef9665316b1c",
+      "net_weight": 1,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69c298ec9eef0ad07f13ec2f",
+      "date": "2026-01-22",
+      "type": "fill",
+      "source_type": "filling",
+      "source_id": "69c298ec9eef0ad07f13ec2e",
+      "net_weight": 76,
+      "loss_weight": null,
+      "note": "[missing-fill-backfill] anomaly=69c2799b9eef0ad07f10a0ac out=2026-01-23 diff=76"
+    },
+    {
+      "_id": "6989969cb97e97dd99d37264",
+      "date": "2026-01-23",
+      "type": "out",
+      "source_type": "sale",
+      "source_id": "69732a30ee97ef966553c351",
+      "net_weight": 77,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "698996a7b97e97dd99d37742",
+      "date": "2026-01-30",
+      "type": "back",
+      "source_type": "sale",
+      "source_id": "697c588f09664c6b3059ba84",
+      "net_weight": 2,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69b919f81117bf9b461af8b3",
+      "date": "2026-02-02",
+      "type": "fill",
+      "source_type": "legacy_import",
+      "source_id": "69b919f81117bf9b461af8b2",
+      "net_weight": 58,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "698996acb97e97dd99d3797b",
+      "date": "2026-02-03",
+      "type": "out",
+      "source_type": "sale",
+      "source_id": "69818ad54b92476315cbf94f",
+      "net_weight": 61,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69bbaff88a2e952d8f49b943",
+      "date": "2026-02-09",
+      "type": "back",
+      "source_type": "sale",
+      "source_id": "69bbaff889d8371762435b68",
+      "net_weight": 1,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69b91a041117bf9b461afaea",
+      "date": "2026-02-09",
+      "type": "fill",
+      "source_type": "legacy_import",
+      "source_id": "69b91a041117bf9b461afae9",
+      "net_weight": 58,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69b91a0f1bfe16da6e6db7ad",
+      "date": "2026-02-26",
+      "type": "fill",
+      "source_type": "legacy_import",
+      "source_id": "69b91a0f1bfe16da6e6db7ac",
+      "net_weight": 58,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69bbb000f7ac1a41a1adc977",
+      "date": "2026-02-28",
+      "type": "out",
+      "source_type": "sale",
+      "source_id": "69bbb0000add39bd434a40ba",
+      "net_weight": 60,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69bbb00d0add39bd434a436b",
+      "date": "2026-03-11",
+      "type": "back",
+      "source_type": "sale",
+      "source_id": "69bbb00df7ac1a41a1adcb53",
+      "net_weight": 2,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69b91a39dcf6a79853ee1c70",
+      "date": "2026-03-12",
+      "type": "fill",
+      "source_type": "legacy_import",
+      "source_id": "69b91a391bfe16da6e6dbc99",
+      "net_weight": 58,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69bbb2c51501ab29a1bd871f",
+      "date": "2026-03-15",
+      "type": "out",
+      "source_type": "sale",
+      "source_id": "69bbb2c536bc4bac6fd4c7b1",
+      "net_weight": 59,
+      "loss_weight": null,
+      "note": ""
+    }
+  ]
+}

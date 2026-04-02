@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-03-29T05:13:04.549Z",
+  "mode": "execute",
+  "input": "docs/import_new/gas_in_records.json",
+  "report": "docs/import_new/gas_in.import.report.json",
+  "parse_mode": "ndjson",
+  "source_total": 22,
+  "valid_total": 22,
+  "invalid_total": 0,
+  "invalid_sample": [],
+  "summary": {
+    "net_weight_t_total": 461.73,
+    "amount_total": 1727956.8
+  },
+  "execute": {
+    "attempted": 22,
+    "success": 22,
+    "created": 2,
+    "updated": 0,
+    "skipped_existing": 20,
+    "failed": 0,
+    "warnings": 20,
+    "failed_items": []
+  }
+}

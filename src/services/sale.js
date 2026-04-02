@@ -1,13 +1,15 @@
 import { callCloud } from '@/services/api'
 import { normalizeSaleDraft, validateSaleDraftForCreate } from '@/services/models'
 
-function inferBizMode({ agentSaleRows, truckNo }) {
-	if (Array.isArray(agentSaleRows) && agentSaleRows.length) return 'agent_sale'
-	if (truckNo) return 'truck'
+const SALE_SAVE_TIMEOUT_MS = 120000
+
+function normalizeBizMode(value) {
+	const text = String(value || '').trim()
+	if (text === 'bottle' || text === 'truck' || text === 'agent_sale') return text
 	return 'bottle'
 }
 
-export async function createSaleV2(draft) {
+export async function createSaleV2(draft, options = {}) {
 	const normalized = normalizeSaleDraft({
 		date: draft.form.date,
 		customerId: draft.form.customerId,
@@ -16,13 +18,19 @@ export async function createSaleV2(draft) {
 		delivery2: draft.form.deliveryMan2,
 		vehicleId: '',
 		carNo: draft.form.vehicleNo,
+		remark: draft.form.remark,
+		ticketImage: draft.form.ticketImage || (Array.isArray(draft.form.ticketImages) ? draft.form.ticketImages[0] || '' : ''),
+		ticketImages: Array.isArray(draft.form.ticketImages) ? draft.form.ticketImages : [],
 		priceUnit: draft.form.priceUnit,
+		settlementMode: draft.form.settlementMode,
 		unitPrice: draft.form.unitPrice,
-		bizMode: inferBizMode({ agentSaleRows: draft.agentSaleRows, truckNo: draft.truck.truckNo }),
-		truckNo: draft.truck.truckNo,
-		truckOutGross: draft.truck.truckOutGross,
-		truckBackGross: draft.truck.truckBackGross,
-		truckSaleNet: draft.truck.truckSaleNet,
+		bizMode: normalizeBizMode(draft.form.bizMode),
+			truckNo: draft.truck.truckNo,
+			truckOutGross: draft.truck.truckOutGross,
+			truckBackGross: draft.truck.truckBackGross,
+			truckSettleTare: draft.truck.truckSettleTare,
+			truckSettleGross: draft.truck.truckSettleGross,
+			truckGrossDiff: draft.truck.truckGrossDiff,
 		flowIndexPrev: draft.flow.flowPrev,
 		flowIndexCurr: draft.flow.flowCurr,
 		flowVolumeM3: draft.flow.flowVolume,
@@ -41,9 +49,13 @@ export async function createSaleV2(draft) {
 	const validation = validateSaleDraftForCreate(normalized)
 	if (!validation.ok) return { code: 400, msg: validation.msg }
 
+	const data = { ...normalized }
+	if (options.ignoreBottleFlowWarning) data.ignore_bottle_flow_warning = true
+
 	return callCloud('crm-sale', {
 		action: 'createV2',
-		data: normalized
+		data,
+		timeout: SALE_SAVE_TIMEOUT_MS
 	})
 }
 
@@ -62,13 +74,19 @@ export async function updateSaleV2(params) {
 		delivery2: draft.form.deliveryMan2,
 		vehicleId: '',
 		carNo: draft.form.vehicleNo,
+		remark: draft.form.remark,
+		ticketImage: draft.form.ticketImage || (Array.isArray(draft.form.ticketImages) ? draft.form.ticketImages[0] || '' : ''),
+		ticketImages: Array.isArray(draft.form.ticketImages) ? draft.form.ticketImages : [],
 		priceUnit: draft.form.priceUnit,
+		settlementMode: draft.form.settlementMode,
 		unitPrice: draft.form.unitPrice,
-		bizMode: inferBizMode({ agentSaleRows: draft.agentSaleRows, truckNo: draft.truck.truckNo }),
-		truckNo: draft.truck.truckNo,
-		truckOutGross: draft.truck.truckOutGross,
-		truckBackGross: draft.truck.truckBackGross,
-		truckSaleNet: draft.truck.truckSaleNet,
+		bizMode: normalizeBizMode(draft.form.bizMode),
+			truckNo: draft.truck.truckNo,
+			truckOutGross: draft.truck.truckOutGross,
+			truckBackGross: draft.truck.truckBackGross,
+			truckSettleTare: draft.truck.truckSettleTare,
+			truckSettleGross: draft.truck.truckSettleGross,
+			truckGrossDiff: draft.truck.truckGrossDiff,
 		flowIndexPrev: draft.flow.flowPrev,
 		flowIndexCurr: draft.flow.flowCurr,
 		flowVolumeM3: draft.flow.flowVolume,
@@ -87,12 +105,16 @@ export async function updateSaleV2(params) {
 	const validation = validateSaleDraftForCreate(normalized)
 	if (!validation.ok) return { code: 400, msg: validation.msg }
 
+	const data = {
+		recordId,
+		payload: normalized
+	}
+	if (params.ignoreBottleFlowWarning) data.ignore_bottle_flow_warning = true
+
 	return callCloud('crm-sale', {
 		action: 'updateV2',
-		data: {
-			recordId,
-			payload: normalized
-		}
+		data,
+		timeout: SALE_SAVE_TIMEOUT_MS
 	})
 }
 
@@ -105,6 +127,10 @@ export async function listSalesV2(filters) {
 			dateEnd: filters.dateEnd || '',
 			priceUnit: filters.priceUnit || '',
 			bizMode: filters.bizMode || filters.biz_mode || '',
+			paymentStatus: filters.paymentStatus || filters.payment_status || '',
+			settlementScope: filters.settlementScope || filters.settlement_scope || '',
+			hasRemark: filters.hasRemark || filters.has_remark || '',
+			remarkTag: filters.remarkTag || filters.remark_tag || '',
 			page: filters.page || 1,
 			pageSize: filters.pageSize || 20
 		}
@@ -131,6 +157,17 @@ export async function getCustomerDepositV1(params) {
 	})
 }
 
+export async function searchAgentFillSuggestionsV1(params = {}) {
+	return callCloud('crm-sale', {
+		action: 'searchAgentFillSuggestionsV1',
+		data: {
+			keyword: params.keyword || params.bottleNo || params.bottle_no || '',
+			date: params.date || params.saleDate || params.sale_date || '',
+			limit: params.limit || 20
+		}
+	})
+}
+
 export async function removeSaleV2(params = {}) {
 	const recordId = params._id || params.id || params.recordId || ''
 	if (!recordId) return { code: 400, msg: '缺少记录 ID' }
@@ -139,5 +176,27 @@ export async function removeSaleV2(params = {}) {
 		data: {
 			recordId
 		}
+	})
+}
+
+export async function quickReceiveSaleV1(params = {}) {
+	const recordId = params._id || params.id || params.recordId || ''
+	if (!recordId) return { code: 400, msg: '缺少记录 ID' }
+	const data = {
+		recordId,
+		amountReceived: params.amountReceived,
+		paymentNote: params.paymentNote || params.payment_note || '',
+		paymentMethod: params.paymentMethod || params.payment_method || '',
+		bizDate: params.bizDate || params.biz_date || '',
+		allocationMode: params.allocationMode || params.allocation_mode || '',
+		allocationStartDate: params.allocationStartDate || params.allocation_start_date || '',
+		allocationEndDate: params.allocationEndDate || params.allocation_end_date || ''
+	}
+	if (params.paymentStatus || params.payment_status) {
+		data.paymentStatus = params.paymentStatus || params.payment_status || ''
+	}
+	return callCloud('crm-sale', {
+		action: 'quickReceiveV1',
+		data
 	})
 }

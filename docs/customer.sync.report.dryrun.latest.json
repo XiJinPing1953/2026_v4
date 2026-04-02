@@ -1,0 +1,105 @@
+{
+  "started_at": "2026-03-19T10:10:25.257Z",
+  "finished_at": "2026-03-19T10:10:25.258Z",
+  "mode": "dry-run",
+  "space_id": "env-00jxuffegf2n",
+  "input_path": "/Users/wangbo/Downloads/2026_v4/docs/客户.json",
+  "parse_mode": "ndjson",
+  "input_total_raw": 120,
+  "input_total_normalized": 120,
+  "cloud_total": 120,
+  "plan_update_total": 8,
+  "unresolved_total": 0,
+  "unmatched_cloud_total": 0,
+  "updated_total": 0,
+  "failed_total": 0,
+  "updated_preview": [
+    {
+      "line_no": 20,
+      "target_id": "694045c0adf6dbd796e261c0",
+      "name": "张有伏",
+      "phone": "18203229590",
+      "fields": [
+        "remark",
+        "default_unit_price"
+      ]
+    },
+    {
+      "line_no": 72,
+      "target_id": "694045c0adf6dbd796e261f9",
+      "name": "肃宁-金颖",
+      "phone": "13722768558",
+      "fields": [
+        "default_unit_price"
+      ]
+    },
+    {
+      "line_no": 84,
+      "target_id": "694045c0adf6dbd796e2621a",
+      "name": "舟山晋业能源有限公司",
+      "phone": "",
+      "fields": [
+        "remark",
+        "default_unit_price"
+      ]
+    },
+    {
+      "line_no": 96,
+      "target_id": "694045c0adf6dbd796e261fc",
+      "name": "万盛帆布北",
+      "phone": "",
+      "fields": [
+        "remark",
+        "is_active"
+      ]
+    },
+    {
+      "line_no": 117,
+      "target_id": "69bbb2c04f4cace5e7e84e75",
+      "name": "四公",
+      "phone": "",
+      "fields": [
+        "remark"
+      ]
+    },
+    {
+      "line_no": 118,
+      "target_id": "69bbb2c24f4cace5e7e84eab",
+      "name": "蓝峰锅炉",
+      "phone": "13832365805",
+      "fields": [
+        "phone",
+        "address",
+        "remark",
+        "default_unit_price"
+      ]
+    },
+    {
+      "line_no": 119,
+      "target_id": "69bbb2c24f4cace5e7e84eaf",
+      "name": "丁军龙皮厂",
+      "phone": "13028627815",
+      "fields": [
+        "contact",
+        "phone",
+        "remark",
+        "default_unit_price"
+      ]
+    },
+    {
+      "line_no": 120,
+      "target_id": "69bbb2c31bfe16da6e9cc977",
+      "name": "正豪皮革厂-靳占彬",
+      "phone": "15103112144",
+      "fields": [
+        "contact",
+        "phone",
+        "remark",
+        "default_unit_price"
+      ]
+    }
+  ],
+  "unresolved_preview": [],
+  "unmatched_cloud_preview": [],
+  "failed_preview": []
+}

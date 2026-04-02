@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-03-18T15:00:40.106Z",
+  "input_sales": "docs/20260318225227_2bbf7d6e-a305-4a91-a88c-988dfca2d256.json",
+  "input_customers": "docs/about_crm_customers.json",
+  "rows": 1686,
+  "filled_customer_id": 1,
+  "unresolved_count": 1,
+  "unresolved_preview": [
+    {
+      "line": 1063,
+      "_id": "6989537d7ae7089a62e82946",
+      "customer_name": "四公",
+      "date": "2026-02-07",
+      "biz_mode": "truck"
+    }
+  ],
+  "output": "docs/sale_20260318225227_preclean.fixed.array.json"
+}

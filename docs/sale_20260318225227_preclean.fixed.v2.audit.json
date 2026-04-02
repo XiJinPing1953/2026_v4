@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-03-18T15:09:22.573Z",
+  "input": "docs/sale_20260318225227_preclean.fixed.v2.array.json",
+  "total_rows": 1686,
+  "pass_rows": 1686,
+  "blocked_rows": 0,
+  "boundary_checks": {
+    "invalid_biz_mode": 0,
+    "missing_customer": 0,
+    "truck_missing_truck_no": 0,
+    "truck_invalid_sale_net": 0,
+    "agent_missing_rows": 0,
+    "bottle_missing_evidence": 0,
+    "invalid_date": 0
+  },
+  "outputs": {
+    "pass": "docs/sale_20260318225227_preclean.fixed.v2.pass.array.json",
+    "blocked": "docs/sale_20260318225227_preclean.fixed.v2.blocked.array.json"
+  },
+  "blocked_preview": []
+}

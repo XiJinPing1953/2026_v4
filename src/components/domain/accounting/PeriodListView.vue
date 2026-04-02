@@ -15,7 +15,7 @@
 		<view class="list-shell">
 			<AppSection title="新建账期">
 				<template #actions>
-					<AppButton size="sm" kind="primary" :loading="creating" :disabled="creating" @click="onCreate">创建账期</AppButton>
+					<AppButton v-if="canCreatePeriod" size="sm" kind="primary" :loading="creating" :disabled="creating" @click="onCreate">创建账期</AppButton>
 				</template>
 				<view class="form-grid">
 					<AppInput v-model="newPeriod" label="账期" placeholder="YYYY-MM" size="sm" />
@@ -37,6 +37,7 @@
 					>
 						<template #footer>
 							<AppButton
+								v-if="canUpdatePeriod"
 								size="sm"
 								:kind="item.status === 'closed' ? 'ghost' : 'primary'"
 								@click="onToggle(item)"
@@ -60,6 +61,7 @@ import AppListItem from '@/components/base/AppListItem.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
+import { useAuthGuard } from '@/composables/useAuthGuard'
 import { useQuery } from '@/composables/useQuery'
 import { closePeriodV1, createPeriodV1, listPeriodsV1, reopenPeriodV1 } from '@/services/period'
 
@@ -78,6 +80,9 @@ const summary = computed(() => {
 	const open = total - closed
 	return { total, closed, open }
 })
+const { canPageAction } = useAuthGuard()
+const canCreatePeriod = computed(() => canPageAction('/pages/accounting/period-list', 'create'))
+const canUpdatePeriod = computed(() => canPageAction('/pages/accounting/period-list', 'update'))
 
 const { loading, run: fetchList } = useQuery(
 	async () => {

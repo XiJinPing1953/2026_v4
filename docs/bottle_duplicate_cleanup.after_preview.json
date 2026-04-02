@@ -1,0 +1,14 @@
+{
+  "code": 0,
+  "msg": "预览成功",
+  "data": {
+    "preview": true,
+    "confirm_text": "bottle_cleanup_duplicates_v1",
+    "duplicate_group_total": 0,
+    "duplicate_row_total": 0,
+    "sale_row_rewrite_total": 0,
+    "update_canonical_total": 0,
+    "rebuild_status_total": 0,
+    "sample_groups": []
+  }
+}

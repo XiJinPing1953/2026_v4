@@ -1,0 +1,114 @@
+{
+  "generated_at": "2026-03-17T09:41:57.297Z",
+  "space_id": "env-00jxuffegf2n",
+  "source_file": "/Users/wangbo/Downloads/2026_v4/docs/export_bottle.json",
+  "target_total": 11,
+  "created": [],
+  "existed": [],
+  "failed": [
+    {
+      "bottle_no": "N68",
+      "tare_weight": 0,
+      "msg": "充装单位必填",
+      "raw": {
+        "code": 400,
+        "msg": "充装单位必填"
+      }
+    },
+    {
+      "bottle_no": "X11",
+      "tare_weight": 0,
+      "msg": "充装单位必填",
+      "raw": {
+        "code": 400,
+        "msg": "充装单位必填"
+      }
+    },
+    {
+      "bottle_no": "X34",
+      "tare_weight": 0,
+      "msg": "充装单位必填",
+      "raw": {
+        "code": 400,
+        "msg": "充装单位必填"
+      }
+    },
+    {
+      "bottle_no": "X37",
+      "tare_weight": 0,
+      "msg": "充装单位必填",
+      "raw": {
+        "code": 400,
+        "msg": "充装单位必填"
+      }
+    },
+    {
+      "bottle_no": "X046",
+      "tare_weight": 0,
+      "msg": "充装单位必填",
+      "raw": {
+        "code": 400,
+        "msg": "充装单位必填"
+      }
+    },
+    {
+      "bottle_no": "X047",
+      "tare_weight": 0,
+      "msg": "充装单位必填",
+      "raw": {
+        "code": 400,
+        "msg": "充装单位必填"
+      }
+    },
+    {
+      "bottle_no": "X57",
+      "tare_weight": 0,
+      "msg": "充装单位必填",
+      "raw": {
+        "code": 400,
+        "msg": "充装单位必填"
+      }
+    },
+    {
+      "bottle_no": "X59",
+      "tare_weight": 0,
+      "msg": "充装单位必填",
+      "raw": {
+        "code": 400,
+        "msg": "充装单位必填"
+      }
+    },
+    {
+      "bottle_no": "X61",
+      "tare_weight": 0,
+      "msg": "充装单位必填",
+      "raw": {
+        "code": 400,
+        "msg": "充装单位必填"
+      }
+    },
+    {
+      "bottle_no": "X63",
+      "tare_weight": 0,
+      "msg": "充装单位必填",
+      "raw": {
+        "code": 400,
+        "msg": "充装单位必填"
+      }
+    },
+    {
+      "bottle_no": "Y179",
+      "tare_weight": 119,
+      "msg": "充装单位必填",
+      "raw": {
+        "code": 400,
+        "msg": "充装单位必填"
+      }
+    }
+  ],
+  "summary": {
+    "created": 0,
+    "existed": 0,
+    "failed": 11
+  }
+}

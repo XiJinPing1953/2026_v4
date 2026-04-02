@@ -1,0 +1,60 @@
+{
+  "bsonType": "object",
+  "description": "Customer receipt allocations to sales",
+  "additionalProperties": false,
+  "required": [
+    "receipt_id",
+    "customer_id",
+    "customer_name",
+    "sale_id",
+    "sale_date",
+    "biz_date",
+    "allocate_amount",
+    "seq",
+    "note",
+    "source_type",
+    "request_id",
+    "created_at",
+    "created_by",
+    "created_by_name"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "receipt_id": { "bsonType": "string" },
+    "customer_id": { "bsonType": "string" },
+    "customer_name": { "bsonType": "string" },
+    "sale_id": { "bsonType": "string" },
+    "sale_date": { "bsonType": "string" },
+    "flow_settlement_id": { "bsonType": ["string", "null"] },
+    "target_type": { "bsonType": ["string", "null"] },
+    "target_id": { "bsonType": ["string", "null"] },
+    "target_title": { "bsonType": ["string", "null"] },
+    "biz_date": { "bsonType": "string" },
+    "allocate_amount": { "bsonType": ["number", "null"] },
+    "seq": { "bsonType": ["number", "null"] },
+    "note": { "bsonType": "string" },
+    "allocation_mode": { "bsonType": ["string", "null"] },
+    "allocation_start_date": { "bsonType": ["string", "null"] },
+    "allocation_end_date": { "bsonType": ["string", "null"] },
+    "source_type": { "bsonType": "string" },
+    "source_id": { "bsonType": ["string", "null"] },
+    "request_id": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "created_by": { "bsonType": ["string", "null"] },
+    "created_by_name": { "bsonType": "string" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "customer_id": 1, "biz_date": -1, "created_at": -1 }, "name": "idx_customer_bizdate_created" },
+    { "key": { "sale_id": 1, "biz_date": -1, "created_at": -1 }, "name": "idx_sale_bizdate_created" },
+    { "key": { "target_type": 1, "target_id": 1, "biz_date": -1 }, "name": "idx_target_bizdate_created" },
+    { "key": { "receipt_id": 1, "seq": 1 }, "name": "idx_receipt_seq", "unique": true },
+    { "key": { "source_type": 1, "source_id": 1 }, "name": "idx_source" },
+    { "key": { "request_id": 1 }, "name": "idx_request_id" }
+  ]
+}

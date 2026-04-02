@@ -1,0 +1,69 @@
+{
+  "bsonType": "object",
+  "description": "Customer flow settlement snapshots for m3 billing",
+  "additionalProperties": false,
+  "required": [
+    "customer_id",
+    "customer_name",
+    "biz_date",
+    "period_end_date",
+    "flow_index_prev",
+    "flow_index_curr",
+    "flow_volume_m3",
+    "unit_price",
+    "should_receive",
+    "amount_received",
+    "payment_status",
+    "status",
+    "sale_ids",
+    "note",
+    "request_id",
+    "created_at",
+    "created_by",
+    "created_by_name",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "customer_id": { "bsonType": "string" },
+    "customer_name": { "bsonType": "string" },
+    "biz_date": { "bsonType": "string" },
+    "period_start_date": { "bsonType": ["string", "null"] },
+    "period_end_date": { "bsonType": "string" },
+    "previous_flow_settlement_id": { "bsonType": ["string", "null"] },
+    "flow_index_prev": { "bsonType": ["number", "null"] },
+    "flow_index_curr": { "bsonType": ["number", "null"] },
+    "flow_volume_m3": { "bsonType": ["number", "null"] },
+    "flow_theory_ratio": { "bsonType": ["number", "null"] },
+    "theory_weight_kg": { "bsonType": ["number", "null"] },
+    "actual_weight_kg": { "bsonType": ["number", "null"] },
+    "loss_weight_kg": { "bsonType": ["number", "null"] },
+    "unit_price": { "bsonType": ["number", "null"] },
+    "should_receive": { "bsonType": ["number", "null"] },
+    "amount_received": { "bsonType": ["number", "null"] },
+    "payment_status": { "bsonType": "string" },
+    "status": { "bsonType": "string" },
+    "sale_ids": {
+      "bsonType": "array",
+      "items": { "bsonType": "string" }
+    },
+    "note": { "bsonType": "string" },
+    "request_id": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "created_by": { "bsonType": ["string", "null"] },
+    "created_by_name": { "bsonType": "string" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "customer_id": 1, "biz_date": -1, "created_at": -1 }, "name": "idx_customer_bizdate_created" },
+    { "key": { "customer_id": 1, "status": 1, "biz_date": -1 }, "name": "idx_customer_status_date" },
+    { "key": { "request_id": 1 }, "name": "idx_request_id" },
+    { "key": { "previous_flow_settlement_id": 1 }, "name": "idx_previous_flow_settlement_id" }
+  ]
+}

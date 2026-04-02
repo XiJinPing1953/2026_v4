@@ -10,8 +10,8 @@
 				<view class="logo-box">
 					<image class="logo" src="/static/logo.png" mode="aspectFit" />
 				</view>
-				<text class="title">2026 CRM</text>
-				<text class="subtitle">让业务更简单</text>
+				<text class="title">新拓能源</text>
+				<text class="subtitle">账号登录</text>
 			</view>
 			
 			<view class="card-container">
@@ -40,7 +40,7 @@
 			</view>
 
 			<view class="footer">
-				<text class="footer-text">Powered by 2026 Team</text>
+				<text class="footer-text">Powered by 新拓能源</text>
 			</view>
 		</view>
 	</view>
@@ -156,6 +156,9 @@ async function onLogin() {
 	border-radius: 32rpx;
 	padding: 40rpx 32rpx;
 	box-shadow: 0 16rpx 48rpx rgba(15, 23, 42, 0.06);
+	width: 100%;
+	max-width: 760rpx;
+	margin: 0 auto;
 }
 
 .form {
@@ -166,6 +169,8 @@ async function onLogin() {
 
 .actions {
 	margin-top: 16rpx;
+	display: flex;
+	justify-content: center;
 }
 
 .login-btn {
@@ -176,6 +181,8 @@ async function onLogin() {
 	font-size: 30rpx !important;
 	font-weight: 600;
 	letter-spacing: 2rpx;
+	width: 100%;
+	max-width: 320rpx;
 }
 
 .footer {

@@ -1,0 +1,39 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "generated_at": "2026-03-30T05:14:52.074Z",
+  "execute": true,
+  "only_active": true,
+  "include_special_status": false,
+  "target_bottle_total": 2,
+  "chunk_size": 200,
+  "chunks": [
+    {
+      "index": 1,
+      "size": 2,
+      "summary": {
+        "target_total": 2,
+        "updated_total": 0,
+        "changed_total": 0,
+        "unchanged_total": 2,
+        "no_movement_total": 0,
+        "pending_same_day_total": 0,
+        "skipped_special_status_total": 0,
+        "skipped_inactive_total": 0,
+        "skipped_pseudo_total": 0
+      },
+      "sample_changes": []
+    }
+  ],
+  "summary": {
+    "target_total": 2,
+    "updated_total": 0,
+    "changed_total": 0,
+    "unchanged_total": 2,
+    "no_movement_total": 0,
+    "pending_same_day_total": 0,
+    "skipped_special_status_total": 0,
+    "skipped_inactive_total": 0,
+    "skipped_pseudo_total": 0
+  },
+  "sample_changes": []
+}

@@ -1,5 +1,5 @@
 <template>
-	<button class="btn" :class="[kindClass, sizeClass]" :disabled="disabled || loading" @click="$emit('click')">
+	<button class="btn" :class="[kindClass, sizeClass]" :disabled="disabled || loading" @click="onClick">
 		<view class="btn__inner">
 			<AppIcon v-if="icon" :name="icon" size="28rpx" class="btn__icon" />
 			<text v-if="!loading"><slot /></text>
@@ -20,10 +20,14 @@ const props = defineProps({
 	icon: { type: String, default: '' }
 })
 
-defineEmits(['click'])
+const emit = defineEmits(['click'])
 
 const kindClass = computed(() => `btn--${props.kind}`)
 const sizeClass = computed(() => `btn--${props.size}`)
+
+function onClick(event) {
+	emit('click', event)
+}
 </script>
 
 <style scoped>

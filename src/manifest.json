@@ -57,7 +57,12 @@
         "usingComponents" : true
     },
     "mp-alipay" : {
-        "usingComponents" : true
+        "usingComponents" : true,
+        "networkTimeout" : {
+            "request" : 120000,
+            "downloadFile" : 120000,
+            "uploadFile" : 120000
+        }
     },
     "mp-baidu" : {
         "usingComponents" : true

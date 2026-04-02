@@ -1,11 +1,25 @@
 'use strict'
 
+let ensureActionAcl = null
+try {
+	;({ ensureActionAcl } = require('../common/pageAcl'))
+} catch (err) {
+	console.warn('[crm-customer] fallback to local pageAcl helpers', err && err.message)
+	;({ ensureActionAcl } = require('./pageAclLocal'))
+}
 const db = uniCloud.database()
 const dbCmd = db.command
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 const customers = db.collection('crm_customers')
+const bottles = db.collection('crm_bottles')
+const PAGE_ACTION_RULES = {
+	listV1: [{ pagePath: '/pages/customer/list', action: 'view' }],
+	getV1: [{ pagePath: '/pages/customer/list', action: 'view' }, { pagePath: '/pages/customer/edit', action: 'view' }],
+	createV1: [{ pagePath: '/pages/customer/edit', action: 'create' }],
+	updateV1: [{ pagePath: '/pages/customer/edit', action: 'update' }]
+}
 
 async function getUserByToken(token) {
 	if (!token) return null
@@ -58,6 +72,56 @@ function toNumber(value, fallback = null) {
 	if (value === '' || value == null) return fallback
 	const num = Number(value)
 	return Number.isFinite(num) ? num : fallback
+}
+
+function toBalanceNumber(value) {
+	const num = Number(value)
+	if (!Number.isFinite(num)) return 0
+	return Number(num.toFixed(2))
+}
+
+function withBalanceFields(doc = {}) {
+	return {
+		...doc,
+		receivable_balance: toBalanceNumber(doc.receivable_balance),
+		prepay_balance: toBalanceNumber(doc.prepay_balance),
+		net_balance: toBalanceNumber(doc.net_balance),
+		should_receive_total: toBalanceNumber(doc.should_receive_total),
+		amount_received_total: toBalanceNumber(doc.amount_received_total),
+		last_receipt_at: doc.last_receipt_at == null ? null : Number(doc.last_receipt_at) || null
+	}
+}
+
+async function attachDepositCounts(items = []) {
+	const rows = Array.isArray(items) ? items : []
+	const ids = [...new Set(rows.map((item) => normalizeString(item && item._id)).filter(Boolean))]
+	if (!ids.length) {
+		return rows.map((item) => ({
+			...withBalanceFields(item),
+			deposit_count: 0,
+			deposit_bottle_nos: []
+		}))
+	}
+	const pairs = await Promise.all(
+		ids.map(async (id) => {
+			const res = await bottles
+				.where({ current_customer_id: id })
+				.field({ bottle_no: true })
+				.orderBy('bottle_no', 'asc')
+				.limit(500)
+				.get()
+			const bottleNos = (res.data || [])
+				.map((item) => normalizeString(item && item.bottle_no))
+				.filter(Boolean)
+			return [id, { count: bottleNos.length, bottleNos }]
+		})
+	)
+	const countMap = Object.fromEntries(pairs)
+	return rows.map((item) => ({
+		...withBalanceFields(item),
+		deposit_count: Number(countMap[normalizeString(item && item._id)]?.count || 0),
+		deposit_bottle_nos: countMap[normalizeString(item && item._id)]?.bottleNos || []
+	}))
 }
 
 function buildUniqKey(name, phone) {
@@ -148,7 +212,7 @@ async function listV1(user, data) {
 
 	return {
 		code: 0,
-		data: res.data || [],
+		data: await attachDepositCounts(res.data || []),
 		total,
 		paging: {
 			page,
@@ -172,7 +236,8 @@ async function getV1(user, data) {
 	const res = await customers.doc(id).get()
 	const doc = (res.data && res.data[0]) || null
 	if (!doc) return { code: 404, msg: '客户不存在' }
-	return { code: 0, data: doc }
+	const items = await attachDepositCounts([doc])
+	return { code: 0, data: items[0] || withBalanceFields(doc) }
 }
 
 async function createV1(user, data, requestId) {
@@ -198,6 +263,12 @@ async function createV1(user, data, requestId) {
 		is_active: true,
 		default_unit_price: toNumber(data.default_unit_price, null),
 		default_price_unit: defaultPriceUnit,
+		receivable_balance: 0,
+		prepay_balance: 0,
+		net_balance: 0,
+		should_receive_total: 0,
+		amount_received_total: 0,
+		last_receipt_at: null,
 		created_at: now,
 		updated_at: now
 	}
@@ -258,6 +329,12 @@ exports.main = async (event, context) => {
 
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
+	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, [], {
+		recordLog,
+		requestId,
+		cloudFunction: 'crm-customer'
+	})
+	if (!acl.ok) return { code: acl.code, msg: acl.msg }
 
 	if (action === 'listV1') return listV1(user, data)
 	if (action === 'getV1') return getV1(user, data)

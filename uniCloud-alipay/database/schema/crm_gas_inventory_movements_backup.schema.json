@@ -1,0 +1,30 @@
+{
+  "bsonType": "object",
+  "description": "Backup snapshots for gas inventory movement rebuild/restore",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "request_id",
+    "backup_doc",
+    "backed_up_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "run_id": { "bsonType": "string" },
+    "request_id": { "bsonType": "string" },
+    "backup_doc": { "bsonType": "object" },
+    "backed_up_at": { "bsonType": "number" },
+    "backed_up_by": { "bsonType": ["string", "null"] },
+    "backed_up_by_name": { "bsonType": "string" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "run_id": 1, "backed_up_at": 1 }, "name": "idx_run_id_backed_up_at" },
+    { "key": { "request_id": 1, "backed_up_at": 1 }, "name": "idx_request_id_backed_up_at" }
+  ]
+}

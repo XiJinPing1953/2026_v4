@@ -1,0 +1,159 @@
+{
+  "generated_at": "2026-03-17T14:41:57.254Z",
+  "space_id": "env-00jxuffegf2n",
+  "total": 11,
+  "updated": [
+    {
+      "target": "N68",
+      "_id": "69b922800add39bd4326ff57",
+      "from_source": "N068",
+      "status": "in_station",
+      "tare_weight": 353,
+      "current_customer_name": ""
+    },
+    {
+      "target": "X11",
+      "_id": "69b922801117bf9b461ba33d",
+      "from_source": "X011",
+      "status": "in_station",
+      "tare_weight": 353,
+      "current_customer_name": ""
+    },
+    {
+      "target": "X34",
+      "_id": "69b922800add39bd4326ff59",
+      "from_source": "X034",
+      "status": "at_customer",
+      "tare_weight": 353,
+      "current_customer_name": "舟山晋业能源有限公司"
+    },
+    {
+      "target": "X37",
+      "_id": "69b922800add39bd4326ff5b",
+      "from_source": "X037",
+      "status": "in_station",
+      "tare_weight": 353,
+      "current_customer_name": ""
+    },
+    {
+      "target": "X046",
+      "_id": "69b922801117bf9b461ba34e",
+      "from_source": "X46",
+      "status": "in_station",
+      "tare_weight": 353,
+      "current_customer_name": ""
+    },
+    {
+      "target": "X047",
+      "_id": "69b922801117bf9b461ba353",
+      "from_source": "X47",
+      "status": "in_station",
+      "tare_weight": 353,
+      "current_customer_name": ""
+    },
+    {
+      "target": "X57",
+      "_id": "69b922810add39bd4326ff5e",
+      "from_source": "X057",
+      "status": "in_station",
+      "tare_weight": 353,
+      "current_customer_name": ""
+    },
+    {
+      "target": "X59",
+      "_id": "69b922811117bf9b461ba359",
+      "from_source": "X059",
+      "status": "in_station",
+      "tare_weight": 353,
+      "current_customer_name": ""
+    },
+    {
+      "target": "X61",
+      "_id": "69b922810add39bd4326ff60",
+      "from_source": "X061",
+      "status": "in_station",
+      "tare_weight": 353,
+      "current_customer_name": ""
+    },
+    {
+      "target": "X63",
+      "_id": "69b922811117bf9b461ba35f",
+      "from_source": "X063",
+      "status": "in_station",
+      "tare_weight": 353,
+      "current_customer_name": ""
+    },
+    {
+      "target": "Y179",
+      "_id": "69b922820add39bd4326ff66",
+      "from_source": "Y179",
+      "status": "in_station",
+      "tare_weight": 119,
+      "current_customer_name": ""
+    }
+  ],
+  "failed": [],
+  "missing_target": [],
+  "mapping": [
+    {
+      "target": "N68",
+      "source_no": "N068",
+      "canonical": "N68"
+    },
+    {
+      "target": "X11",
+      "source_no": "X011",
+      "canonical": "X11"
+    },
+    {
+      "target": "X34",
+      "source_no": "X034",
+      "canonical": "X34"
+    },
+    {
+      "target": "X37",
+      "source_no": "X037",
+      "canonical": "X37"
+    },
+    {
+      "target": "X046",
+      "source_no": "X46",
+      "canonical": "X46"
+    },
+    {
+      "target": "X047",
+      "source_no": "X47",
+      "canonical": "X47"
+    },
+    {
+      "target": "X57",
+      "source_no": "X057",
+      "canonical": "X57"
+    },
+    {
+      "target": "X59",
+      "source_no": "X059",
+      "canonical": "X59"
+    },
+    {
+      "target": "X61",
+      "source_no": "X061",
+      "canonical": "X61"
+    },
+    {
+      "target": "X63",
+      "source_no": "X063",
+      "canonical": "X63"
+    },
+    {
+      "target": "Y179",
+      "source_no": "Y179",
+      "canonical": "Y179"
+    }
+  ],
+  "summary": {
+    "updated": 11,
+    "failed": 0,
+    "missing_target": 0
+  }
+}

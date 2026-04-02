@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-03-18T15:08:59.791Z",
+  "input_sales": "docs/20260318225227_2bbf7d6e-a305-4a91-a88c-988dfca2d256.json",
+  "input_customers": "docs/20260318230700_f01eef43-c3aa-4bd0-b08a-afbbfa859a9b.json",
+  "rows": 1686,
+  "filled_customer_id": 2,
+  "unresolved_count": 0,
+  "unresolved_preview": [],
+  "output": "docs/sale_20260318225227_preclean.fixed.v2.array.json"
+}

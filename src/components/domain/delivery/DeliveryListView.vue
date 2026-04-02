@@ -1,7 +1,7 @@
 <template>
 	<AppPage title="配送员档案" :subtitle="subtitle" icon="user">
 		<template #headerActions>
-			<AppButton size="sm" kind="primary" icon="plus" @click="onAdd">新增配送员</AppButton>
+			<AppButton v-if="canCreateDelivery" size="sm" kind="primary" icon="plus" @click="onAdd">新增配送员</AppButton>
 			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch">刷新</AppButton>
 		</template>
 
@@ -95,8 +95,8 @@
 						:status-kind="item.is_active ? 'success' : 'danger'"
 						icon="user"
 						:icon-class="item.is_active ? 'bg-emerald' : 'bg-danger'"
-						clickable
-						@click="onEdit(item)"
+						:clickable="canUpdateDelivery"
+						@click="canUpdateDelivery && onEdit(item)"
 					>
 						<template #right>
 							<view class="info-box">
@@ -115,7 +115,7 @@
 
 						<template #footer>
 							<view class="footer-btns">
-								<AppButton kind="ghost" size="sm" @click.stop="onEdit(item)">编辑详情</AppButton>
+								<AppButton v-if="canUpdateDelivery" kind="ghost" size="sm" @click.stop="onEdit(item)">编辑详情</AppButton>
 							</view>
 						</template>
 					</AppListItem>
@@ -139,6 +139,7 @@ import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppTag from '@/components/base/AppTag.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
+import { useAuthGuard } from '@/composables/useAuthGuard'
 import { useQuery } from '@/composables/useQuery'
 import { searchDeliveriesV1 } from '@/services/delivery'
 
@@ -179,6 +180,9 @@ const filterChips = computed(() => {
 	if (filters.activeIndex > 0) chips.push({ key: 'active', label: `状态: ${activeLabel.value}` })
 	return chips
 })
+const { canPageAction } = useAuthGuard()
+const canCreateDelivery = computed(() => canPageAction('/pages/delivery/edit', 'create'))
+const canUpdateDelivery = computed(() => canPageAction('/pages/delivery/edit', 'update'))
 
 function clearFilterChip(key) {
 	if (key === 'keyword') filters.keyword = ''

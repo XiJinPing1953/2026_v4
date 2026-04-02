@@ -26,34 +26,43 @@
 		</view>
 
 		<view class="page__body" :class="{ 'page__body--padded': bodyPadding }">
-			<slot />
+			<AppEmpty
+				v-if="isDenied"
+				title="无权限访问"
+				subtitle="当前账号没有该页面的查看权限，请联系超级管理员配置页面权限。"
+			/>
+			<slot v-else />
 		</view>
 
-		<!-- Global Float Navigation -->
-		<AppFloatNav v-if="showFloatNav" />
+		<AppBottleQueryFloat v-if="showBottleQueryFloat && !isDenied" />
 	</view>
 </template>
 
 <script setup>
 import { computed } from 'vue'
-import AppFloatNav from '@/components/base/AppFloatNav.vue'
+import AppEmpty from '@/components/base/AppEmpty.vue'
+import AppBottleQueryFloat from '@/components/base/AppBottleQueryFloat.vue'
 import AppIcon from '@/components/base/AppIcon.vue'
+import { normalizePagePath } from '@/services/pageAcl'
+import { useAuthGuard } from '@/composables/useAuthGuard'
 
 const props = defineProps({
 	title: { type: String, default: '' },
 	subtitle: { type: String, default: '' },
 	icon: { type: String, default: '' },
 	hideNav: { type: Boolean, default: false },
+	hideBottleQuery: { type: Boolean, default: false },
 	bodyPadding: { type: Boolean, default: true }
 })
 
-// Hide float nav on login page or if explicitly disabled
-const showFloatNav = computed(() => {
-	// Simple check: if title is missing, it might be a custom page like login? 
-	// Better: Login page explicitly sets hideNav or we check route (but route check in component is tricky in uni-app sometimes)
-	// For now, let's assume if hideNav prop is true, we hide it.
-	return !props.hideNav
+const { requirePageView } = useAuthGuard()
+const showBottleQueryFloat = computed(() => !props.hideBottleQuery)
+const currentPagePath = computed(() => {
+	const pages = getCurrentPages()
+	const current = pages[pages.length - 1]
+	return normalizePagePath(current?.route || '')
 })
+const isDenied = computed(() => Boolean(currentPagePath.value) && !requirePageView(currentPagePath.value))
 </script>
 
 <style scoped>

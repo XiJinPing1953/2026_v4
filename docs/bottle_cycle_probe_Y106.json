@@ -1,0 +1,60 @@
+{
+  "generated_at": "2026-03-25T07:09:17.649Z",
+  "space_id": "env-00jxuffegf2n",
+  "bottle_no": "Y106",
+  "config_from": "/Users/wangbo/Library/Application Support/HBuilder X/projects/39637144c7c598fa8663d4ea84645a0e/setting.json",
+  "summary": {
+    "filling_total": 2,
+    "movement_total": 2,
+    "cycle_total": 0,
+    "focus_cycle_count": 0
+  },
+  "focus_dates": [
+    "2026-03-05",
+    "2026-01-31",
+    "2026-01-19",
+    "2026-01-15",
+    "2026-01-02"
+  ],
+  "focus_checks": [],
+  "filling_rows": [
+    {
+      "_id": "69b91a1e1bfe16da6e6db989",
+      "date": "2026-03-05",
+      "bottle_no": "Y106",
+      "fill_weight": 71,
+      "record_type": "normal_fill",
+      "operator": "陈铁栓"
+    },
+    {
+      "_id": "69b959a536bc4bac6fa50507",
+      "date": "2026-03-17",
+      "bottle_no": "Y106",
+      "fill_weight": 71,
+      "record_type": "normal_fill",
+      "operator": "陈铁栓"
+    }
+  ],
+  "movement_rows": [
+    {
+      "_id": "69b91a1e1bfe16da6e6db98a",
+      "date": "2026-03-05",
+      "type": "fill",
+      "source_type": "legacy_import",
+      "source_id": "69b91a1e1bfe16da6e6db989",
+      "net_weight": 71,
+      "loss_weight": null,
+      "note": ""
+    },
+    {
+      "_id": "69b959a536bc4bac6fa50508",
+      "date": "2026-03-17",
+      "type": "fill",
+      "source_type": "legacy_import",
+      "source_id": "69b959a536bc4bac6fa50507",
+      "net_weight": 71,
+      "loss_weight": null,
+      "note": ""
+    }
+  ]
+}

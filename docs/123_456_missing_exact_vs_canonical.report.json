@@ -1,0 +1,86 @@
+{
+  "generated_at": "2026-03-17T14:26:49.458Z",
+  "bottle_file": "docs/123.json",
+  "filling_file": "docs/456.json",
+  "totals": {
+    "bottle_rows": 965,
+    "filling_rows": 3945,
+    "bottle_exact_unique": 965,
+    "bottle_canonical_unique": 965
+  },
+  "missing_exact_unique": 10,
+  "missing_canonical_unique": 0,
+  "missing_exact_list": [
+    {
+      "bottle_no": "N68",
+      "count": 1,
+      "first_line": 1374,
+      "sample_date": "2026-01-19 08:00",
+      "record_type": "truck_out_agent_sale"
+    },
+    {
+      "bottle_no": "X046",
+      "count": 1,
+      "first_line": 714,
+      "sample_date": "2026-01-10 08:00",
+      "record_type": "truck_out_agent_sale"
+    },
+    {
+      "bottle_no": "X047",
+      "count": 1,
+      "first_line": 711,
+      "sample_date": "2026-01-10 08:00",
+      "record_type": "truck_out_agent_sale"
+    },
+    {
+      "bottle_no": "X11",
+      "count": 1,
+      "first_line": 1546,
+      "sample_date": "2026-01-21 08:00",
+      "record_type": "truck_out_agent_sale"
+    },
+    {
+      "bottle_no": "X34",
+      "count": 1,
+      "first_line": 1543,
+      "sample_date": "2026-01-21 08:00",
+      "record_type": "truck_out_agent_sale"
+    },
+    {
+      "bottle_no": "X37",
+      "count": 1,
+      "first_line": 1547,
+      "sample_date": "2026-01-21 08:00",
+      "record_type": "truck_out_agent_sale"
+    },
+    {
+      "bottle_no": "X57",
+      "count": 1,
+      "first_line": 1545,
+      "sample_date": "2026-01-21 08:00",
+      "record_type": "truck_out_agent_sale"
+    },
+    {
+      "bottle_no": "X59",
+      "count": 1,
+      "first_line": 1544,
+      "sample_date": "2026-01-21 08:00",
+      "record_type": "truck_out_agent_sale"
+    },
+    {
+      "bottle_no": "X61",
+      "count": 1,
+      "first_line": 1542,
+      "sample_date": "2026-01-21 08:00",
+      "record_type": "truck_out_agent_sale"
+    },
+    {
+      "bottle_no": "X63",
+      "count": 1,
+      "first_line": 1541,
+      "sample_date": "2026-01-21 08:00",
+      "record_type": "truck_out_agent_sale"
+    }
+  ],
+  "missing_canonical_list": []
+}

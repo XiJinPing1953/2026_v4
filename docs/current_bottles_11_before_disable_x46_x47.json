@@ -1,0 +1,162 @@
+{
+  "generated_at": "2026-03-17T14:48:54.717Z",
+  "space_id": "env-00jxuffegf2n",
+  "items": {
+    "N68": {
+      "count": 1,
+      "rows": [
+        {
+          "_id": "69b922800add39bd4326ff57",
+          "bottle_no": "N68",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": ""
+        }
+      ]
+    },
+    "X11": {
+      "count": 1,
+      "rows": [
+        {
+          "_id": "69b922801117bf9b461ba33d",
+          "bottle_no": "X11",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": ""
+        }
+      ]
+    },
+    "X34": {
+      "count": 1,
+      "rows": [
+        {
+          "_id": "69b922800add39bd4326ff59",
+          "bottle_no": "X34",
+          "is_active": true,
+          "status": "at_customer",
+          "current_customer_name": "舟山晋业能源有限公司"
+        }
+      ]
+    },
+    "X37": {
+      "count": 1,
+      "rows": [
+        {
+          "_id": "69b922800add39bd4326ff5b",
+          "bottle_no": "X37",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": ""
+        }
+      ]
+    },
+    "X046": {
+      "count": 1,
+      "rows": [
+        {
+          "_id": "69b922801117bf9b461ba34e",
+          "bottle_no": "X046",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": ""
+        }
+      ]
+    },
+    "X047": {
+      "count": 1,
+      "rows": [
+        {
+          "_id": "69b922801117bf9b461ba353",
+          "bottle_no": "X047",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": ""
+        }
+      ]
+    },
+    "X57": {
+      "count": 1,
+      "rows": [
+        {
+          "_id": "69b922810add39bd4326ff5e",
+          "bottle_no": "X57",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": ""
+        }
+      ]
+    },
+    "X59": {
+      "count": 1,
+      "rows": [
+        {
+          "_id": "69b922811117bf9b461ba359",
+          "bottle_no": "X59",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": ""
+        }
+      ]
+    },
+    "X61": {
+      "count": 1,
+      "rows": [
+        {
+          "_id": "69b922810add39bd4326ff60",
+          "bottle_no": "X61",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": ""
+        }
+      ]
+    },
+    "X63": {
+      "count": 1,
+      "rows": [
+        {
+          "_id": "69b922811117bf9b461ba35f",
+          "bottle_no": "X63",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": ""
+        }
+      ]
+    },
+    "Y179": {
+      "count": 1,
+      "rows": [
+        {
+          "_id": "69b922820add39bd4326ff66",
+          "bottle_no": "Y179",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": ""
+        }
+      ]
+    },
+    "X46": {
+      "count": 1,
+      "rows": [
+        {
+          "_id": "693fbee16dd837518fa12285",
+          "bottle_no": "X46",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": ""
+        }
+      ]
+    },
+    "X47": {
+      "count": 1,
+      "rows": [
+        {
+          "_id": "693fbee16dd837518fa12286",
+          "bottle_no": "X47",
+          "is_active": true,
+          "status": "in_station",
+          "current_customer_name": ""
+        }
+      ]
+    }
+  }
+}

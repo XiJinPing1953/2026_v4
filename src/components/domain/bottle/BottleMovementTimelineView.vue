@@ -56,12 +56,12 @@
 						:icon-class="typeIconClass(event.type)"
 					>
 						<template #meta>
-							<view class="meta-tags">
-								<AppTag kind="soft">{{ sourceText(event.source_type) }}</AppTag>
-								<text v-if="event.net_weight != null" class="meta-text">净重 {{ event.net_weight }} kg</text>
-								<text v-if="event.loss_weight != null" class="meta-text">损耗 {{ event.loss_weight }} kg</text>
-								<text v-if="event.note" class="meta-text">{{ event.note }}</text>
-								<view class="marker-tags" v-if="getEventMarkers(event).length">
+								<view class="meta-tags">
+									<AppTag kind="soft">{{ sourceText(event.source_type) }}</AppTag>
+									<text v-if="event.net_weight != null" class="meta-text">净重 {{ event.net_weight }} kg</text>
+									<text v-if="buildLossWeightText(event)" class="meta-text">{{ buildLossWeightText(event) }}</text>
+									<text v-if="event.note" class="meta-text">{{ event.note }}</text>
+									<view class="marker-tags" v-if="getEventMarkers(event).length">
 									<AppTag
 										v-for="marker in getEventMarkers(event).slice(0, 2)"
 										:key="`${marker.anomaly_id}:${marker.event_day}:${marker.type}`"
@@ -113,6 +113,7 @@ import AppStatCard from '@/components/base/AppStatCard.vue'
 import { useQuery } from '@/composables/useQuery'
 import { getBottleMovementTimelineV1 } from '@/services/bottleMovement'
 import { scanBottleAnomaliesRoundV2 } from '@/services/bottleAnomaly'
+import { buildBottleTimelineDisplayEvents } from '@/services/models/bottleTimeline'
 
 const props = defineProps({
 	bottleNo: { type: String, default: '' }
@@ -139,25 +140,7 @@ const timelineEmptyTitle = computed(() => {
 })
 
 const sortedEvents = computed(() => {
-	const list = Array.isArray(timeline.value.events) ? [...timeline.value.events] : []
-	list.sort((a, b) => {
-		const dayA = normalizeDay(a?.event_day || a?.date)
-		const dayB = normalizeDay(b?.event_day || b?.date)
-		if (dayA !== dayB) return dayB.localeCompare(dayA)
-
-		const typeOrderA = toSortNumber(a?.type_order)
-		const typeOrderB = toSortNumber(b?.type_order)
-		if (typeOrderA !== typeOrderB) return typeOrderB - typeOrderA
-
-		const eventAtA = toSortNumber(a?.event_at)
-		const eventAtB = toSortNumber(b?.event_at)
-		if (eventAtA !== eventAtB) return eventAtB - eventAtA
-
-		const createdAtA = toSortNumber(a?.created_at)
-		const createdAtB = toSortNumber(b?.created_at)
-		return createdAtB - createdAtA
-	})
-	return list
+	return buildBottleTimelineDisplayEvents(timeline.value.events)
 })
 
 const visibleEvents = computed(() => {
@@ -235,11 +218,6 @@ function normalizeString(value) {
 
 function normalizeBottleNo(value) {
 	return normalizeString(value).toUpperCase().replace(/\s+/g, '')
-}
-
-function toSortNumber(value) {
-	const num = Number(value)
-	return Number.isFinite(num) ? num : 0
 }
 
 function normalizeDay(value) {
@@ -321,8 +299,13 @@ function anomalyTypeText(type) {
 	const map = {
 		missing_back: '缺回瓶',
 		missing_fill: '缺灌装',
+		continuous_fill: '连续灌装',
 		continuous_out: '连续出瓶',
+		continuous_back: '连续回瓶',
 		missing_out: '缺出瓶',
+		missing_truck_fill: '缺整车补给',
+		truck_return_diff_excess: '整车回站差异过大',
+		missing_truck_back_gross: '缺回站总重',
 		customer_mismatch: '客户不一致',
 		duplicate_sale: '重复出瓶'
 	}
@@ -357,6 +340,13 @@ function typeIconClass(type) {
 	return 'bg-primary'
 }
 
+function buildLossWeightText(event) {
+	const value = Number(event && event.loss_weight)
+	if (!Number.isFinite(value) || value === 0) return ''
+	if (value > 0) return `损耗 ${value} kg`
+	return `胀重 ${Math.abs(value)} kg`
+}
+
 function getEventMarkers(event) {
 	const day = normalizeDay(event && (event.event_day || event.date))
 	if (!day) return []
@@ -382,7 +372,9 @@ function eventStatusKind(event) {
 
 function anomalyEventDay(anomaly) {
 	const ctx = anomaly && typeof anomaly.context === 'object' ? anomaly.context : {}
-	const day = normalizeDay(ctx.legacy_date || ctx.next_out?.date || ctx.last_back?.date || '')
+	const day = normalizeDay(
+		ctx.legacy_date || ctx.next_out?.date || ctx.next_back?.date || ctx.last_back?.date || ctx.last_fill?.date || ctx.next_fill?.date || ''
+	)
 	if (!day) return '日期未知'
 	return day
 }
@@ -392,7 +384,7 @@ async function runScanRound(bottleNo, cursor) {
 		bottleNo,
 		cursor,
 		reconcileAnomalies: true,
-		reconcileTypes: ['missing_back', 'missing_fill', 'continuous_out'],
+		reconcileTypes: ['missing_back', 'missing_fill', 'missing_out', 'continuous_fill', 'continuous_out', 'continuous_back'],
 		batchSize: TIMELINE_SCAN_BATCH_SIZE,
 		maxEventsPerRound: TIMELINE_SCAN_MAX_EVENTS_PER_ROUND,
 		maxMsPerRound: TIMELINE_SCAN_MAX_MS_PER_ROUND,

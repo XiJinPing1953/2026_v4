@@ -1,5 +1,5 @@
 <template>
-	<AppCard :padding="size === 'sm' ? '24rpx' : '32rpx'">
+		<AppCard class="basic-info-card" :padding="size === 'sm' ? '24rpx' : '32rpx'">
 		<view class="info-grid" :class="{ 'info-grid--sm': size === 'sm' }">
 			<view class="form-item span-2">
 				<picker class="picker-full" mode="date" @change="onDateChange">
@@ -15,7 +15,14 @@
 				</picker>
 			</view>
 
-			<view class="form-item span-2 customer-field">
+				<view
+					id="suggest-anchor-customer"
+					class="form-item span-2 customer-field"
+					:class="{
+						'field-popover-open': showSuggestions,
+						'field-popover-up': suggestionPlacements.customer === 'up'
+					}"
+				>
 				<AppInput
 					:model-value="modelValue.customerName"
 					label="客户名称"
@@ -26,27 +33,47 @@
 					@update:modelValue="onCustomerInput"
 					@confirm="onCustomerConfirm"
 					@blur="onCustomerBlur"
-					@focus="showSuggestions = true"
+					@focus="onCustomerFocus"
 				/>
-				<view v-if="showSuggestions" class="suggestions">
-					<view v-if="suggestions.length" class="suggest-list">
-						<view
-							v-for="item in suggestions"
-							:key="item._id"
-							class="suggest-item"
-							@click.stop="selectCustomer(item)"
-						>
-							<view class="suggest-info">
-								<text class="suggest-name">{{ item.name }}</text>
-								<text class="suggest-sub" v-if="item.contact">{{ item.contact }}</text>
+					<scroll-view v-if="showSuggestions && shouldUseScrollableSuggestions(suggestions)" scroll-y class="suggestions suggestions--scroll">
+						<view class="suggest-list">
+								<view
+									v-for="item in suggestions"
+									:key="item._id || `${item.name}-${item.contact}`"
+									class="suggest-item"
+									@tap.stop="selectCustomer(item)"
+									@click.stop="selectCustomer(item)"
+								>
+								<view class="suggest-info">
+									<text class="suggest-name">{{ item.name }}</text>
+									<text class="suggest-sub" v-if="item.contact">{{ item.contact }}</text>
+								</view>
+								<AppIcon name="plus" size="24rpx" color="#94a3b8" />
 							</view>
-							<AppIcon name="plus" size="24rpx" color="#94a3b8" />
+						</view>
+					</scroll-view>
+					<view v-else-if="showSuggestions && suggestions.length" class="suggestions">
+						<view class="suggest-list">
+								<view
+									v-for="item in suggestions"
+									:key="item._id || `${item.name}-${item.contact}`"
+									class="suggest-item"
+									@tap.stop="selectCustomer(item)"
+								@click.stop="selectCustomer(item)"
+							>
+								<view class="suggest-info">
+									<text class="suggest-name">{{ item.name }}</text>
+									<text class="suggest-sub" v-if="item.contact">{{ item.contact }}</text>
+								</view>
+								<AppIcon name="plus" size="24rpx" color="#94a3b8" />
+							</view>
 						</view>
 					</view>
-					<view v-else class="suggest-empty">
-						<text>未找到匹配客户</text>
+					<view v-else-if="showSuggestions" class="suggestions">
+						<view class="suggest-empty">
+							<text>未找到匹配客户</text>
+						</view>
 					</view>
-				</view>
 			</view>
 
 			<view class="form-item span-2">
@@ -64,7 +91,14 @@
 				</view>
 			</view>
 
-			<view class="form-item span-2 vehicle-field">
+				<view
+					id="suggest-anchor-vehicle"
+					class="form-item span-2 vehicle-field"
+					:class="{
+						'field-popover-open': showVehicleSuggestions,
+						'field-popover-up': suggestionPlacements.vehicle === 'up'
+					}"
+				>
 				<AppInput
 					:model-value="modelValue.vehicleNo"
 					label="配送车辆"
@@ -77,28 +111,55 @@
 					@blur="onVehicleBlur"
 					@focus="onVehicleFocus"
 				/>
-				<view v-if="showVehicleSuggestions" class="suggestions">
-					<view v-if="vehicleSuggestions.length" class="suggest-list">
-						<view
-							v-for="item in vehicleSuggestions"
-							:key="item._id"
-							class="suggest-item"
-							@tap.stop="selectVehicle(item)"
-						>
-							<view class="suggest-info">
-								<text class="suggest-name">{{ item.plate_no || item.plateNo || item.name }}</text>
-								<text class="suggest-sub" v-if="item.remark">{{ item.remark }}</text>
+					<scroll-view v-if="showVehicleSuggestions && shouldUseScrollableSuggestions(vehicleSuggestions)" scroll-y class="suggestions suggestions--scroll">
+						<view class="suggest-list">
+								<view
+									v-for="item in vehicleSuggestions"
+									:key="item._id || item.plate_no || item.plateNo || item.name"
+									class="suggest-item"
+									@tap.stop="selectVehicle(item)"
+									@click.stop="selectVehicle(item)"
+								>
+								<view class="suggest-info">
+									<text class="suggest-name">{{ item.plate_no || item.plateNo || item.name }}</text>
+									<text class="suggest-sub" v-if="item.remark">{{ item.remark }}</text>
+								</view>
+								<AppIcon name="plus" size="24rpx" color="#94a3b8" />
 							</view>
-							<AppIcon name="plus" size="24rpx" color="#94a3b8" />
+						</view>
+					</scroll-view>
+					<view v-else-if="showVehicleSuggestions && vehicleSuggestions.length" class="suggestions">
+						<view class="suggest-list">
+								<view
+									v-for="item in vehicleSuggestions"
+									:key="item._id || item.plate_no || item.plateNo || item.name"
+									class="suggest-item"
+								@tap.stop="selectVehicle(item)"
+								@click.stop="selectVehicle(item)"
+							>
+								<view class="suggest-info">
+									<text class="suggest-name">{{ item.plate_no || item.plateNo || item.name }}</text>
+									<text class="suggest-sub" v-if="item.remark">{{ item.remark }}</text>
+								</view>
+								<AppIcon name="plus" size="24rpx" color="#94a3b8" />
+							</view>
 						</view>
 					</view>
-					<view v-else class="suggest-empty">
-						<text>未找到车辆</text>
+					<view v-else-if="showVehicleSuggestions" class="suggestions">
+						<view class="suggest-empty">
+							<text>未找到车辆</text>
+						</view>
 					</view>
-				</view>
 			</view>
 
-			<view class="form-item delivery-field">
+				<view
+					id="suggest-anchor-delivery1"
+					class="form-item delivery-field"
+					:class="{
+						'field-popover-open': showDelivery1Suggestions,
+						'field-popover-up': suggestionPlacements.delivery1 === 'up'
+					}"
+				>
 				<AppInput
 					:model-value="modelValue.deliveryMan1"
 					label="配送员1"
@@ -110,28 +171,55 @@
 					@blur="() => onDeliveryBlur(1)"
 					@focus="() => onDeliveryFocus(1)"
 				/>
-				<view v-if="showDelivery1Suggestions" class="suggestions">
-					<view v-if="deliverySuggestions1.length" class="suggest-list">
-						<view
-							v-for="item in deliverySuggestions1"
-							:key="item._id"
-							class="suggest-item"
-							@tap.stop="selectDelivery(1, item)"
-						>
-							<view class="suggest-info">
-								<text class="suggest-name">{{ item.name || item.username }}</text>
-								<text class="suggest-sub" v-if="item.phone || item.remark">{{ item.phone || item.remark }}</text>
+					<scroll-view v-if="showDelivery1Suggestions && shouldUseScrollableSuggestions(deliverySuggestions1)" scroll-y class="suggestions suggestions--scroll">
+						<view class="suggest-list">
+								<view
+									v-for="item in deliverySuggestions1"
+									:key="item._id || `${item.name || item.username}-${item.phone || item.remark}`"
+									class="suggest-item"
+									@tap.stop="selectDelivery(1, item)"
+									@click.stop="selectDelivery(1, item)"
+								>
+								<view class="suggest-info">
+									<text class="suggest-name">{{ item.name || item.username }}</text>
+									<text class="suggest-sub" v-if="item.phone || item.remark">{{ item.phone || item.remark }}</text>
+								</view>
+								<AppIcon name="plus" size="24rpx" color="#94a3b8" />
 							</view>
-							<AppIcon name="plus" size="24rpx" color="#94a3b8" />
+						</view>
+					</scroll-view>
+					<view v-else-if="showDelivery1Suggestions && deliverySuggestions1.length" class="suggestions">
+						<view class="suggest-list">
+								<view
+									v-for="item in deliverySuggestions1"
+									:key="item._id || `${item.name || item.username}-${item.phone || item.remark}`"
+									class="suggest-item"
+								@tap.stop="selectDelivery(1, item)"
+								@click.stop="selectDelivery(1, item)"
+							>
+								<view class="suggest-info">
+									<text class="suggest-name">{{ item.name || item.username }}</text>
+									<text class="suggest-sub" v-if="item.phone || item.remark">{{ item.phone || item.remark }}</text>
+								</view>
+								<AppIcon name="plus" size="24rpx" color="#94a3b8" />
+							</view>
 						</view>
 					</view>
-					<view v-else class="suggest-empty">
-						<text>未找到配送员</text>
+					<view v-else-if="showDelivery1Suggestions" class="suggestions">
+						<view class="suggest-empty">
+							<text>未找到配送员</text>
+						</view>
 					</view>
-				</view>
 			</view>
 
-			<view class="form-item delivery-field">
+				<view
+					id="suggest-anchor-delivery2"
+					class="form-item delivery-field"
+					:class="{
+						'field-popover-open': showDelivery2Suggestions,
+						'field-popover-up': suggestionPlacements.delivery2 === 'up'
+					}"
+				>
 				<AppInput
 					:model-value="modelValue.deliveryMan2"
 					label="配送员2"
@@ -143,25 +231,45 @@
 					@blur="() => onDeliveryBlur(2)"
 					@focus="() => onDeliveryFocus(2)"
 				/>
-				<view v-if="showDelivery2Suggestions" class="suggestions">
-					<view v-if="deliverySuggestions2.length" class="suggest-list">
-						<view
-							v-for="item in deliverySuggestions2"
-							:key="item._id"
-							class="suggest-item"
-							@tap.stop="selectDelivery(2, item)"
-						>
-							<view class="suggest-info">
-								<text class="suggest-name">{{ item.name || item.username }}</text>
-								<text class="suggest-sub" v-if="item.phone || item.remark">{{ item.phone || item.remark }}</text>
+					<scroll-view v-if="showDelivery2Suggestions && shouldUseScrollableSuggestions(deliverySuggestions2)" scroll-y class="suggestions suggestions--scroll">
+						<view class="suggest-list">
+								<view
+									v-for="item in deliverySuggestions2"
+									:key="item._id || `${item.name || item.username}-${item.phone || item.remark}`"
+									class="suggest-item"
+									@tap.stop="selectDelivery(2, item)"
+									@click.stop="selectDelivery(2, item)"
+								>
+								<view class="suggest-info">
+									<text class="suggest-name">{{ item.name || item.username }}</text>
+									<text class="suggest-sub" v-if="item.phone || item.remark">{{ item.phone || item.remark }}</text>
+								</view>
+								<AppIcon name="plus" size="24rpx" color="#94a3b8" />
 							</view>
-							<AppIcon name="plus" size="24rpx" color="#94a3b8" />
+						</view>
+					</scroll-view>
+					<view v-else-if="showDelivery2Suggestions && deliverySuggestions2.length" class="suggestions">
+						<view class="suggest-list">
+								<view
+									v-for="item in deliverySuggestions2"
+									:key="item._id || `${item.name || item.username}-${item.phone || item.remark}`"
+									class="suggest-item"
+								@tap.stop="selectDelivery(2, item)"
+								@click.stop="selectDelivery(2, item)"
+							>
+								<view class="suggest-info">
+									<text class="suggest-name">{{ item.name || item.username }}</text>
+									<text class="suggest-sub" v-if="item.phone || item.remark">{{ item.phone || item.remark }}</text>
+								</view>
+								<AppIcon name="plus" size="24rpx" color="#94a3b8" />
+							</view>
 						</view>
 					</view>
-					<view v-else class="suggest-empty">
-						<text>未找到配送员</text>
+					<view v-else-if="showDelivery2Suggestions" class="suggestions">
+						<view class="suggest-empty">
+							<text>未找到配送员</text>
+						</view>
 					</view>
-				</view>
 			</view>
 
 			<view class="form-item unit-group span-2">
@@ -189,12 +297,22 @@
 					</view>
 				</view>
 			</view>
+
+			<view class="form-item span-2">
+				<AppInput
+					:model-value="modelValue.remark"
+					label="业务备注"
+					placeholder="例如：票上多算84元、余款68324.4元"
+					:size="size"
+					@update:modelValue="(v) => update('remark', v)"
+				/>
+			</view>
 		</view>
 	</AppCard>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { getCurrentInstance, nextTick, reactive, ref } from 'vue'
 import AppCard from '@/components/base/AppCard.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppIcon from '@/components/base/AppIcon.vue'
@@ -224,10 +342,18 @@ const deliverySuggestions2 = ref([])
 const showDelivery2Suggestions = ref(false)
 const deliveryTimer1 = ref(null)
 const deliveryTimer2 = ref(null)
+const suggestionPlacements = reactive({
+	customer: 'down',
+	vehicle: 'down',
+	delivery1: 'down',
+	delivery2: 'down'
+})
+const instance = getCurrentInstance()
 
-const RECENT_VEHICLE_KEY = 'crm_recent_vehicles'
-const RECENT_DELIVERY_KEY = 'crm_recent_delivery'
-const MAX_RECENTS = 8
+const SUGGESTION_GAP_RPX = 8
+const SUGGESTION_EMPTY_HEIGHT_RPX = 96
+const SUGGESTION_ITEM_HEIGHT_RPX = 88
+const SUGGESTION_SCROLL_HEIGHT_RPX = 320
 
 const bizModeOptions = [
 	{ label: '瓶装', value: 'bottle' },
@@ -260,6 +386,11 @@ function onCustomerInput(value) {
 		customerId: ''
 	})
 	if (fetchTimer.value) clearTimeout(fetchTimer.value)
+	if (!String(value || '').trim()) {
+		suggestions.value = []
+		showSuggestions.value = false
+		return
+	}
 	fetchTimer.value = setTimeout(() => {
 		fetchCustomers(value)
 	}, 200)
@@ -272,32 +403,52 @@ async function fetchCustomers(keyword) {
 		showSuggestions.value = false
 		return
 	}
-	const res = await listCustomersV1({ keyword: key, pageSize: 8, is_active: true })
+	const res = await listCustomersV1({ keyword: key, pageSize: 20, is_active: true })
 	if (res?.code !== 0) {
 		suggestions.value = []
 		showSuggestions.value = false
 		return
 	}
-	suggestions.value = Array.isArray(res.data) ? res.data : []
-	showSuggestions.value = true
+	const remote = Array.isArray(res.data) ? res.data.map(normalizeCustomer).slice(0, 20) : []
+	suggestions.value = remote
+	showSuggestions.value = remote.length > 0
+	updatePopoverPlacement('customer', remote.length)
+}
+
+function normalizeCustomer(item) {
+	return {
+		_id: item?._id || '',
+		name: item?.name || '',
+		contact: item?.contact || '',
+		default_unit_price: item?.default_unit_price,
+		default_price_unit: item?.default_price_unit || ''
+	}
+}
+
+function resolveSettlementModeByCustomer(item) {
+	return String(item?.default_price_unit || '').trim() === 'm3' ? 'customer_flow' : 'sale'
 }
 
 function selectCustomer(item) {
+	const normalized = normalizeCustomer(item)
 	emitPatch({
-		customerId: item._id,
-		customerName: item.name,
-		unitPrice: item.default_unit_price != null ? String(item.default_unit_price) : props.modelValue?.unitPrice || '',
-		priceUnit: item.default_price_unit || props.modelValue?.priceUnit || 'kg'
+		customerId: normalized._id,
+		customerName: normalized.name,
+		unitPrice: normalized.default_unit_price != null ? String(normalized.default_unit_price) : props.modelValue?.unitPrice || '',
+		priceUnit: normalized.default_price_unit || props.modelValue?.priceUnit || 'kg',
+		settlementMode: resolveSettlementModeByCustomer(normalized)
 	})
+	suggestions.value = []
 	showSuggestions.value = false
 }
 
 function onCustomerConfirm() {
-	if (!suggestions.value.length) {
-		showSuggestions.value = false
-		return
-	}
-	selectCustomer(suggestions.value[0])
+	emitPatch({
+		customerName: String(props.modelValue?.customerName || '').trim(),
+		customerId: props.modelValue?.customerId || ''
+	})
+	suggestions.value = []
+	showSuggestions.value = false
 }
 
 function onCustomerBlur() {
@@ -306,39 +457,14 @@ function onCustomerBlur() {
 	}, 150)
 }
 
-function readRecents(key) {
-	try {
-		const data = uni.getStorageSync(key)
-		if (Array.isArray(data)) return data
-		if (typeof data === 'string') {
-			const parsed = JSON.parse(data)
-			return Array.isArray(parsed) ? parsed : []
-		}
-		return []
-	} catch (err) {
-		return []
-	}
-}
-
-function saveRecents(key, list) {
-	try {
-		const next = list.slice(0, MAX_RECENTS)
-		uni.setStorageSync(key, next)
-	} catch (err) {
-		// noop
-	}
-}
-
-function uniqueBy(list, getKey) {
-	const seen = new Set()
-	const result = []
-	list.forEach((item) => {
-		const key = getKey(item)
-		if (!key || seen.has(key)) return
-		seen.add(key)
-		result.push(item)
-	})
-	return result
+function onCustomerFocus() {
+	const keyword = String(props.modelValue?.customerName || '').trim()
+	if (!keyword) return
+	showSuggestions.value = true
+	if (fetchTimer.value) clearTimeout(fetchTimer.value)
+	fetchTimer.value = setTimeout(() => {
+		fetchCustomers(keyword)
+	}, 120)
 }
 
 function normalizeVehicle(item) {
@@ -362,6 +488,11 @@ function normalizeDelivery(item) {
 function onVehicleInput(value) {
 	update('vehicleNo', value)
 	if (vehicleTimer.value) clearTimeout(vehicleTimer.value)
+	if (!String(value || '').trim()) {
+		vehicleSuggestions.value = []
+		showVehicleSuggestions.value = false
+		return
+	}
 	vehicleTimer.value = setTimeout(() => {
 		fetchVehicles(value)
 	}, 200)
@@ -370,24 +501,20 @@ function onVehicleInput(value) {
 async function fetchVehicles(keyword) {
 	const key = String(keyword || '').trim()
 	if (!key) {
-		const recents = readRecents(RECENT_VEHICLE_KEY)
-		vehicleSuggestions.value = recents
-		showVehicleSuggestions.value = recents.length > 0
+		vehicleSuggestions.value = []
+		showVehicleSuggestions.value = false
 		return
 	}
-	const recentList = readRecents(RECENT_VEHICLE_KEY).filter((item) =>
-		(item.plate_no || '').toLowerCase().includes(key.toLowerCase())
-	)
-	const res = await searchVehiclesV1({ keyword: key, limit: 8, is_active: true })
+	const res = await searchVehiclesV1({ keyword: key, limit: 20, is_active: true })
 	if (res?.code !== 0) {
-		vehicleSuggestions.value = recentList
-		showVehicleSuggestions.value = recentList.length > 0
+		vehicleSuggestions.value = []
+		showVehicleSuggestions.value = false
 		return
 	}
-	const remote = Array.isArray(res.data) ? res.data.map(normalizeVehicle) : []
-	const combined = uniqueBy([...recentList, ...remote], (item) => item.plate_no)
-	vehicleSuggestions.value = combined
-	showVehicleSuggestions.value = combined.length > 0
+	const remote = Array.isArray(res.data) ? res.data.map(normalizeVehicle).slice(0, 20) : []
+	vehicleSuggestions.value = remote
+	showVehicleSuggestions.value = remote.length > 0
+	updatePopoverPlacement('vehicle', remote.length)
 }
 
 function selectVehicle(item) {
@@ -395,18 +522,14 @@ function selectVehicle(item) {
 	emitPatch({
 		vehicleNo: normalized.plate_no
 	})
-	const recents = readRecents(RECENT_VEHICLE_KEY)
-	const next = uniqueBy([normalized, ...recents], (row) => row.plate_no)
-	saveRecents(RECENT_VEHICLE_KEY, next)
+	vehicleSuggestions.value = []
 	showVehicleSuggestions.value = false
 }
 
 function onVehicleConfirm() {
-	if (!vehicleSuggestions.value.length) {
-		showVehicleSuggestions.value = false
-		return
-	}
-	selectVehicle(vehicleSuggestions.value[0])
+	update('vehicleNo', String(props.modelValue?.vehicleNo || '').trim())
+	vehicleSuggestions.value = []
+	showVehicleSuggestions.value = false
 }
 
 function onVehicleBlur() {
@@ -416,10 +539,13 @@ function onVehicleBlur() {
 }
 
 function onVehicleFocus() {
+	const keyword = String(props.modelValue?.vehicleNo || '').trim()
+	if (!keyword) return
 	showVehicleSuggestions.value = true
-	if (!props.modelValue?.vehicleNo) {
-		fetchVehicles('')
-	}
+	if (vehicleTimer.value) clearTimeout(vehicleTimer.value)
+	vehicleTimer.value = setTimeout(() => {
+		fetchVehicles(keyword)
+	}, 120)
 }
 
 function onDeliveryInput(slot, value) {
@@ -428,6 +554,16 @@ function onDeliveryInput(slot, value) {
 
 	if (slot === 1 && deliveryTimer1.value) clearTimeout(deliveryTimer1.value)
 	if (slot === 2 && deliveryTimer2.value) clearTimeout(deliveryTimer2.value)
+	if (!String(value || '').trim()) {
+		if (slot === 1) {
+			deliverySuggestions1.value = []
+			showDelivery1Suggestions.value = false
+		} else {
+			deliverySuggestions2.value = []
+			showDelivery2Suggestions.value = false
+		}
+		return
+	}
 
 	const timer = setTimeout(() => {
 		fetchDelivery(slot, value)
@@ -440,38 +576,35 @@ function onDeliveryInput(slot, value) {
 async function fetchDelivery(slot, keyword) {
 	const key = String(keyword || '').trim()
 	if (!key) {
-		const recents = readRecents(RECENT_DELIVERY_KEY)
 		if (slot === 1) {
-			deliverySuggestions1.value = recents
-			showDelivery1Suggestions.value = recents.length > 0
+			deliverySuggestions1.value = []
+			showDelivery1Suggestions.value = false
 		} else {
-			deliverySuggestions2.value = recents
-			showDelivery2Suggestions.value = recents.length > 0
+			deliverySuggestions2.value = []
+			showDelivery2Suggestions.value = false
 		}
 		return
 	}
-	const recentList = readRecents(RECENT_DELIVERY_KEY).filter((item) =>
-		`${item.name || ''} ${item.phone || ''}`.toLowerCase().includes(key.toLowerCase())
-	)
-	const res = await searchDeliveriesV1({ keyword: key, limit: 8, is_active: true })
+	const res = await searchDeliveriesV1({ keyword: key, limit: 20, is_active: true })
 	if (res?.code !== 0) {
 		if (slot === 1) {
-			deliverySuggestions1.value = recentList
-			showDelivery1Suggestions.value = recentList.length > 0
+			deliverySuggestions1.value = []
+			showDelivery1Suggestions.value = false
 		} else {
-			deliverySuggestions2.value = recentList
-			showDelivery2Suggestions.value = recentList.length > 0
+			deliverySuggestions2.value = []
+			showDelivery2Suggestions.value = false
 		}
 		return
 	}
-	const list = Array.isArray(res.data) ? res.data.map(normalizeDelivery) : []
-	const combined = uniqueBy([...recentList, ...list], (item) => item._id || `${item.name}|${item.phone}`)
+	const list = Array.isArray(res.data) ? res.data.map(normalizeDelivery).slice(0, 20) : []
 	if (slot === 1) {
-		deliverySuggestions1.value = combined
-		showDelivery1Suggestions.value = combined.length > 0
+		deliverySuggestions1.value = list
+		showDelivery1Suggestions.value = list.length > 0
+		updatePopoverPlacement('delivery1', list.length)
 	} else {
-		deliverySuggestions2.value = combined
-		showDelivery2Suggestions.value = combined.length > 0
+		deliverySuggestions2.value = list
+		showDelivery2Suggestions.value = list.length > 0
+		updatePopoverPlacement('delivery2', list.length)
 	}
 }
 
@@ -483,20 +616,19 @@ function selectDelivery(slot, item) {
 
 	if (slot === 1) showDelivery1Suggestions.value = false
 	else showDelivery2Suggestions.value = false
-
-	const recents = readRecents(RECENT_DELIVERY_KEY)
-	const next = uniqueBy([normalized, ...recents], (row) => row._id || `${row.name}|${row.phone}`)
-	saveRecents(RECENT_DELIVERY_KEY, next)
 }
 
 function onDeliveryConfirm(slot) {
-	const list = slot === 1 ? deliverySuggestions1.value : deliverySuggestions2.value
-	if (!list.length) {
-		if (slot === 1) showDelivery1Suggestions.value = false
-		else showDelivery2Suggestions.value = false
-		return
+	const current = slot === 1 ? props.modelValue?.deliveryMan1 : props.modelValue?.deliveryMan2
+	if (slot === 1) emitPatch({ deliveryMan1: String(current || '').trim() })
+	else emitPatch({ deliveryMan2: String(current || '').trim() })
+	if (slot === 1) {
+		deliverySuggestions1.value = []
+		showDelivery1Suggestions.value = false
+	} else {
+		deliverySuggestions2.value = []
+		showDelivery2Suggestions.value = false
 	}
-	selectDelivery(slot, list[0])
 }
 
 function onDeliveryBlur(slot) {
@@ -507,11 +639,71 @@ function onDeliveryBlur(slot) {
 }
 
 function onDeliveryFocus(slot) {
-	if (slot === 1) showDelivery1Suggestions.value = true
-	else showDelivery2Suggestions.value = true
-
 	const current = slot === 1 ? props.modelValue?.deliveryMan1 : props.modelValue?.deliveryMan2
-	if (!current) fetchDelivery(slot, '')
+	const keyword = String(current || '').trim()
+	if (!keyword) return
+	if (slot === 1) {
+		showDelivery1Suggestions.value = true
+		if (deliveryTimer1.value) clearTimeout(deliveryTimer1.value)
+		deliveryTimer1.value = setTimeout(() => {
+			fetchDelivery(slot, keyword)
+		}, 120)
+		return
+	}
+	showDelivery2Suggestions.value = true
+	if (deliveryTimer2.value) clearTimeout(deliveryTimer2.value)
+	deliveryTimer2.value = setTimeout(() => {
+		fetchDelivery(slot, keyword)
+	}, 120)
+}
+
+function shouldUseScrollableSuggestions(list) {
+	return Array.isArray(list) && list.length > 3
+}
+
+function getWindowInfoSafe() {
+	try {
+		if (typeof uni.getWindowInfo === 'function') return uni.getWindowInfo()
+		if (typeof uni.getSystemInfoSync === 'function') return uni.getSystemInfoSync()
+	} catch (err) {
+		// noop
+	}
+	return {}
+}
+
+function rpxToPx(value) {
+	const info = getWindowInfoSafe()
+	const width = Number(info.windowWidth || info.screenWidth || 375)
+	return (Number(value) * width) / 750
+}
+
+function estimateSuggestionHeightPx(count) {
+	if (!count) return rpxToPx(SUGGESTION_EMPTY_HEIGHT_RPX)
+	if (count > 3) return rpxToPx(SUGGESTION_SCROLL_HEIGHT_RPX)
+	return rpxToPx(count * SUGGESTION_ITEM_HEIGHT_RPX + SUGGESTION_GAP_RPX)
+}
+
+function updatePopoverPlacement(fieldKey, count) {
+	nextTick(() => {
+		try {
+			const query = uni.createSelectorQuery().in(instance?.proxy)
+			query.select(`#suggest-anchor-${fieldKey}`).boundingClientRect((rect) => {
+				if (!rect) {
+					suggestionPlacements[fieldKey] = 'down'
+					return
+				}
+				const info = getWindowInfoSafe()
+				const windowHeight = Number(info.windowHeight || info.safeArea?.height || info.screenHeight || 667)
+				const gapPx = rpxToPx(SUGGESTION_GAP_RPX)
+				const popupHeightPx = estimateSuggestionHeightPx(count)
+				const spaceBelow = windowHeight - Number(rect.bottom || 0) - gapPx
+				const spaceAbove = Number(rect.top || 0) - gapPx
+				suggestionPlacements[fieldKey] = spaceBelow < popupHeightPx && spaceAbove > spaceBelow ? 'up' : 'down'
+			}).exec()
+		} catch (err) {
+			suggestionPlacements[fieldKey] = 'down'
+		}
+	})
 }
 </script>
 
@@ -520,6 +712,7 @@ function onDeliveryFocus(slot) {
 	display: grid;
 	grid-template-columns: repeat(4, 1fr);
 	gap: 24rpx;
+	overflow: visible;
 }
 
 .info-grid--sm {
@@ -530,6 +723,7 @@ function onDeliveryFocus(slot) {
 .form-item {
 	display: flex;
 	flex-direction: column;
+	overflow: visible;
 }
 
 .span-2 {
@@ -554,26 +748,42 @@ function onDeliveryFocus(slot) {
 	position: relative;
 }
 
+.field-popover-open {
+	z-index: 120;
+}
+
 .suggestions {
 	position: absolute;
-	top: 100%;
+	top: calc(100% + 8rpx);
 	left: 0;
 	right: 0;
-	background: #ffffff;
-	border: 1rpx solid #e2e8f0;
-	border-radius: 16rpx;
-	box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.1);
-	z-index: 100;
-	margin-top: 8rpx;
+	z-index: 80;
+	border: 1rpx solid var(--crm-border);
+	border-radius: var(--crm-radius-sm);
+	background: #fff;
+	box-shadow: 0 10rpx 24rpx rgba(15, 23, 42, 0.08);
 	overflow: hidden;
+}
+
+.field-popover-up .suggestions {
+	top: auto;
+	bottom: calc(100% + 8rpx);
+}
+
+.suggestions--scroll {
+	height: 320rpx;
+}
+
+.suggest-list {
+	padding-bottom: 8rpx;
 }
 
 .suggest-item {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 24rpx;
-	border-bottom: 1rpx solid #f8fafc;
+	padding: 14rpx 16rpx;
+	border-bottom: 1rpx solid #f1f5f9;
 	transition: background 0.2s;
 }
 
@@ -582,31 +792,40 @@ function onDeliveryFocus(slot) {
 }
 
 .suggest-item:active {
-	background: #f1f5f9;
+	background: #f8fafc;
 }
 
 .suggest-info {
 	display: flex;
 	flex-direction: column;
 	gap: 4rpx;
+	min-width: 0;
 }
 
 .suggest-name {
-	font-size: 28rpx;
-	font-weight: 600;
-	color: #1e293b;
+	font-size: 24rpx;
+	font-weight: 700;
+	color: var(--crm-text);
 }
 
 .suggest-sub {
-	font-size: 24rpx;
-	color: #64748b;
+	font-size: 20rpx;
+	color: var(--crm-text-muted);
 }
 
 .suggest-empty {
 	padding: 32rpx;
 	text-align: center;
-	font-size: 26rpx;
-	color: #94a3b8;
+	font-size: 24rpx;
+	color: var(--crm-text-muted);
+}
+
+.basic-info-card {
+	overflow: visible;
+}
+
+.basic-info-card :deep(.card__body) {
+	overflow: visible;
 }
 
 .picker-full {

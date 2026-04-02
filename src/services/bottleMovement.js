@@ -1,5 +1,11 @@
 import { callCloud } from '@/services/api'
 
+function normalizeLossResultType(value) {
+	const text = String(value || '').trim().toLowerCase()
+	if (text === 'loss' || text === 'swell' || text === 'exact') return text
+	return ''
+}
+
 export async function listBottleMovementsV1(params) {
 	const data = {
 		bottle_no: params.bottle_no || params.bottleNo || '',
@@ -37,8 +43,10 @@ export async function getBottleMovementTimelineV1(params) {
 export async function getBottleLossStatsV1(params = {}) {
 	const data = {
 		bottle_no: params.bottle_no || params.bottleNo || '',
+		customer_name: params.customer_name || params.customerName || '',
 		dateStart: params.dateStart || '',
 		dateEnd: params.dateEnd || '',
+		result_type: normalizeLossResultType(params.result_type || params.resultType),
 		page: params.page || 1,
 		pageSize: params.pageSize || params.limit || 50
 	}
@@ -51,8 +59,11 @@ export async function getBottleLossStatsV1(params = {}) {
 export async function getBottleCycleLossV1(params = {}) {
 	const data = {
 		bottle_no: params.bottle_no || params.bottleNo || '',
+		customer_name: params.customer_name || params.customerName || '',
 		dateStart: params.dateStart || '',
 		dateEnd: params.dateEnd || '',
+		result_type: normalizeLossResultType(params.result_type || params.resultType),
+		include_incomplete_list: Boolean(params.include_incomplete_list || params.includeIncompleteList),
 		page: params.page || 1,
 		pageSize: params.pageSize || params.limit || 50
 	}

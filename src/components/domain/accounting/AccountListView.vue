@@ -1,7 +1,7 @@
 <template>
 	<AppPage title="科目表" :subtitle="subtitle" icon="list">
 		<template #headerActions>
-			<AppButton size="sm" kind="primary" icon="plus" @click="onAdd">新增科目</AppButton>
+			<AppButton v-if="canCreateAccount" size="sm" kind="primary" icon="plus" @click="onAdd">新增科目</AppButton>
 			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch">刷新</AppButton>
 		</template>
 
@@ -57,8 +57,8 @@
 						:status-kind="item.is_active ? 'success' : 'danger'"
 						icon="list"
 						:icon-class="item.is_active ? 'bg-info' : 'bg-danger'"
-						clickable
-						@click="onEdit(item)"
+						:clickable="canUpdateAccount"
+						@click="canUpdateAccount && onEdit(item)"
 					>
 						<template #meta>
 							<view class="meta-tags">
@@ -69,7 +69,7 @@
 						</template>
 						<template #footer>
 							<view class="footer-btns">
-								<AppButton kind="ghost" size="sm" @click.stop="onEdit(item)">编辑</AppButton>
+								<AppButton v-if="canUpdateAccount" kind="ghost" size="sm" @click.stop="onEdit(item)">编辑</AppButton>
 							</view>
 						</template>
 					</AppListItem>
@@ -93,6 +93,7 @@ import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppTag from '@/components/base/AppTag.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
+import { useAuthGuard } from '@/composables/useAuthGuard'
 import { useQuery } from '@/composables/useQuery'
 import { listAccountsV1 } from '@/services/account'
 
@@ -133,6 +134,9 @@ const filterChips = computed(() => {
 	if (filters.activeIndex > 0) chips.push({ key: 'active', label: `状态: ${activeLabel.value}` })
 	return chips
 })
+const { canPageAction } = useAuthGuard()
+const canCreateAccount = computed(() => canPageAction('/pages/accounting/account-edit', 'create'))
+const canUpdateAccount = computed(() => canPageAction('/pages/accounting/account-edit', 'update'))
 
 function clearFilterChip(key) {
 	if (key === 'keyword') filters.keyword = ''

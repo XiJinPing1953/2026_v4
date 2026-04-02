@@ -1,0 +1,153 @@
+{
+  "generated_at": "2026-03-24T00:59:05.978Z",
+  "space_id": "env-00jxuffegf2n",
+  "config_from": "/Users/wangbo/Library/Application Support/HBuilder X/projects/39637144c7c598fa8663d4ea84645a0e/setting.json",
+  "summary": {
+    "anomaly_total": 346,
+    "movement_total": 11498,
+    "anomaly_by_type": {
+      "missing_fill": 289,
+      "missing_back": 45,
+      "continuous_out": 12
+    },
+    "cycle_total": 3661,
+    "cycle_result_count": {
+      "loss": 1851,
+      "swell": 1150,
+      "exact": 660
+    },
+    "cycle_loss_total_kg": 15252.8,
+    "cycle_swell_total_kg": 15995.5,
+    "incomplete_total": 359,
+    "manual_fix_adjust_total": 2
+  },
+  "conclusion_checks": {
+    "missing_fill_resolve_writes_adjust_not_fill": {
+      "has_manual_fix_adjust_rows": true,
+      "has_manual_fix_fill_rows": false,
+      "sample_adjust_rows": [
+        {
+          "_id": "698c21f46e82682bc2d06abf",
+          "bottle_no": "151",
+          "date": "2026-01-12",
+          "type": "adjust",
+          "source_type": "manual_fix",
+          "adjust_reason": "missing_fill_loss_accept",
+          "loss_weight": 10,
+          "note": "缺灌装差值损耗 10.0kg"
+        },
+        {
+          "_id": "698c2317952272c52c547a48",
+          "bottle_no": "151",
+          "date": "2026-01-12",
+          "type": "adjust",
+          "source_type": "manual_fix",
+          "adjust_reason": "missing_fill_loss_accept",
+          "loss_weight": 10,
+          "note": "缺灌装差值损耗 10.0kg"
+        }
+      ]
+    },
+    "missing_fill_diff_typicals": {
+      "diff_lt0_le10": {
+        "anomaly_id": "69bd484d1501ab29a1da0146",
+        "status": "open",
+        "bottle_no": "83",
+        "anomaly_date": "",
+        "last_back_date": "2026-02-14",
+        "last_back_net": 30,
+        "next_out_date": "2026-02-24",
+        "next_out_net": 26,
+        "diff": -4,
+        "note": "2026-02-14从\"栾城炒瓜子\"处回瓶（净重 30 kg）后未灌装，2026-02-24直接出瓶至\"奇力机柜\"（净重 26 kg）",
+        "resolution_mode": ""
+      },
+      "diff_gt0": {
+        "anomaly_id": "69bd48748a2e952d8f66b72a",
+        "status": "resolved",
+        "bottle_no": "Y178",
+        "anomaly_date": "",
+        "last_back_date": "2026-03-07",
+        "last_back_net": 2,
+        "next_out_date": "2026-03-07",
+        "next_out_net": 74,
+        "diff": 72,
+        "note": "2026-03-07从\"货子皮厂\"处回瓶（净重 2 kg）后未灌装，2026-03-07直接出瓶至\"旭昶皮厂\"（净重 74 kg）",
+        "resolution_mode": ""
+      },
+      "diff_abs_gt10": {
+        "anomaly_id": "69bd48748a2e952d8f66b72a",
+        "status": "resolved",
+        "bottle_no": "Y178",
+        "anomaly_date": "",
+        "last_back_date": "2026-03-07",
+        "last_back_net": 2,
+        "next_out_date": "2026-03-07",
+        "next_out_net": 74,
+        "diff": 72,
+        "note": "2026-03-07从\"货子皮厂\"处回瓶（净重 2 kg）后未灌装，2026-03-07直接出瓶至\"旭昶皮厂\"（净重 74 kg）",
+        "resolution_mode": ""
+      },
+      "diff_eq0": {
+        "anomaly_id": "69bd484e1501ab29a1da016e",
+        "status": "open",
+        "bottle_no": "98",
+        "anomaly_date": "",
+        "last_back_date": "2026-02-02",
+        "last_back_net": 68,
+        "next_out_date": "2026-02-02",
+        "next_out_net": 68,
+        "diff": 0,
+        "note": "2026-02-02从\"恒达皮革厂\"处回瓶（净重 68 kg）后未灌装，2026-02-02直接出瓶至\"保定依护卫生活\"（净重 68 kg）",
+        "resolution_mode": ""
+      }
+    },
+    "cycle_formula_typicals": {
+      "loss_case": {
+        "bottle_no": "172",
+        "back_date": "2026-01-01",
+        "out_date": "2026-01-02",
+        "back_net_kg": 3,
+        "fill_sum_kg": 69,
+        "out_net_kg": 70,
+        "theoretical_out_kg": 72,
+        "delta_kg": 2,
+        "result_type": "loss"
+      },
+      "swell_case": {
+        "bottle_no": "Y172",
+        "back_date": "2026-01-01",
+        "out_date": "2026-01-02",
+        "back_net_kg": 2,
+        "fill_sum_kg": 69,
+        "out_net_kg": 74,
+        "theoretical_out_kg": 71,
+        "delta_kg": -3,
+        "result_type": "swell"
+      },
+      "exact_case": {
+        "bottle_no": "152",
+        "back_date": "2026-01-01",
+        "out_date": "2026-01-02",
+        "back_net_kg": 2,
+        "fill_sum_kg": 69,
+        "out_net_kg": 71,
+        "theoretical_out_kg": 71,
+        "delta_kg": 0,
+        "result_type": "exact"
+      },
+      "incomplete_out_without_back": {
+        "reason": "out_without_back",
+        "bottle_no": "231",
+        "event_day": "2026-01-01",
+        "detail": "出瓶前未找到可配对回瓶"
+      },
+      "incomplete_back_without_out": {
+        "reason": "back_without_out",
+        "bottle_no": "Y169",
+        "event_day": "2026-01-01",
+        "detail": "回瓶后未找到对应出瓶（遇到新的回瓶）"
+      }
+    }
+  }
+}

@@ -36,14 +36,15 @@ export function useQuery(fetcher, options = {}) {
 	}
 
 	async function run(...args) {
+		const force = args.some((arg) => arg && typeof arg === 'object' && arg.force === true)
 		const cacheKey = typeof options.cacheKey === 'function' ? options.cacheKey(...args) : options.cacheKey
 		const cacheTTL = options.cacheTTL
 		const throttleMs = Number(options.throttleMs || 0)
 		const now = Date.now()
-		if (throttleMs > 0 && now - lastRunAt.value < throttleMs) return data.value
+		if (!force && throttleMs > 0 && now - lastRunAt.value < throttleMs) return data.value
 		lastRunAt.value = now
 
-		const cached = getCache(cacheKey, cacheTTL)
+		const cached = force ? null : getCache(cacheKey, cacheTTL)
 		if (cached != null) {
 			data.value = cached
 			empty.value = resolveEmpty(cached)

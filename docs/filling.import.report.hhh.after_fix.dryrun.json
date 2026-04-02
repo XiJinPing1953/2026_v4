@@ -1,0 +1,384 @@
+{
+  "started_at": "2026-03-17T13:57:15.126Z",
+  "finished_at": "2026-03-17T13:57:15.127Z",
+  "mode": "dry-run",
+  "input_path": "/Users/wangbo/Downloads/2026_v4/docs/hhh.json",
+  "parse_mode": "ndjson",
+  "space_id": "env-00jxuffegf2n",
+  "input_total": 3948,
+  "input_normalized_total": 3893,
+  "input_invalid_total": 0,
+  "input_duplicate_total": 55,
+  "input_by_type": {
+    "normal_fill": 3623,
+    "truck_out_agent_sale": 256,
+    "truck_out_no_sale": 69
+  },
+  "input_no_sale_bottle_filled_from_vehicle_total": 69,
+  "existing_loaded_by_type": {
+    "normal_fill": 3557,
+    "truck_out_agent_sale": 253,
+    "truck_out_no_sale": 69
+  },
+  "already_exists_total": 3878,
+  "target_total": 15,
+  "success_total": 0,
+  "conflict_total": 0,
+  "failed_total": 0,
+  "conflicts_preview": [],
+  "failed_preview": [],
+  "warnings_preview": [],
+  "input_invalid_preview": [],
+  "input_duplicate_preview": [
+    {
+      "line_no": 313,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-05",
+      "bottle_no": "Y076"
+    },
+    {
+      "line_no": 331,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-05",
+      "bottle_no": "135"
+    },
+    {
+      "line_no": 418,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-06",
+      "bottle_no": "198"
+    },
+    {
+      "line_no": 601,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-09",
+      "bottle_no": "228"
+    },
+    {
+      "line_no": 1123,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "225"
+    },
+    {
+      "line_no": 1124,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "220"
+    },
+    {
+      "line_no": 1125,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "33"
+    },
+    {
+      "line_no": 1126,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "78"
+    },
+    {
+      "line_no": 1127,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "228"
+    },
+    {
+      "line_no": 1128,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "99"
+    },
+    {
+      "line_no": 1129,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "12"
+    },
+    {
+      "line_no": 1130,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "88"
+    },
+    {
+      "line_no": 1131,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "108"
+    },
+    {
+      "line_no": 1132,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "252"
+    },
+    {
+      "line_no": 1133,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "251"
+    },
+    {
+      "line_no": 1134,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "Y104"
+    },
+    {
+      "line_no": 1135,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "226"
+    },
+    {
+      "line_no": 1136,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "219"
+    },
+    {
+      "line_no": 1137,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "209"
+    },
+    {
+      "line_no": 1138,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "95"
+    },
+    {
+      "line_no": 1139,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "35"
+    },
+    {
+      "line_no": 1140,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "102"
+    },
+    {
+      "line_no": 1141,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "100"
+    },
+    {
+      "line_no": 1142,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "263"
+    },
+    {
+      "line_no": 1143,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "Y076"
+    },
+    {
+      "line_no": 1144,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-16",
+      "bottle_no": "97"
+    },
+    {
+      "line_no": 1289,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "229"
+    },
+    {
+      "line_no": 1290,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "104"
+    },
+    {
+      "line_no": 1291,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "32"
+    },
+    {
+      "line_no": 1292,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "66"
+    },
+    {
+      "line_no": 1293,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "24"
+    },
+    {
+      "line_no": 1294,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "341"
+    },
+    {
+      "line_no": 1295,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "207"
+    },
+    {
+      "line_no": 1296,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "282"
+    },
+    {
+      "line_no": 1297,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "172"
+    },
+    {
+      "line_no": 1298,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "133"
+    },
+    {
+      "line_no": 1299,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "142"
+    },
+    {
+      "line_no": 1300,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "168"
+    },
+    {
+      "line_no": 1301,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "164"
+    },
+    {
+      "line_no": 1302,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "151"
+    },
+    {
+      "line_no": 1303,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "191"
+    },
+    {
+      "line_no": 1305,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "122"
+    },
+    {
+      "line_no": 1307,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "193"
+    },
+    {
+      "line_no": 1308,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-18",
+      "bottle_no": "232"
+    },
+    {
+      "line_no": 2004,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-27",
+      "bottle_no": "232"
+    },
+    {
+      "line_no": 2054,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-28",
+      "bottle_no": "215"
+    },
+    {
+      "line_no": 2167,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-01-30",
+      "bottle_no": "260"
+    },
+    {
+      "line_no": 2825,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-02-28",
+      "bottle_no": "150"
+    },
+    {
+      "line_no": 3039,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-03-05",
+      "bottle_no": "Y172"
+    },
+    {
+      "line_no": 3086,
+      "source_id": "[object Object]",
+      "record_type": "normal_fill",
+      "date": "2026-03-06",
+      "bottle_no": "Y002"
+    }
+  ]
+}
