@@ -35,7 +35,6 @@ const isExpanded = ref(false)
 const menuItems = [
 	{ label: '工作台', icon: 'home', url: '/pages/index/index', type: 'reLaunch', bgClass: 'bg-primary' },
 	{ label: '销售记录', icon: 'document', url: '/pages/sale/list', type: 'navigateTo', bgClass: 'bg-indigo' },
-	{ label: '客户档案', icon: 'user', url: '/pages/customer/list', type: 'navigateTo', bgClass: 'bg-cyan' },
 	{ label: '钢瓶档案', icon: 'bottle', url: '/pages/bottle/list', type: 'navigateTo', bgClass: 'bg-teal' },
 	{ label: '车辆档案', icon: 'truck', url: '/pages/vehicle/list', type: 'navigateTo', bgClass: 'bg-emerald' },
 	{ label: '天然气入库', icon: 'list', url: '/pages/gas-in/list', type: 'navigateTo', bgClass: 'bg-indigo' }

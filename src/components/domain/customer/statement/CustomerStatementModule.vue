@@ -1,6 +1,15 @@
 <template>
 	<AppPage title="客户对账" :subtitle="subtitle" icon="wallet">
 		<template #headerActions>
+			<AppButton
+				size="sm"
+				kind="outline"
+				:loading="exportingStatement"
+				:disabled="loading || rowsLoading || analysisLoading"
+				@click="onExportStatement"
+			>
+				导出对账单
+			</AppButton>
 			<AppButton size="sm" kind="neutral" :disabled="loading || rowsLoading || analysisLoading" @click="refreshAll">刷新</AppButton>
 			<AppButton size="sm" kind="neutral" @click="onBack">返回</AppButton>
 		</template>
@@ -412,9 +421,6 @@
 				<template #actions>
 					<view class="section-actions">
 						<text class="section-hint">共 {{ rowsPager.total }} 条 · 第 {{ rowsPager.page }} / {{ rowsTotalPages }} 页</text>
-						<AppButton size="sm" kind="outline" :loading="exportingStatement" :disabled="loading || rowsLoading" @click="onExportStatement">
-							导出对账单
-						</AppButton>
 					</view>
 				</template>
 				<view class="quick-date-strip">
@@ -1328,6 +1334,14 @@ function syncAnalysisFilterDefaults(force = false) {
 	syncAnalysisDatePreset()
 }
 
+function syncRowsFilterDefaults(force = false) {
+	if (!force && rowFilters.dateFrom && rowFilters.dateTo) return
+	const range = currentMonthRange()
+	rowFilters.dateFrom = range.dateFrom
+	rowFilters.dateTo = range.dateTo
+	syncRowsDatePreset()
+}
+
 async function loadStatement() {
 	if (!recordId.value) return
 	loading.value = true
@@ -1431,6 +1445,7 @@ async function loadRows() {
 
 async function refreshAll() {
 	await loadStatement()
+	syncRowsFilterDefaults()
 	await Promise.all([loadRows(), loadAnalysis()])
 }
 

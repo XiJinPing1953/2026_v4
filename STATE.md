@@ -6767,3 +6767,60 @@
   - `npm run build:mp-alipay` 通过。
 - 剩余问题：
   - 需在支付宝小程序真机或开发者工具实测导出后的文档打开链路（`openDocument` 受端侧能力与文件类型支持影响）。
+
+### 2026-04-02 CURRENT — 前端隐藏客户档案入口（保留客户对账）
+- 做了什么：
+  - 工作台导航中移除“客户档案”入口（侧边主导航 + 业务管理宫格），保留“客户对账”入口（`/pages/customer/list?scene=statement`）。
+  - 浮动导航菜单中移除“客户档案”入口，其他快捷入口不变。
+  - 未修改客户对账页面、客户结算服务、云函数和 ACL，仅做前端入口可见性调整。
+- 改动文件列表：
+  - `src/components/domain/dashboard/DashboardHome.vue`
+  - `src/components/base/AppFloatNav.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 当前仅隐藏入口，`/pages/customer/list` 路由仍可直接访问（符合“隐藏入口不去耦后端依赖”的预期）。
+
+### 2026-04-02 CURRENT — 客户对账页导出入口增强（头部直达 + 默认区间）
+- 做了什么：
+  - 在客户对账页头部动作区新增“导出对账单”按钮，和原账务流水区导出逻辑复用同一 `onExportStatement`。
+  - 新增 `syncRowsFilterDefaults`：当账务流水日期为空时，自动初始化为“当月起止”，避免首次导出被“请先选择日期”拦截。
+  - 在 `refreshAll` 中先执行账务流水日期默认同步，再加载流水与分析数据。
+- 改动文件列表：
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 导出仍依赖当前筛选区间；如需“一键全历史导出”，需单独定义大范围导出策略与性能上限。
+
+### 2026-04-02 CURRENT — 客户对账导出入口去重（仅保留顶部按钮）
+- 做了什么：
+  - 移除“账务流水”分区 actions 内的“导出对账单”按钮，避免与页面顶部导出按钮重复。
+  - 保留顶部导出按钮与现有导出逻辑（`onExportStatement`）不变。
+- 改动文件列表：
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 目前“共 N 条”仍在账务流水区显示，导出入口统一为顶部；如后续需要，可再将统计文案移到顶部统一展示。
+
+### 2026-04-02 CURRENT — 客户列表新增“总分”导出（总览汇总 + 客户明细）
+- 做了什么：
+  - 客户列表页头部新增“导出”按钮（默认模式与 `scene=statement` 模式均可见），导出范围为当前筛选条件下的全量分页数据。
+  - 新增客户列表导出工作簿构建器，输出 SpreadsheetML 双 Sheet：`总览汇总` + `客户明细`。
+  - 导出下载复用现有 `downloadWorkbookFile` 跨端能力（H5 下载、uni 端写文件+尝试打开）。
+- 改动文件列表：
+  - `src/components/domain/customer/CustomerListView.vue`
+  - `src/components/domain/customer/exportCustomerListWorkbook.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 导出使用前端分页聚合，超大客户量下导出耗时会随页数增长；如后续数据规模继续扩大，可评估云端异步导出任务。

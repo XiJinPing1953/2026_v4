@@ -22,10 +22,6 @@
 							<AppIcon name="document" size="24rpx" />
 							<text>销售记录</text>
 						</view>
-						<view v-if="canView('/pages/customer/list')" class="nav-item" @click="go('/pages/customer/list')">
-							<AppIcon name="user" size="24rpx" />
-							<text>客户档案</text>
-						</view>
 						<view v-if="canView('/pages/customer/list')" class="nav-item" @click="go('/pages/customer/list?scene=statement')">
 							<AppIcon name="wallet" size="24rpx" />
 							<text>客户对账</text>
@@ -250,10 +246,6 @@
 							<view v-if="canView('/pages/sale/list')" class="nav-grid-item" @click="go('/pages/sale/list')">
 								<view class="nav-icon bg-sales"><AppIcon name="document" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">销售记录</text>
-							</view>
-							<view v-if="canView('/pages/customer/list')" class="nav-grid-item" @click="go('/pages/customer/list')">
-								<view class="nav-icon bg-customer"><AppIcon name="user" color="#fff" size="30rpx" /></view>
-								<text class="nav-text">客户档案</text>
 							</view>
 							<view v-if="canView('/pages/customer/list')" class="nav-grid-item" @click="go('/pages/customer/list?scene=statement')">
 								<view class="nav-icon bg-finance"><AppIcon name="wallet" color="#fff" size="30rpx" /></view>

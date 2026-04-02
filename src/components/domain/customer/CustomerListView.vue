@@ -2,6 +2,7 @@
 	<AppPage :title="pageTitle" :subtitle="subtitle" icon="user">
 		<template #headerActions>
 			<AppButton v-if="canCreateCustomer" size="sm" kind="primary" icon="plus" @click="onAdd">新增客户</AppButton>
+			<AppButton size="sm" kind="neutral" icon="document" :loading="exporting" :disabled="loading" @click="onExport">导出</AppButton>
 			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch">刷新</AppButton>
 		</template>
 
@@ -180,6 +181,11 @@ import AppStatCard from '@/components/base/AppStatCard.vue'
 import { useQuery } from '@/composables/useQuery'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { listCustomersV1 } from '@/services/customer'
+import { downloadWorkbookFile } from '@/components/domain/customer/statement/exportWorkbook'
+import {
+	buildCustomerListWorkbookXml,
+	buildCustomerListExportFileName
+} from '@/components/domain/customer/exportCustomerListWorkbook'
 
 const props = defineProps({
 	entryMode: { type: String, default: 'default' }
@@ -200,6 +206,7 @@ const filters = reactive({
 })
 const showSuggestions = ref(false)
 const suggestions = ref([])
+const exporting = ref(false)
 let searchTimer = null
 
 const activeOptions = [
@@ -268,6 +275,16 @@ function toNumber(value, fallback = 0) {
 
 function formatMoney(value) {
 	return toNumber(value, 0).toFixed(2)
+}
+
+function buildListParams(page = 1, pageSize = 50) {
+	return {
+		keyword: filters.keyword,
+		is_active: buildIsActiveParam(),
+		page,
+		pageSize,
+		summaryIgnoreActive: true
+	}
 }
 
 function balanceValueClass(item) {
@@ -339,6 +356,62 @@ async function onSearch(resetPage = false) {
 	if (resetPage) pager.page = 1
 	const data = await fetchList()
 	applyResult(data)
+}
+
+async function fetchAllRowsForExport() {
+	const rows = []
+	let page = 1
+	let hasMore = true
+	let guard = 0
+	while (hasMore) {
+		if (guard > 500) throw new Error('导出分页异常，请缩小筛选后重试')
+		const res = await listCustomersV1(buildListParams(page, 50))
+		if (res?.code !== 0) throw new Error(res?.msg || '导出查询失败')
+		const pageRows = Array.isArray(res.data) ? res.data : []
+		rows.push(...pageRows)
+		hasMore = Boolean(res?.paging?.hasMore)
+		if (!pageRows.length) break
+		page += 1
+		guard += 1
+	}
+	return rows
+}
+
+async function onExport() {
+	if (exporting.value) return
+	exporting.value = true
+	uni.showLoading({ title: '正在导出...', mask: true })
+	try {
+		const rows = await fetchAllRowsForExport()
+		if (!rows.length) {
+			uni.showToast({ title: '没有可导出的数据', icon: 'none' })
+			return
+		}
+		const workbookText = buildCustomerListWorkbookXml({
+			rows,
+			filters: {
+				keyword: filters.keyword,
+				activeLabel: activeLabel.value
+			}
+		})
+		const fileName = buildCustomerListExportFileName({
+			filters: {
+				keyword: filters.keyword,
+				activeLabel: activeLabel.value
+			}
+		})
+		const downloaded = await downloadWorkbookFile(workbookText, fileName)
+		if (!downloaded) {
+			uni.showToast({ title: '当前端暂不支持导出，请联系管理员', icon: 'none', duration: 2800 })
+			return
+		}
+		uni.showToast({ title: `已导出${rows.length}条`, icon: 'success' })
+	} catch (err) {
+		uni.showToast({ title: err?.message || '导出失败', icon: 'none', duration: 2800 })
+	} finally {
+		uni.hideLoading()
+		exporting.value = false
+	}
 }
 
 function onReset() {
