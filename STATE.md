@@ -6824,3 +6824,44 @@
   - `npm run build:mp-alipay`（通过）
 - 剩余问题：
   - 导出使用前端分页聚合，超大客户量下导出耗时会随页数增长；如后续数据规模继续扩大，可评估云端异步导出任务。
+
+### 2026-04-02 CURRENT — 客户对账入口筛选增强（余额方向 + 定价状态）
+- 做了什么：
+  - 在 `pages/customer/list?scene=statement` 的筛选区新增两个条件：`余额方向`（全部/应收欠款/预付余额）、`定价状态`（全部/已设单价/未设单价）。
+  - 前端查询参数打通：`listCustomersV1` 新增透传 `balance_type`、`pricing_type`，并纳入列表缓存键与导出口径说明。
+  - 后端 `crm-customer.listV1` 新增对应 where 条件，确保筛选在服务端真实生效（非前端本地假筛选）。
+  - 客户列表导出（总览汇总/文件名）补充余额方向与定价状态标签，保证导出口径可追溯。
+- 改动文件列表：
+  - `src/components/domain/customer/CustomerListView.vue`
+  - `src/components/domain/customer/exportCustomerListWorkbook.js`
+  - `src/services/customer.js`
+  - `uniCloud-alipay/cloudfunctions/crm-customer/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 若线上未部署最新 `crm-customer` 云函数，`balance_type/pricing_type` 会被忽略，界面仍可用但筛选口径不会生效。
+
+### 2026-04-02 CURRENT — 客户对账筛选二次调整（新增已结清 + 时间范围，移除定价状态）
+- 做了什么：
+  - 按最新口径调整 `pages/customer/list?scene=statement`：`余额方向` 新增 `已结清`，并移除 `定价状态` 筛选项。
+  - 新增 `更新时间从/至` 日期筛选（仅 statement 模式可见），前端支持开始/结束日期互换纠正，避免反向区间造成空结果。
+  - 服务层改为透传 `updated_date_start/updated_date_end`，并移除 `pricing_type` 透传。
+  - `crm-customer.listV1` 新增：
+    - `balance_type=settled`（`net_balance` 近零区间）
+    - `updated_at` 时间范围过滤（支持仅开始、仅结束、起止区间）
+  - 客户列表导出总览与文件名口径同步更新：移除“定价状态”，新增“更新时间范围”。
+- 改动文件列表：
+  - `src/components/domain/customer/CustomerListView.vue`
+  - `src/components/domain/customer/exportCustomerListWorkbook.js`
+  - `src/services/customer.js`
+  - `uniCloud-alipay/cloudfunctions/crm-customer/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 线上若仍是旧版 `crm-customer`，时间范围与“已结清”筛选不会生效；需同步部署云函数。

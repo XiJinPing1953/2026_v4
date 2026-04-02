@@ -98,6 +98,8 @@ function buildOverviewRows(payload = {}) {
 	const summary = summarizeRows(rows)
 	const keyword = normalizeString(payload?.filters?.keyword) || '（空）'
 	const activeLabel = normalizeString(payload?.filters?.activeLabel) || '全部状态'
+	const balanceLabel = normalizeString(payload?.filters?.balanceLabel) || '全部余额'
+	const updatedDateRangeLabel = normalizeString(payload?.filters?.updatedDateRangeLabel) || '全部时间'
 	const exportAt = formatDateTime(Date.now())
 
 	return [
@@ -106,6 +108,8 @@ function buildOverviewRows(payload = {}) {
 		[{ type: 'String', value: '导出时间' }, { type: 'String', value: exportAt }],
 		[{ type: 'String', value: '关键词' }, { type: 'String', value: keyword }],
 		[{ type: 'String', value: '状态筛选' }, { type: 'String', value: activeLabel }],
+		[{ type: 'String', value: '余额方向' }, { type: 'String', value: balanceLabel }],
+		[{ type: 'String', value: '更新时间范围' }, { type: 'String', value: updatedDateRangeLabel }],
 		[{ type: 'String', value: '导出范围' }, { type: 'String', value: `当前筛选全量（${summary.total} 客户）` }],
 		[{ type: 'String', value: '' }],
 		[{ type: 'String', value: '统计项' }, { type: 'String', value: '数值' }],
@@ -179,9 +183,13 @@ export function buildCustomerListWorkbookXml(payload = {}) {
 export function buildCustomerListExportFileName(payload = {}) {
 	const keyword = sanitizeFilePart(payload?.filters?.keyword || '')
 	const activeLabel = sanitizeFilePart(payload?.filters?.activeLabel || '全部状态')
+	const balanceLabel = sanitizeFilePart(payload?.filters?.balanceLabel || '全部余额')
+	const updatedDateRangeLabel = sanitizeFilePart(payload?.filters?.updatedDateRangeLabel || '全部时间')
 	const parts = ['客户列表导出']
 	if (keyword) parts.push(`关键词-${keyword}`)
 	parts.push(`状态-${activeLabel || '全部状态'}`)
+	parts.push(`余额-${balanceLabel || '全部余额'}`)
+	parts.push(`时间-${updatedDateRangeLabel || '全部时间'}`)
 	parts.push(formatNowForFile())
 	return `${parts.join('_')}.xls`
 }

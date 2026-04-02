@@ -75,12 +75,61 @@
 							</view>
 						</view>
 					</view>
+					<picker
+						v-if="isStatementEntryMode"
+						class="picker-block"
+						mode="date"
+						:value="filters.updatedDateStart"
+						@change="onUpdatedDateStartChange"
+					>
+						<AppInput
+							:model-value="filters.updatedDateStart"
+							label="更新时间从"
+							placeholder="YYYY-MM-DD"
+							prefix-icon="calendar"
+							disabled
+							size="sm"
+						/>
+					</picker>
+					<picker
+						v-if="isStatementEntryMode"
+						class="picker-block"
+						mode="date"
+						:value="filters.updatedDateEnd"
+						@change="onUpdatedDateEndChange"
+					>
+						<AppInput
+							:model-value="filters.updatedDateEnd"
+							label="更新时间至"
+							placeholder="YYYY-MM-DD"
+							prefix-icon="calendar"
+							disabled
+							size="sm"
+						/>
+					</picker>
 					<picker class="picker-block" mode="selector" :range="activeOptions" range-key="label" @change="onActiveChange">
 						<AppInput
 							:model-value="activeLabel"
 							label="启用状态"
 							placeholder="状态筛选"
 							prefix-icon="list"
+							disabled
+							size="sm"
+						/>
+					</picker>
+					<picker
+						v-if="isStatementEntryMode"
+						class="picker-block"
+						mode="selector"
+						:range="balanceOptions"
+						range-key="label"
+						@change="onBalanceChange"
+					>
+						<AppInput
+							:model-value="balanceLabel"
+							label="余额方向"
+							placeholder="余额方向筛选"
+							prefix-icon="wallet"
 							disabled
 							size="sm"
 						/>
@@ -202,7 +251,10 @@ const pager = reactive({
 
 const filters = reactive({
 	keyword: '',
-	activeIndex: 0
+	activeIndex: 0,
+	balanceIndex: 0,
+	updatedDateStart: '',
+	updatedDateEnd: ''
 })
 const showSuggestions = ref(false)
 const suggestions = ref([])
@@ -213,6 +265,13 @@ const activeOptions = [
 	{ label: '全部状态', value: 'all' },
 	{ label: '启用中', value: 'true' },
 	{ label: '已停用', value: 'false' }
+]
+
+const balanceOptions = [
+	{ label: '全部余额', value: 'all' },
+	{ label: '应收欠款', value: 'receivable' },
+	{ label: '预付余额', value: 'prepay' },
+	{ label: '已结清', value: 'settled' }
 ]
 
 const { canPageAction, canViewPage } = useAuthGuard()
@@ -226,6 +285,17 @@ const pageTitle = computed(() => (isStatementEntryMode.value ? '客户对账' : 
 
 const activeLabel = computed(() => {
 	return activeOptions[filters.activeIndex]?.label || '全部状态'
+})
+
+const balanceLabel = computed(() => {
+	return balanceOptions[filters.balanceIndex]?.label || '全部余额'
+})
+
+const updatedDateRangeLabel = computed(() => {
+	const start = filters.updatedDateStart
+	const end = filters.updatedDateEnd
+	if (!start && !end) return '全部时间'
+	return `${start || '不限'}~${end || '不限'}`
 })
 
 const subtitle = computed(() => {
@@ -245,12 +315,21 @@ const filterChips = computed(() => {
 	const chips = []
 	if (filters.keyword) chips.push({ key: 'keyword', label: `关键词: ${filters.keyword}` })
 	if (filters.activeIndex > 0) chips.push({ key: 'active', label: `状态: ${activeLabel.value}` })
+	if (isStatementEntryMode.value && filters.balanceIndex > 0) chips.push({ key: 'balance', label: `余额: ${balanceLabel.value}` })
+	if (isStatementEntryMode.value && (filters.updatedDateStart || filters.updatedDateEnd)) {
+		chips.push({ key: 'updatedDateRange', label: `时间: ${updatedDateRangeLabel.value}` })
+	}
 	return chips
 })
 
 function clearFilterChip(key) {
 	if (key === 'keyword') filters.keyword = ''
 	if (key === 'active') filters.activeIndex = 0
+	if (key === 'balance') filters.balanceIndex = 0
+	if (key === 'updatedDateRange') {
+		filters.updatedDateStart = ''
+		filters.updatedDateEnd = ''
+	}
 	onSearch(true)
 }
 
@@ -268,6 +347,13 @@ function buildIsActiveParam() {
 	return undefined
 }
 
+function buildBalanceTypeParam() {
+	if (!isStatementEntryMode.value) return undefined
+	const value = balanceOptions[filters.balanceIndex]?.value
+	if (value === 'receivable' || value === 'prepay' || value === 'settled') return value
+	return undefined
+}
+
 function toNumber(value, fallback = 0) {
 	const num = Number(value)
 	return Number.isFinite(num) ? num : fallback
@@ -281,6 +367,9 @@ function buildListParams(page = 1, pageSize = 50) {
 	return {
 		keyword: filters.keyword,
 		is_active: buildIsActiveParam(),
+		balance_type: buildBalanceTypeParam(),
+		updated_date_start: isStatementEntryMode.value ? filters.updatedDateStart : '',
+		updated_date_end: isStatementEntryMode.value ? filters.updatedDateEnd : '',
 		page,
 		pageSize,
 		summaryIgnoreActive: true
@@ -296,13 +385,7 @@ function balanceValueClass(item) {
 
 const { loading, run: fetchList } = useQuery(
 	async () => {
-		const res = await listCustomersV1({
-			keyword: filters.keyword,
-			is_active: buildIsActiveParam(),
-			page: pager.page,
-			pageSize: pager.pageSize,
-			summaryIgnoreActive: true
-		})
+		const res = await listCustomersV1(buildListParams(pager.page, pager.pageSize))
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '查询失败', icon: 'none' })
 			return {
@@ -331,7 +414,8 @@ const { loading, run: fetchList } = useQuery(
 		},
 		cacheTTL: 15000,
 		throttleMs: 300,
-		cacheKey: () => `customer:list:${filters.keyword}:${filters.activeIndex}:${pager.page}:${pager.pageSize}`
+		cacheKey: () =>
+			`customer:list:${normalizedEntryMode.value}:${filters.keyword}:${filters.activeIndex}:${filters.balanceIndex}:${filters.updatedDateStart}:${filters.updatedDateEnd}:${pager.page}:${pager.pageSize}`
 	}
 )
 
@@ -391,13 +475,21 @@ async function onExport() {
 			rows,
 			filters: {
 				keyword: filters.keyword,
-				activeLabel: activeLabel.value
+				activeLabel: activeLabel.value,
+				balanceLabel: balanceLabel.value,
+				updatedDateStart: filters.updatedDateStart,
+				updatedDateEnd: filters.updatedDateEnd,
+				updatedDateRangeLabel: updatedDateRangeLabel.value
 			}
 		})
 		const fileName = buildCustomerListExportFileName({
 			filters: {
 				keyword: filters.keyword,
-				activeLabel: activeLabel.value
+				activeLabel: activeLabel.value,
+				balanceLabel: balanceLabel.value,
+				updatedDateStart: filters.updatedDateStart,
+				updatedDateEnd: filters.updatedDateEnd,
+				updatedDateRangeLabel: updatedDateRangeLabel.value
 			}
 		})
 		const downloaded = await downloadWorkbookFile(workbookText, fileName)
@@ -417,6 +509,9 @@ async function onExport() {
 function onReset() {
 	filters.keyword = ''
 	filters.activeIndex = 0
+	filters.balanceIndex = 0
+	filters.updatedDateStart = ''
+	filters.updatedDateEnd = ''
 	suggestions.value = []
 	showSuggestions.value = false
 	onSearch(true)
@@ -425,6 +520,41 @@ function onReset() {
 function onActiveChange(e) {
 	const idx = Number(e?.detail?.value)
 	filters.activeIndex = Number.isFinite(idx) ? idx : 0
+	onSearch(true)
+}
+
+function onBalanceChange(e) {
+	if (!isStatementEntryMode.value) return
+	const idx = Number(e?.detail?.value)
+	filters.balanceIndex = Number.isFinite(idx) ? idx : 0
+	onSearch(true)
+}
+
+function normalizeDateInput(value) {
+	const text = String(value || '').trim()
+	return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : ''
+}
+
+function normalizeUpdatedDateRangeOrder() {
+	if (!filters.updatedDateStart || !filters.updatedDateEnd) return
+	if (filters.updatedDateStart <= filters.updatedDateEnd) return
+	const from = filters.updatedDateStart
+	filters.updatedDateStart = filters.updatedDateEnd
+	filters.updatedDateEnd = from
+	uni.showToast({ title: '已自动调整时间范围', icon: 'none' })
+}
+
+function onUpdatedDateStartChange(e) {
+	if (!isStatementEntryMode.value) return
+	filters.updatedDateStart = normalizeDateInput(e?.detail?.value)
+	normalizeUpdatedDateRangeOrder()
+	onSearch(true)
+}
+
+function onUpdatedDateEndChange(e) {
+	if (!isStatementEntryMode.value) return
+	filters.updatedDateEnd = normalizeDateInput(e?.detail?.value)
+	normalizeUpdatedDateRangeOrder()
 	onSearch(true)
 }
 

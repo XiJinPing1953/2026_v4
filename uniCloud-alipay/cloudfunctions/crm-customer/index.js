@@ -64,8 +64,30 @@ function normalizePriceUnit(value) {
 	return null
 }
 
+function normalizeBalanceType(value) {
+	const text = normalizeString(value).toLowerCase()
+	if (text === 'receivable' || text === 'prepay' || text === 'settled') return text
+	return ''
+}
+
 function escapeRegExp(value) {
 	return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function parseDateStart(value) {
+	const text = normalizeString(value)
+	if (!text) return 0
+	const date = new Date(`${text}T00:00:00`)
+	const timestamp = date.getTime()
+	return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function parseDateEnd(value) {
+	const text = normalizeString(value)
+	if (!text) return 0
+	const date = new Date(`${text}T23:59:59.999`)
+	const timestamp = date.getTime()
+	return Number.isFinite(timestamp) ? timestamp : 0
 }
 
 function toNumber(value, fallback = null) {
@@ -133,6 +155,9 @@ function buildUniqKey(name, phone) {
 async function listV1(user, data) {
 	void user
 	const keyword = normalizeString(data.keyword)
+	const balanceType = normalizeBalanceType(data.balance_type ?? data.balanceType)
+	const updatedDateStart = parseDateStart(data.updated_date_start ?? data.updatedDateStart ?? data.date_start ?? data.dateStart)
+	const updatedDateEnd = parseDateEnd(data.updated_date_end ?? data.updatedDateEnd ?? data.date_end ?? data.dateEnd)
 	const page = Math.max(Number(data.page || 1) || 1, 1)
 	const pageSize = Math.min(
 		Math.max(Number(data.pageSize ?? data.limit ?? 20) || 20, 1),
@@ -144,6 +169,9 @@ async function listV1(user, data) {
 		rawSummaryIgnoreActive === 1 ||
 		rawSummaryIgnoreActive === '1' ||
 		rawSummaryIgnoreActive === 'true'
+	if (updatedDateStart && updatedDateEnd && updatedDateStart > updatedDateEnd) {
+		return { code: 400, msg: '更新时间范围不合法' }
+	}
 
 	let activeWhere = null
 	if (data.is_active != null) {
@@ -159,16 +187,32 @@ async function listV1(user, data) {
 		keywordWhere = dbCmd.or([{ name: rx }, { short_name: rx }, { contact: rx }, { phone: rx }])
 	}
 
+	let balanceWhere = null
+	if (balanceType === 'receivable') balanceWhere = { net_balance: dbCmd.gt(0) }
+	else if (balanceType === 'prepay') balanceWhere = { net_balance: dbCmd.lt(0) }
+	else if (balanceType === 'settled') balanceWhere = { net_balance: dbCmd.and(dbCmd.gte(-0.009), dbCmd.lte(0.009)) }
+
+	let updatedWhere = null
+	if (updatedDateStart && updatedDateEnd) {
+		updatedWhere = { updated_at: dbCmd.and(dbCmd.gte(updatedDateStart), dbCmd.lte(updatedDateEnd)) }
+	} else if (updatedDateStart) {
+		updatedWhere = { updated_at: dbCmd.gte(updatedDateStart) }
+	} else if (updatedDateEnd) {
+		updatedWhere = { updated_at: dbCmd.lte(updatedDateEnd) }
+	}
+
 	const buildWhere = ({ ignoreActive = false } = {}) => {
 		const parts = []
 		if (!ignoreActive && activeWhere) parts.push(activeWhere)
 		if (keywordWhere) parts.push(keywordWhere)
+		if (balanceWhere) parts.push(balanceWhere)
+		if (updatedWhere) parts.push(updatedWhere)
 		if (!parts.length) return {}
 		if (parts.length === 1) return parts[0]
 		return dbCmd.and(parts)
 	}
 	const mergeWhere = (base, extra, hasBaseFilter) => (hasBaseFilter ? dbCmd.and([base, extra]) : extra)
-	const hasListFilter = Boolean(activeWhere || keywordWhere)
+	const hasListFilter = Boolean(activeWhere || keywordWhere || balanceWhere || updatedWhere)
 
 	const where = buildWhere()
 
@@ -185,7 +229,9 @@ async function listV1(user, data) {
 	const hasMore = page * pageSize < total
 
 	const summaryWhere = buildWhere({ ignoreActive: summaryIgnoreActive })
-	const hasSummaryFilter = summaryIgnoreActive ? Boolean(keywordWhere) : hasListFilter
+	const hasSummaryFilter = summaryIgnoreActive
+		? Boolean(keywordWhere || balanceWhere || updatedWhere)
+		: hasListFilter
 	const summaryTotalRes = await customers.where(summaryWhere).count()
 	const summaryTotal = Number(summaryTotalRes.total || 0)
 
