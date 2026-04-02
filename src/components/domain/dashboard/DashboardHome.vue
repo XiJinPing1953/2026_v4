@@ -166,7 +166,7 @@
 												size="sm"
 												kind="neutral"
 												:loading="dailyReportExporting"
-												:disabled="!dailyReportDisplayRows.length"
+												:disabled="!dailyReportCanExport"
 												@click="onExportDailyReport"
 											>
 												导出
@@ -521,9 +521,13 @@ const dailyReportRangeOptions = [
 	{ value: 'today', label: '当日' },
 	{ value: 'yesterday', label: '前一日' },
 	{ value: 'last3', label: '前三日' },
-	{ value: 'last5', label: '前五日' }
+	{ value: 'last5', label: '前五日' },
+	{ value: 'lastMonth', label: '上月' },
+	{ value: 'thisMonth', label: '当月' }
 ]
 const dailyReportRangePreset = ref('last5')
+const DAILY_REPORT_MAX_VISIBLE_DAYS = 5
+const MONTH_EXPORT_PRESET_SET = new Set(['lastMonth', 'thisMonth'])
 
 const dailyReportDateRange = computed(() => resolveDailyReportDateRange(dailyReportRangePreset.value))
 const dailyReportRangeLabel = computed(() => {
@@ -531,13 +535,18 @@ const dailyReportRangeLabel = computed(() => {
 	if (!start || !end) return '-'
 	return start === end ? start : `${start}~${end}`
 })
-const dailyReportDisplayRows = computed(() => {
+const dailyReportExportRows = computed(() => {
 	const { start, end } = dailyReportDateRange.value
 	if (!start || !end) return []
 	return dailyReportRows.value.filter((row) => {
 		const date = String(row?.date || '')
 		return date >= start && date <= end
 	})
+})
+const dailyReportDisplayRows = computed(() => dailyReportExportRows.value.slice(0, DAILY_REPORT_MAX_VISIBLE_DAYS))
+const dailyReportCanExport = computed(() => {
+	if (MONTH_EXPORT_PRESET_SET.has(dailyReportRangePreset.value)) return true
+	return dailyReportExportRows.value.length > 0
 })
 const dailyReportBarValues = computed(() => dailyReportDisplayRows.value.map((row) => Number(row.saleWeightKg || 0)))
 const dailyReportDisplaySummary = computed(() => {
@@ -615,6 +624,16 @@ function addDaysYmd(baseYmd, days) {
 	return formatLocalDateYmd(date)
 }
 
+function getMonthRange(monthOffset = 0) {
+	const now = new Date()
+	const first = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1)
+	const last = new Date(now.getFullYear(), now.getMonth() + monthOffset + 1, 0)
+	return {
+		start: formatLocalDateYmd(first),
+		end: formatLocalDateYmd(last)
+	}
+}
+
 function resolveDailyReportDateRange(preset) {
 	const today = formatLocalDateYmd(new Date())
 	if (preset === 'today') return { start: today, end: today }
@@ -623,6 +642,8 @@ function resolveDailyReportDateRange(preset) {
 		return { start: y, end: y }
 	}
 	if (preset === 'last3') return { start: addDaysYmd(today, -2), end: today }
+	if (preset === 'thisMonth') return getMonthRange(0)
+	if (preset === 'lastMonth') return getMonthRange(-1)
 	return { start: addDaysYmd(today, -4), end: today }
 }
 
@@ -680,6 +701,22 @@ function shortDateLabel(value) {
 	return text.slice(5)
 }
 
+function normalizeDailyReportRows(rawRows) {
+	if (!Array.isArray(rawRows)) return []
+	return rawRows.map((row) => ({
+		date: String(row?.date || ''),
+		fillBottleCount: Number((row?.fillBottleCount ?? row?.fill_bottle_count) || 0),
+		fillBottleWeightKg: Number((row?.fillBottleWeightKg ?? row?.fill_bottle_weight) || 0),
+		localCount: Number((row?.localCount ?? row?.local_count) || 0),
+		localWeightKg: Number((row?.localWeightKg ?? row?.local_weight) || 0),
+		vehicleCount: Number((row?.vehicleCount ?? row?.vehicle_count) || 0),
+		vehicleWeightKg: Number((row?.vehicleWeightKg ?? row?.vehicle_weight) || 0),
+		saleCustomerCount: Number((row?.saleCustomerCount ?? row?.sale_customer_count) || 0),
+		saleBottleCount: Number((row?.saleBottleCount ?? row?.sale_bottle_count) || 0),
+		saleWeightKg: Number((row?.saleWeightKg ?? row?.sale_weight) || 0)
+	}))
+}
+
 function applyDashboard(data) {
 	if (!data) return
 	const kpi = data.kpi || {}
@@ -711,20 +748,7 @@ function applyDashboard(data) {
 	kpiTrend.sales = delta.salesTrend || ''
 
 	const dailyReport = data.daily_report || {}
-	dailyReportRows.value = Array.isArray(dailyReport.rows)
-		? dailyReport.rows.map((row) => ({
-				date: String(row.date || ''),
-				fillBottleCount: Number(row.fill_bottle_count || 0),
-				fillBottleWeightKg: Number(row.fill_bottle_weight || 0),
-				localCount: Number(row.local_count || 0),
-				localWeightKg: Number(row.local_weight || 0),
-				vehicleCount: Number(row.vehicle_count || 0),
-				vehicleWeightKg: Number(row.vehicle_weight || 0),
-				saleCustomerCount: Number(row.sale_customer_count || 0),
-				saleBottleCount: Number(row.sale_bottle_count || 0),
-				saleWeightKg: Number(row.sale_weight || 0)
-			}))
-		: []
+	dailyReportRows.value = normalizeDailyReportRows(dailyReport.rows)
 	dailyReportSummary.fillTotalWeightKg = Number(dailyReport.fill_total_weight_kg || 0)
 	dailyReportSummary.saleTotalWeightKg = Number(dailyReport.sale_total_weight_kg || 0)
 	dailyReportSummary.customerCount = Number(dailyReport.customer_count || 0)
@@ -800,17 +824,38 @@ async function fetchAllSalesRowsForDailyReportExport({ dateStart, dateEnd }) {
 	return rows
 }
 
+function filterDailyReportRowsByRange(rows, start, end) {
+	return (Array.isArray(rows) ? rows : []).filter((row) => {
+		const date = String(row?.date || '')
+		return date >= start && date <= end
+	})
+}
+
+async function resolveSummaryRowsForDailyReportExport(start, end) {
+	const localRows = filterDailyReportRowsByRange(dailyReportRows.value, start, end)
+	if (!MONTH_EXPORT_PRESET_SET.has(dailyReportRangePreset.value)) return localRows
+	try {
+		const res = await getDashboardSummaryV1({ days: 31 })
+		if (res?.code !== 0) return localRows
+		const rows = normalizeDailyReportRows(res?.data?.daily_report?.rows)
+		const filtered = filterDailyReportRowsByRange(rows, start, end)
+		return filtered.length ? filtered : localRows
+	} catch (_) {
+		return localRows
+	}
+}
+
 async function onExportDailyReport() {
 	if (dailyReportExporting.value) return
-	const rows = dailyReportDisplayRows.value || []
-	if (!rows.length) {
-		uni.showToast({ title: '暂无可导出数据', icon: 'none' })
-		return
-	}
 	dailyReportExporting.value = true
 	uni.showLoading({ title: '导出中...', mask: true })
 	try {
 		const { start, end } = dailyReportDateRange.value
+		const rows = await resolveSummaryRowsForDailyReportExport(start, end)
+		if (!rows.length) {
+			uni.showToast({ title: '暂无可导出数据', icon: 'none' })
+			return
+		}
 		const salesRows = await fetchAllSalesRowsForDailyReportExport({ dateStart: start, dateEnd: end })
 		const workbookText = buildDailyReportWorkbookXml({
 			summaryRows: rows,
