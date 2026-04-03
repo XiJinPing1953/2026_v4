@@ -59,6 +59,329 @@
 				</view>
 			</AppSection>
 
+			<AppSection title="账务操作">
+				<template #actions>
+					<view v-if="activeOperationTab === 'opening_debt'" class="section-actions">
+						<AppButton size="sm" kind="ghost" @click="resetOpeningDebtForm">重置</AppButton>
+						<AppButton v-if="isEditingOpeningDebt" size="sm" kind="outline" @click="cancelOpeningDebtEditing">取消编辑</AppButton>
+						<AppButton size="sm" kind="primary" :loading="openingDebtSubmitting" @click="onCreateOpeningDebtEntry">
+							{{ openingDebtPrimaryActionLabel }}
+						</AppButton>
+					</view>
+					<view v-else-if="activeOperationTab === 'prepay'" class="section-actions">
+						<AppButton size="sm" kind="ghost" @click="resetPrepayForm">重置</AppButton>
+						<AppButton size="sm" kind="primary" :loading="prepaySubmitting" @click="onCreatePrepayEntry">录入预付</AppButton>
+					</view>
+					<view v-else-if="activeOperationTab === 'offset'" class="section-actions">
+						<AppButton size="sm" kind="ghost" @click="resetOffsetAllocateForm">重置</AppButton>
+						<AppButton size="sm" kind="neutral" :loading="offsetPoolLoading" @click="loadOffsetCreditPool(true)">刷新来源</AppButton>
+						<AppButton
+							size="sm"
+							kind="primary"
+							:loading="offsetAllocating"
+							:disabled="!selectedOffsetReceiptId"
+							@click="onAllocateOffsetCredit"
+						>
+							提交冲抵
+						</AppButton>
+					</view>
+					<view v-else-if="activeOperationTab === 'receipt'" class="section-actions">
+						<AppButton size="sm" kind="ghost" @click="resetReceiptForm">重置</AppButton>
+						<AppButton v-if="isEditingReceipt" size="sm" kind="outline" @click="cancelReceiptEditing">取消编辑</AppButton>
+						<AppButton size="sm" kind="neutral" :disabled="isEditingReceipt" :loading="previewing" @click="onPreview">预览分配</AppButton>
+						<AppButton size="sm" kind="primary" :loading="submitting" @click="onCreateAutoReceipt">{{ receiptPrimaryActionLabel }}</AppButton>
+						<AppButton size="sm" kind="outline" :disabled="isEditingReceipt || !previewPlan" :loading="confirming" @click="onConfirmAllocation">确认入账</AppButton>
+					</view>
+				</template>
+
+				<view class="operation-head">
+					<text class="operation-current">当前操作：{{ activeOperationTabLabel }}</text>
+				</view>
+				<view class="operation-tabs-scroll">
+					<AppTabs :model-value="activeOperationTab" :items="operationTabs" @update:modelValue="onOperationTabChange" />
+				</view>
+
+				<view v-if="activeOperationTab === 'receipt'" class="operation-panel">
+					<view class="receipt-grid receipt-grid--four">
+						<AppInput
+							v-model="receiptForm.amount"
+							label="收款金额(元)"
+							:placeholder="moneyInputPlaceholder"
+							size="sm"
+							@blur="onReceiptAmountBlur"
+						/>
+						<picker class="picker-block" mode="date" @change="onBizDateChange">
+							<AppInput v-model="receiptForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
+						</picker>
+						<picker class="picker-block" mode="selector" :range="receiptPaymentMethodOptions" range-key="label" :value="receiptPaymentMethodIndex" @change="onReceiptPaymentMethodChange">
+							<AppInput :model-value="receiptPaymentMethodLabel" label="收款方式" placeholder="请选择收款方式" readonly size="sm" />
+						</picker>
+						<picker
+							class="picker-block"
+							mode="selector"
+							:range="receiptAllocationModeOptions"
+							range-key="label"
+							:value="receiptAllocationModeIndex"
+							@change="onReceiptAllocationModeChange"
+						>
+							<AppInput :model-value="receiptAllocationModeLabel" label="分配模式" placeholder="请选择模式" readonly size="sm" />
+						</picker>
+						<picker v-if="receiptForm.allocationMode === 'period'" class="picker-block" mode="date" @change="onAllocationStartDateChange">
+							<AppInput v-model="receiptForm.allocationStartDate" label="分配开始日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
+						</picker>
+						<picker v-if="receiptForm.allocationMode === 'period'" class="picker-block" mode="date" @change="onAllocationEndDateChange">
+							<AppInput v-model="receiptForm.allocationEndDate" label="分配结束日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
+						</picker>
+						<AppInput v-model="receiptForm.note" class="grid-span-4" label="备注" placeholder="可选" size="sm" />
+					</view>
+					<text v-if="receiptForm.allocationMode === 'period'" class="section-hint">分配口径：仅冲销所选日期区间内的应收，超出部分自动计入预付款/冲抵款池。</text>
+					<text v-else class="section-hint">分配口径：仅冲销勾选单据，勾选外单据不参与本次分配，剩余自动计入预付款/冲抵款池。</text>
+
+					<view v-if="receiptForm.allocationMode === 'checked'" class="checked-target-box">
+						<view class="checked-target-head">
+							<text>勾选待分配单据（按日期升序自动分配）</text>
+							<text>已选 {{ checkedAllocationTargetKeys.length }} 笔</text>
+						</view>
+						<checkbox-group class="checked-target-list" @change="onCheckedTargetsChange">
+							<label v-for="row in checkedTargetCandidates" :key="row.key" class="checked-target-item">
+								<checkbox :value="row.key" :checked="isAllocationTargetChecked(row.key)" color="#2563eb" />
+								<view class="checked-target-item__body">
+									<text class="checked-target-item__title">{{ row.title }}</text>
+									<text class="checked-target-item__meta">日期 {{ row.date || '-' }} · 欠款 ¥{{ formatMoney(row.outstanding) }}</text>
+								</view>
+							</label>
+						</checkbox-group>
+						<text v-if="checkedTargetCandidates.length === 0" class="preview-empty">当前无可勾选欠款单据，可切换到时间段分配。</text>
+					</view>
+
+					<view v-if="previewPlan" class="preview-box">
+						<view class="preview-summary">
+							<text>本次收款：¥{{ formatMoney(previewPlan.amount) }}</text>
+							<text>预计冲欠：¥{{ formatMoney(previewPlan.allocated_total) }}</text>
+							<text>预计形成预付：¥{{ formatMoney(previewPlan.prepay_amount) }}</text>
+						</view>
+						<view v-if="editableAllocations.length" class="alloc-list">
+							<view class="alloc-head">
+								<text class="col-sale">目标单据</text>
+								<text class="col-outstanding">欠款前</text>
+								<text class="col-amount">分配金额</text>
+							</view>
+							<view v-for="row in editableAllocations" :key="row.key" class="alloc-row">
+								<text class="col-sale">{{ row.targetTitle }}</text>
+								<text class="col-outstanding">¥{{ formatMoney(row.outstandingBefore) }}</text>
+								<view class="col-amount">
+									<AppInput
+										:model-value="row.allocateAmount"
+										placeholder="0"
+										size="sm"
+										@update:model-value="(value) => onAllocationInput(row.key, value)"
+									/>
+								</view>
+							</view>
+						</view>
+						<text v-else class="preview-empty">当前预览无可冲销欠款，登记后将全部进入预付款。</text>
+					</view>
+				</view>
+
+				<view v-else-if="activeOperationTab === 'offset'" class="operation-panel">
+					<view class="checked-target-box">
+						<view class="checked-target-head">
+							<text>冲抵来源池（仅可用余额）</text>
+							<text>共 {{ offsetPoolPager.total }} 条 · 第 {{ offsetPoolPager.page }} / {{ offsetPoolTotalPages }} 页</text>
+						</view>
+						<AppList :loading="offsetPoolLoading" :empty="offsetPoolRows.length === 0" empty-title="暂无可用冲抵来源">
+							<AppListItem
+								v-for="row in offsetPoolRows"
+								:key="row._id"
+								:title="`${row.source_sale_date || row.biz_date || '-'} · 冲抵来源`"
+								:subtitle="`单据 ${row._id}`"
+								status="冲抵池"
+								status-kind="warning"
+								icon="wallet"
+								icon-class="bg-warning"
+							>
+								<template #right>
+									<view class="mini-amounts">
+										<text>来源 ¥{{ formatMoney(row.amount) }}</text>
+										<text>已分配 ¥{{ formatMoney(row.allocated_amount) }}</text>
+										<text>可用 ¥{{ formatMoney(row.unallocated_amount) }}</text>
+									</view>
+								</template>
+								<template #default>
+									<text v-if="row.note" class="row-detail">{{ row.note }}</text>
+								</template>
+								<template #footer>
+									<view class="row-actions">
+										<AppButton
+											size="sm"
+											:kind="selectedOffsetReceiptId === normalizeString(row._id) ? 'primary' : 'ghost'"
+											@click="onSelectOffsetReceipt(row)"
+										>
+											{{ selectedOffsetReceiptId === normalizeString(row._id) ? '已选择' : '选择来源' }}
+										</AppButton>
+									</view>
+								</template>
+							</AppListItem>
+						</AppList>
+						<view v-if="offsetPoolPager.total > 0" class="pager-row">
+							<AppButton size="sm" kind="neutral" :disabled="offsetPoolLoading || offsetPoolPager.page <= 1" @click="onOffsetPoolPrev">上一页</AppButton>
+							<AppButton size="sm" kind="neutral" :disabled="offsetPoolLoading || !offsetPoolPager.hasMore" @click="onOffsetPoolNext">下一页</AppButton>
+						</view>
+					</view>
+
+					<view class="receipt-grid">
+						<AppInput :model-value="selectedOffsetReceiptSummary" label="已选来源" placeholder="请选择冲抵来源" readonly size="sm" />
+						<AppInput
+							v-model="offsetAllocateForm.amount"
+							label="本次冲抵金额(元)"
+							:placeholder="moneyInputPlaceholder"
+							size="sm"
+							@blur="onOffsetAllocateAmountBlur"
+						/>
+					</view>
+					<text class="section-hint">分配口径：单笔来源 + 勾选目标。仅消耗本来源可用余额，不回滚历史分配。</text>
+
+					<view class="checked-target-box">
+						<view class="checked-target-head">
+							<text>勾选冲抵目标（销售/流量/历史欠款）</text>
+							<text>已选 {{ offsetCheckedTargetKeys.length }} 笔</text>
+						</view>
+						<checkbox-group class="checked-target-list" @change="onOffsetCheckedTargetsChange">
+							<label v-for="row in checkedTargetCandidates" :key="`offset-${row.key}`" class="checked-target-item">
+								<checkbox :value="row.key" :checked="isOffsetAllocationTargetChecked(row.key)" color="#2563eb" />
+								<view class="checked-target-item__body">
+									<text class="checked-target-item__title">{{ row.title }}</text>
+									<text class="checked-target-item__meta">日期 {{ row.date || '-' }} · 欠款 ¥{{ formatMoney(row.outstanding) }}</text>
+								</view>
+							</label>
+						</checkbox-group>
+						<text v-if="checkedTargetCandidates.length === 0" class="preview-empty">当前无可冲抵欠款目标。</text>
+					</view>
+				</view>
+
+				<view v-else-if="activeOperationTab === 'prepay'" class="operation-panel">
+					<view class="receipt-grid">
+						<AppInput
+							v-model="prepayForm.amount"
+							label="预付金额(元)"
+							:placeholder="moneyInputPlaceholder"
+							size="sm"
+							@blur="onPrepayAmountBlur"
+						/>
+						<picker class="picker-block" mode="date" @change="onPrepayBizDateChange">
+							<AppInput v-model="prepayForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
+						</picker>
+						<picker class="picker-block" mode="selector" :range="receiptPaymentMethodOptions" range-key="label" :value="prepayPaymentMethodIndex" @change="onPrepayPaymentMethodChange">
+							<AppInput :model-value="prepayPaymentMethodLabel" label="收款方式" placeholder="请选择收款方式" readonly size="sm" />
+						</picker>
+						<picker class="picker-block" mode="selector" :range="prepayApplyStrategyOptions" range-key="label" :value="prepayApplyStrategyIndex" @change="onPrepayApplyStrategyChange">
+							<AppInput :model-value="prepayApplyStrategyLabel" label="抵扣策略" placeholder="请选择策略" readonly size="sm" />
+						</picker>
+						<picker v-if="prepayForm.applyStrategy === 'allocate_period'" class="picker-block" mode="date" @change="onPrepayAllocationStartDateChange">
+							<AppInput v-model="prepayForm.allocationStartDate" label="分配开始日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
+						</picker>
+						<picker v-if="prepayForm.applyStrategy === 'allocate_period'" class="picker-block" mode="date" @change="onPrepayAllocationEndDateChange">
+							<AppInput v-model="prepayForm.allocationEndDate" label="分配结束日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
+						</picker>
+						<AppInput v-model="prepayForm.note" label="备注" placeholder="可选" size="sm" />
+					</view>
+					<text class="section-hint">
+						当前策略：{{ prepayApplyStrategyLabel }}。仅入预付时不冲历史欠款；立即按区间冲欠时仅冲销区间内应收，剩余金额自动保留为预付款。
+					</text>
+				</view>
+
+				<view v-else-if="activeOperationTab === 'opening_debt'" class="operation-panel">
+					<view class="receipt-grid">
+						<AppInput
+							v-model="openingDebtForm.amount"
+							label="欠款金额(元)"
+							:placeholder="moneyInputPlaceholder"
+							size="sm"
+							@blur="onOpeningDebtAmountBlur"
+						/>
+						<picker class="picker-block" mode="date" @change="onOpeningDebtBizDateChange">
+							<AppInput v-model="openingDebtForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
+						</picker>
+						<AppInput v-model="openingDebtForm.note" class="grid-span-2" label="备注" placeholder="可选" size="sm" />
+					</view>
+
+					<view class="recent-toggle-row">
+						<text class="section-hint">近20条历史欠款默认收起</text>
+						<AppButton size="sm" kind="neutral" @click="toggleOpeningDebtRecent">
+							{{ openingDebtRecentExpanded ? '收起记录' : '查看最近记录' }}
+						</AppButton>
+					</view>
+					<AppList v-if="openingDebtRecentExpanded" :loading="loading" :empty="recentOpeningDebts.length === 0" empty-title="暂无历史欠款">
+						<AppListItem
+							v-for="row in recentOpeningDebts"
+							:key="row._id"
+							:title="`${row.biz_date || '-'} · 历史欠款`"
+							:subtitle="`单据 ${row._id}`"
+							:status="paymentStatusText(row.payment_status)"
+							:status-kind="paymentStatusKind(row.payment_status)"
+							icon="alert"
+							icon-class="bg-warning"
+						>
+							<template #right>
+								<view class="mini-amounts">
+									<text>应收 ¥{{ formatMoney(row.amount) }}</text>
+									<text>已收 ¥{{ formatMoney(row.amount_received) }}</text>
+									<text>未收 ¥{{ formatMoney(row.outstanding) }}</text>
+								</view>
+							</template>
+							<template #default>
+								<text v-if="row.note" class="row-detail">{{ row.note }}</text>
+							</template>
+							<template #footer>
+								<view class="row-actions">
+									<AppButton size="sm" kind="ghost" @click="onEditOpeningDebt(row)">编辑</AppButton>
+									<AppButton size="sm" kind="outline" @click="onRemoveOpeningDebt(row)">删除</AppButton>
+								</view>
+							</template>
+						</AppListItem>
+					</AppList>
+				</view>
+
+				<view v-else class="operation-panel">
+					<view class="recent-toggle-row">
+						<text class="section-hint">近20条收款单默认收起</text>
+						<AppButton size="sm" kind="neutral" @click="toggleReceiptRecent">
+							{{ receiptRecentExpanded ? '收起记录' : '查看最近记录' }}
+						</AppButton>
+					</view>
+					<AppList v-if="receiptRecentExpanded" :loading="loading" :empty="recentReceipts.length === 0" empty-title="暂无收款单">
+						<AppListItem
+							v-for="row in recentReceipts"
+							:key="row._id"
+							:title="`${row.biz_date || '-'} · 收款单`"
+							:subtitle="`单据 ${row._id}`"
+							:status="paymentMethodText(row.payment_method)"
+							status-kind="info"
+							icon="wallet"
+							icon-class="bg-success"
+						>
+							<template #right>
+								<view class="mini-amounts">
+									<text>收款 ¥{{ formatMoney(row.amount) }}</text>
+									<text>已分配 ¥{{ formatMoney(row.allocated_amount) }}</text>
+									<text>预付+ ¥{{ formatMoney(row.unallocated_amount) }}</text>
+								</view>
+							</template>
+							<template #default>
+								<text class="row-detail">{{ receiptAllocationText(row) }}</text>
+								<text v-if="row.note" class="row-detail">{{ row.note }}</text>
+							</template>
+							<template #footer>
+								<view class="row-actions">
+									<AppButton size="sm" kind="ghost" @click="onEditReceipt(row)">编辑</AppButton>
+									<AppButton size="sm" kind="outline" @click="onRemoveReceipt(row)">删除</AppButton>
+								</view>
+							</template>
+						</AppListItem>
+					</AppList>
+				</view>
+			</AppSection>
+
 			<AppSection v-if="isFlowCustomer" title="流量结算">
 				<template #actions>
 					<AppButton size="sm" kind="ghost" @click="resetFlowForm()">重置</AppButton>
@@ -212,309 +535,6 @@
 				</AppList>
 			</AppSection>
 
-			<AppSection title="历史欠款登记">
-				<template #actions>
-					<AppButton size="sm" kind="ghost" @click="resetOpeningDebtForm">重置</AppButton>
-					<AppButton v-if="isEditingOpeningDebt" size="sm" kind="outline" @click="cancelOpeningDebtEditing">取消编辑</AppButton>
-					<AppButton size="sm" kind="primary" :loading="openingDebtSubmitting" @click="onCreateOpeningDebtEntry">
-						{{ openingDebtPrimaryActionLabel }}
-					</AppButton>
-				</template>
-
-				<view class="receipt-grid">
-					<AppInput
-						v-model="openingDebtForm.amount"
-						label="欠款金额(元)"
-						:placeholder="moneyInputPlaceholder"
-						size="sm"
-						@blur="onOpeningDebtAmountBlur"
-					/>
-					<picker class="picker-block" mode="date" @change="onOpeningDebtBizDateChange">
-						<AppInput v-model="openingDebtForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
-					</picker>
-					<AppInput v-model="openingDebtForm.note" class="grid-span-2" label="备注" placeholder="可选" size="sm" />
-				</view>
-
-				<AppList :loading="loading" :empty="recentOpeningDebts.length === 0" empty-title="暂无历史欠款">
-					<AppListItem
-						v-for="row in recentOpeningDebts"
-						:key="row._id"
-						:title="`${row.biz_date || '-'} · 历史欠款`"
-						:subtitle="`单据 ${row._id}`"
-						:status="paymentStatusText(row.payment_status)"
-						:status-kind="paymentStatusKind(row.payment_status)"
-						icon="alert"
-						icon-class="bg-warning"
-					>
-						<template #right>
-							<view class="mini-amounts">
-								<text>应收 ¥{{ formatMoney(row.amount) }}</text>
-								<text>已收 ¥{{ formatMoney(row.amount_received) }}</text>
-								<text>未收 ¥{{ formatMoney(row.outstanding) }}</text>
-							</view>
-						</template>
-						<template #default>
-							<text v-if="row.note" class="row-detail">{{ row.note }}</text>
-						</template>
-						<template #footer>
-							<view class="row-actions">
-								<AppButton size="sm" kind="ghost" @click="onEditOpeningDebt(row)">编辑</AppButton>
-								<AppButton size="sm" kind="outline" @click="onRemoveOpeningDebt(row)">删除</AppButton>
-							</view>
-						</template>
-					</AppListItem>
-				</AppList>
-			</AppSection>
-
-			<AppSection title="收款单（近20条）">
-				<AppList :loading="loading" :empty="recentReceipts.length === 0" empty-title="暂无收款单">
-					<AppListItem
-						v-for="row in recentReceipts"
-						:key="row._id"
-						:title="`${row.biz_date || '-'} · 收款单`"
-						:subtitle="`单据 ${row._id}`"
-						:status="paymentMethodText(row.payment_method)"
-						status-kind="info"
-						icon="wallet"
-						icon-class="bg-success"
-					>
-						<template #right>
-							<view class="mini-amounts">
-								<text>收款 ¥{{ formatMoney(row.amount) }}</text>
-								<text>已分配 ¥{{ formatMoney(row.allocated_amount) }}</text>
-								<text>预付+ ¥{{ formatMoney(row.unallocated_amount) }}</text>
-							</view>
-						</template>
-						<template #default>
-							<text class="row-detail">{{ receiptAllocationText(row) }}</text>
-							<text v-if="row.note" class="row-detail">{{ row.note }}</text>
-						</template>
-						<template #footer>
-							<view class="row-actions">
-								<AppButton size="sm" kind="ghost" @click="onEditReceipt(row)">编辑</AppButton>
-								<AppButton size="sm" kind="outline" @click="onRemoveReceipt(row)">删除</AppButton>
-							</view>
-						</template>
-					</AppListItem>
-				</AppList>
-			</AppSection>
-
-			<AppSection title="预付录入">
-				<template #actions>
-					<AppButton size="sm" kind="ghost" @click="resetPrepayForm">重置</AppButton>
-					<AppButton size="sm" kind="primary" :loading="prepaySubmitting" @click="onCreatePrepayEntry">录入预付</AppButton>
-				</template>
-
-				<view class="receipt-grid">
-					<AppInput
-						v-model="prepayForm.amount"
-						label="预付金额(元)"
-						:placeholder="moneyInputPlaceholder"
-						size="sm"
-						@blur="onPrepayAmountBlur"
-					/>
-					<picker class="picker-block" mode="date" @change="onPrepayBizDateChange">
-						<AppInput v-model="prepayForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
-					</picker>
-					<picker class="picker-block" mode="selector" :range="receiptPaymentMethodOptions" range-key="label" :value="prepayPaymentMethodIndex" @change="onPrepayPaymentMethodChange">
-						<AppInput :model-value="prepayPaymentMethodLabel" label="收款方式" placeholder="请选择收款方式" readonly size="sm" />
-					</picker>
-					<picker class="picker-block" mode="selector" :range="prepayApplyStrategyOptions" range-key="label" :value="prepayApplyStrategyIndex" @change="onPrepayApplyStrategyChange">
-						<AppInput :model-value="prepayApplyStrategyLabel" label="抵扣策略" placeholder="请选择策略" readonly size="sm" />
-					</picker>
-					<picker v-if="prepayForm.applyStrategy === 'allocate_period'" class="picker-block" mode="date" @change="onPrepayAllocationStartDateChange">
-						<AppInput v-model="prepayForm.allocationStartDate" label="分配开始日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
-					</picker>
-					<picker v-if="prepayForm.applyStrategy === 'allocate_period'" class="picker-block" mode="date" @change="onPrepayAllocationEndDateChange">
-						<AppInput v-model="prepayForm.allocationEndDate" label="分配结束日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
-					</picker>
-					<AppInput v-model="prepayForm.note" label="备注" placeholder="可选" size="sm" />
-				</view>
-				<text class="section-hint">
-					当前策略：{{ prepayApplyStrategyLabel }}。仅入预付时不冲历史欠款；立即按区间冲欠时仅冲销区间内应收，剩余金额自动保留为预付款。
-				</text>
-			</AppSection>
-
-			<AppSection title="冲抵分配">
-				<template #actions>
-					<AppButton size="sm" kind="ghost" @click="resetOffsetAllocateForm">重置</AppButton>
-					<AppButton size="sm" kind="neutral" :loading="offsetPoolLoading" @click="loadOffsetCreditPool(true)">刷新来源</AppButton>
-					<AppButton
-						size="sm"
-						kind="primary"
-						:loading="offsetAllocating"
-						:disabled="!selectedOffsetReceiptId"
-						@click="onAllocateOffsetCredit"
-					>
-						提交冲抵
-					</AppButton>
-				</template>
-
-				<view class="checked-target-box">
-					<view class="checked-target-head">
-						<text>冲抵来源池（仅可用余额）</text>
-						<text>共 {{ offsetPoolPager.total }} 条 · 第 {{ offsetPoolPager.page }} / {{ offsetPoolTotalPages }} 页</text>
-					</view>
-					<AppList :loading="offsetPoolLoading" :empty="offsetPoolRows.length === 0" empty-title="暂无可用冲抵来源">
-						<AppListItem
-							v-for="row in offsetPoolRows"
-							:key="row._id"
-							:title="`${row.source_sale_date || row.biz_date || '-'} · 冲抵来源`"
-							:subtitle="`单据 ${row._id}`"
-							status="冲抵池"
-							status-kind="warning"
-							icon="wallet"
-							icon-class="bg-warning"
-						>
-							<template #right>
-								<view class="mini-amounts">
-									<text>来源 ¥{{ formatMoney(row.amount) }}</text>
-									<text>已分配 ¥{{ formatMoney(row.allocated_amount) }}</text>
-									<text>可用 ¥{{ formatMoney(row.unallocated_amount) }}</text>
-								</view>
-							</template>
-							<template #default>
-								<text v-if="row.note" class="row-detail">{{ row.note }}</text>
-							</template>
-							<template #footer>
-								<view class="row-actions">
-									<AppButton
-										size="sm"
-										:kind="selectedOffsetReceiptId === normalizeString(row._id) ? 'primary' : 'ghost'"
-										@click="onSelectOffsetReceipt(row)"
-									>
-										{{ selectedOffsetReceiptId === normalizeString(row._id) ? '已选择' : '选择来源' }}
-									</AppButton>
-								</view>
-							</template>
-						</AppListItem>
-					</AppList>
-					<view v-if="offsetPoolPager.total > 0" class="pager-row">
-						<AppButton size="sm" kind="neutral" :disabled="offsetPoolLoading || offsetPoolPager.page <= 1" @click="onOffsetPoolPrev">上一页</AppButton>
-						<AppButton size="sm" kind="neutral" :disabled="offsetPoolLoading || !offsetPoolPager.hasMore" @click="onOffsetPoolNext">下一页</AppButton>
-					</view>
-				</view>
-
-				<view class="receipt-grid">
-					<AppInput :model-value="selectedOffsetReceiptSummary" label="已选来源" placeholder="请选择冲抵来源" readonly size="sm" />
-					<AppInput
-						v-model="offsetAllocateForm.amount"
-						label="本次冲抵金额(元)"
-						:placeholder="moneyInputPlaceholder"
-						size="sm"
-						@blur="onOffsetAllocateAmountBlur"
-					/>
-				</view>
-				<text class="section-hint">分配口径：单笔来源 + 勾选目标。仅消耗本来源可用余额，不回滚历史分配。</text>
-
-				<view class="checked-target-box">
-					<view class="checked-target-head">
-						<text>勾选冲抵目标（销售/流量/历史欠款）</text>
-						<text>已选 {{ offsetCheckedTargetKeys.length }} 笔</text>
-					</view>
-					<checkbox-group class="checked-target-list" @change="onOffsetCheckedTargetsChange">
-						<label v-for="row in checkedTargetCandidates" :key="`offset-${row.key}`" class="checked-target-item">
-							<checkbox :value="row.key" :checked="isOffsetAllocationTargetChecked(row.key)" color="#2563eb" />
-							<view class="checked-target-item__body">
-								<text class="checked-target-item__title">{{ row.title }}</text>
-								<text class="checked-target-item__meta">日期 {{ row.date || '-' }} · 欠款 ¥{{ formatMoney(row.outstanding) }}</text>
-							</view>
-						</label>
-					</checkbox-group>
-					<text v-if="checkedTargetCandidates.length === 0" class="preview-empty">当前无可冲抵欠款目标。</text>
-				</view>
-			</AppSection>
-
-			<AppSection title="登记收款 / 分配">
-				<template #actions>
-					<AppButton size="sm" kind="ghost" @click="resetReceiptForm">重置</AppButton>
-					<AppButton v-if="isEditingReceipt" size="sm" kind="outline" @click="cancelReceiptEditing">取消编辑</AppButton>
-					<AppButton size="sm" kind="neutral" :disabled="isEditingReceipt" :loading="previewing" @click="onPreview">预览分配</AppButton>
-					<AppButton size="sm" kind="primary" :loading="submitting" @click="onCreateAutoReceipt">{{ receiptPrimaryActionLabel }}</AppButton>
-					<AppButton size="sm" kind="outline" :disabled="isEditingReceipt || !previewPlan" :loading="confirming" @click="onConfirmAllocation">确认入账</AppButton>
-				</template>
-
-				<view class="receipt-grid receipt-grid--four">
-					<AppInput
-						v-model="receiptForm.amount"
-						label="收款金额(元)"
-						:placeholder="moneyInputPlaceholder"
-						size="sm"
-						@blur="onReceiptAmountBlur"
-					/>
-					<picker class="picker-block" mode="date" @change="onBizDateChange">
-						<AppInput v-model="receiptForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
-					</picker>
-					<picker class="picker-block" mode="selector" :range="receiptPaymentMethodOptions" range-key="label" :value="receiptPaymentMethodIndex" @change="onReceiptPaymentMethodChange">
-						<AppInput :model-value="receiptPaymentMethodLabel" label="收款方式" placeholder="请选择收款方式" readonly size="sm" />
-					</picker>
-					<picker
-						class="picker-block"
-						mode="selector"
-						:range="receiptAllocationModeOptions"
-						range-key="label"
-						:value="receiptAllocationModeIndex"
-						@change="onReceiptAllocationModeChange"
-					>
-						<AppInput :model-value="receiptAllocationModeLabel" label="分配模式" placeholder="请选择模式" readonly size="sm" />
-					</picker>
-					<picker v-if="receiptForm.allocationMode === 'period'" class="picker-block" mode="date" @change="onAllocationStartDateChange">
-						<AppInput v-model="receiptForm.allocationStartDate" label="分配开始日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
-					</picker>
-					<picker v-if="receiptForm.allocationMode === 'period'" class="picker-block" mode="date" @change="onAllocationEndDateChange">
-						<AppInput v-model="receiptForm.allocationEndDate" label="分配结束日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
-					</picker>
-					<AppInput v-model="receiptForm.note" class="grid-span-4" label="备注" placeholder="可选" size="sm" />
-				</view>
-				<text v-if="receiptForm.allocationMode === 'period'" class="section-hint">分配口径：仅冲销所选日期区间内的应收，超出部分自动计入预付款/冲抵款池。</text>
-				<text v-else class="section-hint">分配口径：仅冲销勾选单据，勾选外单据不参与本次分配，剩余自动计入预付款/冲抵款池。</text>
-
-				<view v-if="receiptForm.allocationMode === 'checked'" class="checked-target-box">
-					<view class="checked-target-head">
-						<text>勾选待分配单据（按日期升序自动分配）</text>
-						<text>已选 {{ checkedAllocationTargetKeys.length }} 笔</text>
-					</view>
-					<checkbox-group class="checked-target-list" @change="onCheckedTargetsChange">
-						<label v-for="row in checkedTargetCandidates" :key="row.key" class="checked-target-item">
-							<checkbox :value="row.key" :checked="isAllocationTargetChecked(row.key)" color="#2563eb" />
-							<view class="checked-target-item__body">
-								<text class="checked-target-item__title">{{ row.title }}</text>
-								<text class="checked-target-item__meta">日期 {{ row.date || '-' }} · 欠款 ¥{{ formatMoney(row.outstanding) }}</text>
-							</view>
-						</label>
-					</checkbox-group>
-					<text v-if="checkedTargetCandidates.length === 0" class="preview-empty">当前无可勾选欠款单据，可切换到时间段分配。</text>
-				</view>
-
-				<view v-if="previewPlan" class="preview-box">
-					<view class="preview-summary">
-						<text>本次收款：¥{{ formatMoney(previewPlan.amount) }}</text>
-						<text>预计冲欠：¥{{ formatMoney(previewPlan.allocated_total) }}</text>
-						<text>预计形成预付：¥{{ formatMoney(previewPlan.prepay_amount) }}</text>
-					</view>
-					<view v-if="editableAllocations.length" class="alloc-list">
-						<view class="alloc-head">
-							<text class="col-sale">目标单据</text>
-							<text class="col-outstanding">欠款前</text>
-							<text class="col-amount">分配金额</text>
-						</view>
-						<view v-for="row in editableAllocations" :key="row.key" class="alloc-row">
-							<text class="col-sale">{{ row.targetTitle }}</text>
-							<text class="col-outstanding">¥{{ formatMoney(row.outstandingBefore) }}</text>
-							<view class="col-amount">
-								<AppInput
-									:model-value="row.allocateAmount"
-									placeholder="0"
-									size="sm"
-									@update:model-value="(value) => onAllocationInput(row.key, value)"
-								/>
-							</view>
-						</view>
-					</view>
-					<text v-else class="preview-empty">当前预览无可冲销欠款，登记后将全部进入预付款。</text>
-				</view>
-			</AppSection>
-
 			<AppSection title="销售明细（近100条）">
 				<AppList :loading="loading" :empty="recentSalesDisplayRows.length === 0" empty-title="暂无销售明细">
 					<AppListItem
@@ -636,6 +656,7 @@
 import { computed, onMounted, reactive, ref, toRef, watch } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
+import AppTabs from '@/components/base/AppTabs.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppList from '@/components/base/AppList.vue'
@@ -711,6 +732,16 @@ const quickSceneApplied = ref(false)
 const editingReceiptId = ref('')
 const editingFlowSettlementId = ref('')
 const editingOpeningDebtId = ref('')
+const activeOperationTab = ref('receipt')
+const openingDebtRecentExpanded = ref(false)
+const receiptRecentExpanded = ref(false)
+const operationTabs = [
+	{ label: '登记收款/分配', value: 'receipt' },
+	{ label: '冲抵分配', value: 'offset' },
+	{ label: '预付录入', value: 'prepay' },
+	{ label: '历史欠款登记', value: 'opening_debt' },
+	{ label: '收款单', value: 'receipt_list' }
+]
 const analysis = reactive({
 	customer_price_unit: 'kg',
 	requires_date_range: false,
@@ -815,6 +846,9 @@ const offsetPoolPager = reactive({
 const subtitle = computed(() => {
 	if (!customer.value?.name) return '客户账务总览与流水'
 	return `${customer.value.name} · 对账流水`
+})
+const activeOperationTabLabel = computed(() => {
+	return operationTabs.find((item) => item.value === activeOperationTab.value)?.label || '登记收款/分配'
 })
 
 const rowsTotalPages = computed(() => {
@@ -1423,6 +1457,20 @@ function currentMonthRange() {
 	}
 }
 
+function onOperationTabChange(value) {
+	const next = normalizeString(value)
+	if (!operationTabs.some((item) => item.value === next)) return
+	activeOperationTab.value = next
+}
+
+function toggleOpeningDebtRecent() {
+	openingDebtRecentExpanded.value = !openingDebtRecentExpanded.value
+}
+
+function toggleReceiptRecent() {
+	receiptRecentExpanded.value = !receiptRecentExpanded.value
+}
+
 function resetReceiptForm() {
 	editingReceiptId.value = ''
 	const today = todayYmd()
@@ -1540,6 +1588,7 @@ function applyQuickReceiveScene() {
 	if (normalizeString(scene.value) !== 'quickReceive') return
 	const targetSaleId = normalizeString(saleId.value)
 	if (!targetSaleId) return
+	activeOperationTab.value = 'receipt'
 	receiptForm.allocationMode = 'checked'
 	receiptForm.allocationStartDate = ''
 	receiptForm.allocationEndDate = ''
@@ -1638,6 +1687,7 @@ function cancelOpeningDebtEditing() {
 function onEditOpeningDebt(row) {
 	const debtId = normalizeString(row?._id)
 	if (!debtId) return
+	activeOperationTab.value = 'opening_debt'
 	editingOpeningDebtId.value = debtId
 	openingDebtForm.amount = formatMoney(row?.amount)
 	openingDebtForm.bizDate = normalizeDate(row?.biz_date) || todayYmd()
@@ -2124,6 +2174,7 @@ function cancelReceiptEditing() {
 function onEditReceipt(row) {
 	const receiptId = normalizeString(row?._id)
 	if (!receiptId) return
+	activeOperationTab.value = 'receipt'
 	editingReceiptId.value = receiptId
 	receiptForm.amount = formatMoney(row?.amount)
 	receiptForm.bizDate = normalizeDate(row?.biz_date) || todayYmd()
@@ -2587,6 +2638,9 @@ watch(
 	async (id) => {
 		if (!id) return
 		quickSceneApplied.value = false
+		activeOperationTab.value = 'receipt'
+		openingDebtRecentExpanded.value = false
+		receiptRecentExpanded.value = false
 		resetReceiptForm()
 		resetPrepayForm()
 		resetFlowForm({ preservePrev: false })
@@ -2643,6 +2697,37 @@ onMounted(() => {
 	justify-content: flex-start;
 	overflow-x: auto;
 	padding-bottom: 8rpx;
+}
+
+.operation-head {
+	margin-bottom: 8rpx;
+}
+
+.operation-current {
+	font-size: 22rpx;
+	color: var(--crm-text-muted);
+}
+
+.operation-tabs-scroll {
+	overflow-x: auto;
+	padding-bottom: 8rpx;
+}
+
+.operation-tabs-scroll :deep(.tabs) {
+	min-width: max-content;
+}
+
+.operation-panel {
+	display: flex;
+	flex-direction: column;
+}
+
+.recent-toggle-row {
+	margin-top: 12rpx;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12rpx;
 }
 
 :deep(.summary-card .stat__content) {
@@ -2993,6 +3078,11 @@ onMounted(() => {
 	}
 
 	.section-actions {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+
+	.recent-toggle-row {
 		flex-direction: column;
 		align-items: flex-start;
 	}
