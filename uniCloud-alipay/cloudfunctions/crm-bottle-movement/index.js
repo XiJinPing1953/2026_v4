@@ -16,12 +16,17 @@ try {
 }
 
 const CYCLE_SCAN_MAX_ROWS = 30000
+const ANOMALY_RANK_TOP_LIMIT = 5
+const ANOMALY_RANK_MAX_LIMIT = 30
+const ANOMALY_RANK_PAGE_SIZE_DEFAULT = 20
+const ANOMALY_RANK_PAGE_SIZE_MAX = 200
 const PAGE_ACTION_RULES = {
 	listV1: [{ pagePath: '/pages/bottle/movement', action: 'view' }],
 	getV1: [{ pagePath: '/pages/bottle/movement', action: 'view' }],
 	timelineV1: [{ pagePath: '/pages/bottle/timeline', action: 'view' }],
 	lossStatsV1: [{ pagePath: '/pages/bottle/loss', action: 'view' }],
 	cycleLossV1: [{ pagePath: '/pages/bottle/loss', action: 'view' }],
+	lossAnomalyRankV1: [{ pagePath: '/pages/bottle/loss', action: 'view' }],
 	customerLossSummaryV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	customerLossBreakdownV1: [{ pagePath: '/pages/customer/statement', action: 'view' }]
 }
@@ -148,6 +153,11 @@ function normalizeLossResultType(value) {
 	const t = normalizeString(value).toLowerCase()
 	if (t === 'loss' || t === 'swell' || t === 'exact') return t
 	return ''
+}
+
+function normalizeAnomalyRankMode(value) {
+	const mode = normalizeString(value).toLowerCase()
+	return mode === 'bottle' ? 'bottle' : 'single'
 }
 
 function movementTypeOrder(type) {
@@ -1210,6 +1220,158 @@ function buildCycleRowsFromEvents(events) {
 	return { cycleRows, incompleteRows, semanticStateByBottle }
 }
 
+function buildCycleAnomalyRows(cycleRows = [], customerMatcher) {
+	const matcher = customerMatcher && customerMatcher.keyword ? customerMatcher : buildCustomerNameMatcher('')
+	return (Array.isArray(cycleRows) ? cycleRows : [])
+		.filter((row) => {
+			const resultType = normalizeLossResultType(row && row.result_type)
+			if (resultType !== 'loss' && resultType !== 'swell') return false
+			const customerName = normalizeString(row && row.out_customer_name)
+			if (matcher.keyword && !matcher.matches(customerName)) return false
+			return true
+		})
+		.map((row) => {
+			const delta = round2(toNumber(row && row.delta_kg, 0) || 0)
+			const absDelta = round2(Math.abs(delta))
+			return {
+				entry_type: 'cycle',
+				result_type: delta > 0 ? 'loss' : 'swell',
+				event_day: normalizeDay(row && row.out_day) || normalizeDay(row && row.out_date),
+				event_at: toTimestamp(row && row.out_event_at, toTimestamp(row && row.out_created_at, 0)),
+				bottle_no: normalizeBottleNo(row && row.bottle_no),
+				customer_name: normalizeString(row && row.out_customer_name),
+				delta_kg: delta,
+				abs_delta_kg: absDelta,
+				detail: `回瓶${round2(toNumber(row && row.back_net_kg, 0) || 0)} + 灌装${round2(toNumber(row && row.fill_sum_kg, 0) || 0)} = 理论${round2(
+					toNumber(row && row.theoretical_out_kg, 0) || 0
+				)}，实际${round2(toNumber(row && row.out_net_kg, 0) || 0)}`,
+				source_id: normalizeString(row && row.source_out_id)
+			}
+		})
+		.filter((row) => row.abs_delta_kg > 0)
+}
+
+function buildManualAnomalyRows(manualRows = [], customerMatcher) {
+	const matcher = customerMatcher && customerMatcher.keyword ? customerMatcher : buildCustomerNameMatcher('')
+	return (Array.isArray(manualRows) ? manualRows : [])
+		.filter((row) => {
+			if (!isMissingFillLossRow(row)) return false
+			const resultType = getMissingFillAdjustResultType(row)
+			if (resultType !== 'loss' && resultType !== 'swell') return false
+			const context = row && typeof row.context === 'object' && !Array.isArray(row.context) ? row.context : {}
+			const customerName = normalizeString((context.next_out || {}).customer_name || row?.customer_name)
+			if (matcher.keyword && !matcher.matches(customerName)) return false
+			return true
+		})
+		.map((row) => {
+			const context = row && typeof row.context === 'object' && !Array.isArray(row.context) ? row.context : {}
+			const nextOut = context.next_out && typeof context.next_out === 'object' ? context.next_out : {}
+			const lossWeight = toNumber(row && row.loss_weight, 0) || 0
+			const delta = round2(lossWeight)
+			const absDelta = round2(Math.abs(delta))
+			return {
+				entry_type: 'manual',
+				result_type: delta > 0 ? 'loss' : 'swell',
+				event_day: normalizeDay(row && row.event_day) || normalizeDay(nextOut.date) || normalizeDay(row && row.date),
+				event_at: toTimestamp(row && row.event_at, toTimestamp(row && row.created_at, 0)),
+				bottle_no: normalizeBottleNo(row && row.bottle_no),
+				customer_name: normalizeString(nextOut.customer_name || row?.customer_name),
+				delta_kg: delta,
+				abs_delta_kg: absDelta,
+				detail: normalizeString(row && row.note) || normalizeString(row && row.adjust_reason) || '缺灌装修复差值',
+				source_id: normalizeString(row && row._id)
+			}
+		})
+		.filter((row) => row.abs_delta_kg > 0)
+}
+
+function sortAnomalySingleRows(rows = []) {
+	return [...rows].sort((a, b) => {
+		const deltaDiff = round2(toNumber(b && b.abs_delta_kg, 0) || 0) - round2(toNumber(a && a.abs_delta_kg, 0) || 0)
+		if (deltaDiff !== 0) return deltaDiff
+		const dayA = normalizeDay(a && a.event_day)
+		const dayB = normalizeDay(b && b.event_day)
+		if (dayA !== dayB) return dayB.localeCompare(dayA)
+		const atDiff = toTimestamp(b && b.event_at, 0) - toTimestamp(a && a.event_at, 0)
+		if (atDiff !== 0) return atDiff
+		return normalizeBottleNo(a && a.bottle_no).localeCompare(normalizeBottleNo(b && b.bottle_no))
+	})
+}
+
+function buildAnomalyBottleRows(singleRows = []) {
+	const bottleMap = new Map()
+	for (const row of singleRows || []) {
+		const bottleNo = normalizeBottleNo(row && row.bottle_no)
+		if (!bottleNo) continue
+		if (!bottleMap.has(bottleNo)) {
+			bottleMap.set(bottleNo, {
+				bottle_no: bottleNo,
+				total_abs_delta_kg: 0,
+				loss_abs_delta_kg: 0,
+				swell_abs_delta_kg: 0,
+				cycle_count: 0,
+				manual_count: 0,
+				event_count: 0,
+				latest_day: '',
+				latest_event_at: 0,
+				customer_names: new Set()
+			})
+		}
+		const target = bottleMap.get(bottleNo)
+		const absDelta = round2(toNumber(row && row.abs_delta_kg, 0) || 0)
+		const resultType = normalizeLossResultType(row && row.result_type)
+		target.total_abs_delta_kg += absDelta
+		if (resultType === 'loss') target.loss_abs_delta_kg += absDelta
+		if (resultType === 'swell') target.swell_abs_delta_kg += absDelta
+		target.event_count += 1
+		if (normalizeString(row && row.entry_type) === 'manual') target.manual_count += 1
+		else target.cycle_count += 1
+		const customerName = normalizeString(row && row.customer_name)
+		if (customerName) target.customer_names.add(customerName)
+		const currentAt = toTimestamp(row && row.event_at, 0)
+		const currentDay = normalizeDay(row && row.event_day)
+		if (currentAt >= target.latest_event_at) {
+			target.latest_event_at = currentAt
+			target.latest_day = currentDay
+		}
+	}
+	return Array.from(bottleMap.values())
+		.map((item) => ({
+			bottle_no: item.bottle_no,
+			total_abs_delta_kg: round2(item.total_abs_delta_kg),
+			loss_abs_delta_kg: round2(item.loss_abs_delta_kg),
+			swell_abs_delta_kg: round2(item.swell_abs_delta_kg),
+			cycle_count: item.cycle_count,
+			manual_count: item.manual_count,
+			event_count: item.event_count,
+			latest_day: item.latest_day,
+			customer_name_preview: Array.from(item.customer_names).slice(0, 3).join(' / ')
+		}))
+		.filter((item) => item.total_abs_delta_kg > 0)
+		.sort((a, b) => {
+			if (b.total_abs_delta_kg !== a.total_abs_delta_kg) return b.total_abs_delta_kg - a.total_abs_delta_kg
+			if (b.event_count !== a.event_count) return b.event_count - a.event_count
+			return a.bottle_no.localeCompare(b.bottle_no)
+		})
+}
+
+function paginateRows(rows = [], page = 1, pageSize = 20) {
+	const currentPage = Math.max(Number(page) || 1, 1)
+	const size = Math.max(Number(pageSize) || 20, 1)
+	const total = Array.isArray(rows) ? rows.length : 0
+	const start = (currentPage - 1) * size
+	const list = Array.isArray(rows) ? rows.slice(start, start + size) : []
+	return {
+		list,
+		paging: {
+			page: currentPage,
+			pageSize: size,
+			total,
+			hasMore: currentPage * size < total
+		}
+	}
+}
+
 function buildTimelineMarkers(anomalyRows) {
 	const markers = []
 	const push = (eventDay, type, anomaly) => {
@@ -1681,6 +1843,121 @@ async function cycleLossV1(user, data, requestId) {
 	}
 }
 
+async function lossAnomalyRankV1(user, data, requestId) {
+	void user
+	const bottleNo = normalizeBottleNo(data && (data.bottle_no || data.bottleNo))
+	const customerMatcher = buildCustomerNameMatcher(data && (data.customer_name || data.customerName))
+	const dateStart = normalizeDay(data && data.dateStart)
+	const dateEnd = normalizeDay(data && data.dateEnd)
+	if (dateStart && dateEnd && dateStart > dateEnd) return { code: 400, msg: '开始日期不能晚于结束日期' }
+
+	const mode = normalizeAnomalyRankMode(data && data.mode)
+	const page = Math.max(Number(data && data.page) || 1, 1)
+	const pageSize = Math.min(
+		Math.max(Number(data && (data.pageSize || data.limitSize || data.size) || ANOMALY_RANK_PAGE_SIZE_DEFAULT) || ANOMALY_RANK_PAGE_SIZE_DEFAULT, 1),
+		ANOMALY_RANK_PAGE_SIZE_MAX
+	)
+	const topLimit = Math.min(Math.max(Number(data && data.limit) || ANOMALY_RANK_TOP_LIMIT, 1), ANOMALY_RANK_MAX_LIMIT)
+	const scanLimit = Math.min(Math.max(Number(data && (data.scan_limit || data.scanLimit) || CYCLE_SCAN_MAX_ROWS) || CYCLE_SCAN_MAX_ROWS, 2000), 80000)
+
+	let cycleRows = []
+	let scannedEventCount = 0
+	if (bottleNo) {
+		const allRows = await fetchAllBottleMovementRows(bottleNo)
+		const events = allRows.filter((row) => {
+			const type = normalizeType(row && row.type)
+			return type === 'back' || type === 'fill' || type === 'out'
+		})
+		events.sort(compareCycleEventAsc)
+		const cycleResult = buildCycleRowsFromEvents(events)
+		cycleRows = Array.isArray(cycleResult.cycleRows) ? cycleResult.cycleRows : []
+		scannedEventCount = events.length
+	} else {
+		const globalRes = await fetchAllCycleEventRowsGlobal({
+			maxRows: scanLimit,
+			dateStart,
+			dateEnd,
+			customerName: customerMatcher.keyword
+		})
+		if (globalRes.overflow) {
+			return { code: 400, msg: '查询范围过大，请输入瓶号或缩小日期范围后重试' }
+		}
+		const events = Array.isArray(globalRes.rows) ? globalRes.rows : []
+		events.sort(compareCycleEventAsc)
+		const cycleResult = buildCycleRowsFromEvents(events)
+		cycleRows = Array.isArray(cycleResult.cycleRows) ? cycleResult.cycleRows : []
+		scannedEventCount = events.length
+	}
+
+	const filteredCycleRows = cycleRows.filter((row) => {
+		if (bottleNo && normalizeBottleNo(row && row.bottle_no) !== bottleNo) return false
+		if (!isDayInRange(row && row.out_day, dateStart, dateEnd)) return false
+		if (customerMatcher.keyword && !customerMatcher.matches(row && row.out_customer_name)) return false
+		return true
+	})
+
+	const manualWhere = buildLossWhere({
+		bottle_no: bottleNo,
+		dateStart,
+		dateEnd
+	})
+	const manualRowsRaw = await fetchAllLossRows(manualWhere)
+	const manualRows = dedupeMissingFillManualFixRows(manualRowsRaw).filter((row) => {
+		if (!isMissingFillLossRow(row)) return false
+		if (bottleNo && normalizeBottleNo(row && row.bottle_no) !== bottleNo) return false
+		const day = normalizeDay(row && row.event_day) || normalizeDay(row && row.date)
+		if (!isDayInRange(day, dateStart, dateEnd)) return false
+		if (!customerMatcher.keyword) return true
+		const ctx = row && typeof row.context === 'object' && !Array.isArray(row.context) ? row.context : {}
+		const customerName = normalizeString((ctx.next_out || {}).customer_name || row?.customer_name)
+		return customerMatcher.matches(customerName)
+	})
+
+	const singleRows = sortAnomalySingleRows([
+		...buildCycleAnomalyRows(filteredCycleRows, customerMatcher),
+		...buildManualAnomalyRows(manualRows, customerMatcher)
+	])
+	const bottleRows = buildAnomalyBottleRows(singleRows)
+	const paged = mode === 'bottle' ? paginateRows(bottleRows, page, pageSize) : paginateRows(singleRows, page, pageSize)
+
+	await recordLog(
+		user,
+		'bottle_movement_loss_anomaly_rank_v1',
+		{
+			bottle_no: bottleNo || '',
+			customer_name: customerMatcher.keyword,
+			date_start: dateStart || '',
+			date_end: dateEnd || '',
+			mode,
+			page,
+			page_size: pageSize,
+			top_limit: topLimit,
+			single_total: singleRows.length,
+			bottle_total: bottleRows.length,
+			scanned_event_count: scannedEventCount
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		data: {
+			top_single: singleRows.slice(0, topLimit),
+			top_bottle: bottleRows.slice(0, topLimit),
+			single_list: mode === 'single' ? paged.list : [],
+			bottle_list: mode === 'bottle' ? paged.list : [],
+			paging: {
+				...paged.paging,
+				mode
+			},
+			summary: {
+				single_total: singleRows.length,
+				bottle_total: bottleRows.length
+			}
+		}
+	}
+}
+
 async function customerLossSummaryV1(user, data, requestId) {
 	void user
 	const customerId = normalizeString(data.customer_id || data.customerId)
@@ -1923,6 +2200,7 @@ exports.main = async (event, context) => {
 	if (action === 'createV1') return createV1(user, data, requestId)
 	if (action === 'lossStatsV1') return lossStatsV1(user, data, requestId)
 	if (action === 'cycleLossV1') return cycleLossV1(user, data, requestId)
+	if (action === 'lossAnomalyRankV1') return lossAnomalyRankV1(user, data, requestId)
 	if (action === 'customerLossSummaryV1') return customerLossSummaryV1(user, data, requestId)
 	if (action === 'customerLossBreakdownV1') return customerLossBreakdownV1(user, data, requestId)
 

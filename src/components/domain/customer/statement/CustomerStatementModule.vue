@@ -47,12 +47,14 @@
 						<text class="overview-value">{{ defaultUnitPriceText }}</text>
 					</view>
 					<view class="overview-item">
-						<text class="overview-label">累计应收</text>
-						<text class="overview-value">¥{{ formatMoney(summary.should_receive_total) }}</text>
+						<text class="overview-label">累计营收</text>
+						<text class="overview-value">¥{{ formatMoney(overviewShouldReceiveTotal) }}</text>
+						<text class="overview-meta">{{ overviewScopeText }}</text>
 					</view>
 					<view class="overview-item">
 						<text class="overview-label">累计实收</text>
-						<text class="overview-value">¥{{ formatMoney(summary.amount_received_total) }}</text>
+						<text class="overview-value">¥{{ formatMoney(overviewAmountReceivedTotal) }}</text>
+						<text class="overview-meta">{{ overviewScopeText }}</text>
 					</view>
 				</view>
 			</AppSection>
@@ -210,6 +212,60 @@
 				</AppList>
 			</AppSection>
 
+			<AppSection title="历史欠款登记">
+				<template #actions>
+					<AppButton size="sm" kind="ghost" @click="resetOpeningDebtForm">重置</AppButton>
+					<AppButton v-if="isEditingOpeningDebt" size="sm" kind="outline" @click="cancelOpeningDebtEditing">取消编辑</AppButton>
+					<AppButton size="sm" kind="primary" :loading="openingDebtSubmitting" @click="onCreateOpeningDebtEntry">
+						{{ openingDebtPrimaryActionLabel }}
+					</AppButton>
+				</template>
+
+				<view class="receipt-grid">
+					<AppInput
+						v-model="openingDebtForm.amount"
+						label="欠款金额(元)"
+						:placeholder="moneyInputPlaceholder"
+						size="sm"
+						@blur="onOpeningDebtAmountBlur"
+					/>
+					<picker class="picker-block" mode="date" @change="onOpeningDebtBizDateChange">
+						<AppInput v-model="openingDebtForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
+					</picker>
+					<AppInput v-model="openingDebtForm.note" class="grid-span-2" label="备注" placeholder="可选" size="sm" />
+				</view>
+
+				<AppList :loading="loading" :empty="recentOpeningDebts.length === 0" empty-title="暂无历史欠款">
+					<AppListItem
+						v-for="row in recentOpeningDebts"
+						:key="row._id"
+						:title="`${row.biz_date || '-'} · 历史欠款`"
+						:subtitle="`单据 ${row._id}`"
+						:status="paymentStatusText(row.payment_status)"
+						:status-kind="paymentStatusKind(row.payment_status)"
+						icon="alert"
+						icon-class="bg-warning"
+					>
+						<template #right>
+							<view class="mini-amounts">
+								<text>应收 ¥{{ formatMoney(row.amount) }}</text>
+								<text>已收 ¥{{ formatMoney(row.amount_received) }}</text>
+								<text>未收 ¥{{ formatMoney(row.outstanding) }}</text>
+							</view>
+						</template>
+						<template #default>
+							<text v-if="row.note" class="row-detail">{{ row.note }}</text>
+						</template>
+						<template #footer>
+							<view class="row-actions">
+								<AppButton size="sm" kind="ghost" @click="onEditOpeningDebt(row)">编辑</AppButton>
+								<AppButton size="sm" kind="outline" @click="onRemoveOpeningDebt(row)">删除</AppButton>
+							</view>
+						</template>
+					</AppListItem>
+				</AppList>
+			</AppSection>
+
 			<AppSection title="收款单（近20条）">
 				<AppList :loading="loading" :empty="recentReceipts.length === 0" empty-title="暂无收款单">
 					<AppListItem
@@ -277,6 +333,96 @@
 				<text class="section-hint">
 					当前策略：{{ prepayApplyStrategyLabel }}。仅入预付时不冲历史欠款；立即按区间冲欠时仅冲销区间内应收，剩余金额自动保留为预付款。
 				</text>
+			</AppSection>
+
+			<AppSection title="冲抵分配">
+				<template #actions>
+					<AppButton size="sm" kind="ghost" @click="resetOffsetAllocateForm">重置</AppButton>
+					<AppButton size="sm" kind="neutral" :loading="offsetPoolLoading" @click="loadOffsetCreditPool(true)">刷新来源</AppButton>
+					<AppButton
+						size="sm"
+						kind="primary"
+						:loading="offsetAllocating"
+						:disabled="!selectedOffsetReceiptId"
+						@click="onAllocateOffsetCredit"
+					>
+						提交冲抵
+					</AppButton>
+				</template>
+
+				<view class="checked-target-box">
+					<view class="checked-target-head">
+						<text>冲抵来源池（仅可用余额）</text>
+						<text>共 {{ offsetPoolPager.total }} 条 · 第 {{ offsetPoolPager.page }} / {{ offsetPoolTotalPages }} 页</text>
+					</view>
+					<AppList :loading="offsetPoolLoading" :empty="offsetPoolRows.length === 0" empty-title="暂无可用冲抵来源">
+						<AppListItem
+							v-for="row in offsetPoolRows"
+							:key="row._id"
+							:title="`${row.source_sale_date || row.biz_date || '-'} · 冲抵来源`"
+							:subtitle="`单据 ${row._id}`"
+							status="冲抵池"
+							status-kind="warning"
+							icon="wallet"
+							icon-class="bg-warning"
+						>
+							<template #right>
+								<view class="mini-amounts">
+									<text>来源 ¥{{ formatMoney(row.amount) }}</text>
+									<text>已分配 ¥{{ formatMoney(row.allocated_amount) }}</text>
+									<text>可用 ¥{{ formatMoney(row.unallocated_amount) }}</text>
+								</view>
+							</template>
+							<template #default>
+								<text v-if="row.note" class="row-detail">{{ row.note }}</text>
+							</template>
+							<template #footer>
+								<view class="row-actions">
+									<AppButton
+										size="sm"
+										:kind="selectedOffsetReceiptId === normalizeString(row._id) ? 'primary' : 'ghost'"
+										@click="onSelectOffsetReceipt(row)"
+									>
+										{{ selectedOffsetReceiptId === normalizeString(row._id) ? '已选择' : '选择来源' }}
+									</AppButton>
+								</view>
+							</template>
+						</AppListItem>
+					</AppList>
+					<view v-if="offsetPoolPager.total > 0" class="pager-row">
+						<AppButton size="sm" kind="neutral" :disabled="offsetPoolLoading || offsetPoolPager.page <= 1" @click="onOffsetPoolPrev">上一页</AppButton>
+						<AppButton size="sm" kind="neutral" :disabled="offsetPoolLoading || !offsetPoolPager.hasMore" @click="onOffsetPoolNext">下一页</AppButton>
+					</view>
+				</view>
+
+				<view class="receipt-grid">
+					<AppInput :model-value="selectedOffsetReceiptSummary" label="已选来源" placeholder="请选择冲抵来源" readonly size="sm" />
+					<AppInput
+						v-model="offsetAllocateForm.amount"
+						label="本次冲抵金额(元)"
+						:placeholder="moneyInputPlaceholder"
+						size="sm"
+						@blur="onOffsetAllocateAmountBlur"
+					/>
+				</view>
+				<text class="section-hint">分配口径：单笔来源 + 勾选目标。仅消耗本来源可用余额，不回滚历史分配。</text>
+
+				<view class="checked-target-box">
+					<view class="checked-target-head">
+						<text>勾选冲抵目标（销售/流量/历史欠款）</text>
+						<text>已选 {{ offsetCheckedTargetKeys.length }} 笔</text>
+					</view>
+					<checkbox-group class="checked-target-list" @change="onOffsetCheckedTargetsChange">
+						<label v-for="row in checkedTargetCandidates" :key="`offset-${row.key}`" class="checked-target-item">
+							<checkbox :value="row.key" :checked="isOffsetAllocationTargetChecked(row.key)" color="#2563eb" />
+							<view class="checked-target-item__body">
+								<text class="checked-target-item__title">{{ row.title }}</text>
+								<text class="checked-target-item__meta">日期 {{ row.date || '-' }} · 欠款 ¥{{ formatMoney(row.outstanding) }}</text>
+							</view>
+						</label>
+					</checkbox-group>
+					<text v-if="checkedTargetCandidates.length === 0" class="preview-empty">当前无可冲抵欠款目标。</text>
+				</view>
 			</AppSection>
 
 			<AppSection title="登记收款 / 分配">
@@ -384,6 +530,9 @@
 						<template #default>
 							<view class="mini-amounts mini-amounts--left">
 								<text>应收 ¥{{ formatMoney(row.should_receive) }}</text>
+								<text v-if="resolveSaleRoundingAmount(row) > 0" class="mini-amounts__rounding">
+									抹零 ¥{{ formatMoney(resolveSaleRoundingAmount(row)) }}（计费应收 ¥{{ formatMoney(resolveSaleEffectiveShouldReceive(row)) }}）
+								</text>
 								<text>实收 ¥{{ formatMoney(resolveSaleOffsetApplied(row) > 0 ? resolveSaleManualReceived(row) : resolveSalePostedReceived(row)) }}</text>
 								<text v-if="resolveSaleOffsetApplied(row) > 0" class="mini-amounts__offset">
 									{{ formatSaleOffsetLine(row) }}
@@ -404,8 +553,17 @@
 								<text v-if="isSaleRecordRow(row) && resolveSaleDepositDetailText(row)" class="mini-amounts__deposit-detail">
 									存瓶明细：{{ resolveSaleDepositDetailText(row) }}
 								</text>
-								<text v-if="resolveSaleOffsetApplied(row) <= 0 && resolveSaleOverCollected(row) > 0" class="mini-amounts__warning">
-									多收 ¥{{ formatMoney(resolveSaleOverCollected(row)) }}（将计入冲抵）
+								<text
+									v-if="resolveSaleOffsetApplied(row) <= 0 && resolveSaleOverCollected(row) > 0 && resolveSaleOffsetEnabled(row, true)"
+									class="mini-amounts__warning"
+								>
+									多收 ¥{{ formatMoney(resolveSaleOverCollected(row)) }}（可入冲抵池，需手工分配）
+								</text>
+								<text
+									v-if="resolveSaleOffsetApplied(row) <= 0 && resolveSaleOverCollected(row) > 0 && !resolveSaleOffsetEnabled(row, true)"
+									class="mini-amounts__warning"
+								>
+									多收 ¥{{ formatMoney(resolveSaleOverCollected(row)) }}（未入冲抵池）
 								</text>
 							</view>
 						</template>
@@ -453,6 +611,8 @@
 								<text v-if="row.row_type === 'sale'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								<text v-if="row.row_type === 'flow_settlement'">应收 ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'flow_settlement'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
+								<text v-if="row.row_type === 'opening_debt'">应收 ¥{{ formatMoney(row.amount) }}</text>
+								<text v-if="row.row_type === 'opening_debt'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								<text v-if="row.row_type === 'receipt'">收款 ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'receipt'">预付+ ¥{{ formatMoney(row.prepay_delta) }}</text>
 								<text v-if="row.row_type === 'allocation'">分配 ¥{{ formatMoney(row.amount) }}</text>
@@ -484,18 +644,23 @@ import AppStatCard from '@/components/base/AppStatCard.vue'
 import AppDatePresetBar from '@/components/base/AppDatePresetBar.vue'
 import { buildDatePresetRange, detectDatePreset } from '@/utils/datePreset'
 import {
+	allocateOffsetCreditV1,
 	confirmAllocationV1,
+	createOpeningDebtEntryV1,
 	createPrepayEntryV1,
 	createFlowSettlementV1,
 	createReceiptV1,
 	exportCustomerStatementV1,
 	getCustomerStatementAnalysisV1,
 	getCustomerStatementV1,
+	listOffsetCreditPoolV1,
 	listCustomerStatementRowsV1,
 	previewAllocationV1,
 	previewFlowSettlementV1,
+	removeOpeningDebtEntryV1,
 	removeFlowSettlementV1,
 	removeReceiptV1,
+	updateOpeningDebtEntryV1,
 	updateFlowSettlementV1,
 	updateReceiptV1
 } from '@/services/customerSettlement'
@@ -524,20 +689,28 @@ const prepaySubmitting = ref(false)
 const exportingStatement = ref(false)
 const flowPreviewLoading = ref(false)
 const flowSubmitting = ref(false)
+const openingDebtSubmitting = ref(false)
+const offsetPoolLoading = ref(false)
+const offsetAllocating = ref(false)
 
 const customer = ref({})
 const recentSales = ref([])
 const recentReceipts = ref([])
 const recentFlowSettlements = ref([])
+const recentOpeningDebts = ref([])
 const previewPlan = ref(null)
 const editableAllocations = ref([])
 const statementRows = ref([])
 const flowPreview = ref(null)
 const bottleReferencePrice = ref('')
 const checkedAllocationTargetKeys = ref([])
+const offsetCheckedTargetKeys = ref([])
+const offsetPoolRows = ref([])
+const selectedOffsetReceipt = ref(null)
 const quickSceneApplied = ref(false)
 const editingReceiptId = ref('')
 const editingFlowSettlementId = ref('')
+const editingOpeningDebtId = ref('')
 const analysis = reactive({
 	customer_price_unit: 'kg',
 	requires_date_range: false,
@@ -555,6 +728,12 @@ const summary = reactive({
 	should_receive_total: 0,
 	amount_received_total: 0,
 	last_receipt_at: null
+})
+const summaryScope = reactive({
+	date_from: '',
+	date_to: '',
+	should_receive_total: 0,
+	amount_received_total: 0
 })
 
 const receiptForm = reactive({
@@ -599,6 +778,14 @@ const flowForm = reactive({
 	flowTheoryRatio: '',
 	note: ''
 })
+const openingDebtForm = reactive({
+	amount: '',
+	bizDate: '',
+	note: ''
+})
+const offsetAllocateForm = reactive({
+	amount: ''
+})
 
 const analysisFilters = reactive({
 	dateFrom: '',
@@ -618,6 +805,12 @@ const rowsPager = reactive({
 	total: 0,
 	hasMore: false
 })
+const offsetPoolPager = reactive({
+	page: 1,
+	pageSize: 10,
+	total: 0,
+	hasMore: false
+})
 
 const subtitle = computed(() => {
 	if (!customer.value?.name) return '客户账务总览与流水'
@@ -628,10 +821,16 @@ const rowsTotalPages = computed(() => {
 	const pages = Math.ceil(Number(rowsPager.total || 0) / Number(rowsPager.pageSize || 50))
 	return pages > 0 ? pages : 1
 })
+const offsetPoolTotalPages = computed(() => {
+	const pages = Math.ceil(Number(offsetPoolPager.total || 0) / Number(offsetPoolPager.pageSize || 10))
+	return pages > 0 ? pages : 1
+})
 const isEditingReceipt = computed(() => Boolean(normalizeString(editingReceiptId.value)))
 const isEditingFlowSettlement = computed(() => Boolean(normalizeString(editingFlowSettlementId.value)))
+const isEditingOpeningDebt = computed(() => Boolean(normalizeString(editingOpeningDebtId.value)))
 const receiptPrimaryActionLabel = computed(() => (isEditingReceipt.value ? '保存收款单' : '登记收款'))
 const flowPrimaryActionLabel = computed(() => (isEditingFlowSettlement.value ? '保存结算单' : '生成结算单'))
+const openingDebtPrimaryActionLabel = computed(() => (isEditingOpeningDebt.value ? '保存欠款' : '登记欠款'))
 
 const lastReceiptText = computed(() => {
 	const ts = Number(summary.last_receipt_at || 0)
@@ -639,6 +838,16 @@ const lastReceiptText = computed(() => {
 	const d = new Date(ts)
 	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 })
+const hasSummaryScope = computed(() => Boolean(summaryScope.date_from && summaryScope.date_to))
+const overviewScopeText = computed(() => (
+	hasSummaryScope.value ? `口径：${summaryScope.date_from} ~ ${summaryScope.date_to}` : '口径：全量'
+))
+const overviewShouldReceiveTotal = computed(() => (
+	hasSummaryScope.value ? toNumber(summaryScope.should_receive_total, 0) : toNumber(summary.should_receive_total, 0)
+))
+const overviewAmountReceivedTotal = computed(() => (
+	hasSummaryScope.value ? toNumber(summaryScope.amount_received_total, 0) : toNumber(summary.amount_received_total, 0)
+))
 
 const customerPriceUnit = computed(() => normalizeString(customer.value?.default_price_unit) || 'kg')
 const isFlowCustomer = computed(() => customerPriceUnit.value === 'm3')
@@ -744,10 +953,33 @@ const checkedTargetCandidates = computed(() => {
 			}
 		})
 		.filter((row) => Boolean(row.targetId))
-	return [...saleRows, ...flowRows].sort((a, b) => {
+	const openingDebtRows = (Array.isArray(recentOpeningDebts.value) ? recentOpeningDebts.value : [])
+		.filter((row) => toNumber(row?.outstanding, 0) > 0)
+		.map((row) => {
+			const targetId = normalizeString(row?._id)
+			return {
+				key: `opening_debt:${targetId}`,
+				targetType: 'opening_debt',
+				targetId,
+				date: normalizeString(row?.biz_date),
+				title: `历史欠款 ${normalizeString(row?.biz_date) || '-'} / ${targetId.slice(-6)}`,
+				outstanding: fix2(toNumber(row?.outstanding, 0))
+			}
+		})
+		.filter((row) => Boolean(row.targetId))
+	return [...saleRows, ...flowRows, ...openingDebtRows].sort((a, b) => {
 		if (a.date !== b.date) return a.date < b.date ? -1 : 1
 		return a.key < b.key ? -1 : 1
 	})
+})
+const selectedOffsetReceiptId = computed(() => normalizeString(selectedOffsetReceipt.value?._id))
+const selectedOffsetReceiptAvailable = computed(() => fix2(toNumber(selectedOffsetReceipt.value?.unallocated_amount, 0)))
+const selectedOffsetReceiptSummary = computed(() => {
+	if (!selectedOffsetReceiptId.value) return '-'
+	const sourceSaleDate = normalizeDate(selectedOffsetReceipt.value?.source_sale_date)
+	const bizDate = normalizeDate(selectedOffsetReceipt.value?.biz_date)
+	const dateText = sourceSaleDate || bizDate || '-'
+	return `${dateText} / ${selectedOffsetReceiptId.value.slice(-6)}（可用 ¥${formatMoney(selectedOffsetReceiptAvailable.value)}）`
 })
 const recentSalesDisplayRows = computed(() => {
 	const saleRows = (Array.isArray(recentSales.value) ? recentSales.value : []).map((row) => ({
@@ -1048,6 +1280,18 @@ function resolveSaleOffsetApplied(row) {
 	return fix2(toNumber(row?.offset_applied_amount, 0))
 }
 
+function resolveSaleOffsetEnabled(row, fallback = false) {
+	const raw = row?.offset_enabled
+	if (raw == null || raw === '') return Boolean(fallback)
+	if (typeof raw === 'boolean') return raw
+	if (typeof raw === 'number') return raw !== 0
+	const text = normalizeString(raw).toLowerCase()
+	if (!text) return Boolean(fallback)
+	if (['1', 'true', 'yes', 'y', 'on'].includes(text)) return true
+	if (['0', 'false', 'no', 'n', 'off'].includes(text)) return false
+	return Boolean(fallback)
+}
+
 function sortSaleOffsetSources(list = []) {
 	return (list || []).slice().sort((a, b) => {
 		const left = normalizeDate(a?.date)
@@ -1076,7 +1320,9 @@ function resolveSaleOffsetSources(row) {
 function formatSaleOffsetSourcesText(row) {
 	const list = resolveSaleOffsetSources(row)
 	if (!list.length) return ''
-	return list.map((item) => `${item.date || '-'}¥${formatMoney(item.amount)}`).join(' + ')
+	const datedRows = list.filter((item) => normalizeDate(item?.date))
+	if (!datedRows.length) return ''
+	return datedRows.map((item) => `${item.date}¥${formatMoney(item.amount)}`).join(' + ')
 }
 
 function resolveSaleManualReceived(row) {
@@ -1098,6 +1344,18 @@ function resolveSaleOverCollected(row) {
 	const amountReceived = resolveSalePostedReceived(row)
 	const overCollected = fix2(amountReceived - effectiveShouldReceive)
 	return overCollected > 0 ? overCollected : 0
+}
+
+function resolveSaleRoundingAmount(row) {
+	const direct = toNullableNumber(row?.rounding_amount)
+	if (direct != null) {
+		const rounded = fix2(direct)
+		return rounded > 0 ? rounded : 0
+	}
+	const shouldReceive = fix2(toNumber(row?.should_receive, 0))
+	const effectiveShouldReceive = resolveSaleEffectiveShouldReceive(row)
+	const diff = fix2(Math.abs(shouldReceive - effectiveShouldReceive))
+	return diff > 0 ? diff : 0
 }
 
 function resolveSaleOutBottleCount(row) {
@@ -1186,12 +1444,24 @@ function isAllocationTargetChecked(key) {
 	return checkedAllocationTargetKeys.value.includes(text)
 }
 
+function isOffsetAllocationTargetChecked(key) {
+	const text = normalizeString(key)
+	if (!text) return false
+	return offsetCheckedTargetKeys.value.includes(text)
+}
+
 function onCheckedTargetsChange(e) {
 	const values = Array.isArray(e?.detail?.value) ? e.detail.value : []
 	const normalized = values.map((item) => normalizeString(item)).filter(Boolean)
 	checkedAllocationTargetKeys.value = Array.from(new Set(normalized))
 	previewPlan.value = null
 	editableAllocations.value = []
+}
+
+function onOffsetCheckedTargetsChange(e) {
+	const values = Array.isArray(e?.detail?.value) ? e.detail.value : []
+	const normalized = values.map((item) => normalizeString(item)).filter(Boolean)
+	offsetCheckedTargetKeys.value = Array.from(new Set(normalized))
 }
 
 function onReceiptAllocationModeChange(e) {
@@ -1211,15 +1481,15 @@ function onReceiptAllocationModeChange(e) {
 	checkedAllocationTargetKeys.value = []
 }
 
-function buildCheckedAllocationTargets() {
-	const keys = Array.isArray(checkedAllocationTargetKeys.value) ? checkedAllocationTargetKeys.value : []
+function parseAllocationTargetKeys(keys = []) {
 	return keys
 		.map((key) => normalizeString(key))
 		.filter(Boolean)
 		.map((key) => {
 			const parts = key.split(':')
 			if (parts.length < 2) return null
-			const targetType = parts[0] === 'flow_settlement' ? 'flow_settlement' : 'sale'
+			const rawType = normalizeString(parts[0])
+			const targetType = rawType === 'flow_settlement' || rawType === 'opening_debt' ? rawType : 'sale'
 			const targetId = parts.slice(1).join(':')
 			if (!targetId) return null
 			return {
@@ -1228,6 +1498,16 @@ function buildCheckedAllocationTargets() {
 			}
 		})
 		.filter(Boolean)
+}
+
+function buildCheckedAllocationTargets() {
+	const keys = Array.isArray(checkedAllocationTargetKeys.value) ? checkedAllocationTargetKeys.value : []
+	return parseAllocationTargetKeys(keys)
+}
+
+function buildOffsetAllocationTargets() {
+	const keys = Array.isArray(offsetCheckedTargetKeys.value) ? offsetCheckedTargetKeys.value : []
+	return parseAllocationTargetKeys(keys)
 }
 
 function buildReceiptAllocationPayload() {
@@ -1325,6 +1605,106 @@ function resetFlowForm(options = {}) {
 	flowPreview.value = null
 }
 
+function resetOpeningDebtForm() {
+	editingOpeningDebtId.value = ''
+	openingDebtForm.amount = ''
+	openingDebtForm.bizDate = todayYmd()
+	openingDebtForm.note = ''
+}
+
+function resetOffsetAllocateForm(options = {}) {
+	const keepSelection = Boolean(options.keepSelection)
+	if (!keepSelection) {
+		selectedOffsetReceipt.value = null
+	}
+	offsetAllocateForm.amount = keepSelection && selectedOffsetReceiptId.value
+		? formatMoney(selectedOffsetReceiptAvailable.value)
+		: ''
+	offsetCheckedTargetKeys.value = []
+}
+
+function onSelectOffsetReceipt(row) {
+	const receiptId = normalizeString(row?._id)
+	if (!receiptId) return
+	selectedOffsetReceipt.value = { ...row }
+	offsetAllocateForm.amount = formatMoney(row?.unallocated_amount)
+	offsetCheckedTargetKeys.value = []
+}
+
+function cancelOpeningDebtEditing() {
+	resetOpeningDebtForm()
+}
+
+function onEditOpeningDebt(row) {
+	const debtId = normalizeString(row?._id)
+	if (!debtId) return
+	editingOpeningDebtId.value = debtId
+	openingDebtForm.amount = formatMoney(row?.amount)
+	openingDebtForm.bizDate = normalizeDate(row?.biz_date) || todayYmd()
+	openingDebtForm.note = normalizeString(row?.note)
+	uni.showToast({ title: '已加载历史欠款，修改后点保存欠款', icon: 'none' })
+}
+
+async function onRemoveOpeningDebt(row) {
+	const debtId = normalizeString(row?._id)
+	if (!debtId || !recordId.value) return
+	const confirmed = await showConfirmModal({
+		title: '删除历史欠款',
+		content: '删除后将回退该笔历史欠款，确认继续吗？',
+		confirmText: '删除'
+	})
+	if (!confirmed) return
+	const res = await removeOpeningDebtEntryV1({
+		openingDebtId: debtId,
+		customerId: recordId.value
+	})
+	if (res?.code !== 0) {
+		uni.showToast({ title: res?.msg || '删除失败', icon: 'none' })
+		return
+	}
+	if (normalizeString(editingOpeningDebtId.value) === debtId) resetOpeningDebtForm()
+	uni.showToast({ title: res?.msg || '历史欠款已删除', icon: 'success' })
+	await refreshAll()
+}
+
+async function onCreateOpeningDebtEntry() {
+	if (!recordId.value || openingDebtSubmitting.value) return
+	const amount = Number(openingDebtForm.amount)
+	if (!Number.isFinite(amount) || amount <= 0) {
+		uni.showToast({ title: '请输入大于0的欠款金额', icon: 'none' })
+		return
+	}
+	openingDebtSubmitting.value = true
+	try {
+		const isEditing = isEditingOpeningDebt.value
+		const res = isEditing
+			? await updateOpeningDebtEntryV1({
+				openingDebtId: editingOpeningDebtId.value,
+				customerId: recordId.value,
+				amount,
+				bizDate: openingDebtForm.bizDate,
+				note: openingDebtForm.note,
+				sourceType: 'customer_opening_debt_manual'
+			})
+			: await createOpeningDebtEntryV1({
+				customerId: recordId.value,
+				amount,
+				bizDate: openingDebtForm.bizDate,
+				note: openingDebtForm.note,
+				sourceType: 'customer_opening_debt_manual'
+			})
+		if (res?.code !== 0) {
+			uni.showToast({ title: res?.msg || (isEditing ? '保存失败' : '登记失败'), icon: 'none' })
+			return
+		}
+		uni.showToast({ title: res?.msg || (isEditing ? '历史欠款已保存' : '历史欠款已登记'), icon: 'success' })
+		resetOpeningDebtForm()
+		await refreshAll()
+	} finally {
+		openingDebtSubmitting.value = false
+	}
+}
+
 function syncAnalysisFilterDefaults(force = false) {
 	if (customerPriceUnit.value !== 'kg') return
 	if (!force && analysisFilters.dateFrom && analysisFilters.dateTo) return
@@ -1342,31 +1722,65 @@ function syncRowsFilterDefaults(force = false) {
 	syncRowsDatePreset()
 }
 
-async function loadStatement() {
+function buildStatementSummaryScopeParams() {
+	const dateFrom = normalizeDate(rowFilters.dateFrom)
+	const dateTo = normalizeDate(rowFilters.dateTo)
+	if (!dateFrom || !dateTo || dateFrom > dateTo) return { summaryDateFrom: '', summaryDateTo: '' }
+	return { summaryDateFrom: dateFrom, summaryDateTo: dateTo }
+}
+
+function applyStatementSummary(data = {}) {
+	const nextSummary = data.summary || {}
+	summary.receivable_balance = toNumber(nextSummary.receivable_balance, 0)
+	summary.prepay_balance = toNumber(nextSummary.prepay_balance, 0)
+	summary.net_balance = toNumber(nextSummary.net_balance, 0)
+	summary.should_receive_total = toNumber(nextSummary.should_receive_total, 0)
+	summary.amount_received_total = toNumber(nextSummary.amount_received_total, 0)
+	summary.last_receipt_at = nextSummary.last_receipt_at == null ? null : Number(nextSummary.last_receipt_at) || null
+
+	const nextScope = data.summary_scope || {}
+	const dateFrom = normalizeDate(nextScope.date_from)
+	const dateTo = normalizeDate(nextScope.date_to)
+	if (dateFrom && dateTo && dateFrom <= dateTo) {
+		summaryScope.date_from = dateFrom
+		summaryScope.date_to = dateTo
+		summaryScope.should_receive_total = toNumber(nextScope.should_receive_total, 0)
+		summaryScope.amount_received_total = toNumber(nextScope.amount_received_total, 0)
+	} else {
+		summaryScope.date_from = ''
+		summaryScope.date_to = ''
+		summaryScope.should_receive_total = 0
+		summaryScope.amount_received_total = 0
+	}
+}
+
+async function loadStatement({ summaryOnly = false } = {}) {
 	if (!recordId.value) return
-	loading.value = true
+	if (!summaryOnly) loading.value = true
 	try {
-		const res = await getCustomerStatementV1({ customerId: recordId.value })
+		const summaryScopeParams = buildStatementSummaryScopeParams()
+		const res = await getCustomerStatementV1({
+			customerId: recordId.value,
+			summaryDateFrom: summaryScopeParams.summaryDateFrom,
+			summaryDateTo: summaryScopeParams.summaryDateTo,
+			summaryOnly
+		})
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '加载失败', icon: 'none' })
 			return
 		}
 		const data = res?.data || {}
-		customer.value = data.customer || {}
-		const nextSummary = data.summary || {}
-		summary.receivable_balance = toNumber(nextSummary.receivable_balance, 0)
-		summary.prepay_balance = toNumber(nextSummary.prepay_balance, 0)
-		summary.net_balance = toNumber(nextSummary.net_balance, 0)
-		summary.should_receive_total = toNumber(nextSummary.should_receive_total, 0)
-		summary.amount_received_total = toNumber(nextSummary.amount_received_total, 0)
-		summary.last_receipt_at = nextSummary.last_receipt_at == null ? null : Number(nextSummary.last_receipt_at) || null
+		customer.value = data.customer || customer.value || {}
+		applyStatementSummary(data)
+		if (summaryOnly) return
 		recentSales.value = Array.isArray(data.recent_sales) ? data.recent_sales : []
 		recentReceipts.value = Array.isArray(data.recent_receipts) ? data.recent_receipts : []
 		recentFlowSettlements.value = Array.isArray(data.recent_flow_settlements) ? data.recent_flow_settlements : []
+		recentOpeningDebts.value = Array.isArray(data.recent_opening_debts) ? data.recent_opening_debts : []
 		syncFlowFormDefaults()
 		syncAnalysisFilterDefaults()
 	} finally {
-		loading.value = false
+		if (!summaryOnly) loading.value = false
 	}
 }
 
@@ -1443,10 +1857,60 @@ async function loadRows() {
 	}
 }
 
+async function loadOffsetCreditPool(reset = false) {
+	if (!recordId.value) return
+	if (reset) offsetPoolPager.page = 1
+	offsetPoolLoading.value = true
+	try {
+		const res = await listOffsetCreditPoolV1({
+			customerId: recordId.value,
+			onlyUnallocated: true,
+			page: offsetPoolPager.page,
+			pageSize: offsetPoolPager.pageSize
+		})
+		if (res?.code !== 0) {
+			uni.showToast({ title: res?.msg || '冲抵来源加载失败', icon: 'none' })
+			offsetPoolRows.value = []
+			offsetPoolPager.total = 0
+			offsetPoolPager.hasMore = false
+			return
+		}
+		offsetPoolRows.value = Array.isArray(res.data) ? res.data : []
+		const paging = res.paging || {}
+		offsetPoolPager.page = Number(paging.page || offsetPoolPager.page || 1)
+		offsetPoolPager.pageSize = Number(paging.pageSize || offsetPoolPager.pageSize || 10)
+		offsetPoolPager.total = Number(paging.total || res.total || 0)
+		offsetPoolPager.hasMore = Boolean(paging.hasMore)
+		const selectedId = selectedOffsetReceiptId.value
+		if (selectedId) {
+			const hit = offsetPoolRows.value.find((row) => normalizeString(row?._id) === selectedId)
+			if (hit) selectedOffsetReceipt.value = { ...hit }
+			else if (offsetPoolPager.total <= 0) selectedOffsetReceipt.value = null
+		}
+		if (selectedOffsetReceiptId.value && !normalizeString(offsetAllocateForm.amount)) {
+			offsetAllocateForm.amount = formatMoney(selectedOffsetReceiptAvailable.value)
+		}
+	} finally {
+		offsetPoolLoading.value = false
+	}
+}
+
 async function refreshAll() {
-	await loadStatement()
 	syncRowsFilterDefaults()
-	await Promise.all([loadRows(), loadAnalysis()])
+	await loadStatement()
+	await Promise.all([loadRows(), loadAnalysis(), loadOffsetCreditPool()])
+}
+
+function onOffsetPoolPrev() {
+	if (offsetPoolPager.page <= 1) return
+	offsetPoolPager.page -= 1
+	loadOffsetCreditPool()
+}
+
+function onOffsetPoolNext() {
+	if (!offsetPoolPager.hasMore) return
+	offsetPoolPager.page += 1
+	loadOffsetCreditPool()
 }
 
 async function searchAnalysis() {
@@ -1673,7 +2137,8 @@ function onEditReceipt(row) {
 		const targets = Array.isArray(row?.allocation_targets) ? row.allocation_targets : []
 		checkedAllocationTargetKeys.value = targets
 			.map((item) => {
-				const targetType = normalizeString(item?.target_type) === 'flow_settlement' ? 'flow_settlement' : 'sale'
+				const rawType = normalizeString(item?.target_type)
+				const targetType = rawType === 'flow_settlement' || rawType === 'opening_debt' ? rawType : 'sale'
 				const targetId = normalizeString(item?.target_id)
 				if (!targetId) return ''
 				return `${targetType}:${targetId}`
@@ -1849,6 +2314,7 @@ function statementRowTitle(row) {
 		return `分配到销售单 ${row?.sale_id || ''}`
 	}
 	if (row?.row_type === 'flow_settlement') return `流量结算单 ${row?.row_id || ''}`
+	if (row?.row_type === 'opening_debt') return `历史欠款 ${row?.row_id || ''}`
 	return `销售单 ${row?.sale_id || row?.row_id || ''}`
 }
 
@@ -1856,6 +2322,7 @@ function statementRowStatus(row) {
 	if (row?.row_type === 'receipt') return '收款'
 	if (row?.row_type === 'allocation') return '分配'
 	if (row?.row_type === 'flow_settlement') return paymentStatusText(row?.meta?.payment_status)
+	if (row?.row_type === 'opening_debt') return paymentStatusText(row?.meta?.payment_status || row?.payment_status)
 	return paymentStatusText(row?.meta?.payment_status || row?.payment_status)
 }
 
@@ -1863,6 +2330,7 @@ function statementRowStatusKind(row) {
 	if (row?.row_type === 'receipt') return 'success'
 	if (row?.row_type === 'allocation') return 'warning'
 	if (row?.row_type === 'flow_settlement') return paymentStatusKind(row?.meta?.payment_status)
+	if (row?.row_type === 'opening_debt') return paymentStatusKind(row?.meta?.payment_status || row?.payment_status)
 	return paymentStatusKind(row?.meta?.payment_status || row?.payment_status)
 }
 
@@ -1889,6 +2357,9 @@ function statementRowDetail(row) {
 	if (row?.row_type === 'allocation') {
 		const sourceType = normalizeString(row?.meta?.source_type)
 		return sourceType ? `来源 ${sourceType}` : ''
+	}
+	if (row?.row_type === 'opening_debt') {
+		return normalizeString(row?.note)
 	}
 	return normalizeString(row?.note)
 }
@@ -1927,6 +2398,20 @@ function onPrepayAmountBlur() {
 function onReceiptAmountBlur() {
 	if (!isFlowCustomer.value) return
 	receiptForm.amount = normalizeFlowMoneyInput(receiptForm.amount)
+}
+
+function onOpeningDebtAmountBlur() {
+	if (!isFlowCustomer.value) return
+	openingDebtForm.amount = normalizeFlowMoneyInput(openingDebtForm.amount)
+}
+
+function onOffsetAllocateAmountBlur() {
+	if (!isFlowCustomer.value) return
+	offsetAllocateForm.amount = normalizeFlowMoneyInput(offsetAllocateForm.amount)
+}
+
+function onOpeningDebtBizDateChange(e) {
+	openingDebtForm.bizDate = normalizeString(e?.detail?.value)
 }
 
 function onPrepayBizDateChange(e) {
@@ -2019,7 +2504,7 @@ function syncRowsDatePreset() {
 
 async function searchRows(reset = false) {
 	if (reset) rowsPager.page = 1
-	await loadRows()
+	await Promise.all([loadRows(), loadStatement({ summaryOnly: true })])
 }
 
 function onRowsPrev() {
@@ -2032,6 +2517,59 @@ function onRowsNext() {
 	if (!rowsPager.hasMore) return
 	rowsPager.page += 1
 	loadRows()
+}
+
+async function onAllocateOffsetCredit() {
+	if (!recordId.value || offsetAllocating.value) return
+	const receiptId = selectedOffsetReceiptId.value
+	if (!receiptId) {
+		uni.showToast({ title: '请先选择冲抵来源', icon: 'none' })
+		return
+	}
+	const targets = buildOffsetAllocationTargets()
+	if (!targets.length) {
+		uni.showToast({ title: '请先勾选冲抵目标', icon: 'none' })
+		return
+	}
+	const available = selectedOffsetReceiptAvailable.value
+	if (!(available > 0)) {
+		uni.showToast({ title: '该来源无可用冲抵余额', icon: 'none' })
+		return
+	}
+	let amount = Number(offsetAllocateForm.amount)
+	if (!Number.isFinite(amount) || amount <= 0) {
+		uni.showToast({ title: '请输入大于0的冲抵金额', icon: 'none' })
+		return
+	}
+	if (amount > available) amount = available
+
+	offsetAllocating.value = true
+	try {
+		const res = await allocateOffsetCreditV1({
+			customerId: recordId.value,
+			receiptId,
+			amount,
+			allocationTargets: targets
+		})
+		if (res?.code !== 0) {
+			uni.showToast({ title: res?.msg || '冲抵分配失败', icon: 'none' })
+			return
+		}
+		uni.showToast({ title: res?.msg || '冲抵分配成功', icon: 'success' })
+		offsetCheckedTargetKeys.value = []
+		const selectedId = receiptId
+		await refreshAll()
+		const latest = offsetPoolRows.value.find((row) => normalizeString(row?._id) === selectedId)
+		if (latest) {
+			selectedOffsetReceipt.value = { ...latest }
+			offsetAllocateForm.amount = formatMoney(latest.unallocated_amount)
+		} else {
+			selectedOffsetReceipt.value = null
+			offsetAllocateForm.amount = ''
+		}
+	} finally {
+		offsetAllocating.value = false
+	}
 }
 
 function onOpenSale(id) {
@@ -2052,6 +2590,12 @@ watch(
 		resetReceiptForm()
 		resetPrepayForm()
 		resetFlowForm({ preservePrev: false })
+		resetOpeningDebtForm()
+		resetOffsetAllocateForm()
+		offsetPoolRows.value = []
+		offsetPoolPager.page = 1
+		offsetPoolPager.total = 0
+		offsetPoolPager.hasMore = false
 		analysisFilters.dateFrom = ''
 		analysisFilters.dateTo = ''
 		analysisDatePreset.value = 'custom'
@@ -2074,6 +2618,7 @@ onMounted(() => {
 	if (!receiptForm.bizDate) receiptForm.bizDate = todayYmd()
 	if (!prepayForm.bizDate) prepayForm.bizDate = todayYmd()
 	if (!flowForm.bizDate) flowForm.bizDate = todayYmd()
+	if (!openingDebtForm.bizDate) openingDebtForm.bizDate = todayYmd()
 })
 </script>
 
@@ -2154,6 +2699,11 @@ onMounted(() => {
 	color: var(--crm-text);
 }
 
+.overview-meta {
+	font-size: 20rpx;
+	color: #64748b;
+}
+
 .analysis-card__hint {
 	font-size: 21rpx;
 	color: var(--crm-text-muted);
@@ -2179,6 +2729,10 @@ onMounted(() => {
 }
 
 .grid-span-4 {
+	grid-column: 1 / -1;
+}
+
+.grid-span-2 {
 	grid-column: 1 / -1;
 }
 
@@ -2360,6 +2914,11 @@ onMounted(() => {
 
 .mini-amounts__offset {
 	color: #b45309;
+	font-weight: 700;
+}
+
+.mini-amounts__rounding {
+	color: #0f766e;
 	font-weight: 700;
 }
 

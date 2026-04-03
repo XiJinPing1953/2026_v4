@@ -14,6 +14,7 @@ const vouchers = db.collection('crm_vouchers')
 const voucherEntries = db.collection('crm_voucher_entries')
 const gasInventoryMovements = db.collection('crm_gas_inventory_movements')
 const flowSettlements = db.collection('crm_customer_flow_settlements')
+const customerReceipts = db.collection('crm_customer_receipts')
 let ensureActionAcl = null
 try {
 	;({ ensureActionAcl } = require('../common/pageAcl'))
@@ -197,6 +198,35 @@ function toBoolean(value, fallback = false) {
 	if (['1', 'true', 'yes', 'y', 'on'].includes(text)) return true
 	if (['0', 'false', 'no', 'n', 'off'].includes(text)) return false
 	return fallback
+}
+
+function resolveSaleOffsetEnabled(doc, fallback = true) {
+	if (!doc || typeof doc !== 'object') return Boolean(fallback)
+	const raw = doc.offset_enabled
+	if (raw == null || raw === '') return Boolean(fallback)
+	if (typeof raw === 'boolean') return raw
+	if (typeof raw === 'number') return raw !== 0
+	const text = normalizeString(raw).toLowerCase()
+	if (!text) return Boolean(fallback)
+	if (['1', 'true', 'yes', 'y', 'on'].includes(text)) return true
+	if (['0', 'false', 'no', 'n', 'off'].includes(text)) return false
+	return Boolean(fallback)
+}
+
+async function hasAllocatedOffsetCreditForSale(customerId, saleId) {
+	const customerIdText = normalizeString(customerId)
+	const saleIdText = normalizeString(saleId)
+	if (!customerIdText || !saleIdText) return false
+	const where = dbCmd.and([
+		{ customer_id: customerIdText },
+		{ source_id: saleIdText },
+		{ status: 'posted' },
+		{ source_type: dbCmd.in(['sale_offset_credit', 'sale_offset_credit_repair']) },
+		{ allocated_amount: dbCmd.gt(0) }
+	])
+	const res = await customerReceipts.where(where).limit(1).get()
+	const list = Array.isArray(res.data) ? res.data : []
+	return list.length > 0
 }
 
 const REMARK_TAGS = new Set([
@@ -2587,7 +2617,8 @@ async function syncOffsetCreditsByDates(customerId, dates = [], token, requestId
 			customer_id: normalizedCustomerId,
 			date_from: dateFrom,
 			date_to: dateTo,
-			execute: true
+			execute: true,
+			auto_apply: false
 		},
 		token,
 		requestId
@@ -2745,6 +2776,12 @@ async function createV2(user, payload, requestId, token) {
 		})
 		if (!settlementCheck.ok) return { code: 400, msg: settlementCheck.msg }
 	}
+	const amountReceived = settlementMode === 'customer_flow' ? 0 : toNumber(base.amountReceived, 0)
+	const effectiveShouldReceive = toNumber(amountsForCheck.effective_should_receive, 0)
+	const offsetDelta = settlementMode === 'customer_flow' ? 0 : fix2(Math.max(0, amountReceived - effectiveShouldReceive))
+	const offsetEnabled = settlementMode !== 'customer_flow' && offsetDelta > 0
+		? toBoolean(base.offsetEnabled ?? base.offset_enabled, false)
+		: false
 	const paymentStatus = settlementMode === 'customer_flow' ? 'paid' : normalizePaymentStatus(base.paymentStatus)
 	const paymentMethod = settlementMode === 'customer_flow' ? 'on_account' : normalizePaymentMethod(base.paymentMethod, paymentStatus)
 	const remarkMeta = deriveRemarkMeta(base.remark)
@@ -2770,9 +2807,10 @@ async function createV2(user, payload, requestId, token) {
 		has_remark: remarkMeta.has_remark,
 		payment_status: paymentStatus,
 		payment_method: paymentMethod,
-		amount_received: settlementMode === 'customer_flow' ? 0 : toNumber(base.amountReceived, 0),
+		amount_received: amountReceived,
 		rounding_amount: settlementMode === 'customer_flow' ? 0 : Math.max(toNumber(base.roundingAmount, 0), 0),
 		payment_note: settlementMode === 'customer_flow' ? '' : normalizeString(base.paymentNote),
+		offset_enabled: offsetEnabled,
 		created_at: Date.now(),
 		created_by: user._id,
 		source: normalizeString(payload.source || 'manual-v4'),
@@ -2875,7 +2913,10 @@ async function createV2(user, payload, requestId, token) {
 	if (settlementMode !== 'customer_flow') {
 		const prepayApplyRes = await callCustomerSettlement(
 			'autoApplyPrepayToSaleV1',
-			{ sale_id: res.id },
+			{
+				sale_id: res.id,
+				exclude_offset_credit: true
+			},
 			token,
 			requestId
 		)
@@ -4034,6 +4075,25 @@ async function updateV2(user, data, requestId, token) {
 		})
 		if (!settlementCheck.ok) return { code: 400, msg: settlementCheck.msg }
 	}
+	const existingOffsetEnabled = resolveSaleOffsetEnabled(existing, true)
+	const hasIncomingOffsetEnabled = Object.prototype.hasOwnProperty.call(base, 'offsetEnabled')
+		|| Object.prototype.hasOwnProperty.call(base, 'offset_enabled')
+	const requestedOffsetEnabled = hasIncomingOffsetEnabled
+		? toBoolean(base.offsetEnabled ?? base.offset_enabled, existingOffsetEnabled)
+		: existingOffsetEnabled
+	const amountReceived = settlementMode === 'customer_flow' ? 0 : toNumber(base.amountReceived, 0)
+	const effectiveShouldReceive = toNumber(amountsForCheck.effective_should_receive, 0)
+	const offsetDelta = settlementMode === 'customer_flow' ? 0 : fix2(Math.max(0, amountReceived - effectiveShouldReceive))
+	let nextOffsetEnabled = existingOffsetEnabled
+	if (settlementMode !== 'customer_flow' && offsetDelta > 0) {
+		nextOffsetEnabled = requestedOffsetEnabled
+	}
+	if (existingOffsetEnabled && !nextOffsetEnabled) {
+		const hasAllocated = await hasAllocatedOffsetCreditForSale(normalizeString(existing.customer_id) || customer._id, recordId)
+		if (hasAllocated) {
+			return { code: 400, msg: '请先在客户对账回滚/调整冲抵分配' }
+		}
+	}
 	const paymentStatus = settlementMode === 'customer_flow' ? 'paid' : normalizePaymentStatus(base.paymentStatus)
 	const paymentMethod = settlementMode === 'customer_flow' ? 'on_account' : normalizePaymentMethod(base.paymentMethod, paymentStatus)
 	const remarkMeta = deriveRemarkMeta(base.remark)
@@ -4059,9 +4119,10 @@ async function updateV2(user, data, requestId, token) {
 		has_remark: remarkMeta.has_remark,
 		payment_status: paymentStatus,
 		payment_method: paymentMethod,
-		amount_received: settlementMode === 'customer_flow' ? 0 : toNumber(base.amountReceived, 0),
+		amount_received: amountReceived,
 		rounding_amount: settlementMode === 'customer_flow' ? 0 : Math.max(toNumber(base.roundingAmount, 0), 0),
 		payment_note: settlementMode === 'customer_flow' ? '' : normalizeString(base.paymentNote),
+		offset_enabled: nextOffsetEnabled,
 		updated_at: Date.now()
 	}
 
@@ -4205,7 +4266,10 @@ async function updateV2(user, data, requestId, token) {
 	if (settlementMode !== 'customer_flow') {
 		const prepayApplyRes = await callCustomerSettlement(
 			'autoApplyPrepayToSaleV1',
-			{ sale_id: recordId },
+			{
+				sale_id: recordId,
+				exclude_offset_credit: true
+			},
 			token,
 			requestId
 		)

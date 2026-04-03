@@ -54,6 +54,16 @@
 				/>
 			</view>
 
+			<view v-if="showOffsetToggle" class="form-item span-full">
+				<view class="offset-toggle">
+					<view class="offset-toggle__meta">
+						<text class="offset-toggle__label">是否冲抵</text>
+						<text class="offset-toggle__hint">多收 ¥{{ offsetDeltaText }} 可入冲抵池，需在客户对账手工分配</text>
+					</view>
+					<switch :checked="offsetEnabled" color="#1677ff" @change="onOffsetEnabledChange" />
+				</view>
+			</view>
+
 			<view class="form-item span-full">
 				<AppInput 
 					:model-value="modelValue.paymentNote" 
@@ -116,6 +126,25 @@ const shouldReceiveText = computed(() => {
 	return num.toFixed(2)
 })
 
+const offsetDelta = computed(() => {
+	const shouldReceive = Number(props.shouldReceive)
+	if (!Number.isFinite(shouldReceive)) return 0
+	const rounding = Math.max(Number(props.modelValue?.roundingAmount), 0)
+	const amountReceived = Number(props.modelValue?.amountReceived)
+	if (!Number.isFinite(amountReceived)) return 0
+	const effectiveShouldReceive = shouldReceive > 0
+		? shouldReceive - (Number.isFinite(rounding) ? rounding : 0)
+		: shouldReceive < 0
+			? shouldReceive + (Number.isFinite(rounding) ? rounding : 0)
+			: 0
+	const delta = Number((amountReceived - effectiveShouldReceive).toFixed(2))
+	return delta > 0 ? delta : 0
+})
+
+const showOffsetToggle = computed(() => offsetDelta.value > 0)
+const offsetDeltaText = computed(() => offsetDelta.value.toFixed(2))
+const offsetEnabled = computed(() => Boolean(props.modelValue?.offsetEnabled))
+
 function onPaymentStatusChange(e) {
 	const idx = Number(e?.detail?.value)
 	const item = paymentStatusOptions[idx]
@@ -128,6 +157,10 @@ function onPaymentStatusChange(e) {
 
 function update(key, value) {
 	patchModel({ [key]: value })
+}
+
+function onOffsetEnabledChange(e) {
+	patchModel({ offsetEnabled: Boolean(e?.detail?.value) })
 }
 
 function patchModel(patch) {
@@ -206,6 +239,35 @@ function patchModel(patch) {
 
 .picker-input {
 	pointer-events: none;
+}
+
+.offset-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24rpx;
+	padding: 16rpx 18rpx;
+	border: 1rpx solid #dbeafe;
+	border-radius: 14rpx;
+	background: #eff6ff;
+}
+
+.offset-toggle__meta {
+	display: flex;
+	flex-direction: column;
+	gap: 4rpx;
+	min-width: 0;
+}
+
+.offset-toggle__label {
+	font-size: 24rpx;
+	font-weight: 700;
+	color: #0f172a;
+}
+
+.offset-toggle__hint {
+	font-size: 22rpx;
+	color: #475569;
 }
 
 @media (max-width: 600px) {

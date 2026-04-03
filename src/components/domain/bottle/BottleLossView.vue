@@ -1,8 +1,8 @@
 <template>
 	<AppPage title="理论损耗统计" subtitle="按 回瓶 + 灌装 - 出瓶 计算" icon="chart">
 		<template #headerActions>
-			<AppButton v-if="activeSummaryFilter" size="sm" kind="ghost" :disabled="loading" @click="clearSummaryFilter">清除卡片筛选</AppButton>
-			<AppButton size="sm" kind="neutral" icon="document" :disabled="loading || exporting" @click="onExport">导出</AppButton>
+			<AppButton v-if="activeSummaryFilter" size="sm" kind="ghost" :disabled="cycleLoading" @click="clearSummaryFilter">清除卡片筛选</AppButton>
+			<AppButton size="sm" kind="neutral" icon="document" :disabled="loading || exporting || manualLoading" @click="onExport">导出</AppButton>
 			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch(false)">刷新</AppButton>
 		</template>
 
@@ -65,8 +65,8 @@
 			</view>
 			<AppSection title="筛选条件">
 				<template #actions>
-					<AppButton kind="ghost" size="sm" @click="onReset">重置</AppButton>
-					<AppButton size="sm" kind="primary" @click="onSearch(true)">查询</AppButton>
+					<AppButton kind="ghost" size="sm" :disabled="loading" @click="onReset">重置</AppButton>
+					<AppButton size="sm" kind="primary" :disabled="loading" @click="onSearch(true)">查询</AppButton>
 				</template>
 				<view class="filter-grid">
 					<AppInput v-model="filters.bottle_no" label="瓶号" placeholder="输入瓶号" prefix-icon="search" size="sm" />
@@ -80,11 +80,77 @@
 				</view>
 			</AppSection>
 
+			<AppSection v-if="showAnomalySection" title="异常TOP">
+				<template #actions>
+					<text class="section-hint">{{ anomalyTopScopeHint }}</text>
+				</template>
+				<view class="anomaly-top-grid">
+					<view class="anomaly-top-card">
+						<view class="anomaly-top-head">
+							<text class="anomaly-top-title">单次异常TOP</text>
+							<AppButton
+								size="sm"
+								kind="ghost"
+								:disabled="anomalyTopLoading || anomalyTop.singleTotal <= 0"
+								@click="openAnomalyDrawer('single')"
+							>
+								查看全部
+							</AppButton>
+						</view>
+						<AppList
+							:loading="anomalyTopLoading"
+							:empty="anomalyTop.single.length === 0"
+							:empty-title="searched ? '暂无单次异常记录' : '查询后可查看单次异常TOP'"
+						>
+							<AppListItem
+								v-for="(item, index) in anomalyTop.single"
+								:key="`single-${item.source_id || item.bottle_no || '-'}-${item.event_day || '-'}-${index}`"
+								:title="`${item.event_day || '-'} · 瓶号 ${item.bottle_no || '-'}`"
+								:subtitle="buildAnomalySingleSubtitle(item)"
+								:status="buildDeltaLabel(item.delta_kg)"
+								:status-kind="buildDeltaKind(item.delta_kg)"
+								icon="alert"
+								:icon-class="buildDeltaIconClass(item.delta_kg)"
+							/>
+						</AppList>
+					</view>
+					<view class="anomaly-top-card">
+						<view class="anomaly-top-head">
+							<text class="anomaly-top-title">瓶号累计异常TOP</text>
+							<AppButton
+								size="sm"
+								kind="ghost"
+								:disabled="anomalyTopLoading || anomalyTop.bottleTotal <= 0"
+								@click="openAnomalyDrawer('bottle')"
+							>
+								查看全部
+							</AppButton>
+						</view>
+						<AppList
+							:loading="anomalyTopLoading"
+							:empty="anomalyTop.bottle.length === 0"
+							:empty-title="searched ? '暂无累计异常记录' : '查询后可查看累计异常TOP'"
+						>
+							<AppListItem
+								v-for="(item, index) in anomalyTop.bottle"
+								:key="`bottle-${item.bottle_no || '-'}-${index}`"
+								:title="`瓶号 ${item.bottle_no || '-'}`"
+								:subtitle="buildAnomalyBottleSubtitle(item)"
+								:status="`${formatKg(item.total_abs_delta_kg)} kg`"
+								status-kind="danger"
+								icon="bottle"
+								icon-class="bg-danger"
+							/>
+						</AppList>
+					</view>
+				</view>
+			</AppSection>
+
 			<AppSection v-if="showCycleSection" :title="cycleSectionTitle">
 				<template #actions>
 					<text class="section-hint">{{ cycleScopeHint }} · 共 {{ pager.total }} 条 · 第 {{ pager.page }} / {{ totalPages }} 页</text>
 				</template>
-				<AppList :loading="loading" :empty="list.length === 0" :empty-title="mainEmptyTitle">
+				<AppList :loading="cycleLoading" :empty="list.length === 0" :empty-title="mainEmptyTitle">
 					<AppListItem
 						v-for="(item, index) in list"
 						:key="item.source_out_id || `${item.out_date || '-'}:${item.bottle_no || '-'}:${index}`"
@@ -106,37 +172,37 @@
 					</AppListItem>
 				</AppList>
 				<view v-if="pager.total > 0" class="pager-row">
-					<AppButton size="sm" kind="neutral" :disabled="loading || pager.page <= 1" @click="onPrevPage">上一页</AppButton>
-					<AppButton size="sm" kind="neutral" :disabled="loading || !pager.hasMore" @click="onNextPage">下一页</AppButton>
+					<AppButton size="sm" kind="neutral" :disabled="cycleLoading || pager.page <= 1" @click="onPrevPage">上一页</AppButton>
+					<AppButton size="sm" kind="neutral" :disabled="cycleLoading || !pager.hasMore" @click="onNextPage">下一页</AppButton>
 				</view>
 			</AppSection>
 
-				<AppSection v-if="showManualSection" :title="manualSectionTitle">
+			<AppSection v-if="showManualSection" :title="manualSectionTitle">
 				<template #actions>
 					<text class="section-hint">
 						{{ manualScopeHint }}
 					</text>
 				</template>
-					<AppList :loading="loading" :empty="manualLoss.list.length === 0" :empty-title="searched ? '暂无修复差值记录' : '查询后可查看修复差值明细'">
-						<AppListItem
-							v-for="(item, index) in manualLoss.list"
-							:key="item._id || `${item.event_day || '-'}:${item.bottle_no || '-'}:${index}`"
-							:title="`${item.event_day || '-'} · 瓶号 ${item.bottle_no || '-'}`"
-							:subtitle="item.note || '缺灌装修复差值'"
-							:status="buildManualAdjustLabel(item)"
-							:status-kind="buildManualAdjustKind(item)"
-							icon="alert"
-							:icon-class="buildManualAdjustIconClass(item)"
-						/>
-					</AppList>
-				</AppSection>
+				<AppList :loading="manualLoading" :empty="manualLoss.list.length === 0" :empty-title="searched ? '暂无修复差值记录' : '查询后可查看修复差值明细'">
+					<AppListItem
+						v-for="(item, index) in manualLoss.list"
+						:key="item._id || `${item.event_day || '-'}:${item.bottle_no || '-'}:${index}`"
+						:title="`${item.event_day || '-'} · 瓶号 ${item.bottle_no || '-'}`"
+						:subtitle="item.note || '缺灌装修复差值'"
+						:status="buildManualAdjustLabel(item)"
+						:status-kind="buildManualAdjustKind(item)"
+						icon="alert"
+						:icon-class="buildManualAdjustIconClass(item)"
+					/>
+				</AppList>
+			</AppSection>
 
 			<AppSection v-if="showIncompleteSection" title="链路不完整预览">
 				<template #actions>
 					<text class="section-hint">共 {{ summary.incomplete_count }} 条（预览 {{ incompletePreview.length }} 条）</text>
 				</template>
 				<AppList
-					:loading="loading"
+					:loading="cycleLoading"
 					:empty="incompletePreview.length === 0"
 					:empty-title="searched ? '暂无链路不完整记录' : '查询后可查看链路不完整预览'"
 				>
@@ -153,11 +219,59 @@
 				</AppList>
 			</AppSection>
 		</view>
+
+		<view v-if="anomalyDrawer.visible" class="anomaly-drawer-mask" @click="closeAnomalyDrawer">
+			<view class="anomaly-drawer" @click.stop>
+				<view class="anomaly-drawer__head">
+					<view>
+						<text class="anomaly-drawer__title">异常排行明细</text>
+						<text class="anomaly-drawer__sub">{{ anomalyTopScopeHint }}</text>
+					</view>
+					<AppButton size="sm" kind="ghost" @click="closeAnomalyDrawer">关闭</AppButton>
+				</view>
+				<AppTabs :model-value="anomalyDrawer.tab" :items="anomalyDrawerTabs" @update:modelValue="onAnomalyDrawerTabChange" />
+				<AppList :loading="anomalyDrawer.loading" :empty="anomalyDrawerRows.length === 0" empty-title="暂无异常记录">
+					<template v-if="anomalyDrawer.tab === 'single'">
+						<AppListItem
+							v-for="(item, index) in anomalyDrawerRows"
+							:key="`drawer-single-${item.source_id || item.bottle_no || '-'}-${item.event_day || '-'}-${index}`"
+							:title="`${item.event_day || '-'} · 瓶号 ${item.bottle_no || '-'}`"
+							:subtitle="buildAnomalySingleSubtitle(item)"
+							:status="buildDeltaLabel(item.delta_kg)"
+							:status-kind="buildDeltaKind(item.delta_kg)"
+							icon="alert"
+							:icon-class="buildDeltaIconClass(item.delta_kg)"
+						/>
+					</template>
+					<template v-else>
+						<AppListItem
+							v-for="(item, index) in anomalyDrawerRows"
+							:key="`drawer-bottle-${item.bottle_no || '-'}-${index}`"
+							:title="`瓶号 ${item.bottle_no || '-'}`"
+							:subtitle="buildAnomalyBottleSubtitle(item)"
+							:status="`${formatKg(item.total_abs_delta_kg)} kg`"
+							status-kind="danger"
+							icon="bottle"
+							icon-class="bg-danger"
+						/>
+					</template>
+				</AppList>
+				<view v-if="anomalyDrawer.paging.total > 0" class="pager-row">
+					<AppButton size="sm" kind="neutral" :disabled="anomalyDrawer.loading || anomalyDrawer.paging.page <= 1" @click="onAnomalyDrawerPrevPage">
+						上一页
+					</AppButton>
+					<text class="section-hint">第 {{ anomalyDrawer.paging.page }} / {{ anomalyDrawerTotalPages }} 页</text>
+					<AppButton size="sm" kind="neutral" :disabled="anomalyDrawer.loading || !anomalyDrawer.paging.hasMore" @click="onAnomalyDrawerNextPage">
+						下一页
+					</AppButton>
+				</view>
+			</view>
+		</view>
 	</AppPage>
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppList from '@/components/base/AppList.vue'
@@ -166,11 +280,17 @@ import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppTag from '@/components/base/AppTag.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
+import AppTabs from '@/components/base/AppTabs.vue'
 import AppDatePresetBar from '@/components/base/AppDatePresetBar.vue'
-import { getBottleCycleLossV1, getBottleLossStatsV1 } from '@/services/bottleMovement'
-import { buildDatePresetRange, detectDatePreset } from '@/utils/datePreset'
+import { getBottleCycleLossV1, getBottleLossStatsV1, getBottleLossAnomalyRankV1 } from '@/services/bottleMovement'
+import { buildDatePresetRange, detectDatePreset, formatDateInput } from '@/utils/datePreset'
 
 const PAGE_SIZE = 50
+const MANUAL_PAGE_SIZE = 50
+const TOP_LIMIT = 5
+const DRAWER_PAGE_SIZE = 20
+const PREFETCH_PAGE_SIZE = 50
+const PREFETCH_TTL_MS = 5 * 60 * 1000
 const SUMMARY_FILTER_KEYS = {
 	CYCLE_ALL: 'cycle_all',
 	CYCLE_LOSS: 'cycle_loss',
@@ -179,36 +299,27 @@ const SUMMARY_FILTER_KEYS = {
 	MANUAL_LOSS: 'manual_loss',
 	MANUAL_SWELL: 'manual_swell'
 }
-const loading = ref(false)
+const cycleLoading = ref(false)
+const manualLoading = ref(false)
+const anomalyTopLoading = ref(false)
+const cycleLoadingToken = ref(0)
+const manualLoadingToken = ref(0)
+const anomalyTopLoadingToken = ref(0)
+const loading = computed(() => cycleLoading.value || anomalyTopLoading.value)
 const exporting = ref(false)
 const list = ref([])
 const incompletePreview = ref([])
 const searched = ref(false)
 const activeSummaryFilter = ref('')
-const summary = ref({
-	cycle_count: 0,
-	loss_count: 0,
-	loss_total_kg: 0,
-	swell_count: 0,
-	swell_total_kg: 0,
-	exact_count: 0,
-	bottle_count: 0,
-	scanned_event_count: 0,
-	scope_mode: 'single',
-	incomplete_count: 0
-})
-const manualLoss = ref({
-	summary: {
-		total_loss_kg: 0,
-		total_swell_kg: 0,
-		loss_record_count: 0,
-		swell_record_count: 0,
-		record_count: 0,
-		bottle_count: 0,
-		daily: []
-	},
-	list: [],
-	total: 0
+const lastSearchToken = ref(0)
+const initialized = ref(false)
+const summary = ref(createEmptySummary())
+const manualLoss = ref(createEmptyManualLossState())
+const anomalyTop = reactive({
+	single: [],
+	bottle: [],
+	singleTotal: 0,
+	bottleTotal: 0
 })
 const pager = reactive({
 	page: 1,
@@ -224,6 +335,20 @@ const filters = reactive({
 	dateEnd: ''
 })
 const datePreset = ref('custom')
+const anomalyDrawer = reactive({
+	visible: false,
+	tab: 'single',
+	loading: false,
+	rows: [],
+	paging: {
+		page: 1,
+		pageSize: DRAWER_PAGE_SIZE,
+		total: 0,
+		hasMore: false
+	}
+})
+const monthPrefetchCache = ref(null)
+const monthPrefetchRunning = ref(false)
 
 const totalPages = computed(() => {
 	const pages = Math.ceil(Number(pager.total || 0) / Number(pager.pageSize || PAGE_SIZE))
@@ -294,10 +419,94 @@ const mainEmptyTitle = computed(() => {
 	return '暂无周期明细'
 })
 
+const showAnomalySection = computed(() => true)
+const anomalyTopScopeHint = computed(() => {
+	const start = normalizeString(filters.dateStart)
+	const end = normalizeString(filters.dateEnd)
+	const dateLabel = start && end ? `${start} ~ ${end}` : start || end || '全部日期'
+	return `按当前筛选口径（${dateLabel}）`
+})
+const anomalyDrawerTabs = computed(() => [
+	{ label: `单次异常(${anomalyTop.singleTotal})`, value: 'single' },
+	{ label: `瓶号累计(${anomalyTop.bottleTotal})`, value: 'bottle' }
+])
+const anomalyDrawerRows = computed(() => (Array.isArray(anomalyDrawer.rows) ? anomalyDrawer.rows : []))
+const anomalyDrawerTotalPages = computed(() => {
+	const pages = Math.ceil(Number(anomalyDrawer.paging.total || 0) / Number(anomalyDrawer.paging.pageSize || DRAWER_PAGE_SIZE))
+	return pages > 0 ? pages : 1
+})
+
 function round2(value) {
 	const num = Number(value || 0)
 	if (!Number.isFinite(num)) return 0
 	return Math.round(num * 100) / 100
+}
+
+function createEmptySummary() {
+	return {
+		cycle_count: 0,
+		loss_count: 0,
+		loss_total_kg: 0,
+		swell_count: 0,
+		swell_total_kg: 0,
+		exact_count: 0,
+		bottle_count: 0,
+		scanned_event_count: 0,
+		scope_mode: 'single',
+		incomplete_count: 0
+	}
+}
+
+function createEmptyManualLossState() {
+	return {
+		summary: {
+			total_loss_kg: 0,
+			total_swell_kg: 0,
+			loss_record_count: 0,
+			swell_record_count: 0,
+			record_count: 0,
+			bottle_count: 0,
+			daily: []
+		},
+		list: [],
+		total: 0
+	}
+}
+
+function createRollingSevenDayRange(baseDate = new Date()) {
+	const end = new Date(baseDate)
+	end.setHours(0, 0, 0, 0)
+	const start = new Date(end.getTime())
+	start.setDate(start.getDate() - 6)
+	return {
+		dateStart: formatDateInput(start),
+		dateEnd: formatDateInput(end)
+	}
+}
+
+function createMonthRange(baseDate = new Date()) {
+	return buildDatePresetRange('month', baseDate)
+}
+
+function buildPrefetchCacheKey(filtersLike = {}) {
+	return [normalizeString(filtersLike.bottle_no), normalizeString(filtersLike.customer_name), normalizeString(filtersLike.dateStart), normalizeString(filtersLike.dateEnd)].join(
+		'|'
+	)
+}
+
+function isDefaultPrefetchCondition() {
+	if (normalizeString(filters.bottle_no)) return false
+	if (normalizeString(filters.customer_name)) return false
+	if (activeSummaryFilter.value) return false
+	const rolling = createRollingSevenDayRange(new Date())
+	return normalizeString(filters.dateStart) === rolling.dateStart && normalizeString(filters.dateEnd) === rolling.dateEnd
+}
+
+function isDefaultMonthFilter() {
+	if (normalizeString(filters.bottle_no)) return false
+	if (normalizeString(filters.customer_name)) return false
+	const monthRange = createMonthRange(new Date())
+	return normalizeString(filters.dateStart) === normalizeString(monthRange.dateStart) && normalizeString(filters.dateEnd) === normalizeString(monthRange.dateEnd)
 }
 
 function normalizeString(value) {
@@ -592,130 +801,404 @@ function buildManualAdjustIconClass(item) {
 	return item?.result_type === 'swell' ? 'bg-warning' : 'bg-danger'
 }
 
+function buildAnomalySingleSubtitle(item) {
+	const sourceLabel = item?.entry_type === 'manual' ? '修复差值' : '周期差值'
+	const customerName = normalizeString(item?.customer_name) || '未填写客户'
+	const detail = normalizeString(item?.detail)
+	return `${sourceLabel} · ${customerName}${detail ? ` · ${detail}` : ''}`
+}
+
+function buildAnomalyBottleSubtitle(item) {
+	const cycleCount = Number(item?.cycle_count || 0)
+	const manualCount = Number(item?.manual_count || 0)
+	const eventCount = Number(item?.event_count || 0)
+	const latestDay = normalizeString(item?.latest_day) || '-'
+	const customerPreview = normalizeString(item?.customer_name_preview)
+	const customerPart = customerPreview ? ` · ${customerPreview}` : ''
+	return `累计${formatKg(item?.total_abs_delta_kg)}kg · 周期${cycleCount}次/修复${manualCount}次 · 事件${eventCount}条 · 最近${latestDay}${customerPart}`
+}
+
+function resetAnomalyTop() {
+	anomalyTop.single = []
+	anomalyTop.bottle = []
+	anomalyTop.singleTotal = 0
+	anomalyTop.bottleTotal = 0
+}
+
+function resetAnomalyDrawerPaging() {
+	anomalyDrawer.paging.page = 1
+	anomalyDrawer.paging.pageSize = DRAWER_PAGE_SIZE
+	anomalyDrawer.paging.total = 0
+	anomalyDrawer.paging.hasMore = false
+}
+
 function resetResultState() {
 	list.value = []
 	incompletePreview.value = []
-	summary.value = {
-		cycle_count: 0,
-		loss_count: 0,
-		loss_total_kg: 0,
-		swell_count: 0,
-		swell_total_kg: 0,
-		exact_count: 0,
-		bottle_count: 0,
-		scanned_event_count: 0,
-		scope_mode: 'single',
-		incomplete_count: 0
-	}
-	manualLoss.value = {
-		summary: {
-			total_loss_kg: 0,
-			total_swell_kg: 0,
-			loss_record_count: 0,
-			swell_record_count: 0,
-			record_count: 0,
-			bottle_count: 0,
-			daily: []
-		},
-		list: [],
-		total: 0
-	}
+	summary.value = createEmptySummary()
+	manualLoss.value = createEmptyManualLossState()
+	resetAnomalyTop()
+	anomalyDrawer.rows = []
+	resetAnomalyDrawerPaging()
 	pager.page = 1
 	pager.pageSize = PAGE_SIZE
 	pager.total = 0
 	pager.hasMore = false
 }
 
-async function fetchList() {
-	loading.value = true
-	try {
-		const [cycleRes, manualRes] = await Promise.all([
-			getBottleCycleLossV1({
-				bottle_no: filters.bottle_no,
-				customer_name: filters.customer_name,
-				dateStart: filters.dateStart,
-				dateEnd: filters.dateEnd,
-				resultType: cycleResultTypeFilter.value,
-				page: pager.page,
-				pageSize: pager.pageSize
-			}),
-			getBottleLossStatsV1({
-				bottle_no: filters.bottle_no,
-				customer_name: filters.customer_name,
-				dateStart: filters.dateStart,
-				dateEnd: filters.dateEnd,
-				resultType: manualResultTypeFilter.value,
-				page: 1,
-				pageSize: 50
-			})
-		])
+function createSearchToken() {
+	lastSearchToken.value += 1
+	return lastSearchToken.value
+}
 
-		if (cycleRes?.code !== 0) {
-			uni.showToast({ title: cycleRes?.msg || '查询失败', icon: 'none' })
+function isSearchTokenActive(token) {
+	return Number(token) === Number(lastSearchToken.value)
+}
+
+function buildCurrentQueryBase() {
+	return {
+		bottle_no: normalizeString(filters.bottle_no),
+		customer_name: normalizeString(filters.customer_name),
+		dateStart: normalizeString(filters.dateStart),
+		dateEnd: normalizeString(filters.dateEnd)
+	}
+}
+
+function applyCyclePayload(payload = {}) {
+	list.value = Array.isArray(payload.list) ? payload.list : []
+	incompletePreview.value = Array.isArray(payload.incomplete_preview) ? payload.incomplete_preview : []
+	summary.value = payload.summary || createEmptySummary()
+	const paging = payload.paging || {}
+	pager.page = Number(paging.page || pager.page || 1)
+	pager.pageSize = Number(paging.pageSize || pager.pageSize || PAGE_SIZE)
+	pager.total = Number(paging.total || 0)
+	pager.hasMore = Boolean(paging.hasMore)
+}
+
+function applyManualPayload(payload = {}) {
+	manualLoss.value = {
+		summary: payload.summary || createEmptyManualLossState().summary,
+		list: Array.isArray(payload.list) ? payload.list : [],
+		total: Number(payload.total || 0)
+	}
+}
+
+function applyAnomalyTopPayload(payload = {}) {
+	anomalyTop.single = Array.isArray(payload.top_single) ? payload.top_single : []
+	anomalyTop.bottle = Array.isArray(payload.top_bottle) ? payload.top_bottle : []
+	const summaryPayload = payload.summary || {}
+	anomalyTop.singleTotal = Number(summaryPayload.single_total || payload.single_total || anomalyTop.single.length || 0)
+	anomalyTop.bottleTotal = Number(summaryPayload.bottle_total || payload.bottle_total || anomalyTop.bottle.length || 0)
+}
+
+function buildCycleListByCachedRows(rows = []) {
+	const resultType = cycleResultTypeFilter.value
+	const normalizedRows = Array.isArray(rows) ? rows : []
+	const filteredRows = resultType ? normalizedRows.filter((row) => normalizeString(row?.result_type) === resultType) : normalizedRows
+	const start = Math.max((Number(pager.page || 1) - 1) * Number(pager.pageSize || PAGE_SIZE), 0)
+	list.value = filteredRows.slice(start, start + Number(pager.pageSize || PAGE_SIZE))
+	pager.total = filteredRows.length
+	pager.hasMore = Number(pager.page || 1) * Number(pager.pageSize || PAGE_SIZE) < filteredRows.length
+}
+
+function buildManualListByCachedRows(rows = []) {
+	const resultType = manualResultTypeFilter.value
+	const normalizedRows = Array.isArray(rows) ? rows : []
+	const filteredRows = resultType ? normalizedRows.filter((row) => normalizeString(row?.result_type) === resultType) : normalizedRows
+	manualLoss.value = {
+		summary: manualLoss.value.summary || createEmptyManualLossState().summary,
+		list: filteredRows.slice(0, MANUAL_PAGE_SIZE),
+		total: filteredRows.length
+	}
+}
+
+function readMonthPrefetchCache() {
+	const cache = monthPrefetchCache.value
+	if (!cache) return null
+	if (Number(cache.expireAt || 0) <= Date.now()) return null
+	const monthRange = createMonthRange(new Date())
+	const key = buildPrefetchCacheKey({
+		bottle_no: '',
+		customer_name: '',
+		dateStart: monthRange.dateStart,
+		dateEnd: monthRange.dateEnd
+	})
+	if (normalizeString(cache.key) !== key) return null
+	return cache
+}
+
+function isMonthCacheApplicable() {
+	return !normalizeString(filters.bottle_no) && !normalizeString(filters.customer_name) && isDefaultMonthFilter()
+}
+
+async function fetchCycleData(token, options = {}) {
+	const { allowCache = true, silent = false } = options
+	cycleLoadingToken.value = Number(token) || 0
+	cycleLoading.value = true
+	try {
+		if (allowCache && isMonthCacheApplicable()) {
+			const cache = readMonthPrefetchCache()
+			if (cache?.cycle) {
+				summary.value = cache.cycle.summary || createEmptySummary()
+				incompletePreview.value = Array.isArray(cache.cycle.incomplete_preview) ? cache.cycle.incomplete_preview : []
+				pager.page = Math.max(Number(pager.page || 1), 1)
+				pager.pageSize = Number(pager.pageSize || PAGE_SIZE) || PAGE_SIZE
+				buildCycleListByCachedRows(cache.cycle.rows || [])
+				return true
+			}
+		}
+		const query = buildCurrentQueryBase()
+		const res = await getBottleCycleLossV1({
+			...query,
+			resultType: cycleResultTypeFilter.value,
+			page: pager.page,
+			pageSize: pager.pageSize
+		})
+		if (!isSearchTokenActive(token)) return false
+		if (res?.code !== 0) {
+			if (!silent) uni.showToast({ title: res?.msg || '查询失败', icon: 'none' })
 			resetResultState()
+			return false
+		}
+		applyCyclePayload(res.data || {})
+		return true
+	} finally {
+		if (cycleLoadingToken.value === (Number(token) || 0)) cycleLoading.value = false
+	}
+}
+
+async function fetchManualLossData(token, options = {}) {
+	const { allowCache = true, silent = true } = options
+	manualLoadingToken.value = Number(token) || 0
+	manualLoading.value = true
+	try {
+		if (allowCache && isMonthCacheApplicable()) {
+			const cache = readMonthPrefetchCache()
+			if (cache?.manual) {
+				manualLoss.value = {
+					summary: cache.manual.summary || createEmptyManualLossState().summary,
+					list: [],
+					total: 0
+				}
+				buildManualListByCachedRows(cache.manual.rows || [])
+				return
+			}
+		}
+		const query = buildCurrentQueryBase()
+		const res = await getBottleLossStatsV1({
+			...query,
+			resultType: manualResultTypeFilter.value,
+			page: 1,
+			pageSize: MANUAL_PAGE_SIZE
+		})
+		if (!isSearchTokenActive(token)) return
+		if (res?.code !== 0) {
+			if (!silent) uni.showToast({ title: res?.msg || '修复差值查询失败', icon: 'none' })
+			manualLoss.value = createEmptyManualLossState()
 			return
 		}
-
-		const payload = cycleRes.data || {}
-		list.value = Array.isArray(payload.list) ? payload.list : []
-		incompletePreview.value = Array.isArray(payload.incomplete_preview) ? payload.incomplete_preview : []
-		summary.value = payload.summary || {
-			cycle_count: 0,
-			loss_count: 0,
-			loss_total_kg: 0,
-			swell_count: 0,
-			swell_total_kg: 0,
-			exact_count: 0,
-			bottle_count: 0,
-			scanned_event_count: 0,
-			scope_mode: 'single',
-			incomplete_count: 0
-		}
-		const paging = payload.paging || {}
-		pager.page = Number(paging.page || pager.page || 1)
-		pager.pageSize = Number(paging.pageSize || pager.pageSize || PAGE_SIZE)
-		pager.total = Number(paging.total || 0)
-		pager.hasMore = Boolean(paging.hasMore)
-
-		if (manualRes?.code === 0) {
-			const manualPayload = manualRes.data || {}
-				manualLoss.value = {
-					summary: manualPayload.summary || {
-						total_loss_kg: 0,
-						total_swell_kg: 0,
-						loss_record_count: 0,
-						swell_record_count: 0,
-						record_count: 0,
-						bottle_count: 0,
-						daily: []
-				},
-				list: Array.isArray(manualPayload.list) ? manualPayload.list : [],
-				total: Number(manualPayload.total || 0)
-			}
-		} else {
-				manualLoss.value = {
-					summary: {
-						total_loss_kg: 0,
-						total_swell_kg: 0,
-						loss_record_count: 0,
-						swell_record_count: 0,
-						record_count: 0,
-						bottle_count: 0,
-						daily: []
-				},
-				list: [],
-				total: 0
-			}
-		}
+		applyManualPayload(res.data || {})
+	} catch (err) {
+		if (!isSearchTokenActive(token)) return
+		if (!silent) uni.showToast({ title: err?.message || '修复差值查询失败', icon: 'none' })
+		manualLoss.value = createEmptyManualLossState()
 	} finally {
-		loading.value = false
+		if (manualLoadingToken.value === (Number(token) || 0)) manualLoading.value = false
+	}
+}
+
+async function fetchAnomalyTopData(token, options = {}) {
+	const { allowCache = true, silent = true } = options
+	anomalyTopLoadingToken.value = Number(token) || 0
+	anomalyTopLoading.value = true
+	try {
+		if (allowCache && isMonthCacheApplicable()) {
+			const cache = readMonthPrefetchCache()
+			if (cache?.top) {
+				applyAnomalyTopPayload(cache.top)
+				return
+			}
+		}
+		const query = buildCurrentQueryBase()
+		const res = await getBottleLossAnomalyRankV1({
+			...query,
+			mode: 'single',
+			page: 1,
+			pageSize: TOP_LIMIT,
+			limit: TOP_LIMIT
+		})
+		if (!isSearchTokenActive(token)) return
+		if (res?.code !== 0) {
+			if (!silent) uni.showToast({ title: res?.msg || '异常TOP查询失败', icon: 'none' })
+			resetAnomalyTop()
+			return
+		}
+		applyAnomalyTopPayload(res.data || {})
+	} catch (err) {
+		if (!isSearchTokenActive(token)) return
+		if (!silent) uni.showToast({ title: err?.message || '异常TOP查询失败', icon: 'none' })
+		resetAnomalyTop()
+	} finally {
+		if (anomalyTopLoadingToken.value === (Number(token) || 0)) anomalyTopLoading.value = false
+	}
+}
+
+async function fetchAllCycleRowsForPrefetch(query = {}) {
+	const rows = []
+	let summaryData = createEmptySummary()
+	let incompletePreview = []
+	let page = 1
+	let hasMore = true
+	let guard = 0
+	while (hasMore) {
+		guard += 1
+		if (guard > 500) throw new Error('本月预取分页异常')
+		const res = await getBottleCycleLossV1({
+			...query,
+			resultType: '',
+			page,
+			pageSize: PREFETCH_PAGE_SIZE,
+			includeIncompleteList: page === 1
+		})
+		if (res?.code !== 0) throw new Error(res?.msg || '本月周期预取失败')
+		const payload = res.data || {}
+		if (page === 1) {
+			summaryData = payload.summary || createEmptySummary()
+			incompletePreview = Array.isArray(payload.incomplete_preview) ? payload.incomplete_preview : []
+		}
+		const listRows = Array.isArray(payload.list) ? payload.list : []
+		rows.push(...listRows)
+		const paging = payload.paging || {}
+		const total = Number(paging.total || rows.length)
+		hasMore = Boolean(paging.hasMore) || page * PREFETCH_PAGE_SIZE < total
+		page += 1
+	}
+	return {
+		rows,
+		summary: summaryData,
+		incomplete_preview: incompletePreview
+	}
+}
+
+async function fetchAllManualRowsForPrefetch(query = {}) {
+	const rows = []
+	let summaryData = createEmptyManualLossState().summary
+	let page = 1
+	let hasMore = true
+	let guard = 0
+	while (hasMore) {
+		guard += 1
+		if (guard > 500) throw new Error('本月预取分页异常')
+		const res = await getBottleLossStatsV1({
+			...query,
+			resultType: '',
+			page,
+			pageSize: PREFETCH_PAGE_SIZE
+		})
+		if (res?.code !== 0) throw new Error(res?.msg || '本月修复预取失败')
+		const payload = res.data || {}
+		if (page === 1) summaryData = payload.summary || summaryData
+		const listRows = Array.isArray(payload.list) ? payload.list : []
+		rows.push(...listRows)
+		const total = Number(payload.total || rows.length)
+		hasMore = page * PREFETCH_PAGE_SIZE < total
+		page += 1
+	}
+	return {
+		rows,
+		summary: summaryData
+	}
+}
+
+async function triggerMonthPrefetch(token) {
+	if (!isSearchTokenActive(token)) return
+	if (!isDefaultPrefetchCondition()) return
+	if (monthPrefetchRunning.value) return
+	const monthRange = createMonthRange(new Date())
+	const cacheKey = buildPrefetchCacheKey({
+		bottle_no: '',
+		customer_name: '',
+		dateStart: monthRange.dateStart,
+		dateEnd: monthRange.dateEnd
+	})
+	const cache = monthPrefetchCache.value
+	if (cache && normalizeString(cache.key) === cacheKey && Number(cache.expireAt || 0) > Date.now()) return
+	monthPrefetchRunning.value = true
+	try {
+		const query = {
+			bottle_no: '',
+			customer_name: '',
+			dateStart: monthRange.dateStart,
+			dateEnd: monthRange.dateEnd
+		}
+		const [cycleData, manualData, topRes] = await Promise.all([
+			fetchAllCycleRowsForPrefetch(query),
+			fetchAllManualRowsForPrefetch(query),
+			getBottleLossAnomalyRankV1({
+				...query,
+				mode: 'single',
+				page: 1,
+				pageSize: TOP_LIMIT,
+				limit: TOP_LIMIT
+			})
+		])
+		if (topRes?.code !== 0) throw new Error(topRes?.msg || '本月TOP预取失败')
+		monthPrefetchCache.value = {
+			key: cacheKey,
+			expireAt: Date.now() + PREFETCH_TTL_MS,
+			cycle: cycleData,
+			manual: manualData,
+			top: topRes.data || {}
+		}
+	} catch (err) {
+		console.warn('[BottleLossView] month prefetch failed', err && err.message)
+	} finally {
+		monthPrefetchRunning.value = false
+	}
+}
+
+async function fetchAnomalyDrawerList(resetPage = false) {
+	if (!anomalyDrawer.visible) return
+	if (resetPage) anomalyDrawer.paging.page = 1
+	anomalyDrawer.loading = true
+	try {
+		const query = buildCurrentQueryBase()
+		const mode = anomalyDrawer.tab === 'bottle' ? 'bottle' : 'single'
+		const res = await getBottleLossAnomalyRankV1({
+			...query,
+			mode,
+			page: anomalyDrawer.paging.page,
+			pageSize: anomalyDrawer.paging.pageSize,
+			limit: TOP_LIMIT
+		})
+		if (!anomalyDrawer.visible) return
+		if (res?.code !== 0) {
+			uni.showToast({ title: res?.msg || '异常排行查询失败', icon: 'none' })
+			anomalyDrawer.rows = []
+			resetAnomalyDrawerPaging()
+			return
+		}
+		const payload = res.data || {}
+		anomalyDrawer.rows = mode === 'bottle' ? payload.bottle_list || [] : payload.single_list || []
+		const paging = payload.paging || {}
+		anomalyDrawer.paging.page = Number(paging.page || anomalyDrawer.paging.page || 1)
+		anomalyDrawer.paging.pageSize = Number(paging.pageSize || anomalyDrawer.paging.pageSize || DRAWER_PAGE_SIZE)
+		anomalyDrawer.paging.total = Number(paging.total || 0)
+		anomalyDrawer.paging.hasMore = Boolean(paging.hasMore)
+	} finally {
+		anomalyDrawer.loading = false
 	}
 }
 
 async function onSearch(resetPage = false) {
 	searched.value = true
 	if (resetPage) pager.page = 1
-	await fetchList()
+	const token = createSearchToken()
+	const cycleOk = await fetchCycleData(token)
+	if (!cycleOk || !isSearchTokenActive(token)) return
+	void fetchManualLossData(token)
+	void fetchAnomalyTopData(token)
+	void triggerMonthPrefetch(token)
 }
 
 function isSummaryFilterActive(key) {
@@ -736,13 +1219,15 @@ async function clearSummaryFilter() {
 async function onPrevPage() {
 	if (pager.page <= 1) return
 	pager.page -= 1
-	await onSearch(false)
+	const token = createSearchToken()
+	await fetchCycleData(token)
 }
 
 async function onNextPage() {
 	if (!pager.hasMore) return
 	pager.page += 1
-	await onSearch(false)
+	const token = createSearchToken()
+	await fetchCycleData(token)
 }
 
 async function onDatePresetChange(value) {
@@ -771,13 +1256,57 @@ function onDateEndChange(e) {
 function onReset() {
 	filters.bottle_no = ''
 	filters.customer_name = ''
-	filters.dateStart = ''
-	filters.dateEnd = ''
+	const rolling = createRollingSevenDayRange(new Date())
+	filters.dateStart = rolling.dateStart
+	filters.dateEnd = rolling.dateEnd
 	datePreset.value = 'custom'
 	activeSummaryFilter.value = ''
 	searched.value = false
 	resetResultState()
 }
+
+function openAnomalyDrawer(tab = 'single') {
+	anomalyDrawer.visible = true
+	anomalyDrawer.tab = tab === 'bottle' ? 'bottle' : 'single'
+	anomalyDrawer.rows = []
+	resetAnomalyDrawerPaging()
+	void fetchAnomalyDrawerList(true)
+}
+
+function closeAnomalyDrawer() {
+	anomalyDrawer.visible = false
+	anomalyDrawer.loading = false
+	anomalyDrawer.rows = []
+	resetAnomalyDrawerPaging()
+}
+
+function onAnomalyDrawerTabChange(value) {
+	anomalyDrawer.tab = value === 'bottle' ? 'bottle' : 'single'
+	void fetchAnomalyDrawerList(true)
+}
+
+function onAnomalyDrawerPrevPage() {
+	if (anomalyDrawer.paging.page <= 1) return
+	anomalyDrawer.paging.page -= 1
+	void fetchAnomalyDrawerList(false)
+}
+
+function onAnomalyDrawerNextPage() {
+	if (!anomalyDrawer.paging.hasMore) return
+	anomalyDrawer.paging.page += 1
+	void fetchAnomalyDrawerList(false)
+}
+
+onMounted(() => {
+	if (initialized.value) return
+	initialized.value = true
+	const rolling = createRollingSevenDayRange(new Date())
+	filters.dateStart = rolling.dateStart
+	filters.dateEnd = rolling.dateEnd
+	datePreset.value = 'custom'
+	resetResultState()
+	void onSearch(true)
+})
 
 async function fetchAllCycleRowsForExport() {
 	const allRows = []
@@ -1021,6 +1550,31 @@ async function onExport() {
 	color: var(--crm-text-muted);
 }
 
+.anomaly-top-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(420rpx, 1fr));
+	gap: 16rpx;
+}
+
+.anomaly-top-card {
+	display: flex;
+	flex-direction: column;
+	gap: 12rpx;
+}
+
+.anomaly-top-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12rpx;
+}
+
+.anomaly-top-title {
+	font-size: 26rpx;
+	font-weight: 700;
+	color: var(--crm-text);
+}
+
 .meta-tags {
 	display: flex;
 	flex-wrap: wrap;
@@ -1038,11 +1592,74 @@ async function onExport() {
 	display: flex;
 	justify-content: space-between;
 	gap: 12rpx;
+	align-items: center;
+}
+
+.anomaly-drawer-mask {
+	position: fixed;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	background: rgba(15, 23, 42, 0.45);
+	z-index: 90;
+	display: flex;
+	justify-content: flex-end;
+	padding: 20rpx;
+	box-sizing: border-box;
+}
+
+.anomaly-drawer {
+	width: 880rpx;
+	max-width: 100%;
+	height: 100%;
+	max-height: calc(100vh - 40rpx);
+	background: #fff;
+	border-radius: 20rpx;
+	padding: 24rpx;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: 16rpx;
+	overflow: hidden;
+}
+
+.anomaly-drawer__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16rpx;
+}
+
+.anomaly-drawer__title {
+	display: block;
+	font-size: 30rpx;
+	font-weight: 700;
+	color: var(--crm-text);
+}
+
+.anomaly-drawer__sub {
+	margin-top: 8rpx;
+	display: block;
+	font-size: 22rpx;
+	color: var(--crm-text-muted);
 }
 
 @media (max-width: 680px) {
 	.summary-row {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.anomaly-top-grid {
+		grid-template-columns: 1fr;
+	}
+	.anomaly-drawer-mask {
+		padding: 0;
+	}
+	.anomaly-drawer {
+		width: 100%;
+		height: 100%;
+		max-height: 100vh;
+		border-radius: 24rpx 24rpx 0 0;
 	}
 }
 

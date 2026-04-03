@@ -266,7 +266,8 @@
 					<view v-if="overCollectionAmount > 0" class="over-collection-alert">
 						<text class="over-collection-alert__title">多收提醒</text>
 						<text class="over-collection-alert__content">
-							本单实收超出应收 ¥{{ formatMoney(overCollectionAmount) }}，该差额应计入冲抵款并在后续结算抵扣。
+							本单实收超出应收 ¥{{ formatMoney(overCollectionAmount) }}，
+							{{ detailOffsetEnabled ? '该差额可入冲抵池，需在客户对账手工分配。' : '当前未入冲抵池，可在编辑销售单开启“是否冲抵”。' }}
 						</text>
 					</view>
 				</AppSection>
@@ -375,6 +376,7 @@ const overCollectionAmount = computed(() => {
 	const delta = fix2(amountReceivedNumber.value - effectiveShouldReceiveNumber.value)
 	return delta > 0 ? delta : 0
 })
+const detailOffsetEnabled = computed(() => resolveOffsetEnabled(detail.value, true))
 const shouldReceiveText = computed(() => formatMoney(shouldReceiveNumber.value))
 const outstandingText = computed(() => formatMoney(outstandingNumber.value))
 const settlementFormula = computed(() => buildSettlementFormulaDetail(detail.value))
@@ -437,6 +439,18 @@ watch(
 function normalizeString(value) {
 	if (value == null) return ''
 	return String(value).trim()
+}
+
+function resolveOffsetEnabled(doc, fallback = false) {
+	const raw = doc?.offset_enabled
+	if (raw == null || raw === '') return Boolean(fallback)
+	if (typeof raw === 'boolean') return raw
+	if (typeof raw === 'number') return raw !== 0
+	const text = normalizeString(raw).toLowerCase()
+	if (!text) return Boolean(fallback)
+	if (['1', 'true', 'yes', 'y', 'on'].includes(text)) return true
+	if (['0', 'false', 'no', 'n', 'off'].includes(text)) return false
+	return Boolean(fallback)
 }
 
 function toNumber(value, fallback = 0) {

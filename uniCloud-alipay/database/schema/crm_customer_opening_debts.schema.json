@@ -1,0 +1,61 @@
+{
+  "bsonType": "object",
+  "description": "Customer opening debts before system go-live",
+  "additionalProperties": false,
+  "required": [
+    "customer_id",
+    "customer_name",
+    "biz_date",
+    "amount",
+    "amount_received",
+    "outstanding",
+    "payment_status",
+    "note",
+    "status",
+    "source_type",
+    "request_id",
+    "created_at",
+    "created_by",
+    "created_by_name",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "customer_id": { "bsonType": "string" },
+    "customer_name": { "bsonType": "string" },
+    "biz_date": { "bsonType": "string" },
+    "amount": { "bsonType": ["number", "null"] },
+    "amount_received": { "bsonType": ["number", "null"] },
+    "outstanding": { "bsonType": ["number", "null"] },
+    "payment_status": { "bsonType": "string" },
+    "note": { "bsonType": "string" },
+    "status": { "bsonType": "string" },
+    "source_type": { "bsonType": "string" },
+    "source_id": { "bsonType": ["string", "null"] },
+    "money_scale": { "bsonType": ["number", "null"] },
+    "request_id": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "created_by": { "bsonType": ["string", "null"] },
+    "created_by_name": { "bsonType": "string" },
+    "updated_at": { "bsonType": "number" },
+    "updated_by": { "bsonType": ["string", "null"] },
+    "updated_by_name": { "bsonType": ["string", "null"] },
+    "void_reason": { "bsonType": ["string", "null"] },
+    "void_at": { "bsonType": ["number", "null"] },
+    "void_by": { "bsonType": ["string", "null"] },
+    "void_by_name": { "bsonType": ["string", "null"] }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "customer_id": 1, "biz_date": -1, "created_at": -1 }, "name": "idx_customer_bizdate_created" },
+    { "key": { "customer_id": 1, "status": 1, "biz_date": -1 }, "name": "idx_customer_status_date" },
+    { "key": { "customer_id": 1, "payment_status": 1, "biz_date": -1 }, "name": "idx_customer_payment_status_date" },
+    { "key": { "source_type": 1, "source_id": 1 }, "name": "idx_source" },
+    { "key": { "request_id": 1 }, "name": "idx_request_id" }
+  ]
+}

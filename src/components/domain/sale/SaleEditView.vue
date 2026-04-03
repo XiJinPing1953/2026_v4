@@ -216,6 +216,7 @@ const settlement = ref({
 	paymentMethod: 'on_account',
 	amountReceived: '',
 	roundingAmount: '',
+	offsetEnabled: false,
 	paymentNote: ''
 })
 
@@ -287,6 +288,18 @@ function normalizeIdValue(value) {
 	}
 	const text = String(value).trim()
 	return text || null
+}
+
+function resolveOffsetEnabled(doc, fallback = false) {
+	const raw = doc?.offset_enabled
+	if (raw == null || raw === '') return Boolean(fallback)
+	if (typeof raw === 'boolean') return raw
+	if (typeof raw === 'number') return raw !== 0
+	const text = String(raw).trim().toLowerCase()
+	if (!text) return Boolean(fallback)
+	if (['1', 'true', 'yes', 'y', 'on'].includes(text)) return true
+	if (['0', 'false', 'no', 'n', 'off'].includes(text)) return false
+	return Boolean(fallback)
 }
 
 function extractBottleNos(rows) {
@@ -534,6 +547,7 @@ async function loadDetail(id) {
 		paymentMethod: doc.payment_method || ((doc.payment_status || 'unpaid') === 'unpaid' ? 'on_account' : 'cash'),
 		amountReceived: doc.amount_received == null ? '' : String(doc.amount_received),
 		roundingAmount: doc.rounding_amount == null ? '' : String(doc.rounding_amount),
+		offsetEnabled: resolveOffsetEnabled(doc, true),
 		paymentNote: doc.payment_note || ''
 	}
 
@@ -673,7 +687,10 @@ function buildOverCollectionReminder() {
 	if (shouldReceive <= 0) return ''
 	const overAmount = Number((amountReceived - shouldReceive).toFixed(2))
 	if (!(overAmount > 0)) return ''
-	return `本单应收 ¥${shouldReceive.toFixed(2)}，实收 ¥${amountReceived.toFixed(2)}，多收 ¥${overAmount.toFixed(2)}。\n系统将把该差额作为冲抵款，自动用于后续结算。`
+	if (Boolean(settlement.value?.offsetEnabled)) {
+		return `本单应收 ¥${shouldReceive.toFixed(2)}，实收 ¥${amountReceived.toFixed(2)}，多收 ¥${overAmount.toFixed(2)}。\n该差额将进入冲抵池，需在客户对账页手工分配。`
+	}
+	return `本单应收 ¥${shouldReceive.toFixed(2)}，实收 ¥${amountReceived.toFixed(2)}，多收 ¥${overAmount.toFixed(2)}。\n当前未勾选“是否冲抵”，该差额不会进入冲抵池。`
 }
 
 function resolveSubmitFailure(err) {

@@ -10,6 +10,7 @@ const sales = db.collection('crm_sale_records')
 const receipts = db.collection('crm_customer_receipts')
 const allocations = db.collection('crm_customer_allocations')
 const flowSettlements = db.collection('crm_customer_flow_settlements')
+const openingDebts = db.collection('crm_customer_opening_debts')
 let ensureActionAcl = null
 try {
 	;({ ensureActionAcl } = require('../common/pageAcl'))
@@ -47,6 +48,11 @@ const PAGE_ACTION_RULES = {
 	createFlowSettlementV1: [{ pagePath: '/pages/customer/statement', action: 'create' }],
 	updateFlowSettlementV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	removeFlowSettlementV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	createOpeningDebtEntryV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	updateOpeningDebtEntryV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	removeOpeningDebtEntryV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	listOffsetCreditPoolV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
+	allocateOffsetCreditV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	getCustomerStatementAnalysisV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	exportCustomerStatementV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	refreshCustomerBalancesV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
@@ -218,13 +224,15 @@ function resolveOffsetSourceDateFromAllocation(row) {
 
 function isOffsetAllocationRow(row) {
 	const sourceType = normalizeString(row && row.source_type)
-	if (sourceType && sourceType !== 'sale_auto_prepay') return false
+	if (sourceType === 'offset_manual_allocate') return true
 	const entryKind = normalizeEntryKind(row && row.receipt_entry_kind, '')
 	if (entryKind === 'offset_credit') return true
 	const receiptSourceType = normalizeString(row && row.receipt_source_type)
 	if (receiptSourceType.startsWith('sale_offset_credit')) return true
 	const note = normalizeString(row && row.note)
-	return note.startsWith('自动冲抵来源 ')
+	if (note.startsWith('自动冲抵来源 ')) return true
+	if (sourceType && sourceType !== 'sale_auto_prepay' && sourceType !== 'flow_auto_prepay') return false
+	return false
 }
 
 function sortOffsetSourceRows(rows = []) {
@@ -273,6 +281,86 @@ function buildSaleOffsetSummaryMap(rows = []) {
 	return summaryMap
 }
 
+function buildOffsetAppliedTargetMap(rows = []) {
+	const map = new Map()
+	for (const row of rows || []) {
+		if (!isOffsetAllocationRow(row)) continue
+		const targetType = normalizeReceivableTargetType(row && row.target_type)
+		const targetId = normalizeId(row && (row.target_id || row.sale_id || row.flow_settlement_id))
+		if (!targetId) continue
+		const amount = fix2(toNumber(row && row.allocate_amount, 0))
+		if (!(amount > 0)) continue
+		const key = `${targetType}:${targetId}`
+		map.set(key, fix2(toNumber(map.get(key), 0) + amount))
+	}
+	return map
+}
+
+async function buildBusinessSummaryFromTargets(
+	customer,
+	{
+		salesDocs = [],
+		flowDocs = [],
+		openingDebtDocs = []
+	} = {}
+) {
+	const customerId = normalizeId(customer && customer._id)
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const targetIds = Array.from(
+		new Set(
+			[
+				...salesDocs.map((doc) => normalizeId(doc && doc._id)),
+				...flowDocs.map((doc) => normalizeId(doc && doc._id)),
+				...openingDebtDocs.map((doc) => normalizeId(doc && doc._id))
+			].filter(Boolean)
+		)
+	)
+	const offsetAllocRows = targetIds.length
+		? await listSaleAutoAllocationsBySaleIds(customerId, targetIds, 5000)
+		: []
+	const offsetAppliedTargetMap = buildOffsetAppliedTargetMap(offsetAllocRows)
+	const getOffsetApplied = (targetType, targetId) =>
+		fixMoney(toNumber(offsetAppliedTargetMap.get(`${normalizeReceivableTargetType(targetType)}:${normalizeId(targetId)}`), 0))
+
+	let receivable = 0
+	let shouldTotal = 0
+	let receivedTotal = 0
+	for (const doc of salesDocs) {
+		const snapshot = computeSaleSnapshot(doc)
+		const saleId = normalizeId(doc && doc._id)
+		const offsetApplied = getOffsetApplied('sale', saleId)
+		const businessReceived = fixMoney(Math.max(snapshot.amount_received - offsetApplied, 0))
+		shouldTotal = fixMoney(shouldTotal + snapshot.should_receive_effective)
+		receivedTotal = fixMoney(receivedTotal + businessReceived)
+		receivable = fixMoney(receivable + snapshot.outstanding)
+	}
+	for (const doc of flowDocs) {
+		const snapshot = computeFlowSettlementSnapshot(doc)
+		const flowSettlementId = normalizeId(doc && doc._id)
+		const offsetApplied = getOffsetApplied('flow_settlement', flowSettlementId)
+		const businessReceived = fixMoney(Math.max(snapshot.amount_received - offsetApplied, 0))
+		shouldTotal = fixMoney(shouldTotal + snapshot.should_receive)
+		receivedTotal = fixMoney(receivedTotal + businessReceived)
+		receivable = fixMoney(receivable + snapshot.outstanding)
+	}
+	for (const doc of openingDebtDocs) {
+		const snapshot = computeOpeningDebtSnapshot(doc, moneyScale)
+		const openingDebtId = normalizeId(doc && doc._id)
+		const offsetApplied = getOffsetApplied('opening_debt', openingDebtId)
+		const businessReceived = fixMoney(Math.max(snapshot.amount_received - offsetApplied, 0))
+		shouldTotal = fixMoney(shouldTotal + snapshot.amount)
+		receivedTotal = fixMoney(receivedTotal + businessReceived)
+		receivable = fixMoney(receivable + snapshot.outstanding)
+	}
+
+	return {
+		receivable_balance: receivable,
+		should_receive_total: shouldTotal,
+		amount_received_total: receivedTotal
+	}
+}
+
 function chunkStrings(list = [], size = 80) {
 	const source = Array.isArray(list) ? list : []
 	const chunkSize = Math.max(toNumber(size, 80), 1)
@@ -305,7 +393,7 @@ async function listSaleAutoAllocationsBySaleIds(customerId, saleIds = [], limitP
 				.where(
 					dbCmd.and([
 						{ customer_id: normalizedCustomerId },
-						{ source_type: 'sale_auto_prepay' },
+						{ source_type: dbCmd.in(['sale_auto_prepay', 'flow_auto_prepay', 'offset_manual_allocate']) },
 						{ sale_id: dbCmd.in(saleIdChunk) }
 					])
 				)
@@ -431,6 +519,26 @@ function normalizeEntryKind(value, fallback = 'prepay') {
 	return fallback
 }
 
+function resolveSaleOffsetEnabled(doc, fallback = true) {
+	if (!doc || typeof doc !== 'object') return Boolean(fallback)
+	const raw = doc.offset_enabled
+	if (raw == null || raw === '') return Boolean(fallback)
+	if (typeof raw === 'boolean') return raw
+	if (typeof raw === 'number') return raw !== 0
+	const text = normalizeString(raw).toLowerCase()
+	if (!text) return Boolean(fallback)
+	if (['1', 'true', 'yes', 'y', 'on'].includes(text)) return true
+	if (['0', 'false', 'no', 'n', 'off'].includes(text)) return false
+	return Boolean(fallback)
+}
+
+function isOffsetCreditReceiptRow(row) {
+	const sourceType = normalizeString(row && row.source_type)
+	if (sourceType.startsWith('sale_offset_credit')) return true
+	const entryKind = normalizeEntryKind(row && row.entry_kind, '')
+	return entryKind === 'offset_credit'
+}
+
 function normalizeAllocationTargets(raw = []) {
 	const source = Array.isArray(raw) ? raw : []
 	const unique = new Map()
@@ -522,7 +630,7 @@ function normalizeSettlementMode(value, fallback = 'sale') {
 
 function normalizeReceivableTargetType(value) {
 	const text = normalizeString(value)
-	if (text === 'flow_settlement' || text === 'sale') return text
+	if (text === 'flow_settlement' || text === 'sale' || text === 'opening_debt') return text
 	return 'sale'
 }
 
@@ -753,6 +861,27 @@ function computeFlowSettlementSnapshot(doc) {
 	}
 }
 
+function computeOpeningDebtSnapshot(doc, moneyScale = 2) {
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const amount = fixMoney(toNumber(doc && doc.amount, 0))
+	const amountReceived = fixMoney(toNumber(doc && doc.amount_received, 0))
+	const outstanding = amount > amountReceived ? fixMoney(amount - amountReceived) : 0
+	return {
+		amount,
+		amount_received: amountReceived,
+		outstanding,
+		payment_status: resolvePaymentStatusByAmount(amount, amountReceived, moneyScale)
+	}
+}
+
+function resolveOpeningDebtMoneyScale(doc, fallback = 2) {
+	const fixedFallback = Number(fallback) === 3 ? 3 : 2
+	const scale = Number(doc && doc.money_scale)
+	if (scale === 3) return 3
+	if (scale === 2) return 2
+	return fixedFallback
+}
+
 async function getCustomerById(customerId) {
 	const id = normalizeId(customerId)
 	if (!id) return null
@@ -833,6 +962,36 @@ async function listCustomerReceipts(customerId, { dateFrom = '', dateTo = '', da
 	let guard = 0
 	while (guard < 500 && rows.length < batchSize) {
 		const res = await receipts
+			.where(where)
+			.orderBy('biz_date', 'asc')
+			.orderBy('created_at', 'asc')
+			.skip((page - 1) * 200)
+			.limit(200)
+			.get()
+		const list = Array.isArray(res.data) ? res.data : []
+		if (!list.length) break
+		rows.push(...list)
+		if (list.length < 200 || rows.length >= batchSize) break
+		page += 1
+		guard += 1
+	}
+	return rows.slice(0, batchSize)
+}
+
+async function listCustomerOpeningDebts(customerId, { dateFrom = '', dateTo = '', dateBefore = '', limit = 5000 } = {}) {
+	const id = normalizeId(customerId)
+	if (!id) return []
+	const whereParts = [{ customer_id: id }, { status: 'posted' }]
+	if (dateFrom) whereParts.push({ biz_date: dbCmd.gte(dateFrom) })
+	if (dateTo) whereParts.push({ biz_date: dbCmd.lte(dateTo) })
+	if (dateBefore) whereParts.push({ biz_date: dbCmd.lt(dateBefore) })
+	const where = whereParts.length === 1 ? whereParts[0] : dbCmd.and(whereParts)
+	const batchSize = Math.min(Math.max(toNumber(limit, 5000), 1), 5000)
+	const rows = []
+	let page = 1
+	let guard = 0
+	while (guard < 500 && rows.length < batchSize) {
+		const res = await openingDebts
 			.where(where)
 			.orderBy('biz_date', 'asc')
 			.orderBy('created_at', 'asc')
@@ -1364,7 +1523,7 @@ function normalizeManualAllocations(raw = []) {
 	})
 }
 
-function buildReceivableTargetRows({ saleDocs = [], flowDocs = [] } = {}) {
+function buildReceivableTargetRows({ saleDocs = [], flowDocs = [], openingDebtDocs = [], moneyScale = 2 } = {}) {
 	const saleRows = saleDocs.map((doc) => {
 		const snapshot = computeSaleSnapshot(doc)
 		return {
@@ -1402,7 +1561,26 @@ function buildReceivableTargetRows({ saleDocs = [], flowDocs = [] } = {}) {
 			}
 		}
 	})
-	return [...saleRows, ...flowRows]
+	const openingDebtRows = openingDebtDocs.map((doc) => {
+		const debtId = normalizeId(doc && doc._id)
+		const snapshot = computeOpeningDebtSnapshot(doc, moneyScale)
+		return {
+			target_type: 'opening_debt',
+			target_id: debtId,
+			target_title: `历史欠款 ${normalizeString(doc && doc.biz_date)} / ${debtId.slice(-6)}`,
+			target_date: normalizeString(doc && doc.biz_date),
+			sale_id: debtId,
+			opening_debt_id: debtId,
+			should_receive: snapshot.amount,
+			amount_received: snapshot.amount_received,
+			outstanding: snapshot.outstanding,
+			payment_status: snapshot.payment_status,
+			meta: {
+				note: normalizeString(doc && doc.note)
+			}
+		}
+	})
+	return [...saleRows, ...flowRows, ...openingDebtRows]
 }
 
 async function buildAllocationPlan(
@@ -1434,7 +1612,8 @@ async function buildAllocationPlan(
 
 	const saleDocs = await listCustomerSales(customer._id)
 	const flowDocs = await listCustomerFlowSettlements(customer._id)
-	const receivableRows = buildReceivableTargetRows({ saleDocs, flowDocs })
+	const openingDebtDocs = await listCustomerOpeningDebts(customer._id)
+	const receivableRows = buildReceivableTargetRows({ saleDocs, flowDocs, openingDebtDocs, moneyScale })
 	const targetKeySet = new Set(targets.map((item) => `${normalizeReceivableTargetType(item.target_type)}:${normalizeId(item.target_id)}`))
 
 	const outstandingRows = receivableRows
@@ -1606,6 +1785,26 @@ async function applyAllocationAndPersist({
 			})
 			targetDate = normalizeString(flowDoc.biz_date)
 			if (!targetTitle) targetTitle = `流量结算 ${targetDate} / ${targetId.slice(-6)}`
+		} else if (targetType === 'opening_debt') {
+			const debtRes = await openingDebts.doc(targetId).get()
+			const debtDoc = (debtRes.data && debtRes.data[0]) || null
+			if (!debtDoc) continue
+			if (normalizeId(debtDoc.customer_id) !== customer._id) continue
+			if (normalizeString(debtDoc.status) !== 'posted') continue
+			const snapshot = computeOpeningDebtSnapshot(debtDoc, moneyScale)
+			if (snapshot.outstanding <= 0) continue
+			allocateAmount = fixMoney(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
+			if (allocateAmount <= 0) continue
+			const nextAmountReceived = fixMoney(snapshot.amount_received + allocateAmount)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.amount, nextAmountReceived, moneyScale)
+			await openingDebts.doc(targetId).update({
+				amount_received: nextAmountReceived,
+				outstanding: fixMoney(Math.max(snapshot.amount - nextAmountReceived, 0)),
+				payment_status: nextStatus,
+				updated_at: Date.now()
+			})
+			targetDate = normalizeString(debtDoc.biz_date)
+			if (!targetTitle) targetTitle = `历史欠款 ${targetDate} / ${targetId.slice(-6)}`
 		} else {
 			const saleRes = await sales.doc(targetId).get()
 			const saleDoc = (saleRes.data && saleRes.data[0]) || null
@@ -1691,7 +1890,8 @@ async function rollbackReceiptAllocations({ customerId, receiptId }) {
 	for (const row of rows) {
 		const targetType = normalizeReceivableTargetType(row.target_type)
 		const targetId = normalizeId(row.target_id || row.sale_id || row.flow_settlement_id)
-		const amount = targetType === 'flow_settlement' ? fix3(toNumber(row.allocate_amount, 0)) : fix2(toNumber(row.allocate_amount, 0))
+		const amountRaw = toNumber(row.allocate_amount, 0)
+		const amount = targetType === 'flow_settlement' ? fix3(amountRaw) : fix2(amountRaw)
 		if (!targetId || amount <= 0) {
 			skipped += 1
 			continue
@@ -1713,6 +1913,28 @@ async function rollbackReceiptAllocations({ customerId, receiptId }) {
 				updated_at: Date.now()
 			})
 			rollbackTotal = fix3(rollbackTotal + amount)
+			continue
+		}
+		if (targetType === 'opening_debt') {
+			const debtRes = await openingDebts.doc(targetId).get()
+			const debtDoc = (debtRes.data && debtRes.data[0]) || null
+			if (!debtDoc || normalizeId(debtDoc.customer_id) !== customerId || normalizeString(debtDoc.status) !== 'posted') {
+				skipped += 1
+				continue
+			}
+			const moneyScale = resolveOpeningDebtMoneyScale(debtDoc, 2)
+			const fixMoney = (value) => fixByScale(value, moneyScale)
+			const snapshot = computeOpeningDebtSnapshot(debtDoc, moneyScale)
+			const amountFixed = fixMoney(amountRaw)
+			const nextAmountReceived = fixMoney(Math.max(snapshot.amount_received - amountFixed, 0))
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.amount, nextAmountReceived, moneyScale)
+			await openingDebts.doc(targetId).update({
+				amount_received: nextAmountReceived,
+				outstanding: fixMoney(Math.max(snapshot.amount - nextAmountReceived, 0)),
+				payment_status: nextStatus,
+				updated_at: Date.now()
+			})
+			rollbackTotal = fix3(rollbackTotal + amountFixed)
 			continue
 		}
 
@@ -1800,6 +2022,24 @@ async function applyPlanToExistingReceipt({
 			})
 			targetDate = normalizeString(flowDoc.biz_date)
 			if (!targetTitle) targetTitle = `流量结算 ${targetDate} / ${targetId.slice(-6)}`
+		} else if (targetType === 'opening_debt') {
+			const debtRes = await openingDebts.doc(targetId).get()
+			const debtDoc = (debtRes.data && debtRes.data[0]) || null
+			if (!debtDoc || normalizeId(debtDoc.customer_id) !== customer._id || normalizeString(debtDoc.status) !== 'posted') continue
+			const snapshot = computeOpeningDebtSnapshot(debtDoc, moneyScale)
+			if (snapshot.outstanding <= 0) continue
+			allocateAmount = fixMoney(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
+			if (allocateAmount <= 0) continue
+			const nextAmountReceived = fixMoney(snapshot.amount_received + allocateAmount)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.amount, nextAmountReceived, moneyScale)
+			await openingDebts.doc(targetId).update({
+				amount_received: nextAmountReceived,
+				outstanding: fixMoney(Math.max(snapshot.amount - nextAmountReceived, 0)),
+				payment_status: nextStatus,
+				updated_at: Date.now()
+			})
+			targetDate = normalizeString(debtDoc.biz_date)
+			if (!targetTitle) targetTitle = `历史欠款 ${targetDate} / ${targetId.slice(-6)}`
 		} else {
 			const saleRes = await sales.doc(targetId).get()
 			const saleDoc = (saleRes.data && saleRes.data[0]) || null
@@ -1877,21 +2117,15 @@ async function rebuildCustomerBalances(customerId) {
 
 	const salesDocs = await listCustomerSales(customer._id)
 	const flowDocs = await listCustomerFlowSettlements(customer._id)
-	let receivable = 0
-	let shouldTotal = 0
-	let receivedTotal = 0
-	for (const doc of salesDocs) {
-		const snapshot = computeSaleSnapshot(doc)
-		shouldTotal = fixMoney(shouldTotal + snapshot.should_receive)
-		receivedTotal = fixMoney(receivedTotal + snapshot.amount_received)
-		receivable = fixMoney(receivable + snapshot.outstanding)
-	}
-	for (const doc of flowDocs) {
-		const snapshot = computeFlowSettlementSnapshot(doc)
-		shouldTotal = fixMoney(shouldTotal + snapshot.should_receive)
-		receivedTotal = fixMoney(receivedTotal + snapshot.amount_received)
-		receivable = fixMoney(receivable + snapshot.outstanding)
-	}
+	const openingDebtDocs = await listCustomerOpeningDebts(customer._id)
+	const businessSummary = await buildBusinessSummaryFromTargets(customer, {
+		salesDocs,
+		flowDocs,
+		openingDebtDocs
+	})
+	const receivable = fixMoney(businessSummary.receivable_balance)
+	const shouldTotal = fixMoney(businessSummary.should_receive_total)
+	const receivedTotal = fixMoney(businessSummary.amount_received_total)
 
 	let prepay = 0
 	let lastReceiptAt = null
@@ -2345,6 +2579,540 @@ async function createPrepayEntryV1(user, data, requestId) {
 	}
 }
 
+async function createOpeningDebtEntryV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'createOpeningDebtEntryV1', requestId)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const customerId = normalizeId(data.customer_id || data.customerId)
+	const amountRaw = toNumber(data.amount, 0)
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if (!(amountRaw > 0)) return { code: 400, msg: '欠款金额必须大于0' }
+
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { code: 404, msg: '客户不存在' }
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const amount = fixMoney(amountRaw)
+	const bizDate = normalizeBizDate(data.biz_date || data.bizDate, Date.now())
+	const note = normalizeString(data.note)
+	const sourceType = normalizeString(data.source_type || data.sourceType) || 'customer_opening_debt_manual'
+	const sourceId = normalizeId(data.source_id || data.sourceId)
+
+	const now = Date.now()
+	const payload = {
+		customer_id: customer._id,
+		customer_name: customer.name,
+		biz_date: bizDate,
+		amount,
+		amount_received: 0,
+		outstanding: amount,
+		payment_status: 'unpaid',
+		note,
+		status: 'posted',
+		source_type: sourceType,
+		source_id: sourceId || null,
+		money_scale: moneyScale,
+		request_id: requestId,
+		created_at: now,
+		created_by: normalizeId(user && user._id) || null,
+		created_by_name: normalizeString(user && user.username),
+		updated_at: now
+	}
+	const addRes = await openingDebts.add(payload)
+	const openingDebtId = normalizeId(addRes && addRes.id)
+	const balances = await rebuildCustomerBalances(customerId)
+	await recordLog(
+		user,
+		'customer_opening_debt_create_v1',
+		{
+			customer_id: customerId,
+			opening_debt_id: openingDebtId,
+			amount,
+			biz_date: bizDate
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		msg: '历史欠款已登记',
+		data: {
+			_id: openingDebtId,
+			customer_id: customerId,
+			amount,
+			amount_received: 0,
+			outstanding: amount,
+			payment_status: 'unpaid',
+			biz_date: bizDate,
+			note,
+			balances
+		}
+	}
+}
+
+async function updateOpeningDebtEntryV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'updateOpeningDebtEntryV1', requestId)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const openingDebtId = normalizeId(data.opening_debt_id || data.openingDebtId || data._id)
+	if (!openingDebtId) return { code: 400, msg: 'opening_debt_id 必填' }
+
+	const debtRes = await openingDebts.doc(openingDebtId).get()
+	const debtDoc = (debtRes.data && debtRes.data[0]) || null
+	if (!debtDoc) return { code: 404, msg: '历史欠款不存在' }
+	if (normalizeString(debtDoc.status) !== 'posted') return { code: 400, msg: '仅支持编辑已入账历史欠款' }
+
+	const debtCustomerId = normalizeId(debtDoc.customer_id)
+	const customerId = normalizeId(data.customer_id || data.customerId || debtCustomerId)
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if (customerId !== debtCustomerId) return { code: 400, msg: '历史欠款不属于该客户' }
+
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { code: 404, msg: '客户不存在' }
+	const moneyScale = resolveOpeningDebtMoneyScale(debtDoc, resolveCustomerMoneyScale(customer))
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+
+	const amountRaw = data.amount == null || data.amount === '' ? debtDoc.amount : data.amount
+	const amount = fixMoney(toNumber(amountRaw, 0))
+	if (!(amount > 0)) return { code: 400, msg: '欠款金额必须大于0' }
+
+	const amountReceived = fixMoney(toNumber(debtDoc.amount_received, 0))
+	if (amount < amountReceived) return { code: 400, msg: '欠款金额不能小于已收金额' }
+	const bizDate = normalizeBizDate(data.biz_date || data.bizDate || debtDoc.biz_date, Date.now())
+	const note = data.note === undefined ? normalizeString(debtDoc.note) : normalizeString(data.note)
+	const sourceType = normalizeString(data.source_type || data.sourceType || debtDoc.source_type) || 'customer_opening_debt_manual'
+	const sourceIdRaw = data.source_id !== undefined || data.sourceId !== undefined ? data.source_id ?? data.sourceId : debtDoc.source_id
+	const sourceId = normalizeId(sourceIdRaw)
+	const paymentStatus = resolvePaymentStatusByAmount(amount, amountReceived, moneyScale)
+	const outstanding = amount > amountReceived ? fixMoney(amount - amountReceived) : 0
+
+	await openingDebts.doc(openingDebtId).update({
+		customer_name: customer.name,
+		biz_date: bizDate,
+		amount,
+		amount_received: amountReceived,
+		outstanding,
+		payment_status: paymentStatus,
+		note,
+		source_type: sourceType,
+		source_id: sourceId || null,
+		money_scale: moneyScale,
+		request_id: requestId,
+		updated_at: Date.now(),
+		updated_by: normalizeId(user && user._id) || null,
+		updated_by_name: normalizeString(user && user.username)
+	})
+
+	const balances = await rebuildCustomerBalances(customerId)
+	await recordLog(
+		user,
+		'customer_opening_debt_update_v1',
+		{
+			customer_id: customerId,
+			opening_debt_id: openingDebtId,
+			amount,
+			amount_received: amountReceived,
+			outstanding
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		msg: '历史欠款已更新',
+		data: {
+			_id: openingDebtId,
+			customer_id: customerId,
+			amount,
+			amount_received: amountReceived,
+			outstanding,
+			payment_status: paymentStatus,
+			biz_date: bizDate,
+			note,
+			balances
+		}
+	}
+}
+
+async function removeOpeningDebtEntryV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'removeOpeningDebtEntryV1', requestId)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const openingDebtId = normalizeId(data.opening_debt_id || data.openingDebtId || data._id)
+	if (!openingDebtId) return { code: 400, msg: 'opening_debt_id 必填' }
+
+	const debtRes = await openingDebts.doc(openingDebtId).get()
+	const debtDoc = (debtRes.data && debtRes.data[0]) || null
+	if (!debtDoc) return { code: 404, msg: '历史欠款不存在' }
+	if (normalizeString(debtDoc.status) !== 'posted') return { code: 400, msg: '仅支持删除已入账历史欠款' }
+
+	const debtCustomerId = normalizeId(debtDoc.customer_id)
+	const customerId = normalizeId(data.customer_id || data.customerId || debtCustomerId)
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if (customerId !== debtCustomerId) return { code: 400, msg: '历史欠款不属于该客户' }
+
+	const linkedRes = await allocations
+		.where({
+			customer_id: customerId,
+			target_type: 'opening_debt',
+			target_id: openingDebtId
+		})
+		.limit(1)
+		.get()
+	const linkedRows = Array.isArray(linkedRes.data) ? linkedRes.data : []
+	if (linkedRows.length || toNumber(debtDoc.amount_received, 0) > 0) {
+		return { code: 400, msg: '该历史欠款已有收款分配，请先处理相关收款单后再删除' }
+	}
+
+	const now = Date.now()
+	await openingDebts.doc(openingDebtId).update({
+		status: 'void',
+		void_reason: normalizeString(data.reason || data.note) || 'manual_remove',
+		void_at: now,
+		void_by: normalizeId(user && user._id) || null,
+		void_by_name: normalizeString(user && user.username),
+		request_id: requestId,
+		updated_at: now
+	})
+	const balances = await rebuildCustomerBalances(customerId)
+	await recordLog(
+		user,
+		'customer_opening_debt_remove_v1',
+		{
+			customer_id: customerId,
+			opening_debt_id: openingDebtId
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		msg: '历史欠款已删除',
+		data: {
+			_id: openingDebtId,
+			customer_id: customerId,
+			balances
+		}
+	}
+}
+
+function normalizeOffsetCreditPoolFilters(data = {}) {
+	return {
+		customer_id: normalizeId(data.customer_id || data.customerId),
+		only_unallocated: data.only_unallocated == null && data.onlyUnallocated == null
+			? true
+			: Boolean(data.only_unallocated ?? data.onlyUnallocated),
+		page: Math.max(toNumber(data.page, 1), 1),
+		page_size: Math.min(Math.max(toNumber(data.pageSize || data.page_size, 20), 1), 200)
+	}
+}
+
+function buildOffsetCreditPoolWhere(customerId, onlyUnallocated = true) {
+	const whereParts = [
+		{ customer_id: customerId },
+		{ status: 'posted' },
+		dbCmd.or([
+			{ entry_kind: 'offset_credit' },
+			{ source_type: dbCmd.in(['sale_offset_credit', 'sale_offset_credit_repair']) }
+		])
+	]
+	if (onlyUnallocated) whereParts.push({ unallocated_amount: dbCmd.gt(0) })
+	return dbCmd.and(whereParts)
+}
+
+async function listOffsetCreditPoolV1(user, data) {
+	void user
+	const filters = normalizeOffsetCreditPoolFilters(data)
+	if (!filters.customer_id) return { code: 400, msg: 'customer_id 必填' }
+	const customer = await getCustomerById(filters.customer_id)
+	if (!customer) return { code: 404, msg: '客户不存在' }
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const where = buildOffsetCreditPoolWhere(filters.customer_id, filters.only_unallocated)
+
+	const countRes = await receipts.where(where).count()
+	const total = toNumber(countRes && countRes.total, 0)
+	const skip = (filters.page - 1) * filters.page_size
+	const res = await receipts
+		.where(where)
+		.orderBy('biz_date', 'desc')
+		.orderBy('created_at', 'desc')
+		.skip(skip)
+		.limit(filters.page_size)
+		.get()
+	const list = Array.isArray(res.data) ? res.data : []
+
+	const sourceSaleIds = Array.from(
+		new Set(
+			list
+				.map((row) => normalizeId(row && row.source_id))
+				.filter(Boolean)
+		)
+	)
+	const saleMap = new Map()
+	for (const saleIdChunk of chunkStrings(sourceSaleIds, 80)) {
+		if (!saleIdChunk.length) continue
+		const saleRes = await sales
+			.where({ _id: dbCmd.in(saleIdChunk) })
+			.field({ _id: true, date: true, offset_enabled: true, customer_id: true })
+			.get()
+		const saleList = Array.isArray(saleRes.data) ? saleRes.data : []
+		saleList.forEach((row) => {
+			const saleId = normalizeId(row && row._id)
+			if (!saleId) return
+			saleMap.set(saleId, row)
+		})
+	}
+
+	const rows = list.map((row) => {
+		const sourceSaleId = normalizeId(row && row.source_id)
+		const sourceSale = sourceSaleId ? saleMap.get(sourceSaleId) : null
+		return {
+			_id: normalizeId(row && row._id),
+			biz_date: normalizeDate(row && row.biz_date),
+			amount: fixMoney(toNumber(row && row.amount, 0)),
+			allocated_amount: fixMoney(toNumber(row && row.allocated_amount, 0)),
+			unallocated_amount: fixMoney(toNumber(row && row.unallocated_amount, 0)),
+			note: normalizeString(row && row.note),
+			entry_kind: normalizeEntryKind(row && row.entry_kind, normalizeString(row && row.source_type).includes('offset') ? 'offset_credit' : 'prepay'),
+			source_type: normalizeString(row && row.source_type),
+			source_id: sourceSaleId,
+			source_sale_date: normalizeDate(sourceSale && sourceSale.date),
+			source_sale_offset_enabled: sourceSale ? resolveSaleOffsetEnabled(sourceSale, true) : null,
+			created_at: toNumber(row && row.created_at, 0)
+		}
+	})
+	const hasMore = skip + rows.length < total
+
+	return {
+		code: 0,
+		msg: 'ok',
+		data: rows,
+		total,
+		paging: {
+			page: filters.page,
+			pageSize: filters.page_size,
+			total,
+			hasMore
+		}
+	}
+}
+
+async function applyOffsetAllocationsToReceipt({
+	user,
+	requestId,
+	customer,
+	receiptDoc,
+	plan,
+	allocationTargets = []
+}) {
+	const receiptId = normalizeId(receiptDoc && receiptDoc._id)
+	if (!receiptId) return { ok: false, code: 400, msg: 'receipt_id 无效' }
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const normalizedTargets = normalizeAllocationTargets(allocationTargets || [])
+	const currentAllocated = fixMoney(toNumber(receiptDoc && receiptDoc.allocated_amount, 0))
+	const currentUnallocated = fixMoney(toNumber(receiptDoc && receiptDoc.unallocated_amount, 0))
+	const receiptSourceType = normalizeString(receiptDoc && receiptDoc.source_type)
+	const receiptEntryKind = normalizeEntryKind(
+		receiptDoc && receiptDoc.entry_kind,
+		receiptSourceType.includes('offset') ? 'offset_credit' : 'prepay'
+	)
+	const existingRows = await listReceiptAllocationRows(receiptId, customer._id)
+	let seq = existingRows.reduce((maxValue, row) => Math.max(maxValue, toNumber(row && row.seq, 0)), 0) + 1
+	let allocatedDelta = 0
+
+	for (const item of plan.allocations || []) {
+		const targetType = normalizeReceivableTargetType(item.target_type)
+		const targetId = normalizeId(item.target_id || item.sale_id)
+		if (!targetId) continue
+
+		let targetDate = ''
+		let targetTitle = normalizeString(item.target_title)
+		let allocateAmount = 0
+
+		if (targetType === 'flow_settlement') {
+			const flowRes = await flowSettlements.doc(targetId).get()
+			const flowDoc = (flowRes.data && flowRes.data[0]) || null
+			if (!flowDoc || normalizeId(flowDoc.customer_id) !== customer._id || normalizeString(flowDoc.status) !== 'posted') continue
+			const snapshot = computeFlowSettlementSnapshot(flowDoc)
+			if (snapshot.outstanding <= 0) continue
+			allocateAmount = fix3(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
+			if (allocateAmount <= 0) continue
+			const nextAmountReceived = fix3(snapshot.amount_received + allocateAmount)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextAmountReceived, 3)
+			await flowSettlements.doc(targetId).update({
+				amount_received: nextAmountReceived,
+				payment_status: nextStatus,
+				updated_at: Date.now()
+			})
+			targetDate = normalizeString(flowDoc.biz_date)
+			if (!targetTitle) targetTitle = `流量结算 ${targetDate} / ${targetId.slice(-6)}`
+		} else if (targetType === 'opening_debt') {
+			const debtRes = await openingDebts.doc(targetId).get()
+			const debtDoc = (debtRes.data && debtRes.data[0]) || null
+			if (!debtDoc || normalizeId(debtDoc.customer_id) !== customer._id || normalizeString(debtDoc.status) !== 'posted') continue
+			const snapshot = computeOpeningDebtSnapshot(debtDoc, moneyScale)
+			if (snapshot.outstanding <= 0) continue
+			allocateAmount = fixMoney(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
+			if (allocateAmount <= 0) continue
+			const nextAmountReceived = fixMoney(snapshot.amount_received + allocateAmount)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.amount, nextAmountReceived, moneyScale)
+			await openingDebts.doc(targetId).update({
+				amount_received: nextAmountReceived,
+				outstanding: fixMoney(Math.max(snapshot.amount - nextAmountReceived, 0)),
+				payment_status: nextStatus,
+				updated_at: Date.now()
+			})
+			targetDate = normalizeString(debtDoc.biz_date)
+			if (!targetTitle) targetTitle = `历史欠款 ${targetDate} / ${targetId.slice(-6)}`
+		} else {
+			const saleRes = await sales.doc(targetId).get()
+			const saleDoc = (saleRes.data && saleRes.data[0]) || null
+			if (!saleDoc || normalizeId(saleDoc.customer_id) !== customer._id) continue
+			const snapshot = computeSaleSnapshot(saleDoc)
+			if (snapshot.outstanding <= 0) continue
+			allocateAmount = fix2(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
+			if (allocateAmount <= 0) continue
+			const nextAmountReceived = fix2(snapshot.amount_received + allocateAmount)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextAmountReceived)
+			await sales.doc(targetId).update({
+				amount_received: nextAmountReceived,
+				payment_status: nextStatus,
+				updated_at: Date.now()
+			})
+			targetDate = normalizeString(saleDoc.date)
+			if (!targetTitle) targetTitle = `销售单 ${targetDate} / ${targetId.slice(-6)}`
+		}
+
+		await allocations.add({
+			receipt_id: receiptId,
+			customer_id: customer._id,
+			customer_name: customer.name,
+			sale_id: targetId,
+			sale_date: targetDate,
+			flow_settlement_id: targetType === 'flow_settlement' ? targetId : null,
+			target_type: targetType,
+			target_id: targetId,
+			target_title: targetTitle,
+			biz_date: normalizeBizDate(receiptDoc && receiptDoc.biz_date, Date.now()),
+			allocate_amount: allocateAmount,
+			seq,
+			note: '冲抵手工分配',
+			receipt_source_type: receiptSourceType,
+			receipt_entry_kind: receiptEntryKind,
+			receipt_biz_date: normalizeString(receiptDoc && receiptDoc.biz_date),
+			allocation_mode: 'checked',
+			allocation_start_date: '',
+			allocation_end_date: '',
+			allocation_targets: normalizedTargets,
+			source_type: 'offset_manual_allocate',
+			source_id: receiptId,
+			request_id: requestId,
+			created_at: Date.now(),
+			created_by: normalizeId(user && user._id) || null,
+			created_by_name: normalizeString(user && user.username)
+		})
+		seq += 1
+		allocatedDelta = fixMoney(allocatedDelta + allocateAmount)
+	}
+
+	const nextAllocated = fixMoney(currentAllocated + allocatedDelta)
+	const nextUnallocated = fixMoney(Math.max(currentUnallocated - allocatedDelta, 0))
+	await receipts.doc(receiptId).update({
+		allocated_amount: nextAllocated,
+		unallocated_amount: nextUnallocated,
+		allocation_mode: 'checked',
+		allocation_start_date: '',
+		allocation_end_date: '',
+		allocation_targets: normalizedTargets,
+		updated_at: Date.now(),
+		updated_by: normalizeId(user && user._id) || null,
+		updated_by_name: normalizeString(user && user.username)
+	})
+
+	return {
+		ok: true,
+		receipt_id: receiptId,
+		allocated_delta: allocatedDelta,
+		allocated_amount: nextAllocated,
+		unallocated_amount: nextUnallocated
+	}
+}
+
+async function allocateOffsetCreditV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'allocateOffsetCreditV1', requestId)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const customerId = normalizeId(data.customer_id || data.customerId)
+	const receiptId = normalizeId(data.receipt_id || data.receiptId)
+	const allocationTargets = normalizeAllocationTargets(data.allocation_targets || data.allocationTargets || [])
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if (!receiptId) return { code: 400, msg: 'receipt_id 必填' }
+	if (!allocationTargets.length) return { code: 400, msg: '请先勾选至少一条冲抵目标' }
+
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { code: 404, msg: '客户不存在' }
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+
+	const receiptRes = await receipts.doc(receiptId).get()
+	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
+	if (!receiptDoc) return { code: 404, msg: '冲抵来源不存在' }
+	if (normalizeId(receiptDoc.customer_id) !== customerId) return { code: 400, msg: '冲抵来源不属于该客户' }
+	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持已入账冲抵来源' }
+	if (!isOffsetCreditReceiptRow(receiptDoc)) return { code: 400, msg: '该单据不是冲抵款来源' }
+
+	const available = fixMoney(toNumber(receiptDoc.unallocated_amount, 0))
+	if (!(available > 0)) return { code: 400, msg: '该冲抵来源无可用余额' }
+	let amount = data.amount == null || data.amount === '' ? available : fixMoney(toNumber(data.amount, 0))
+	if (!(amount > 0)) return { code: 400, msg: '本次冲抵金额必须大于0' }
+	if (amount > available) amount = available
+
+	const plan = await buildAllocationPlan(customerId, amount, {
+		allocationMode: 'checked',
+		allocationTargets
+	})
+	if (!plan.ok) return { code: plan.code || 400, msg: plan.msg || '冲抵分配失败' }
+	if (!(toNumber(plan.allocated_total, 0) > 0)) return { code: 400, msg: '当前勾选目标无可冲抵欠款' }
+
+	const applyRes = await applyOffsetAllocationsToReceipt({
+		user,
+		requestId,
+		customer,
+		receiptDoc,
+		plan,
+		allocationTargets
+	})
+	if (!applyRes.ok) return { code: applyRes.code || 400, msg: applyRes.msg || '冲抵分配失败' }
+
+	const balances = await rebuildCustomerBalances(customerId)
+	await recordLog(
+		user,
+		'customer_offset_credit_allocate_v1',
+		{
+			customer_id: customerId,
+			receipt_id: receiptId,
+			allocated_delta: applyRes.allocated_delta,
+			target_count: allocationTargets.length
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		msg: '冲抵分配成功',
+		data: {
+			receipt_id: receiptId,
+			customer_id: customerId,
+			allocated_total: applyRes.allocated_delta,
+			remaining_unallocated: applyRes.unallocated_amount,
+			allocations: Array.isArray(plan.allocations) ? plan.allocations : [],
+			balances
+		}
+	}
+}
+
 async function exportCustomerStatementV1(user, data) {
 	void user
 	const customerId = normalizeId(data.customer_id || data.customerId)
@@ -2362,16 +3130,19 @@ async function exportCustomerStatementV1(user, data) {
 	const openingDateTo = addDays(dateFrom, -1)
 	const openingSales = openingDateTo ? await listCustomerSales(customerId, { dateTo: openingDateTo }) : []
 	const openingFlowSettlements = openingDateTo ? await listCustomerFlowSettlements(customerId, { dateTo: openingDateTo }) : []
+	const openingDebtRowsBefore = openingDateTo ? await listCustomerOpeningDebts(customerId, { dateTo: openingDateTo }) : []
 	const openingReceipts = await listCustomerReceipts(customerId, { dateBefore: dateFrom })
 	const openingShouldReceive = fixMoney(
 		openingSales.reduce((sum, row) => sum + computeSaleSnapshot(row).should_receive, 0) +
-			openingFlowSettlements.reduce((sum, row) => sum + computeFlowSettlementSnapshot(row).should_receive, 0)
+			openingFlowSettlements.reduce((sum, row) => sum + computeFlowSettlementSnapshot(row).should_receive, 0) +
+			openingDebtRowsBefore.reduce((sum, row) => sum + computeOpeningDebtSnapshot(row, moneyScale).amount, 0)
 	)
 	const openingReceived = fixMoney(openingReceipts.reduce((sum, row) => sum + toNumber(row && row.amount, 0), 0))
 	const openingBalance = fixMoney(openingShouldReceive - openingReceived)
 
 	const rangeSales = await listCustomerSales(customerId, { dateFrom, dateTo })
 	const rangeFlowSettlements = await listCustomerFlowSettlements(customerId, { dateFrom, dateTo })
+	const rangeOpeningDebts = await listCustomerOpeningDebts(customerId, { dateFrom, dateTo })
 	const rangeReceipts = await listCustomerReceipts(customerId, { dateFrom, dateTo })
 	const rangeAllocRes = await allocations
 		.where(
@@ -2422,6 +3193,13 @@ async function exportCustomerStatementV1(user, data) {
 		const snapshot = computeFlowSettlementSnapshot(row)
 		day.amount = fixMoney(day.amount + snapshot.should_receive)
 		day.flow_count += 1
+	})
+	rangeOpeningDebts.forEach((row) => {
+		const date = normalizeDate(row && row.biz_date)
+		const day = dayMap.get(date)
+		if (!day) return
+		const snapshot = computeOpeningDebtSnapshot(row, moneyScale)
+		day.amount = fixMoney(day.amount + snapshot.amount)
 	})
 
 	rangeReceipts.forEach((row) => {
@@ -2908,6 +3686,7 @@ async function repairOffsetCreditsV1(user, data, requestId) {
 	const dateFrom = normalizeDate(data.date_from || data.dateFrom)
 	const dateTo = normalizeDate(data.date_to || data.dateTo)
 	const execute = Boolean(data && data.execute)
+	const autoApply = Boolean(data && (data.auto_apply ?? data.autoApply))
 	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
 	if (!dateFrom || !dateTo) return { code: 400, msg: 'date_from/date_to 必填' }
 	if (dateFrom > dateTo) return { code: 400, msg: '开始日期不能晚于结束日期' }
@@ -2936,7 +3715,8 @@ async function repairOffsetCreditsV1(user, data, requestId) {
 		const saleId = normalizeId(saleDoc && saleDoc._id)
 		if (!saleId) continue
 		const snapshot = computeSaleSnapshot(saleDoc)
-		const expectedOffset = fix2(Math.max(0, snapshot.amount_received - snapshot.should_receive_effective))
+		const offsetEnabled = resolveSaleOffsetEnabled(saleDoc, true)
+		const expectedOffset = offsetEnabled ? fix2(Math.max(0, snapshot.amount_received - snapshot.should_receive_effective)) : 0
 		const existingRows = await listSaleOffsetCreditReceipts(customerId, saleId)
 		const existingTotal = fix2(existingRows.reduce((sum, row) => sum + toNumber(row && row.amount, 0), 0))
 		const existingAllocated = fix2(existingRows.reduce((sum, row) => sum + toNumber(row && row.allocated_amount, 0), 0))
@@ -2952,6 +3732,7 @@ async function repairOffsetCreditsV1(user, data, requestId) {
 		const detail = {
 			sale_id: saleId,
 			sale_date: normalizeString(saleDoc && saleDoc.date),
+			offset_enabled: offsetEnabled,
 			should_receive_effective: fix2(snapshot.should_receive_effective),
 			amount_received: fix2(snapshot.amount_received),
 			expected_offset_credit: expectedOffset,
@@ -3038,7 +3819,7 @@ async function repairOffsetCreditsV1(user, data, requestId) {
 	}
 
 	const autoApplyResults = []
-	if (execute) {
+	if (execute && autoApply) {
 		for (const row of sortedSales) {
 			const saleId = normalizeId(row && row._id)
 			if (!saleId) continue
@@ -3060,6 +3841,7 @@ async function repairOffsetCreditsV1(user, data, requestId) {
 			date_from: dateFrom,
 			date_to: dateTo,
 			execute,
+			auto_apply: autoApply,
 			sales: sortedSales.length,
 			created_count: createdCount,
 			reduced_count: reducedCount,
@@ -3072,6 +3854,7 @@ async function repairOffsetCreditsV1(user, data, requestId) {
 		msg: execute ? '冲抵款修复完成' : '冲抵款修复预览完成',
 		data: {
 			execute,
+			auto_apply: autoApply,
 			customer_id: customerId,
 			date_from: dateFrom,
 			date_to: dateTo,
@@ -3280,6 +4063,7 @@ async function autoApplyPrepayToSaleV1(user, data, requestId) {
 
 	const customer = await getCustomerById(customerId)
 	if (!customer) return { code: 400, msg: '客户不存在' }
+	const excludeOffsetCredit = Boolean(data && (data.exclude_offset_credit ?? data.excludeOffsetCredit))
 
 	const snapshot = computeSaleSnapshot(saleDoc)
 	if (snapshot.outstanding <= 0) {
@@ -3317,7 +4101,10 @@ async function autoApplyPrepayToSaleV1(user, data, requestId) {
 		.orderBy('created_at', 'asc')
 		.limit(2000)
 		.get()
-	const receiptRows = Array.isArray(receiptRes.data) ? receiptRes.data : []
+	const receiptRowsAll = Array.isArray(receiptRes.data) ? receiptRes.data : []
+	const receiptRows = excludeOffsetCredit
+		? receiptRowsAll.filter((row) => !isOffsetCreditReceiptRow(row))
+		: receiptRowsAll
 	if (!receiptRows.length) {
 		const shouldStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, snapshot.amount_received)
 		const offsetSummaryMap = await getSaleOffsetSummaryMap(customerId, [saleId])
@@ -3469,12 +4256,80 @@ async function getCustomerStatementV1(user, data) {
 	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
 	const customer = await getCustomerById(customerId)
 	if (!customer) return { code: 404, msg: '客户不存在' }
+	const summaryDateFrom = normalizeDate(
+		data.summary_date_from
+		|| data.summaryDateFrom
+		|| data.date_from
+		|| data.dateFrom
+	)
+	const summaryDateTo = normalizeDate(
+		data.summary_date_to
+		|| data.summaryDateTo
+		|| data.date_to
+		|| data.dateTo
+	)
+	if ((summaryDateFrom && !summaryDateTo) || (!summaryDateFrom && summaryDateTo)) {
+		return { code: 400, msg: 'summary_date_from/summary_date_to 必须同时传入' }
+	}
+	if (summaryDateFrom && summaryDateTo && summaryDateFrom > summaryDateTo) {
+		return { code: 400, msg: 'summary_date_from 不能晚于 summary_date_to' }
+	}
+	const summaryOnly = Boolean(data.summary_only || data.summaryOnly)
 	const moneyScale = resolveCustomerMoneyScale(customer)
 	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const customerPayload = {
+		_id: customer._id,
+		name: customer.name,
+		short_name: customer.short_name,
+		phone: customer.phone,
+		contact: customer.contact,
+		default_price_unit: normalizeString(customer.default_price_unit) || 'kg',
+		default_unit_price: toNumber(customer.default_unit_price, null)
+	}
 
 	const balances = await rebuildCustomerBalances(customerId)
+	let scopedSummary = null
+	if (summaryDateFrom && summaryDateTo) {
+		const scopedSalesDocs = await listCustomerSales(customerId, { dateFrom: summaryDateFrom, dateTo: summaryDateTo })
+		const scopedFlowDocs = await listCustomerFlowSettlements(customerId, { dateFrom: summaryDateFrom, dateTo: summaryDateTo })
+		const scopedOpeningDebtDocs = await listCustomerOpeningDebts(customerId, { dateFrom: summaryDateFrom, dateTo: summaryDateTo })
+		const scoped = await buildBusinessSummaryFromTargets(customer, {
+			salesDocs: scopedSalesDocs,
+			flowDocs: scopedFlowDocs,
+			openingDebtDocs: scopedOpeningDebtDocs
+		})
+		scopedSummary = {
+			date_from: summaryDateFrom,
+			date_to: summaryDateTo,
+			receivable_balance: fixMoney(scoped.receivable_balance),
+			should_receive_total: fixMoney(scoped.should_receive_total),
+			amount_received_total: fixMoney(scoped.amount_received_total)
+		}
+	}
+	if (summaryOnly) {
+		return {
+			code: 0,
+			data: {
+				customer: customerPayload,
+				summary: balances || {
+					receivable_balance: 0,
+					prepay_balance: 0,
+					net_balance: 0,
+					should_receive_total: 0,
+					amount_received_total: 0,
+					last_receipt_at: null
+				},
+				summary_scope: scopedSummary,
+				recent_sales: [],
+				recent_receipts: [],
+				recent_flow_settlements: [],
+				recent_opening_debts: []
+			}
+		}
+	}
 	const salesDocs = await listCustomerSales(customerId)
 	const flowDocs = await listCustomerFlowSettlements(customerId)
+	const openingDebtDocs = await listCustomerOpeningDebts(customerId)
 	const saleDepositBalanceSnapshotMap = buildSaleDepositBalanceSnapshotMap(salesDocs, 20)
 	let saleRows = salesDocs
 		.map((doc) => {
@@ -3588,19 +4443,29 @@ async function getCustomerStatementV1(user, data) {
 			if (a.biz_date !== b.biz_date) return a.biz_date < b.biz_date ? 1 : -1
 			return a.created_at < b.created_at ? 1 : -1
 		})
+	const recentOpeningDebts = openingDebtDocs
+		.map((doc) => {
+			const snapshot = computeOpeningDebtSnapshot(doc, moneyScale)
+			return {
+				_id: normalizeId(doc._id),
+				biz_date: normalizeString(doc.biz_date),
+				amount: snapshot.amount,
+				amount_received: snapshot.amount_received,
+				outstanding: snapshot.outstanding,
+				payment_status: snapshot.payment_status,
+				note: normalizeString(doc.note),
+				created_at: toNumber(doc.created_at, 0)
+			}
+		})
+		.sort((a, b) => {
+			if (a.biz_date !== b.biz_date) return a.biz_date < b.biz_date ? 1 : -1
+			return a.created_at < b.created_at ? 1 : -1
+		})
 
 	return {
 		code: 0,
 		data: {
-			customer: {
-				_id: customer._id,
-				name: customer.name,
-				short_name: customer.short_name,
-				phone: customer.phone,
-				contact: customer.contact,
-				default_price_unit: normalizeString(customer.default_price_unit) || 'kg',
-				default_unit_price: toNumber(customer.default_unit_price, null)
-			},
+			customer: customerPayload,
 			summary: balances || {
 				receivable_balance: 0,
 				prepay_balance: 0,
@@ -3609,9 +4474,11 @@ async function getCustomerStatementV1(user, data) {
 				amount_received_total: 0,
 				last_receipt_at: null
 			},
+			summary_scope: scopedSummary,
 			recent_sales: saleRows.slice(0, 100),
 			recent_receipts: recentReceipts,
-			recent_flow_settlements: recentFlowSettlements.slice(0, 20)
+			recent_flow_settlements: recentFlowSettlements.slice(0, 20),
+			recent_opening_debts: recentOpeningDebts.slice(0, 20)
 		}
 	}
 }
@@ -3632,6 +4499,7 @@ async function listCustomerStatementRowsV1(user, data) {
 
 	const salesDocs = await listCustomerSales(customerId, { dateFrom, dateTo })
 	const flowDocs = await listCustomerFlowSettlements(customerId, { dateFrom, dateTo })
+	const openingDebtDocs = await listCustomerOpeningDebts(customerId, { dateFrom, dateTo })
 	const saleRows = salesDocs.map((doc) => {
 		const snapshot = computeSaleSnapshot(doc)
 		return {
@@ -3737,8 +4605,26 @@ async function listCustomerStatementRowsV1(user, data) {
 			}
 		}
 	})
+	const openingDebtRows = openingDebtDocs.map((doc) => {
+		const snapshot = computeOpeningDebtSnapshot(doc, moneyScale)
+		return {
+			row_type: 'opening_debt',
+			row_id: normalizeId(doc._id),
+			biz_date: normalizeString(doc.biz_date),
+			created_at: toNumber(doc.created_at, 0),
+			sale_id: normalizeId(doc._id),
+			receipt_id: '',
+			amount: snapshot.amount,
+			amount_received: snapshot.amount_received,
+			outstanding: snapshot.outstanding,
+			note: normalizeString(doc.note),
+			meta: {
+				payment_status: snapshot.payment_status
+			}
+		}
+	})
 
-	const rows = [...saleRows, ...flowRows, ...receiptRows, ...allocRows].sort((a, b) => {
+	const rows = [...saleRows, ...flowRows, ...openingDebtRows, ...receiptRows, ...allocRows].sort((a, b) => {
 		if (a.biz_date !== b.biz_date) return a.biz_date < b.biz_date ? 1 : -1
 		if (a.created_at !== b.created_at) return a.created_at < b.created_at ? 1 : -1
 		return a.row_id < b.row_id ? 1 : -1
@@ -3839,6 +4725,11 @@ exports.main = async (event, context) => {
 	if (action === 'updateReceiptV1') return updateReceiptV1(user, data, requestId)
 	if (action === 'removeReceiptV1') return removeReceiptV1(user, data, requestId)
 	if (action === 'createPrepayEntryV1') return createPrepayEntryV1(user, data, requestId)
+	if (action === 'createOpeningDebtEntryV1') return createOpeningDebtEntryV1(user, data, requestId)
+	if (action === 'updateOpeningDebtEntryV1') return updateOpeningDebtEntryV1(user, data, requestId)
+	if (action === 'removeOpeningDebtEntryV1') return removeOpeningDebtEntryV1(user, data, requestId)
+	if (action === 'listOffsetCreditPoolV1') return listOffsetCreditPoolV1(user, data)
+	if (action === 'allocateOffsetCreditV1') return allocateOffsetCreditV1(user, data, requestId)
 	if (action === 'confirmAllocationV1') return confirmAllocationV1(user, data, requestId)
 	if (action === 'repairReceiptAllocationV1') return repairReceiptAllocationV1(user, data, requestId)
 	if (action === 'repairOffsetCreditsV1') return repairOffsetCreditsV1(user, data, requestId)

@@ -6,6 +6,11 @@ function normalizeLossResultType(value) {
 	return ''
 }
 
+function normalizeAnomalyMode(value) {
+	const text = String(value || '').trim().toLowerCase()
+	return text === 'bottle' ? 'bottle' : 'single'
+}
+
 export async function listBottleMovementsV1(params) {
 	const data = {
 		bottle_no: params.bottle_no || params.bottleNo || '',
@@ -69,6 +74,23 @@ export async function getBottleCycleLossV1(params = {}) {
 	}
 	return callCloud('crm-bottle-movement', {
 		action: 'cycleLossV1',
+		data
+	})
+}
+
+export async function getBottleLossAnomalyRankV1(params = {}) {
+	const data = {
+		bottle_no: params.bottle_no || params.bottleNo || '',
+		customer_name: params.customer_name || params.customerName || '',
+		dateStart: params.dateStart || '',
+		dateEnd: params.dateEnd || '',
+		mode: normalizeAnomalyMode(params.mode),
+		limit: params.limit || 5,
+		page: params.page || 1,
+		pageSize: params.pageSize || params.limitSize || params.size || 20
+	}
+	return callCloud('crm-bottle-movement', {
+		action: 'lossAnomalyRankV1',
 		data
 	})
 }

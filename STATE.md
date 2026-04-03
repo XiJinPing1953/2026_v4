@@ -6878,3 +6878,54 @@
   - `npm run build:h5`（通过）
 - 剩余问题：
   - 需你在实际设备/端侧拖拽复测；若某端仍有安全区偏差，再按端侧单独校准边界预留。
+
+### 2026-04-02 CURRENT — 理论损耗统计优化（近7天首屏 + 本月后台预取 + 异常TOP/抽屉）
+- 做了什么：
+  - `pages/bottle/loss` 首屏改为自动查询：页面挂载后默认填充滚动近7天（含当天）并触发查询，不再需要先点“刷新”。
+  - 查询链路拆分为主次两段：先拉 `cycleLossV1` 渲染周期明细，再异步拉 `lossStatsV1` 修复差值，降低首屏可见等待；分页切换仅刷新周期明细，不再重复请求修复统计。
+  - 新增“异常TOP”区块：`单次异常TOP` + `瓶号累计异常TOP`，首屏各展示 5 条，均按当前筛选口径计算。
+  - 新增“查看全部”同页抽屉：支持两个 Tab（单次异常/瓶号累计）和分页翻页，避免跳转页面。
+  - 新增本月后台预取（偷偷加载）：在默认条件（无瓶号/客户、近7天默认筛选）查询成功后，后台异步预取本月全分页周期/修复/TOP并缓存（TTL）；切到“本月”优先命中缓存秒开。
+  - 云函数 `crm-bottle-movement` 新增 action `lossAnomalyRankV1`，统一汇总周期异常 + 修复差值，返回 `top_single`、`top_bottle` 及分页列表。
+  - 前端服务 `src/services/bottleMovement.js` 新增 `getBottleLossAnomalyRankV1` 封装。
+  - `crm_bottle_movements` schema 新增两条复合索引：
+    - `type + event_day + event_at + created_at`
+    - `type + source_type + event_day + event_at + created_at`
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleLossView.vue`
+  - `src/services/bottleMovement.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `uniCloud-alipay/database/schema/crm_bottle_movements.schema.json`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 本月“偷偷预取”走前端分页聚合，数据量特别大时仍会有后台请求成本，但已限制在本月范围并加 TTL 缓存。
+  - 新增索引需线上同步发布后，范围查询性能收益才会完全体现。
+
+### 2026-04-03 CURRENT — 销售冲抵改为“手工入池 + 客户对账手工分配”
+- 做了什么：
+  - 销售侧新增并落库 `offset_enabled`，新建默认 `false`；编辑历史单据（缺字段）前端按 `true` 回显兼容旧口径。
+  - 销售保存后不再让冲抵款自动冲销：`repairOffsetCreditsV1` 明确 `auto_apply=false`，`autoApplyPrepayToSaleV1` 在销售链路改为 `exclude_offset_credit=true`（仅保留普通预付自动分配）。
+  - 销售更新增加保护：当冲抵来源已存在已分配记录时，禁止将 `offset_enabled` 从开启改为关闭，并返回明确提示。
+  - 客户对账页新增独立“冲抵分配”区：来源池分页、单笔来源选择、本次冲抵金额、勾选目标（销售/流量/历史欠款）与提交分配。
+  - 销售编辑/详情/客户对账文案同步改为“手工分配”口径，去除“自动用于后续结算”表述。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `uniCloud-alipay/database/schema/crm_sale_records.schema.json`
+  - `src/services/models/sale.js`
+  - `src/services/sale.js`
+  - `src/components/domain/sale/SaleSettlementCard.vue`
+  - `src/components/domain/sale/SaleEditView.vue`
+  - `src/components/domain/sale/SaleDetailView.vue`
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - `offset_enabled` 为新增字段，线上若未同步发布 `crm_sale_records` schema，可能出现落库校验不通过；需同时发布 schema 与云函数。

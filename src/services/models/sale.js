@@ -123,6 +123,15 @@ function toNumber(value, fallback = null) {
 	return num
 }
 
+function toBoolean(value, fallback = false) {
+	if (typeof value === 'boolean') return value
+	const text = normalizeString(value).toLowerCase()
+	if (!text) return fallback
+	if (['1', 'true', 'yes', 'y', 'on'].includes(text)) return true
+	if (['0', 'false', 'no', 'n', 'off'].includes(text)) return false
+	return fallback
+}
+
 function normalizeTicketImages(images, legacyImage) {
 	const list = []
 	const pushOne = (value) => {
@@ -242,6 +251,7 @@ function normalizeSaleDraft(input = {}) {
 		ticketImages: normalizeTicketImages(input.ticketImages, input.ticketImage),
 		amountReceived: toNumber(input.amountReceived, 0),
 		roundingAmount: toNumber(input.roundingAmount, 0),
+		offsetEnabled: toBoolean(input.offsetEnabled ?? input.offset_enabled, false),
 		paymentStatus,
 		paymentMethod,
 		paymentNote: normalizeString(input.paymentNote),

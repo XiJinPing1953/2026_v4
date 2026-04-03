@@ -114,11 +114,80 @@ export async function createPrepayEntryV1(params = {}) {
 	})
 }
 
+export async function createOpeningDebtEntryV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'createOpeningDebtEntryV1',
+		data: {
+			customer_id: params.customerId || params.customer_id || '',
+			amount: params.amount,
+			biz_date: params.bizDate || params.biz_date || '',
+			note: params.note || '',
+			source_type: params.sourceType || params.source_type || 'customer_opening_debt_manual',
+			source_id: params.sourceId || params.source_id || ''
+		}
+	})
+}
+
+export async function updateOpeningDebtEntryV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'updateOpeningDebtEntryV1',
+		data: {
+			opening_debt_id: params.openingDebtId || params.opening_debt_id || params._id || '',
+			customer_id: params.customerId || params.customer_id || '',
+			amount: params.amount,
+			biz_date: params.bizDate || params.biz_date || '',
+			note: params.note || '',
+			source_type: params.sourceType || params.source_type || '',
+			source_id: params.sourceId || params.source_id || ''
+		}
+	})
+}
+
+export async function listOffsetCreditPoolV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'listOffsetCreditPoolV1',
+		data: {
+			customer_id: params.customerId || params.customer_id || '',
+			only_unallocated: params.onlyUnallocated ?? params.only_unallocated ?? true,
+			page: params.page || 1,
+			pageSize: params.pageSize || 20
+		}
+	})
+}
+
+export async function allocateOffsetCreditV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'allocateOffsetCreditV1',
+		data: {
+			customer_id: params.customerId || params.customer_id || '',
+			receipt_id: params.receiptId || params.receipt_id || '',
+			amount: params.amount,
+			allocation_targets: Array.isArray(params.allocationTargets || params.allocation_targets)
+				? (params.allocationTargets || params.allocation_targets)
+				: []
+		}
+	})
+}
+
+export async function removeOpeningDebtEntryV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'removeOpeningDebtEntryV1',
+		data: {
+			opening_debt_id: params.openingDebtId || params.opening_debt_id || params._id || '',
+			customer_id: params.customerId || params.customer_id || '',
+			reason: params.reason || ''
+		}
+	})
+}
+
 export async function getCustomerStatementV1(params = {}) {
 	return callCloud('crm-customer-settlement', {
 		action: 'getCustomerStatementV1',
 		data: {
-			customer_id: params.customerId || params.customer_id || ''
+			customer_id: params.customerId || params.customer_id || '',
+			summary_date_from: params.summaryDateFrom || params.summary_date_from || '',
+			summary_date_to: params.summaryDateTo || params.summary_date_to || '',
+			summary_only: Boolean(params.summaryOnly || params.summary_only)
 		}
 	})
 }
@@ -253,7 +322,8 @@ export async function repairOffsetCreditsV1(params = {}) {
 			customer_id: params.customerId || params.customer_id || '',
 			date_from: params.dateFrom || params.date_from || '',
 			date_to: params.dateTo || params.date_to || '',
-			execute: Boolean(params.execute)
+			execute: Boolean(params.execute),
+			auto_apply: params.autoApply ?? params.auto_apply ?? false
 		}
 	})
 }
