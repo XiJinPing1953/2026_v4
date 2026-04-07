@@ -251,6 +251,7 @@ function normalizeSaleDraft(input = {}) {
 		ticketImages: normalizeTicketImages(input.ticketImages, input.ticketImage),
 		amountReceived: toNumber(input.amountReceived, 0),
 		roundingAmount: toNumber(input.roundingAmount, 0),
+		applyOffsetCredit: toBoolean(input.applyOffsetCredit ?? input.apply_offset_credit, false),
 		offsetEnabled: toBoolean(input.offsetEnabled ?? input.offset_enabled, false),
 		paymentStatus,
 		paymentMethod,

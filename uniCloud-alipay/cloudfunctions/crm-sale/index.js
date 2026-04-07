@@ -2779,6 +2779,9 @@ async function createV2(user, payload, requestId, token) {
 	const amountReceived = settlementMode === 'customer_flow' ? 0 : toNumber(base.amountReceived, 0)
 	const effectiveShouldReceive = toNumber(amountsForCheck.effective_should_receive, 0)
 	const offsetDelta = settlementMode === 'customer_flow' ? 0 : fix2(Math.max(0, amountReceived - effectiveShouldReceive))
+	const applyOffsetCredit = settlementMode !== 'customer_flow'
+		? toBoolean(base.applyOffsetCredit ?? base.apply_offset_credit, false)
+		: false
 	const offsetEnabled = settlementMode !== 'customer_flow' && offsetDelta > 0
 		? toBoolean(base.offsetEnabled ?? base.offset_enabled, false)
 		: false
@@ -2810,6 +2813,7 @@ async function createV2(user, payload, requestId, token) {
 		amount_received: amountReceived,
 		rounding_amount: settlementMode === 'customer_flow' ? 0 : Math.max(toNumber(base.roundingAmount, 0), 0),
 		payment_note: settlementMode === 'customer_flow' ? '' : normalizeString(base.paymentNote),
+		apply_offset_credit: applyOffsetCredit,
 		offset_enabled: offsetEnabled,
 		created_at: Date.now(),
 		created_by: user._id,
@@ -2915,7 +2919,7 @@ async function createV2(user, payload, requestId, token) {
 			'autoApplyPrepayToSaleV1',
 			{
 				sale_id: res.id,
-				exclude_offset_credit: true
+				exclude_offset_credit: !applyOffsetCredit
 			},
 			token,
 			requestId
@@ -4076,11 +4080,19 @@ async function updateV2(user, data, requestId, token) {
 		if (!settlementCheck.ok) return { code: 400, msg: settlementCheck.msg }
 	}
 	const existingOffsetEnabled = resolveSaleOffsetEnabled(existing, true)
+	const existingApplyOffsetCredit = toBoolean(existing && (existing.apply_offset_credit ?? existing.applyOffsetCredit), false)
 	const hasIncomingOffsetEnabled = Object.prototype.hasOwnProperty.call(base, 'offsetEnabled')
 		|| Object.prototype.hasOwnProperty.call(base, 'offset_enabled')
+	const hasIncomingApplyOffsetCredit = Object.prototype.hasOwnProperty.call(base, 'applyOffsetCredit')
+		|| Object.prototype.hasOwnProperty.call(base, 'apply_offset_credit')
 	const requestedOffsetEnabled = hasIncomingOffsetEnabled
 		? toBoolean(base.offsetEnabled ?? base.offset_enabled, existingOffsetEnabled)
 		: existingOffsetEnabled
+	const nextApplyOffsetCredit = settlementMode === 'customer_flow'
+		? false
+		: (hasIncomingApplyOffsetCredit
+			? toBoolean(base.applyOffsetCredit ?? base.apply_offset_credit, existingApplyOffsetCredit)
+			: existingApplyOffsetCredit)
 	const amountReceived = settlementMode === 'customer_flow' ? 0 : toNumber(base.amountReceived, 0)
 	const effectiveShouldReceive = toNumber(amountsForCheck.effective_should_receive, 0)
 	const offsetDelta = settlementMode === 'customer_flow' ? 0 : fix2(Math.max(0, amountReceived - effectiveShouldReceive))
@@ -4122,6 +4134,7 @@ async function updateV2(user, data, requestId, token) {
 		amount_received: amountReceived,
 		rounding_amount: settlementMode === 'customer_flow' ? 0 : Math.max(toNumber(base.roundingAmount, 0), 0),
 		payment_note: settlementMode === 'customer_flow' ? '' : normalizeString(base.paymentNote),
+		apply_offset_credit: nextApplyOffsetCredit,
 		offset_enabled: nextOffsetEnabled,
 		updated_at: Date.now()
 	}
@@ -4268,7 +4281,7 @@ async function updateV2(user, data, requestId, token) {
 			'autoApplyPrepayToSaleV1',
 			{
 				sale_id: recordId,
-				exclude_offset_credit: true
+				exclude_offset_credit: !nextApplyOffsetCredit
 			},
 			token,
 			requestId
@@ -4368,14 +4381,27 @@ async function removeV2(user, data, requestId, token) {
 		else throw err
 	}
 	await sales.doc(recordId).remove()
-	const refreshBalanceRes = await callCustomerSettlement(
-		'refreshCustomerBalancesV1',
-		{ customer_id: normalizeString(saleDoc.customer_id) },
+	const customerId = normalizeString(saleDoc.customer_id)
+	const releaseSaleSettlementRes = await callCustomerSettlement(
+		'releaseSaleSettlementOnRemoveV1',
+		{
+			customer_id: customerId,
+			sale_id: recordId
+		},
 		token,
 		requestId
 	)
-	if (refreshBalanceRes.code !== 0) {
-		sideWarnings.push(normalizeString(refreshBalanceRes.msg) || '客户余额未同步')
+	if (releaseSaleSettlementRes.code !== 0) {
+		sideWarnings.push(normalizeString(releaseSaleSettlementRes.msg) || '销售结算关联未同步回收')
+		const refreshBalanceRes = await callCustomerSettlement(
+			'refreshCustomerBalancesV1',
+			{ customer_id: customerId },
+			token,
+			requestId
+		)
+		if (refreshBalanceRes.code !== 0) {
+			sideWarnings.push(normalizeString(refreshBalanceRes.msg) || '客户余额未同步')
+		}
 	}
 
 	const touchRes = await triggerAnomalyTouchV2(

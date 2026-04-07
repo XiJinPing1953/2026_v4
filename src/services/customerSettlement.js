@@ -162,6 +162,9 @@ export async function allocateOffsetCreditV1(params = {}) {
 			customer_id: params.customerId || params.customer_id || '',
 			receipt_id: params.receiptId || params.receipt_id || '',
 			amount: params.amount,
+			allocation_mode: params.allocationMode || params.allocation_mode || '',
+			allocation_start_date: params.allocationStartDate || params.allocation_start_date || '',
+			allocation_end_date: params.allocationEndDate || params.allocation_end_date || '',
 			allocation_targets: Array.isArray(params.allocationTargets || params.allocation_targets)
 				? (params.allocationTargets || params.allocation_targets)
 				: []

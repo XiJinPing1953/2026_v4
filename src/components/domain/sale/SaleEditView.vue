@@ -125,6 +125,11 @@
 						size="sm"
 						:should-receive="settlementSummary.amount"
 						:formula="settlementSummary.formula"
+						:payment-status-locked="true"
+						:offset-credit-available="offsetCreditAvailable"
+						:offset-credit-loading="offsetCreditLoading"
+						:expected-offset-applied="expectedOffsetAppliedAmount"
+						:final-amount-received="finalAmountReceivedPreview"
 					/>
 				</AppSection>
 				<AppSection v-else title="对账说明">
@@ -161,8 +166,10 @@ import AppButton from '@/components/base/AppButton.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { normalizeBottleNo } from '@/services/models'
 import { createSaleV2, getSaleV2, updateSaleV2, getCustomerDepositV1 } from '@/services/sale'
+import { listOffsetCreditPoolV1 } from '@/services/customerSettlement'
 import { useQuery } from '@/composables/useQuery'
 import { useSaleSettlement } from '@/composables/useSaleSettlement'
+import { toNumber, fix2 } from '@/utils/number'
 import SaleBasicInfoCard from '@/components/domain/sale/SaleBasicInfoCard.vue'
 import SaleBottleLinesCard from '@/components/domain/sale/SaleBottleLinesCard.vue'
 import SaleDepositCard from '@/components/domain/sale/SaleDepositCard.vue'
@@ -216,6 +223,7 @@ const settlement = ref({
 	paymentMethod: 'on_account',
 	amountReceived: '',
 	roundingAmount: '',
+	applyOffsetCredit: false,
 	offsetEnabled: false,
 	paymentNote: ''
 })
@@ -227,6 +235,9 @@ const agentSaleRows = ref([])
 const submitting = ref(false)
 const originBottleSnapshot = ref({ out: [], back: [], deposit: [] })
 const ticketImages = ref([])
+const offsetCreditLoading = ref(false)
+const offsetCreditAvailable = ref(0)
+let offsetCreditFetchSeq = 0
 
 const showBottleBlocks = computed(() => form.value.bizMode === 'bottle')
 const showTruckBlocks = computed(() => form.value.bizMode === 'truck')
@@ -255,6 +266,27 @@ const { summary: settlementSummary, validate: validateSettlement } = useSaleSett
 	flow,
 	settlement
 })
+const effectiveShouldReceive = computed(() => {
+	const num = Number(settlementSummary.value?.settledAmount)
+	return Number.isFinite(num) ? fix2(num) : 0
+})
+const manualAmountReceived = computed(() => {
+	const num = Number(settlement.value?.amountReceived)
+	return Number.isFinite(num) ? fix2(num) : 0
+})
+const normalizedOffsetCreditAvailable = computed(() => {
+	const num = Number(offsetCreditAvailable.value)
+	return Number.isFinite(num) && num > 0 ? fix2(num) : 0
+})
+const expectedOffsetAppliedAmount = computed(() => {
+	if (!showSettlementBlocks.value || !settlement.value?.applyOffsetCredit) return 0
+	if (effectiveShouldReceive.value <= 0) return 0
+	const outstanding = fix2(effectiveShouldReceive.value - manualAmountReceived.value)
+	if (outstanding <= 0) return 0
+	return fix2(Math.min(normalizedOffsetCreditAvailable.value, outstanding))
+})
+const finalAmountReceivedPreview = computed(() => fix2(manualAmountReceived.value + expectedOffsetAppliedAmount.value))
+const autoPaymentStatus = computed(() => resolvePaymentStatusByAmount(effectiveShouldReceive.value, finalAmountReceivedPreview.value))
 
 const depositSummaryHint = computed(() => {
 	const dateText = form.value.date ? `截至${form.value.date}` : '截至当前'
@@ -300,6 +332,27 @@ function resolveOffsetEnabled(doc, fallback = false) {
 	if (['1', 'true', 'yes', 'y', 'on'].includes(text)) return true
 	if (['0', 'false', 'no', 'n', 'off'].includes(text)) return false
 	return Boolean(fallback)
+}
+
+function resolveApplyOffsetCredit(doc, fallback = false) {
+	const raw = doc?.apply_offset_credit ?? doc?.applyOffsetCredit
+	if (raw == null || raw === '') return Boolean(fallback)
+	if (typeof raw === 'boolean') return raw
+	if (typeof raw === 'number') return raw !== 0
+	const text = String(raw).trim().toLowerCase()
+	if (!text) return Boolean(fallback)
+	if (['1', 'true', 'yes', 'y', 'on'].includes(text)) return true
+	if (['0', 'false', 'no', 'n', 'off'].includes(text)) return false
+	return Boolean(fallback)
+}
+
+function resolvePaymentStatusByAmount(shouldReceive, amountReceived) {
+	const should = fix2(toNumber(shouldReceive, 0))
+	const received = fix2(toNumber(amountReceived, 0))
+	if (should <= 0) return 'paid'
+	if (received <= 0) return 'unpaid'
+	if (received >= should || Math.abs(received - should) < 0.01) return 'paid'
+	return 'partial'
 }
 
 function extractBottleNos(rows) {
@@ -411,6 +464,21 @@ watch(
 )
 
 watch(
+	() => [form.value.customerId, form.value.settlementMode],
+	([customerId, settlementMode]) => {
+		if (!customerId || settlementMode === 'customer_flow') {
+			offsetCreditFetchSeq += 1
+			offsetCreditAvailable.value = 0
+			offsetCreditLoading.value = false
+			settlement.value.applyOffsetCredit = false
+			return
+		}
+		loadOffsetCreditAvailability(customerId)
+	},
+	{ immediate: true }
+)
+
+watch(
 	() => form.value.priceUnit,
 	(priceUnit, prevPriceUnit) => {
 		if (!priceUnit || priceUnit === prevPriceUnit) return
@@ -455,6 +523,16 @@ watch(
 		if (!settlement.value.paymentMethod || settlement.value.paymentMethod === 'on_account') {
 			settlement.value.paymentMethod = 'cash'
 		}
+	},
+	{ immediate: true }
+)
+
+watch(
+	() => autoPaymentStatus.value,
+	(status) => {
+		if (!showSettlementBlocks.value) return
+		if (settlement.value.paymentStatus === status) return
+		settlement.value.paymentStatus = status
 	},
 	{ immediate: true }
 )
@@ -547,6 +625,7 @@ async function loadDetail(id) {
 		paymentMethod: doc.payment_method || ((doc.payment_status || 'unpaid') === 'unpaid' ? 'on_account' : 'cash'),
 		amountReceived: doc.amount_received == null ? '' : String(doc.amount_received),
 		roundingAmount: doc.rounding_amount == null ? '' : String(doc.rounding_amount),
+		applyOffsetCredit: resolveApplyOffsetCredit(doc, false),
 		offsetEnabled: resolveOffsetEnabled(doc, true),
 		paymentNote: doc.payment_note || ''
 	}
@@ -599,6 +678,64 @@ async function loadDetail(id) {
 	await applyTicketImages(Array.isArray(doc.ticket_images) ? doc.ticket_images : [doc.ticket_image || ''])
 }
 
+async function loadOffsetCreditAvailability(customerId = form.value.customerId) {
+	const targetCustomerId = String(customerId || '').trim()
+	const fetchSeq = ++offsetCreditFetchSeq
+	if (!targetCustomerId || !showSettlementBlocks.value) {
+		offsetCreditAvailable.value = 0
+		offsetCreditLoading.value = false
+		settlement.value.applyOffsetCredit = false
+		return
+	}
+	offsetCreditLoading.value = true
+	let availableTotal = 0
+	try {
+		let page = 1
+		let guard = 0
+		while (guard < 200) {
+			const res = await listOffsetCreditPoolV1({
+				customerId: targetCustomerId,
+				onlyUnallocated: true,
+				page,
+				pageSize: 200
+			})
+			if (fetchSeq !== offsetCreditFetchSeq) return
+			if (res?.code !== 0) {
+				availableTotal = 0
+				break
+			}
+			const rows = Array.isArray(res?.data) ? res.data : []
+			availableTotal = fix2(
+				availableTotal + rows.reduce((sum, row) => sum + toNumber(row?.unallocated_amount, 0), 0)
+			)
+			const hasMore = Boolean(res?.paging?.hasMore)
+			if (!hasMore || rows.length <= 0) break
+			page += 1
+			guard += 1
+		}
+	} catch (_) {
+		if (fetchSeq !== offsetCreditFetchSeq) return
+		availableTotal = 0
+	} finally {
+		if (fetchSeq !== offsetCreditFetchSeq) return
+		offsetCreditAvailable.value = fix2(Math.max(availableTotal, 0))
+		offsetCreditLoading.value = false
+		if (offsetCreditAvailable.value <= 0) settlement.value.applyOffsetCredit = false
+	}
+}
+
+function syncSettlementStatusForSubmit() {
+	if (!showSettlementBlocks.value) return
+	settlement.value.paymentStatus = autoPaymentStatus.value
+	if (settlement.value.paymentStatus === 'unpaid') {
+		settlement.value.paymentMethod = 'on_account'
+		return
+	}
+	if (!settlement.value.paymentMethod || settlement.value.paymentMethod === 'on_account') {
+		settlement.value.paymentMethod = 'cash'
+	}
+}
+
 async function onSubmit() {
 	if (submitting.value) return
 	
@@ -612,6 +749,7 @@ async function onSubmit() {
 		return
 	}
 
+	syncSettlementStatusForSubmit()
 	const validation = validateSettlement()
 	if (!validation.ok) {
 		uni.showToast({ title: validation.msg || '结算金额与付款状态不一致', icon: 'none' })

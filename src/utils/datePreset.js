@@ -27,6 +27,12 @@ function getMonthStart(baseDate = new Date()) {
 	return date
 }
 
+function getYearStart(baseDate = new Date()) {
+	const date = getToday(baseDate)
+	date.setMonth(0, 1)
+	return date
+}
+
 export function buildDatePresetRange(preset, baseDate = new Date()) {
 	const today = getToday(baseDate)
 	if (preset === 'today') {
@@ -45,16 +51,26 @@ export function buildDatePresetRange(preset, baseDate = new Date()) {
 			dateEnd: formatDateInput(today)
 		}
 	}
+	if (preset === 'year') {
+		return {
+			dateStart: formatDateInput(getYearStart(today)),
+			dateEnd: formatDateInput(today)
+		}
+	}
 	return {
 		dateStart: '',
 		dateEnd: ''
 	}
 }
 
-export function detectDatePreset(dateStart, dateEnd, baseDate = new Date()) {
+export function detectDatePreset(dateStart, dateEnd, baseDate = new Date(), options = {}) {
 	const start = String(dateStart || '').trim()
 	const end = String(dateEnd || '').trim()
 	if (!start && !end) return 'custom'
+	if (options && options.includeYear) {
+		const yearRange = buildDatePresetRange('year', baseDate)
+		if (start === yearRange.dateStart && end === yearRange.dateEnd) return 'year'
+	}
 	const todayRange = buildDatePresetRange('today', baseDate)
 	if (start === todayRange.dateStart && end === todayRange.dateEnd) return 'today'
 	const weekRange = buildDatePresetRange('week', baseDate)

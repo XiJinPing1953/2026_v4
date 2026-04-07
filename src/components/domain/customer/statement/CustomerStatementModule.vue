@@ -1,25 +1,50 @@
 <template>
 	<AppPage title="客户对账" :subtitle="subtitle" icon="wallet">
 		<template #headerActions>
-			<AppButton
-				size="sm"
-				kind="outline"
-				:loading="exportingStatement"
-				:disabled="loading || rowsLoading || analysisLoading"
-				@click="onExportStatement"
-			>
-				导出对账单
-			</AppButton>
-			<AppButton size="sm" kind="neutral" :disabled="loading || rowsLoading || analysisLoading" @click="refreshAll">刷新</AppButton>
-			<AppButton size="sm" kind="neutral" @click="onBack">返回</AppButton>
+			<view class="statement-header-actions">
+				<picker class="header-date-picker" mode="date" @change="onRowsDateFromChange">
+					<AppButton size="sm" kind="neutral" :disabled="rowsLoading || analysisLoading">{{ headerRowsDateFromText }}</AppButton>
+				</picker>
+				<picker class="header-date-picker" mode="date" @change="onRowsDateToChange">
+					<AppButton size="sm" kind="neutral" :disabled="rowsLoading || analysisLoading">{{ headerRowsDateToText }}</AppButton>
+				</picker>
+				<AppButton size="sm" kind="primary" :loading="rowsLoading || analysisLoading" @click="searchRows(true)">查询日期</AppButton>
+				<AppButton
+					size="sm"
+					:kind="rowsDatePreset === 'year' ? 'primary' : 'ghost'"
+					:disabled="rowsLoading || analysisLoading"
+					@click="onRowsYearQuick"
+				>
+					本年累计
+				</AppButton>
+				<AppButton
+					size="sm"
+					:kind="rowsDatePreset === 'month' ? 'primary' : 'ghost'"
+					:disabled="rowsLoading || analysisLoading"
+					@click="onRowsMonthQuick"
+				>
+					本月累计
+				</AppButton>
+				<AppButton
+					size="sm"
+					kind="outline"
+					:loading="exportingStatement"
+					:disabled="loading || rowsLoading || analysisLoading"
+					@click="onExportStatement"
+				>
+					导出对账单
+				</AppButton>
+				<AppButton size="sm" kind="neutral" :disabled="loading || rowsLoading || analysisLoading" @click="refreshAll">刷新</AppButton>
+				<AppButton size="sm" kind="neutral" @click="onBack">返回</AppButton>
+			</view>
 		</template>
 
 		<template #highlights>
 			<view class="summary-row">
-				<AppStatCard class="summary-card" label="应收未收" :value="formatSummaryMoney(summary.receivable_balance)" hint="元" icon="alert" />
-				<AppStatCard class="summary-card" label="预付款余额" :value="formatSummaryMoney(summary.prepay_balance)" hint="元" icon="check-circle" />
-				<AppStatCard class="summary-card" label="应收欠款" :value="formatSummaryMoney(summary.net_balance)" hint="元" icon="wallet" />
-				<AppStatCard class="summary-card" label="最近回款" :value="lastReceiptText" hint="日期" icon="calendar" />
+				<AppStatCard class="summary-card" label="应收余额(未扣冲抵)" :value="formatSummaryMoney(summaryReceivableBalanceDisplay)" hint="元" icon="alert" />
+				<AppStatCard class="summary-card" label="可冲抵余额" :value="formatSummaryMoney(summaryPrepayBalanceDisplay)" hint="元" icon="check-circle" />
+				<AppStatCard class="summary-card" label="净欠款(扣冲抵后)" :value="formatSummaryMoney(summaryNetBalanceDisplay)" hint="元" icon="wallet" />
+				<AppStatCard class="summary-card" label="最近回款" :value="summaryLastReceiptText" hint="日期" icon="calendar" />
 			</view>
 		</template>
 
@@ -56,6 +81,16 @@
 						<text class="overview-value">¥{{ formatMoney(overviewAmountReceivedTotal) }}</text>
 						<text class="overview-meta">{{ overviewScopeText }}</text>
 					</view>
+					<view class="overview-item">
+						<text class="overview-label">其中预付款</text>
+						<text class="overview-value">¥{{ formatMoney(overviewPrepayManualBalance) }}</text>
+						<text class="overview-meta">{{ overviewScopeText }}</text>
+					</view>
+					<view class="overview-item">
+						<text class="overview-label">其中冲抵池</text>
+						<text class="overview-value">¥{{ formatMoney(overviewOffsetCreditBalance) }}</text>
+						<text class="overview-meta">{{ overviewScopeText }}</text>
+					</view>
 				</view>
 			</AppSection>
 
@@ -79,7 +114,7 @@
 							size="sm"
 							kind="primary"
 							:loading="offsetAllocating"
-							:disabled="!selectedOffsetReceiptId"
+							:disabled="selectedOffsetReceiptCount <= 0"
 							@click="onAllocateOffsetCredit"
 						>
 							提交冲抵
@@ -183,14 +218,14 @@
 					</view>
 				</view>
 
-				<view v-else-if="activeOperationTab === 'offset'" class="operation-panel">
-					<view class="checked-target-box">
-						<view class="checked-target-head">
-							<text>冲抵来源池（仅可用余额）</text>
-							<text>共 {{ offsetPoolPager.total }} 条 · 第 {{ offsetPoolPager.page }} / {{ offsetPoolTotalPages }} 页</text>
-						</view>
-						<AppList :loading="offsetPoolLoading" :empty="offsetPoolRows.length === 0" empty-title="暂无可用冲抵来源">
-							<AppListItem
+					<view v-else-if="activeOperationTab === 'offset'" class="operation-panel">
+						<view class="checked-target-box">
+							<view class="checked-target-head">
+								<text>冲抵来源池（仅可用余额）</text>
+								<text>已选 {{ selectedOffsetReceiptCount }} 笔 · 共 {{ offsetPoolPager.total }} 条 · 第 {{ offsetPoolPager.page }} / {{ offsetPoolTotalPages }} 页</text>
+							</view>
+							<AppList :loading="offsetPoolLoading" :empty="offsetPoolRows.length === 0" empty-title="暂无可用冲抵来源">
+								<AppListItem
 								v-for="row in offsetPoolRows"
 								:key="row._id"
 								:title="`${row.source_sale_date || row.biz_date || '-'} · 冲抵来源`"
@@ -214,10 +249,10 @@
 									<view class="row-actions">
 										<AppButton
 											size="sm"
-											:kind="selectedOffsetReceiptId === normalizeString(row._id) ? 'primary' : 'ghost'"
-											@click="onSelectOffsetReceipt(row)"
+											:kind="isOffsetSourceSelected(row) ? 'primary' : 'ghost'"
+											@click="onToggleOffsetReceipt(row)"
 										>
-											{{ selectedOffsetReceiptId === normalizeString(row._id) ? '已选择' : '选择来源' }}
+											{{ isOffsetSourceSelected(row) ? '已选择' : '选择来源' }}
 										</AppButton>
 									</view>
 								</template>
@@ -229,7 +264,7 @@
 						</view>
 					</view>
 
-					<view class="receipt-grid">
+					<view class="receipt-grid receipt-grid--four">
 						<AppInput :model-value="selectedOffsetReceiptSummary" label="已选来源" placeholder="请选择冲抵来源" readonly size="sm" />
 						<AppInput
 							v-model="offsetAllocateForm.amount"
@@ -238,10 +273,31 @@
 							size="sm"
 							@blur="onOffsetAllocateAmountBlur"
 						/>
+						<picker
+							class="picker-block"
+							mode="selector"
+							:range="offsetAllocationModeOptions"
+							range-key="label"
+							:value="offsetAllocationModeIndex"
+							@change="onOffsetAllocationModeChange"
+						>
+							<AppInput :model-value="offsetAllocationModeLabel" label="分配模式" placeholder="请选择模式" readonly size="sm" />
+						</picker>
+						<picker v-if="offsetAllocateForm.allocationMode === 'period'" class="picker-block" mode="date" @change="onOffsetAllocationStartDateChange">
+							<AppInput v-model="offsetAllocateForm.allocationStartDate" label="分配开始日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
+						</picker>
+						<picker v-if="offsetAllocateForm.allocationMode === 'period'" class="picker-block" mode="date" @change="onOffsetAllocationEndDateChange">
+							<AppInput v-model="offsetAllocateForm.allocationEndDate" label="分配结束日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
+						</picker>
 					</view>
-					<text class="section-hint">分配口径：单笔来源 + 勾选目标。仅消耗本来源可用余额，不回滚历史分配。</text>
+					<text v-if="offsetAllocateForm.allocationMode === 'period'" class="section-hint">
+						分配口径：单笔来源 + 时间段。仅冲销区间内应收，剩余保留在该来源可用余额中。
+					</text>
+					<text v-else class="section-hint">
+						分配口径：单笔来源 + 勾选目标（支持多选）。仅消耗本来源可用余额，不回滚历史分配。
+					</text>
 
-					<view class="checked-target-box">
+					<view v-if="offsetAllocateForm.allocationMode === 'checked'" class="checked-target-box">
 						<view class="checked-target-head">
 							<text>勾选冲抵目标（销售/流量/历史欠款）</text>
 							<text>已选 {{ offsetCheckedTargetKeys.length }} 笔</text>
@@ -255,7 +311,7 @@
 								</view>
 							</label>
 						</checkbox-group>
-						<text v-if="checkedTargetCandidates.length === 0" class="preview-empty">当前无可冲抵欠款目标。</text>
+						<text v-if="checkedTargetCandidates.length === 0" class="preview-empty">当前无可冲抵欠款目标，可切换到时间段分配。</text>
 					</view>
 				</view>
 
@@ -602,16 +658,7 @@
 					</view>
 				</template>
 				<view class="quick-date-strip">
-					<AppDatePresetBar v-model="rowsDatePreset" @update:modelValue="onRowsDatePresetChange" />
-				</view>
-				<view class="filter-grid">
-					<picker class="picker-block" mode="date" @change="onRowsDateFromChange">
-						<AppInput v-model="rowFilters.dateFrom" label="开始日期" placeholder="选择开始日期" prefix-icon="calendar" readonly size="sm" />
-					</picker>
-					<picker class="picker-block" mode="date" @change="onRowsDateToChange">
-						<AppInput v-model="rowFilters.dateTo" label="结束日期" placeholder="选择结束日期" prefix-icon="calendar" readonly size="sm" />
-					</picker>
-					<AppButton size="sm" kind="primary" :loading="rowsLoading || analysisLoading" @click="searchRows(true)">查询流水</AppButton>
+					<AppDatePresetBar v-model="rowsDatePreset" :items="rowsDatePresetItems" @update:modelValue="onRowsDatePresetChange" />
 				</view>
 
 				<AppList :loading="rowsLoading" :empty="statementRows.length === 0" empty-title="暂无流水">
@@ -727,7 +774,7 @@ const bottleReferencePrice = ref('')
 const checkedAllocationTargetKeys = ref([])
 const offsetCheckedTargetKeys = ref([])
 const offsetPoolRows = ref([])
-const selectedOffsetReceipt = ref(null)
+const selectedOffsetReceipts = ref([])
 const quickSceneApplied = ref(false)
 const editingReceiptId = ref('')
 const editingFlowSettlementId = ref('')
@@ -755,6 +802,8 @@ const analysis = reactive({
 const summary = reactive({
 	receivable_balance: 0,
 	prepay_balance: 0,
+	prepay_manual_balance: 0,
+	offset_credit_balance: 0,
 	net_balance: 0,
 	should_receive_total: 0,
 	amount_received_total: 0,
@@ -763,8 +812,14 @@ const summary = reactive({
 const summaryScope = reactive({
 	date_from: '',
 	date_to: '',
+	receivable_balance: 0,
+	prepay_balance: 0,
+	prepay_manual_balance: 0,
+	offset_credit_balance: 0,
+	net_balance: 0,
 	should_receive_total: 0,
-	amount_received_total: 0
+	amount_received_total: 0,
+	last_receipt_at: null
 })
 
 const receiptForm = reactive({
@@ -786,6 +841,10 @@ const receiptPaymentMethodOptions = [
 const receiptAllocationModeOptions = [
 	{ label: '时间段分配', value: 'period' },
 	{ label: '勾选分配', value: 'checked' }
+]
+const offsetAllocationModeOptions = [
+	{ label: '勾选分配（可多选）', value: 'checked' },
+	{ label: '时间段分配', value: 'period' }
 ]
 const prepayApplyStrategyOptions = [
 	{ label: '仅入预付', value: 'hold_only' },
@@ -815,7 +874,10 @@ const openingDebtForm = reactive({
 	note: ''
 })
 const offsetAllocateForm = reactive({
-	amount: ''
+	amount: '',
+	allocationMode: 'checked',
+	allocationStartDate: '',
+	allocationEndDate: ''
 })
 
 const analysisFilters = reactive({
@@ -829,6 +891,13 @@ const rowFilters = reactive({
 	dateTo: ''
 })
 const rowsDatePreset = ref('custom')
+const rowsDatePresetItems = [
+	{ label: '本年累计', value: 'year' },
+	{ label: '本月累计', value: 'month' },
+	{ label: '本周', value: 'week' },
+	{ label: '今日', value: 'today' },
+	{ label: '自定义', value: 'custom' }
+]
 
 const rowsPager = reactive({
 	page: 1,
@@ -855,6 +924,8 @@ const rowsTotalPages = computed(() => {
 	const pages = Math.ceil(Number(rowsPager.total || 0) / Number(rowsPager.pageSize || 50))
 	return pages > 0 ? pages : 1
 })
+const headerRowsDateFromText = computed(() => `开始 ${normalizeDate(rowFilters.dateFrom) || '--'}`)
+const headerRowsDateToText = computed(() => `结束 ${normalizeDate(rowFilters.dateTo) || '--'}`)
 const offsetPoolTotalPages = computed(() => {
 	const pages = Math.ceil(Number(offsetPoolPager.total || 0) / Number(offsetPoolPager.pageSize || 10))
 	return pages > 0 ? pages : 1
@@ -866,13 +937,30 @@ const receiptPrimaryActionLabel = computed(() => (isEditingReceipt.value ? '保�
 const flowPrimaryActionLabel = computed(() => (isEditingFlowSettlement.value ? '保存结算单' : '生成结算单'))
 const openingDebtPrimaryActionLabel = computed(() => (isEditingOpeningDebt.value ? '保存欠款' : '登记欠款'))
 
-const lastReceiptText = computed(() => {
-	const ts = Number(summary.last_receipt_at || 0)
+const hasSummaryScope = computed(() => Boolean(summaryScope.date_from && summaryScope.date_to))
+const summaryReceivableBalanceDisplay = computed(() => (
+	hasSummaryScope.value ? toNumber(summaryScope.receivable_balance, toNumber(summary.receivable_balance, 0)) : toNumber(summary.receivable_balance, 0)
+))
+const summaryPrepayBalanceDisplay = computed(() => (
+	hasSummaryScope.value ? toNumber(summaryScope.prepay_balance, toNumber(summary.prepay_balance, 0)) : toNumber(summary.prepay_balance, 0)
+))
+const summaryNetBalanceDisplay = computed(() => (
+	hasSummaryScope.value ? toNumber(summaryScope.net_balance, toNumber(summary.net_balance, 0)) : toNumber(summary.net_balance, 0)
+))
+const summaryLastReceiptAtDisplay = computed(() => {
+	if (hasSummaryScope.value) {
+		const scopedTs = Number(summaryScope.last_receipt_at || 0)
+		if (Number.isFinite(scopedTs) && scopedTs > 0) return scopedTs
+	}
+	const fallbackTs = Number(summary.last_receipt_at || 0)
+	return Number.isFinite(fallbackTs) && fallbackTs > 0 ? fallbackTs : 0
+})
+const summaryLastReceiptText = computed(() => {
+	const ts = Number(summaryLastReceiptAtDisplay.value || 0)
 	if (!Number.isFinite(ts) || ts <= 0) return '-'
 	const d = new Date(ts)
 	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 })
-const hasSummaryScope = computed(() => Boolean(summaryScope.date_from && summaryScope.date_to))
 const overviewScopeText = computed(() => (
 	hasSummaryScope.value ? `口径：${summaryScope.date_from} ~ ${summaryScope.date_to}` : '口径：全量'
 ))
@@ -881,6 +969,16 @@ const overviewShouldReceiveTotal = computed(() => (
 ))
 const overviewAmountReceivedTotal = computed(() => (
 	hasSummaryScope.value ? toNumber(summaryScope.amount_received_total, 0) : toNumber(summary.amount_received_total, 0)
+))
+const overviewPrepayManualBalance = computed(() => (
+	hasSummaryScope.value
+		? toNumber(summaryScope.prepay_manual_balance, toNumber(summary.prepay_manual_balance, 0))
+		: toNumber(summary.prepay_manual_balance, 0)
+))
+const overviewOffsetCreditBalance = computed(() => (
+	hasSummaryScope.value
+		? toNumber(summaryScope.offset_credit_balance, toNumber(summary.offset_credit_balance, 0))
+		: toNumber(summary.offset_credit_balance, 0)
 ))
 
 const customerPriceUnit = computed(() => normalizeString(customer.value?.default_price_unit) || 'kg')
@@ -940,6 +1038,14 @@ const receiptAllocationModeIndex = computed(() => {
 })
 const receiptAllocationModeLabel = computed(() => {
 	return receiptAllocationModeOptions[receiptAllocationModeIndex.value]?.label || '时间段分配'
+})
+const offsetAllocationModeIndex = computed(() => {
+	const normalized = normalizeReceiptAllocationMode(offsetAllocateForm.allocationMode)
+	const idx = offsetAllocationModeOptions.findIndex((item) => item.value === normalized)
+	return idx >= 0 ? idx : 0
+})
+const offsetAllocationModeLabel = computed(() => {
+	return offsetAllocationModeOptions[offsetAllocationModeIndex.value]?.label || '勾选分配（可多选）'
 })
 const prepayPaymentMethodIndex = computed(() => {
 	const normalized = normalizeReceiptPaymentMethod(prepayForm.paymentMethod)
@@ -1006,14 +1112,27 @@ const checkedTargetCandidates = computed(() => {
 		return a.key < b.key ? -1 : 1
 	})
 })
-const selectedOffsetReceiptId = computed(() => normalizeString(selectedOffsetReceipt.value?._id))
-const selectedOffsetReceiptAvailable = computed(() => fix2(toNumber(selectedOffsetReceipt.value?.unallocated_amount, 0)))
+const selectedOffsetReceiptIds = computed(() => {
+	return Array.from(
+		new Set(
+			(Array.isArray(selectedOffsetReceipts.value) ? selectedOffsetReceipts.value : [])
+				.map((row) => normalizeString(row?._id))
+				.filter(Boolean)
+		)
+	)
+})
+const selectedOffsetReceiptCount = computed(() => selectedOffsetReceiptIds.value.length)
+const selectedOffsetReceiptAvailableTotal = computed(() => {
+	return fix2(
+		(Array.isArray(selectedOffsetReceipts.value) ? selectedOffsetReceipts.value : []).reduce(
+			(sum, row) => sum + toNumber(row?.unallocated_amount, 0),
+			0
+		)
+	)
+})
 const selectedOffsetReceiptSummary = computed(() => {
-	if (!selectedOffsetReceiptId.value) return '-'
-	const sourceSaleDate = normalizeDate(selectedOffsetReceipt.value?.source_sale_date)
-	const bizDate = normalizeDate(selectedOffsetReceipt.value?.biz_date)
-	const dateText = sourceSaleDate || bizDate || '-'
-	return `${dateText} / ${selectedOffsetReceiptId.value.slice(-6)}（可用 ¥${formatMoney(selectedOffsetReceiptAvailable.value)}）`
+	if (selectedOffsetReceiptCount.value <= 0) return '-'
+	return `已选 ${selectedOffsetReceiptCount.value} 笔（可用合计 ¥${formatMoney(selectedOffsetReceiptAvailableTotal.value)}）`
 })
 const recentSalesDisplayRows = computed(() => {
 	const saleRows = (Array.isArray(recentSales.value) ? recentSales.value : []).map((row) => ({
@@ -1457,6 +1576,15 @@ function currentMonthRange() {
 	}
 }
 
+function currentYearRange() {
+	const d = new Date()
+	const start = `${d.getFullYear()}-01-01`
+	return {
+		dateFrom: start,
+		dateTo: todayYmd()
+	}
+}
+
 function onOperationTabChange(value) {
 	const next = normalizeString(value)
 	if (!operationTabs.some((item) => item.value === next)) return
@@ -1512,6 +1640,27 @@ function onOffsetCheckedTargetsChange(e) {
 	offsetCheckedTargetKeys.value = Array.from(new Set(normalized))
 }
 
+function onOffsetAllocationModeChange(e) {
+	const idx = Number(e?.detail?.value)
+	const item = offsetAllocationModeOptions[idx]
+	const nextMode = normalizeReceiptAllocationMode(item?.value)
+	offsetAllocateForm.allocationMode = nextMode
+	if (nextMode === 'checked') {
+		offsetAllocateForm.allocationStartDate = ''
+		offsetAllocateForm.allocationEndDate = ''
+		return
+	}
+	const selectedRows = Array.isArray(selectedOffsetReceipts.value) ? selectedOffsetReceipts.value : []
+	const dates = selectedRows
+		.map((row) => normalizeDate(row?.source_sale_date) || normalizeDate(row?.biz_date))
+		.filter(Boolean)
+		.sort()
+	const fallbackStart = dates[0] || todayYmd()
+	const fallbackEnd = dates[dates.length - 1] || fallbackStart
+	if (!offsetAllocateForm.allocationStartDate) offsetAllocateForm.allocationStartDate = fallbackStart
+	if (!offsetAllocateForm.allocationEndDate) offsetAllocateForm.allocationEndDate = fallbackEnd
+}
+
 function onReceiptAllocationModeChange(e) {
 	const idx = Number(e?.detail?.value)
 	const item = receiptAllocationModeOptions[idx]
@@ -1556,6 +1705,45 @@ function buildCheckedAllocationTargets() {
 function buildOffsetAllocationTargets() {
 	const keys = Array.isArray(offsetCheckedTargetKeys.value) ? offsetCheckedTargetKeys.value : []
 	return parseAllocationTargetKeys(keys)
+}
+
+function validateOffsetAllocationRange() {
+	const start = normalizeString(offsetAllocateForm.allocationStartDate)
+	const end = normalizeString(offsetAllocateForm.allocationEndDate)
+	if (!start || !end) {
+		uni.showToast({ title: '请选择冲抵开始/结束日期', icon: 'none' })
+		return null
+	}
+	if (start > end) {
+		uni.showToast({ title: '冲抵开始日期不能晚于结束日期', icon: 'none' })
+		return null
+	}
+	return { start, end }
+}
+
+function buildOffsetAllocationPayload() {
+	const mode = normalizeReceiptAllocationMode(offsetAllocateForm.allocationMode)
+	if (mode === 'period') {
+		const range = validateOffsetAllocationRange()
+		if (!range) return null
+		return {
+			allocationMode: 'period',
+			allocationStartDate: range.start,
+			allocationEndDate: range.end,
+			allocationTargets: []
+		}
+	}
+	const targets = buildOffsetAllocationTargets()
+	if (!targets.length) {
+		uni.showToast({ title: '请先勾选冲抵目标', icon: 'none' })
+		return null
+	}
+	return {
+		allocationMode: 'checked',
+		allocationStartDate: '',
+		allocationEndDate: '',
+		allocationTargets: targets
+	}
 }
 
 function buildReceiptAllocationPayload() {
@@ -1661,23 +1849,71 @@ function resetOpeningDebtForm() {
 	openingDebtForm.note = ''
 }
 
+function dedupeOffsetSourceRows(rows = []) {
+	const map = new Map()
+	for (const row of Array.isArray(rows) ? rows : []) {
+		const id = normalizeString(row?._id)
+		if (!id) continue
+		map.set(id, { ...row, _id: id })
+	}
+	return Array.from(map.values())
+}
+
+function isOffsetSourceSelected(row) {
+	const id = normalizeString(row?._id)
+	if (!id) return false
+	return selectedOffsetReceiptIds.value.includes(id)
+}
+
+function syncOffsetAmountWithAvailable({ force = false } = {}) {
+	const total = selectedOffsetReceiptAvailableTotal.value
+	if (!force) {
+		const current = Number(offsetAllocateForm.amount)
+		if (Number.isFinite(current) && current > total) {
+			offsetAllocateForm.amount = total > 0 ? formatMoney(total) : ''
+			return
+		}
+		if (normalizeString(offsetAllocateForm.amount)) return
+	}
+	offsetAllocateForm.amount = total > 0 ? formatMoney(total) : ''
+}
+
 function resetOffsetAllocateForm(options = {}) {
 	const keepSelection = Boolean(options.keepSelection)
 	if (!keepSelection) {
-		selectedOffsetReceipt.value = null
+		selectedOffsetReceipts.value = []
 	}
-	offsetAllocateForm.amount = keepSelection && selectedOffsetReceiptId.value
-		? formatMoney(selectedOffsetReceiptAvailable.value)
-		: ''
+	const today = todayYmd()
+	offsetAllocateForm.amount = ''
+	offsetAllocateForm.allocationMode = 'checked'
+	offsetAllocateForm.allocationStartDate = today
+	offsetAllocateForm.allocationEndDate = today
 	offsetCheckedTargetKeys.value = []
+	syncOffsetAmountWithAvailable({ force: true })
 }
 
-function onSelectOffsetReceipt(row) {
+function onToggleOffsetReceipt(row) {
 	const receiptId = normalizeString(row?._id)
 	if (!receiptId) return
-	selectedOffsetReceipt.value = { ...row }
-	offsetAllocateForm.amount = formatMoney(row?.unallocated_amount)
+	if (isOffsetSourceSelected(row)) {
+		selectedOffsetReceipts.value = selectedOffsetReceipts.value.filter((item) => normalizeString(item?._id) !== receiptId)
+		syncOffsetAmountWithAvailable({ force: true })
+		return
+	}
+	selectedOffsetReceipts.value = dedupeOffsetSourceRows([...selectedOffsetReceipts.value, row])
 	offsetCheckedTargetKeys.value = []
+	if (normalizeReceiptAllocationMode(offsetAllocateForm.allocationMode) === 'period') {
+		const sourceDate = normalizeDate(row?.source_sale_date) || normalizeDate(row?.biz_date)
+		if (sourceDate) {
+			if (!offsetAllocateForm.allocationStartDate || offsetAllocateForm.allocationStartDate > sourceDate) {
+				offsetAllocateForm.allocationStartDate = sourceDate
+			}
+			if (!offsetAllocateForm.allocationEndDate || offsetAllocateForm.allocationEndDate < sourceDate) {
+				offsetAllocateForm.allocationEndDate = sourceDate
+			}
+		}
+	}
+	syncOffsetAmountWithAvailable({ force: true })
 }
 
 function cancelOpeningDebtEditing() {
@@ -1766,7 +2002,7 @@ function syncAnalysisFilterDefaults(force = false) {
 
 function syncRowsFilterDefaults(force = false) {
 	if (!force && rowFilters.dateFrom && rowFilters.dateTo) return
-	const range = currentMonthRange()
+	const range = currentYearRange()
 	rowFilters.dateFrom = range.dateFrom
 	rowFilters.dateTo = range.dateTo
 	syncRowsDatePreset()
@@ -1783,6 +2019,11 @@ function applyStatementSummary(data = {}) {
 	const nextSummary = data.summary || {}
 	summary.receivable_balance = toNumber(nextSummary.receivable_balance, 0)
 	summary.prepay_balance = toNumber(nextSummary.prepay_balance, 0)
+	summary.prepay_manual_balance = toNumber(nextSummary.prepay_manual_balance, 0)
+	summary.offset_credit_balance = toNumber(
+		nextSummary.offset_credit_balance,
+		Math.max(toNumber(nextSummary.prepay_balance, 0) - toNumber(nextSummary.prepay_manual_balance, 0), 0)
+	)
 	summary.net_balance = toNumber(nextSummary.net_balance, 0)
 	summary.should_receive_total = toNumber(nextSummary.should_receive_total, 0)
 	summary.amount_received_total = toNumber(nextSummary.amount_received_total, 0)
@@ -1794,13 +2035,37 @@ function applyStatementSummary(data = {}) {
 	if (dateFrom && dateTo && dateFrom <= dateTo) {
 		summaryScope.date_from = dateFrom
 		summaryScope.date_to = dateTo
+		summaryScope.receivable_balance = toNumber(nextScope.receivable_balance, toNumber(nextSummary.receivable_balance, 0))
+		summaryScope.prepay_balance = toNumber(nextScope.prepay_balance, toNumber(nextSummary.prepay_balance, 0))
+		summaryScope.prepay_manual_balance = toNumber(
+			nextScope.prepay_manual_balance,
+			toNumber(nextSummary.prepay_manual_balance, 0)
+		)
+		summaryScope.offset_credit_balance = toNumber(
+			nextScope.offset_credit_balance,
+			Math.max(
+				toNumber(nextScope.prepay_balance, toNumber(nextSummary.prepay_balance, 0))
+					- toNumber(nextScope.prepay_manual_balance, toNumber(nextSummary.prepay_manual_balance, 0)),
+				0
+			)
+		)
+		summaryScope.net_balance = toNumber(nextScope.net_balance, toNumber(nextSummary.net_balance, 0))
 		summaryScope.should_receive_total = toNumber(nextScope.should_receive_total, 0)
 		summaryScope.amount_received_total = toNumber(nextScope.amount_received_total, 0)
+		summaryScope.last_receipt_at = nextScope.last_receipt_at == null
+			? (nextSummary.last_receipt_at == null ? null : Number(nextSummary.last_receipt_at) || null)
+			: Number(nextScope.last_receipt_at) || null
 	} else {
 		summaryScope.date_from = ''
 		summaryScope.date_to = ''
+		summaryScope.receivable_balance = 0
+		summaryScope.prepay_balance = 0
+		summaryScope.prepay_manual_balance = 0
+		summaryScope.offset_credit_balance = 0
+		summaryScope.net_balance = 0
 		summaryScope.should_receive_total = 0
 		summaryScope.amount_received_total = 0
+		summaryScope.last_receipt_at = null
 	}
 }
 
@@ -1931,15 +2196,19 @@ async function loadOffsetCreditPool(reset = false) {
 		offsetPoolPager.pageSize = Number(paging.pageSize || offsetPoolPager.pageSize || 10)
 		offsetPoolPager.total = Number(paging.total || res.total || 0)
 		offsetPoolPager.hasMore = Boolean(paging.hasMore)
-		const selectedId = selectedOffsetReceiptId.value
-		if (selectedId) {
-			const hit = offsetPoolRows.value.find((row) => normalizeString(row?._id) === selectedId)
-			if (hit) selectedOffsetReceipt.value = { ...hit }
-			else if (offsetPoolPager.total <= 0) selectedOffsetReceipt.value = null
+		const selectedMap = new Map(
+			(Array.isArray(selectedOffsetReceipts.value) ? selectedOffsetReceipts.value : [])
+				.map((row) => [normalizeString(row?._id), row])
+				.filter((entry) => Boolean(entry[0]))
+		)
+		for (const row of offsetPoolRows.value) {
+			const id = normalizeString(row?._id)
+			if (id && selectedMap.has(id)) selectedMap.set(id, { ...row })
 		}
-		if (selectedOffsetReceiptId.value && !normalizeString(offsetAllocateForm.amount)) {
-			offsetAllocateForm.amount = formatMoney(selectedOffsetReceiptAvailable.value)
-		}
+		selectedOffsetReceipts.value = dedupeOffsetSourceRows(Array.from(selectedMap.values()))
+			.filter((row) => toNumber(row?.unallocated_amount, 0) > 0)
+		if (offsetPoolPager.total <= 0) selectedOffsetReceipts.value = []
+		syncOffsetAmountWithAvailable()
 	} finally {
 		offsetPoolLoading.value = false
 	}
@@ -2461,6 +2730,14 @@ function onOffsetAllocateAmountBlur() {
 	offsetAllocateForm.amount = normalizeFlowMoneyInput(offsetAllocateForm.amount)
 }
 
+function onOffsetAllocationStartDateChange(e) {
+	offsetAllocateForm.allocationStartDate = normalizeString(e?.detail?.value)
+}
+
+function onOffsetAllocationEndDateChange(e) {
+	offsetAllocateForm.allocationEndDate = normalizeString(e?.detail?.value)
+}
+
 function onOpeningDebtBizDateChange(e) {
 	openingDebtForm.bizDate = normalizeString(e?.detail?.value)
 }
@@ -2540,17 +2817,30 @@ function syncAnalysisDatePreset() {
 	analysisDatePreset.value = detectDatePreset(analysisFilters.dateFrom, analysisFilters.dateTo, new Date())
 }
 
-async function onRowsDatePresetChange(value) {
-	rowsDatePreset.value = value
-	if (value === 'custom') return
-	const range = buildDatePresetRange(value, new Date())
+async function applyRowsDatePreset(value) {
+	const preset = normalizeString(value) || 'custom'
+	rowsDatePreset.value = preset
+	if (preset === 'custom') return
+	const range = buildDatePresetRange(preset, new Date())
 	rowFilters.dateFrom = range.dateStart
 	rowFilters.dateTo = range.dateEnd
 	await searchRows(true)
 }
 
+async function onRowsYearQuick() {
+	await applyRowsDatePreset('year')
+}
+
+async function onRowsMonthQuick() {
+	await applyRowsDatePreset('month')
+}
+
+async function onRowsDatePresetChange(value) {
+	await applyRowsDatePreset(value)
+}
+
 function syncRowsDatePreset() {
-	rowsDatePreset.value = detectDatePreset(rowFilters.dateFrom, rowFilters.dateTo, new Date())
+	rowsDatePreset.value = detectDatePreset(rowFilters.dateFrom, rowFilters.dateTo, new Date(), { includeYear: true })
 }
 
 async function searchRows(reset = false) {
@@ -2572,19 +2862,25 @@ function onRowsNext() {
 
 async function onAllocateOffsetCredit() {
 	if (!recordId.value || offsetAllocating.value) return
-	const receiptId = selectedOffsetReceiptId.value
-	if (!receiptId) {
-		uni.showToast({ title: '请先选择冲抵来源', icon: 'none' })
+	const selectedSources = dedupeOffsetSourceRows(selectedOffsetReceipts.value)
+		.filter((row) => toNumber(row?.unallocated_amount, 0) > 0)
+		.sort((a, b) => {
+			const leftDate = normalizeDate(a?.source_sale_date) || normalizeDate(a?.biz_date)
+			const rightDate = normalizeDate(b?.source_sale_date) || normalizeDate(b?.biz_date)
+			if (leftDate !== rightDate) return leftDate < rightDate ? -1 : 1
+			const leftId = normalizeString(a?._id)
+			const rightId = normalizeString(b?._id)
+			return leftId < rightId ? -1 : 1
+		})
+	if (!selectedSources.length) {
+		uni.showToast({ title: '请先选择至少一笔冲抵来源', icon: 'none' })
 		return
 	}
-	const targets = buildOffsetAllocationTargets()
-	if (!targets.length) {
-		uni.showToast({ title: '请先勾选冲抵目标', icon: 'none' })
-		return
-	}
-	const available = selectedOffsetReceiptAvailable.value
+	const allocationPayload = buildOffsetAllocationPayload()
+	if (!allocationPayload) return
+	const available = fix2(selectedSources.reduce((sum, row) => sum + toNumber(row?.unallocated_amount, 0), 0))
 	if (!(available > 0)) {
-		uni.showToast({ title: '该来源无可用冲抵余额', icon: 'none' })
+		uni.showToast({ title: '所选来源无可用冲抵余额', icon: 'none' })
 		return
 	}
 	let amount = Number(offsetAllocateForm.amount)
@@ -2596,27 +2892,82 @@ async function onAllocateOffsetCredit() {
 
 	offsetAllocating.value = true
 	try {
-		const res = await allocateOffsetCreditV1({
+		const previewRes = await previewAllocationV1({
 			customerId: recordId.value,
-			receiptId,
 			amount,
-			allocationTargets: targets
+			allocationMode: allocationPayload.allocationMode,
+			allocationStartDate: allocationPayload.allocationStartDate,
+			allocationEndDate: allocationPayload.allocationEndDate,
+			allocationTargets: allocationPayload.allocationTargets
 		})
-		if (res?.code !== 0) {
-			uni.showToast({ title: res?.msg || '冲抵分配失败', icon: 'none' })
+		if (previewRes?.code !== 0) {
+			uni.showToast({ title: previewRes?.msg || '冲抵分配失败', icon: 'none' })
 			return
 		}
-		uni.showToast({ title: res?.msg || '冲抵分配成功', icon: 'success' })
+		const maxAllocatable = toNumber(previewRes?.data?.allocated_total, 0)
+		if (!(maxAllocatable > 0)) {
+			uni.showToast({
+				title: allocationPayload.allocationMode === 'period' ? '当前时间段内无可冲抵欠款' : '当前勾选目标无可冲抵欠款',
+				icon: 'none'
+			})
+			return
+		}
+		const amountToAllocate = Math.min(amount, maxAllocatable)
+		let remaining = amountToAllocate
+		let allocatedTotal = 0
+		let appliedSourceCount = 0
+		let failedMsg = ''
+		for (const source of selectedSources) {
+			if (!(remaining > 0)) break
+			const receiptId = normalizeString(source?._id)
+			if (!receiptId) continue
+			const sourceAvailable = Math.max(toNumber(source?.unallocated_amount, 0), 0)
+			if (!(sourceAvailable > 0)) continue
+			const applyAmount = Math.min(remaining, sourceAvailable)
+			const res = await allocateOffsetCreditV1({
+				customerId: recordId.value,
+				receiptId,
+				amount: applyAmount,
+				allocationMode: allocationPayload.allocationMode,
+				allocationStartDate: allocationPayload.allocationStartDate,
+				allocationEndDate: allocationPayload.allocationEndDate,
+				allocationTargets: allocationPayload.allocationTargets
+			})
+			if (res?.code !== 0) {
+				failedMsg = normalizeString(res?.msg) || '冲抵分配失败'
+				break
+			}
+			const allocatedDelta = toNumber(res?.data?.allocated_total, 0)
+			if (!(allocatedDelta > 0)) break
+			allocatedTotal = fix2(allocatedTotal + allocatedDelta)
+			remaining = fix2(Math.max(remaining - allocatedDelta, 0))
+			appliedSourceCount += 1
+		}
+		if (!(allocatedTotal > 0)) {
+			uni.showToast({ title: failedMsg || '冲抵分配失败', icon: 'none' })
+			return
+		}
 		offsetCheckedTargetKeys.value = []
-		const selectedId = receiptId
 		await refreshAll()
-		const latest = offsetPoolRows.value.find((row) => normalizeString(row?._id) === selectedId)
-		if (latest) {
-			selectedOffsetReceipt.value = { ...latest }
-			offsetAllocateForm.amount = formatMoney(latest.unallocated_amount)
+		const nextRemaining = fix2(Math.max(amountToAllocate - allocatedTotal, 0))
+		const nextAvailable = selectedOffsetReceiptAvailableTotal.value
+		if (nextRemaining > 0) {
+			const suggested = Math.min(nextRemaining, nextAvailable)
+			offsetAllocateForm.amount = suggested > 0 ? formatMoney(suggested) : ''
 		} else {
-			selectedOffsetReceipt.value = null
-			offsetAllocateForm.amount = ''
+			offsetAllocateForm.amount = nextAvailable > 0 ? formatMoney(nextAvailable) : ''
+		}
+		if (failedMsg) {
+			uni.showToast({
+				title: `已冲抵 ¥${formatMoney(allocatedTotal)}，部分来源失败：${failedMsg}`,
+				icon: 'none',
+				duration: 2800
+			})
+		} else {
+			uni.showToast({
+				title: `冲抵成功（来源 ${appliedSourceCount} 笔，合计 ¥${formatMoney(allocatedTotal)}）`,
+				icon: 'success'
+			})
 		}
 	} finally {
 		offsetAllocating.value = false
@@ -2653,7 +3004,7 @@ watch(
 		analysisFilters.dateFrom = ''
 		analysisFilters.dateTo = ''
 		analysisDatePreset.value = 'custom'
-		rowsDatePreset.value = detectDatePreset(rowFilters.dateFrom, rowFilters.dateTo, new Date())
+		rowsDatePreset.value = detectDatePreset(rowFilters.dateFrom, rowFilters.dateTo, new Date(), { includeYear: true })
 		await refreshAll()
 		applyQuickReceiveScene()
 	},
@@ -2720,6 +3071,17 @@ onMounted(() => {
 .operation-panel {
 	display: flex;
 	flex-direction: column;
+}
+
+.statement-header-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12rpx;
+	justify-content: flex-end;
+}
+
+.header-date-picker {
+	display: block;
 }
 
 .recent-toggle-row {
@@ -3080,6 +3442,10 @@ onMounted(() => {
 	.section-actions {
 		flex-direction: column;
 		align-items: flex-start;
+	}
+
+	.statement-header-actions {
+		justify-content: flex-start;
 	}
 
 	.recent-toggle-row {

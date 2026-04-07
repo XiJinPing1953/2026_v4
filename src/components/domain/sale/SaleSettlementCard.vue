@@ -18,11 +18,12 @@
 					:range="paymentStatusOptions"
 					range-key="label"
 					:value="paymentStatusIndex"
+					:disabled="paymentStatusLocked"
 					@change="onPaymentStatusChange"
 				>
 					<AppInput
 						:model-value="paymentStatusLabel"
-						label="付款状态"
+						:label="paymentStatusInputLabel"
 						placeholder="请选择状态"
 						prefix-icon="check-circle"
 						:size="size"
@@ -54,11 +55,26 @@
 				/>
 			</view>
 
+			<view v-if="showApplyOffsetToggle" class="form-item span-full">
+				<view class="offset-toggle offset-toggle--apply">
+					<view class="offset-toggle__meta">
+						<text class="offset-toggle__label">使用冲抵款</text>
+						<text class="offset-toggle__hint">{{ applyOffsetHintText }}</text>
+					</view>
+					<switch
+						:checked="applyOffsetCredit"
+						:disabled="offsetCreditLoading"
+						color="#1677ff"
+						@change="onApplyOffsetCreditChange"
+					/>
+				</view>
+			</view>
+
 			<view v-if="showOffsetToggle" class="form-item span-full">
 				<view class="offset-toggle">
 					<view class="offset-toggle__meta">
-						<text class="offset-toggle__label">是否冲抵</text>
-						<text class="offset-toggle__hint">多收 ¥{{ offsetDeltaText }} 可入冲抵池，需在客户对账手工分配</text>
+						<text class="offset-toggle__label">{{ offsetToggleLabel }}</text>
+						<text class="offset-toggle__hint">{{ offsetToggleHintText }}</text>
 					</view>
 					<switch :checked="offsetEnabled" color="#1677ff" @change="onOffsetEnabledChange" />
 				</view>
@@ -90,7 +106,12 @@ const props = defineProps({
 	},
 	shouldReceive: { type: [Number, String], default: '' },
 	formula: { type: String, default: '' },
-	size: { type: String, default: 'md' }
+	size: { type: String, default: 'md' },
+	paymentStatusLocked: { type: Boolean, default: false },
+	offsetCreditAvailable: { type: [Number, String], default: 0 },
+	offsetCreditLoading: { type: Boolean, default: false },
+	expectedOffsetApplied: { type: [Number, String], default: 0 },
+	finalAmountReceived: { type: [Number, String], default: 0 }
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -117,6 +138,7 @@ const paymentStatusIndex = computed(() => {
 const paymentStatusLabel = computed(() => {
 	return paymentStatusOptions[paymentStatusIndex.value]?.label || '未付款'
 })
+const paymentStatusInputLabel = computed(() => (props.paymentStatusLocked ? '付款状态(自动)' : '付款状态'))
 
 const shouldReceiveText = computed(() => {
 	const value = props.shouldReceive
@@ -144,8 +166,46 @@ const offsetDelta = computed(() => {
 const showOffsetToggle = computed(() => offsetDelta.value > 0)
 const offsetDeltaText = computed(() => offsetDelta.value.toFixed(2))
 const offsetEnabled = computed(() => Boolean(props.modelValue?.offsetEnabled))
+const offsetToggleLabel = computed(() => '入冲抵池')
+const offsetToggleHintText = computed(() => {
+	const shouldReceive = Number(props.shouldReceive)
+	const amountReceived = Number(props.modelValue?.amountReceived)
+	if (Number.isFinite(shouldReceive) && shouldReceive < 0 && Number.isFinite(amountReceived) && Math.abs(amountReceived) < 0.01) {
+		return `应退 ¥${offsetDeltaText.value} 未退现时，可入冲抵池，需在客户对账手工分配`
+	}
+	return `多收 ¥${offsetDeltaText.value} 可入冲抵池，需在客户对账手工分配`
+})
+const offsetCreditAvailableNumber = computed(() => {
+	const num = Number(props.offsetCreditAvailable)
+	return Number.isFinite(num) && num > 0 ? num : 0
+})
+const showApplyOffsetToggle = computed(() => {
+	const shouldReceive = Number(props.shouldReceive)
+	return Number.isFinite(shouldReceive) && shouldReceive > 0 && offsetCreditAvailableNumber.value > 0
+})
+const expectedOffsetAppliedNumber = computed(() => {
+	const num = Number(props.expectedOffsetApplied)
+	return Number.isFinite(num) && num > 0 ? num : 0
+})
+const finalAmountReceivedNumber = computed(() => {
+	const num = Number(props.finalAmountReceived)
+	return Number.isFinite(num) ? num : 0
+})
+const applyOffsetCredit = computed(() => Boolean(props.modelValue?.applyOffsetCredit))
+const applyOffsetHintText = computed(() => {
+	if (props.offsetCreditLoading) return '冲抵款查询中...'
+	const available = offsetCreditAvailableNumber.value.toFixed(2)
+	if (applyOffsetCredit.value && expectedOffsetAppliedNumber.value > 0) {
+		return `当前可用 ¥${available}，预计冲抵 ¥${expectedOffsetAppliedNumber.value.toFixed(2)}，最终实收 ¥${finalAmountReceivedNumber.value.toFixed(2)}`
+	}
+	if (applyOffsetCredit.value) {
+		return `当前可用 ¥${available}，本单暂无可冲抵欠款`
+	}
+	return `当前可用 ¥${available}，开启后将按本单未收金额自动冲抵`
+})
 
 function onPaymentStatusChange(e) {
+	if (props.paymentStatusLocked) return
 	const idx = Number(e?.detail?.value)
 	const item = paymentStatusOptions[idx]
 	if (!item) return
@@ -161,6 +221,10 @@ function update(key, value) {
 
 function onOffsetEnabledChange(e) {
 	patchModel({ offsetEnabled: Boolean(e?.detail?.value) })
+}
+
+function onApplyOffsetCreditChange(e) {
+	patchModel({ applyOffsetCredit: Boolean(e?.detail?.value) })
 }
 
 function patchModel(patch) {
@@ -250,6 +314,11 @@ function patchModel(patch) {
 	border: 1rpx solid #dbeafe;
 	border-radius: 14rpx;
 	background: #eff6ff;
+}
+
+.offset-toggle--apply {
+	border-color: #bbf7d0;
+	background: #f0fdf4;
 }
 
 .offset-toggle__meta {
