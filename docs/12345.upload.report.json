@@ -1,0 +1,181 @@
+{
+  "executed_at": "2026-04-07T02:27:11.636Z",
+  "space_id": "env-00jxuffegf2n",
+  "csv": "docs/12345.cleaned_for_upload.csv",
+  "remark": "import:12345:env-00jxuffegf2n:2026-04-07022711",
+  "total": 34,
+  "created": [
+    {
+      "lineNo": 2,
+      "bottle_no": "415",
+      "_id": "69d46b7f68be701c9c15cbfd"
+    },
+    {
+      "lineNo": 3,
+      "bottle_no": "416",
+      "_id": "69d46b7f68be701c9c15cc00"
+    },
+    {
+      "lineNo": 4,
+      "bottle_no": "417",
+      "_id": "69d46b8068be701c9c15cc04"
+    },
+    {
+      "lineNo": 5,
+      "bottle_no": "418",
+      "_id": "69d46b8096fed1435b6371be"
+    },
+    {
+      "lineNo": 6,
+      "bottle_no": "419",
+      "_id": "69d46b8096fed1435b6371c2"
+    },
+    {
+      "lineNo": 7,
+      "bottle_no": "420",
+      "_id": "69d46b8068be701c9c15cc0a"
+    },
+    {
+      "lineNo": 8,
+      "bottle_no": "421",
+      "_id": "69d46b8068be701c9c15cc0c"
+    },
+    {
+      "lineNo": 9,
+      "bottle_no": "422",
+      "_id": "69d46b8068be701c9c15cc0e"
+    },
+    {
+      "lineNo": 10,
+      "bottle_no": "423",
+      "_id": "69d46b8096fed1435b6371d0"
+    },
+    {
+      "lineNo": 11,
+      "bottle_no": "424",
+      "_id": "69d46b8096fed1435b6371d1"
+    },
+    {
+      "lineNo": 12,
+      "bottle_no": "425",
+      "_id": "69d46b8096fed1435b6371d3"
+    },
+    {
+      "lineNo": 13,
+      "bottle_no": "426",
+      "_id": "69d46b8168be701c9c15cc14"
+    },
+    {
+      "lineNo": 14,
+      "bottle_no": "427",
+      "_id": "69d46b8168be701c9c15cc15"
+    },
+    {
+      "lineNo": 15,
+      "bottle_no": "428",
+      "_id": "69d46b8196fed1435b6371de"
+    },
+    {
+      "lineNo": 16,
+      "bottle_no": "429",
+      "_id": "69d46b8196fed1435b6371ef"
+    },
+    {
+      "lineNo": 17,
+      "bottle_no": "430",
+      "_id": "69d46b8196fed1435b6371f4"
+    },
+    {
+      "lineNo": 18,
+      "bottle_no": "431",
+      "_id": "69d46b8168be701c9c15cc1a"
+    },
+    {
+      "lineNo": 19,
+      "bottle_no": "432",
+      "_id": "69d46b8168be701c9c15cc1b"
+    },
+    {
+      "lineNo": 20,
+      "bottle_no": "433",
+      "_id": "69d46b8196fed1435b6371fe"
+    },
+    {
+      "lineNo": 21,
+      "bottle_no": "434",
+      "_id": "69d46b8268be701c9c15cc1e"
+    },
+    {
+      "lineNo": 22,
+      "bottle_no": "435",
+      "_id": "69d46b8268be701c9c15cc1f"
+    },
+    {
+      "lineNo": 23,
+      "bottle_no": "436",
+      "_id": "69d46b8296fed1435b637202"
+    },
+    {
+      "lineNo": 24,
+      "bottle_no": "437",
+      "_id": "69d46b8268be701c9c15cc21"
+    },
+    {
+      "lineNo": 25,
+      "bottle_no": "438",
+      "_id": "69d46b8268be701c9c15cc23"
+    },
+    {
+      "lineNo": 26,
+      "bottle_no": "439",
+      "_id": "69d46b8296fed1435b637206"
+    },
+    {
+      "lineNo": 27,
+      "bottle_no": "440",
+      "_id": "69d46b8296fed1435b637208"
+    },
+    {
+      "lineNo": 28,
+      "bottle_no": "441",
+      "_id": "69d46b8296fed1435b63720b"
+    },
+    {
+      "lineNo": 29,
+      "bottle_no": "442",
+      "_id": "69d46b8296fed1435b63720f"
+    },
+    {
+      "lineNo": 30,
+      "bottle_no": "443",
+      "_id": "69d46b8368be701c9c15cc2c"
+    },
+    {
+      "lineNo": 31,
+      "bottle_no": "444",
+      "_id": "69d46b8368be701c9c15cc30"
+    },
+    {
+      "lineNo": 32,
+      "bottle_no": "445",
+      "_id": "69d46b8396fed1435b63721f"
+    },
+    {
+      "lineNo": 33,
+      "bottle_no": "446",
+      "_id": "69d46b8368be701c9c15cc32"
+    },
+    {
+      "lineNo": 34,
+      "bottle_no": "447",
+      "_id": "69d46b8368be701c9c15cc33"
+    },
+    {
+      "lineNo": 35,
+      "bottle_no": "448",
+      "_id": "69d46b8396fed1435b637229"
+    }
+  ],
+  "conflicts": [],
+  "failed": []
+}

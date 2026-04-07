@@ -1,0 +1,12 @@
+{
+  "input": "docs/12345.xlsx",
+  "output_csv": "docs/12345.cleaned_for_upload.csv",
+  "total_rows": 34,
+  "fallback": {
+    "qr_from_product_or_bottle": 12,
+    "gauge_dates_from_bottle_dates": 34,
+    "pressure_max_from_nominal": 0,
+    "pressure_min_default_0": 34
+  },
+  "generated_at": "2026-04-07T10:23:57.051436"
+}
