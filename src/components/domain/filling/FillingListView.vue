@@ -226,7 +226,7 @@
 											<text class="resolve-value">{{ formatWeightValue(singleCreateResolveResult.derived_fill_weight) }}kg</text>
 										</view>
 									</view>
-									<text v-else class="resolve-empty">{{ singleCreateResolveError || '请输入标识和灌后总重后自动推导。' }}</text>
+									<text v-else class="resolve-empty">{{ singleCreateResolveDisplayText }}</text>
 									<view class="resolve-actions">
 										<AppButton size="sm" kind="ghost" @click="onSingleCreateInputModeChange('net')">改为手填净重</AppButton>
 									</view>
@@ -295,6 +295,9 @@
 							</text>
 							<text v-if="batchCreatePreviewWarningTotal > 0" class="batch-result-line">
 								瓶流转预警：{{ batchCreatePreviewWarningTotal }} 条
+							</text>
+							<text v-if="batchCreateMissingBasisInvalidTotal > 0" class="batch-result-line batch-result-line--warning">
+								有 {{ batchCreateMissingBasisInvalidTotal }} 条新瓶缺少回瓶基准，请改批量净重录入。
 							</text>
 							<text class="batch-result-line">样例{{ batchCreateIdentifierLabel }}：{{ formatBottleNoSamples(batchCreatePreviewResult.sample_bottle_nos) }}</text>
 							<view v-if="batchCreatePreviewCreateItems.length" class="batch-detail-block">
@@ -463,6 +466,7 @@ const props = defineProps({
 
 const BATCH_LIMIT = 2000
 const ANOMALY_BACKFILL_SAVED_STORAGE_KEY = 'crm:bottle-anomaly:backfill-saved'
+const MISSING_RECENT_BACK_BASIS_GUIDE_TEXT = '新瓶首单请改用净重录入；有回瓶历史后再用总重推导。'
 const FILLING_INPUT_MODE_OPTIONS = [
 	{ label: '按灌后总重推导', value: 'after_fill_total' },
 	{ label: '直接录净重', value: 'net' }
@@ -691,6 +695,11 @@ const singleCreateResolveStatusKind = computed(() => {
 	if (singleCreateResolveError.value) return 'warning'
 	return 'warning'
 })
+const singleCreateResolveDisplayText = computed(() => {
+	if (!singleCreateResolveError.value) return '请输入标识和灌后总重后自动推导。'
+	if (isMissingRecentBackBasisError(singleCreateResolveError.value)) return MISSING_RECENT_BACK_BASIS_GUIDE_TEXT
+	return singleCreateResolveError.value
+})
 const batchCreateIdentifierLabel = computed(() => (normalizeRecordType(batchCreateForm.record_type, '') === 'truck_out_no_sale' ? '车牌号' : '瓶号'))
 const batchCreateValueLabel = computed(() => (batchCreateInputMode.value === 'after_fill_total' ? '灌后总重' : '净重'))
 const batchCreateDefaultWeightVisible = computed(() => batchCreateInputMode.value === 'net')
@@ -734,6 +743,9 @@ const batchCreatePreviewExistingItems = computed(() => {
 const batchCreatePreviewInvalidItems = computed(() => {
 	return Array.isArray(batchCreatePreviewResult.value?.invalid_items) ? batchCreatePreviewResult.value.invalid_items : []
 })
+const batchCreateMissingBasisInvalidTotal = computed(() =>
+	countMissingRecentBackBasisInvalidItems(batchCreatePreviewInvalidItems.value)
+)
 const normalFillWeightText = computed(() => formatWeightStat(summary.value.normalFillWeight))
 const truckOutAgentSaleWeightText = computed(() => formatWeightStat(summary.value.truckOutAgentSaleWeight))
 const truckOutNoSaleWeightText = computed(() => formatWeightStat(summary.value.truckOutNoSaleWeight))
@@ -1787,6 +1799,54 @@ function buildFillingBottleFlowWarningContent(source) {
 	return [summaryText, '', ...preview].join('\n')
 }
 
+function isMissingRecentBackBasisError(message) {
+	const text = normalizeString(message)
+	if (!text) return false
+	return /未找到(?:瓶号|车牌).*(?:最近回瓶总重|最近回站总重)/.test(text)
+}
+
+function countMissingRecentBackBasisInvalidItems(items = []) {
+	if (!Array.isArray(items) || !items.length) return 0
+	return items.reduce((count, item) => {
+		return count + (isMissingRecentBackBasisError(item?.error) ? 1 : 0)
+	}, 0)
+}
+
+function switchSingleCreateToNetModeWithGuideToast() {
+	onSingleCreateInputModeChange('net')
+	uni.showToast({ title: '已切换为净重录入，请填写净重后保存', icon: 'none', duration: 2800 })
+}
+
+function switchBatchCreateToNetModeWithGuideToast() {
+	onBatchCreateInputModeChange('net')
+	uni.showToast({ title: '已切换为净重录入，请填写净重后保存', icon: 'none', duration: 2800 })
+}
+
+async function promptSwitchSingleCreateToNetMode() {
+	const confirmRes = await uni.showModal({
+		title: '缺少回瓶基准',
+		content: `${MISSING_RECENT_BACK_BASIS_GUIDE_TEXT}\n\n是否切换为净重录入？`,
+		confirmText: '切换净重录入',
+		cancelText: '继续修改'
+	})
+	if (!confirmRes.confirm) return false
+	switchSingleCreateToNetModeWithGuideToast()
+	return true
+}
+
+async function promptSwitchBatchCreateToNetMode(missingTotal = 0) {
+	const countText = Number(missingTotal) > 0 ? `检测到 ${Number(missingTotal)} 条记录缺少最近回瓶基准。\n` : ''
+	const confirmRes = await uni.showModal({
+		title: '批量总重推导受限',
+		content: `${countText}${MISSING_RECENT_BACK_BASIS_GUIDE_TEXT}\n\n是否切换为批量净重录入？`,
+		confirmText: '切换批量净重',
+		cancelText: '继续修改'
+	})
+	if (!confirmRes.confirm) return false
+	switchBatchCreateToNetModeWithGuideToast()
+	return true
+}
+
 function buildSingleCreatePayload() {
 	const date = normalizeString(singleCreateForm.date)
 	if (!isValidDateString(date)) {
@@ -1861,7 +1921,12 @@ async function onSingleCreateSubmit() {
 			res = await createFillingV1(payload, { ignoreBottleFlowWarning: true })
 		}
 		if (res?.code !== 0) {
-			uni.showToast({ title: res?.msg || '保存失败', icon: 'none', duration: 2800 })
+			const failMsg = normalizeString(res?.msg) || '保存失败'
+			if (singleCreateInputMode.value === 'after_fill_total' && isMissingRecentBackBasisError(failMsg)) {
+				await promptSwitchSingleCreateToNetMode()
+				return
+			}
+			uni.showToast({ title: failMsg, icon: 'none', duration: 2800 })
 			return
 		}
 		const shouldReturnToAnomaly = Boolean(singleCreateRouteContext.returnToAnomaly)
@@ -1990,7 +2055,12 @@ async function onBatchCreatePreview() {
 		const res = await batchCreateFillingsV1(payload)
 		if (res?.code !== 0) {
 			batchCreatePreviewResult.value = null
-			uni.showToast({ title: res?.msg || '预览失败', icon: 'none', duration: 2600 })
+			const failMsg = normalizeString(res?.msg) || '预览失败'
+			if (payload.input_mode === 'after_fill_total' && isMissingRecentBackBasisError(failMsg)) {
+				await promptSwitchBatchCreateToNetMode()
+				return
+			}
+			uni.showToast({ title: failMsg, icon: 'none', duration: 2600 })
 			return
 		}
 		batchCreatePreviewResult.value = res.data || null
@@ -2017,13 +2087,23 @@ async function onBatchCreateExecute() {
 	try {
 		const previewRes = await batchCreateFillingsV1(previewPayload)
 		if (previewRes?.code !== 0) {
-			uni.showToast({ title: previewRes?.msg || '预览失败', icon: 'none', duration: 2600 })
+			const previewFailMsg = normalizeString(previewRes?.msg) || '预览失败'
+			if (previewPayload.input_mode === 'after_fill_total' && isMissingRecentBackBasisError(previewFailMsg)) {
+				await promptSwitchBatchCreateToNetMode()
+				return
+			}
+			uni.showToast({ title: previewFailMsg, icon: 'none', duration: 2600 })
 			return
 		}
 		const previewData = previewRes.data || {}
 		batchCreatePreviewResult.value = previewData
 		const total = Number(previewData.target_total || 0)
+		const missingBasisTotal = countMissingRecentBackBasisInvalidItems(previewData.invalid_items)
 		if (total <= 0) {
+			if (previewPayload.input_mode === 'after_fill_total' && missingBasisTotal > 0) {
+				await promptSwitchBatchCreateToNetMode(missingBasisTotal)
+				return
+			}
 			uni.showToast({ title: '没有可新增的数据', icon: 'none' })
 			return
 		}
@@ -2065,7 +2145,12 @@ async function onBatchCreateExecute() {
 			})
 		}
 		if (executeRes?.code !== 0) {
-			uni.showToast({ title: executeRes?.msg || '执行失败', icon: 'none', duration: 2800 })
+			const executeFailMsg = normalizeString(executeRes?.msg) || '执行失败'
+			if (previewPayload.input_mode === 'after_fill_total' && isMissingRecentBackBasisError(executeFailMsg)) {
+				await promptSwitchBatchCreateToNetMode()
+				return
+			}
+			uni.showToast({ title: executeFailMsg, icon: 'none', duration: 2800 })
 			return
 		}
 		batchCreateExecuteResult.value = executeRes.data || null
@@ -2912,6 +2997,11 @@ defineExpose({
 .batch-result-line {
 	font-size: 22rpx;
 	color: var(--crm-text-muted);
+}
+
+.batch-result-line--warning {
+	color: var(--crm-warning, #d97706);
+	font-weight: 600;
 }
 
 .batch-detail-block {

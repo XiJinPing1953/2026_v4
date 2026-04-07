@@ -37,6 +37,10 @@
 				<view v-if="hasResult" class="bottle-query__card">
 					<view class="bottle-query__hero">
 						<text class="bottle-query__hero-title">瓶号：{{ result.bottleNo }}</text>
+						<view class="bottle-query__hero-meta">
+							<text class="bottle-query__hero-meta-item">皮重：{{ result.tareWeightText }}</text>
+							<text class="bottle-query__hero-meta-item">容积：{{ result.volumeText }}</text>
+						</view>
 						<AppTag :kind="result.statusKind">当前：{{ result.currentStatus }}</AppTag>
 					</view>
 
@@ -133,6 +137,7 @@ import AppIcon from '@/components/base/AppIcon.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppTag from '@/components/base/AppTag.vue'
 import { getBottleMovementTimelineV1 } from '@/services/bottleMovement'
+import { searchBottlesV1 } from '@/services/bottle'
 import { buildBottleTimelineDisplayEvents } from '@/services/models/bottleTimeline'
 
 const open = ref(false)
@@ -185,9 +190,12 @@ const result = computed(() => {
 	const fillRecordCount = countUniqueSourceIds(events.filter((row) => normalizeString(row?.type).toLowerCase() === 'fill'))
 	const currentStatus = resolveCurrentStatus(data.state, latestEvent)
 	const currentCustomer = resolveCurrentCustomer(currentStatus, latestEvent, latestOut, latestBack)
+	const bottleProfile = data?.bottle_profile && typeof data.bottle_profile === 'object' ? data.bottle_profile : {}
 	return {
 		bottleNo: normalizeBottleNo(data.bottle_no),
 		statusKind: normalizeString(data.state?.kind) || 'soft',
+		tareWeightText: `${formatProfileNumber(bottleProfile.tare_weight)} kg`,
+		volumeText: `${formatProfileNumber(bottleProfile.volume_l)} L`,
 		currentStatus,
 		currentCustomerLabel: resolveCurrentCustomerLabel(currentStatus),
 		currentCustomer,
@@ -213,6 +221,7 @@ function buildTimelineDefault() {
 		bottle_no: '',
 		state: { code: 'empty', label: '暂无流转', kind: 'soft' },
 		stats: { total: 0, out: 0, back: 0, fill: 0, adjust: 0, open_anomalies: 0, resolved_anomalies: 0, cycle_estimated: 0 },
+		bottle_profile: { tare_weight: null, volume_l: null },
 		events: [],
 		anomalies: [],
 		markers: []
@@ -226,6 +235,19 @@ function normalizeString(value) {
 
 function normalizeBottleNo(value) {
 	return normalizeString(value).toUpperCase().replace(/\s+/g, '')
+}
+
+function toNullableNumber(value) {
+	if (value == null || value === '') return null
+	const num = Number(value)
+	return Number.isFinite(num) ? num : null
+}
+
+function formatProfileNumber(value) {
+	const num = toNullableNumber(value)
+	if (num == null) return '-'
+	if (Number.isInteger(num)) return String(num)
+	return String(num).replace(/\.?0+$/, '')
 }
 
 function normalizeDay(value) {
@@ -420,6 +442,20 @@ function close() {
 	open.value = false
 }
 
+function pickBottleProfileByBottleNo(rows, bottleNo) {
+	const list = Array.isArray(rows) ? rows : []
+	const targetNo = normalizeBottleNo(bottleNo)
+	for (let i = 0; i < list.length; i += 1) {
+		const row = list[i] || {}
+		if (normalizeBottleNo(row.bottle_no) !== targetNo) continue
+		return {
+			tare_weight: toNullableNumber(row.tare_weight),
+			volume_l: toNullableNumber(row.volume_l)
+		}
+	}
+	return { tare_weight: null, volume_l: null }
+}
+
 async function onSearch() {
 	const bottleNo = normalizeBottleNo(keyword.value)
 	if (!bottleNo || loading.value) {
@@ -428,10 +464,19 @@ async function onSearch() {
 	}
 	loading.value = true
 	try {
-		const res = await getBottleMovementTimelineV1({ bottleNo, limit: 1200 })
+		const [res, bottleRes] = await Promise.all([
+			getBottleMovementTimelineV1({ bottleNo, limit: 1200 }),
+			searchBottlesV1({ keyword: bottleNo, page: 1, pageSize: 50 })
+		])
+		const bottleProfile = bottleRes?.code === 0
+			? pickBottleProfileByBottleNo(bottleRes?.data, bottleNo)
+			: { tare_weight: null, volume_l: null }
 		searched.value = true
 		if (res?.code !== 0) {
-			timeline.value = buildTimelineDefault()
+			timeline.value = {
+				...buildTimelineDefault(),
+				bottle_profile: bottleProfile
+			}
 			uni.showToast({ title: res?.msg || '查询失败', icon: 'none' })
 			return
 		}
@@ -439,6 +484,7 @@ async function onSearch() {
 			? {
 				...buildTimelineDefault(),
 				...res.data,
+				bottle_profile: bottleProfile,
 				state: { ...buildTimelineDefault().state, ...(res.data.state || {}) },
 				stats: { ...buildTimelineDefault().stats, ...(res.data.stats || {}) },
 				events: Array.isArray(res.data.events) ? res.data.events : []
@@ -709,6 +755,17 @@ onBeforeUnmount(() => {
 	font-size: 28rpx;
 	font-weight: 700;
 	color: var(--crm-text);
+}
+
+.bottle-query__hero-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10rpx 24rpx;
+}
+
+.bottle-query__hero-meta-item {
+	font-size: 24rpx;
+	color: var(--crm-text-muted);
 }
 
 .bottle-query__stats {
