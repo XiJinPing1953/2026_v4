@@ -103,6 +103,13 @@
 							{{ openingDebtPrimaryActionLabel }}
 						</AppButton>
 					</view>
+					<view v-else-if="activeOperationTab === 'other_fee'" class="section-actions">
+						<AppButton size="sm" kind="ghost" @click="resetOtherFeeForm">重置</AppButton>
+						<AppButton v-if="isEditingOtherFee" size="sm" kind="outline" @click="cancelOtherFeeEditing">取消编辑</AppButton>
+						<AppButton size="sm" kind="primary" :loading="otherFeeSubmitting" @click="onCreateOtherFeeEntry">
+							{{ otherFeePrimaryActionLabel }}
+						</AppButton>
+					</view>
 					<view v-else-if="activeOperationTab === 'prepay'" class="section-actions">
 						<AppButton size="sm" kind="ghost" @click="resetPrepayForm">重置</AppButton>
 						<AppButton size="sm" kind="primary" :loading="prepaySubmitting" @click="onCreatePrepayEntry">录入预付</AppButton>
@@ -299,7 +306,7 @@
 
 					<view v-if="offsetAllocateForm.allocationMode === 'checked'" class="checked-target-box">
 						<view class="checked-target-head">
-							<text>勾选冲抵目标（销售/流量/历史欠款）</text>
+							<text>勾选冲抵目标（销售/流量/历史欠款/其他费用）</text>
 							<text>已选 {{ offsetCheckedTargetKeys.length }} 笔</text>
 						</view>
 						<checkbox-group class="checked-target-list" @change="onOffsetCheckedTargetsChange">
@@ -342,7 +349,7 @@
 						<AppInput v-model="prepayForm.note" label="备注" placeholder="可选" size="sm" />
 					</view>
 					<text class="section-hint">
-						当前策略：{{ prepayApplyStrategyLabel }}。仅入预付时不冲历史欠款；立即按区间冲欠时仅冲销区间内应收，剩余金额自动保留为预付款。
+						当前策略：{{ prepayApplyStrategyLabel }}。仅入预付时不冲历史欠款/其他费用；立即按区间冲欠时仅冲销区间内应收，剩余金额自动保留为预付款。
 					</text>
 				</view>
 
@@ -392,6 +399,58 @@
 								<view class="row-actions">
 									<AppButton size="sm" kind="ghost" @click="onEditOpeningDebt(row)">编辑</AppButton>
 									<AppButton size="sm" kind="outline" @click="onRemoveOpeningDebt(row)">删除</AppButton>
+								</view>
+							</template>
+						</AppListItem>
+					</AppList>
+				</view>
+
+				<view v-else-if="activeOperationTab === 'other_fee'" class="operation-panel">
+					<view class="receipt-grid">
+						<AppInput
+							v-model="otherFeeForm.amount"
+							label="费用金额(元)"
+							:placeholder="moneyInputPlaceholder"
+							size="sm"
+							@blur="onOtherFeeAmountBlur"
+						/>
+						<picker class="picker-block" mode="date" @change="onOtherFeeBizDateChange">
+							<AppInput v-model="otherFeeForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
+						</picker>
+						<AppInput v-model="otherFeeForm.note" class="grid-span-2" label="备注" placeholder="可选" size="sm" />
+					</view>
+
+					<view class="recent-toggle-row">
+						<text class="section-hint">近20条其他费用默认收起</text>
+						<AppButton size="sm" kind="neutral" @click="toggleOtherFeeRecent">
+							{{ otherFeeRecentExpanded ? '收起记录' : '查看最近记录' }}
+						</AppButton>
+					</view>
+					<AppList v-if="otherFeeRecentExpanded" :loading="loading" :empty="recentOtherFees.length === 0" empty-title="暂无其他费用">
+						<AppListItem
+							v-for="row in recentOtherFees"
+							:key="row._id"
+							:title="`${row.biz_date || '-'} · 其他费用`"
+							:subtitle="`单据 ${row._id}`"
+							:status="paymentStatusText(row.payment_status)"
+							:status-kind="paymentStatusKind(row.payment_status)"
+							icon="wallet"
+							icon-class="bg-warning"
+						>
+							<template #right>
+								<view class="mini-amounts">
+									<text>应收 ¥{{ formatMoney(row.amount) }}</text>
+									<text>已收 ¥{{ formatMoney(row.amount_received) }}</text>
+									<text>未收 ¥{{ formatMoney(row.outstanding) }}</text>
+								</view>
+							</template>
+							<template #default>
+								<text v-if="row.note" class="row-detail">{{ row.note }}</text>
+							</template>
+							<template #footer>
+								<view class="row-actions">
+									<AppButton size="sm" kind="ghost" @click="onEditOtherFee(row)">编辑</AppButton>
+									<AppButton size="sm" kind="outline" @click="onRemoveOtherFee(row)">删除</AppButton>
 								</view>
 							</template>
 						</AppListItem>
@@ -680,6 +739,8 @@
 								<text v-if="row.row_type === 'flow_settlement'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								<text v-if="row.row_type === 'opening_debt'">应收 ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'opening_debt'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
+								<text v-if="row.row_type === 'other_fee'">应收 ¥{{ formatMoney(row.amount) }}</text>
+								<text v-if="row.row_type === 'other_fee'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								<text v-if="row.row_type === 'receipt'">收款 ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'receipt'">预付+ ¥{{ formatMoney(row.prepay_delta) }}</text>
 								<text v-if="row.row_type === 'allocation'">分配 ¥{{ formatMoney(row.amount) }}</text>
@@ -715,6 +776,7 @@ import {
 	allocateOffsetCreditV1,
 	confirmAllocationV1,
 	createOpeningDebtEntryV1,
+	createOtherFeeEntryV1,
 	createPrepayEntryV1,
 	createFlowSettlementV1,
 	createReceiptV1,
@@ -726,9 +788,11 @@ import {
 	previewAllocationV1,
 	previewFlowSettlementV1,
 	removeOpeningDebtEntryV1,
+	removeOtherFeeEntryV1,
 	removeFlowSettlementV1,
 	removeReceiptV1,
 	updateOpeningDebtEntryV1,
+	updateOtherFeeEntryV1,
 	updateFlowSettlementV1,
 	updateReceiptV1
 } from '@/services/customerSettlement'
@@ -758,6 +822,7 @@ const exportingStatement = ref(false)
 const flowPreviewLoading = ref(false)
 const flowSubmitting = ref(false)
 const openingDebtSubmitting = ref(false)
+const otherFeeSubmitting = ref(false)
 const offsetPoolLoading = ref(false)
 const offsetAllocating = ref(false)
 
@@ -766,6 +831,7 @@ const recentSales = ref([])
 const recentReceipts = ref([])
 const recentFlowSettlements = ref([])
 const recentOpeningDebts = ref([])
+const recentOtherFees = ref([])
 const previewPlan = ref(null)
 const editableAllocations = ref([])
 const statementRows = ref([])
@@ -779,14 +845,17 @@ const quickSceneApplied = ref(false)
 const editingReceiptId = ref('')
 const editingFlowSettlementId = ref('')
 const editingOpeningDebtId = ref('')
+const editingOtherFeeId = ref('')
 const activeOperationTab = ref('receipt')
 const openingDebtRecentExpanded = ref(false)
+const otherFeeRecentExpanded = ref(false)
 const receiptRecentExpanded = ref(false)
 const operationTabs = [
 	{ label: '登记收款/分配', value: 'receipt' },
 	{ label: '冲抵分配', value: 'offset' },
 	{ label: '预付录入', value: 'prepay' },
 	{ label: '历史欠款登记', value: 'opening_debt' },
+	{ label: '其他费用', value: 'other_fee' },
 	{ label: '收款单', value: 'receipt_list' }
 ]
 const analysis = reactive({
@@ -873,6 +942,11 @@ const openingDebtForm = reactive({
 	bizDate: '',
 	note: ''
 })
+const otherFeeForm = reactive({
+	amount: '',
+	bizDate: '',
+	note: ''
+})
 const offsetAllocateForm = reactive({
 	amount: '',
 	allocationMode: 'checked',
@@ -933,9 +1007,11 @@ const offsetPoolTotalPages = computed(() => {
 const isEditingReceipt = computed(() => Boolean(normalizeString(editingReceiptId.value)))
 const isEditingFlowSettlement = computed(() => Boolean(normalizeString(editingFlowSettlementId.value)))
 const isEditingOpeningDebt = computed(() => Boolean(normalizeString(editingOpeningDebtId.value)))
+const isEditingOtherFee = computed(() => Boolean(normalizeString(editingOtherFeeId.value)))
 const receiptPrimaryActionLabel = computed(() => (isEditingReceipt.value ? '保存收款单' : '登记收款'))
 const flowPrimaryActionLabel = computed(() => (isEditingFlowSettlement.value ? '保存结算单' : '生成结算单'))
 const openingDebtPrimaryActionLabel = computed(() => (isEditingOpeningDebt.value ? '保存欠款' : '登记欠款'))
+const otherFeePrimaryActionLabel = computed(() => (isEditingOtherFee.value ? '保存费用' : '登记费用'))
 
 const hasSummaryScope = computed(() => Boolean(summaryScope.date_from && summaryScope.date_to))
 const summaryReceivableBalanceDisplay = computed(() => (
@@ -1107,7 +1183,21 @@ const checkedTargetCandidates = computed(() => {
 			}
 		})
 		.filter((row) => Boolean(row.targetId))
-	return [...saleRows, ...flowRows, ...openingDebtRows].sort((a, b) => {
+	const otherFeeRows = (Array.isArray(recentOtherFees.value) ? recentOtherFees.value : [])
+		.filter((row) => toNumber(row?.outstanding, 0) > 0)
+		.map((row) => {
+			const targetId = normalizeString(row?._id)
+			return {
+				key: `other_fee:${targetId}`,
+				targetType: 'other_fee',
+				targetId,
+				date: normalizeString(row?.biz_date),
+				title: `其他费用 ${normalizeString(row?.biz_date) || '-'} / ${targetId.slice(-6)}`,
+				outstanding: fix2(toNumber(row?.outstanding, 0))
+			}
+		})
+		.filter((row) => Boolean(row.targetId))
+	return [...saleRows, ...flowRows, ...openingDebtRows, ...otherFeeRows].sort((a, b) => {
 		if (a.date !== b.date) return a.date < b.date ? -1 : 1
 		return a.key < b.key ? -1 : 1
 	})
@@ -1595,6 +1685,10 @@ function toggleOpeningDebtRecent() {
 	openingDebtRecentExpanded.value = !openingDebtRecentExpanded.value
 }
 
+function toggleOtherFeeRecent() {
+	otherFeeRecentExpanded.value = !otherFeeRecentExpanded.value
+}
+
 function toggleReceiptRecent() {
 	receiptRecentExpanded.value = !receiptRecentExpanded.value
 }
@@ -1686,7 +1780,9 @@ function parseAllocationTargetKeys(keys = []) {
 			const parts = key.split(':')
 			if (parts.length < 2) return null
 			const rawType = normalizeString(parts[0])
-			const targetType = rawType === 'flow_settlement' || rawType === 'opening_debt' ? rawType : 'sale'
+			const targetType = rawType === 'flow_settlement' || rawType === 'opening_debt' || rawType === 'other_fee'
+				? rawType
+				: 'sale'
 			const targetId = parts.slice(1).join(':')
 			if (!targetId) return null
 			return {
@@ -1849,6 +1945,13 @@ function resetOpeningDebtForm() {
 	openingDebtForm.note = ''
 }
 
+function resetOtherFeeForm() {
+	editingOtherFeeId.value = ''
+	otherFeeForm.amount = ''
+	otherFeeForm.bizDate = todayYmd()
+	otherFeeForm.note = ''
+}
+
 function dedupeOffsetSourceRows(rows = []) {
 	const map = new Map()
 	for (const row of Array.isArray(rows) ? rows : []) {
@@ -1991,6 +2094,81 @@ async function onCreateOpeningDebtEntry() {
 	}
 }
 
+function cancelOtherFeeEditing() {
+	resetOtherFeeForm()
+}
+
+function onEditOtherFee(row) {
+	const otherFeeId = normalizeString(row?._id)
+	if (!otherFeeId) return
+	activeOperationTab.value = 'other_fee'
+	editingOtherFeeId.value = otherFeeId
+	otherFeeForm.amount = formatMoney(row?.amount)
+	otherFeeForm.bizDate = normalizeDate(row?.biz_date) || todayYmd()
+	otherFeeForm.note = normalizeString(row?.note)
+	uni.showToast({ title: '已加载其他费用，修改后点保存费用', icon: 'none' })
+}
+
+async function onRemoveOtherFee(row) {
+	const otherFeeId = normalizeString(row?._id)
+	if (!otherFeeId || !recordId.value) return
+	const confirmed = await showConfirmModal({
+		title: '删除其他费用',
+		content: '删除后将回退该笔其他费用，确认继续吗？',
+		confirmText: '删除'
+	})
+	if (!confirmed) return
+	const res = await removeOtherFeeEntryV1({
+		otherFeeId,
+		customerId: recordId.value
+	})
+	if (res?.code !== 0) {
+		uni.showToast({ title: res?.msg || '删除失败', icon: 'none' })
+		return
+	}
+	if (normalizeString(editingOtherFeeId.value) === otherFeeId) resetOtherFeeForm()
+	uni.showToast({ title: res?.msg || '其他费用已删除', icon: 'success' })
+	await refreshAll()
+}
+
+async function onCreateOtherFeeEntry() {
+	if (!recordId.value || otherFeeSubmitting.value) return
+	const amount = Number(otherFeeForm.amount)
+	if (!Number.isFinite(amount) || amount <= 0) {
+		uni.showToast({ title: '请输入大于0的费用金额', icon: 'none' })
+		return
+	}
+	otherFeeSubmitting.value = true
+	try {
+		const isEditing = isEditingOtherFee.value
+		const res = isEditing
+			? await updateOtherFeeEntryV1({
+				otherFeeId: editingOtherFeeId.value,
+				customerId: recordId.value,
+				amount,
+				bizDate: otherFeeForm.bizDate,
+				note: otherFeeForm.note,
+				sourceType: 'customer_other_fee_manual'
+			})
+			: await createOtherFeeEntryV1({
+				customerId: recordId.value,
+				amount,
+				bizDate: otherFeeForm.bizDate,
+				note: otherFeeForm.note,
+				sourceType: 'customer_other_fee_manual'
+			})
+		if (res?.code !== 0) {
+			uni.showToast({ title: res?.msg || (isEditing ? '保存失败' : '登记失败'), icon: 'none' })
+			return
+		}
+		uni.showToast({ title: res?.msg || (isEditing ? '其他费用已保存' : '其他费用已登记'), icon: 'success' })
+		resetOtherFeeForm()
+		await refreshAll()
+	} finally {
+		otherFeeSubmitting.value = false
+	}
+}
+
 function syncAnalysisFilterDefaults(force = false) {
 	if (customerPriceUnit.value !== 'kg') return
 	if (!force && analysisFilters.dateFrom && analysisFilters.dateTo) return
@@ -2092,6 +2270,7 @@ async function loadStatement({ summaryOnly = false } = {}) {
 		recentReceipts.value = Array.isArray(data.recent_receipts) ? data.recent_receipts : []
 		recentFlowSettlements.value = Array.isArray(data.recent_flow_settlements) ? data.recent_flow_settlements : []
 		recentOpeningDebts.value = Array.isArray(data.recent_opening_debts) ? data.recent_opening_debts : []
+		recentOtherFees.value = Array.isArray(data.recent_other_fees) ? data.recent_other_fees : []
 		syncFlowFormDefaults()
 		syncAnalysisFilterDefaults()
 	} finally {
@@ -2458,7 +2637,9 @@ function onEditReceipt(row) {
 		checkedAllocationTargetKeys.value = targets
 			.map((item) => {
 				const rawType = normalizeString(item?.target_type)
-				const targetType = rawType === 'flow_settlement' || rawType === 'opening_debt' ? rawType : 'sale'
+				const targetType = rawType === 'flow_settlement' || rawType === 'opening_debt' || rawType === 'other_fee'
+					? rawType
+					: 'sale'
 				const targetId = normalizeString(item?.target_id)
 				if (!targetId) return ''
 				return `${targetType}:${targetId}`
@@ -2635,6 +2816,7 @@ function statementRowTitle(row) {
 	}
 	if (row?.row_type === 'flow_settlement') return `流量结算单 ${row?.row_id || ''}`
 	if (row?.row_type === 'opening_debt') return `历史欠款 ${row?.row_id || ''}`
+	if (row?.row_type === 'other_fee') return `其他费用 ${row?.row_id || ''}`
 	return `销售单 ${row?.sale_id || row?.row_id || ''}`
 }
 
@@ -2643,6 +2825,7 @@ function statementRowStatus(row) {
 	if (row?.row_type === 'allocation') return '分配'
 	if (row?.row_type === 'flow_settlement') return paymentStatusText(row?.meta?.payment_status)
 	if (row?.row_type === 'opening_debt') return paymentStatusText(row?.meta?.payment_status || row?.payment_status)
+	if (row?.row_type === 'other_fee') return paymentStatusText(row?.meta?.payment_status || row?.payment_status)
 	return paymentStatusText(row?.meta?.payment_status || row?.payment_status)
 }
 
@@ -2651,6 +2834,7 @@ function statementRowStatusKind(row) {
 	if (row?.row_type === 'allocation') return 'warning'
 	if (row?.row_type === 'flow_settlement') return paymentStatusKind(row?.meta?.payment_status)
 	if (row?.row_type === 'opening_debt') return paymentStatusKind(row?.meta?.payment_status || row?.payment_status)
+	if (row?.row_type === 'other_fee') return paymentStatusKind(row?.meta?.payment_status || row?.payment_status)
 	return paymentStatusKind(row?.meta?.payment_status || row?.payment_status)
 }
 
@@ -2679,6 +2863,9 @@ function statementRowDetail(row) {
 		return sourceType ? `来源 ${sourceType}` : ''
 	}
 	if (row?.row_type === 'opening_debt') {
+		return normalizeString(row?.note)
+	}
+	if (row?.row_type === 'other_fee') {
 		return normalizeString(row?.note)
 	}
 	return normalizeString(row?.note)
@@ -2725,6 +2912,11 @@ function onOpeningDebtAmountBlur() {
 	openingDebtForm.amount = normalizeFlowMoneyInput(openingDebtForm.amount)
 }
 
+function onOtherFeeAmountBlur() {
+	if (!isFlowCustomer.value) return
+	otherFeeForm.amount = normalizeFlowMoneyInput(otherFeeForm.amount)
+}
+
 function onOffsetAllocateAmountBlur() {
 	if (!isFlowCustomer.value) return
 	offsetAllocateForm.amount = normalizeFlowMoneyInput(offsetAllocateForm.amount)
@@ -2740,6 +2932,10 @@ function onOffsetAllocationEndDateChange(e) {
 
 function onOpeningDebtBizDateChange(e) {
 	openingDebtForm.bizDate = normalizeString(e?.detail?.value)
+}
+
+function onOtherFeeBizDateChange(e) {
+	otherFeeForm.bizDate = normalizeString(e?.detail?.value)
 }
 
 function onPrepayBizDateChange(e) {
@@ -2991,11 +3187,13 @@ watch(
 		quickSceneApplied.value = false
 		activeOperationTab.value = 'receipt'
 		openingDebtRecentExpanded.value = false
+		otherFeeRecentExpanded.value = false
 		receiptRecentExpanded.value = false
 		resetReceiptForm()
 		resetPrepayForm()
 		resetFlowForm({ preservePrev: false })
 		resetOpeningDebtForm()
+		resetOtherFeeForm()
 		resetOffsetAllocateForm()
 		offsetPoolRows.value = []
 		offsetPoolPager.page = 1
@@ -3024,6 +3222,7 @@ onMounted(() => {
 	if (!prepayForm.bizDate) prepayForm.bizDate = todayYmd()
 	if (!flowForm.bizDate) flowForm.bizDate = todayYmd()
 	if (!openingDebtForm.bizDate) openingDebtForm.bizDate = todayYmd()
+	if (!otherFeeForm.bizDate) otherFeeForm.bizDate = todayYmd()
 })
 </script>
 

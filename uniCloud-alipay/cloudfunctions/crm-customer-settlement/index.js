@@ -51,6 +51,9 @@ const PAGE_ACTION_RULES = {
 	createOpeningDebtEntryV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	updateOpeningDebtEntryV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	removeOpeningDebtEntryV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	createOtherFeeEntryV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	updateOtherFeeEntryV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	removeOtherFeeEntryV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	releaseSaleSettlementOnRemoveV1: [
 		{ pagePath: '/pages/sale/detail', action: 'delete' },
 		{ pagePath: '/pages/customer/statement', action: 'update' }
@@ -356,7 +359,8 @@ async function buildBusinessSummaryFromTargets(
 	for (const doc of openingDebtDocs) {
 		const snapshot = computeOpeningDebtSnapshot(doc, moneyScale)
 		const openingDebtId = normalizeId(doc && doc._id)
-		const offsetApplied = getOffsetApplied('opening_debt', openingDebtId)
+		const targetType = resolveOpeningDebtEntryType(doc)
+		const offsetApplied = getOffsetApplied(targetType, openingDebtId)
 		const businessReceived = fixMoney(Math.max(snapshot.amount_received - offsetApplied, 0))
 		shouldTotal = fixMoney(shouldTotal + snapshot.amount)
 		receivedTotal = fixMoney(receivedTotal + businessReceived)
@@ -639,8 +643,28 @@ function normalizeSettlementMode(value, fallback = 'sale') {
 
 function normalizeReceivableTargetType(value) {
 	const text = normalizeString(value)
-	if (text === 'flow_settlement' || text === 'sale' || text === 'opening_debt') return text
+	if (text === 'flow_settlement' || text === 'sale' || text === 'opening_debt' || text === 'other_fee') return text
 	return 'sale'
+}
+
+function isOtherFeeSourceType(value) {
+	const text = normalizeString(value).toLowerCase()
+	if (!text) return false
+	return text.includes('other_fee')
+}
+
+function resolveOpeningDebtEntryType(doc) {
+	return isOtherFeeSourceType(doc && doc.source_type) ? 'other_fee' : 'opening_debt'
+}
+
+function openingDebtEntryLabelByType(entryType) {
+	return normalizeReceivableTargetType(entryType) === 'other_fee' ? '其他费用' : '历史欠款'
+}
+
+function buildOpeningDebtTargetTitle({ entryType = 'opening_debt', bizDate = '', targetId = '' } = {}) {
+	const label = openingDebtEntryLabelByType(entryType)
+	const id = normalizeId(targetId)
+	return `${label} ${normalizeString(bizDate)} / ${id.slice(-6)}`
 }
 
 function computeFlow(base, priceUnit) {
@@ -1573,10 +1597,15 @@ function buildReceivableTargetRows({ saleDocs = [], flowDocs = [], openingDebtDo
 	const openingDebtRows = openingDebtDocs.map((doc) => {
 		const debtId = normalizeId(doc && doc._id)
 		const snapshot = computeOpeningDebtSnapshot(doc, moneyScale)
+		const entryType = resolveOpeningDebtEntryType(doc)
 		return {
-			target_type: 'opening_debt',
+			target_type: entryType,
 			target_id: debtId,
-			target_title: `历史欠款 ${normalizeString(doc && doc.biz_date)} / ${debtId.slice(-6)}`,
+			target_title: buildOpeningDebtTargetTitle({
+				entryType,
+				bizDate: doc && doc.biz_date,
+				targetId: debtId
+			}),
 			target_date: normalizeString(doc && doc.biz_date),
 			sale_id: debtId,
 			opening_debt_id: debtId,
@@ -1585,7 +1614,8 @@ function buildReceivableTargetRows({ saleDocs = [], flowDocs = [], openingDebtDo
 			outstanding: snapshot.outstanding,
 			payment_status: snapshot.payment_status,
 			meta: {
-				note: normalizeString(doc && doc.note)
+				note: normalizeString(doc && doc.note),
+				entry_type: entryType
 			}
 		}
 	})
@@ -1794,7 +1824,7 @@ async function applyAllocationAndPersist({
 			})
 			targetDate = normalizeString(flowDoc.biz_date)
 			if (!targetTitle) targetTitle = `流量结算 ${targetDate} / ${targetId.slice(-6)}`
-		} else if (targetType === 'opening_debt') {
+		} else if (targetType === 'opening_debt' || targetType === 'other_fee') {
 			const debtRes = await openingDebts.doc(targetId).get()
 			const debtDoc = (debtRes.data && debtRes.data[0]) || null
 			if (!debtDoc) continue
@@ -1813,7 +1843,13 @@ async function applyAllocationAndPersist({
 				updated_at: Date.now()
 			})
 			targetDate = normalizeString(debtDoc.biz_date)
-			if (!targetTitle) targetTitle = `历史欠款 ${targetDate} / ${targetId.slice(-6)}`
+			if (!targetTitle) {
+				targetTitle = buildOpeningDebtTargetTitle({
+					entryType: targetType,
+					bizDate: targetDate,
+					targetId
+				})
+			}
 		} else {
 			const saleRes = await sales.doc(targetId).get()
 			const saleDoc = (saleRes.data && saleRes.data[0]) || null
@@ -2040,7 +2076,7 @@ async function rollbackReceiptAllocations({ customerId, receiptId }) {
 			rollbackTotal = fix3(rollbackTotal + amount)
 			continue
 		}
-		if (targetType === 'opening_debt') {
+		if (targetType === 'opening_debt' || targetType === 'other_fee') {
 			const debtRes = await openingDebts.doc(targetId).get()
 			const debtDoc = (debtRes.data && debtRes.data[0]) || null
 			if (!debtDoc || normalizeId(debtDoc.customer_id) !== customerId || normalizeString(debtDoc.status) !== 'posted') {
@@ -2147,7 +2183,7 @@ async function applyPlanToExistingReceipt({
 			})
 			targetDate = normalizeString(flowDoc.biz_date)
 			if (!targetTitle) targetTitle = `流量结算 ${targetDate} / ${targetId.slice(-6)}`
-		} else if (targetType === 'opening_debt') {
+		} else if (targetType === 'opening_debt' || targetType === 'other_fee') {
 			const debtRes = await openingDebts.doc(targetId).get()
 			const debtDoc = (debtRes.data && debtRes.data[0]) || null
 			if (!debtDoc || normalizeId(debtDoc.customer_id) !== customer._id || normalizeString(debtDoc.status) !== 'posted') continue
@@ -2164,7 +2200,13 @@ async function applyPlanToExistingReceipt({
 				updated_at: Date.now()
 			})
 			targetDate = normalizeString(debtDoc.biz_date)
-			if (!targetTitle) targetTitle = `历史欠款 ${targetDate} / ${targetId.slice(-6)}`
+			if (!targetTitle) {
+				targetTitle = buildOpeningDebtTargetTitle({
+					entryType: targetType,
+					bizDate: targetDate,
+					targetId
+				})
+			}
 		} else {
 			const saleRes = await sales.doc(targetId).get()
 			const saleDoc = (saleRes.data && saleRes.data[0]) || null
@@ -2732,7 +2774,10 @@ async function createOpeningDebtEntryV1(user, data, requestId) {
 	const amount = fixMoney(amountRaw)
 	const bizDate = normalizeBizDate(data.biz_date || data.bizDate, Date.now())
 	const note = normalizeString(data.note)
-	const sourceType = normalizeString(data.source_type || data.sourceType) || 'customer_opening_debt_manual'
+	const sourceTypeInput = normalizeString(data.source_type || data.sourceType)
+	const sourceType = isOtherFeeSourceType(sourceTypeInput)
+		? 'customer_opening_debt_manual'
+		: (sourceTypeInput || 'customer_opening_debt_manual')
 	const sourceId = normalizeId(data.source_id || data.sourceId)
 
 	const now = Date.now()
@@ -2798,6 +2843,7 @@ async function updateOpeningDebtEntryV1(user, data, requestId) {
 	const debtDoc = (debtRes.data && debtRes.data[0]) || null
 	if (!debtDoc) return { code: 404, msg: '历史欠款不存在' }
 	if (normalizeString(debtDoc.status) !== 'posted') return { code: 400, msg: '仅支持编辑已入账历史欠款' }
+	if (resolveOpeningDebtEntryType(debtDoc) !== 'opening_debt') return { code: 400, msg: '该记录不是历史欠款' }
 
 	const debtCustomerId = normalizeId(debtDoc.customer_id)
 	const customerId = normalizeId(data.customer_id || data.customerId || debtCustomerId)
@@ -2817,7 +2863,10 @@ async function updateOpeningDebtEntryV1(user, data, requestId) {
 	if (amount < amountReceived) return { code: 400, msg: '欠款金额不能小于已收金额' }
 	const bizDate = normalizeBizDate(data.biz_date || data.bizDate || debtDoc.biz_date, Date.now())
 	const note = data.note === undefined ? normalizeString(debtDoc.note) : normalizeString(data.note)
-	const sourceType = normalizeString(data.source_type || data.sourceType || debtDoc.source_type) || 'customer_opening_debt_manual'
+	const sourceTypeInput = normalizeString(data.source_type || data.sourceType || debtDoc.source_type)
+	const sourceType = isOtherFeeSourceType(sourceTypeInput)
+		? 'customer_opening_debt_manual'
+		: (sourceTypeInput || 'customer_opening_debt_manual')
 	const sourceIdRaw = data.source_id !== undefined || data.sourceId !== undefined ? data.source_id ?? data.sourceId : debtDoc.source_id
 	const sourceId = normalizeId(sourceIdRaw)
 	const paymentStatus = resolvePaymentStatusByAmount(amount, amountReceived, moneyScale)
@@ -2882,6 +2931,7 @@ async function removeOpeningDebtEntryV1(user, data, requestId) {
 	const debtDoc = (debtRes.data && debtRes.data[0]) || null
 	if (!debtDoc) return { code: 404, msg: '历史欠款不存在' }
 	if (normalizeString(debtDoc.status) !== 'posted') return { code: 400, msg: '仅支持删除已入账历史欠款' }
+	if (resolveOpeningDebtEntryType(debtDoc) !== 'opening_debt') return { code: 400, msg: '该记录不是历史欠款' }
 
 	const debtCustomerId = normalizeId(debtDoc.customer_id)
 	const customerId = normalizeId(data.customer_id || data.customerId || debtCustomerId)
@@ -2927,6 +2977,235 @@ async function removeOpeningDebtEntryV1(user, data, requestId) {
 		msg: '历史欠款已删除',
 		data: {
 			_id: openingDebtId,
+			customer_id: customerId,
+			balances
+		}
+	}
+}
+
+async function createOtherFeeEntryV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'createOtherFeeEntryV1', requestId)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const customerId = normalizeId(data.customer_id || data.customerId)
+	const amountRaw = toNumber(data.amount, 0)
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if (!(amountRaw > 0)) return { code: 400, msg: '其他费用金额必须大于0' }
+
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { code: 404, msg: '客户不存在' }
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const amount = fixMoney(amountRaw)
+	const bizDate = normalizeBizDate(data.biz_date || data.bizDate, Date.now())
+	const note = normalizeString(data.note)
+	const sourceTypeInput = normalizeString(data.source_type || data.sourceType)
+	const sourceType = isOtherFeeSourceType(sourceTypeInput)
+		? sourceTypeInput
+		: 'customer_other_fee_manual'
+	const sourceId = normalizeId(data.source_id || data.sourceId)
+
+	const now = Date.now()
+	const payload = {
+		customer_id: customer._id,
+		customer_name: customer.name,
+		biz_date: bizDate,
+		amount,
+		amount_received: 0,
+		outstanding: amount,
+		payment_status: 'unpaid',
+		note,
+		status: 'posted',
+		source_type: sourceType,
+		source_id: sourceId || null,
+		money_scale: moneyScale,
+		request_id: requestId,
+		created_at: now,
+		created_by: normalizeId(user && user._id) || null,
+		created_by_name: normalizeString(user && user.username),
+		updated_at: now
+	}
+	const addRes = await openingDebts.add(payload)
+	const otherFeeId = normalizeId(addRes && addRes.id)
+	const balances = await rebuildCustomerBalances(customerId)
+	await recordLog(
+		user,
+		'customer_other_fee_create_v1',
+		{
+			customer_id: customerId,
+			other_fee_id: otherFeeId,
+			amount,
+			biz_date: bizDate
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		msg: '其他费用已登记',
+		data: {
+			_id: otherFeeId,
+			customer_id: customerId,
+			amount,
+			amount_received: 0,
+			outstanding: amount,
+			payment_status: 'unpaid',
+			biz_date: bizDate,
+			note,
+			balances
+		}
+	}
+}
+
+async function updateOtherFeeEntryV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'updateOtherFeeEntryV1', requestId)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const otherFeeId = normalizeId(
+		data.other_fee_id || data.otherFeeId || data.opening_debt_id || data.openingDebtId || data._id
+	)
+	if (!otherFeeId) return { code: 400, msg: 'other_fee_id 必填' }
+
+	const debtRes = await openingDebts.doc(otherFeeId).get()
+	const debtDoc = (debtRes.data && debtRes.data[0]) || null
+	if (!debtDoc) return { code: 404, msg: '其他费用不存在' }
+	if (normalizeString(debtDoc.status) !== 'posted') return { code: 400, msg: '仅支持编辑已入账其他费用' }
+	if (resolveOpeningDebtEntryType(debtDoc) !== 'other_fee') return { code: 400, msg: '该记录不是其他费用' }
+
+	const debtCustomerId = normalizeId(debtDoc.customer_id)
+	const customerId = normalizeId(data.customer_id || data.customerId || debtCustomerId)
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if (customerId !== debtCustomerId) return { code: 400, msg: '其他费用不属于该客户' }
+
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { code: 404, msg: '客户不存在' }
+	const moneyScale = resolveOpeningDebtMoneyScale(debtDoc, resolveCustomerMoneyScale(customer))
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+
+	const amountRaw = data.amount == null || data.amount === '' ? debtDoc.amount : data.amount
+	const amount = fixMoney(toNumber(amountRaw, 0))
+	if (!(amount > 0)) return { code: 400, msg: '其他费用金额必须大于0' }
+
+	const amountReceived = fixMoney(toNumber(debtDoc.amount_received, 0))
+	if (amount < amountReceived) return { code: 400, msg: '其他费用金额不能小于已收金额' }
+	const bizDate = normalizeBizDate(data.biz_date || data.bizDate || debtDoc.biz_date, Date.now())
+	const note = data.note === undefined ? normalizeString(debtDoc.note) : normalizeString(data.note)
+	const sourceTypeInput = normalizeString(data.source_type || data.sourceType || debtDoc.source_type)
+	const sourceType = isOtherFeeSourceType(sourceTypeInput)
+		? sourceTypeInput
+		: 'customer_other_fee_manual'
+	const sourceIdRaw = data.source_id !== undefined || data.sourceId !== undefined ? data.source_id ?? data.sourceId : debtDoc.source_id
+	const sourceId = normalizeId(sourceIdRaw)
+	const paymentStatus = resolvePaymentStatusByAmount(amount, amountReceived, moneyScale)
+	const outstanding = amount > amountReceived ? fixMoney(amount - amountReceived) : 0
+
+	await openingDebts.doc(otherFeeId).update({
+		customer_name: customer.name,
+		biz_date: bizDate,
+		amount,
+		amount_received: amountReceived,
+		outstanding,
+		payment_status: paymentStatus,
+		note,
+		source_type: sourceType,
+		source_id: sourceId || null,
+		money_scale: moneyScale,
+		request_id: requestId,
+		updated_at: Date.now(),
+		updated_by: normalizeId(user && user._id) || null,
+		updated_by_name: normalizeString(user && user.username)
+	})
+
+	const balances = await rebuildCustomerBalances(customerId)
+	await recordLog(
+		user,
+		'customer_other_fee_update_v1',
+		{
+			customer_id: customerId,
+			other_fee_id: otherFeeId,
+			amount,
+			amount_received: amountReceived,
+			outstanding
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		msg: '其他费用已更新',
+		data: {
+			_id: otherFeeId,
+			customer_id: customerId,
+			amount,
+			amount_received: amountReceived,
+			outstanding,
+			payment_status: paymentStatus,
+			biz_date: bizDate,
+			note,
+			balances
+		}
+	}
+}
+
+async function removeOtherFeeEntryV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'removeOtherFeeEntryV1', requestId)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const otherFeeId = normalizeId(
+		data.other_fee_id || data.otherFeeId || data.opening_debt_id || data.openingDebtId || data._id
+	)
+	if (!otherFeeId) return { code: 400, msg: 'other_fee_id 必填' }
+
+	const debtRes = await openingDebts.doc(otherFeeId).get()
+	const debtDoc = (debtRes.data && debtRes.data[0]) || null
+	if (!debtDoc) return { code: 404, msg: '其他费用不存在' }
+	if (normalizeString(debtDoc.status) !== 'posted') return { code: 400, msg: '仅支持删除已入账其他费用' }
+	if (resolveOpeningDebtEntryType(debtDoc) !== 'other_fee') return { code: 400, msg: '该记录不是其他费用' }
+
+	const debtCustomerId = normalizeId(debtDoc.customer_id)
+	const customerId = normalizeId(data.customer_id || data.customerId || debtCustomerId)
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if (customerId !== debtCustomerId) return { code: 400, msg: '其他费用不属于该客户' }
+
+	const linkedRes = await allocations
+		.where({
+			customer_id: customerId,
+			target_type: 'other_fee',
+			target_id: otherFeeId
+		})
+		.limit(1)
+		.get()
+	const linkedRows = Array.isArray(linkedRes.data) ? linkedRes.data : []
+	if (linkedRows.length || toNumber(debtDoc.amount_received, 0) > 0) {
+		return { code: 400, msg: '该其他费用已有收款分配，请先处理相关收款单后再删除' }
+	}
+
+	const now = Date.now()
+	await openingDebts.doc(otherFeeId).update({
+		status: 'void',
+		void_reason: normalizeString(data.reason || data.note) || 'manual_remove',
+		void_at: now,
+		void_by: normalizeId(user && user._id) || null,
+		void_by_name: normalizeString(user && user.username),
+		request_id: requestId,
+		updated_at: now
+	})
+	const balances = await rebuildCustomerBalances(customerId)
+	await recordLog(
+		user,
+		'customer_other_fee_remove_v1',
+		{
+			customer_id: customerId,
+			other_fee_id: otherFeeId
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		msg: '其他费用已删除',
+		data: {
+			_id: otherFeeId,
 			customer_id: customerId,
 			balances
 		}
@@ -3199,7 +3478,7 @@ async function applyOffsetAllocationsToReceipt({
 			})
 			targetDate = normalizeString(flowDoc.biz_date)
 			if (!targetTitle) targetTitle = `流量结算 ${targetDate} / ${targetId.slice(-6)}`
-		} else if (targetType === 'opening_debt') {
+		} else if (targetType === 'opening_debt' || targetType === 'other_fee') {
 			const debtRes = await openingDebts.doc(targetId).get()
 			const debtDoc = (debtRes.data && debtRes.data[0]) || null
 			if (!debtDoc || normalizeId(debtDoc.customer_id) !== customer._id || normalizeString(debtDoc.status) !== 'posted') continue
@@ -3216,7 +3495,13 @@ async function applyOffsetAllocationsToReceipt({
 				updated_at: Date.now()
 			})
 			targetDate = normalizeString(debtDoc.biz_date)
-			if (!targetTitle) targetTitle = `历史欠款 ${targetDate} / ${targetId.slice(-6)}`
+			if (!targetTitle) {
+				targetTitle = buildOpeningDebtTargetTitle({
+					entryType: targetType,
+					bizDate: targetDate,
+					targetId
+				})
+			}
 		} else {
 			const saleRes = await sales.doc(targetId).get()
 			const saleDoc = (saleRes.data && saleRes.data[0]) || null
@@ -4636,7 +4921,8 @@ async function getCustomerStatementV1(user, data) {
 				recent_sales: [],
 				recent_receipts: [],
 				recent_flow_settlements: [],
-				recent_opening_debts: []
+				recent_opening_debts: [],
+				recent_other_fees: []
 			}
 		}
 	}
@@ -4757,6 +5043,26 @@ async function getCustomerStatementV1(user, data) {
 			return a.created_at < b.created_at ? 1 : -1
 		})
 	const recentOpeningDebts = openingDebtDocs
+		.filter((doc) => resolveOpeningDebtEntryType(doc) === 'opening_debt')
+		.map((doc) => {
+			const snapshot = computeOpeningDebtSnapshot(doc, moneyScale)
+			return {
+				_id: normalizeId(doc._id),
+				biz_date: normalizeString(doc.biz_date),
+				amount: snapshot.amount,
+				amount_received: snapshot.amount_received,
+				outstanding: snapshot.outstanding,
+				payment_status: snapshot.payment_status,
+				note: normalizeString(doc.note),
+				created_at: toNumber(doc.created_at, 0)
+			}
+		})
+		.sort((a, b) => {
+			if (a.biz_date !== b.biz_date) return a.biz_date < b.biz_date ? 1 : -1
+			return a.created_at < b.created_at ? 1 : -1
+		})
+	const recentOtherFees = openingDebtDocs
+		.filter((doc) => resolveOpeningDebtEntryType(doc) === 'other_fee')
 		.map((doc) => {
 			const snapshot = computeOpeningDebtSnapshot(doc, moneyScale)
 			return {
@@ -4793,7 +5099,8 @@ async function getCustomerStatementV1(user, data) {
 			recent_sales: saleRows.slice(0, 100),
 			recent_receipts: recentReceipts,
 			recent_flow_settlements: recentFlowSettlements.slice(0, 20),
-			recent_opening_debts: recentOpeningDebts.slice(0, 20)
+			recent_opening_debts: recentOpeningDebts.slice(0, 20),
+			recent_other_fees: recentOtherFees.slice(0, 20)
 		}
 	}
 }
@@ -4922,8 +5229,9 @@ async function listCustomerStatementRowsV1(user, data) {
 	})
 	const openingDebtRows = openingDebtDocs.map((doc) => {
 		const snapshot = computeOpeningDebtSnapshot(doc, moneyScale)
+		const entryType = resolveOpeningDebtEntryType(doc)
 		return {
-			row_type: 'opening_debt',
+			row_type: entryType,
 			row_id: normalizeId(doc._id),
 			biz_date: normalizeString(doc.biz_date),
 			created_at: toNumber(doc.created_at, 0),
@@ -4934,7 +5242,8 @@ async function listCustomerStatementRowsV1(user, data) {
 			outstanding: snapshot.outstanding,
 			note: normalizeString(doc.note),
 			meta: {
-				payment_status: snapshot.payment_status
+				payment_status: snapshot.payment_status,
+				entry_type: entryType
 			}
 		}
 	})
@@ -5043,6 +5352,9 @@ exports.main = async (event, context) => {
 	if (action === 'createOpeningDebtEntryV1') return createOpeningDebtEntryV1(user, data, requestId)
 	if (action === 'updateOpeningDebtEntryV1') return updateOpeningDebtEntryV1(user, data, requestId)
 	if (action === 'removeOpeningDebtEntryV1') return removeOpeningDebtEntryV1(user, data, requestId)
+	if (action === 'createOtherFeeEntryV1') return createOtherFeeEntryV1(user, data, requestId)
+	if (action === 'updateOtherFeeEntryV1') return updateOtherFeeEntryV1(user, data, requestId)
+	if (action === 'removeOtherFeeEntryV1') return removeOtherFeeEntryV1(user, data, requestId)
 	if (action === 'releaseSaleSettlementOnRemoveV1') return releaseSaleSettlementOnRemoveV1(user, data, requestId)
 	if (action === 'listOffsetCreditPoolV1') return listOffsetCreditPoolV1(user, data)
 	if (action === 'allocateOffsetCreditV1') return allocateOffsetCreditV1(user, data, requestId)

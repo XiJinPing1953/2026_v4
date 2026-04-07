@@ -143,6 +143,35 @@ export async function updateOpeningDebtEntryV1(params = {}) {
 	})
 }
 
+export async function createOtherFeeEntryV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'createOtherFeeEntryV1',
+		data: {
+			customer_id: params.customerId || params.customer_id || '',
+			amount: params.amount,
+			biz_date: params.bizDate || params.biz_date || '',
+			note: params.note || '',
+			source_type: params.sourceType || params.source_type || 'customer_other_fee_manual',
+			source_id: params.sourceId || params.source_id || ''
+		}
+	})
+}
+
+export async function updateOtherFeeEntryV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'updateOtherFeeEntryV1',
+		data: {
+			other_fee_id: params.otherFeeId || params.other_fee_id || params._id || '',
+			customer_id: params.customerId || params.customer_id || '',
+			amount: params.amount,
+			biz_date: params.bizDate || params.biz_date || '',
+			note: params.note || '',
+			source_type: params.sourceType || params.source_type || '',
+			source_id: params.sourceId || params.source_id || ''
+		}
+	})
+}
+
 export async function listOffsetCreditPoolV1(params = {}) {
 	return callCloud('crm-customer-settlement', {
 		action: 'listOffsetCreditPoolV1',
@@ -177,6 +206,17 @@ export async function removeOpeningDebtEntryV1(params = {}) {
 		action: 'removeOpeningDebtEntryV1',
 		data: {
 			opening_debt_id: params.openingDebtId || params.opening_debt_id || params._id || '',
+			customer_id: params.customerId || params.customer_id || '',
+			reason: params.reason || ''
+		}
+	})
+}
+
+export async function removeOtherFeeEntryV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'removeOtherFeeEntryV1',
+		data: {
+			other_fee_id: params.otherFeeId || params.other_fee_id || params._id || '',
 			customer_id: params.customerId || params.customer_id || '',
 			reason: params.reason || ''
 		}
