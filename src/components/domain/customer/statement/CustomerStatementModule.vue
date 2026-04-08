@@ -387,6 +387,13 @@
 							size="sm"
 							@blur="onOpeningDebtAmountBlur"
 						/>
+						<AppInput
+							v-model="openingDebtForm.roundingAmount"
+							label="抹零金额(元)"
+							:placeholder="moneyInputPlaceholder"
+							size="sm"
+							@blur="onOpeningDebtRoundingAmountBlur"
+						/>
 						<picker class="picker-block" mode="date" @change="onOpeningDebtBizDateChange">
 							<AppInput v-model="openingDebtForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
@@ -413,6 +420,9 @@
 							<template #right>
 								<view class="mini-amounts">
 									<text>应收 ¥{{ formatMoney(row.amount) }}</text>
+									<text v-if="resolveOpeningDebtRoundingAmount(row) > 0" class="mini-amounts__rounding">
+										抹零 ¥{{ formatMoney(resolveOpeningDebtRoundingAmount(row)) }}（计费应收 ¥{{ formatMoney(resolveOpeningDebtEffectiveShouldReceive(row)) }}）
+									</text>
 									<text>已收 ¥{{ formatMoney(row.amount_received) }}</text>
 									<text>未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								</view>
@@ -763,6 +773,9 @@
 								<text v-if="row.row_type === 'flow_settlement'">应收 ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'flow_settlement'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								<text v-if="row.row_type === 'opening_debt'">应收 ¥{{ formatMoney(row.amount) }}</text>
+								<text v-if="row.row_type === 'opening_debt' && resolveOpeningDebtRoundingAmount(row) > 0" class="mini-amounts__rounding">
+									抹零 ¥{{ formatMoney(resolveOpeningDebtRoundingAmount(row)) }}（计费应收 ¥{{ formatMoney(resolveOpeningDebtEffectiveShouldReceive(row)) }}）
+								</text>
 								<text v-if="row.row_type === 'opening_debt'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								<text v-if="row.row_type === 'other_fee'">应收 ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'other_fee'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
@@ -972,6 +985,7 @@ const flowForm = reactive({
 })
 const openingDebtForm = reactive({
 	amount: '',
+	roundingAmount: '',
 	bizDate: '',
 	note: ''
 })
@@ -1642,6 +1656,25 @@ function resolveSaleRoundingAmount(row) {
 	return diff > 0 ? diff : 0
 }
 
+function resolveOpeningDebtRoundingAmount(row) {
+	const direct = toNullableNumber(row?.rounding_amount ?? row?.meta?.rounding_amount)
+	if (direct != null) return Math.max(toNumber(direct, 0), 0)
+	const rawAmount = toNumber(row?.amount, 0)
+	const effective = toNullableNumber(row?.should_receive_effective ?? row?.meta?.should_receive_effective)
+	if (effective == null) return 0
+	const diff = toNumber(rawAmount - toNumber(effective, 0), 0)
+	return diff > 0 ? diff : 0
+}
+
+function resolveOpeningDebtEffectiveShouldReceive(row) {
+	const direct = toNullableNumber(row?.should_receive_effective ?? row?.meta?.should_receive_effective)
+	if (direct != null) return Math.max(toNumber(direct, 0), 0)
+	const rawAmount = toNumber(row?.amount, 0)
+	const rounding = resolveOpeningDebtRoundingAmount(row)
+	const effective = toNumber(rawAmount - rounding, 0)
+	return effective > 0 ? effective : 0
+}
+
 function resolveSaleOutBottleCount(row) {
 	const count = Math.floor(toNumber(row?.out_bottle_count, 0))
 	return count > 0 ? count : 0
@@ -1990,6 +2023,7 @@ function resetFlowForm(options = {}) {
 function resetOpeningDebtForm() {
 	editingOpeningDebtId.value = ''
 	openingDebtForm.amount = ''
+	openingDebtForm.roundingAmount = ''
 	openingDebtForm.bizDate = todayYmd()
 	openingDebtForm.note = ''
 }
@@ -2078,6 +2112,8 @@ function onEditOpeningDebt(row) {
 	activeOperationTab.value = 'opening_debt'
 	editingOpeningDebtId.value = debtId
 	openingDebtForm.amount = formatMoney(row?.amount)
+	const roundingAmount = resolveOpeningDebtRoundingAmount(row)
+	openingDebtForm.roundingAmount = roundingAmount > 0 ? formatMoney(roundingAmount) : ''
 	openingDebtForm.bizDate = normalizeDate(row?.biz_date) || todayYmd()
 	openingDebtForm.note = normalizeString(row?.note)
 	uni.showToast({ title: '已加载历史欠款，修改后点保存欠款', icon: 'none' })
@@ -2112,6 +2148,15 @@ async function onCreateOpeningDebtEntry() {
 		uni.showToast({ title: '请输入大于0的欠款金额', icon: 'none' })
 		return
 	}
+	const roundingAmount = openingDebtForm.roundingAmount === '' ? 0 : Number(openingDebtForm.roundingAmount)
+	if (!Number.isFinite(roundingAmount) || roundingAmount < 0) {
+		uni.showToast({ title: '抹零金额不能小于0', icon: 'none' })
+		return
+	}
+	if (roundingAmount > amount) {
+		uni.showToast({ title: '抹零金额不能大于欠款金额', icon: 'none' })
+		return
+	}
 	openingDebtSubmitting.value = true
 	try {
 		const isEditing = isEditingOpeningDebt.value
@@ -2120,6 +2165,7 @@ async function onCreateOpeningDebtEntry() {
 				openingDebtId: editingOpeningDebtId.value,
 				customerId: recordId.value,
 				amount,
+				roundingAmount,
 				bizDate: openingDebtForm.bizDate,
 				note: openingDebtForm.note,
 				sourceType: 'customer_opening_debt_manual'
@@ -2127,6 +2173,7 @@ async function onCreateOpeningDebtEntry() {
 			: await createOpeningDebtEntryV1({
 				customerId: recordId.value,
 				amount,
+				roundingAmount,
 				bizDate: openingDebtForm.bizDate,
 				note: openingDebtForm.note,
 				sourceType: 'customer_opening_debt_manual'
@@ -2947,7 +2994,14 @@ function statementRowDetail(row) {
 		return sourceType ? `来源 ${sourceType}` : ''
 	}
 	if (row?.row_type === 'opening_debt') {
-		return normalizeString(row?.note)
+		const parts = []
+		const roundingAmount = resolveOpeningDebtRoundingAmount(row)
+		if (roundingAmount > 0) {
+			parts.push(`抹零 ¥${formatMoney(roundingAmount)}`)
+		}
+		const note = normalizeString(row?.note)
+		if (note) parts.push(note)
+		return parts.join(' · ')
 	}
 	if (row?.row_type === 'other_fee') {
 		return normalizeString(row?.note)
@@ -2999,6 +3053,11 @@ function onReceiptAmountBlur() {
 function onOpeningDebtAmountBlur() {
 	if (!isFlowCustomer.value) return
 	openingDebtForm.amount = normalizeFlowMoneyInput(openingDebtForm.amount)
+}
+
+function onOpeningDebtRoundingAmountBlur() {
+	if (!isFlowCustomer.value) return
+	openingDebtForm.roundingAmount = normalizeFlowMoneyInput(openingDebtForm.roundingAmount)
 }
 
 function onOtherFeeAmountBlur() {

@@ -120,6 +120,7 @@ export async function createOpeningDebtEntryV1(params = {}) {
 		data: {
 			customer_id: params.customerId || params.customer_id || '',
 			amount: params.amount,
+			rounding_amount: params.roundingAmount ?? params.rounding_amount ?? 0,
 			biz_date: params.bizDate || params.biz_date || '',
 			note: params.note || '',
 			source_type: params.sourceType || params.source_type || 'customer_opening_debt_manual',
@@ -135,6 +136,7 @@ export async function updateOpeningDebtEntryV1(params = {}) {
 			opening_debt_id: params.openingDebtId || params.opening_debt_id || params._id || '',
 			customer_id: params.customerId || params.customer_id || '',
 			amount: params.amount,
+			rounding_amount: params.roundingAmount ?? params.rounding_amount ?? 0,
 			biz_date: params.bizDate || params.biz_date || '',
 			note: params.note || '',
 			source_type: params.sourceType || params.source_type || '',

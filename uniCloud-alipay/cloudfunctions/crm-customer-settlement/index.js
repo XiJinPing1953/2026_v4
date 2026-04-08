@@ -362,7 +362,7 @@ async function buildBusinessSummaryFromTargets(
 		const targetType = resolveOpeningDebtEntryType(doc)
 		const offsetApplied = getOffsetApplied(targetType, openingDebtId)
 		const businessReceived = fixMoney(Math.max(snapshot.amount_received - offsetApplied, 0))
-		shouldTotal = fixMoney(shouldTotal + snapshot.amount)
+		shouldTotal = fixMoney(shouldTotal + snapshot.should_receive_effective)
 		receivedTotal = fixMoney(receivedTotal + businessReceived)
 		receivable = fixMoney(receivable + snapshot.outstanding)
 	}
@@ -478,6 +478,14 @@ function normalizeBizDate(value, fallbackTs = Date.now()) {
 	const date = normalizeDate(value)
 	if (date) return date
 	return formatDate(new Date(fallbackTs))
+}
+
+function parseBizDateToTimestamp(value) {
+	const date = normalizeDate(value)
+	if (!date) return null
+	const parsed = Date.parse(`${date}T00:00:00+08:00`)
+	if (!Number.isFinite(parsed) || parsed <= 0) return null
+	return parsed
 }
 
 function generateRequestId() {
@@ -655,6 +663,14 @@ function isOtherFeeSourceType(value) {
 
 function resolveOpeningDebtEntryType(doc) {
 	return isOtherFeeSourceType(doc && doc.source_type) ? 'other_fee' : 'opening_debt'
+}
+
+function resolveOpeningDebtRoundingAmount(amountValue, roundingValue, moneyScale = 2) {
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const amount = fixMoney(Math.max(toNumber(amountValue, 0), 0))
+	if (!(amount > 0)) return 0
+	const rounding = fixMoney(Math.max(toNumber(roundingValue, 0), 0))
+	return fixMoney(Math.min(rounding, amount))
 }
 
 function openingDebtEntryLabelByType(entryType) {
@@ -897,13 +913,17 @@ function computeFlowSettlementSnapshot(doc) {
 function computeOpeningDebtSnapshot(doc, moneyScale = 2) {
 	const fixMoney = (value) => fixByScale(value, moneyScale)
 	const amount = fixMoney(toNumber(doc && doc.amount, 0))
+	const roundingAmount = resolveOpeningDebtRoundingAmount(amount, doc && doc.rounding_amount, moneyScale)
+	const effectiveShouldReceive = amount > 0 ? fixMoney(Math.max(amount - roundingAmount, 0)) : 0
 	const amountReceived = fixMoney(toNumber(doc && doc.amount_received, 0))
-	const outstanding = amount > amountReceived ? fixMoney(amount - amountReceived) : 0
+	const outstanding = effectiveShouldReceive > amountReceived ? fixMoney(effectiveShouldReceive - amountReceived) : 0
 	return {
 		amount,
+		rounding_amount: roundingAmount,
+		should_receive_effective: effectiveShouldReceive,
 		amount_received: amountReceived,
 		outstanding,
-		payment_status: resolvePaymentStatusByAmount(amount, amountReceived, moneyScale)
+		payment_status: resolvePaymentStatusByAmount(effectiveShouldReceive, amountReceived, moneyScale)
 	}
 }
 
@@ -1609,7 +1629,9 @@ function buildReceivableTargetRows({ saleDocs = [], flowDocs = [], openingDebtDo
 			target_date: normalizeString(doc && doc.biz_date),
 			sale_id: debtId,
 			opening_debt_id: debtId,
-			should_receive: snapshot.amount,
+			should_receive: snapshot.should_receive_effective,
+			should_receive_raw: snapshot.amount,
+			rounding_amount: snapshot.rounding_amount,
 			amount_received: snapshot.amount_received,
 			outstanding: snapshot.outstanding,
 			payment_status: snapshot.payment_status,
@@ -1835,10 +1857,10 @@ async function applyAllocationAndPersist({
 			allocateAmount = fixMoney(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
 			if (allocateAmount <= 0) continue
 			const nextAmountReceived = fixMoney(snapshot.amount_received + allocateAmount)
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.amount, nextAmountReceived, moneyScale)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextAmountReceived, moneyScale)
 			await openingDebts.doc(targetId).update({
 				amount_received: nextAmountReceived,
-				outstanding: fixMoney(Math.max(snapshot.amount - nextAmountReceived, 0)),
+				outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextAmountReceived, 0)),
 				payment_status: nextStatus,
 				updated_at: Date.now()
 			})
@@ -2088,10 +2110,10 @@ async function rollbackReceiptAllocations({ customerId, receiptId }) {
 			const snapshot = computeOpeningDebtSnapshot(debtDoc, moneyScale)
 			const amountFixed = fixMoney(amountRaw)
 			const nextAmountReceived = fixMoney(Math.max(snapshot.amount_received - amountFixed, 0))
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.amount, nextAmountReceived, moneyScale)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextAmountReceived, moneyScale)
 			await openingDebts.doc(targetId).update({
 				amount_received: nextAmountReceived,
-				outstanding: fixMoney(Math.max(snapshot.amount - nextAmountReceived, 0)),
+				outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextAmountReceived, 0)),
 				payment_status: nextStatus,
 				updated_at: Date.now()
 			})
@@ -2192,10 +2214,10 @@ async function applyPlanToExistingReceipt({
 			allocateAmount = fixMoney(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
 			if (allocateAmount <= 0) continue
 			const nextAmountReceived = fixMoney(snapshot.amount_received + allocateAmount)
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.amount, nextAmountReceived, moneyScale)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextAmountReceived, moneyScale)
 			await openingDebts.doc(targetId).update({
 				amount_received: nextAmountReceived,
-				outstanding: fixMoney(Math.max(snapshot.amount - nextAmountReceived, 0)),
+				outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextAmountReceived, 0)),
 				payment_status: nextStatus,
 				updated_at: Date.now()
 			})
@@ -2298,6 +2320,8 @@ async function rebuildCustomerBalances(customerId) {
 	let prepayOnly = 0
 	let offsetCredit = 0
 	let lastReceiptAt = null
+	let lastReceiptBizDate = ''
+	let lastReceiptCreatedAt = null
 	const receiptRows = []
 	const batchSize = 200
 	let page = 1
@@ -2326,7 +2350,17 @@ async function rebuildCustomerBalances(customerId) {
 		} else {
 			prepayOnly = fixMoney(prepayOnly + amount)
 		}
-		if (!lastReceiptAt) lastReceiptAt = toNumber(row.created_at, null)
+		const bizDate = normalizeDate(row && row.biz_date)
+		if (bizDate && (!lastReceiptBizDate || bizDate > lastReceiptBizDate)) {
+			lastReceiptBizDate = bizDate
+		}
+		if (lastReceiptCreatedAt == null) {
+			lastReceiptCreatedAt = toNumber(row && row.created_at, null)
+		}
+	}
+	lastReceiptAt = parseBizDateToTimestamp(lastReceiptBizDate)
+	if (!(Number.isFinite(lastReceiptAt) && lastReceiptAt > 0)) {
+		lastReceiptAt = Number.isFinite(lastReceiptCreatedAt) && lastReceiptCreatedAt > 0 ? lastReceiptCreatedAt : null
 	}
 
 	const net = fixMoney(receivable - prepay)
@@ -2772,6 +2806,14 @@ async function createOpeningDebtEntryV1(user, data, requestId) {
 	const moneyScale = resolveCustomerMoneyScale(customer)
 	const fixMoney = (value) => fixByScale(value, moneyScale)
 	const amount = fixMoney(amountRaw)
+	const roundingAmountInput = data.rounding_amount ?? data.roundingAmount
+	const roundingAmountRaw = roundingAmountInput == null || roundingAmountInput === '' ? 0 : toNumber(roundingAmountInput, 0)
+	if (!Number.isFinite(roundingAmountRaw) || roundingAmountRaw < 0) return { code: 400, msg: '抹零金额不能小于0' }
+	const roundingAmountFixed = fixMoney(roundingAmountRaw)
+	if (roundingAmountFixed > amount) return { code: 400, msg: '抹零金额不能大于欠款金额' }
+	const roundingAmount = resolveOpeningDebtRoundingAmount(amount, roundingAmountFixed, moneyScale)
+	const effectiveShouldReceive = amount > 0 ? fixMoney(Math.max(amount - roundingAmount, 0)) : 0
+	const paymentStatus = resolvePaymentStatusByAmount(effectiveShouldReceive, 0, moneyScale)
 	const bizDate = normalizeBizDate(data.biz_date || data.bizDate, Date.now())
 	const note = normalizeString(data.note)
 	const sourceTypeInput = normalizeString(data.source_type || data.sourceType)
@@ -2786,9 +2828,10 @@ async function createOpeningDebtEntryV1(user, data, requestId) {
 		customer_name: customer.name,
 		biz_date: bizDate,
 		amount,
+		rounding_amount: roundingAmount,
 		amount_received: 0,
-		outstanding: amount,
-		payment_status: 'unpaid',
+		outstanding: effectiveShouldReceive,
+		payment_status: paymentStatus,
 		note,
 		status: 'posted',
 		source_type: sourceType,
@@ -2810,6 +2853,8 @@ async function createOpeningDebtEntryV1(user, data, requestId) {
 			customer_id: customerId,
 			opening_debt_id: openingDebtId,
 			amount,
+			rounding_amount: roundingAmount,
+			should_receive_effective: effectiveShouldReceive,
 			biz_date: bizDate
 		},
 		requestId
@@ -2822,9 +2867,11 @@ async function createOpeningDebtEntryV1(user, data, requestId) {
 			_id: openingDebtId,
 			customer_id: customerId,
 			amount,
+			rounding_amount: roundingAmount,
+			should_receive_effective: effectiveShouldReceive,
 			amount_received: 0,
-			outstanding: amount,
-			payment_status: 'unpaid',
+			outstanding: effectiveShouldReceive,
+			payment_status: paymentStatus,
 			biz_date: bizDate,
 			note,
 			balances
@@ -2858,9 +2905,17 @@ async function updateOpeningDebtEntryV1(user, data, requestId) {
 	const amountRaw = data.amount == null || data.amount === '' ? debtDoc.amount : data.amount
 	const amount = fixMoney(toNumber(amountRaw, 0))
 	if (!(amount > 0)) return { code: 400, msg: '欠款金额必须大于0' }
-
+	const roundingAmountInput = data.rounding_amount ?? data.roundingAmount
+	const roundingAmountRaw = roundingAmountInput == null || roundingAmountInput === ''
+		? toNumber(debtDoc.rounding_amount, 0)
+		: toNumber(roundingAmountInput, 0)
+	if (!Number.isFinite(roundingAmountRaw) || roundingAmountRaw < 0) return { code: 400, msg: '抹零金额不能小于0' }
+	const roundingAmountFixed = fixMoney(roundingAmountRaw)
+	if (roundingAmountFixed > amount) return { code: 400, msg: '抹零金额不能大于欠款金额' }
+	const roundingAmount = resolveOpeningDebtRoundingAmount(amount, roundingAmountFixed, moneyScale)
+	const effectiveShouldReceive = amount > 0 ? fixMoney(Math.max(amount - roundingAmount, 0)) : 0
 	const amountReceived = fixMoney(toNumber(debtDoc.amount_received, 0))
-	if (amount < amountReceived) return { code: 400, msg: '欠款金额不能小于已收金额' }
+	if (effectiveShouldReceive < amountReceived) return { code: 400, msg: '计费应收不能小于已收金额' }
 	const bizDate = normalizeBizDate(data.biz_date || data.bizDate || debtDoc.biz_date, Date.now())
 	const note = data.note === undefined ? normalizeString(debtDoc.note) : normalizeString(data.note)
 	const sourceTypeInput = normalizeString(data.source_type || data.sourceType || debtDoc.source_type)
@@ -2869,13 +2924,14 @@ async function updateOpeningDebtEntryV1(user, data, requestId) {
 		: (sourceTypeInput || 'customer_opening_debt_manual')
 	const sourceIdRaw = data.source_id !== undefined || data.sourceId !== undefined ? data.source_id ?? data.sourceId : debtDoc.source_id
 	const sourceId = normalizeId(sourceIdRaw)
-	const paymentStatus = resolvePaymentStatusByAmount(amount, amountReceived, moneyScale)
-	const outstanding = amount > amountReceived ? fixMoney(amount - amountReceived) : 0
+	const paymentStatus = resolvePaymentStatusByAmount(effectiveShouldReceive, amountReceived, moneyScale)
+	const outstanding = effectiveShouldReceive > amountReceived ? fixMoney(effectiveShouldReceive - amountReceived) : 0
 
 	await openingDebts.doc(openingDebtId).update({
 		customer_name: customer.name,
 		biz_date: bizDate,
 		amount,
+		rounding_amount: roundingAmount,
 		amount_received: amountReceived,
 		outstanding,
 		payment_status: paymentStatus,
@@ -2897,6 +2953,8 @@ async function updateOpeningDebtEntryV1(user, data, requestId) {
 			customer_id: customerId,
 			opening_debt_id: openingDebtId,
 			amount,
+			rounding_amount: roundingAmount,
+			should_receive_effective: effectiveShouldReceive,
 			amount_received: amountReceived,
 			outstanding
 		},
@@ -2910,6 +2968,8 @@ async function updateOpeningDebtEntryV1(user, data, requestId) {
 			_id: openingDebtId,
 			customer_id: customerId,
 			amount,
+			rounding_amount: roundingAmount,
+			should_receive_effective: effectiveShouldReceive,
 			amount_received: amountReceived,
 			outstanding,
 			payment_status: paymentStatus,
@@ -3011,6 +3071,7 @@ async function createOtherFeeEntryV1(user, data, requestId) {
 		customer_name: customer.name,
 		biz_date: bizDate,
 		amount,
+		rounding_amount: 0,
 		amount_received: 0,
 		outstanding: amount,
 		payment_status: 'unpaid',
@@ -3103,6 +3164,7 @@ async function updateOtherFeeEntryV1(user, data, requestId) {
 		customer_name: customer.name,
 		biz_date: bizDate,
 		amount,
+		rounding_amount: 0,
 		amount_received: amountReceived,
 		outstanding,
 		payment_status: paymentStatus,
@@ -3487,10 +3549,10 @@ async function applyOffsetAllocationsToReceipt({
 			allocateAmount = fixMoney(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
 			if (allocateAmount <= 0) continue
 			const nextAmountReceived = fixMoney(snapshot.amount_received + allocateAmount)
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.amount, nextAmountReceived, moneyScale)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextAmountReceived, moneyScale)
 			await openingDebts.doc(targetId).update({
 				amount_received: nextAmountReceived,
-				outstanding: fixMoney(Math.max(snapshot.amount - nextAmountReceived, 0)),
+				outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextAmountReceived, 0)),
 				payment_status: nextStatus,
 				updated_at: Date.now()
 			})
@@ -3707,7 +3769,7 @@ async function exportCustomerStatementV1(user, data) {
 	const openingShouldReceive = fixMoney(
 		openingSales.reduce((sum, row) => sum + computeSaleSnapshot(row).should_receive, 0) +
 			openingFlowSettlements.reduce((sum, row) => sum + computeFlowSettlementSnapshot(row).should_receive, 0) +
-			openingDebtRowsBefore.reduce((sum, row) => sum + computeOpeningDebtSnapshot(row, moneyScale).amount, 0)
+			openingDebtRowsBefore.reduce((sum, row) => sum + computeOpeningDebtSnapshot(row, moneyScale).should_receive_effective, 0)
 	)
 	const openingReceived = fixMoney(openingReceipts.reduce((sum, row) => sum + toNumber(row && row.amount, 0), 0))
 	const openingBalance = fixMoney(openingShouldReceive - openingReceived)
@@ -3771,7 +3833,7 @@ async function exportCustomerStatementV1(user, data) {
 		const day = dayMap.get(date)
 		if (!day) return
 		const snapshot = computeOpeningDebtSnapshot(row, moneyScale)
-		day.amount = fixMoney(day.amount + snapshot.amount)
+		day.amount = fixMoney(day.amount + snapshot.should_receive_effective)
 	})
 
 	rangeReceipts.forEach((row) => {
@@ -4885,10 +4947,19 @@ async function getCustomerStatementV1(user, data) {
 		const scopedPrepayOnly = fixMoney(scopedPrepaySplit.prepay)
 		const scopedOffsetCredit = fixMoney(scopedPrepaySplit.offset)
 		const scopedPrepay = fixMoney(scopedPrepayOnly + scopedOffsetCredit)
-		const scopedLastReceiptAt = scopedReceipts.reduce(
-			(maxValue, row) => Math.max(maxValue, toNumber(row && row.created_at, 0)),
-			0
-		) || null
+		const scopedLastReceiptBizDate = scopedReceipts.reduce((maxDate, row) => {
+			const bizDate = normalizeDate(row && row.biz_date)
+			if (!bizDate) return maxDate
+			if (!maxDate || bizDate > maxDate) return bizDate
+			return maxDate
+		}, '')
+		let scopedLastReceiptAt = parseBizDateToTimestamp(scopedLastReceiptBizDate)
+		if (!(Number.isFinite(scopedLastReceiptAt) && scopedLastReceiptAt > 0)) {
+			scopedLastReceiptAt = scopedReceipts.reduce(
+				(maxValue, row) => Math.max(maxValue, toNumber(row && row.created_at, 0)),
+				0
+			) || null
+		}
 		scopedSummary = {
 			date_from: summaryDateFrom,
 			date_to: summaryDateTo,
@@ -5050,6 +5121,8 @@ async function getCustomerStatementV1(user, data) {
 				_id: normalizeId(doc._id),
 				biz_date: normalizeString(doc.biz_date),
 				amount: snapshot.amount,
+				rounding_amount: snapshot.rounding_amount,
+				should_receive_effective: snapshot.should_receive_effective,
 				amount_received: snapshot.amount_received,
 				outstanding: snapshot.outstanding,
 				payment_status: snapshot.payment_status,
@@ -5069,6 +5142,8 @@ async function getCustomerStatementV1(user, data) {
 				_id: normalizeId(doc._id),
 				biz_date: normalizeString(doc.biz_date),
 				amount: snapshot.amount,
+				rounding_amount: snapshot.rounding_amount,
+				should_receive_effective: snapshot.should_receive_effective,
 				amount_received: snapshot.amount_received,
 				outstanding: snapshot.outstanding,
 				payment_status: snapshot.payment_status,
@@ -5238,12 +5313,16 @@ async function listCustomerStatementRowsV1(user, data) {
 			sale_id: normalizeId(doc._id),
 			receipt_id: '',
 			amount: snapshot.amount,
+			rounding_amount: snapshot.rounding_amount,
+			should_receive_effective: snapshot.should_receive_effective,
 			amount_received: snapshot.amount_received,
 			outstanding: snapshot.outstanding,
 			note: normalizeString(doc.note),
 			meta: {
 				payment_status: snapshot.payment_status,
-				entry_type: entryType
+				entry_type: entryType,
+				rounding_amount: snapshot.rounding_amount,
+				should_receive_effective: snapshot.should_receive_effective
 			}
 		}
 	})
