@@ -114,6 +114,11 @@
 						<AppButton size="sm" kind="ghost" @click="resetPrepayForm">重置</AppButton>
 						<AppButton size="sm" kind="primary" :loading="prepaySubmitting" @click="onCreatePrepayEntry">录入预付</AppButton>
 					</view>
+					<view v-else-if="activeOperationTab === 'offset_entry'" class="section-actions">
+						<AppButton size="sm" kind="ghost" @click="resetOffsetEntryForm">重置</AppButton>
+						<AppButton size="sm" kind="neutral" @click="activeOperationTab = 'offset'">去冲抵分配</AppButton>
+						<AppButton size="sm" kind="primary" :loading="offsetEntrySubmitting" @click="onCreateOffsetEntry">录入冲抵池</AppButton>
+					</view>
 					<view v-else-if="activeOperationTab === 'offset'" class="section-actions">
 						<AppButton size="sm" kind="ghost" @click="resetOffsetAllocateForm">重置</AppButton>
 						<AppButton size="sm" kind="neutral" :loading="offsetPoolLoading" @click="loadOffsetCreditPool(true)">刷新来源</AppButton>
@@ -351,6 +356,26 @@
 					<text class="section-hint">
 						当前策略：{{ prepayApplyStrategyLabel }}。仅入预付时不冲历史欠款/其他费用；立即按区间冲欠时仅冲销区间内应收，剩余金额自动保留为预付款。
 					</text>
+				</view>
+
+				<view v-else-if="activeOperationTab === 'offset_entry'" class="operation-panel">
+					<view class="receipt-grid">
+						<AppInput
+							v-model="offsetEntryForm.amount"
+							label="冲抵金额(元)"
+							:placeholder="moneyInputPlaceholder"
+							size="sm"
+							@blur="onOffsetEntryAmountBlur"
+						/>
+						<picker class="picker-block" mode="date" @change="onOffsetEntryBizDateChange">
+							<AppInput v-model="offsetEntryForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
+						</picker>
+						<picker class="picker-block" mode="selector" :range="receiptPaymentMethodOptions" range-key="label" :value="offsetEntryPaymentMethodIndex" @change="onOffsetEntryPaymentMethodChange">
+							<AppInput :model-value="offsetEntryPaymentMethodLabel" label="赔付方式" placeholder="请选择方式" readonly size="sm" />
+						</picker>
+						<AppInput v-model="offsetEntryForm.note" label="备注" placeholder="建议写明赔偿原因" size="sm" />
+					</view>
+					<text class="section-hint">该金额仅入冲抵池，不自动冲销；可在“冲抵分配”中手工分配到目标欠款。</text>
 				</view>
 
 				<view v-else-if="activeOperationTab === 'opening_debt'" class="operation-panel">
@@ -818,6 +843,7 @@ const previewing = ref(false)
 const submitting = ref(false)
 const confirming = ref(false)
 const prepaySubmitting = ref(false)
+const offsetEntrySubmitting = ref(false)
 const exportingStatement = ref(false)
 const flowPreviewLoading = ref(false)
 const flowSubmitting = ref(false)
@@ -854,6 +880,7 @@ const operationTabs = [
 	{ label: '登记收款/分配', value: 'receipt' },
 	{ label: '冲抵分配', value: 'offset' },
 	{ label: '预付录入', value: 'prepay' },
+	{ label: '冲抵池录入', value: 'offset_entry' },
 	{ label: '历史欠款登记', value: 'opening_debt' },
 	{ label: '其他费用', value: 'other_fee' },
 	{ label: '收款单', value: 'receipt_list' }
@@ -927,6 +954,12 @@ const prepayForm = reactive({
 	applyStrategy: 'hold_only',
 	allocationStartDate: '',
 	allocationEndDate: '',
+	note: ''
+})
+const offsetEntryForm = reactive({
+	amount: '',
+	bizDate: '',
+	paymentMethod: 'cash',
 	note: ''
 })
 
@@ -1130,6 +1163,14 @@ const prepayPaymentMethodIndex = computed(() => {
 })
 const prepayPaymentMethodLabel = computed(() => {
 	return receiptPaymentMethodOptions[prepayPaymentMethodIndex.value]?.label || '现金'
+})
+const offsetEntryPaymentMethodIndex = computed(() => {
+	const normalized = normalizeReceiptPaymentMethod(offsetEntryForm.paymentMethod)
+	const idx = receiptPaymentMethodOptions.findIndex((item) => item.value === normalized)
+	return idx >= 0 ? idx : 0
+})
+const offsetEntryPaymentMethodLabel = computed(() => {
+	return receiptPaymentMethodOptions[offsetEntryPaymentMethodIndex.value]?.label || '现金'
 })
 const prepayApplyStrategyIndex = computed(() => {
 	const normalized = normalizePrepayApplyStrategy(prepayForm.applyStrategy)
@@ -1890,6 +1931,14 @@ function resetPrepayForm() {
 	prepayForm.allocationStartDate = today
 	prepayForm.allocationEndDate = today
 	prepayForm.note = ''
+}
+
+function resetOffsetEntryForm() {
+	const today = todayYmd()
+	offsetEntryForm.amount = ''
+	offsetEntryForm.bizDate = today
+	offsetEntryForm.paymentMethod = 'cash'
+	offsetEntryForm.note = ''
 }
 
 function validateReceiptAllocationRange() {
@@ -2752,6 +2801,41 @@ async function onCreatePrepayEntry() {
 	}
 }
 
+async function onCreateOffsetEntry() {
+	if (!recordId.value || offsetEntrySubmitting.value) return
+	const amount = Number(offsetEntryForm.amount)
+	if (!Number.isFinite(amount) || amount <= 0) {
+		uni.showToast({ title: '请输入大于0的冲抵金额', icon: 'none' })
+		return
+	}
+	offsetEntrySubmitting.value = true
+	try {
+		const res = await createPrepayEntryV1({
+			customerId: recordId.value,
+			amount,
+			bizDate: offsetEntryForm.bizDate,
+			paymentMethod: offsetEntryForm.paymentMethod,
+			note: offsetEntryForm.note,
+			applyStrategy: 'hold_only',
+			entryKind: 'offset_credit',
+			allocationMode: 'period',
+			allocationStartDate: offsetEntryForm.bizDate,
+			allocationEndDate: offsetEntryForm.bizDate,
+			sourceType: 'customer_offset_credit_manual_compensation'
+		})
+		if (res?.code !== 0) {
+			uni.showToast({ title: res?.msg || '冲抵池录入失败', icon: 'none' })
+			return
+		}
+		uni.showToast({ title: '冲抵池录入成功', icon: 'success' })
+		resetOffsetEntryForm()
+		await refreshAll()
+		activeOperationTab.value = 'offset'
+	} finally {
+		offsetEntrySubmitting.value = false
+	}
+}
+
 function resolveStatementExportRange() {
 	const dateFrom = normalizeString(rowFilters.dateFrom)
 	const dateTo = normalizeString(rowFilters.dateTo)
@@ -2902,6 +2986,11 @@ function onPrepayAmountBlur() {
 	prepayForm.amount = normalizeFlowMoneyInput(prepayForm.amount)
 }
 
+function onOffsetEntryAmountBlur() {
+	if (!isFlowCustomer.value) return
+	offsetEntryForm.amount = normalizeFlowMoneyInput(offsetEntryForm.amount)
+}
+
 function onReceiptAmountBlur() {
 	if (!isFlowCustomer.value) return
 	receiptForm.amount = normalizeFlowMoneyInput(receiptForm.amount)
@@ -2945,6 +3034,10 @@ function onPrepayBizDateChange(e) {
 	if (!prepayForm.allocationEndDate) prepayForm.allocationEndDate = prepayForm.bizDate
 }
 
+function onOffsetEntryBizDateChange(e) {
+	offsetEntryForm.bizDate = normalizeString(e?.detail?.value)
+}
+
 function onAllocationStartDateChange(e) {
 	receiptForm.allocationStartDate = normalizeString(e?.detail?.value)
 }
@@ -2965,6 +3058,13 @@ function onPrepayPaymentMethodChange(e) {
 	const item = receiptPaymentMethodOptions[idx]
 	if (!item) return
 	prepayForm.paymentMethod = item.value
+}
+
+function onOffsetEntryPaymentMethodChange(e) {
+	const idx = Number(e?.detail?.value)
+	const item = receiptPaymentMethodOptions[idx]
+	if (!item) return
+	offsetEntryForm.paymentMethod = item.value
 }
 
 function onPrepayApplyStrategyChange(e) {
@@ -3191,6 +3291,7 @@ watch(
 		receiptRecentExpanded.value = false
 		resetReceiptForm()
 		resetPrepayForm()
+		resetOffsetEntryForm()
 		resetFlowForm({ preservePrev: false })
 		resetOpeningDebtForm()
 		resetOtherFeeForm()
@@ -3220,6 +3321,7 @@ watch(
 onMounted(() => {
 	if (!receiptForm.bizDate) receiptForm.bizDate = todayYmd()
 	if (!prepayForm.bizDate) prepayForm.bizDate = todayYmd()
+	if (!offsetEntryForm.bizDate) offsetEntryForm.bizDate = todayYmd()
 	if (!flowForm.bizDate) flowForm.bizDate = todayYmd()
 	if (!openingDebtForm.bizDate) openingDebtForm.bizDate = todayYmd()
 	if (!otherFeeForm.bizDate) otherFeeForm.bizDate = todayYmd()
