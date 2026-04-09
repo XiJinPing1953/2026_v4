@@ -1187,12 +1187,15 @@ function buildExportCsv(rows) {
 		const shouldReceive = Number(row?.should_receive)
 		const roundingAmount = Number(row?.rounding_amount)
 		const amountReceived = Number(row?.amount_received)
+		const netOutstandingEffective = Number(row?.net_outstanding_effective)
 		const effectiveShouldReceive = Number.isFinite(shouldReceive)
 			? resolveEffectiveShouldReceive(shouldReceive, Number.isFinite(roundingAmount) ? roundingAmount : 0)
 			: null
-		const outstanding = Number.isFinite(effectiveShouldReceive) && Number.isFinite(amountReceived)
-			? Number((effectiveShouldReceive - amountReceived).toFixed(2))
-			: null
+		const outstanding = Number.isFinite(netOutstandingEffective)
+			? Number(netOutstandingEffective.toFixed(2))
+			: (Number.isFinite(effectiveShouldReceive) && Number.isFinite(amountReceived)
+				? Number((effectiveShouldReceive - amountReceived).toFixed(2))
+				: null)
 		const outItems = Array.isArray(row?.out_items) ? row.out_items : []
 		const backItems = Array.isArray(row?.back_items) ? row.back_items : []
 		const depositRows = Array.isArray(row?.deposit_rows)

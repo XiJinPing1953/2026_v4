@@ -3021,22 +3021,47 @@ function normalizeSettlementScope(value) {
 	return ''
 }
 
-function matchSettlementScope(scope, shouldReceive, amountReceived, roundingAmount = 0) {
+function matchSettlementScope(
+	scope,
+	shouldReceive,
+	amountReceived,
+	roundingAmount = 0,
+	refundPending = null,
+	netOutstandingEffective = null
+) {
 	if (!scope) return true
 	const should = resolveEffectiveShouldReceive(toNumber(shouldReceive, 0), toNumber(roundingAmount, 0))
 	const received = toNumber(amountReceived, 0)
 	const outstanding = fix2(should - received)
 	if (scope === 'receivable_outstanding') return should > 0 && outstanding > 0
-	if (scope === 'refund_outstanding') return should < 0 && outstanding < 0
-	if (scope === 'net_outstanding_non_zero') return Math.abs(outstanding) >= 0.01
+	if (scope === 'refund_outstanding') {
+		const pending = toNumber(refundPending, NaN)
+		if (Number.isFinite(pending)) return pending > 0.01
+		return should < 0 && outstanding < 0
+	}
+	if (scope === 'net_outstanding_non_zero') {
+		const normalized = toNumber(netOutstandingEffective, NaN)
+		if (Number.isFinite(normalized)) return Math.abs(normalized) >= 0.01
+		return Math.abs(outstanding) >= 0.01
+	}
 	return true
 }
 
-function matchSaleListFilters(doc, { settlementScope = '', hasRemark = '', remarkTag = '' } = {}) {
+function matchSaleListFilters(
+	doc,
+	{ settlementScope = '', hasRemark = '', remarkTag = '', refundPending = null, netOutstandingEffective = null } = {}
+) {
 	const { amounts } = computeSaleAmountsForDoc(doc)
 	const shouldReceive = toNumber(amounts.should_receive, 0)
 	const amountReceived = toNumber(doc && doc.amount_received, 0)
-	if (!matchSettlementScope(settlementScope, shouldReceive, amountReceived, amounts.rounding_amount)) return false
+	if (!matchSettlementScope(
+		settlementScope,
+		shouldReceive,
+		amountReceived,
+		amounts.rounding_amount,
+		refundPending,
+		netOutstandingEffective
+	)) return false
 	if (!matchRemarkFilters(doc, { hasRemark, remarkTag })) return false
 	return true
 }
@@ -3158,6 +3183,106 @@ function computeSaleBottleQuantity(doc) {
 	return 0
 }
 
+async function buildSaleOffsetPoolEnteredMapBySaleIds(saleIds = []) {
+	const normalizedIds = Array.from(
+		new Set(
+			(Array.isArray(saleIds) ? saleIds : [])
+				.map((item) => normalizeString(item))
+				.filter(Boolean)
+		)
+	)
+	const result = new Map()
+	if (!normalizedIds.length) return result
+	for (const chunk of sliceIntoChunks(normalizedIds, 80)) {
+		if (!Array.isArray(chunk) || !chunk.length) continue
+		const where = dbCmd.and([
+			{ status: 'posted' },
+			{ source_type: dbCmd.in(['sale_offset_credit', 'sale_offset_credit_repair']) },
+			{ source_id: dbCmd.in(chunk) }
+		])
+		const batchSize = 200
+		let page = 1
+		let guard = 0
+		while (guard < 500) {
+			const res = await customerReceipts
+				.where(where)
+				.field({
+					source_id: true,
+					amount: true
+				})
+				.skip((page - 1) * batchSize)
+				.limit(batchSize)
+				.get()
+			const rows = Array.isArray(res.data) ? res.data : []
+			if (!rows.length) break
+			rows.forEach((row) => {
+				const saleId = normalizeString(row && row.source_id)
+				if (!saleId) return
+				result.set(saleId, fix2(toNumber(result.get(saleId), 0) + toNumber(row && row.amount, 0)))
+			})
+			if (rows.length < batchSize) break
+			page += 1
+			guard += 1
+		}
+	}
+	return result
+}
+
+function computeSaleRefundPendingAmount({
+	shouldReceive = 0,
+	amountReceived = 0,
+	roundingAmount = 0,
+	effectiveShouldReceive = null,
+	offsetPoolEntered = 0
+} = {}) {
+	const provided = toNumber(effectiveShouldReceive, NaN)
+	const effectiveShould = Number.isFinite(provided)
+		? fix2(provided)
+		: resolveEffectiveShouldReceive(toNumber(shouldReceive, 0), toNumber(roundingAmount, 0))
+	const refundShould = fix2(Math.max(0, -effectiveShould))
+	if (!(refundShould > 0)) return 0
+	const refundPaidCash = fix2(Math.max(0, -toNumber(amountReceived, 0)))
+	const offsetEntered = fix2(Math.max(0, toNumber(offsetPoolEntered, 0)))
+	return fix2(Math.max(0, refundShould - refundPaidCash - offsetEntered))
+}
+
+function computeSaleNetOutstandingEffective({
+	shouldReceive = 0,
+	amountReceived = 0,
+	roundingAmount = 0,
+	effectiveShouldReceive = null,
+	offsetPoolEntered = 0
+} = {}) {
+	const provided = toNumber(effectiveShouldReceive, NaN)
+	const effectiveShould = Number.isFinite(provided)
+		? fix2(provided)
+		: resolveEffectiveShouldReceive(toNumber(shouldReceive, 0), toNumber(roundingAmount, 0))
+	const outstanding = fix2(effectiveShould - toNumber(amountReceived, 0))
+	if (effectiveShould < 0 && outstanding < 0) {
+		const adjusted = fix2(outstanding + Math.max(toNumber(offsetPoolEntered, 0), 0))
+		return adjusted > 0 ? 0 : adjusted
+	}
+	return outstanding
+}
+
+function buildSaleListBatchEntries(docs = []) {
+	return (Array.isArray(docs) ? docs : []).map((doc) => {
+		const row = buildSaleListRow(doc)
+		const shouldReceive = toNumber(row && row.should_receive, 0)
+		const roundingAmount = toNumber(row && row.rounding_amount, 0)
+		const amountReceived = toNumber(doc && doc.amount_received, 0)
+		const effectiveShouldReceive = resolveEffectiveShouldReceive(shouldReceive, roundingAmount)
+		return {
+			doc,
+			row,
+			shouldReceive,
+			roundingAmount,
+			amountReceived,
+			effectiveShouldReceive
+		}
+	})
+}
+
 async function computeSaleListSummary(where, filters = {}) {
 	const settlementScope = normalizeSettlementScope(filters.settlementScope || filters.settlement_scope)
 	const hasRemark = normalizeHasRemarkFilter(filters.hasRemark || filters.has_remark)
@@ -3201,6 +3326,7 @@ async function computeSaleListSummary(where, filters = {}) {
 		const res = await sales
 			.where(where)
 			.field({
+				_id: true,
 				biz_mode: true,
 				price_unit: true,
 				settlement_mode: true,
@@ -3232,17 +3358,49 @@ async function computeSaleListSummary(where, filters = {}) {
 			.get()
 		const docs = Array.isArray(res.data) ? res.data : []
 		if (!docs.length) break
+		const entryRows = buildSaleListBatchEntries(docs)
+		const refundSaleIds = Array.from(
+			new Set(
+				entryRows
+					.filter((entry) => entry.effectiveShouldReceive < 0)
+					.map((entry) => normalizeString(entry.doc && entry.doc._id))
+					.filter(Boolean)
+			)
+		)
+		const offsetPoolMap = refundSaleIds.length
+			? await buildSaleOffsetPoolEnteredMapBySaleIds(refundSaleIds)
+			: new Map()
 
-		for (const doc of docs) {
-				const row = buildSaleListRow(doc)
+		for (const entry of entryRows) {
+				const doc = entry.doc
+				const row = entry.row
 				const bizMode = normalizeBizModeValue(row && row.biz_mode)
-				const shouldReceive = toNumber(row && row.should_receive, 0)
-				const amountReceived = toNumber(doc && doc.amount_received, 0)
-				if (!matchSaleListFilters(row, { settlementScope, hasRemark, remarkTag })) continue
-				const effectiveShouldReceive = resolveEffectiveShouldReceive(
+				const shouldReceive = entry.shouldReceive
+				const amountReceived = entry.amountReceived
+				const saleId = normalizeString(doc && doc._id)
+				const offsetPoolEntered = toNumber(offsetPoolMap.get(saleId), 0)
+				const refundPending = computeSaleRefundPendingAmount({
 					shouldReceive,
-					toNumber(row && row.rounding_amount, 0)
-				)
+					amountReceived,
+					effectiveShouldReceive: entry.effectiveShouldReceive,
+					roundingAmount: entry.roundingAmount,
+					offsetPoolEntered
+				})
+				const netOutstandingEffective = computeSaleNetOutstandingEffective({
+					shouldReceive,
+					amountReceived,
+					effectiveShouldReceive: entry.effectiveShouldReceive,
+					roundingAmount: entry.roundingAmount,
+					offsetPoolEntered
+				})
+				if (!matchSaleListFilters(row, {
+					settlementScope,
+					hasRemark,
+					remarkTag,
+					refundPending,
+					netOutstandingEffective
+				})) continue
+				const effectiveShouldReceive = entry.effectiveShouldReceive
 				const outstanding = fix2(effectiveShouldReceive - amountReceived)
 				const status = normalizePaymentStatusValue(doc && doc.payment_status)
 				const netWeight = toNumber(row && row.total_net_weight, 0)
@@ -3258,7 +3416,7 @@ async function computeSaleListSummary(where, filters = {}) {
 
 			summary.should_receive_total = fix2(summary.should_receive_total + shouldReceive)
 			summary.amount_received_total = fix2(summary.amount_received_total + amountReceived)
-			summary.outstanding_total = fix2(summary.outstanding_total + outstanding)
+			summary.outstanding_total = fix2(summary.outstanding_total + netOutstandingEffective)
 			summary.total_net_weight = fix2(summary.total_net_weight + netWeight)
 
 			if (effectiveShouldReceive > 0) {
@@ -3271,8 +3429,8 @@ async function computeSaleListSummary(where, filters = {}) {
 					summary.overpaid_count += 1
 				}
 			} else if (effectiveShouldReceive < 0) {
-				if (outstanding < 0) {
-					summary.refund_outstanding_total = fix2(summary.refund_outstanding_total + Math.abs(outstanding))
+				if (refundPending > 0.01) {
+					summary.refund_outstanding_total = fix2(summary.refund_outstanding_total + refundPending)
 					summary.refund_outstanding_count += 1
 					summary.refund_outstanding_bottle_count += bottleQuantity
 				} else if (outstanding > 0) {
@@ -3304,6 +3462,50 @@ async function computeSaleListSummary(where, filters = {}) {
 		guard += 1
 	}
 	return summary
+}
+
+async function enrichSaleRowsWithNetOutstandingEffective(rows = []) {
+	const source = Array.isArray(rows) ? rows : []
+	if (!source.length) return source
+	const entries = source.map((row) => {
+		const shouldReceive = toNumber(row && row.should_receive, 0)
+		const roundingAmount = toNumber(row && row.rounding_amount, 0)
+		const amountReceived = toNumber(row && row.amount_received, 0)
+		const effectiveShouldReceive = resolveEffectiveShouldReceive(shouldReceive, roundingAmount)
+		return {
+			row,
+			shouldReceive,
+			roundingAmount,
+			amountReceived,
+			effectiveShouldReceive,
+			saleId: normalizeString(row && row._id)
+		}
+	})
+	const refundSaleIds = Array.from(
+		new Set(
+			entries
+				.filter((entry) => entry.effectiveShouldReceive < 0)
+				.map((entry) => entry.saleId)
+				.filter(Boolean)
+		)
+	)
+	const offsetPoolMap = refundSaleIds.length
+		? await buildSaleOffsetPoolEnteredMapBySaleIds(refundSaleIds)
+		: new Map()
+	return entries.map((entry) => {
+		const offsetPoolEntered = toNumber(offsetPoolMap.get(entry.saleId), 0)
+		const netOutstandingEffective = computeSaleNetOutstandingEffective({
+			shouldReceive: entry.shouldReceive,
+			amountReceived: entry.amountReceived,
+			roundingAmount: entry.roundingAmount,
+			effectiveShouldReceive: entry.effectiveShouldReceive,
+			offsetPoolEntered
+		})
+		return {
+			...entry.row,
+			net_outstanding_effective: fix2(netOutstandingEffective)
+		}
+	})
 }
 
 async function computeMonthSalesHeadline() {
@@ -3378,6 +3580,9 @@ async function listV2(user, data) {
 		const batchSize = 200
 		let cursor = 1
 		let guard = 0
+		const needsRefundPending = settlementScope === 'refund_outstanding'
+		const needsNetOutstandingEffective = settlementScope === 'net_outstanding_non_zero'
+		const needsOffsetPool = needsRefundPending || needsNetOutstandingEffective
 		while (guard < 600) {
 			const res = await sales
 				.where(where)
@@ -3386,14 +3591,61 @@ async function listV2(user, data) {
 				.skip((cursor - 1) * batchSize)
 				.limit(batchSize)
 				.get()
-				const docs = Array.isArray(res.data) ? res.data : []
-				if (!docs.length) break
-				for (const doc of docs) {
-					const row = buildSaleListRow(doc)
-					if (!matchSaleListFilters(row, { settlementScope, hasRemark, remarkTag })) continue
-					matchedRows.push(row)
+			const docs = Array.isArray(res.data) ? res.data : []
+			if (!docs.length) break
+			const entryRows = buildSaleListBatchEntries(docs)
+			const refundSaleIds = needsOffsetPool
+				? Array.from(
+					new Set(
+						entryRows
+							.filter((entry) => entry.effectiveShouldReceive < 0)
+							.map((entry) => normalizeString(entry.doc && entry.doc._id))
+							.filter(Boolean)
+					)
+				)
+				: []
+			const offsetPoolMap = refundSaleIds.length
+				? await buildSaleOffsetPoolEnteredMapBySaleIds(refundSaleIds)
+				: new Map()
+			for (const entry of entryRows) {
+				const row = entry.row
+				let refundPending = null
+				let netOutstandingEffective = null
+				const saleId = normalizeString(entry.doc && entry.doc._id)
+				const offsetPoolEntered = needsOffsetPool
+					? toNumber(offsetPoolMap.get(saleId), 0)
+					: 0
+				if (needsRefundPending) {
+					refundPending = computeSaleRefundPendingAmount({
+						shouldReceive: entry.shouldReceive,
+						amountReceived: entry.amountReceived,
+						effectiveShouldReceive: entry.effectiveShouldReceive,
+						roundingAmount: entry.roundingAmount,
+						offsetPoolEntered
+					})
 				}
-				if (docs.length < batchSize) break
+				if (needsNetOutstandingEffective) {
+					netOutstandingEffective = computeSaleNetOutstandingEffective({
+						shouldReceive: entry.shouldReceive,
+						amountReceived: entry.amountReceived,
+						effectiveShouldReceive: entry.effectiveShouldReceive,
+						roundingAmount: entry.roundingAmount,
+						offsetPoolEntered
+					})
+				}
+				if (!matchSaleListFilters(row, {
+					settlementScope,
+					hasRemark,
+					remarkTag,
+					refundPending,
+					netOutstandingEffective
+				})) continue
+				if (Number.isFinite(toNumber(netOutstandingEffective, NaN))) {
+					row.net_outstanding_effective = fix2(netOutstandingEffective)
+				}
+				matchedRows.push(row)
+			}
+			if (docs.length < batchSize) break
 			cursor += 1
 			guard += 1
 		}
@@ -3402,6 +3654,7 @@ async function listV2(user, data) {
 		const end = start + pageSize
 		dataList = matchedRows.slice(start, end)
 	}
+	dataList = await enrichSaleRowsWithNetOutstandingEffective(dataList)
 	dataList = await enrichSaleListRowsWithBottleStats(dataList)
 
 	const summary = await computeSaleListSummary(where, { settlementScope, hasRemark, remarkTag })
