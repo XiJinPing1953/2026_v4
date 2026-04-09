@@ -30,6 +30,7 @@
     "target_id": { "bsonType": ["string", "null"] },
     "target_title": { "bsonType": ["string", "null"] },
     "biz_date": { "bsonType": "string" },
+    "allocate_kind": { "bsonType": ["string", "null"] },
     "allocate_amount": { "bsonType": ["number", "null"] },
     "seq": { "bsonType": ["number", "null"] },
     "note": { "bsonType": "string" },

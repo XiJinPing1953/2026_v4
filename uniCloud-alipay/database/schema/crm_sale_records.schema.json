@@ -48,6 +48,7 @@
 
     "payment_status": { "bsonType": "string" },
     "amount_received": { "bsonType": ["number", "null"] },
+    "receipt_rounding_amount": { "bsonType": ["number", "null"] },
     "rounding_amount": { "bsonType": ["number", "null"] },
     "offset_enabled": { "bsonType": ["bool", "null"] },
     "payment_note": { "bsonType": "string" },

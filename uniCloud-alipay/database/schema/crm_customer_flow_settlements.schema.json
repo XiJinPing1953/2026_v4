@@ -41,6 +41,7 @@
     "unit_price": { "bsonType": ["number", "null"] },
     "should_receive": { "bsonType": ["number", "null"] },
     "amount_received": { "bsonType": ["number", "null"] },
+    "receipt_rounding_amount": { "bsonType": ["number", "null"] },
     "payment_status": { "bsonType": "string" },
     "status": { "bsonType": "string" },
     "sale_ids": {

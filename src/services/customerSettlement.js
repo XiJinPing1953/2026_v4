@@ -6,6 +6,7 @@ export async function previewAllocationV1(params = {}) {
 		data: {
 			customer_id: params.customerId || params.customer_id || '',
 			amount: params.amount,
+			rounding_amount: params.roundingAmount ?? params.rounding_amount ?? 0,
 			allocation_mode: params.allocationMode || params.allocation_mode || '',
 			allocation_start_date: params.allocationStartDate || params.allocation_start_date || '',
 			allocation_end_date: params.allocationEndDate || params.allocation_end_date || '',
@@ -23,6 +24,7 @@ export async function createReceiptV1(params = {}) {
 		data: {
 			customer_id: params.customerId || params.customer_id || '',
 			amount: params.amount,
+			rounding_amount: params.roundingAmount ?? params.rounding_amount ?? 0,
 			biz_date: params.bizDate || params.biz_date || '',
 			allocation_mode: params.allocationMode || params.allocation_mode || '',
 			allocation_start_date: params.allocationStartDate || params.allocation_start_date || '',
@@ -46,6 +48,7 @@ export async function updateReceiptV1(params = {}) {
 			receipt_id: params.receiptId || params.receipt_id || '',
 			customer_id: params.customerId || params.customer_id || '',
 			amount: params.amount,
+			rounding_amount: params.roundingAmount ?? params.rounding_amount ?? 0,
 			biz_date: params.bizDate || params.biz_date || '',
 			allocation_mode: params.allocationMode || params.allocation_mode || '',
 			allocation_start_date: params.allocationStartDate || params.allocation_start_date || '',
@@ -78,6 +81,7 @@ export async function confirmAllocationV1(params = {}) {
 		data: {
 			customer_id: params.customerId || params.customer_id || '',
 			amount: params.amount,
+			rounding_amount: params.roundingAmount ?? params.rounding_amount ?? 0,
 			biz_date: params.bizDate || params.biz_date || '',
 			allocation_mode: params.allocationMode || params.allocation_mode || '',
 			allocation_start_date: params.allocationStartDate || params.allocation_start_date || '',
@@ -115,12 +119,13 @@ export async function createPrepayEntryV1(params = {}) {
 }
 
 export async function createOpeningDebtEntryV1(params = {}) {
+	const hasRounding = params.roundingAmount != null || params.rounding_amount != null
 	return callCloud('crm-customer-settlement', {
 		action: 'createOpeningDebtEntryV1',
 		data: {
 			customer_id: params.customerId || params.customer_id || '',
 			amount: params.amount,
-			rounding_amount: params.roundingAmount ?? params.rounding_amount ?? 0,
+			...(hasRounding ? { rounding_amount: params.roundingAmount ?? params.rounding_amount } : {}),
 			biz_date: params.bizDate || params.biz_date || '',
 			note: params.note || '',
 			source_type: params.sourceType || params.source_type || 'customer_opening_debt_manual',
@@ -130,13 +135,14 @@ export async function createOpeningDebtEntryV1(params = {}) {
 }
 
 export async function updateOpeningDebtEntryV1(params = {}) {
+	const hasRounding = params.roundingAmount != null || params.rounding_amount != null
 	return callCloud('crm-customer-settlement', {
 		action: 'updateOpeningDebtEntryV1',
 		data: {
 			opening_debt_id: params.openingDebtId || params.opening_debt_id || params._id || '',
 			customer_id: params.customerId || params.customer_id || '',
 			amount: params.amount,
-			rounding_amount: params.roundingAmount ?? params.rounding_amount ?? 0,
+			...(hasRounding ? { rounding_amount: params.roundingAmount ?? params.rounding_amount } : {}),
 			biz_date: params.bizDate || params.biz_date || '',
 			note: params.note || '',
 			source_type: params.sourceType || params.source_type || '',

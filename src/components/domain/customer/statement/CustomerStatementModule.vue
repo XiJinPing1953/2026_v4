@@ -157,6 +157,13 @@
 							size="sm"
 							@blur="onReceiptAmountBlur"
 						/>
+						<AppInput
+							v-model="receiptForm.roundingAmount"
+							label="抹零金额(元)"
+							:placeholder="moneyInputPlaceholder"
+							size="sm"
+							@blur="onReceiptRoundingAmountBlur"
+						/>
 						<picker class="picker-block" mode="date" @change="onBizDateChange">
 							<AppInput v-model="receiptForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
@@ -181,8 +188,8 @@
 						</picker>
 						<AppInput v-model="receiptForm.note" class="grid-span-4" label="备注" placeholder="可选" size="sm" />
 					</view>
-					<text v-if="receiptForm.allocationMode === 'period'" class="section-hint">分配口径：仅冲销所选日期区间内的应收，超出部分自动计入预付款/冲抵款池。</text>
-					<text v-else class="section-hint">分配口径：仅冲销勾选单据，勾选外单据不参与本次分配，剩余自动计入预付款/冲抵款池。</text>
+					<text v-if="receiptForm.allocationMode === 'period'" class="section-hint">分配口径：仅冲销所选日期区间内应收；现金超出部分自动计入预付款/冲抵池，抹零需全部落到应收目标。</text>
+					<text v-else class="section-hint">分配口径：仅冲销勾选单据；现金剩余自动计入预付款/冲抵池，抹零需全部落到勾选目标。</text>
 
 					<view v-if="receiptForm.allocationMode === 'checked'" class="checked-target-box">
 						<view class="checked-target-head">
@@ -204,7 +211,9 @@
 					<view v-if="previewPlan" class="preview-box">
 						<view class="preview-summary">
 							<text>本次收款：¥{{ formatMoney(previewPlan.amount) }}</text>
+							<text>本次抹零：¥{{ formatMoney(previewPlan.rounding_amount) }}</text>
 							<text>预计冲欠：¥{{ formatMoney(previewPlan.allocated_total) }}</text>
+							<text>抹零冲欠：¥{{ formatMoney(previewPlan.rounding_allocated_total) }}</text>
 							<text>预计形成预付：¥{{ formatMoney(previewPlan.prepay_amount) }}</text>
 						</view>
 						<view v-if="editableAllocations.length" class="alloc-list">
@@ -387,13 +396,6 @@
 							size="sm"
 							@blur="onOpeningDebtAmountBlur"
 						/>
-						<AppInput
-							v-model="openingDebtForm.roundingAmount"
-							label="抹零金额(元)"
-							:placeholder="moneyInputPlaceholder"
-							size="sm"
-							@blur="onOpeningDebtRoundingAmountBlur"
-						/>
 						<picker class="picker-block" mode="date" @change="onOpeningDebtBizDateChange">
 							<AppInput v-model="openingDebtForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
@@ -513,6 +515,7 @@
 							<template #right>
 								<view class="mini-amounts">
 									<text>收款 ¥{{ formatMoney(row.amount) }}</text>
+									<text v-if="toNumber(row.rounding_allocated_amount, 0) > 0">抹零 ¥{{ formatMoney(row.rounding_allocated_amount) }}</text>
 									<text>已分配 ¥{{ formatMoney(row.allocated_amount) }}</text>
 									<text>预付+ ¥{{ formatMoney(row.unallocated_amount) }}</text>
 								</view>
@@ -780,6 +783,7 @@
 								<text v-if="row.row_type === 'other_fee'">应收 ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'other_fee'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								<text v-if="row.row_type === 'receipt'">收款 ¥{{ formatMoney(row.amount) }}</text>
+								<text v-if="row.row_type === 'receipt' && toNumber(row.rounding_allocated_amount, 0) > 0">抹零 ¥{{ formatMoney(row.rounding_allocated_amount) }}</text>
 								<text v-if="row.row_type === 'receipt'">预付+ ¥{{ formatMoney(row.prepay_delta) }}</text>
 								<text v-if="row.row_type === 'allocation'">分配 ¥{{ formatMoney(row.amount) }}</text>
 							</view>
@@ -933,6 +937,7 @@ const summaryScope = reactive({
 
 const receiptForm = reactive({
 	amount: '',
+	roundingAmount: '',
 	bizDate: '',
 	allocationMode: 'period',
 	allocationStartDate: '',
@@ -985,7 +990,6 @@ const flowForm = reactive({
 })
 const openingDebtForm = reactive({
 	amount: '',
-	roundingAmount: '',
 	bizDate: '',
 	note: ''
 })
@@ -1519,15 +1523,20 @@ function paymentMethodText(value) {
 }
 
 function receiptAllocationText(row) {
+	const roundingAllocated = toNumber(row?.rounding_allocated_amount, 0)
+	const amount = toNumber(row?.amount, 0)
 	const mode = normalizeReceiptAllocationMode(row?.allocation_mode)
 	if (mode === 'checked') {
 		const count = Array.isArray(row?.allocation_targets) ? row.allocation_targets.length : 0
-		return `分配模式：勾选分配（${count} 笔目标）`
+		const modeText = `分配模式：勾选分配（${count} 笔目标）`
+		if (roundingAllocated > 0) return `收款 ¥${formatMoney(amount)}，抹零 ¥${formatMoney(roundingAllocated)} · ${modeText}`
+		return modeText
 	}
 	const start = normalizeDate(row?.allocation_start_date)
 	const end = normalizeDate(row?.allocation_end_date)
-	if (start && end) return `分配模式：时间段 ${start} ~ ${end}`
-	return '分配模式：时间段'
+	const modeText = start && end ? `分配模式：时间段 ${start} ~ ${end}` : '分配模式：时间段'
+	if (roundingAllocated > 0) return `收款 ¥${formatMoney(amount)}，抹零 ¥${formatMoney(roundingAllocated)} · ${modeText}`
+	return modeText
 }
 
 function showConfirmModal({ title, content, confirmText = '确认' }) {
@@ -1771,6 +1780,7 @@ function resetReceiptForm() {
 	editingReceiptId.value = ''
 	const today = todayYmd()
 	receiptForm.amount = ''
+	receiptForm.roundingAmount = ''
 	receiptForm.note = ''
 	receiptForm.bizDate = today
 	receiptForm.allocationMode = 'period'
@@ -2023,7 +2033,6 @@ function resetFlowForm(options = {}) {
 function resetOpeningDebtForm() {
 	editingOpeningDebtId.value = ''
 	openingDebtForm.amount = ''
-	openingDebtForm.roundingAmount = ''
 	openingDebtForm.bizDate = todayYmd()
 	openingDebtForm.note = ''
 }
@@ -2112,8 +2121,6 @@ function onEditOpeningDebt(row) {
 	activeOperationTab.value = 'opening_debt'
 	editingOpeningDebtId.value = debtId
 	openingDebtForm.amount = formatMoney(row?.amount)
-	const roundingAmount = resolveOpeningDebtRoundingAmount(row)
-	openingDebtForm.roundingAmount = roundingAmount > 0 ? formatMoney(roundingAmount) : ''
 	openingDebtForm.bizDate = normalizeDate(row?.biz_date) || todayYmd()
 	openingDebtForm.note = normalizeString(row?.note)
 	uni.showToast({ title: '已加载历史欠款，修改后点保存欠款', icon: 'none' })
@@ -2148,15 +2155,6 @@ async function onCreateOpeningDebtEntry() {
 		uni.showToast({ title: '请输入大于0的欠款金额', icon: 'none' })
 		return
 	}
-	const roundingAmount = openingDebtForm.roundingAmount === '' ? 0 : Number(openingDebtForm.roundingAmount)
-	if (!Number.isFinite(roundingAmount) || roundingAmount < 0) {
-		uni.showToast({ title: '抹零金额不能小于0', icon: 'none' })
-		return
-	}
-	if (roundingAmount > amount) {
-		uni.showToast({ title: '抹零金额不能大于欠款金额', icon: 'none' })
-		return
-	}
 	openingDebtSubmitting.value = true
 	try {
 		const isEditing = isEditingOpeningDebt.value
@@ -2165,7 +2163,6 @@ async function onCreateOpeningDebtEntry() {
 				openingDebtId: editingOpeningDebtId.value,
 				customerId: recordId.value,
 				amount,
-				roundingAmount,
 				bizDate: openingDebtForm.bizDate,
 				note: openingDebtForm.note,
 				sourceType: 'customer_opening_debt_manual'
@@ -2173,7 +2170,6 @@ async function onCreateOpeningDebtEntry() {
 			: await createOpeningDebtEntryV1({
 				customerId: recordId.value,
 				amount,
-				roundingAmount,
 				bizDate: openingDebtForm.bizDate,
 				note: openingDebtForm.note,
 				sourceType: 'customer_opening_debt_manual'
@@ -2611,9 +2607,18 @@ async function onRemoveFlowSettlement(row) {
 
 async function onPreview() {
 	if (!recordId.value || previewing.value) return
-	const amount = Number(receiptForm.amount)
-	if (!Number.isFinite(amount) || amount <= 0) {
-		uni.showToast({ title: '请输入大于0的收款金额', icon: 'none' })
+	const amount = receiptForm.amount === '' ? 0 : Number(receiptForm.amount)
+	const roundingAmount = receiptForm.roundingAmount === '' ? 0 : Number(receiptForm.roundingAmount)
+	if (!Number.isFinite(amount) || amount < 0) {
+		uni.showToast({ title: '收款金额不能小于0', icon: 'none' })
+		return
+	}
+	if (!Number.isFinite(roundingAmount) || roundingAmount < 0) {
+		uni.showToast({ title: '抹零金额不能小于0', icon: 'none' })
+		return
+	}
+	if (!(amount > 0 || roundingAmount > 0)) {
+		uni.showToast({ title: '收款金额和抹零金额不能同时为0', icon: 'none' })
 		return
 	}
 	const allocationPayload = buildReceiptAllocationPayload()
@@ -2623,6 +2628,7 @@ async function onPreview() {
 		const res = await previewAllocationV1({
 			customerId: recordId.value,
 			amount,
+			roundingAmount,
 			allocationMode: allocationPayload.allocationMode,
 			allocationStartDate: allocationPayload.allocationStartDate,
 			allocationEndDate: allocationPayload.allocationEndDate,
@@ -2663,9 +2669,18 @@ function buildManualAllocations() {
 
 async function onCreateAutoReceipt() {
 	if (!recordId.value || submitting.value) return
-	const amount = Number(receiptForm.amount)
-	if (!Number.isFinite(amount) || amount <= 0) {
-		uni.showToast({ title: '请输入大于0的收款金额', icon: 'none' })
+	const amount = receiptForm.amount === '' ? 0 : Number(receiptForm.amount)
+	const roundingAmount = receiptForm.roundingAmount === '' ? 0 : Number(receiptForm.roundingAmount)
+	if (!Number.isFinite(amount) || amount < 0) {
+		uni.showToast({ title: '收款金额不能小于0', icon: 'none' })
+		return
+	}
+	if (!Number.isFinite(roundingAmount) || roundingAmount < 0) {
+		uni.showToast({ title: '抹零金额不能小于0', icon: 'none' })
+		return
+	}
+	if (!(amount > 0 || roundingAmount > 0)) {
+		uni.showToast({ title: '收款金额和抹零金额不能同时为0', icon: 'none' })
 		return
 	}
 	const allocationPayload = buildReceiptAllocationPayload()
@@ -2678,6 +2693,7 @@ async function onCreateAutoReceipt() {
 				receiptId: editingReceiptId.value,
 				customerId: recordId.value,
 				amount,
+				roundingAmount,
 				bizDate: receiptForm.bizDate,
 				allocationMode: allocationPayload.allocationMode,
 				allocationStartDate: allocationPayload.allocationStartDate,
@@ -2690,6 +2706,7 @@ async function onCreateAutoReceipt() {
 			: await createReceiptV1({
 				customerId: recordId.value,
 				amount,
+				roundingAmount,
 				bizDate: receiptForm.bizDate,
 				allocationMode: allocationPayload.allocationMode,
 				allocationStartDate: allocationPayload.allocationStartDate,
@@ -2721,6 +2738,8 @@ function onEditReceipt(row) {
 	activeOperationTab.value = 'receipt'
 	editingReceiptId.value = receiptId
 	receiptForm.amount = formatMoney(row?.amount)
+	const roundingAmount = toNumber(row?.rounding_amount, 0)
+	receiptForm.roundingAmount = roundingAmount > 0 ? formatMoney(roundingAmount) : ''
 	receiptForm.bizDate = normalizeDate(row?.biz_date) || todayYmd()
 	receiptForm.paymentMethod = normalizeReceiptPaymentMethod(row?.payment_method)
 	receiptForm.note = normalizeString(row?.note)
@@ -2775,9 +2794,18 @@ async function onRemoveReceipt(row) {
 
 async function onConfirmAllocation() {
 	if (!recordId.value || confirming.value || !previewPlan.value) return
-	const amount = Number(receiptForm.amount)
-	if (!Number.isFinite(amount) || amount <= 0) {
-		uni.showToast({ title: '请输入大于0的收款金额', icon: 'none' })
+	const amount = receiptForm.amount === '' ? 0 : Number(receiptForm.amount)
+	const roundingAmount = receiptForm.roundingAmount === '' ? 0 : Number(receiptForm.roundingAmount)
+	if (!Number.isFinite(amount) || amount < 0) {
+		uni.showToast({ title: '收款金额不能小于0', icon: 'none' })
+		return
+	}
+	if (!Number.isFinite(roundingAmount) || roundingAmount < 0) {
+		uni.showToast({ title: '抹零金额不能小于0', icon: 'none' })
+		return
+	}
+	if (!(amount > 0 || roundingAmount > 0)) {
+		uni.showToast({ title: '收款金额和抹零金额不能同时为0', icon: 'none' })
 		return
 	}
 	const allocationPayload = buildReceiptAllocationPayload()
@@ -2787,6 +2815,7 @@ async function onConfirmAllocation() {
 		const res = await confirmAllocationV1({
 			customerId: recordId.value,
 			amount,
+			roundingAmount,
 			bizDate: receiptForm.bizDate,
 			allocationMode: allocationPayload.allocationMode,
 			allocationStartDate: allocationPayload.allocationStartDate,
@@ -2972,6 +3001,10 @@ function statementRowStatusKind(row) {
 function statementRowDetail(row) {
 	if (row?.row_type === 'receipt') {
 		const parts = []
+		const roundingAllocated = toNumber(row?.rounding_allocated_amount, 0)
+		if (roundingAllocated > 0) {
+			parts.push(`收款 ¥${formatMoney(row?.amount)}，抹零 ¥${formatMoney(roundingAllocated)}`)
+		}
 		const method = normalizeString(row?.meta?.payment_method)
 		if (method) parts.push(`方式 ${paymentMethodText(method)}`)
 		const startDate = normalizeString(row?.meta?.allocation_start_date)
@@ -2991,7 +3024,10 @@ function statementRowDetail(row) {
 	}
 	if (row?.row_type === 'allocation') {
 		const sourceType = normalizeString(row?.meta?.source_type)
-		return sourceType ? `来源 ${sourceType}` : ''
+		const kind = normalizeString(row?.meta?.allocate_kind)
+		const kindText = kind === 'rounding' ? '抹零分配' : '收款分配'
+		if (sourceType) return `${kindText} · 来源 ${sourceType}`
+		return kindText
 	}
 	if (row?.row_type === 'opening_debt') {
 		const parts = []
@@ -3050,14 +3086,14 @@ function onReceiptAmountBlur() {
 	receiptForm.amount = normalizeFlowMoneyInput(receiptForm.amount)
 }
 
+function onReceiptRoundingAmountBlur() {
+	if (!isFlowCustomer.value) return
+	receiptForm.roundingAmount = normalizeFlowMoneyInput(receiptForm.roundingAmount)
+}
+
 function onOpeningDebtAmountBlur() {
 	if (!isFlowCustomer.value) return
 	openingDebtForm.amount = normalizeFlowMoneyInput(openingDebtForm.amount)
-}
-
-function onOpeningDebtRoundingAmountBlur() {
-	if (!isFlowCustomer.value) return
-	openingDebtForm.roundingAmount = normalizeFlowMoneyInput(openingDebtForm.roundingAmount)
 }
 
 function onOtherFeeAmountBlur() {

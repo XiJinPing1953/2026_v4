@@ -540,6 +540,13 @@ function normalizeEntryKind(value, fallback = 'prepay') {
 	return fallback
 }
 
+function normalizeAllocateKind(value, fallback = 'receipt') {
+	const text = normalizeString(value).toLowerCase()
+	if (text === 'rounding') return 'rounding'
+	if (text === 'receipt' || text === 'cash') return 'receipt'
+	return fallback
+}
+
 function resolveSaleOffsetEnabled(doc, fallback = true) {
 	if (!doc || typeof doc !== 'object') return Boolean(fallback)
 	const raw = doc.offset_enabled
@@ -789,13 +796,17 @@ function computeSaleSnapshot(doc) {
 	const shouldReceive = fix2(amounts.should_receive)
 	const effectiveShouldReceive = fix2(amounts.effective_should_receive)
 	const amountReceived = fix2(toNumber(doc && doc.amount_received, 0))
-	const outstanding = effectiveShouldReceive > amountReceived ? fix2(effectiveShouldReceive - amountReceived) : 0
+	const receiptRoundingAmount = fix2(Math.max(toNumber(doc && doc.receipt_rounding_amount, 0), 0))
+	const paidTotal = fix2(amountReceived + receiptRoundingAmount)
+	const outstanding = effectiveShouldReceive > paidTotal ? fix2(effectiveShouldReceive - paidTotal) : 0
 	return {
 		should_receive: shouldReceive,
 		should_receive_effective: effectiveShouldReceive,
 		amount_received: amountReceived,
+		receipt_rounding_amount: receiptRoundingAmount,
+		paid_total: paidTotal,
 		outstanding,
-		payment_status: resolvePaymentStatusByAmount(effectiveShouldReceive, amountReceived)
+		payment_status: resolvePaymentStatusByAmount(effectiveShouldReceive, paidTotal)
 	}
 }
 
@@ -901,12 +912,16 @@ function computeSaleActualWeight(doc) {
 function computeFlowSettlementSnapshot(doc) {
 	const shouldReceive = fix3(toNumber(doc && doc.should_receive, 0))
 	const amountReceived = fix3(toNumber(doc && doc.amount_received, 0))
-	const outstanding = shouldReceive > amountReceived ? fix3(shouldReceive - amountReceived) : 0
+	const receiptRoundingAmount = fix3(Math.max(toNumber(doc && doc.receipt_rounding_amount, 0), 0))
+	const paidTotal = fix3(amountReceived + receiptRoundingAmount)
+	const outstanding = shouldReceive > paidTotal ? fix3(shouldReceive - paidTotal) : 0
 	return {
 		should_receive: shouldReceive,
 		amount_received: amountReceived,
+		receipt_rounding_amount: receiptRoundingAmount,
+		paid_total: paidTotal,
 		outstanding,
-		payment_status: resolvePaymentStatusByAmount(shouldReceive, amountReceived, 3)
+		payment_status: resolvePaymentStatusByAmount(shouldReceive, paidTotal, 3)
 	}
 }
 
@@ -916,14 +931,18 @@ function computeOpeningDebtSnapshot(doc, moneyScale = 2) {
 	const roundingAmount = resolveOpeningDebtRoundingAmount(amount, doc && doc.rounding_amount, moneyScale)
 	const effectiveShouldReceive = amount > 0 ? fixMoney(Math.max(amount - roundingAmount, 0)) : 0
 	const amountReceived = fixMoney(toNumber(doc && doc.amount_received, 0))
-	const outstanding = effectiveShouldReceive > amountReceived ? fixMoney(effectiveShouldReceive - amountReceived) : 0
+	const receiptRoundingAmount = fixMoney(Math.max(toNumber(doc && doc.receipt_rounding_amount, 0), 0))
+	const paidTotal = fixMoney(amountReceived + receiptRoundingAmount)
+	const outstanding = effectiveShouldReceive > paidTotal ? fixMoney(effectiveShouldReceive - paidTotal) : 0
 	return {
 		amount,
 		rounding_amount: roundingAmount,
 		should_receive_effective: effectiveShouldReceive,
 		amount_received: amountReceived,
+		receipt_rounding_amount: receiptRoundingAmount,
+		paid_total: paidTotal,
 		outstanding,
-		payment_status: resolvePaymentStatusByAmount(effectiveShouldReceive, amountReceived, moneyScale)
+		payment_status: resolvePaymentStatusByAmount(effectiveShouldReceive, paidTotal, moneyScale)
 	}
 }
 
@@ -1246,6 +1265,7 @@ async function createFlowSettlementV1(user, data, requestId) {
 		unit_price: payload.unit_price,
 		should_receive: payload.should_receive,
 		amount_received: payload.amount_received,
+		receipt_rounding_amount: 0,
 		payment_status: payload.payment_status,
 		sale_ids: Array.isArray(payload.sale_ids) ? payload.sale_ids : [],
 		status: 'posted',
@@ -1337,9 +1357,10 @@ async function updateFlowSettlementV1(user, data, requestId) {
 
 	const payload = preview.data || {}
 	const amountReceived = fix3(toNumber(flowDoc.amount_received, 0))
+	const receiptRoundingAmount = fix3(toNumber(flowDoc.receipt_rounding_amount, 0))
 	const shouldReceive = fix3(toNumber(payload.should_receive, 0))
 	const note = data.note === undefined ? normalizeString(flowDoc.note) : normalizeString(data.note)
-	const nextStatus = resolvePaymentStatusByAmount(shouldReceive, amountReceived, 3)
+	const nextStatus = resolvePaymentStatusByAmount(shouldReceive, fix3(amountReceived + receiptRoundingAmount), 3)
 	const now = Date.now()
 	await flowSettlements.doc(flowSettlementId).update({
 		biz_date: payload.biz_date,
@@ -1356,6 +1377,7 @@ async function updateFlowSettlementV1(user, data, requestId) {
 		unit_price: payload.unit_price,
 		should_receive: shouldReceive,
 		amount_received: amountReceived,
+		receipt_rounding_amount: receiptRoundingAmount,
 		payment_status: nextStatus,
 		sale_ids: Array.isArray(payload.sale_ids) ? payload.sale_ids : [],
 		note,
@@ -1432,7 +1454,7 @@ async function removeFlowSettlementV1(user, data, requestId) {
 	if (customerId !== flowCustomerId) return { code: 400, msg: '流量结算单不属于该客户' }
 
 	const snapshot = computeFlowSettlementSnapshot(flowDoc)
-	if (snapshot.amount_received > 0) {
+	if (snapshot.paid_total > 0) {
 		return { code: 400, msg: '该流量结算单已有收款分配，请先处理相关收款单后再删除' }
 	}
 
@@ -1751,6 +1773,7 @@ async function buildAllocationPlan(
 		ok: true,
 		customer_id: customer._id,
 		customer_name: customer.name,
+		money_scale: moneyScale,
 		amount: totalAmount,
 		allocation_mode: mode,
 		allocation_start_date: mode === 'period' ? startDate : '',
@@ -1761,6 +1784,128 @@ async function buildAllocationPlan(
 		total_outstanding_before: totalOutstanding,
 		allocations: allocationsPlan
 	}
+}
+
+function splitReceiptAndRoundingAllocations(plan, amount, roundingAmount, moneyScale = 2) {
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const receiptAmount = fixMoney(Math.max(toNumber(amount, 0), 0))
+	const rounding = fixMoney(Math.max(toNumber(roundingAmount, 0), 0))
+	let receiptRemaining = receiptAmount
+	let roundingRemaining = rounding
+	const receiptAllocations = []
+	const roundingAllocations = []
+	const mergedAllocations = []
+	const sourceAllocations = Array.isArray(plan && plan.allocations) ? plan.allocations : []
+
+	for (const rawItem of sourceAllocations) {
+		const totalUse = fixMoney(toNumber(rawItem && rawItem.allocate_amount, 0))
+		if (!(totalUse > 0)) continue
+		const receiptUse = fixMoney(Math.min(totalUse, Math.max(receiptRemaining, 0)))
+		const roundingUse = fixMoney(Math.max(totalUse - receiptUse, 0))
+		if (receiptUse > 0) {
+			receiptAllocations.push({
+				...(rawItem || {}),
+				allocate_kind: 'receipt',
+				allocate_amount: receiptUse
+			})
+		}
+		if (roundingUse > 0) {
+			roundingAllocations.push({
+				...(rawItem || {}),
+				allocate_kind: 'rounding',
+				allocate_amount: roundingUse
+			})
+		}
+		mergedAllocations.push({
+			...(rawItem || {}),
+			allocate_amount: totalUse,
+			receipt_allocate_amount: receiptUse,
+			rounding_allocate_amount: roundingUse
+		})
+		receiptRemaining = fixMoney(Math.max(receiptRemaining - receiptUse, 0))
+		roundingRemaining = fixMoney(Math.max(roundingRemaining - roundingUse, 0))
+	}
+
+	const receiptAllocatedTotal = fixMoney(receiptAmount - receiptRemaining)
+	const roundingAllocatedTotal = fixMoney(rounding - roundingRemaining)
+	return {
+		receipt_allocations: receiptAllocations,
+		rounding_allocations: roundingAllocations,
+		merged_allocations: mergedAllocations,
+		receipt_allocated_total: receiptAllocatedTotal,
+		rounding_allocated_total: roundingAllocatedTotal,
+		prepay_amount: fixMoney(receiptAmount - receiptAllocatedTotal)
+	}
+}
+
+async function buildReceiptAllocationPlan(
+	customerId,
+	amount,
+	roundingAmount,
+	{
+		manualAllocations = null,
+		allocationMode = 'period',
+		allocationStartDate = '',
+		allocationEndDate = '',
+		allocationTargets = null
+	} = {}
+) {
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { ok: false, code: 400, msg: '客户不存在' }
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const cashAmount = fixMoney(toNumber(amount, 0))
+	const rounding = fixMoney(toNumber(roundingAmount, 0))
+	if (cashAmount < 0) return { ok: false, code: 400, msg: '收款金额不能小于0' }
+	if (rounding < 0) return { ok: false, code: 400, msg: '抹零金额不能小于0' }
+	if (!(cashAmount > 0 || rounding > 0)) return { ok: false, code: 400, msg: '收款金额和抹零金额不能同时为0' }
+
+	const combinedAmount = fixMoney(cashAmount + rounding)
+	const basePlan = await buildAllocationPlan(customerId, combinedAmount, {
+		manualAllocations,
+		allocationMode,
+		allocationStartDate,
+		allocationEndDate,
+		allocationTargets
+	})
+	if (!basePlan.ok) return basePlan
+
+	const split = splitReceiptAndRoundingAllocations(basePlan, cashAmount, rounding, moneyScale)
+	if (rounding > 0 && split.rounding_allocated_total < rounding) {
+		return {
+			ok: false,
+			code: 400,
+			msg: '抹零金额超过可冲销欠款'
+		}
+	}
+	return {
+		...basePlan,
+		amount: cashAmount,
+		rounding_amount: rounding,
+		total_amount: combinedAmount,
+		allocations: split.merged_allocations,
+		allocations_receipt: split.receipt_allocations,
+		allocations_rounding: split.rounding_allocations,
+		allocated_total: fixMoney(split.receipt_allocated_total + split.rounding_allocated_total),
+		receipt_allocated_total: split.receipt_allocated_total,
+		rounding_allocated_total: split.rounding_allocated_total,
+		prepay_amount: split.prepay_amount
+	}
+}
+
+function resolvePlanAllocationItems(plan = {}) {
+	const receiptAllocations = Array.isArray(plan.allocations_receipt) ? plan.allocations_receipt : []
+	const roundingAllocations = Array.isArray(plan.allocations_rounding) ? plan.allocations_rounding : []
+	if (receiptAllocations.length || roundingAllocations.length) {
+		return [
+			...receiptAllocations.map((item) => ({ ...(item || {}), allocate_kind: 'receipt' })),
+			...roundingAllocations.map((item) => ({ ...(item || {}), allocate_kind: 'rounding' }))
+		]
+	}
+	return (Array.isArray(plan.allocations) ? plan.allocations : []).map((item) => ({
+		...(item || {}),
+		allocate_kind: normalizeAllocateKind(item && item.allocate_kind, 'receipt')
+	}))
 }
 
 async function applyAllocationAndPersist({
@@ -1790,13 +1935,17 @@ async function applyAllocationAndPersist({
 	)
 	const moneyScale = resolveCustomerMoneyScale(customer)
 	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const receiptAmount = fixMoney(toNumber(plan && plan.amount, 0))
+	const roundingAmount = fixMoney(toNumber(plan && plan.rounding_amount, 0))
 	const receiptDoc = {
 		customer_id: customer._id,
 		customer_name: customer.name,
 		biz_date: bizDate,
-		amount: fixMoney(plan.amount),
+		amount: receiptAmount,
+		rounding_amount: roundingAmount,
 		allocated_amount: 0,
-		unallocated_amount: fixMoney(plan.amount),
+		rounding_allocated_amount: 0,
+		unallocated_amount: receiptAmount,
 		payment_method: normalizePaymentMethod(paymentMethod, 'paid'),
 		entry_kind: resolvedEntryKind,
 		allocation_mode: normalizedMode,
@@ -1816,12 +1965,14 @@ async function applyAllocationAndPersist({
 
 	const receiptRes = await receipts.add(receiptDoc)
 	const receiptId = receiptRes.id
-	let allocatedTotal = 0
+	let receiptAllocatedTotal = 0
+	let roundingAllocatedTotal = 0
 	let seq = 1
 
-	for (const item of plan.allocations || []) {
+	for (const item of resolvePlanAllocationItems(plan)) {
 		const targetType = normalizeReceivableTargetType(item.target_type)
 		const targetId = normalizeId(item.target_id || item.sale_id)
+		const allocateKind = normalizeAllocateKind(item.allocate_kind, 'receipt')
 		if (!targetId) continue
 
 		let targetDate = ''
@@ -1837,13 +1988,25 @@ async function applyAllocationAndPersist({
 			if (snapshot.outstanding <= 0) continue
 			allocateAmount = fix3(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
 			if (allocateAmount <= 0) continue
-			const nextAmountReceived = fix3(snapshot.amount_received + allocateAmount)
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextAmountReceived, 3)
-			await flowSettlements.doc(targetId).update({
-				amount_received: nextAmountReceived,
-				payment_status: nextStatus,
-				updated_at: Date.now()
-			})
+			if (allocateKind === 'rounding') {
+				const nextReceiptRounding = fix3(snapshot.receipt_rounding_amount + allocateAmount)
+				const nextPaidTotal = fix3(snapshot.amount_received + nextReceiptRounding)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextPaidTotal, 3)
+				await flowSettlements.doc(targetId).update({
+					receipt_rounding_amount: nextReceiptRounding,
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			} else {
+				const nextAmountReceived = fix3(snapshot.amount_received + allocateAmount)
+				const nextPaidTotal = fix3(nextAmountReceived + snapshot.receipt_rounding_amount)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextPaidTotal, 3)
+				await flowSettlements.doc(targetId).update({
+					amount_received: nextAmountReceived,
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			}
 			targetDate = normalizeString(flowDoc.biz_date)
 			if (!targetTitle) targetTitle = `流量结算 ${targetDate} / ${targetId.slice(-6)}`
 		} else if (targetType === 'opening_debt' || targetType === 'other_fee') {
@@ -1856,14 +2019,27 @@ async function applyAllocationAndPersist({
 			if (snapshot.outstanding <= 0) continue
 			allocateAmount = fixMoney(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
 			if (allocateAmount <= 0) continue
-			const nextAmountReceived = fixMoney(snapshot.amount_received + allocateAmount)
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextAmountReceived, moneyScale)
-			await openingDebts.doc(targetId).update({
-				amount_received: nextAmountReceived,
-				outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextAmountReceived, 0)),
-				payment_status: nextStatus,
-				updated_at: Date.now()
-			})
+			if (allocateKind === 'rounding') {
+				const nextReceiptRounding = fixMoney(snapshot.receipt_rounding_amount + allocateAmount)
+				const nextPaidTotal = fixMoney(snapshot.amount_received + nextReceiptRounding)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal, moneyScale)
+				await openingDebts.doc(targetId).update({
+					receipt_rounding_amount: nextReceiptRounding,
+					outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextPaidTotal, 0)),
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			} else {
+				const nextAmountReceived = fixMoney(snapshot.amount_received + allocateAmount)
+				const nextPaidTotal = fixMoney(nextAmountReceived + snapshot.receipt_rounding_amount)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal, moneyScale)
+				await openingDebts.doc(targetId).update({
+					amount_received: nextAmountReceived,
+					outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextPaidTotal, 0)),
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			}
 			targetDate = normalizeString(debtDoc.biz_date)
 			if (!targetTitle) {
 				targetTitle = buildOpeningDebtTargetTitle({
@@ -1881,13 +2057,25 @@ async function applyAllocationAndPersist({
 			if (snapshot.outstanding <= 0) continue
 			allocateAmount = fix2(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
 			if (allocateAmount <= 0) continue
-			const nextAmountReceived = fix2(snapshot.amount_received + allocateAmount)
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextAmountReceived)
-			await sales.doc(targetId).update({
-				amount_received: nextAmountReceived,
-				payment_status: nextStatus,
-				updated_at: Date.now()
-			})
+			if (allocateKind === 'rounding') {
+				const nextReceiptRounding = fix2(snapshot.receipt_rounding_amount + allocateAmount)
+				const nextPaidTotal = fix2(snapshot.amount_received + nextReceiptRounding)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal)
+				await sales.doc(targetId).update({
+					receipt_rounding_amount: nextReceiptRounding,
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			} else {
+				const nextAmountReceived = fix2(snapshot.amount_received + allocateAmount)
+				const nextPaidTotal = fix2(nextAmountReceived + snapshot.receipt_rounding_amount)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal)
+				await sales.doc(targetId).update({
+					amount_received: nextAmountReceived,
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			}
 			targetDate = normalizeString(saleDoc.date)
 			if (!targetTitle) targetTitle = `销售单 ${targetDate} / ${targetId.slice(-6)}`
 		}
@@ -1903,6 +2091,7 @@ async function applyAllocationAndPersist({
 			target_id: targetId,
 			target_title: targetTitle,
 			biz_date: bizDate,
+			allocate_kind: allocateKind,
 			allocate_amount: allocateAmount,
 			seq,
 			note: '',
@@ -1919,19 +2108,26 @@ async function applyAllocationAndPersist({
 		})
 
 		seq += 1
-		allocatedTotal = fixMoney(allocatedTotal + allocateAmount)
+		if (allocateKind === 'rounding') {
+			roundingAllocatedTotal = fixMoney(roundingAllocatedTotal + allocateAmount)
+		} else {
+			receiptAllocatedTotal = fixMoney(receiptAllocatedTotal + allocateAmount)
+		}
 	}
 
 	await receipts.doc(receiptId).update({
-		allocated_amount: allocatedTotal,
-		unallocated_amount: fixMoney(plan.amount - allocatedTotal),
+		allocated_amount: receiptAllocatedTotal,
+		rounding_allocated_amount: roundingAllocatedTotal,
+		unallocated_amount: fixMoney(receiptAmount - receiptAllocatedTotal),
 		updated_at: Date.now()
 	})
 
 	return {
 		receipt_id: receiptId,
-		allocated_total: allocatedTotal,
-		prepay_amount: fixMoney(plan.amount - allocatedTotal)
+		allocated_total: fixMoney(receiptAllocatedTotal + roundingAllocatedTotal),
+		receipt_allocated_total: receiptAllocatedTotal,
+		rounding_allocated_total: roundingAllocatedTotal,
+		prepay_amount: fixMoney(receiptAmount - receiptAllocatedTotal)
 	}
 }
 
@@ -2006,12 +2202,19 @@ async function releaseSaleTargetAllocationsToPrepay({ customerId, saleId }) {
 
 	const allocIds = []
 	const receiptAmountMap = new Map()
+	const receiptRoundingMap = new Map()
 	for (const row of rows) {
 		const allocId = normalizeId(row && row._id)
 		if (allocId) allocIds.push(allocId)
 		const receiptId = normalizeId(row && row.receipt_id)
 		const amount = fix2(toNumber(row && row.allocate_amount, 0))
 		if (!receiptId || !(amount > 0)) continue
+		const allocateKind = normalizeAllocateKind(row && row.allocate_kind, 'receipt')
+		if (allocateKind === 'rounding') {
+			const prevRounding = fix2(toNumber(receiptRoundingMap.get(receiptId), 0))
+			receiptRoundingMap.set(receiptId, fix2(prevRounding + amount))
+			continue
+		}
 		const prev = fix2(toNumber(receiptAmountMap.get(receiptId), 0))
 		receiptAmountMap.set(receiptId, fix2(prev + amount))
 	}
@@ -2019,7 +2222,10 @@ async function releaseSaleTargetAllocationsToPrepay({ customerId, saleId }) {
 	let releasedTotal = 0
 	let receiptTouched = 0
 	let mismatchTotal = 0
-	for (const [receiptId, expectRelease] of receiptAmountMap.entries()) {
+	const receiptIdSet = new Set([...receiptAmountMap.keys(), ...receiptRoundingMap.keys()])
+	for (const receiptId of receiptIdSet.values()) {
+		const expectRelease = fix2(toNumber(receiptAmountMap.get(receiptId), 0))
+		const expectRoundingRelease = fix2(toNumber(receiptRoundingMap.get(receiptId), 0))
 		const receiptRes = await receipts.doc(receiptId).get()
 		const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 		if (
@@ -2027,16 +2233,20 @@ async function releaseSaleTargetAllocationsToPrepay({ customerId, saleId }) {
 			normalizeId(receiptDoc.customer_id) !== normalizedCustomerId ||
 			normalizeString(receiptDoc.status) !== 'posted'
 		) {
-			mismatchTotal = fix2(mismatchTotal + expectRelease)
+			mismatchTotal = fix2(mismatchTotal + expectRelease + expectRoundingRelease)
 			continue
 		}
 		const currentAllocated = fix2(toNumber(receiptDoc.allocated_amount, 0))
 		const currentUnallocated = fix2(toNumber(receiptDoc.unallocated_amount, 0))
+		const currentRoundingAllocated = fix2(toNumber(receiptDoc.rounding_allocated_amount, 0))
 		const released = fix2(Math.min(expectRelease, Math.max(currentAllocated, 0)))
+		const roundingReleased = fix2(Math.min(expectRoundingRelease, Math.max(currentRoundingAllocated, 0)))
 		const truncated = fix2(Math.max(expectRelease - released, 0))
-		if (released > 0) {
+		const truncatedRounding = fix2(Math.max(expectRoundingRelease - roundingReleased, 0))
+		if (released > 0 || roundingReleased > 0) {
 			await receipts.doc(receiptId).update({
 				allocated_amount: fix2(Math.max(currentAllocated - released, 0)),
+				rounding_allocated_amount: fix2(Math.max(currentRoundingAllocated - roundingReleased, 0)),
 				unallocated_amount: fix2(currentUnallocated + released),
 				updated_at: Date.now()
 			})
@@ -2044,6 +2254,7 @@ async function releaseSaleTargetAllocationsToPrepay({ customerId, saleId }) {
 			receiptTouched += 1
 		}
 		if (truncated > 0) mismatchTotal = fix2(mismatchTotal + truncated)
+		if (truncatedRounding > 0) mismatchTotal = fix2(mismatchTotal + truncatedRounding)
 	}
 
 	for (const idChunk of chunkStrings(allocIds, 80)) {
@@ -2073,6 +2284,7 @@ async function rollbackReceiptAllocations({ customerId, receiptId }) {
 	for (const row of rows) {
 		const targetType = normalizeReceivableTargetType(row.target_type)
 		const targetId = normalizeId(row.target_id || row.sale_id || row.flow_settlement_id)
+		const allocateKind = normalizeAllocateKind(row && row.allocate_kind, 'receipt')
 		const amountRaw = toNumber(row.allocate_amount, 0)
 		const amount = targetType === 'flow_settlement' ? fix3(amountRaw) : fix2(amountRaw)
 		if (!targetId || amount <= 0) {
@@ -2088,13 +2300,25 @@ async function rollbackReceiptAllocations({ customerId, receiptId }) {
 				continue
 			}
 			const snapshot = computeFlowSettlementSnapshot(flowDoc)
-			const nextAmountReceived = fix3(Math.max(snapshot.amount_received - amount, 0))
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextAmountReceived, 3)
-			await flowSettlements.doc(targetId).update({
-				amount_received: nextAmountReceived,
-				payment_status: nextStatus,
-				updated_at: Date.now()
-			})
+			if (allocateKind === 'rounding') {
+				const nextReceiptRounding = fix3(Math.max(snapshot.receipt_rounding_amount - amount, 0))
+				const nextPaidTotal = fix3(snapshot.amount_received + nextReceiptRounding)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextPaidTotal, 3)
+				await flowSettlements.doc(targetId).update({
+					receipt_rounding_amount: nextReceiptRounding,
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			} else {
+				const nextAmountReceived = fix3(Math.max(snapshot.amount_received - amount, 0))
+				const nextPaidTotal = fix3(nextAmountReceived + snapshot.receipt_rounding_amount)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextPaidTotal, 3)
+				await flowSettlements.doc(targetId).update({
+					amount_received: nextAmountReceived,
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			}
 			rollbackTotal = fix3(rollbackTotal + amount)
 			continue
 		}
@@ -2109,14 +2333,27 @@ async function rollbackReceiptAllocations({ customerId, receiptId }) {
 			const fixMoney = (value) => fixByScale(value, moneyScale)
 			const snapshot = computeOpeningDebtSnapshot(debtDoc, moneyScale)
 			const amountFixed = fixMoney(amountRaw)
-			const nextAmountReceived = fixMoney(Math.max(snapshot.amount_received - amountFixed, 0))
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextAmountReceived, moneyScale)
-			await openingDebts.doc(targetId).update({
-				amount_received: nextAmountReceived,
-				outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextAmountReceived, 0)),
-				payment_status: nextStatus,
-				updated_at: Date.now()
-			})
+			if (allocateKind === 'rounding') {
+				const nextReceiptRounding = fixMoney(Math.max(snapshot.receipt_rounding_amount - amountFixed, 0))
+				const nextPaidTotal = fixMoney(snapshot.amount_received + nextReceiptRounding)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal, moneyScale)
+				await openingDebts.doc(targetId).update({
+					receipt_rounding_amount: nextReceiptRounding,
+					outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextPaidTotal, 0)),
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			} else {
+				const nextAmountReceived = fixMoney(Math.max(snapshot.amount_received - amountFixed, 0))
+				const nextPaidTotal = fixMoney(nextAmountReceived + snapshot.receipt_rounding_amount)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal, moneyScale)
+				await openingDebts.doc(targetId).update({
+					amount_received: nextAmountReceived,
+					outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextPaidTotal, 0)),
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			}
 			rollbackTotal = fix3(rollbackTotal + amountFixed)
 			continue
 		}
@@ -2128,13 +2365,25 @@ async function rollbackReceiptAllocations({ customerId, receiptId }) {
 			continue
 		}
 		const snapshot = computeSaleSnapshot(saleDoc)
-		const nextAmountReceived = fix2(Math.max(snapshot.amount_received - amount, 0))
-		const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextAmountReceived)
-		await sales.doc(targetId).update({
-			amount_received: nextAmountReceived,
-			payment_status: nextStatus,
-			updated_at: Date.now()
-		})
+		if (allocateKind === 'rounding') {
+			const nextReceiptRounding = fix2(Math.max(snapshot.receipt_rounding_amount - amount, 0))
+			const nextPaidTotal = fix2(snapshot.amount_received + nextReceiptRounding)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal)
+			await sales.doc(targetId).update({
+				receipt_rounding_amount: nextReceiptRounding,
+				payment_status: nextStatus,
+				updated_at: Date.now()
+			})
+		} else {
+			const nextAmountReceived = fix2(Math.max(snapshot.amount_received - amount, 0))
+			const nextPaidTotal = fix2(nextAmountReceived + snapshot.receipt_rounding_amount)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal)
+			await sales.doc(targetId).update({
+				amount_received: nextAmountReceived,
+				payment_status: nextStatus,
+				updated_at: Date.now()
+			})
+		}
 		rollbackTotal = fix3(rollbackTotal + amount)
 	}
 
@@ -2176,12 +2425,16 @@ async function applyPlanToExistingReceipt({
 	)
 	const moneyScale = resolveCustomerMoneyScale(customer)
 	const fixMoney = (value) => fixByScale(value, moneyScale)
-	let allocatedTotal = 0
+	const receiptAmount = fixMoney(toNumber(plan && plan.amount, 0))
+	const roundingAmount = fixMoney(toNumber(plan && plan.rounding_amount, 0))
+	let receiptAllocatedTotal = 0
+	let roundingAllocatedTotal = 0
 	let seq = 1
 
-	for (const item of plan.allocations || []) {
+	for (const item of resolvePlanAllocationItems(plan)) {
 		const targetType = normalizeReceivableTargetType(item.target_type)
 		const targetId = normalizeId(item.target_id || item.sale_id)
+		const allocateKind = normalizeAllocateKind(item.allocate_kind, 'receipt')
 		if (!targetId) continue
 
 		let targetDate = ''
@@ -2196,13 +2449,25 @@ async function applyPlanToExistingReceipt({
 			if (snapshot.outstanding <= 0) continue
 			allocateAmount = fix3(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
 			if (allocateAmount <= 0) continue
-			const nextAmountReceived = fix3(snapshot.amount_received + allocateAmount)
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextAmountReceived, 3)
-			await flowSettlements.doc(targetId).update({
-				amount_received: nextAmountReceived,
-				payment_status: nextStatus,
-				updated_at: Date.now()
-			})
+			if (allocateKind === 'rounding') {
+				const nextReceiptRounding = fix3(snapshot.receipt_rounding_amount + allocateAmount)
+				const nextPaidTotal = fix3(snapshot.amount_received + nextReceiptRounding)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextPaidTotal, 3)
+				await flowSettlements.doc(targetId).update({
+					receipt_rounding_amount: nextReceiptRounding,
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			} else {
+				const nextAmountReceived = fix3(snapshot.amount_received + allocateAmount)
+				const nextPaidTotal = fix3(nextAmountReceived + snapshot.receipt_rounding_amount)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextPaidTotal, 3)
+				await flowSettlements.doc(targetId).update({
+					amount_received: nextAmountReceived,
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			}
 			targetDate = normalizeString(flowDoc.biz_date)
 			if (!targetTitle) targetTitle = `流量结算 ${targetDate} / ${targetId.slice(-6)}`
 		} else if (targetType === 'opening_debt' || targetType === 'other_fee') {
@@ -2213,14 +2478,27 @@ async function applyPlanToExistingReceipt({
 			if (snapshot.outstanding <= 0) continue
 			allocateAmount = fixMoney(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
 			if (allocateAmount <= 0) continue
-			const nextAmountReceived = fixMoney(snapshot.amount_received + allocateAmount)
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextAmountReceived, moneyScale)
-			await openingDebts.doc(targetId).update({
-				amount_received: nextAmountReceived,
-				outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextAmountReceived, 0)),
-				payment_status: nextStatus,
-				updated_at: Date.now()
-			})
+			if (allocateKind === 'rounding') {
+				const nextReceiptRounding = fixMoney(snapshot.receipt_rounding_amount + allocateAmount)
+				const nextPaidTotal = fixMoney(snapshot.amount_received + nextReceiptRounding)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal, moneyScale)
+				await openingDebts.doc(targetId).update({
+					receipt_rounding_amount: nextReceiptRounding,
+					outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextPaidTotal, 0)),
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			} else {
+				const nextAmountReceived = fixMoney(snapshot.amount_received + allocateAmount)
+				const nextPaidTotal = fixMoney(nextAmountReceived + snapshot.receipt_rounding_amount)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal, moneyScale)
+				await openingDebts.doc(targetId).update({
+					amount_received: nextAmountReceived,
+					outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextPaidTotal, 0)),
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			}
 			targetDate = normalizeString(debtDoc.biz_date)
 			if (!targetTitle) {
 				targetTitle = buildOpeningDebtTargetTitle({
@@ -2237,13 +2515,25 @@ async function applyPlanToExistingReceipt({
 			if (snapshot.outstanding <= 0) continue
 			allocateAmount = fix2(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
 			if (allocateAmount <= 0) continue
-			const nextAmountReceived = fix2(snapshot.amount_received + allocateAmount)
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextAmountReceived)
-			await sales.doc(targetId).update({
-				amount_received: nextAmountReceived,
-				payment_status: nextStatus,
-				updated_at: Date.now()
-			})
+			if (allocateKind === 'rounding') {
+				const nextReceiptRounding = fix2(snapshot.receipt_rounding_amount + allocateAmount)
+				const nextPaidTotal = fix2(snapshot.amount_received + nextReceiptRounding)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal)
+				await sales.doc(targetId).update({
+					receipt_rounding_amount: nextReceiptRounding,
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			} else {
+				const nextAmountReceived = fix2(snapshot.amount_received + allocateAmount)
+				const nextPaidTotal = fix2(nextAmountReceived + snapshot.receipt_rounding_amount)
+				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal)
+				await sales.doc(targetId).update({
+					amount_received: nextAmountReceived,
+					payment_status: nextStatus,
+					updated_at: Date.now()
+				})
+			}
 			targetDate = normalizeString(saleDoc.date)
 			if (!targetTitle) targetTitle = `销售单 ${targetDate} / ${targetId.slice(-6)}`
 		}
@@ -2259,6 +2549,7 @@ async function applyPlanToExistingReceipt({
 			target_id: targetId,
 			target_title: targetTitle,
 			biz_date: bizDate,
+			allocate_kind: allocateKind,
 			allocate_amount: allocateAmount,
 			seq,
 			note: normalizeString(allocationNote),
@@ -2274,12 +2565,18 @@ async function applyPlanToExistingReceipt({
 			created_by_name: normalizeString(user?.username)
 		})
 		seq += 1
-		allocatedTotal = fixMoney(allocatedTotal + allocateAmount)
+		if (allocateKind === 'rounding') {
+			roundingAllocatedTotal = fixMoney(roundingAllocatedTotal + allocateAmount)
+		} else {
+			receiptAllocatedTotal = fixMoney(receiptAllocatedTotal + allocateAmount)
+		}
 	}
 
 	await receipts.doc(receiptId).update({
-		allocated_amount: allocatedTotal,
-		unallocated_amount: fixMoney(plan.amount - allocatedTotal),
+		rounding_amount: roundingAmount,
+		allocated_amount: receiptAllocatedTotal,
+		rounding_allocated_amount: roundingAllocatedTotal,
+		unallocated_amount: fixMoney(receiptAmount - receiptAllocatedTotal),
 		payment_method: method,
 		entry_kind: resolvedEntryKind,
 		allocation_mode: normalizedMode,
@@ -2292,8 +2589,10 @@ async function applyPlanToExistingReceipt({
 	return {
 		ok: true,
 		receipt_id: receiptId,
-		allocated_total: allocatedTotal,
-		prepay_amount: fixMoney(plan.amount - allocatedTotal),
+		allocated_total: fixMoney(receiptAllocatedTotal + roundingAllocatedTotal),
+		receipt_allocated_total: receiptAllocatedTotal,
+		rounding_allocated_total: roundingAllocatedTotal,
+		prepay_amount: fixMoney(receiptAmount - receiptAllocatedTotal),
 		payment_method: method
 	}
 }
@@ -2350,12 +2649,15 @@ async function rebuildCustomerBalances(customerId) {
 		} else {
 			prepayOnly = fixMoney(prepayOnly + amount)
 		}
-		const bizDate = normalizeDate(row && row.biz_date)
-		if (bizDate && (!lastReceiptBizDate || bizDate > lastReceiptBizDate)) {
-			lastReceiptBizDate = bizDate
-		}
-		if (lastReceiptCreatedAt == null) {
-			lastReceiptCreatedAt = toNumber(row && row.created_at, null)
+		const receiptAmount = fixMoney(Math.max(toNumber(row && row.amount, 0), 0))
+		if (receiptAmount > 0) {
+			const bizDate = normalizeDate(row && row.biz_date)
+			if (bizDate && (!lastReceiptBizDate || bizDate > lastReceiptBizDate)) {
+				lastReceiptBizDate = bizDate
+			}
+			if (lastReceiptCreatedAt == null) {
+				lastReceiptCreatedAt = toNumber(row && row.created_at, null)
+			}
 		}
 	}
 	lastReceiptAt = parseBizDateToTimestamp(lastReceiptBizDate)
@@ -2394,13 +2696,16 @@ async function previewAllocationV1(user, data) {
 	void user
 	const customerId = normalizeId(data.customer_id || data.customerId)
 	const amount = toNumber(data.amount, 0)
+	const roundingAmount = toNumber(data.rounding_amount ?? data.roundingAmount, 0)
 	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
-	if (!(amount > 0)) return { code: 400, msg: '收款金额必须大于0' }
+	if (amount < 0) return { code: 400, msg: '收款金额不能小于0' }
+	if (roundingAmount < 0) return { code: 400, msg: '抹零金额不能小于0' }
+	if (!(amount > 0 || roundingAmount > 0)) return { code: 400, msg: '收款金额和抹零金额不能同时为0' }
 	const allocation = resolveAllocationConfig(data)
 	if (!allocation.ok) return { code: allocation.code || 400, msg: allocation.msg || '分配参数无效' }
 
 	const manual = normalizeManualAllocations(data.allocations || [])
-	const plan = await buildAllocationPlan(customerId, amount, {
+	const plan = await buildReceiptAllocationPlan(customerId, amount, roundingAmount, {
 		manualAllocations: manual.length ? manual : null,
 		allocationMode: allocation.allocation_mode,
 		allocationStartDate: allocation.allocation_start_date,
@@ -2422,13 +2727,16 @@ async function createReceiptV1(user, data, requestId) {
 
 	const customerId = normalizeId(data.customer_id || data.customerId)
 	const amount = toNumber(data.amount, 0)
+	const roundingAmount = toNumber(data.rounding_amount ?? data.roundingAmount, 0)
 	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
-	if (!(amount > 0)) return { code: 400, msg: '收款金额必须大于0' }
+	if (amount < 0) return { code: 400, msg: '收款金额不能小于0' }
+	if (roundingAmount < 0) return { code: 400, msg: '抹零金额不能小于0' }
+	if (!(amount > 0 || roundingAmount > 0)) return { code: 400, msg: '收款金额和抹零金额不能同时为0' }
 	const allocation = resolveAllocationConfig(data)
 	if (!allocation.ok) return { code: allocation.code || 400, msg: allocation.msg || '分配参数无效' }
 
 	const previewOnly = Boolean(data.preview)
-	const plan = await buildAllocationPlan(customerId, amount, {
+	const plan = await buildReceiptAllocationPlan(customerId, amount, roundingAmount, {
 		allocationMode: allocation.allocation_mode,
 		allocationStartDate: allocation.allocation_start_date,
 		allocationEndDate: allocation.allocation_end_date,
@@ -2477,7 +2785,9 @@ async function createReceiptV1(user, data, requestId) {
 			receipt_id: applyRes.receipt_id,
 			customer_id: customer._id,
 			amount: fixMoney(amount),
+			rounding_amount: fixMoney(roundingAmount),
 			allocated_total: applyRes.allocated_total,
+			rounding_allocated_total: applyRes.rounding_allocated_total,
 			prepay_amount: applyRes.prepay_amount
 		},
 		requestId
@@ -2491,6 +2801,7 @@ async function createReceiptV1(user, data, requestId) {
 			customer_id: customer._id,
 			customer_name: customer.name,
 			allocated_total: applyRes.allocated_total,
+			rounding_allocated_total: applyRes.rounding_allocated_total,
 			prepay_amount: applyRes.prepay_amount,
 			balances
 		}
@@ -2521,7 +2832,14 @@ async function updateReceiptV1(user, data, requestId) {
 
 	const amountRaw = data.amount == null || data.amount === '' ? receiptDoc.amount : data.amount
 	const amount = fixMoney(toNumber(amountRaw, 0))
-	if (!(amount > 0)) return { code: 400, msg: '收款金额必须大于0' }
+	if (amount < 0) return { code: 400, msg: '收款金额不能小于0' }
+	const roundingAmountRaw =
+		data.rounding_amount == null && data.roundingAmount == null
+			? receiptDoc.rounding_amount
+			: data.rounding_amount ?? data.roundingAmount
+	const roundingAmount = fixMoney(toNumber(roundingAmountRaw, 0))
+	if (roundingAmount < 0) return { code: 400, msg: '抹零金额不能小于0' }
+	if (!(amount > 0 || roundingAmount > 0)) return { code: 400, msg: '收款金额和抹零金额不能同时为0' }
 
 	const bizDate = normalizeBizDate(data.biz_date || data.bizDate || receiptDoc.biz_date, Date.now())
 	const allocation = resolveAllocationConfig(
@@ -2551,7 +2869,7 @@ async function updateReceiptV1(user, data, requestId) {
 	)
 
 	const rollback = await rollbackReceiptAllocations({ customerId, receiptId })
-	const plan = await buildAllocationPlan(customerId, amount, {
+	const plan = await buildReceiptAllocationPlan(customerId, amount, roundingAmount, {
 		allocationMode: allocation.allocation_mode,
 		allocationStartDate: allocation.allocation_start_date,
 		allocationEndDate: allocation.allocation_end_date,
@@ -2586,6 +2904,8 @@ async function updateReceiptV1(user, data, requestId) {
 		customer_name: customer.name,
 		biz_date: bizDate,
 		amount,
+		rounding_amount: roundingAmount,
+		rounding_allocated_amount: fixMoney(toNumber(applyRes.rounding_allocated_total, 0)),
 		note,
 		source_type: sourceType,
 		source_id: sourceId || null,
@@ -2605,9 +2925,11 @@ async function updateReceiptV1(user, data, requestId) {
 			customer_id: customerId,
 			receipt_id: receiptId,
 			amount,
+			rounding_amount: roundingAmount,
 			allocation_mode: allocation.allocation_mode,
 			rollback_total: rollback.rollback_total,
 			allocated_total: applyRes.allocated_total,
+			rounding_allocated_total: applyRes.rounding_allocated_total,
 			prepay_amount: applyRes.prepay_amount
 		},
 		requestId
@@ -2620,6 +2942,7 @@ async function updateReceiptV1(user, data, requestId) {
 			receipt_id: receiptId,
 			customer_id: customerId,
 			allocated_total: applyRes.allocated_total,
+			rounding_allocated_total: applyRes.rounding_allocated_total,
 			prepay_amount: applyRes.prepay_amount,
 			balances
 		}
@@ -2648,6 +2971,7 @@ async function removeReceiptV1(user, data, requestId) {
 	await receipts.doc(receiptId).update({
 		status: 'void',
 		allocated_amount: 0,
+		rounding_allocated_amount: 0,
 		unallocated_amount: 0,
 		void_reason: normalizeString(data.reason || data.note) || 'manual_remove',
 		void_at: now,
@@ -2830,6 +3154,7 @@ async function createOpeningDebtEntryV1(user, data, requestId) {
 		amount,
 		rounding_amount: roundingAmount,
 		amount_received: 0,
+		receipt_rounding_amount: 0,
 		outstanding: effectiveShouldReceive,
 		payment_status: paymentStatus,
 		note,
@@ -2915,7 +3240,9 @@ async function updateOpeningDebtEntryV1(user, data, requestId) {
 	const roundingAmount = resolveOpeningDebtRoundingAmount(amount, roundingAmountFixed, moneyScale)
 	const effectiveShouldReceive = amount > 0 ? fixMoney(Math.max(amount - roundingAmount, 0)) : 0
 	const amountReceived = fixMoney(toNumber(debtDoc.amount_received, 0))
-	if (effectiveShouldReceive < amountReceived) return { code: 400, msg: '计费应收不能小于已收金额' }
+	const receiptRoundingAmount = fixMoney(toNumber(debtDoc.receipt_rounding_amount, 0))
+	const paidTotal = fixMoney(amountReceived + receiptRoundingAmount)
+	if (effectiveShouldReceive < paidTotal) return { code: 400, msg: '计费应收不能小于已冲销金额' }
 	const bizDate = normalizeBizDate(data.biz_date || data.bizDate || debtDoc.biz_date, Date.now())
 	const note = data.note === undefined ? normalizeString(debtDoc.note) : normalizeString(data.note)
 	const sourceTypeInput = normalizeString(data.source_type || data.sourceType || debtDoc.source_type)
@@ -2924,8 +3251,8 @@ async function updateOpeningDebtEntryV1(user, data, requestId) {
 		: (sourceTypeInput || 'customer_opening_debt_manual')
 	const sourceIdRaw = data.source_id !== undefined || data.sourceId !== undefined ? data.source_id ?? data.sourceId : debtDoc.source_id
 	const sourceId = normalizeId(sourceIdRaw)
-	const paymentStatus = resolvePaymentStatusByAmount(effectiveShouldReceive, amountReceived, moneyScale)
-	const outstanding = effectiveShouldReceive > amountReceived ? fixMoney(effectiveShouldReceive - amountReceived) : 0
+	const paymentStatus = resolvePaymentStatusByAmount(effectiveShouldReceive, paidTotal, moneyScale)
+	const outstanding = effectiveShouldReceive > paidTotal ? fixMoney(effectiveShouldReceive - paidTotal) : 0
 
 	await openingDebts.doc(openingDebtId).update({
 		customer_name: customer.name,
@@ -2933,6 +3260,7 @@ async function updateOpeningDebtEntryV1(user, data, requestId) {
 		amount,
 		rounding_amount: roundingAmount,
 		amount_received: amountReceived,
+		receipt_rounding_amount: receiptRoundingAmount,
 		outstanding,
 		payment_status: paymentStatus,
 		note,
@@ -2971,6 +3299,7 @@ async function updateOpeningDebtEntryV1(user, data, requestId) {
 			rounding_amount: roundingAmount,
 			should_receive_effective: effectiveShouldReceive,
 			amount_received: amountReceived,
+			receipt_rounding_amount: receiptRoundingAmount,
 			outstanding,
 			payment_status: paymentStatus,
 			biz_date: bizDate,
@@ -3007,7 +3336,11 @@ async function removeOpeningDebtEntryV1(user, data, requestId) {
 		.limit(1)
 		.get()
 	const linkedRows = Array.isArray(linkedRes.data) ? linkedRes.data : []
-	if (linkedRows.length || toNumber(debtDoc.amount_received, 0) > 0) {
+	const debtPaidTotal = fixByScale(
+		toNumber(debtDoc.amount_received, 0) + toNumber(debtDoc.receipt_rounding_amount, 0),
+		resolveOpeningDebtMoneyScale(debtDoc, 2)
+	)
+	if (linkedRows.length || debtPaidTotal > 0) {
 		return { code: 400, msg: '该历史欠款已有收款分配，请先处理相关收款单后再删除' }
 	}
 
@@ -3073,6 +3406,7 @@ async function createOtherFeeEntryV1(user, data, requestId) {
 		amount,
 		rounding_amount: 0,
 		amount_received: 0,
+		receipt_rounding_amount: 0,
 		outstanding: amount,
 		payment_status: 'unpaid',
 		note,
@@ -3148,7 +3482,9 @@ async function updateOtherFeeEntryV1(user, data, requestId) {
 	if (!(amount > 0)) return { code: 400, msg: '其他费用金额必须大于0' }
 
 	const amountReceived = fixMoney(toNumber(debtDoc.amount_received, 0))
-	if (amount < amountReceived) return { code: 400, msg: '其他费用金额不能小于已收金额' }
+	const receiptRoundingAmount = fixMoney(toNumber(debtDoc.receipt_rounding_amount, 0))
+	const paidTotal = fixMoney(amountReceived + receiptRoundingAmount)
+	if (amount < paidTotal) return { code: 400, msg: '其他费用金额不能小于已冲销金额' }
 	const bizDate = normalizeBizDate(data.biz_date || data.bizDate || debtDoc.biz_date, Date.now())
 	const note = data.note === undefined ? normalizeString(debtDoc.note) : normalizeString(data.note)
 	const sourceTypeInput = normalizeString(data.source_type || data.sourceType || debtDoc.source_type)
@@ -3157,8 +3493,8 @@ async function updateOtherFeeEntryV1(user, data, requestId) {
 		: 'customer_other_fee_manual'
 	const sourceIdRaw = data.source_id !== undefined || data.sourceId !== undefined ? data.source_id ?? data.sourceId : debtDoc.source_id
 	const sourceId = normalizeId(sourceIdRaw)
-	const paymentStatus = resolvePaymentStatusByAmount(amount, amountReceived, moneyScale)
-	const outstanding = amount > amountReceived ? fixMoney(amount - amountReceived) : 0
+	const paymentStatus = resolvePaymentStatusByAmount(amount, paidTotal, moneyScale)
+	const outstanding = amount > paidTotal ? fixMoney(amount - paidTotal) : 0
 
 	await openingDebts.doc(otherFeeId).update({
 		customer_name: customer.name,
@@ -3166,6 +3502,7 @@ async function updateOtherFeeEntryV1(user, data, requestId) {
 		amount,
 		rounding_amount: 0,
 		amount_received: amountReceived,
+		receipt_rounding_amount: receiptRoundingAmount,
 		outstanding,
 		payment_status: paymentStatus,
 		note,
@@ -3200,6 +3537,7 @@ async function updateOtherFeeEntryV1(user, data, requestId) {
 			customer_id: customerId,
 			amount,
 			amount_received: amountReceived,
+			receipt_rounding_amount: receiptRoundingAmount,
 			outstanding,
 			payment_status: paymentStatus,
 			biz_date: bizDate,
@@ -3238,7 +3576,11 @@ async function removeOtherFeeEntryV1(user, data, requestId) {
 		.limit(1)
 		.get()
 	const linkedRows = Array.isArray(linkedRes.data) ? linkedRes.data : []
-	if (linkedRows.length || toNumber(debtDoc.amount_received, 0) > 0) {
+	const debtPaidTotal = fixByScale(
+		toNumber(debtDoc.amount_received, 0) + toNumber(debtDoc.receipt_rounding_amount, 0),
+		resolveOpeningDebtMoneyScale(debtDoc, 2)
+	)
+	if (linkedRows.length || debtPaidTotal > 0) {
 		return { code: 400, msg: '该其他费用已有收款分配，请先处理相关收款单后再删除' }
 	}
 
@@ -3316,6 +3658,7 @@ async function voidSaleOffsetReceipts({ user, requestId, customerId, saleId }) {
 		await receipts.doc(receiptId).update({
 			status: 'void',
 			allocated_amount: 0,
+			rounding_allocated_amount: 0,
 			unallocated_amount: 0,
 			void_reason: 'sale_removed',
 			void_at: now,
@@ -3532,7 +3875,8 @@ async function applyOffsetAllocationsToReceipt({
 			allocateAmount = fix3(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
 			if (allocateAmount <= 0) continue
 			const nextAmountReceived = fix3(snapshot.amount_received + allocateAmount)
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextAmountReceived, 3)
+			const nextPaidTotal = fix3(nextAmountReceived + snapshot.receipt_rounding_amount)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextPaidTotal, 3)
 			await flowSettlements.doc(targetId).update({
 				amount_received: nextAmountReceived,
 				payment_status: nextStatus,
@@ -3549,10 +3893,11 @@ async function applyOffsetAllocationsToReceipt({
 			allocateAmount = fixMoney(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
 			if (allocateAmount <= 0) continue
 			const nextAmountReceived = fixMoney(snapshot.amount_received + allocateAmount)
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextAmountReceived, moneyScale)
+			const nextPaidTotal = fixMoney(nextAmountReceived + snapshot.receipt_rounding_amount)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal, moneyScale)
 			await openingDebts.doc(targetId).update({
 				amount_received: nextAmountReceived,
-				outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextAmountReceived, 0)),
+				outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextPaidTotal, 0)),
 				payment_status: nextStatus,
 				updated_at: Date.now()
 			})
@@ -3573,7 +3918,8 @@ async function applyOffsetAllocationsToReceipt({
 			allocateAmount = fix2(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
 			if (allocateAmount <= 0) continue
 			const nextAmountReceived = fix2(snapshot.amount_received + allocateAmount)
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextAmountReceived)
+			const nextPaidTotal = fix2(nextAmountReceived + snapshot.receipt_rounding_amount)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal)
 			await sales.doc(targetId).update({
 				amount_received: nextAmountReceived,
 				payment_status: nextStatus,
@@ -3594,6 +3940,7 @@ async function applyOffsetAllocationsToReceipt({
 			target_id: targetId,
 			target_title: targetTitle,
 			biz_date: normalizeBizDate(receiptDoc && receiptDoc.biz_date, Date.now()),
+			allocate_kind: 'receipt',
 			allocate_amount: allocateAmount,
 			seq,
 			note: allocationNote,
@@ -3772,7 +4119,8 @@ async function exportCustomerStatementV1(user, data) {
 			openingDebtRowsBefore.reduce((sum, row) => sum + computeOpeningDebtSnapshot(row, moneyScale).should_receive_effective, 0)
 	)
 	const openingReceived = fixMoney(openingReceipts.reduce((sum, row) => sum + toNumber(row && row.amount, 0), 0))
-	const openingBalance = fixMoney(openingShouldReceive - openingReceived)
+	const openingRounding = fixMoney(openingReceipts.reduce((sum, row) => sum + toNumber(row && row.rounding_allocated_amount, 0), 0))
+	const openingBalance = fixMoney(openingShouldReceive - openingReceived - openingRounding)
 
 	const rangeSales = await listCustomerSales(customerId, { dateFrom, dateTo })
 	const rangeFlowSettlements = await listCustomerFlowSettlements(customerId, { dateFrom, dateTo })
@@ -3801,6 +4149,7 @@ async function exportCustomerStatementV1(user, data) {
 			weight_amount: 0,
 			amount: 0,
 			receipt: 0,
+			rounding: 0,
 			flow_count: 0,
 			offset_notes: new Set()
 		})
@@ -3841,6 +4190,7 @@ async function exportCustomerStatementV1(user, data) {
 		const day = dayMap.get(date)
 		if (!day) return
 		day.receipt = fixMoney(day.receipt + toNumber(row && row.amount, 0))
+		day.rounding = fixMoney(day.rounding + toNumber(row && row.rounding_allocated_amount, 0))
 	})
 
 	rangeAllocations.forEach((row) => {
@@ -3857,17 +4207,39 @@ async function exportCustomerStatementV1(user, data) {
 	let totalWeight = 0
 	let totalAmount = 0
 	let totalReceipt = 0
+	let totalRounding = 0
+	const saleRows = rangeSales.map((row) => {
+		const snapshot = computeSaleSnapshot(row)
+		const shouldReceive = fixMoney(snapshot.should_receive)
+		const effectiveShouldReceive = fixMoney(snapshot.should_receive_effective)
+		const amountReceived = fixMoney(snapshot.amount_received)
+		const roundingAmount = fixMoney(toNumber(row && row.rounding_amount, 0))
+		const outstanding = fixMoney(snapshot.outstanding)
+		return {
+			biz_date: normalizeDate(row && row.date),
+			sale_id: normalizeId(row && row._id),
+			should_receive: shouldReceive,
+			should_receive_effective: effectiveShouldReceive,
+			amount_received: amountReceived,
+			rounding_amount: roundingAmount,
+			outstanding,
+			payment_status: snapshot.payment_status,
+			note: normalizeString(row && row.remark)
+		}
+	})
 	const rows = dateSeries.map((date) => {
 		const day = dayMap.get(date) || {
 			weight_kg: 0,
 			weight_amount: 0,
 			amount: 0,
 			receipt: 0,
+			rounding: 0,
 			flow_count: 0,
 			offset_notes: new Set()
 		}
 		const amount = fixMoney(day.amount)
 		const receipt = fixMoney(day.receipt)
+		const rounding = fixMoney(day.rounding)
 		const weight = day.weight_kg > 0 ? fix2(day.weight_kg) : null
 		const unitPrice = day.weight_kg > 0 ? fix2(day.weight_amount / day.weight_kg) : null
 		const notes = []
@@ -3876,16 +4248,18 @@ async function exportCustomerStatementV1(user, data) {
 			const list = Array.from(day.offset_notes.values())
 			notes.push(list.join('；'))
 		}
-		runningBalance = fixMoney(runningBalance + amount - receipt)
+		runningBalance = fixMoney(runningBalance + amount - receipt - rounding)
 		totalWeight = fix2(totalWeight + (weight || 0))
 		totalAmount = fixMoney(totalAmount + amount)
 		totalReceipt = fixMoney(totalReceipt + receipt)
+		totalRounding = fixMoney(totalRounding + rounding)
 		return {
 			biz_date: date,
 			weight_kg: weight,
 			unit_price: unitPrice,
 			amount,
 			receipt,
+			rounding,
 			balance: runningBalance,
 			note: notes.join('；')
 		}
@@ -3908,11 +4282,14 @@ async function exportCustomerStatementV1(user, data) {
 				date_to: dateTo
 			},
 			opening_balance: openingBalance,
+			opening_rounding: openingRounding,
 			rows,
+			sale_rows: saleRows,
 			totals: {
 				weight_kg: totalWeight,
 				amount: totalAmount,
-				receipt: totalReceipt
+				receipt: totalReceipt,
+				rounding: totalRounding
 			},
 			closing_balance: rows.length ? fixMoney(rows[rows.length - 1].balance) : openingBalance
 		}
@@ -3925,13 +4302,16 @@ async function confirmAllocationV1(user, data, requestId) {
 
 	const customerId = normalizeId(data.customer_id || data.customerId)
 	const amount = toNumber(data.amount, 0)
+	const roundingAmount = toNumber(data.rounding_amount ?? data.roundingAmount, 0)
 	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
-	if (!(amount > 0)) return { code: 400, msg: '收款金额必须大于0' }
+	if (amount < 0) return { code: 400, msg: '收款金额不能小于0' }
+	if (roundingAmount < 0) return { code: 400, msg: '抹零金额不能小于0' }
+	if (!(amount > 0 || roundingAmount > 0)) return { code: 400, msg: '收款金额和抹零金额不能同时为0' }
 	const allocation = resolveAllocationConfig(data)
 	if (!allocation.ok) return { code: allocation.code || 400, msg: allocation.msg || '分配参数无效' }
 
 	const manual = normalizeManualAllocations(data.allocations || [])
-	const plan = await buildAllocationPlan(customerId, amount, {
+	const plan = await buildReceiptAllocationPlan(customerId, amount, roundingAmount, {
 		manualAllocations: manual,
 		allocationMode: allocation.allocation_mode,
 		allocationStartDate: allocation.allocation_start_date,
@@ -3980,8 +4360,10 @@ async function confirmAllocationV1(user, data, requestId) {
 			receipt_id: applyRes.receipt_id,
 			customer_id: customer._id,
 			amount: fixMoney(amount),
+			rounding_amount: fixMoney(roundingAmount),
 			manual_allocations: manual.length,
 			allocated_total: applyRes.allocated_total,
+			rounding_allocated_total: applyRes.rounding_allocated_total,
 			prepay_amount: applyRes.prepay_amount
 		},
 		requestId
@@ -3995,6 +4377,7 @@ async function confirmAllocationV1(user, data, requestId) {
 			customer_id: customer._id,
 			customer_name: customer.name,
 			allocated_total: applyRes.allocated_total,
+			rounding_allocated_total: applyRes.rounding_allocated_total,
 			prepay_amount: applyRes.prepay_amount,
 			balances
 		}
@@ -4290,7 +4673,9 @@ async function createOffsetCreditReceipt({ user, requestId, customer, saleDoc, a
 		customer_name: normalizeString(customer && customer.name),
 		biz_date: saleDate || normalizeBizDate('', now),
 		amount: total,
+		rounding_amount: 0,
 		allocated_amount: 0,
+		rounding_allocated_amount: 0,
 		unallocated_amount: total,
 		payment_method: 'cash',
 		entry_kind: 'offset_credit',
@@ -4523,7 +4908,7 @@ async function autoApplyPrepayToFlowSettlementV1(user, data, requestId) {
 
 	const snapshot = computeFlowSettlementSnapshot(flowDoc)
 	if (snapshot.outstanding <= 0) {
-		const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, snapshot.amount_received, 3)
+		const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, snapshot.paid_total, 3)
 		if (normalizeString(flowDoc.payment_status) !== nextStatus) {
 			await flowSettlements.doc(flowSettlementId).update({
 				payment_status: nextStatus,
@@ -4557,7 +4942,7 @@ async function autoApplyPrepayToFlowSettlementV1(user, data, requestId) {
 		.get()
 	const receiptRows = Array.isArray(receiptRes.data) ? receiptRes.data : []
 	if (!receiptRows.length) {
-		const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, snapshot.amount_received, 3)
+		const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, snapshot.paid_total, 3)
 		if (normalizeString(flowDoc.payment_status) !== nextStatus) {
 			await flowSettlements.doc(flowSettlementId).update({
 				payment_status: nextStatus,
@@ -4618,6 +5003,7 @@ async function autoApplyPrepayToFlowSettlementV1(user, data, requestId) {
 			target_id: flowSettlementId,
 			target_title: targetTitle,
 			biz_date: normalizeBizDate(flowDoc && flowDoc.biz_date, Date.now()),
+			allocate_kind: 'receipt',
 			allocate_amount: amountUse,
 			seq,
 			note: allocNote,
@@ -4637,7 +5023,11 @@ async function autoApplyPrepayToFlowSettlementV1(user, data, requestId) {
 	}
 
 	const nextAmountReceived = fix3(snapshot.amount_received + appliedTotal)
-	const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextAmountReceived, 3)
+	const nextStatus = resolvePaymentStatusByAmount(
+		snapshot.should_receive,
+		fix3(nextAmountReceived + snapshot.receipt_rounding_amount),
+		3
+	)
 	await flowSettlements.doc(flowSettlementId).update({
 		amount_received: nextAmountReceived,
 		payment_status: nextStatus,
@@ -4740,7 +5130,7 @@ async function autoApplyPrepayToSaleV1(user, data, requestId) {
 		? receiptRowsAll.filter((row) => !isOffsetCreditReceiptRow(row))
 		: receiptRowsAll
 	if (!receiptRows.length) {
-		const shouldStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, snapshot.amount_received)
+		const shouldStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, snapshot.paid_total)
 		const offsetSummaryMap = await getSaleOffsetSummaryMap(customerId, [saleId])
 		const offsetSummary = offsetSummaryMap.get(saleId) || { offset_applied_amount: 0, offset_sources: [] }
 		const mergedPaymentNote = mergePaymentNoteWithAutoOffset(
@@ -4806,6 +5196,7 @@ async function autoApplyPrepayToSaleV1(user, data, requestId) {
 			sale_id: saleId,
 			sale_date: normalizeString(saleDoc.date),
 			biz_date: normalizeBizDate(saleDoc.date, Date.now()),
+			allocate_kind: 'receipt',
 			allocate_amount: amountUse,
 			seq,
 			note: allocNote,
@@ -4826,7 +5217,10 @@ async function autoApplyPrepayToSaleV1(user, data, requestId) {
 	}
 
 	const nextAmountReceived = fix2(snapshot.amount_received + appliedTotal)
-	const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextAmountReceived)
+	const nextStatus = resolvePaymentStatusByAmount(
+		snapshot.should_receive_effective,
+		fix2(nextAmountReceived + snapshot.receipt_rounding_amount)
+	)
 	const offsetSummaryMap = await getSaleOffsetSummaryMap(customerId, [saleId])
 	const offsetSummary = offsetSummaryMap.get(saleId) || { offset_applied_amount: 0, offset_sources: [] }
 	const mergedPaymentNote = mergePaymentNoteWithAutoOffset(
@@ -4948,6 +5342,8 @@ async function getCustomerStatementV1(user, data) {
 		const scopedOffsetCredit = fixMoney(scopedPrepaySplit.offset)
 		const scopedPrepay = fixMoney(scopedPrepayOnly + scopedOffsetCredit)
 		const scopedLastReceiptBizDate = scopedReceipts.reduce((maxDate, row) => {
+			const amount = fixMoney(Math.max(toNumber(row && row.amount, 0), 0))
+			if (!(amount > 0)) return maxDate
 			const bizDate = normalizeDate(row && row.biz_date)
 			if (!bizDate) return maxDate
 			if (!maxDate || bizDate > maxDate) return bizDate
@@ -4956,7 +5352,11 @@ async function getCustomerStatementV1(user, data) {
 		let scopedLastReceiptAt = parseBizDateToTimestamp(scopedLastReceiptBizDate)
 		if (!(Number.isFinite(scopedLastReceiptAt) && scopedLastReceiptAt > 0)) {
 			scopedLastReceiptAt = scopedReceipts.reduce(
-				(maxValue, row) => Math.max(maxValue, toNumber(row && row.created_at, 0)),
+				(maxValue, row) => {
+					const amount = fixMoney(Math.max(toNumber(row && row.amount, 0), 0))
+					if (!(amount > 0)) return maxValue
+					return Math.max(maxValue, toNumber(row && row.created_at, 0))
+				},
 				0
 			) || null
 		}
@@ -5077,7 +5477,9 @@ async function getCustomerStatementV1(user, data) {
 		_id: normalizeId(row._id),
 		biz_date: normalizeString(row.biz_date),
 		amount: fixMoney(toNumber(row.amount, 0)),
+		rounding_amount: fixMoney(toNumber(row.rounding_amount, 0)),
 		allocated_amount: fixMoney(toNumber(row.allocated_amount, 0)),
+		rounding_allocated_amount: fixMoney(toNumber(row.rounding_allocated_amount, 0)),
 		unallocated_amount: fixMoney(toNumber(row.unallocated_amount, 0)),
 		payment_method: normalizePaymentMethod(row.payment_method, 'paid'),
 		entry_kind: normalizeEntryKind(row.entry_kind, normalizeString(row.source_type).includes('offset') ? 'offset_credit' : 'prepay'),
@@ -5236,7 +5638,9 @@ async function listCustomerStatementRowsV1(user, data) {
 		sale_id: '',
 		receipt_id: normalizeId(row._id),
 		amount: fixMoney(toNumber(row.amount, 0)),
+		rounding_amount: fixMoney(toNumber(row.rounding_amount, 0)),
 		allocated_amount: fixMoney(toNumber(row.allocated_amount, 0)),
+		rounding_allocated_amount: fixMoney(toNumber(row.rounding_allocated_amount, 0)),
 		prepay_delta: fixMoney(toNumber(row.unallocated_amount, 0)),
 		note: normalizeString(row.note),
 		meta: {
@@ -5271,6 +5675,7 @@ async function listCustomerStatementRowsV1(user, data) {
 		amount: fixMoney(toNumber(row.allocate_amount, 0)),
 		note: normalizeString(row.note),
 		meta: {
+			allocate_kind: normalizeAllocateKind(row && row.allocate_kind, 'receipt'),
 			sale_date: normalizeString(row.sale_date),
 			source_type: normalizeString(row.source_type),
 			target_type: normalizeReceivableTargetType(row.target_type),

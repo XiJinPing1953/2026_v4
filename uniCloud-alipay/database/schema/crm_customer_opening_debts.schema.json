@@ -27,6 +27,7 @@
     "amount": { "bsonType": ["number", "null"] },
     "rounding_amount": { "bsonType": ["number", "null"] },
     "amount_received": { "bsonType": ["number", "null"] },
+    "receipt_rounding_amount": { "bsonType": ["number", "null"] },
     "outstanding": { "bsonType": ["number", "null"] },
     "payment_status": { "bsonType": "string" },
     "note": { "bsonType": "string" },

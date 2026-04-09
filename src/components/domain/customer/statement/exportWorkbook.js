@@ -12,10 +12,6 @@ function fix2(value) {
 	return Number(toNumber(value, 0).toFixed(2))
 }
 
-function formatMoney(value) {
-	return fix2(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
 function sanitizeFilePart(value) {
 	return normalizeString(value).replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, '')
 }
@@ -40,21 +36,46 @@ function escapeXml(value) {
 		.replace(/'/g, '&apos;')
 }
 
-function buildCellXml(value = '') {
-	return `<Cell><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`
+function moneyCell(value) {
+	return { type: 'Number', style: 'sMoney', value: fix2(value) }
 }
 
-function buildRowXml(values = []) {
-	const cells = values.map((value) => buildCellXml(value)).join('')
-	return `<Row>${cells}</Row>`
+function numberOrSlashCell(value) {
+	if (value == null || value === '') return { type: 'String', value: '/' }
+	const num = Number(value)
+	if (!Number.isFinite(num)) return { type: 'String', value: '/' }
+	return moneyCell(num)
 }
 
-function formatNullableValue(value, { slashWhenEmpty = false } = {}) {
-	if (value == null || value === '') return slashWhenEmpty ? '/' : ''
-	return formatMoney(value)
+function buildCellXml(cell = {}) {
+	const type = cell.type === 'Number' ? 'Number' : 'String'
+	const styleId = normalizeString(cell.style)
+	const styleText = styleId ? ` ss:StyleID="${escapeXml(styleId)}"` : ''
+	if (type === 'Number') {
+		const num = Number(cell.value)
+		if (!Number.isFinite(num)) return `<Cell${styleText}><Data ss:Type="String"></Data></Cell>`
+		return `<Cell${styleText}><Data ss:Type="Number">${num}</Data></Cell>`
+	}
+	return `<Cell${styleText}><Data ss:Type="String">${escapeXml(cell.value == null ? '' : cell.value)}</Data></Cell>`
 }
 
-function buildStatementRows(payload = {}) {
+function buildRowXml(cells = []) {
+	return `<Row>${cells.map((cell) => buildCellXml(cell)).join('')}</Row>`
+}
+
+function buildWorksheetXml(name, rows = []) {
+	const body = rows.map((row) => buildRowXml(row)).join('')
+	return `<Worksheet ss:Name="${escapeXml(name)}"><Table>${body}</Table></Worksheet>`
+}
+
+function paymentStatusText(value) {
+	const text = normalizeString(value)
+	if (text === 'paid' || text === '已结清') return '已结清'
+	if (text === 'partial' || text === '部分付') return '部分付'
+	return '未付款'
+}
+
+function buildStatementSheetRows(payload = {}) {
 	const companyName = normalizeString(payload.company_name) || '新拓能源'
 	const customerName = normalizeString(payload?.customer?.name) || '-'
 	const contact = normalizeString(payload?.customer?.contact)
@@ -62,48 +83,124 @@ function buildStatementRows(payload = {}) {
 	const periodFrom = normalizeString(payload?.period?.date_from)
 	const periodTo = normalizeString(payload?.period?.date_to)
 	const openingBalance = fix2(payload.opening_balance)
+	const openingRounding = fix2(payload.opening_rounding)
 	const closingBalance = fix2(payload.closing_balance)
 	const dataRows = Array.isArray(payload.rows) ? payload.rows : []
 	const totals = payload.totals || {}
 	const totalWeight = toNumber(totals.weight_kg, 0)
 	const totalAmount = toNumber(totals.amount, 0)
 	const totalReceipt = toNumber(totals.receipt, 0)
+	const totalRounding = toNumber(totals.rounding, 0)
 
 	const result = []
-	result.push([`${companyName}对账单`, '', '', '', '', '', ''])
-	result.push([`客户：${customerName}${contact || phone ? `（${[contact, phone].filter(Boolean).join(' / ')}）` : ''}`, '', '', '', '', '', ''])
-	result.push([`（${periodFrom || '-'} - ${periodTo || '-'}）`, '', '', '', '', '', ''])
-	result.push(['', '', '', '', '', '', ''])
-	result.push(['日期', '重量（公斤）', '单价（元/公斤）', '金额（元）', '收款（元）', '欠款（元）', '备注'])
-	result.push(['期初余额', '/', '/', '', '', formatMoney(openingBalance), ''])
+	result.push([{ type: 'String', value: `${companyName}对账单` }])
+	result.push([{ type: 'String', value: `客户：${customerName}${contact || phone ? `（${[contact, phone].filter(Boolean).join(' / ')}）` : ''}` }])
+	result.push([{ type: 'String', value: `（${periodFrom || '-'} - ${periodTo || '-'}）` }])
+	result.push([{ type: 'String', value: '' }])
+	result.push([
+		{ type: 'String', value: '日期' },
+		{ type: 'String', value: '重量（公斤）' },
+		{ type: 'String', value: '单价（元/公斤）' },
+		{ type: 'String', value: '金额（元）' },
+		{ type: 'String', value: '收款（元）' },
+		{ type: 'String', value: '抹零（元）' },
+		{ type: 'String', value: '欠款（元）' },
+		{ type: 'String', value: '备注' }
+	])
+	result.push([
+		{ type: 'String', value: '期初余额' },
+		{ type: 'String', value: '/' },
+		{ type: 'String', value: '/' },
+		{ type: 'String', value: '' },
+		{ type: 'String', value: '' },
+		openingRounding > 0 ? moneyCell(openingRounding) : { type: 'String', value: '' },
+		moneyCell(openingBalance),
+		{ type: 'String', value: '' }
+	])
 
 	dataRows.forEach((row) => {
 		result.push([
-			normalizeString(row.biz_date),
-			formatNullableValue(row.weight_kg, { slashWhenEmpty: true }),
-			formatNullableValue(row.unit_price, { slashWhenEmpty: true }),
-			formatNullableValue(row.amount),
-			formatNullableValue(row.receipt),
-			formatNullableValue(row.balance),
-			normalizeString(row.note)
+			{ type: 'String', value: normalizeString(row.biz_date) },
+			numberOrSlashCell(row.weight_kg),
+			numberOrSlashCell(row.unit_price),
+			moneyCell(row.amount),
+			moneyCell(row.receipt),
+			moneyCell(row.rounding),
+			moneyCell(row.balance),
+			{ type: 'String', value: normalizeString(row.note) }
 		])
 	})
 
 	result.push([
-		'合计',
-		totalWeight > 0 ? formatMoney(totalWeight) : '/',
-		'/',
-		formatMoney(totalAmount),
-		formatMoney(totalReceipt),
-		formatMoney(closingBalance),
-		''
+		{ type: 'String', value: '合计' },
+		totalWeight > 0 ? moneyCell(totalWeight) : { type: 'String', value: '/' },
+		{ type: 'String', value: '/' },
+		moneyCell(totalAmount),
+		moneyCell(totalReceipt),
+		moneyCell(totalRounding),
+		moneyCell(closingBalance),
+		{ type: 'String', value: '' }
 	])
 
 	return result
 }
 
+function buildSaleDetailSheetRows(payload = {}) {
+	const saleRows = Array.isArray(payload.sale_rows) ? payload.sale_rows : []
+	const rows = [
+		[
+			{ type: 'String', value: '日期' },
+			{ type: 'String', value: '销售单号' },
+			{ type: 'String', value: '应收（元）' },
+			{ type: 'String', value: '实收（元）' },
+			{ type: 'String', value: '抹零（元）' },
+			{ type: 'String', value: '未收（元）' },
+			{ type: 'String', value: '付款状态' },
+			{ type: 'String', value: '备注' }
+		]
+	]
+	let shouldReceiveTotal = 0
+	let amountReceivedTotal = 0
+	let roundingTotal = 0
+	let outstandingTotal = 0
+	saleRows.forEach((row) => {
+		const shouldReceive = fix2(row?.should_receive)
+		const amountReceived = fix2(row?.amount_received)
+		const roundingAmount = fix2(row?.rounding_amount)
+		const outstanding = fix2(row?.outstanding)
+		shouldReceiveTotal = fix2(shouldReceiveTotal + shouldReceive)
+		amountReceivedTotal = fix2(amountReceivedTotal + amountReceived)
+		roundingTotal = fix2(roundingTotal + roundingAmount)
+		outstandingTotal = fix2(outstandingTotal + outstanding)
+		rows.push([
+			{ type: 'String', value: normalizeString(row?.biz_date) },
+			{ type: 'String', value: normalizeString(row?.sale_id) },
+			moneyCell(shouldReceive),
+			moneyCell(amountReceived),
+			moneyCell(roundingAmount),
+			moneyCell(outstanding),
+			{ type: 'String', value: paymentStatusText(row?.payment_status) },
+			{ type: 'String', value: normalizeString(row?.note) }
+		])
+	})
+	rows.push([
+		{ type: 'String', value: '合计' },
+		{ type: 'String', value: '' },
+		moneyCell(shouldReceiveTotal),
+		moneyCell(amountReceivedTotal),
+		moneyCell(roundingTotal),
+		moneyCell(outstandingTotal),
+		{ type: 'String', value: '' },
+		{ type: 'String', value: '' }
+	])
+	return rows
+}
+
 export function buildCustomerStatementWorkbookXml(payload = {}) {
-	const rows = buildStatementRows(payload).map((row) => buildRowXml(row)).join('')
+	const sheets = [
+		buildWorksheetXml('客户对账单', buildStatementSheetRows(payload)),
+		buildWorksheetXml('销售明细', buildSaleDetailSheetRows(payload))
+	]
 	return [
 		'<?xml version="1.0"?>',
 		'<?mso-application progid="Excel.Sheet"?>',
@@ -112,7 +209,10 @@ export function buildCustomerStatementWorkbookXml(payload = {}) {
 		' xmlns:x="urn:schemas-microsoft-com:office:excel"',
 		' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"',
 		' xmlns:html="http://www.w3.org/TR/REC-html40">',
-		`<Worksheet ss:Name="${escapeXml('客户对账单')}"><Table>${rows}</Table></Worksheet>`,
+		'<Styles>',
+		'<Style ss:ID="sMoney"><NumberFormat ss:Format="0.00"/></Style>',
+		'</Styles>',
+		sheets.join(''),
 		'</Workbook>'
 	].join('')
 }
