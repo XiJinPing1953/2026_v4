@@ -168,6 +168,7 @@
 							<view class="customer-heading">
 								<text class="customer-heading__title">{{ item.name }}</text>
 								<text class="customer-heading__contact">{{ item.contact || '暂无联系人' }}</text>
+								<text v-if="isStatementEntryMode" class="customer-heading__price">{{ customerUnitPriceText(item) }}</text>
 								<view class="customer-heading__deposit">
 									<text class="customer-heading__deposit-count">存瓶 {{ Number(item.deposit_count || 0) }}</text>
 									<text v-if="item.deposit_bottle_nos?.length" class="customer-heading__deposit-nos">{{ item.deposit_bottle_nos.join('、') }}</text>
@@ -192,7 +193,7 @@
 									<AppIcon name="calendar" size="24rpx" style="margin-right: 4rpx;" />
 									{{ item.phone }}
 								</AppTag>
-								<AppTag kind="soft" class="tag-item">{{ item.default_price_unit || 'kg' }}</AppTag>
+								<AppTag v-if="!isStatementEntryMode" kind="soft" class="tag-item">{{ item.default_price_unit || 'kg' }}</AppTag>
 								<AppTag kind="soft" class="tag-item">应收 {{ formatMoney(item.receivable_balance) }}</AppTag>
 								<AppTag kind="soft" class="tag-item">预付 {{ formatMoney(item.prepay_balance) }}</AppTag>
 								<text v-if="item.short_name" class="mode-label">{{ item.short_name }}</text>
@@ -359,8 +360,26 @@ function toNumber(value, fallback = 0) {
 	return Number.isFinite(num) ? num : fallback
 }
 
+function normalizeString(value) {
+	return value == null ? '' : String(value).trim()
+}
+
+function normalizePriceUnit(value) {
+	const text = normalizeString(value).toLowerCase()
+	if (text === 'm3' || text === 'm³') return 'm³'
+	if (text) return text
+	return 'kg'
+}
+
 function formatMoney(value) {
 	return toNumber(value, 0).toFixed(2)
+}
+
+function customerUnitPriceText(item) {
+	const unit = normalizePriceUnit(item?.default_price_unit)
+	const unitPrice = Number(item?.default_unit_price)
+	if (!Number.isFinite(unitPrice)) return `单价 -/${unit}`
+	return `单价 ${formatMoney(unitPrice)}/${unit}`
 }
 
 function buildListParams(page = 1, pageSize = 50) {
@@ -757,6 +776,12 @@ defineExpose({
 .customer-heading__contact {
 	font-size: 24rpx;
 	color: #64748b;
+}
+
+.customer-heading__price {
+	font-size: 22rpx;
+	color: #2563eb;
+	font-weight: 600;
 }
 
 .customer-heading__deposit {

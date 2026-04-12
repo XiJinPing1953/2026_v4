@@ -30,6 +30,7 @@ const PAGE_ACTION_RULES = {
 	getV2: [{ pagePath: '/pages/sale/detail', action: 'view' }],
 	createV2: [{ pagePath: '/pages/sale/edit', action: 'create' }],
 	updateV2: [{ pagePath: '/pages/sale/edit', action: 'update' }],
+	updateSettlementV1: [{ pagePath: '/pages/sale/settlement', action: 'update' }],
 	searchAgentFillSuggestionsV1: [{ pagePath: '/pages/sale/edit', action: 'view' }],
 	removeV2: [{ pagePath: '/pages/sale/detail', action: 'delete' }],
 	quickReceiveV1: [{ pagePath: '/pages/sale/detail', action: 'update' }],
@@ -2764,29 +2765,18 @@ async function createV2(user, payload, requestId, token) {
 			truckSettleTare,
 			truckSettleGross,
 			flow: flowForCheck,
-			roundingAmount: toNumber(base.roundingAmount, 0)
+			roundingAmount: 0
 		})
-	if (settlementMode !== 'customer_flow') {
-		const settlementCheck = validateSettlement({
-			shouldReceive: amountsForCheck.should_receive,
-			paymentStatus: base.paymentStatus,
-			paymentMethod: base.paymentMethod,
-			amountReceived: base.amountReceived,
-			roundingAmount: base.roundingAmount
-		})
-		if (!settlementCheck.ok) return { code: 400, msg: settlementCheck.msg }
-	}
-	const amountReceived = settlementMode === 'customer_flow' ? 0 : toNumber(base.amountReceived, 0)
+	const amountReceived = 0
 	const effectiveShouldReceive = toNumber(amountsForCheck.effective_should_receive, 0)
-	const offsetDelta = settlementMode === 'customer_flow' ? 0 : fix2(Math.max(0, amountReceived - effectiveShouldReceive))
-	const applyOffsetCredit = settlementMode !== 'customer_flow'
-		? toBoolean(base.applyOffsetCredit ?? base.apply_offset_credit, false)
-		: false
-	const offsetEnabled = settlementMode !== 'customer_flow' && offsetDelta > 0
-		? toBoolean(base.offsetEnabled ?? base.offset_enabled, false)
-		: false
-	const paymentStatus = settlementMode === 'customer_flow' ? 'paid' : normalizePaymentStatus(base.paymentStatus)
-	const paymentMethod = settlementMode === 'customer_flow' ? 'on_account' : normalizePaymentMethod(base.paymentMethod, paymentStatus)
+	const applyOffsetCredit = false
+	const offsetEnabled = false
+	const paymentStatus = settlementMode === 'customer_flow'
+		? 'paid'
+		: (effectiveShouldReceive <= 0 ? 'paid' : 'unpaid')
+	const paymentMethod = settlementMode === 'customer_flow'
+		? 'on_account'
+		: normalizePaymentMethod('', paymentStatus)
 	const remarkMeta = deriveRemarkMeta(base.remark)
 	const ticketImages = normalizeTicketImages(base.ticketImages, base.ticketImage)
 
@@ -2811,8 +2801,8 @@ async function createV2(user, payload, requestId, token) {
 		payment_status: paymentStatus,
 		payment_method: paymentMethod,
 		amount_received: amountReceived,
-		rounding_amount: settlementMode === 'customer_flow' ? 0 : Math.max(toNumber(base.roundingAmount, 0), 0),
-		payment_note: settlementMode === 'customer_flow' ? '' : normalizeString(base.paymentNote),
+		rounding_amount: 0,
+		payment_note: '',
 		apply_offset_credit: applyOffsetCredit,
 		offset_enabled: offsetEnabled,
 		created_at: Date.now(),
@@ -3018,6 +3008,7 @@ function normalizeSettlementScope(value) {
 	if (text === 'receivable_outstanding') return text
 	if (text === 'refund_outstanding') return text
 	if (text === 'net_outstanding_non_zero') return text
+	if (text === 'overpaid_or_prereceive') return text
 	return ''
 }
 
@@ -3043,6 +3034,9 @@ function matchSettlementScope(
 		const normalized = toNumber(netOutstandingEffective, NaN)
 		if (Number.isFinite(normalized)) return Math.abs(normalized) >= 0.01
 		return Math.abs(outstanding) >= 0.01
+	}
+	if (scope === 'overpaid_or_prereceive') {
+		return should >= 0 && outstanding < -0.01
 	}
 	return true
 }
@@ -3183,7 +3177,7 @@ function computeSaleBottleQuantity(doc) {
 	return 0
 }
 
-async function buildSaleOffsetPoolEnteredMapBySaleIds(saleIds = []) {
+async function buildSaleOffsetPoolStatsMapBySaleIds(saleIds = []) {
 	const normalizedIds = Array.from(
 		new Set(
 			(Array.isArray(saleIds) ? saleIds : [])
@@ -3208,7 +3202,8 @@ async function buildSaleOffsetPoolEnteredMapBySaleIds(saleIds = []) {
 				.where(where)
 				.field({
 					source_id: true,
-					amount: true
+					amount: true,
+					allocated_amount: true
 				})
 				.skip((page - 1) * batchSize)
 				.limit(batchSize)
@@ -3218,7 +3213,14 @@ async function buildSaleOffsetPoolEnteredMapBySaleIds(saleIds = []) {
 			rows.forEach((row) => {
 				const saleId = normalizeString(row && row.source_id)
 				if (!saleId) return
-				result.set(saleId, fix2(toNumber(result.get(saleId), 0) + toNumber(row && row.amount, 0)))
+				const prev = result.get(saleId) || {
+					entered_amount: 0,
+					allocated_amount: 0
+				}
+				result.set(saleId, {
+					entered_amount: fix2(toNumber(prev.entered_amount, 0) + toNumber(row && row.amount, 0)),
+					allocated_amount: fix2(toNumber(prev.allocated_amount, 0) + toNumber(row && row.allocated_amount, 0))
+				})
 			})
 			if (rows.length < batchSize) break
 			page += 1
@@ -3226,6 +3228,14 @@ async function buildSaleOffsetPoolEnteredMapBySaleIds(saleIds = []) {
 		}
 	}
 	return result
+}
+
+function resolveSaleOffsetPoolStats(offsetPoolStatsMap, saleId) {
+	const stats = offsetPoolStatsMap && offsetPoolStatsMap.get(normalizeString(saleId))
+	return {
+		enteredAmount: fix2(Math.max(0, toNumber(stats && stats.entered_amount, 0))),
+		allocatedAmount: fix2(Math.max(0, toNumber(stats && stats.allocated_amount, 0)))
+	}
 }
 
 function computeSaleRefundPendingAmount({
@@ -3251,15 +3261,20 @@ function computeSaleNetOutstandingEffective({
 	amountReceived = 0,
 	roundingAmount = 0,
 	effectiveShouldReceive = null,
-	offsetPoolEntered = 0
+	offsetPoolEntered = 0,
+	offsetPoolAllocated = 0
 } = {}) {
 	const provided = toNumber(effectiveShouldReceive, NaN)
 	const effectiveShould = Number.isFinite(provided)
 		? fix2(provided)
 		: resolveEffectiveShouldReceive(toNumber(shouldReceive, 0), toNumber(roundingAmount, 0))
 	const outstanding = fix2(effectiveShould - toNumber(amountReceived, 0))
-	if (effectiveShould < 0 && outstanding < 0) {
-		const adjusted = fix2(outstanding + Math.max(toNumber(offsetPoolEntered, 0), 0))
+	if (outstanding < 0) {
+		if (effectiveShould < 0) {
+			const adjusted = fix2(outstanding + Math.max(toNumber(offsetPoolEntered, 0), 0))
+			return adjusted > 0 ? 0 : adjusted
+		}
+		const adjusted = fix2(outstanding + Math.max(toNumber(offsetPoolAllocated, 0), 0))
 		return adjusted > 0 ? 0 : adjusted
 	}
 	return outstanding
@@ -3359,16 +3374,16 @@ async function computeSaleListSummary(where, filters = {}) {
 		const docs = Array.isArray(res.data) ? res.data : []
 		if (!docs.length) break
 		const entryRows = buildSaleListBatchEntries(docs)
-		const refundSaleIds = Array.from(
+		const offsetSaleIds = Array.from(
 			new Set(
 				entryRows
-					.filter((entry) => entry.effectiveShouldReceive < 0)
+					.filter((entry) => fix2(entry.effectiveShouldReceive - entry.amountReceived) < 0)
 					.map((entry) => normalizeString(entry.doc && entry.doc._id))
 					.filter(Boolean)
 			)
 		)
-		const offsetPoolMap = refundSaleIds.length
-			? await buildSaleOffsetPoolEnteredMapBySaleIds(refundSaleIds)
+		const offsetPoolStatsMap = offsetSaleIds.length
+			? await buildSaleOffsetPoolStatsMapBySaleIds(offsetSaleIds)
 			: new Map()
 
 		for (const entry of entryRows) {
@@ -3378,7 +3393,7 @@ async function computeSaleListSummary(where, filters = {}) {
 				const shouldReceive = entry.shouldReceive
 				const amountReceived = entry.amountReceived
 				const saleId = normalizeString(doc && doc._id)
-				const offsetPoolEntered = toNumber(offsetPoolMap.get(saleId), 0)
+				const { enteredAmount: offsetPoolEntered, allocatedAmount: offsetPoolAllocated } = resolveSaleOffsetPoolStats(offsetPoolStatsMap, saleId)
 				const refundPending = computeSaleRefundPendingAmount({
 					shouldReceive,
 					amountReceived,
@@ -3391,7 +3406,8 @@ async function computeSaleListSummary(where, filters = {}) {
 					amountReceived,
 					effectiveShouldReceive: entry.effectiveShouldReceive,
 					roundingAmount: entry.roundingAmount,
-					offsetPoolEntered
+					offsetPoolEntered,
+					offsetPoolAllocated
 				})
 				if (!matchSaleListFilters(row, {
 					settlementScope,
@@ -3419,13 +3435,14 @@ async function computeSaleListSummary(where, filters = {}) {
 			summary.outstanding_total = fix2(summary.outstanding_total + netOutstandingEffective)
 			summary.total_net_weight = fix2(summary.total_net_weight + netWeight)
 
+			const outstandingCreditEffective = fix2(Math.max(0, -netOutstandingEffective))
 			if (effectiveShouldReceive > 0) {
 				if (outstanding > 0) {
 					summary.receivable_outstanding_total = fix2(summary.receivable_outstanding_total + outstanding)
 					summary.receivable_outstanding_count += 1
 					summary.receivable_outstanding_bottle_count += bottleQuantity
-				} else if (outstanding < 0) {
-					summary.overpaid_total = fix2(summary.overpaid_total + Math.abs(outstanding))
+				} else if (outstanding < 0 && outstandingCreditEffective > 0.01) {
+					summary.overpaid_total = fix2(summary.overpaid_total + outstandingCreditEffective)
 					summary.overpaid_count += 1
 				}
 			} else if (effectiveShouldReceive < 0) {
@@ -3437,8 +3454,8 @@ async function computeSaleListSummary(where, filters = {}) {
 					summary.overrefund_total = fix2(summary.overrefund_total + outstanding)
 					summary.overrefund_count += 1
 				}
-			} else if (amountReceived > 0) {
-				summary.prereceive_total = fix2(summary.prereceive_total + amountReceived)
+			} else if (amountReceived > 0 && outstandingCreditEffective > 0.01) {
+				summary.prereceive_total = fix2(summary.prereceive_total + outstandingCreditEffective)
 				summary.prereceive_count += 1
 			} else if (amountReceived < 0) {
 				summary.prerefund_total = fix2(summary.prerefund_total + Math.abs(amountReceived))
@@ -3481,25 +3498,26 @@ async function enrichSaleRowsWithNetOutstandingEffective(rows = []) {
 			saleId: normalizeString(row && row._id)
 		}
 	})
-	const refundSaleIds = Array.from(
+	const offsetSaleIds = Array.from(
 		new Set(
 			entries
-				.filter((entry) => entry.effectiveShouldReceive < 0)
+				.filter((entry) => fix2(entry.effectiveShouldReceive - entry.amountReceived) < 0)
 				.map((entry) => entry.saleId)
 				.filter(Boolean)
 		)
 	)
-	const offsetPoolMap = refundSaleIds.length
-		? await buildSaleOffsetPoolEnteredMapBySaleIds(refundSaleIds)
+	const offsetPoolStatsMap = offsetSaleIds.length
+		? await buildSaleOffsetPoolStatsMapBySaleIds(offsetSaleIds)
 		: new Map()
 	return entries.map((entry) => {
-		const offsetPoolEntered = toNumber(offsetPoolMap.get(entry.saleId), 0)
+		const { enteredAmount: offsetPoolEntered, allocatedAmount: offsetPoolAllocated } = resolveSaleOffsetPoolStats(offsetPoolStatsMap, entry.saleId)
 		const netOutstandingEffective = computeSaleNetOutstandingEffective({
 			shouldReceive: entry.shouldReceive,
 			amountReceived: entry.amountReceived,
 			roundingAmount: entry.roundingAmount,
 			effectiveShouldReceive: entry.effectiveShouldReceive,
-			offsetPoolEntered
+			offsetPoolEntered,
+			offsetPoolAllocated
 		})
 		return {
 			...entry.row,
@@ -3594,27 +3612,33 @@ async function listV2(user, data) {
 			const docs = Array.isArray(res.data) ? res.data : []
 			if (!docs.length) break
 			const entryRows = buildSaleListBatchEntries(docs)
-			const refundSaleIds = needsOffsetPool
+			const offsetSaleIds = needsOffsetPool
 				? Array.from(
 					new Set(
 						entryRows
-							.filter((entry) => entry.effectiveShouldReceive < 0)
+							.filter((entry) => {
+								const outstanding = fix2(entry.effectiveShouldReceive - entry.amountReceived)
+								if (!(outstanding < 0)) return false
+								if (needsNetOutstandingEffective) return true
+								if (needsRefundPending) return entry.effectiveShouldReceive < 0
+								return false
+							})
 							.map((entry) => normalizeString(entry.doc && entry.doc._id))
 							.filter(Boolean)
 					)
 				)
 				: []
-			const offsetPoolMap = refundSaleIds.length
-				? await buildSaleOffsetPoolEnteredMapBySaleIds(refundSaleIds)
+			const offsetPoolStatsMap = offsetSaleIds.length
+				? await buildSaleOffsetPoolStatsMapBySaleIds(offsetSaleIds)
 				: new Map()
 			for (const entry of entryRows) {
 				const row = entry.row
 				let refundPending = null
 				let netOutstandingEffective = null
 				const saleId = normalizeString(entry.doc && entry.doc._id)
-				const offsetPoolEntered = needsOffsetPool
-					? toNumber(offsetPoolMap.get(saleId), 0)
-					: 0
+				const { enteredAmount: offsetPoolEntered, allocatedAmount: offsetPoolAllocated } = needsOffsetPool
+					? resolveSaleOffsetPoolStats(offsetPoolStatsMap, saleId)
+					: { enteredAmount: 0, allocatedAmount: 0 }
 				if (needsRefundPending) {
 					refundPending = computeSaleRefundPendingAmount({
 						shouldReceive: entry.shouldReceive,
@@ -3630,7 +3654,8 @@ async function listV2(user, data) {
 						amountReceived: entry.amountReceived,
 						effectiveShouldReceive: entry.effectiveShouldReceive,
 						roundingAmount: entry.roundingAmount,
-						offsetPoolEntered
+						offsetPoolEntered,
+						offsetPoolAllocated
 					})
 				}
 				if (!matchSaleListFilters(row, {
@@ -4320,47 +4345,24 @@ async function updateV2(user, data, requestId, token) {
 			truckSettleTare,
 			truckSettleGross,
 			flow: flowForCheck,
-			roundingAmount: toNumber(base.roundingAmount, 0)
+			roundingAmount: settlementMode === 'customer_flow'
+				? 0
+				: Math.max(toNumber(existing && existing.rounding_amount, 0), 0)
 		})
-	if (settlementMode !== 'customer_flow') {
-		const settlementCheck = validateSettlement({
-			shouldReceive: amountsForCheck.should_receive,
-			paymentStatus: base.paymentStatus,
-			paymentMethod: base.paymentMethod,
-			amountReceived: base.amountReceived,
-			roundingAmount: base.roundingAmount
-		})
-		if (!settlementCheck.ok) return { code: 400, msg: settlementCheck.msg }
-	}
 	const existingOffsetEnabled = resolveSaleOffsetEnabled(existing, true)
 	const existingApplyOffsetCredit = toBoolean(existing && (existing.apply_offset_credit ?? existing.applyOffsetCredit), false)
-	const hasIncomingOffsetEnabled = Object.prototype.hasOwnProperty.call(base, 'offsetEnabled')
-		|| Object.prototype.hasOwnProperty.call(base, 'offset_enabled')
-	const hasIncomingApplyOffsetCredit = Object.prototype.hasOwnProperty.call(base, 'applyOffsetCredit')
-		|| Object.prototype.hasOwnProperty.call(base, 'apply_offset_credit')
-	const requestedOffsetEnabled = hasIncomingOffsetEnabled
-		? toBoolean(base.offsetEnabled ?? base.offset_enabled, existingOffsetEnabled)
-		: existingOffsetEnabled
 	const nextApplyOffsetCredit = settlementMode === 'customer_flow'
 		? false
-		: (hasIncomingApplyOffsetCredit
-			? toBoolean(base.applyOffsetCredit ?? base.apply_offset_credit, existingApplyOffsetCredit)
-			: existingApplyOffsetCredit)
-	const amountReceived = settlementMode === 'customer_flow' ? 0 : toNumber(base.amountReceived, 0)
-	const effectiveShouldReceive = toNumber(amountsForCheck.effective_should_receive, 0)
-	const offsetDelta = settlementMode === 'customer_flow' ? 0 : fix2(Math.max(0, amountReceived - effectiveShouldReceive))
-	let nextOffsetEnabled = existingOffsetEnabled
-	if (settlementMode !== 'customer_flow' && offsetDelta > 0) {
-		nextOffsetEnabled = requestedOffsetEnabled
-	}
-	if (existingOffsetEnabled && !nextOffsetEnabled) {
-		const hasAllocated = await hasAllocatedOffsetCreditForSale(normalizeString(existing.customer_id) || customer._id, recordId)
-		if (hasAllocated) {
-			return { code: 400, msg: '请先在客户对账回滚/调整冲抵分配' }
-		}
-	}
-	const paymentStatus = settlementMode === 'customer_flow' ? 'paid' : normalizePaymentStatus(base.paymentStatus)
-	const paymentMethod = settlementMode === 'customer_flow' ? 'on_account' : normalizePaymentMethod(base.paymentMethod, paymentStatus)
+		: existingApplyOffsetCredit
+	const amountReceived = settlementMode === 'customer_flow' ? 0 : toNumber(existing && existing.amount_received, 0)
+	const nextOffsetEnabled = settlementMode === 'customer_flow' ? false : existingOffsetEnabled
+	const paymentStatus = settlementMode === 'customer_flow'
+		? 'paid'
+		: normalizePaymentStatus(existing && existing.payment_status)
+	const paymentMethod = settlementMode === 'customer_flow'
+		? 'on_account'
+		: normalizePaymentMethod(existing && existing.payment_method, paymentStatus)
+	const paymentNote = settlementMode === 'customer_flow' ? '' : normalizeString(existing && existing.payment_note)
 	const remarkMeta = deriveRemarkMeta(base.remark)
 	const ticketImages = normalizeTicketImages(base.ticketImages, base.ticketImage)
 
@@ -4385,8 +4387,10 @@ async function updateV2(user, data, requestId, token) {
 		payment_status: paymentStatus,
 		payment_method: paymentMethod,
 		amount_received: amountReceived,
-		rounding_amount: settlementMode === 'customer_flow' ? 0 : Math.max(toNumber(base.roundingAmount, 0), 0),
-		payment_note: settlementMode === 'customer_flow' ? '' : normalizeString(base.paymentNote),
+		rounding_amount: settlementMode === 'customer_flow'
+			? 0
+			: Math.max(toNumber(existing && existing.rounding_amount, 0), 0),
+		payment_note: paymentNote,
 		apply_offset_credit: nextApplyOffsetCredit,
 		offset_enabled: nextOffsetEnabled,
 		updated_at: Date.now()
@@ -4592,6 +4596,142 @@ async function updateV2(user, data, requestId, token) {
 			bottle_flow_warning_count: bottleFlowWarnings.length,
 			bottle_status_deposit_reconciled_total: bottleDepositReconcileRes.updated_total
 		}
+	}
+}
+
+async function updateSettlementV1(user, data, requestId, token) {
+	const recordId = normalizeString(data.recordId || data._id || data.id)
+	if (!recordId) return { code: 400, msg: '缺少记录 ID' }
+
+	const existingRes = await sales.doc(recordId).get()
+	const existing = (existingRes.data && existingRes.data[0]) || null
+	if (!existing) return { code: 404, msg: '记录不存在' }
+
+	const payload = data && typeof data.settlement === 'object' ? data.settlement : {}
+	const priceUnit = normalizeString(existing && existing.price_unit) || 'kg'
+	const settlementMode = priceUnit === 'm3'
+		? 'customer_flow'
+		: normalizeSettlementMode(existing && existing.settlement_mode, 'sale')
+	if (settlementMode === 'customer_flow') {
+		return { code: 400, msg: '该销售单按客户对账页流量结算，不能在销售单内登记收款' }
+	}
+
+	const existingRounding = Math.max(toNumber(existing && existing.rounding_amount, 0), 0)
+	const roundingAmount = Math.max(
+		toNumber(payload.roundingAmount ?? payload.rounding_amount, existingRounding),
+		0
+	)
+	const amountReceived = toNumber(
+		payload.amountReceived ?? payload.amount_received,
+		toNumber(existing && existing.amount_received, 0)
+	)
+	const settlementDoc = {
+		...existing,
+		rounding_amount: roundingAmount
+	}
+	const { amounts } = computeSaleAmountsForDoc(settlementDoc)
+
+	const paymentStatus = normalizePaymentStatus(payload.paymentStatus ?? payload.payment_status ?? existing.payment_status)
+	const paymentMethod = normalizePaymentMethod(payload.paymentMethod ?? payload.payment_method ?? existing.payment_method, paymentStatus)
+	const paymentNote = normalizeString(payload.paymentNote ?? payload.payment_note ?? existing.payment_note)
+	const settlementCheck = validateSettlement({
+		shouldReceive: amounts.should_receive,
+		paymentStatus,
+		paymentMethod,
+		amountReceived,
+		roundingAmount
+	})
+	if (!settlementCheck.ok) return { code: 400, msg: settlementCheck.msg }
+
+	const existingOffsetEnabled = resolveSaleOffsetEnabled(existing, true)
+	const requestedOffsetEnabled = toBoolean(payload.offsetEnabled ?? payload.offset_enabled, existingOffsetEnabled)
+	const existingApplyOffsetCredit = toBoolean(existing && (existing.apply_offset_credit ?? existing.applyOffsetCredit), false)
+	const nextApplyOffsetCredit = toBoolean(payload.applyOffsetCredit ?? payload.apply_offset_credit, existingApplyOffsetCredit)
+
+	const effectiveShouldReceive = toNumber(amounts.effective_should_receive, 0)
+	const offsetDelta = fix2(Math.max(0, amountReceived - effectiveShouldReceive))
+	const nextOffsetEnabled = offsetDelta > 0 ? requestedOffsetEnabled : false
+	if (existingOffsetEnabled && !nextOffsetEnabled) {
+		const hasAllocated = await hasAllocatedOffsetCreditForSale(normalizeString(existing.customer_id), recordId)
+		if (hasAllocated) return { code: 400, msg: '请先在客户对账回滚/调整冲抵分配' }
+	}
+
+	const updateDoc = {
+		payment_status: paymentStatus,
+		payment_method: paymentMethod,
+		amount_received: amountReceived,
+		rounding_amount: roundingAmount,
+		payment_note: paymentNote,
+		apply_offset_credit: nextApplyOffsetCredit,
+		offset_enabled: nextOffsetEnabled,
+		updated_at: Date.now()
+	}
+
+	await sales.doc(recordId).update(updateDoc)
+	const sideWarnings = []
+	try {
+		await syncSaleVoucher(user, { ...existing, ...updateDoc, _id: recordId }, amounts, requestId)
+	} catch (err) {
+		if (isMissingCollectionError(err)) sideWarnings.push('凭证未同步（缺集合）')
+		else throw err
+	}
+
+	const date = normalizeString(existing && existing.date)
+	const customerId = normalizeString(existing && existing.customer_id)
+	if (date && customerId) {
+		const offsetSyncResults = await syncOffsetCreditsByDates(
+			customerId,
+			[monthStartOf(date, ''), date],
+			token,
+			requestId
+		)
+		offsetSyncResults.forEach((row) => {
+			if (row.code !== 0) sideWarnings.push(`冲抵款同步失败(${row.date})`)
+			if (row.unresolved_count > 0) sideWarnings.push(`冲抵款存在未消化差额(${row.date})`)
+		})
+	}
+
+	const prepayApplyRes = await callCustomerSettlement(
+		'autoApplyPrepayToSaleV1',
+		{
+			sale_id: recordId,
+			exclude_offset_credit: !nextApplyOffsetCredit
+		},
+		token,
+		requestId
+	)
+	if (prepayApplyRes.code !== 0) {
+		sideWarnings.push(normalizeString(prepayApplyRes.msg) || '客户预付款抵扣未同步')
+	} else if (toNumber(prepayApplyRes?.data?.applied_amount, 0) > 0) {
+		try {
+			await resyncSaleVoucherById(user, recordId, requestId)
+		} catch (err) {
+			if (isMissingCollectionError(err)) sideWarnings.push('预付款抵扣后凭证未同步（缺集合）')
+			else throw err
+		}
+	}
+
+	await recordLog(
+		user,
+		'sale_update_settlement_v1',
+		{
+			id: recordId,
+			payment_status: paymentStatus,
+			payment_method: paymentMethod,
+			amount_received: amountReceived,
+			rounding_amount: roundingAmount,
+			apply_offset_credit: nextApplyOffsetCredit,
+			offset_enabled: nextOffsetEnabled,
+			side_warnings: sideWarnings
+		},
+		requestId
+	)
+
+	const warningText = sideWarnings.filter(Boolean).join('；')
+	return {
+		code: 0,
+		msg: warningText ? `结算更新成功（${warningText}）` : '结算更新成功',
+		data: { warning: warningText }
 	}
 }
 
@@ -4848,6 +4988,7 @@ exports.main = async (event, context) => {
 
 	if (action === 'createV2') return createV2(user, data, requestId, token)
 	if (action === 'updateV2') return updateV2(user, data, requestId, token)
+	if (action === 'updateSettlementV1') return updateSettlementV1(user, data, requestId, token)
 	if (action === 'removeV2') return removeV2(user, data, requestId, token)
 	if (action === 'listV2') return listV2(user, data)
 	if (action === 'getV2') return getV2(user, data)

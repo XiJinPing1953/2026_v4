@@ -20,15 +20,15 @@
 			</AppCard>
 
 			<view class="form-body">
-					<AppSection title="基础信息" class="section-popover-host">
+					<AppSection title="基础信息" class="section-popover-host" :class="{ 'section-readonly': !canEditBusinessContent }">
 						<SaleBasicInfoCard v-model="form" size="sm" />
 					</AppSection>
 
-				<view v-if="showBottleBlocks" class="bottle-sections">
-					<AppSection title="出瓶明细">
-						<SaleBottleLinesCard
-							v-model="outItems"
-							size="sm"
+					<view v-if="showBottleBlocks" class="bottle-sections">
+						<AppSection title="出瓶明细" :class="{ 'section-readonly': !canEditBusinessContent }">
+							<SaleBottleLinesCard
+								v-model="outItems"
+								size="sm"
 							type="out"
 							:unit-price="form.unitPrice"
 							:price-unit="form.priceUnit"
@@ -39,10 +39,10 @@
 						/>
 					</AppSection>
 
-					<AppSection title="回瓶明细">
-						<SaleBottleLinesCard
-							v-model="backItems"
-							size="sm"
+						<AppSection title="回瓶明细" :class="{ 'section-readonly': !canEditBusinessContent }">
+							<SaleBottleLinesCard
+								v-model="backItems"
+								size="sm"
 							type="back"
 							:unit-price="form.unitPrice"
 							:price-unit="form.priceUnit"
@@ -53,8 +53,8 @@
 						/>
 					</AppSection>
 
-					<AppSection title="存瓶记录">
-						<view class="deposit-summary">
+						<AppSection title="存瓶记录" :class="{ 'section-readonly': !canEditBusinessContent }">
+							<view class="deposit-summary">
 							<view class="deposit-summary__main">
 								<text class="deposit-summary__label">当前存瓶</text>
 								<text class="deposit-summary__value">{{ depositMerged.count }} 个</text>
@@ -70,29 +70,29 @@
 					</AppSection>
 				</view>
 
-				<AppSection v-if="showAgentBlocks" title="代理出站">
-					<SaleAgentSaleCard v-model="agentSaleRows" size="sm" :sale-date="form.date" />
-				</AppSection>
+					<AppSection v-if="showAgentBlocks" title="代理出站" :class="{ 'section-readonly': !canEditBusinessContent }">
+						<SaleAgentSaleCard v-model="agentSaleRows" size="sm" :sale-date="form.date" />
+					</AppSection>
 
-				<AppSection v-if="showTruckBlocks" title="整车业务">
-					<SaleTruckCard v-model="truck" :price-unit="form.priceUnit" size="sm" />
-				</AppSection>
+					<AppSection v-if="showTruckBlocks" title="整车业务" :class="{ 'section-readonly': !canEditBusinessContent }">
+						<SaleTruckCard v-model="truck" :price-unit="form.priceUnit" size="sm" />
+					</AppSection>
 
-				<AppSection title="销售底单">
-					<view class="ticket-card">
-						<view class="ticket-card__header">
+					<AppSection title="销售底单" :class="{ 'section-readonly': !canEditBusinessContent }">
+						<view class="ticket-card">
+							<view class="ticket-card__header">
 							<view class="ticket-card__meta">
 								<text class="ticket-card__title">销售底单图片</text>
 								<text class="ticket-card__hint">可选，最多上传 3 张图片</text>
 							</view>
-							<AppButton
-								size="sm"
-								kind="primary"
-								@click="chooseTicketImage"
-								:disabled="submitting || ticketImageUploading || ticketImages.length >= 3"
-							>
-								上传图片（{{ ticketImages.length }}/3）
-							</AppButton>
+								<AppButton
+									size="sm"
+									kind="primary"
+									@click="chooseTicketImage"
+									:disabled="submitting || !canEditBusinessContent || ticketImageUploading || ticketImages.length >= 3"
+								>
+									上传图片（{{ ticketImages.length }}/3）
+								</AppButton>
 						</view>
 						<view v-if="ticketImages.length" class="ticket-card__preview-list">
 							<view v-for="(item, index) in ticketImages" :key="item.localPath || item.fileId || index" class="ticket-card__preview-item">
@@ -101,14 +101,14 @@
 									<text v-if="item.uploading" class="ticket-card__status">上传中…</text>
 									<text v-else-if="item.fileId" class="ticket-card__status">已上传</text>
 									<AppButton size="sm" kind="neutral" @click="previewTicketImage(index)">预览</AppButton>
-									<AppButton
-										size="sm"
-										kind="outline"
-										@click="removeTicketImage(index)"
-										:disabled="submitting || ticketImageUploading"
-									>
-										移除
-									</AppButton>
+										<AppButton
+											size="sm"
+											kind="outline"
+											@click="removeTicketImage(index)"
+											:disabled="submitting || !canEditBusinessContent || ticketImageUploading"
+										>
+											移除
+										</AppButton>
 								</view>
 							</view>
 						</view>
@@ -119,13 +119,17 @@
 					</view>
 				</AppSection>
 
-				<AppSection v-if="showSettlementBlocks" title="收款结算">
-					<SaleSettlementCard
-						v-model="settlement"
-						size="sm"
-						:should-receive="settlementSummary.amount"
-						:formula="settlementSummary.formula"
-						:payment-status-locked="true"
+					<AppSection v-if="showSettlementBlocks" title="收款结算">
+						<view v-if="settlementReadonlyHint" class="settlement-readonly-note">
+							<text>{{ settlementReadonlyHint }}</text>
+						</view>
+						<SaleSettlementCard
+							v-model="settlement"
+							size="sm"
+							:readonly="!canEditSettlement"
+							:should-receive="settlementSummary.amount"
+							:formula="settlementSummary.formula"
+							:payment-status-locked="true"
 						:offset-credit-available="offsetCreditAvailable"
 						:offset-credit-loading="offsetCreditLoading"
 						:expected-offset-applied="expectedOffsetAppliedAmount"
@@ -139,19 +143,29 @@
 					</view>
 				</AppSection>
 
-				<view class="submit-footer">
-					<AppButton size="md" kind="neutral" @click="onCancel" :disabled="submitting">取消</AppButton>
-					<AppButton
-						v-if="canSubmitSale"
-						size="md"
-						kind="primary"
-						@click="onSubmit"
-						:loading="submitting"
-						icon="check"
-					>
-						保存并提交
-					</AppButton>
-				</view>
+					<view class="submit-footer">
+						<AppButton size="md" kind="neutral" @click="onCancel" :disabled="submitting">取消</AppButton>
+						<AppButton
+							v-if="canSaveBusiness"
+							size="md"
+							kind="primary"
+							@click="onSubmitBusiness"
+							:loading="submittingBusiness"
+							icon="check"
+						>
+							{{ recordId ? '保存业务内容' : '保存并提交' }}
+						</AppButton>
+						<AppButton
+							v-if="canSaveSettlement"
+							size="md"
+							kind="primary"
+							@click="onSubmitSettlement"
+							:loading="submittingSettlement"
+							icon="credit-card"
+						>
+							保存收款结算
+						</AppButton>
+					</view>
 			</view>
 		</view>
 	</AppPage>
@@ -165,7 +179,7 @@ import AppCard from '@/components/base/AppCard.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { normalizeBottleNo } from '@/services/models'
-import { createSaleV2, getSaleV2, updateSaleV2, getCustomerDepositV1 } from '@/services/sale'
+import { createSaleV2, getSaleV2, updateSaleV2, updateSaleSettlementV1, getCustomerDepositV1 } from '@/services/sale'
 import { listOffsetCreditPoolV1 } from '@/services/customerSettlement'
 import { useQuery } from '@/composables/useQuery'
 import { useSaleSettlement } from '@/composables/useSaleSettlement'
@@ -233,6 +247,7 @@ const backItems = ref([])
 const depositRows = ref([])
 const agentSaleRows = ref([])
 const submitting = ref(false)
+const submittingMode = ref('')
 const originBottleSnapshot = ref({ out: [], back: [], deposit: [] })
 const ticketImages = ref([])
 const offsetCreditLoading = ref(false)
@@ -244,9 +259,27 @@ const showTruckBlocks = computed(() => form.value.bizMode === 'truck')
 const showAgentBlocks = computed(() => form.value.bizMode === 'agent_sale')
 const showSettlementBlocks = computed(() => form.value.settlementMode !== 'customer_flow')
 const ticketImageUploading = computed(() => ticketImages.value.some((item) => Boolean(item?.uploading)))
-const canSubmitSale = computed(() =>
-	recordId.value ? canPageAction('/pages/sale/edit', 'update') : canPageAction('/pages/sale/edit', 'create')
+const canCreateBusiness = computed(() => canPageAction('/pages/sale/edit', 'create'))
+const canUpdateBusiness = computed(() => canPageAction('/pages/sale/edit', 'update'))
+const canUpdateSettlement = computed(() => canPageAction('/pages/sale/settlement', 'update'))
+const canEditBusinessContent = computed(() =>
+	recordId.value ? canUpdateBusiness.value : canCreateBusiness.value
 )
+const canEditSettlement = computed(() =>
+	Boolean(recordId.value) && showSettlementBlocks.value && canUpdateSettlement.value
+)
+const canSaveBusiness = computed(() =>
+	recordId.value ? canUpdateBusiness.value : canCreateBusiness.value
+)
+const canSaveSettlement = computed(() => canEditSettlement.value)
+const submittingBusiness = computed(() => submitting.value && submittingMode.value === 'business')
+const submittingSettlement = computed(() => submitting.value && submittingMode.value === 'settlement')
+const settlementReadonlyHint = computed(() => {
+	if (!showSettlementBlocks.value) return ''
+	if (!recordId.value) return '新建销售单仅保存业务内容，收款结算请保存后在编辑态处理。'
+	if (!canUpdateSettlement.value) return '当前账号无收款结算权限，仅可查看。'
+	return ''
+})
 
 const bizModeLabel = computed(() => {
 	const map = {
@@ -736,10 +769,8 @@ function syncSettlementStatusForSubmit() {
 	}
 }
 
-async function onSubmit() {
-	if (submitting.value) return
-	
-	// Validation
+async function onSubmitBusiness() {
+	if (submitting.value || !canSaveBusiness.value) return
 	if (!form.value.date) {
 		uni.showToast({ title: '请选择销售日期', icon: 'none' })
 		return
@@ -749,13 +780,7 @@ async function onSubmit() {
 		return
 	}
 
-	syncSettlementStatusForSubmit()
-	const validation = validateSettlement()
-	if (!validation.ok) {
-		uni.showToast({ title: validation.msg || '结算金额与付款状态不一致', icon: 'none' })
-		return
-	}
-
+	submittingMode.value = 'business'
 	submitting.value = true
 	try {
 		let result = await submitSale(false)
@@ -769,7 +794,6 @@ async function onSubmit() {
 			if (!confirmRes.confirm) return
 			result = await submitSale(true)
 		}
-		
 		if (result?.code !== 0) {
 			uni.showToast({ title: result?.msg || '保存失败', icon: 'none' })
 			return
@@ -780,17 +804,7 @@ async function onSubmit() {
 			// ignore storage failures
 		}
 		const savedWithOverride = Boolean(result?.data?.bottle_flow_warning_overridden) && Number(result?.data?.bottle_flow_warning_count || 0) > 0
-		const reminder = buildOverCollectionReminder()
-		if (reminder) {
-			await uni.showModal({
-				title: savedWithOverride ? '已核对并保存' : '保存成功',
-				content: reminder,
-				showCancel: false,
-				confirmText: '知道了'
-			})
-		} else {
-			uni.showToast({ title: savedWithOverride ? '已核对并保存' : '保存成功', icon: 'success' })
-		}
+		uni.showToast({ title: savedWithOverride ? '已核对并保存' : '保存成功', icon: 'success' })
 		navigateAfterSave()
 	} catch (err) {
 		const failure = resolveSubmitFailure(err)
@@ -814,6 +828,59 @@ async function onSubmit() {
 		}
 	} finally {
 		submitting.value = false
+		submittingMode.value = ''
+	}
+}
+
+async function onSubmitSettlement() {
+	if (submitting.value || !canSaveSettlement.value || !recordId.value) return
+	syncSettlementStatusForSubmit()
+	const validation = validateSettlement()
+	if (!validation.ok) {
+		uni.showToast({ title: validation.msg || '结算金额与付款状态不一致', icon: 'none' })
+		return
+	}
+
+	submittingMode.value = 'settlement'
+	submitting.value = true
+	try {
+		const result = await submitSaleSettlement()
+		if (result?.code !== 0) {
+			uni.showToast({ title: result?.msg || '结算保存失败', icon: 'none' })
+			return
+		}
+		try {
+			uni.setStorageSync(SALE_LIST_REFRESH_KEY, String(Date.now()))
+		} catch (_) {
+			// ignore storage failures
+		}
+		const reminder = buildOverCollectionReminder()
+		if (reminder) {
+			await uni.showModal({
+				title: '结算保存成功',
+				content: reminder,
+				showCancel: false,
+				confirmText: '知道了'
+			})
+		} else {
+			uni.showToast({ title: '结算保存成功', icon: 'success' })
+		}
+	} catch (err) {
+		const failure = resolveSubmitFailure(err)
+		console.error('save settlement failed', failure, err)
+		if (failure.message && failure.message !== '保存失败') {
+			await uni.showModal({
+				title: '结算保存失败',
+				content: failure.message,
+				showCancel: false,
+				confirmText: '知道了'
+			})
+		} else {
+			uni.showToast({ title: '结算保存失败', icon: 'none' })
+		}
+	} finally {
+		submitting.value = false
+		submittingMode.value = ''
 	}
 }
 
@@ -887,6 +954,20 @@ async function submitSale(ignoreBottleFlowWarning = false) {
 			? updateSaleV2({ _id: recordId.value, draft: payload, ignoreBottleFlowWarning })
 			: createSaleV2(payload, { ignoreBottleFlowWarning }))
 		return result
+	} catch (err) {
+		const wrapped = new Error('云函数调用失败')
+		wrapped.userMessage = String(err?.result?.msg || err?.errMsg || err?.message || '').trim()
+		wrapped.cause = err
+		throw wrapped
+	}
+}
+
+async function submitSaleSettlement() {
+	try {
+		return await updateSaleSettlementV1({
+			_id: recordId.value,
+			settlement: settlement.value
+		})
 	} catch (err) {
 		const wrapped = new Error('云函数调用失败')
 		wrapped.userMessage = String(err?.result?.msg || err?.errMsg || err?.message || '').trim()
@@ -1272,6 +1353,14 @@ function buildBottleFlowWarningContent(result) {
 	overflow: visible;
 }
 
+.section-readonly {
+	opacity: 0.72;
+}
+
+.section-readonly :deep(.section__body) {
+	pointer-events: none;
+}
+
 .bottle-sections {
 	display: flex;
 	flex-direction: column;
@@ -1359,6 +1448,17 @@ function buildBottleFlowWarningContent(result) {
 	font-size: 22rpx;
 	line-height: 1.6;
 	color: #475569;
+}
+
+.settlement-readonly-note {
+	margin-bottom: 14rpx;
+	padding: 14rpx 16rpx;
+	border-radius: 14rpx;
+	background: #eff6ff;
+	border: 1rpx solid #dbeafe;
+	font-size: 22rpx;
+	color: #1d4ed8;
+	line-height: 1.5;
 }
 
 .ticket-card {

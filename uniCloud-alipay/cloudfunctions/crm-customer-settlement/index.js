@@ -431,6 +431,171 @@ async function getSaleOffsetSummaryMap(customerId, saleIds = []) {
 	return buildSaleOffsetSummaryMap(rows)
 }
 
+async function listOffsetCreditReceiptsBySourceSaleIds(customerId, saleIds = [], limitPerChunk = 5000) {
+	const normalizedCustomerId = normalizeId(customerId)
+	if (!normalizedCustomerId) return []
+	const uniqueSaleIds = Array.from(
+		new Set(
+			(Array.isArray(saleIds) ? saleIds : [])
+				.map((item) => normalizeId(item))
+				.filter(Boolean)
+		)
+	)
+	if (!uniqueSaleIds.length) return []
+	const maxRows = Math.min(Math.max(toNumber(limitPerChunk, 5000), 1), 5000)
+	const allRows = []
+	for (const saleIdChunk of chunkStrings(uniqueSaleIds, 80)) {
+		let page = 1
+		let guard = 0
+		let loaded = 0
+		while (guard < 500 && loaded < maxRows) {
+			const res = await receipts
+				.where(
+					dbCmd.and([
+						{ customer_id: normalizedCustomerId },
+						{ status: 'posted' },
+						{ source_type: dbCmd.in(['sale_offset_credit', 'sale_offset_credit_repair']) },
+						{ source_id: dbCmd.in(saleIdChunk) }
+					])
+				)
+				.orderBy('created_at', 'asc')
+				.skip((page - 1) * 200)
+				.limit(200)
+				.get()
+			const list = Array.isArray(res.data) ? res.data : []
+			if (!list.length) break
+			allRows.push(...list)
+			loaded += list.length
+			if (list.length < 200 || loaded >= maxRows) break
+			page += 1
+			guard += 1
+		}
+	}
+	return allRows
+}
+
+async function listAllocationsByReceiptIds(customerId, receiptIds = [], limitPerChunk = 5000) {
+	const normalizedCustomerId = normalizeId(customerId)
+	if (!normalizedCustomerId) return []
+	const uniqueReceiptIds = Array.from(
+		new Set(
+			(Array.isArray(receiptIds) ? receiptIds : [])
+				.map((item) => normalizeId(item))
+				.filter(Boolean)
+		)
+	)
+	if (!uniqueReceiptIds.length) return []
+	const maxRows = Math.min(Math.max(toNumber(limitPerChunk, 5000), 1), 5000)
+	const allRows = []
+	for (const receiptIdChunk of chunkStrings(uniqueReceiptIds, 80)) {
+		let page = 1
+		let guard = 0
+		let loaded = 0
+		while (guard < 500 && loaded < maxRows) {
+			const res = await allocations
+				.where(
+					dbCmd.and([
+						{ customer_id: normalizedCustomerId },
+						{ receipt_id: dbCmd.in(receiptIdChunk) }
+					])
+				)
+				.orderBy('created_at', 'asc')
+				.skip((page - 1) * 200)
+				.limit(200)
+				.get()
+			const list = Array.isArray(res.data) ? res.data : []
+			if (!list.length) break
+			allRows.push(...list)
+			loaded += list.length
+			if (list.length < 200 || loaded >= maxRows) break
+			page += 1
+			guard += 1
+		}
+	}
+	return allRows
+}
+
+function buildTargetBizDateMap({ salesDocs = [], flowDocs = [], openingDebtDocs = [] } = {}) {
+	const map = new Map()
+	;(Array.isArray(salesDocs) ? salesDocs : []).forEach((doc) => {
+		const targetId = normalizeId(doc && doc._id)
+		if (!targetId) return
+		map.set(`sale:${targetId}`, normalizeDate(doc && doc.date))
+	})
+	;(Array.isArray(flowDocs) ? flowDocs : []).forEach((doc) => {
+		const targetId = normalizeId(doc && doc._id)
+		if (!targetId) return
+		map.set(`flow_settlement:${targetId}`, normalizeDate(doc && doc.biz_date))
+	})
+	;(Array.isArray(openingDebtDocs) ? openingDebtDocs : []).forEach((doc) => {
+		const targetId = normalizeId(doc && doc._id)
+		if (!targetId) return
+		const entryType = resolveOpeningDebtEntryType(doc)
+		map.set(`${entryType}:${targetId}`, normalizeDate(doc && doc.biz_date))
+	})
+	return map
+}
+
+function buildSaleOffsetTargetSummaryMap(allocationRows = [], receiptSourceSaleMap = new Map(), targetBizDateMap = new Map()) {
+	const bucket = new Map()
+	for (const row of allocationRows || []) {
+		const receiptId = normalizeId(row && row.receipt_id)
+		const sourceSaleId = normalizeId(receiptSourceSaleMap.get(receiptId))
+		if (!sourceSaleId) continue
+		const amount = fix2(toNumber(row && row.allocate_amount, 0))
+		if (!(amount > 0)) continue
+		const targetType = normalizeReceivableTargetType(row && row.target_type)
+		const targetId = normalizeId(row && (row.target_id || row.sale_id || row.flow_settlement_id))
+		const targetDate = normalizeDate(targetBizDateMap.get(`${targetType}:${targetId}`))
+		if (!bucket.has(sourceSaleId)) {
+			bucket.set(sourceSaleId, {
+				offset_target_amount: 0,
+				target_map: new Map()
+			})
+		}
+		const item = bucket.get(sourceSaleId)
+		item.offset_target_amount = fix2(item.offset_target_amount + amount)
+		item.target_map.set(targetDate, fix2(toNumber(item.target_map.get(targetDate), 0) + amount))
+	}
+	const summaryMap = new Map()
+	for (const [saleId, item] of bucket.entries()) {
+		const offsetTargets = sortOffsetSourceRows(
+			Array.from(item.target_map.entries()).map(([date, amount]) => ({
+				date,
+				amount: fix2(amount)
+			}))
+		)
+		summaryMap.set(saleId, {
+			offset_target_amount: fix2(item.offset_target_amount),
+			offset_targets: offsetTargets
+		})
+	}
+	return summaryMap
+}
+
+async function getSaleOffsetTargetSummaryMap(
+	customerId,
+	saleIds = [],
+	{ salesDocs = [], flowDocs = [], openingDebtDocs = [] } = {}
+) {
+	const sourceReceipts = await listOffsetCreditReceiptsBySourceSaleIds(customerId, saleIds, 5000)
+	if (!sourceReceipts.length) return new Map()
+	const receiptSourceSaleMap = new Map()
+	const receiptIds = []
+	sourceReceipts.forEach((row) => {
+		const receiptId = normalizeId(row && row._id)
+		const sourceSaleId = normalizeId(row && row.source_id)
+		if (!receiptId || !sourceSaleId) return
+		receiptIds.push(receiptId)
+		receiptSourceSaleMap.set(receiptId, sourceSaleId)
+	})
+	if (!receiptIds.length) return new Map()
+	const allocationRows = await listAllocationsByReceiptIds(customerId, receiptIds, 5000)
+	if (!allocationRows.length) return new Map()
+	const targetBizDateMap = buildTargetBizDateMap({ salesDocs, flowDocs, openingDebtDocs })
+	return buildSaleOffsetTargetSummaryMap(allocationRows, receiptSourceSaleMap, targetBizDateMap)
+}
+
 function buildAutoOffsetPaymentNote(summary) {
 	const offsetTotal = fix2(toNumber(summary && summary.offset_applied_amount, 0))
 	const sourceRows = Array.isArray(summary && summary.offset_sources) ? summary.offset_sources : []
@@ -5440,32 +5605,43 @@ async function getCustomerStatementV1(user, data) {
 			if (a.date !== b.date) return a.date < b.date ? 1 : -1
 			return a._id < b._id ? 1 : -1
 		})
-	const saleOffsetSummaryMap = await getSaleOffsetSummaryMap(
+	const recentSaleIds = saleRows
+		.slice(0, 100)
+		.map((row) => normalizeId(row && row._id))
+		.filter(Boolean)
+	const saleOffsetSummaryMap = await getSaleOffsetSummaryMap(customerId, recentSaleIds)
+	const saleOffsetTargetSummaryMap = await getSaleOffsetTargetSummaryMap(
 		customerId,
-		saleRows
-			.slice(0, 100)
-			.map((row) => normalizeId(row && row._id))
-			.filter(Boolean)
+		recentSaleIds,
+		{ salesDocs, flowDocs, openingDebtDocs }
 	)
 	saleRows = saleRows.map((row) => {
 		const saleId = normalizeId(row && row._id)
 		const summary = saleOffsetSummaryMap.get(saleId) || { offset_applied_amount: 0, offset_sources: [] }
+		const targetSummary = saleOffsetTargetSummaryMap.get(saleId) || { offset_target_amount: 0, offset_targets: [] }
 		const postedAmount = fix2(toNumber(row && row.amount_received, 0))
 		const offsetAmount = fix2(toNumber(summary && summary.offset_applied_amount, 0))
 		const manualAmount = fix2(postedAmount - offsetAmount)
-		return {
-			...row,
-			posted_amount_received: postedAmount,
-			offset_applied_amount: offsetAmount,
-			manual_amount_received: manualAmount,
-			offset_sources: Array.isArray(summary && summary.offset_sources)
-				? summary.offset_sources.map((item) => ({
-					date: normalizeDate(item && item.date),
-					amount: fix2(toNumber(item && item.amount, 0))
-				}))
-				: []
-		}
-	})
+			return {
+				...row,
+				posted_amount_received: postedAmount,
+				offset_applied_amount: offsetAmount,
+				manual_amount_received: manualAmount,
+				offset_sources: Array.isArray(summary && summary.offset_sources)
+					? summary.offset_sources.map((item) => ({
+						date: normalizeDate(item && item.date),
+						amount: fix2(toNumber(item && item.amount, 0))
+					}))
+					: [],
+				offset_target_amount: fix2(toNumber(targetSummary && targetSummary.offset_target_amount, 0)),
+				offset_targets: Array.isArray(targetSummary && targetSummary.offset_targets)
+					? targetSummary.offset_targets.map((item) => ({
+						date: normalizeDate(item && item.date),
+						amount: fix2(toNumber(item && item.amount, 0))
+					}))
+					: []
+			}
+		})
 
 	const receiptRes = await receipts
 		.where({ customer_id: customerId, status: 'posted' })

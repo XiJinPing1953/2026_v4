@@ -55,8 +55,15 @@
 				<view class="quick-date-strip">
 					<AppDatePresetBar v-model="datePreset" @update:modelValue="onDatePresetChange" />
 				</view>
-				<AppSection title="筛选条件" class="filter-section">
+			<AppSection title="筛选条件" class="filter-section">
 				<template #actions>
+					<AppButton
+						size="sm"
+						:kind="filters.settlementScope === 'overpaid_or_prereceive' ? 'primary' : 'neutral'"
+						@click="onQuickOverpaidPrereceive"
+					>
+						超收/预收
+					</AppButton>
 					<AppButton kind="ghost" size="sm" @click="onReset">重置</AppButton>
 					<AppButton size="sm" kind="primary" @click="onSearch(true)">查询</AppButton>
 				</template>
@@ -178,6 +185,7 @@
 								<view class="sale-subtitle">
 									<text class="sale-meta">{{ bizModeText(item.biz_mode) }}</text>
 									<text class="sale-meta">单价 {{ item.unit_price || '-' }}</text>
+									<text class="sale-meta">本单净售出 {{ saleNetSoldKgText(item) }}</text>
 								</view>
 							</view>
 						</template>
@@ -362,7 +370,8 @@ const remarkTagIndex = ref(0)
 const settlementScopeTextMap = {
 	receivable_outstanding: '应收未收',
 	refund_outstanding: '应退未退',
-	net_outstanding_non_zero: '净未收非零'
+	net_outstanding_non_zero: '净未收非零',
+	overpaid_or_prereceive: '超收/预收'
 }
 const remarkTagLabelMap = {
 	ticket_adjust_up: '票上多算',
@@ -842,6 +851,18 @@ function onSummaryCardClick(scope) {
 	onSearch(true)
 }
 
+function onQuickOverpaidPrereceive() {
+	if (filters.settlementScope === 'overpaid_or_prereceive') {
+		filters.settlementScope = ''
+		onSearch(true)
+		return
+	}
+	filters.paymentStatus = ''
+	paymentStatusIndex.value = 0
+	filters.settlementScope = 'overpaid_or_prereceive'
+	onSearch(true)
+}
+
 function onAdd() {
 	uni.navigateTo({ url: '/pages/sale/edit' })
 }
@@ -1064,6 +1085,21 @@ function formatWeightStat(value) {
 	if (!Number.isFinite(num)) return '0kg'
 	if (Math.abs(num) >= 10000) return `${formatNumber(num / 1000, 2)}吨`
 	return `${formatNumber(num, 2)}kg`
+}
+
+function resolveSaleNetSoldKg(item) {
+	const direct = Number(item?.total_net_weight)
+	if (Number.isFinite(direct)) return Number(direct.toFixed(2))
+	const outNet = Number(item?.out_net_total)
+	const backNet = Number(item?.back_net_total)
+	if (Number.isFinite(outNet) && Number.isFinite(backNet)) return Number((outNet - backNet).toFixed(2))
+	return null
+}
+
+function saleNetSoldKgText(item) {
+	const value = resolveSaleNetSoldKg(item)
+	if (!Number.isFinite(value)) return '-'
+	return `${formatNumber(value, 2)}kg`
 }
 
 function onPrevPage() {

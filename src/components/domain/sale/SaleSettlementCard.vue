@@ -18,7 +18,7 @@
 					:range="paymentStatusOptions"
 					range-key="label"
 					:value="paymentStatusIndex"
-					:disabled="paymentStatusLocked"
+					:disabled="paymentStatusLocked || readonly"
 					@change="onPaymentStatusChange"
 				>
 					<AppInput
@@ -40,6 +40,7 @@
 					placeholder="0.00" 
 					prefix-icon="wallet"
 					:size="size"
+					:readonly="readonly"
 					@update:modelValue="(v) => update('amountReceived', v)" 
 				/>
 			</view>
@@ -51,6 +52,7 @@
 					placeholder="0.00" 
 					prefix-icon="minus-circle"
 					:size="size"
+					:readonly="readonly"
 					@update:modelValue="(v) => update('roundingAmount', v)" 
 				/>
 			</view>
@@ -63,7 +65,7 @@
 					</view>
 					<switch
 						:checked="applyOffsetCredit"
-						:disabled="offsetCreditLoading"
+						:disabled="offsetCreditLoading || readonly"
 						color="#1677ff"
 						@change="onApplyOffsetCreditChange"
 					/>
@@ -76,7 +78,7 @@
 						<text class="offset-toggle__label">{{ offsetToggleLabel }}</text>
 						<text class="offset-toggle__hint">{{ offsetToggleHintText }}</text>
 					</view>
-					<switch :checked="offsetEnabled" color="#1677ff" @change="onOffsetEnabledChange" />
+					<switch :checked="offsetEnabled" :disabled="readonly" color="#1677ff" @change="onOffsetEnabledChange" />
 				</view>
 			</view>
 
@@ -86,6 +88,7 @@
 					label="收款备注" 
 					placeholder="请输入相关备注说明" 
 					:size="size"
+					:readonly="readonly"
 					@update:modelValue="(v) => update('paymentNote', v)" 
 				/>
 			</view>
@@ -107,6 +110,7 @@ const props = defineProps({
 	shouldReceive: { type: [Number, String], default: '' },
 	formula: { type: String, default: '' },
 	size: { type: String, default: 'md' },
+	readonly: { type: Boolean, default: false },
 	paymentStatusLocked: { type: Boolean, default: false },
 	offsetCreditAvailable: { type: [Number, String], default: 0 },
 	offsetCreditLoading: { type: Boolean, default: false },
@@ -205,7 +209,7 @@ const applyOffsetHintText = computed(() => {
 })
 
 function onPaymentStatusChange(e) {
-	if (props.paymentStatusLocked) return
+	if (props.paymentStatusLocked || props.readonly) return
 	const idx = Number(e?.detail?.value)
 	const item = paymentStatusOptions[idx]
 	if (!item) return
@@ -216,14 +220,17 @@ function onPaymentStatusChange(e) {
 }
 
 function update(key, value) {
+	if (props.readonly) return
 	patchModel({ [key]: value })
 }
 
 function onOffsetEnabledChange(e) {
+	if (props.readonly) return
 	patchModel({ offsetEnabled: Boolean(e?.detail?.value) })
 }
 
 function onApplyOffsetCreditChange(e) {
+	if (props.readonly) return
 	patchModel({ applyOffsetCredit: Boolean(e?.detail?.value) })
 }
 

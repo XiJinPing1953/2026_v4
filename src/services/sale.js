@@ -122,6 +122,30 @@ export async function updateSaleV2(params) {
 	})
 }
 
+export async function updateSaleSettlementV1(params = {}) {
+	const recordId = params._id || params.id || params.recordId || ''
+	if (!recordId) return { code: 400, msg: '缺少记录 ID' }
+	const settlement = params.settlement && typeof params.settlement === 'object'
+		? params.settlement
+		: {}
+	return callCloud('crm-sale', {
+		action: 'updateSettlementV1',
+		data: {
+			recordId,
+			settlement: {
+				paymentStatus: settlement.paymentStatus ?? settlement.payment_status ?? '',
+				paymentMethod: settlement.paymentMethod ?? settlement.payment_method ?? '',
+				amountReceived: settlement.amountReceived ?? settlement.amount_received ?? '',
+				roundingAmount: settlement.roundingAmount ?? settlement.rounding_amount ?? '',
+				applyOffsetCredit: settlement.applyOffsetCredit ?? settlement.apply_offset_credit ?? false,
+				offsetEnabled: settlement.offsetEnabled ?? settlement.offset_enabled ?? false,
+				paymentNote: settlement.paymentNote ?? settlement.payment_note ?? ''
+			}
+		},
+		timeout: SALE_SAVE_TIMEOUT_MS
+	})
+}
+
 export async function listSalesV2(filters) {
 	return callCloud('crm-sale', {
 		action: 'listV2',

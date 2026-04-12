@@ -703,17 +703,20 @@
 						<template #default>
 							<view class="mini-amounts mini-amounts--left">
 								<text>应收 ¥{{ formatMoney(row.should_receive) }}</text>
-								<text v-if="resolveSaleRoundingAmount(row) > 0" class="mini-amounts__rounding">
-									抹零 ¥{{ formatMoney(resolveSaleRoundingAmount(row)) }}（计费应收 ¥{{ formatMoney(resolveSaleEffectiveShouldReceive(row)) }}）
-								</text>
-								<text>实收 ¥{{ formatMoney(resolveSaleOffsetApplied(row) > 0 ? resolveSaleManualReceived(row) : resolveSalePostedReceived(row)) }}</text>
-								<text v-if="resolveSaleOffsetApplied(row) > 0" class="mini-amounts__offset">
-									{{ formatSaleOffsetLine(row) }}
-								</text>
-								<text v-if="resolveSaleOffsetApplied(row) > 0" class="mini-amounts__posted">
-									入账 ¥{{ formatMoney(resolveSalePostedReceived(row)) }}
-								</text>
-								<text>未收 ¥{{ formatMoney(row.outstanding) }}</text>
+									<text v-if="resolveSaleRoundingAmount(row) > 0" class="mini-amounts__rounding">
+										抹零 ¥{{ formatMoney(resolveSaleRoundingAmount(row)) }}（计费应收 ¥{{ formatMoney(resolveSaleEffectiveShouldReceive(row)) }}）
+									</text>
+									<text>实收 ¥{{ formatMoney(resolveSaleOffsetApplied(row) > 0 ? resolveSaleManualReceived(row) : resolveSalePostedReceived(row)) }}</text>
+									<text v-if="resolveSaleOffsetApplied(row) > 0" class="mini-amounts__offset">
+										{{ formatSaleOffsetLine(row) }}
+									</text>
+									<text v-if="resolveSaleOffsetTargetApplied(row) > 0" class="mini-amounts__offset-target">
+										{{ formatSaleOffsetTargetLine(row) }}
+									</text>
+									<text v-if="resolveSaleOffsetApplied(row) > 0" class="mini-amounts__posted">
+										入账 ¥{{ formatMoney(resolveSalePostedReceived(row)) }}
+									</text>
+									<text>未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								<text v-if="isSaleRecordRow(row)" class="mini-amounts__movement">
 									本单出瓶 {{ resolveSaleOutBottleCount(row) }} · 本单回瓶 {{ resolveSaleBackBottleCount(row) }} · 存瓶(截止本单) {{ resolveSaleDepositBalanceCount(row) }}
 								</text>
@@ -1632,6 +1635,32 @@ function formatSaleOffsetSourcesText(row) {
 	return datedRows.map((item) => `${item.date}¥${formatMoney(item.amount)}`).join(' + ')
 }
 
+function resolveSaleOffsetTargetApplied(row) {
+	return fix2(toNumber(row?.offset_target_amount, 0))
+}
+
+function resolveSaleOffsetTargets(row) {
+	const source = Array.isArray(row?.offset_targets) ? row.offset_targets : []
+	const grouped = new Map()
+	source.forEach((item) => {
+		const date = normalizeDate(item?.date)
+		const amount = fix2(toNumber(item?.amount, 0))
+		if (!(amount > 0)) return
+		grouped.set(date, fix2(toNumber(grouped.get(date), 0) + amount))
+	})
+	return sortSaleOffsetSources(
+		Array.from(grouped.entries()).map(([date, amount]) => ({ date, amount }))
+	)
+}
+
+function formatSaleOffsetTargetsText(row) {
+	const list = resolveSaleOffsetTargets(row)
+	if (!list.length) return ''
+	const datedRows = list.filter((item) => normalizeDate(item?.date))
+	if (!datedRows.length) return ''
+	return datedRows.map((item) => `${item.date}¥${formatMoney(item.amount)}`).join(' + ')
+}
+
 function resolveSaleManualReceived(row) {
 	const manual = toNullableNumber(row?.manual_amount_received)
 	if (manual != null) return fix2(manual)
@@ -1643,6 +1672,13 @@ function formatSaleOffsetLine(row) {
 	const sourceText = formatSaleOffsetSourcesText(row)
 	if (sourceText) return `冲抵 ¥${formatMoney(offsetAmount)}（${sourceText}）`
 	return `冲抵 ¥${formatMoney(offsetAmount)}`
+}
+
+function formatSaleOffsetTargetLine(row) {
+	const offsetAmount = resolveSaleOffsetTargetApplied(row)
+	const targetText = formatSaleOffsetTargetsText(row)
+	if (targetText) return `已冲抵到 ¥${formatMoney(offsetAmount)}（${targetText}）`
+	return `已冲抵到 ¥${formatMoney(offsetAmount)}`
 }
 
 function resolveSaleOverCollected(row) {
@@ -3757,6 +3793,11 @@ onMounted(() => {
 
 .mini-amounts__offset {
 	color: #b45309;
+	font-weight: 700;
+}
+
+.mini-amounts__offset-target {
+	color: #92400e;
 	font-weight: 700;
 }
 
