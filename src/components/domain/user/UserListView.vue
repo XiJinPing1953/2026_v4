@@ -21,6 +21,14 @@
 						autocomplete="new-password"
 					/>
 					<AppInput
+						v-model="createForm.nickname"
+						label="昵称"
+						placeholder="最多 20 字"
+						size="sm"
+						name="crm_user_create_nickname"
+						autocomplete="off"
+					/>
+					<AppInput
 						v-model="createForm.password"
 						label="密码"
 						placeholder="至少 6 位"
@@ -84,6 +92,15 @@
 							</view>
 						</picker>
 					</view>
+					<AppInput
+						v-model="selectedNickname"
+						label="昵称"
+						placeholder="最多 20 字"
+						size="sm"
+						name="crm-user-edit-nickname"
+						autocomplete="off"
+						:disabled="isSelectedSuperAdmin"
+					/>
 					<AppInput
 						v-model="resetPassword"
 						label="重置密码"
@@ -189,6 +206,7 @@ const registryPages = ref([])
 const selectedUserId = ref('')
 const selectedRoleTemplate = ref('user')
 const selectedPagePermissions = ref({})
+const selectedNickname = ref('')
 const resetPassword = ref('')
 const creating = ref(false)
 const backfilling = ref(false)
@@ -197,6 +215,7 @@ const resettingPassword = ref(false)
 
 const createForm = ref({
 	username: '',
+	nickname: '',
 	password: '',
 	role_template: 'user'
 })
@@ -210,9 +229,10 @@ const roleOptions = [
 
 const userColumns = [
 	{ key: 'username', label: '账号', width: '200rpx' },
+	{ key: 'nickname', label: '昵称', width: '180rpx' },
 	{ key: 'role_template', label: '角色', width: '160rpx' },
 	{ key: 'created_at', label: '创建时间', width: '220rpx' },
-	{ key: 'actions', label: '操作', width: '320rpx' }
+	{ key: 'actions', label: '操作', width: '340rpx' }
 ]
 
 const createRoleLabel = computed(() => roleText(createForm.value.role_template))
@@ -275,6 +295,7 @@ function applySelectedUser(user) {
 	selectedUserId.value = user?._id || ''
 	selectedRoleTemplate.value = normalizeRoleTemplate(user?.role_template || user?.role || 'user')
 	selectedPagePermissions.value = clonePermissions(user?.page_permissions || buildRoleTemplatePermissions(selectedRoleTemplate.value))
+	selectedNickname.value = String(user?.nickname || '').trim()
 	resetPassword.value = ''
 }
 
@@ -282,6 +303,7 @@ function clearSelection() {
 	selectedUserId.value = ''
 	selectedRoleTemplate.value = 'user'
 	selectedPagePermissions.value = {}
+	selectedNickname.value = ''
 	resetPassword.value = ''
 }
 
@@ -328,17 +350,31 @@ function canRemove(user) {
 
 async function onCreate() {
 	const username = String(createForm.value.username || '').trim()
+	const nickname = String(createForm.value.nickname || '').trim()
 	const password = String(createForm.value.password || '').trim()
+	if (!nickname) {
+		uni.showToast({ title: '请填写昵称', icon: 'none' })
+		return
+	}
+	if (nickname.length > 20) {
+		uni.showToast({ title: '昵称最多20个字', icon: 'none' })
+		return
+	}
 	if (username.length < 3 || password.length < 6) {
 		uni.showToast({ title: '账号至少3位，密码至少6位', icon: 'none' })
 		return
 	}
 	creating.value = true
 	try {
-		const res = await createUserV1(createForm.value)
+		const res = await createUserV1({
+			...createForm.value,
+			username,
+			nickname,
+			password
+		})
 		if (res?.code !== 0) throw new Error(res?.msg || '创建失败')
 		uni.showToast({ title: '创建成功', icon: 'success' })
-		createForm.value = { username: '', password: '', role_template: 'user' }
+		createForm.value = { username: '', nickname: '', password: '', role_template: 'user' }
 		await fetchData({ force: true })
 	} catch (err) {
 		uni.showToast({ title: err?.message || '创建失败', icon: 'none' })
@@ -369,10 +405,20 @@ async function onResetPassword() {
 
 async function onSavePermissions() {
 	if (!selectedUser.value?._id) return
+	const nickname = String(selectedNickname.value || '').trim()
+	if (!nickname) {
+		uni.showToast({ title: '请填写昵称', icon: 'none' })
+		return
+	}
+	if (nickname.length > 20) {
+		uni.showToast({ title: '昵称最多20个字', icon: 'none' })
+		return
+	}
 	savingPermissions.value = true
 	try {
 		const res = await saveUserPermissionsV1({
 			userId: selectedUser.value._id,
+			nickname,
 			role_template: selectedRoleTemplate.value,
 			page_permissions: selectedPagePermissions.value
 		})

@@ -63,6 +63,12 @@ function normalizeString(value) {
 	return String(value).trim()
 }
 
+function normalizeNickname(value, fallback = '') {
+	const text = normalizeString(value || fallback)
+	if (!text) return ''
+	return text
+}
+
 function escapeRegExp(value) {
 	return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -82,11 +88,13 @@ function ensureSuperAdminUser(user) {
 	return { code: 403, msg: '仅超级管理员可操作' }
 }
 
-function buildUserDoc({ username, passwordHash, roleTemplate }) {
+function buildUserDoc({ username, nickname, passwordHash, roleTemplate }) {
 	const role = normalizeRoleTemplate(roleTemplate)
 	const now = Date.now()
+	const resolvedNickname = normalizeNickname(nickname, username)
 	return {
 		username,
+		nickname: resolvedNickname,
 		password_hash: passwordHash,
 		role,
 		role_template: role,
@@ -104,7 +112,7 @@ async function listV1(user, data, requestId) {
 
 	if (keyword) {
 		const rx = db.RegExp({ regexp: escapeRegExp(keyword), options: 'i' })
-		conditions.push(dbCmd.or([{ username: rx }, { name: rx }]))
+		conditions.push(dbCmd.or([{ username: rx }, { nickname: rx }, { name: rx }]))
 	}
 
 	const where =
@@ -133,18 +141,21 @@ async function createV1(user, data, requestId) {
 	if (denied) return denied
 	const username = normalizeString(data.username)
 	const password = normalizeString(data.password)
+	const nickname = normalizeNickname(data.nickname)
 	const roleTemplate = normalizeRoleTemplate(data.role_template || data.role || 'user')
-	if (!username || !password) return { code: 400, msg: '缺少账号或密码' }
+	if (!username || !password || !nickname) return { code: 400, msg: '缺少账号、密码或昵称' }
 	if (username.length < 3 || password.length < 6) return { code: 400, msg: '账号至少3位，密码至少6位' }
+	if (nickname.length > 20) return { code: 400, msg: '昵称最多20个字' }
 	const exists = await users.where({ username }).limit(1).get()
 	if ((exists.data || []).length) return { code: 400, msg: '账号已存在' }
 	const doc = buildUserDoc({
 		username,
+		nickname,
 		passwordHash: await hashPassword(password),
 		roleTemplate
 	})
 	const res = await users.add(doc)
-	await recordLog(user, 'user_manage_create_v1', { id: res.id, username, role_template: roleTemplate }, requestId)
+	await recordLog(user, 'user_manage_create_v1', { id: res.id, username, nickname, role_template: roleTemplate }, requestId)
 	return { code: 0, msg: '创建成功', data: { _id: res.id } }
 }
 
@@ -230,13 +241,23 @@ async function savePermissionsV1(user, data, requestId) {
 	}
 	const roleTemplate = normalizeRoleTemplate(data.role_template || data.role || 'user')
 	const pagePermissions = normalizePagePermissions(data.page_permissions, roleTemplate)
+	const hasNicknameField = Object.prototype.hasOwnProperty.call(data || {}, 'nickname')
+	const nickname = hasNicknameField ? normalizeNickname(data.nickname) : ''
+	if (hasNicknameField && !nickname) return { code: 400, msg: '昵称必填' }
+	if (nickname.length > 20) return { code: 400, msg: '昵称最多20个字' }
 	await users.doc(userId).update({
 		role: roleTemplate,
 		role_template: roleTemplate,
 		page_permissions: pagePermissions,
+		...(hasNicknameField ? { nickname } : {}),
 		updated_at: Date.now()
 	})
-	await recordLog(user, 'user_manage_save_permissions_v1', { target: userId, role_template: roleTemplate }, requestId)
+	await recordLog(
+		user,
+		'user_manage_save_permissions_v1',
+		{ target: userId, role_template: roleTemplate, ...(hasNicknameField ? { nickname } : {}) },
+		requestId
+	)
 	return { code: 0, msg: '权限已保存' }
 }
 

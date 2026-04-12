@@ -66,6 +66,15 @@ function stripSensitive(user) {
 	return sanitizeUser(rest)
 }
 
+function normalizeString(value) {
+	if (value == null) return ''
+	return String(value).trim()
+}
+
+function normalizeNickname(value, fallback = '') {
+	return normalizeString(value || fallback)
+}
+
 function ensureSuperAdminOperator(user) {
 	return isSuperAdmin(user)
 		? null
@@ -108,6 +117,7 @@ async function ensureSuperAdmin() {
 
 	const doc = {
 		username: SUPERADMIN_USERNAME,
+		nickname: normalizeNickname(SUPERADMIN_USERNAME),
 		password_hash: await hashPassword(SUPERADMIN_PASSWORD),
 		role: 'superadmin',
 		role_template: 'superadmin',
@@ -119,11 +129,13 @@ async function ensureSuperAdmin() {
 	return { _id: res.id, ...doc }
 }
 
-function buildUserDoc({ username, passwordHash, roleTemplate }) {
+function buildUserDoc({ username, nickname, passwordHash, roleTemplate }) {
 	const role = normalizeRoleTemplate(roleTemplate)
 	const now = Date.now()
+	const resolvedNickname = normalizeNickname(nickname, username)
 	return {
 		username,
+		nickname: resolvedNickname,
 		password_hash: passwordHash,
 		role,
 		role_template: role,
@@ -162,12 +174,17 @@ exports.main = async (event, context) => {
 		if (countRes.total > 0) {
 			return { code: 400, msg: '已存在用户，不能重复初始化' }
 		}
-		const { username, password } = data
+		const username = normalizeString(data.username)
+		const password = normalizeString(data.password)
+		const nickname = normalizeNickname(data.nickname, username)
 		if (!username || !password) return { code: 400, msg: '缺少账号或密码' }
+		if (!nickname) return { code: 400, msg: '昵称必填' }
+		if (nickname.length > 20) return { code: 400, msg: '昵称最多20个字' }
 
 		const doc = {
 			...buildUserDoc({
 				username,
+				nickname,
 				passwordHash: await hashPassword(password),
 				roleTemplate: 'admin'
 			})
@@ -229,12 +246,18 @@ exports.main = async (event, context) => {
 		const denied = ensureSuperAdminOperator(user)
 		if (denied) return denied
 
-		const { username, password, role = 'user', role_template = '' } = data || {}
+		const username = normalizeString(data.username)
+		const password = normalizeString(data.password)
+		const role = data.role || 'user'
+		const roleTemplateRaw = data.role_template || ''
+		const nickname = normalizeNickname(data.nickname, username)
 		if (!username || !password) return { code: 400, msg: '缺少账号或密码' }
+		if (!nickname) return { code: 400, msg: '昵称必填' }
+		if (nickname.length > 20) return { code: 400, msg: '昵称最多20个字' }
 		if (username.length < 3 || password.length < 6) {
 			return { code: 400, msg: '账号至少3位，密码至少6位' }
 		}
-		const resolvedRole = normalizeRoleTemplate(role_template || role)
+		const resolvedRole = normalizeRoleTemplate(roleTemplateRaw || role)
 		if (!['superadmin', 'admin', 'finance', 'user'].includes(resolvedRole)) {
 			return { code: 400, msg: '角色不合法' }
 		}
@@ -249,6 +272,7 @@ exports.main = async (event, context) => {
 
 		const doc = buildUserDoc({
 			username,
+			nickname,
 			passwordHash: await hashPassword(password),
 			roleTemplate: resolvedRole
 		})

@@ -583,7 +583,9 @@ const receivableChartRows = computed(() => {
 	}))
 })
 
-const currentUsername = computed(() => String(currentUser.value?.username || '当前账号'))
+const currentUsername = computed(() =>
+	String(currentUser.value?.nickname || currentUser.value?.username || '当前账号')
+)
 const currentRoleLabel = computed(() => {
 	const role = normalizeRoleTemplate(currentUser.value?.role_template || currentUser.value?.role || 'user')
 	if (role === 'superadmin') return '超级管理员'
