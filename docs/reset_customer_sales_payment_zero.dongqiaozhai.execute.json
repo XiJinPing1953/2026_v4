@@ -1,0 +1,111 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "customer": {
+    "_id": "694045c0adf6dbd796e261d4",
+    "name": "东桥寨洗衣房",
+    "phone": "15511875201"
+  },
+  "execute": true,
+  "started_at": "2026-04-07T10:07:31.524Z",
+  "sale_total": 7,
+  "sales": [
+    {
+      "_id": "6960c059ee97ef494d55825f",
+      "date": "2026-01-09",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "update_code": 0,
+      "update_msg": "更新成功（凭证未同步（缺集合））",
+      "release_code": 0,
+      "release_msg": "销售结算关联已回收",
+      "executed": true
+    },
+    {
+      "_id": "696d76d10d2b314595f7bcbe",
+      "date": "2026-01-18",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "update_code": 0,
+      "update_msg": "更新成功（凭证未同步（缺集合））",
+      "release_code": 0,
+      "release_msg": "销售结算关联已回收",
+      "executed": true
+    },
+    {
+      "_id": "697702f599c624286aae5ce5",
+      "date": "2026-01-26",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "update_code": 0,
+      "update_msg": "更新成功（凭证未同步（缺集合））",
+      "release_code": 0,
+      "release_msg": "销售结算关联已回收",
+      "executed": true
+    },
+    {
+      "_id": "69bbaff889d8371762435b6f",
+      "date": "2026-02-09",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "update_code": 0,
+      "update_msg": "更新成功（凭证未同步（缺集合））",
+      "release_code": 0,
+      "release_msg": "销售结算关联已回收",
+      "executed": true
+    },
+    {
+      "_id": "69bbb005f7ac1a41a1adca2c",
+      "date": "2026-03-06",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "update_code": 0,
+      "update_msg": "更新成功（凭证未同步（缺集合））",
+      "release_code": 0,
+      "release_msg": "销售结算关联已回收",
+      "executed": true
+    },
+    {
+      "_id": "69c8ade35c28c95aac982fc1",
+      "date": "2026-03-21",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "update_code": 0,
+      "update_msg": "更新成功（凭证未同步（缺集合））",
+      "release_code": 0,
+      "release_msg": "销售结算关联已回收",
+      "executed": true
+    },
+    {
+      "_id": "69d4b74096fed1435b698590",
+      "date": "2026-04-06",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "update_code": 0,
+      "update_msg": "更新成功（凭证未同步（缺集合））",
+      "release_code": 0,
+      "release_msg": "销售结算关联已回收",
+      "executed": true
+    }
+  ],
+  "failed": [],
+  "refresh_balances": {
+    "code": 0,
+    "msg": "ok"
+  },
+  "updated_at": "2026-04-07T10:07:48.549Z",
+  "success_total": 7
+}

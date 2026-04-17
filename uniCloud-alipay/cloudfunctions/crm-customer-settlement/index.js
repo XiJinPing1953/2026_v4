@@ -24,11 +24,19 @@ const REBUILD_ROLES = ['superadmin', 'admin', 'finance']
 const FLOW_WEIGHT_GO_LIVE_DATE = '2026-01-01'
 const STATEMENT_COMPANY_NAME = '无极县新拓能源开发有限公司'
 const AUTO_OFFSET_NOTE_PREFIX = '【自动冲抵】'
+const CASHIER_RECEIPT_SOURCE_TYPE = 'cashier_intake'
+const CASHIER_RECEIPT_SOURCE_TYPES = [CASHIER_RECEIPT_SOURCE_TYPE]
+const CASHIER_TARGET_PREVIEW_LIMIT = 3
 const PAGE_ACTION_RULES = {
 	previewAllocationV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	createReceiptV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	updateReceiptV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	removeReceiptV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	createReceiptIntakeV1: [{ pagePath: '/pages/cashier/receipt-intake', action: 'create' }],
+	updateReceiptIntakeV1: [{ pagePath: '/pages/cashier/receipt-intake', action: 'update' }],
+	removeReceiptIntakeV1: [{ pagePath: '/pages/cashier/receipt-intake', action: 'delete' }],
+	listReceiptIntakeV1: [{ pagePath: '/pages/cashier/receipt-intake', action: 'view' }],
+	listReceiptAllocationTargetsV1: [{ pagePath: '/pages/cashier/receipt-intake', action: 'view' }],
 	confirmAllocationV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	createPrepayEntryV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	repairReceiptAllocationV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
@@ -476,7 +484,6 @@ async function listOffsetCreditReceiptsBySourceSaleIds(customerId, saleIds = [],
 
 async function listAllocationsByReceiptIds(customerId, receiptIds = [], limitPerChunk = 5000) {
 	const normalizedCustomerId = normalizeId(customerId)
-	if (!normalizedCustomerId) return []
 	const uniqueReceiptIds = Array.from(
 		new Set(
 			(Array.isArray(receiptIds) ? receiptIds : [])
@@ -492,13 +499,10 @@ async function listAllocationsByReceiptIds(customerId, receiptIds = [], limitPer
 		let guard = 0
 		let loaded = 0
 		while (guard < 500 && loaded < maxRows) {
+			const whereParts = [{ receipt_id: dbCmd.in(receiptIdChunk) }]
+			if (normalizedCustomerId) whereParts.unshift({ customer_id: normalizedCustomerId })
 			const res = await allocations
-				.where(
-					dbCmd.and([
-						{ customer_id: normalizedCustomerId },
-						{ receipt_id: dbCmd.in(receiptIdChunk) }
-					])
-				)
+				.where(whereParts.length === 1 ? whereParts[0] : dbCmd.and(whereParts))
 				.orderBy('created_at', 'asc')
 				.skip((page - 1) * 200)
 				.limit(200)
@@ -710,6 +714,117 @@ function normalizeAllocateKind(value, fallback = 'receipt') {
 	if (text === 'rounding') return 'rounding'
 	if (text === 'receipt' || text === 'cash') return 'receipt'
 	return fallback
+}
+
+function normalizeCloudFileId(value) {
+	const text = normalizeString(value)
+	if (!text) return ''
+	if (!text.startsWith('cloud://')) return ''
+	return text
+}
+
+function normalizeProofImages(value, limit = 9) {
+	const max = Math.min(Math.max(toNumber(limit, 9), 1), 12)
+	const source = Array.isArray(value) ? value : []
+	const list = []
+	for (const item of source) {
+		const fileId = normalizeCloudFileId(item)
+		if (!fileId || list.includes(fileId)) continue
+		list.push(fileId)
+		if (list.length >= max) break
+	}
+	return list
+}
+
+function normalizeCashierReceiptSourceType(value, fallback = CASHIER_RECEIPT_SOURCE_TYPE) {
+	const text = normalizeString(value).toLowerCase()
+	if (!text) return fallback
+	if (CASHIER_RECEIPT_SOURCE_TYPES.includes(text)) return text
+	return fallback
+}
+
+function isCashierReceiptSourceType(value) {
+	const text = normalizeString(value).toLowerCase()
+	return CASHIER_RECEIPT_SOURCE_TYPES.includes(text)
+}
+
+function moneyEpsilon(scale = 2) {
+	return Number(scale) === 3 ? 0.001 : 0.01
+}
+
+function receiptAllocationStatusValue(receiptAmount = 0, allocatedAmount = 0, unallocatedAmount = 0, moneyScale = 2) {
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const epsilon = moneyEpsilon(moneyScale)
+	const amount = Math.max(0, fixMoney(receiptAmount))
+	const allocated = Math.max(0, fixMoney(allocatedAmount))
+	const unallocated = Math.max(0, fixMoney(unallocatedAmount))
+	if (allocated <= epsilon) return 'unallocated'
+	if (amount <= epsilon || unallocated <= epsilon) return 'allocated'
+	return 'partial'
+}
+
+function receiptAllocationStatusText(status) {
+	const normalized = normalizeString(status).toLowerCase()
+	if (normalized === 'void') return '已作废'
+	if (normalized === 'allocated') return '已分配'
+	if (normalized === 'partial') return '部分分配'
+	return '未分配'
+}
+
+function receivableTargetTypeLabel(targetType) {
+	const normalized = normalizeReceivableTargetType(targetType)
+	if (normalized === 'flow_settlement') return '流量结算'
+	if (normalized === 'opening_debt') return '历史欠款'
+	if (normalized === 'other_fee') return '其他费用'
+	return '销售单'
+}
+
+function compareTargetDateAsc(a, b) {
+	const dateA = normalizeDate(a) || ''
+	const dateB = normalizeDate(b) || ''
+	if (dateA !== dateB) return dateA < dateB ? -1 : 1
+	return 0
+}
+
+function buildAllocationTargetSummaryRows(rows = [], moneyScale = 2) {
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const map = new Map()
+	for (const row of rows || []) {
+		const receiptId = normalizeId(row && row.receipt_id)
+		const targetType = normalizeReceivableTargetType(row && row.target_type)
+		const targetId = normalizeId(row && (row.target_id || row.sale_id))
+		const allocateKind = normalizeAllocateKind(row && row.allocate_kind, 'receipt')
+		const targetDate = normalizeDate(row && row.sale_date) || normalizeDate(row && row.biz_date) || ''
+		const targetTitleRaw = normalizeString(row && row.target_title)
+		const fallbackTitle = `${receivableTargetTypeLabel(targetType)} ${targetDate || '-'} / ${targetId.slice(-6)}`
+		const targetTitle = targetTitleRaw || fallbackTitle
+		const key = `${receiptId}|${allocateKind}|${targetType}|${targetId}|${targetDate}|${targetTitle}`
+		const prev = map.get(key)
+		const amount = fixMoney(toNumber(row && row.allocate_amount, 0))
+		if (!prev) {
+			map.set(key, {
+				receipt_id: receiptId,
+				target_type: targetType,
+				target_type_label: receivableTargetTypeLabel(targetType),
+				target_id: targetId,
+				target_date: targetDate,
+				target_title: targetTitle,
+				allocate_kind: allocateKind,
+				allocate_kind_label: allocateKind === 'rounding' ? '抹零分配' : '收款分配',
+				amount
+			})
+			continue
+		}
+		prev.amount = fixMoney(prev.amount + amount)
+	}
+	return Array.from(map.values()).sort((a, b) => {
+		const byDate = compareTargetDateAsc(a.target_date, b.target_date)
+		if (byDate !== 0) return byDate
+		if (a.target_type !== b.target_type) return a.target_type < b.target_type ? -1 : 1
+		if (a.target_id !== b.target_id) return a.target_id < b.target_id ? -1 : 1
+		if (a.allocate_kind !== b.allocate_kind) return a.allocate_kind < b.allocate_kind ? -1 : 1
+		return 0
+	})
 }
 
 function resolveSaleOffsetEnabled(doc, fallback = true) {
@@ -2984,6 +3099,8 @@ async function updateReceiptV1(user, data, requestId) {
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持编辑已入账收款单' }
+	const receiptSourceType = normalizeString(receiptDoc.source_type) || 'manual'
+	const isCashierSource = isCashierReceiptSourceType(receiptSourceType)
 
 	const receiptCustomerId = normalizeId(receiptDoc.customer_id)
 	const customerId = normalizeId(data.customer_id || data.customerId || receiptCustomerId)
@@ -2994,6 +3111,16 @@ async function updateReceiptV1(user, data, requestId) {
 	if (!customer) return { code: 404, msg: '客户不存在' }
 	const moneyScale = resolveCustomerMoneyScale(customer)
 	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const receiptAmount = fixMoney(toNumber(receiptDoc.amount, 0))
+	const receiptRoundingAmount = fixMoney(toNumber(receiptDoc.rounding_amount, 0))
+	const receiptBizDate = normalizeDate(receiptDoc.biz_date)
+	const receiptPaymentMethod = normalizePaymentMethod(receiptDoc.payment_method, 'paid')
+	const receiptNote = normalizeString(receiptDoc.note)
+	const receiptSourceId = normalizeId(receiptDoc.source_id)
+	const receiptEntryKind = normalizeEntryKind(
+		receiptDoc.entry_kind,
+		receiptSourceType.includes('offset') ? 'offset_credit' : 'prepay'
+	)
 
 	const amountRaw = data.amount == null || data.amount === '' ? receiptDoc.amount : data.amount
 	const amount = fixMoney(toNumber(amountRaw, 0))
@@ -3024,14 +3151,31 @@ async function updateReceiptV1(user, data, requestId) {
 		return { code: 400, msg: '收款登记必须选择现金/转账/微信/支付宝/支票' }
 	}
 	const paymentMethod = normalizePaymentMethod(paymentMethodInput, 'paid')
-	const sourceType = normalizeString(data.source_type || data.sourceType || receiptDoc.source_type) || 'manual'
-	const sourceIdRaw = data.source_id !== undefined || data.sourceId !== undefined ? data.source_id ?? data.sourceId : receiptDoc.source_id
-	const sourceId = normalizeId(sourceIdRaw)
 	const note = data.note === undefined ? normalizeString(receiptDoc.note) : normalizeString(data.note)
+	const sourceType = receiptSourceType
+	const sourceId = receiptSourceId
 	const entryKind = normalizeEntryKind(
-		data.entry_kind || data.entryKind || receiptDoc.entry_kind,
+		isCashierSource ? receiptEntryKind : data.entry_kind || data.entryKind || receiptDoc.entry_kind,
 		sourceType.includes('offset') ? 'offset_credit' : 'prepay'
 	)
+	if (isCashierSource) {
+		const inputSourceType = normalizeString(data.source_type || data.sourceType)
+		const inputSourceIdProvided = data.source_id !== undefined || data.sourceId !== undefined
+		const inputSourceId = normalizeId(data.source_id ?? data.sourceId)
+		const inputEntryKind = normalizeString(data.entry_kind || data.entryKind)
+		if (
+			amount !== receiptAmount ||
+			roundingAmount !== receiptRoundingAmount ||
+			bizDate !== receiptBizDate ||
+			paymentMethod !== receiptPaymentMethod ||
+			note !== receiptNote ||
+			(inputSourceType && inputSourceType !== sourceType) ||
+			(inputSourceIdProvided && inputSourceId !== sourceId) ||
+			(inputEntryKind && normalizeEntryKind(inputEntryKind, entryKind) !== entryKind)
+		) {
+			return { code: 400, msg: '出纳登记来源收款单仅支持调整分配，金额/日期/方式/备注请在出纳登记处理' }
+		}
+	}
 
 	const rollback = await rollbackReceiptAllocations({ customerId, receiptId })
 	const plan = await buildReceiptAllocationPlan(customerId, amount, roundingAmount, {
@@ -3125,6 +3269,9 @@ async function removeReceiptV1(user, data, requestId) {
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持删除已入账收款单' }
+	if (isCashierReceiptSourceType(receiptDoc.source_type)) {
+		return { code: 400, msg: '出纳登记来源收款单请在出纳登记中作废处理' }
+	}
 
 	const receiptCustomerId = normalizeId(receiptDoc.customer_id)
 	const customerId = normalizeId(data.customer_id || data.customerId || receiptCustomerId)
@@ -3142,6 +3289,7 @@ async function removeReceiptV1(user, data, requestId) {
 		void_at: now,
 		void_by: normalizeId(user && user._id) || null,
 		void_by_name: normalizeString(user && user.username),
+		void_from: 'customer_statement',
 		request_id: requestId,
 		updated_at: now
 	})
@@ -3161,11 +3309,439 @@ async function removeReceiptV1(user, data, requestId) {
 
 	return {
 		code: 0,
-		msg: '收款单已删除',
+		msg: '收款单已作废',
 		data: {
 			receipt_id: receiptId,
 			customer_id: customerId,
 			balances
+		}
+	}
+}
+
+async function createReceiptIntakeV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'createReceiptIntakeV1', requestId)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const customerId = normalizeId(data.customer_id || data.customerId)
+	const amountRaw = toNumber(data.amount, 0)
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if (!(amountRaw > 0)) return { code: 400, msg: '收到金额必须大于0' }
+
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { code: 404, msg: '客户不存在' }
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const amount = fixMoney(amountRaw)
+	const bizDate = normalizeBizDate(data.biz_date || data.bizDate, Date.now())
+	const paymentMethodRaw = normalizeString(data.payment_method || data.paymentMethod).toLowerCase()
+	if (paymentMethodRaw === 'on_account' || paymentMethodRaw === '挂账') {
+		return { code: 400, msg: '出纳录款必须选择现金/转账/微信/支付宝/支票' }
+	}
+	const paymentMethod = normalizePaymentMethod(data.payment_method || data.paymentMethod, 'paid')
+	const proofImages = normalizeProofImages(data.proof_images || data.proofImages, 9)
+	if (!proofImages.length) return { code: 400, msg: '请至少上传1张收款凭证' }
+	const note = normalizeString(data.note)
+	const sourceType = normalizeCashierReceiptSourceType(data.source_type || data.sourceType, CASHIER_RECEIPT_SOURCE_TYPE)
+	const sourceId = normalizeId(data.source_id || data.sourceId)
+
+	const plan = {
+		ok: true,
+		customer_id: customer._id,
+		customer_name: customer.name,
+		amount,
+		allocation_mode: 'period',
+		allocation_start_date: bizDate,
+		allocation_end_date: bizDate,
+		allocation_targets: [],
+		allocated_total: 0,
+		prepay_amount: amount,
+		total_outstanding_before: 0,
+		allocations: []
+	}
+	const applyRes = await applyAllocationAndPersist({
+		user,
+		requestId,
+		customer,
+		plan,
+		bizDate,
+		paymentMethod,
+		allocationMode: 'period',
+		allocationStartDate: bizDate,
+		allocationEndDate: bizDate,
+		allocationTargets: [],
+		note,
+		sourceType,
+		sourceId,
+		entryKind: 'prepay'
+	})
+	const receiptId = normalizeId(applyRes && applyRes.receipt_id)
+	if (!receiptId) return { code: 500, msg: '生成收款单失败' }
+	const now = Date.now()
+	await receipts.doc(receiptId).update({
+		proof_images: proofImages,
+		proof_images_count: proofImages.length,
+		updated_at: now,
+		updated_by: normalizeId(user && user._id) || null,
+		updated_by_name: normalizeString(user && user.username)
+	})
+
+	const balances = await rebuildCustomerBalances(customer._id)
+	await recordLog(
+		user,
+		'customer_receipt_intake_create_v1',
+		{
+			receipt_id: receiptId,
+			customer_id: customer._id,
+			amount,
+			proof_images_count: proofImages.length
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		msg: '收款登记成功',
+		data: {
+			receipt_id: receiptId,
+			customer_id: customer._id,
+			customer_name: customer.name,
+			amount,
+			allocated_total: fixMoney(toNumber(applyRes.allocated_total, 0) + toNumber(applyRes.rounding_allocated_total, 0)),
+			unallocated_amount: fixMoney(toNumber(applyRes.prepay_amount, 0)),
+			proof_images: proofImages,
+			proof_images_count: proofImages.length,
+			balances
+		}
+	}
+}
+
+async function updateReceiptIntakeV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'updateReceiptIntakeV1', requestId)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const receiptId = normalizeId(data.receipt_id || data.receiptId || data._id)
+	if (!receiptId) return { code: 400, msg: 'receipt_id 必填' }
+
+	const receiptRes = await receipts.doc(receiptId).get()
+	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
+	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持编辑已入账收款单' }
+	if (!isCashierReceiptSourceType(receiptDoc.source_type)) return { code: 400, msg: '该收款单不是出纳录款来源' }
+
+	const customerId = normalizeId(data.customer_id || data.customerId || receiptDoc.customer_id)
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if (customerId !== normalizeId(receiptDoc.customer_id)) return { code: 400, msg: '收款单不属于该客户' }
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { code: 404, msg: '客户不存在' }
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+
+	const allocationRows = await listReceiptAllocationRows(receiptId, customerId)
+	const allocatedAmount = fixMoney(toNumber(receiptDoc.allocated_amount, 0))
+	const roundingAllocatedAmount = fixMoney(toNumber(receiptDoc.rounding_allocated_amount, 0))
+	if (allocatedAmount > moneyEpsilon(moneyScale) || roundingAllocatedAmount > moneyEpsilon(moneyScale) || allocationRows.length) {
+		return { code: 400, msg: '该收款单已发生分配，请到客户对账中调整后再修改' }
+	}
+
+	const amountInput = data.amount == null || data.amount === '' ? receiptDoc.amount : data.amount
+	const amount = fixMoney(toNumber(amountInput, 0))
+	if (!(amount > 0)) return { code: 400, msg: '收到金额必须大于0' }
+	const bizDate = normalizeBizDate(data.biz_date || data.bizDate || receiptDoc.biz_date, Date.now())
+	const paymentMethodInput = data.payment_method ?? data.paymentMethod ?? receiptDoc.payment_method
+	const paymentMethodRaw = normalizeString(paymentMethodInput).toLowerCase()
+	if (paymentMethodRaw === 'on_account' || paymentMethodRaw === '挂账') {
+		return { code: 400, msg: '出纳录款必须选择现金/转账/微信/支付宝/支票' }
+	}
+	const paymentMethod = normalizePaymentMethod(paymentMethodInput, 'paid')
+	const note = data.note === undefined ? normalizeString(receiptDoc.note) : normalizeString(data.note)
+	const sourceType = normalizeCashierReceiptSourceType(receiptDoc.source_type, CASHIER_RECEIPT_SOURCE_TYPE)
+	const sourceId = normalizeId(receiptDoc.source_id)
+	const proofInputProvided = data.proof_images !== undefined || data.proofImages !== undefined
+	const proofImages = normalizeProofImages(
+		proofInputProvided ? data.proof_images || data.proofImages : receiptDoc.proof_images,
+		9
+	)
+	if (!proofImages.length) return { code: 400, msg: '请至少上传1张收款凭证' }
+
+	const now = Date.now()
+	await receipts.doc(receiptId).update({
+		customer_name: customer.name,
+		biz_date: bizDate,
+		amount,
+		allocated_amount: 0,
+		rounding_allocated_amount: 0,
+		unallocated_amount: amount,
+		payment_method: paymentMethod,
+		note,
+		source_type: sourceType,
+		source_id: sourceId || null,
+		proof_images: proofImages,
+		proof_images_count: proofImages.length,
+		request_id: requestId,
+		updated_at: now,
+		updated_by: normalizeId(user && user._id) || null,
+		updated_by_name: normalizeString(user && user.username)
+	})
+
+	const balances = await rebuildCustomerBalances(customerId)
+	await recordLog(
+		user,
+		'customer_receipt_intake_update_v1',
+		{
+			customer_id: customerId,
+			receipt_id: receiptId,
+			amount,
+			proof_images_count: proofImages.length
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		msg: '收款登记已更新',
+		data: {
+			receipt_id: receiptId,
+			customer_id: customerId,
+			amount,
+			unallocated_amount: amount,
+			proof_images: proofImages,
+			proof_images_count: proofImages.length,
+			balances
+		}
+	}
+}
+
+async function removeReceiptIntakeV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'removeReceiptIntakeV1', requestId)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const receiptId = normalizeId(data.receipt_id || data.receiptId || data._id)
+	if (!receiptId) return { code: 400, msg: 'receipt_id 必填' }
+
+	const receiptRes = await receipts.doc(receiptId).get()
+	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
+	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持删除已入账收款单' }
+	if (!isCashierReceiptSourceType(receiptDoc.source_type)) return { code: 400, msg: '该收款单不是出纳录款来源' }
+
+	const customerId = normalizeId(data.customer_id || data.customerId || receiptDoc.customer_id)
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if (customerId !== normalizeId(receiptDoc.customer_id)) return { code: 400, msg: '收款单不属于该客户' }
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { code: 404, msg: '客户不存在' }
+	const voidReason = normalizeString(data.void_reason || data.voidReason || data.reason || data.note)
+	if (!voidReason) return { code: 400, msg: '作废原因必填' }
+
+	const rollback = await rollbackReceiptAllocations({ customerId, receiptId })
+
+	const now = Date.now()
+	await receipts.doc(receiptId).update({
+		status: 'void',
+		allocated_amount: 0,
+		rounding_allocated_amount: 0,
+		unallocated_amount: 0,
+		void_reason: voidReason,
+		void_at: now,
+		void_by: normalizeId(user && user._id) || null,
+		void_by_name: normalizeString(user && user.username),
+		void_from: 'cashier_receipt_intake',
+		request_id: requestId,
+		updated_at: now
+	})
+
+	const balances = await rebuildCustomerBalances(customerId)
+	await recordLog(
+		user,
+		'customer_receipt_intake_remove_v1',
+		{
+			customer_id: customerId,
+			receipt_id: receiptId,
+			void_reason: voidReason,
+			rollback_total: rollback.rollback_total,
+			allocation_rows: rollback.rows
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		msg: '收款登记已作废',
+		data: {
+			receipt_id: receiptId,
+			customer_id: customerId,
+			balances
+		}
+	}
+}
+
+async function listReceiptIntakeV1(user, data) {
+	void user
+	const customerId = normalizeId(data.customer_id || data.customerId)
+	const dateFrom = normalizeDate(data.date_from || data.dateFrom)
+	const dateTo = normalizeDate(data.date_to || data.dateTo)
+	const includeVoidInput = data.include_void ?? data.includeVoid
+	const includeVoid =
+		includeVoidInput === true ||
+		includeVoidInput === 1 ||
+		normalizeString(includeVoidInput).toLowerCase() === 'true' ||
+		normalizeString(includeVoidInput) === '1'
+	if (dateFrom && dateTo && dateFrom > dateTo) return { code: 400, msg: '开始日期不能晚于结束日期' }
+	if (customerId) {
+		const customer = await getCustomerById(customerId)
+		if (!customer) return { code: 404, msg: '客户不存在' }
+	}
+	const pageSize = Math.min(Math.max(toNumber(data.pageSize, 20), 1), 50)
+	const page = Math.max(toNumber(data.page, 1), 1)
+
+	const whereParts = [
+		includeVoid ? { status: dbCmd.in(['posted', 'void']) } : { status: 'posted' },
+		{ source_type: dbCmd.in(CASHIER_RECEIPT_SOURCE_TYPES) }
+	]
+	if (customerId) whereParts.unshift({ customer_id: customerId })
+	if (dateFrom) whereParts.push({ biz_date: dbCmd.gte(dateFrom) })
+	if (dateTo) whereParts.push({ biz_date: dbCmd.lte(dateTo) })
+	const where = whereParts.length === 1 ? whereParts[0] : dbCmd.and(whereParts)
+	const totalRes = await receipts.where(where).count()
+	const total = toNumber(totalRes.total, 0)
+	const res = await receipts
+		.where(where)
+		.orderBy('biz_date', 'desc')
+		.orderBy('created_at', 'desc')
+		.skip((page - 1) * pageSize)
+		.limit(pageSize)
+		.get()
+	const rows = Array.isArray(res.data) ? res.data : []
+	const receiptIds = rows.map((row) => normalizeId(row && row._id)).filter(Boolean)
+	const allocationRows = await listAllocationsByReceiptIds(customerId, receiptIds, 5000)
+	const customerIds = Array.from(
+		new Set(rows.map((row) => normalizeId(row && row.customer_id)).filter(Boolean))
+	)
+	const customerScaleMap = new Map()
+	for (const idChunk of chunkStrings(customerIds, 80)) {
+		const customerRes = await customers
+			.where({ _id: dbCmd.in(idChunk) })
+			.field({ _id: true, default_price_unit: true })
+			.get()
+		for (const doc of Array.isArray(customerRes.data) ? customerRes.data : []) {
+			customerScaleMap.set(normalizeId(doc && doc._id), resolveCustomerMoneyScale(doc))
+		}
+	}
+	const allocMap = new Map()
+	for (const row of allocationRows) {
+		const receiptId = normalizeId(row && row.receipt_id)
+		if (!receiptId) continue
+		const list = allocMap.get(receiptId) || []
+		list.push(row)
+		allocMap.set(receiptId, list)
+	}
+
+	const list = rows.map((row) => {
+		const receiptId = normalizeId(row && row._id)
+		const rowCustomerId = normalizeId(row && row.customer_id)
+		const moneyScale = customerScaleMap.get(rowCustomerId) || 2
+		const fixMoney = (value) => fixByScale(value, moneyScale)
+		const rowStatus = normalizeString(row && row.status) || 'posted'
+		const amount = fixMoney(toNumber(row && row.amount, 0))
+		const allocatedAmount = fixMoney(toNumber(row && row.allocated_amount, 0))
+		const roundingAllocatedAmount = fixMoney(toNumber(row && row.rounding_allocated_amount, 0))
+		const allocatedTotal = fixMoney(allocatedAmount + roundingAllocatedAmount)
+		const unallocatedAmount = fixMoney(toNumber(row && row.unallocated_amount, 0))
+		const targets = buildAllocationTargetSummaryRows(allocMap.get(receiptId) || [], moneyScale)
+		const allocationStatus =
+			rowStatus === 'void'
+				? 'void'
+				: receiptAllocationStatusValue(amount, allocatedTotal, unallocatedAmount, moneyScale)
+		const proofImages = normalizeProofImages(row && row.proof_images, 9)
+		const editable = rowStatus === 'posted' && allocationStatus === 'unallocated' && targets.length === 0
+		return {
+			_id: receiptId,
+			customer_id: normalizeId(row && row.customer_id),
+			customer_name: normalizeString(row && row.customer_name),
+			biz_date: normalizeDate(row && row.biz_date),
+			amount,
+			allocated_amount: allocatedAmount,
+			rounding_allocated_amount: roundingAllocatedAmount,
+			allocated_total: allocatedTotal,
+			unallocated_amount: unallocatedAmount,
+			payment_method: normalizePaymentMethod(row && row.payment_method, 'paid'),
+			note: normalizeString(row && row.note),
+			source_type: normalizeString(row && row.source_type),
+			money_scale: moneyScale,
+			proof_images: proofImages,
+			proof_images_count: proofImages.length,
+			status: rowStatus,
+			allocation_status: allocationStatus,
+			allocation_status_text: receiptAllocationStatusText(allocationStatus),
+			allocation_target_count: targets.length,
+			allocation_targets_preview: targets.slice(0, CASHIER_TARGET_PREVIEW_LIMIT),
+			editable,
+			removable: rowStatus === 'posted',
+			void_reason: normalizeString(row && row.void_reason),
+			void_at: toNumber(row && row.void_at, 0),
+			void_by: normalizeId(row && row.void_by),
+			void_by_name: normalizeString(row && row.void_by_name),
+			void_from: normalizeString(row && row.void_from),
+			created_at: toNumber(row && row.created_at, 0),
+			updated_at: toNumber(row && row.updated_at, 0)
+		}
+	})
+
+	return {
+		code: 0,
+		data: list,
+		paging: {
+			page,
+			pageSize,
+			total,
+			hasMore: page * pageSize < total
+		}
+	}
+}
+
+async function listReceiptAllocationTargetsV1(user, data) {
+	void user
+	const receiptId = normalizeId(data.receipt_id || data.receiptId)
+	if (!receiptId) return { code: 400, msg: 'receipt_id 必填' }
+	const receiptRes = await receipts.doc(receiptId).get()
+	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
+	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持查看已入账收款单' }
+	if (!isCashierReceiptSourceType(receiptDoc.source_type)) return { code: 400, msg: '该收款单不是出纳录款来源' }
+
+	const customerId = normalizeId(data.customer_id || data.customerId || receiptDoc.customer_id)
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if (customerId !== normalizeId(receiptDoc.customer_id)) return { code: 400, msg: '收款单不属于该客户' }
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { code: 404, msg: '客户不存在' }
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const pageSize = Math.min(Math.max(toNumber(data.pageSize, 50), 1), 200)
+	const page = Math.max(toNumber(data.page, 1), 1)
+
+	const allocationRows = await listReceiptAllocationRows(receiptId, customerId)
+	const summaryRows = buildAllocationTargetSummaryRows(allocationRows, moneyScale)
+	const total = summaryRows.length
+	const start = (page - 1) * pageSize
+	const list = summaryRows.slice(start, start + pageSize)
+
+	return {
+		code: 0,
+		data: list,
+		receipt: {
+			_id: receiptId,
+			customer_id: customerId,
+			customer_name: normalizeString(receiptDoc.customer_name),
+			biz_date: normalizeDate(receiptDoc.biz_date),
+			amount: fixByScale(toNumber(receiptDoc.amount, 0), moneyScale),
+			allocated_amount: fixByScale(toNumber(receiptDoc.allocated_amount, 0), moneyScale),
+			rounding_allocated_amount: fixByScale(toNumber(receiptDoc.rounding_allocated_amount, 0), moneyScale),
+			unallocated_amount: fixByScale(toNumber(receiptDoc.unallocated_amount, 0), moneyScale),
+			money_scale: moneyScale
+		},
+		paging: {
+			page,
+			pageSize,
+			total,
+			hasMore: page * pageSize < total
 		}
 	}
 }
@@ -5584,6 +6160,7 @@ async function getCustomerStatementV1(user, data) {
 				should_receive: snapshot.should_receive,
 				should_receive_effective: snapshot.should_receive_effective,
 				amount_received: snapshot.amount_received,
+				receipt_rounding_amount: snapshot.receipt_rounding_amount,
 				outstanding: snapshot.outstanding,
 				payment_status: normalizeString(doc.payment_status) || snapshot.payment_status,
 				remark: normalizeString(doc.remark),
@@ -5622,26 +6199,26 @@ async function getCustomerStatementV1(user, data) {
 		const postedAmount = fix2(toNumber(row && row.amount_received, 0))
 		const offsetAmount = fix2(toNumber(summary && summary.offset_applied_amount, 0))
 		const manualAmount = fix2(postedAmount - offsetAmount)
-			return {
-				...row,
-				posted_amount_received: postedAmount,
-				offset_applied_amount: offsetAmount,
-				manual_amount_received: manualAmount,
-				offset_sources: Array.isArray(summary && summary.offset_sources)
-					? summary.offset_sources.map((item) => ({
-						date: normalizeDate(item && item.date),
-						amount: fix2(toNumber(item && item.amount, 0))
-					}))
-					: [],
-				offset_target_amount: fix2(toNumber(targetSummary && targetSummary.offset_target_amount, 0)),
-				offset_targets: Array.isArray(targetSummary && targetSummary.offset_targets)
-					? targetSummary.offset_targets.map((item) => ({
-						date: normalizeDate(item && item.date),
-						amount: fix2(toNumber(item && item.amount, 0))
-					}))
-					: []
-			}
-		})
+		return {
+			...row,
+			posted_amount_received: postedAmount,
+			offset_applied_amount: offsetAmount,
+			manual_amount_received: manualAmount,
+			offset_sources: Array.isArray(summary && summary.offset_sources)
+				? summary.offset_sources.map((item) => ({
+					date: normalizeDate(item && item.date),
+					amount: fix2(toNumber(item && item.amount, 0))
+				}))
+				: [],
+			offset_target_amount: fix2(toNumber(targetSummary && targetSummary.offset_target_amount, 0)),
+			offset_targets: Array.isArray(targetSummary && targetSummary.offset_targets)
+				? targetSummary.offset_targets.map((item) => ({
+					date: normalizeDate(item && item.date),
+					amount: fix2(toNumber(item && item.amount, 0))
+				}))
+				: []
+		}
+	})
 
 	const receiptRes = await receipts
 		.where({ customer_id: customerId, status: 'posted' })
@@ -5658,6 +6235,7 @@ async function getCustomerStatementV1(user, data) {
 		rounding_allocated_amount: fixMoney(toNumber(row.rounding_allocated_amount, 0)),
 		unallocated_amount: fixMoney(toNumber(row.unallocated_amount, 0)),
 		payment_method: normalizePaymentMethod(row.payment_method, 'paid'),
+		source_type: normalizeString(row.source_type),
 		entry_kind: normalizeEntryKind(row.entry_kind, normalizeString(row.source_type).includes('offset') ? 'offset_credit' : 'prepay'),
 		allocation_mode: normalizeAllocationMode(row.allocation_mode, 'period'),
 		allocation_start_date: normalizeDate(row.allocation_start_date),
@@ -5681,6 +6259,7 @@ async function getCustomerStatementV1(user, data) {
 				loss_weight_kg: toNumber(doc.loss_weight_kg, null),
 				should_receive: snapshot.should_receive,
 				amount_received: snapshot.amount_received,
+				receipt_rounding_amount: snapshot.receipt_rounding_amount,
 				outstanding: snapshot.outstanding,
 				payment_status: snapshot.payment_status,
 				note: normalizeString(doc.note),
@@ -5702,6 +6281,7 @@ async function getCustomerStatementV1(user, data) {
 				rounding_amount: snapshot.rounding_amount,
 				should_receive_effective: snapshot.should_receive_effective,
 				amount_received: snapshot.amount_received,
+				receipt_rounding_amount: snapshot.receipt_rounding_amount,
 				outstanding: snapshot.outstanding,
 				payment_status: snapshot.payment_status,
 				note: normalizeString(doc.note),
@@ -5723,6 +6303,7 @@ async function getCustomerStatementV1(user, data) {
 				rounding_amount: snapshot.rounding_amount,
 				should_receive_effective: snapshot.should_receive_effective,
 				amount_received: snapshot.amount_received,
+				receipt_rounding_amount: snapshot.receipt_rounding_amount,
 				outstanding: snapshot.outstanding,
 				payment_status: snapshot.payment_status,
 				note: normalizeString(doc.note),
@@ -5786,6 +6367,7 @@ async function listCustomerStatementRowsV1(user, data) {
 			receipt_id: '',
 			amount: snapshot.should_receive,
 			amount_received: snapshot.amount_received,
+			receipt_rounding_amount: snapshot.receipt_rounding_amount,
 			outstanding: snapshot.outstanding,
 			note: normalizeString(doc.remark),
 			meta: {
@@ -5874,6 +6456,7 @@ async function listCustomerStatementRowsV1(user, data) {
 			receipt_id: '',
 			amount: snapshot.should_receive,
 			amount_received: snapshot.amount_received,
+			receipt_rounding_amount: snapshot.receipt_rounding_amount,
 			outstanding: snapshot.outstanding,
 			note: normalizeString(doc.note),
 			meta: {
@@ -5897,6 +6480,7 @@ async function listCustomerStatementRowsV1(user, data) {
 			rounding_amount: snapshot.rounding_amount,
 			should_receive_effective: snapshot.should_receive_effective,
 			amount_received: snapshot.amount_received,
+			receipt_rounding_amount: snapshot.receipt_rounding_amount,
 			outstanding: snapshot.outstanding,
 			note: normalizeString(doc.note),
 			meta: {
@@ -6008,6 +6592,11 @@ exports.main = async (event, context) => {
 	if (action === 'createReceiptV1') return createReceiptV1(user, data, requestId)
 	if (action === 'updateReceiptV1') return updateReceiptV1(user, data, requestId)
 	if (action === 'removeReceiptV1') return removeReceiptV1(user, data, requestId)
+	if (action === 'createReceiptIntakeV1') return createReceiptIntakeV1(user, data, requestId)
+	if (action === 'updateReceiptIntakeV1') return updateReceiptIntakeV1(user, data, requestId)
+	if (action === 'removeReceiptIntakeV1') return removeReceiptIntakeV1(user, data, requestId)
+	if (action === 'listReceiptIntakeV1') return listReceiptIntakeV1(user, data)
+	if (action === 'listReceiptAllocationTargetsV1') return listReceiptAllocationTargetsV1(user, data)
 	if (action === 'createPrepayEntryV1') return createPrepayEntryV1(user, data, requestId)
 	if (action === 'createOpeningDebtEntryV1') return createOpeningDebtEntryV1(user, data, requestId)
 	if (action === 'updateOpeningDebtEntryV1') return updateOpeningDebtEntryV1(user, data, requestId)

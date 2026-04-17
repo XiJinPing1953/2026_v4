@@ -1,0 +1,75 @@
+{
+  "executed_at": "2026-04-13T09:09:09.556Z",
+  "space_id": "env-00jxuffegf2n",
+  "plate": "冀A406RB",
+  "legacy_vehicle_id": "69bdedb57ae708ce6d86e636",
+  "vehicle_query": {
+    "all_total": 0,
+    "active_total": 0,
+    "inactive_total": 0,
+    "matched_vehicle": null
+  },
+  "vehicle_logs_summary": {
+    "total": 2,
+    "create_count": 2,
+    "update_count": 0,
+    "delete_like_count": 0,
+    "legacy_id_hit_count": 0
+  },
+  "filling_truck_out_no_sale": {
+    "total": 3,
+    "page_count": 3,
+    "vehicle_ids": [],
+    "latest_three": [
+      {
+        "_id": "69c8ae6e68be701c9c472234",
+        "date": "2026-03-28",
+        "bottle_no": "冀A406RB",
+        "vehicle_id": "",
+        "created_at": 1774759534888,
+        "created_at_iso": "2026-03-29T04:45:34.888Z"
+      },
+      {
+        "_id": "69c8ae4068be701c9c471f3d",
+        "date": "2026-03-20",
+        "bottle_no": "冀A406RB",
+        "vehicle_id": "",
+        "created_at": 1774759488759,
+        "created_at_iso": "2026-03-29T04:44:48.759Z"
+      },
+      {
+        "_id": "69c8ae29ad2f4ad42ebc1b21",
+        "date": "2026-03-17",
+        "bottle_no": "冀A406RB",
+        "vehicle_id": "",
+        "created_at": 1774759465509,
+        "created_at_iso": "2026-03-29T04:44:25.509Z"
+      }
+    ]
+  },
+  "legacy_id_hits": [],
+  "recent_vehicle_logs": [
+    {
+      "_id": "69c8b4c991ffaeab5774723d",
+      "created_at": 1774761161704,
+      "created_at_iso": "2026-03-29T05:12:41.704Z",
+      "username": "superadmin",
+      "action": "vehicle_create_v1",
+      "detail": {
+        "id": "69c8b4c9ad2f4ad42ebc786e"
+      },
+      "request_id": "req_mnbaz0kc_5yalck"
+    },
+    {
+      "_id": "69c8b4c95cee11b05eee98fb",
+      "created_at": 1774761161534,
+      "created_at_iso": "2026-03-29T05:12:41.534Z",
+      "username": "superadmin",
+      "action": "vehicle_create_v1",
+      "detail": {
+        "id": "69c8b4c95cee11b05eee98fa"
+      },
+      "request_id": "req_mnbaz0fg_gw326c"
+    }
+  ]
+}

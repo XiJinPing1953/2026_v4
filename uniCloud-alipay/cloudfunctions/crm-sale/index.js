@@ -3012,18 +3012,22 @@ function normalizeSettlementScope(value) {
 	return ''
 }
 
+function resolveSalePaidTotalAmount(amountReceived = 0, receiptRoundingAmount = 0) {
+	return fix2(toNumber(amountReceived, 0) + toNumber(receiptRoundingAmount, 0))
+}
+
 function matchSettlementScope(
 	scope,
 	shouldReceive,
-	amountReceived,
+	paidTotal,
 	roundingAmount = 0,
 	refundPending = null,
 	netOutstandingEffective = null
 ) {
 	if (!scope) return true
 	const should = resolveEffectiveShouldReceive(toNumber(shouldReceive, 0), toNumber(roundingAmount, 0))
-	const received = toNumber(amountReceived, 0)
-	const outstanding = fix2(should - received)
+	const paid = toNumber(paidTotal, 0)
+	const outstanding = fix2(should - paid)
 	if (scope === 'receivable_outstanding') return should > 0 && outstanding > 0
 	if (scope === 'refund_outstanding') {
 		const pending = toNumber(refundPending, NaN)
@@ -3048,10 +3052,12 @@ function matchSaleListFilters(
 	const { amounts } = computeSaleAmountsForDoc(doc)
 	const shouldReceive = toNumber(amounts.should_receive, 0)
 	const amountReceived = toNumber(doc && doc.amount_received, 0)
+	const receiptRoundingAmount = toNumber(doc && doc.receipt_rounding_amount, 0)
+	const paidTotal = resolveSalePaidTotalAmount(amountReceived, receiptRoundingAmount)
 	if (!matchSettlementScope(
 		settlementScope,
 		shouldReceive,
-		amountReceived,
+		paidTotal,
 		amounts.rounding_amount,
 		refundPending,
 		netOutstandingEffective
@@ -3241,6 +3247,8 @@ function resolveSaleOffsetPoolStats(offsetPoolStatsMap, saleId) {
 function computeSaleRefundPendingAmount({
 	shouldReceive = 0,
 	amountReceived = 0,
+	receiptRoundingAmount = 0,
+	paidTotal = null,
 	roundingAmount = 0,
 	effectiveShouldReceive = null,
 	offsetPoolEntered = 0
@@ -3251,7 +3259,11 @@ function computeSaleRefundPendingAmount({
 		: resolveEffectiveShouldReceive(toNumber(shouldReceive, 0), toNumber(roundingAmount, 0))
 	const refundShould = fix2(Math.max(0, -effectiveShould))
 	if (!(refundShould > 0)) return 0
-	const refundPaidCash = fix2(Math.max(0, -toNumber(amountReceived, 0)))
+	const paid = toNumber(paidTotal, NaN)
+	const normalizedPaid = Number.isFinite(paid)
+		? fix2(paid)
+		: resolveSalePaidTotalAmount(amountReceived, receiptRoundingAmount)
+	const refundPaidCash = fix2(Math.max(0, -normalizedPaid))
 	const offsetEntered = fix2(Math.max(0, toNumber(offsetPoolEntered, 0)))
 	return fix2(Math.max(0, refundShould - refundPaidCash - offsetEntered))
 }
@@ -3259,6 +3271,8 @@ function computeSaleRefundPendingAmount({
 function computeSaleNetOutstandingEffective({
 	shouldReceive = 0,
 	amountReceived = 0,
+	receiptRoundingAmount = 0,
+	paidTotal = null,
 	roundingAmount = 0,
 	effectiveShouldReceive = null,
 	offsetPoolEntered = 0,
@@ -3268,7 +3282,11 @@ function computeSaleNetOutstandingEffective({
 	const effectiveShould = Number.isFinite(provided)
 		? fix2(provided)
 		: resolveEffectiveShouldReceive(toNumber(shouldReceive, 0), toNumber(roundingAmount, 0))
-	const outstanding = fix2(effectiveShould - toNumber(amountReceived, 0))
+	const paid = toNumber(paidTotal, NaN)
+	const normalizedPaid = Number.isFinite(paid)
+		? fix2(paid)
+		: resolveSalePaidTotalAmount(amountReceived, receiptRoundingAmount)
+	const outstanding = fix2(effectiveShould - normalizedPaid)
 	if (outstanding < 0) {
 		if (effectiveShould < 0) {
 			const adjusted = fix2(outstanding + Math.max(toNumber(offsetPoolEntered, 0), 0))
@@ -3286,6 +3304,8 @@ function buildSaleListBatchEntries(docs = []) {
 		const shouldReceive = toNumber(row && row.should_receive, 0)
 		const roundingAmount = toNumber(row && row.rounding_amount, 0)
 		const amountReceived = toNumber(doc && doc.amount_received, 0)
+		const receiptRoundingAmount = toNumber(doc && doc.receipt_rounding_amount, 0)
+		const paidTotal = resolveSalePaidTotalAmount(amountReceived, receiptRoundingAmount)
 		const effectiveShouldReceive = resolveEffectiveShouldReceive(shouldReceive, roundingAmount)
 		return {
 			doc,
@@ -3293,6 +3313,8 @@ function buildSaleListBatchEntries(docs = []) {
 			shouldReceive,
 			roundingAmount,
 			amountReceived,
+			receiptRoundingAmount,
+			paidTotal,
 			effectiveShouldReceive
 		}
 	})
@@ -3356,6 +3378,7 @@ async function computeSaleListSummary(where, filters = {}) {
 				truck_settle_tare: true,
 				truck_settle_gross: true,
 				rounding_amount: true,
+				receipt_rounding_amount: true,
 					flow_index_prev: true,
 					flow_index_curr: true,
 					flow_volume_m3: true,
@@ -3377,7 +3400,7 @@ async function computeSaleListSummary(where, filters = {}) {
 		const offsetSaleIds = Array.from(
 			new Set(
 				entryRows
-					.filter((entry) => fix2(entry.effectiveShouldReceive - entry.amountReceived) < 0)
+					.filter((entry) => fix2(entry.effectiveShouldReceive - entry.paidTotal) < 0)
 					.map((entry) => normalizeString(entry.doc && entry.doc._id))
 					.filter(Boolean)
 			)
@@ -3392,11 +3415,14 @@ async function computeSaleListSummary(where, filters = {}) {
 				const bizMode = normalizeBizModeValue(row && row.biz_mode)
 				const shouldReceive = entry.shouldReceive
 				const amountReceived = entry.amountReceived
+				const paidTotal = entry.paidTotal
 				const saleId = normalizeString(doc && doc._id)
 				const { enteredAmount: offsetPoolEntered, allocatedAmount: offsetPoolAllocated } = resolveSaleOffsetPoolStats(offsetPoolStatsMap, saleId)
 				const refundPending = computeSaleRefundPendingAmount({
 					shouldReceive,
 					amountReceived,
+					receiptRoundingAmount: entry.receiptRoundingAmount,
+					paidTotal,
 					effectiveShouldReceive: entry.effectiveShouldReceive,
 					roundingAmount: entry.roundingAmount,
 					offsetPoolEntered
@@ -3404,6 +3430,8 @@ async function computeSaleListSummary(where, filters = {}) {
 				const netOutstandingEffective = computeSaleNetOutstandingEffective({
 					shouldReceive,
 					amountReceived,
+					receiptRoundingAmount: entry.receiptRoundingAmount,
+					paidTotal,
 					effectiveShouldReceive: entry.effectiveShouldReceive,
 					roundingAmount: entry.roundingAmount,
 					offsetPoolEntered,
@@ -3417,7 +3445,7 @@ async function computeSaleListSummary(where, filters = {}) {
 					netOutstandingEffective
 				})) continue
 				const effectiveShouldReceive = entry.effectiveShouldReceive
-				const outstanding = fix2(effectiveShouldReceive - amountReceived)
+				const outstanding = fix2(effectiveShouldReceive - paidTotal)
 				const status = normalizePaymentStatusValue(doc && doc.payment_status)
 				const netWeight = toNumber(row && row.total_net_weight, 0)
 				const bottleQuantity = computeSaleBottleQuantity(doc)
@@ -3454,11 +3482,11 @@ async function computeSaleListSummary(where, filters = {}) {
 					summary.overrefund_total = fix2(summary.overrefund_total + outstanding)
 					summary.overrefund_count += 1
 				}
-			} else if (amountReceived > 0 && outstandingCreditEffective > 0.01) {
+			} else if (paidTotal > 0 && outstandingCreditEffective > 0.01) {
 				summary.prereceive_total = fix2(summary.prereceive_total + outstandingCreditEffective)
 				summary.prereceive_count += 1
-			} else if (amountReceived < 0) {
-				summary.prerefund_total = fix2(summary.prerefund_total + Math.abs(amountReceived))
+			} else if (paidTotal < 0) {
+				summary.prerefund_total = fix2(summary.prerefund_total + Math.abs(paidTotal))
 				summary.prerefund_count += 1
 			}
 
@@ -3488,12 +3516,16 @@ async function enrichSaleRowsWithNetOutstandingEffective(rows = []) {
 		const shouldReceive = toNumber(row && row.should_receive, 0)
 		const roundingAmount = toNumber(row && row.rounding_amount, 0)
 		const amountReceived = toNumber(row && row.amount_received, 0)
+		const receiptRoundingAmount = toNumber(row && row.receipt_rounding_amount, 0)
+		const paidTotal = resolveSalePaidTotalAmount(amountReceived, receiptRoundingAmount)
 		const effectiveShouldReceive = resolveEffectiveShouldReceive(shouldReceive, roundingAmount)
 		return {
 			row,
 			shouldReceive,
 			roundingAmount,
 			amountReceived,
+			receiptRoundingAmount,
+			paidTotal,
 			effectiveShouldReceive,
 			saleId: normalizeString(row && row._id)
 		}
@@ -3501,7 +3533,7 @@ async function enrichSaleRowsWithNetOutstandingEffective(rows = []) {
 	const offsetSaleIds = Array.from(
 		new Set(
 			entries
-				.filter((entry) => fix2(entry.effectiveShouldReceive - entry.amountReceived) < 0)
+				.filter((entry) => fix2(entry.effectiveShouldReceive - entry.paidTotal) < 0)
 				.map((entry) => entry.saleId)
 				.filter(Boolean)
 		)
@@ -3514,6 +3546,8 @@ async function enrichSaleRowsWithNetOutstandingEffective(rows = []) {
 		const netOutstandingEffective = computeSaleNetOutstandingEffective({
 			shouldReceive: entry.shouldReceive,
 			amountReceived: entry.amountReceived,
+			receiptRoundingAmount: entry.receiptRoundingAmount,
+			paidTotal: entry.paidTotal,
 			roundingAmount: entry.roundingAmount,
 			effectiveShouldReceive: entry.effectiveShouldReceive,
 			offsetPoolEntered,
@@ -3617,7 +3651,7 @@ async function listV2(user, data) {
 					new Set(
 						entryRows
 							.filter((entry) => {
-								const outstanding = fix2(entry.effectiveShouldReceive - entry.amountReceived)
+								const outstanding = fix2(entry.effectiveShouldReceive - entry.paidTotal)
 								if (!(outstanding < 0)) return false
 								if (needsNetOutstandingEffective) return true
 								if (needsRefundPending) return entry.effectiveShouldReceive < 0
@@ -3643,6 +3677,8 @@ async function listV2(user, data) {
 					refundPending = computeSaleRefundPendingAmount({
 						shouldReceive: entry.shouldReceive,
 						amountReceived: entry.amountReceived,
+						receiptRoundingAmount: entry.receiptRoundingAmount,
+						paidTotal: entry.paidTotal,
 						effectiveShouldReceive: entry.effectiveShouldReceive,
 						roundingAmount: entry.roundingAmount,
 						offsetPoolEntered
@@ -3652,6 +3688,8 @@ async function listV2(user, data) {
 					netOutstandingEffective = computeSaleNetOutstandingEffective({
 						shouldReceive: entry.shouldReceive,
 						amountReceived: entry.amountReceived,
+						receiptRoundingAmount: entry.receiptRoundingAmount,
+						paidTotal: entry.paidTotal,
 						effectiveShouldReceive: entry.effectiveShouldReceive,
 						roundingAmount: entry.roundingAmount,
 						offsetPoolEntered,

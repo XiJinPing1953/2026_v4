@@ -49,6 +49,12 @@
 			}
 		},
 		{
+			"path": "pages/cashier/receipt-intake",
+			"style": {
+				"navigationBarTitleText": "出纳收款登记"
+			}
+		},
+		{
 			"path": "pages/bottle/anomaly",
 			"style": {
 				"navigationBarTitleText": "流转异常"

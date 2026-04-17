@@ -155,6 +155,7 @@
 							label="收款金额(元)"
 							:placeholder="moneyInputPlaceholder"
 							size="sm"
+							:readonly="isEditingCashierReceipt"
 							@blur="onReceiptAmountBlur"
 						/>
 						<AppInput
@@ -162,12 +163,21 @@
 							label="抹零金额(元)"
 							:placeholder="moneyInputPlaceholder"
 							size="sm"
+							:readonly="isEditingCashierReceipt"
 							@blur="onReceiptRoundingAmountBlur"
 						/>
-						<picker class="picker-block" mode="date" @change="onBizDateChange">
+						<picker class="picker-block" mode="date" :disabled="isEditingCashierReceipt" @change="onBizDateChange">
 							<AppInput v-model="receiptForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
-						<picker class="picker-block" mode="selector" :range="receiptPaymentMethodOptions" range-key="label" :value="receiptPaymentMethodIndex" @change="onReceiptPaymentMethodChange">
+						<picker
+							class="picker-block"
+							mode="selector"
+							:range="receiptPaymentMethodOptions"
+							range-key="label"
+							:value="receiptPaymentMethodIndex"
+							:disabled="isEditingCashierReceipt"
+							@change="onReceiptPaymentMethodChange"
+						>
 							<AppInput :model-value="receiptPaymentMethodLabel" label="收款方式" placeholder="请选择收款方式" readonly size="sm" />
 						</picker>
 						<picker
@@ -186,15 +196,19 @@
 						<picker v-if="receiptForm.allocationMode === 'period'" class="picker-block" mode="date" @change="onAllocationEndDateChange">
 							<AppInput v-model="receiptForm.allocationEndDate" label="分配结束日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
-						<AppInput v-model="receiptForm.note" class="grid-span-4" label="备注" placeholder="可选" size="sm" />
+						<AppInput v-model="receiptForm.note" class="grid-span-4" label="备注" placeholder="可选" size="sm" :readonly="isEditingCashierReceipt" />
 					</view>
 					<text v-if="receiptForm.allocationMode === 'period'" class="section-hint">分配口径：仅冲销所选日期区间内应收；现金超出部分自动计入预付款/冲抵池，抹零需全部落到应收目标。</text>
+					<text v-if="receiptForm.allocationMode === 'period'" class="section-hint section-hint--accent">
+						当前区间累计欠款：¥{{ formatMoney(receiptPeriodRangeOutstandingTotal) }}（{{ receiptPeriodRangeTargetCount }} 笔）
+					</text>
 					<text v-else class="section-hint">分配口径：仅冲销勾选单据；现金剩余自动计入预付款/冲抵池，抹零需全部落到勾选目标。</text>
+					<text v-if="isEditingCashierReceipt" class="section-hint section-hint--warning">当前收款单来源于出纳登记，仅支持调整分配；金额、业务日期、收款方式与备注请在“出纳收款登记”处理。</text>
 
 					<view v-if="receiptForm.allocationMode === 'checked'" class="checked-target-box">
 						<view class="checked-target-head">
 							<text>勾选待分配单据（按日期升序自动分配）</text>
-							<text>已选 {{ checkedAllocationTargetKeys.length }} 笔</text>
+							<text>已选 {{ checkedAllocationSelectedCount }} 笔 · 累计 ¥{{ formatMoney(checkedAllocationSelectedTotal) }}</text>
 						</view>
 						<checkbox-group class="checked-target-list" @change="onCheckedTargetsChange">
 							<label v-for="row in checkedTargetCandidates" :key="row.key" class="checked-target-item">
@@ -314,6 +328,9 @@
 					<text v-if="offsetAllocateForm.allocationMode === 'period'" class="section-hint">
 						分配口径：单笔来源 + 时间段。仅冲销区间内应收，剩余保留在该来源可用余额中。
 					</text>
+					<text v-if="offsetAllocateForm.allocationMode === 'period'" class="section-hint section-hint--accent">
+						当前区间累计欠款：¥{{ formatMoney(offsetPeriodRangeOutstandingTotal) }}（{{ offsetPeriodRangeTargetCount }} 笔）
+					</text>
 					<text v-else class="section-hint">
 						分配口径：单笔来源 + 勾选目标（支持多选）。仅消耗本来源可用余额，不回滚历史分配。
 					</text>
@@ -321,7 +338,7 @@
 					<view v-if="offsetAllocateForm.allocationMode === 'checked'" class="checked-target-box">
 						<view class="checked-target-head">
 							<text>勾选冲抵目标（销售/流量/历史欠款/其他费用）</text>
-							<text>已选 {{ offsetCheckedTargetKeys.length }} 笔</text>
+							<text>已选 {{ offsetCheckedTargetSelectedCount }} 笔 · 累计 ¥{{ formatMoney(offsetCheckedTargetSelectedTotal) }}</text>
 						</view>
 						<checkbox-group class="checked-target-list" @change="onOffsetCheckedTargetsChange">
 							<label v-for="row in checkedTargetCandidates" :key="`offset-${row.key}`" class="checked-target-item">
@@ -426,6 +443,7 @@
 										抹零 ¥{{ formatMoney(resolveOpeningDebtRoundingAmount(row)) }}（计费应收 ¥{{ formatMoney(resolveOpeningDebtEffectiveShouldReceive(row)) }}）
 									</text>
 									<text>已收 ¥{{ formatMoney(row.amount_received) }}</text>
+									<text v-if="toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
 									<text>未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								</view>
 							</template>
@@ -478,6 +496,7 @@
 								<view class="mini-amounts">
 									<text>应收 ¥{{ formatMoney(row.amount) }}</text>
 									<text>已收 ¥{{ formatMoney(row.amount_received) }}</text>
+									<text v-if="toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
 									<text>未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								</view>
 							</template>
@@ -521,13 +540,18 @@
 								</view>
 							</template>
 							<template #default>
+								<text v-if="receiptSourceTypeText(row.source_type || row.meta?.source_type)" class="row-detail row-detail--source">
+									来源：{{ receiptSourceTypeText(row.source_type || row.meta?.source_type) }}
+								</text>
 								<text class="row-detail">{{ receiptAllocationText(row) }}</text>
 								<text v-if="row.note" class="row-detail">{{ row.note }}</text>
 							</template>
 							<template #footer>
 								<view class="row-actions">
-									<AppButton size="sm" kind="ghost" @click="onEditReceipt(row)">编辑</AppButton>
-									<AppButton size="sm" kind="outline" @click="onRemoveReceipt(row)">删除</AppButton>
+									<AppButton size="sm" kind="ghost" @click="onEditReceipt(row)">
+										{{ isCashierReceiptRow(row) ? '调整分配' : '编辑' }}
+									</AppButton>
+									<AppButton size="sm" kind="outline" :disabled="isCashierReceiptRow(row)" @click="onRemoveReceipt(row)">删除</AppButton>
 								</view>
 							</template>
 						</AppListItem>
@@ -664,6 +688,7 @@
 							<view class="mini-amounts">
 								<text>应收 ¥{{ formatMoney(row.should_receive) }}</text>
 								<text>实收 ¥{{ formatMoney(row.amount_received) }}</text>
+								<text v-if="toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
 								<text>未收 ¥{{ formatMoney(row.outstanding) }}</text>
 							</view>
 						</template>
@@ -707,6 +732,7 @@
 										抹零 ¥{{ formatMoney(resolveSaleRoundingAmount(row)) }}（计费应收 ¥{{ formatMoney(resolveSaleEffectiveShouldReceive(row)) }}）
 									</text>
 									<text>实收 ¥{{ formatMoney(resolveSaleOffsetApplied(row) > 0 ? resolveSaleManualReceived(row) : resolveSalePostedReceived(row)) }}</text>
+									<text v-if="toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
 									<text v-if="resolveSaleOffsetApplied(row) > 0" class="mini-amounts__offset">
 										{{ formatSaleOffsetLine(row) }}
 									</text>
@@ -775,15 +801,19 @@
 						<template #right>
 							<view class="mini-amounts">
 								<text v-if="row.row_type === 'sale'">应收 ¥{{ formatMoney(row.amount) }}</text>
+								<text v-if="row.row_type === 'sale' && toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
 								<text v-if="row.row_type === 'sale'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								<text v-if="row.row_type === 'flow_settlement'">应收 ¥{{ formatMoney(row.amount) }}</text>
+								<text v-if="row.row_type === 'flow_settlement' && toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
 								<text v-if="row.row_type === 'flow_settlement'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								<text v-if="row.row_type === 'opening_debt'">应收 ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'opening_debt' && resolveOpeningDebtRoundingAmount(row) > 0" class="mini-amounts__rounding">
 									抹零 ¥{{ formatMoney(resolveOpeningDebtRoundingAmount(row)) }}（计费应收 ¥{{ formatMoney(resolveOpeningDebtEffectiveShouldReceive(row)) }}）
 								</text>
+								<text v-if="row.row_type === 'opening_debt' && toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
 								<text v-if="row.row_type === 'opening_debt'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								<text v-if="row.row_type === 'other_fee'">应收 ¥{{ formatMoney(row.amount) }}</text>
+								<text v-if="row.row_type === 'other_fee' && toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
 								<text v-if="row.row_type === 'other_fee'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								<text v-if="row.row_type === 'receipt'">收款 ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'receipt' && toNumber(row.rounding_allocated_amount, 0) > 0">抹零 ¥{{ formatMoney(row.rounding_allocated_amount) }}</text>
@@ -889,6 +919,7 @@ const offsetPoolRows = ref([])
 const selectedOffsetReceipts = ref([])
 const quickSceneApplied = ref(false)
 const editingReceiptId = ref('')
+const editingReceiptSourceType = ref('')
 const editingFlowSettlementId = ref('')
 const editingOpeningDebtId = ref('')
 const editingOtherFeeId = ref('')
@@ -1059,10 +1090,14 @@ const offsetPoolTotalPages = computed(() => {
 	return pages > 0 ? pages : 1
 })
 const isEditingReceipt = computed(() => Boolean(normalizeString(editingReceiptId.value)))
+const isEditingCashierReceipt = computed(() => isCashierReceiptSourceType(editingReceiptSourceType.value))
 const isEditingFlowSettlement = computed(() => Boolean(normalizeString(editingFlowSettlementId.value)))
 const isEditingOpeningDebt = computed(() => Boolean(normalizeString(editingOpeningDebtId.value)))
 const isEditingOtherFee = computed(() => Boolean(normalizeString(editingOtherFeeId.value)))
-const receiptPrimaryActionLabel = computed(() => (isEditingReceipt.value ? '保存收款单' : '登记收款'))
+const receiptPrimaryActionLabel = computed(() => {
+	if (!isEditingReceipt.value) return '登记收款'
+	return isEditingCashierReceipt.value ? '保存分配' : '保存收款单'
+})
 const flowPrimaryActionLabel = computed(() => (isEditingFlowSettlement.value ? '保存结算单' : '生成结算单'))
 const openingDebtPrimaryActionLabel = computed(() => (isEditingOpeningDebt.value ? '保存欠款' : '登记欠款'))
 const otherFeePrimaryActionLabel = computed(() => (isEditingOtherFee.value ? '保存费用' : '登记费用'))
@@ -1264,6 +1299,99 @@ const checkedTargetCandidates = computed(() => {
 		return a.key < b.key ? -1 : 1
 	})
 })
+const checkedTargetOutstandingMap = computed(() => {
+	const map = new Map()
+	;(Array.isArray(checkedTargetCandidates.value) ? checkedTargetCandidates.value : []).forEach((row) => {
+		const key = normalizeString(row?.key)
+		if (!key) return
+		map.set(key, fix2(toNumber(row?.outstanding, 0)))
+	})
+	return map
+})
+const checkedAllocationSelectedCount = computed(() => {
+	const keys = Array.isArray(checkedAllocationTargetKeys.value) ? checkedAllocationTargetKeys.value : []
+	const uniqueKeys = Array.from(new Set(keys.map((item) => normalizeString(item)).filter(Boolean)))
+	return uniqueKeys.filter((key) => checkedTargetOutstandingMap.value.has(key)).length
+})
+const checkedAllocationSelectedTotal = computed(() => {
+	const keys = Array.isArray(checkedAllocationTargetKeys.value) ? checkedAllocationTargetKeys.value : []
+	const uniqueKeys = Array.from(new Set(keys.map((item) => normalizeString(item)).filter(Boolean)))
+	const total = uniqueKeys.reduce((sum, key) => {
+		if (!checkedTargetOutstandingMap.value.has(key)) return sum
+		return sum + toNumber(checkedTargetOutstandingMap.value.get(key), 0)
+	}, 0)
+	return fix2(total)
+})
+const receiptPeriodRangeSummary = computed(() => {
+	const start = normalizeDate(receiptForm.allocationStartDate)
+	const end = normalizeDate(receiptForm.allocationEndDate)
+	if (!start || !end || start > end) {
+		return {
+			total: 0,
+			count: 0
+		}
+	}
+	const rows = Array.isArray(checkedTargetCandidates.value) ? checkedTargetCandidates.value : []
+	let total = 0
+	let count = 0
+	rows.forEach((row) => {
+		const date = normalizeDate(row?.date)
+		if (!date) return
+		if (date < start || date > end) return
+		const outstanding = fix2(toNumber(row?.outstanding, 0))
+		if (!(outstanding > 0)) return
+		total += outstanding
+		count += 1
+	})
+	return {
+		total: fix2(total),
+		count
+	}
+})
+const receiptPeriodRangeOutstandingTotal = computed(() => receiptPeriodRangeSummary.value.total)
+const receiptPeriodRangeTargetCount = computed(() => receiptPeriodRangeSummary.value.count)
+const offsetCheckedTargetSelectedCount = computed(() => {
+	const keys = Array.isArray(offsetCheckedTargetKeys.value) ? offsetCheckedTargetKeys.value : []
+	const uniqueKeys = Array.from(new Set(keys.map((item) => normalizeString(item)).filter(Boolean)))
+	return uniqueKeys.filter((key) => checkedTargetOutstandingMap.value.has(key)).length
+})
+const offsetCheckedTargetSelectedTotal = computed(() => {
+	const keys = Array.isArray(offsetCheckedTargetKeys.value) ? offsetCheckedTargetKeys.value : []
+	const uniqueKeys = Array.from(new Set(keys.map((item) => normalizeString(item)).filter(Boolean)))
+	const total = uniqueKeys.reduce((sum, key) => {
+		if (!checkedTargetOutstandingMap.value.has(key)) return sum
+		return sum + toNumber(checkedTargetOutstandingMap.value.get(key), 0)
+	}, 0)
+	return fix2(total)
+})
+const offsetPeriodRangeSummary = computed(() => {
+	const start = normalizeDate(offsetAllocateForm.allocationStartDate)
+	const end = normalizeDate(offsetAllocateForm.allocationEndDate)
+	if (!start || !end || start > end) {
+		return {
+			total: 0,
+			count: 0
+		}
+	}
+	const rows = Array.isArray(checkedTargetCandidates.value) ? checkedTargetCandidates.value : []
+	let total = 0
+	let count = 0
+	rows.forEach((row) => {
+		const date = normalizeDate(row?.date)
+		if (!date) return
+		if (date < start || date > end) return
+		const outstanding = fix2(toNumber(row?.outstanding, 0))
+		if (!(outstanding > 0)) return
+		total += outstanding
+		count += 1
+	})
+	return {
+		total: fix2(total),
+		count
+	}
+})
+const offsetPeriodRangeOutstandingTotal = computed(() => offsetPeriodRangeSummary.value.total)
+const offsetPeriodRangeTargetCount = computed(() => offsetPeriodRangeSummary.value.count)
 const selectedOffsetReceiptIds = computed(() => {
 	return Array.from(
 		new Set(
@@ -1525,21 +1653,52 @@ function paymentMethodText(value) {
 	return '现金'
 }
 
+function receiptSourceTypeText(value) {
+	const sourceType = normalizeString(value)
+	if (!sourceType) return ''
+	if (sourceType === 'cashier_intake') return '出纳登记'
+	if (sourceType === 'customer_statement' || sourceType === 'customer_statement_manual') return '客户对账登记'
+	if (sourceType === 'customer_prepay_manual') return '预付录入'
+	if (sourceType === 'customer_offset_credit_manual_compensation') return '冲抵池录入'
+	if (sourceType === 'offset_manual_allocate') return '冲抵分配'
+	if (sourceType === 'sale_auto_prepay' || sourceType === 'flow_auto_prepay') return '自动冲销'
+	if (sourceType.startsWith('sale_offset_credit')) return '销售冲抵入池'
+	return sourceType
+}
+
+function isCashierReceiptSourceType(value) {
+	return normalizeString(value) === 'cashier_intake'
+}
+
+function isCashierReceiptRow(row) {
+	return isCashierReceiptSourceType(row?.source_type || row?.meta?.source_type)
+}
+
 function receiptAllocationText(row) {
 	const roundingAllocated = toNumber(row?.rounding_allocated_amount, 0)
 	const amount = toNumber(row?.amount, 0)
 	const mode = normalizeReceiptAllocationMode(row?.allocation_mode)
+	const sourceType = normalizeString(row?.source_type || row?.meta?.source_type)
+	const sourceText = receiptSourceTypeText(sourceType)
 	if (mode === 'checked') {
 		const count = Array.isArray(row?.allocation_targets) ? row.allocation_targets.length : 0
 		const modeText = `分配模式：勾选分配（${count} 笔目标）`
-		if (roundingAllocated > 0) return `收款 ¥${formatMoney(amount)}，抹零 ¥${formatMoney(roundingAllocated)} · ${modeText}`
-		return modeText
+		if (roundingAllocated > 0) {
+			return sourceText
+				? `收款 ¥${formatMoney(amount)}，抹零 ¥${formatMoney(roundingAllocated)} · 来源 ${sourceText} · ${modeText}`
+				: `收款 ¥${formatMoney(amount)}，抹零 ¥${formatMoney(roundingAllocated)} · ${modeText}`
+		}
+		return sourceText ? `${modeText} · 来源 ${sourceText}` : modeText
 	}
 	const start = normalizeDate(row?.allocation_start_date)
 	const end = normalizeDate(row?.allocation_end_date)
 	const modeText = start && end ? `分配模式：时间段 ${start} ~ ${end}` : '分配模式：时间段'
-	if (roundingAllocated > 0) return `收款 ¥${formatMoney(amount)}，抹零 ¥${formatMoney(roundingAllocated)} · ${modeText}`
-	return modeText
+	if (roundingAllocated > 0) {
+		return sourceText
+			? `收款 ¥${formatMoney(amount)}，抹零 ¥${formatMoney(roundingAllocated)} · 来源 ${sourceText} · ${modeText}`
+			: `收款 ¥${formatMoney(amount)}，抹零 ¥${formatMoney(roundingAllocated)} · ${modeText}`
+	}
+	return sourceText ? `${modeText} · 来源 ${sourceText}` : modeText
 }
 
 function showConfirmModal({ title, content, confirmText = '确认' }) {
@@ -1814,6 +1973,7 @@ function toggleReceiptRecent() {
 
 function resetReceiptForm() {
 	editingReceiptId.value = ''
+	editingReceiptSourceType.value = ''
 	const today = todayYmd()
 	receiptForm.amount = ''
 	receiptForm.roundingAmount = ''
@@ -2736,8 +2896,7 @@ async function onCreateAutoReceipt() {
 				allocationEndDate: allocationPayload.allocationEndDate,
 				allocationTargets: allocationPayload.allocationTargets,
 				paymentMethod: receiptForm.paymentMethod,
-				note: receiptForm.note,
-				sourceType: 'customer_statement'
+				note: receiptForm.note
 			})
 			: await createReceiptV1({
 				customerId: recordId.value,
@@ -2773,6 +2932,7 @@ function onEditReceipt(row) {
 	if (!receiptId) return
 	activeOperationTab.value = 'receipt'
 	editingReceiptId.value = receiptId
+	editingReceiptSourceType.value = normalizeString(row?.source_type || row?.meta?.source_type)
 	receiptForm.amount = formatMoney(row?.amount)
 	const roundingAmount = toNumber(row?.rounding_amount, 0)
 	receiptForm.roundingAmount = roundingAmount > 0 ? formatMoney(roundingAmount) : ''
@@ -2803,12 +2963,19 @@ function onEditReceipt(row) {
 	}
 	previewPlan.value = null
 	editableAllocations.value = []
-	uni.showToast({ title: '已加载收款单，修改后点保存收款单', icon: 'none' })
+	uni.showToast({
+		title: isCashierReceiptRow(row) ? '已加载出纳收款单，仅可调整分配' : '已加载收款单，修改后点保存收款单',
+		icon: 'none'
+	})
 }
 
 async function onRemoveReceipt(row) {
 	const receiptId = normalizeString(row?._id)
 	if (!receiptId || !recordId.value) return
+	if (isCashierReceiptRow(row)) {
+		uni.showToast({ title: '出纳登记来源收款单请在出纳登记中作废处理', icon: 'none' })
+		return
+	}
 	const confirmed = await showConfirmModal({
 		title: '删除收款单',
 		content: '删除后会回滚该收款单分配，确认继续吗？',
@@ -2824,7 +2991,7 @@ async function onRemoveReceipt(row) {
 		return
 	}
 	if (normalizeString(editingReceiptId.value) === receiptId) resetReceiptForm()
-	uni.showToast({ title: res?.msg || '收款单已删除', icon: 'success' })
+	uni.showToast({ title: res?.msg || '收款单已作废', icon: 'success' })
 	await refreshAll()
 }
 
@@ -3041,6 +3208,8 @@ function statementRowDetail(row) {
 		if (roundingAllocated > 0) {
 			parts.push(`收款 ¥${formatMoney(row?.amount)}，抹零 ¥${formatMoney(roundingAllocated)}`)
 		}
+		const sourceText = receiptSourceTypeText(row?.meta?.source_type)
+		if (sourceText) parts.push(`来源 ${sourceText}`)
 		const method = normalizeString(row?.meta?.payment_method)
 		if (method) parts.push(`方式 ${paymentMethodText(method)}`)
 		const startDate = normalizeString(row?.meta?.allocation_start_date)
@@ -3062,7 +3231,8 @@ function statementRowDetail(row) {
 		const sourceType = normalizeString(row?.meta?.source_type)
 		const kind = normalizeString(row?.meta?.allocate_kind)
 		const kindText = kind === 'rounding' ? '抹零分配' : '收款分配'
-		if (sourceType) return `${kindText} · 来源 ${sourceType}`
+		const sourceText = receiptSourceTypeText(sourceType)
+		if (sourceText) return `${kindText} · 来源 ${sourceText}`
 		return kindText
 	}
 	if (row?.row_type === 'opening_debt') {
@@ -3659,6 +3829,21 @@ onMounted(() => {
 	margin-top: 12rpx;
 }
 
+.section-hint--warning {
+	color: #b45309;
+	font-weight: 600;
+}
+
+.section-hint--accent {
+	color: #0f766e;
+	font-weight: 700;
+}
+
+.row-detail--source {
+	color: #0f766e;
+	font-weight: 700;
+}
+
 .preview-box {
 	margin-top: 12rpx;
 	padding: 12rpx;
@@ -3802,6 +3987,11 @@ onMounted(() => {
 }
 
 .mini-amounts__rounding {
+	color: #0f766e;
+	font-weight: 700;
+}
+
+.mini-amounts__receipt-rounding {
 	color: #0f766e;
 	font-weight: 700;
 }

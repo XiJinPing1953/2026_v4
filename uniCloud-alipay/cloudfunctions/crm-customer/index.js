@@ -14,6 +14,7 @@ const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 const customers = db.collection('crm_customers')
 const bottles = db.collection('crm_bottles')
+const receipts = db.collection('crm_customer_receipts')
 const PAGE_ACTION_RULES = {
 	listV1: [{ pagePath: '/pages/customer/list', action: 'view' }],
 	getV1: [{ pagePath: '/pages/customer/list', action: 'view' }, { pagePath: '/pages/customer/edit', action: 'view' }],
@@ -90,6 +91,70 @@ function parseDateEnd(value) {
 	return Number.isFinite(timestamp) ? timestamp : 0
 }
 
+function normalizeBizDate(value) {
+	const text = normalizeString(value)
+	if (!text) return ''
+	return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : ''
+}
+
+function normalizeBoolean(value) {
+	return value === true || value === 1 || value === '1' || String(value).toLowerCase() === 'true'
+}
+
+function chunkStrings(values = [], size = 180) {
+	const source = Array.isArray(values) ? values : []
+	const chunkSize = Math.max(Number(size) || 180, 1)
+	const result = []
+	for (let index = 0; index < source.length; index += chunkSize) {
+		result.push(source.slice(index, index + chunkSize))
+	}
+	return result
+}
+
+function buildIdFilterOr(field, ids = []) {
+	const chunks = chunkStrings(
+		(Array.isArray(ids) ? ids : []).map((item) => normalizeString(item)).filter(Boolean),
+		180
+	)
+	if (!chunks.length) return null
+	if (chunks.length === 1) return { [field]: dbCmd.in(chunks[0]) }
+	return dbCmd.or(chunks.map((chunk) => ({ [field]: dbCmd.in(chunk) })))
+}
+
+async function listCashierUnallocatedCustomerIds({ dateStart = '', dateEnd = '' } = {}) {
+	const whereParts = [
+		{ status: 'posted' },
+		{ source_type: 'cashier_intake' },
+		{ unallocated_amount: dbCmd.gt(0.0001) }
+	]
+	if (dateStart) whereParts.push({ biz_date: dbCmd.gte(dateStart) })
+	if (dateEnd) whereParts.push({ biz_date: dbCmd.lte(dateEnd) })
+	const where = whereParts.length === 1 ? whereParts[0] : dbCmd.and(whereParts)
+	const customerIdSet = new Set()
+	let page = 1
+	const pageSize = 200
+	let hasMore = true
+	let guard = 0
+	while (hasMore) {
+		guard += 1
+		if (guard > 300) break
+		const res = await receipts
+			.where(where)
+			.field({ customer_id: true })
+			.skip((page - 1) * pageSize)
+			.limit(pageSize)
+			.get()
+		const rows = Array.isArray(res.data) ? res.data : []
+		rows.forEach((row) => {
+			const customerId = normalizeString(row && row.customer_id)
+			if (customerId) customerIdSet.add(customerId)
+		})
+		hasMore = rows.length === pageSize
+		page += 1
+	}
+	return Array.from(customerIdSet)
+}
+
 function toNumber(value, fallback = null) {
 	if (value === '' || value == null) return fallback
 	const num = Number(value)
@@ -158,6 +223,13 @@ async function listV1(user, data) {
 	const balanceType = normalizeBalanceType(data.balance_type ?? data.balanceType)
 	const updatedDateStart = parseDateStart(data.updated_date_start ?? data.updatedDateStart ?? data.date_start ?? data.dateStart)
 	const updatedDateEnd = parseDateEnd(data.updated_date_end ?? data.updatedDateEnd ?? data.date_end ?? data.dateEnd)
+	const cashierUnallocatedOnly = normalizeBoolean(data.cashier_unallocated_only ?? data.cashierUnallocatedOnly)
+	const cashierDateStart = normalizeBizDate(
+		data.cashier_unallocated_date_start ?? data.cashierUnallocatedDateStart ?? data.biz_date_start ?? data.bizDateStart
+	)
+	const cashierDateEnd = normalizeBizDate(
+		data.cashier_unallocated_date_end ?? data.cashierUnallocatedDateEnd ?? data.biz_date_end ?? data.bizDateEnd
+	)
 	const page = Math.max(Number(data.page || 1) || 1, 1)
 	const pageSize = Math.min(
 		Math.max(Number(data.pageSize ?? data.limit ?? 20) || 20, 1),
@@ -171,6 +243,9 @@ async function listV1(user, data) {
 		rawSummaryIgnoreActive === 'true'
 	if (updatedDateStart && updatedDateEnd && updatedDateStart > updatedDateEnd) {
 		return { code: 400, msg: '更新时间范围不合法' }
+	}
+	if (cashierDateStart && cashierDateEnd && cashierDateStart > cashierDateEnd) {
+		return { code: 400, msg: '出纳业务日期范围不合法' }
 	}
 
 	let activeWhere = null
@@ -201,18 +276,37 @@ async function listV1(user, data) {
 		updatedWhere = { updated_at: dbCmd.lte(updatedDateEnd) }
 	}
 
+	let cashierUnallocatedWhere = null
+	if (cashierUnallocatedOnly) {
+		const customerIds = await listCashierUnallocatedCustomerIds({
+			dateStart: cashierDateStart,
+			dateEnd: cashierDateEnd
+		})
+		if (!customerIds.length) {
+			return {
+				code: 0,
+				data: [],
+				total: 0,
+				paging: { page, pageSize, total: 0, hasMore: false },
+				summary: { total: 0, active: 0, inactive: 0, priced: 0 }
+			}
+		}
+		cashierUnallocatedWhere = buildIdFilterOr('_id', customerIds)
+	}
+
 	const buildWhere = ({ ignoreActive = false } = {}) => {
 		const parts = []
 		if (!ignoreActive && activeWhere) parts.push(activeWhere)
 		if (keywordWhere) parts.push(keywordWhere)
 		if (balanceWhere) parts.push(balanceWhere)
 		if (updatedWhere) parts.push(updatedWhere)
+		if (cashierUnallocatedWhere) parts.push(cashierUnallocatedWhere)
 		if (!parts.length) return {}
 		if (parts.length === 1) return parts[0]
 		return dbCmd.and(parts)
 	}
 	const mergeWhere = (base, extra, hasBaseFilter) => (hasBaseFilter ? dbCmd.and([base, extra]) : extra)
-	const hasListFilter = Boolean(activeWhere || keywordWhere || balanceWhere || updatedWhere)
+	const hasListFilter = Boolean(activeWhere || keywordWhere || balanceWhere || updatedWhere || cashierUnallocatedWhere)
 
 	const where = buildWhere()
 
@@ -230,7 +324,7 @@ async function listV1(user, data) {
 
 	const summaryWhere = buildWhere({ ignoreActive: summaryIgnoreActive })
 	const hasSummaryFilter = summaryIgnoreActive
-		? Boolean(keywordWhere || balanceWhere || updatedWhere)
+		? Boolean(keywordWhere || balanceWhere || updatedWhere || cashierUnallocatedWhere)
 		: hasListFilter
 	const summaryTotalRes = await customers.where(summaryWhere).count()
 	const summaryTotal = Number(summaryTotalRes.total || 0)

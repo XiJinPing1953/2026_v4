@@ -1028,12 +1028,19 @@ function getSettlementState(item) {
 	const shouldReceive = Number(item?.should_receive)
 	const roundingAmount = Number(item?.rounding_amount)
 	const amountReceived = Number(item?.amount_received)
+	const receiptRoundingAmount = Number(item?.receipt_rounding_amount)
 	if (!Number.isFinite(shouldReceive) || !Number.isFinite(amountReceived)) return { text: '', className: '' }
 	const effectiveShouldReceive = resolveEffectiveShouldReceive(
 		shouldReceive,
 		Number.isFinite(roundingAmount) ? roundingAmount : 0
 	)
-	const outstanding = Number((effectiveShouldReceive - amountReceived).toFixed(2))
+	const paidTotal = Number(
+		(amountReceived + (Number.isFinite(receiptRoundingAmount) ? receiptRoundingAmount : 0)).toFixed(2)
+	)
+	const netOutstandingEffective = Number(item?.net_outstanding_effective)
+	const outstanding = Number.isFinite(netOutstandingEffective)
+		? Number(netOutstandingEffective.toFixed(2))
+		: Number((effectiveShouldReceive - paidTotal).toFixed(2))
 	if (effectiveShouldReceive > 0) {
 		if (outstanding > 0) return { text: '未收', className: 'price-trend--down' }
 		if (outstanding < 0) return { text: '超收', className: 'price-trend--up' }
@@ -1044,8 +1051,8 @@ function getSettlementState(item) {
 		if (outstanding > 0) return { text: '超退', className: 'price-trend--down' }
 		return { text: '已退款', className: 'price-trend--up' }
 	}
-	if (amountReceived > 0) return { text: '预收', className: 'price-trend--up' }
-	if (amountReceived < 0) return { text: '预退', className: 'price-trend--warn' }
+	if (paidTotal > 0) return { text: '预收', className: 'price-trend--up' }
+	if (paidTotal < 0) return { text: '预退', className: 'price-trend--warn' }
 	return { text: '结清', className: 'price-trend--flat' }
 }
 
@@ -1223,14 +1230,21 @@ function buildExportCsv(rows) {
 		const shouldReceive = Number(row?.should_receive)
 		const roundingAmount = Number(row?.rounding_amount)
 		const amountReceived = Number(row?.amount_received)
+		const receiptRoundingAmount = Number(row?.receipt_rounding_amount)
+		const paidTotal = Number(
+			(
+				(Number.isFinite(amountReceived) ? amountReceived : 0)
+				+ (Number.isFinite(receiptRoundingAmount) ? receiptRoundingAmount : 0)
+			).toFixed(2)
+		)
 		const netOutstandingEffective = Number(row?.net_outstanding_effective)
 		const effectiveShouldReceive = Number.isFinite(shouldReceive)
 			? resolveEffectiveShouldReceive(shouldReceive, Number.isFinite(roundingAmount) ? roundingAmount : 0)
 			: null
 		const outstanding = Number.isFinite(netOutstandingEffective)
 			? Number(netOutstandingEffective.toFixed(2))
-			: (Number.isFinite(effectiveShouldReceive) && Number.isFinite(amountReceived)
-				? Number((effectiveShouldReceive - amountReceived).toFixed(2))
+			: (Number.isFinite(effectiveShouldReceive)
+				? Number((effectiveShouldReceive - paidTotal).toFixed(2))
 				: null)
 		const outItems = Array.isArray(row?.out_items) ? row.out_items : []
 		const backItems = Array.isArray(row?.back_items) ? row.back_items : []

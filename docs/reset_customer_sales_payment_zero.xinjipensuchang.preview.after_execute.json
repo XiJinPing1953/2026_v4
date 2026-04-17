@@ -1,0 +1,143 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "customer": {
+    "_id": "694045c0adf6dbd796e261c8",
+    "name": "辛集喷塑厂",
+    "phone": "18903318796"
+  },
+  "execute": false,
+  "void_receipts_first": false,
+  "started_at": "2026-04-08T05:20:14.330Z",
+  "sale_total": 14,
+  "sales": [
+    {
+      "_id": "695e0bbf466d416255c85e6d",
+      "date": "2026-01-05",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69643b5b816a3fc798584067",
+      "date": "2026-01-11",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "696ae905337a9f895d032228",
+      "date": "2026-01-17",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69741c19eef9cbdef0599e40",
+      "date": "2026-01-24",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69800b1421392995663f1a6c",
+      "date": "2026-02-02",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbaffe89d8371762435bf0",
+      "date": "2026-02-25",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb003f7ac1a41a1adc9e3",
+      "date": "2026-03-04",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb0088a2e952d8f49bbb7",
+      "date": "2026-03-08",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb00ff7ac1a41a1adcb77",
+      "date": "2026-03-12",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb2c536bc4bac6fd4c7c1",
+      "date": "2026-03-17",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69c8af7359063e84c13ebe4a",
+      "date": "2026-03-22",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69c8afc0ad2f4ad42ebc33b1",
+      "date": "2026-03-27",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69ccbd1cd51308f649799326",
+      "date": "2026-04-01",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69d459e9ea3400db03b4aad0",
+      "date": "2026-04-06",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    }
+  ],
+  "failed": [],
+  "updated_at": "2026-04-08T05:20:15.253Z",
+  "success_total": 0
+}

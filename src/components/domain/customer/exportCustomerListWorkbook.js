@@ -69,6 +69,38 @@ function buildWorksheetXml(name, rows = []) {
 	return `<Worksheet ss:Name="${escapeXml(name)}"><Table>${body}</Table></Worksheet>`
 }
 
+function sanitizeSheetName(value) {
+	const text = normalizeString(value).replace(/[:\\/?*\[\]]/g, ' ').replace(/\s+/g, ' ')
+	if (!text) return '客户明细账'
+	return text
+}
+
+function trimSheetName(name, maxLen = 31) {
+	const text = sanitizeSheetName(name)
+	if (text.length <= maxLen) return text
+	return text.slice(0, Math.max(1, maxLen))
+}
+
+function buildUniqueSheetName(baseName, usedNames = new Set()) {
+	let next = trimSheetName(baseName, 31)
+	if (!usedNames.has(next)) {
+		usedNames.add(next)
+		return next
+	}
+	for (let index = 2; index <= 999; index += 1) {
+		const suffix = `(${index})`
+		const head = trimSheetName(baseName, 31 - suffix.length)
+		next = `${head}${suffix}`
+		if (!usedNames.has(next)) {
+			usedNames.add(next)
+			return next
+		}
+	}
+	const fallback = `明细账${Date.now()}`
+	usedNames.add(fallback)
+	return fallback
+}
+
 function summarizeRows(rows = []) {
 	const source = Array.isArray(rows) ? rows : []
 	const summary = {
@@ -100,6 +132,10 @@ function buildOverviewRows(payload = {}) {
 	const activeLabel = normalizeString(payload?.filters?.activeLabel) || '全部状态'
 	const balanceLabel = normalizeString(payload?.filters?.balanceLabel) || '全部余额'
 	const updatedDateRangeLabel = normalizeString(payload?.filters?.updatedDateRangeLabel) || '全部时间'
+	const cashierUnallocatedLabel = normalizeString(payload?.filters?.cashierUnallocatedLabel) || '全部客户'
+	const cashierDateRangeLabel = normalizeString(payload?.filters?.cashierDateRangeLabel) || '全部时间'
+	const statementDateStart = normalizeString(payload?.filters?.statementDateStart) || '不限'
+	const statementDateEnd = normalizeString(payload?.filters?.statementDateEnd) || '不限'
 	const exportAt = formatDateTime(Date.now())
 
 	return [
@@ -110,6 +146,9 @@ function buildOverviewRows(payload = {}) {
 		[{ type: 'String', value: '状态筛选' }, { type: 'String', value: activeLabel }],
 		[{ type: 'String', value: '余额方向' }, { type: 'String', value: balanceLabel }],
 		[{ type: 'String', value: '更新时间范围' }, { type: 'String', value: updatedDateRangeLabel }],
+		[{ type: 'String', value: '出纳未分配筛选' }, { type: 'String', value: cashierUnallocatedLabel }],
+		[{ type: 'String', value: '出纳日期范围' }, { type: 'String', value: cashierDateRangeLabel }],
+		[{ type: 'String', value: '明细账导出区间' }, { type: 'String', value: `${statementDateStart} ~ ${statementDateEnd}` }],
 		[{ type: 'String', value: '导出范围' }, { type: 'String', value: `当前筛选全量（${summary.total} 客户）` }],
 		[{ type: 'String', value: '' }],
 		[{ type: 'String', value: '统计项' }, { type: 'String', value: '数值' }],
@@ -162,11 +201,107 @@ function buildDetailRows(payload = {}) {
 	return rows
 }
 
-export function buildCustomerListWorkbookXml(payload = {}) {
-	const sheets = [
-		buildWorksheetXml('总览汇总', buildOverviewRows(payload)),
-		buildWorksheetXml('客户明细', buildDetailRows(payload))
+function buildCustomerStatementDetailRows(payload = {}) {
+	const customerName = normalizeString(payload?.customer?.name) || '客户'
+	const periodFrom = normalizeString(payload?.period?.date_from || payload?.period?.dateFrom)
+	const periodTo = normalizeString(payload?.period?.date_to || payload?.period?.dateTo)
+	const openingBalance = fix2(payload?.opening_balance)
+	const openingRounding = fix2(payload?.opening_rounding)
+	const closingBalance = fix2(payload?.closing_balance)
+	const totals = payload?.totals || {}
+	const rows = Array.isArray(payload?.rows) ? payload.rows : []
+
+	const result = [
+		[{ type: 'String', value: `${customerName} 明细账` }],
+		[{ type: 'String', value: `区间：${periodFrom || '-'} ~ ${periodTo || '-'}` }],
+		[{ type: 'String', value: '' }],
+		[
+			{ type: 'String', value: '日期' },
+			{ type: 'String', value: '重量(kg)' },
+			{ type: 'String', value: '单价(元/kg)' },
+			{ type: 'String', value: '应收(元)' },
+			{ type: 'String', value: '收款(元)' },
+			{ type: 'String', value: '抹零(元)' },
+			{ type: 'String', value: '余额(元)' },
+			{ type: 'String', value: '备注' }
+		],
+		[
+			{ type: 'String', value: '期初余额' },
+			{ type: 'String', value: '/' },
+			{ type: 'String', value: '/' },
+			{ type: 'String', value: '' },
+			{ type: 'String', value: '' },
+			{ type: 'Number', value: openingRounding },
+			{ type: 'Number', value: openingBalance },
+			{ type: 'String', value: '' }
+		]
 	]
+
+	rows.forEach((row) => {
+		const weightValue = row?.weight_kg == null || row?.weight_kg === '' ? '/' : fix2(row?.weight_kg)
+		const unitPriceValue = row?.unit_price == null || row?.unit_price === '' ? '/' : fix2(row?.unit_price)
+		result.push([
+			{ type: 'String', value: normalizeString(row?.biz_date) },
+			typeof weightValue === 'number' ? { type: 'Number', value: weightValue } : { type: 'String', value: weightValue },
+			typeof unitPriceValue === 'number' ? { type: 'Number', value: unitPriceValue } : { type: 'String', value: unitPriceValue },
+			{ type: 'Number', value: fix2(row?.amount) },
+			{ type: 'Number', value: fix2(row?.receipt) },
+			{ type: 'Number', value: fix2(row?.rounding) },
+			{ type: 'Number', value: fix2(row?.balance) },
+			{ type: 'String', value: normalizeString(row?.note) }
+		])
+	})
+
+	result.push([
+		{ type: 'String', value: '合计' },
+		{ type: 'Number', value: fix2(totals?.weight_kg) },
+		{ type: 'String', value: '/' },
+		{ type: 'Number', value: fix2(totals?.amount) },
+		{ type: 'Number', value: fix2(totals?.receipt) },
+		{ type: 'Number', value: fix2(totals?.rounding) },
+		{ type: 'Number', value: closingBalance },
+		{ type: 'String', value: '' }
+	])
+	return result
+}
+
+function buildStatementErrorRows(payload = {}) {
+	const source = Array.isArray(payload?.statementSheetErrors) ? payload.statementSheetErrors : []
+	const rows = [
+		[
+			{ type: 'String', value: '客户ID' },
+			{ type: 'String', value: '客户名称' },
+			{ type: 'String', value: '失败原因' }
+		]
+	]
+	source.forEach((item) => {
+		rows.push([
+			{ type: 'String', value: normalizeString(item?.customer_id) },
+			{ type: 'String', value: normalizeString(item?.customer_name) },
+			{ type: 'String', value: normalizeString(item?.msg) || '未知错误' }
+		])
+	})
+	return rows
+}
+
+export function buildCustomerListWorkbookXml(payload = {}) {
+	const sheets = []
+	const usedSheetNames = new Set()
+	const pushSheet = (name, rows) => {
+		const uniqueName = buildUniqueSheetName(name, usedSheetNames)
+		sheets.push(buildWorksheetXml(uniqueName, rows))
+	}
+	pushSheet('总览汇总', buildOverviewRows(payload))
+	pushSheet('客户明细', buildDetailRows(payload))
+	const statementSheets = Array.isArray(payload?.statementSheets) ? payload.statementSheets : []
+	statementSheets.forEach((sheet, index) => {
+		const customerName = normalizeString(sheet?.customer?.name) || `客户${index + 1}`
+		pushSheet(`明细账-${customerName}`, buildCustomerStatementDetailRows(sheet))
+	})
+	const statementSheetErrors = Array.isArray(payload?.statementSheetErrors) ? payload.statementSheetErrors : []
+	if (statementSheetErrors.length) {
+		pushSheet('明细失败', buildStatementErrorRows({ statementSheetErrors }))
+	}
 	return [
 		'<?xml version="1.0"?>',
 		'<?mso-application progid="Excel.Sheet"?>',
@@ -185,11 +320,18 @@ export function buildCustomerListExportFileName(payload = {}) {
 	const activeLabel = sanitizeFilePart(payload?.filters?.activeLabel || '全部状态')
 	const balanceLabel = sanitizeFilePart(payload?.filters?.balanceLabel || '全部余额')
 	const updatedDateRangeLabel = sanitizeFilePart(payload?.filters?.updatedDateRangeLabel || '全部时间')
+	const cashierUnallocatedLabel = sanitizeFilePart(payload?.filters?.cashierUnallocatedLabel || '全部客户')
+	const cashierDateRangeLabel = sanitizeFilePart(payload?.filters?.cashierDateRangeLabel || '全部时间')
+	const statementDateStart = sanitizeFilePart(payload?.filters?.statementDateStart || '起')
+	const statementDateEnd = sanitizeFilePart(payload?.filters?.statementDateEnd || '止')
 	const parts = ['客户列表导出']
 	if (keyword) parts.push(`关键词-${keyword}`)
 	parts.push(`状态-${activeLabel || '全部状态'}`)
 	parts.push(`余额-${balanceLabel || '全部余额'}`)
 	parts.push(`时间-${updatedDateRangeLabel || '全部时间'}`)
+	parts.push(`出纳未分配-${cashierUnallocatedLabel || '全部客户'}`)
+	parts.push(`出纳日期-${cashierDateRangeLabel || '全部时间'}`)
+	parts.push(`明细区间-${statementDateStart}_${statementDateEnd}`)
 	parts.push(formatNowForFile())
 	return `${parts.join('_')}.xls`
 }

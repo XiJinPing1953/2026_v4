@@ -26,6 +26,10 @@
 							<AppIcon name="wallet" size="24rpx" />
 							<text>客户对账</text>
 						</view>
+						<view v-if="canView('/pages/cashier/receipt-intake')" class="nav-item" @click="go('/pages/cashier/receipt-intake')">
+							<AppIcon name="wallet" size="24rpx" />
+							<text>出纳收款登记</text>
+						</view>
 						<view v-if="canView('/pages/bottle/list')" class="nav-item" @click="go('/pages/bottle/list')">
 							<AppIcon name="bottle" size="24rpx" />
 							<text>钢瓶档案</text>
@@ -250,6 +254,10 @@
 							<view v-if="canView('/pages/customer/list')" class="nav-grid-item" @click="go('/pages/customer/list?scene=statement')">
 								<view class="nav-icon bg-finance"><AppIcon name="wallet" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">客户对账</text>
+							</view>
+							<view v-if="canView('/pages/cashier/receipt-intake')" class="nav-grid-item" @click="go('/pages/cashier/receipt-intake')">
+								<view class="nav-icon bg-finance"><AppIcon name="wallet" color="#fff" size="30rpx" /></view>
+								<text class="nav-text">出纳收款登记</text>
 							</view>
 							<view v-if="canView('/pages/bottle/list')" class="nav-grid-item" @click="go('/pages/bottle/list')">
 								<view class="nav-icon bg-asset"><AppIcon name="bottle" color="#fff" size="30rpx" /></view>

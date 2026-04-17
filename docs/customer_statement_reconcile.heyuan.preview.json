@@ -1,0 +1,107 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "execute": false,
+  "xlsx": "docs/2026042026.xlsx",
+  "customer": {
+    "_id": "694045c0adf6dbd796e261fe",
+    "name": "赫远皮革北厂-王全民",
+    "phone": "13930412279"
+  },
+  "ledger": {
+    "date_from": "2026-01-01",
+    "date_to": "2026-04-04",
+    "opening_balance": 27370,
+    "closing_balance": 36008,
+    "amount_total": 66083,
+    "receipt_total": 57445,
+    "rows_count": 54
+  },
+  "before": {
+    "summary": {
+      "opening_account": 27370,
+      "opening_system": 0,
+      "opening_diff": 27370,
+      "closing_account": 36008,
+      "closing_system": 64715,
+      "closing_diff": -28707,
+      "amount_diff_total": 1368,
+      "receipt_diff_total": 57445,
+      "check_delta": -28707
+    },
+    "day_diff_count": 3,
+    "day_diffs": [
+      {
+        "date": "2026-01-20",
+        "account_amount": 0,
+        "system_amount": 0,
+        "diff_amount": 0,
+        "account_receipt": 27370,
+        "system_receipt": 0,
+        "diff_receipt": 27370
+      },
+      {
+        "date": "2026-01-22",
+        "account_amount": 1368,
+        "system_amount": 0,
+        "diff_amount": 1368,
+        "account_receipt": 1368,
+        "system_receipt": 0,
+        "diff_receipt": 1368
+      },
+      {
+        "date": "2026-02-13",
+        "account_amount": 0,
+        "system_amount": 0,
+        "diff_amount": 0,
+        "account_receipt": 28707,
+        "system_receipt": 0,
+        "diff_receipt": 28707
+      }
+    ]
+  },
+  "execute_result": null,
+  "after": {
+    "summary": {
+      "opening_account": 27370,
+      "opening_system": 0,
+      "opening_diff": 27370,
+      "closing_account": 36008,
+      "closing_system": 64715,
+      "closing_diff": -28707,
+      "amount_diff_total": 1368,
+      "receipt_diff_total": 57445,
+      "check_delta": -28707
+    },
+    "day_diff_count": 3,
+    "day_diffs": [
+      {
+        "date": "2026-01-20",
+        "account_amount": 0,
+        "system_amount": 0,
+        "diff_amount": 0,
+        "account_receipt": 27370,
+        "system_receipt": 0,
+        "diff_receipt": 27370
+      },
+      {
+        "date": "2026-01-22",
+        "account_amount": 1368,
+        "system_amount": 0,
+        "diff_amount": 1368,
+        "account_receipt": 1368,
+        "system_receipt": 0,
+        "diff_receipt": 1368
+      },
+      {
+        "date": "2026-02-13",
+        "account_amount": 0,
+        "system_amount": 0,
+        "diff_amount": 0,
+        "account_receipt": 28707,
+        "system_receipt": 0,
+        "diff_receipt": 28707
+      }
+    ]
+  },
+  "updated_at": "2026-04-08T07:36:02.232Z"
+}

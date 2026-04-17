@@ -135,6 +135,13 @@
 						:expected-offset-applied="expectedOffsetAppliedAmount"
 						:final-amount-received="finalAmountReceivedPreview"
 					/>
+						<view v-if="recordId" class="settlement-external-note">
+							<view class="settlement-external-note__row">
+								<text class="settlement-external-note__label">收款抹零（客户对账）</text>
+								<text class="settlement-external-note__value">¥{{ externalReceiptRoundingAmount.toFixed(2) }}</text>
+							</view>
+							<text class="settlement-external-note__hint">该金额来自客户对账分配，仅用于结清与未收判断。</text>
+						</view>
 				</AppSection>
 				<AppSection v-else title="对账说明">
 					<view class="settlement-mode-note">
@@ -252,6 +259,7 @@ const originBottleSnapshot = ref({ out: [], back: [], deposit: [] })
 const ticketImages = ref([])
 const offsetCreditLoading = ref(false)
 const offsetCreditAvailable = ref(0)
+const externalReceiptRounding = ref(0)
 let offsetCreditFetchSeq = 0
 
 const showBottleBlocks = computed(() => form.value.bizMode === 'bottle')
@@ -307,6 +315,10 @@ const manualAmountReceived = computed(() => {
 	const num = Number(settlement.value?.amountReceived)
 	return Number.isFinite(num) ? fix2(num) : 0
 })
+const externalReceiptRoundingAmount = computed(() => {
+	const num = Number(externalReceiptRounding.value)
+	return Number.isFinite(num) && num > 0 ? fix2(num) : 0
+})
 const normalizedOffsetCreditAvailable = computed(() => {
 	const num = Number(offsetCreditAvailable.value)
 	return Number.isFinite(num) && num > 0 ? fix2(num) : 0
@@ -314,12 +326,18 @@ const normalizedOffsetCreditAvailable = computed(() => {
 const expectedOffsetAppliedAmount = computed(() => {
 	if (!showSettlementBlocks.value || !settlement.value?.applyOffsetCredit) return 0
 	if (effectiveShouldReceive.value <= 0) return 0
-	const outstanding = fix2(effectiveShouldReceive.value - manualAmountReceived.value)
+	const outstanding = fix2(
+		effectiveShouldReceive.value - manualAmountReceived.value - externalReceiptRoundingAmount.value
+	)
 	if (outstanding <= 0) return 0
 	return fix2(Math.min(normalizedOffsetCreditAvailable.value, outstanding))
 })
-const finalAmountReceivedPreview = computed(() => fix2(manualAmountReceived.value + expectedOffsetAppliedAmount.value))
-const autoPaymentStatus = computed(() => resolvePaymentStatusByAmount(effectiveShouldReceive.value, finalAmountReceivedPreview.value))
+const finalAmountReceivedPreview = computed(() =>
+	fix2(manualAmountReceived.value + externalReceiptRoundingAmount.value + expectedOffsetAppliedAmount.value)
+)
+const autoPaymentStatus = computed(() =>
+	resolvePaymentStatusByAmount(effectiveShouldReceive.value, finalAmountReceivedPreview.value)
+)
 
 const depositSummaryHint = computed(() => {
 	const dateText = form.value.date ? `截至${form.value.date}` : '截至当前'
@@ -615,6 +633,7 @@ async function loadDetail(id) {
 	const data = await fetchDetail(id)
 	if (!data) return
 	const doc = data
+	externalReceiptRounding.value = Math.max(toNumber(doc.receipt_rounding_amount, 0), 0)
 	form.value = {
 		date: doc.date || '',
 		customerId: doc.customer_id || '',
@@ -1458,6 +1477,41 @@ function buildBottleFlowWarningContent(result) {
 	border: 1rpx solid #dbeafe;
 	font-size: 22rpx;
 	color: #1d4ed8;
+	line-height: 1.5;
+}
+
+.settlement-external-note {
+	margin-top: 14rpx;
+	padding: 14rpx 16rpx;
+	border-radius: 14rpx;
+	background: #f8fafc;
+	border: 1rpx solid #e2e8f0;
+	display: flex;
+	flex-direction: column;
+	gap: 8rpx;
+}
+
+.settlement-external-note__row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12rpx;
+}
+
+.settlement-external-note__label {
+	font-size: 22rpx;
+	color: #475569;
+}
+
+.settlement-external-note__value {
+	font-size: 24rpx;
+	font-weight: 700;
+	color: #0f766e;
+}
+
+.settlement-external-note__hint {
+	font-size: 20rpx;
+	color: #64748b;
 	line-height: 1.5;
 }
 

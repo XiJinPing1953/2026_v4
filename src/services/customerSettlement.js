@@ -75,6 +75,81 @@ export async function removeReceiptV1(params = {}) {
 	})
 }
 
+export async function createReceiptIntakeV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'createReceiptIntakeV1',
+		data: {
+			customer_id: params.customerId || params.customer_id || '',
+			amount: params.amount,
+			biz_date: params.bizDate || params.biz_date || '',
+			payment_method: params.paymentMethod || params.payment_method || 'cash',
+			proof_images: Array.isArray(params.proofImages || params.proof_images)
+				? (params.proofImages || params.proof_images)
+				: [],
+			note: params.note || '',
+			source_type: params.sourceType || params.source_type || 'cashier_intake',
+			source_id: params.sourceId || params.source_id || ''
+		}
+	})
+}
+
+export async function updateReceiptIntakeV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'updateReceiptIntakeV1',
+		data: {
+			receipt_id: params.receiptId || params.receipt_id || params._id || '',
+			customer_id: params.customerId || params.customer_id || '',
+			amount: params.amount,
+			biz_date: params.bizDate || params.biz_date || '',
+			payment_method: params.paymentMethod || params.payment_method || '',
+			proof_images: Array.isArray(params.proofImages || params.proof_images)
+				? (params.proofImages || params.proof_images)
+				: [],
+			note: params.note || '',
+			source_type: params.sourceType || params.source_type || '',
+			source_id: params.sourceId || params.source_id || ''
+		}
+	})
+}
+
+export async function removeReceiptIntakeV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'removeReceiptIntakeV1',
+		data: {
+			receipt_id: params.receiptId || params.receipt_id || params._id || '',
+			customer_id: params.customerId || params.customer_id || '',
+			reason: params.reason || '',
+			void_reason: params.voidReason || params.void_reason || ''
+		}
+	})
+}
+
+export async function listReceiptIntakeV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'listReceiptIntakeV1',
+		data: {
+			customer_id: params.customerId || params.customer_id || '',
+			date_from: params.dateFrom || params.date_from || '',
+			date_to: params.dateTo || params.date_to || '',
+			include_void: Boolean(params.includeVoid ?? params.include_void),
+			page: params.page || 1,
+			pageSize: params.pageSize || 20
+		}
+	})
+}
+
+export async function listReceiptAllocationTargetsV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'listReceiptAllocationTargetsV1',
+		data: {
+			receipt_id: params.receiptId || params.receipt_id || '',
+			customer_id: params.customerId || params.customer_id || '',
+			page: params.page || 1,
+			pageSize: params.pageSize || 50
+		}
+	})
+}
+
 export async function confirmAllocationV1(params = {}) {
 	return callCloud('crm-customer-settlement', {
 		action: 'confirmAllocationV1',

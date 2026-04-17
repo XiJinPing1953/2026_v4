@@ -1,0 +1,54 @@
+{
+  "executed_at": "2026-04-13T09:33:19.799Z",
+  "space_id": "env-00jxuffegf2n",
+  "export_file": "/Users/wangbo/Downloads/2026_v4/docs/20260413171622104be0af.json",
+  "counts": {
+    "exported_total": 18,
+    "current_total": 20,
+    "only_export_count": 0,
+    "only_current_count": 2,
+    "common_diff_count": 0,
+    "same_plate_different_id_count": 0
+  },
+  "only_in_export": [],
+  "only_in_current": [
+    {
+      "_id": "69c8b4c9ad2f4ad42ebc786e",
+      "plate_no": "冀A300AN",
+      "status": "在用"
+    },
+    {
+      "_id": "69c8b4c95cee11b05eee98fa",
+      "plate_no": "冀A77K99",
+      "status": "在用"
+    }
+  ],
+  "field_differences_on_common_ids": [],
+  "same_plate_different_id": [],
+  "target_vehicle_check": {
+    "plate_no": "冀A406RB",
+    "export_row": {
+      "_id": "69bdedb57ae708ce6d86e636",
+      "plate_no": "冀A406RB",
+      "name": "",
+      "type": "",
+      "station_id": "",
+      "status": "在用",
+      "insurance_due_date": "",
+      "inspection_due_date": "",
+      "remark": ""
+    },
+    "current_row": {
+      "_id": "69bdedb57ae708ce6d86e636",
+      "plate_no": "冀A406RB",
+      "name": "",
+      "type": "",
+      "station_id": "",
+      "status": "在用",
+      "insurance_due_date": "",
+      "inspection_due_date": "",
+      "remark": "",
+      "is_active": true
+    }
+  }
+}

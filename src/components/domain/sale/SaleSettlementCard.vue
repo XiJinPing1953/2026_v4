@@ -200,7 +200,7 @@ const applyOffsetHintText = computed(() => {
 	if (props.offsetCreditLoading) return '冲抵款查询中...'
 	const available = offsetCreditAvailableNumber.value.toFixed(2)
 	if (applyOffsetCredit.value && expectedOffsetAppliedNumber.value > 0) {
-		return `当前可用 ¥${available}，预计冲抵 ¥${expectedOffsetAppliedNumber.value.toFixed(2)}，最终实收 ¥${finalAmountReceivedNumber.value.toFixed(2)}`
+		return `当前可用 ¥${available}，预计冲抵 ¥${expectedOffsetAppliedNumber.value.toFixed(2)}，最终冲销 ¥${finalAmountReceivedNumber.value.toFixed(2)}`
 	}
 	if (applyOffsetCredit.value) {
 		return `当前可用 ¥${available}，本单暂无可冲抵欠款`

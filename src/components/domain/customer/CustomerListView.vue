@@ -134,6 +134,55 @@
 							size="sm"
 						/>
 					</picker>
+					<picker
+						v-if="isStatementEntryMode"
+						class="picker-block"
+						mode="selector"
+						:range="cashierUnallocatedOptions"
+						range-key="label"
+						@change="onCashierUnallocatedChange"
+					>
+						<AppInput
+							:model-value="cashierUnallocatedLabel"
+							label="出纳未分配"
+							placeholder="全部客户"
+							prefix-icon="wallet"
+							disabled
+							size="sm"
+						/>
+					</picker>
+					<picker
+						v-if="isStatementEntryMode"
+						class="picker-block"
+						mode="date"
+						:value="filters.cashierDateStart"
+						@change="onCashierDateStartChange"
+					>
+						<AppInput
+							:model-value="filters.cashierDateStart"
+							label="出纳日期从"
+							placeholder="YYYY-MM-DD"
+							prefix-icon="calendar"
+							disabled
+							size="sm"
+						/>
+					</picker>
+					<picker
+						v-if="isStatementEntryMode"
+						class="picker-block"
+						mode="date"
+						:value="filters.cashierDateEnd"
+						@change="onCashierDateEndChange"
+					>
+						<AppInput
+							:model-value="filters.cashierDateEnd"
+							label="出纳日期至"
+							placeholder="YYYY-MM-DD"
+							prefix-icon="calendar"
+							disabled
+							size="sm"
+						/>
+					</picker>
 				</view>
 
 				<view v-if="filterChips.length" class="filter-chips">
@@ -231,6 +280,7 @@ import AppStatCard from '@/components/base/AppStatCard.vue'
 import { useQuery } from '@/composables/useQuery'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { listCustomersV1 } from '@/services/customer'
+import { exportCustomerStatementV1 } from '@/services/customerSettlement'
 import { downloadWorkbookFile } from '@/components/domain/customer/statement/exportWorkbook'
 import {
 	buildCustomerListWorkbookXml,
@@ -255,7 +305,10 @@ const filters = reactive({
 	activeIndex: 0,
 	balanceIndex: 0,
 	updatedDateStart: '',
-	updatedDateEnd: ''
+	updatedDateEnd: '',
+	cashierUnallocatedIndex: 0,
+	cashierDateStart: '',
+	cashierDateEnd: ''
 })
 const showSuggestions = ref(false)
 const suggestions = ref([])
@@ -273,6 +326,10 @@ const balanceOptions = [
 	{ label: '应收欠款', value: 'receivable' },
 	{ label: '预付余额', value: 'prepay' },
 	{ label: '已结清', value: 'settled' }
+]
+const cashierUnallocatedOptions = [
+	{ label: '全部客户', value: 'all' },
+	{ label: '有未分配出纳款', value: 'unallocated' }
 ]
 
 const { canPageAction, canViewPage } = useAuthGuard()
@@ -298,6 +355,15 @@ const updatedDateRangeLabel = computed(() => {
 	if (!start && !end) return '全部时间'
 	return `${start || '不限'}~${end || '不限'}`
 })
+const cashierUnallocatedLabel = computed(() => {
+	return cashierUnallocatedOptions[filters.cashierUnallocatedIndex]?.label || '全部客户'
+})
+const cashierDateRangeLabel = computed(() => {
+	const start = filters.cashierDateStart
+	const end = filters.cashierDateEnd
+	if (!start && !end) return '全部时间'
+	return `${start || '不限'}~${end || '不限'}`
+})
 
 const subtitle = computed(() => {
 	if (isStatementEntryMode.value) {
@@ -320,6 +386,12 @@ const filterChips = computed(() => {
 	if (isStatementEntryMode.value && (filters.updatedDateStart || filters.updatedDateEnd)) {
 		chips.push({ key: 'updatedDateRange', label: `时间: ${updatedDateRangeLabel.value}` })
 	}
+	if (isStatementEntryMode.value && filters.cashierUnallocatedIndex > 0) {
+		chips.push({ key: 'cashierUnallocated', label: `出纳未分配: ${cashierUnallocatedLabel.value}` })
+	}
+	if (isStatementEntryMode.value && filters.cashierUnallocatedIndex > 0 && (filters.cashierDateStart || filters.cashierDateEnd)) {
+		chips.push({ key: 'cashierDateRange', label: `出纳日期: ${cashierDateRangeLabel.value}` })
+	}
 	return chips
 })
 
@@ -330,6 +402,11 @@ function clearFilterChip(key) {
 	if (key === 'updatedDateRange') {
 		filters.updatedDateStart = ''
 		filters.updatedDateEnd = ''
+	}
+	if (key === 'cashierUnallocated') filters.cashierUnallocatedIndex = 0
+	if (key === 'cashierDateRange') {
+		filters.cashierDateStart = ''
+		filters.cashierDateEnd = ''
 	}
 	onSearch(true)
 }
@@ -383,12 +460,16 @@ function customerUnitPriceText(item) {
 }
 
 function buildListParams(page = 1, pageSize = 50) {
+	const shouldFilterCashierUnallocated = isStatementEntryMode.value && filters.cashierUnallocatedIndex > 0
 	return {
 		keyword: filters.keyword,
 		is_active: buildIsActiveParam(),
 		balance_type: buildBalanceTypeParam(),
 		updated_date_start: isStatementEntryMode.value ? filters.updatedDateStart : '',
 		updated_date_end: isStatementEntryMode.value ? filters.updatedDateEnd : '',
+		cashier_unallocated_only: shouldFilterCashierUnallocated,
+		cashier_unallocated_date_start: shouldFilterCashierUnallocated ? filters.cashierDateStart : '',
+		cashier_unallocated_date_end: shouldFilterCashierUnallocated ? filters.cashierDateEnd : '',
 		page,
 		pageSize,
 		summaryIgnoreActive: true
@@ -434,7 +515,7 @@ const { loading, run: fetchList } = useQuery(
 		cacheTTL: 15000,
 		throttleMs: 300,
 		cacheKey: () =>
-			`customer:list:${normalizedEntryMode.value}:${filters.keyword}:${filters.activeIndex}:${filters.balanceIndex}:${filters.updatedDateStart}:${filters.updatedDateEnd}:${pager.page}:${pager.pageSize}`
+			`customer:list:${normalizedEntryMode.value}:${filters.keyword}:${filters.activeIndex}:${filters.balanceIndex}:${filters.updatedDateStart}:${filters.updatedDateEnd}:${filters.cashierUnallocatedIndex}:${filters.cashierDateStart}:${filters.cashierDateEnd}:${pager.page}:${pager.pageSize}`
 	}
 )
 
@@ -490,15 +571,26 @@ async function onExport() {
 			uni.showToast({ title: '没有可导出的数据', icon: 'none' })
 			return
 		}
+		const statementPeriod = resolveStatementExportPeriod()
+		const statementExportEnabled = isStatementEntryMode.value && canViewStatement.value
+		const { statementSheets, statementSheetErrors } = statementExportEnabled
+			? await fetchCustomerStatementSheetsForExport(rows, statementPeriod)
+			: { statementSheets: [], statementSheetErrors: [] }
 		const workbookText = buildCustomerListWorkbookXml({
 			rows,
+			statementSheets,
+			statementSheetErrors,
 			filters: {
 				keyword: filters.keyword,
 				activeLabel: activeLabel.value,
 				balanceLabel: balanceLabel.value,
 				updatedDateStart: filters.updatedDateStart,
 				updatedDateEnd: filters.updatedDateEnd,
-				updatedDateRangeLabel: updatedDateRangeLabel.value
+				updatedDateRangeLabel: updatedDateRangeLabel.value,
+				cashierUnallocatedLabel: cashierUnallocatedLabel.value,
+				cashierDateRangeLabel: cashierDateRangeLabel.value,
+				statementDateStart: statementPeriod.dateFrom,
+				statementDateEnd: statementPeriod.dateTo
 			}
 		})
 		const fileName = buildCustomerListExportFileName({
@@ -508,7 +600,11 @@ async function onExport() {
 				balanceLabel: balanceLabel.value,
 				updatedDateStart: filters.updatedDateStart,
 				updatedDateEnd: filters.updatedDateEnd,
-				updatedDateRangeLabel: updatedDateRangeLabel.value
+				updatedDateRangeLabel: updatedDateRangeLabel.value,
+				cashierUnallocatedLabel: cashierUnallocatedLabel.value,
+				cashierDateRangeLabel: cashierDateRangeLabel.value,
+				statementDateStart: statementPeriod.dateFrom,
+				statementDateEnd: statementPeriod.dateTo
 			}
 		})
 		const downloaded = await downloadWorkbookFile(workbookText, fileName)
@@ -516,7 +612,12 @@ async function onExport() {
 			uni.showToast({ title: '当前端暂不支持导出，请联系管理员', icon: 'none', duration: 2800 })
 			return
 		}
-		uni.showToast({ title: `已导出${rows.length}条`, icon: 'success' })
+		const errorCount = Number(statementSheetErrors?.length || 0)
+		if (errorCount > 0) {
+			uni.showToast({ title: `已导出${rows.length}客户，${errorCount}个客户明细失败（见失败sheet）`, icon: 'none', duration: 3000 })
+		} else {
+			uni.showToast({ title: `已导出${rows.length}条`, icon: 'success' })
+		}
 	} catch (err) {
 		uni.showToast({ title: err?.message || '导出失败', icon: 'none', duration: 2800 })
 	} finally {
@@ -531,6 +632,9 @@ function onReset() {
 	filters.balanceIndex = 0
 	filters.updatedDateStart = ''
 	filters.updatedDateEnd = ''
+	filters.cashierUnallocatedIndex = 0
+	filters.cashierDateStart = ''
+	filters.cashierDateEnd = ''
 	suggestions.value = []
 	showSuggestions.value = false
 	onSearch(true)
@@ -546,6 +650,13 @@ function onBalanceChange(e) {
 	if (!isStatementEntryMode.value) return
 	const idx = Number(e?.detail?.value)
 	filters.balanceIndex = Number.isFinite(idx) ? idx : 0
+	onSearch(true)
+}
+
+function onCashierUnallocatedChange(e) {
+	if (!isStatementEntryMode.value) return
+	const idx = Number(e?.detail?.value)
+	filters.cashierUnallocatedIndex = Number.isFinite(idx) ? idx : 0
 	onSearch(true)
 }
 
@@ -575,6 +686,107 @@ function onUpdatedDateEndChange(e) {
 	filters.updatedDateEnd = normalizeDateInput(e?.detail?.value)
 	normalizeUpdatedDateRangeOrder()
 	onSearch(true)
+}
+
+function normalizeCashierDateRangeOrder() {
+	if (!filters.cashierDateStart || !filters.cashierDateEnd) return
+	if (filters.cashierDateStart <= filters.cashierDateEnd) return
+	const from = filters.cashierDateStart
+	filters.cashierDateStart = filters.cashierDateEnd
+	filters.cashierDateEnd = from
+	uni.showToast({ title: '已自动调整出纳日期范围', icon: 'none' })
+}
+
+function onCashierDateStartChange(e) {
+	if (!isStatementEntryMode.value) return
+	filters.cashierDateStart = normalizeDateInput(e?.detail?.value)
+	normalizeCashierDateRangeOrder()
+	onSearch(true)
+}
+
+function onCashierDateEndChange(e) {
+	if (!isStatementEntryMode.value) return
+	filters.cashierDateEnd = normalizeDateInput(e?.detail?.value)
+	normalizeCashierDateRangeOrder()
+	onSearch(true)
+}
+
+function todayYmd() {
+	const now = new Date()
+	const y = now.getFullYear()
+	const m = String(now.getMonth() + 1).padStart(2, '0')
+	const d = String(now.getDate()).padStart(2, '0')
+	return `${y}-${m}-${d}`
+}
+
+function currentYearStartYmd() {
+	const now = new Date()
+	return `${now.getFullYear()}-01-01`
+}
+
+function resolveStatementExportPeriod() {
+	const today = todayYmd()
+	const cashierStart = normalizeDateInput(filters.cashierDateStart)
+	const cashierEnd = normalizeDateInput(filters.cashierDateEnd)
+	if (cashierStart || cashierEnd) {
+		return {
+			dateFrom: cashierStart || currentYearStartYmd(),
+			dateTo: cashierEnd || today
+		}
+	}
+	const updatedStart = normalizeDateInput(filters.updatedDateStart)
+	const updatedEnd = normalizeDateInput(filters.updatedDateEnd)
+	if (updatedStart || updatedEnd) {
+		return {
+			dateFrom: updatedStart || currentYearStartYmd(),
+			dateTo: updatedEnd || today
+		}
+	}
+	return {
+		dateFrom: currentYearStartYmd(),
+		dateTo: today
+	}
+}
+
+async function fetchCustomerStatementSheetsForExport(rows = [], period = { dateFrom: '', dateTo: '' }) {
+	const source = Array.isArray(rows) ? rows : []
+	const statementSheets = []
+	const statementSheetErrors = []
+	for (const row of source) {
+		const customerId = normalizeString(row?._id)
+		if (!customerId) continue
+		try {
+			const res = await exportCustomerStatementV1({
+				customerId,
+				dateFrom: period.dateFrom,
+				dateTo: period.dateTo
+			})
+			if (res?.code !== 0 || !res?.data) {
+				statementSheetErrors.push({
+					customer_id: customerId,
+					customer_name: normalizeString(row?.name),
+					msg: normalizeString(res?.msg) || '导出接口失败'
+				})
+				continue
+			}
+			statementSheets.push({
+				customer: res.data.customer || { _id: customerId, name: normalizeString(row?.name) },
+				period: res.data.period || { date_from: period.dateFrom, date_to: period.dateTo },
+				opening_balance: res.data.opening_balance,
+				opening_rounding: res.data.opening_rounding,
+				rows: Array.isArray(res.data.rows) ? res.data.rows : [],
+				totals: res.data.totals || {},
+				closing_balance: res.data.closing_balance
+			})
+		} catch (err) {
+			statementSheetErrors.push({
+				customer_id: customerId,
+				customer_name: normalizeString(row?.name),
+				msg: normalizeString(err?.message) || '导出请求异常'
+			})
+		}
+	}
+	return { statementSheets, statementSheetErrors }
 }
 
 function onKeywordInput(value) {

@@ -1,0 +1,103 @@
+{
+  "executed_at": "2026-04-13T09:02:47.401Z",
+  "space_id": "env-00jxuffegf2n",
+  "keyword": "冀A406RB",
+  "normalized": "冀A406RB",
+  "results": [
+    {
+      "scenario": "all",
+      "request": {
+        "keyword": "冀A406RB",
+        "page": 1,
+        "pageSize": 200
+      },
+      "code": 0,
+      "total": 0,
+      "page_count": 0,
+      "matched_count": 0,
+      "matched_rows": [],
+      "summary": {
+        "total": 0,
+        "active": 0,
+        "inactive": 0,
+        "with_remark": 0
+      }
+    },
+    {
+      "scenario": "active",
+      "request": {
+        "keyword": "冀A406RB",
+        "is_active": true,
+        "page": 1,
+        "pageSize": 200
+      },
+      "code": 0,
+      "total": 0,
+      "page_count": 0,
+      "matched_count": 0,
+      "matched_rows": [],
+      "summary": {
+        "total": 0,
+        "active": 0,
+        "inactive": 0,
+        "with_remark": 0
+      }
+    },
+    {
+      "scenario": "inactive",
+      "request": {
+        "keyword": "冀A406RB",
+        "is_active": false,
+        "page": 1,
+        "pageSize": 200
+      },
+      "code": 0,
+      "total": 0,
+      "page_count": 0,
+      "matched_count": 0,
+      "matched_rows": [],
+      "summary": {
+        "total": 0,
+        "active": 0,
+        "inactive": 0,
+        "with_remark": 0
+      }
+    },
+    {
+      "scenario": "all_no_keyword_page1",
+      "request": {
+        "page": 1,
+        "pageSize": 200
+      },
+      "code": 0,
+      "total": 19,
+      "page_count": 19,
+      "matched_count": 0,
+      "matched_rows": [],
+      "summary": {
+        "total": 19,
+        "active": 19,
+        "inactive": 0,
+        "with_remark": 2
+      }
+    },
+    {
+      "scenario": "all_no_keyword_page2",
+      "request": {
+        "page": 2,
+        "pageSize": 200
+      },
+      "code": 0,
+      "total": 19,
+      "page_count": 0,
+      "matched_count": 0,
+      "matched_rows": [],
+      "summary": {
+        "total": 19,
+        "active": 19,
+        "inactive": 0,
+        "with_remark": 2
+      }
+    }
+  ]
+}

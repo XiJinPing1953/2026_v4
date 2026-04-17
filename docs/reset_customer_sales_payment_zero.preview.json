@@ -1,0 +1,484 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "customer": {
+    "_id": "694045c0adf6dbd796e261f7",
+    "name": "小份菜（上东城）",
+    "phone": "13483198888"
+  },
+  "execute": false,
+  "started_at": "2026-04-07T09:06:26.838Z",
+  "sale_total": 52,
+  "sales": [
+    {
+      "_id": "695a27ddc3b5c943f7b5b7db",
+      "date": "2026-01-01",
+      "before_payment_status": "paid",
+      "before_amount_received": 666,
+      "after_payment_status": "paid",
+      "after_amount_received": 666,
+      "executed": false
+    },
+    {
+      "_id": "695cb81e189f86de20356711",
+      "date": "2026-01-03",
+      "before_payment_status": "paid",
+      "before_amount_received": 630,
+      "after_payment_status": "paid",
+      "after_amount_received": 630,
+      "executed": false
+    },
+    {
+      "_id": "695dab9d4b92471a50c2d5a5",
+      "date": "2026-01-04",
+      "before_payment_status": "paid",
+      "before_amount_received": 612,
+      "after_payment_status": "paid",
+      "after_amount_received": 612,
+      "executed": false
+    },
+    {
+      "_id": "695f0b1599c624286aef9b9f",
+      "date": "2026-01-06",
+      "before_payment_status": "paid",
+      "before_amount_received": 612,
+      "after_payment_status": "paid",
+      "after_amount_received": 612,
+      "executed": false
+    },
+    {
+      "_id": "695f195c7c8de46b11cd4c69",
+      "date": "2026-01-07",
+      "before_payment_status": "paid",
+      "before_amount_received": 639,
+      "after_payment_status": "paid",
+      "after_amount_received": 639,
+      "executed": false
+    },
+    {
+      "_id": "69607100466d416255f3b42a",
+      "date": "2026-01-09",
+      "before_payment_status": "paid",
+      "before_amount_received": 918,
+      "after_payment_status": "paid",
+      "after_amount_received": 918,
+      "executed": false
+    },
+    {
+      "_id": "69643be00d2b3189a323445d",
+      "date": "2026-01-11",
+      "before_payment_status": "paid",
+      "before_amount_received": 666,
+      "after_payment_status": "paid",
+      "after_amount_received": 666,
+      "executed": false
+    },
+    {
+      "_id": "6965ba5899c624286a6ad5e3",
+      "date": "2026-01-13",
+      "before_payment_status": "paid",
+      "before_amount_received": 612,
+      "after_payment_status": "paid",
+      "after_amount_received": 612,
+      "executed": false
+    },
+    {
+      "_id": "696841a04b924797964ed6a7",
+      "date": "2026-01-15",
+      "before_payment_status": "paid",
+      "before_amount_received": 621,
+      "after_payment_status": "paid",
+      "after_amount_received": 621,
+      "executed": false
+    },
+    {
+      "_id": "6969d0547ad52d1c39f6e7fa",
+      "date": "2026-01-16",
+      "before_payment_status": "paid",
+      "before_amount_received": 495,
+      "after_payment_status": "paid",
+      "after_amount_received": 495,
+      "executed": false
+    },
+    {
+      "_id": "696d751e0d2b314595f7a400",
+      "date": "2026-01-18",
+      "before_payment_status": "paid",
+      "before_amount_received": 621,
+      "after_payment_status": "paid",
+      "after_amount_received": 621,
+      "executed": false
+    },
+    {
+      "_id": "696dc35621821b751ba11d9f",
+      "date": "2026-01-19",
+      "before_payment_status": "paid",
+      "before_amount_received": 621,
+      "after_payment_status": "paid",
+      "after_amount_received": 621,
+      "executed": false
+    },
+    {
+      "_id": "6970672a09664c8612861f9c",
+      "date": "2026-01-21",
+      "before_payment_status": "paid",
+      "before_amount_received": 945,
+      "after_payment_status": "paid",
+      "after_amount_received": 945,
+      "executed": false
+    },
+    {
+      "_id": "69731245337a9f895d9e408a",
+      "date": "2026-01-23",
+      "before_payment_status": "paid",
+      "before_amount_received": 909,
+      "after_payment_status": "paid",
+      "after_amount_received": 909,
+      "executed": false
+    },
+    {
+      "_id": "6976bb1f7ad52d1c39e5421e",
+      "date": "2026-01-25",
+      "before_payment_status": "paid",
+      "before_amount_received": 837,
+      "after_payment_status": "paid",
+      "after_amount_received": 837,
+      "executed": false
+    },
+    {
+      "_id": "69786b653d029cb6252b03e1",
+      "date": "2026-01-27",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "6979c9597ae7089a62ae5380",
+      "date": "2026-01-28",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "697c17cb7ad52d1c394e45c2",
+      "date": "2026-01-30",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "697ffae2ee97ef6deefec84a",
+      "date": "2026-01-31",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "697fe9b60d2b314595598983",
+      "date": "2026-02-01",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "698290a07ae7089a625ec97f",
+      "date": "2026-02-03",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69840189213929956691ab1f",
+      "date": "2026-02-05",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69869f57e0ec19287bf97eef",
+      "date": "2026-02-07",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbaff78a2e952d8f49b923",
+      "date": "2026-02-08",
+      "before_payment_status": "paid",
+      "before_amount_received": 576,
+      "after_payment_status": "paid",
+      "after_amount_received": 576,
+      "executed": false
+    },
+    {
+      "_id": "69bbaff989d8371762435b78",
+      "date": "2026-02-10",
+      "before_payment_status": "paid",
+      "before_amount_received": 648,
+      "after_payment_status": "paid",
+      "after_amount_received": 648,
+      "executed": false
+    },
+    {
+      "_id": "69bbaffa89d8371762435b98",
+      "date": "2026-02-11",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbaffbf7ac1a41a1adc8f2",
+      "date": "2026-02-13",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbaffcf7ac1a41a1adc907",
+      "date": "2026-02-14",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbaffe89d8371762435bed",
+      "date": "2026-02-24",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbaffff7ac1a41a1adc95d",
+      "date": "2026-02-27",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb001f7ac1a41a1adc996",
+      "date": "2026-03-01",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb00389d8371762435c80",
+      "date": "2026-03-03",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb00489d8371762435cb5",
+      "date": "2026-03-05",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb0064975ff712e9bc2d6",
+      "date": "2026-03-06",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb0098a2e952d8f49bbdb",
+      "date": "2026-03-08",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb00a8a2e952d8f49bc05",
+      "date": "2026-03-09",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb00df7ac1a41a1adcb2a",
+      "date": "2026-03-11",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb00ff7ac1a41a1adcb7e",
+      "date": "2026-03-12",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb012f7ac1a41a1adcc01",
+      "date": "2026-03-14",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb015f7ac1a41a1adcc61",
+      "date": "2026-03-16",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb01789d8371762435eb0",
+      "date": "2026-03-17",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69bbb0184975ff712e9bc49f",
+      "date": "2026-03-18",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69c8adc95c28c95aac982d87",
+      "date": "2026-03-19",
+      "before_payment_status": "paid",
+      "before_amount_received": 558,
+      "after_payment_status": "paid",
+      "after_amount_received": 558,
+      "executed": false
+    },
+    {
+      "_id": "69c8ade95c28c95aac983058",
+      "date": "2026-03-22",
+      "before_payment_status": "paid",
+      "before_amount_received": 585,
+      "after_payment_status": "paid",
+      "after_amount_received": 585,
+      "executed": false
+    },
+    {
+      "_id": "69c8af8659063e84c13ec036",
+      "date": "2026-03-23",
+      "before_payment_status": "paid",
+      "before_amount_received": 639,
+      "after_payment_status": "paid",
+      "after_amount_received": 639,
+      "executed": false
+    },
+    {
+      "_id": "69c8afa896fed1435b88132e",
+      "date": "2026-03-25",
+      "before_payment_status": "partial",
+      "before_amount_received": 279,
+      "after_payment_status": "partial",
+      "after_amount_received": 279,
+      "executed": false
+    },
+    {
+      "_id": "69c8afc659063e84c13ec757",
+      "date": "2026-03-27",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69c9e611ea3400db03fa9824",
+      "date": "2026-03-29",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69cb5de196fed1435bbb4a30",
+      "date": "2026-03-31",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69ccd02993457177adac268c",
+      "date": "2026-04-01",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69cf5aa79afa741bc1625ad6",
+      "date": "2026-04-03",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    },
+    {
+      "_id": "69d37b8ad51308f649f9e976",
+      "date": "2026-04-05",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "executed": false
+    }
+  ],
+  "failed": [],
+  "updated_at": "2026-04-07T09:06:28.485Z",
+  "success_total": 0
+}

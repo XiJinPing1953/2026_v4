@@ -258,6 +258,12 @@
 						<text class="info-label">抹零金额</text>
 						<text class="info-value">¥{{ formatMoney(detail.rounding_amount) }}</text>
 					</view>
+					<view class="info-item">
+						<text class="info-label">收款抹零（客户对账）</text>
+						<text class="info-value" :class="{ 'highlight-rounding': receiptRoundingAmountNumber > 0 }">
+							¥{{ formatMoney(receiptRoundingAmountNumber) }}
+						</text>
+					</view>
 						<view class="info-item span-2">
 							<text class="info-label">收款备注</text>
 							<text class="info-value">{{ detail.payment_note || '无' }}</text>
@@ -366,11 +372,15 @@ const hasRelatedData = computed(
 )
 const shouldReceiveNumber = computed(() => toNumber(detail.value?.should_receive, 0))
 const roundingAmountNumber = computed(() => Math.max(toNumber(detail.value?.rounding_amount, 0), 0))
+const receiptRoundingAmountNumber = computed(() => Math.max(toNumber(detail.value?.receipt_rounding_amount, 0), 0))
 const effectiveShouldReceiveNumber = computed(() =>
 	resolveEffectiveShould(shouldReceiveNumber.value, roundingAmountNumber.value)
 )
 const amountReceivedNumber = computed(() => toNumber(detail.value?.amount_received, 0))
-const outstandingNumber = computed(() => fix2(effectiveShouldReceiveNumber.value - amountReceivedNumber.value))
+const paidTotalNumber = computed(() =>
+	fix2(amountReceivedNumber.value + receiptRoundingAmountNumber.value)
+)
+const outstandingNumber = computed(() => fix2(effectiveShouldReceiveNumber.value - paidTotalNumber.value))
 const overCollectionAmount = computed(() => {
 	if (effectiveShouldReceiveNumber.value <= 0) return 0
 	const delta = fix2(amountReceivedNumber.value - effectiveShouldReceiveNumber.value)
@@ -381,7 +391,7 @@ const shouldReceiveText = computed(() => formatMoney(shouldReceiveNumber.value))
 const outstandingText = computed(() => formatMoney(outstandingNumber.value))
 const settlementFormula = computed(() => buildSettlementFormulaDetail(detail.value))
 const outstandingScenario = computed(() =>
-	buildOutstandingScenario(effectiveShouldReceiveNumber.value, amountReceivedNumber.value)
+	buildOutstandingScenario(effectiveShouldReceiveNumber.value, paidTotalNumber.value)
 )
 const ticketImageFileIds = computed(() =>
 	normalizeTicketFileIds(detail.value?.ticket_images, detail.value?.ticket_image)
@@ -1002,6 +1012,11 @@ defineExpose({
 
 .highlight-warning {
 	color: #b45309;
+}
+
+.highlight-rounding {
+	color: #0f766e;
+	font-weight: 700;
 }
 
 .over-collection-alert {

@@ -1,0 +1,120 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "customer_name": "新乐馒头",
+  "date": "2026-04-13",
+  "total_candidates": 1,
+  "matched_total": 1,
+  "details": [
+    {
+      "_id": "69dc89ad3f01ffadfb2d17f0",
+      "date": "2026-04-13",
+      "customer_name": "新乐馒头",
+      "biz_mode": "bottle",
+      "out_bottle_nos": [
+        "112",
+        "189",
+        "197",
+        "79",
+        "Y002"
+      ],
+      "back_bottle_nos": [
+        "100",
+        "133",
+        "218",
+        "85",
+        "87"
+      ],
+      "deposit_bottle_nos": [],
+      "out_items": [
+        {
+          "net": 68,
+          "tare": 117,
+          "gross": 185,
+          "bottle_id": "693fbee16dd837518fa12090",
+          "bottle_no": "197"
+        },
+        {
+          "net": 61,
+          "tare": 124,
+          "gross": 185,
+          "bottle_id": "693fbee16dd837518fa12040",
+          "bottle_no": "112"
+        },
+        {
+          "net": 60,
+          "tare": 124,
+          "gross": 184,
+          "bottle_id": "693fbee16dd837518fa1201e",
+          "bottle_no": "79"
+        },
+        {
+          "net": 68,
+          "tare": 117,
+          "gross": 185,
+          "bottle_id": "693fbee16dd837518fa12157",
+          "bottle_no": "Y002"
+        },
+        {
+          "net": 72,
+          "tare": 117,
+          "gross": 189,
+          "bottle_id": "693fbee16dd837518fa12089",
+          "bottle_no": "189"
+        }
+      ],
+      "back_items": [
+        {
+          "net": 0,
+          "tare": 124,
+          "gross": 124,
+          "bottle_id": "693fbee16dd837518fa12034",
+          "bottle_no": "100"
+        },
+        {
+          "net": 0,
+          "tare": 124,
+          "gross": 124,
+          "bottle_id": "693fbee16dd837518fa12024",
+          "bottle_no": "87"
+        },
+        {
+          "net": 3,
+          "tare": 117,
+          "gross": 120,
+          "bottle_id": "693fbee16dd837518fa120ad",
+          "bottle_no": "218"
+        },
+        {
+          "net": 2,
+          "tare": 117,
+          "gross": 119,
+          "bottle_id": "693fbee16dd837518fa12053",
+          "bottle_no": "133"
+        },
+        {
+          "net": 0,
+          "tare": 124,
+          "gross": 124,
+          "bottle_id": "693fbee16dd837518fa12027",
+          "bottle_no": "85"
+        }
+      ],
+      "deposit_rows": []
+    }
+  ],
+  "deposit_preview": {
+    "customer_id": "694045c0adf6dbd796e261ca",
+    "customer_name": "新乐馒头",
+    "bottles": [
+      "112",
+      "16",
+      "189",
+      "197",
+      "79",
+      "99",
+      "Y002"
+    ],
+    "raw": "112 / 16 / 189 / 197 / 79 / 99 / Y002",
+    "count": 7
+  }
+}

@@ -1,0 +1,182 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "customer": {
+    "_id": "694045c0adf6dbd796e261e4",
+    "name": "骏驰机械",
+    "phone": "18833183119"
+  },
+  "execute": true,
+  "started_at": "2026-04-08T04:09:44.115Z",
+  "sale_total": 29,
+  "sales": [
+    {
+      "_id": "695dffc19755e34a91521a87",
+      "date": "2026-01-05",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "update_code": 0,
+      "update_msg": "更新成功（凭证未同步（缺集合））",
+      "release_code": 0,
+      "release_msg": "销售结算关联已回收",
+      "executed": true
+    },
+    {
+      "_id": "6960bff8bd022001be5079cf",
+      "date": "2026-01-09",
+      "before_payment_status": "unpaid",
+      "before_amount_received": 0,
+      "after_payment_status": "unpaid",
+      "after_amount_received": 0,
+      "update_code": 0,
+      "update_msg": "更新成功（凭证未同步（缺集合））",
+      "release_code": 0,
+      "release_msg": "销售结算关联已回收",
+      "executed": true
+    }
+  ],
+  "failed": [
+    {
+      "_id": "6961a941f2949c9689838808",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "6965a5588b0da4f195f22252",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "6969d9e289bd275f44ecf352",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "696ee3584b9247704c10ab40",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "6972d0c27ad52d1c399e0861",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "6976fdd99755e34a912199e2",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "697aa8d921821b751b94b496",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "697da9637c8de4e86f8ed0f8",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "6982a5ee99c6240a3d891163",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69bbaff789d8371762435b4e",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69bbaffa89d8371762435b9e",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69bbaffaf7ac1a41a1adc8e0",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69bbaffef7ac1a41a1adc939",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69bbb00089d8371762435c34",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69bbb002f7ac1a41a1adc9ac",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69bbb004f7ac1a41a1adc9f3",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69bbb00689d8371762435cea",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69bbb00ddcf6a7985317e258",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69bbb011dcf6a7985317e2af",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69bbb016f7ac1a41a1adcc79",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69c8add1bf8f8fb98cd03cfd",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69c8af8891ffaeab57740bda",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69c8afaf59063e84c13ec53e",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69c8afd9ad2f4ad42ebc3580",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69cb87a6d51308f6495ba98b",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69cf2d2196fed1435b04e085",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    },
+    {
+      "_id": "69d4bb27ea3400db03bddc2b",
+      "stage": "exception",
+      "msg": "crm-sale.getV2 failed: {\"code\":401,\"msg\":\"未登录或登录已过期\"}"
+    }
+  ],
+  "refresh_balances": {
+    "code": 401,
+    "msg": "未登录或登录已过期"
+  },
+  "updated_at": "2026-04-08T04:09:55.140Z",
+  "success_total": 2
+}

@@ -1,0 +1,158 @@
+{
+  "executed_at": "2026-04-13T09:28:31.855Z",
+  "space_id": "env-00jxuffegf2n",
+  "plate": "冀A406RB",
+  "import_result": {
+    "code": 0,
+    "msg": "ok",
+    "started_at": "2026-04-13T09:28:30.875Z",
+    "payload_total": 18,
+    "created": 0,
+    "updated": 18,
+    "invalid": 0,
+    "plate_conflict": 0,
+    "failed": 0,
+    "target_check": {
+      "target_plate": "冀A406RB",
+      "target_id": "69bdedb57ae708ce6d86e636",
+      "found": true,
+      "plate_no": "冀A406RB",
+      "is_active": true
+    },
+    "finished_at": "2026-04-13T09:28:31.262Z",
+    "duration_ms": 387,
+    "details_preview": [
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "6948cb95816a3fc79865efa1",
+        "plate_no": "冀A565PC"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "6948cba9b9fb239dce18a5ad",
+        "plate_no": "冀A90948"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "6948cbbc816a3fc79865f3f0",
+        "plate_no": "冀A9S143"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "6948cbd13f1a47e81a9cbcba",
+        "plate_no": "冀AEG780"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "6948cbe8816a3fc79865f726",
+        "plate_no": "冀AOG111"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "6948cbfaeef9cbb12d455d21",
+        "plate_no": "冀AKG103"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "6948cc0b4b92477083a13d6c",
+        "plate_no": "冀A263AP"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "6948cc1c466d41625545fae7",
+        "plate_no": "冀A7888Q"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "6948cc2af2949cdab773e58e",
+        "plate_no": "冀A808AT"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "6949fbd5fe975f28f61b0cfa",
+        "plate_no": "冀A9335Z"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "694b857f337a9fc052586fc1",
+        "plate_no": "冀A807AT"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "694b85a28620663d3aa6caa1",
+        "plate_no": "冀A8089Z"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "695a24f31c90b6a7ccd7d017",
+        "plate_no": "冀A11MZ2"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "695a2500ee97ef7e81449b77",
+        "plate_no": "冀A38U7G"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "695a2515a09a9b2a3f03436d",
+        "plate_no": "冀A19E6T"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "695a2536337a9f7ead231d8c",
+        "plate_no": "冀AB57Y2"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "695a254b286f7c021e297a1b",
+        "plate_no": "冀A24036"
+      },
+      {
+        "ok": true,
+        "status": "updated",
+        "legacy_id": "69bdedb57ae708ce6d86e636",
+        "plate_no": "冀A406RB"
+      }
+    ]
+  },
+  "import_error": "",
+  "list_result": {
+    "code": 0,
+    "total": 1,
+    "rows": [
+      {
+        "_id": "69bdedb57ae708ce6d86e636",
+        "remark": "",
+        "plate_no": "冀A406RB",
+        "is_active": true,
+        "created_at": 1774054837309,
+        "updated_at": 1774054837309
+      }
+    ]
+  },
+  "matched_vehicle": {
+    "_id": "69bdedb57ae708ce6d86e636",
+    "remark": "",
+    "plate_no": "冀A406RB",
+    "is_active": true,
+    "created_at": 1774054837309,
+    "updated_at": 1774054837309
+  }
+}

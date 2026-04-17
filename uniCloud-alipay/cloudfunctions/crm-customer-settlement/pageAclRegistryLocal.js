@@ -69,6 +69,7 @@ const PAGE_REGISTRY = [
 	{ pagePath: '/pages/customer/list', label: '客户列表', group: 'customers', supports: { view: true, create: true, update: true, delete: true } },
 	{ pagePath: '/pages/customer/edit', label: '客户录入', group: 'customers', supports: { view: true, create: true, update: true } },
 	{ pagePath: '/pages/customer/statement', label: '客户对账', group: 'customers', supports: { view: true, create: true, update: true } },
+	{ pagePath: '/pages/cashier/receipt-intake', label: '出纳收款登记', group: 'customers', supports: { view: true, create: true, update: true, delete: true } },
 	{ pagePath: '/pages/bottle/anomaly', label: '流转异常', group: 'bottles', supports: { view: true, update: true } },
 	{ pagePath: '/pages/bottle/list', label: '瓶档列表', group: 'bottles', supports: { view: true, create: true, update: true, delete: true } },
 	{ pagePath: '/pages/bottle/edit', label: '瓶档录入', group: 'bottles', supports: { view: true, create: true, update: true } },
