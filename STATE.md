@@ -6929,3 +6929,100 @@
   - `npm run build:mp-alipay`（通过）
 - 剩余问题：
   - `offset_enabled` 为新增字段，线上若未同步发布 `crm_sale_records` schema，可能出现落库校验不通过；需同时发布 schema 与云函数。
+
+### 2026-04-17 CURRENT — PDA 安卓壳 V1（无硬件首版）
+- 做了什么：
+  - 新增 `pda_operator` 角色模板、PDA 页面 ACL 注册与 `crm-bottle/crm-bottle-movement/crm-customer/crm-filling/crm-sale` 的 PDA 页面 action 放行，`pda_operator` 登录后直达 `/pages/pda/home`，`index` 页冷启动也会重定向到 PDA 首页。
+  - 新增 PDA 前端壳：`/pages/pda/home`、`/pages/pda/bottle-query`、`/pages/pda/movement-query`、`/pages/pda/customer-query`、`/pages/pda/filling-create`、`/pages/pda/sale-create`，并把灌装/销售映射、客户搜索、钢瓶补空瓶重、存瓶预览下沉到 `src/services/pda/**` 与 `src/composables/pda/**`。
+  - PDA 销售录入固定为 `bizMode='bottle' + priceUnit='kg' + unpaid/on_account`；客户单价来自客户档案默认 `kg` 单价，提交前会调用 `getCustomerDepositV1` 自动生成只读存瓶预览后再回传 `createSaleV2`。
+- 改动文件列表：
+  - `src/components/domain/pda/PdaHomeView.vue`
+  - `src/components/domain/pda/PdaBottleQueryView.vue`
+  - `src/components/domain/pda/PdaMovementQueryView.vue`
+  - `src/components/domain/pda/PdaCustomerQueryView.vue`
+  - `src/components/domain/pda/PdaFillingCreateView.vue`
+  - `src/components/domain/pda/PdaSaleCreateView.vue`
+  - `src/composables/pda/usePdaFillingForm.js`
+  - `src/composables/pda/usePdaSaleForm.js`
+  - `src/pages/pda/home.vue`
+  - `src/pages/pda/bottle-query.vue`
+  - `src/pages/pda/movement-query.vue`
+  - `src/pages/pda/customer-query.vue`
+  - `src/pages/pda/filling-create.vue`
+  - `src/pages/pda/sale-create.vue`
+  - `src/services/pda/shared.js`
+  - `src/services/pda/entry.js`
+  - `src/services/pda/bottle.js`
+  - `src/services/pda/customer.js`
+  - `src/services/pda/filling.js`
+  - `src/services/pda/sale.js`
+  - `src/pages.json`
+  - `src/pages/index/index.vue`
+  - `src/pages/login/login.vue`
+  - `src/services/pageAclRegistry.js`
+  - `src/components/domain/user/UserListView.vue`
+  - `uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js`
+  - `uniCloud-alipay/cloudfunctions/crm-auth/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js`
+  - `uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistryLocal.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle-movement/pageAclRegistryLocal.js`
+  - `uniCloud-alipay/cloudfunctions/crm-customer/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-customer/pageAclRegistryLocal.js`
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistryLocal.js`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/pageAclRegistryLocal.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-bottle/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 这版仍是“无硬件首版”，扫码头、蓝牙秤、原生插件和 Android 真机串口/蓝牙联调还未开始。
+  - `admin/superadmin` 虽保留 PDA 页面权限用于测试，但桌面工作台暂未新增 PDA 导航入口；当前主入口仍是 `pda_operator` 登录直达或手工访问 PDA 路由。
+
+### 2026-04-17 CURRENT — PDA 专机入口 + 销售分步流 + 自动存瓶预览
+- 做了什么：
+  - 将 `app-plus` 入口改为 PDA 专机模式：登录成功与 App 冷启动后的首选首页都走 PDA 首页，不再依赖 `pda_operator` 角色才进入 PDA；同时 `index` 页在专机模式下默认隐藏桌面工作台，减少冷启动闪原首页。
+  - 将 PDA 销售录入页改为 3 步流：`客户/基础信息 -> 出回瓶明细 -> 预览提交`，缩短单屏操作路径，减少现场来回滚动。
+  - 将 PDA 销售的存瓶预览改为自动防抖刷新：客户、日期、出瓶或回瓶变化后自动刷新，进入预览步前再强制刷新一次，提交时仍保留最终校验。
+- 改动文件列表：
+  - `src/App.vue`
+  - `src/pages/index/index.vue`
+  - `src/services/pda/entry.js`
+  - `src/composables/pda/usePdaSaleForm.js`
+  - `src/components/domain/pda/PdaSaleCreateView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 目前“专机入口化”是前端入口层实现，尚未拆成独立 Android 包配置；如果后续同一 `app-plus` 还要兼顾桌面风格移动端，需要再加显式运行模式开关。
+  - 自动存瓶预览仍依赖实时云函数请求，弱网环境下会有等待；下一步若现场网络不稳，应补本地草稿与提交幂等控制。
+
+### 2026-04-17 CURRENT — PDA 客户/瓶号联想补齐
+- 做了什么：
+  - 新增 `usePdaSuggestions` 与 `PdaSuggestList`，统一处理 PDA 联想的 `200ms debounce`、`150ms` 失焦延迟、阈值控制和触控友好下拉列表。
+  - 新增 `PdaBottleSuggestField`，复用现有钢瓶联想排序/去重逻辑，让灌装录入、销售出瓶、销售回瓶都支持“输入即联想”，并在回瓶选中钢瓶时自动补空瓶重与重算净重。
+  - 将 PDA 销售客户选择改成自动联想，不再依赖“查询”按钮；客户改字后会立即清掉旧客户选择，避免旧客户与当前输入不一致。
+- 改动文件列表：
+  - `src/components/domain/pda/PdaSuggestList.vue`
+  - `src/components/domain/pda/PdaBottleSuggestField.vue`
+  - `src/components/domain/pda/PdaFillingCreateView.vue`
+  - `src/components/domain/pda/PdaSaleCreateView.vue`
+  - `src/composables/pda/usePdaSuggestions.js`
+  - `src/composables/pda/usePdaSaleForm.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 这次只补了客户和瓶号联想，配送员、车牌号仍是普通输入。
+  - 瓶号手工修改后目前只清 `bottleId`，如果现场需要更强的防错，还可以继续补“切换瓶号时同步清理旧空瓶重/净重”的保护。

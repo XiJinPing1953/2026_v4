@@ -13,6 +13,42 @@
 			}
 		},
 		{
+			"path": "pages/pda/home",
+			"style": {
+				"navigationBarTitleText": "PDA 工作台"
+			}
+		},
+		{
+			"path": "pages/pda/bottle-query",
+			"style": {
+				"navigationBarTitleText": "PDA 钢瓶查询"
+			}
+		},
+		{
+			"path": "pages/pda/movement-query",
+			"style": {
+				"navigationBarTitleText": "PDA 流转查询"
+			}
+		},
+		{
+			"path": "pages/pda/customer-query",
+			"style": {
+				"navigationBarTitleText": "PDA 客户查询"
+			}
+		},
+		{
+			"path": "pages/pda/filling-create",
+			"style": {
+				"navigationBarTitleText": "PDA 灌装录入"
+			}
+		},
+		{
+			"path": "pages/pda/sale-create",
+			"style": {
+				"navigationBarTitleText": "PDA 销售录入"
+			}
+		},
+		{
 			"path": "pages/sale/list",
 			"style": {
 				"navigationBarTitleText": "销售列表"

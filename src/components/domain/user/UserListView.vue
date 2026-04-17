@@ -224,6 +224,7 @@ const roleOptions = [
 	{ label: '超级管理员', value: 'superadmin' },
 	{ label: '管理员', value: 'admin' },
 	{ label: '财务', value: 'finance' },
+	{ label: 'PDA 操作员', value: 'pda_operator' },
 	{ label: '普通用户', value: 'user' }
 ]
 

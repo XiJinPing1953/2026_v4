@@ -52,6 +52,7 @@ import AppInput from '@/components/base/AppInput.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import { callCloud } from '@/services/api'
 import { setToken, setUser } from '@/services/auth'
+import { resolveHomePath } from '@/services/pda/entry'
 
 const username = ref('')
 const password = ref('')
@@ -73,7 +74,7 @@ async function onLogin() {
 		if (result.code !== 0) return
 		setToken(result.token || '')
 		setUser(result.user || null)
-		uni.reLaunch({ url: '/pages/index/index' })
+		uni.reLaunch({ url: resolveHomePath(result.user || null) })
 	} catch (e) {
 		console.error('login error', e)
 		uni.showToast({ title: '登录失败', icon: 'none' })

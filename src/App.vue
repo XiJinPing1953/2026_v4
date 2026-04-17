@@ -1,7 +1,8 @@
 <script>
-import { syncCurrentUser } from '@/services/auth'
+import { getUser, syncCurrentUser } from '@/services/auth'
 import { ensureLatestH5Bundle } from '@/services/h5VersionGuard'
 import { goLogin } from '@/services/navigation'
+import { resolveHomePath, shouldRedirectToPreferredHome } from '@/services/pda/entry'
 
 export default {
   async onLaunch() {
@@ -22,6 +23,14 @@ export default {
       const result = await syncCurrentUser({ force: true })
       if (result?.code === 401) {
         goLogin()
+        return
+      }
+      const user = result?.user || getUser()
+      const pages = getCurrentPages()
+      const current = pages[pages.length - 1]
+      const currentPath = current?.route || ''
+      if (shouldRedirectToPreferredHome(currentPath, user)) {
+        uni.reLaunch({ url: resolveHomePath(user) })
       }
     }
   }

@@ -16,8 +16,17 @@ const customers = db.collection('crm_customers')
 const bottles = db.collection('crm_bottles')
 const receipts = db.collection('crm_customer_receipts')
 const PAGE_ACTION_RULES = {
-	listV1: [{ pagePath: '/pages/customer/list', action: 'view' }],
-	getV1: [{ pagePath: '/pages/customer/list', action: 'view' }, { pagePath: '/pages/customer/edit', action: 'view' }],
+	listV1: [
+		{ pagePath: '/pages/customer/list', action: 'view' },
+		{ pagePath: '/pages/pda/customer-query', action: 'view' },
+		{ pagePath: '/pages/pda/sale-create', action: 'view' }
+	],
+	getV1: [
+		{ pagePath: '/pages/customer/list', action: 'view' },
+		{ pagePath: '/pages/customer/edit', action: 'view' },
+		{ pagePath: '/pages/pda/customer-query', action: 'view' },
+		{ pagePath: '/pages/pda/sale-create', action: 'view' }
+	],
 	createV1: [{ pagePath: '/pages/customer/edit', action: 'create' }],
 	updateV1: [{ pagePath: '/pages/customer/edit', action: 'update' }]
 }

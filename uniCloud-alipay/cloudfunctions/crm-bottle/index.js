@@ -52,8 +52,15 @@ const DUPLICATE_MERGE_FIELDS = [
 	'tare_weight'
 ]
 const PAGE_ACTION_RULES = {
-	listV1: [{ pagePath: '/pages/bottle/list', action: 'view' }],
-	getV1: [{ pagePath: '/pages/bottle/list', action: 'view' }, { pagePath: '/pages/bottle/edit', action: 'view' }],
+	listV1: [
+		{ pagePath: '/pages/bottle/list', action: 'view' },
+		{ pagePath: '/pages/pda/bottle-query', action: 'view' }
+	],
+	getV1: [
+		{ pagePath: '/pages/bottle/list', action: 'view' },
+		{ pagePath: '/pages/bottle/edit', action: 'view' },
+		{ pagePath: '/pages/pda/bottle-query', action: 'view' }
+	],
 	createV1: [{ pagePath: '/pages/bottle/edit', action: 'create' }],
 	updateV1: [{ pagePath: '/pages/bottle/edit', action: 'update' }],
 	batchUpdateInspectionV1: [{ pagePath: '/pages/bottle/list', action: 'update' }],

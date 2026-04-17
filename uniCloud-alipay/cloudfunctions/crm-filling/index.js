@@ -38,13 +38,23 @@ const DATE_NORMALIZE_SCAN_LIMIT = 12000
 const FILLED_UNSOLD_SCAN_LIMIT = 12000
 const BOTTLE_FLOW_WARNING_KIND = 'bottle_flow_mismatch'
 const PAGE_ACTION_RULES = {
-	listV1: [{ pagePath: '/pages/filling/list', action: 'view' }],
+	listV1: [
+		{ pagePath: '/pages/filling/list', action: 'view' },
+		{ pagePath: '/pages/pda/filling-create', action: 'view' }
+	],
 	getV1: [
 		{ pagePath: '/pages/filling/list', action: 'view' },
-		{ pagePath: '/pages/filling/edit', action: 'view' }
+		{ pagePath: '/pages/filling/edit', action: 'view' },
+		{ pagePath: '/pages/pda/filling-create', action: 'view' }
 	],
-	resolveFillWeightV1: [{ pagePath: '/pages/filling/list', action: 'view' }],
-	createV1: [{ pagePath: '/pages/filling/list', action: 'create' }],
+	resolveFillWeightV1: [
+		{ pagePath: '/pages/filling/list', action: 'view' },
+		{ pagePath: '/pages/pda/filling-create', action: 'view' }
+	],
+	createV1: [
+		{ pagePath: '/pages/filling/list', action: 'create' },
+		{ pagePath: '/pages/pda/filling-create', action: 'create' }
+	],
 	updateV1: [{ pagePath: '/pages/filling/edit', action: 'update' }],
 	removeV1: [{ pagePath: '/pages/filling/list', action: 'delete' }],
 	batchCreateV1: [{ pagePath: '/pages/filling/list', action: 'create' }],

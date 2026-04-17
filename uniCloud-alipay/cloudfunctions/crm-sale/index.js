@@ -28,7 +28,10 @@ const AGENT_SALE_BACKFILL_CONFIRM_TEXT = 'BACKFILL_AGENT_SALE_BOTTLE_MOVEMENTS'
 const PAGE_ACTION_RULES = {
 	listV2: [{ pagePath: '/pages/sale/list', action: 'view' }],
 	getV2: [{ pagePath: '/pages/sale/detail', action: 'view' }],
-	createV2: [{ pagePath: '/pages/sale/edit', action: 'create' }],
+	createV2: [
+		{ pagePath: '/pages/sale/edit', action: 'create' },
+		{ pagePath: '/pages/pda/sale-create', action: 'create' }
+	],
 	updateV2: [{ pagePath: '/pages/sale/edit', action: 'update' }],
 	updateSettlementV1: [{ pagePath: '/pages/sale/settlement', action: 'update' }],
 	searchAgentFillSuggestionsV1: [{ pagePath: '/pages/sale/edit', action: 'view' }],
@@ -36,7 +39,8 @@ const PAGE_ACTION_RULES = {
 	quickReceiveV1: [{ pagePath: '/pages/sale/detail', action: 'update' }],
 	getCustomerDepositV1: [
 		{ pagePath: '/pages/sale/edit', action: 'view' },
-		{ pagePath: '/pages/customer/statement', action: 'view' }
+		{ pagePath: '/pages/customer/statement', action: 'view' },
+		{ pagePath: '/pages/pda/sale-create', action: 'view' }
 	]
 }
 const SUPERADMIN_ONLY_ACTIONS = [
