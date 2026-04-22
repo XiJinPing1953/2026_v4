@@ -1,0 +1,16 @@
+{
+  "name": "crm-pda-scale-gateway",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Office scale gateway for PDA latest weight snapshots",
+  "main": "index.cjs",
+  "scripts": {
+    "start": "node index.cjs",
+    "mock": "node index.cjs --mock",
+    "mock:dry": "node index.cjs --mock --dry-run",
+    "check": "node --check index.cjs && node --check protocol.cjs"
+  },
+  "dependencies": {
+    "modbus-serial": "^8.0.20"
+  }
+}

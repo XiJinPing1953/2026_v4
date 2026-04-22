@@ -1,4 +1,4 @@
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { ref } from 'vue'
 import { findPdaBottleByNo } from '@/services/pda/bottle'
 import { getPdaCustomerById, listPdaCustomers, resolvePdaCustomerPricing } from '@/services/pda/customer'
 import {
@@ -27,7 +27,6 @@ export function usePdaSaleForm(initialValues = {}) {
 	const depositLoading = ref(false)
 	const depositDirty = ref(true)
 	const submitting = ref(false)
-	let autoPreviewTimer = null
 
 	function markDepositDirty() {
 		depositDirty.value = true
@@ -37,48 +36,6 @@ export function usePdaSaleForm(initialValues = {}) {
 		form.value.depositRows = []
 		form.value.depositRaw = ''
 		form.value.depositCount = 0
-	}
-
-	function clearAutoPreviewTimer() {
-		if (!autoPreviewTimer) return
-		clearTimeout(autoPreviewTimer)
-		autoPreviewTimer = null
-	}
-
-	function buildPreviewSnapshot() {
-		const outItems = (form.value.outItems || []).map((row) => ({
-			bottleNo: normalizeBottleNo(row?.bottleNo || row?.bottle_no),
-			net: normalizeText(row?.net)
-		}))
-		const backItems = (form.value.backItems || []).map((row) => ({
-			bottleNo: normalizeBottleNo(row?.bottleNo || row?.bottle_no),
-			gross: normalizeText(row?.gross),
-			tare: normalizeText(row?.tare),
-			net: normalizeText(row?.net)
-		}))
-		return JSON.stringify({
-			customerId: normalizeText(form.value.customerId),
-			date: normalizeText(form.value.date),
-			outItems,
-			backItems
-		})
-	}
-
-	function scheduleDepositPreview({ immediate = false } = {}) {
-		clearAutoPreviewTimer()
-		if (!normalizeText(form.value.customerId)) {
-			clearDepositPreview()
-			return
-		}
-		const runner = async () => {
-			if (submitting.value) return
-			await refreshDepositRows({ silent: true })
-		}
-		if (immediate) {
-			runner()
-			return
-		}
-		autoPreviewTimer = setTimeout(runner, 450)
 	}
 
 	function applySelectedCustomer(customer) {
@@ -120,7 +77,6 @@ export function usePdaSaleForm(initialValues = {}) {
 		form.value.customerId = ''
 		form.value.customerName = ''
 		form.value.unitPrice = ''
-		clearAutoPreviewTimer()
 		clearDepositPreview()
 		markDepositDirty()
 	}
@@ -132,7 +88,6 @@ export function usePdaSaleForm(initialValues = {}) {
 		form.value.customerName = ''
 		form.value.unitPrice = ''
 		customerKeyword.value = keepKeyword
-		clearAutoPreviewTimer()
 		clearDepositPreview()
 		markDepositDirty()
 	}
@@ -212,6 +167,35 @@ export function usePdaSaleForm(initialValues = {}) {
 		return list[index]
 	}
 
+	function applyDeliverySelection(slot, delivery) {
+		const name = normalizeText(delivery?.name || delivery)
+		if (!name) return
+		if (slot === 'delivery2') form.value.delivery2 = name
+		else form.value.delivery1 = name
+		markDepositDirty()
+	}
+
+	function applyVehicleSelection(vehicle) {
+		const plateNo = normalizeText(vehicle?.plate_no || vehicle?.plateNo || vehicle)
+		if (!plateNo) return
+		form.value.vehicleNo = plateNo
+		markDepositDirty()
+	}
+
+	function setOutNet(index, value) {
+		const row = form.value.outItems[index]
+		if (!row) return
+		row.net = normalizeText(value)
+		markDepositDirty()
+	}
+
+	function setBackGross(index, value) {
+		const row = form.value.backItems[index]
+		if (!row) return
+		row.gross = normalizeText(value)
+		syncBackRow(index)
+	}
+
 	async function refreshDepositRows(options = {}) {
 		if (!normalizeText(form.value.customerId)) {
 			clearDepositPreview()
@@ -258,24 +242,6 @@ export function usePdaSaleForm(initialValues = {}) {
 		}
 	}
 
-	watch(
-		buildPreviewSnapshot,
-		() => {
-			if (!normalizeText(form.value.customerId)) {
-				clearAutoPreviewTimer()
-				clearDepositPreview()
-				return
-			}
-			markDepositDirty()
-			scheduleDepositPreview()
-		},
-		{ flush: 'post' }
-	)
-
-	onBeforeUnmount(() => {
-		clearAutoPreviewTimer()
-	})
-
 	return {
 		form,
 		selectedCustomer,
@@ -287,6 +253,8 @@ export function usePdaSaleForm(initialValues = {}) {
 		markDepositDirty,
 		applySelectedCustomer,
 		applyBottleSelection,
+		applyDeliverySelection,
+		applyVehicleSelection,
 		hydrateSelectedCustomer,
 		searchCustomers,
 		setCustomerKeyword,
@@ -298,6 +266,8 @@ export function usePdaSaleForm(initialValues = {}) {
 		normalizeOutBottle,
 		normalizeBackBottle,
 		syncBackRow,
+		setOutNet,
+		setBackGross,
 		resolveBottle,
 		refreshDepositRows,
 		submit

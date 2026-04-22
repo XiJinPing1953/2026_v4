@@ -1,5 +1,27 @@
-import { getCustomerV1, listCustomersV1 } from '@/services/customer'
-import { normalizeText, toNumber } from './shared'
+import { getCustomerV1, listCustomersV1, resolveCustomerQrCodeV1 } from '@/services/customer'
+import { normalizeQrCode, normalizeText, toNumber } from './shared'
+
+const CUSTOMER_QR_CACHE_TTL_MS = 30 * 1000
+const customerQrCache = new Map()
+
+function readCache(cache, key) {
+	if (!key || !cache.has(key)) return null
+	const cached = cache.get(key)
+	if (!cached || Number(cached.expireAt || 0) <= Date.now()) {
+		cache.delete(key)
+		return null
+	}
+	return cached.data || null
+}
+
+function writeCache(cache, key, data, ttlMs) {
+	if (!key || !data) return data
+	cache.set(key, {
+		data,
+		expireAt: Date.now() + Math.max(Number(ttlMs) || 0, 1000)
+	})
+	return data
+}
 
 function buildPaging(res, page, pageSize) {
 	return res?.paging || {
@@ -7,6 +29,23 @@ function buildPaging(res, page, pageSize) {
 		pageSize,
 		total: Array.isArray(res?.data) ? res.data.length : 0,
 		hasMore: false
+	}
+}
+
+function normalizePdaCustomerSummary(customer = null) {
+	if (!customer || typeof customer !== 'object') return null
+	return {
+		_id: normalizeText(customer._id || customer.customer_id),
+		name: normalizeText(customer.name || customer.customer_name),
+		contact: normalizeText(customer.contact),
+		phone: normalizeText(customer.phone),
+		is_active: customer.is_active !== false,
+		default_price_unit: normalizeText(customer.default_price_unit || 'kg') || 'kg',
+		default_unit_price: toNumber(customer.default_unit_price, null),
+		receivable_balance: toNumber(customer.receivable_balance, 0),
+		prepay_balance: toNumber(customer.prepay_balance, 0),
+		net_balance: toNumber(customer.net_balance, 0),
+		deposit_count: Number(customer.deposit_count || 0)
 	}
 }
 
@@ -36,6 +75,21 @@ export async function getPdaCustomerById(id) {
 		code: res?.code ?? -1,
 		msg: res?.msg || '',
 		data: res?.data || null
+	}
+}
+
+export async function resolvePdaCustomerByQrCode(qrCode) {
+	const normalized = normalizeQrCode(qrCode)
+	if (!normalized) return { code: 400, msg: '客户二维码必填', data: null }
+	const cached = readCache(customerQrCache, normalized)
+	if (cached) return { code: 0, msg: '', data: cached }
+	const res = await resolveCustomerQrCodeV1({ qr_code: normalized })
+	if (res?.code !== 0) return { code: res?.code ?? -1, msg: res?.msg || '客户扫码失败', data: null }
+	const summary = normalizePdaCustomerSummary(res?.data?.customer || null)
+	return {
+		code: 0,
+		msg: '',
+		data: writeCache(customerQrCache, normalized, summary, CUSTOMER_QR_CACHE_TTL_MS)
 	}
 }
 

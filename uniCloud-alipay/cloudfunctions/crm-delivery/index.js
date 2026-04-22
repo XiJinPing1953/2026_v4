@@ -14,8 +14,9 @@ const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 const deliveries = db.collection('crm_delivery_men')
 const PAGE_ACTION_RULES = {
-	listV1: [{ pagePath: '/pages/delivery/list', action: 'view' }],
+	listV1: [{ pagePath: '/pages/delivery/list', action: 'view' }, { pagePath: '/pages/pda/sale-create', action: 'view' }],
 	getV1: [{ pagePath: '/pages/delivery/list', action: 'view' }, { pagePath: '/pages/delivery/edit', action: 'view' }],
+	resolveQrCodeV1: [{ pagePath: '/pages/pda/sale-create', action: 'view' }],
 	createV1: [{ pagePath: '/pages/delivery/edit', action: 'create' }],
 	updateV1: [{ pagePath: '/pages/delivery/edit', action: 'update' }]
 }
@@ -55,6 +56,10 @@ function normalizePhone(value) {
 	return normalizeString(value).replace(/\s+/g, '')
 }
 
+function normalizeQrCode(value) {
+	return normalizeString(value).toUpperCase().replace(/\s+/g, '')
+}
+
 function normalizeBool(value, fallback = true) {
 	if (typeof value === 'boolean') return value
 	const text = normalizeString(value).toLowerCase()
@@ -86,6 +91,25 @@ function isDuplicateKeyError(err) {
 	return msg.includes('duplicate key') || msg.includes('e11000')
 }
 
+async function findDuplicateByField(field, value, excludeId = '') {
+	if (!value) return null
+	const conditions = [{ [field]: value }]
+	if (excludeId) conditions.push({ _id: dbCmd.neq(excludeId) })
+	const where = conditions.length === 1 ? conditions[0] : dbCmd.and(conditions)
+	const res = await deliveries.where(where).field({ _id: true }).limit(1).get()
+	return Array.isArray(res.data) ? res.data[0] || null : null
+}
+
+async function ensureDeliveryIdentityUnique({ uniq_key: uniqKey = '', qr_code: qrCode = '' } = {}, excludeId = '') {
+	const uniqDuplicate = await findDuplicateByField('uniq_key', uniqKey, excludeId)
+	if (uniqDuplicate) return '配送员已存在'
+	if (qrCode) {
+		const qrDuplicate = await findDuplicateByField('qr_code', qrCode, excludeId)
+		if (qrDuplicate) return '配送员二维码已存在'
+	}
+	return ''
+}
+
 async function listV1(user, data) {
 	void user
 	const keyword = normalizeString(data.keyword)
@@ -99,7 +123,7 @@ async function listV1(user, data) {
 
 	if (keyword) {
 		const rx = db.RegExp({ regexp: escapeRegExp(keyword), options: 'i' })
-		conditions.push(dbCmd.or([{ name: rx }, { phone: rx }]))
+		conditions.push(dbCmd.or([{ name: rx }, { phone: rx }, { qr_code: rx }]))
 	}
 
 	const where =
@@ -165,11 +189,15 @@ async function createV1(user, data, requestId) {
 		uniq_key: uniqKey,
 		name,
 		phone,
+		qr_code: normalizeQrCode(data.qr_code ?? data.qrCode),
 		remark: normalizeString(data.remark),
 		is_active: normalizeBool(data.is_active, true),
 		created_at: now,
 		updated_at: now
 	}
+
+	const uniqueMsg = await ensureDeliveryIdentityUnique(doc)
+	if (uniqueMsg) return { code: 409, msg: uniqueMsg }
 
 	try {
 		const res = await deliveries.add(doc)
@@ -186,7 +214,7 @@ async function updateV1(user, data, requestId) {
 	const id = normalizeString(data._id || data.id)
 	if (!id) return { code: 400, msg: '缺少配送员 ID' }
 
-	const current = await deliveries.doc(id).field({ name: true, phone: true }).get()
+	const current = await deliveries.doc(id).field({ name: true, phone: true, qr_code: true }).get()
 	const existing = (current.data && current.data[0]) || null
 	if (!existing) return { code: 404, msg: '配送员不存在' }
 
@@ -197,6 +225,7 @@ async function updateV1(user, data, requestId) {
 		patch.name = nextName
 	}
 	if (data.phone != null) patch.phone = normalizePhone(data.phone)
+	if (data.qr_code != null || data.qrCode != null) patch.qr_code = normalizeQrCode(data.qr_code ?? data.qrCode)
 	if (data.remark != null) patch.remark = normalizeString(data.remark)
 	if (data.is_active != null) patch.is_active = normalizeBool(data.is_active, true)
 
@@ -205,6 +234,14 @@ async function updateV1(user, data, requestId) {
 	patch.uniq_key = buildUniqKey(nextName, nextPhone)
 	if (!patch.uniq_key) return { code: 400, msg: '配送员唯一键无效' }
 	patch.updated_at = Date.now()
+	const uniqueMsg = await ensureDeliveryIdentityUnique(
+		{
+			uniq_key: patch.uniq_key,
+			qr_code: patch.qr_code != null ? patch.qr_code : normalizeQrCode(existing.qr_code)
+		},
+		id
+	)
+	if (uniqueMsg) return { code: 409, msg: uniqueMsg }
 
 	try {
 		await deliveries.doc(id).update(patch)
@@ -214,6 +251,30 @@ async function updateV1(user, data, requestId) {
 		if (isDuplicateKeyError(err)) return { code: 409, msg: '配送员已存在' }
 		console.error('[crm-delivery] updateV1 failed', err)
 		return { code: 500, msg: '更新失败' }
+	}
+}
+
+async function resolveQrCodeV1(user, data) {
+	void user
+	const qrCode = normalizeQrCode(data.qr_code ?? data.qrCode ?? data.token)
+	if (!qrCode) return { code: 400, msg: '配送员二维码必填' }
+	const res = await deliveries.where({ qr_code: qrCode }).limit(2).get()
+	const list = Array.isArray(res.data) ? res.data : []
+	if (!list.length) return { code: 404, msg: '未找到匹配配送员' }
+	if (list.length > 1) {
+		return {
+			code: 409,
+			msg: '配送员二维码存在重复档案，请先清洗主数据',
+			data: { matched: false, match_type: 'multiple', conflict_count: list.length }
+		}
+	}
+	return {
+		code: 0,
+		data: {
+			matched: true,
+			match_type: 'qr_code',
+			delivery: list[0]
+		}
 	}
 }
 
@@ -235,6 +296,7 @@ exports.main = async (event, context) => {
 
 	if (action === 'listV1') return listV1(user, data)
 	if (action === 'getV1') return getV1(user, data)
+	if (action === 'resolveQrCodeV1') return resolveQrCodeV1(user, data)
 	if (action === 'createV1') return createV1(user, data, requestId)
 	if (action === 'updateV1') return updateV1(user, data, requestId)
 

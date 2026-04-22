@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { getUser } from '@/services/auth'
-import { createPdaFillingForm, submitPdaFilling } from '@/services/pda/filling'
+import { createPdaFillingForm, resolvePdaFillingWeight, submitPdaFilling } from '@/services/pda/filling'
 import { normalizeBottleNo, todayDate } from '@/services/pda/shared'
 
 export function usePdaFillingForm(initialValues = {}) {
@@ -10,6 +10,7 @@ export function usePdaFillingForm(initialValues = {}) {
 		...initialValues
 	})
 	const submitting = ref(false)
+	const resolvingFillWeight = ref(false)
 
 	function normalizeBottleInput() {
 		form.value.bottleNo = normalizeBottleNo(form.value.bottleNo)
@@ -20,6 +21,42 @@ export function usePdaFillingForm(initialValues = {}) {
 		form.value = {
 			...createPdaFillingForm(currentUser),
 			date: keepDate
+		}
+	}
+
+	function applyBottleSelection(bottle = null) {
+		const bottleNo = normalizeBottleNo(bottle?.bottle_no || bottle?.bottleNo || form.value.bottleNo)
+		if (bottleNo) form.value.bottleNo = bottleNo
+		form.value.captureMeta = {
+			...(form.value.captureMeta || {}),
+			bottle: bottle || null
+		}
+	}
+
+	function setAfterFillTotalWeight(value, meta = null) {
+		form.value.afterFillTotalWeight = value == null ? '' : String(value)
+		form.value.captureMeta = {
+			...(form.value.captureMeta || {}),
+			totalWeight: meta || form.value.captureMeta?.totalWeight || null
+		}
+		form.value.fillWeightResolved = false
+	}
+
+	async function resolveFillWeightFromTotal(options = {}) {
+		resolvingFillWeight.value = true
+		try {
+			const res = await resolvePdaFillingWeight(form.value, options)
+			if (res?.code === 0) {
+				form.value.fillWeight = String(res.data.fillWeight)
+				setAfterFillTotalWeight(res.data.afterFillTotalWeight, {
+					...(res.data.totalWeightMeta || null),
+					resolved: res.data.raw || null
+				})
+				form.value.fillWeightResolved = true
+			}
+			return res
+		} finally {
+			resolvingFillWeight.value = false
 		}
 	}
 
@@ -37,7 +74,11 @@ export function usePdaFillingForm(initialValues = {}) {
 	return {
 		form,
 		submitting,
+		resolvingFillWeight,
 		normalizeBottleInput,
+		applyBottleSelection,
+		setAfterFillTotalWeight,
+		resolveFillWeightFromTotal,
 		resetForm,
 		submit
 	}

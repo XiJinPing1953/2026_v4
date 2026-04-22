@@ -1,8 +1,9 @@
 <script>
 import { getUser, syncCurrentUser } from '@/services/auth'
 import { ensureLatestH5Bundle } from '@/services/h5VersionGuard'
-import { goLogin } from '@/services/navigation'
+import { consumePendingLoginRedirect, goLogin } from '@/services/navigation'
 import { resolveHomePath, shouldRedirectToPreferredHome } from '@/services/pda/entry'
+import { restoreScannerProfile } from '@/services/pda/capture'
 
 export default {
   async onLaunch() {
@@ -17,18 +18,26 @@ export default {
   },
   onHide() {
     console.log('App Hide')
+    restoreScannerProfile({ reason: 'app-hide' })
   },
   methods: {
     async bootstrapAuth() {
       const result = await syncCurrentUser({ force: true })
       if (result?.code === 401) {
-        goLogin()
+        goLogin({ captureCurrent: true })
         return
       }
       const user = result?.user || getUser()
       const pages = getCurrentPages()
       const current = pages[pages.length - 1]
       const currentPath = current?.route || ''
+      if (currentPath === 'pages/login/login') {
+        const pendingRedirect = consumePendingLoginRedirect()
+        if (pendingRedirect && user) {
+          uni.reLaunch({ url: pendingRedirect })
+          return
+        }
+      }
       if (shouldRedirectToPreferredHome(currentPath, user)) {
         uni.reLaunch({ url: resolveHomePath(user) })
       }

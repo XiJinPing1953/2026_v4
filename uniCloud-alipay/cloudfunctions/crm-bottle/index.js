@@ -30,6 +30,7 @@ const DUPLICATE_MERGE_FIELDS = [
 	'registration_mark',
 	'equipment_type',
 	'product_no',
+	'pda_qr_code',
 	'qr_code',
 	'manufacturer',
 	'volume_l',
@@ -60,6 +61,14 @@ const PAGE_ACTION_RULES = {
 		{ pagePath: '/pages/bottle/list', action: 'view' },
 		{ pagePath: '/pages/bottle/edit', action: 'view' },
 		{ pagePath: '/pages/pda/bottle-query', action: 'view' }
+	],
+	resolveQrCodeV1: [
+		{ pagePath: '/pages/pda/filling-create', action: 'view' },
+		{ pagePath: '/pages/pda/sale-create', action: 'view' }
+	],
+	resolveBottleNoV1: [
+		{ pagePath: '/pages/pda/filling-create', action: 'view' },
+		{ pagePath: '/pages/pda/sale-create', action: 'view' }
 	],
 	createV1: [{ pagePath: '/pages/bottle/edit', action: 'create' }],
 	updateV1: [{ pagePath: '/pages/bottle/edit', action: 'update' }],
@@ -242,6 +251,9 @@ function normalizeBottlePayload(data = {}, { forUpdate = false } = {}) {
 	const productNoRaw = data.product_no
 	if (!forUpdate || productNoRaw != null) patch.product_no = normalizeCode(productNoRaw)
 
+	const pdaQrCodeRaw = data.pda_qr_code
+	if (!forUpdate || pdaQrCodeRaw != null) patch.pda_qr_code = normalizeCode(pdaQrCodeRaw)
+
 	const qrCodeRaw = data.qr_code
 	if (!forUpdate || qrCodeRaw != null) patch.qr_code = normalizeCode(qrCodeRaw)
 
@@ -396,13 +408,64 @@ async function ensureBottleIdentityUnique(doc, excludeId = '') {
 	const duplicateBottle = await findDuplicateByField('bottle_no', doc.bottle_no, excludeId)
 	if (duplicateBottle) return '单位内编号已存在'
 
+	const duplicatePdaQr = await findDuplicateByField('pda_qr_code', doc.pda_qr_code, excludeId)
+	if (duplicatePdaQr) return 'PDA二维码号已存在'
+
 	const duplicateQr = await findDuplicateByField('qr_code', doc.qr_code, excludeId)
-	if (duplicateQr) return '二维码号已存在'
+	if (duplicateQr) return '原二维码号已存在'
 
 	const duplicateGauge = await findDuplicateByField('pressure_gauge_no', doc.pressure_gauge_no, excludeId)
 	if (duplicateGauge) return '压力表号已存在'
 
 	return ''
+}
+
+async function resolveUniqueBottleByField(field, rawValue, { label, normalizer, matchType } = {}) {
+	const normalize = typeof normalizer === 'function' ? normalizer : normalizeString
+	const value = normalize(rawValue)
+	if (!value) return { code: 400, msg: `${label || field}必填` }
+	const res = await bottles
+		.where({ [field]: value })
+		.field({
+			_id: true,
+			bottle_no: true,
+			tare_weight: true,
+			status: true,
+			current_customer_id: true,
+			current_customer_name: true,
+			is_active: true
+		})
+		.limit(2)
+		.get()
+	const list = Array.isArray(res.data) ? res.data : []
+	if (!list.length) return { code: 404, msg: `未找到匹配${label || field}` }
+	if (list.length > 1) {
+		return {
+			code: 409,
+			msg: `${label || field}存在重复档案，请先清洗主数据`,
+			data: {
+				matched: false,
+				match_type: 'multiple',
+				conflict_count: list.length
+			}
+		}
+	}
+	return {
+		code: 0,
+		data: {
+			matched: true,
+			match_type: matchType || field,
+			bottle: {
+				_id: list[0]._id,
+				bottle_no: list[0].bottle_no,
+				tare_weight: list[0].tare_weight,
+				status: list[0].status,
+				current_customer_id: list[0].current_customer_id || null,
+				current_customer_name: list[0].current_customer_name || '',
+				is_active: list[0].is_active !== false
+			}
+		}
+	}
 }
 
 function escapeRegExp(value) {
@@ -896,14 +959,20 @@ function buildBottleListWhereByFilter(data = {}) {
 		const rx = db.RegExp({ regexp: escapeRegExp(keyword), options: 'i' })
 		keywordOrConditions.push({ bottle_no: rx })
 		keywordOrConditions.push({ bottle_no_sort_text: rx })
+		keywordOrConditions.push({ pda_qr_code: rx })
+		keywordOrConditions.push({ qr_code: rx })
 		keywordOrConditions.push({ current_customer_name: rx })
 		if (normalizedKeyword && normalizedKeyword !== keyword) {
 			const normalizedRx = db.RegExp({ regexp: escapeRegExp(normalizedKeyword), options: 'i' })
 			keywordOrConditions.push({ bottle_no: normalizedRx })
 			keywordOrConditions.push({ bottle_no_sort_text: normalizedRx })
+			keywordOrConditions.push({ pda_qr_code: normalizedRx })
+			keywordOrConditions.push({ qr_code: normalizedRx })
 		}
 		if (normalizedKeyword) {
 			keywordOrConditions.push({ bottle_no: normalizedKeyword })
+			keywordOrConditions.push({ pda_qr_code: normalizedKeyword })
+			keywordOrConditions.push({ qr_code: normalizedKeyword })
 		}
 		if (/^\d+$/.test(normalizedKeyword)) {
 			const numericKeyword = Number(normalizedKeyword)
@@ -1642,6 +1711,24 @@ async function getV1(user, data) {
 	return { code: 0, data: doc }
 }
 
+async function resolveQrCodeV1(user, data) {
+	void user
+	return resolveUniqueBottleByField('pda_qr_code', data.pda_qr_code ?? data.pdaQrCode ?? data.qr_code ?? data.qrCode ?? data.token, {
+		label: '钢瓶PDA二维码',
+		normalizer: normalizeCode,
+		matchType: 'pda_qr_code'
+	})
+}
+
+async function resolveBottleNoV1(user, data) {
+	void user
+	return resolveUniqueBottleByField('bottle_no', data.bottle_no ?? data.bottleNo ?? data.token, {
+		label: '钢瓶号',
+		normalizer: normalizeBottleNo,
+		matchType: 'bottle_no'
+	})
+}
+
 async function createV1(user, data, requestId) {
 	const normalized = normalizeBottlePayload(data, { forUpdate: false })
 	normalized.safety_valve_count = 2
@@ -2347,6 +2434,7 @@ async function auditUniqueFieldsV1(user, data) {
 			.field({
 				_id: true,
 				bottle_no: true,
+				pda_qr_code: true,
 				qr_code: true,
 				pressure_gauge_no: true
 			})
@@ -2360,11 +2448,13 @@ async function auditUniqueFieldsV1(user, data) {
 	}
 
 	let emptyBottleNo = 0
+	let emptyPdaQrCode = 0
 	let emptyQrCode = 0
 	let emptyGaugeNo = 0
 
 	rows.forEach((row) => {
 		if (!normalizeString(row.bottle_no)) emptyBottleNo += 1
+		if (!normalizeString(row.pda_qr_code)) emptyPdaQrCode += 1
 		if (!normalizeString(row.qr_code)) emptyQrCode += 1
 		if (!normalizeString(row.pressure_gauge_no)) emptyGaugeNo += 1
 	})
@@ -2375,11 +2465,13 @@ async function auditUniqueFieldsV1(user, data) {
 			total: rows.length,
 			empty: {
 				bottle_no: emptyBottleNo,
+				pda_qr_code: emptyPdaQrCode,
 				qr_code: emptyQrCode,
 				pressure_gauge_no: emptyGaugeNo
 			},
 			duplicates: {
 				bottle_no: collectDuplicateValues(rows, 'bottle_no', sampleLimit),
+				pda_qr_code: collectDuplicateValues(rows, 'pda_qr_code', sampleLimit),
 				qr_code: collectDuplicateValues(rows, 'qr_code', sampleLimit),
 				pressure_gauge_no: collectDuplicateValues(rows, 'pressure_gauge_no', sampleLimit)
 			}
@@ -2405,6 +2497,8 @@ exports.main = async (event, context) => {
 
 	if (action === 'listV1') return listV1(user, data)
 	if (action === 'getV1') return getV1(user, data)
+	if (action === 'resolveQrCodeV1') return resolveQrCodeV1(user, data)
+	if (action === 'resolveBottleNoV1') return resolveBottleNoV1(user, data)
 	if (action === 'createV1') return createV1(user, data, requestId)
 	if (action === 'updateV1') return updateV1(user, data, requestId)
 	if (action === 'batchUpdateInspectionV1') return batchUpdateInspectionV1(user, data, requestId)

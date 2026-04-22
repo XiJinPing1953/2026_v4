@@ -25,6 +25,7 @@
     "equipment_type": { "bsonType": "string" },
     "product_no": { "bsonType": "string" },
     "qr_code": { "bsonType": "string" },
+    "pda_qr_code": { "bsonType": "string" },
     "manufacturer": { "bsonType": "string" },
     "volume_l": { "bsonType": ["number", "null"] },
     "manufacture_date": { "bsonType": "string" },
@@ -64,6 +65,7 @@
   "indexes": [
     { "key": { "bottle_no": 1 }, "name": "bottle_no", "unique": true },
     { "key": { "qr_code": 1 }, "name": "idx_qr_code" },
+    { "key": { "pda_qr_code": 1 }, "name": "idx_pda_qr_code" },
     { "key": { "pressure_gauge_no": 1 }, "name": "idx_pressure_gauge_no" },
     { "key": { "status": 1 }, "name": "idx_status" },
     { "key": { "current_customer_id": 1 }, "name": "idx_current_customer_id" },

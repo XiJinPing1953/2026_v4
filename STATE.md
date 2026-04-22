@@ -7026,3 +7026,436 @@
 - 剩余问题：
   - 这次只补了客户和瓶号联想，配送员、车牌号仍是普通输入。
   - 瓶号手工修改后目前只清 `bottleId`，如果现场需要更强的防错，还可以继续补“切换瓶号时同步清理旧空瓶重/净重”的保护。
+
+### 2026-04-17 CURRENT — PDA 扫码/OCR 自动录单 V1（`qr_code` 主路径）
+- 做了什么：
+  - 为钢瓶、客户、配送员、车辆补齐 `qr_code` 接入链路：维护页新增/显示二维码字段，列表搜索扩到 `qr_code`，云函数新增 `resolveQrCodeV1`（钢瓶另增 `resolveBottleNoV1`），并在服务端 create/update 阶段补了二维码重复校验。
+  - 新增 `src/services/pda/capture/index.js`，以 `app-plus + Native.js` 包装优博讯 `ScanManager` 的广播模式采集，对前端统一暴露 `scanCode/scanOcr/stopCapture/getScannerState`，默认按 `QRCODE + CODE128 + CODE39` 扫码，OCR 仍保留字段级确认后回填。
+  - PDA 灌装页新增“扫瓶码 / 识别瓶号 / 识别总重 / 按总重换算”，销售页新增客户、配送员、车辆扫码入口，以及出回瓶的扫码/OCR 回填；销售页的配送员/车辆无码兜底改为联想搜索，不走中文 OCR。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleListView.vue`
+  - `src/components/domain/customer/CustomerEditView.vue`
+  - `src/components/domain/customer/CustomerListView.vue`
+  - `src/components/domain/delivery/DeliveryEditView.vue`
+  - `src/components/domain/delivery/DeliveryListView.vue`
+  - `src/components/domain/pda/PdaFillingCreateView.vue`
+  - `src/components/domain/pda/PdaLookupSuggestField.vue`
+  - `src/components/domain/pda/PdaSaleCreateView.vue`
+  - `src/components/domain/vehicle/VehicleEditView.vue`
+  - `src/components/domain/vehicle/VehicleListView.vue`
+  - `src/composables/pda/usePdaFillingForm.js`
+  - `src/composables/pda/usePdaSaleForm.js`
+  - `src/services/bottle.js`
+  - `src/services/customer.js`
+  - `src/services/delivery.js`
+  - `src/services/pda/bottle.js`
+  - `src/services/pda/capture/index.js`
+  - `src/services/pda/customer.js`
+  - `src/services/pda/delivery.js`
+  - `src/services/pda/filling.js`
+  - `src/services/pda/shared.js`
+  - `src/services/pda/vehicle.js`
+  - `src/services/vehicle.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-customer/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-delivery/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-vehicle/index.js`
+  - `uniCloud-alipay/database/schema/crm_customers.schema.json`
+  - `uniCloud-alipay/database/schema/crm_delivery_men.schema.json`
+  - `uniCloud-alipay/database/schema/crm_vehicles.schema.json`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-bottle/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-delivery/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-vehicle/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 本轮二维码唯一性先落在服务端校验与审计链路，数据库 schema 只补了 `qr_code` 索引，没有直接改成云端唯一索引；正式上线前仍需先做一次缺码/重码清洗，再决定是否升成数据库唯一索引。
+  - `ScanManager` 的 OCR 目前按通用字段级模式接入，真实秤屏幕和瓶身字符的模板/曝光参数仍需在 `i6310Pro / Android 12` 真机上做一轮现场调参。
+  - 工作区里还存在与本次 PDA 改动无关的预存改动：`src/components/domain/customer/CashierReceiptIntakeView.vue`、`src/components/domain/customer/statement/CustomerStatementModule.vue`、`uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`、`docs/scanner api 文档.docx`；本次未回滚或整理这些文件。
+
+### 2026-04-17 CURRENT — 钢瓶 PDA 扫码切换到 `pda_qr_code`
+- 做了什么：
+  - 为 `crm_bottles` 新增 `pda_qr_code` schema 字段和索引，保留旧 `qr_code` 作为历史/档案字段，不再承担 PDA 钢瓶主扫码语义。
+  - 将 `crm-bottle.resolveQrCodeV1`、PDA 前端钢瓶扫码服务和灌装/销售页钢瓶扫码确认文案统一切到 `pda_qr_code`，钢瓶扫码主链路不再用旧 `crm_bottles.qr_code` 命中。
+  - 钢瓶维护页改成双码录入：新增 `PDA二维码号`，旧字段改名为 `原二维码号`；钢瓶列表导出和关键词搜索也补上了 `pda_qr_code`。
+  - 服务端钢瓶唯一性审计扩到 `pda_qr_code`，便于上线前排查缺码/重码；旧 `qr_code` 审计保留，方便历史字段清洗。
+- 改动文件列表：
+  - `src/components/domain/bottle/BottleEditView.vue`
+  - `src/components/domain/bottle/BottleListView.vue`
+  - `src/components/domain/pda/PdaFillingCreateView.vue`
+  - `src/components/domain/pda/PdaSaleCreateView.vue`
+  - `src/services/bottle.js`
+  - `src/services/models/bottle.js`
+  - `src/services/pda/bottle.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - `uniCloud-alipay/database/schema/crm_bottles.schema.json`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-bottle/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 云端现有钢瓶数据不会自动生成 `pda_qr_code`；部署后需要给要扫码的钢瓶补录新字段，否则钢瓶扫码不会命中档案。
+  - 这轮只切了钢瓶主扫码字段，客户/配送员/车辆仍继续使用各自现有 `qr_code` 字段。
+
+### 2026-04-18 CURRENT — 优博讯扫码桥接恢复与广播校验修复
+- 做了什么：
+  - 重构 `src/services/pda/capture/index.js`，把扫码桥接改为“采集前快照原配置、采集后恢复原配置”的临时接管模式，不再在初始化阶段就把扫描头永久切到 `broadcast + HOST`。
+  - 新增扫描头配置快照与恢复：读取并缓存 `getOutputMode()`、`getTriggerMode()`、`getParameterString(WEDGE_INTENT_ACTION_NAME / WEDGE_INTENT_DATA_STRING_TAG)`，并在成功、取消、超时、异常、页面离开、App 退后台时统一恢复。
+  - 删除“只开 `QRCODE/CODE128/CODE39`”的收窄做法，改为保底覆盖 `QRCODE + CODE128 + CODE39 + EAN13 + UPCA + UPCE + UPCE1`，避免现场常见一维码被误伤。
+  - 为广播配置增加读回校验和诊断状态：`switchOutputMode`、`setParameterString` 后读回当前 output/trigger/action/key；超时时会附带广播 action/key 与当前模式诊断，便于判断是“没读到码”还是“广播没收到”。
+  - `App.vue` 的 `onHide`、`/pages/pda/filling-create` 和 `/pages/pda/sale-create` 的 `onHide/onUnload` 都接入了 `restoreScannerProfile()`，避免退出 PDA 页面后设备继续停留在广播模式。
+- 改动文件列表：
+  - `src/services/pda/capture/index.js`
+  - `src/App.vue`
+  - `src/pages/pda/filling-create.vue`
+  - `src/pages/pda/sale-create.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 这轮只修了扫码桥接的接管/恢复和广播校验，真实 `ScanManager` 广播是否会在 `i6310Pro / Android 12` 上稳定回调，仍需真机复测确认。
+  - OCR 仍沿用当前通用参数，秤屏幕与瓶身字符模板的现场调参不在本轮内。
+
+### 2026-04-18 CURRENT — 扫描头 `Triggering.HOST` 静态常量兼容修复
+- 做了什么：
+  - 修正 `src/services/pda/capture/index.js` 的静态常量获取方式，不再只依赖 `plus.android.getAttribute(className, fieldName)`。
+  - 新增 `importClass + Java 反射` 兜底路径，确保 `Triggering.HOST`、`PropertyID.*`、`Symbology.*` 在 `i6310Pro / Android 12` 上也能取到。
+  - 这次修复同时覆盖了 HOST 触发模式、广播参数 ID 和码制枚举，避免后续再因为同类静态常量取值失败卡在配置阶段。
+- 改动文件列表：
+  - `src/services/pda/capture/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 这轮只修了静态常量解析，真机上仍需再次验证 `HOST` 模式配置成功后，广播回调是否能稳定收到扫码结果。
+
+### 2026-04-18 CURRENT — 广播参数缺失时回退官方默认广播
+- 做了什么：
+  - 调整 `src/services/pda/capture/index.js`，当 `PropertyID.WEDGE_INTENT_ACTION_NAME / WEDGE_INTENT_DATA_STRING_TAG` 不可用时，不再直接报错，而是回退到 `ScanManager` 官方默认广播通道。
+  - 新增默认广播配置读取：优先取 `ScanManager.ACTION_DECODE / BARCODE_STRING_TAG / BARCODE_TYPE_TAG`，取不到时再回退到 `android.intent.ACTION_DECODE_DATA / barcode_string / barcodeType`。
+  - 广播模式接管时同步尝试把 `WEDGE_KEYBOARD_ENABLE` 设为 `0`，恢复时再回写原值，避免键盘 wedge 抢占广播结果。
+  - 接收器注册改为同时监听自定义 action 和默认 action，兼容“支持自定义广播参数”和“只能走系统默认广播”的两类设备。
+- 改动文件列表：
+  - `src/services/pda/capture/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 这轮解决的是“广播参数不可用”配置阶段失败；真机上下一步要确认的是：是否已进入默认广播回调链路，还是会继续停在广播超时。
+
+### 2026-04-18 CURRENT — Android 12 广播接收兼容补丁
+- 做了什么：
+  - `src/services/pda/capture/index.js` 的广播接收器改成双实现类兜底：优先 `io.dcloud.android.content.BroadcastReceiver`，其次 `io.dcloud.feature.internal.reflect.BroadcastReceiver`。
+  - `onReceive` 中先 `plus.android.importClass(intent)`，再读 `getAction/getStringExtra`，避免 Android 12 下 Native.js 对 intent extra 读取异常。
+  - 当字符串 extra 为空时，新增 `byte[] barcode` 兜底读取，把官方默认广播中的原始字节数组转回文本。
+  - 文本键候选改成“当前广播 key + 默认广播 key + 常见兼容 key”，尽量覆盖优博讯默认广播和自定义广播两条链路。
+- 改动文件列表：
+  - `src/services/pda/capture/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 这轮补的是 Android 12 广播接收兼容性；真机上下一步要确认的是：现在是否能收到广播，还是仍旧完全没有回调进入。
+
+### 2026-04-18 CURRENT — 物理扫码键优先的页面级广播会话
+- 做了什么：
+  - `src/services/pda/capture/index.js` 从“按钮触发一次 `startDecode()`”重构为“页面级条码广播会话 + 一次性 OCR 采集”双通道：新增 `enterBarcodeSession / setActiveBarcodeTarget / leaveBarcodeSession`，物理扫码键走持续广播，OCR 仍走 `scanOcr()`。
+  - 页面接管扫描头时不再强依赖 `Triggering.HOST` 或一次性软件触发；进入页面后只做广播模式接管、关闭键盘 wedge、`unlockTrigger()`，并在离页/退后台后恢复原配置。
+  - 灌装页改成固定路由：进入页面默认等待“瓶号”物理扫码；“扫瓶码”按钮只负责切回当前扫码目标并提示按 PDA 扫码键，扫码成功后直接按钢瓶 `pda_qr_code` 自动回填瓶号。
+  - 销售页改成“当前步骤 + 当前选中项”路由：步骤 1 按当前头部字段回填客户/配送员/车辆，步骤 2 按当前出/回瓶行回填瓶号；重量继续保留 OCR 按钮处理。
+  - `src/pages/pda/filling-create.vue` 和 `src/pages/pda/sale-create.vue` 接入页面 `onShow/onHide/onUnload` 生命周期，会在显示时重新激活物理扫码会话，隐藏或卸载时释放并恢复设备原状态。
+- 改动文件列表：
+  - `src/services/pda/capture/index.js`
+  - `src/components/domain/pda/PdaFillingCreateView.vue`
+  - `src/components/domain/pda/PdaSaleCreateView.vue`
+  - `src/pages/pda/filling-create.vue`
+  - `src/pages/pda/sale-create.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 这轮已经把条码主路径切到物理扫码键和页面广播会话，但是否能在 `i6310Pro / Android 12` 上稳定收到优博讯物理键广播，仍需真机复测确认。
+  - OCR 仍沿用当前模板参数；秤屏幕和瓶身字符识别的现场模板调优不在本轮内。
+
+### 2026-04-18 CURRENT — PDA 主数据补码脚本与审计
+- 做了什么：
+  - 新增 `scripts/lib/qrImportCommon.cjs`，统一封装 uniCloud HTTP 调用、CRM 登录、CSV/JSON 输入读取、dry-run/execute/report/backup 输出。
+  - 新增 4 个主数据补码脚本：
+    - `scripts/upsertBottlePdaQrCodes.cjs` 仅按 `bottle_no` 更新钢瓶 `pda_qr_code`
+    - `scripts/upsertCustomerQrCodes.cjs` 仅更新客户 `qr_code`
+    - `scripts/upsertDeliveryQrCodes.cjs` 仅更新配送员 `qr_code`
+    - `scripts/upsertVehicleQrCodes.cjs` 仅更新车辆 `qr_code`
+  - 新增 `scripts/auditPdaQrMasters.cjs`，用于批量审计钢瓶 `pda_qr_code`、客户/配送员/车辆 `qr_code` 的空值和重复样本。
+  - 新增默认模板与说明文档：
+    - `docs/pda_qr_bottles.csv`
+    - `docs/customer_qr_codes.csv`
+    - `docs/delivery_qr_codes.csv`
+    - `docs/vehicle_qr_codes.csv`
+    - `docs/pda_qr_import.README.md`
+- 改动文件列表：
+  - `scripts/lib/qrImportCommon.cjs`
+  - `scripts/upsertBottlePdaQrCodes.cjs`
+  - `scripts/upsertCustomerQrCodes.cjs`
+  - `scripts/upsertDeliveryQrCodes.cjs`
+  - `scripts/upsertVehicleQrCodes.cjs`
+  - `scripts/auditPdaQrMasters.cjs`
+  - `docs/pda_qr_bottles.csv`
+  - `docs/customer_qr_codes.csv`
+  - `docs/delivery_qr_codes.csv`
+  - `docs/vehicle_qr_codes.csv`
+  - `docs/pda_qr_import.README.md`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check scripts/lib/qrImportCommon.cjs`（通过）
+  - `node --check scripts/upsertBottlePdaQrCodes.cjs`（通过）
+  - `node --check scripts/upsertCustomerQrCodes.cjs`（通过）
+  - `node --check scripts/upsertDeliveryQrCodes.cjs`（通过）
+  - `node --check scripts/upsertVehicleQrCodes.cjs`（通过）
+  - `node --check scripts/auditPdaQrMasters.cjs`（通过）
+- 剩余问题：
+  - 这轮只提供脚本和模板，还没有实际对云端执行补码；正式写入前仍需先跑 dry-run 并核对 report。
+  - 客户、配送员、车辆的补码命中依赖现有 `name/phone/plate_no` 主数据质量；若历史主数据本身脏乱，需要先清洗档案再批量补码。
+
+### 2026-04-18 CURRENT — PDA 主数据审计已完成 dry-run
+- 做了什么：
+  - 修正 `scripts/lib/qrImportCommon.cjs` 的空间鉴权路径：不再只支持 `clientSecret`，新增支付宝空间 `accessKey/secretKey/spaceAppId` 调用通道，并调整空间配置选择逻辑，优先使用带支付宝密钥的空间配置。
+  - 使用 `node scripts/auditPdaQrMasters.cjs --space-id env-00jxuffegf2n` 对当前支付宝云空间完成主数据二维码审计 dry-run，并生成报告 `docs/pda_qr_audit.report.json`。
+  - 审计结果显示当前主数据没有重复码，但钢瓶 `pda_qr_code`、客户/配送员/车辆 `qr_code` 仍全部为空，符合“先试点补码再扩面”的迁移起点。
+- 改动文件列表：
+  - `scripts/lib/qrImportCommon.cjs`
+  - `docs/pda_qr_audit.report.json`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check scripts/lib/qrImportCommon.cjs`（通过）
+  - `node --check scripts/auditPdaQrMasters.cjs`（通过）
+  - `node scripts/auditPdaQrMasters.cjs --space-id env-00jxuffegf2n`（通过，dry-run）
+- 剩余问题：
+  - 当前还没有执行任何补码写入；下一步仍应先准备试点 CSV，再用 `upsertBottlePdaQrCodes.cjs` / `upsertCustomerQrCodes.cjs` 等脚本先做 dry-run 后 execute。
+  - 钢瓶旧 `qr_code` 仍有 189 条已填值，但这轮没有自动迁移到 `pda_qr_code`，后续是否复用旧码需单独决策。
+
+### 2026-04-18 CURRENT — PDA 试点补码已写入并回查
+- 做了什么：
+  - 选取试点对象并生成专用补码 CSV：
+    - 客户 `旭昶皮厂`
+    - 钢瓶 `135 / 139 / 138 / 140 / 137`
+    - 配送员 `陈铁栓 / 李凤荣`
+    - 车辆 `冀A300AN`
+  - 对上述 4 类主数据分别执行 dry-run，报告均为 `not_found=0 / duplicated=0 / invalid=0 / conflict=0 / failed=0` 后再执行写入。
+  - 首次并行 execute 时，客户与配送员脚本因同账号并行登录触发 token 顶替，出现 `401`；随后改为串行 execute，客户、钢瓶、配送员、车辆全部写入成功。
+  - 对试点对象做了云端 post-check，确认 1 个客户、5 只钢瓶、2 个配送员、1 台车的二维码字段都已落库。
+- 改动文件列表：
+  - `scripts/lib/qrImportCommon.cjs`
+  - `docs/pilot_customer_qr_codes.csv`
+  - `docs/pilot_pda_qr_bottles.csv`
+  - `docs/pilot_delivery_qr_codes.csv`
+  - `docs/pilot_vehicle_qr_codes.csv`
+  - `docs/pilot_customer_qr_codes.report.json`
+  - `docs/pilot_pda_qr_bottles.report.json`
+  - `docs/pilot_delivery_qr_codes.report.json`
+  - `docs/pilot_vehicle_qr_codes.report.json`
+  - `docs/pilot_customer_qr_codes.execute.report.json`
+  - `docs/pilot_pda_qr_bottles.execute.report.json`
+  - `docs/pilot_delivery_qr_codes.execute.report.json`
+  - `docs/pilot_vehicle_qr_codes.execute.report.json`
+  - `docs/customer_qr_codes.20260418-181112.backup.json`
+  - `docs/pda_qr_bottles.20260418-181050.backup.json`
+  - `docs/delivery_qr_codes.20260418-181123.backup.json`
+  - `docs/vehicle_qr_codes.20260418-180932.backup.json`
+  - `docs/pda_qr_audit.report.json`
+  - `STATE.md`
+- 验证输出要点：
+  - `node scripts/upsertBottlePdaQrCodes.cjs --space-id env-00jxuffegf2n --input docs/pilot_pda_qr_bottles.csv --report docs/pilot_pda_qr_bottles.report.json`（dry-run 通过）
+  - `node scripts/upsertCustomerQrCodes.cjs --space-id env-00jxuffegf2n --input docs/pilot_customer_qr_codes.csv --report docs/pilot_customer_qr_codes.report.json`（dry-run 通过）
+  - `node scripts/upsertDeliveryQrCodes.cjs --space-id env-00jxuffegf2n --input docs/pilot_delivery_qr_codes.csv --report docs/pilot_delivery_qr_codes.report.json`（dry-run 通过）
+  - `node scripts/upsertVehicleQrCodes.cjs --space-id env-00jxuffegf2n --input docs/pilot_vehicle_qr_codes.csv --report docs/pilot_vehicle_qr_codes.report.json`（dry-run 通过）
+  - `node scripts/upsertBottlePdaQrCodes.cjs --execute --space-id env-00jxuffegf2n ...`（执行通过）
+  - `node scripts/upsertCustomerQrCodes.cjs --execute --space-id env-00jxuffegf2n ...`（串行重跑后通过）
+  - `node scripts/upsertDeliveryQrCodes.cjs --execute --space-id env-00jxuffegf2n ...`（串行重跑后通过）
+  - `node scripts/upsertVehicleQrCodes.cjs --execute --space-id env-00jxuffegf2n ...`（执行通过）
+  - `node /tmp/verifyPilotQr.cjs env-00jxuffegf2n`（post-check 通过）
+- 剩余问题：
+  - 后续扩面执行时，客户/配送员/车辆脚本不应并行共用同一个超级管理员登录态；建议继续串行写入，或为批处理准备专用账号/固定 token。
+  - 当前只是试点补码；批量扩面前仍应先准备映射表并继续按 dry-run -> execute -> post-check 节奏推进。
+
+### 2026-04-18 CURRENT — PDA 销售页配送员扫码 403 fallback ACL 修复
+- 做了什么：
+  - 排查 `PDA 销售页先扫客户成功、再扫配送员报无权限` 的根因，确认问题不在前端扫码目标切换，而在 `crm-delivery` 云函数 fallback 到本地 ACL 时仍使用旧版 `pageAclRegistryLocal.js`。
+  - 修复 `uniCloud-alipay/cloudfunctions/crm-delivery/pageAclRegistryLocal.js`：补齐 `pda` 分组、`pda_operator` 角色模板，以及 `/pages/pda/home`、`/pages/pda/bottle-query`、`/pages/pda/movement-query`、`/pages/pda/customer-query`、`/pages/pda/filling-create`、`/pages/pda/sale-create` 页面注册。
+  - 同步修复 `uniCloud-alipay/cloudfunctions/crm-vehicle/pageAclRegistryLocal.js` 的同类缺口，避免车辆扫码在 fallback 路径下复现 403。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-delivery/pageAclRegistryLocal.js`
+  - `uniCloud-alipay/cloudfunctions/crm-vehicle/pageAclRegistryLocal.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-delivery/pageAclRegistryLocal.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-vehicle/pageAclRegistryLocal.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-delivery/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-vehicle/index.js`（通过）
+- 剩余问题：
+  - 这轮还未部署云函数；要让 PDA 真机修复生效，至少需要重新上传 `crm-delivery` 和 `crm-vehicle`。
+  - 部署后应以 `pda_operator` 账号回归验证：先扫客户，再扫配送员 1/2，再扫车辆，确认都不再出现 403。
+
+### 2026-04-18 CURRENT — PDA 秤屏数字 OCR 优化与手输兜底
+- 做了什么：
+  - 扩展 `src/services/pda/capture/index.js`，新增重量专用 OCR profile `scale_weight_led`、重量 OCR `6s` 超时、OCR 结果结构补充 `normalizedText/parsedValue/failureReason`，并把最近 OCR 目标、原文、解析值、能力校验纳入 `getScannerState()`。
+  - 扩展 `src/services/pda/shared.js`，新增七段数码管专用重量清洗与解析：对 `O/D/Q/I/L/Z/S/B/G` 等易混字符做归一化，只保留数字与一个小数点，并按候选评分提取秤屏重量。
+  - 新增 `src/components/domain/pda/PdaNumericCaptureDialog.vue`，作为 PDA 复用数字手输框，供重量 OCR 超时/无效时立即兜底回填。
+  - 改造 `src/components/domain/pda/PdaFillingCreateView.vue` 与 `src/components/domain/pda/PdaSaleCreateView.vue`：重量 OCR 按钮改为“识别秤屏重量”，增加秤屏拍摄提示、页面内 OCR 诊断入口，以及 OCR 失败后直接弹手输框继续流程。
+- 改动文件列表：
+  - `src/services/pda/capture/index.js`
+  - `src/services/pda/shared.js`
+  - `src/components/domain/pda/PdaNumericCaptureDialog.vue`
+  - `src/components/domain/pda/PdaFillingCreateView.vue`
+  - `src/components/domain/pda/PdaSaleCreateView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check src/services/pda/capture/index.js`（通过）
+  - `node --check src/services/pda/shared.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 这轮仍只使用扫描头 OCR；如果 `i6310Pro / Android 12` 对红色秤屏的 OCR 仍不稳定，下一版应规划相机 OCR 兜底。
+  - 当前未对纸上手写数字做专项优化；手写数字只允许偶然识别，不作为正式支持场景。
+
+### 2026-04-18 CURRENT — PDA 秤屏 OCR 深度调参与隐藏调参页 V2
+- 做了什么：
+  - 扩展 `src/services/pda/capture/index.js`，新增 `scanScaleWeightOcr()`：按 `preset_builtin_a -> preset_builtin_b -> preset_user_numeric` 三组预设顺序尝试秤屏 OCR；每组独立超时、复用曝光/低对比/灯光/centering 参数，并把 attempt 链、最近运行历史、本机 override 加入 `getScannerState()`。
+  - 新增 `src/services/pda/ocrTuning.js`，统一维护秤屏 OCR 默认预设、本机存储键 `pda_ocr_weight_tuning_v2`、加载/保存/恢复默认逻辑；窗口裁切参数默认关闭，仅在管理员调参页中可编辑。
+  - 调整 `src/services/pda/shared.js` 的秤屏权重候选评分：优先连续整数 `3-5` 位，其次 `3-6` 位含一个小数点，提升红色数码管整数场景命中优先级。
+  - 新增隐藏调参页 `src/pages/pda/ocr-tuning.vue` / `src/components/domain/pda/PdaOcrTuningView.vue`，支持管理员查看当前有效预设、编辑共享图像参数与 3 组 OCR 预设、测试识别一次、查看最近 5 次 attempt 结果并恢复默认。
+  - 改造 `src/components/base/AppButton.vue` 与 PDA 灌装/销售页：诊断按钮支持 `2s` 按住进入隐藏调参页，普通点击仍只切换诊断面板；重量识别统一改走 `scanScaleWeightOcr()`。
+  - 更新 `src/pages.json`、`src/services/pageAclRegistry.js`、`uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js`，新增 `/pages/pda/ocr-tuning`，并通过新 `pdaAdmin` 分组限制为 `admin/superadmin` 可见。
+- 改动文件列表：
+  - `src/components/base/AppButton.vue`
+  - `src/components/domain/pda/PdaFillingCreateView.vue`
+  - `src/components/domain/pda/PdaSaleCreateView.vue`
+  - `src/components/domain/pda/PdaOcrTuningView.vue`
+  - `src/pages/pda/ocr-tuning.vue`
+  - `src/pages.json`
+  - `src/services/pageAclRegistry.js`
+  - `src/services/pda/capture/index.js`
+  - `src/services/pda/ocrTuning.js`
+  - `src/services/pda/shared.js`
+  - `uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check src/services/pda/capture/index.js`（通过）
+  - `node --check src/services/pda/shared.js`（通过）
+  - `node --check src/services/pda/ocrTuning.js`（通过）
+  - `node --check src/services/pageAclRegistry.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 这轮仍完全依赖优博讯扫描头 OCR；是否能在 `i6310Pro / Android 12` 上稳定识别红色秤屏，仍需真机用隐藏调参页逐组验证。
+  - `2s` 长按入口与本机参数覆盖都只在 App 真机链路有意义，H5/小程序构建通过不代表硬件 OCR 已稳定。
+
+### 2026-04-18 CURRENT — PDA 扫描头 OCR 秤显数字稳定化 V3（数字专用）
+- 做了什么：
+  - 调整 `src/services/pda/ocrTuning.js`：秤屏 OCR 默认总预算改为 `4000ms`，单次尝试默认 `700ms`，与“速度优先 + 手输兜底”策略一致。
+  - 重构 `src/services/pda/capture/index.js` 的 OCR 参数写入逻辑：
+    - 增加 `setParameterInts` / `setPropertyInts` 双通道写入适配。
+    - 对 `LOW_CONTRAST_IMPROVED*` 走 `property` 通道优先，失败后回退 `parameter` 并记录降级。
+    - 将不支持参数归集到 `unsupportedParams`，仅做诊断不阻断 OCR。
+  - 将 `scanScaleWeightOcr()` 改为数字专用稳定采样器：
+    - 在 `4s` 总预算内循环短采样（预设链顺序固定 `builtin_a -> builtin_b -> user_numeric`）。
+    - 每个样本统一数字清洗，只接受 `整数 + 单小数点`。
+    - 仅当连续两次样本完全一致才判定命中并回填（`consensus` 规则）。
+    - 返回结构补齐 `samples`、`consensus`、`selectedPreset`，并落地到 `getScannerState()` 诊断字段。
+  - 升级灌装/销售页 OCR 诊断文案和确认交互：
+    - OCR 能力改为“能力状态 + 写入通道 + 降级项”而非单条报错。
+    - 重量命中确认弹窗展示“命中值 + 预设 + 样本数 + 连续一致次数”。
+- 改动文件列表：
+  - `src/services/pda/ocrTuning.js`
+  - `src/services/pda/capture/index.js`
+  - `src/components/domain/pda/PdaFillingCreateView.vue`
+  - `src/components/domain/pda/PdaSaleCreateView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check src/services/pda/capture/index.js`（通过）
+  - `node --check src/services/pda/ocrTuning.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - `.vue` 文件无法用 `node --check` 直接做语法检查（Node 不识别 `.vue` 扩展），本轮以 `uni build` 作为页面语法与依赖回归依据。
+  - 真机仍需重点验证：`i6310Pro` 扫描头在红色数码管场景下是否能稳定达到“连续两次一致”门槛。
+
+### 2026-04-20 CURRENT — 登录回跳修复 + PDA 管理员 OCR 校准入口
+- 做了什么：
+  - 修复登录回跳链路：新增待登录回跳页存储，未登录被拦截后会记住原目标页面；登录成功后优先回跳原页面，不再无条件落到 `resolveHomePath()`。
+  - 在 `App.vue` 增加“登录页 + 待回跳页”兜底处理，避免 `onShow` 抢先把登录后的当前页又重定向回 PDA 首页。
+  - 为 `admin/superadmin` 在 PDA 首页补显式入口 `OCR ROI 校准`，不再只能靠 HBuilderX 运行隐藏页。
+- 改动文件列表：
+  - `src/services/navigation.js`
+  - `src/pages/login/login.vue`
+  - `src/App.vue`
+  - `src/components/domain/pda/PdaHomeView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check src/services/navigation.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 真机仍需重装这次新包或新基座后验证：`运行当前页 -> 登录 -> 回到 /pages/pda/ocr-tuning` 是否按预期生效。
+  - 若设备上仍看到旧版入口布局，优先排查是否运行了旧基座或旧资源缓存，而不是继续怀疑 OCR 逻辑本身。
+
+### 2026-04-22 CURRENT — PDA 量重改造 V1（OCR 下线 + 秤网关 + 扫码提速）
+- 做了什么：
+  - 新分支继续沿用 PDA 当前工作，在前端彻底下线 OCR：删除 OCR 页面/服务/路由/ACL/首页入口，移除 `TH-WeightOCR-MLKit` 插件引用，并把 `src/services/pda/capture/index.js` 收敛为纯扫码广播会话，新增“同目标 + 同码 600ms 去重”。
+  - 新增秤网关链路：增加 `uniCloud-alipay/cloudfunctions/crm-pda-scale/index.js` 与 `uniCloud-alipay/database/schema/crm_pda_scale_latest.schema.json`，前端新增 `src/services/pda/scale.js`、`src/composables/pda/usePdaScale.js`，灌装页补秤状态卡、轮询、在线/稳定判定和“手工总重优先，留空回退稳定秤值”的换算逻辑。
+  - 扫码提速按“扫码优先”收口：销售页步骤 1/2 取消自动存瓶预览请求，仅在进入步骤 3 或手动刷新时重算；客户/钢瓶扫码 resolve 改为 PDA 最小摘要返回，并在前端增加 30s TTL 缓存；机房电脑侧新增 `scripts/scale-gateway/` 独立 Node 网关与 `--mock` 模式。
+- 改动文件列表：
+  - `src/components/domain/pda/PdaHomeView.vue`
+  - `src/components/domain/pda/PdaFillingCreateView.vue`
+  - `src/components/domain/pda/PdaSaleCreateView.vue`
+  - `src/composables/pda/usePdaFillingForm.js`
+  - `src/composables/pda/usePdaSaleForm.js`
+  - `src/composables/pda/usePdaScale.js`
+  - `src/services/pda/capture/index.js`
+  - `src/services/pda/customer.js`
+  - `src/services/pda/bottle.js`
+  - `src/services/pda/filling.js`
+  - `src/services/pda/scale.js`
+  - `src/pages.json`
+  - `src/services/pageAclRegistry.js`
+  - `src/manifest.json`
+  - `uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js`
+  - `uniCloud-alipay/cloudfunctions/crm-customer/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-pda-scale/index.js`
+  - `uniCloud-alipay/database/schema/crm_pda_scale_latest.schema.json`
+  - `scripts/scale-gateway/package.json`
+  - `scripts/scale-gateway/.env.example`
+  - `scripts/scale-gateway/protocol.cjs`
+  - `scripts/scale-gateway/index.cjs`
+  - `scripts/scale-gateway/README.md`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check src/services/pda/capture/index.js`（通过）
+  - `node --check src/services/pda/customer.js`（通过）
+  - `node --check src/services/pda/bottle.js`（通过）
+  - `node --check src/services/pda/filling.js`（通过）
+  - `node --check src/services/pda/scale.js`（通过）
+  - `node --check src/composables/pda/usePdaScale.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-pda-scale/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-bottle/index.js`（通过）
+  - `node --check scripts/scale-gateway/index.cjs`（通过）
+  - `node --check scripts/scale-gateway/protocol.cjs`（通过）
+  - `node scripts/scale-gateway/index.cjs --mock --dry-run --once`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 云函数、schema 和前端仍需按发布流程部署到目标空间后，PDA 真机才能看到秤状态卡和最新重量。
+  - `scripts/scale-gateway/` 还需要在机房电脑执行 `npm install` 并配置真实串口、云空间凭证和网关账号，随后做至少 10 分钟真机联调。
+  - 目前只做“最新快照”链路，不含重量历史、超载位、多秤调度或 WebSocket；若后续补到明确超载寄存器，再扩字段。

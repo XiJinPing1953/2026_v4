@@ -16,7 +16,8 @@ const GROUP_DEFAULTS = {
 		collection: { view: true, create: true, update: true, delete: true },
 		logs: { view: true, create: false, update: false, delete: false },
 		userAdmin: { view: true, create: true, update: true, delete: true },
-		pda: { view: true, create: true, update: true, delete: false }
+		pda: { view: true, create: true, update: true, delete: false },
+		pdaAdmin: { view: true, create: false, update: true, delete: false }
 	},
 	admin: {
 		dashboard: { view: true, create: false, update: false, delete: false },
@@ -31,7 +32,8 @@ const GROUP_DEFAULTS = {
 		collection: { view: true, create: true, update: true, delete: true },
 		logs: { view: true, create: false, update: false, delete: false },
 		userAdmin: { view: false, create: false, update: false, delete: false },
-		pda: { view: true, create: true, update: true, delete: false }
+		pda: { view: true, create: true, update: true, delete: false },
+		pdaAdmin: { view: true, create: false, update: true, delete: false }
 	},
 	finance: {
 		dashboard: { view: true, create: false, update: false, delete: false },
@@ -46,7 +48,8 @@ const GROUP_DEFAULTS = {
 		collection: { view: true, create: true, update: true, delete: true },
 		logs: { view: true, create: false, update: false, delete: false },
 		userAdmin: { view: false, create: false, update: false, delete: false },
-		pda: { view: false, create: false, update: false, delete: false }
+		pda: { view: false, create: false, update: false, delete: false },
+		pdaAdmin: { view: false, create: false, update: false, delete: false }
 	},
 	user: {
 		dashboard: { view: true, create: false, update: false, delete: false },
@@ -61,7 +64,8 @@ const GROUP_DEFAULTS = {
 		collection: { view: false, create: false, update: false, delete: false },
 		logs: { view: false, create: false, update: false, delete: false },
 		userAdmin: { view: false, create: false, update: false, delete: false },
-		pda: { view: false, create: false, update: false, delete: false }
+		pda: { view: false, create: false, update: false, delete: false },
+		pdaAdmin: { view: false, create: false, update: false, delete: false }
 	},
 	pda_operator: {
 		dashboard: { view: false, create: false, update: false, delete: false },
@@ -76,7 +80,8 @@ const GROUP_DEFAULTS = {
 		collection: { view: false, create: false, update: false, delete: false },
 		logs: { view: false, create: false, update: false, delete: false },
 		userAdmin: { view: false, create: false, update: false, delete: false },
-		pda: { view: true, create: true, update: true, delete: false }
+		pda: { view: true, create: true, update: true, delete: false },
+		pdaAdmin: { view: false, create: false, update: false, delete: false }
 	}
 }
 

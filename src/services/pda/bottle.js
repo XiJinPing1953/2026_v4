@@ -1,5 +1,28 @@
-import { getBottleV1, searchBottlesV1 } from '@/services/bottle'
-import { normalizeBottleNo, normalizeText } from './shared'
+import { getBottleV1, resolveBottleNoV1, resolveBottlePdaQrCodeV1, searchBottlesV1 } from '@/services/bottle'
+import { normalizeBottleNo, normalizeQrCode, normalizeText } from './shared'
+
+const BOTTLE_CACHE_TTL_MS = 30 * 1000
+const bottleQrCache = new Map()
+const bottleNoCache = new Map()
+
+function readCache(cache, key) {
+	if (!key || !cache.has(key)) return null
+	const cached = cache.get(key)
+	if (!cached || Number(cached.expireAt || 0) <= Date.now()) {
+		cache.delete(key)
+		return null
+	}
+	return cached.data || null
+}
+
+function writeCache(cache, key, data, ttlMs) {
+	if (!key || !data) return data
+	cache.set(key, {
+		data,
+		expireAt: Date.now() + Math.max(Number(ttlMs) || 0, 1000)
+	})
+	return data
+}
 
 function buildPaging(res, page, pageSize) {
 	return res?.paging || {
@@ -7,6 +30,19 @@ function buildPaging(res, page, pageSize) {
 		pageSize,
 		total: Array.isArray(res?.data) ? res.data.length : 0,
 		hasMore: false
+	}
+}
+
+function normalizePdaBottleSummary(bottle = null) {
+	if (!bottle || typeof bottle !== 'object') return null
+	return {
+		_id: normalizeText(bottle._id || bottle.bottle_id),
+		bottle_no: normalizeBottleNo(bottle.bottle_no || bottle.bottleNo),
+		tare_weight: bottle.tare_weight == null ? null : Number(bottle.tare_weight),
+		status: normalizeText(bottle.status),
+		current_customer_id: normalizeText(bottle.current_customer_id),
+		current_customer_name: normalizeText(bottle.current_customer_name),
+		is_active: bottle.is_active !== false
 	}
 }
 
@@ -39,18 +75,29 @@ export async function getPdaBottleById(id) {
 export async function findPdaBottleByNo(bottleNo) {
 	const normalized = normalizeBottleNo(bottleNo)
 	if (!normalized) return { code: 400, msg: '瓶号必填', data: null }
-	const res = await searchBottlesV1({
-		keyword: normalized,
-		page: 1,
-		pageSize: 20
-	})
-	if (res?.code !== 0) {
-		return { code: res?.code ?? -1, msg: res?.msg || '钢瓶查询失败', data: null }
+	const cached = readCache(bottleNoCache, normalized)
+	if (cached) return { code: 0, msg: '', data: cached }
+	const res = await resolveBottleNoV1({ bottle_no: normalized })
+	if (res?.code !== 0) return { code: res?.code ?? -1, msg: res?.msg || '钢瓶查询失败', data: null }
+	const summary = normalizePdaBottleSummary(res?.data?.bottle || null)
+	if (summary?.bottle_no) writeCache(bottleNoCache, summary.bottle_no, summary, BOTTLE_CACHE_TTL_MS)
+	return { code: 0, msg: '', data: summary }
+}
+
+export async function resolvePdaBottleByQrCode(qrCode) {
+	const normalized = normalizeQrCode(qrCode)
+	if (!normalized) return { code: 400, msg: '钢瓶PDA二维码必填', data: null }
+	const cached = readCache(bottleQrCache, normalized)
+	if (cached) return { code: 0, msg: '', data: cached }
+	const res = await resolveBottlePdaQrCodeV1({ pda_qr_code: normalized })
+	if (res?.code !== 0) return { code: res?.code ?? -1, msg: res?.msg || '钢瓶PDA扫码失败', data: null }
+	const summary = normalizePdaBottleSummary(res?.data?.bottle || null)
+	if (summary?.bottle_no) writeCache(bottleNoCache, summary.bottle_no, summary, BOTTLE_CACHE_TTL_MS)
+	return {
+		code: 0,
+		msg: '',
+		data: writeCache(bottleQrCache, normalized, summary, BOTTLE_CACHE_TTL_MS)
 	}
-	const list = Array.isArray(res?.data) ? res.data : []
-	const exact = list.find((item) => normalizeBottleNo(item?.bottle_no) === normalized) || null
-	if (!exact) return { code: 404, msg: '未找到钢瓶', data: null }
-	return { code: 0, msg: '', data: exact }
 }
 
 export function buildPdaMovementQueryUrl(bottleNo = '') {

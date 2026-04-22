@@ -27,6 +27,7 @@ const PAGE_ACTION_RULES = {
 		{ pagePath: '/pages/pda/customer-query', action: 'view' },
 		{ pagePath: '/pages/pda/sale-create', action: 'view' }
 	],
+	resolveQrCodeV1: [{ pagePath: '/pages/pda/sale-create', action: 'view' }],
 	createV1: [{ pagePath: '/pages/customer/edit', action: 'create' }],
 	updateV1: [{ pagePath: '/pages/customer/edit', action: 'update' }]
 }
@@ -66,6 +67,10 @@ function generateRequestId() {
 
 function normalizePhone(value) {
 	return normalizeString(value).replace(/\s+/g, '')
+}
+
+function normalizeQrCode(value) {
+	return normalizeString(value).toUpperCase().replace(/\s+/g, '')
 }
 
 function normalizePriceUnit(value) {
@@ -226,6 +231,84 @@ function buildUniqKey(name, phone) {
 	return p ? `${n}|${p}` : n
 }
 
+function isDuplicateKeyError(err) {
+	const msg = normalizeString(err && err.message).toLowerCase()
+	return msg.includes('duplicate key') || msg.includes('e11000')
+}
+
+async function findDuplicateByField(field, value, excludeId = '') {
+	if (!value) return null
+	const conditions = [{ [field]: value }]
+	if (excludeId) conditions.push({ _id: dbCmd.neq(excludeId) })
+	const where = conditions.length === 1 ? conditions[0] : dbCmd.and(conditions)
+	const res = await customers.where(where).field({ _id: true }).limit(1).get()
+	return Array.isArray(res.data) ? res.data[0] || null : null
+}
+
+async function ensureCustomerIdentityUnique({ uniq_key: uniqKey = '', qr_code: qrCode = '' } = {}, excludeId = '') {
+	const uniqDuplicate = await findDuplicateByField('uniq_key', uniqKey, excludeId)
+	if (uniqDuplicate) return '客户已存在'
+	if (qrCode) {
+		const qrDuplicate = await findDuplicateByField('qr_code', qrCode, excludeId)
+		if (qrDuplicate) return '客户二维码已存在'
+	}
+	return ''
+}
+
+async function resolveUniqueCustomerByQrCode(rawQrCode) {
+	const qrCode = normalizeQrCode(rawQrCode)
+	if (!qrCode) return { code: 400, msg: '客户二维码必填' }
+	const res = await customers
+		.where({ qr_code: qrCode })
+		.field({
+			_id: true,
+			name: true,
+			contact: true,
+			phone: true,
+			is_active: true,
+			default_price_unit: true,
+			default_unit_price: true,
+			receivable_balance: true,
+			prepay_balance: true,
+			net_balance: true
+		})
+		.limit(2)
+		.get()
+	const list = Array.isArray(res.data) ? res.data : []
+	if (!list.length) return { code: 404, msg: '未找到匹配客户' }
+	if (list.length > 1) {
+		return {
+			code: 409,
+			msg: '客户二维码存在重复档案，请先清洗主数据',
+			data: { matched: false, match_type: 'multiple', conflict_count: list.length }
+		}
+	}
+	const withDeposit = await attachDepositCounts([list[0]])
+	const customer = withDeposit[0] || null
+	return {
+		code: 0,
+		data: {
+			matched: true,
+			match_type: 'qr_code',
+			customer: customer
+				? {
+						_id: customer._id,
+						name: customer.name,
+						contact: customer.contact,
+						phone: customer.phone,
+						is_active: customer.is_active !== false,
+						default_price_unit: customer.default_price_unit || 'kg',
+						default_unit_price: customer.default_unit_price == null ? null : Number(customer.default_unit_price),
+						receivable_balance: toBalanceNumber(customer.receivable_balance),
+						prepay_balance: toBalanceNumber(customer.prepay_balance),
+						net_balance: toBalanceNumber(customer.net_balance),
+						deposit_count: Number(customer.deposit_count || 0)
+					}
+				: null
+		}
+	}
+}
+
 async function listV1(user, data) {
 	void user
 	const keyword = normalizeString(data.keyword)
@@ -268,7 +351,7 @@ async function listV1(user, data) {
 	if (keyword) {
 		const escaped = escapeRegExp(keyword)
 		const rx = db.RegExp({ regexp: escaped, options: 'i' })
-		keywordWhere = dbCmd.or([{ name: rx }, { short_name: rx }, { contact: rx }, { phone: rx }])
+		keywordWhere = dbCmd.or([{ name: rx }, { short_name: rx }, { contact: rx }, { phone: rx }, { qr_code: rx }])
 	}
 
 	let balanceWhere = null
@@ -407,6 +490,7 @@ async function createV1(user, data, requestId) {
 		short_name: normalizeString(data.short_name),
 		contact: normalizeString(data.contact),
 		phone,
+		qr_code: normalizeQrCode(data.qr_code ?? data.qrCode),
 		address: normalizeString(data.address),
 		remark: normalizeString(data.remark),
 		is_active: true,
@@ -422,9 +506,18 @@ async function createV1(user, data, requestId) {
 		updated_at: now
 	}
 
-	const res = await customers.add(doc)
-	await recordLog(user, 'customer_create_v1', { id: res.id }, requestId)
-	return { code: 0, msg: '创建成功', data: { _id: res.id } }
+	const uniqueMsg = await ensureCustomerIdentityUnique(doc)
+	if (uniqueMsg) return { code: 409, msg: uniqueMsg }
+
+	try {
+		const res = await customers.add(doc)
+		await recordLog(user, 'customer_create_v1', { id: res.id }, requestId)
+		return { code: 0, msg: '创建成功', data: { _id: res.id } }
+	} catch (err) {
+		if (isDuplicateKeyError(err)) return { code: 409, msg: '客户已存在' }
+		console.error('[crm-customer] createV1 failed', err)
+		return { code: 500, msg: '创建失败' }
+	}
 }
 
 async function updateV1(user, data, requestId) {
@@ -433,7 +526,7 @@ async function updateV1(user, data, requestId) {
 
 	const current = await customers
 		.doc(id)
-		.field({ name: true, phone: true, short_name: true, contact: true })
+		.field({ name: true, phone: true, short_name: true, contact: true, qr_code: true })
 		.get()
 	const existing = (current.data && current.data[0]) || null
 	if (!existing) return { code: 404, msg: '客户不存在' }
@@ -443,6 +536,7 @@ async function updateV1(user, data, requestId) {
 	if (data.short_name != null) patch.short_name = normalizeString(data.short_name)
 	if (data.contact != null) patch.contact = normalizeString(data.contact)
 	if (data.phone != null) patch.phone = normalizePhone(data.phone)
+	if (data.qr_code != null || data.qrCode != null) patch.qr_code = normalizeQrCode(data.qr_code ?? data.qrCode)
 	if (data.address != null) patch.address = normalizeString(data.address)
 	if (data.remark != null) patch.remark = normalizeString(data.remark)
 	if (data.is_active != null) patch.is_active = Boolean(data.is_active)
@@ -463,10 +557,29 @@ async function updateV1(user, data, requestId) {
 	}
 
 	patch.updated_at = Date.now()
+	const uniqueMsg = await ensureCustomerIdentityUnique(
+		{
+			uniq_key: patch.uniq_key != null ? patch.uniq_key : buildUniqKey(existing.name, existing.phone),
+			qr_code: patch.qr_code != null ? patch.qr_code : normalizeQrCode(existing.qr_code)
+		},
+		id
+	)
+	if (uniqueMsg) return { code: 409, msg: uniqueMsg }
 
-	await customers.doc(id).update(patch)
-	await recordLog(user, 'customer_update_v1', { id }, requestId)
-	return { code: 0, msg: '更新成功' }
+	try {
+		await customers.doc(id).update(patch)
+		await recordLog(user, 'customer_update_v1', { id }, requestId)
+		return { code: 0, msg: '更新成功' }
+	} catch (err) {
+		if (isDuplicateKeyError(err)) return { code: 409, msg: '客户已存在' }
+		console.error('[crm-customer] updateV1 failed', err)
+		return { code: 500, msg: '更新失败' }
+	}
+}
+
+async function resolveQrCodeV1(user, data) {
+	void user
+	return resolveUniqueCustomerByQrCode(data.qr_code ?? data.qrCode ?? data.token)
 }
 
 exports.main = async (event, context) => {
@@ -487,6 +600,7 @@ exports.main = async (event, context) => {
 
 	if (action === 'listV1') return listV1(user, data)
 	if (action === 'getV1') return getV1(user, data)
+	if (action === 'resolveQrCodeV1') return resolveQrCodeV1(user, data)
 	if (action === 'createV1') return createV1(user, data, requestId)
 	if (action === 'updateV1') return updateV1(user, data, requestId)
 
