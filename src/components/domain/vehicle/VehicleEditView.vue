@@ -22,6 +22,10 @@
 						<text class="pill-label">备注信息</text>
 						<text class="pill-value">{{ remarkSummary }}</text>
 					</view>
+					<view class="info-pill">
+						<text class="pill-label">二维码</text>
+						<text class="pill-value">{{ qrCodeSummary }}</text>
+					</view>
 				</view>
 			</AppCard>
 
@@ -30,6 +34,9 @@
 					<view class="form-grid">
 						<view class="form-item span-2">
 							<AppInput v-model="form.plate_no" label="车牌号码" placeholder="请输入车牌号" prefix-icon="truck" size="sm" />
+						</view>
+						<view class="form-item span-2">
+							<AppInput v-model="form.qr_code" label="二维码号" placeholder="车辆二维码" size="sm" />
 						</view>
 						<view class="form-item span-2">
 							<AppInput v-model="form.remark" label="备注说明" placeholder="可选填车辆品牌、型号等信息" size="sm" />
@@ -76,6 +83,7 @@ const activeOptions = [
 
 const form = reactive({
 	plate_no: '',
+	qr_code: '',
 	remark: '',
 	is_active: true
 })
@@ -92,6 +100,16 @@ const remarkSummary = computed(() => {
 	return value || '暂无备注'
 })
 
+const qrCodeSummary = computed(() => {
+	const value = normalizeQrCode(form.qr_code)
+	return value || '未绑定'
+})
+
+function normalizeQrCode(value) {
+	if (value == null) return ''
+	return String(value).trim().toUpperCase().replace(/\s+/g, '')
+}
+
 function onActiveChange(e) {
 	const idx = Number(e?.detail?.value)
 	const item = activeOptions[idx]
@@ -106,6 +124,7 @@ async function loadRecord(id) {
 	}
 	const doc = res.data
 	form.plate_no = doc.plate_no || ''
+	form.qr_code = doc.qr_code || ''
 	form.remark = doc.remark || ''
 	form.is_active = Boolean(doc.is_active)
 }
@@ -130,6 +149,7 @@ async function onSubmit() {
 	try {
 		const payload = {
 			plate_no: String(form.plate_no || '').trim(),
+			qr_code: normalizeQrCode(form.qr_code),
 			remark: String(form.remark || '').trim(),
 			is_active: form.is_active
 		}

@@ -6929,3 +6929,64 @@
   - `npm run build:mp-alipay`（通过）
 - 剩余问题：
   - `offset_enabled` 为新增字段，线上若未同步发布 `crm_sale_records` schema，可能出现落库校验不通过；需同时发布 schema 与云函数。
+
+### 2026-04-22 CURRENT — 监管平台独立云空间一期落地（链路 + 剥离就绪）
+- 做了什么：
+  - 新增监管接收云函数 `crm-reg-ingest`，实现 `ingestSnapshotV1/ingestEventV1/healthV1/verifyStatsV1`：验签（`HMAC-SHA256` + 版本头）、时间窗校验、幂等去重、快照 upsert、事件追加、重复投递识别、拒绝日志与死信落库。
+  - 站点桥接 `crm-reg-bridge` 补齐剥离约束：签名版本头固定、`station_id` 入队强校验、环境变量配置边界强化。
+  - 在 `crm-bottle/crm-filling/crm-sale` 成功写入后接入监管异步入队（失败仅 warning，不阻塞主业务提交）；`crm-bottle` 同步新增 `backfillRegFieldsV1`（`execute=false/true`）用于 `station_id/gas_medium_code` 回填。
+  - 新增监管文档与剥离演练：仅监管模块部署清单、剥离手册、最小复制演练脚本 `scripts/reg/extractRegModuleDryRun.cjs` 并完成一次演练报告输出。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-reg-bridge/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-reg-ingest/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-filling/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `uniCloud-alipay/database/schema/crm_bottles.schema.json`
+  - `uniCloud-alipay/database/schema/crm_reg_outbox.schema.json`
+  - `uniCloud-alipay/database/schema/crm_reg_push_logs.schema.json`
+  - `uniCloud-alipay/database/schema/crm_reg_dead_letters.schema.json`
+  - `uniCloud-alipay/database/schema/crm_reg_station_registry.schema.json`
+  - `uniCloud-alipay/database/schema/crm_reg_bottle_current.schema.json`
+  - `uniCloud-alipay/database/schema/crm_reg_bottle_events.schema.json`
+  - `uniCloud-alipay/database/schema/crm_reg_ingest_dedup.schema.json`
+  - `uniCloud-alipay/database/schema/crm_reg_ingest_logs.schema.json`
+  - `docs/regulatory/reg-space-phase1-checklist.md`
+  - `docs/regulatory/reg-module-extraction-manual.md`
+  - `scripts/reg/extractRegModuleDryRun.cjs`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-reg-bridge/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-reg-ingest/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-bottle/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-filling/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`（通过）
+  - `node --check scripts/reg/extractRegModuleDryRun.cjs`（通过）
+  - `node scripts/reg/extractRegModuleDryRun.cjs --cwd=/Users/wangbo/Downloads/2026_v4`（通过，报告：`/var/folders/7k/hs5s75sn2kg1dy4v5j61zvwc0000gn/T/crm-reg-module-rehearsal-20260422141628/rehearsal-report.json`）
+- 剩余问题：
+  - 尚未在真实双空间执行端到端回归（`bootstrapSnapshotV1 preview/execute + dispatchOutboxV1 + verifyStatsV1`）；上线前需在目标 `space-id` 完成一次全链路验收。
+
+### 2026-04-22 CURRENT — 监管一期运维脚本补充（终端直连桥接）
+- 做了什么：
+  - 新增 `scripts/reg/runRegBridgeAction.cjs`，支持在终端直接调用 `crm-reg-bridge` 的运维动作（派发、重放、统计、基线），不依赖站点业务页面。
+  - 更新监管文档，补充脚本调用示例与运维章节。
+- 改动文件列表：
+  - `scripts/reg/runRegBridgeAction.cjs`
+  - `docs/regulatory/reg-space-phase1-checklist.md`
+  - `docs/regulatory/reg-module-extraction-manual.md`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check scripts/reg/runRegBridgeAction.cjs`（通过）
+- 剩余问题：
+  - 运维脚本依赖本机已配置目标 `space-id` 的 HBuilderX 项目密钥；新机器需先完成密钥配置再执行。
+
+### 2026-04-22 CURRENT — 监管字段回填分页稳定性修正
+- 做了什么：
+  - 修正 `crm-bottle.backfillRegFieldsV1` 的分页排序口径：由 `updated_at` 改为 `created_at`，避免执行态更新 `updated_at` 导致分页重排、漏扫或重复扫描。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-bottle/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-bottle/index.js`（通过）
+- 剩余问题：
+  - 无。

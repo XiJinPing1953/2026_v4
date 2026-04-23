@@ -286,12 +286,14 @@
 						<AppListItem
 							v-for="row in rows"
 							:key="row._id"
-							:title="`${row.biz_date || '-'} · 收款登记`"
+							:title="`${row.biz_date || '-'} · ${normalizeString(row.customer_name) || '未命名客户'} · 收款登记`"
 							:subtitle="`单据 ${row._id}`"
 							:status="row.allocation_status_text"
 							:status-kind="allocationStatusKind(row.allocation_status)"
 							icon="wallet"
 							icon-class="bg-success"
+							:clickable="canViewStatement"
+							@click="onGoStatementSales(row)"
 						>
 							<template #right>
 								<view class="mini-amounts">
@@ -303,8 +305,10 @@
 
 							<template #default>
 								<view class="target-list">
+									<text class="row-detail row-detail--customer">分配客户：{{ normalizeString(row.customer_name) || '-' }}</text>
 									<text class="row-detail row-detail--source">来源：{{ sourceTypeText(row.source_type) }}</text>
 									<text class="row-detail">收款方式：{{ paymentMethodText(row.payment_method) }}</text>
+									<text class="row-detail row-detail--range">{{ allocationDateScopeText(row) }}</text>
 									<text
 										v-for="(target, index) in visibleTargets(row)"
 										:key="`${row._id}:${index}:${target.target_id || ''}:${target.allocate_kind || ''}`"
@@ -326,7 +330,7 @@
 										size="sm"
 										kind="neutral"
 										:loading="isTargetLoading(row._id)"
-										@click="toggleTargetExpand(row)"
+										@click.stop="toggleTargetExpand(row)"
 									>
 										{{ isTargetExpanded(row._id) ? '收起去向' : `查看全部去向（${row.allocation_target_count}）` }}
 									</AppButton>
@@ -335,7 +339,7 @@
 										size="sm"
 										kind="ghost"
 										:loading="isTargetLoading(row._id)"
-										@click="loadMoreTargets(row)"
+										@click.stop="loadMoreTargets(row)"
 									>
 										加载更多
 									</AppButton>
@@ -350,7 +354,7 @@
 										size="sm"
 										kind="ghost"
 										:disabled="!canUpdate || !row.editable"
-										@click="onEdit(row)"
+										@click.stop="onEdit(row)"
 									>
 										编辑
 									</AppButton>
@@ -358,7 +362,7 @@
 										size="sm"
 										kind="outline"
 										:disabled="!canDelete || !row.removable"
-										@click="onRemove(row)"
+										@click.stop="onRemove(row)"
 									>
 										作废
 									</AppButton>
@@ -406,7 +410,7 @@ const SUGGESTION_BLUR_DELAY_MS = 150
 const SUGGESTION_SCROLL_THRESHOLD = 4
 const VOID_REASON_OPTIONS = ['误录作废', '重复登记', '凭证有误', '客户信息错误']
 
-const { requireLogin, canPageAction } = useAuthGuard()
+const { requireLogin, canPageAction, canViewPage } = useAuthGuard()
 requireLogin()
 
 const intakeCustomerKeyword = ref('')
@@ -460,6 +464,7 @@ const canView = computed(() => canPageAction(PAGE_PATH, 'view'))
 const canCreate = computed(() => canPageAction(PAGE_PATH, 'create'))
 const canUpdate = computed(() => canPageAction(PAGE_PATH, 'update'))
 const canDelete = computed(() => canPageAction(PAGE_PATH, 'delete'))
+const canViewStatement = computed(() => canViewPage('/pages/customer/statement'))
 const canCreateOrUpdate = computed(() => (isEditing.value ? canUpdate.value : canCreate.value))
 const isEditing = computed(() => Boolean(editingReceiptId.value))
 const selectedIntakeCustomerLabel = computed(() => {
@@ -592,13 +597,56 @@ function formatDateTime(value) {
 	return `${y}-${m}-${d} ${hh}:${mm}`
 }
 
+function normalizeAllocationMode(value) {
+	const text = normalizeString(value).toLowerCase()
+	if (text === 'checked') return 'checked'
+	return 'period'
+}
+
+function allocationDateScopeText(row) {
+	const targetCount = toNumber(row?.allocation_target_count, 0)
+	if (targetCount <= 0) return '分配日期：暂未分配'
+	const mode = normalizeAllocationMode(row?.allocation_mode)
+	const allocationStart = normalizeString(row?.allocation_start_date)
+	const allocationEnd = normalizeString(row?.allocation_end_date)
+	const targetDateStart = normalizeString(row?.allocation_target_date_start)
+	const targetDateEnd = normalizeString(row?.allocation_target_date_end)
+	const targetDateCount = Math.max(toNumber(row?.allocation_target_date_count, 0), 0)
+	if (mode === 'period') {
+		const start = allocationStart || targetDateStart
+		const end = allocationEnd || targetDateEnd
+		if (start && end) return start === end ? `分配日期范围：${start}` : `分配日期范围：${start} ~ ${end}`
+		if (start) return `分配日期范围：${start}`
+		return '分配日期范围：按时间段'
+	}
+	if (targetDateStart && targetDateEnd) {
+		if (targetDateStart === targetDateEnd) return `分配到销售日期：${targetDateStart}`
+		const suffix = targetDateCount > 0 ? `（共${targetDateCount}天）` : ''
+		return `分配到销售日期：${targetDateStart} ~ ${targetDateEnd}${suffix}`
+	}
+	return `分配到销售单：${targetCount}条`
+}
+
 function formatTargetLine(item, moneyScale = 2) {
 	const date = normalizeString(item?.target_date) || '-'
 	const label = normalizeString(item?.target_type_label) || '销售单'
 	const amount = formatMoney(item?.amount, moneyScale)
 	const kind = normalizeString(item?.allocate_kind_label)
-	if (kind) return `${date} · ${label} · ${kind} ¥${amount}`
-	return `${date} · ${label} · ¥${amount}`
+	if (kind) return `销售日期 ${date} · ${label} · ${kind} ¥${amount}`
+	return `销售日期 ${date} · ${label} · ¥${amount}`
+}
+
+function onGoStatementSales(row) {
+	if (!canViewStatement.value) {
+		uni.showToast({ title: '当前账号没有客户对账权限', icon: 'none' })
+		return
+	}
+	const customerId = normalizeString(row?.customer_id)
+	if (!customerId) {
+		uni.showToast({ title: '该登记缺少客户信息', icon: 'none' })
+		return
+	}
+	uni.navigateTo({ url: `/pages/customer/statement?_id=${encodeURIComponent(customerId)}` })
 }
 
 function isTargetExpanded(receiptId) {
@@ -1802,6 +1850,16 @@ onShow(() => {
 .row-detail--source {
 	color: #0f766e;
 	font-weight: 700;
+}
+
+.row-detail--customer {
+	color: #1d4ed8;
+	font-weight: 700;
+}
+
+.row-detail--range {
+	color: #0f172a;
+	font-weight: 600;
 }
 
 .row-detail--void {

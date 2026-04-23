@@ -544,6 +544,7 @@
 									来源：{{ receiptSourceTypeText(row.source_type || row.meta?.source_type) }}
 								</text>
 								<text class="row-detail">{{ receiptAllocationText(row) }}</text>
+								<text class="row-detail row-detail--alloc-scope">{{ receiptAllocationDateScopeText(row) }}</text>
 								<text v-if="row.note" class="row-detail">{{ row.note }}</text>
 							</template>
 							<template #footer>
@@ -1699,6 +1700,29 @@ function receiptAllocationText(row) {
 			: `收款 ¥${formatMoney(amount)}，抹零 ¥${formatMoney(roundingAllocated)} · ${modeText}`
 	}
 	return sourceText ? `${modeText} · 来源 ${sourceText}` : modeText
+}
+
+function receiptAllocationDateScopeText(row) {
+	const allocatedAmount = toNumber(row?.allocated_amount, 0) + toNumber(row?.rounding_allocated_amount, 0)
+	if (!(allocatedAmount > 0)) return '分配日期：暂未分配'
+	const targetStart = normalizeDate(row?.allocation_target_date_start)
+	const targetEnd = normalizeDate(row?.allocation_target_date_end)
+	const targetDateCount = Math.max(toNumber(row?.allocation_target_date_count, 0), 0)
+	if (targetStart && targetEnd) {
+		if (targetStart === targetEnd) return `分配到销售日期：${targetStart}`
+		const suffix = targetDateCount > 0 ? `（共${targetDateCount}天）` : ''
+		return `分配到销售日期：${targetStart} ~ ${targetEnd}${suffix}`
+	}
+	const mode = normalizeReceiptAllocationMode(row?.allocation_mode)
+	if (mode === 'period') {
+		const start = normalizeDate(row?.allocation_start_date)
+		const end = normalizeDate(row?.allocation_end_date)
+		if (start && end) return start === end ? `分配日期范围：${start}` : `分配日期范围：${start} ~ ${end}`
+		if (start) return `分配日期范围：${start}`
+	}
+	const checkedCount = Array.isArray(row?.allocation_targets) ? row.allocation_targets.length : 0
+	if (checkedCount > 0) return `分配到销售单：${checkedCount}笔`
+	return '分配日期：已分配'
 }
 
 function showConfirmModal({ title, content, confirmText = '确认' }) {
@@ -3842,6 +3866,11 @@ onMounted(() => {
 .row-detail--source {
 	color: #0f766e;
 	font-weight: 700;
+}
+
+.row-detail--alloc-scope {
+	color: #0f766e;
+	font-weight: 600;
 }
 
 .preview-box {

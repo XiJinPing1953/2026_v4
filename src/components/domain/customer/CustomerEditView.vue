@@ -26,6 +26,10 @@
 						<text class="pill-label">主要联系人</text>
 						<text class="pill-value">{{ contactSummary }}</text>
 					</view>
+					<view class="info-pill">
+						<text class="pill-label">二维码</text>
+						<text class="pill-value">{{ qrCodeSummary }}</text>
+					</view>
 				</view>
 			</AppCard>
 
@@ -43,6 +47,9 @@
 						</view>
 						<view class="form-item">
 							<AppInput v-model="form.phone" label="联系电话" placeholder="手机或座机" prefix-icon="calendar" size="sm" />
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.qr_code" label="二维码号" placeholder="客户二维码" size="sm" />
 						</view>
 						<view class="form-item span-2">
 							<AppInput v-model="form.address" label="配送地址" placeholder="详细的送货地址" size="sm" />
@@ -109,6 +116,7 @@ const form = reactive({
 	short_name: '',
 	contact: '',
 	phone: '',
+	qr_code: '',
 	address: '',
 	remark: '',
 	is_active: true,
@@ -130,6 +138,16 @@ const contactSummary = computed(() => {
 	if (contact && phone) return `${contact} / ${phone}`
 	return contact || phone || '未填写'
 })
+
+const qrCodeSummary = computed(() => {
+	const value = normalizeQrCode(form.qr_code)
+	return value || '未绑定'
+})
+
+function normalizeQrCode(value) {
+	if (value == null) return ''
+	return String(value).trim().toUpperCase().replace(/\s+/g, '')
+}
 
 function onPriceUnitChange(e) {
 	const idx = Number(e?.detail?.value)
@@ -155,6 +173,7 @@ async function loadRecord(id) {
 	form.short_name = doc.short_name || ''
 	form.contact = doc.contact || ''
 	form.phone = doc.phone || ''
+	form.qr_code = doc.qr_code || ''
 	form.address = doc.address || ''
 	form.remark = doc.remark || ''
 	form.is_active = Boolean(doc.is_active)
@@ -182,6 +201,7 @@ async function onSubmit() {
 	try {
 		const payload = {
 			...form,
+			qr_code: normalizeQrCode(form.qr_code),
 			default_unit_price: String(form.default_unit_price || '').trim()
 		}
 

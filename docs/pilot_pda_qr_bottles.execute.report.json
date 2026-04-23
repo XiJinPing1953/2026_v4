@@ -1,0 +1,17 @@
+{
+  "entity": "bottle",
+  "started_at": "2026-04-18T10:10:49.283Z",
+  "finished_at": "2026-04-18T10:10:50.919Z",
+  "mode": "execute",
+  "total": 5,
+  "matched": 5,
+  "updated": 5,
+  "unchanged": 0,
+  "not_found": [],
+  "duplicated": [],
+  "input_invalid": [],
+  "input_duplicate_keys": [],
+  "input_duplicate_codes": [],
+  "conflicts": [],
+  "failed": []
+}

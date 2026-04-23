@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>PDA 试点二维码打印页</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #111827;
+      background: #f3f4f6;
+    }
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 10mm;
+      background: #ffffff;
+    }
+    h1 {
+      margin: 0 0 4mm;
+      font-size: 20pt;
+    }
+    p {
+      margin: 0 0 8mm;
+      font-size: 10pt;
+      color: #4b5563;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8mm;
+    }
+    .card {
+      border: 1px solid #d1d5db;
+      border-radius: 4mm;
+      padding: 4mm;
+      background: #fff;
+      page-break-inside: avoid;
+    }
+    .card img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .meta {
+      margin-top: 2mm;
+      text-align: center;
+    }
+    .title {
+      font-size: 11pt;
+      font-weight: 700;
+    }
+    .code {
+      margin-top: 1mm;
+      font-family: Menlo, Consolas, monospace;
+      font-size: 9pt;
+      color: #374151;
+      word-break: break-all;
+    }
+    @media print {
+      body { background: #fff; }
+      .page { margin: 0; padding: 8mm; width: auto; min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1>PDA 试点二维码打印页</h1>
+    <p>共 9 张。建议按 100% 缩放打印，贴码前先用 PDA 实扫验证。</p>
+    <div class="grid">
+<section class="card">
+  <img src="./customer-1-pda-customer-pilot-0001.svg" alt="旭昶皮厂" />
+  <div class="meta">
+    <div class="title">旭昶皮厂</div>
+    <div class="code">PDA-CUSTOMER-PILOT-0001</div>
+  </div>
+</section>
+<section class="card">
+  <img src="./bottle-135.svg" alt="钢瓶 135" />
+  <div class="meta">
+    <div class="title">钢瓶 135</div>
+    <div class="code">PDA-BOTTLE-PILOT-0001</div>
+  </div>
+</section>
+<section class="card">
+  <img src="./bottle-139.svg" alt="钢瓶 139" />
+  <div class="meta">
+    <div class="title">钢瓶 139</div>
+    <div class="code">PDA-BOTTLE-PILOT-0002</div>
+  </div>
+</section>
+<section class="card">
+  <img src="./bottle-138.svg" alt="钢瓶 138" />
+  <div class="meta">
+    <div class="title">钢瓶 138</div>
+    <div class="code">PDA-BOTTLE-PILOT-0003</div>
+  </div>
+</section>
+<section class="card">
+  <img src="./bottle-140.svg" alt="钢瓶 140" />
+  <div class="meta">
+    <div class="title">钢瓶 140</div>
+    <div class="code">PDA-BOTTLE-PILOT-0004</div>
+  </div>
+</section>
+<section class="card">
+  <img src="./bottle-137.svg" alt="钢瓶 137" />
+  <div class="meta">
+    <div class="title">钢瓶 137</div>
+    <div class="code">PDA-BOTTLE-PILOT-0005</div>
+  </div>
+</section>
+<section class="card">
+  <img src="./delivery-1-pda-delivery-pilot-0001.svg" alt="陈铁栓" />
+  <div class="meta">
+    <div class="title">陈铁栓</div>
+    <div class="code">PDA-DELIVERY-PILOT-0001</div>
+  </div>
+</section>
+<section class="card">
+  <img src="./delivery-2-pda-delivery-pilot-0002.svg" alt="李凤荣" />
+  <div class="meta">
+    <div class="title">李凤荣</div>
+    <div class="code">PDA-DELIVERY-PILOT-0002</div>
+  </div>
+</section>
+<section class="card">
+  <img src="./vehicle-1-pda-vehicle-pilot-0001.svg" alt="车辆 冀A300AN" />
+  <div class="meta">
+    <div class="title">车辆 冀A300AN</div>
+    <div class="code">PDA-VEHICLE-PILOT-0001</div>
+  </div>
+</section>
+    </div>
+  </main>
+</body>
+</html>

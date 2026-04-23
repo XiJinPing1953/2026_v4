@@ -1,0 +1,340 @@
+K329 uni-app （SDK自定义基座方式）打印接口说明
+
+1.监听连接状态
+connState((ret) => {});     
+ret ： 
+0，连接成功；
+1，连接中；
+2，断开连接；
+3.连接失败；
+10，扫描蓝牙设备结束。
+
+
+2.通过MAC地址连接蓝牙
+	/**
+     * 通过MAC连接蓝牙
+     * @param mac    打印机MAC地址
+     */
+bluetoothConn(String mac)
+mac:打印机MAC地址
+
+
+
+3.通过IP和端口，连接wifi
+	/**
+     * 通过IP、端口连接WIFI
+     * @param ip    打印机IP
+     * @param port  打印机端口
+     */
+wifiConn( String ip,int port)   
+
+
+
+
+4.断开连接
+bluetoothDisConn()  
+
+
+5.设置页面大小
+	/**
+     * 通过IP、端口连接WIFI
+     * @param pageWidght    宽度  mm
+     * @param pageHeight  高度   mm
+     */
+setSize(int pageWidght, int pageHeight)
+
+
+
+6. 设置打印机速度
+	/**
+     *  
+     * @param printSpeed       
+     */
+setSpeed(int printSpeed)
+
+
+7. 设置打印机浓度
+	/**
+     *  
+     * @param printDensity        
+     */
+setDensity(int printDensity)
+
+
+8. 标签打印 纸张间距（设置标签打印）
+	/**
+     *      
+     * @param printGap    默认设置0
+     */
+setGap(int printGap)
+
+
+
+
+9. 黑标纸 
+	/**
+     *       
+     * @param printBline   
+     */
+setBline(int printBline) 
+
+
+
+
+10. 清除内容
+	/**
+     *    
+     */
+clear()
+
+
+
+
+11. 清除打印机缓存
+	/**
+	 *	
+     */
+setCls()
+
+
+
+12. 将纸向前推出n
+	/**
+     *       
+     * @param feed   
+     */
+setFeed(int feed)
+
+
+
+13. 将纸向后回拉n
+	/**
+     *       
+     * @param backup   
+     */
+setBackFeed(int backup)
+
+
+
+
+
+14. 设置打印方向，参考编程手册
+	/**
+     *       
+     * @param direction    0 或 1
+     */
+setDirection(int direction)
+
+
+
+
+15. 设置坐标原点，与打印方向有关
+	/**
+     * @param x 
+     * @param y   
+     */
+setReference(int x,int  y)
+
+
+
+
+16. 根据Size(之前设置的纸张大小)进一张标签纸
+	/**
+     *         
+     */
+setFromfeed()
+
+
+
+
+17. 根据Size找到下一张标签纸的位置
+	/**
+     *       
+     * @param printBline   
+     */
+setHome()
+
+
+
+18. 控制蜂鸣器
+	/**
+	 *	
+	 * @param level    音阶: 0- 9
+	 * @param interval 间隔时间: 1- 4095
+     */
+setSound(int level,int  interval)
+
+
+
+19. 检测垂直间距（该指令用于设定打印机进纸时，若经过所设定的长度仍无法侦测到垂直间距，则
+打印机发生错误，停止进纸）
+	/**
+	 *	
+     */
+setLimitfeed(int limit)
+
+
+
+20. 绘制线条
+	/**
+     *
+     * @param x 文字 X 方向起始点坐标
+     * @param y 文字 Y 方向起始点坐标
+     * @param width  线宽，单位 dot
+     * @param height 线高，单位 dot
+     */
+setBar(int x,int  y,int  width,int  height)
+
+
+
+
+21. 绘制方框
+
+	/**
+     *
+     * @param x_start  方框左上角 X坐标，单位 dot
+     * @param y_start  方框左上角 Y 坐标，单位 dot
+     * @param x_end  方框右下角 X坐标，单位 dot
+     * @param y_end  方框右下角 Y 坐标，单位 dot
+     * @param thickness  方框线宽，单位 dot
+     */
+setBox(int x_start,int  y_start,int  x_end,int  y_end,int  thickness)
+
+
+
+
+
+22. 清除指定区域的数据
+	/**
+     *
+     * @param x_start  清除区域的左上角 X座标，单位 dot
+     * @param y_start  清除区域的左上角 Y 座标，单位 dot
+     * @param x_width  清除区域宽度，单位 dot
+     * @param y_height 清除区域宽度，单位 dot
+     */
+setErase(int x_start,int  y_start,int  x_width,int  y_height)
+
+
+
+
+23. 将指定的区域反相打印
+	 /**
+     * @param x_start 反相区域左上角 X坐标，单位 dot
+     * @param y_start 反相区域左上角 Y 坐标，单位 dot
+     * @param x_width 反相区域宽度，单位 dot
+     * @param y_height 反相区域高度，单位 dot
+     */
+setReverse(int x_start,int  y_start,int  x_width,int  y_height)
+
+
+
+
+
+24. 打印文字
+   /**
+     * @param {Object} x 文字 X 方向起始点坐标
+     * @param {Object} y 文字 Y 方向起始点坐标
+     * @param {Object} font 字体大小(TSS24.BF2 体中文 24×24Font（GB 码）)
+     * @param {Object} x_ X扩展
+     * @param {Object} y_ Y扩展
+     * @param {Object} str 打印内容
+     */
+setText(int x,int  y,String  font,int  x_,int  y_,String str)
+
+
+
+25. 打印文字
+    /**
+     * @param {Object} x 文字 X 方向起始点坐标
+     * @param {Object} y 文字 Y 方向起始点坐标
+     * @param {Object} font 字体大小(TSS24.BF2 体中文 24×24Font（GB 码）)
+     * @param {Object} rotation 旋转角度
+     * @param {Object} x_ X扩展
+     * @param {Object} y_ Y扩展
+     * @param {Object} str 打印内容
+     */
+setTextRotation(int x,int  y,String  font,int  rotation,int  x_,int  y_,String str) 
+
+
+
+26. 打印二维码（可旋转）
+    /**
+     * @param {Object} x X轴起始点坐标
+     * @param {Object} y Y轴位置
+     * @param {Object} level 水平剧中方式
+     * @param {Object} width 宽度
+     * @param {Object} mode 模式
+     * @param {Object} rotation 旋转角度
+     * @param {Object} content 内容
+     */
+setQRRotation(int x,int  y,String  level,int  width,String  mode,int rotation,String content)
+
+
+
+
+27. 打印二维码
+    /**
+     * @param {Object} x X轴起始点坐标
+     * @param {Object} y Y轴位置
+     * @param {Object} level 水平剧中方式
+     * @param {Object} width 宽度
+     * @param {Object} mode 模式
+     * @param {Object} content 内容
+     */
+setQR(int x,int  y,String  level,int  width,String  mode,String content)
+
+
+
+28. 打印条形码
+    /**
+     * @param {Object} x X轴左上角水平坐标起点，以点（dot）表示
+     * @param {Object} y Y轴左上角垂直坐标起点，以点（dot）表示
+     * @param {Object} codetype 编码类型
+     * @param {Object} height 条形码高度，以点（dot）表示
+     * @param {Object} readable 0 表示人眼不可识，1 表示人眼可识
+     * @param {Object} narrow 窄 bar 宽度，以点（dot）表示
+     * @param {Object} wide 宽 bar 宽度，以点（dot）表
+     * @param {Object} content 内容
+     */
+setBarCode(int x, int y, String codetype, int height, int readable, int narrow, int wide, String content) 
+
+
+
+29.打印图片
+    /**
+     * @param {Object} x X轴左上角水平坐标起点，以点（dot）表示
+     * @param {Object} y Y轴左上角垂直坐标起点，以点（dot）表示
+     * @param {Object} nWidth 图片高度，以点（dot）表示
+     * @param {Object} bitmapPath 图片路径
+     */
+addBitmapPath(int x, int y, int nWidth, String bitmapPath)
+
+
+
+30. 打印页面
+	/**
+	 *	
+     */
+setPagePrint()
+
+
+
+
+
+31. 开始打印
+	/**
+	 *	
+     */
+startPrint()
+
+
+
+
+
+
+
+
+
+
+
+

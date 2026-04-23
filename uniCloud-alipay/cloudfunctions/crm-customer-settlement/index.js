@@ -3647,6 +3647,13 @@ async function listReceiptIntakeV1(user, data) {
 		const allocatedTotal = fixMoney(allocatedAmount + roundingAllocatedAmount)
 		const unallocatedAmount = fixMoney(toNumber(row && row.unallocated_amount, 0))
 		const targets = buildAllocationTargetSummaryRows(allocMap.get(receiptId) || [], moneyScale)
+		const targetDates = Array.from(
+			new Set(
+				targets
+					.map((item) => normalizeDate(item && item.target_date))
+					.filter(Boolean)
+			)
+		).sort((a, b) => (a === b ? 0 : a < b ? -1 : 1))
 		const allocationStatus =
 			rowStatus === 'void'
 				? 'void'
@@ -3667,6 +3674,12 @@ async function listReceiptIntakeV1(user, data) {
 			note: normalizeString(row && row.note),
 			source_type: normalizeString(row && row.source_type),
 			money_scale: moneyScale,
+			allocation_mode: normalizeAllocationMode(row && row.allocation_mode, 'period'),
+			allocation_start_date: normalizeDate(row && row.allocation_start_date),
+			allocation_end_date: normalizeDate(row && row.allocation_end_date),
+			allocation_target_date_start: targetDates[0] || '',
+			allocation_target_date_end: targetDates[targetDates.length - 1] || '',
+			allocation_target_date_count: targetDates.length,
 			proof_images: proofImages,
 			proof_images_count: proofImages.length,
 			status: rowStatus,
@@ -6226,24 +6239,54 @@ async function getCustomerStatementV1(user, data) {
 		.orderBy('created_at', 'desc')
 		.limit(20)
 		.get()
-	const recentReceipts = (Array.isArray(receiptRes.data) ? receiptRes.data : []).map((row) => ({
-		_id: normalizeId(row._id),
-		biz_date: normalizeString(row.biz_date),
-		amount: fixMoney(toNumber(row.amount, 0)),
-		rounding_amount: fixMoney(toNumber(row.rounding_amount, 0)),
-		allocated_amount: fixMoney(toNumber(row.allocated_amount, 0)),
-		rounding_allocated_amount: fixMoney(toNumber(row.rounding_allocated_amount, 0)),
-		unallocated_amount: fixMoney(toNumber(row.unallocated_amount, 0)),
-		payment_method: normalizePaymentMethod(row.payment_method, 'paid'),
-		source_type: normalizeString(row.source_type),
-		entry_kind: normalizeEntryKind(row.entry_kind, normalizeString(row.source_type).includes('offset') ? 'offset_credit' : 'prepay'),
-		allocation_mode: normalizeAllocationMode(row.allocation_mode, 'period'),
-		allocation_start_date: normalizeDate(row.allocation_start_date),
-		allocation_end_date: normalizeDate(row.allocation_end_date),
-		allocation_targets: normalizeAllocationTargets(row.allocation_targets),
-		note: normalizeString(row.note),
-		created_at: toNumber(row.created_at, 0)
-	}))
+	const receiptRows = Array.isArray(receiptRes.data) ? receiptRes.data : []
+	const recentReceiptIds = receiptRows
+		.map((row) => normalizeId(row && row._id))
+		.filter(Boolean)
+	const recentReceiptAllocationRows = await listAllocationsByReceiptIds(customerId, recentReceiptIds, 5000)
+	const recentReceiptAllocationMap = new Map()
+	for (const alloc of recentReceiptAllocationRows) {
+		const receiptId = normalizeId(alloc && alloc.receipt_id)
+		if (!receiptId) continue
+		const list = recentReceiptAllocationMap.get(receiptId) || []
+		list.push(alloc)
+		recentReceiptAllocationMap.set(receiptId, list)
+	}
+	const recentReceipts = receiptRows.map((row) => {
+		const receiptId = normalizeId(row && row._id)
+		const targetRows = buildAllocationTargetSummaryRows(
+			recentReceiptAllocationMap.get(receiptId) || [],
+			moneyScale
+		)
+		const targetDates = Array.from(
+			new Set(
+				targetRows
+					.map((item) => normalizeDate(item && item.target_date))
+					.filter(Boolean)
+			)
+		).sort((a, b) => (a === b ? 0 : a < b ? -1 : 1))
+		return {
+			_id: receiptId,
+			biz_date: normalizeString(row.biz_date),
+			amount: fixMoney(toNumber(row.amount, 0)),
+			rounding_amount: fixMoney(toNumber(row.rounding_amount, 0)),
+			allocated_amount: fixMoney(toNumber(row.allocated_amount, 0)),
+			rounding_allocated_amount: fixMoney(toNumber(row.rounding_allocated_amount, 0)),
+			unallocated_amount: fixMoney(toNumber(row.unallocated_amount, 0)),
+			payment_method: normalizePaymentMethod(row.payment_method, 'paid'),
+			source_type: normalizeString(row.source_type),
+			entry_kind: normalizeEntryKind(row.entry_kind, normalizeString(row.source_type).includes('offset') ? 'offset_credit' : 'prepay'),
+			allocation_mode: normalizeAllocationMode(row.allocation_mode, 'period'),
+			allocation_start_date: normalizeDate(row.allocation_start_date),
+			allocation_end_date: normalizeDate(row.allocation_end_date),
+			allocation_target_date_start: targetDates[0] || '',
+			allocation_target_date_end: targetDates[targetDates.length - 1] || '',
+			allocation_target_date_count: targetDates.length,
+			allocation_targets: normalizeAllocationTargets(row.allocation_targets),
+			note: normalizeString(row.note),
+			created_at: toNumber(row.created_at, 0)
+		}
+	})
 	const recentFlowSettlements = flowDocs
 		.map((doc) => {
 			const snapshot = computeFlowSettlementSnapshot(doc)

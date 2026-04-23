@@ -22,6 +22,10 @@
 						<text class="pill-label">联系电话</text>
 						<text class="pill-value">{{ phoneSummary }}</text>
 					</view>
+					<view class="info-pill">
+						<text class="pill-label">二维码</text>
+						<text class="pill-value">{{ qrCodeSummary }}</text>
+					</view>
 				</view>
 			</AppCard>
 
@@ -33,6 +37,9 @@
 						</view>
 						<view class="form-item">
 							<AppInput v-model="form.phone" label="手机号" placeholder="请输入手机号（可选）" prefix-icon="list" size="sm" />
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.qr_code" label="二维码号" placeholder="配送员二维码" size="sm" />
 						</view>
 						<view class="form-item span-2">
 							<AppInput v-model="form.remark" label="备注说明" placeholder="可选填班次、负责片区等信息" size="sm" />
@@ -81,6 +88,7 @@ const activeOptions = [
 const form = reactive({
 	name: '',
 	phone: '',
+	qr_code: '',
 	remark: '',
 	is_active: true
 })
@@ -97,6 +105,16 @@ const phoneSummary = computed(() => {
 	return value || '未填写'
 })
 
+const qrCodeSummary = computed(() => {
+	const value = normalizeQrCode(form.qr_code)
+	return value || '未绑定'
+})
+
+function normalizeQrCode(value) {
+	if (value == null) return ''
+	return String(value).trim().toUpperCase().replace(/\s+/g, '')
+}
+
 function onActiveChange(e) {
 	const idx = Number(e && e.detail && e.detail.value)
 	const item = activeOptions[idx]
@@ -112,6 +130,7 @@ async function loadRecord(id) {
 	const doc = res.data
 	form.name = doc.name || ''
 	form.phone = doc.phone || ''
+	form.qr_code = doc.qr_code || ''
 	form.remark = doc.remark || ''
 	form.is_active = Boolean(doc.is_active)
 }
@@ -131,6 +150,7 @@ async function onSubmit() {
 	const payload = {
 		name: normalizeDeliveryName(form.name),
 		phone: normalizeDeliveryPhone(form.phone),
+		qr_code: normalizeQrCode(form.qr_code),
 		remark: String(form.remark || '').trim(),
 		is_active: form.is_active
 	}

@@ -52,7 +52,7 @@
 					<AppInput
 						v-model="filters.keyword"
 						label="关键词"
-						placeholder="输入姓名/手机号"
+						placeholder="输入姓名/手机号/二维码"
 						prefix-icon="search"
 						size="sm"
 					/>
@@ -109,6 +109,7 @@
 
 						<template #meta>
 							<view class="meta-tags">
+								<AppTag kind="soft" class="tag-item">{{ item.qr_code ? `码 ${item.qr_code}` : '无码' }}</AppTag>
 								<text class="mode-label">{{ item.remark || '无备注' }}</text>
 							</view>
 						</template>

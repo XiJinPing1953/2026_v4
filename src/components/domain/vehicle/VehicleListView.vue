@@ -52,7 +52,7 @@
 					<AppInput
 						v-model="filters.keyword"
 						label="关键词"
-						placeholder="输入车牌号/备注"
+						placeholder="输入车牌号/备注/二维码"
 						prefix-icon="search"
 						size="sm"
 					/>
@@ -109,6 +109,7 @@
 						
 						<template #meta>
 							<view class="meta-tags">
+								<AppTag kind="soft" class="tag-item">{{ item.qr_code ? `码 ${item.qr_code}` : '无码' }}</AppTag>
 								<text class="mode-label">自营配送</text>
 							</view>
 						</template>

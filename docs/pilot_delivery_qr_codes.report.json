@@ -1,0 +1,17 @@
+{
+  "entity": "delivery",
+  "started_at": "2026-04-18T10:08:55.640Z",
+  "finished_at": "2026-04-18T10:08:56.373Z",
+  "mode": "dry-run",
+  "total": 2,
+  "matched": 2,
+  "updated": 0,
+  "unchanged": 0,
+  "not_found": [],
+  "duplicated": [],
+  "input_invalid": [],
+  "input_duplicate_keys": [],
+  "input_duplicate_codes": [],
+  "conflicts": [],
+  "failed": []
+}

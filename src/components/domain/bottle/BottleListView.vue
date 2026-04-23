@@ -52,7 +52,7 @@
 					<AppInput
 						v-model="filters.keyword"
 						label="关键词"
-						placeholder="钢瓶编号/客户名称"
+						placeholder="钢瓶编号/PDA二维码/客户名称"
 						prefix-icon="search"
 						size="sm"
 					/>
@@ -1488,7 +1488,8 @@ function buildBottleExportCsv(rows = []) {
 		{ label: '登记证标号', get: (row) => row.registration_mark || '' },
 		{ label: '设备品种', get: (row) => row.equipment_type || '' },
 		{ label: '产品编号', get: (row) => row.product_no || '' },
-		{ label: '二维码号', get: (row) => row.qr_code || '' },
+		{ label: 'PDA二维码号', get: (row) => row.pda_qr_code || '' },
+		{ label: '原二维码号', get: (row) => row.qr_code || '' },
 		{ label: '制造单位', get: (row) => row.manufacturer || '' },
 		{ label: '容积(L)', get: (row) => formatExportNumber(row.volume_l) },
 		{ label: '制造日期', get: (row) => row.manufacture_date || '' },

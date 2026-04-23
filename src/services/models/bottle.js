@@ -60,8 +60,10 @@ function validateBottleDraftV1(input = {}) {
 	const productNo = normalizeString(input.product_no ?? input.productNo)
 	if (!productNo) return { ok: false, msg: '产品编号必填' }
 
-	const qrCode = normalizeString(input.qr_code ?? input.qrCode)
-	if (!qrCode) return { ok: false, msg: '二维码号必填' }
+	const pdaQrCode = normalizeString(input.pda_qr_code ?? input.pdaQrCode)
+	if ((input.pda_qr_code != null || input.pdaQrCode != null) && !pdaQrCode) {
+		return { ok: false, msg: 'PDA二维码号不能为空' }
+	}
 
 	const volume = toNumber(input.volume_l ?? input.volumeL, null)
 	if (!(typeof volume === 'number' && volume > 0)) return { ok: false, msg: '容积必须为大于 0 的数字' }

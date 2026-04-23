@@ -1,0 +1,17 @@
+{
+  "entity": "vehicle",
+  "started_at": "2026-04-18T10:09:32.507Z",
+  "finished_at": "2026-04-18T10:09:32.839Z",
+  "mode": "execute",
+  "total": 1,
+  "matched": 1,
+  "updated": 1,
+  "unchanged": 0,
+  "not_found": [],
+  "duplicated": [],
+  "input_invalid": [],
+  "input_duplicate_keys": [],
+  "input_duplicate_codes": [],
+  "conflicts": [],
+  "failed": []
+}

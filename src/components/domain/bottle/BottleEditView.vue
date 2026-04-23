@@ -48,7 +48,10 @@
 							<AppInput v-model="form.product_no" label="产品编号" placeholder="例如：DA16-02-002" size="sm" />
 						</view>
 						<view class="form-item">
-							<AppInput v-model="form.qr_code" label="二维码号" placeholder="例如：02546000665" size="sm" />
+							<AppInput v-model="form.pda_qr_code" label="PDA二维码号" placeholder="PDA扫码专用编码" size="sm" />
+						</view>
+						<view class="form-item">
+							<AppInput v-model="form.qr_code" label="原二维码号" placeholder="保留原档案二维码（选填）" size="sm" />
 						</view>
 						<view class="form-item">
 							<AppInput v-model="form.manufacturer" label="制造单位" placeholder="例如：河北润丰低温设备有限公司" size="sm" />
@@ -218,6 +221,7 @@ const form = reactive({
 	registration_mark: '',
 	equipment_type: '',
 	product_no: '',
+	pda_qr_code: '',
 	qr_code: '',
 	manufacturer: '',
 	volume_l: '',
@@ -415,6 +419,7 @@ async function loadRecord(id) {
 	form.registration_mark = doc.registration_mark || ''
 	form.equipment_type = doc.equipment_type || ''
 	form.product_no = doc.product_no || ''
+	form.pda_qr_code = doc.pda_qr_code || ''
 	form.qr_code = doc.qr_code || ''
 	form.manufacturer = doc.manufacturer || ''
 	form.volume_l = toDisplayNumber(doc.volume_l)
@@ -514,6 +519,7 @@ async function onSubmit() {
 			registration_mark: normalizeString(form.registration_mark),
 			equipment_type: normalizeString(form.equipment_type),
 			product_no: normalizeString(form.product_no),
+			pda_qr_code: normalizeString(form.pda_qr_code),
 			qr_code: normalizeString(form.qr_code),
 			manufacturer: normalizeString(form.manufacturer),
 			volume_l: volume,

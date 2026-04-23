@@ -1,0 +1,32 @@
+[
+  {
+    "_id": "694045c0adf6dbd796e26213",
+    "name": "旭昶皮厂",
+    "phone": "18032857775",
+    "remark": "25年11月5日安装",
+    "address": "",
+    "contact": "王琳",
+    "is_active": true,
+    "created_at": 1768004450137,
+    "short_name": "",
+    "updated_at": 1776498726762,
+    "net_balance": 52815,
+    "prepay_balance": 980,
+    "last_receipt_at": 1774281600000,
+    "default_price_unit": "kg",
+    "default_unit_price": 7,
+    "receivable_balance": 53795,
+    "should_receive_total": 99075,
+    "amount_received_total": 46260,
+    "offset_credit_balance": 980,
+    "prepay_manual_balance": 0,
+    "deposit_count": 5,
+    "deposit_bottle_nos": [
+      "119",
+      "160",
+      "375",
+      "399",
+      "71"
+    ]
+  }
+]

@@ -1,0 +1,20 @@
+{
+	"name": "PlatformSDK",
+	"id": "TH-PlatformSDK",
+	"version": "0.0.1",
+	"description": "Android-SDK插件",
+	"_dp_type": "nativeplugin",
+	"_dp_nativeplugin": {
+		"android": {
+			"plugins": [
+				{
+					"type": "module",
+					"name": "TH-PlatformSDK",
+					"class": "com.uni.platformSDK.PlatformSDKModule"
+				}
+			],
+			"integrateType": "aar",
+			"minSdkVersion": 16
+		}
+	}
+}

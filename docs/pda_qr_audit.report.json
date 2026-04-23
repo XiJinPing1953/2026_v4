@@ -1,0 +1,46 @@
+{
+  "started_at": "2026-04-18T10:04:47.887Z",
+  "finished_at": "2026-04-18T10:04:47.889Z",
+  "bottle": {
+    "total": 1033,
+    "empty": {
+      "bottle_no": 0,
+      "pda_qr_code": 1033,
+      "qr_code": 844,
+      "pressure_gauge_no": 841
+    },
+    "duplicates": {
+      "bottle_no": [],
+      "pda_qr_code": [],
+      "qr_code": [],
+      "pressure_gauge_no": []
+    }
+  },
+  "customer": {
+    "total": 128,
+    "empty": {
+      "qr_code": 128
+    },
+    "duplicates": {
+      "qr_code": []
+    }
+  },
+  "delivery": {
+    "total": 17,
+    "empty": {
+      "qr_code": 17
+    },
+    "duplicates": {
+      "qr_code": []
+    }
+  },
+  "vehicle": {
+    "total": 20,
+    "empty": {
+      "qr_code": 20
+    },
+    "duplicates": {
+      "qr_code": []
+    }
+  }
+}

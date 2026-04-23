@@ -1,0 +1,84 @@
+{
+	"pages": [ //pages数组中第一项表示应用启动页，参考：https://uniapp.dcloud.io/collocation/pages
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "uni-app"
+			}
+		},{
+			"path": "pages/index/index-pos",
+			"style": {
+				"navigationBarTitleText": "POS-SDK"
+			}
+		},
+		{
+			"path": "pages/sample/ext-module-device-scan",
+			"style": {
+				"navigationBarTitleText": "Device Scan Sdk module"
+			}
+		},
+		{
+			"path": "pages/sample/ext-module-rfid",
+			"style": {
+				"navigationBarTitleText": "RFID module"
+			}
+		},
+		{
+			"path": "pages/sample/ext-module-rfidc",
+			"style": {
+				"navigationBarTitleText": "RFID compatible module"
+			}
+		},
+		{
+			"path": "pages/sample/bluetooth-print",
+			"style": {
+				"navigationBarTitleText": "蓝牙打印(便携式打印机)"
+			}
+		},{
+			"path": "pages/sample/bluetooth-sdk-print",
+			"style": {
+				"navigationBarTitleText": "蓝牙打印(便携式打印机SDK)"
+			}
+		},{
+			"path": "pages/sample/ext-module-pda-pos-readid",
+			"style": {
+				"navigationBarTitleText": "PDA&POS身份证硬解模块"
+			}
+		},{
+			"path": "pages/sample/ext-module-nfc-readid",
+			"style": {
+				"navigationBarTitleText": "NFC读身份证（联网）"
+			}
+		},
+		{
+			"path": "pages/sample/ext-module-printer",
+			"style": {
+				"navigationBarTitleText": "Print module (POS-打印)"
+			}
+		},
+		{
+			"path": "pages/sample/ext-module-icc",
+			"style": {
+				"navigationBarTitleText": "ICC module (POS-插卡)"
+			}
+		},
+		{
+			"path": "pages/sample/ext-module-picc",
+			"style": {
+				"navigationBarTitleText": "PICC module (POS-挥卡)"
+			}
+		},
+		{
+			"path": "pages/sample/ext-module-mag",
+			"style": {
+				"navigationBarTitleText": "Mag module (POS-刷卡)"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "uni-app",
+		"navigationBarBackgroundColor": "#F8F8F8",
+		"backgroundColor": "#F8F8F8"
+	}
+}

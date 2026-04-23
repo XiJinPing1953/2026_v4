@@ -54,7 +54,7 @@
 						<AppInput
 							v-model="filters.keyword"
 							label="关键词"
-							placeholder="客户名/联系人/电话"
+							placeholder="客户名/联系人/电话/二维码"
 							prefix-icon="search"
 							size="sm"
 							@input="onKeywordInput"
@@ -242,6 +242,7 @@
 									<AppIcon name="calendar" size="24rpx" style="margin-right: 4rpx;" />
 									{{ item.phone }}
 								</AppTag>
+								<AppTag kind="soft" class="tag-item">{{ item.qr_code ? `码 ${item.qr_code}` : '无码' }}</AppTag>
 								<AppTag v-if="!isStatementEntryMode" kind="soft" class="tag-item">{{ item.default_price_unit || 'kg' }}</AppTag>
 								<AppTag kind="soft" class="tag-item">应收 {{ formatMoney(item.receivable_balance) }}</AppTag>
 								<AppTag kind="soft" class="tag-item">预付 {{ formatMoney(item.prepay_balance) }}</AppTag>
