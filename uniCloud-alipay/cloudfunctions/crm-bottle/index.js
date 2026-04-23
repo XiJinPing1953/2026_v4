@@ -24,12 +24,16 @@ const INSPECTION_DUE_STATES = ['overdue', 'due_60d']
 const BATCH_INSPECTION_LIMIT = 2000
 const BOTTLE_NUMERIC_SEGMENT_SCAN_LIMIT = 5000
 const BOTTLE_SORT_BACKFILL_LIMIT = 5000
+const REG_FIELDS_BACKFILL_LIMIT = 10000
 const DUPLICATE_CLEANUP_CONFIRM_TEXT = 'bottle_cleanup_duplicates_v1'
+const GAS_MEDIUM_CODES = ['LNG', 'LPG', 'O2', 'N2', 'Ar', 'OTHER']
 const DUPLICATE_MERGE_FIELDS = [
 	'filling_company',
 	'registration_mark',
 	'equipment_type',
 	'product_no',
+	'gas_medium_code',
+	'station_id',
 	'qr_code',
 	'manufacturer',
 	'volume_l',
@@ -57,9 +61,16 @@ const PAGE_ACTION_RULES = {
 	createV1: [{ pagePath: '/pages/bottle/edit', action: 'create' }],
 	updateV1: [{ pagePath: '/pages/bottle/edit', action: 'update' }],
 	batchUpdateInspectionV1: [{ pagePath: '/pages/bottle/list', action: 'update' }],
-	rebuildCurrentStatusV1: [{ pagePath: '/pages/bottle/list', action: 'update' }]
+	rebuildCurrentStatusV1: [{ pagePath: '/pages/bottle/list', action: 'update' }],
+	backfillRegFieldsV1: [{ pagePath: '/pages/bottle/list', action: 'update' }]
 }
-const SUPERADMIN_ONLY_ACTIONS = ['backfillBottleSortKeysV1', 'auditUniqueFieldsV1', 'rebuildCurrentStatusV1', 'cleanupDuplicatesV1']
+const SUPERADMIN_ONLY_ACTIONS = [
+	'backfillBottleSortKeysV1',
+	'auditUniqueFieldsV1',
+	'rebuildCurrentStatusV1',
+	'cleanupDuplicatesV1',
+	'backfillRegFieldsV1'
+]
 
 async function getUserByToken(token) {
 	if (!token) return null
@@ -155,6 +166,22 @@ function normalizeStatus(value) {
 	return STATUS.includes(s) ? s : null
 }
 
+function normalizeGasMediumCode(value, fallback = '') {
+	const text = normalizeString(value).toUpperCase()
+	if (GAS_MEDIUM_CODES.includes(text)) return text
+	const fb = normalizeString(fallback).toUpperCase()
+	if (GAS_MEDIUM_CODES.includes(fb)) return fb
+	return ''
+}
+
+function resolveDefaultStationId() {
+	return normalizeString(process.env.REG_STATION_ID)
+}
+
+function resolveDefaultGasMediumCode() {
+	return normalizeGasMediumCode(process.env.REG_DEFAULT_MEDIUM_CODE || 'LNG', 'LNG')
+}
+
 function normalizeDate(value) {
 	return normalizeString(value)
 }
@@ -234,6 +261,16 @@ function normalizeBottlePayload(data = {}, { forUpdate = false } = {}) {
 
 	const productNoRaw = data.product_no
 	if (!forUpdate || productNoRaw != null) patch.product_no = normalizeCode(productNoRaw)
+
+	const gasMediumCodeRaw = data.gas_medium_code ?? data.gasMediumCode
+	if (!forUpdate || gasMediumCodeRaw != null) {
+		patch.gas_medium_code = normalizeGasMediumCode(gasMediumCodeRaw)
+	}
+
+	const stationIdRaw = data.station_id ?? data.stationId
+	if (!forUpdate || stationIdRaw != null) {
+		patch.station_id = normalizeString(stationIdRaw)
+	}
 
 	const qrCodeRaw = data.qr_code
 	if (!forUpdate || qrCodeRaw != null) patch.qr_code = normalizeCode(qrCodeRaw)
@@ -327,6 +364,8 @@ function normalizeBottlePayload(data = {}, { forUpdate = false } = {}) {
 
 function validateBottlePayload(doc = {}) {
 	if (!doc.bottle_no) return '单位内编号必填'
+	if (!normalizeString(doc.station_id)) return '监管站点ID必填'
+	if (!normalizeGasMediumCode(doc.gas_medium_code)) return '充装介质编码无效'
 	if (!(typeof doc.tare_weight === 'number' && Number.isFinite(doc.tare_weight) && doc.tare_weight >= 0)) {
 		return '标准皮重必填且必须为非负数字'
 	}
@@ -411,6 +450,75 @@ function toBoolean(value, fallback = false) {
 function toTimestamp(value, fallback = 0) {
 	const num = Number(value)
 	return Number.isFinite(num) ? num : fallback
+}
+
+function resolveRegBridgeTimeoutMs() {
+	const raw = Number(process.env.REG_BRIDGE_ENQUEUE_TIMEOUT_MS || 1200)
+	const fallback = 1200
+	if (!Number.isFinite(raw)) return fallback
+	return Math.min(Math.max(Math.floor(raw), 300), 5000)
+}
+
+function withTimeout(promise, timeoutMs, message) {
+	const timeout = Math.max(Number(timeoutMs) || 0, 1)
+	return new Promise((resolve, reject) => {
+		let settled = false
+		const timer = setTimeout(() => {
+			if (settled) return
+			settled = true
+			reject(new Error(message || `timeout(${timeout}ms)`))
+		}, timeout)
+		promise
+			.then((value) => {
+				if (settled) return
+				settled = true
+				clearTimeout(timer)
+				resolve(value)
+			})
+			.catch((err) => {
+				if (settled) return
+				settled = true
+				clearTimeout(timer)
+				reject(err)
+			})
+	})
+}
+
+async function enqueueRegBridge(action, data, token, requestId, user, logAction = '') {
+	const normalizedAction = normalizeString(action)
+	if (!normalizedAction) return ''
+	try {
+		const timeoutMs = resolveRegBridgeTimeoutMs()
+		const callPromise = uniCloud.callFunction({
+			name: 'crm-reg-bridge',
+			data: {
+				action: normalizedAction,
+				token,
+				request_id: requestId,
+				data: data && typeof data === 'object' ? data : {}
+			}
+		})
+		const res = await withTimeout(callPromise, timeoutMs, `crm-reg-bridge ${normalizedAction} timeout`)
+		const result = res && res.result ? res.result : {}
+		if (Number(result.code) === 0) return ''
+		const warning = normalizeString(result.msg) || '监管同步入队失败'
+		await recordLog(
+			user,
+			logAction || 'bottle_reg_enqueue_failed',
+			{ reg_action: normalizedAction, warning },
+			requestId
+		)
+		return warning
+	} catch (err) {
+		const warning = normalizeString(err && err.message) || '监管同步入队失败'
+		await recordLog(
+			user,
+			logAction || 'bottle_reg_enqueue_failed',
+			{ reg_action: normalizedAction, warning },
+			requestId
+		)
+		return warning
+	}
 }
 
 function movementTypeOrder(type) {
@@ -1635,9 +1743,11 @@ async function getV1(user, data) {
 	return { code: 0, data: doc }
 }
 
-async function createV1(user, data, requestId) {
+async function createV1(user, data, requestId, token) {
 	const normalized = normalizeBottlePayload(data, { forUpdate: false })
 	normalized.safety_valve_count = 2
+	normalized.station_id = normalizeString(normalized.station_id) || resolveDefaultStationId()
+	normalized.gas_medium_code = normalizeGasMediumCode(normalized.gas_medium_code, resolveDefaultGasMediumCode())
 
 	const validationMsg = validateBottlePayload(normalized)
 	if (validationMsg) return { code: 400, msg: validationMsg }
@@ -1656,10 +1766,32 @@ async function createV1(user, data, requestId) {
 
 	const res = await bottles.add(doc)
 	await recordLog(user, 'bottle_create_v1', { id: res.id }, requestId)
-	return { code: 0, msg: '创建成功', data: { _id: res.id } }
+	const regWarning = await enqueueRegBridge(
+		'enqueueEventV1',
+		{
+			source_type: 'bottle',
+			source_id: res.id,
+			event_type: 'profile_update',
+			bottle_nos: [normalizeBottleNo(doc && doc.bottle_no)],
+			event_at: now,
+			enqueue_snapshot: true
+		},
+		token,
+		requestId,
+		user,
+		'bottle_reg_enqueue_create_failed'
+	)
+	return {
+		code: 0,
+		msg: regWarning ? `创建成功（${regWarning}）` : '创建成功',
+		data: {
+			_id: res.id,
+			warning: regWarning || ''
+		}
+	}
 }
 
-async function updateV1(user, data, requestId) {
+async function updateV1(user, data, requestId, token) {
 	const id = normalizeString(data._id || data.id)
 	if (!id) return { code: 400, msg: '缺少钢瓶 ID' }
 
@@ -1675,6 +1807,14 @@ async function updateV1(user, data, requestId) {
 	const sortMeta = buildBottleNoSortMeta(merged.bottle_no)
 	Object.assign(merged, sortMeta)
 	Object.assign(patch, sortMeta)
+	if (!normalizeString(merged.station_id)) merged.station_id = resolveDefaultStationId()
+	if (!normalizeGasMediumCode(merged.gas_medium_code)) {
+		merged.gas_medium_code = resolveDefaultGasMediumCode()
+	}
+	if (!normalizeString(patch.station_id) && normalizeString(merged.station_id)) patch.station_id = normalizeString(merged.station_id)
+	if (!normalizeGasMediumCode(patch.gas_medium_code) && normalizeGasMediumCode(merged.gas_medium_code)) {
+		patch.gas_medium_code = normalizeGasMediumCode(merged.gas_medium_code)
+	}
 	if (merged.safety_valve_count == null) merged.safety_valve_count = 2
 	if (merged.is_active == null) merged.is_active = true
 
@@ -1688,7 +1828,26 @@ async function updateV1(user, data, requestId) {
 
 	await bottles.doc(id).update(patch)
 	await recordLog(user, 'bottle_update_v1', { id }, requestId)
-	return { code: 0, msg: '更新成功' }
+	const regWarning = await enqueueRegBridge(
+		'enqueueEventV1',
+		{
+			source_type: 'bottle',
+			source_id: id,
+			event_type: 'profile_update',
+			bottle_nos: [normalizeBottleNo(merged && merged.bottle_no)],
+			event_at: patch.updated_at,
+			enqueue_snapshot: true
+		},
+		token,
+		requestId,
+		user,
+		'bottle_reg_enqueue_update_failed'
+	)
+	return {
+		code: 0,
+		msg: regWarning ? `更新成功（${regWarning}）` : '更新成功',
+		data: { warning: regWarning || '' }
+	}
 }
 
 async function backfillBottleSortKeysV1(user, data, requestId) {
@@ -1799,6 +1958,135 @@ async function backfillBottleSortKeysV1(user, data, requestId) {
 		data: {
 			...detail,
 			sample_bottle_nos: candidates.slice(0, 30).map((item) => item.bottle_no),
+			failed_items: failedItems.slice(0, 100)
+		}
+	}
+}
+
+async function backfillRegFieldsV1(user, data, requestId) {
+	const execute = toBoolean(data.execute, false)
+	const preview = !execute
+	const onlyMissing = toBoolean(data.only_missing ?? data.onlyMissing, true)
+	const limitInput = Number(data.limit || 2000)
+	const pageSizeInput = Number(data.pageSize ?? data.page_size ?? 200)
+	const limit = Math.min(
+		Math.max(Number.isFinite(limitInput) ? Math.floor(limitInput) : 2000, 1),
+		REG_FIELDS_BACKFILL_LIMIT
+	)
+	const pageSize = Math.min(
+		Math.max(Number.isFinite(pageSizeInput) ? Math.floor(pageSizeInput) : 200, 20),
+		200
+	)
+	const stationId = normalizeString(data.station_id || data.stationId || resolveDefaultStationId())
+	const gasMediumCode = normalizeGasMediumCode(data.gas_medium_code || data.gasMediumCode, resolveDefaultGasMediumCode())
+	if (!stationId) return { code: 400, msg: '缺少 station_id（可通过 REG_STATION_ID 提供）' }
+	if (!gasMediumCode) return { code: 400, msg: '缺少 gas_medium_code（可通过 REG_DEFAULT_MEDIUM_CODE 提供）' }
+
+	const bottleNos = Array.isArray(data.bottle_nos)
+		? data.bottle_nos.map((item) => normalizeBottleNo(item)).filter(Boolean)
+		: normalizeString(data.bottle_no)
+			? [normalizeBottleNo(data.bottle_no)]
+			: []
+	const where = bottleNos.length ? { bottle_no: dbCmd.in(bottleNos) } : {}
+	const totalRes = await bottles.where(where).count()
+	const total = Number(totalRes.total || 0)
+	let scanned = 0
+	let cursor = 0
+	let targetTotal = 0
+	let updated = 0
+	const failedItems = []
+	const sample = []
+	let hasMore = false
+
+	while (scanned < limit && cursor < total) {
+		const currentBatch = Math.min(pageSize, limit - scanned, total - cursor)
+		if (currentBatch <= 0) break
+		const res = await bottles
+			.where(where)
+			.field({
+				_id: true,
+				bottle_no: true,
+				station_id: true,
+				gas_medium_code: true,
+				created_at: true
+			})
+			.orderBy('created_at', 'asc')
+			.skip(cursor)
+			.limit(currentBatch)
+			.get()
+		const rows = Array.isArray(res && res.data) ? res.data : []
+		if (!rows.length) break
+		scanned += rows.length
+		cursor += rows.length
+		for (let i = 0; i < rows.length; i += 1) {
+			const row = rows[i] || {}
+			if (!row._id) continue
+			const currentStation = normalizeString(row.station_id)
+			const currentMedium = normalizeGasMediumCode(row.gas_medium_code)
+			const patch = {}
+			if (!onlyMissing || !currentStation) patch.station_id = stationId
+			if (!onlyMissing || !currentMedium) patch.gas_medium_code = gasMediumCode
+			if (!Object.keys(patch).length) continue
+			targetTotal += 1
+			if (sample.length < 100) {
+				sample.push({
+					_id: normalizeString(row._id),
+					bottle_no: normalizeBottleNo(row.bottle_no),
+					before: {
+						station_id: currentStation,
+						gas_medium_code: currentMedium
+					},
+					after: {
+						station_id: patch.station_id || currentStation,
+						gas_medium_code: patch.gas_medium_code || currentMedium
+					}
+				})
+			}
+			if (preview) continue
+			try {
+				await bottles.doc(row._id).update({
+					...patch,
+					updated_at: Date.now()
+				})
+				updated += 1
+			} catch (err) {
+				failedItems.push({
+					_id: normalizeString(row._id),
+					bottle_no: normalizeBottleNo(row.bottle_no),
+					error: normalizeString(err && err.message) || '更新失败'
+				})
+			}
+		}
+	}
+	hasMore = cursor < total
+
+	const detail = {
+		execute,
+		preview,
+		only_missing: onlyMissing,
+		limit,
+		page_size: pageSize,
+		total,
+		scanned,
+		target_total: targetTotal,
+		updated_total: preview ? 0 : updated,
+		failed_total: preview ? 0 : failedItems.length,
+		station_id: stationId,
+		gas_medium_code: gasMediumCode,
+		has_more: hasMore
+	}
+	await recordLog(
+		user,
+		execute ? 'bottle_backfill_reg_fields_execute_v1' : 'bottle_backfill_reg_fields_preview_v1',
+		detail,
+		requestId
+	)
+	return {
+		code: 0,
+		msg: execute ? '监管字段回填完成' : '监管字段回填预览完成',
+		data: {
+			...detail,
+			sample_rows: sample,
 			failed_items: failedItems.slice(0, 100)
 		}
 	}
@@ -2398,11 +2686,12 @@ exports.main = async (event, context) => {
 
 	if (action === 'listV1') return listV1(user, data)
 	if (action === 'getV1') return getV1(user, data)
-	if (action === 'createV1') return createV1(user, data, requestId)
-	if (action === 'updateV1') return updateV1(user, data, requestId)
+	if (action === 'createV1') return createV1(user, data, requestId, token)
+	if (action === 'updateV1') return updateV1(user, data, requestId, token)
 	if (action === 'batchUpdateInspectionV1') return batchUpdateInspectionV1(user, data, requestId)
 	if (action === 'rebuildCurrentStatusV1') return rebuildCurrentStatusV1(user, data, requestId)
 	if (action === 'backfillBottleSortKeysV1') return backfillBottleSortKeysV1(user, data, requestId)
+	if (action === 'backfillRegFieldsV1') return backfillRegFieldsV1(user, data, requestId)
 	if (action === 'auditUniqueFieldsV1') return auditUniqueFieldsV1(user, data)
 	if (action === 'cleanupDuplicatesV1') return cleanupDuplicatesV1(user, data, requestId)
 

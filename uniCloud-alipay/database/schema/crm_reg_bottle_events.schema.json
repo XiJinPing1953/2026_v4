@@ -1,0 +1,43 @@
+{
+  "bsonType": "object",
+  "description": "Regulatory accepted bottle events",
+  "additionalProperties": false,
+  "required": [
+    "station_id",
+    "bottle_no",
+    "event_type",
+    "event_at",
+    "source_type",
+    "source_id",
+    "idempotency_key",
+    "schema_version",
+    "payload",
+    "payload_hash",
+    "created_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "station_id": { "bsonType": "string" },
+    "bottle_no": { "bsonType": "string" },
+    "event_type": { "bsonType": "string" },
+    "event_at": { "bsonType": "number" },
+    "source_type": { "bsonType": "string" },
+    "source_id": { "bsonType": ["string", "null"] },
+    "idempotency_key": { "bsonType": "string" },
+    "schema_version": { "bsonType": "string" },
+    "payload": { "bsonType": "object" },
+    "payload_hash": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "station_id": 1, "bottle_no": 1, "event_at": -1 }, "name": "idx_station_bottle_event_at" },
+    { "key": { "source_type": 1, "source_id": 1, "event_at": -1 }, "name": "idx_source_event_at" },
+    { "key": { "idempotency_key": 1 }, "name": "idx_idempotency_key" }
+  ]
+}

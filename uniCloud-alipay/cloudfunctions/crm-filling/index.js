@@ -1007,6 +1007,74 @@ async function triggerAnomalyTouchV2(user, token, bottleNosOrPayload, requestId)
 	}
 }
 
+function resolveRegBridgeTimeoutMs() {
+	const raw = Number(process.env.REG_BRIDGE_ENQUEUE_TIMEOUT_MS || 1200)
+	if (!Number.isFinite(raw)) return 1200
+	return Math.min(Math.max(Math.floor(raw), 300), 5000)
+}
+
+function withTimeout(promise, timeoutMs, message) {
+	const timeout = Math.max(Number(timeoutMs) || 0, 1)
+	return new Promise((resolve, reject) => {
+		let settled = false
+		const timer = setTimeout(() => {
+			if (settled) return
+			settled = true
+			reject(new Error(message || `timeout(${timeout}ms)`))
+		}, timeout)
+		promise
+			.then((value) => {
+				if (settled) return
+				settled = true
+				clearTimeout(timer)
+				resolve(value)
+			})
+			.catch((err) => {
+				if (settled) return
+				settled = true
+				clearTimeout(timer)
+				reject(err)
+			})
+	})
+}
+
+async function enqueueRegBridge(action, data, token, requestId, user, logAction = '') {
+	const normalizedAction = normalizeString(action)
+	if (!normalizedAction) return ''
+	try {
+		const callPromise = uniCloud.callFunction({
+			name: 'crm-reg-bridge',
+			data: {
+				action: normalizedAction,
+				token,
+				request_id: requestId,
+				data: data && typeof data === 'object' ? data : {}
+			}
+		})
+		const timeoutMs = resolveRegBridgeTimeoutMs()
+		const res = await withTimeout(callPromise, timeoutMs, `crm-reg-bridge ${normalizedAction} timeout`)
+		const result = res && res.result ? res.result : {}
+		if (Number(result.code) === 0) return ''
+		const warning = normalizeString(result.msg) || '监管同步入队失败'
+		await recordLog(
+			user,
+			logAction || 'filling_reg_enqueue_failed',
+			{ reg_action: normalizedAction, warning },
+			requestId
+		)
+		return warning
+	} catch (err) {
+		const warning = normalizeString(err && err.message) || '监管同步入队失败'
+		await recordLog(
+			user,
+			logAction || 'filling_reg_enqueue_failed',
+			{ reg_action: normalizedAction, warning },
+			requestId
+		)
+		return warning
+	}
+}
+
 async function listV1(user, data) {
 	void user
 	const filterResult = buildListWhereByFilter(data)
@@ -2477,6 +2545,7 @@ async function createV1(user, data, requestId, token) {
 	}
 	const movementEventDay = normalizeEventDay(date, doc.created_at)
 	const movementEventAt = parseEventAt(date, doc.created_at)
+	const movementSourceType = normalizeString(data.source_type) || 'filling'
 
 	const res = await fillings.add(doc)
 	await recordLog(
@@ -2504,7 +2573,7 @@ async function createV1(user, data, requestId, token) {
 			event_day: movementEventDay,
 			event_at: movementEventAt,
 			type_order: 20,
-			source_type: normalizeString(data.source_type) || 'filling',
+			source_type: movementSourceType,
 			source_id: res.id,
 			customer_id: null,
 			customer_name: '',
@@ -2537,7 +2606,22 @@ async function createV1(user, data, requestId, token) {
 		},
 		requestId
 	)
-	const warningText = touchRes.warning || ''
+	const regWarning = await enqueueRegBridge(
+		'enqueueEventV1',
+		{
+			source_type: movementSourceType,
+			source_id: res.id,
+			event_type: 'fill',
+			bottle_nos: inventoryLinked && bottleNo ? [bottleNo] : [],
+			event_at: movementEventAt,
+			enqueue_snapshot: true
+		},
+		token,
+		requestId,
+		user,
+		'filling_reg_enqueue_create_failed'
+	)
+	const warningText = [touchRes.warning || '', regWarning].filter(Boolean).join('；')
 	return {
 		code: 0,
 		msg: warningText ? `创建成功（${warningText}）` : '创建成功',
@@ -2669,6 +2753,41 @@ async function updateV1(user, data, requestId, token) {
 		},
 		requestId
 	)
+	const regWarnings = []
+	const uniqueTouchBottleNos = Array.from(new Set((touchBottleNos || []).map((item) => normalizeBottleNo(item)).filter(Boolean)))
+	const regEventWarning = await enqueueRegBridge(
+		'enqueueEventV1',
+		{
+			source_type: 'filling',
+			source_id: id,
+			event_type: 'fill',
+			bottle_nos: inventoryLinked && bottleNo ? [bottleNo] : [],
+			event_at: movementEventAt,
+			enqueue_snapshot: true
+		},
+		token,
+		requestId,
+		user,
+		'filling_reg_enqueue_update_event_failed'
+	)
+	if (regEventWarning) regWarnings.push(regEventWarning)
+	if (uniqueTouchBottleNos.length) {
+		const regSnapshotWarning = await enqueueRegBridge(
+			'enqueueSnapshotV1',
+			{
+				bottle_nos: uniqueTouchBottleNos,
+				source_type: 'filling',
+				source_id: id,
+				event_at: movementEventAt
+			},
+			token,
+			requestId,
+			user,
+			'filling_reg_enqueue_update_snapshot_failed'
+		)
+		if (regSnapshotWarning) regWarnings.push(regSnapshotWarning)
+	}
+	const regWarningText = regWarnings.join('；')
 	await recordLog(
 		user,
 		'filling_update_v1',
@@ -2680,17 +2799,19 @@ async function updateV1(user, data, requestId, token) {
 			bottle_status_updated_total: bottleStatusSyncRes.updated_total,
 			bottle_status_skipped_pending_total: bottleStatusSyncRes.skipped_pending_total,
 			touch_warning: touchRes.warning || '',
+			reg_warning: regWarningText,
 			bottle_flow_warning_overridden: ignoreBottleFlowWarning && bottleFlowWarnings.length > 0,
 			bottle_flow_warning_count: bottleFlowWarnings.length,
 			bottle_flow_warning_bottle_nos: bottleFlowWarnings.map((item) => normalizeBottleNo(item && item.bottle_no)).filter(Boolean)
 		},
 		requestId
 	)
+	const warningText = [touchRes.warning || '', regWarningText].filter(Boolean).join('；')
 	return {
 		code: 0,
-		msg: touchRes.warning ? `更新成功（${touchRes.warning}）` : '更新成功',
+		msg: warningText ? `更新成功（${warningText}）` : '更新成功',
 		data: {
-			warning: touchRes.warning || '',
+			warning: warningText,
 			bottle_status_updated_total: bottleStatusSyncRes.updated_total,
 			bottle_status_skipped_pending_total: bottleStatusSyncRes.skipped_pending_total,
 			bottle_flow_warning_overridden: ignoreBottleFlowWarning && bottleFlowWarnings.length > 0,
@@ -2723,6 +2844,20 @@ async function removeV1(user, data, requestId, token) {
 		},
 		requestId
 	)
+	const regWarning = await enqueueRegBridge(
+		'enqueueSnapshotV1',
+		{
+			bottle_nos: isInventoryLinkedRecordType(oldRecordType) && oldBottleNo ? [oldBottleNo] : [],
+			source_type: 'filling',
+			source_id: id,
+			event_at: Date.now()
+		},
+		token,
+		requestId,
+		user,
+		'filling_reg_enqueue_remove_failed'
+	)
+	const warningText = [touchRes.warning || '', regWarning].filter(Boolean).join('；')
 	await recordLog(
 		user,
 		'filling_remove_v1',
@@ -2731,15 +2866,16 @@ async function removeV1(user, data, requestId, token) {
 			bottle_no: oldBottleNo,
 			bottle_status_updated_total: bottleStatusSyncRes.updated_total,
 			bottle_status_skipped_pending_total: bottleStatusSyncRes.skipped_pending_total,
-			touch_warning: touchRes.warning || ''
+			touch_warning: touchRes.warning || '',
+			reg_warning: regWarning || ''
 		},
 		requestId
 	)
 	return {
 		code: 0,
-		msg: touchRes.warning ? `删除成功（${touchRes.warning}）` : '删除成功',
+		msg: warningText ? `删除成功（${warningText}）` : '删除成功',
 		data: {
-			warning: touchRes.warning || '',
+			warning: warningText,
 			bottle_status_updated_total: bottleStatusSyncRes.updated_total,
 			bottle_status_skipped_pending_total: bottleStatusSyncRes.skipped_pending_total
 		}

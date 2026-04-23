@@ -1,0 +1,20 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "action": "replayDeadV1",
+  "request_data": {
+    "station_id": "XTNY-001",
+    "limit": 100,
+    "endpoint": "local://crm-reg-ingest",
+    "key_id": "reg-key-a-20260423",
+    "secret": "22fa756538771d530004b0656fddbd358be8291871d4037e9decdf6778417015"
+  },
+  "result": {
+    "code": 0,
+    "msg": "重放完成",
+    "data": {
+      "selected_total": 2,
+      "replayed_total": 0,
+      "duplicate_total": 2
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "bsonType": "object",
+  "description": "Regulatory latest bottle snapshot by station",
+  "additionalProperties": false,
+  "required": [
+    "station_id",
+    "bottle_no",
+    "schema_version",
+    "snapshot",
+    "payload_hash",
+    "updated_at",
+    "created_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "station_id": { "bsonType": "string" },
+    "bottle_no": { "bsonType": "string" },
+    "schema_version": { "bsonType": "string" },
+    "snapshot": { "bsonType": "object" },
+    "payload_hash": { "bsonType": "string" },
+    "last_event_at": { "bsonType": ["number", "null"] },
+    "last_event_type": { "bsonType": "string" },
+    "updated_at": { "bsonType": "number" },
+    "created_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "station_id": 1, "bottle_no": 1 }, "name": "uniq_station_bottle", "unique": true },
+    { "key": { "station_id": 1, "updated_at": -1 }, "name": "idx_station_updated" }
+  ]
+}

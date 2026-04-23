@@ -1,0 +1,23 @@
+{
+  "ts": 1776924527787,
+  "space_id": "env-00jxuffegf2n",
+  "function": "crm-reg-ingest",
+  "action": "verifyStatsV1",
+  "request_data": {
+    "station_id": "XTNY-001"
+  },
+  "result": {
+    "code": 0,
+    "data": {
+      "station_id": "XTNY-001",
+      "active_station_key_total": 2,
+      "bottle_current_total": 832,
+      "bottle_event_total": 0,
+      "dedup_accepted_total": 832,
+      "log_accepted_total": 832,
+      "log_repeated_total": 0,
+      "log_rejected_total": 0,
+      "dead_letter_open_total": 0
+    }
+  }
+}

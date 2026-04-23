@@ -1,0 +1,36 @@
+{
+  "bsonType": "object",
+  "description": "Regulatory station registry and signature keys",
+  "additionalProperties": false,
+  "required": [
+    "station_id",
+    "station_name",
+    "key_id",
+    "secret",
+    "is_active",
+    "allow_skew_ms",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "station_id": { "bsonType": "string" },
+    "station_name": { "bsonType": "string" },
+    "key_id": { "bsonType": "string" },
+    "secret": { "bsonType": "string" },
+    "is_active": { "bsonType": "bool" },
+    "allow_skew_ms": { "bsonType": "number" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "station_id": 1, "key_id": 1 }, "name": "uniq_station_key", "unique": true },
+    { "key": { "station_id": 1, "is_active": 1 }, "name": "idx_station_active" }
+  ]
+}

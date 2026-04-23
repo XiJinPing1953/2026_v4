@@ -1,0 +1,1235 @@
+{
+  "ts": 1776924294894,
+  "space_id": "env-00jxuffegf2n",
+  "function": "crm-bottle",
+  "action": "backfillRegFieldsV1",
+  "request_data": {
+    "execute": true,
+    "station_id": "XTNY-001",
+    "gas_medium_code": "LNG",
+    "limit": 10000,
+    "pageSize": 200
+  },
+  "result": {
+    "code": 0,
+    "msg": "监管字段回填完成",
+    "data": {
+      "execute": true,
+      "preview": false,
+      "only_missing": true,
+      "limit": 10000,
+      "page_size": 200,
+      "total": 1033,
+      "scanned": 1033,
+      "target_total": 1033,
+      "updated_total": 1033,
+      "failed_total": 0,
+      "station_id": "XTNY-001",
+      "gas_medium_code": "LNG",
+      "has_more": false,
+      "sample_rows": [
+        {
+          "_id": "6948c50c8620663d3a6f65d5",
+          "bottle_no": "TRUCK-565PC",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "6948c51f652341086d9f9e7b",
+          "bottle_no": "TRUCK-90948",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "6948c52da09a9b2a3fc7d71c",
+          "bottle_no": "TRUCK-9S143",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "6948c5477ae7089a62238ab4",
+          "bottle_no": "TRUCK-EG780",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "6948c5a6ee97efa7b1b74e6b",
+          "bottle_no": "TRUCK-OG111",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "6948c5d3f082103c3db26003",
+          "bottle_no": "TRUCK-KG103",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "6948c6613f1a47e81a9c451b",
+          "bottle_no": "TRUCK-263AP",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0b59f0821045dd07c08a",
+          "bottle_no": "N111",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0b66189f86de20145246",
+          "bottle_no": "N112",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0b6efe975fae25bfe863",
+          "bottle_no": "N113",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0b73f0821045dd07c208",
+          "bottle_no": "N114",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0b776e5d2d32f83c18d7",
+          "bottle_no": "N115",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0b7c189f86de20145390",
+          "bottle_no": "N116",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0b8009664c6ef8714fc9",
+          "bottle_no": "N117",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0b84a09a9b2a3f11ac32",
+          "bottle_no": "N118",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0b8821821b751b45ed26",
+          "bottle_no": "N119",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0b8dfe975fae25bfea46",
+          "bottle_no": "N120",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0b91f0821045dd07c416",
+          "bottle_no": "N121",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0b96bd022001bee41df0",
+          "bottle_no": "N122",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0b9a3f1a479d2741ed0d",
+          "bottle_no": "N123",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0b9feef9cb29980e53c0",
+          "bottle_no": "N124",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0ba31c90b6a7cce6eb55",
+          "bottle_no": "N125",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0ba79755e34a911975ed",
+          "bottle_no": "N126",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bab7ae7089a6271bd45",
+          "bottle_no": "N127",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0baff0821045dd07c5f6",
+          "bottle_no": "N128",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bb321821b751b45efc9",
+          "bottle_no": "N129",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bb88b0da45f291928d0",
+          "bottle_no": "N130",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bbc89bd275f44d87e30",
+          "bottle_no": "N131",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bc0a09a9b2a3f11af9f",
+          "bottle_no": "N132",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bc59755e34a9119782e",
+          "bottle_no": "N133",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bc9862066edb7d78738",
+          "bottle_no": "N134",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bce213929956685c3e3",
+          "bottle_no": "N135",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bd2149854772fbfb04f",
+          "bottle_no": "N136",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bd6213929956685c45f",
+          "bottle_no": "N137",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bda7ad52d1c39e57be0",
+          "bottle_no": "N138",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bdf7ae7089a6271c0f3",
+          "bottle_no": "N139",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0be3a7c432981767cbdd",
+          "bottle_no": "N140",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0be7a674f496e6d7a850",
+          "bottle_no": "N141",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bece0ec19a5fa2abc0e",
+          "bottle_no": "N142",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bf08b0da45f29192d45",
+          "bottle_no": "N143",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bf509664c6ef87157b9",
+          "bottle_no": "N144",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bf94b92471a50928d55",
+          "bottle_no": "N145",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0bfd89bd275f44d88275",
+          "bottle_no": "N146",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0c018a5c785fa8ba2576",
+          "bottle_no": "N147",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0c06149854772fbfb34f",
+          "bottle_no": "N148",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0c0a8b0da45f29192ecb",
+          "bottle_no": "N149",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0c0ec3b5c943f7c4525d",
+          "bottle_no": "N150",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0c127c8de46b11810a7c",
+          "bottle_no": "N151",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0c1a3d029c834bff847d",
+          "bottle_no": "N160",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0c1ea7c432981767cf8e",
+          "bottle_no": "N152",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0c22f2949c968908b508",
+          "bottle_no": "N153",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0c267ad52d1c39e580cc",
+          "bottle_no": "N154",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0c2afe975fae25bff4e0",
+          "bottle_no": "N155",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0c2e6e5d2d32f83c247b",
+          "bottle_no": "N156",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0c32bd022001bee4284b",
+          "bottle_no": "N157",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0c35a7c432981767d13f",
+          "bottle_no": "N158",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695b0c3a3d029c834bff8647",
+          "bottle_no": "N159",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695f63607ae7089a62c30b8a",
+          "bottle_no": "996",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695f6361466d416255e18b21",
+          "bottle_no": "995",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12028",
+          "bottle_no": "93",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12127",
+          "bottle_no": "345",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695f6c1789bd275f442b9db3",
+          "bottle_no": "994",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695f6c17ce5ec91b72107ff8",
+          "bottle_no": "993",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "695f71ec1c90b6a7cc3ab158",
+          "bottle_no": "990",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12003",
+          "bottle_no": "54",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa1203b",
+          "bottle_no": "106",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa120e8",
+          "bottle_no": "277",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12181",
+          "bottle_no": "Y046",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12190",
+          "bottle_no": "Y058",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12184",
+          "bottle_no": "Y045",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12165",
+          "bottle_no": "Y009",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12182",
+          "bottle_no": "Y047",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12166",
+          "bottle_no": "Y018",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa1218b",
+          "bottle_no": "Y053",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12174",
+          "bottle_no": "Y024",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12167",
+          "bottle_no": "Y017",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa1215c",
+          "bottle_no": "Y007",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12186",
+          "bottle_no": "Y050",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12168",
+          "bottle_no": "Y019",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12173",
+          "bottle_no": "Y029",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa1216a",
+          "bottle_no": "Y021",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa1217a",
+          "bottle_no": "Y034",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa1216b",
+          "bottle_no": "Y025",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12161",
+          "bottle_no": "Y013",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12169",
+          "bottle_no": "Y020",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12185",
+          "bottle_no": "Y049",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12179",
+          "bottle_no": "Y038",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12176",
+          "bottle_no": "Y035",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa1217d",
+          "bottle_no": "Y042",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12188",
+          "bottle_no": "Y051",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa1217f",
+          "bottle_no": "Y044",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12175",
+          "bottle_no": "Y032",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12183",
+          "bottle_no": "Y048",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12178",
+          "bottle_no": "Y037",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12189",
+          "bottle_no": "Y036",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa1215d",
+          "bottle_no": "Y010",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12162",
+          "bottle_no": "Y014",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12170",
+          "bottle_no": "Y022",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12153",
+          "bottle_no": "Y001",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        },
+        {
+          "_id": "693fbee16dd837518fa12187",
+          "bottle_no": "Y052",
+          "before": {
+            "station_id": "",
+            "gas_medium_code": ""
+          },
+          "after": {
+            "station_id": "XTNY-001",
+            "gas_medium_code": "LNG"
+          }
+        }
+      ],
+      "failed_items": []
+    }
+  }
+}

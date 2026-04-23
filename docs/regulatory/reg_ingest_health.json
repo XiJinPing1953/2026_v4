@@ -1,0 +1,17 @@
+{
+  "ts": 1776923604605,
+  "space_id": "env-00jxuffegf2n",
+  "function": "crm-reg-ingest",
+  "action": "healthV1",
+  "request_data": {},
+  "result": {
+    "code": 0,
+    "data": {
+      "status": "ok",
+      "schema_version": "v1",
+      "sign_version": "v1",
+      "sign_algorithm": "HMAC-SHA256",
+      "server_time": 1776923604825
+    }
+  }
+}

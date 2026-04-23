@@ -2578,6 +2578,74 @@ async function triggerAnomalyTouchV2(user, token, bottleNosOrPayload, requestId)
 	}
 }
 
+function resolveRegBridgeTimeoutMs() {
+	const raw = Number(process.env.REG_BRIDGE_ENQUEUE_TIMEOUT_MS || 1200)
+	if (!Number.isFinite(raw)) return 1200
+	return Math.min(Math.max(Math.floor(raw), 300), 5000)
+}
+
+function withTimeout(promise, timeoutMs, message) {
+	const timeout = Math.max(Number(timeoutMs) || 0, 1)
+	return new Promise((resolve, reject) => {
+		let settled = false
+		const timer = setTimeout(() => {
+			if (settled) return
+			settled = true
+			reject(new Error(message || `timeout(${timeout}ms)`))
+		}, timeout)
+		promise
+			.then((value) => {
+				if (settled) return
+				settled = true
+				clearTimeout(timer)
+				resolve(value)
+			})
+			.catch((err) => {
+				if (settled) return
+				settled = true
+				clearTimeout(timer)
+				reject(err)
+			})
+	})
+}
+
+async function enqueueRegBridge(action, data, token, requestId, user, logAction = '') {
+	const normalizedAction = normalizeString(action)
+	if (!normalizedAction) return ''
+	try {
+		const callPromise = uniCloud.callFunction({
+			name: 'crm-reg-bridge',
+			data: {
+				action: normalizedAction,
+				token,
+				request_id: requestId,
+				data: data && typeof data === 'object' ? data : {}
+			}
+		})
+		const timeoutMs = resolveRegBridgeTimeoutMs()
+		const res = await withTimeout(callPromise, timeoutMs, `crm-reg-bridge ${normalizedAction} timeout`)
+		const result = res && res.result ? res.result : {}
+		if (Number(result.code) === 0) return ''
+		const warning = normalizeString(result.msg) || '监管同步入队失败'
+		await recordLog(
+			user,
+			logAction || 'sale_reg_enqueue_failed',
+			{ reg_action: normalizedAction, warning },
+			requestId
+		)
+		return warning
+	} catch (err) {
+		const warning = normalizeString(err && err.message) || '监管同步入队失败'
+		await recordLog(
+			user,
+			logAction || 'sale_reg_enqueue_failed',
+			{ reg_action: normalizedAction, warning },
+			requestId
+		)
+		return warning
+	}
+}
+
 async function callCustomerSettlement(action, data, token, requestId) {
 	try {
 		const res = await uniCloud.callFunction({
@@ -2934,6 +3002,22 @@ async function createV2(user, payload, requestId, token) {
 		},
 		requestId
 	)
+	const regWarning = await enqueueRegBridge(
+		'enqueueEventV1',
+		{
+			source_type: 'sale',
+			source_id: res.id,
+			event_type: '',
+			bottle_nos: touchedBottleNos,
+			event_at: Date.now(),
+			enqueue_snapshot: true
+		},
+		token,
+		requestId,
+		user,
+		'sale_reg_enqueue_create_failed'
+	)
+	if (regWarning) sideWarnings.push(regWarning)
 	await recordLog(
 		user,
 		'sale_create_v2',
@@ -4604,6 +4688,41 @@ async function updateV2(user, data, requestId, token) {
 		},
 		requestId
 	)
+	const regWarnings = []
+	const uniqueTouchedBottleNos = Array.from(new Set((touchedBottleNos || []).map((item) => normalizeBottleNoForCreate(item)).filter(Boolean)))
+	const regEventWarning = await enqueueRegBridge(
+		'enqueueEventV1',
+		{
+			source_type: 'sale',
+			source_id: recordId,
+			event_type: '',
+			bottle_nos: uniqueTouchedBottleNos,
+			event_at: Date.now(),
+			enqueue_snapshot: true
+		},
+		token,
+		requestId,
+		user,
+		'sale_reg_enqueue_update_event_failed'
+	)
+	if (regEventWarning) regWarnings.push(regEventWarning)
+	if (uniqueTouchedBottleNos.length) {
+		const regSnapshotWarning = await enqueueRegBridge(
+			'enqueueSnapshotV1',
+			{
+				source_type: 'sale',
+				source_id: recordId,
+				bottle_nos: uniqueTouchedBottleNos,
+				event_at: Date.now()
+			},
+			token,
+			requestId,
+			user,
+			'sale_reg_enqueue_update_snapshot_failed'
+		)
+		if (regSnapshotWarning) regWarnings.push(regSnapshotWarning)
+	}
+	if (regWarnings.length) sideWarnings.push(regWarnings.join('；'))
 	await recordLog(
 		user,
 		'sale_update_v2',
@@ -4844,6 +4963,20 @@ async function removeV2(user, data, requestId, token) {
 		},
 		requestId
 	)
+	const regWarning = await enqueueRegBridge(
+		'enqueueSnapshotV1',
+		{
+			source_type: 'sale',
+			source_id: recordId,
+			bottle_nos: touchedBottleNos,
+			event_at: Date.now()
+		},
+		token,
+		requestId,
+		user,
+		'sale_reg_enqueue_remove_failed'
+	)
+	if (regWarning) sideWarnings.push(regWarning)
 	await recordLog(
 		user,
 		'sale_remove_v2',

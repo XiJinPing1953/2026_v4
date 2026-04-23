@@ -1,0 +1,15 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "action": "getSyncStatsV1",
+  "request_data": {},
+  "result": {
+    "code": 0,
+    "data": {
+      "pending_total": 0,
+      "retrying_total": 0,
+      "sent_total": 1174,
+      "dead_total": 0,
+      "dead_letter_open_total": 0
+    }
+  }
+}

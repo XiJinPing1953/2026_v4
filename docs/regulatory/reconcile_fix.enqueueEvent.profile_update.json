@@ -1,0 +1,34 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "action": "enqueueEventV1",
+  "request_data": {
+    "event_type": "profile_update",
+    "source_type": "manual",
+    "source_id": "reconcile_fix_20260423",
+    "bottle_nos": [
+      "4",
+      "373",
+      "291"
+    ],
+    "enqueue_snapshot": true
+  },
+  "result": {
+    "code": 0,
+    "msg": "入队完成",
+    "data": {
+      "total_event_payload": 3,
+      "enqueued_total": 3,
+      "duplicate_total": 0,
+      "missing_bottle_total": 0,
+      "preview_payloads": [],
+      "snapshot": {
+        "total_input": 3,
+        "found_total": 3,
+        "missing_total": 0,
+        "enqueued_total": 3,
+        "duplicate_total": 0,
+        "preview_payloads": []
+      }
+    }
+  }
+}

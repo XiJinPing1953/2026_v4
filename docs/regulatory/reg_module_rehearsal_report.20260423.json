@@ -1,0 +1,60 @@
+{
+  "timestamp": 1776926095737,
+  "repo_root": "/Users/wangbo/Downloads/2026_v4",
+  "out_dir": "/var/folders/7k/hs5s75sn2kg1dy4v5j61zvwc0000gn/T/crm-reg-module-rehearsal-20260423063455",
+  "copied_total": 10,
+  "copied_files": [
+    {
+      "source": "/Users/wangbo/Downloads/2026_v4/uniCloud-alipay/cloudfunctions/crm-reg-bridge/index.js",
+      "target": "/var/folders/7k/hs5s75sn2kg1dy4v5j61zvwc0000gn/T/crm-reg-module-rehearsal-20260423063455/uniCloud-alipay/cloudfunctions/crm-reg-bridge/index.js",
+      "relative": "uniCloud-alipay/cloudfunctions/crm-reg-bridge/index.js"
+    },
+    {
+      "source": "/Users/wangbo/Downloads/2026_v4/uniCloud-alipay/cloudfunctions/crm-reg-ingest/index.js",
+      "target": "/var/folders/7k/hs5s75sn2kg1dy4v5j61zvwc0000gn/T/crm-reg-module-rehearsal-20260423063455/uniCloud-alipay/cloudfunctions/crm-reg-ingest/index.js",
+      "relative": "uniCloud-alipay/cloudfunctions/crm-reg-ingest/index.js"
+    },
+    {
+      "source": "/Users/wangbo/Downloads/2026_v4/uniCloud-alipay/database/schema/crm_reg_bottle_current.schema.json",
+      "target": "/var/folders/7k/hs5s75sn2kg1dy4v5j61zvwc0000gn/T/crm-reg-module-rehearsal-20260423063455/uniCloud-alipay/database/schema/crm_reg_bottle_current.schema.json",
+      "relative": "uniCloud-alipay/database/schema/crm_reg_bottle_current.schema.json"
+    },
+    {
+      "source": "/Users/wangbo/Downloads/2026_v4/uniCloud-alipay/database/schema/crm_reg_bottle_events.schema.json",
+      "target": "/var/folders/7k/hs5s75sn2kg1dy4v5j61zvwc0000gn/T/crm-reg-module-rehearsal-20260423063455/uniCloud-alipay/database/schema/crm_reg_bottle_events.schema.json",
+      "relative": "uniCloud-alipay/database/schema/crm_reg_bottle_events.schema.json"
+    },
+    {
+      "source": "/Users/wangbo/Downloads/2026_v4/uniCloud-alipay/database/schema/crm_reg_dead_letters.schema.json",
+      "target": "/var/folders/7k/hs5s75sn2kg1dy4v5j61zvwc0000gn/T/crm-reg-module-rehearsal-20260423063455/uniCloud-alipay/database/schema/crm_reg_dead_letters.schema.json",
+      "relative": "uniCloud-alipay/database/schema/crm_reg_dead_letters.schema.json"
+    },
+    {
+      "source": "/Users/wangbo/Downloads/2026_v4/uniCloud-alipay/database/schema/crm_reg_ingest_dedup.schema.json",
+      "target": "/var/folders/7k/hs5s75sn2kg1dy4v5j61zvwc0000gn/T/crm-reg-module-rehearsal-20260423063455/uniCloud-alipay/database/schema/crm_reg_ingest_dedup.schema.json",
+      "relative": "uniCloud-alipay/database/schema/crm_reg_ingest_dedup.schema.json"
+    },
+    {
+      "source": "/Users/wangbo/Downloads/2026_v4/uniCloud-alipay/database/schema/crm_reg_ingest_logs.schema.json",
+      "target": "/var/folders/7k/hs5s75sn2kg1dy4v5j61zvwc0000gn/T/crm-reg-module-rehearsal-20260423063455/uniCloud-alipay/database/schema/crm_reg_ingest_logs.schema.json",
+      "relative": "uniCloud-alipay/database/schema/crm_reg_ingest_logs.schema.json"
+    },
+    {
+      "source": "/Users/wangbo/Downloads/2026_v4/uniCloud-alipay/database/schema/crm_reg_outbox.schema.json",
+      "target": "/var/folders/7k/hs5s75sn2kg1dy4v5j61zvwc0000gn/T/crm-reg-module-rehearsal-20260423063455/uniCloud-alipay/database/schema/crm_reg_outbox.schema.json",
+      "relative": "uniCloud-alipay/database/schema/crm_reg_outbox.schema.json"
+    },
+    {
+      "source": "/Users/wangbo/Downloads/2026_v4/uniCloud-alipay/database/schema/crm_reg_push_logs.schema.json",
+      "target": "/var/folders/7k/hs5s75sn2kg1dy4v5j61zvwc0000gn/T/crm-reg-module-rehearsal-20260423063455/uniCloud-alipay/database/schema/crm_reg_push_logs.schema.json",
+      "relative": "uniCloud-alipay/database/schema/crm_reg_push_logs.schema.json"
+    },
+    {
+      "source": "/Users/wangbo/Downloads/2026_v4/uniCloud-alipay/database/schema/crm_reg_station_registry.schema.json",
+      "target": "/var/folders/7k/hs5s75sn2kg1dy4v5j61zvwc0000gn/T/crm-reg-module-rehearsal-20260423063455/uniCloud-alipay/database/schema/crm_reg_station_registry.schema.json",
+      "relative": "uniCloud-alipay/database/schema/crm_reg_station_registry.schema.json"
+    }
+  ],
+  "dependency_issues": [],
+  "passed": true
+}

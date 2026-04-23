@@ -1,0 +1,59 @@
+{
+  "bsonType": "object",
+  "description": "Regulatory sync outbox queue",
+  "additionalProperties": false,
+  "required": [
+    "payload_type",
+    "station_id",
+    "idempotency_key",
+    "schema_version",
+    "payload",
+    "source_type",
+    "source_id",
+    "bottle_no",
+    "event_at",
+    "status",
+    "retry_count",
+    "max_retries",
+    "next_retry_at",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "payload_type": { "bsonType": "string", "enum": ["snapshot", "event"] },
+    "station_id": { "bsonType": "string" },
+    "idempotency_key": { "bsonType": "string" },
+    "schema_version": { "bsonType": "string" },
+    "payload": { "bsonType": "object" },
+    "source_type": { "bsonType": "string" },
+    "source_id": { "bsonType": ["string", "null"] },
+    "bottle_no": { "bsonType": "string" },
+    "event_at": { "bsonType": "number" },
+    "status": { "bsonType": "string", "enum": ["pending", "retrying", "sent", "dead"] },
+    "retry_count": { "bsonType": "number" },
+    "max_retries": { "bsonType": "number" },
+    "next_retry_at": { "bsonType": "number" },
+    "last_error_code": { "bsonType": "string" },
+    "last_error_msg": { "bsonType": "string" },
+    "last_response_status": { "bsonType": ["number", "null"] },
+    "last_response_code": { "bsonType": ["number", "null"] },
+    "last_response_msg": { "bsonType": "string" },
+    "sent_at": { "bsonType": ["number", "null"] },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "station_id": 1, "idempotency_key": 1 }, "name": "uniq_station_idempotency", "unique": true },
+    { "key": { "status": 1, "next_retry_at": 1, "updated_at": 1 }, "name": "idx_status_next_retry" },
+    { "key": { "source_type": 1, "source_id": 1 }, "name": "idx_source" },
+    { "key": { "bottle_no": 1, "event_at": -1 }, "name": "idx_bottle_event" },
+    { "key": { "created_at": -1 }, "name": "idx_created_at" }
+  ]
+}

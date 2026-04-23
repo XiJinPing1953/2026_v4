@@ -1,0 +1,33 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "action": "enqueueEventV1",
+  "request_data": {
+    "event_type": "profile_update",
+    "source_type": "manual",
+    "source_id": "anomaly_timeout_20260423",
+    "bottle_nos": [
+      "4"
+    ],
+    "enqueue_snapshot": true,
+    "max_retries": 2
+  },
+  "result": {
+    "code": 0,
+    "msg": "入队完成",
+    "data": {
+      "total_event_payload": 1,
+      "enqueued_total": 1,
+      "duplicate_total": 0,
+      "missing_bottle_total": 0,
+      "preview_payloads": [],
+      "snapshot": {
+        "total_input": 1,
+        "found_total": 1,
+        "missing_total": 0,
+        "enqueued_total": 1,
+        "duplicate_total": 0,
+        "preview_payloads": []
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "action": "dispatchOutboxV1",
+  "request_data": {
+    "batch_size": 100,
+    "endpoint": "local://crm-reg-ingest",
+    "key_id": "reg-key-a-20260423",
+    "secret": "22fa756538771d530004b0656fddbd358be8291871d4037e9decdf6778417015",
+    "station_id": "XTNY-001"
+  },
+  "result": {
+    "code": 0,
+    "msg": "派发完成",
+    "data": {
+      "batch_size": 100,
+      "picked_total": 92,
+      "sent_total": 92,
+      "retrying_total": 0,
+      "dead_total": 0,
+      "failed_total": 0,
+      "missing_config_total": 0
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "action": "dispatchOutboxV1",
+  "request_data": {
+    "batch_size": 10,
+    "endpoint": "https://127.0.0.1:1",
+    "key_id": "reg-key-a-20260423",
+    "secret": "22fa756538771d530004b0656fddbd358be8291871d4037e9decdf6778417015",
+    "station_id": "XTNY-001",
+    "timeout_ms": 1500
+  },
+  "result": {
+    "code": 0,
+    "msg": "派发完成",
+    "data": {
+      "batch_size": 10,
+      "picked_total": 2,
+      "sent_total": 0,
+      "retrying_total": 2,
+      "dead_total": 0,
+      "failed_total": 2,
+      "missing_config_total": 0
+    }
+  }
+}

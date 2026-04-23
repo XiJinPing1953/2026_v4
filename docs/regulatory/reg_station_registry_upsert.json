@@ -1,0 +1,36 @@
+{
+  "ts": 1776923819551,
+  "space_id": "env-00jxuffegf2n",
+  "function": "crm-reg-ingest",
+  "action": "upsertStationRegistryV1",
+  "request_data": {
+    "items": [
+      {
+        "station_id": "XTNY-001",
+        "station_name": "xintuonengyuan",
+        "key_id": "reg-key-a-20260423",
+        "secret": "22fa756538771d530004b0656fddbd358be8291871d4037e9decdf6778417015",
+        "is_active": true,
+        "allow_skew_ms": 300000
+      },
+      {
+        "station_id": "XTNY-001",
+        "station_name": "xintuonengyuan",
+        "key_id": "reg-key-b-20260423",
+        "secret": "ed35ddf862f7e30868100980898f5b959bef3e6c06dd91a5028fe6fcdceab302",
+        "is_active": true,
+        "allow_skew_ms": 300000
+      }
+    ]
+  },
+  "result": {
+    "code": 0,
+    "data": {
+      "input_total": 2,
+      "upserted_total": 2,
+      "inserted_total": 2,
+      "invalid_total": 0,
+      "invalid_items": []
+    }
+  }
+}

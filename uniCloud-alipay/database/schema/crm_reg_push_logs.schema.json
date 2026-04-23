@@ -1,0 +1,44 @@
+{
+  "bsonType": "object",
+  "description": "Regulatory push attempt logs",
+  "additionalProperties": false,
+  "required": [
+    "outbox_id",
+    "station_id",
+    "payload_type",
+    "idempotency_key",
+    "attempt_no",
+    "endpoint",
+    "request_body_sha256",
+    "success",
+    "created_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "outbox_id": { "bsonType": "string" },
+    "station_id": { "bsonType": "string" },
+    "payload_type": { "bsonType": "string", "enum": ["snapshot", "event"] },
+    "idempotency_key": { "bsonType": "string" },
+    "attempt_no": { "bsonType": "number" },
+    "endpoint": { "bsonType": "string" },
+    "request_body_sha256": { "bsonType": "string" },
+    "response_status": { "bsonType": ["number", "null"] },
+    "response_code": { "bsonType": ["number", "null"] },
+    "response_msg": { "bsonType": "string" },
+    "success": { "bsonType": "bool" },
+    "error_code": { "bsonType": "string" },
+    "error_msg": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "outbox_id": 1, "created_at": -1 }, "name": "idx_outbox_created_at" },
+    { "key": { "station_id": 1, "created_at": -1 }, "name": "idx_station_created_at" },
+    { "key": { "success": 1, "created_at": -1 }, "name": "idx_success_created_at" }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "ts": 1776923603459,
+  "space_id": "env-00jxuffegf2n",
+  "function": "crm-reg-ingest",
+  "action": "verifyStatsV1",
+  "request_data": {},
+  "result": {
+    "code": 0,
+    "data": {
+      "station_id": "",
+      "active_station_key_total": 0,
+      "bottle_current_total": 0,
+      "bottle_event_total": 0,
+      "dedup_accepted_total": 0,
+      "log_accepted_total": 0,
+      "log_repeated_total": 0,
+      "log_rejected_total": 0,
+      "dead_letter_open_total": 0
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "space_id": "env-00jxuffegf2n",
+  "action": "bootstrapSnapshotV1",
+  "request_data": {
+    "preview": false,
+    "only_active": true,
+    "limit": 10000
+  },
+  "result": {
+    "code": 0,
+    "msg": "基线入队完成",
+    "data": {
+      "preview": false,
+      "only_active": true,
+      "scanned_total": 1032,
+      "missing_station_total": 0,
+      "missing_medium_total": 0,
+      "enqueue": {
+        "total_input": 1032,
+        "found_total": 1032,
+        "missing_total": 0,
+        "enqueued_total": 1032,
+        "duplicate_total": 0,
+        "preview_payloads": []
+      }
+    }
+  }
+}
