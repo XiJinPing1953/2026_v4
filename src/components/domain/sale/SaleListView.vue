@@ -10,7 +10,7 @@
 				<view class="summary-row">
 					<AppStatCard
 						:class="['summary-card', isSummaryScopeActive('paid') ? 'summary-card--active' : '']"
-						label="实收总额"
+						label="结算实收"
 						:value="amountReceivedText"
 						:hint="paidHintText"
 						icon="check-circle"
@@ -34,7 +34,7 @@
 					/>
 					<AppStatCard
 						:class="['summary-card', 'summary-card--outstanding', outstandingCardClass, isSummaryScopeActive('net_outstanding_non_zero') ? 'summary-card--active' : '']"
-						label="净未收总额"
+						label="净未结清"
 						:value="outstandingText"
 						:hint="outstandingHintText"
 						icon="alert"

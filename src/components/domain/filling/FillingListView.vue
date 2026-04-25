@@ -12,7 +12,7 @@
 					class="summary-card"
 					label="筛选结果"
 					:value="summary.total"
-					hint="瓶"
+					hint="条"
 					icon="bottle"
 				/>
 				<AppStatCard

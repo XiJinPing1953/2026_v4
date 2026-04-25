@@ -3543,7 +3543,7 @@ async function computeSaleListSummary(where, filters = {}) {
 			else summary.unpaid += 1
 
 			summary.should_receive_total = fix2(summary.should_receive_total + shouldReceive)
-			summary.amount_received_total = fix2(summary.amount_received_total + amountReceived)
+			summary.amount_received_total = fix2(summary.amount_received_total + paidTotal)
 			summary.outstanding_total = fix2(summary.outstanding_total + netOutstandingEffective)
 			summary.total_net_weight = fix2(summary.total_net_weight + netWeight)
 

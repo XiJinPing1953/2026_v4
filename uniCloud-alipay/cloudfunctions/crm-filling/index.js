@@ -36,6 +36,7 @@ const ORPHAN_CLEANUP_BACKUP_COLLECTION = 'crm_filling_orphan_fill_movement_backu
 const ORPHAN_CLEANUP_SCAN_LIMIT = 20000
 const DATE_NORMALIZE_SCAN_LIMIT = 12000
 const FILLED_UNSOLD_SCAN_LIMIT = 12000
+const FILLING_SUMMARY_SCAN_LIMIT = 50000
 const BOTTLE_FLOW_WARNING_KIND = 'bottle_flow_mismatch'
 const PAGE_ACTION_RULES = {
 	listV1: [{ pagePath: '/pages/filling/list', action: 'view' }],
@@ -587,6 +588,7 @@ function buildListWhereByFilter(data = {}) {
 async function fetchFillingsRowsByWhere(where, { limit = FILLED_UNSOLD_SCAN_LIMIT } = {}) {
 	const rowsOut = []
 	const pageSize = 300
+	const maxGuard = Math.max(Math.ceil((Number(limit) || FILLED_UNSOLD_SCAN_LIMIT) / pageSize) + 5, 120)
 	let cursor = null
 	let guard = 0
 	const buildCursorWhere = (cursorPayload) => {
@@ -606,7 +608,7 @@ async function fetchFillingsRowsByWhere(where, { limit = FILLED_UNSOLD_SCAN_LIMI
 	}
 	while (true) {
 		guard += 1
-		if (guard > 120) {
+		if (guard > maxGuard) {
 			return { ok: false, msg: '已灌未售筛选范围过大，请缩小日期或瓶号范围后重试' }
 		}
 		const cursorWhere = buildCursorWhere(cursor)
@@ -655,6 +657,20 @@ async function fetchFillingsRowsByWhere(where, { limit = FILLED_UNSOLD_SCAN_LIMI
 		cursor = nextCursor
 	}
 	return { ok: true, data: rowsOut }
+}
+
+async function buildRecordTypeSummaryByWhere(where) {
+	const rowsRes = await fetchFillingsRowsByWhere(where, { limit: FILLING_SUMMARY_SCAN_LIMIT })
+	if (!rowsRes.ok) {
+		return {
+			ok: false,
+			msg: `灌装统计筛选命中超过 ${FILLING_SUMMARY_SCAN_LIMIT} 条，请缩小日期或瓶号范围后重试`
+		}
+	}
+	return {
+		ok: true,
+		data: buildRecordTypeSummaryByRows(rowsRes.data || [])
+	}
 }
 
 function buildLatestFillingRowByBottle(rows = []) {
@@ -1123,6 +1139,7 @@ async function listV1(user, data) {
 				normal_fill_weight: Number(recordTypeSummary.normal_fill_weight || 0),
 				truck_out_agent_sale_weight: Number(recordTypeSummary.truck_out_agent_sale_weight || 0),
 				truck_out_no_sale_weight: Number(recordTypeSummary.truck_out_no_sale_weight || 0),
+				record_type_summary_scope: 'filter',
 				filled_unsold_debug: filtered.debug || {}
 			}
 		}
@@ -1143,7 +1160,9 @@ async function listV1(user, data) {
 	const withRemarkRes = await fillings.where(mergeWhere(where, { remark: dbCmd.neq('') })).count()
 	const withRemark = Number(withRemarkRes.total || 0)
 	const rows = Array.isArray(res.data) ? res.data.map((row) => normalizeFillingRow(row)) : []
-	const recordTypeSummary = buildRecordTypeSummaryByRows(rows)
+	const recordTypeSummaryRes = await buildRecordTypeSummaryByWhere(where)
+	if (!recordTypeSummaryRes.ok) return { code: 400, msg: recordTypeSummaryRes.msg || '灌装统计范围过大' }
+	const recordTypeSummary = recordTypeSummaryRes.data || createRecordTypeSummary()
 
 	return {
 		code: 0,
@@ -1165,7 +1184,7 @@ async function listV1(user, data) {
 			normal_fill_weight: Number(recordTypeSummary.normal_fill_weight || 0),
 			truck_out_agent_sale_weight: Number(recordTypeSummary.truck_out_agent_sale_weight || 0),
 			truck_out_no_sale_weight: Number(recordTypeSummary.truck_out_no_sale_weight || 0),
-			record_type_summary_scope: 'page'
+			record_type_summary_scope: 'filter'
 		}
 	}
 }
