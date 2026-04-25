@@ -1,0 +1,59 @@
+{
+  "generated_at": "2026-04-24T04:37:19.301Z",
+  "output_dir": "/Users/wangbo/Downloads/2026_v4/docs/pda-qr-300x300/2026-04-24-scale-test",
+  "size": "300x300",
+  "customer": {
+    "_id": "69eaf32df64c736626208828",
+    "name": "PDA测试客户-吊秤",
+    "phone": "19900005001",
+    "default_price_unit": "kg",
+    "default_unit_price": 5,
+    "qr_code": "PDA-SCALE-CUST-001"
+  },
+  "bottles": [
+    {
+      "_id": "69eaf32dde35b6f5aac288ee",
+      "bottle_no": "PDA-SCALE-B001",
+      "pda_qr_code": "PDA-SCALE-BOTTLE-001",
+      "tare_weight": 1
+    },
+    {
+      "_id": "69eaf32dfec79e230c7254c1",
+      "bottle_no": "PDA-SCALE-B002",
+      "pda_qr_code": "PDA-SCALE-BOTTLE-002",
+      "tare_weight": 1
+    },
+    {
+      "_id": "69eaf32dde35b6f5aac288f1",
+      "bottle_no": "PDA-SCALE-B003",
+      "pda_qr_code": "PDA-SCALE-BOTTLE-003",
+      "tare_weight": 1
+    }
+  ],
+  "files": [
+    {
+      "type": "customer",
+      "label": "PDA测试客户-吊秤",
+      "code": "PDA-SCALE-CUST-001",
+      "file": "01_customer_PDA测试客户-吊秤.png"
+    },
+    {
+      "type": "bottle",
+      "label": "PDA-SCALE-B001",
+      "code": "PDA-SCALE-BOTTLE-001",
+      "file": "02_bottle_PDA-SCALE-B001.png"
+    },
+    {
+      "type": "bottle",
+      "label": "PDA-SCALE-B002",
+      "code": "PDA-SCALE-BOTTLE-002",
+      "file": "03_bottle_PDA-SCALE-B002.png"
+    },
+    {
+      "type": "bottle",
+      "label": "PDA-SCALE-B003",
+      "code": "PDA-SCALE-BOTTLE-003",
+      "file": "04_bottle_PDA-SCALE-B003.png"
+    }
+  ]
+}

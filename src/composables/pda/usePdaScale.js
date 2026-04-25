@@ -84,12 +84,12 @@ export function usePdaScale(options = {}) {
 			sampledAt: null,
 			gatewayAt: null,
 			errorCode: 'not_reported',
-			errorMessage: '秤网关尚未上报'
+			errorMessage: 'C606+称重网关尚未上报'
 		}
 		const lastSeenAt = Number(base.gatewayAt || base.sampledAt || 0)
 		const isFresh = Boolean(lastSeenAt) && clock.value - lastSeenAt <= staleAfterMs
 		const effectiveOnline = Boolean(base.isOnline) && isFresh
-		const timeoutError = base.hasData && !isFresh ? '秤网关心跳超时' : ''
+		const timeoutError = base.hasData && !isFresh ? 'C606+称重网关心跳超时' : ''
 		return {
 			...base,
 			lastSeenAt: lastSeenAt || null,
@@ -106,7 +106,7 @@ export function usePdaScale(options = {}) {
 	})
 
 	const statusText = computed(() => {
-		if (!resolvedSnapshot.value.hasData) return '秤网关未上报'
+		if (!resolvedSnapshot.value.hasData) return 'C606+称重网关未上报'
 		if (!resolvedSnapshot.value.isOnline) return resolvedSnapshot.value.errorMessage || '秤离线'
 		return resolvedSnapshot.value.isStable ? '稳定' : '动态中'
 	})

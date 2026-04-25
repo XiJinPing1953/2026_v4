@@ -8,7 +8,7 @@ const {
 	generateRequestId,
 	prepareClientOptions
 } = require('../lib/qrImportCommon.cjs')
-const { DEFAULT_SCALE_CODE, decodeScaleRegisters, getMockFrame } = require('./protocol.cjs')
+const { DEFAULT_SCALE_CODE, decodeC606ConfigRegisters, decodeC606ScaleRegisters, getMockFrame } = require('./protocol.cjs')
 
 function normalizeString(value) {
 	if (value == null) return ''
@@ -18,6 +18,11 @@ function normalizeString(value) {
 function toPositiveInt(value, fallback) {
 	const num = Number(value)
 	return Number.isFinite(num) && num > 0 ? Math.trunc(num) : fallback
+}
+
+function toOptionalPositiveInt(value) {
+	const num = Number(value)
+	return Number.isFinite(num) && num > 0 ? Math.trunc(num) : null
 }
 
 function sleep(ms) {
@@ -66,7 +71,7 @@ function printHelp() {
 
 环境变量:
   SCALE_SERIAL_PORT / SCALE_BAUD_RATE / SCALE_DATA_BITS / SCALE_STOP_BITS / SCALE_PARITY / SCALE_SLAVE_ID
-  SCALE_CODE / SCALE_POLL_MS / SCALE_HEARTBEAT_MS
+  SCALE_CODE / SCALE_POLL_MS / SCALE_HEARTBEAT_MS / SCALE_CONFIG_REFRESH_MS
   CRM_SPACE_ID + CRM_CLIENT_SECRET 或 CRM_ACCESS_KEY / CRM_SECRET_KEY / CRM_SPACE_APP_ID
   GATEWAY_USERNAME / GATEWAY_PASSWORD
   SUPERADMIN_USERNAME / SUPERADMIN_PASSWORD
@@ -76,19 +81,22 @@ function printHelp() {
 function loadConfig(args) {
 	const scriptDir = __dirname
 	loadEnvFile(path.join(scriptDir, '.env'))
+	const parity = normalizeString(process.env.SCALE_PARITY) || 'none'
+	const explicitStopBits = toOptionalPositiveInt(process.env.SCALE_STOP_BITS)
 	return {
 		mock: args.mock === true,
 		dryRun: args.dryRun === true,
 		once: args.once === true,
 		scaleCode: normalizeString(process.env.SCALE_CODE) || DEFAULT_SCALE_CODE,
 		serialPort: normalizeString(process.env.SCALE_SERIAL_PORT),
-		baudRate: toPositiveInt(process.env.SCALE_BAUD_RATE, 115200),
+		baudRate: toPositiveInt(process.env.SCALE_BAUD_RATE, 9600),
 		dataBits: toPositiveInt(process.env.SCALE_DATA_BITS, 8),
-		stopBits: toPositiveInt(process.env.SCALE_STOP_BITS, 1),
-		parity: normalizeString(process.env.SCALE_PARITY) || 'none',
+		stopBits: explicitStopBits || (parity === 'none' ? 2 : 1),
+		parity,
 		slaveId: toPositiveInt(process.env.SCALE_SLAVE_ID, 1),
 		pollMs: toPositiveInt(process.env.SCALE_POLL_MS, 200),
 		heartbeatMs: toPositiveInt(process.env.SCALE_HEARTBEAT_MS, 2000),
+		configRefreshMs: toPositiveInt(process.env.SCALE_CONFIG_REFRESH_MS, 60000),
 		crmSpaceId: normalizeString(process.env.CRM_SPACE_ID || process.env.UNI_SPACE_ID),
 		clientSecret: normalizeString(process.env.CRM_CLIENT_SECRET || process.env.UNI_CLIENT_SECRET),
 		endpoint: normalizeString(process.env.CRM_ENDPOINT || process.env.UNI_ENDPOINT),
@@ -235,6 +243,8 @@ async function createReader(config) {
 
 	const ModbusRTU = require('modbus-serial')
 	const client = new ModbusRTU()
+	let configCache = null
+	let configLoadedAt = 0
 	await client.connectRTUBuffered(config.serialPort, {
 		baudRate: config.baudRate,
 		dataBits: config.dataBits,
@@ -243,21 +253,24 @@ async function createReader(config) {
 	})
 	client.setID(config.slaveId)
 	client.setTimeout(Math.max(config.pollMs, 800))
+	async function readInstrumentConfig() {
+		const now = Date.now()
+		if (configCache && now - configLoadedAt < config.configRefreshMs) return configCache
+		const configRes = await client.readInputRegisters(0x001c, 11)
+		configCache = decodeC606ConfigRegisters(configRes.data)
+		configLoadedAt = now
+		return configCache
+	}
 	return {
 		async read() {
 			const sampledAt = Date.now()
-			const realtimeRes = await client.readHoldingRegisters(0x0000, 5)
-			const stableThresholdRes = await client.readHoldingRegisters(0x0009, 1)
-			const configRes = await client.readHoldingRegisters(0x0013, 3)
+			const instrumentConfig = await readInstrumentConfig()
+			const grossWeightRes = await client.readInputRegisters(0x0002, 2)
+			const dynamicRes = await client.readDiscreteInputs(0x0002, 1)
 			return {
 				sampledAt,
-				decoded: decodeScaleRegisters(realtimeRes.data, {
-					stableThreshold: configRes?.data ? stableThresholdRes.data[0] : null,
-					unitCode: configRes.data[0],
-					divisionValue: configRes.data[1],
-					decimalPlaces: configRes.data[2]
-				}),
-				label: 'modbus'
+				decoded: decodeC606ScaleRegisters(grossWeightRes.data, dynamicRes.data, instrumentConfig),
+				label: 'c606_modbus'
 			}
 		},
 		async close() {

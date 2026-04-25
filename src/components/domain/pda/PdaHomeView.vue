@@ -31,8 +31,8 @@
 				<text class="scope-item">查询钢瓶档案、流转记录、客户摘要</text>
 				<text class="scope-item">手工录入灌装单并回传灌装记录</text>
 				<text class="scope-item">手工录入瓶装 kg 销售单并回传销售记录</text>
-				<text class="scope-item">支持实体扫码键回填客户、配送员、车辆、瓶号；重量支持手输或机房秤网关取值</text>
-				<text class="scope-item">首版不接蓝牙秤、不做 PDA 直连串口、不做收款结算</text>
+				<text class="scope-item">支持实体扫码键回填客户、配送员、车辆、瓶号；支持 BLE 吊秤称重回填净重</text>
+				<text class="scope-item">灌装重量支持手输或 C606+ 称重仪表取值；首版不做收款结算</text>
 			</view>
 		</AppSection>
 

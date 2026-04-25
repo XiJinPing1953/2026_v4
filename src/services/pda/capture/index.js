@@ -3,15 +3,22 @@ import { normalizeText } from '@/services/pda/shared'
 const PLATFORM_PLUGIN_NAME = 'TH-PlatformSDK'
 const DEFAULT_BROADCAST_ACTION = 'android.intent.ACTION_DECODE_DATA'
 const DEFAULT_BROADCAST_DATA_KEY = 'barcode_string'
+const BROADCAST_ACTION_CANDIDATES = [
+	DEFAULT_BROADCAST_ACTION,
+	'android.intent.action.SCANRESULT',
+	'android.intent.action.BARCODE_SCAN',
+	'com.android.server.scannerservice.broadcast',
+	'com.seuic.scanner.decode',
+	'com.sunmi.scanner.ACTION_DATA_CODE_RECEIVED',
+	'nlscan.action.SCANNER_RESULT'
+]
 const BROADCAST_ACTION_CONFIG_KEY = 200000
 const BROADCAST_DATA_KEY_CONFIG_KEY = 200002
 const BROADCAST_DEDUP_MS = 600
 const RECEIVER_CLASS_CANDIDATES = ['io.dcloud.feature.internal.reflect.BroadcastReceiver', 'io.dcloud.android.content.BroadcastReceiver']
 const INTENT_FILTER_CLASS = 'android.content.IntentFilter'
-const DEFAULT_PROFILE = {
-	mode: 0,
-	output: 0
-}
+const SCANNER_BROADCAST_OUTPUT_MODE = 0
+const SCANNER_PROFILE_READ_TIMEOUT_MS = 180
 
 const TYPE_KEYS = ['barcodeType', 'barcode_type', 'symbology', 'symName', 'codetype', 'com.ubx.datawedge.symbology_name']
 const TEXT_KEYS = [DEFAULT_BROADCAST_DATA_KEY, 'scannerdata', 'decode_data', 'data', 'com.ubx.datawedge.data_string']
@@ -33,6 +40,7 @@ export const PDA_CAPTURE_TARGETS = {
 const runtimeState = {
 	supported: null,
 	pluginReady: false,
+	captureMode: 'unknown',
 	ready: false,
 	mainActivity: null,
 	plugin: null,
@@ -42,6 +50,14 @@ const runtimeState = {
 	lastError: '',
 	broadcastAction: DEFAULT_BROADCAST_ACTION,
 	broadcastDataKey: DEFAULT_BROADCAST_DATA_KEY,
+	registeredActions: [],
+	scannerProfile: {
+		active: false,
+		before: null,
+		applied: null,
+		restored: null,
+		lastError: ''
+	},
 	lastPayload: '',
 	lastSymbology: '',
 	lastBroadcastAction: '',
@@ -81,6 +97,17 @@ function normalizeBarcodeTargetMeta(targetMeta = null) {
 		type: normalizeText(targetMeta.type),
 		index: Number.isInteger(index) ? index : null
 	}
+}
+
+function normalizeBroadcastActions(actions = []) {
+	const list = Array.isArray(actions) ? actions : [actions]
+	const normalized = list.map((item) => normalizeText(item)).filter(Boolean)
+	return Array.from(new Set(normalized))
+}
+
+function resolveBroadcastActions() {
+	const actions = normalizeBroadcastActions([runtimeState.broadcastAction, ...BROADCAST_ACTION_CANDIDATES])
+	return actions.length ? actions : [DEFAULT_BROADCAST_ACTION]
 }
 
 function decodeIntentByteArray(bytes = null) {
@@ -150,11 +177,39 @@ function getPlatformPlugin() {
 	}
 }
 
-function invokePluginMethod(methodName, args = []) {
+function normalizeProfileDiagnosticValue(value) {
+	if (value == null) return null
+	if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'string') return value
+	if (Array.isArray(value)) return value.map((item) => normalizeProfileDiagnosticValue(item))
+	try {
+		return JSON.parse(JSON.stringify(value))
+	} catch (error) {
+		return normalizeText(value)
+	}
+}
+
+function pickParameterValue(value, key, index = 0) {
+	const normalized = normalizeProfileDiagnosticValue(value)
+	if (normalized == null) return null
+	if (Array.isArray(normalized)) return normalized[index] ?? normalized[0] ?? null
+	if (typeof normalized === 'object') {
+		const keyText = String(key)
+		if (Object.prototype.hasOwnProperty.call(normalized, keyText)) return normalized[keyText]
+		if (Object.prototype.hasOwnProperty.call(normalized, key)) return normalized[key]
+		if (Array.isArray(normalized.data)) return normalized.data[index] ?? normalized.data[0] ?? null
+		if (normalized.data && typeof normalized.data === 'object') return normalized.data[keyText] ?? normalized.data[key] ?? null
+		if (Object.prototype.hasOwnProperty.call(normalized, 'data')) return normalized.data
+		if (Object.prototype.hasOwnProperty.call(normalized, 'value')) return normalized.value
+	}
+	return normalized
+}
+
+function callPluginSetter(methodName, args = []) {
 	const plugin = runtimeState.plugin
 	if (!plugin || typeof plugin[methodName] !== 'function') {
 		return {
 			ok: false,
+			skipped: true,
 			msg: `插件方法不可用: ${methodName}`
 		}
 	}
@@ -162,7 +217,7 @@ function invokePluginMethod(methodName, args = []) {
 		const ret = plugin[methodName](...args)
 		return {
 			ok: true,
-			ret
+			ret: normalizeProfileDiagnosticValue(ret)
 		}
 	} catch (error) {
 		return {
@@ -172,11 +227,97 @@ function invokePluginMethod(methodName, args = []) {
 	}
 }
 
-function applyScanProfile({ mode = DEFAULT_PROFILE.mode, output = DEFAULT_PROFILE.output } = {}) {
-	const result = invokePluginMethod('setScanMode', [Number(mode), Number(output)])
-	if (!result.ok) return result
-	runtimeState.lastError = ''
-	return { ok: true }
+function callPluginGetter(methodName, args = []) {
+	const plugin = runtimeState.plugin
+	if (!plugin || typeof plugin[methodName] !== 'function') {
+		return Promise.resolve({
+			ok: false,
+			skipped: true,
+			msg: `插件方法不可用: ${methodName}`
+		})
+	}
+	return new Promise((resolve) => {
+		let settled = false
+		const done = (result) => {
+			if (settled) return
+			settled = true
+			resolve(result)
+		}
+		const timer = setTimeout(() => {
+			done({
+				ok: false,
+				timeout: true,
+				msg: `读取扫码配置超时: ${methodName}`
+			})
+		}, SCANNER_PROFILE_READ_TIMEOUT_MS)
+		const finish = (result) => {
+			clearTimeout(timer)
+			done(result)
+		}
+		try {
+			const ret = plugin[methodName](...args, (value) => {
+				finish({
+					ok: true,
+					value: normalizeProfileDiagnosticValue(value),
+					via: 'callback'
+				})
+			})
+			if (ret !== undefined) {
+				finish({
+					ok: true,
+					value: normalizeProfileDiagnosticValue(ret),
+					via: 'return'
+				})
+			}
+		} catch (callbackError) {
+			try {
+				const ret = plugin[methodName](...args)
+				clearTimeout(timer)
+				done({
+					ok: true,
+					value: normalizeProfileDiagnosticValue(ret),
+					via: 'return'
+				})
+			} catch (error) {
+				clearTimeout(timer)
+				done({
+					ok: false,
+					msg: normalizeText(error?.message || callbackError?.message) || `插件方法调用失败: ${methodName}`
+				})
+			}
+		}
+	})
+}
+
+async function readScanParameterString(key) {
+	const scanRes = await callPluginGetter('getScanParameterString', [[key]])
+	if (scanRes.ok) return pickParameterValue(scanRes.value, key, 0)
+	const parameterRes = await callPluginGetter('getParameterString', [key])
+	if (parameterRes.ok) return pickParameterValue(parameterRes.value, key, 0)
+	return null
+}
+
+async function captureScannerProfileSnapshot(label = '') {
+	const [outputModeRes, triggerLockRes, scannerStateRes, actionValue, dataKeyValue] = await Promise.all([
+		callPluginGetter('getOutputMode'),
+		callPluginGetter('getTriggerLockState'),
+		callPluginGetter('getScannerState'),
+		readScanParameterString(BROADCAST_ACTION_CONFIG_KEY),
+		readScanParameterString(BROADCAST_DATA_KEY_CONFIG_KEY)
+	])
+	return {
+		label,
+		at: Date.now(),
+		outputMode: outputModeRes.ok ? pickParameterValue(outputModeRes.value, 'outputMode') : null,
+		triggerLockState: triggerLockRes.ok ? pickParameterValue(triggerLockRes.value, 'triggerLockState') : null,
+		scannerState: scannerStateRes.ok ? pickParameterValue(scannerStateRes.value, 'scannerState') : null,
+		broadcastAction: normalizeText(actionValue),
+		broadcastDataKey: normalizeText(dataKeyValue),
+		readErrors: [outputModeRes, triggerLockRes, scannerStateRes]
+			.filter((item) => !item.ok && !item.skipped)
+			.map((item) => normalizeText(item.msg))
+			.filter(Boolean)
+	}
 }
 
 function applyBroadcastProfile() {
@@ -243,13 +384,14 @@ function createBroadcastReceiver() {
 						plus.android.importClass(intent)
 					} catch (importError) {
 					}
-					const action = normalizeText(typeof intent.getAction === 'function' ? intent.getAction() : plus.android.invoke(intent, 'getAction'))
-					runtimeState.diagnostic.broadcastReceivedCount += 1
-					runtimeState.lastBroadcastAction = action
-					if (action !== runtimeState.broadcastAction && action !== DEFAULT_BROADCAST_ACTION) {
-						runtimeState.diagnostic.broadcastIgnoredCount += 1
-						return
-					}
+						const action = normalizeText(typeof intent.getAction === 'function' ? intent.getAction() : plus.android.invoke(intent, 'getAction'))
+						runtimeState.diagnostic.broadcastReceivedCount += 1
+						runtimeState.lastBroadcastAction = action
+						const registeredActions = Array.isArray(runtimeState.registeredActions) && runtimeState.registeredActions.length ? runtimeState.registeredActions : resolveBroadcastActions()
+						if (!registeredActions.includes(action)) {
+							runtimeState.diagnostic.broadcastIgnoredCount += 1
+							return
+						}
 					runtimeState.diagnostic.broadcastMatchedCount += 1
 					const extraKeys = getIntentExtraKeys(intent)
 					runtimeState.diagnostic.lastExtraKeys = extraKeys.slice(0, 20)
@@ -283,12 +425,16 @@ function registerBroadcastReceiver() {
 	if (!runtimeState.mainActivity || !runtimeState.receiver) return { ok: false, msg: '广播接收器未就绪' }
 	try {
 		const filter = plus.android.newObject(INTENT_FILTER_CLASS)
-		plus.android.invoke(filter, 'addAction', runtimeState.broadcastAction || DEFAULT_BROADCAST_ACTION)
-		if (runtimeState.broadcastAction !== DEFAULT_BROADCAST_ACTION) plus.android.invoke(filter, 'addAction', DEFAULT_BROADCAST_ACTION)
+		const registeredActions = resolveBroadcastActions()
+		registeredActions.forEach((action) => {
+			plus.android.invoke(filter, 'addAction', action)
+		})
 		plus.android.invoke(runtimeState.mainActivity, 'registerReceiver', runtimeState.receiver, filter)
 		runtimeState.receiverRegistered = true
+		runtimeState.registeredActions = registeredActions
 		return { ok: true }
 	} catch (error) {
+		runtimeState.registeredActions = []
 		return {
 			ok: false,
 			msg: normalizeText(error?.message) || '注册扫码广播失败'
@@ -306,6 +452,7 @@ function unregisterBroadcastReceiver() {
 	} catch (error) {
 	} finally {
 		runtimeState.receiverRegistered = false
+		runtimeState.registeredActions = []
 	}
 	// #endif
 }
@@ -313,14 +460,18 @@ function unregisterBroadcastReceiver() {
 function ensureRuntimeReady() {
 	if (!isAndroidAppPlus()) {
 		runtimeState.supported = false
+		runtimeState.captureMode = 'unsupported'
 		runtimeState.lastError = '仅支持 Android PDA 真机采集'
 		return { ok: false, msg: runtimeState.lastError }
 	}
 	if (!runtimeState.plugin) runtimeState.plugin = getPlatformPlugin()
-	if (!runtimeState.plugin) {
+	const pluginReady = Boolean(runtimeState.plugin)
+	if (!pluginReady) {
 		runtimeState.supported = false
 		runtimeState.pluginReady = false
-		runtimeState.lastError = '当前构建未集成 TH-PlatformSDK 插件，请使用自定义基座'
+		runtimeState.captureMode = 'failed'
+		runtimeState.ready = false
+		runtimeState.lastError = '当前构建未集成 TH-PlatformSDK 插件，请使用包含该插件的自定义基座'
 		return { ok: false, msg: runtimeState.lastError }
 	}
 	// #ifdef APP-PLUS
@@ -329,43 +480,107 @@ function ensureRuntimeReady() {
 		if (!runtimeState.receiver) runtimeState.receiver = createBroadcastReceiver()
 		if (!runtimeState.receiver) {
 			runtimeState.supported = false
+			runtimeState.captureMode = 'failed'
 			runtimeState.lastError = '扫码广播接收器创建失败'
 			return { ok: false, msg: runtimeState.lastError }
 		}
 		runtimeState.supported = true
 		runtimeState.pluginReady = true
+		runtimeState.captureMode = 'enhanced'
 		runtimeState.ready = true
 		runtimeState.lastError = ''
-		return { ok: true }
+		return { ok: true, warning: '' }
 	} catch (error) {
 		runtimeState.supported = false
 		runtimeState.pluginReady = false
+		runtimeState.captureMode = 'failed'
 		runtimeState.lastError = normalizeText(error?.message) || '扫码插件初始化失败'
 		return { ok: false, msg: runtimeState.lastError }
 	}
 	// #endif
+	runtimeState.captureMode = 'unsupported'
 	return { ok: false, msg: '当前环境不支持扫描采集' }
 }
 
 function releaseScanProfile() {
-	invokePluginMethod('stopScan', [])
-	applyScanProfile({ mode: DEFAULT_PROFILE.mode, output: 1 })
+	if (!runtimeState.pluginReady) return Promise.resolve({ ok: true, skipped: true })
+	return restoreScannerProfileSnapshot()
 }
 
-function ensureSharedCaptureReady() {
-	const profileResult = applyScanProfile(DEFAULT_PROFILE)
+async function applyScannerProfileSnapshot() {
+	if (!runtimeState.pluginReady) {
+		return { ok: false, msg: '当前构建未集成 TH-PlatformSDK 插件，请使用包含该插件的自定义基座' }
+	}
+	if (!runtimeState.scannerProfile.active) {
+		runtimeState.scannerProfile.before = await captureScannerProfileSnapshot('before-enter')
+	}
+	const before = runtimeState.scannerProfile.before
+	if (!Number.isFinite(Number(before?.outputMode))) {
+		runtimeState.scannerProfile.lastError = '无法读取扫描头输出模式，已取消接管'
+		return { ok: false, msg: '无法读取扫描头输出模式，已取消接管以避免破坏原生配置' }
+	}
+	if (!normalizeText(before?.broadcastAction) || !normalizeText(before?.broadcastDataKey)) {
+		runtimeState.scannerProfile.lastError = '无法读取扫描头广播配置，已取消接管'
+		return { ok: false, msg: '无法读取扫描头广播配置，已取消接管以避免破坏原生配置' }
+	}
+	const outputResult = callPluginSetter('switchOutputMode', [SCANNER_BROADCAST_OUTPUT_MODE])
+	if (!outputResult.ok) {
+		runtimeState.scannerProfile.lastError = outputResult.msg || ''
+		return { ok: false, msg: outputResult.msg || '切换扫码广播输出失败' }
+	}
+	runtimeState.scannerProfile.active = true
+	runtimeState.scannerProfile.lastError = ''
+	return { ok: true }
+}
+
+async function restoreScannerProfileSnapshot() {
+	if (!runtimeState.pluginReady) return { ok: true, skipped: true }
+	const before = runtimeState.scannerProfile.before
+	let restoreError = ''
+	if (before?.broadcastAction || before?.broadcastDataKey) {
+		const action = before.broadcastAction || runtimeState.broadcastAction
+		const dataKey = before.broadcastDataKey || runtimeState.broadcastDataKey
+		const restoreBroadcast = callPluginSetter('setScanParameterString', [
+			[BROADCAST_ACTION_CONFIG_KEY, BROADCAST_DATA_KEY_CONFIG_KEY],
+			[action, dataKey],
+			() => {}
+		])
+		if (!restoreBroadcast.ok) restoreError = restoreBroadcast.msg || restoreError
+	}
+	const outputMode = Number(before?.outputMode)
+	if (Number.isFinite(outputMode)) {
+		const restoreOutput = callPluginSetter('switchOutputMode', [outputMode])
+		if (!restoreOutput.ok) restoreError = restoreOutput.msg || restoreError
+	}
+	runtimeState.scannerProfile.restored = await captureScannerProfileSnapshot('after-restore')
+	runtimeState.scannerProfile.active = false
+	runtimeState.scannerProfile.lastError = restoreError
+	if (restoreError) return { ok: false, msg: restoreError }
+	return { ok: true }
+}
+
+async function ensureSharedCaptureReady() {
+	if (!runtimeState.pluginReady) {
+		return { ok: false, msg: '当前构建未集成 TH-PlatformSDK 插件，请使用包含该插件的自定义基座' }
+	}
+	let warning = ''
+	const profileResult = await applyScannerProfileSnapshot()
 	if (!profileResult.ok) return { ok: false, msg: profileResult.msg || '设置扫码模式失败' }
 	const broadcastResult = applyBroadcastProfile()
-	if (!broadcastResult.ok) runtimeState.lastError = broadcastResult.msg || ''
+	if (!broadcastResult.ok) {
+		runtimeState.lastError = broadcastResult.msg || ''
+		warning = runtimeState.lastError
+	}
+	runtimeState.scannerProfile.applied = await captureScannerProfileSnapshot('after-enter')
 	const receiverResult = registerBroadcastReceiver()
 	if (!receiverResult.ok) return { ok: false, msg: receiverResult.msg || '注册扫码广播失败' }
-	return { ok: true, warning: broadcastResult.ok ? '' : broadcastResult.msg || '' }
+	return { ok: true, warning }
 }
 
-function releaseHardwareIfIdle() {
+async function releaseHardwareIfIdle() {
 	if (runtimeState.session) return
 	unregisterBroadcastReceiver()
-	releaseScanProfile()
+	await releaseScanProfile()
 }
 
 export async function enterBarcodeSession(options = {}) {
@@ -373,15 +588,17 @@ export async function enterBarcodeSession(options = {}) {
 	if (!ready.ok) return { code: 501, msg: ready.msg, data: null }
 	const onResult = typeof options.onResult === 'function' ? options.onResult : null
 	if (!onResult) return { code: 400, msg: '扫码会话缺少结果处理函数', data: null }
-	const prepare = ensureSharedCaptureReady()
+	const prepare = await ensureSharedCaptureReady()
 	if (!prepare.ok) return { code: 500, msg: prepare.msg, data: null }
+	const warningParts = [ready.warning, prepare.warning].map((item) => normalizeText(item)).filter(Boolean)
+	const warningText = Array.from(new Set(warningParts)).join('；')
 	runtimeState.session = {
 		page: normalizeText(options.page),
 		onResult,
 		routeResolver: typeof options.routeResolver === 'function' ? options.routeResolver : null,
 		activeTarget: normalizeBarcodeTargetMeta(options.activeTarget)
 	}
-	runtimeState.lastError = ''
+	runtimeState.lastError = warningText
 	runtimeState.lastDelivered = {
 		target: '',
 		rawText: '',
@@ -389,7 +606,7 @@ export async function enterBarcodeSession(options = {}) {
 	}
 	return {
 		code: 0,
-		msg: prepare.warning ? `扫码会话已启动（${prepare.warning}）` : '',
+		msg: warningText ? `扫码会话已启动（${warningText}）` : '',
 		data: {
 			page: runtimeState.session.page,
 			activeTarget: runtimeState.session.activeTarget
@@ -422,7 +639,7 @@ export async function leaveBarcodeSession(options = {}) {
 		return { code: 0, msg: '当前页无物理扫码会话', data: { restored: false } }
 	}
 	runtimeState.session = null
-	releaseHardwareIfIdle()
+	await releaseHardwareIfIdle()
 	return {
 		code: 0,
 		msg: reason ? `已退出扫码会话：${reason}` : '已退出扫码会话',
@@ -436,7 +653,7 @@ export async function restoreScannerProfile(options = {}) {
 	const reason = normalizeText(options.reason)
 	if (options.clearSession !== false) runtimeState.session = null
 	unregisterBroadcastReceiver()
-	releaseScanProfile()
+	await releaseScanProfile()
 	runtimeState.lastError = ''
 	runtimeState.lastDelivered = {
 		target: '',
@@ -486,15 +703,21 @@ export function verifyBroadcastConfig() {
 		data: {
 			action: runtimeState.broadcastAction,
 			key: runtimeState.broadcastDataKey,
+			registeredActions: runtimeState.registeredActions,
 			receiverRegistered: runtimeState.receiverRegistered
 		}
 	}
 }
 
 export function getScannerState() {
+	const mode = normalizeText(runtimeState.captureMode)
+	const captureMode = mode === 'enhanced' || mode === 'failed' || mode === 'unsupported' ? mode : 'failed'
 	return {
 		supported: Boolean(runtimeState.supported),
 		pluginReady: Boolean(runtimeState.pluginReady),
+		pluginRequired: true,
+		captureMode,
+		androidBroadcastReady: Boolean(runtimeState.ready && runtimeState.mainActivity && runtimeState.receiver),
 		ready: Boolean(runtimeState.ready),
 		lastError: normalizeText(runtimeState.lastError),
 		sessionPage: normalizeText(runtimeState.session?.page),
@@ -504,23 +727,42 @@ export function getScannerState() {
 		lastBroadcastAction: normalizeText(runtimeState.lastBroadcastAction),
 		broadcastAction: normalizeText(runtimeState.broadcastAction),
 		broadcastDataKey: normalizeText(runtimeState.broadcastDataKey),
+		registeredActions: runtimeState.registeredActions.slice(),
+		scannerProfile: {
+			active: Boolean(runtimeState.scannerProfile.active),
+			before: runtimeState.scannerProfile.before,
+			applied: runtimeState.scannerProfile.applied,
+			restored: runtimeState.scannerProfile.restored,
+			lastError: normalizeText(runtimeState.scannerProfile.lastError)
+		},
 		captureDiagnostic: {
 			...runtimeState.diagnostic
 		}
 	}
 }
 
-export function teardownPdaCapture() {
+export async function teardownPdaCapture() {
 	unregisterBroadcastReceiver()
-	releaseScanProfile()
+	await releaseScanProfile()
 	runtimeState.session = null
 	runtimeState.receiver = null
 	runtimeState.mainActivity = null
+	runtimeState.supported = null
+	runtimeState.pluginReady = false
+	runtimeState.captureMode = 'unknown'
 	runtimeState.ready = false
 	runtimeState.lastError = ''
 	runtimeState.lastPayload = ''
 	runtimeState.lastSymbology = ''
 	runtimeState.lastBroadcastAction = ''
+	runtimeState.registeredActions = []
+	runtimeState.scannerProfile = {
+		active: false,
+		before: null,
+		applied: null,
+		restored: null,
+		lastError: ''
+	}
 	runtimeState.lastDelivered = {
 		target: '',
 		rawText: '',

@@ -10,7 +10,38 @@ import {
 	submitPdaBottleSale,
 	syncPdaBackRow
 } from '@/services/pda/sale'
-import { normalizeBottleNo, normalizeText, todayDate } from '@/services/pda/shared'
+import { PDA_BLE_SCALE_DISPLAY_DECIMALS, PDA_BLE_SCALE_DIVISION_STEP_KG, quantizeBleScaleWeightKg } from '@/services/pda/bleScale'
+import { normalizeBottleNo, normalizeText, toNumber, todayDate } from '@/services/pda/shared'
+
+const SCALE_STABLE_CACHE_MAX_AGE_MS = 15000
+
+function hasBleScaleMeasuredWeight(row = {}) {
+	return (
+		normalizeText(row.weightSource ?? row.weight_source) === 'ble_scale' &&
+		toNumber(row.gross ?? row.gross_weight ?? row.grossMeasured ?? row.gross_measured, null) > 0 &&
+		toNumber(row.tare ?? row.tare_weight, null) >= 0 &&
+		toNumber(row.net ?? row.net_weight, null) > 0
+	)
+}
+
+export function resolveUsableBleScaleWeight(scaleSnapshot = {}, now = Date.now()) {
+	const isOnline = Boolean(scaleSnapshot.is_online ?? scaleSnapshot.isOnline)
+	const isStable = Boolean(scaleSnapshot.is_stable ?? scaleSnapshot.isStable)
+	const sampledAt = Number((scaleSnapshot.sampled_at ?? scaleSnapshot.sampledAt) || now)
+	const currentScaleWeightRaw = toNumber(scaleSnapshot.weight_kg ?? scaleSnapshot.weightKg, null)
+	const hasCurrentStableWeight = isOnline && isStable && currentScaleWeightRaw > 0
+	const cachedStableWeightRaw = toNumber(scaleSnapshot.last_stable_weight_kg ?? scaleSnapshot.lastStableWeightKg, null)
+	const cachedStableAt = Number((scaleSnapshot.last_stable_at ?? scaleSnapshot.lastStableAt) || 0)
+	const hasFreshCachedStableWeight = cachedStableWeightRaw > 0 && cachedStableAt > 0 && now - cachedStableAt <= SCALE_STABLE_CACHE_MAX_AGE_MS
+	const weightKg = hasCurrentStableWeight ? currentScaleWeightRaw : hasFreshCachedStableWeight ? cachedStableWeightRaw : null
+	return {
+		weightKg,
+		sampledAt: hasCurrentStableWeight ? sampledAt : cachedStableAt || sampledAt,
+		source: hasCurrentStableWeight ? 'current' : hasFreshCachedStableWeight ? 'stable_cache' : '',
+		hasCurrentStableWeight,
+		hasFreshCachedStableWeight
+	}
+}
 
 export function usePdaSaleForm(initialValues = {}) {
 	const form = ref({
@@ -182,18 +213,97 @@ export function usePdaSaleForm(initialValues = {}) {
 		markDepositDirty()
 	}
 
-	function setOutNet(index, value) {
-		const row = form.value.outItems[index]
-		if (!row) return
-		row.net = normalizeText(value)
-		markDepositDirty()
+	function formatScaleValue(value) {
+		const num = toNumber(value, null)
+		if (!(num != null)) return ''
+		return Number(num).toFixed(PDA_BLE_SCALE_DISPLAY_DECIMALS)
 	}
 
-	function setBackGross(index, value) {
-		const row = form.value.backItems[index]
-		if (!row) return
-		row.gross = normalizeText(value)
-		syncBackRow(index)
+	function applyScaleWeightToRow(type, index, scaleSnapshot = {}, options = {}) {
+		const list = type === 'back' ? form.value.backItems : form.value.outItems
+		const row = list[index]
+		if (!row) return { code: 404, msg: '行不存在', data: null }
+		if (hasBleScaleMeasuredWeight(row) && options.force !== true) {
+			return {
+				code: 208,
+				msg: '该瓶已完成称重，如需覆盖请点击重新称重',
+				data: {
+					alreadyWeighed: true
+				}
+			}
+		}
+		const isConnected = Boolean(scaleSnapshot.is_connected ?? scaleSnapshot.isConnected)
+		const isOnline = Boolean(scaleSnapshot.is_online ?? scaleSnapshot.isOnline)
+		const isStable = Boolean(scaleSnapshot.is_stable ?? scaleSnapshot.isStable)
+		const selected = resolveUsableBleScaleWeight(scaleSnapshot)
+		const selectedScaleWeight = selected.weightKg
+		if (!(selectedScaleWeight > 0)) {
+			if (!isConnected) return { code: 400, msg: '吊秤未连接，请先连接吊秤', data: null }
+			if (!isOnline) return { code: 400, msg: '等待称重数据，请稍候重试', data: null }
+			if (!isStable) return { code: 400, msg: '请保持吊秤稳定后再回填', data: null }
+			return { code: 400, msg: '当前重量无效，请重试', data: null }
+		}
+
+		const grossMeasured = quantizeBleScaleWeightKg(selectedScaleWeight, PDA_BLE_SCALE_DIVISION_STEP_KG, PDA_BLE_SCALE_DISPLAY_DECIMALS)
+		if (!(grossMeasured > 0)) return { code: 400, msg: '秤值量化后无效，请重试', data: null }
+		const tareWeight = toNumber(row.tare ?? row.tare_weight, null)
+		if (!(tareWeight >= 0)) {
+			return { code: 400, msg: '该瓶未维护空瓶重，请先扫码或查瓶补齐瓶档', data: null }
+		}
+		const netWeight = Number((grossMeasured - tareWeight).toFixed(PDA_BLE_SCALE_DISPLAY_DECIMALS))
+		if (!(netWeight > 0)) {
+			return { code: 400, msg: '毛重减空瓶重后净重需大于 0，请核对瓶档和称重', data: null }
+		}
+
+		const nextCommon = {
+			tare: formatScaleValue(tareWeight),
+			gross: formatScaleValue(grossMeasured),
+			grossMeasured: formatScaleValue(grossMeasured),
+			tareSource: 'bottle_profile',
+			weightSource: 'ble_scale',
+			weightSampledAt: selected.sampledAt
+		}
+
+		if (type === 'back') {
+			list[index] = syncPdaBackRow({
+				...row,
+				...nextCommon,
+				net: formatScaleValue(netWeight)
+			})
+		} else {
+			list[index] = {
+				...row,
+				...nextCommon,
+				net: formatScaleValue(netWeight)
+			}
+		}
+		markDepositDirty()
+		return {
+			code: 0,
+			msg: '',
+			data: {
+				grossMeasured,
+				tareWeight,
+				netWeight
+			}
+		}
+	}
+
+	function clearScaleWeightFromRow(type, index) {
+		const list = type === 'back' ? form.value.backItems : form.value.outItems
+		const row = list[index]
+		if (!row) return { code: 404, msg: '行不存在', data: null }
+		const next = {
+			...row,
+			gross: '',
+			net: '',
+			grossMeasured: '',
+			weightSource: '',
+			weightSampledAt: null
+		}
+		list[index] = type === 'back' ? syncPdaBackRow(next) : next
+		markDepositDirty()
+		return { code: 0, msg: '', data: list[index] }
 	}
 
 	async function refreshDepositRows(options = {}) {
@@ -265,9 +375,8 @@ export function usePdaSaleForm(initialValues = {}) {
 		removeBackItem,
 		normalizeOutBottle,
 		normalizeBackBottle,
-		syncBackRow,
-		setOutNet,
-		setBackGross,
+		applyScaleWeightToRow,
+		clearScaleWeightFromRow,
 		resolveBottle,
 		refreshDepositRows,
 		submit

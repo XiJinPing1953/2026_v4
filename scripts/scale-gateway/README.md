@@ -1,25 +1,29 @@
 # PDA Scale Gateway
 
-机房电脑常驻 Node 网关，读取充装磅 `Modbus RTU`，把最新重量快照写入云端 `crm-pda-scale.upsertLatestV1`，供 PDA 灌装页轮询 `getLatestV1`。
+机房电脑常驻 Node 网关，通过 USB-RS485 读取耀华 `C606+` 称重仪表 `Modbus RTU`，把最新毛重快照写入云端 `crm-pda-scale.upsertLatestV1`，供 PDA 灌装页轮询 `getLatestV1`。
 
-## 固定协议
+## C606+ 固定协议
 
 - 串口参数：
-  - `115200 / 8 / 1 / none`
+  - 默认 `9600 / 8 / none / 2 stop bits`
+  - 如果现场把仪表设置为奇/偶校验，网关必须同步改成 `odd/even / 1 stop bit`
   - `slaveId=1`
-- 读寄存器：
-  - 实时块：`FC03` 读取 `0x0000..0x0004`
-  - 启动配置块：读取 `0x0009`、`0x0013..0x0015`
+- 仪表设置：
+  - RS485 两线 Modbus RTU，使用 C606+ 串口 3 的两线 Modbus 模式
+  - 站地址与 `SCALE_SLAVE_ID` 一致，默认 `1`
+- 读数据：
+  - 毛重：`FC04 readInputRegisters(0x0002, 2)`
+  - 动态状态：`FC02 readDiscreteInputs(0x0002, 1)`
+  - 配置块：`FC04 readInputRegisters(0x001C, 11)`，读取分度值、小数位、重量单位
 - 解析规则：
-  - `0x0000 + 0x0001` => 有符号 `Int32`
-  - `0x0004` => `stable_metric`
-  - `0x0009` => `stable_threshold`
-  - `is_stable = stable_metric <= stable_threshold`
+  - 毛重寄存器为 32 位有符号整数，传输顺序为 `最高、次高、次低、最低`
   - `scaledValue = rawWeight / 10^decimalPlaces`
-  - `unit=0(g)` => `/1000`
-  - `unit=1(kg)` => 原值
-  - `unit=2(t)` => `*1000`
-  - `unit=3(mg)` => `/1000000`
+  - C606+ 单位：`0=mg`、`1=g`、`2=kg`、`3=t`
+  - `weight_kg` 统一换算为 kg
+  - C606+ 离散输入 `0x0002` 为动态灯状态，`is_stable = !dynamic`
+  - `stable_metric` 写动态标志 `0/1`，`stable_threshold` 固定写 `0`
+
+> C602 资料仅用于参考 Modbus 命令、CRC 和 32 位字节序；C606+ 的串口参数、稳定位和寄存器语义以 C606+ 说明书为准。
 
 ## 环境变量
 
@@ -29,6 +33,8 @@
 - `CRM_SPACE_ID`
 - `CRM_CLIENT_SECRET` 或 `CRM_ACCESS_KEY / CRM_SECRET_KEY / CRM_SPACE_APP_ID`
 - `GATEWAY_USERNAME / GATEWAY_PASSWORD`
+
+默认串口参数已按 C606+ USB-RS485 两线 Modbus 设置为 `9600/8/N/2`；不要继续使用旧充装磅的 `115200/8/1/none`。
 
 若暂时没有专用网关账号，可退回：
 
@@ -45,7 +51,7 @@ npm run start
 
 ## Mock 模式
 
-不接真秤也能验证寄存器解析和离线回写：
+不接真秤也能验证 C606+ 毛重解析、动态判稳和离线回写：
 
 ```bash
 cd scripts/scale-gateway

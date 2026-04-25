@@ -160,36 +160,90 @@
 				</view>
 			</AppSection>
 
+			<AppSection title="吊秤状态">
+				<view :class="['scale-card', `scale-card--${scaleStatusKind}`]">
+					<view class="scale-card__head">
+						<view class="scale-card__head-text">
+							<text class="scale-card__title">BLE 吊秤</text>
+							<text class="scale-card__status">{{ scaleStatusText }}</text>
+						</view>
+						<view class="scale-card__actions">
+							<AppButton size="sm" kind="neutral" :loading="scaleConnecting" @click.stop="onConnectScale">
+								{{ scaleSnapshot.is_connected ? '重连吊秤' : '连接吊秤' }}
+							</AppButton>
+							<AppButton size="sm" kind="neutral" :loading="scaleConnecting" @click.stop="onRebindScaleDevice">更换设备</AppButton>
+							<AppButton size="sm" kind="ghost" @click.stop="onDisconnectScale">断开</AppButton>
+						</view>
+					</view>
+					<view class="scale-grid">
+						<view class="scale-cell">
+							<text class="scale-cell__label">当前重量</text>
+							<text class="scale-cell__value">{{ scaleWeightText }}</text>
+						</view>
+						<view class="scale-cell">
+							<text class="scale-cell__label">连接状态</text>
+							<text class="scale-cell__value">{{ scaleConnectionText }}</text>
+						</view>
+						<view class="scale-cell">
+							<text class="scale-cell__label">数据状态</text>
+							<text class="scale-cell__value">{{ scaleDataStatusText }}</text>
+						</view>
+						<view class="scale-cell">
+							<text class="scale-cell__label">最后更新</text>
+							<text class="scale-cell__value">{{ scaleLastUpdatedText }}</text>
+						</view>
+						<view class="scale-cell">
+							<text class="scale-cell__label">待称重</text>
+							<text class="scale-cell__value">{{ pendingScaleTargetText }}</text>
+						</view>
+						<view class="scale-cell">
+							<text class="scale-cell__label">绑定设备</text>
+							<text class="scale-cell__value">{{ scaleBoundDeviceText }}</text>
+						</view>
+					</view>
+					<text class="scale-card__hint">{{ scaleHintText }}</text>
+					<text v-if="scaleErrorText" class="scale-card__error">{{ scaleErrorText }}</text>
+				</view>
+			</AppSection>
+
 			<AppSection title="2. 出瓶">
 				<view class="section-toolbar">
-					<AppButton size="sm" kind="neutral" @click="addOutItem">新增出瓶</AppButton>
+					<AppButton size="sm" kind="neutral" @click="onAddOutItem">新增出瓶</AppButton>
 				</view>
 				<view class="rows-wrap">
 					<view v-for="(row, index) in form.outItems" :key="`out-${index}`" :class="['barcode-row', isBottleBarcodeActive('out', index) ? 'barcode-row--active' : '']">
 						<AppCard padding="20rpx">
 							<view class="row-header">
 								<text class="row-title">出瓶 {{ index + 1 }}</text>
-								<AppButton size="sm" kind="ghost" @click.stop="removeOutItem(index)">删除</AppButton>
-							</view>
-							<view class="row-grid">
-								<PdaBottleSuggestField
-									v-model="row.bottleNo"
-									label="瓶号"
-									placeholder="请输入瓶号"
-									@blur="normalizeOutBottle(index)"
+								<AppButton size="sm" kind="ghost" @click.stop="onRemoveOutItem(index)">删除</AppButton>
+								</view>
+								<view class="row-grid row-grid--out">
+									<PdaBottleSuggestField
+										v-model="row.bottleNo"
+										label="瓶号"
+										placeholder="请输入瓶号"
+										@blur="normalizeOutBottle(index)"
 									@focus="onFocusBottleTarget('out', index)"
 									@input="onBottleInput('out', index)"
 									@select="onSelectBottleSuggestion('out', index, $event)"
 								/>
-								<AppInput v-model="row.net" label="净重(kg)" placeholder="请输入净重" type="digit" @input="markDepositDirty" />
+								<AppInput :model-value="row.gross" label="毛重(kg)" readonly placeholder="称重后自动回填" />
+								<AppInput :model-value="row.tare" label="空瓶重(kg)" readonly placeholder="查瓶后自动回填" />
+								<AppInput :model-value="row.net" label="净重(kg)" readonly placeholder="毛重-空瓶重自动计算" />
 							</view>
 							<view class="item-actions">
 								<AppButton size="sm" kind="neutral" @click.stop="onScanBottle('out', index)">扫瓶码</AppButton>
 								<AppButton size="sm" kind="neutral" :loading="resolvingBottleKey === `out:${index}`" @click.stop="onResolveBottle('out', index)">
 									查瓶
 								</AppButton>
+								<AppButton size="sm" kind="neutral" :loading="scaleApplyingKey === `out:${index}`" @click.stop="onMeasureBottle('out', index)">
+									{{ getMeasureButtonText(row, 'out') }}
+								</AppButton>
 							</view>
-							<text class="capture-hint">扫码仅回填瓶号，净重固定手工录入。</text>
+							<text class="capture-hint">扫码回填瓶号，吊秤称重后自动按毛重-空瓶重计算净重。</text>
+							<text v-if="row.weightSource === 'ble_scale'" class="capture-hint">
+								最近称重：毛重 {{ row.grossMeasured || '-' }} kg，空瓶重 {{ row.tare || '-' }} kg，净重 {{ row.net || '-' }} kg
+							</text>
 						</AppCard>
 					</view>
 				</view>
@@ -197,7 +251,7 @@
 
 			<AppSection title="回瓶">
 				<view class="section-toolbar">
-					<AppButton size="sm" kind="neutral" @click="addBackItem">新增回瓶</AppButton>
+					<AppButton size="sm" kind="neutral" @click="onAddBackItem">新增回瓶</AppButton>
 				</view>
 				<view v-if="form.backItems.length === 0" class="hint-box">
 					<text class="hint-text">本次没有回瓶可留空。</text>
@@ -207,7 +261,7 @@
 						<AppCard padding="20rpx">
 							<view class="row-header">
 								<text class="row-title">回瓶 {{ index + 1 }}</text>
-								<AppButton size="sm" kind="ghost" @click.stop="removeBackItem(index)">删除</AppButton>
+								<AppButton size="sm" kind="ghost" @click.stop="onRemoveBackItem(index)">删除</AppButton>
 							</view>
 							<view class="row-grid row-grid--back">
 								<PdaBottleSuggestField
@@ -219,17 +273,23 @@
 									@input="onBottleInput('back', index)"
 									@select="onSelectBottleSuggestion('back', index, $event)"
 								/>
-								<AppInput v-model="row.gross" label="毛重(kg)" placeholder="可选" type="digit" @input="syncBackRow(index)" />
-								<AppInput v-model="row.tare" label="空瓶重(kg)" placeholder="可选" type="digit" @input="syncBackRow(index)" />
-								<AppInput v-model="row.net" label="净重(kg)" placeholder="可手填" type="digit" @input="syncBackRow(index)" />
+								<AppInput :model-value="row.gross" label="毛重(kg)" readonly placeholder="称重后自动回填" />
+								<AppInput :model-value="row.tare" label="空瓶重(kg)" readonly placeholder="查瓶后自动回填" />
+								<AppInput :model-value="row.net" label="净重(kg)" readonly placeholder="毛重-空瓶重自动计算" />
 							</view>
 							<view class="item-actions">
 								<AppButton size="sm" kind="neutral" @click.stop="onScanBottle('back', index)">扫瓶码</AppButton>
 								<AppButton size="sm" kind="neutral" :loading="resolvingBottleKey === `back:${index}`" @click.stop="onResolveBottle('back', index)">
 									查瓶补空瓶重
 								</AppButton>
+								<AppButton size="sm" kind="neutral" :loading="scaleApplyingKey === `back:${index}`" @click.stop="onMeasureBottle('back', index)">
+									{{ getMeasureButtonText(row, 'back') }}
+								</AppButton>
 							</view>
-							<text class="capture-hint">扫码仅回填瓶号，毛重/空瓶重/净重固定手工录入。</text>
+							<text class="capture-hint">扫码回填瓶号；称重时先写毛重，再按毛重-空瓶重计算净重。</text>
+							<text v-if="row.weightSource === 'ble_scale'" class="capture-hint">
+								最近称重：毛重 {{ row.gross || '-' }} kg，空瓶重 {{ row.tare || '-' }} kg，净重 {{ row.net || '-' }} kg
+							</text>
 						</AppCard>
 					</view>
 				</view>
@@ -275,7 +335,7 @@
 					<view v-if="outPreviewRows.length > 0" class="preview-list">
 						<view v-for="row in outPreviewRows" :key="`preview-out-${row.bottleNo}`" class="preview-row">
 							<text class="preview-row__name">{{ row.bottleNo }}</text>
-							<text class="preview-row__value">{{ formatWeight(row.net) }} kg</text>
+							<text class="preview-row__value">{{ formatBottlePreviewWeight(row) }}</text>
 						</view>
 					</view>
 					<view v-else class="hint-box">
@@ -288,7 +348,7 @@
 					<view v-if="backPreviewRows.length > 0" class="preview-list">
 						<view v-for="row in backPreviewRows" :key="`preview-back-${row.bottleNo}`" class="preview-row">
 							<text class="preview-row__name">{{ row.bottleNo }}</text>
-							<text class="preview-row__value">{{ formatWeight(row.net) }} kg</text>
+							<text class="preview-row__value">{{ formatBottlePreviewWeight(row) }}</text>
 						</view>
 					</view>
 					<view v-else class="hint-box">
@@ -325,7 +385,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppCard from '@/components/base/AppCard.vue'
 import AppInput from '@/components/base/AppInput.vue'
@@ -336,13 +396,20 @@ import PdaBottleSuggestField from '@/components/domain/pda/PdaBottleSuggestField
 import PdaLookupSuggestField from '@/components/domain/pda/PdaLookupSuggestField.vue'
 import PdaSuggestList from '@/components/domain/pda/PdaSuggestList.vue'
 import { usePdaSuggestions } from '@/composables/pda/usePdaSuggestions'
-import { usePdaSaleForm } from '@/composables/pda/usePdaSaleForm'
+import { resolveUsableBleScaleWeight, usePdaSaleForm } from '@/composables/pda/usePdaSaleForm'
+import {
+	createPdaBleScaleSession,
+	createEmptyPdaBleScaleSnapshot,
+	ensurePdaBleRuntimePermission,
+	PDA_BLE_SCALE_DISPLAY_DECIMALS,
+	PDA_BLE_SCALE_DIVISION_STEP_KG
+} from '@/services/pda/bleScale'
 import { resolvePdaBottleByQrCode } from '@/services/pda/bottle'
 import { enterBarcodeSession, leaveBarcodeSession, PDA_CAPTURE_TARGETS, setActiveBarcodeTarget } from '@/services/pda/capture'
 import { resolvePdaCustomerByQrCode, resolvePdaCustomerPricing } from '@/services/pda/customer'
 import { listPdaDeliveries, resolvePdaDeliveryByQrCode } from '@/services/pda/delivery'
 import { createPdaOutItem, validatePdaBottleSaleForm } from '@/services/pda/sale'
-import { formatMoney, formatWeight, normalizeBottleNo, normalizeQrCode, normalizeText } from '@/services/pda/shared'
+import { formatDateTime, formatMoney, formatWeight, normalizeBottleNo, normalizeQrCode, normalizeText } from '@/services/pda/shared'
 import { listPdaVehicles, resolvePdaVehicleByQrCode } from '@/services/pda/vehicle'
 
 const props = defineProps({
@@ -350,6 +417,9 @@ const props = defineProps({
 	initialCustomerName: { type: String, default: '' },
 	initialOutBottleNo: { type: String, default: '' }
 })
+
+const SCALE_BOUND_DEVICE_STORAGE_KEY = 'pda_ble_scale_bound_device_v1'
+const BOTTLE_SCAN_DEDUP_MS = 3000
 
 const steps = [
 	{ value: 1, title: '客户', desc: '先选客户和基础信息' },
@@ -359,6 +429,7 @@ const steps = [
 
 const currentStep = ref(1)
 const barcodeSessionReady = ref(false)
+let barcodeActivatePromise = null
 const activeHeaderTarget = ref('customer')
 const activeBottleTarget = ref({
 	type: 'out',
@@ -366,6 +437,22 @@ const activeBottleTarget = ref({
 })
 const barcodeHint = ref('进入页面后可直接按 PDA 扫码键回填主键字段。')
 const lastBarcodeText = ref('')
+const scaleSnapshot = ref(createEmptyPdaBleScaleSnapshot())
+const scaleConnecting = ref(false)
+const scaleApplyingKey = ref('')
+const scalePermissionReady = ref(false)
+const boundScaleDevice = ref(loadBoundScaleDevice())
+const pendingScaleApplyTarget = ref(null)
+const recentBottleScanMap = new Map()
+const scaleSession = createPdaBleScaleSession({
+	deviceId: boundScaleDevice.value?.deviceId || '',
+	deviceNamePrefix: 'NVK',
+	divisionStepKg: PDA_BLE_SCALE_DIVISION_STEP_KG,
+	displayDecimals: PDA_BLE_SCALE_DISPLAY_DECIMALS
+})
+const unsubscribeScaleSnapshot = scaleSession.onSnapshot((next) => {
+	scaleSnapshot.value = next
+})
 
 const {
 	form,
@@ -390,8 +477,9 @@ const {
 	removeBackItem,
 	normalizeOutBottle,
 	normalizeBackBottle,
-	syncBackRow,
 	resolveBottle,
+	applyScaleWeightToRow,
+	clearScaleWeightFromRow,
 	refreshDepositRows,
 	submit
 } = usePdaSaleForm()
@@ -445,10 +533,94 @@ const barcodeTargetLabel = computed(() => {
 	return '预览页未启用物理扫码'
 })
 
+const scaleCurrentWeightKg = computed(() => Number(scaleSnapshot.value.weight_kg || 0))
+const scaleCurrentSampledAt = computed(() => Number(scaleSnapshot.value.sampled_at || 0))
+const scaleErrorCode = computed(() => normalizeText(scaleSnapshot.value.error_code))
+const scaleUsableWeight = computed(() => resolveUsableBleScaleWeight(scaleSnapshot.value))
+const scaleHasCurrentStableValue = computed(() => scaleUsableWeight.value.hasCurrentStableWeight)
+const scaleHasFreshStableCache = computed(() => scaleUsableWeight.value.hasFreshCachedStableWeight)
+
+const scaleCanApplyWeight = computed(() => scaleHasCurrentStableValue.value || scaleHasFreshStableCache.value)
+
+const scaleWeightText = computed(() => {
+	if (scaleCurrentWeightKg.value > 0) return `${scaleCurrentWeightKg.value.toFixed(PDA_BLE_SCALE_DISPLAY_DECIMALS)} kg`
+	return '--'
+})
+
+const scaleStatusKind = computed(() => {
+	if (!scaleSnapshot.value.is_connected) return 'offline'
+	return scaleCanApplyWeight.value ? 'stable' : 'moving'
+})
+
+const scaleStatusText = computed(() => {
+	if (!scaleSnapshot.value.is_connected) return '未连接'
+	if (scaleCanApplyWeight.value) return '可回填'
+	if (scaleSnapshot.value.is_online) return '称重中，请保持稳定'
+	if (scaleErrorCode.value && !['waiting_data', 'waiting_stable'].includes(scaleErrorCode.value)) return '通信异常'
+	return '等待称重数据'
+})
+
+const scaleConnectionText = computed(() => {
+	if (!scaleSnapshot.value.is_connected) return '未连接'
+	return '已连接'
+})
+
+const scaleDataStatusText = computed(() => {
+	if (!scaleSnapshot.value.is_connected) return '离线'
+	if (scaleCanApplyWeight.value) return '可回填'
+	if (scaleSnapshot.value.is_online) return '称重中'
+	if (scaleErrorCode.value && !['waiting_data', 'waiting_stable'].includes(scaleErrorCode.value)) return '通信异常'
+	return '等待称重数据'
+})
+
+const scaleLastUpdatedText = computed(() => {
+	if (scaleCurrentSampledAt.value > 0) return formatDateTime(scaleCurrentSampledAt.value)
+	return '-'
+})
+
+const scaleErrorText = computed(() => {
+	const message = normalizeText(scaleSnapshot.value.error_message)
+	if (!message) return ''
+	if (scaleCanApplyWeight.value) return ''
+	if (scaleErrorCode.value === 'waiting_data' || scaleErrorCode.value === 'waiting_stable') return ''
+	return message
+})
+
+const scaleDivisionText = computed(
+	() => `${PDA_BLE_SCALE_DIVISION_STEP_KG.toFixed(PDA_BLE_SCALE_DISPLAY_DECIMALS)} kg，显示 ${PDA_BLE_SCALE_DISPLAY_DECIMALS} 位小数`
+)
+
+const scaleHintText = computed(() => {
+	const divisionText = `分度值 ${scaleDivisionText.value}`
+	if (!scaleSnapshot.value.is_connected) return `${divisionText}；请先连接吊秤。`
+	if (pendingScaleApplyTarget.value) {
+		return `${divisionText}；${pendingScaleTargetText.value}，请称重并保持稳定。`
+	}
+	if (scaleCanApplyWeight.value) return `${divisionText}；请选择瓶号后称重。`
+	if (scaleSnapshot.value.is_online) return `${divisionText}；称重中，请保持稳定。`
+	return `${divisionText}；等待称重数据。`
+})
+
+const scaleBoundDeviceText = computed(() => {
+	const bound = normalizeScaleDevice(boundScaleDevice.value)
+	if (!bound?.deviceId) return '未绑定'
+	return formatScaleDeviceLabel(bound)
+})
+
+const pendingScaleTargetText = computed(() => {
+	const pending = pendingScaleApplyTarget.value
+	if (!pending) return '无'
+	const typeLabel = pending.type === 'back' ? '回瓶' : '出瓶'
+	const indexLabel = Number(pending.index || 0) + 1
+	return `${typeLabel} ${indexLabel}${pending.bottleNo ? `（${pending.bottleNo}）` : ''}`
+})
+
 const outPreviewRows = computed(() =>
 	(form.value.outItems || [])
 		.map((row) => ({
 			bottleNo: normalizeBottleNo(row?.bottleNo || row?.bottle_no),
+			gross: Number(row?.gross ?? row?.gross_weight ?? row?.grossMeasured ?? row?.gross_measured),
+			tare: Number(row?.tare ?? row?.tare_weight),
 			net: Number(row?.net)
 		}))
 		.filter((row) => row.bottleNo && Number.isFinite(row.net) && row.net > 0)
@@ -458,6 +630,8 @@ const backPreviewRows = computed(() =>
 	(form.value.backItems || [])
 		.map((row) => ({
 			bottleNo: normalizeBottleNo(row?.bottleNo || row?.bottle_no),
+			gross: Number(row?.gross ?? row?.gross_weight ?? row?.grossMeasured ?? row?.gross_measured),
+			tare: Number(row?.tare ?? row?.tare_weight),
 			net: Number(row?.net)
 		}))
 		.filter((row) => row.bottleNo && Number.isFinite(row.net) && row.net > 0)
@@ -623,21 +797,33 @@ async function syncBarcodeTarget(options = {}) {
 }
 
 async function activateBarcodeSession() {
-	const sessionRes = await enterBarcodeSession({
-		page: 'pda-sale',
-		onResult: onBarcodeScanned
-	})
-	if (sessionRes?.code !== 0) {
-		barcodeSessionReady.value = false
-		barcodeHint.value = sessionRes?.msg || '物理扫码会话初始化失败'
-		return sessionRes
+	if (barcodeSessionReady.value) return syncBarcodeTarget({ toast: false })
+	if (barcodeActivatePromise) return barcodeActivatePromise
+	barcodeActivatePromise = (async () => {
+		const sessionRes = await enterBarcodeSession({
+			page: 'pda-sale',
+			onResult: onBarcodeScanned
+		})
+		if (sessionRes?.code !== 0) {
+			barcodeSessionReady.value = false
+			barcodeHint.value = sessionRes?.msg || '物理扫码会话初始化失败'
+			return sessionRes
+		}
+		barcodeSessionReady.value = true
+		return syncBarcodeTarget({ toast: false })
+	})()
+	try {
+		return await barcodeActivatePromise
+	} finally {
+		barcodeActivatePromise = null
 	}
-	barcodeSessionReady.value = true
-	return syncBarcodeTarget({ toast: false })
 }
 
 async function deactivateBarcodeSession(reason = '') {
 	barcodeSessionReady.value = false
+	barcodeActivatePromise = null
+	scaleApplyingKey.value = ''
+	clearPendingScaleApply()
 	return leaveBarcodeSession({ page: 'pda-sale', reason })
 }
 
@@ -652,6 +838,12 @@ async function onFocusHeaderTarget(field) {
 }
 
 async function onFocusBottleTarget(type, index) {
+	if (
+		pendingScaleApplyTarget.value &&
+		(pendingScaleApplyTarget.value.type !== type || Number(pendingScaleApplyTarget.value.index) !== Number(index || 0))
+	) {
+		clearPendingScaleApply()
+	}
 	activeBottleTarget.value = {
 		type,
 		index: Number(index || 0)
@@ -738,15 +930,336 @@ async function onScannedBottle(targetMeta, payload) {
 		showToast('扫码内容无效')
 		return
 	}
+	if (shouldIgnoreRecentBottleScan(targetMeta.type, qrCode)) {
+		barcodeHint.value = '短时间内重复扫同一瓶，已忽略。'
+		return
+	}
 	const bottleRes = await resolvePdaBottleByQrCode(qrCode)
 	if (bottleRes?.code !== 0 || !bottleRes?.data) {
 		barcodeHint.value = '未命中钢瓶 PDA 码，请改用手工输入瓶号。'
 		showToast(bottleRes?.msg || '未找到匹配钢瓶')
 		return
 	}
-	applyBottleSelection(targetMeta.type, targetMeta.index, bottleRes.data)
-	barcodeHint.value = `已回填 ${targetMeta.label || '钢瓶'}。`
-	showToast(`已回填 ${bottleRes.data.bottle_no || ''}`)
+	const type = targetMeta.type === 'back' ? 'back' : 'out'
+	const index = Number(targetMeta.index || 0)
+	const row = applyBottleSelection(type, index, bottleRes.data)
+	const bottleNo = normalizeBottleNo(row?.bottleNo || bottleRes.data.bottle_no)
+	if (isRowScaleWeighed(row)) {
+		clearPendingScaleApply(type, index)
+		barcodeHint.value = `已回填 ${targetMeta.label || '钢瓶'}，该瓶已有称重结果，不重复称重。`
+		showToast(`已回填 ${bottleNo || '钢瓶'}，已称重`)
+		return
+	}
+	markPendingScaleApply(type, index, bottleNo)
+	barcodeHint.value = `已回填 ${targetMeta.label || '钢瓶'}，等待吊秤稳定后自动写入净重。`
+	showToast(`已回填 ${bottleNo || '钢瓶'}`)
+}
+
+function shouldIgnoreRecentBottleScan(type = 'out', qrCode = '') {
+	const scanType = type === 'back' ? 'back' : 'out'
+	const code = normalizeQrCode(qrCode)
+	if (!code) return false
+	const key = `${scanType}:${code}`
+	const now = Date.now()
+	const lastAt = Number(recentBottleScanMap.get(key) || 0)
+	recentBottleScanMap.set(key, now)
+	for (const [itemKey, itemAt] of recentBottleScanMap.entries()) {
+		if (now - Number(itemAt || 0) > BOTTLE_SCAN_DEDUP_MS) recentBottleScanMap.delete(itemKey)
+	}
+	return lastAt > 0 && now - lastAt < BOTTLE_SCAN_DEDUP_MS
+}
+
+function getBottleRow(type, index) {
+	const list = type === 'back' ? form.value.backItems : form.value.outItems
+	return Array.isArray(list) ? list[Number(index || 0)] : null
+}
+
+function toWeightNumber(value) {
+	const num = Number(value)
+	return Number.isFinite(num) ? num : null
+}
+
+function isRowScaleWeighed(row = {}) {
+	return (
+		normalizeText(row?.weightSource ?? row?.weight_source) === 'ble_scale' &&
+		toWeightNumber(row?.gross ?? row?.gross_weight ?? row?.grossMeasured ?? row?.gross_measured) > 0 &&
+		toWeightNumber(row?.tare ?? row?.tare_weight) >= 0 &&
+		toWeightNumber(row?.net ?? row?.net_weight) > 0
+	)
+}
+
+function getMeasureButtonText(row = {}, type = 'out') {
+	if (isRowScaleWeighed(row)) return '重新称重'
+	return type === 'back' ? '等待称重毛/净重' : '等待称重净重'
+}
+
+function markPendingScaleApply(type = 'out', index = 0, bottleNo = '') {
+	const normalizedNo = normalizeBottleNo(bottleNo)
+	if (!normalizedNo) {
+		pendingScaleApplyTarget.value = null
+		return
+	}
+	pendingScaleApplyTarget.value = {
+		type: type === 'back' ? 'back' : 'out',
+		index: Number(index || 0),
+		bottleNo: normalizedNo,
+		stableSeqAtCreate: Number(scaleSnapshot.value.stable_seq || 0),
+		createdAt: Date.now()
+	}
+}
+
+function clearPendingScaleApply(type = '', index = null) {
+	const pending = pendingScaleApplyTarget.value
+	if (!pending) return
+	if (type && pending.type !== type) return
+	if (index != null && Number(pending.index) !== Number(index)) return
+	pendingScaleApplyTarget.value = null
+}
+
+function tryApplyPendingScaleWeight(options = {}) {
+	const pending = pendingScaleApplyTarget.value
+	if (!pending) return { code: 204, msg: '无待回填行' }
+	if (Number(scaleSnapshot.value.stable_seq || 0) <= Number(pending.stableSeqAtCreate || 0)) {
+		return { code: 202, msg: '等待本次称重稳定' }
+	}
+	if (!scaleCanApplyWeight.value) return { code: 202, msg: '等待稳定秤值' }
+	const row = getBottleRow(pending.type, pending.index)
+	const rowBottleNo = normalizeBottleNo(row?.bottleNo || row?.bottle_no)
+	if (!row || rowBottleNo !== pending.bottleNo) {
+		pendingScaleApplyTarget.value = null
+		return { code: 409, msg: '待回填行已变化' }
+	}
+	const res = applyScaleWeightToRow(pending.type, pending.index, scaleSnapshot.value)
+	if (res?.code === 208) {
+		pendingScaleApplyTarget.value = null
+		if (options.toast !== false) showToast(res.msg || '该瓶已完成称重')
+		return res
+	}
+	if (res?.code === 0) {
+		const targetText = pendingScaleTargetText.value
+		pendingScaleApplyTarget.value = null
+		if (options.toast !== false) {
+			const netWeight = Number(res?.data?.netWeight || 0)
+			showToast(`已自动回填净重 ${netWeight.toFixed(PDA_BLE_SCALE_DISPLAY_DECIMALS)}kg`)
+		}
+		barcodeHint.value = `${targetText} 已完成称重回填。`
+	}
+	return res
+}
+
+async function ensureScalePermission() {
+	if (scalePermissionReady.value) return { code: 0, msg: '' }
+	const permissionRes = await ensurePdaBleRuntimePermission()
+	if (permissionRes?.code === 0) scalePermissionReady.value = true
+	return permissionRes
+}
+
+function normalizeScaleDevice(device = null) {
+	if (!device || typeof device !== 'object') return null
+	const deviceId = normalizeText(device.deviceId || device.device_id)
+	if (!deviceId) return null
+	const name = normalizeText(device.name)
+	const localName = normalizeText(device.localName || device.local_name)
+	const updatedAtNum = Number(device.updatedAt || device.updated_at || 0)
+	return {
+		deviceId,
+		name,
+		localName,
+		updatedAt: Number.isFinite(updatedAtNum) && updatedAtNum > 0 ? updatedAtNum : Date.now()
+	}
+}
+
+function formatScaleDeviceLabel(device = null) {
+	const normalized = normalizeScaleDevice(device)
+	if (!normalized?.deviceId) return ''
+	const base = normalizeText(normalized.name || normalized.localName) || '未命名设备'
+	const shortId = normalized.deviceId.slice(-6)
+	return shortId ? `${base} (${shortId})` : base
+}
+
+function loadBoundScaleDevice() {
+	try {
+		const raw = uni.getStorageSync(SCALE_BOUND_DEVICE_STORAGE_KEY)
+		if (!raw) return null
+		const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+		return normalizeScaleDevice(parsed)
+	} catch (error) {
+		return null
+	}
+}
+
+function saveBoundScaleDevice(device = null) {
+	const normalized = normalizeScaleDevice(device)
+	boundScaleDevice.value = normalized
+	scaleSession.updateProfile({
+		deviceId: normalized?.deviceId || ''
+	})
+	try {
+		if (normalized) uni.setStorageSync(SCALE_BOUND_DEVICE_STORAGE_KEY, normalized)
+		else uni.removeStorageSync(SCALE_BOUND_DEVICE_STORAGE_KEY)
+	} catch (error) {
+	}
+}
+
+function pickScaleDeviceIndex(itemList = []) {
+	return new Promise((resolve) => {
+		uni.showActionSheet({
+			itemList,
+			success: (res) => resolve(Number(res?.tapIndex)),
+			fail: () => resolve(-1)
+		})
+	})
+}
+
+async function chooseScaleDevice(options = {}) {
+	const listRes = await scaleSession.discoverDevices()
+	if (listRes?.code !== 0 || !Array.isArray(listRes?.data) || listRes.data.length === 0) {
+		const message = listRes?.msg || '未发现可用吊秤设备'
+		if (options.toast !== false) showToast(message)
+		return {
+			code: listRes?.code || 404,
+			msg: message,
+			data: null
+		}
+	}
+	const devices = listRes.data.map((item) => normalizeScaleDevice(item)).filter(Boolean)
+	if (!devices.length) {
+		const message = '未发现可用吊秤设备'
+		if (options.toast !== false) showToast(message)
+		return { code: 404, msg: message, data: null }
+	}
+	const itemList = devices.map((item, index) => formatScaleDeviceLabel(item) || `吊秤设备 ${index + 1}`)
+	const tapIndex = await pickScaleDeviceIndex(itemList)
+	if (!(tapIndex >= 0) || !devices[tapIndex]) {
+		return {
+			code: 499,
+			msg: '已取消选择吊秤设备',
+			data: null
+		}
+	}
+	return {
+		code: 0,
+		msg: '',
+		data: devices[tapIndex]
+	}
+}
+
+async function connectScaleBySelection(options = {}) {
+	const chooseRes = await chooseScaleDevice(options)
+	if (chooseRes?.code !== 0) return chooseRes
+	const picked = chooseRes.data
+	const connectRes = await scaleSession.connect({
+		preferredDeviceId: picked.deviceId
+	})
+	if (connectRes?.code === 0) {
+		saveBoundScaleDevice({
+			...picked,
+			updatedAt: Date.now()
+		})
+	}
+	return {
+		...connectRes,
+		data: {
+			...(connectRes?.data || {}),
+			selected_device: picked
+		}
+	}
+}
+
+async function onConnectScale(options = {}) {
+	if (scaleConnecting.value) return { code: 409, msg: '吊秤连接进行中' }
+	const permissionRes = await ensureScalePermission()
+	if (permissionRes?.code !== 0) {
+		if (options.toast !== false) showToast(permissionRes?.msg || '蓝牙权限不足')
+		return permissionRes
+	}
+	scaleConnecting.value = true
+	try {
+		const forcePick = Boolean(options.forcePick)
+		let res = null
+		if (forcePick || !boundScaleDevice.value?.deviceId) {
+			res = await connectScaleBySelection(options)
+		} else {
+			res = await scaleSession.connect()
+			const boundUnavailable = res?.code === 409 && normalizeText(res?.data?.error_code) === 'bound_device_unavailable'
+			if (boundUnavailable) {
+				if (options.toast !== false) showToast('已绑定吊秤不可用，请重新选择设备')
+				res = await connectScaleBySelection(options)
+			}
+		}
+		if (res?.code === 0) {
+			if (options.toast !== false) {
+				const label = formatScaleDeviceLabel(boundScaleDevice.value)
+				showToast(label ? `吊秤连接中：${label}` : '吊秤连接中，等待重量数据')
+			}
+			return res
+		}
+		if (options.toast !== false && res?.code !== 499) showToast(res?.msg || '吊秤连接失败')
+		return res
+	} finally {
+		scaleConnecting.value = false
+	}
+}
+
+async function onRebindScaleDevice() {
+	return onConnectScale({ forcePick: true })
+}
+
+async function onDisconnectScale(options = {}) {
+	scaleApplyingKey.value = ''
+	pendingScaleApplyTarget.value = null
+	const res = await scaleSession.disconnect({
+		error_code: 'manual_disconnected',
+		error_message: '吊秤已手动断开'
+	})
+	if (options.toast !== false) showToast('吊秤已断开')
+	return res
+}
+
+function confirmReweigh(row = {}) {
+	if (!isRowScaleWeighed(row)) return Promise.resolve(true)
+	return new Promise((resolve) => {
+		uni.showModal({
+			title: '重新称重',
+			content: '该瓶已有称重结果，重新称重会清空当前毛重和净重，并等待下一次稳定秤值。',
+			confirmText: '重新称重',
+			cancelText: '取消',
+			success: (res) => resolve(Boolean(res?.confirm)),
+			fail: () => resolve(false)
+		})
+	})
+}
+
+async function onMeasureBottle(type, index) {
+	const key = `${type}:${Number(index || 0)}`
+	if (scaleApplyingKey.value) return
+	const row = getBottleRow(type, index)
+	const bottleNo = normalizeBottleNo(row?.bottleNo || row?.bottle_no)
+	if (!bottleNo) {
+		showToast('请先扫码或选择瓶号')
+		return
+	}
+	const forceReweigh = isRowScaleWeighed(row)
+	if (forceReweigh) {
+		const confirmed = await confirmReweigh(row)
+		if (!confirmed) return
+		clearScaleWeightFromRow(type, index)
+	}
+	if (!scaleSnapshot.value.is_connected) {
+		const connectRes = await onConnectScale({ toast: false })
+		if (connectRes?.code !== 0) {
+			showToast(connectRes?.msg || '吊秤连接失败，请重试')
+			return
+		}
+	}
+	scaleApplyingKey.value = key
+	try {
+		markPendingScaleApply(type, index, bottleNo)
+		showToast(forceReweigh ? '请重新称重并保持稳定' : '请称重并保持稳定')
+		barcodeHint.value = `${pendingScaleTargetText.value} 正在等待稳定称重。`
+	} finally {
+		scaleApplyingKey.value = ''
+	}
 }
 
 watch(
@@ -780,12 +1293,12 @@ watch(
 )
 
 watch(
-	() => currentStep.value,
-	() => {
-		syncBarcodeTarget({ toast: false })
-	},
-	{ immediate: false }
-)
+		() => currentStep.value,
+		() => {
+			syncBarcodeTarget({ toast: false })
+		},
+		{ immediate: false }
+	)
 
 watch(
 	() => [form.value.outItems?.length || 0, form.value.backItems?.length || 0],
@@ -795,8 +1308,26 @@ watch(
 	}
 )
 
+watch(
+	() => Number(scaleSnapshot.value.stable_seq || 0),
+	() => {
+		if (currentStep.value !== 2) return
+		void tryApplyPendingScaleWeight({ toast: true })
+	}
+)
+
 function showToast(message) {
 	uni.showToast({ title: message, icon: 'none' })
+}
+
+function formatBottlePreviewWeight(row = {}) {
+	const netText = `净重 ${formatWeight(row.net)} kg`
+	const gross = Number(row.gross)
+	const tare = Number(row.tare)
+	if (Number.isFinite(gross) && gross > 0 && Number.isFinite(tare) && tare >= 0) {
+		return `毛重 ${formatWeight(gross)} kg / 皮重 ${formatWeight(tare)} kg / ${netText}`
+	}
+	return netText
 }
 
 function isEntityUsable(entity, label) {
@@ -856,11 +1387,26 @@ function onBottleInput(type, index) {
 	const row = list[index]
 	if (!row) return
 	row.bottleId = ''
+	if (row.tareSource === 'bottle_profile') {
+		row.tare = ''
+		row.tareSource = ''
+	}
+	if (row.weightSource === 'ble_scale') {
+		row.gross = ''
+		row.net = ''
+	}
+	row.grossMeasured = ''
+	row.weightSource = ''
+	row.weightSampledAt = null
+	clearPendingScaleApply(type, index)
 	markDepositDirty()
 }
 
 function onSelectBottleSuggestion(type, index, bottle) {
-	applyBottleSelection(type, index, bottle)
+	const row = applyBottleSelection(type, index, bottle)
+	const bottleNo = normalizeBottleNo(row?.bottleNo || bottle?.bottle_no)
+	if (isRowScaleWeighed(row)) clearPendingScaleApply(type, index)
+	else if (bottleNo) markPendingScaleApply(type, index, bottleNo)
 	barcodeHint.value = `已选择${type === 'back' ? '回瓶' : '出瓶'} ${Number(index) + 1} 瓶号。`
 }
 
@@ -875,6 +1421,38 @@ function onClearCustomer() {
 async function onResolveBottle(type, index) {
 	const res = await resolveBottle(type, index)
 	if (res?.code !== 0) showToast(res?.msg || '钢瓶查询失败')
+	else {
+		const row = getBottleRow(type, index)
+		const bottleNo = normalizeBottleNo(row?.bottleNo || row?.bottle_no)
+		if (isRowScaleWeighed(row)) clearPendingScaleApply(type, index)
+		else if (bottleNo) markPendingScaleApply(type, index, bottleNo)
+	}
+}
+
+function onRemoveOutItem(index) {
+	clearPendingScaleApply('out', index)
+	removeOutItem(index)
+}
+
+function onRemoveBackItem(index) {
+	clearPendingScaleApply('back', index)
+	removeBackItem(index)
+}
+
+async function onAddOutItem() {
+	addOutItem()
+	const index = Math.max((form.value.outItems?.length || 1) - 1, 0)
+	activeBottleTarget.value = { type: 'out', index }
+	clearPendingScaleApply()
+	if (currentStep.value === 2) await syncBarcodeTarget({ toast: false })
+}
+
+async function onAddBackItem() {
+	addBackItem()
+	const index = Math.max((form.value.backItems?.length || 1) - 1, 0)
+	activeBottleTarget.value = { type: 'back', index }
+	clearPendingScaleApply()
+	if (currentStep.value === 2) await syncBarcodeTarget({ toast: false })
 }
 
 async function onScanCustomer() {
@@ -914,6 +1492,12 @@ async function onScanVehicle() {
 }
 
 async function onScanBottle(type, index) {
+	if (
+		pendingScaleApplyTarget.value &&
+		(pendingScaleApplyTarget.value.type !== type || Number(pendingScaleApplyTarget.value.index) !== Number(index || 0))
+	) {
+		clearPendingScaleApply()
+	}
 	activeBottleTarget.value = {
 		type,
 		index: Number(index || 0)
@@ -951,6 +1535,7 @@ async function enterPreviewStep() {
 		showToast(res?.msg || '存瓶预览刷新失败')
 		return
 	}
+	clearPendingScaleApply()
 	currentStep.value = 3
 }
 
@@ -980,6 +1565,11 @@ async function onSubmit() {
 defineExpose({
 	activateBarcodeSession,
 	deactivateBarcodeSession
+})
+
+onBeforeUnmount(() => {
+	unsubscribeScaleSnapshot()
+	void scaleSession.stop()
 })
 </script>
 
@@ -1212,6 +1802,100 @@ defineExpose({
 	word-break: break-all;
 }
 
+.scale-card {
+	padding: 20rpx;
+	border-radius: var(--crm-radius-sm);
+	border: 1rpx solid #dbeafe;
+	background: #f8fbff;
+	display: flex;
+	flex-direction: column;
+	gap: 14rpx;
+}
+
+.scale-card--stable {
+	border-color: #86efac;
+	background: #f0fdf4;
+}
+
+.scale-card--moving {
+	border-color: #fcd34d;
+	background: #fffbeb;
+}
+
+.scale-card--offline {
+	border-color: #fecaca;
+	background: #fef2f2;
+}
+
+.scale-card__head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12rpx;
+}
+
+.scale-card__head-text {
+	display: flex;
+	flex-direction: column;
+	gap: 6rpx;
+}
+
+.scale-card__title {
+	font-size: 26rpx;
+	font-weight: 700;
+	color: var(--crm-text);
+}
+
+.scale-card__status {
+	font-size: 22rpx;
+	color: var(--crm-text-muted);
+}
+
+.scale-card__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10rpx;
+}
+
+.scale-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12rpx;
+}
+
+.scale-cell {
+	padding: 12rpx 14rpx;
+	border-radius: var(--crm-radius-sm);
+	background: rgba(255, 255, 255, 0.8);
+	display: flex;
+	flex-direction: column;
+	gap: 6rpx;
+}
+
+.scale-cell__label {
+	font-size: 22rpx;
+	color: var(--crm-text-muted);
+}
+
+.scale-cell__value {
+	font-size: 26rpx;
+	font-weight: 700;
+	color: var(--crm-text);
+	word-break: break-all;
+}
+
+.scale-card__hint {
+	font-size: 22rpx;
+	color: var(--crm-text-muted);
+	line-height: 1.6;
+}
+
+.scale-card__error {
+	font-size: 22rpx;
+	color: #b91c1c;
+	line-height: 1.6;
+}
+
 .section-toolbar {
 	display: flex;
 	justify-content: flex-end;
@@ -1245,10 +1929,11 @@ defineExpose({
 
 .row-grid {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 16rpx;
 }
 
+.row-grid--out,
 .row-grid--back {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1334,8 +2019,10 @@ defineExpose({
 @media (max-width: 680px) {
 	.form-grid,
 	.summary-grid,
+	.scale-grid,
 	.selected-customer__meta,
 	.row-grid,
+	.row-grid--out,
 	.row-grid--back {
 		grid-template-columns: 1fr;
 	}

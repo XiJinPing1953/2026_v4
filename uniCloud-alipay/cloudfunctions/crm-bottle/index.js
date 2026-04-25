@@ -55,7 +55,9 @@ const DUPLICATE_MERGE_FIELDS = [
 const PAGE_ACTION_RULES = {
 	listV1: [
 		{ pagePath: '/pages/bottle/list', action: 'view' },
-		{ pagePath: '/pages/pda/bottle-query', action: 'view' }
+		{ pagePath: '/pages/pda/bottle-query', action: 'view' },
+		{ pagePath: '/pages/pda/sale-create', action: 'view' },
+		{ pagePath: '/pages/pda/filling-create', action: 'view' }
 	],
 	getV1: [
 		{ pagePath: '/pages/bottle/list', action: 'view' },

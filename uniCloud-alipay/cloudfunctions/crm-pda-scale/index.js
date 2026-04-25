@@ -90,7 +90,7 @@ function buildLatestView(doc = null, scaleCode = DEFAULT_SCALE_CODE) {
 			sampled_at: null,
 			gateway_at: null,
 			error_code: 'not_reported',
-			error_message: '秤网关尚未上报'
+			error_message: 'C606+称重网关尚未上报'
 		}
 	}
 	return {

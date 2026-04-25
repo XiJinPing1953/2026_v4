@@ -7459,3 +7459,73 @@
   - 云函数、schema 和前端仍需按发布流程部署到目标空间后，PDA 真机才能看到秤状态卡和最新重量。
   - `scripts/scale-gateway/` 还需要在机房电脑执行 `npm install` 并配置真实串口、云空间凭证和网关账号，随后做至少 10 分钟真机联调。
   - 目前只做“最新快照”链路，不含重量历史、超载位、多秤调度或 WebSocket；若后续补到明确超载寄存器，再扩字段。
+
+### 2026-04-24 CURRENT — PDA 销售吊秤闭环（gross/tare/net 对齐 + 测试二维码）
+- 做了什么：
+  - PDA 销售出瓶对齐 Web 销售明细三字段模型：称重回填统一写入 `gross/tare/net`，提交 `outItems/backItems` 时均传递三重量字段；手工只录净重时仍允许按原兜底提交。
+  - 扫瓶后增加自动称重回填：扫码先回填瓶号和瓶档皮重，若已有可用稳定吊秤值立即写净重，否则保留 15 秒待回填目标；同类型同瓶二维码 3 秒内重复扫描会被忽略。
+  - 销售页清理操作员无用的扫码诊断展示，吊秤高频通知在服务层保留实时接收但页面快照节流到 200ms；切换步骤不再自动断开吊秤。
+  - 新增 `scripts/createPdaScaleTestData.cjs`，已在 `env-00jxuffegf2n` 创建测试客户 `PDA测试客户-吊秤`（5 元/kg）和三只皮重 1kg 的测试瓶，并生成本地 300×300 二维码到 `docs/pda-qr-300x300/2026-04-24-scale-test/`。
+- 云端测试数据：
+  - 客户：`PDA-SCALE-CUST-001`，`_id=69eaf32df64c736626208828`
+  - 钢瓶：`PDA-SCALE-B001` / `PDA-SCALE-BOTTLE-001`，`_id=69eaf32dde35b6f5aac288ee`，皮重 1kg
+  - 钢瓶：`PDA-SCALE-B002` / `PDA-SCALE-BOTTLE-002`，`_id=69eaf32dfec79e230c7254c1`，皮重 1kg
+  - 钢瓶：`PDA-SCALE-B003` / `PDA-SCALE-BOTTLE-003`，`_id=69eaf32dde35b6f5aac288f1`，皮重 1kg
+- 验证输出要点：
+  - `node --check src/services/pda/sale.js`（通过）
+  - `node --check src/composables/pda/usePdaSaleForm.js`（通过）
+  - `node --check src/services/pda/bleScale.js`（通过）
+  - `node --check scripts/createPdaScaleTestData.cjs`（通过）
+  - `node scripts/createPdaScaleTestData.cjs --space-id env-00jxuffegf2n --execute`（通过）
+  - `node scripts/createPdaScaleTestData.cjs --space-id env-00jxuffegf2n`（通过，4 个二维码均解析为 update）
+  - `file docs/pda-qr-300x300/2026-04-24-scale-test/*.png`（均为 300 x 300 PNG）
+  - `git diff --check`（通过）
+  - `uni build` H5（通过）
+  - `uni build -p mp-alipay`（通过）
+- 剩余问题：
+  - 仍需真机验证：扫测试客户后带出 5 元/kg，扫测试瓶后带出 1kg 皮重，吊秤稳定后自动写入 `gross/tare/net`，Web 端打开 PDA 销售单能看到完整三字段。
+
+### 2026-04-24 CURRENT — PDA 吊秤稳定锁与销售预览权限修复
+- 做了什么：
+  - 吊秤真实分度值改为 `0.1kg`，显示仍保留 1 位小数；业务稳定值不再信任厂家 `ST` 标志，统一由本地稳定锁产生。
+  - 稳定锁规则收口为同一量化重量连续保持 `1200ms` 且不少于 `5` 帧，只有生成新的 `stable_seq` 才触发扫码后的待回填，避免重量还在上升时误自动写入。
+  - 销售页新增出瓶/回瓶后立即切换物理扫码目标到新行；已通过吊秤称重的行不会被扫码自动二次覆盖，手动重称需要确认。
+  - 上传了 `crm-sale` 与 `crm-user` 云函数，确保 PDA 销售预览和提交使用最新 `/pages/pda/sale-create` ACL；`common` 目录不是当前 HBuilderX 可识别的公共模块，但两个云函数均带本地 ACL fallback。
+- 验证输出要点：
+  - `node --check src/services/pda/bleScale.js`（通过）
+  - `node --check src/composables/pda/usePdaSaleForm.js`（通过）
+  - `node --check src/services/pda/sale.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 真机仍需验证：2.5kg 物体在上升阶段不会因厂家早发 `ST` 自动回填，重量稳定后才写入；新增出瓶后直接扫码应写入新行；预览提交不再 403。
+
+### 2026-04-24 CURRENT — PDA 吊秤稳定锁 V2（ST 候选 + 延迟确认）
+- 做了什么：
+  - 修复本地稳定窗口边界问题，不再用“裁剪窗口后再反查跨度”的方式判定稳定。
+  - 厂家 `ST` 改为稳定候选信号：收到 `ST` 后继续取样，候选重量连续保持 `1500ms` 后才生成业务稳定锁；候选期间重量变化会把候选起点重置到最新重量。
+  - 无 `ST` 时保留本地兜底：同一 `0.1kg` 量化重量持续 `1200ms` 且至少 `5` 帧后生成稳定锁。
+  - 回填语义不变，页面、自动回填和手动回填仍统一读取 `last_stable_weight_kg/stable_seq`。
+- 验证输出要点：
+  - `node --check src/services/pda/bleScale.js`（通过）
+  - `node --check src/composables/pda/usePdaSaleForm.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 真机需验证：早发 `ST` 后重量继续上升时不应回填；重量停稳后应在约 1.5 秒内进入可回填状态。
+
+### 2026-04-24 CURRENT — PDA 销售称重回填细节修复
+- 做了什么：
+  - 修复回瓶联动净重浮点精度问题，`gross - tare` 统一按 1 位小数写入，避免 `0.6000000000000001` 进入表单。
+  - `stable_seq` 改为稳定状态持续期间按确认间隔重新发布稳定事件，解决连续多只同重量瓶扫码后 pending 行不自动回填的问题。
+  - 已称重行保护、手动重称确认和瓶流转预警阻断提交逻辑保持不变。
+- 验证输出要点：
+  - `node --check src/services/pda/sale.js`（通过）
+  - `node --check src/services/pda/bleScale.js`（通过）
+  - `node --check src/composables/pda/usePdaSaleForm.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+- 剩余问题：
+  - 真机需验证：B001 与 B002 同重量连续称重时，第二行扫码后等待稳定事件可自动回填；回瓶净重显示为 `0.6`。

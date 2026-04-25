@@ -2,11 +2,25 @@ import { createSaleV2, getCustomerDepositV1 } from '@/services/sale'
 import { resolvePdaCustomerPricing } from './customer'
 import { buildDepositPreviewRows, normalizeBottleNo, normalizeText, todayDate, toNumber } from './shared'
 
+const PDA_SALE_WEIGHT_DECIMALS = 1
+
+function formatPdaSaleWeight(value) {
+	const num = toNumber(value, null)
+	if (num == null) return ''
+	return Number(num).toFixed(PDA_SALE_WEIGHT_DECIMALS)
+}
+
 export function createPdaOutItem() {
 	return {
 		bottleNo: '',
 		bottleId: '',
-		net: ''
+		gross: '',
+		tare: '',
+		net: '',
+		grossMeasured: '',
+		tareSource: '',
+		weightSource: '',
+		weightSampledAt: null
 	}
 }
 
@@ -16,7 +30,11 @@ export function createPdaBackItem() {
 		bottleId: '',
 		gross: '',
 		tare: '',
-		net: ''
+		net: '',
+		grossMeasured: '',
+		tareSource: '',
+		weightSource: '',
+		weightSampledAt: null
 	}
 }
 
@@ -48,12 +66,16 @@ export function createPdaBottleSaleForm() {
 
 function normalizeOutRow(row = {}) {
 	const bottleNo = normalizeBottleNo(row.bottleNo || row.bottle_no)
+	const gross = toNumber(row.gross ?? row.gross_weight ?? row.grossMeasured ?? row.gross_measured, null)
+	const tare = toNumber(row.tare ?? row.tare_weight, null)
 	const net = toNumber(row.net ?? row.net_weight, null)
-	if (!bottleNo || !(net > 0)) return null
+	if (!bottleNo || !(gross > 0) || !(tare >= 0) || !(net > 0)) return null
 	return {
 		bottleNo,
 		bottleId: normalizeText(row.bottleId || row.bottle_id),
-		net
+		gross: toNumber(formatPdaSaleWeight(gross), gross),
+		tare: toNumber(formatPdaSaleWeight(tare), tare),
+		net: toNumber(formatPdaSaleWeight(net), net)
 	}
 }
 
@@ -64,15 +86,15 @@ function normalizeBackRow(row = {}) {
 	const tare = toNumber(row.tare ?? row.tare_weight, null)
 	let net = toNumber(row.net ?? row.net_weight, null)
 	if (!(net > 0) && gross != null && tare != null) {
-		net = Math.max(gross - tare, 0)
+		net = toNumber(formatPdaSaleWeight(Math.max(gross - tare, 0)), 0)
 	}
-	if (!(net > 0)) return null
+	if (!(gross > 0) || !(tare >= 0) || !(net > 0)) return null
 	return {
 		bottleNo,
 		bottleId: normalizeText(row.bottleId || row.bottle_id),
-		gross,
-		tare,
-		net
+		gross: toNumber(formatPdaSaleWeight(gross), gross),
+		tare: toNumber(formatPdaSaleWeight(tare), tare),
+		net: toNumber(formatPdaSaleWeight(net), net)
 	}
 }
 
@@ -90,25 +112,46 @@ export function syncPdaBackRow(row = {}) {
 		bottleId: normalizeText(row.bottleId || row.bottle_id),
 		gross: normalizeText(row.gross ?? row.gross_weight),
 		tare: normalizeText(row.tare ?? row.tare_weight),
-		net: normalizeText(row.net ?? row.net_weight)
+		net: normalizeText(row.net ?? row.net_weight),
+		grossMeasured: normalizeText(row.grossMeasured ?? row.gross_measured),
+		tareSource: normalizeText(row.tareSource ?? row.tare_source),
+		weightSource: normalizeText(row.weightSource ?? row.weight_source),
+		weightSampledAt: row.weightSampledAt ?? row.weight_sampled_at ?? null
 	}
 	const gross = toNumber(next.gross, null)
 	const tare = toNumber(next.tare, null)
 	if (gross != null && tare != null) {
-		next.net = String(Math.max(gross - tare, 0))
+		next.net = formatPdaSaleWeight(Math.max(gross - tare, 0))
 	}
 	return next
 }
 
 export function applyBottleToSaleRow(row = {}, bottle = {}, options = {}) {
+	const tareWeight = toNumber(bottle?.tare_weight, null)
+	const nextBottleNo = normalizeBottleNo(bottle?.bottle_no || row.bottleNo || row.bottle_no)
+	const currentBottleNo = normalizeBottleNo(row.bottleNo || row.bottle_no)
+	const bottleChanged = Boolean(currentBottleNo && nextBottleNo && currentBottleNo !== nextBottleNo)
+	const hasCurrentTare = normalizeText(row.tare ?? row.tare_weight)
+	const currentTareSource = normalizeText(row.tareSource ?? row.tare_source)
+	const shouldClearMeasuredWeight = bottleChanged
 	const next = {
 		...row,
-		bottleNo: normalizeBottleNo(bottle?.bottle_no || row.bottleNo || row.bottle_no),
-		bottleId: normalizeText(bottle?._id || row.bottleId || row.bottle_id)
+		bottleNo: nextBottleNo,
+		bottleId: normalizeText(bottle?._id || row.bottleId || row.bottle_id),
+		gross: shouldClearMeasuredWeight ? '' : normalizeText(row.gross ?? row.gross_weight),
+		net: bottleChanged ? '' : normalizeText(row.net ?? row.net_weight),
+		grossMeasured: shouldClearMeasuredWeight ? '' : normalizeText(row.grossMeasured ?? row.gross_measured),
+		weightSource: shouldClearMeasuredWeight ? '' : normalizeText(row.weightSource ?? row.weight_source),
+		weightSampledAt: shouldClearMeasuredWeight ? null : row.weightSampledAt ?? row.weight_sampled_at ?? null
 	}
-	if (options.fillTare && normalizeText(row.tare ?? row.tare_weight) === '' && bottle?.tare_weight != null) {
-		next.tare = String(bottle.tare_weight)
+	if (tareWeight != null && (options.fillTare || !hasCurrentTare || currentTareSource === 'bottle_profile')) {
+		next.tare = String(tareWeight)
+		next.tareSource = 'bottle_profile'
+	} else if (tareWeight == null && currentTareSource === 'bottle_profile') {
+		next.tare = ''
+		next.tareSource = ''
 	}
+	if (!normalizeText(next.tare)) next.tareSource = ''
 	return options.fillTare ? syncPdaBackRow(next) : next
 }
 
@@ -196,13 +239,16 @@ export function validatePdaBottleSaleForm(form = {}, customer = null) {
 	const pricing = resolvePdaCustomerPricing(customer || { default_price_unit: 'kg', default_unit_price: form.unitPrice })
 	if (!pricing.ok) return { ok: false, msg: pricing.msg }
 
-	const outItems = (form.outItems || []).map(normalizeOutRow).filter(Boolean)
-	if (!outItems.length) return { ok: false, msg: '至少填写一行出瓶和净重' }
+	const outRows = (form.outItems || []).filter((row) => normalizeBottleNo(row?.bottleNo || row?.bottle_no))
+	const invalidOut = outRows.find((row) => !normalizeOutRow(row))
+	if (invalidOut) return { ok: false, msg: '出瓶行需填写有效瓶号，并完成毛重、皮重、净重称重闭环' }
+	const outItems = outRows.map(normalizeOutRow).filter(Boolean)
+	if (!outItems.length) return { ok: false, msg: '至少填写一行已完成称重的出瓶' }
 
 	const backItems = (form.backItems || []).filter((row) => normalizeBottleNo(row?.bottleNo || row?.bottle_no))
 	const invalidBack = backItems.find((row) => !normalizeBackRow(row))
 	if (invalidBack) {
-		return { ok: false, msg: '回瓶行需填写有效瓶号，并保证净重或毛重/空瓶重大于 0' }
+		return { ok: false, msg: '回瓶行需填写有效瓶号，并完成毛重、皮重、净重称重闭环' }
 	}
 
 	return { ok: true, unitPrice: pricing.unitPrice }

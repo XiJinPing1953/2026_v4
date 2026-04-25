@@ -17,6 +17,7 @@ const initialCustomerId = ref('')
 const initialCustomerName = ref('')
 const initialOutBottleNo = ref('')
 const viewRef = ref(null)
+let activateTimer = null
 
 onLoad((options) => {
 	initialCustomerId.value = String(options?.customer_id || '')
@@ -25,12 +26,20 @@ onLoad((options) => {
 })
 
 function activateSession() {
+	if (activateTimer) clearTimeout(activateTimer)
 	nextTick(() => {
-		viewRef.value?.activateBarcodeSession?.()
+		activateTimer = setTimeout(() => {
+			activateTimer = null
+			viewRef.value?.activateBarcodeSession?.()
+		}, 180)
 	})
 }
 
 async function deactivateSession(reason) {
+	if (activateTimer) {
+		clearTimeout(activateTimer)
+		activateTimer = null
+	}
 	if (viewRef.value?.deactivateBarcodeSession) {
 		await viewRef.value.deactivateBarcodeSession(reason)
 		return

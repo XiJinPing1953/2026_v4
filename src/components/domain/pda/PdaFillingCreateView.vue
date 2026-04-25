@@ -10,7 +10,7 @@
 			<view :class="['scale-card', `scale-card--${scaleStatusKind}`]">
 				<view class="scale-card__head">
 					<view class="scale-card__head-text">
-						<text class="scale-card__title">秤网关</text>
+						<text class="scale-card__title">C606+称重仪表</text>
 						<text class="scale-card__status">{{ scaleStatusText }}</text>
 					</view>
 					<AppButton size="sm" kind="neutral" :loading="scaleLoading" @click.stop="onRefreshScale">立即刷新</AppButton>
@@ -138,13 +138,13 @@ const totalWeightHint = computed(() => {
 	const manualText = normalizeText(form.value.afterFillTotalWeight)
 	if (manualText) return '已录入手工总重，换算时会优先生效。'
 	if (usableStableSnapshot.value?.weightKg > 0) {
-		return `当前稳定秤值 ${Number(usableStableSnapshot.value.weightKg).toFixed(3)} kg，留空可直接按总重换算。`
+		return `当前 C606+ 稳定毛重 ${Number(usableStableSnapshot.value.weightKg).toFixed(3)} kg，留空可直接按总重换算。`
 	}
-	if (scaleSnapshot.value.isOnline) return '秤在线但当前未稳定，手工输入仍可兜底。'
-	return '可手工输入；留空时会尝试使用最近稳定秤值。'
+	if (scaleSnapshot.value.isOnline) return 'C606+ 在线但当前未稳定，手工输入仍可兜底。'
+	return '可手工输入；留空时会尝试使用 C606+ 稳定毛重。'
 })
 
-const fillWeightSourceText = computed(() => (form.value.captureMeta?.totalWeight?.source === 'scale_gateway' ? '稳定秤值' : '总重'))
+const fillWeightSourceText = computed(() => (form.value.captureMeta?.totalWeight?.source === 'scale_gateway' ? 'C606+稳定毛重' : '总重'))
 
 watch(
 	() => props.initialBottleNo,

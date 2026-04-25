@@ -29,7 +29,7 @@ export function normalizePdaScaleSnapshot(data = null, scaleCode = PDA_SCALE_DEF
 			sampledAt: null,
 			gatewayAt: null,
 			errorCode: 'not_reported',
-			errorMessage: '秤网关尚未上报'
+			errorMessage: 'C606+称重网关尚未上报'
 		}
 	}
 	return {
