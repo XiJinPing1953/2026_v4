@@ -8,6 +8,7 @@ export async function listGasInV1(params = {}) {
 			plate_no: params.plate_no || params.plateNo || '',
 			dateStart: params.dateStart || '',
 			dateEnd: params.dateEnd || '',
+			inventory_as_of: params.inventory_as_of || params.inventoryAsOf || '',
 			page: params.page || 1,
 			pageSize: params.pageSize || params.limit || 50
 		}

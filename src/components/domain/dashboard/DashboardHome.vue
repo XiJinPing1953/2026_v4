@@ -48,7 +48,7 @@
 						</view>
 						<view v-if="canView('/pages/gas-in/list')" class="nav-item" @click="go('/pages/gas-in/list')">
 							<AppIcon name="truck" size="24rpx" />
-							<text>天然气入库</text>
+							<text>天然气库存</text>
 						</view>
 						<view v-if="canView('/pages/bottle/loss')" class="nav-item" @click="go('/pages/bottle/loss')">
 							<AppIcon name="chart" size="24rpx" />
@@ -277,7 +277,7 @@
 							</view>
 							<view v-if="canView('/pages/gas-in/list')" class="nav-grid-item" @click="go('/pages/gas-in/list')">
 								<view class="nav-icon bg-asset"><AppIcon name="truck" color="#fff" size="30rpx" /></view>
-								<text class="nav-text">天然气入库</text>
+								<text class="nav-text">天然气库存</text>
 							</view>
 							<view v-if="canView('/pages/bottle/movement')" class="nav-grid-item" @click="go('/pages/bottle/movement')">
 								<view class="nav-icon bg-asset"><AppIcon name="search" color="#fff" size="30rpx" /></view>

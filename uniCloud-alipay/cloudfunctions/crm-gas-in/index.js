@@ -418,7 +418,11 @@ async function scanRows({ collection, where = {}, field = null, orderBy = [], li
 
 async function summarizeGasInWhere(where) {
 	const summary = {
+		load_weight_t_total: 0,
 		net_weight_t_total: 0,
+		loss_amount_t_total: 0,
+		avg_price_per_ton: 0,
+		loss_rate: 0,
 		amount_total: 0
 	}
 	let rowsRes = null
@@ -426,7 +430,7 @@ async function summarizeGasInWhere(where) {
 		rowsRes = await scanRows({
 			collection: gasIn,
 			where,
-			field: { net_weight_t: true, amount: true },
+			field: { load_weight_t: true, net_weight_t: true, loss_amount_t: true, amount: true },
 			orderBy: [{ key: 'date', order: 'desc' }, { key: 'created_at', order: 'desc' }],
 			limit: SUMMARY_SCAN_LIMIT,
 			pageSize: 400
@@ -439,28 +443,42 @@ async function summarizeGasInWhere(where) {
 	const rows = rowsRes.data || []
 	for (let i = 0; i < rows.length; i += 1) {
 		const row = rows[i] || {}
+		summary.load_weight_t_total += toNumber(row.load_weight_t, 0) || 0
 		summary.net_weight_t_total += toNumber(row.net_weight_t, 0) || 0
+		summary.loss_amount_t_total += toNumber(row.loss_amount_t, 0) || 0
 		summary.amount_total += toNumber(row.amount, 0) || 0
 	}
+	summary.load_weight_t_total = roundTon(summary.load_weight_t_total)
 	summary.net_weight_t_total = roundTon(summary.net_weight_t_total)
+	summary.loss_amount_t_total = roundTon(summary.loss_amount_t_total)
 	summary.amount_total = roundMoney(summary.amount_total)
+	summary.avg_price_per_ton = summary.net_weight_t_total
+		? roundMoney(summary.amount_total / summary.net_weight_t_total)
+		: 0
+	summary.loss_rate = summary.load_weight_t_total
+		? roundTo(summary.loss_amount_t_total / summary.load_weight_t_total, 4)
+		: 0
 	return { ok: true, data: summary }
 }
 
-async function getInventorySnapshot() {
+async function getInventorySnapshot(asOfDate = '') {
 	const base = {
 		asset_total_t: 0,
 		station_total_t: 0,
 		in_bottle_total_t: 0,
 		vehicle_total_t: 0,
-		balance_diff_t: 0
+		balance_diff_t: 0,
+		as_of_date: normalizeString(asOfDate),
+		scope: asOfDate ? 'as_of' : 'current',
+		movement_total: 0
 	}
 	let rowsRes = null
 	try {
 		rowsRes = await scanRows({
 			collection: gasInventoryMovements,
-			where: {},
+			where: asOfDate ? { event_day: dbCmd.lte(asOfDate) } : {},
 			field: {
+				event_day: true,
 				movement_kind: true,
 				asset_delta_t: true,
 				station_delta_t: true,
@@ -477,6 +495,7 @@ async function getInventorySnapshot() {
 	}
 	if (!rowsRes.ok) return base
 	const rows = rowsRes.data || []
+	base.movement_total = rows.length
 	for (let i = 0; i < rows.length; i += 1) {
 		const contribution = resolveInventoryContribution(rows[i] || {})
 		base.asset_total_t += contribution.asset
@@ -1201,6 +1220,9 @@ async function listV1(user, data) {
 	const filterRes = buildListWhereByFilter(data)
 	if (!filterRes.ok) return { code: 400, msg: filterRes.msg || '筛选参数无效' }
 	const where = filterRes.where
+	const inventoryAsOfRaw = normalizeString(data.inventory_as_of || data.inventoryAsOf)
+	const inventoryAsOf = inventoryAsOfRaw ? normalizeGasDate(inventoryAsOfRaw) : ''
+	if (inventoryAsOfRaw && !inventoryAsOf) return { code: 400, msg: '库存截止日期格式无效' }
 
 	let res = null
 	let totalRes = null
@@ -1228,14 +1250,21 @@ async function listV1(user, data) {
 			},
 			summary: {
 				total: 0,
+				load_weight_t_total: 0,
 				net_weight_t_total: 0,
+				loss_amount_t_total: 0,
+				avg_price_per_ton: 0,
+				loss_rate: 0,
 				amount_total: 0,
 				inventory: {
 					asset_total_t: 0,
 					station_total_t: 0,
 					in_bottle_total_t: 0,
 					vehicle_total_t: 0,
-					balance_diff_t: 0
+					balance_diff_t: 0,
+					as_of_date: inventoryAsOf,
+					scope: inventoryAsOf ? 'as_of' : 'current',
+					movement_total: 0
 				}
 			}
 		}
@@ -1246,7 +1275,7 @@ async function listV1(user, data) {
 	const summaryRes = await summarizeGasInWhere(where)
 	if (!summaryRes.ok) return { code: 400, msg: summaryRes.msg || '统计失败' }
 	const summary = summaryRes.data || { net_weight_t_total: 0, amount_total: 0 }
-	const inventory = await getInventorySnapshot()
+	const inventory = await getInventorySnapshot(inventoryAsOf)
 
 	const rows = Array.isArray(res.data) ? res.data.map((row) => normalizeGasInRow(row)) : []
 
@@ -1262,7 +1291,11 @@ async function listV1(user, data) {
 		},
 		summary: {
 			total,
+			load_weight_t_total: Number(summary.load_weight_t_total || 0),
 			net_weight_t_total: Number(summary.net_weight_t_total || 0),
+			loss_amount_t_total: Number(summary.loss_amount_t_total || 0),
+			avg_price_per_ton: Number(summary.avg_price_per_ton || 0),
+			loss_rate: Number(summary.loss_rate || 0),
 			amount_total: Number(summary.amount_total || 0),
 			inventory
 		}

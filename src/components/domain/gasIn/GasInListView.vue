@@ -1,19 +1,38 @@
 <template>
-	<AppPage title="天然气入库" :subtitle="subtitle" icon="truck">
+	<AppPage title="天然气库存" :subtitle="subtitle" icon="truck">
 		<template #headerActions>
 			<AppButton v-if="canCreateGasIn" size="sm" kind="primary" icon="plus" @click="onAdd">新增入库</AppButton>
 			<AppButton size="sm" kind="neutral" icon="document" :loading="exporting" :disabled="loading" @click="onExport">导出</AppButton>
 		</template>
 
 		<template #highlights>
-			<view class="summary-row">
-				<AppStatCard class="summary-card" label="筛选结果" :value="summary.total" hint="条" icon="list" />
-				<AppStatCard class="summary-card" label="筛选净重" :value="formatTonText(summary.netWeightTTotal)" hint="吨" icon="chart" />
-				<AppStatCard class="summary-card" label="筛选金额" :value="formatMoneyText(summary.amountTotal)" hint="元" icon="wallet" />
-				<AppStatCard class="summary-card" label="总库存净值" :value="formatTonText(summary.inventory.asset_total_t)" hint="吨" icon="bottle" />
-				<AppStatCard class="summary-card" label="站内可灌装净值" :value="formatTonText(summary.inventory.station_total_t)" hint="吨" icon="check-circle" />
-				<AppStatCard class="summary-card" label="在车待售净值" :value="formatTonText(summary.inventory.vehicle_total_t)" hint="吨" icon="truck" />
-				<AppStatCard class="summary-card" label="在瓶未售净值" :value="formatTonText(summary.inventory.in_bottle_total_t)" hint="吨" icon="list" />
+			<view class="highlight-groups">
+				<view class="highlight-group">
+					<view class="highlight-group__head">
+						<text class="highlight-group__title">库存快照</text>
+						<text class="highlight-group__hint">截至 {{ inventoryAsOfText }} 的系统流水回算库存</text>
+					</view>
+					<view class="summary-row summary-row--inventory">
+						<AppStatCard class="summary-card" label="总库存净值" :value="formatTonText(summary.inventory.asset_total_t)" hint="吨" icon="bottle" />
+						<AppStatCard class="summary-card" label="站内可灌装" :value="formatTonText(summary.inventory.station_total_t)" hint="吨" icon="check-circle" />
+						<AppStatCard class="summary-card" label="在瓶未售" :value="formatTonText(summary.inventory.in_bottle_total_t)" hint="吨" icon="list" />
+						<AppStatCard class="summary-card" label="在车待售" :value="formatTonText(summary.inventory.vehicle_total_t)" hint="吨" icon="truck" />
+						<AppStatCard class="summary-card" label="未归类差额" :value="formatTonText(summary.inventory.balance_diff_t)" hint="吨" icon="alert" />
+					</view>
+				</view>
+				<view class="highlight-group">
+					<view class="highlight-group__head">
+						<text class="highlight-group__title">入库来源</text>
+						<text class="highlight-group__hint">当前筛选范围：{{ flowRangeText }}</text>
+					</view>
+					<view class="summary-row summary-row--flow">
+						<AppStatCard class="summary-card" label="入库车次" :value="summary.total" hint="条" icon="list" />
+						<AppStatCard class="summary-card" label="入库净重" :value="formatTonText(summary.netWeightTTotal)" hint="吨" icon="chart" />
+						<AppStatCard class="summary-card" label="入库金额" :value="formatMoneyText(summary.amountTotal)" hint="元" icon="wallet" />
+						<AppStatCard class="summary-card" label="采购均价" :value="formatMoneyText(summary.avgPricePerTon)" hint="元/吨" icon="chart" />
+						<AppStatCard class="summary-card" label="损耗率" :value="formatPercentText(summary.lossRate)" hint="%" icon="alert" />
+					</view>
+				</view>
 			</view>
 			<view v-if="inventoryWarning" class="inventory-warning">
 				{{ inventoryWarning }}
@@ -30,7 +49,7 @@
 			</view>
 			<view v-if="serviceWarning" class="service-warning">{{ serviceWarning }}</view>
 
-			<AppSection title="查询条件">
+			<AppSection title="入库流水筛选">
 				<template #actions>
 					<AppButton kind="ghost" size="sm" @click="onReset">重置</AppButton>
 					<AppButton size="sm" kind="primary" @click="onSearch(true, { force: true })">查询</AppButton>
@@ -55,12 +74,12 @@
 				</view>
 			</AppSection>
 
-			<AppSection title="入库列表">
+			<AppSection title="入库来源流水">
 				<template #actions>
 					<text class="section-hint">共 {{ pager.total }} 条 · 第 {{ pager.page }} / {{ totalPages }} 页</text>
 				</template>
 
-				<AppList :loading="loading" :empty="list.length === 0" empty-title="暂无入库记录">
+				<AppList :loading="loading" :empty="list.length === 0" empty-title="暂无入库流水">
 					<template #emptyAction>
 						<AppButton size="sm" @click="onSearch">重新查询</AppButton>
 					</template>
@@ -118,7 +137,7 @@ import AppStatCard from '@/components/base/AppStatCard.vue'
 import AppDatePresetBar from '@/components/base/AppDatePresetBar.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { useQuery } from '@/composables/useQuery'
-import { buildDatePresetRange, detectDatePreset } from '@/utils/datePreset'
+import { buildDatePresetRange, detectDatePreset, formatDateInput } from '@/utils/datePreset'
 import {
 	listGasInV1,
 	removeGasInV1,
@@ -140,24 +159,33 @@ const pager = reactive({
 	hasMore: false
 })
 
+const defaultMonthRange = buildDatePresetRange('month', new Date())
+
 const filters = reactive({
 	keyword: '',
 	plate_no: '',
-	dateStart: '',
-	dateEnd: ''
+	dateStart: defaultMonthRange.dateStart,
+	dateEnd: defaultMonthRange.dateEnd
 })
-const datePreset = ref('custom')
+const datePreset = ref('month')
 
 const summary = reactive({
 	total: 0,
+	loadWeightTTotal: 0,
 	netWeightTTotal: 0,
+	lossAmountTTotal: 0,
+	avgPricePerTon: 0,
+	lossRate: 0,
 	amountTotal: 0,
 	inventory: {
 		asset_total_t: 0,
 		station_total_t: 0,
 		in_bottle_total_t: 0,
 		vehicle_total_t: 0,
-		balance_diff_t: 0
+		balance_diff_t: 0,
+		as_of_date: '',
+		scope: '',
+		movement_total: 0
 	}
 })
 const { canPageAction } = useAuthGuard()
@@ -199,9 +227,33 @@ function formatMoneyText(value) {
 	return formatWithThousands(toNumber(value, 0), 2)
 }
 
+function formatPercentText(value) {
+	return formatWithThousands(toNumber(value, 0) * 100, 2)
+}
+
+function getTodayText() {
+	return formatDateInput(new Date())
+}
+
+function getInventoryAsOfDate() {
+	return normalizeString(filters.dateEnd) || getTodayText()
+}
+
 const subtitle = computed(() => {
-	if (!pager.total) return '吨制入库台账（元/吨）'
-	return `当前筛选 ${pager.total} 条`
+	const asOf = summary.inventory.as_of_date || getInventoryAsOfDate()
+	if (!pager.total) return `库存快照截至 ${asOf} · 本月入库来源`
+	return `库存快照截至 ${asOf} · 当前入库流水 ${pager.total} 条`
+})
+
+const inventoryAsOfText = computed(() => summary.inventory.as_of_date || getInventoryAsOfDate())
+
+const flowRangeText = computed(() => {
+	const start = normalizeString(filters.dateStart)
+	const end = normalizeString(filters.dateEnd)
+	if (start && end) return `${start} 至 ${end}`
+	if (start) return `${start} 至今`
+	if (end) return `截至 ${end}`
+	return '全部入库流水'
 })
 
 const inventoryWarning = computed(() => {
@@ -211,7 +263,7 @@ const inventoryWarning = computed(() => {
 	const vehicle = Number(summary.inventory.vehicle_total_t || 0)
 	const residual = Number(summary.inventory.balance_diff_t || 0)
 	if (asset >= 0 && station >= 0 && inBottle >= 0 && vehicle >= 0 && Math.abs(residual) < 0.001) return ''
-	let text = '当前库存按系统内天然气流水净值计算。若系统启用前已有期初库存，或历史入库未补齐，会出现负数；建议补齐期初/历史入库后再执行库存重建。'
+	let text = `库存快照按截至 ${inventoryAsOfText.value} 的系统天然气流水净值回算。若系统启用前已有期初库存，或历史入库未补齐，会出现负数；建议补齐期初/历史入库后再执行库存重建。`
 	if (Math.abs(residual) >= 0.001) {
 		text += ` 当前仍有 ${formatTonText(residual)} 吨未归类差额，多来自历史整车/TRUCK 链路或旧流水残差。`
 	}
@@ -246,6 +298,7 @@ function buildListParams(override = {}) {
 		plate_no: normalizePlateNo(filters.plate_no),
 		dateStart: normalizeString(filters.dateStart),
 		dateEnd: normalizeString(filters.dateEnd),
+		inventoryAsOf: getInventoryAsOfDate(),
 		page: override.page || pager.page,
 		pageSize: override.pageSize || pager.pageSize
 	}
@@ -269,14 +322,21 @@ const { loading, run: fetchList } = useQuery(
 			},
 			summary: res.summary || {
 				total: Number(res.total || 0),
+				load_weight_t_total: 0,
 				net_weight_t_total: 0,
+				loss_amount_t_total: 0,
+				avg_price_per_ton: 0,
+				loss_rate: 0,
 				amount_total: 0,
 				inventory: {
 					asset_total_t: 0,
 					station_total_t: 0,
 					in_bottle_total_t: 0,
 					vehicle_total_t: 0,
-					balance_diff_t: 0
+					balance_diff_t: 0,
+					as_of_date: getInventoryAsOfDate(),
+					scope: 'as_of',
+					movement_total: 0
 				}
 			}
 		}
@@ -285,7 +345,7 @@ const { loading, run: fetchList } = useQuery(
 		immediate: false,
 		cacheTTL: 30000,
 		throttleMs: 260,
-		cacheKey: () => `gasIn:list:${filters.keyword}:${filters.plate_no}:${filters.dateStart}:${filters.dateEnd}:${pager.page}:${pager.pageSize}`,
+		cacheKey: () => `gasIn:list:${filters.keyword}:${filters.plate_no}:${filters.dateStart}:${filters.dateEnd}:${getInventoryAsOfDate()}:${pager.page}:${pager.pageSize}`,
 		onError(err) {
 			serviceWarning.value = normalizeString(err?.message) || '查询失败'
 			uni.showToast({ title: serviceWarning.value, icon: 'none' })
@@ -303,14 +363,21 @@ function applyResult(payload = {}) {
 
 	const s = payload.summary || {}
 	summary.total = Number(s.total || 0)
+	summary.loadWeightTTotal = Number(s.load_weight_t_total || 0)
 	summary.netWeightTTotal = Number(s.net_weight_t_total || 0)
+	summary.lossAmountTTotal = Number(s.loss_amount_t_total || 0)
+	summary.avgPricePerTon = Number(s.avg_price_per_ton || 0)
+	summary.lossRate = Number(s.loss_rate || 0)
 	summary.amountTotal = Number(s.amount_total || 0)
 	summary.inventory = {
 		asset_total_t: Number(s?.inventory?.asset_total_t || 0),
 		station_total_t: Number(s?.inventory?.station_total_t || 0),
 		in_bottle_total_t: Number(s?.inventory?.in_bottle_total_t || 0),
 		vehicle_total_t: Number(s?.inventory?.vehicle_total_t || 0),
-		balance_diff_t: Number(s?.inventory?.balance_diff_t || 0)
+		balance_diff_t: Number(s?.inventory?.balance_diff_t || 0),
+		as_of_date: normalizeString(s?.inventory?.as_of_date) || getInventoryAsOfDate(),
+		scope: normalizeString(s?.inventory?.scope),
+		movement_total: Number(s?.inventory?.movement_total || 0)
 	}
 }
 
@@ -324,9 +391,10 @@ async function onSearch(resetPage = false, options = {}) {
 function onReset() {
 	filters.keyword = ''
 	filters.plate_no = ''
-	filters.dateStart = ''
-	filters.dateEnd = ''
-	datePreset.value = 'custom'
+	const range = buildDatePresetRange('month', new Date())
+	filters.dateStart = range.dateStart
+	filters.dateEnd = range.dateEnd
+	datePreset.value = 'month'
 	onSearch(true, { force: true })
 }
 
@@ -342,14 +410,16 @@ function onNextPage() {
 	onSearch(false, { force: true })
 }
 
-function onDateStartChange(e) {
+async function onDateStartChange(e) {
 	filters.dateStart = e?.detail?.value || ''
 	syncDatePreset()
+	await onSearch(true, { force: true })
 }
 
-function onDateEndChange(e) {
+async function onDateEndChange(e) {
 	filters.dateEnd = e?.detail?.value || ''
 	syncDatePreset()
+	await onSearch(true, { force: true })
 }
 
 async function onDatePresetChange(value) {
@@ -435,7 +505,7 @@ function buildExportFileName(total) {
 	if (filters.dateStart && filters.dateEnd) datePart = `日期-${formatDateCompact(filters.dateStart)}_${formatDateCompact(filters.dateEnd)}`
 	else if (filters.dateStart) datePart = `日期-${formatDateCompact(filters.dateStart)}_今`
 	else if (filters.dateEnd) datePart = `日期-起_${formatDateCompact(filters.dateEnd)}`
-	return `天然气入库_${datePart}_车牌-${normalizeFileNamePart(filters.plate_no, '全部')}_关键词-${normalizeFileNamePart(filters.keyword, '全部')}_${total}条_${formatExportTimestamp()}.csv`
+	return `天然气入库流水_${datePart}_车牌-${normalizeFileNamePart(filters.plate_no, '全部')}_关键词-${normalizeFileNamePart(filters.keyword, '全部')}_${total}条_${formatExportTimestamp()}.csv`
 }
 
 function buildExportCsv(rows = []) {
@@ -658,6 +728,40 @@ onMounted(() => {
 	border-radius: 12rpx;
 }
 
+.highlight-groups {
+	display: flex;
+	flex-direction: column;
+	gap: 18rpx;
+}
+
+.highlight-group {
+	padding: 18rpx;
+	border: 1px solid rgba(15, 23, 42, 0.08);
+	border-radius: 22rpx;
+	background: rgba(255, 255, 255, 0.72);
+	box-shadow: 0 12rpx 30rpx rgba(15, 23, 42, 0.05);
+}
+
+.highlight-group__head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 16rpx;
+	margin-bottom: 14rpx;
+}
+
+.highlight-group__title {
+	font-size: 30rpx;
+	font-weight: 800;
+	color: #0f172a;
+}
+
+.highlight-group__hint {
+	font-size: 23rpx;
+	color: #64748b;
+	text-align: right;
+}
+
 .summary-row {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -765,12 +869,26 @@ onMounted(() => {
 	.summary-row {
 		grid-template-columns: repeat(6, minmax(0, 1fr));
 	}
+
+	.summary-row--inventory,
+	.summary-row--flow {
+		grid-template-columns: repeat(5, minmax(0, 1fr));
+	}
 }
 
 @media (max-width: 960px) {
 	.summary-row,
 	.filter-grid {
 		grid-template-columns: 1fr;
+	}
+
+	.highlight-group__head {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.highlight-group__hint {
+		text-align: left;
 	}
 }
 </style>
