@@ -11,6 +11,7 @@
     "check": "node --check index.cjs && node --check protocol.cjs"
   },
   "dependencies": {
-    "modbus-serial": "^8.0.20"
+    "modbus-serial": "^8.0.20",
+    "serialport": "^13.0.0"
   }
 }

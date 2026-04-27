@@ -7,6 +7,7 @@ dist
 temp
 *.local
 .env.local
+scripts/scale-gateway/.env
 /docs/about_crm_*.json
 .trae/
 u_want/

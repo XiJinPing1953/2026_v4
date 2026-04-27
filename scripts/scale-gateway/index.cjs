@@ -25,6 +25,11 @@ function toOptionalPositiveInt(value) {
 	return Number.isFinite(num) && num > 0 ? Math.trunc(num) : null
 }
 
+function toByte(value) {
+	const num = Number(value)
+	return Math.max(0, Math.min(0xff, Math.trunc(Number.isFinite(num) ? num : 0)))
+}
+
 function sleep(ms) {
 	return new Promise((resolve) => setTimeout(resolve, Math.max(Number(ms) || 0, 0)))
 }
@@ -95,6 +100,9 @@ function loadConfig(args) {
 		parity,
 		slaveId: toPositiveInt(process.env.SCALE_SLAVE_ID, 1),
 		pollMs: toPositiveInt(process.env.SCALE_POLL_MS, 200),
+		timeoutMs: toPositiveInt(process.env.SCALE_TIMEOUT_MS, 1500),
+		requestGapMs: toPositiveInt(process.env.SCALE_REQUEST_GAP_MS, 100),
+		requestRetries: Math.max(0, Math.min(toPositiveInt(process.env.SCALE_REQUEST_RETRIES, 1), 5)),
 		heartbeatMs: toPositiveInt(process.env.SCALE_HEARTBEAT_MS, 2000),
 		configRefreshMs: toPositiveInt(process.env.SCALE_CONFIG_REFRESH_MS, 60000),
 		crmSpaceId: normalizeString(process.env.CRM_SPACE_ID || process.env.UNI_SPACE_ID),
@@ -219,6 +227,200 @@ async function createUploader(config) {
 	}
 }
 
+function crc16Modbus(buffer) {
+	let crc = 0xffff
+	for (const byte of buffer) {
+		crc ^= byte
+		for (let index = 0; index < 8; index += 1) {
+			crc = crc & 1 ? (crc >> 1) ^ 0xa001 : crc >> 1
+		}
+	}
+	return crc
+}
+
+function appendCrc(buffer) {
+	const body = Buffer.from(buffer)
+	const crc = crc16Modbus(body)
+	return Buffer.concat([body, Buffer.from([crc & 0xff, (crc >> 8) & 0xff])])
+}
+
+function hasValidCrc(frame) {
+	if (!Buffer.isBuffer(frame) || frame.length < 5) return false
+	const body = frame.subarray(0, frame.length - 2)
+	const expected = crc16Modbus(body)
+	return frame[frame.length - 2] === (expected & 0xff) && frame[frame.length - 1] === ((expected >> 8) & 0xff)
+}
+
+function findValidRtuFrame(buffer, expectedSlaveId, expectedFunctionCode) {
+	if (!Buffer.isBuffer(buffer) || buffer.length < 5) return null
+	const slaveId = toByte(expectedSlaveId)
+	const functionCode = toByte(expectedFunctionCode)
+	for (let offset = 0; offset <= buffer.length - 5; offset += 1) {
+		if (buffer[offset] !== slaveId) continue
+		const responseFunction = buffer[offset + 1]
+		if (responseFunction !== functionCode && responseFunction !== (functionCode | 0x80)) continue
+		if (responseFunction === (functionCode | 0x80)) {
+			const exceptionFrame = buffer.subarray(offset, offset + 5)
+			if (exceptionFrame.length === 5 && hasValidCrc(exceptionFrame)) return exceptionFrame
+			continue
+		}
+		const byteCount = buffer[offset + 2]
+		const standardLength = 3 + byteCount + 2
+		const paddedLength = standardLength + 1
+		const standardFrame = buffer.subarray(offset, offset + standardLength)
+		if (standardFrame.length === standardLength && hasValidCrc(standardFrame)) return standardFrame
+		const paddedFrame = buffer.subarray(offset, offset + paddedLength)
+		if (paddedFrame.length === paddedLength && hasValidCrc(paddedFrame)) return paddedFrame
+	}
+	return null
+}
+
+function parseRtuResponse(frame, expectedFunctionCode, requestedQuantity) {
+	if (!frame || frame.length < 5) throw new Error('C606+ Modbus 回包为空或长度不足')
+	const functionCode = frame[1]
+	if (functionCode === (toByte(expectedFunctionCode) | 0x80)) {
+		const err = new Error(`C606+ Modbus 异常码 ${frame[2]}`)
+		err.code = `modbus_exception_${frame[2]}`
+		throw err
+	}
+	const byteCount = frame[2]
+	const payload = frame.subarray(3, 3 + byteCount)
+	if (functionCode === 0x03 || functionCode === 0x04) {
+		const expectedBytes = requestedQuantity * 2
+		if (byteCount !== expectedBytes) {
+			throw new Error(`C606+ 寄存器回包字节数不匹配: ${byteCount}/${expectedBytes}`)
+		}
+		const data = []
+		for (let index = 0; index < payload.length; index += 2) {
+			data.push(payload.readUInt16BE(index))
+		}
+		return data
+	}
+	if (functionCode === 0x02) {
+		const data = []
+		for (let index = 0; index < requestedQuantity; index += 1) {
+			const byte = payload[Math.floor(index / 8)] || 0
+			data.push(Boolean(byte & (1 << (index % 8))))
+		}
+		return data
+	}
+	throw new Error(`未支持的 C606+ Modbus 功能码: ${functionCode}`)
+}
+
+async function openRawRtuPort(config) {
+	const { SerialPort } = require('serialport')
+	const port = new SerialPort({
+		path: config.serialPort,
+		baudRate: config.baudRate,
+		dataBits: config.dataBits,
+		stopBits: config.stopBits,
+		parity: config.parity,
+		autoOpen: false
+	})
+	await new Promise((resolve, reject) => {
+		port.open((error) => {
+			if (error) reject(error)
+			else resolve()
+		})
+	})
+	await sleep(toPositiveInt(process.env.SCALE_OPEN_SETTLE_MS, 800))
+	return port
+}
+
+async function closeRawRtuPort(port) {
+	if (!port || port.isOpen !== true) return
+	await new Promise((resolve) => port.close(() => resolve()))
+}
+
+function createRawRtuClient(port, config) {
+	let queue = Promise.resolve()
+	let lastRequestAt = 0
+
+	async function request(functionCode, address, quantity) {
+		const runRequest = async () => {
+			const gapMs = Math.max(Number(config.requestGapMs) || 0, 0)
+			const waitMs = Math.max(gapMs - (Date.now() - lastRequestAt), 0)
+			if (waitMs > 0) await sleep(waitMs)
+			const timeoutMs = Math.max(config.timeoutMs, 1500)
+			const requestFrame = appendCrc([
+				toByte(config.slaveId),
+				toByte(functionCode),
+				(address >> 8) & 0xff,
+				address & 0xff,
+				(quantity >> 8) & 0xff,
+				quantity & 0xff
+			])
+			const debugRtu = normalizeString(process.env.SCALE_DEBUG_RTU) === '1'
+			let buffer = Buffer.alloc(0)
+			let timer = null
+			const responseFrame = await new Promise((resolve, reject) => {
+				const cleanup = () => {
+					if (timer) clearTimeout(timer)
+					port.off('data', onData)
+				}
+				const onData = (chunk) => {
+					buffer = Buffer.concat([buffer, chunk])
+					const frame = findValidRtuFrame(buffer, config.slaveId, functionCode)
+					if (frame) {
+						if (debugRtu) {
+							console.log('[scale-gateway][rtu-rx]', frame.toString('hex').toUpperCase())
+						}
+						cleanup()
+						resolve(frame)
+					}
+				}
+				timer = setTimeout(() => {
+					cleanup()
+					const receivedHex = buffer.length > 0 ? `, rx=${buffer.toString('hex').toUpperCase()}` : ''
+					const error = new Error(`Timed out${receivedHex}`)
+					error.code = 'TransactionTimedOutError'
+					reject(error)
+				}, timeoutMs)
+				port.on('data', onData)
+				if (debugRtu) {
+					console.log('[scale-gateway][rtu-tx]', requestFrame.toString('hex').toUpperCase())
+				}
+				port.write(requestFrame, (writeError) => {
+					if (writeError) {
+						cleanup()
+						reject(writeError)
+						return
+					}
+					port.drain(() => {})
+				})
+			})
+			lastRequestAt = Date.now()
+			return parseRtuResponse(responseFrame, functionCode, quantity)
+		}
+		const runWithRetries = async () => {
+			let lastError = null
+			const attempts = Math.max(Number(config.requestRetries) || 0, 0) + 1
+			for (let attempt = 0; attempt < attempts; attempt += 1) {
+				try {
+					return await runRequest()
+				} catch (error) {
+					lastError = error
+					if (attempt < attempts - 1) await sleep(Math.max(Number(config.requestGapMs) || 0, 100))
+				}
+			}
+			throw lastError
+		}
+		const pending = queue.then(runWithRetries, runWithRetries)
+		queue = pending.catch(() => {})
+		return pending
+	}
+
+	return {
+		readInputRegisters(address, quantity) {
+			return request(0x04, address, quantity)
+		},
+		readDiscreteInputs(address, quantity) {
+			// C606+实测 FC02 回包会在 CRC 前多 1 个填充字节，parseRtuResponse 会忽略该填充。
+			return request(0x02, address, quantity)
+		}
+	}
+}
+
 async function createReader(config) {
 	if (config.mock) {
 		let mockIndex = 0
@@ -241,23 +443,15 @@ async function createReader(config) {
 		}
 	}
 
-	const ModbusRTU = require('modbus-serial')
-	const client = new ModbusRTU()
+	const port = await openRawRtuPort(config)
+	const client = createRawRtuClient(port, config)
 	let configCache = null
 	let configLoadedAt = 0
-	await client.connectRTUBuffered(config.serialPort, {
-		baudRate: config.baudRate,
-		dataBits: config.dataBits,
-		stopBits: config.stopBits,
-		parity: config.parity
-	})
-	client.setID(config.slaveId)
-	client.setTimeout(Math.max(config.pollMs, 800))
 	async function readInstrumentConfig() {
 		const now = Date.now()
 		if (configCache && now - configLoadedAt < config.configRefreshMs) return configCache
-		const configRes = await client.readInputRegisters(0x001c, 11)
-		configCache = decodeC606ConfigRegisters(configRes.data)
+		const configRegisters = await client.readInputRegisters(0x001c, 11)
+		configCache = decodeC606ConfigRegisters(configRegisters)
 		configLoadedAt = now
 		return configCache
 	}
@@ -265,18 +459,16 @@ async function createReader(config) {
 		async read() {
 			const sampledAt = Date.now()
 			const instrumentConfig = await readInstrumentConfig()
-			const grossWeightRes = await client.readInputRegisters(0x0002, 2)
-			const dynamicRes = await client.readDiscreteInputs(0x0002, 1)
+			const grossWeightRegisters = await client.readInputRegisters(0x0002, 2)
+			const dynamicInputs = await client.readDiscreteInputs(0x0002, 1)
 			return {
 				sampledAt,
-				decoded: decodeC606ScaleRegisters(grossWeightRes.data, dynamicRes.data, instrumentConfig),
+				decoded: decodeC606ScaleRegisters(grossWeightRegisters, dynamicInputs, instrumentConfig),
 				label: 'c606_modbus'
 			}
 		},
 		async close() {
-			if (typeof client.close === 'function') {
-				await new Promise((resolve) => client.close(resolve))
-			}
+			await closeRawRtuPort(port)
 		}
 	}
 }

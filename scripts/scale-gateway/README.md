@@ -15,6 +15,7 @@
   - 毛重：`FC04 readInputRegisters(0x0002, 2)`
   - 动态状态：`FC02 readDiscreteInputs(0x0002, 1)`
   - 配置块：`FC04 readInputRegisters(0x001C, 11)`，读取分度值、小数位、重量单位
+- 网关使用原始 RTU 读包，不使用通用库解析 `FC02`；C606+ 实测 `FC02` 回包会在 CRC 前多 1 个填充字节，通用库会误判 CRC error。
 - 解析规则：
   - 毛重寄存器为 32 位有符号整数，传输顺序为 `最高、次高、次低、最低`
   - `scaledValue = rawWeight / 10^decimalPlaces`
@@ -75,6 +76,9 @@ npm run mock:dry
 ## 上云节流
 
 - 本地轮询：`200ms`
+- 串口读超时：默认 `1500ms`，可用 `SCALE_TIMEOUT_MS` 调整
+- 串口打开后静默等待：默认 `800ms`，可用 `SCALE_OPEN_SETTLE_MS` 调整
+- RTU 帧间隔：默认 `100ms`，单请求默认失败重试 `1` 次
 - 上云规则：
   - 重量变化立即上报
   - 稳定状态变化立即上报
