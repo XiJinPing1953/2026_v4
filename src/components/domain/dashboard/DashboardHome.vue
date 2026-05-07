@@ -141,6 +141,39 @@
 						/>
 					</view>
 
+					<view class="tank-card tank-card--main">
+						<view class="tank-card__head">
+							<text class="rail-title">储罐监控</text>
+							<text :class="['tank-status', tankStatusClass]">{{ tankStatusLabel }}</text>
+						</view>
+						<view class="tank-card__body">
+							<view class="tank-gauge">
+								<view class="tank-gauge__shell">
+									<view class="tank-gauge__fill" :style="{ height: tankLevelFillHeight }"></view>
+									<text class="tank-gauge__percent">{{ tankPercentText }}</text>
+								</view>
+								<view class="tank-gauge__legs">
+									<view></view>
+									<view></view>
+								</view>
+							</view>
+							<view class="tank-metrics">
+								<view class="tank-metric">
+									<text class="tank-metric__label">储罐压力</text>
+									<text class="tank-metric__value">{{ tankPressureText }}</text>
+								</view>
+								<view class="tank-metric">
+									<text class="tank-metric__label">储罐液位</text>
+									<text class="tank-metric__value">{{ tankLevelText }}</text>
+								</view>
+								<view class="tank-meta">
+									<text>{{ tankSampledAtText }}</text>
+									<text>{{ tankMessageText }}</text>
+								</view>
+							</view>
+						</view>
+					</view>
+
 						<view class="overview-grid">
 							<view class="overview-card">
 								<view class="overview-header">
@@ -392,23 +425,36 @@
 					<text class="mini-caption">按业务日期统计应收与当日实收</text>
 				</view>
 
-				<view class="rail-card">
-					<text class="rail-title">任务分布</text>
-					<view class="mini-chart mini-chart--full">
-						<AppMiniBars
-							:values="barValues"
-							:height="70"
-							:bar-width="14"
-							:gap="8"
-							color="var(--crm-warning)"
-						/>
-						<view class="mini-legend">
-							<view v-for="(label, index) in distributionLabels" :key="label" class="mini-legend__item">
-								<text class="mini-legend__label">{{ label }}</text>
-								<text class="mini-legend__value">{{ barValues[index] || 0 }}</text>
+				<view class="rail-card tank-card">
+					<view class="tank-card__head">
+						<text class="rail-title">储罐监控</text>
+						<text :class="['tank-status', tankStatusClass]">{{ tankStatusLabel }}</text>
+					</view>
+					<view class="tank-card__body">
+						<view class="tank-gauge">
+							<view class="tank-gauge__shell">
+								<view class="tank-gauge__fill" :style="{ height: tankLevelFillHeight }"></view>
+								<text class="tank-gauge__percent">{{ tankPercentText }}</text>
+							</view>
+							<view class="tank-gauge__legs">
+								<view></view>
+								<view></view>
 							</view>
 						</view>
-						<text class="mini-caption">按异常分组统计</text>
+						<view class="tank-metrics">
+							<view class="tank-metric">
+								<text class="tank-metric__label">储罐压力</text>
+								<text class="tank-metric__value">{{ tankPressureText }}</text>
+							</view>
+							<view class="tank-metric">
+								<text class="tank-metric__label">储罐液位</text>
+								<text class="tank-metric__value">{{ tankLevelText }}</text>
+							</view>
+							<view class="tank-meta">
+								<text>{{ tankSampledAtText }}</text>
+								<text>{{ tankMessageText }}</text>
+							</view>
+						</view>
 					</view>
 				</view>
 
@@ -511,11 +557,18 @@ const receivableSummary = reactive({
 	gapAmount: 0,
 	collectionRate: null
 })
-const distributionLabels = ref(['缺失类', '连续类', '整车类', '其他'])
+const tankTelemetry = reactive({
+	levelM: null,
+	levelPercent: null,
+	pressureMpa: null,
+	status: 'empty',
+	sampledAt: null,
+	updatedAt: null,
+	message: ''
+})
 
 const dailyReportRows = ref([])
 const receivableRows = ref([])
-const barValues = ref([0, 0, 0, 0])
 const dailyReportExporting = ref(false)
 const dailyReportRangeOptions = [
 	{ value: 'today', label: '当日' },
@@ -589,6 +642,36 @@ const receivableChartRows = computed(() => {
 		receivableHeight: Number(row.receivable || 0) > 0 ? Math.max(Math.round((Number(row.receivable || 0) / max) * 100), 8) : 0,
 		receivedHeight: Number(row.received || 0) > 0 ? Math.max(Math.round((Number(row.received || 0) / max) * 100), 8) : 0
 	}))
+})
+
+const tankLevelPercent = computed(() => {
+	const num = Number(tankTelemetry.levelPercent)
+	if (!Number.isFinite(num)) return 0
+	return Math.min(Math.max(num, 0), 100)
+})
+const tankLevelFillHeight = computed(() => `${tankLevelPercent.value}%`)
+const tankPercentText = computed(() => {
+	if (!Number.isFinite(Number(tankTelemetry.levelPercent))) return '--%'
+	return `${Math.round(tankLevelPercent.value)}%`
+})
+const tankLevelText = computed(() => formatTankValue(tankTelemetry.levelM, '米'))
+const tankPressureText = computed(() => formatTankValue(tankTelemetry.pressureMpa, 'MPa'))
+const tankSampledAtText = computed(() =>
+	tankTelemetry.sampledAt ? `采集 ${formatDateTime(tankTelemetry.sampledAt)}` : '暂无采集时间'
+)
+const tankStatusLabel = computed(() => {
+	if (tankTelemetry.status === 'online') return '在线'
+	if (tankTelemetry.status === 'stale') return '数据延迟'
+	if (tankTelemetry.status === 'error') return '异常'
+	return '等待采集'
+})
+const tankStatusClass = computed(() => `tank-status--${tankTelemetry.status || 'empty'}`)
+const tankMessageText = computed(() => {
+	if (tankTelemetry.message) return tankTelemetry.message
+	if (tankTelemetry.status === 'online') return '现场网关在线'
+	if (tankTelemetry.status === 'stale') return '超过60秒未收到新数据'
+	if (tankTelemetry.status === 'error') return '采集异常'
+	return '等待现场网关上报'
 })
 
 const currentUsername = computed(() =>
@@ -692,6 +775,32 @@ function formatPercent(value) {
 	return `${num.toFixed(1)}%`
 }
 
+function formatTankValue(value, unit) {
+	const num = Number(value)
+	if (!Number.isFinite(num)) return `-- ${unit}`
+	return `${num.toFixed(2)} ${unit}`
+}
+
+function formatDateTime(value) {
+	const num = Number(value)
+	const date = Number.isFinite(num) ? new Date(num < 1000000000000 ? num * 1000 : num) : new Date(value)
+	const time = date.getTime()
+	if (!Number.isFinite(time)) return '-'
+	const y = date.getFullYear()
+	const m = String(date.getMonth() + 1).padStart(2, '0')
+	const d = String(date.getDate()).padStart(2, '0')
+	const h = String(date.getHours()).padStart(2, '0')
+	const min = String(date.getMinutes()).padStart(2, '0')
+	const s = String(date.getSeconds()).padStart(2, '0')
+	return `${y}-${m}-${d} ${h}:${min}:${s}`
+}
+
+function normalizeTankStatus(value) {
+	const text = String(value || '').trim()
+	if (text === 'online' || text === 'stale' || text === 'error' || text === 'empty') return text
+	return 'empty'
+}
+
 function fix2(value) {
 	const num = Number(value || 0)
 	return Math.round(num * 100) / 100
@@ -717,6 +826,21 @@ function normalizeDailyReportRows(rawRows) {
 		saleBottleCount: Number((row?.saleBottleCount ?? row?.sale_bottle_count) || 0),
 		saleWeightKg: Number((row?.saleWeightKg ?? row?.sale_weight) || 0)
 	}))
+}
+
+function applyTankTelemetry(raw) {
+	const tank = raw && typeof raw === 'object' ? raw : {}
+	const toNullableNumber = (value) => {
+		const num = Number(value)
+		return Number.isFinite(num) ? num : null
+	}
+	tankTelemetry.levelM = toNullableNumber(tank.level_m ?? tank.levelM)
+	tankTelemetry.levelPercent = toNullableNumber(tank.level_percent ?? tank.levelPercent)
+	tankTelemetry.pressureMpa = toNullableNumber(tank.pressure_mpa ?? tank.pressureMpa)
+	tankTelemetry.status = normalizeTankStatus(tank.status)
+	tankTelemetry.sampledAt = toNullableNumber(tank.sampled_at ?? tank.sampledAt)
+	tankTelemetry.updatedAt = toNullableNumber(tank.updated_at ?? tank.updatedAt)
+	tankTelemetry.message = String(tank.message || '').trim()
 }
 
 function applyDashboard(data) {
@@ -766,9 +890,7 @@ function applyDashboard(data) {
 	receivableSummary.collectionRate =
 		receivable.collection_rate == null || receivable.collection_rate === '' ? null : Number(receivable.collection_rate)
 
-	const distribution = data.distribution || {}
-	if (Array.isArray(distribution.values)) barValues.value = distribution.values
-	if (Array.isArray(distribution.labels) && distribution.labels.length) distributionLabels.value = distribution.labels
+	applyTankTelemetry(data.tank)
 }
 
 useQuery(
@@ -1454,25 +1576,155 @@ function goInspectionDue(module) {
 	font-weight: 600;
 }
 
-/* 右侧迷你图表 */
-.mini-chart {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	gap: 8px;
-	min-height: 140px;
-}
-
-.mini-chart--full {
-	align-items: stretch;
-	min-height: 110px;
-}
-
 .mini-caption {
 	font-size: 12px;
 	color: #94a3b8;
 	text-align: center;
+}
+
+.tank-card {
+	gap: 12px;
+}
+
+.tank-card--main {
+	display: none;
+	background: #fff;
+	border: 1px solid #eef1f5;
+	border-radius: 18px;
+	padding: 16px;
+	box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+}
+
+.tank-card__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.tank-status {
+	flex-shrink: 0;
+	padding: 4px 8px;
+	border-radius: 999px;
+	font-size: 12px;
+	font-weight: 600;
+	background: #f1f5f9;
+	color: #64748b;
+}
+
+.tank-status--online {
+	background: #dcfce7;
+	color: #166534;
+}
+
+.tank-status--stale {
+	background: #fef3c7;
+	color: #92400e;
+}
+
+.tank-status--error {
+	background: #fee2e2;
+	color: #991b1b;
+}
+
+.tank-card__body {
+	display: grid;
+	grid-template-columns: 110px minmax(0, 1fr);
+	align-items: center;
+	gap: 14px;
+}
+
+.tank-gauge {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+}
+
+.tank-gauge__shell {
+	position: relative;
+	width: 88px;
+	height: 150px;
+	overflow: hidden;
+	border: 5px solid #1d4ed8;
+	border-radius: 44px 44px 22px 22px;
+	background: #f8fafc;
+	box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+.tank-gauge__fill {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	min-height: 0;
+	background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
+	transition: height 0.3s ease;
+}
+
+.tank-gauge__percent {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 20px;
+	font-weight: 700;
+	color: #0f172a;
+	text-shadow: 0 1px 2px rgba(255, 255, 255, 0.72);
+}
+
+.tank-gauge__legs {
+	display: flex;
+	justify-content: space-between;
+	width: 58px;
+}
+
+.tank-gauge__legs view {
+	width: 10px;
+	height: 18px;
+	border-radius: 0 0 6px 6px;
+	background: #94a3b8;
+}
+
+.tank-metrics {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	min-width: 0;
+}
+
+.tank-metric {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 10px 12px;
+	border-radius: 12px;
+	background: #f8fafc;
+	border: 1px solid #eef2f7;
+	min-width: 0;
+}
+
+.tank-metric__label {
+	font-size: 12px;
+	color: #94a3b8;
+}
+
+.tank-metric__value {
+	font-size: 20px;
+	font-weight: 700;
+	color: #1d4ed8;
+	line-height: 1.2;
+}
+
+.tank-meta {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: 12px;
+	line-height: 1.45;
+	color: #64748b;
 }
 
 .receivable-chart {
@@ -1540,31 +1792,6 @@ function goInspectionDue(module) {
 
 .receivable-legend__dot--rate {
 	background: #8b5cf6;
-}
-
-.mini-legend {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 8px 12px;
-	width: 100%;
-}
-
-.mini-legend__item {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 8px;
-	font-size: 12px;
-	color: #64748b;
-}
-
-.mini-legend__label {
-	color: #94a3b8;
-}
-
-.mini-legend__value {
-	color: #0f172a;
-	font-weight: 600;
 }
 
 /* 右侧栏卡片 */
@@ -1656,6 +1883,10 @@ function goInspectionDue(module) {
 	}
 	.dashboard__rail {
 		display: none;
+	}
+	.tank-card--main {
+		display: flex;
+		flex-direction: column;
 	}
 }
 

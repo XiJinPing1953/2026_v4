@@ -1,0 +1,38 @@
+{
+  "bsonType": "object",
+  "description": "Latest read-only tank telemetry collected from the site Modbus-TCP gateway",
+  "additionalProperties": false,
+  "required": [
+    "tank_id",
+    "gateway_id",
+    "status",
+    "sampled_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "tank_id": { "bsonType": "string" },
+    "gateway_id": { "bsonType": "string" },
+    "plc_host": { "bsonType": "string" },
+    "status": { "bsonType": "string", "enum": ["online", "stale", "error", "empty"] },
+    "level_m": { "bsonType": ["number", "null"] },
+    "level_percent": { "bsonType": ["number", "null"] },
+    "pressure_mpa": { "bsonType": ["number", "null"] },
+    "full_level_m": { "bsonType": "number" },
+    "raw": { "bsonType": "object" },
+    "message": { "bsonType": "string" },
+    "sampled_at": { "bsonType": "number" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "tank_id": 1 }, "name": "uniq_tank_id", "unique": true },
+    { "key": { "updated_at": -1 }, "name": "idx_updated_at" }
+  ]
+}
