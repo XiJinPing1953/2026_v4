@@ -57,28 +57,40 @@
 					</view>
 				</view>
 				<view class="capture-field">
-					<AppInput
-						v-model="form.afterFillTotalWeight"
-						label="充后总重(kg)"
-						placeholder="用于换算灌装重量"
-						type="digit"
-						@input="onAfterFillTotalWeightInput"
-					/>
+					<AppInput :model-value="form.weightStart" label="瓶上秤重量 W_start(kg)" readonly placeholder="气瓶上秤后读取" />
 					<view class="capture-actions">
-						<AppButton size="sm" kind="neutral" :loading="resolvingFillWeight" @click.stop="onResolveFillWeight">按总重换算</AppButton>
+						<AppButton size="sm" kind="neutral" :loading="resolvingFillWeight" @click.stop="onReadStartWeight">读取上秤重量</AppButton>
 					</view>
-					<text class="capture-hint">{{ totalWeightHint }}</text>
+					<text class="capture-hint">读取 C606+ 当前稳定毛重，作为本次充装起点。</text>
 				</view>
-				<AppInput v-model="form.fillWeight" label="灌装重量(kg)" placeholder="请输入灌装重量" type="digit" />
+				<AppInput
+					:model-value="form.targetNetWeight"
+					label="目标净充重量 Net_target(kg)"
+					placeholder="输入后自动计算目标总重"
+					type="digit"
+					@input="onTargetNetWeightInput"
+				/>
+				<AppInput
+					:model-value="form.targetGrossWeight"
+					label="目标总重 W_target(kg)"
+					placeholder="也可直接输入目标总重"
+					type="digit"
+					@input="onTargetGrossWeightInput"
+				/>
+				<AppInput :model-value="form.weightEnd" label="结束总重 W_end(kg)" readonly placeholder="充装结束后读取" />
+				<AppInput :model-value="form.actualNetWeight" label="实际净充 Net_actual(kg)" readonly placeholder="W_end - W_start" />
+				<AppInput :model-value="form.deviation" label="偏差(kg)" readonly placeholder="实际净充 - 目标净充" />
 				<AppInput :model-value="form.operator" label="操作员" readonly />
 			</view>
-			<text v-if="form.fillWeightResolved" class="hint-text">已按当前瓶号和{{ fillWeightSourceText }}完成灌装重量换算，可继续人工校对后提交。</text>
+			<text class="hint-text">{{ fillingFlowHint }}</text>
 			<view class="textarea-field">
 				<text class="textarea-label">备注</text>
 				<textarea v-model="form.remark" class="textarea-control" maxlength="120" placeholder="可选备注" />
 			</view>
 			<view class="actions-row">
 				<AppButton kind="neutral" @click="goBottleQuery">查钢瓶</AppButton>
+				<AppButton kind="neutral" @click="onStartFilling">确认开始充装</AppButton>
+				<AppButton kind="neutral" :loading="resolvingFillWeight" @click="onReadEndWeight">读取结束总重</AppButton>
 				<AppButton :loading="submitting" @click="onSubmit">提交灌装单</AppButton>
 			</view>
 		</AppSection>
@@ -102,8 +114,19 @@ const props = defineProps({
 	initialBottleNo: { type: String, default: '' }
 })
 
-const { form, submitting, resolvingFillWeight, normalizeBottleInput, applyBottleSelection, setAfterFillTotalWeight, resolveFillWeightFromTotal, submit } =
-	usePdaFillingForm()
+const {
+	form,
+	submitting,
+	resolvingFillWeight,
+	normalizeBottleInput,
+	applyBottleSelection,
+	readStartWeight,
+	setTargetNetWeight,
+	setTargetGrossWeight,
+	markFillingStarted,
+	readEndWeight,
+	submit
+} = usePdaFillingForm()
 const {
 	snapshot: scaleSnapshot,
 	loading: scaleLoading,
@@ -134,17 +157,16 @@ const scaleErrorText = computed(() => {
 	return ''
 })
 
-const totalWeightHint = computed(() => {
-	const manualText = normalizeText(form.value.afterFillTotalWeight)
-	if (manualText) return '已录入手工总重，换算时会优先生效。'
-	if (usableStableSnapshot.value?.weightKg > 0) {
-		return `当前 C606+ 稳定毛重 ${Number(usableStableSnapshot.value.weightKg).toFixed(3)} kg，留空可直接按总重换算。`
+const fillingFlowHint = computed(() => {
+	if (form.value.fillWeightResolved) {
+		return `已完成称重闭环：${form.value.weightEnd || '-'} - ${form.value.weightStart || '-'} = ${form.value.actualNetWeight || '-'} kg。`
 	}
-	if (scaleSnapshot.value.isOnline) return 'C606+ 在线但当前未稳定，手工输入仍可兜底。'
-	return '可手工输入；留空时会尝试使用 C606+ 稳定毛重。'
+	if (usableStableSnapshot.value?.weightKg > 0) {
+		return `当前 C606+ 稳定毛重 ${Number(usableStableSnapshot.value.weightKg).toFixed(3)} kg，可用于读取上秤或结束总重。`
+	}
+	if (scaleSnapshot.value.isOnline) return 'C606+ 在线但当前未稳定，请等待稳定后读取重量。'
+	return '请确认 C606+ 称重网关在线后再读取重量。'
 })
-
-const fillWeightSourceText = computed(() => (form.value.captureMeta?.totalWeight?.source === 'scale_gateway' ? 'C606+稳定毛重' : '总重'))
 
 watch(
 	() => props.initialBottleNo,
@@ -170,7 +192,23 @@ function onDateChange(event) {
 }
 
 function onBottleInput() {
+	form.value.weightStart = ''
+	form.value.targetNetWeight = ''
+	form.value.targetGrossWeight = ''
+	form.value.weightEnd = ''
+	form.value.actualNetWeight = ''
+	form.value.deviation = ''
+	form.value.fillWeight = ''
+	form.value.startedAt = null
+	form.value.endedAt = null
+	form.value.status = 'pending'
 	form.value.fillWeightResolved = false
+	form.value.captureMeta = {
+		bottle: null,
+		startWeight: null,
+		targetWeight: null,
+		endWeight: null
+	}
 }
 
 function onBottleSelected(bottle) {
@@ -245,14 +283,12 @@ async function onBarcodeScanned(payload = {}) {
 	showToast(`已回填 ${bottleRes.data.bottle_no || ''}`)
 }
 
-function onAfterFillTotalWeightInput(value) {
-	setAfterFillTotalWeight(value, {
-		source: 'manual',
-		raw: value == null ? '' : String(value),
-		scale_code: '',
-		sampled_at: null,
-		gateway_at: null
-	})
+function onTargetNetWeightInput(value) {
+	setTargetNetWeight(value)
+}
+
+function onTargetGrossWeightInput(value) {
+	setTargetGrossWeight(value)
 }
 
 function goBottleQuery() {
@@ -266,11 +302,42 @@ function showToast(message) {
 	uni.showToast({ title: message, icon: 'none' })
 }
 
-async function onResolveFillWeight() {
-	const res = await resolveFillWeightFromTotal({
+async function onReadStartWeight() {
+	const res = await readStartWeight({
 		scaleSnapshot: usableStableSnapshot.value || scaleSnapshot.value
 	})
-	showToast(res?.code === 0 ? '灌装重量已换算' : res?.msg || '换算失败')
+	showToast(res?.code === 0 ? '已读取上秤重量' : res?.msg || '读取失败')
+}
+
+function onStartFilling() {
+	const start = Number(form.value.weightStart)
+	const targetGross = Number(form.value.targetGrossWeight)
+	const targetNet = Number(form.value.targetNetWeight)
+	if (!(Number.isFinite(start) && start > 0)) {
+		showToast('请先读取瓶上秤重量')
+		return
+	}
+	if (!(Number.isFinite(targetNet) && targetNet > 0)) {
+		showToast('请先填写目标净充重量或目标总重')
+		return
+	}
+	if (!(Number.isFinite(targetGross) && targetGross > start)) {
+		showToast('目标总重必须大于瓶上秤重量')
+		return
+	}
+	markFillingStarted()
+	showToast('已记录开始充装')
+}
+
+async function onReadEndWeight() {
+	if (!(Number(form.value.startedAt) > 0)) {
+		showToast('请先确认开始充装')
+		return
+	}
+	const res = await readEndWeight({
+		scaleSnapshot: usableStableSnapshot.value || scaleSnapshot.value
+	})
+	showToast(res?.code === 0 ? '已读取结束总重并计算净充' : res?.msg || '读取失败')
 }
 
 async function onRefreshScale() {

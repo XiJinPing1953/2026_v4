@@ -24,6 +24,8 @@
     "scale_code": { "bsonType": "string" },
     "weight_raw": { "bsonType": ["number", "null"] },
     "weight_kg": { "bsonType": ["number", "null"] },
+    "scale_read_mode": { "bsonType": ["string", "null"] },
+    "raw_scale_payload": { "bsonType": ["object", "null"] },
     "unit_code": { "bsonType": ["number", "null"] },
     "decimal_places": { "bsonType": ["number", "null"] },
     "stable_metric": { "bsonType": ["number", "null"] },

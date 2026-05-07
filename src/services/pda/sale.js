@@ -1,5 +1,6 @@
 import { createSaleV2, getCustomerDepositV1 } from '@/services/sale'
 import { resolvePdaCustomerPricing } from './customer'
+import { normalizePdaScanLocation } from './location'
 import { buildDepositPreviewRows, normalizeBottleNo, normalizeText, todayDate, toNumber } from './shared'
 
 const PDA_SALE_WEIGHT_DECIMALS = 1
@@ -20,7 +21,8 @@ export function createPdaOutItem() {
 		grossMeasured: '',
 		tareSource: '',
 		weightSource: '',
-		weightSampledAt: null
+		weightSampledAt: null,
+		scanLocation: null
 	}
 }
 
@@ -34,8 +36,13 @@ export function createPdaBackItem() {
 		grossMeasured: '',
 		tareSource: '',
 		weightSource: '',
-		weightSampledAt: null
+		weightSampledAt: null,
+		scanLocation: null
 	}
+}
+
+function buildNormalizedRowLocation(row = {}) {
+	return normalizePdaScanLocation(row.scanLocation || row.scan_location)
 }
 
 export function createPdaBottleSaleForm() {
@@ -70,13 +77,16 @@ function normalizeOutRow(row = {}) {
 	const tare = toNumber(row.tare ?? row.tare_weight, null)
 	const net = toNumber(row.net ?? row.net_weight, null)
 	if (!bottleNo || !(gross > 0) || !(tare >= 0) || !(net > 0)) return null
-	return {
+	const normalized = {
 		bottleNo,
 		bottleId: normalizeText(row.bottleId || row.bottle_id),
 		gross: toNumber(formatPdaSaleWeight(gross), gross),
 		tare: toNumber(formatPdaSaleWeight(tare), tare),
 		net: toNumber(formatPdaSaleWeight(net), net)
 	}
+	const scanLocation = buildNormalizedRowLocation(row)
+	if (scanLocation) normalized.scanLocation = scanLocation
+	return normalized
 }
 
 function normalizeBackRow(row = {}) {
@@ -89,13 +99,16 @@ function normalizeBackRow(row = {}) {
 		net = toNumber(formatPdaSaleWeight(Math.max(gross - tare, 0)), 0)
 	}
 	if (!(gross > 0) || !(tare >= 0) || !(net > 0)) return null
-	return {
+	const normalized = {
 		bottleNo,
 		bottleId: normalizeText(row.bottleId || row.bottle_id),
 		gross: toNumber(formatPdaSaleWeight(gross), gross),
 		tare: toNumber(formatPdaSaleWeight(tare), tare),
 		net: toNumber(formatPdaSaleWeight(net), net)
 	}
+	const scanLocation = buildNormalizedRowLocation(row)
+	if (scanLocation) normalized.scanLocation = scanLocation
+	return normalized
 }
 
 function normalizeDepositRows(rows = []) {
@@ -116,7 +129,8 @@ export function syncPdaBackRow(row = {}) {
 		grossMeasured: normalizeText(row.grossMeasured ?? row.gross_measured),
 		tareSource: normalizeText(row.tareSource ?? row.tare_source),
 		weightSource: normalizeText(row.weightSource ?? row.weight_source),
-		weightSampledAt: row.weightSampledAt ?? row.weight_sampled_at ?? null
+		weightSampledAt: row.weightSampledAt ?? row.weight_sampled_at ?? null,
+		scanLocation: buildNormalizedRowLocation(row)
 	}
 	const gross = toNumber(next.gross, null)
 	const tare = toNumber(next.tare, null)
@@ -142,7 +156,8 @@ export function applyBottleToSaleRow(row = {}, bottle = {}, options = {}) {
 		net: bottleChanged ? '' : normalizeText(row.net ?? row.net_weight),
 		grossMeasured: shouldClearMeasuredWeight ? '' : normalizeText(row.grossMeasured ?? row.gross_measured),
 		weightSource: shouldClearMeasuredWeight ? '' : normalizeText(row.weightSource ?? row.weight_source),
-		weightSampledAt: shouldClearMeasuredWeight ? null : row.weightSampledAt ?? row.weight_sampled_at ?? null
+		weightSampledAt: shouldClearMeasuredWeight ? null : row.weightSampledAt ?? row.weight_sampled_at ?? null,
+		scanLocation: bottleChanged ? null : buildNormalizedRowLocation(row)
 	}
 	if (tareWeight != null && (options.fillTare || !hasCurrentTare || currentTareSource === 'bottle_profile')) {
 		next.tare = String(tareWeight)

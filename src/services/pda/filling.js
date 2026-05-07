@@ -1,32 +1,79 @@
-import { createFillingV1, resolveFillingFillWeightV1 } from '@/services/filling'
+import { createFillingV1 } from '@/services/filling'
 import { getPdaScaleLatestV1, normalizePdaScaleSnapshot, PDA_SCALE_DEFAULT_CODE } from './scale'
 import { normalizeBottleNo, normalizeText, todayDate, toNumber } from './shared'
+
+const FILLING_WEIGHT_DECIMALS = 3
+
+function roundFillingWeight(value) {
+	const num = toNumber(value, null)
+	if (num == null) return null
+	return Number(num.toFixed(FILLING_WEIGHT_DECIMALS))
+}
 
 export function createPdaFillingForm(user = {}) {
 	return {
 		date: todayDate(),
 		bottleNo: '',
-		afterFillTotalWeight: '',
+		weightStart: '',
+		targetInputMode: 'net',
+		targetNetWeight: '',
+		targetGrossWeight: '',
+		weightEnd: '',
+		actualNetWeight: '',
+		deviation: '',
 		fillWeight: '',
 		fillWeightResolved: false,
+		startedAt: null,
+		endedAt: null,
+		status: 'pending',
+		alarmState: false,
 		remark: '',
 		operator: normalizeText(user?.nickname || user?.username),
 		operatorId: normalizeText(user?._id),
 		captureMeta: {
 			bottle: null,
-			totalWeight: null
+			startWeight: null,
+			targetWeight: null,
+			endWeight: null
 		}
 	}
 }
 
 export function buildPdaFillingPayload(form = {}, user = {}) {
+	const weightStart = roundFillingWeight(form.weightStart)
+	const targetNetWeight = roundFillingWeight(form.targetNetWeight)
+	const targetGrossWeight = roundFillingWeight(form.targetGrossWeight)
+	const weightEnd = roundFillingWeight(form.weightEnd)
+	const actualNetWeight = roundFillingWeight(form.actualNetWeight ?? form.fillWeight)
+	const deviation = roundFillingWeight(form.deviation)
+	const endMeta = form.captureMeta?.endWeight || null
+	const startMeta = form.captureMeta?.startWeight || null
+	const startedAt = toNumber(form.startedAt ?? form.started_at, null)
+	const endedAt = toNumber(form.endedAt ?? form.ended_at, null)
 	return {
 		date: normalizeText(form.date) || todayDate(),
 		bottle_no: normalizeBottleNo(form.bottleNo),
 		record_type: 'normal_fill',
 		operator: normalizeText(form.operator) || normalizeText(user?.nickname || user?.username),
 		operator_id: normalizeText(form.operatorId) || normalizeText(user?._id),
-		fill_weight: toNumber(form.fillWeight, null),
+		fill_weight: actualNetWeight,
+		weight_start: weightStart,
+		target_net_weight: targetNetWeight,
+		target_gross_weight: targetGrossWeight,
+		weight_end: weightEnd,
+		actual_net_weight: actualNetWeight,
+		deviation,
+		scale_source: 'C606+',
+		scale_read_mode: normalizeText(endMeta?.scale_read_mode || endMeta?.scaleReadMode || startMeta?.scale_read_mode || startMeta?.scaleReadMode),
+		started_at: startedAt,
+		ended_at: endedAt,
+		status: normalizeText(form.status) || 'completed',
+		alarm_state: Boolean(form.alarmState ?? form.alarm_state),
+		raw_scale_payload: {
+			start: startMeta || null,
+			target: form.captureMeta?.targetWeight || null,
+			end: endMeta || null
+		},
 		remark: normalizeText(form.remark)
 	}
 }
@@ -35,36 +82,17 @@ export function validatePdaFillingForm(form = {}, user = {}) {
 	const payload = buildPdaFillingPayload(form, user)
 	if (!payload.date) return { ok: false, msg: '请选择日期' }
 	if (!payload.bottle_no) return { ok: false, msg: '请填写瓶号' }
-	if (!(payload.fill_weight > 0)) return { ok: false, msg: '灌装重量必须大于 0' }
+	if (!(payload.weight_start > 0)) return { ok: false, msg: '请先读取瓶上秤重量' }
+	if (!(payload.target_net_weight > 0)) return { ok: false, msg: '目标净充重量必须大于 0' }
+	if (!(payload.target_gross_weight > payload.weight_start)) return { ok: false, msg: '目标总重必须大于瓶上秤重量' }
+	if (!(payload.started_at > 0)) return { ok: false, msg: '请先确认开始充装' }
+	if (!(payload.weight_end > 0)) return { ok: false, msg: '请在充装结束后读取最终毛重' }
+	if (!(payload.ended_at > 0)) return { ok: false, msg: '请读取结束总重' }
+	if (!(payload.fill_weight > 0)) return { ok: false, msg: '实际净充重量必须大于 0' }
 	return { ok: true, payload }
 }
 
-async function resolvePreferredTotalWeight(form = {}, options = {}) {
-	const manualText = normalizeText(form.afterFillTotalWeight)
-	if (manualText) {
-		const manualWeight = toNumber(manualText, null)
-		if (!(manualWeight > 0)) {
-			return {
-				code: 400,
-				msg: '手工总重格式无效，请修正后重试'
-			}
-		}
-		return {
-			code: 0,
-			msg: '',
-			data: {
-				afterFillTotalWeight: manualWeight,
-				totalWeightMeta: {
-					source: 'manual',
-					raw: manualText,
-					scale_code: '',
-					sampled_at: null,
-					gateway_at: null
-				}
-			}
-		}
-	}
-
+export async function resolvePdaScaleGrossWeight(options = {}) {
 	const scaleSnapshot =
 		options.scaleSnapshot && typeof options.scaleSnapshot === 'object'
 			? normalizePdaScaleSnapshot(options.scaleSnapshot, options.scaleSnapshot.scaleCode || PDA_SCALE_DEFAULT_CODE)
@@ -90,71 +118,43 @@ async function resolvePreferredTotalWeight(form = {}, options = {}) {
 	if (!scaleSnapshot?.hasData) {
 		return {
 			code: 400,
-			msg: '暂无可用秤值，请手工输入总重'
+			msg: '暂无可用 C606+ 秤值'
 		}
 	}
 	if (!scaleSnapshot.isOnline) {
 		return {
 			code: 400,
-			msg: scaleSnapshot.errorMessage || '秤离线，请手工输入总重'
+			msg: scaleSnapshot.errorMessage || 'C606+ 秤离线'
 		}
 	}
 	if (!scaleSnapshot.isStable) {
 		return {
 			code: 400,
-			msg: '当前秤值未稳定，请稍后重试或手工输入总重'
+			msg: '当前 C606+ 毛重未稳定，请稍后重试'
 		}
 	}
 	if (!(scaleSnapshot.weightKg > 0)) {
 		return {
 			code: 400,
-			msg: '当前秤值无效，请手工输入总重'
+			msg: '当前 C606+ 毛重无效'
 		}
 	}
+	const weightKg = roundFillingWeight(scaleSnapshot.weightKg)
 	return {
 		code: 0,
 		msg: '',
 		data: {
-			afterFillTotalWeight: scaleSnapshot.weightKg,
-			totalWeightMeta: {
+			weightKg,
+			meta: {
 				source: 'scale_gateway',
-				raw: String(scaleSnapshot.weightKg),
+				scale_source: 'C606+',
+				scale_read_mode: scaleSnapshot.scaleReadMode || '',
+				raw: String(weightKg),
 				scale_code: scaleSnapshot.scaleCode || PDA_SCALE_DEFAULT_CODE,
 				sampled_at: scaleSnapshot.sampledAt || null,
-				gateway_at: scaleSnapshot.gatewayAt || null
+				gateway_at: scaleSnapshot.gatewayAt || null,
+				raw_scale_payload: scaleSnapshot.rawScalePayload || null
 			}
-		}
-	}
-}
-
-export async function resolvePdaFillingWeight(form = {}, options = {}) {
-	const bottleNo = normalizeBottleNo(form.bottleNo)
-	if (!bottleNo) return { code: 400, msg: '请先确认瓶号' }
-	const totalWeightRes = await resolvePreferredTotalWeight(form, options)
-	if (totalWeightRes?.code !== 0) return totalWeightRes
-	const afterFillTotalWeight = totalWeightRes.data.afterFillTotalWeight
-	const res = await resolveFillingFillWeightV1({
-		date: normalizeText(form.date) || todayDate(),
-		record_type: 'normal_fill',
-		bottle_no: bottleNo,
-		after_fill_total_weight: afterFillTotalWeight
-	})
-	if (res?.code !== 0) return res
-	const fillWeight = toNumber(res?.data?.fill_weight, null)
-	if (!(fillWeight > 0)) {
-		return {
-			code: 500,
-			msg: '服务端未返回有效灌装重量'
-		}
-	}
-	return {
-		code: 0,
-		msg: '',
-		data: {
-			fillWeight,
-			afterFillTotalWeight,
-			raw: res?.data || null,
-			totalWeightMeta: totalWeightRes.data.totalWeightMeta || null
 		}
 	}
 }

@@ -123,6 +123,45 @@ function toNumber(value, fallback = null) {
 	return num
 }
 
+function normalizeScanLocation(value) {
+	if (!value || typeof value !== 'object') return null
+	const status = normalizeString(value.status || (value.latitude != null && value.longitude != null ? 'ok' : 'failed')) || 'failed'
+	const capturedAt = toNumber(value.capturedAt ?? value.captured_at, null)
+	const coordinateType = normalizeString(value.coordinateType || value.coordinate_type) || 'wgs84'
+	const source = normalizeString(value.source) || 'pda_bottle_scan'
+	const base = {
+		status,
+		coordinate_type: coordinateType,
+		captured_at: capturedAt || Date.now(),
+		source
+	}
+	if (status === 'ok') {
+		const latitude = toNumber(value.latitude, null)
+		const longitude = toNumber(value.longitude, null)
+		if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+			return {
+				...base,
+				status: 'failed',
+				error_code: 'invalid_location',
+				error_message: '定位结果缺少经纬度'
+			}
+		}
+		const accuracy = toNumber(value.accuracy, null)
+		return {
+			...base,
+			latitude,
+			longitude,
+			accuracy: Number.isFinite(accuracy) ? accuracy : null
+		}
+	}
+	return {
+		...base,
+		status: 'failed',
+		error_code: normalizeString(value.errorCode || value.error_code) || 'get_location_failed',
+		error_message: normalizeString(value.errorMessage || value.error_message) || '定位失败'
+	}
+}
+
 function toBoolean(value, fallback = false) {
 	if (typeof value === 'boolean') return value
 	const text = normalizeString(value).toLowerCase()
@@ -171,13 +210,16 @@ function normalizeBottleRows(rows = []) {
 			}
 			if (seen.has(bottleNo)) return null
 			seen.add(bottleNo)
-			return {
+			const normalized = {
 				bottle_no: bottleNo,
 				bottle_id: row?.bottle_id ?? row?.bottleId ?? null,
 				gross,
 				tare,
 				net
 			}
+			const scanLocation = normalizeScanLocation(row?.scanLocation || row?.scan_location)
+			if (scanLocation) normalized.scan_location = scanLocation
+			return normalized
 		})
 		.filter(Boolean)
 }

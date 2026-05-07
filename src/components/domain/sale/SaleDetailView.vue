@@ -126,6 +126,7 @@
 								<text class="col-num">{{ row.gross }}</text>
 								<text class="col-num">{{ row.tare }}</text>
 								<text class="col-num">{{ row.net }}</text>
+								<text class="col-location">定位：{{ row.location_text }}</text>
 							</view>
 						</view>
 					</view>
@@ -149,6 +150,7 @@
 								<text class="col-num">{{ row.gross }}</text>
 								<text class="col-num">{{ row.tare }}</text>
 								<text class="col-num">{{ row.net }}</text>
+								<text class="col-location">定位：{{ row.location_text }}</text>
 							</view>
 						</view>
 					</view>
@@ -767,9 +769,40 @@ function normalizeBottleRows(rows) {
 			bottle_no: normalizeString(row?.bottle_no || row?.bottleNo) || '-',
 			gross: toNumber(row?.gross ?? row?.gross_weight, 0),
 			tare: toNumber(row?.tare ?? row?.tare_weight, 0),
-			net: toNumber(row?.net ?? row?.net_weight, 0)
+			net: toNumber(row?.net ?? row?.net_weight, 0),
+			location_text: formatScanLocationText(row?.scan_location || row?.scanLocation)
 		}))
 		.filter((row) => row.bottle_no && row.bottle_no !== '-')
+}
+
+function formatScanLocationText(location) {
+	if (!location || typeof location !== 'object') return '未记录定位'
+	const status = normalizeString(location.status)
+	if (status === 'ok') {
+		const lat = toNumber(location.latitude, null)
+		const lng = toNumber(location.longitude, null)
+		if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '未记录定位'
+		const accuracy = toNumber(location.accuracy, null)
+		const accuracyText = Number.isFinite(accuracy) ? ` / 精度${Math.round(accuracy)}m` : ''
+		const capturedAt = location.captured_at || location.capturedAt
+		const timeText = capturedAt ? ` / ${formatDateTimeText(capturedAt)}` : ''
+		return `${lat.toFixed(6)}, ${lng.toFixed(6)}${accuracyText}${timeText}`
+	}
+	const errorText = normalizeString(location.error_message || location.errorMessage)
+	return errorText ? `定位失败：${errorText}` : '定位失败'
+}
+
+function formatDateTimeText(value) {
+	const num = typeof value === 'number' ? value : Number(value)
+	const date = Number.isFinite(num) ? new Date(num) : new Date(String(value || ''))
+	if (!date || Number.isNaN(date.getTime())) return normalizeString(value) || '-'
+	const y = date.getFullYear()
+	const m = String(date.getMonth() + 1).padStart(2, '0')
+	const d = String(date.getDate()).padStart(2, '0')
+	const hh = String(date.getHours()).padStart(2, '0')
+	const mm = String(date.getMinutes()).padStart(2, '0')
+	const ss = String(date.getSeconds()).padStart(2, '0')
+	return `${y}-${m}-${d} ${hh}:${mm}:${ss}`
 }
 
 function normalizeDepositRows(rows) {
@@ -1205,6 +1238,13 @@ defineExpose({
 
 .col-num {
 	text-align: right;
+}
+
+.col-location {
+	grid-column: 2 / -1;
+	font-size: 20rpx;
+	line-height: 1.45;
+	color: #64748b;
 }
 
 .detail-table--compact .detail-table__head,

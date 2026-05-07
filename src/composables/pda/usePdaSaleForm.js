@@ -11,6 +11,7 @@ import {
 	syncPdaBackRow
 } from '@/services/pda/sale'
 import { PDA_BLE_SCALE_DISPLAY_DECIMALS, PDA_BLE_SCALE_DIVISION_STEP_KG, quantizeBleScaleWeightKg } from '@/services/pda/bleScale'
+import { normalizePdaScanLocation } from '@/services/pda/location'
 import { normalizeBottleNo, normalizeText, toNumber, todayDate } from '@/services/pda/shared'
 
 const SCALE_STABLE_CACHE_MAX_AGE_MS = 15000
@@ -198,6 +199,15 @@ export function usePdaSaleForm(initialValues = {}) {
 		return list[index]
 	}
 
+	function attachBottleScanLocation(type, index, location) {
+		const list = type === 'back' ? form.value.backItems : form.value.outItems
+		const row = list[index]
+		if (!row) return null
+		row.scanLocation = normalizePdaScanLocation(location)
+		markDepositDirty()
+		return row
+	}
+
 	function applyDeliverySelection(slot, delivery) {
 		const name = normalizeText(delivery?.name || delivery)
 		if (!name) return
@@ -363,6 +373,7 @@ export function usePdaSaleForm(initialValues = {}) {
 		markDepositDirty,
 		applySelectedCustomer,
 		applyBottleSelection,
+		attachBottleScanLocation,
 		applyDeliverySelection,
 		applyVehicleSelection,
 		hydrateSelectedCustomer,

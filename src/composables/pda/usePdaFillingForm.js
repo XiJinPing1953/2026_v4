@@ -1,7 +1,21 @@
 import { ref } from 'vue'
 import { getUser } from '@/services/auth'
-import { createPdaFillingForm, resolvePdaFillingWeight, submitPdaFilling } from '@/services/pda/filling'
-import { normalizeBottleNo, todayDate } from '@/services/pda/shared'
+import { createPdaFillingForm, resolvePdaScaleGrossWeight, submitPdaFilling } from '@/services/pda/filling'
+import { normalizeBottleNo, todayDate, toNumber } from '@/services/pda/shared'
+
+const FILLING_WEIGHT_DECIMALS = 3
+
+function formatFillingWeight(value) {
+	const num = toNumber(value, null)
+	if (num == null) return ''
+	return Number(num).toFixed(FILLING_WEIGHT_DECIMALS)
+}
+
+function roundFillingWeight(value) {
+	const num = toNumber(value, null)
+	if (num == null) return null
+	return Number(num.toFixed(FILLING_WEIGHT_DECIMALS))
+}
 
 export function usePdaFillingForm(initialValues = {}) {
 	const currentUser = getUser() || {}
@@ -26,33 +40,143 @@ export function usePdaFillingForm(initialValues = {}) {
 
 	function applyBottleSelection(bottle = null) {
 		const bottleNo = normalizeBottleNo(bottle?.bottle_no || bottle?.bottleNo || form.value.bottleNo)
+		const previousBottleNo = normalizeBottleNo(form.value.bottleNo)
 		if (bottleNo) form.value.bottleNo = bottleNo
+		if (bottleNo && previousBottleNo && bottleNo !== previousBottleNo) {
+			form.value.weightStart = ''
+			form.value.targetNetWeight = ''
+			form.value.targetGrossWeight = ''
+			form.value.weightEnd = ''
+			form.value.actualNetWeight = ''
+			form.value.deviation = ''
+			form.value.fillWeight = ''
+			form.value.fillWeightResolved = false
+			form.value.startedAt = null
+			form.value.endedAt = null
+			form.value.status = 'pending'
+			form.value.alarmState = false
+			form.value.captureMeta = {
+				bottle: null,
+				startWeight: null,
+				targetWeight: null,
+				endWeight: null
+			}
+		}
 		form.value.captureMeta = {
 			...(form.value.captureMeta || {}),
 			bottle: bottle || null
 		}
 	}
 
-	function setAfterFillTotalWeight(value, meta = null) {
-		form.value.afterFillTotalWeight = value == null ? '' : String(value)
-		form.value.captureMeta = {
-			...(form.value.captureMeta || {}),
-			totalWeight: meta || form.value.captureMeta?.totalWeight || null
+	function computeTargetWeights() {
+		const start = toNumber(form.value.weightStart, null)
+		const netTarget = toNumber(form.value.targetNetWeight, null)
+		const grossTarget = toNumber(form.value.targetGrossWeight, null)
+		if (form.value.targetInputMode === 'gross') {
+			if (start != null && grossTarget != null) {
+				form.value.targetNetWeight = formatFillingWeight(Math.max(grossTarget - start, 0))
+			}
+			return
 		}
+		if (start != null && netTarget != null) {
+			form.value.targetGrossWeight = formatFillingWeight(start + netTarget)
+		}
+	}
+
+	function computeActualWeights() {
+		const start = toNumber(form.value.weightStart, null)
+		const end = toNumber(form.value.weightEnd, null)
+		const targetNet = toNumber(form.value.targetNetWeight, null)
+		if (start != null && end != null) {
+			const actual = roundFillingWeight(end - start)
+			form.value.actualNetWeight = actual != null && actual > 0 ? formatFillingWeight(actual) : ''
+			form.value.fillWeight = form.value.actualNetWeight
+			if (actual != null && targetNet != null) {
+				form.value.deviation = formatFillingWeight(actual - targetNet)
+			} else {
+				form.value.deviation = ''
+			}
+			form.value.fillWeightResolved = Boolean(actual != null && actual > 0)
+			return
+		}
+		form.value.actualNetWeight = ''
+		form.value.fillWeight = ''
+		form.value.deviation = ''
 		form.value.fillWeightResolved = false
 	}
 
-	async function resolveFillWeightFromTotal(options = {}) {
+	async function readStartWeight(options = {}) {
 		resolvingFillWeight.value = true
 		try {
-			const res = await resolvePdaFillingWeight(form.value, options)
+			const res = await resolvePdaScaleGrossWeight(options)
+			if (res?.code !== 0) return res
+			form.value.weightStart = formatFillingWeight(res.data.weightKg)
+			form.value.captureMeta = {
+				...(form.value.captureMeta || {}),
+				startWeight: res.data.meta || null
+			}
+			computeTargetWeights()
+			computeActualWeights()
+			return res
+		} finally {
+			resolvingFillWeight.value = false
+		}
+	}
+
+	function setTargetInputMode(mode) {
+		form.value.targetInputMode = mode === 'gross' ? 'gross' : 'net'
+		computeTargetWeights()
+		computeActualWeights()
+	}
+
+	function setTargetNetWeight(value) {
+		form.value.targetInputMode = 'net'
+		form.value.targetNetWeight = value == null ? '' : String(value)
+		computeTargetWeights()
+		computeActualWeights()
+	}
+
+	function setTargetGrossWeight(value) {
+		form.value.targetInputMode = 'gross'
+		form.value.targetGrossWeight = value == null ? '' : String(value)
+		computeTargetWeights()
+		computeActualWeights()
+	}
+
+	function markFillingStarted() {
+		const startedAt = Date.now()
+		form.value.startedAt = startedAt
+		form.value.status = 'filling'
+		form.value.captureMeta = {
+			...(form.value.captureMeta || {}),
+			targetWeight: {
+				source: form.value.targetInputMode === 'gross' ? 'manual_gross' : 'net_plus_start',
+				weight_start: toNumber(form.value.weightStart, null),
+				target_net_weight: toNumber(form.value.targetNetWeight, null),
+				target_gross_weight: toNumber(form.value.targetGrossWeight, null),
+				started_at: startedAt
+			}
+		}
+		return { code: 0, msg: '', data: { startedAt } }
+	}
+
+	async function readEndWeight(options = {}) {
+		resolvingFillWeight.value = true
+		try {
+			const res = await resolvePdaScaleGrossWeight(options)
 			if (res?.code === 0) {
-				form.value.fillWeight = String(res.data.fillWeight)
-				setAfterFillTotalWeight(res.data.afterFillTotalWeight, {
-					...(res.data.totalWeightMeta || null),
-					resolved: res.data.raw || null
-				})
-				form.value.fillWeightResolved = true
+				const endedAt = Date.now()
+				form.value.weightEnd = formatFillingWeight(res.data.weightKg)
+				form.value.endedAt = endedAt
+				form.value.status = 'completed'
+				form.value.captureMeta = {
+					...(form.value.captureMeta || {}),
+					endWeight: {
+						...(res.data.meta || null),
+						ended_at: endedAt
+					}
+				}
+				computeActualWeights()
 			}
 			return res
 		} finally {
@@ -77,8 +201,12 @@ export function usePdaFillingForm(initialValues = {}) {
 		resolvingFillWeight,
 		normalizeBottleInput,
 		applyBottleSelection,
-		setAfterFillTotalWeight,
-		resolveFillWeightFromTotal,
+		readStartWeight,
+		setTargetInputMode,
+		setTargetNetWeight,
+		setTargetGrossWeight,
+		markFillingStarted,
+		readEndWeight,
 		resetForm,
 		submit
 	}

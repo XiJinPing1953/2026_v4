@@ -26,6 +26,23 @@ function roundNumber(value, digits = 6) {
 	return Number(num.toFixed(digits))
 }
 
+function registersToHex(registers = []) {
+	return (Array.isArray(registers) ? registers : [])
+		.map((item) => toWord(item).toString(16).toUpperCase().padStart(4, '0'))
+		.join('')
+}
+
+function decodeFloat32HighFirst(registers = []) {
+	const source = Array.isArray(registers) ? registers : []
+	if (source.length < 2) throw new Error('C606+ 浮点寄存器数量不足，至少需要 2 个')
+	const buffer = Buffer.alloc(4)
+	buffer.writeUInt16BE(toWord(source[0]), 0)
+	buffer.writeUInt16BE(toWord(source[1]), 2)
+	const value = buffer.readFloatBE(0)
+	if (!Number.isFinite(value)) throw new Error('C606+ 浮点毛重无效')
+	return value
+}
+
 function convertUnitToKg(scaledValue, unitCode) {
 	const value = Number(scaledValue)
 	if (!Number.isFinite(value)) return null
@@ -47,21 +64,18 @@ function decodeC606ConfigRegisters(configRegisters = []) {
 	}
 }
 
-function decodeC606ScaleRegisters(weightRegisters = [], dynamicInputs = [], config = {}) {
-	const weight = Array.isArray(weightRegisters) ? weightRegisters : []
-	if (weight.length < 2) throw new Error('C606+ 毛重寄存器数量不足，至少需要 2 个')
-	const rawWeight = toSignedInt32HighFirst(weight[0], weight[1])
+function buildC606ScaleDecoded({ rawWeight, weightKg, dynamicInputs = [], config = {}, readMode = 'gross_int', rawScalePayload = {} }) {
 	const dynamicFlag = Array.isArray(dynamicInputs) ? Boolean(dynamicInputs[0]) : Boolean(dynamicInputs)
 	const stableMetric = dynamicFlag ? 1 : 0
 	const stableThreshold = 0
 	const unitCode = toNullableNumber(config.unitCode)
 	const divisionValue = toNullableNumber(config.divisionValue)
 	const decimalPlaces = Math.max(0, Math.trunc(toNullableNumber(config.decimalPlaces) || 0))
-	const scaledValue = rawWeight / 10 ** decimalPlaces
-	const weightKg = convertUnitToKg(scaledValue, unitCode)
 	return {
-		weight_raw: rawWeight,
+		weight_raw: toNullableNumber(rawWeight),
 		weight_kg: roundNumber(weightKg, 6),
+		scale_read_mode: readMode,
+		raw_scale_payload: rawScalePayload,
 		unit_code: unitCode,
 		decimal_places: decimalPlaces,
 		stable_metric: stableMetric,
@@ -71,11 +85,55 @@ function decodeC606ScaleRegisters(weightRegisters = [], dynamicInputs = [], conf
 		overload: null,
 		protocol_meta: {
 			instrument: 'C606+',
-			weight_register: 'gross_int32',
+			weight_register: readMode,
 			division_value: divisionValue,
 			dynamic_flag: dynamicFlag
 		}
 	}
+}
+
+function decodeC606GrossIntRegisters(weightRegisters = [], dynamicInputs = [], config = {}) {
+	const weight = Array.isArray(weightRegisters) ? weightRegisters : []
+	if (weight.length < 2) throw new Error('C606+ 毛重寄存器数量不足，至少需要 2 个')
+	const rawWeight = toSignedInt32HighFirst(weight[0], weight[1])
+	const unitCode = toNullableNumber(config.unitCode)
+	const decimalPlaces = Math.max(0, Math.trunc(toNullableNumber(config.decimalPlaces) || 0))
+	const scaledValue = rawWeight / 10 ** decimalPlaces
+	const weightKg = convertUnitToKg(scaledValue, unitCode)
+	return buildC606ScaleDecoded({
+		rawWeight,
+		weightKg,
+		dynamicInputs,
+		config,
+		readMode: 'gross_int',
+		rawScalePayload: {
+			gross_int_registers: weight.slice(0, 2),
+			gross_int_hex: registersToHex(weight.slice(0, 2))
+		}
+	})
+}
+
+function decodeC606GrossFloatRegisters(weightRegisters = [], dynamicInputs = [], config = {}) {
+	const weight = Array.isArray(weightRegisters) ? weightRegisters : []
+	const grossValue = decodeFloat32HighFirst(weight)
+	const unitCode = toNullableNumber(config.unitCode)
+	const weightKg = convertUnitToKg(grossValue, unitCode)
+	if (!Number.isFinite(weightKg)) throw new Error('C606+ 浮点毛重单位换算失败')
+	return buildC606ScaleDecoded({
+		rawWeight: grossValue,
+		weightKg,
+		dynamicInputs,
+		config,
+		readMode: 'gross_float',
+		rawScalePayload: {
+			gross_float_registers: weight.slice(0, 2),
+			gross_float_hex: registersToHex(weight.slice(0, 2))
+		}
+	})
+}
+
+function decodeC606ScaleRegisters(weightRegisters = [], dynamicInputs = [], config = {}) {
+	return decodeC606GrossIntRegisters(weightRegisters, dynamicInputs, config)
 }
 
 const MOCK_FRAMES = [
@@ -110,8 +168,11 @@ function getMockFrame(index = 0) {
 module.exports = {
 	DEFAULT_SCALE_CODE,
 	toSignedInt32HighFirst,
+	decodeFloat32HighFirst,
 	convertUnitToKg,
 	decodeC606ConfigRegisters,
+	decodeC606GrossIntRegisters,
+	decodeC606GrossFloatRegisters,
 	decodeC606ScaleRegisters,
 	getMockFrame
 }

@@ -66,6 +66,12 @@ function normalizeSnapshotPayload(data = {}) {
 		scale_code: normalizeScaleCode(data.scale_code ?? data.scaleCode),
 		weight_raw: toNullableNumber(data.weight_raw ?? data.weightRaw),
 		weight_kg: toNullableNumber(data.weight_kg ?? data.weightKg),
+		scale_read_mode: normalizeString(data.scale_read_mode ?? data.scaleReadMode) || null,
+		raw_scale_payload: data.raw_scale_payload && typeof data.raw_scale_payload === 'object'
+			? data.raw_scale_payload
+			: data.rawScalePayload && typeof data.rawScalePayload === 'object'
+				? data.rawScalePayload
+				: null,
 		unit_code: toNullableNumber(data.unit_code ?? data.unitCode),
 		decimal_places: toNullableNumber(data.decimal_places ?? data.decimalPlaces),
 		stable_metric: toNullableNumber(data.stable_metric ?? data.stableMetric),
@@ -97,6 +103,8 @@ function buildLatestView(doc = null, scaleCode = DEFAULT_SCALE_CODE) {
 		has_data: true,
 		scale_code: normalizeScaleCode(doc.scale_code),
 		weight_kg: toNullableNumber(doc.weight_kg),
+		scale_read_mode: normalizeString(doc.scale_read_mode) || null,
+		raw_scale_payload: doc.raw_scale_payload && typeof doc.raw_scale_payload === 'object' ? doc.raw_scale_payload : null,
 		is_stable: Boolean(doc.is_stable),
 		is_online: Boolean(doc.is_online),
 		sampled_at: toTimestamp(doc.sampled_at),
@@ -154,6 +162,8 @@ async function getLatestV1(user, data) {
 		.field({
 			scale_code: true,
 			weight_kg: true,
+			scale_read_mode: true,
+			raw_scale_payload: true,
 			is_stable: true,
 			is_online: true,
 			sampled_at: true,

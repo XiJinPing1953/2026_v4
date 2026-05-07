@@ -12,15 +12,18 @@
   - RS485 两线 Modbus RTU，使用 C606+ 串口 3 的两线 Modbus 模式
   - 站地址与 `SCALE_SLAVE_ID` 一致，默认 `1`
 - 读数据：
-  - 毛重：`FC04 readInputRegisters(0x0002, 2)`
+  - 毛重浮点数：优先 `FC04 readInputRegisters(0x0008, 2)`
+  - 毛重整数：浮点读取失败时回退 `FC04 readInputRegisters(0x0002, 2)`
   - 动态状态：`FC02 readDiscreteInputs(0x0002, 1)`
   - 配置块：`FC04 readInputRegisters(0x001C, 11)`，读取分度值、小数位、重量单位
 - 网关使用原始 RTU 读包，不使用通用库解析 `FC02`；C606+ 实测 `FC02` 回包会在 CRC 前多 1 个填充字节，通用库会误判 CRC error。
 - 解析规则：
-  - 毛重寄存器为 32 位有符号整数，传输顺序为 `最高、次高、次低、最低`
-  - `scaledValue = rawWeight / 10^decimalPlaces`
+  - 浮点毛重按 32 位 IEEE754、高 word 在前解析，直接按仪表单位换算 kg
+  - 整数毛重为 32 位有符号整数，传输顺序为 `最高、次高、次低、最低`
+  - 整数毛重 `scaledValue = rawWeight / 10^decimalPlaces`
   - C606+ 单位：`0=mg`、`1=g`、`2=kg`、`3=t`
   - `weight_kg` 统一换算为 kg
+  - `scale_read_mode` 标记本次使用 `gross_float` 或 `gross_int`
   - C606+ 离散输入 `0x0002` 为动态灯状态，`is_stable = !dynamic`
   - `stable_metric` 写动态标志 `0/1`，`stable_threshold` 固定写 `0`
 

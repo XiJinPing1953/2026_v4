@@ -79,6 +79,8 @@ export function usePdaScale(options = {}) {
 			hasData: false,
 			scaleCode,
 			weightKg: null,
+			scaleReadMode: '',
+			rawScalePayload: null,
 			isStable: false,
 			isOnline: false,
 			sampledAt: null,

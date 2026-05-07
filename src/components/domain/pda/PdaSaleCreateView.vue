@@ -216,13 +216,13 @@
 							<view class="row-header">
 								<text class="row-title">出瓶 {{ index + 1 }}</text>
 								<AppButton size="sm" kind="ghost" @click.stop="onRemoveOutItem(index)">删除</AppButton>
-								</view>
-								<view class="row-grid row-grid--out">
-									<PdaBottleSuggestField
-										v-model="row.bottleNo"
-										label="瓶号"
-										placeholder="请输入瓶号"
-										@blur="normalizeOutBottle(index)"
+							</view>
+							<view class="row-grid row-grid--out">
+								<PdaBottleSuggestField
+									v-model="row.bottleNo"
+									label="瓶号"
+									placeholder="请输入瓶号"
+									@blur="normalizeOutBottle(index)"
 									@focus="onFocusBottleTarget('out', index)"
 									@input="onBottleInput('out', index)"
 									@select="onSelectBottleSuggestion('out', index, $event)"
@@ -244,6 +244,7 @@
 							<text v-if="row.weightSource === 'ble_scale'" class="capture-hint">
 								最近称重：毛重 {{ row.grossMeasured || '-' }} kg，空瓶重 {{ row.tare || '-' }} kg，净重 {{ row.net || '-' }} kg
 							</text>
+							<text class="capture-hint">{{ formatScanLocationHint(row) }}</text>
 						</AppCard>
 					</view>
 				</view>
@@ -290,6 +291,7 @@
 							<text v-if="row.weightSource === 'ble_scale'" class="capture-hint">
 								最近称重：毛重 {{ row.gross || '-' }} kg，空瓶重 {{ row.tare || '-' }} kg，净重 {{ row.net || '-' }} kg
 							</text>
+							<text class="capture-hint">{{ formatScanLocationHint(row) }}</text>
 						</AppCard>
 					</view>
 				</view>
@@ -408,6 +410,7 @@ import { resolvePdaBottleByQrCode } from '@/services/pda/bottle'
 import { enterBarcodeSession, leaveBarcodeSession, PDA_CAPTURE_TARGETS, setActiveBarcodeTarget } from '@/services/pda/capture'
 import { resolvePdaCustomerByQrCode, resolvePdaCustomerPricing } from '@/services/pda/customer'
 import { listPdaDeliveries, resolvePdaDeliveryByQrCode } from '@/services/pda/delivery'
+import { getPdaBottleScanLocation } from '@/services/pda/location'
 import { createPdaOutItem, validatePdaBottleSaleForm } from '@/services/pda/sale'
 import { formatDateTime, formatMoney, formatWeight, normalizeBottleNo, normalizeQrCode, normalizeText } from '@/services/pda/shared'
 import { listPdaVehicles, resolvePdaVehicleByQrCode } from '@/services/pda/vehicle'
@@ -465,6 +468,7 @@ const {
 	markDepositDirty,
 	applySelectedCustomer,
 	applyBottleSelection,
+	attachBottleScanLocation,
 	applyDeliverySelection,
 	applyVehicleSelection,
 	hydrateSelectedCustomer,
@@ -944,6 +948,7 @@ async function onScannedBottle(targetMeta, payload) {
 	const index = Number(targetMeta.index || 0)
 	const row = applyBottleSelection(type, index, bottleRes.data)
 	const bottleNo = normalizeBottleNo(row?.bottleNo || bottleRes.data.bottle_no)
+	captureBottleScanLocation(type, index, bottleNo)
 	if (isRowScaleWeighed(row)) {
 		clearPendingScaleApply(type, index)
 		barcodeHint.value = `已回填 ${targetMeta.label || '钢瓶'}，该瓶已有称重结果，不重复称重。`
@@ -953,6 +958,23 @@ async function onScannedBottle(targetMeta, payload) {
 	markPendingScaleApply(type, index, bottleNo)
 	barcodeHint.value = `已回填 ${targetMeta.label || '钢瓶'}，等待吊秤稳定后自动写入净重。`
 	showToast(`已回填 ${bottleNo || '钢瓶'}`)
+}
+
+async function captureBottleScanLocation(type, index, bottleNo) {
+	const normalizedType = type === 'back' ? 'back' : 'out'
+	const normalizedBottleNo = normalizeBottleNo(bottleNo)
+	if (!normalizedBottleNo) return
+	const location = await getPdaBottleScanLocation()
+	const row = getBottleRow(normalizedType, index)
+	const currentBottleNo = normalizeBottleNo(row?.bottleNo || row?.bottle_no)
+	if (!row || currentBottleNo !== normalizedBottleNo) return
+	attachBottleScanLocation(normalizedType, index, location)
+	if (location?.status === 'ok') {
+		barcodeHint.value = `${normalizedBottleNo} 已记录扫码定位。`
+		return
+	}
+	barcodeHint.value = `${normalizedBottleNo} 定位失败：${location?.errorMessage || '请检查定位权限'}。`
+	showToast('扫码已回填，定位失败')
 }
 
 function shouldIgnoreRecentBottleScan(type = 'out', qrCode = '') {
@@ -1330,6 +1352,21 @@ function formatBottlePreviewWeight(row = {}) {
 	return netText
 }
 
+function formatScanLocationHint(row = {}) {
+	const location = row?.scanLocation || row?.scan_location || null
+	if (!location) return '扫码定位：未记录'
+	if (location.status === 'ok') {
+		const lat = Number(location.latitude)
+		const lng = Number(location.longitude)
+		if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '扫码定位：未记录'
+		const accuracy = Number(location.accuracy)
+		const accuracyText = Number.isFinite(accuracy) ? `，精度 ${Math.round(accuracy)}m` : ''
+		const timeText = location.capturedAt || location.captured_at ? `，${formatDateTime(location.capturedAt || location.captured_at)}` : ''
+		return `扫码定位：${lat.toFixed(6)}, ${lng.toFixed(6)}${accuracyText}${timeText}`
+	}
+	return `扫码定位失败：${location.errorMessage || location.error_message || '未获取到经纬度'}`
+}
+
 function isEntityUsable(entity, label) {
 	if (!entity) return false
 	if (entity.is_active === false) {
@@ -1398,6 +1435,7 @@ function onBottleInput(type, index) {
 	row.grossMeasured = ''
 	row.weightSource = ''
 	row.weightSampledAt = null
+	row.scanLocation = null
 	clearPendingScaleApply(type, index)
 	markDepositDirty()
 }

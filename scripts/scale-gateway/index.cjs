@@ -8,7 +8,13 @@ const {
 	generateRequestId,
 	prepareClientOptions
 } = require('../lib/qrImportCommon.cjs')
-const { DEFAULT_SCALE_CODE, decodeC606ConfigRegisters, decodeC606ScaleRegisters, getMockFrame } = require('./protocol.cjs')
+const {
+	DEFAULT_SCALE_CODE,
+	decodeC606ConfigRegisters,
+	decodeC606GrossFloatRegisters,
+	decodeC606GrossIntRegisters,
+	getMockFrame
+} = require('./protocol.cjs')
 
 function normalizeString(value) {
 	if (value == null) return ''
@@ -147,6 +153,8 @@ function buildOnlineSnapshot(scaleCode, decoded, sampledAt) {
 		scale_code: scaleCode,
 		weight_raw: decoded.weight_raw,
 		weight_kg: decoded.weight_kg,
+		scale_read_mode: decoded.scale_read_mode || null,
+		raw_scale_payload: decoded.raw_scale_payload || null,
 		unit_code: decoded.unit_code,
 		decimal_places: decoded.decimal_places,
 		stable_metric: decoded.stable_metric,
@@ -169,6 +177,8 @@ function buildOfflineSnapshot(scaleCode, error, sampledAt, consecutiveFailures) 
 		scale_code: scaleCode,
 		weight_raw: null,
 		weight_kg: null,
+		scale_read_mode: null,
+		raw_scale_payload: null,
 		unit_code: null,
 		decimal_places: null,
 		stable_metric: null,
@@ -185,6 +195,7 @@ function buildOfflineSnapshot(scaleCode, error, sampledAt, consecutiveFailures) 
 function shouldUpload(nextSnapshot, lastSnapshot, lastUploadAt, heartbeatMs) {
 	if (!lastSnapshot) return true
 	if (nextSnapshot.weight_raw !== lastSnapshot.weight_raw) return true
+	if (normalizeString(nextSnapshot.scale_read_mode) !== normalizeString(lastSnapshot.scale_read_mode)) return true
 	if (nextSnapshot.is_stable !== lastSnapshot.is_stable) return true
 	if (nextSnapshot.is_online !== lastSnapshot.is_online) return true
 	if (normalizeString(nextSnapshot.error_code) !== normalizeString(lastSnapshot.error_code)) return true
@@ -455,15 +466,35 @@ async function createReader(config) {
 		configLoadedAt = now
 		return configCache
 	}
+	async function readGrossWeightFloat(dynamicInputs, instrumentConfig) {
+		const grossFloatRegisters = await client.readInputRegisters(0x0008, 2)
+		return decodeC606GrossFloatRegisters(grossFloatRegisters, dynamicInputs, instrumentConfig)
+	}
+	async function readGrossWeightInt(dynamicInputs, instrumentConfig, fallbackError = null) {
+		const grossWeightRegisters = await client.readInputRegisters(0x0002, 2)
+		const decoded = decodeC606GrossIntRegisters(grossWeightRegisters, dynamicInputs, instrumentConfig)
+		if (fallbackError) {
+			decoded.raw_scale_payload = {
+				...(decoded.raw_scale_payload || {}),
+				gross_float_error: normalizeString(fallbackError && fallbackError.message) || 'gross_float_failed'
+			}
+		}
+		return decoded
+	}
 	return {
 		async read() {
 			const sampledAt = Date.now()
 			const instrumentConfig = await readInstrumentConfig()
-			const grossWeightRegisters = await client.readInputRegisters(0x0002, 2)
 			const dynamicInputs = await client.readDiscreteInputs(0x0002, 1)
+			let decoded = null
+			try {
+				decoded = await readGrossWeightFloat(dynamicInputs, instrumentConfig)
+			} catch (error) {
+				decoded = await readGrossWeightInt(dynamicInputs, instrumentConfig, error)
+			}
 			return {
 				sampledAt,
-				decoded: decodeC606ScaleRegisters(grossWeightRegisters, dynamicInputs, instrumentConfig),
+				decoded,
 				label: 'c606_modbus'
 			}
 		},
@@ -493,6 +524,7 @@ function logUpload(snapshot, label) {
 			label,
 			scale_code: snapshot.scale_code,
 			weight_kg: snapshot.weight_kg,
+			scale_read_mode: snapshot.scale_read_mode,
 			is_stable: snapshot.is_stable,
 			is_online: snapshot.is_online,
 			error_code: snapshot.error_code,
@@ -541,6 +573,7 @@ async function run() {
 				}
 				lastUploadedSnapshot = {
 					weight_raw: nextSnapshot.weight_raw,
+					scale_read_mode: nextSnapshot.scale_read_mode,
 					is_stable: nextSnapshot.is_stable,
 					is_online: nextSnapshot.is_online,
 					error_code: nextSnapshot.error_code,

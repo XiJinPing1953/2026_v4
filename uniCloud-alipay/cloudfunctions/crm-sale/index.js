@@ -91,13 +91,14 @@ function buildSaleMovementDoc({
 	eventAt,
 	netWeight,
 	note = '',
+	scanLocation = null,
 	createdAt = Date.now()
 }) {
 	const customerId = normalizeString(saleDoc && saleDoc.customer_id)
 	const customerName = normalizeString(saleDoc && saleDoc.customer_name)
 	const normalizedDate = normalizeString(date)
 	const resolvedCreatedAt = toTimestamp(createdAt, Date.now())
-	return {
+	const doc = {
 		bottle_no: normalizeBottleNoForCreate(bottleNo),
 		type,
 		date: normalizedDate,
@@ -115,6 +116,9 @@ function buildSaleMovementDoc({
 		created_by: user?._id || null,
 		created_by_name: user?.username || ''
 	}
+	const normalizedLocation = normalizeScanLocation(scanLocation)
+	if (normalizedLocation) doc.scan_location = normalizedLocation
+	return doc
 }
 
 async function appendMovementRecords(user, saleDoc, outRows, backRows) {
@@ -136,6 +140,7 @@ async function appendMovementRecords(user, saleDoc, outRows, backRows) {
 				eventDay,
 				eventAt,
 				netWeight: row.net,
+				scanLocation: row.scan_location,
 				createdAt: now
 			})
 		)
@@ -152,6 +157,7 @@ async function appendMovementRecords(user, saleDoc, outRows, backRows) {
 				eventDay,
 				eventAt,
 				netWeight: row.net,
+				scanLocation: row.scan_location,
 				createdAt: now
 			})
 		)
@@ -491,18 +497,58 @@ function joinDelivery(delivery1, delivery2) {
 	return a || b || ''
 }
 
+function normalizeScanLocation(value) {
+	if (!value || typeof value !== 'object') return null
+	const status = normalizeString(value.status || (value.latitude != null && value.longitude != null ? 'ok' : 'failed')) || 'failed'
+	const capturedAt = toNumber(value.captured_at ?? value.capturedAt, null)
+	const base = {
+		status,
+		coordinate_type: normalizeString(value.coordinate_type || value.coordinateType) || 'wgs84',
+		captured_at: capturedAt || Date.now(),
+		source: normalizeString(value.source) || 'pda_bottle_scan'
+	}
+	if (status === 'ok') {
+		const latitude = toNumber(value.latitude, null)
+		const longitude = toNumber(value.longitude, null)
+		if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+			return {
+				...base,
+				status: 'failed',
+				error_code: 'invalid_location',
+				error_message: '定位结果缺少经纬度'
+			}
+		}
+		const accuracy = toNumber(value.accuracy, null)
+		return {
+			...base,
+			latitude,
+			longitude,
+			accuracy: Number.isFinite(accuracy) ? accuracy : null
+		}
+	}
+	return {
+		...base,
+		status: 'failed',
+		error_code: normalizeString(value.error_code || value.errorCode) || 'get_location_failed',
+		error_message: normalizeString(value.error_message || value.errorMessage) || '定位失败'
+	}
+}
+
 function normalizeBottleRows(rows = []) {
 	return (rows || [])
 		.map((row) => {
 			const bottleNo = normalizeString(row?.bottle_no ?? row?.bottleInput)
 			if (!bottleNo) return null
-			return {
+			const normalized = {
 				bottle_no: bottleNo,
 				bottle_id: row?.bottle_id ?? row?.bottleId ?? null,
 				gross: toNumber(row?.gross, 0),
 				tare: toNumber(row?.tare, 0),
 				net: toNumber(row?.net, 0)
 			}
+			const scanLocation = normalizeScanLocation(row?.scan_location || row?.scanLocation)
+			if (scanLocation) normalized.scan_location = scanLocation
+			return normalized
 		})
 		.filter(Boolean)
 }

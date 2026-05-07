@@ -340,6 +340,22 @@ function toBoolean(value, fallback = false) {
 	return fallback
 }
 
+function normalizeFillingStatus(value, fallback = 'completed') {
+	const text = normalizeString(value).toLowerCase()
+	if (!text) return fallback
+	const allowed = ['pending', 'filling', 'completed', 'overweight', 'underweight', 'aborted', 'error']
+	return allowed.includes(text) ? text : fallback
+}
+
+function normalizeRawScalePayload(value) {
+	if (!value || typeof value !== 'object') return null
+	try {
+		return JSON.parse(JSON.stringify(value))
+	} catch (err) {
+		return null
+	}
+}
+
 function isValidDateString(value) {
 	const text = normalizeString(value)
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false
@@ -2433,6 +2449,20 @@ async function createV1(user, data, requestId, token) {
 	const operatorName = normalizeOperatorName(data.operator, user?.username)
 	const operatorId = normalizeIdString(data.operator_id || data.operatorId || user?._id) || null
 	let fillWeight = toNumber(data.fill_weight, null)
+	const weightStart = toNumber(data.weight_start ?? data.weightStart, null)
+	const targetNetWeight = toNumber(data.target_net_weight ?? data.targetNetWeight, null)
+	const targetGrossWeight = toNumber(data.target_gross_weight ?? data.targetGrossWeight, null)
+	const weightEnd = toNumber(data.weight_end ?? data.weightEnd, null)
+	const actualNetWeight = toNumber(data.actual_net_weight ?? data.actualNetWeight, null)
+	const deviation = toNumber(data.deviation, null)
+	const scaleSource = normalizeString(data.scale_source ?? data.scaleSource) || ''
+	const scaleReadMode = normalizeString(data.scale_read_mode ?? data.scaleReadMode) || ''
+	const startedAt = toTimestamp(data.started_at ?? data.startedAt, 0) || null
+	const endedAt = toTimestamp(data.ended_at ?? data.endedAt, 0) || null
+	const status = normalizeFillingStatus(data.status, 'completed')
+	const alarmState = toBoolean(data.alarm_state ?? data.alarmState, false)
+	const rawScalePayload = normalizeRawScalePayload(data.raw_scale_payload ?? data.rawScalePayload)
+	if (actualNetWeight > 0) fillWeight = actualNetWeight
 	if (recordType === 'truck_out_no_sale' && requestedInputMode === 'after_fill_total') {
 		if (!(typeof fillWeight === 'number' && Number.isFinite(fillWeight) && fillWeight > 0)) {
 			fillWeight = toNumber(data.after_fill_total_weight ?? data.afterFillTotalWeight, null)
@@ -2479,6 +2509,19 @@ async function createV1(user, data, requestId, token) {
 		operator: operatorName,
 		operator_id: operatorId,
 		fill_weight: fillWeight,
+		weight_start: weightStart,
+		target_net_weight: targetNetWeight,
+		target_gross_weight: targetGrossWeight,
+		weight_end: weightEnd,
+		actual_net_weight: actualNetWeight || fillWeight,
+		deviation,
+		scale_source: scaleSource,
+		scale_read_mode: scaleReadMode,
+		started_at: startedAt,
+		ended_at: endedAt,
+		status,
+		alarm_state: alarmState,
+		raw_scale_payload: rawScalePayload,
 		remark,
 		created_at: Date.now(),
 		updated_at: Date.now(),
