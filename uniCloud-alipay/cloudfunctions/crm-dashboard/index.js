@@ -62,11 +62,6 @@ function fix2(value) {
 	return Math.round(num * 100) / 100
 }
 
-function fix3(value) {
-	const num = Number(value || 0)
-	return Math.round(num * 1000) / 1000
-}
-
 function clampNumber(value, min, max) {
 	const num = Number(value)
 	if (!Number.isFinite(num)) return null
@@ -519,9 +514,9 @@ async function ingestTankTelemetry(user, data, requestId) {
 		gateway_id: gatewayId,
 		plc_host: normalizeString(data.plc_host || data.plcHost),
 		status,
-		level_m: levelM == null ? null : fix3(levelM),
+		level_m: levelM == null ? null : fix2(levelM),
 		level_percent: levelPercent == null ? null : fix2(clampNumber(levelPercent, 0, 100)),
-		pressure_mpa: pressureMpa == null ? null : fix3(pressureMpa),
+		pressure_mpa: pressureMpa == null ? null : fix2(pressureMpa),
 		full_level_m: fullLevelM,
 		raw: normalizeRawTelemetry(data.raw),
 		message: normalizeString(data.message),

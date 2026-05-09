@@ -3,7 +3,7 @@
 
 const crypto = require('crypto')
 const fs = require('fs')
-const net = require('net')
+const nodes7 = require('nodes7')
 const os = require('os')
 const path = require('path')
 
@@ -23,6 +23,11 @@ function toInt(value, fallback) {
 	return Number.isFinite(num) ? num : fallback
 }
 
+function fix2(value) {
+	const num = Number(value || 0)
+	return Math.round(num * 100) / 100
+}
+
 function parseBool(value, fallback = false) {
 	const text = normalizeString(value).toLowerCase()
 	if (!text) return fallback
@@ -40,15 +45,15 @@ function safeJsonParse(text, fallback = null) {
 
 function parseArgs(argv) {
 	const out = {
-		host: normalizeString(process.env.PLC_HOST) || '192.168.2.1',
-		port: toInt(process.env.PLC_PORT, 502),
-		unitId: toInt(process.env.PLC_UNIT_ID, 1),
-		levelRegister: toInt(process.env.TANK_LEVEL_REGISTER, 2000),
-		pressureRegister: toInt(process.env.TANK_PRESSURE_REGISTER, 2040),
-		wordOrder: normalizeString(process.env.TANK_WORD_ORDER) || 'abcd',
+		host: normalizeString(process.env.PLC_HOST) || '192.168.0.1',
+		port: toInt(process.env.PLC_PORT, 102),
+		rack: toInt(process.env.PLC_RACK, 0),
+		slot: toInt(process.env.PLC_SLOT, 1),
+		levelAddress: normalizeString(process.env.TANK_LEVEL_ADDRESS) || 'DB1,REAL2000',
+		pressureAddress: normalizeString(process.env.TANK_PRESSURE_ADDRESS) || 'DB1,REAL2040',
 		fullLevelM: toNumber(process.env.TANK_FULL_LEVEL_M, 10),
 		intervalMs: toInt(process.env.TANK_POLL_MS, 5000),
-		timeoutMs: toInt(process.env.TANK_MODBUS_TIMEOUT_MS, 3000),
+		timeoutMs: toInt(process.env.TANK_S7_TIMEOUT_MS, 5000),
 		tankId: normalizeString(process.env.TANK_ID) || 'main',
 		gatewayId: normalizeString(process.env.TANK_GATEWAY_ID) || os.hostname() || 'tank-gateway',
 		spaceId: normalizeString(process.env.SPACE_ID),
@@ -79,10 +84,10 @@ function parseArgs(argv) {
 		const value = match[2]
 		if (key === 'host') out.host = normalizeString(value) || out.host
 		if (key === 'port') out.port = toInt(value, out.port)
-		if (key === 'unit-id') out.unitId = toInt(value, out.unitId)
-		if (key === 'level-register') out.levelRegister = toInt(value, out.levelRegister)
-		if (key === 'pressure-register') out.pressureRegister = toInt(value, out.pressureRegister)
-		if (key === 'word-order') out.wordOrder = normalizeString(value) || out.wordOrder
+		if (key === 'rack') out.rack = toInt(value, out.rack)
+		if (key === 'slot') out.slot = toInt(value, out.slot)
+		if (key === 'level-address') out.levelAddress = normalizeString(value) || out.levelAddress
+		if (key === 'pressure-address') out.pressureAddress = normalizeString(value) || out.pressureAddress
 		if (key === 'full-level-m') out.fullLevelM = toNumber(value, out.fullLevelM)
 		if (key === 'interval-ms') out.intervalMs = toInt(value, out.intervalMs)
 		if (key === 'timeout-ms') out.timeoutMs = toInt(value, out.timeoutMs)
@@ -243,124 +248,73 @@ async function login(client, username, password) {
 	return res.token || (res.user && res.user.token) || (res.data && (res.data.token || (res.data.user && res.data.user.token))) || ''
 }
 
-let transactionId = 1
-
-function nextTransactionId() {
-	transactionId = (transactionId % 0xffff) + 1
-	return transactionId
-}
-
-function readHoldingRegisters({ host, port, unitId, timeoutMs }, startAddress, quantity) {
+function readS7Items(config) {
 	return new Promise((resolve, reject) => {
-		const tx = nextTransactionId()
-		const request = Buffer.alloc(12)
-		request.writeUInt16BE(tx, 0)
-		request.writeUInt16BE(0, 2)
-		request.writeUInt16BE(6, 4)
-		request.writeUInt8(unitId, 6)
-		request.writeUInt8(3, 7)
-		request.writeUInt16BE(startAddress, 8)
-		request.writeUInt16BE(quantity, 10)
-
-		let buffer = Buffer.alloc(0)
 		let settled = false
-		const socket = net.createConnection({ host, port })
-
-		function finish(err, value) {
-			if (settled) return
-			settled = true
-			socket.destroy()
-			if (err) reject(err)
-			else resolve(value)
+		const conn = new nodes7()
+		const timer = setTimeout(() => finish(new Error(`S7 timeout ${config.host}:${config.port}`)), config.timeoutMs)
+		const vars = {
+			level: config.levelAddress,
+			pressure: config.pressureAddress
 		}
 
-		socket.setTimeout(timeoutMs)
-		socket.on('connect', () => socket.write(request))
-		socket.on('timeout', () => finish(new Error(`Modbus timeout ${host}:${port}`)))
-		socket.on('error', (err) => finish(err))
-		socket.on('data', (chunk) => {
-			buffer = Buffer.concat([buffer, chunk])
-			if (buffer.length < 9) return
-			const length = buffer.readUInt16BE(4)
-			const frameLength = 6 + length
-			if (buffer.length < frameLength) return
-			const frame = buffer.slice(0, frameLength)
-			const responseTx = frame.readUInt16BE(0)
-			const functionCode = frame.readUInt8(7)
-			if (responseTx !== tx) return finish(new Error(`Modbus transaction mismatch: ${responseTx} != ${tx}`))
-			if (functionCode & 0x80) {
-				return finish(new Error(`Modbus exception code ${frame.readUInt8(8)}`))
+		function finish(err, values) {
+			if (settled) return
+			settled = true
+			clearTimeout(timer)
+			try {
+				conn.dropConnection()
+			} catch (_) {}
+			if (err) reject(err)
+			else resolve(values)
+		}
+
+		conn.initiateConnection(
+			{
+				host: config.host,
+				port: config.port,
+				rack: config.rack,
+				slot: config.slot
+			},
+			(err) => {
+				if (err) return finish(err)
+				try {
+					conn.setTranslationCB((tag) => vars[tag])
+					conn.addItems(['level', 'pressure'])
+					conn.readAllItems((readErr, values) => finish(readErr, values || {}))
+				} catch (readErr) {
+					finish(readErr)
+				}
 			}
-			if (functionCode !== 3) return finish(new Error(`Unexpected Modbus function ${functionCode}`))
-			const byteCount = frame.readUInt8(8)
-			if (byteCount < quantity * 2) return finish(new Error(`Unexpected Modbus byte count ${byteCount}`))
-			const data = frame.slice(9, 9 + byteCount)
-			const registers = []
-			for (let i = 0; i < quantity; i += 1) {
-				registers.push(data.readUInt16BE(i * 2))
-			}
-			return finish(null, { registers, data })
-		})
+		)
 	})
 }
 
-function reorderFloatBytes(bytes, wordOrder) {
-	const order = normalizeString(wordOrder).toLowerCase().replace(/[-_\s]/g, '')
-	const source = Buffer.from(bytes)
-	if (order === 'badc' || order === 'byteswap') return Buffer.from([source[1], source[0], source[3], source[2]])
-	if (order === 'cdab' || order === 'wordswap') return Buffer.from([source[2], source[3], source[0], source[1]])
-	if (order === 'dcba' || order === 'little' || order === 'le') return Buffer.from([source[3], source[2], source[1], source[0]])
-	return source
-}
-
-function parseFloatFromRegisters(registers, wordOrder) {
-	if (!Array.isArray(registers) || registers.length < 2) throw new Error('读取 32-bit float 至少需要 2 个寄存器')
-	const bytes = Buffer.alloc(4)
-	bytes.writeUInt16BE(registers[0], 0)
-	bytes.writeUInt16BE(registers[1], 2)
-	const ordered = reorderFloatBytes(bytes, wordOrder)
-	return {
-		value: ordered.readFloatBE(0),
-		bytes: bytes.toString('hex'),
-		orderedBytes: ordered.toString('hex')
-	}
-}
-
 async function readTankTelemetry(config) {
-	const firstAddress = Math.min(config.levelRegister, config.pressureRegister)
-	const lastAddress = Math.max(config.levelRegister, config.pressureRegister) + 1
-	const quantity = lastAddress - firstAddress + 1
-	if (quantity > 120) throw new Error(`寄存器跨度过大: ${quantity}`)
-	const block = await readHoldingRegisters(config, firstAddress, quantity)
-	const sliceRegisters = (address) => {
-		const offset = address - firstAddress
-		return block.registers.slice(offset, offset + 2)
+	const values = await readS7Items(config)
+	const levelM = toNumber(values.level, null)
+	const pressureMpa = toNumber(values.pressure, null)
+	if (levelM == null || pressureMpa == null) {
+		throw new Error(`S7读取结果无效: ${JSON.stringify(values)}`)
 	}
-	const levelRegisters = sliceRegisters(config.levelRegister)
-	const pressureRegisters = sliceRegisters(config.pressureRegister)
-	const level = parseFloatFromRegisters(levelRegisters, config.wordOrder)
-	const pressure = parseFloatFromRegisters(pressureRegisters, config.wordOrder)
-	const levelPercent = Math.min(Math.max((level.value / config.fullLevelM) * 100, 0), 100)
+	const levelPercent = Math.min(Math.max((levelM / config.fullLevelM) * 100, 0), 100)
 	return {
 		tank_id: config.tankId,
 		gateway_id: config.gatewayId,
 		plc_host: config.host,
 		status: 'online',
-		level_m: Math.round(level.value * 1000) / 1000,
-		level_percent: Math.round(levelPercent * 100) / 100,
-		pressure_mpa: Math.round(pressure.value * 1000) / 1000,
+		level_m: fix2(levelM),
+		level_percent: fix2(levelPercent),
+		pressure_mpa: fix2(pressureMpa),
 		full_level_m: config.fullLevelM,
 		sampled_at: Date.now(),
 		raw: {
-			level_register: config.levelRegister,
-			pressure_register: config.pressureRegister,
-			level_registers: levelRegisters,
-			pressure_registers: pressureRegisters,
-			word_order: config.wordOrder,
-			level_bytes: level.bytes,
-			pressure_bytes: pressure.bytes,
-			level_ordered_bytes: level.orderedBytes,
-			pressure_ordered_bytes: pressure.orderedBytes
+			protocol: 's7',
+			port: config.port,
+			rack: config.rack,
+			slot: config.slot,
+			level_address: config.levelAddress,
+			pressure_address: config.pressureAddress
 		}
 	}
 }
@@ -380,8 +334,8 @@ function printTelemetry(telemetry, mode) {
 	const sampled = new Date(telemetry.sampled_at).toISOString()
 	const prefix = mode === 'dry' ? '[dry-run]' : '[upload]'
 	console.log(
-		`${prefix} ${sampled} level=${telemetry.level_m.toFixed(3)}m ` +
-			`percent=${telemetry.level_percent.toFixed(2)}% pressure=${telemetry.pressure_mpa.toFixed(3)}MPa`
+		`${prefix} ${sampled} level=${telemetry.level_m.toFixed(2)}m ` +
+			`percent=${telemetry.level_percent.toFixed(2)}% pressure=${telemetry.pressure_mpa.toFixed(2)}MPa`
 	)
 }
 
