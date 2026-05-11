@@ -1,18 +1,18 @@
 <template>
-	<PdaFillingCreateView ref="viewRef" :initial-bottle-no="initialBottleNo" />
+	<PdaFillingTaskCreateView ref="viewRef" :station-code="stationCode" />
 </template>
 
 <script setup>
 import { nextTick, ref } from 'vue'
 import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
-import PdaFillingCreateView from '@/components/domain/pda/PdaFillingCreateView.vue'
+import PdaFillingTaskCreateView from '@/components/domain/pda/PdaFillingTaskCreateView.vue'
 import { restoreScannerProfile } from '@/services/pda/capture'
 
-const initialBottleNo = ref('')
+const stationCode = ref('')
 const viewRef = ref(null)
 
 onLoad((options) => {
-	initialBottleNo.value = String(options?.bottle_no || '')
+	stationCode.value = String(options?.station_code || options?.stationCode || '')
 })
 
 function activateSession() {
@@ -34,10 +34,10 @@ onShow(() => {
 })
 
 onHide(() => {
-	deactivateSession('pda-filling-hide')
+	deactivateSession('pda-filling-task-create-hide')
 })
 
 onUnload(() => {
-	deactivateSession('pda-filling-unload')
+	deactivateSession('pda-filling-task-create-unload')
 })
 </script>

@@ -29,10 +29,10 @@
 		<AppSection title="首版范围">
 			<view class="scope-list">
 				<text class="scope-item">查询钢瓶档案、流转记录、客户摘要</text>
-				<text class="scope-item">手工录入灌装单并回传灌装记录</text>
+				<text class="scope-item">按灌装工位扫码创建任务并回传灌装记录</text>
 				<text class="scope-item">手工录入瓶装 kg 销售单并回传销售记录</text>
 				<text class="scope-item">支持实体扫码键回填客户、配送员、车辆、瓶号；支持 BLE 吊秤称重回填净重</text>
-				<text class="scope-item">灌装重量支持手输或 C606+ 称重仪表取值；首版不做收款结算</text>
+				<text class="scope-item">灌装任务支持 C606+ 称重仪表取值和目标写入；首版不做收款结算</text>
 			</view>
 		</AppSection>
 
@@ -54,7 +54,7 @@ const actions = [
 	{ title: '钢瓶查询', desc: '看瓶号、流向、空瓶重、检验日期', url: '/pages/pda/bottle-query' },
 	{ title: '流转查询', desc: '按瓶号、类型、来源、日期看流转记录', url: '/pages/pda/movement-query' },
 	{ title: '客户查询', desc: '看余额、存瓶和默认单价', url: '/pages/pda/customer-query' },
-	{ title: '灌装录入', desc: '按瓶号和灌装重量回传灌装记录', url: '/pages/pda/filling-create' },
+	{ title: '灌装看板', desc: '按工位扫码创建任务、写入目标并确认完成', url: '/pages/pda/filling-board' },
 	{ title: '销售录入', desc: '按瓶装 kg 回传销售记录', url: '/pages/pda/sale-create' }
 ]
 

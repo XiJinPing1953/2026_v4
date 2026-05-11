@@ -35,10 +35,12 @@ function buildPaging(res, page, pageSize) {
 
 function normalizePdaBottleSummary(bottle = null) {
 	if (!bottle || typeof bottle !== 'object') return null
+	const suggestedFillWeightKg = Number(bottle.suggested_fill_weight_kg ?? bottle.suggestedFillWeightKg)
 	return {
 		_id: normalizeText(bottle._id || bottle.bottle_id),
 		bottle_no: normalizeBottleNo(bottle.bottle_no || bottle.bottleNo),
 		tare_weight: bottle.tare_weight == null ? null : Number(bottle.tare_weight),
+		suggested_fill_weight_kg: Number.isFinite(suggestedFillWeightKg) ? suggestedFillWeightKg : null,
 		status: normalizeText(bottle.status),
 		current_customer_id: normalizeText(bottle.current_customer_id),
 		current_customer_name: normalizeText(bottle.current_customer_name),
@@ -106,6 +108,6 @@ export function buildPdaMovementQueryUrl(bottleNo = '') {
 }
 
 export function buildPdaFillingCreateUrl(bottleNo = '') {
-	const normalized = normalizeBottleNo(bottleNo)
-	return normalized ? `/pages/pda/filling-create?bottle_no=${encodeURIComponent(normalized)}` : '/pages/pda/filling-create'
+	void bottleNo
+	return '/pages/pda/filling-board'
 }

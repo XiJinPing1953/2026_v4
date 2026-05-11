@@ -18,7 +18,9 @@ const BROADCAST_DEDUP_MS = 600
 const RECEIVER_CLASS_CANDIDATES = ['io.dcloud.feature.internal.reflect.BroadcastReceiver', 'io.dcloud.android.content.BroadcastReceiver']
 const INTENT_FILTER_CLASS = 'android.content.IntentFilter'
 const SCANNER_BROADCAST_OUTPUT_MODE = 0
-const SCANNER_PROFILE_READ_TIMEOUT_MS = 180
+const SCANNER_PROFILE_READ_TIMEOUT_MS = 900
+const SCANNER_OPEN_SETTLE_MS = 250
+const SCANNER_PROFILE_RETRY_DELAY_MS = 150
 
 const TYPE_KEYS = ['barcodeType', 'barcode_type', 'symbology', 'symName', 'codetype', 'com.ubx.datawedge.symbology_name']
 const TEXT_KEYS = [DEFAULT_BROADCAST_DATA_KEY, 'scannerdata', 'decode_data', 'data', 'com.ubx.datawedge.data_string']
@@ -56,7 +58,9 @@ const runtimeState = {
 		before: null,
 		applied: null,
 		restored: null,
-		lastError: ''
+		lastError: '',
+		openedBySession: false,
+		defaultedBroadcastProfile: false
 	},
 	lastPayload: '',
 	lastSymbology: '',
@@ -188,6 +192,25 @@ function normalizeProfileDiagnosticValue(value) {
 	}
 }
 
+function delay(ms = 0) {
+	return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)))
+}
+
+function normalizeOutputMode(value) {
+	const mode = Number(value)
+	if (mode === 0 || mode === 1) return mode
+	return null
+}
+
+function normalizeScannerPowerState(value) {
+	if (typeof value === 'boolean') return value
+	if (typeof value === 'number') return value > 0
+	const text = normalizeText(value).toLowerCase()
+	if (['true', '1', 'open', 'opened', 'on', 'yes'].includes(text)) return true
+	if (['false', '0', 'close', 'closed', 'off', 'no'].includes(text)) return false
+	return null
+}
+
 function pickParameterValue(value, key, index = 0) {
 	const normalized = normalizeProfileDiagnosticValue(value)
 	if (normalized == null) return null
@@ -204,6 +227,22 @@ function pickParameterValue(value, key, index = 0) {
 	return normalized
 }
 
+function summarizePluginResult(methodName, result = {}) {
+	if (result.ok) return ''
+	return normalizeText(result.msg) || `插件方法调用失败: ${methodName}`
+}
+
+function summarizeParameterAttempt(attempt = {}) {
+	const label = normalizeText(attempt.label) || String(attempt.key || '')
+	const prefix = label ? `${label}/${attempt.method}` : normalizeText(attempt.method)
+	if (!attempt.ok) return `${prefix}: ${attempt.msg || '读取失败'}`
+	return `${prefix}: 返回空`
+}
+
+function isBroadcastProfileMissing(snapshot = {}) {
+	return !normalizeText(snapshot?.broadcastAction) || !normalizeText(snapshot?.broadcastDataKey)
+}
+
 function callPluginSetter(methodName, args = []) {
 	const plugin = runtimeState.plugin
 	if (!plugin || typeof plugin[methodName] !== 'function') {
@@ -215,6 +254,13 @@ function callPluginSetter(methodName, args = []) {
 	}
 	try {
 		const ret = plugin[methodName](...args)
+		if (ret === false) {
+			return {
+				ok: false,
+				ret: false,
+				msg: `插件方法返回失败: ${methodName}`
+			}
+		}
 		return {
 			ok: true,
 			ret: normalizeProfileDiagnosticValue(ret)
@@ -289,34 +335,76 @@ function callPluginGetter(methodName, args = []) {
 	})
 }
 
-async function readScanParameterString(key) {
-	const scanRes = await callPluginGetter('getScanParameterString', [[key]])
-	if (scanRes.ok) return pickParameterValue(scanRes.value, key, 0)
-	const parameterRes = await callPluginGetter('getParameterString', [key])
-	if (parameterRes.ok) return pickParameterValue(parameterRes.value, key, 0)
-	return null
+async function readScanParameterString(key, label = '') {
+	const attempts = []
+	const readWith = async (methodName, args = []) => {
+		const res = await callPluginGetter(methodName, args)
+		const value = res.ok ? pickParameterValue(res.value, key, 0) : null
+		attempts.push({
+			label,
+			key,
+			method: methodName,
+			ok: Boolean(res.ok),
+			via: normalizeText(res.via),
+			timeout: Boolean(res.timeout),
+			skipped: Boolean(res.skipped),
+			value: normalizeProfileDiagnosticValue(value),
+			rawValue: res.ok ? normalizeProfileDiagnosticValue(res.value) : null,
+			msg: res.ok ? '' : summarizePluginResult(methodName, res)
+		})
+		return value
+	}
+	const scanValue = await readWith('getScanParameterString', [[key]])
+	if (normalizeText(scanValue)) {
+		return {
+			value: scanValue,
+			attempts,
+			readErrors: attempts.filter((item) => !item.ok).map((item) => summarizeParameterAttempt(item)).filter(Boolean)
+		}
+	}
+	const parameterValue = await readWith('getParameterString', [[key]])
+	const finalValue = normalizeText(parameterValue)
+	return {
+		value: parameterValue,
+		attempts,
+		readErrors: finalValue ? attempts.filter((item) => !item.ok).map((item) => summarizeParameterAttempt(item)).filter(Boolean) : attempts.map((item) => summarizeParameterAttempt(item)).filter(Boolean)
+	}
 }
 
 async function captureScannerProfileSnapshot(label = '') {
-	const [outputModeRes, triggerLockRes, scannerStateRes, actionValue, dataKeyValue] = await Promise.all([
+	const [outputModeRes, triggerLockRes, scannerStateRes, actionRead, dataKeyRead] = await Promise.all([
 		callPluginGetter('getOutputMode'),
 		callPluginGetter('getTriggerLockState'),
 		callPluginGetter('getScannerState'),
-		readScanParameterString(BROADCAST_ACTION_CONFIG_KEY),
-		readScanParameterString(BROADCAST_DATA_KEY_CONFIG_KEY)
+		readScanParameterString(BROADCAST_ACTION_CONFIG_KEY, 'broadcastAction'),
+		readScanParameterString(BROADCAST_DATA_KEY_CONFIG_KEY, 'broadcastDataKey')
 	])
+	const outputModeValue = outputModeRes.ok ? pickParameterValue(outputModeRes.value, 'outputMode') : null
+	const outputMode = normalizeOutputMode(outputModeValue)
+	const scannerStateValue = scannerStateRes.ok ? pickParameterValue(scannerStateRes.value, 'scannerState') : null
+	const readErrors = [outputModeRes, triggerLockRes, scannerStateRes]
+		.filter((item) => !item.ok && !item.skipped)
+		.map((item) => normalizeText(item.msg))
+		.filter(Boolean)
+	if (outputModeRes.ok && outputMode == null) {
+		readErrors.push(`getOutputMode: 返回无效值 ${normalizeText(outputModeValue) || 'null'}`)
+	}
+	if (!normalizeText(actionRead.value)) readErrors.push(...actionRead.readErrors)
+	if (!normalizeText(dataKeyRead.value)) readErrors.push(...dataKeyRead.readErrors)
 	return {
 		label,
 		at: Date.now(),
-		outputMode: outputModeRes.ok ? pickParameterValue(outputModeRes.value, 'outputMode') : null,
+		outputMode,
+		outputModeRaw: normalizeProfileDiagnosticValue(outputModeValue),
 		triggerLockState: triggerLockRes.ok ? pickParameterValue(triggerLockRes.value, 'triggerLockState') : null,
-		scannerState: scannerStateRes.ok ? pickParameterValue(scannerStateRes.value, 'scannerState') : null,
-		broadcastAction: normalizeText(actionValue),
-		broadcastDataKey: normalizeText(dataKeyValue),
-		readErrors: [outputModeRes, triggerLockRes, scannerStateRes]
-			.filter((item) => !item.ok && !item.skipped)
-			.map((item) => normalizeText(item.msg))
-			.filter(Boolean)
+		scannerState: normalizeScannerPowerState(scannerStateValue),
+		scannerStateRaw: normalizeProfileDiagnosticValue(scannerStateValue),
+		broadcastAction: normalizeText(actionRead.value),
+		broadcastDataKey: normalizeText(dataKeyRead.value),
+		defaultedBroadcastProfile: Boolean(runtimeState.scannerProfile.defaultedBroadcastProfile),
+		openedBySession: Boolean(runtimeState.scannerProfile.openedBySession),
+		readDiagnostics: [...actionRead.attempts, ...dataKeyRead.attempts],
+		readErrors
 	}
 }
 
@@ -504,7 +592,70 @@ function ensureRuntimeReady() {
 
 function releaseScanProfile() {
 	if (!runtimeState.pluginReady) return Promise.resolve({ ok: true, skipped: true })
+	if (!runtimeState.scannerProfile.active && !runtimeState.scannerProfile.openedBySession) return Promise.resolve({ ok: true, skipped: true })
 	return restoreScannerProfileSnapshot()
+}
+
+async function ensureScannerPoweredForSession() {
+	const stateRes = await callPluginGetter('getScannerState')
+	const stateValue = stateRes.ok ? normalizeScannerPowerState(pickParameterValue(stateRes.value, 'scannerState')) : null
+	if (stateValue === true) {
+		return { ok: true, alreadyOpen: true }
+	}
+	const openResult = callPluginSetter('openScanner')
+	if (!openResult.ok) {
+		runtimeState.scannerProfile.openedBySession = false
+		return {
+			ok: false,
+			msg: openResult.msg || '扫描头打开失败，请检查扫描头是否启用'
+		}
+	}
+	runtimeState.scannerProfile.openedBySession = true
+	await delay(SCANNER_OPEN_SETTLE_MS)
+	const verifyRes = await callPluginGetter('getScannerState')
+	let verifyState = verifyRes.ok ? normalizeScannerPowerState(pickParameterValue(verifyRes.value, 'scannerState')) : null
+	if (verifyState === false) {
+		await delay(SCANNER_PROFILE_RETRY_DELAY_MS)
+		const retryVerifyRes = await callPluginGetter('getScannerState')
+		verifyState = retryVerifyRes.ok ? normalizeScannerPowerState(pickParameterValue(retryVerifyRes.value, 'scannerState')) : verifyState
+	}
+	if (verifyState === false) {
+		return {
+			ok: false,
+			msg: '扫描头打开失败，请检查扫描头是否启用'
+		}
+	}
+	const warning = verifyRes.ok ? '' : summarizePluginResult('getScannerState', verifyRes)
+	return { ok: true, warning }
+}
+
+async function captureScannerProfileSnapshotWithRetry() {
+	let snapshot = await captureScannerProfileSnapshot('before-enter')
+	if (!isBroadcastProfileMissing(snapshot)) return snapshot
+	await delay(SCANNER_PROFILE_RETRY_DELAY_MS)
+	const retrySnapshot = await captureScannerProfileSnapshot('before-enter-retry')
+	if (!isBroadcastProfileMissing(retrySnapshot)) return retrySnapshot
+	return retrySnapshot || snapshot
+}
+
+function applyDefaultBroadcastProfileSnapshot(snapshot = {}) {
+	const broadcastAction = normalizeText(snapshot.broadcastAction)
+	const broadcastDataKey = normalizeText(snapshot.broadcastDataKey)
+	if (broadcastAction && broadcastDataKey) {
+		runtimeState.scannerProfile.defaultedBroadcastProfile = false
+		return snapshot
+	}
+	const readErrors = Array.isArray(snapshot.readErrors) ? snapshot.readErrors.slice() : []
+	if (!broadcastAction) readErrors.push(`broadcastAction: 读取为空，已使用默认值 ${DEFAULT_BROADCAST_ACTION}`)
+	if (!broadcastDataKey) readErrors.push(`broadcastDataKey: 读取为空，已使用默认值 ${DEFAULT_BROADCAST_DATA_KEY}`)
+	runtimeState.scannerProfile.defaultedBroadcastProfile = true
+	return {
+		...snapshot,
+		broadcastAction: broadcastAction || DEFAULT_BROADCAST_ACTION,
+		broadcastDataKey: broadcastDataKey || DEFAULT_BROADCAST_DATA_KEY,
+		defaultedBroadcastProfile: true,
+		readErrors
+	}
 }
 
 async function applyScannerProfileSnapshot() {
@@ -512,10 +663,16 @@ async function applyScannerProfileSnapshot() {
 		return { ok: false, msg: '当前构建未集成 TH-PlatformSDK 插件，请使用包含该插件的自定义基座' }
 	}
 	if (!runtimeState.scannerProfile.active) {
-		runtimeState.scannerProfile.before = await captureScannerProfileSnapshot('before-enter')
+		runtimeState.scannerProfile.defaultedBroadcastProfile = false
+		const powerResult = await ensureScannerPoweredForSession()
+		if (!powerResult.ok) {
+			runtimeState.scannerProfile.lastError = powerResult.msg || ''
+			return { ok: false, msg: powerResult.msg || '扫描头打开失败' }
+		}
+		runtimeState.scannerProfile.before = applyDefaultBroadcastProfileSnapshot(await captureScannerProfileSnapshotWithRetry())
 	}
 	const before = runtimeState.scannerProfile.before
-	if (!Number.isFinite(Number(before?.outputMode))) {
+	if (normalizeOutputMode(before?.outputMode) == null) {
 		runtimeState.scannerProfile.lastError = '无法读取扫描头输出模式，已取消接管'
 		return { ok: false, msg: '无法读取扫描头输出模式，已取消接管以避免破坏原生配置' }
 	}
@@ -536,6 +693,7 @@ async function applyScannerProfileSnapshot() {
 async function restoreScannerProfileSnapshot() {
 	if (!runtimeState.pluginReady) return { ok: true, skipped: true }
 	const before = runtimeState.scannerProfile.before
+	const openedBySession = Boolean(runtimeState.scannerProfile.openedBySession)
 	let restoreError = ''
 	if (before?.broadcastAction || before?.broadcastDataKey) {
 		const action = before.broadcastAction || runtimeState.broadcastAction
@@ -547,13 +705,24 @@ async function restoreScannerProfileSnapshot() {
 		])
 		if (!restoreBroadcast.ok) restoreError = restoreBroadcast.msg || restoreError
 	}
-	const outputMode = Number(before?.outputMode)
-	if (Number.isFinite(outputMode)) {
+	const outputMode = normalizeOutputMode(before?.outputMode)
+	if (outputMode != null) {
 		const restoreOutput = callPluginSetter('switchOutputMode', [outputMode])
 		if (!restoreOutput.ok) restoreError = restoreOutput.msg || restoreError
 	}
 	runtimeState.scannerProfile.restored = await captureScannerProfileSnapshot('after-restore')
+	if (openedBySession) {
+		const closeResult = callPluginSetter('closeScanner')
+		if (!closeResult.ok) restoreError = closeResult.msg || restoreError
+		runtimeState.scannerProfile.restored = {
+			...runtimeState.scannerProfile.restored,
+			closedBySession: Boolean(closeResult.ok),
+			closeError: closeResult.ok ? '' : normalizeText(closeResult.msg)
+		}
+	}
 	runtimeState.scannerProfile.active = false
+	runtimeState.scannerProfile.openedBySession = false
+	runtimeState.scannerProfile.defaultedBroadcastProfile = false
 	runtimeState.scannerProfile.lastError = restoreError
 	if (restoreError) return { ok: false, msg: restoreError }
 	return { ok: true }
@@ -733,7 +902,9 @@ export function getScannerState() {
 			before: runtimeState.scannerProfile.before,
 			applied: runtimeState.scannerProfile.applied,
 			restored: runtimeState.scannerProfile.restored,
-			lastError: normalizeText(runtimeState.scannerProfile.lastError)
+			lastError: normalizeText(runtimeState.scannerProfile.lastError),
+			openedBySession: Boolean(runtimeState.scannerProfile.openedBySession),
+			defaultedBroadcastProfile: Boolean(runtimeState.scannerProfile.defaultedBroadcastProfile)
 		},
 		captureDiagnostic: {
 			...runtimeState.diagnostic
@@ -761,7 +932,9 @@ export async function teardownPdaCapture() {
 		before: null,
 		applied: null,
 		restored: null,
-		lastError: ''
+		lastError: '',
+		openedBySession: false,
+		defaultedBroadcastProfile: false
 	}
 	runtimeState.lastDelivered = {
 		target: '',

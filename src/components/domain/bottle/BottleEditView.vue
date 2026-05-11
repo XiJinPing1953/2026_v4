@@ -70,6 +70,9 @@
 							<AppInput v-model="form.tare_weight" label="标准皮重（kg）" placeholder="0.00" size="sm" />
 						</view>
 						<view class="form-item">
+							<AppInput v-model="form.suggested_fill_weight_kg" label="建议目标（kg）" placeholder="例如：20.0" size="sm" />
+						</view>
+						<view class="form-item">
 							<AppInput v-model="form.current_customer_name" label="持有客户" placeholder="当前所在客户名称（选填）" prefix-icon="user" size="sm" />
 						</view>
 						<view class="form-item">
@@ -224,6 +227,7 @@ const form = reactive({
 	manufacture_date: '',
 	scrap_due_date: '',
 	tare_weight: '',
+	suggested_fill_weight_kg: '',
 	status: '',
 	current_customer_name: '',
 	bottle_check_date: '',
@@ -421,6 +425,7 @@ async function loadRecord(id) {
 	form.manufacture_date = doc.manufacture_date || ''
 	form.scrap_due_date = doc.scrap_due_date || ''
 	form.tare_weight = toDisplayNumber(doc.tare_weight)
+	form.suggested_fill_weight_kg = toDisplayNumber(doc.suggested_fill_weight_kg)
 	form.status = doc.status || ''
 	form.current_customer_name = doc.current_customer_name || ''
 	form.bottle_check_date = doc.bottle_check_date || ''
@@ -471,6 +476,8 @@ async function onSubmit() {
 
 	const tareWeight = toNullableNumber(form.tare_weight)
 	if (!assert(typeof tareWeight === 'number' && tareWeight >= 0, '标准皮重必填且必须为非负数字')) return
+	const suggestedFillWeightKg = toNullableNumber(form.suggested_fill_weight_kg)
+	if (normalizeString(form.suggested_fill_weight_kg) && !assert(typeof suggestedFillWeightKg === 'number' && suggestedFillWeightKg > 0, '建议目标必须为大于 0 的数字')) return
 
 	const volume = toNullableNumber(form.volume_l)
 	if (normalizeString(form.volume_l) && !assert(typeof volume === 'number' && volume > 0, '容积必须为大于 0 的数字')) return
@@ -520,6 +527,7 @@ async function onSubmit() {
 			manufacture_date: normalizeString(form.manufacture_date),
 			scrap_due_date: normalizeString(form.scrap_due_date),
 			tare_weight: tareWeight,
+			suggested_fill_weight_kg: suggestedFillWeightKg,
 			status: form.status,
 			current_customer_name: normalizeString(form.current_customer_name),
 			bottle_check_date: normalizeString(form.bottle_check_date),

@@ -16,6 +16,11 @@
   - 毛重整数：浮点读取失败时回退 `FC04 readInputRegisters(0x0002, 2)`
   - 动态状态：`FC02 readDiscreteInputs(0x0002, 1)`
   - 配置块：`FC04 readInputRegisters(0x001C, 11)`，读取分度值、小数位、重量单位
+- 写目标：
+  - 网关轮询 `crm-pda-filling.claimTargetWriteV1`，领取本站 `write_pending` 任务
+  - 使用 `FC16 writeMultipleRegisters(0x00CA, 2)` 写 `定量1`
+  - 写入值为任务的目标净充重量 `target_net_weight`，32 位 IEEE754、高 word 在前
+  - 写入后用 `FC03 readHoldingRegisters(0x00CA, 2)` 读回校验，并回写 `finishTargetWriteV1`
 - 网关使用原始 RTU 读包，不使用通用库解析 `FC02`；C606+ 实测 `FC02` 回包会在 CRC 前多 1 个填充字节，通用库会误判 CRC error。
 - 解析规则：
   - 浮点毛重按 32 位 IEEE754、高 word 在前解析，直接按仪表单位换算 kg
@@ -79,6 +84,7 @@ npm run mock:dry
 ## 上云节流
 
 - 本地轮询：`200ms`
+- 目标写入任务轮询：默认 `1000ms`，可用 `SCALE_TARGET_WRITE_POLL_MS` 调整
 - 串口读超时：默认 `1500ms`，可用 `SCALE_TIMEOUT_MS` 调整
 - 串口打开后静默等待：默认 `800ms`，可用 `SCALE_OPEN_SETTLE_MS` 调整
 - RTU 帧间隔：默认 `100ms`，单请求默认失败重试 `1` 次

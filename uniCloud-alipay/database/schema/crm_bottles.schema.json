@@ -45,6 +45,7 @@
     "safety_valve_next_check_date": { "bsonType": "string" },
     "safety_valve_cycle_months": { "bsonType": "number" },
     "tare_weight": { "bsonType": ["number", "null"] },
+    "suggested_fill_weight_kg": { "bsonType": ["number", "null"] },
     "status": {
       "bsonType": "string",
       "enum": ["unknown", "in_station", "at_customer", "scrapped", "lost"]

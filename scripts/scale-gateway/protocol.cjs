@@ -1,6 +1,7 @@
 'use strict'
 
 const DEFAULT_SCALE_CODE = 'filling_scale_main'
+const C606_TARGET_QUANT1_ADDRESS = 0x00ca
 
 function toWord(value) {
 	const num = Number(value)
@@ -41,6 +42,14 @@ function decodeFloat32HighFirst(registers = []) {
 	const value = buffer.readFloatBE(0)
 	if (!Number.isFinite(value)) throw new Error('C606+ 浮点毛重无效')
 	return value
+}
+
+function encodeFloat32HighFirstRegisters(value) {
+	const num = Number(value)
+	if (!Number.isFinite(num)) throw new Error('C606+ 目标重量不是有效数字')
+	const buffer = Buffer.alloc(4)
+	buffer.writeFloatBE(num, 0)
+	return [buffer.readUInt16BE(0), buffer.readUInt16BE(2)]
 }
 
 function convertUnitToKg(scaledValue, unitCode) {
@@ -167,8 +176,10 @@ function getMockFrame(index = 0) {
 
 module.exports = {
 	DEFAULT_SCALE_CODE,
+	C606_TARGET_QUANT1_ADDRESS,
 	toSignedInt32HighFirst,
 	decodeFloat32HighFirst,
+	encodeFloat32HighFirstRegisters,
 	convertUnitToKg,
 	decodeC606ConfigRegisters,
 	decodeC606GrossIntRegisters,

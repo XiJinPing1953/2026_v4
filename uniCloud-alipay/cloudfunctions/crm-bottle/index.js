@@ -50,7 +50,8 @@ const DUPLICATE_MERGE_FIELDS = [
 	'safety_valve_check_date',
 	'safety_valve_next_check_date',
 	'safety_valve_cycle_months',
-	'tare_weight'
+	'tare_weight',
+	'suggested_fill_weight_kg'
 ]
 const PAGE_ACTION_RULES = {
 	listV1: [
@@ -327,6 +328,9 @@ function normalizeBottlePayload(data = {}, { forUpdate = false } = {}) {
 	}
 
 	if (!forUpdate || hasOwn(data, 'tare_weight')) patch.tare_weight = toNullableNumber(data.tare_weight)
+	if (!forUpdate || hasOwn(data, 'suggested_fill_weight_kg')) {
+		patch.suggested_fill_weight_kg = toNullableNumber(data.suggested_fill_weight_kg)
+	}
 
 	const currentCustomerIdRaw = data.current_customer_id
 	if (!forUpdate || currentCustomerIdRaw != null) {
@@ -350,6 +354,9 @@ function validateBottlePayload(doc = {}) {
 	if (!doc.bottle_no) return '单位内编号必填'
 	if (!(typeof doc.tare_weight === 'number' && Number.isFinite(doc.tare_weight) && doc.tare_weight >= 0)) {
 		return '标准皮重必填且必须为非负数字'
+	}
+	if (doc.suggested_fill_weight_kg != null && !(typeof doc.suggested_fill_weight_kg === 'number' && Number.isFinite(doc.suggested_fill_weight_kg) && doc.suggested_fill_weight_kg > 0)) {
+		return '建议目标必须为大于 0 的数字'
 	}
 	if (!doc.status) return '当前流向必填'
 
@@ -432,6 +439,7 @@ async function resolveUniqueBottleByField(field, rawValue, { label, normalizer, 
 			_id: true,
 			bottle_no: true,
 			tare_weight: true,
+			suggested_fill_weight_kg: true,
 			status: true,
 			current_customer_id: true,
 			current_customer_name: true,
@@ -461,6 +469,7 @@ async function resolveUniqueBottleByField(field, rawValue, { label, normalizer, 
 				_id: list[0]._id,
 				bottle_no: list[0].bottle_no,
 				tare_weight: list[0].tare_weight,
+				suggested_fill_weight_kg: list[0].suggested_fill_weight_kg == null ? null : list[0].suggested_fill_weight_kg,
 				status: list[0].status,
 				current_customer_id: list[0].current_customer_id || null,
 				current_customer_name: list[0].current_customer_name || '',
