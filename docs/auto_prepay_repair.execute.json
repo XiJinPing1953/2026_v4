@@ -1,0 +1,525 @@
+{
+  "started_at": "2026-05-12T13:04:01.282Z",
+  "space_id": "env-00jxuffegf2n",
+  "execute": true,
+  "max_rows": 100000,
+  "result": {
+    "code": 0,
+    "msg": "自动预付款分配修复完成",
+    "data": {
+      "execute": true,
+      "truncated": false,
+      "total_rows": 197,
+      "success_count": 197,
+      "skipped_count": 0,
+      "error_count": 0,
+      "affected_customer_count": 48,
+      "rebuilt_customer_count": 48,
+      "rollback_amount": 194527.387,
+      "sale_rollback_amount": 194485.9,
+      "flow_rollback_amount": 41.489,
+      "results": [
+        {
+          "ok": true,
+          "allocation_id": "69cb823e5c28c95aacd9c9b2",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261f3",
+          "receipt_id": "69cb81fe9eef0ad07fca7bfb",
+          "target_type": "sale",
+          "target_id": "69bbb2c136bc4bac6fd4c716",
+          "amount": 81
+        },
+        {
+          "ok": true,
+          "allocation_id": "69cb87575cee11b05e28a01f",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261f3",
+          "receipt_id": "69cb87575cee11b05e28a01a",
+          "target_type": "sale",
+          "target_id": "69cb6ac35c28c95aacd7e942",
+          "amount": 9
+        },
+        {
+          "ok": true,
+          "allocation_id": "69cb8f6a47db6ed1b76e6efe",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261e3",
+          "receipt_id": "69cb8d7459063e84c171e725",
+          "target_type": "sale",
+          "target_id": "69bbb2c189d8371762438b58",
+          "amount": 1
+        },
+        {
+          "ok": true,
+          "allocation_id": "69cf1a44ea3400db0351370b",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261eb",
+          "receipt_id": "69cf1a1768be701c9cbe4b33",
+          "target_type": "sale",
+          "target_id": "69bbb2c336bc4bac6fd4c781",
+          "amount": 144
+        },
+        {
+          "ok": true,
+          "allocation_id": "69cf22ce5c28c95aac24d819",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261db",
+          "receipt_id": "69cf22b1bf8f8fb98c5d42e0",
+          "target_type": "sale",
+          "target_id": "69bbb2c189d8371762438b65",
+          "amount": 126
+        },
+        {
+          "ok": true,
+          "allocation_id": "69cf242391ffaeab57f83a4d",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261ec",
+          "receipt_id": "69cf242391ffaeab57f83a4c",
+          "target_type": "sale",
+          "target_id": "69840c799755e32cc90de9ae",
+          "amount": 18
+        },
+        {
+          "ok": true,
+          "allocation_id": "69d4a1af5c28c95aac9043ad",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261b8",
+          "receipt_id": "69d49d03d51308f649124a4b",
+          "target_type": "sale",
+          "target_id": "697d984699c624286a300cae",
+          "amount": 70
+        },
+        {
+          "ok": true,
+          "allocation_id": "69d62edf1355cee432f056a8",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e26212",
+          "receipt_id": "69d62df253f8a6e59401f779",
+          "target_type": "sale",
+          "target_id": "69bbb2bf89d8371762438b2d",
+          "amount": 252
+        },
+        {
+          "ok": true,
+          "allocation_id": "69d9eb7a1355cee4324217f9",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261b3",
+          "receipt_id": "69d9eb5787d884262dc1209b",
+          "target_type": "sale",
+          "target_id": "69857d9f1c90b6e94676dc39",
+          "amount": 70
+        },
+        {
+          "ok": true,
+          "allocation_id": "69dc67df1c32297bd1dd5eec",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e26216",
+          "receipt_id": "69dc67add40f3e2a71e1a97c",
+          "target_type": "sale",
+          "target_id": "69d88eb887d884262daa5b95",
+          "amount": 20
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e027ea53f8a6e594b7ca67",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261ef",
+          "receipt_id": "69def35953f8a6e594a04032",
+          "target_type": "sale",
+          "target_id": "69e027e91c32297bd11d60a2",
+          "amount": 189
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e042c873e79fac596ac6ac",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261c0",
+          "receipt_id": "69def15b6d90f331b54d24c4",
+          "target_type": "sale",
+          "target_id": "69e042c6a31790a4903b52f9",
+          "amount": 4940
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e08d23c0f96c63aae72481",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261e0",
+          "receipt_id": "69d6faadac38dce0365b4288",
+          "target_type": "sale",
+          "target_id": "69e08d22fec79e230ca2c068",
+          "amount": 1538.5
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e19b72c0f96c63aafabc71",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e26216",
+          "receipt_id": "69defe23ac38dce036e04c75",
+          "target_type": "sale",
+          "target_id": "69e19b7159b0dcabb65d7b8a",
+          "amount": 1210
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e1a77959b0dcabb65e698a",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "69ce05c55c28c95aac115d6a",
+          "receipt_id": "69def1e8d40f3e2a71098677",
+          "target_type": "sale",
+          "target_id": "69e1a7789a7bcc465c35d23e",
+          "amount": 1106
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e1ca3dfec79e230cb740d0",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261cc",
+          "receipt_id": "69df2d7b1355cee432a84fe4",
+          "target_type": "sale",
+          "target_id": "69e1ca3cdacf6f4cb5f001e2",
+          "amount": 777
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e1d32b9b7b79e43c6be298",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261ca",
+          "receipt_id": "69df2d9673e79fac595634cf",
+          "target_type": "sale",
+          "target_id": "69e1d32ade35b6f5aa1b083a",
+          "amount": 1770
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e1d3b017a16ea1c85e674b",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "69d73d2087d884262d90eb9f",
+          "receipt_id": "69df4bac1355cee432aaab65",
+          "target_type": "sale",
+          "target_id": "69e1d3b0dacf6f4cb5f0c82f",
+          "amount": 2485
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e31cacdacf6f4cb504c708",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "695a2dc92eea654f49c75041",
+          "receipt_id": "69def1bcac38dce036df893d",
+          "target_type": "sale",
+          "target_id": "69e31cace845f315166ffb6c",
+          "amount": 854
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e32dd8dacf6f4cb50621eb",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261c5",
+          "receipt_id": "69df2dd553f8a6e594a6e0ff",
+          "target_type": "sale",
+          "target_id": "69e32dd8dacf6f4cb50621e0",
+          "amount": 483
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e571f8d3e20ed34f08fc7e",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "69d73d2087d884262d90eb9f",
+          "receipt_id": "69df4bac1355cee432aaab65",
+          "target_type": "sale",
+          "target_id": "69e571f71e30f614fd8b482c",
+          "amount": 465
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e57ed79b7b79e43cb1a371",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261c5",
+          "receipt_id": "69df2dd553f8a6e594a6e0ff",
+          "target_type": "sale",
+          "target_id": "69e57ed6d3e20ed34f0a9292",
+          "amount": 413
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e5bbece845f315169d3491",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261d8",
+          "receipt_id": "69def2559e27b04a448f633b",
+          "target_type": "sale",
+          "target_id": "69e5bbec59b0dcabb6aad93b",
+          "amount": 585
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e6ccdcde35b6f5aa7b97be",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261e0",
+          "receipt_id": "69d6faadac38dce0365b4288",
+          "target_type": "sale",
+          "target_id": "69e6ccdc9b7b79e43ccacf9e",
+          "amount": 1538.5
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e6d9ff1e30f614fda9b50b",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "695a2dc92eea654f49c75041",
+          "receipt_id": "69def1bcac38dce036df893d",
+          "target_type": "sale",
+          "target_id": "69e6d9ffa46e0ea4e1fe8a96",
+          "amount": 7
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e6dfeefec79e230c1d0c92",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261dc",
+          "receipt_id": "69def7b7a31790a49020590c",
+          "target_type": "sale",
+          "target_id": "69e6dfeee845f31516b0a395",
+          "amount": 552.5
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e70fb0c0f96c63aa605147",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261cb",
+          "receipt_id": "69df2d0b1c32297bd110b6e5",
+          "target_type": "sale",
+          "target_id": "69e70fb09a7bcc465c9825b9",
+          "amount": 819
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e72073fec79e230c24e023",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e26201",
+          "receipt_id": "69def2149e27b04a448f5e21",
+          "target_type": "sale",
+          "target_id": "69e7207359b0dcabb6c02f00",
+          "amount": 369
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e737329a7bcc465c9ad6a0",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261bd",
+          "receipt_id": "69def2db80cfed4295d1ec19",
+          "target_type": "sale",
+          "target_id": "69e737319a7bcc465c9ad675",
+          "amount": 2114
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e9bb8b17a16ea1c8f9c199",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "69d73d2087d884262d90eb9f",
+          "receipt_id": "69e9b9ffd3e20ed34f580d4a",
+          "target_type": "sale",
+          "target_id": "69e9bb8a9a7bcc465cc8b38a",
+          "amount": 2842
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e9bcdf17a16ea1c8f9cdba",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261b1",
+          "receipt_id": "69e9b8dee845f31516e76b18",
+          "target_type": "sale",
+          "target_id": "69e9bcdec12a77f53f7bb12d",
+          "amount": 1141
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e9c562a46e0ea4e141941d",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261c6",
+          "receipt_id": "69e9bb46d3e20ed34f581b3e",
+          "target_type": "sale",
+          "target_id": "69e9c5621e30f614fde67356",
+          "amount": 2324
+        },
+        {
+          "ok": true,
+          "allocation_id": "69e9d1329b7b79e43c07ecee",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e26217",
+          "receipt_id": "69e9b9701e30f614fde5b7f3",
+          "target_type": "sale",
+          "target_id": "69e9d132a46e0ea4e1424388",
+          "amount": 1267
+        },
+        {
+          "ok": true,
+          "allocation_id": "69eab8d6fec79e230c6d5706",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e26203",
+          "receipt_id": "69e9b87ffec79e230c588632",
+          "target_type": "sale",
+          "target_id": "69e96ee59a7bcc465cc1a80f",
+          "amount": 1206
+        },
+        {
+          "ok": true,
+          "allocation_id": "69eacfc7e845f31516fcfe43",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "695dfea1652341e27a1fef24",
+          "receipt_id": "69e0347b87d884262d3d2d44",
+          "target_type": "sale",
+          "target_id": "69eacfc7e845f31516fcfe36",
+          "amount": 1410
+        },
+        {
+          "ok": true,
+          "allocation_id": "69eadb0cde35b6f5aac0dfa4",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261c6",
+          "receipt_id": "69e9bb46d3e20ed34f581b3e",
+          "target_type": "sale",
+          "target_id": "69eadb0ba46e0ea4e154c452",
+          "amount": 2625
+        },
+        {
+          "ok": true,
+          "allocation_id": "69eb02af59b0dcabb6135a02",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261b1",
+          "receipt_id": "69e9b8dee845f31516e76b18",
+          "target_type": "sale",
+          "target_id": "69eb02affec79e230c73fa07",
+          "amount": 1113
+        },
+        {
+          "ok": true,
+          "allocation_id": "69eb1a0ce845f315160116be",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261c5",
+          "receipt_id": "69df2dd553f8a6e594a6e0ff",
+          "target_type": "sale",
+          "target_id": "69eb1a0cc12a77f53f9ab1fc",
+          "amount": 91
+        },
+        {
+          "ok": true,
+          "allocation_id": "69eb1a0ce845f315160116bf",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261c5",
+          "receipt_id": "69eb19ddd3e20ed34f72685e",
+          "target_type": "sale",
+          "target_id": "69eb1a0cc12a77f53f9ab1fc",
+          "amount": 707
+        },
+        {
+          "ok": true,
+          "allocation_id": "69eb22ab9a1e6c9ecca4458a",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261e0",
+          "receipt_id": "69d6faadac38dce0365b4288",
+          "target_type": "sale",
+          "target_id": "69eb22aaa46e0ea4e1587c8d",
+          "amount": 1538.5
+        },
+        {
+          "ok": true,
+          "allocation_id": "69eb3087c0f96c63aaa826c3",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261c0",
+          "receipt_id": "69eb19179a7bcc465ce5750b",
+          "target_type": "sale",
+          "target_id": "69eabe228e64032a13eaf8f9",
+          "amount": 3978.6
+        },
+        {
+          "ok": true,
+          "allocation_id": "69eb3098dacf6f4cb591f982",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261c0",
+          "receipt_id": "69eb19179a7bcc465ce5750b",
+          "target_type": "sale",
+          "target_id": "69eabf228e64032a13eb189f",
+          "amount": 991.8
+        },
+        {
+          "ok": true,
+          "allocation_id": "69ec2405de35b6f5aadbabd9",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "69c9bf769eef0ad07fa69b2c",
+          "receipt_id": "69ec23619b7b79e43c35d77b",
+          "target_type": "sale",
+          "target_id": "69ec2405f64c736626381589",
+          "amount": 487
+        },
+        {
+          "ok": true,
+          "allocation_id": "69ec290d17a16ea1c8239c05",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261bb",
+          "receipt_id": "69e9b8fd17a16ea1c8f9ab37",
+          "target_type": "sale",
+          "target_id": "69ec290cfec79e230c8b24b8",
+          "amount": 427
+        },
+        {
+          "ok": true,
+          "allocation_id": "69ec31b759b0dcabb62dc170",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261ea",
+          "receipt_id": "69eb1a58c0f96c63aaa6b9a5",
+          "target_type": "sale",
+          "target_id": "69ec31b7c12a77f53faf04d0",
+          "amount": 513
+        },
+        {
+          "ok": true,
+          "allocation_id": "69ec54da9a7bcc465cf772b4",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261ca",
+          "receipt_id": "69ec351ea46e0ea4e168230e",
+          "target_type": "sale",
+          "target_id": "69ec54dae845f315161a2183",
+          "amount": 2490
+        },
+        {
+          "ok": true,
+          "allocation_id": "69ec6280e845f315161b5436",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261c6",
+          "receipt_id": "69e9bb46d3e20ed34f581b3e",
+          "target_type": "sale",
+          "target_id": "69ec628017a16ea1c8264474",
+          "amount": 2044
+        },
+        {
+          "ok": true,
+          "allocation_id": "69ec650259b0dcabb63212f9",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261c0",
+          "receipt_id": "69eb19179a7bcc465ce5750b",
+          "target_type": "sale",
+          "target_id": "69e6c7209b7b79e43cca4d44",
+          "amount": 1671.6
+        },
+        {
+          "ok": true,
+          "allocation_id": "69ec6b30e845f315161c21bc",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e26217",
+          "receipt_id": "69e9b9701e30f614fde5b7f3",
+          "target_type": "sale",
+          "target_id": "69ec6b2f9a7bcc465cf88d7c",
+          "amount": 651
+        },
+        {
+          "ok": true,
+          "allocation_id": "69ec6bb459b0dcabb632afdd",
+          "source_type": "sale_auto_prepay",
+          "customer_id": "694045c0adf6dbd796e261b1",
+          "receipt_id": "69e9b8dee845f31516e76b18",
+          "target_type": "sale",
+          "target_id": "69ec6bb4fec79e230c9031ee",
+          "amount": 1043
+        }
+      ]
+    }
+  }
+}

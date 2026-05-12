@@ -27,6 +27,8 @@ const AUTO_OFFSET_NOTE_PREFIX = '【自动冲抵】'
 const CASHIER_RECEIPT_SOURCE_TYPE = 'cashier_intake'
 const CASHIER_RECEIPT_SOURCE_TYPES = [CASHIER_RECEIPT_SOURCE_TYPE]
 const CASHIER_TARGET_PREVIEW_LIMIT = 3
+const AUTO_PREPAY_ALLOCATION_SOURCE_TYPES = ['sale_auto_prepay', 'flow_auto_prepay']
+const AUTO_PREPAY_REPAIR_CONFIRM_TEXT = 'ROLLBACK_AUTO_PREPAY_ALLOCATIONS'
 const PAGE_ACTION_RULES = {
 	previewAllocationV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	createReceiptV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
@@ -40,6 +42,7 @@ const PAGE_ACTION_RULES = {
 	confirmAllocationV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	createPrepayEntryV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	repairReceiptAllocationV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	repairAutoPrepayAllocationsV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	repairOffsetCreditsV1: [
 		{ pagePath: '/pages/customer/statement', action: 'update' },
 		{ pagePath: '/pages/sale/edit', action: 'create' },
@@ -79,7 +82,7 @@ const PAGE_ACTION_RULES = {
 	getCustomerStatementV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	listCustomerStatementRowsV1: [{ pagePath: '/pages/customer/statement', action: 'view' }]
 }
-const SUPERADMIN_ONLY_ACTIONS = ['rebuildOpeningBalancesV1']
+const SUPERADMIN_ONLY_ACTIONS = ['rebuildOpeningBalancesV1', 'repairAutoPrepayAllocationsV1']
 
 async function getUserByToken(token) {
 	if (!token) return null
@@ -5661,133 +5664,6 @@ async function autoApplyPrepayToFlowSettlementV1(user, data, requestId) {
 	if (!customer) return { code: 400, msg: '客户不存在' }
 
 	const snapshot = computeFlowSettlementSnapshot(flowDoc)
-	if (snapshot.outstanding <= 0) {
-		const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, snapshot.paid_total, 3)
-		if (normalizeString(flowDoc.payment_status) !== nextStatus) {
-			await flowSettlements.doc(flowSettlementId).update({
-				payment_status: nextStatus,
-				updated_at: Date.now()
-			})
-		}
-		const balancesNoop = await rebuildCustomerBalances(customerId)
-		return {
-			code: 0,
-			msg: '无需抵扣',
-			data: {
-				flow_settlement_id: flowSettlementId,
-				applied_amount: 0,
-				amount_received: snapshot.amount_received,
-				payment_status: nextStatus,
-				outstanding: snapshot.outstanding,
-				balances: balancesNoop
-			}
-		}
-	}
-
-	const receiptRes = await receipts
-		.where({
-			customer_id: customerId,
-			status: 'posted',
-			unallocated_amount: dbCmd.gt(0)
-		})
-		.orderBy('biz_date', 'asc')
-		.orderBy('created_at', 'asc')
-		.limit(2000)
-		.get()
-	const receiptRows = Array.isArray(receiptRes.data) ? receiptRes.data : []
-	if (!receiptRows.length) {
-		const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, snapshot.paid_total, 3)
-		if (normalizeString(flowDoc.payment_status) !== nextStatus) {
-			await flowSettlements.doc(flowSettlementId).update({
-				payment_status: nextStatus,
-				updated_at: Date.now()
-			})
-		}
-		const balancesNoop = await rebuildCustomerBalances(customerId)
-		return {
-			code: 0,
-			msg: '无可用预付款',
-			data: {
-				flow_settlement_id: flowSettlementId,
-				applied_amount: 0,
-				amount_received: snapshot.amount_received,
-				payment_status: nextStatus,
-				outstanding: snapshot.outstanding,
-				balances: balancesNoop
-			}
-		}
-	}
-
-	let remaining = snapshot.outstanding
-	let appliedTotal = 0
-	let seq = 1
-	const targetTitle = `流量结算 ${normalizeString(flowDoc.biz_date)} / ${flowSettlementId.slice(-6)}`
-	for (const receiptRow of receiptRows) {
-		if (remaining <= 0) break
-		const receiptId = normalizeId(receiptRow && receiptRow._id)
-		if (!receiptId) continue
-		const available = fix3(toNumber(receiptRow && receiptRow.unallocated_amount, 0))
-		if (!(available > 0)) continue
-		const amountUse = fix3(Math.min(available, remaining))
-		if (!(amountUse > 0)) continue
-
-		await receipts.doc(receiptId).update({
-			allocated_amount: fix3(toNumber(receiptRow && receiptRow.allocated_amount, 0) + amountUse),
-			unallocated_amount: fix3(available - amountUse),
-			updated_at: Date.now()
-		})
-		const receiptSourceType = normalizeString(receiptRow && receiptRow.source_type)
-		const receiptEntryKind = normalizeEntryKind(
-			receiptRow && receiptRow.entry_kind,
-			receiptSourceType.includes('offset') ? 'offset_credit' : 'prepay'
-		)
-		const allocNote =
-			receiptEntryKind === 'offset_credit' || receiptSourceType.startsWith('sale_offset_credit')
-				? `自动冲抵来源 ${normalizeString(receiptRow && receiptRow.biz_date) || '-'}`
-				: '自动预付款抵扣'
-
-		await allocations.add({
-			receipt_id: receiptId,
-			customer_id: customerId,
-			customer_name: normalizeString(customer && customer.name),
-			sale_id: flowSettlementId,
-			sale_date: normalizeString(flowDoc && flowDoc.biz_date),
-			flow_settlement_id: flowSettlementId,
-			target_type: 'flow_settlement',
-			target_id: flowSettlementId,
-			target_title: targetTitle,
-			biz_date: normalizeBizDate(flowDoc && flowDoc.biz_date, Date.now()),
-			allocate_kind: 'receipt',
-			allocate_amount: amountUse,
-			seq,
-			note: allocNote,
-			receipt_source_type: receiptSourceType,
-			receipt_entry_kind: receiptEntryKind,
-			receipt_biz_date: normalizeString(receiptRow && receiptRow.biz_date),
-			source_type: 'flow_auto_prepay',
-			source_id: flowSettlementId,
-			request_id: requestId,
-			created_at: Date.now(),
-			created_by: normalizeId(user && user._id) || null,
-			created_by_name: normalizeString(user && user.username)
-		})
-		seq += 1
-		appliedTotal = fix3(appliedTotal + amountUse)
-		remaining = fix3(remaining - amountUse)
-	}
-
-	const nextAmountReceived = fix3(snapshot.amount_received + appliedTotal)
-	const nextStatus = resolvePaymentStatusByAmount(
-		snapshot.should_receive,
-		fix3(nextAmountReceived + snapshot.receipt_rounding_amount),
-		3
-	)
-	await flowSettlements.doc(flowSettlementId).update({
-		amount_received: nextAmountReceived,
-		payment_status: nextStatus,
-		updated_at: Date.now()
-	})
-
 	const balances = await rebuildCustomerBalances(customerId)
 	await recordLog(
 		user,
@@ -5795,20 +5671,22 @@ async function autoApplyPrepayToFlowSettlementV1(user, data, requestId) {
 		{
 			flow_settlement_id: flowSettlementId,
 			customer_id: customerId,
-			applied_amount: appliedTotal
+			applied_amount: 0,
+			auto_prepay_disabled: true
 		},
 		requestId
 	)
 
 	return {
 		code: 0,
-		msg: appliedTotal > 0 ? '已自动抵扣预付款' : '无需抵扣',
+		msg: '自动预付款抵扣已关闭，请在客户对账中手工分配',
 		data: {
 			flow_settlement_id: flowSettlementId,
-			applied_amount: appliedTotal,
-			amount_received: nextAmountReceived,
-			payment_status: nextStatus,
-			outstanding: fix3(snapshot.should_receive - nextAmountReceived),
+			applied_amount: 0,
+			amount_received: snapshot.amount_received,
+			payment_status: snapshot.payment_status,
+			outstanding: snapshot.outstanding,
+			auto_prepay_disabled: true,
 			balances
 		}
 	}
@@ -5828,10 +5706,11 @@ async function autoApplyPrepayToSaleV1(user, data, requestId) {
 		const balancesNoop = await rebuildCustomerBalances(normalizeId(saleDoc.customer_id))
 		return {
 			code: 0,
-			msg: '该销售单按客户流量结算，不参与销售预付款抵扣',
+			msg: '自动预付款抵扣已关闭，请在客户对账中手工分配',
 			data: {
 				sale_id: saleId,
 				applied_amount: 0,
+				auto_prepay_disabled: true,
 				balances: balancesNoop
 			}
 		}
@@ -5841,180 +5720,326 @@ async function autoApplyPrepayToSaleV1(user, data, requestId) {
 
 	const customer = await getCustomerById(customerId)
 	if (!customer) return { code: 400, msg: '客户不存在' }
-	const excludeOffsetCredit = Boolean(data && (data.exclude_offset_credit ?? data.excludeOffsetCredit))
-
-	const snapshot = computeSaleSnapshot(saleDoc)
-	if (snapshot.outstanding <= 0) {
-		const offsetSummaryMap = await getSaleOffsetSummaryMap(customerId, [saleId])
-		const offsetSummary = offsetSummaryMap.get(saleId) || { offset_applied_amount: 0, offset_sources: [] }
-		const mergedPaymentNote = mergePaymentNoteWithAutoOffset(
-			saleDoc && saleDoc.payment_note,
-			buildAutoOffsetPaymentNote(offsetSummary)
-		)
-		if (normalizeString(mergedPaymentNote) !== normalizeString(saleDoc && saleDoc.payment_note)) {
-			await sales.doc(saleId).update({
-				payment_note: mergedPaymentNote,
-				updated_at: Date.now()
-			})
-		}
-		const balancesNoop = await rebuildCustomerBalances(customerId)
-		return {
-			code: 0,
-			msg: '无需抵扣',
-			data: {
-				sale_id: saleId,
-				applied_amount: 0,
-				balances: balancesNoop
-			}
-		}
-	}
-
-	const receiptRes = await receipts
-		.where({
-			customer_id: customerId,
-			status: 'posted',
-			unallocated_amount: dbCmd.gt(0)
-		})
-		.orderBy('biz_date', 'asc')
-		.orderBy('created_at', 'asc')
-		.limit(2000)
-		.get()
-	const receiptRowsAll = Array.isArray(receiptRes.data) ? receiptRes.data : []
-	const receiptRows = excludeOffsetCredit
-		? receiptRowsAll.filter((row) => !isOffsetCreditReceiptRow(row))
-		: receiptRowsAll
-	if (!receiptRows.length) {
-		const shouldStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, snapshot.paid_total)
-		const offsetSummaryMap = await getSaleOffsetSummaryMap(customerId, [saleId])
-		const offsetSummary = offsetSummaryMap.get(saleId) || { offset_applied_amount: 0, offset_sources: [] }
-		const mergedPaymentNote = mergePaymentNoteWithAutoOffset(
-			saleDoc && saleDoc.payment_note,
-			buildAutoOffsetPaymentNote(offsetSummary)
-		)
-		const updateDoc = { updated_at: Date.now() }
-		let changed = false
-		if (normalizeString(saleDoc.payment_status) !== shouldStatus) {
-			updateDoc.payment_status = shouldStatus
-			changed = true
-		}
-		if (normalizeString(mergedPaymentNote) !== normalizeString(saleDoc && saleDoc.payment_note)) {
-			updateDoc.payment_note = mergedPaymentNote
-			changed = true
-		}
-		if (changed) {
-			await sales.doc(saleId).update(updateDoc)
-		}
-		const balancesNoop = await rebuildCustomerBalances(customerId)
-		return {
-			code: 0,
-			msg: '无可用预付款',
-			data: {
-				sale_id: saleId,
-				applied_amount: 0,
-				balances: balancesNoop
-			}
-		}
-	}
-
-	let remaining = snapshot.outstanding
-	let appliedTotal = 0
-	let seq = 1
-	for (const receiptRow of receiptRows) {
-		if (remaining <= 0) break
-		const receiptId = normalizeId(receiptRow._id)
-		if (!receiptId) continue
-		const available = fix2(toNumber(receiptRow.unallocated_amount, 0))
-		if (available <= 0) continue
-		const amountUse = fix2(Math.min(available, remaining))
-		if (amountUse <= 0) continue
-
-		await receipts.doc(receiptId).update({
-			allocated_amount: fix2(toNumber(receiptRow.allocated_amount, 0) + amountUse),
-			unallocated_amount: fix2(available - amountUse),
-			updated_at: Date.now()
-		})
-		const receiptSourceType = normalizeString(receiptRow.source_type)
-		const receiptEntryKind = normalizeEntryKind(
-			receiptRow.entry_kind,
-			receiptSourceType.includes('offset') ? 'offset_credit' : 'prepay'
-		)
-		const allocNote =
-			receiptEntryKind === 'offset_credit' || receiptSourceType.startsWith('sale_offset_credit')
-				? `自动冲抵来源 ${normalizeString(receiptRow.biz_date) || '-'}`
-				: '自动预付款抵扣'
-
-		await allocations.add({
-			receipt_id: receiptId,
-			customer_id: customerId,
-			customer_name: normalizeString(customer.name),
-			sale_id: saleId,
-			sale_date: normalizeString(saleDoc.date),
-			biz_date: normalizeBizDate(saleDoc.date, Date.now()),
-			allocate_kind: 'receipt',
-			allocate_amount: amountUse,
-			seq,
-			note: allocNote,
-			receipt_source_type: receiptSourceType,
-			receipt_entry_kind: receiptEntryKind,
-			receipt_biz_date: normalizeString(receiptRow.biz_date),
-			source_type: 'sale_auto_prepay',
-			source_id: saleId,
-			request_id: requestId,
-			created_at: Date.now(),
-			created_by: normalizeId(user?._id) || null,
-			created_by_name: normalizeString(user?.username)
-		})
-
-		seq += 1
-		appliedTotal = fix2(appliedTotal + amountUse)
-		remaining = fix2(remaining - amountUse)
-	}
-
-	const nextAmountReceived = fix2(snapshot.amount_received + appliedTotal)
-	const nextStatus = resolvePaymentStatusByAmount(
-		snapshot.should_receive_effective,
-		fix2(nextAmountReceived + snapshot.receipt_rounding_amount)
-	)
-	const offsetSummaryMap = await getSaleOffsetSummaryMap(customerId, [saleId])
-	const offsetSummary = offsetSummaryMap.get(saleId) || { offset_applied_amount: 0, offset_sources: [] }
-	const mergedPaymentNote = mergePaymentNoteWithAutoOffset(
-		saleDoc && saleDoc.payment_note,
-		buildAutoOffsetPaymentNote(offsetSummary)
-	)
-	const updateDoc = { updated_at: Date.now() }
-	let changed = false
-	if (appliedTotal > 0 || normalizeString(saleDoc.payment_status) !== nextStatus) {
-		updateDoc.amount_received = nextAmountReceived
-		updateDoc.payment_status = nextStatus
-		changed = true
-	}
-	if (normalizeString(mergedPaymentNote) !== normalizeString(saleDoc && saleDoc.payment_note)) {
-		updateDoc.payment_note = mergedPaymentNote
-		changed = true
-	}
-	if (changed) {
-		await sales.doc(saleId).update(updateDoc)
-	}
-
-	const balances = await rebuildCustomerBalances(customerId)
+	const saleSnapshotForDisabled = computeSaleSnapshot(saleDoc)
+	const balancesForDisabled = await rebuildCustomerBalances(customerId)
 	await recordLog(
 		user,
 		'customer_auto_apply_prepay_v1',
 		{
 			sale_id: saleId,
 			customer_id: customerId,
-			applied_amount: appliedTotal
+			applied_amount: 0,
+			auto_prepay_disabled: true
 		},
 		requestId
 	)
-
 	return {
 		code: 0,
-		msg: appliedTotal > 0 ? '已自动抵扣预付款' : '无需抵扣',
+		msg: '自动预付款抵扣已关闭，请在客户对账中手工分配',
 		data: {
 			sale_id: saleId,
-			applied_amount: appliedTotal,
-			balances
+			applied_amount: 0,
+			payment_status: saleSnapshotForDisabled.payment_status,
+			outstanding: saleSnapshotForDisabled.outstanding,
+			auto_prepay_disabled: true,
+			balances: balancesForDisabled
+		}
+	}
+}
+
+function normalizeAutoPrepayAllocationSource(value) {
+	const sourceType = normalizeString(value)
+	return AUTO_PREPAY_ALLOCATION_SOURCE_TYPES.includes(sourceType) ? sourceType : ''
+}
+
+function resolveAutoPrepayTargetType(row) {
+	const sourceType = normalizeAutoPrepayAllocationSource(row && row.source_type)
+	if (sourceType === 'flow_auto_prepay') return 'flow_settlement'
+	return normalizeReceivableTargetType(row && row.target_type)
+}
+
+function resolveAutoPrepayTargetId(row) {
+	const targetType = resolveAutoPrepayTargetType(row)
+	if (targetType === 'flow_settlement') {
+		return normalizeId(row && (row.flow_settlement_id || row.target_id || row.sale_id || row.source_id))
+	}
+	return normalizeId(row && (row.target_id || row.sale_id || row.source_id))
+}
+
+function resolveAutoPrepayMoneyScale(row) {
+	return resolveAutoPrepayTargetType(row) === 'flow_settlement' ? 3 : 2
+}
+
+function buildAutoPrepayRepairSummary(rows = []) {
+	const summary = {
+		total_rows: 0,
+		source_counts: {},
+		total_amount: 0,
+		sale_amount: 0,
+		flow_amount: 0,
+		customer_count: 0,
+		receipt_count: 0,
+		sale_target_count: 0,
+		flow_target_count: 0,
+		samples: []
+	}
+	const customerIds = new Set()
+	const receiptIds = new Set()
+	const saleTargetIds = new Set()
+	const flowTargetIds = new Set()
+
+	for (const row of rows || []) {
+		const sourceType = normalizeAutoPrepayAllocationSource(row && row.source_type)
+		if (!sourceType) continue
+		const targetType = resolveAutoPrepayTargetType(row)
+		const moneyScale = resolveAutoPrepayMoneyScale(row)
+		const amount = fixByScale(toNumber(row && row.allocate_amount, 0), moneyScale)
+		const customerId = normalizeId(row && row.customer_id)
+		const receiptId = normalizeId(row && row.receipt_id)
+		const targetId = resolveAutoPrepayTargetId(row)
+		summary.total_rows += 1
+		summary.source_counts[sourceType] = toNumber(summary.source_counts[sourceType], 0) + 1
+		summary.total_amount = fix3(summary.total_amount + amount)
+		if (targetType === 'flow_settlement') {
+			summary.flow_amount = fix3(summary.flow_amount + amount)
+			if (targetId) flowTargetIds.add(targetId)
+		} else {
+			summary.sale_amount = fix2(summary.sale_amount + amount)
+			if (targetId) saleTargetIds.add(targetId)
+		}
+		if (customerId) customerIds.add(customerId)
+		if (receiptId) receiptIds.add(receiptId)
+		if (summary.samples.length < 30) {
+			summary.samples.push({
+				allocation_id: normalizeId(row && row._id),
+				source_type: sourceType,
+				customer_id: customerId,
+				customer_name: normalizeString(row && row.customer_name),
+				receipt_id: receiptId,
+				target_type: targetType,
+				target_id: targetId,
+				target_date: normalizeString(row && row.sale_date) || normalizeString(row && row.biz_date),
+				amount,
+				created_by_name: normalizeString(row && row.created_by_name),
+				created_at: toNumber(row && row.created_at, 0)
+			})
+		}
+	}
+
+	summary.customer_count = customerIds.size
+	summary.receipt_count = receiptIds.size
+	summary.sale_target_count = saleTargetIds.size
+	summary.flow_target_count = flowTargetIds.size
+	return summary
+}
+
+async function listAutoPrepayAllocationRows(maxRows = 100000) {
+	const pageSize = 500
+	const rows = []
+	let page = 0
+	let guard = 0
+	while (guard < 500 && rows.length < maxRows) {
+		const limit = Math.min(pageSize, maxRows - rows.length)
+		const res = await allocations
+			.where({ source_type: dbCmd.in(AUTO_PREPAY_ALLOCATION_SOURCE_TYPES) })
+			.orderBy('created_at', 'asc')
+			.skip(page * pageSize)
+			.limit(limit)
+			.get()
+		const list = Array.isArray(res.data) ? res.data : []
+		if (!list.length) break
+		rows.push(...list)
+		if (list.length < limit) break
+		page += 1
+		guard += 1
+	}
+	return rows
+}
+
+async function rollbackAutoPrepayAllocationRow(row, now) {
+	const allocationId = normalizeId(row && row._id)
+	const sourceType = normalizeAutoPrepayAllocationSource(row && row.source_type)
+	const customerId = normalizeId(row && row.customer_id)
+	const receiptId = normalizeId(row && row.receipt_id)
+	const targetType = resolveAutoPrepayTargetType(row)
+	const targetId = resolveAutoPrepayTargetId(row)
+	const moneyScale = resolveAutoPrepayMoneyScale(row)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const amount = fixMoney(toNumber(row && row.allocate_amount, 0))
+
+	if (!allocationId) return { ok: false, skipped: true, msg: '分配流水缺少 _id' }
+	if (!sourceType) return { ok: false, skipped: true, allocation_id: allocationId, msg: '非自动预付款流水' }
+	if (!customerId || !receiptId || !targetId) {
+		return { ok: false, skipped: true, allocation_id: allocationId, msg: '分配流水缺少客户/收款/目标 ID' }
+	}
+	if (!(amount > 0)) return { ok: false, skipped: true, allocation_id: allocationId, msg: '分配金额无效' }
+
+	const receiptRes = await receipts.doc(receiptId).get()
+	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
+	if (!receiptDoc || normalizeId(receiptDoc.customer_id) !== customerId) {
+		return { ok: false, skipped: true, allocation_id: allocationId, msg: '收款单不存在或客户不匹配' }
+	}
+
+	let targetSnapshot = null
+	if (targetType === 'flow_settlement') {
+		const flowRes = await flowSettlements.doc(targetId).get()
+		const flowDoc = (flowRes.data && flowRes.data[0]) || null
+		if (!flowDoc || normalizeId(flowDoc.customer_id) !== customerId) {
+			return { ok: false, skipped: true, allocation_id: allocationId, msg: '流量结算单不存在或客户不匹配' }
+		}
+		targetSnapshot = computeFlowSettlementSnapshot(flowDoc)
+	} else {
+		const saleRes = await sales.doc(targetId).get()
+		const saleDoc = (saleRes.data && saleRes.data[0]) || null
+		if (!saleDoc || normalizeId(saleDoc.customer_id) !== customerId) {
+			return { ok: false, skipped: true, allocation_id: allocationId, msg: '销售单不存在或客户不匹配' }
+		}
+		targetSnapshot = computeSaleSnapshot(saleDoc)
+	}
+
+	await receipts.doc(receiptId).update({
+		allocated_amount: fixMoney(Math.max(toNumber(receiptDoc.allocated_amount, 0) - amount, 0)),
+		unallocated_amount: fixMoney(toNumber(receiptDoc.unallocated_amount, 0) + amount),
+		updated_at: now
+	})
+
+	if (targetType === 'flow_settlement') {
+		const nextAmountReceived = fix3(Math.max(toNumber(targetSnapshot.amount_received, 0) - amount, 0))
+		const nextPaidTotal = fix3(nextAmountReceived + toNumber(targetSnapshot.receipt_rounding_amount, 0))
+		await flowSettlements.doc(targetId).update({
+			amount_received: nextAmountReceived,
+			payment_status: resolvePaymentStatusByAmount(targetSnapshot.should_receive, nextPaidTotal, 3),
+			updated_at: now
+		})
+	} else {
+		const nextAmountReceived = fix2(Math.max(toNumber(targetSnapshot.amount_received, 0) - amount, 0))
+		const nextPaidTotal = fix2(nextAmountReceived + toNumber(targetSnapshot.receipt_rounding_amount, 0))
+		await sales.doc(targetId).update({
+			amount_received: nextAmountReceived,
+			payment_status: resolvePaymentStatusByAmount(targetSnapshot.should_receive_effective, nextPaidTotal),
+			updated_at: now
+		})
+	}
+
+	await allocations.doc(allocationId).remove()
+	return {
+		ok: true,
+		allocation_id: allocationId,
+		source_type: sourceType,
+		customer_id: customerId,
+		receipt_id: receiptId,
+		target_type: targetType,
+		target_id: targetId,
+		amount
+	}
+}
+
+async function repairAutoPrepayAllocationsV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'repairAutoPrepayAllocationsV1', requestId, REBUILD_ROLES)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const execute = Boolean(data && data.execute)
+	const confirm = normalizeString(data && (data.confirm || data.confirm_text || data.confirmText))
+	if (execute && confirm !== AUTO_PREPAY_REPAIR_CONFIRM_TEXT) {
+		return {
+			code: 400,
+			msg: `执行修复必须传 confirm=${AUTO_PREPAY_REPAIR_CONFIRM_TEXT}`
+		}
+	}
+
+	const maxRows = Math.min(Math.max(toNumber(data && (data.max_rows || data.maxRows), 100000), 1), 200000)
+	const rows = await listAutoPrepayAllocationRows(maxRows)
+	const preview = buildAutoPrepayRepairSummary(rows)
+	const truncated = rows.length >= maxRows
+
+	if (!execute) {
+		await recordLog(
+			user,
+			'customer_auto_prepay_allocation_repair_preview_v1',
+			{
+				...preview,
+				truncated
+			},
+			requestId
+		)
+		return {
+			code: 0,
+			msg: '自动预付款分配修复预览完成',
+			data: {
+				execute: false,
+				truncated,
+				confirm_text: AUTO_PREPAY_REPAIR_CONFIRM_TEXT,
+				...preview
+			}
+		}
+	}
+
+	const now = Date.now()
+	const affectedCustomerIds = new Set()
+	const results = []
+	let successCount = 0
+	let skippedCount = 0
+	let errorCount = 0
+	let rollbackAmount = 0
+	let saleRollbackAmount = 0
+	let flowRollbackAmount = 0
+
+	for (const row of rows) {
+		try {
+			const result = await rollbackAutoPrepayAllocationRow(row, now)
+			if (!result.ok) {
+				skippedCount += 1
+				if (results.length < 50) results.push(result)
+				continue
+			}
+			successCount += 1
+			affectedCustomerIds.add(result.customer_id)
+			rollbackAmount = fix3(rollbackAmount + toNumber(result.amount, 0))
+			if (result.target_type === 'flow_settlement') {
+				flowRollbackAmount = fix3(flowRollbackAmount + toNumber(result.amount, 0))
+			} else {
+				saleRollbackAmount = fix2(saleRollbackAmount + toNumber(result.amount, 0))
+			}
+			if (results.length < 50) results.push(result)
+		} catch (err) {
+			errorCount += 1
+			if (results.length < 50) {
+				results.push({
+					ok: false,
+					allocation_id: normalizeId(row && row._id),
+					msg: normalizeString(err && err.message) || '回滚失败'
+				})
+			}
+		}
+	}
+
+	let rebuiltCustomers = 0
+	for (const customerId of affectedCustomerIds) {
+		const balances = await rebuildCustomerBalances(customerId)
+		if (balances) rebuiltCustomers += 1
+	}
+
+	const summary = {
+		execute: true,
+		truncated,
+		total_rows: rows.length,
+		success_count: successCount,
+		skipped_count: skippedCount,
+		error_count: errorCount,
+		affected_customer_count: affectedCustomerIds.size,
+		rebuilt_customer_count: rebuiltCustomers,
+		rollback_amount: rollbackAmount,
+		sale_rollback_amount: saleRollbackAmount,
+		flow_rollback_amount: flowRollbackAmount
+	}
+	await recordLog(user, 'customer_auto_prepay_allocation_repair_execute_v1', summary, requestId)
+
+	return {
+		code: errorCount > 0 ? 207 : 0,
+		msg: errorCount > 0 ? '自动预付款分配修复完成，部分失败' : '自动预付款分配修复完成',
+		data: {
+			...summary,
+			results
 		}
 	}
 }
@@ -6652,6 +6677,7 @@ exports.main = async (event, context) => {
 	if (action === 'allocateOffsetCreditV1') return allocateOffsetCreditV1(user, data, requestId)
 	if (action === 'confirmAllocationV1') return confirmAllocationV1(user, data, requestId)
 	if (action === 'repairReceiptAllocationV1') return repairReceiptAllocationV1(user, data, requestId)
+	if (action === 'repairAutoPrepayAllocationsV1') return repairAutoPrepayAllocationsV1(user, data, requestId)
 	if (action === 'repairOffsetCreditsV1') return repairOffsetCreditsV1(user, data, requestId)
 	if (action === 'autoApplyPrepayToSaleV1') return autoApplyPrepayToSaleV1(user, data, requestId)
 	if (action === 'autoApplyPrepayToFlowSettlementV1') return autoApplyPrepayToFlowSettlementV1(user, data, requestId)

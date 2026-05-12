@@ -1,0 +1,47 @@
+{
+  "started_at": "2026-05-12T13:07:14.651Z",
+  "space_id": "env-00jxuffegf2n",
+  "probe_receipt_id": "69fc33e0fec79e230cbc6819",
+  "result": {
+    "code": 0,
+    "msg": "收款单抽查完成",
+    "data": {
+      "receipt_id": "69fc33e0fec79e230cbc6819",
+      "date_from": "2026-05-01",
+      "date_to": "2026-05-31",
+      "customer_total": 50,
+      "checked_customers": 42,
+      "found": true,
+      "customer": {
+        "_id": "694045c0adf6dbd796e26212",
+        "name": "赫远皮革北厂-丁亚军",
+        "short_name": ""
+      },
+      "receipt": {
+        "row_type": "receipt",
+        "row_id": "69fc33e0fec79e230cbc6819",
+        "biz_date": "2026-05-07",
+        "created_at": 1778136032062,
+        "sale_id": "",
+        "receipt_id": "69fc33e0fec79e230cbc6819",
+        "amount": 13117,
+        "rounding_amount": 0,
+        "allocated_amount": 0,
+        "rounding_allocated_amount": 0,
+        "prepay_delta": 13117,
+        "note": "",
+        "meta": {
+          "source_type": "cashier_intake",
+          "entry_kind": "prepay",
+          "payment_method": "wechat",
+          "allocation_mode": "period",
+          "allocation_start_date": "2026-05-07",
+          "allocation_end_date": "2026-05-07",
+          "allocation_targets": []
+        }
+      },
+      "statement_allocation_rows": [],
+      "allocation_targets": []
+    }
+  }
+}

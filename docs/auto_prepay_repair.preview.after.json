@@ -1,0 +1,25 @@
+{
+  "started_at": "2026-05-12T13:04:11.617Z",
+  "space_id": "env-00jxuffegf2n",
+  "execute": false,
+  "max_rows": 100000,
+  "result": {
+    "code": 0,
+    "msg": "自动预付款分配修复预览完成",
+    "data": {
+      "execute": false,
+      "truncated": false,
+      "confirm_text": "ROLLBACK_AUTO_PREPAY_ALLOCATIONS",
+      "total_rows": 0,
+      "source_counts": {},
+      "total_amount": 0,
+      "sale_amount": 0,
+      "flow_amount": 0,
+      "customer_count": 0,
+      "receipt_count": 0,
+      "sale_target_count": 0,
+      "flow_target_count": 0,
+      "samples": []
+    }
+  }
+}
