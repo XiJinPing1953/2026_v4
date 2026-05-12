@@ -22,6 +22,15 @@ export async function getVehicleV1(params) {
 	})
 }
 
+export async function resolveVehicleQrCodeV1(params = {}) {
+	return callCloud('crm-vehicle', {
+		action: 'resolveQrCodeV1',
+		data: {
+			qr_code: params.qr_code || params.qrCode || params.token || ''
+		}
+	})
+}
+
 export async function createVehicleV1(data) {
 	return callCloud('crm-vehicle', {
 		action: 'createV1',

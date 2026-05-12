@@ -22,6 +22,15 @@ export async function getDeliveryV1(params) {
 	})
 }
 
+export async function resolveDeliveryQrCodeV1(params = {}) {
+	return callCloud('crm-delivery', {
+		action: 'resolveQrCodeV1',
+		data: {
+			qr_code: params.qr_code || params.qrCode || params.token || ''
+		}
+	})
+}
+
 export async function createDeliveryV1(data) {
 	return callCloud('crm-delivery', {
 		action: 'createV1',

@@ -48,14 +48,36 @@
 
 <script setup>
 import { ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
 import AppInput from '@/components/base/AppInput.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import { callCloud } from '@/services/api'
 import { setToken, setUser } from '@/services/auth'
+import { canViewPage } from '@/services/pageAcl'
+import { consumePendingLoginRedirect, setPendingLoginRedirect } from '@/services/navigation'
+import { resolveHomePath } from '@/services/pda/entry'
 
 const username = ref('')
 const password = ref('')
 const loading = ref(false)
+
+function normalizeText(value) {
+	return value == null ? '' : String(value).trim()
+}
+
+function resolveRedirectPathAfterLogin(user) {
+	const redirectUrl = consumePendingLoginRedirect()
+	const redirectPath = normalizeText(redirectUrl.split('?')[0])
+	if (redirectUrl && redirectPath && canViewPage(redirectPath, user)) {
+		return redirectUrl
+	}
+	return resolveHomePath(user || null)
+}
+
+onLoad((options = {}) => {
+	const redirect = normalizeText(options.redirect)
+	if (redirect) setPendingLoginRedirect(decodeURIComponent(redirect))
+})
 
 async function onLogin() {
 	if (!username.value || !password.value) {
@@ -73,7 +95,7 @@ async function onLogin() {
 		if (result.code !== 0) return
 		setToken(result.token || '')
 		setUser(result.user || null)
-		uni.reLaunch({ url: '/pages/index/index' })
+		uni.reLaunch({ url: resolveRedirectPathAfterLogin(result.user || null) })
 	} catch (e) {
 		console.error('login error', e)
 		uni.showToast({ title: '登录失败', icon: 'none' })

@@ -258,7 +258,7 @@ exports.main = async (event, context) => {
 			return { code: 400, msg: '账号至少3位，密码至少6位' }
 		}
 		const resolvedRole = normalizeRoleTemplate(roleTemplateRaw || role)
-		if (!['superadmin', 'admin', 'finance', 'user'].includes(resolvedRole)) {
+		if (!['superadmin', 'admin', 'finance', 'user', 'pda_operator'].includes(resolvedRole)) {
 			return { code: 400, msg: '角色不合法' }
 		}
 		if (username === SUPERADMIN_USERNAME) {
@@ -314,7 +314,7 @@ exports.main = async (event, context) => {
 		const { userId, role, role_template = '' } = data
 		if (!userId || !role) return { code: 400, msg: '缺少用户或角色' }
 		const resolvedRole = normalizeRoleTemplate(role_template || role)
-		if (!['superadmin', 'admin', 'finance', 'user'].includes(resolvedRole)) {
+		if (!['superadmin', 'admin', 'finance', 'user', 'pda_operator'].includes(resolvedRole)) {
 			return { code: 400, msg: '角色不合法' }
 		}
 		await users.doc(userId).update({

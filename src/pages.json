@@ -13,6 +13,60 @@
 			}
 		},
 		{
+			"path": "pages/pda/home",
+			"style": {
+				"navigationBarTitleText": "PDA 工作台"
+			}
+		},
+		{
+			"path": "pages/pda/bottle-query",
+			"style": {
+				"navigationBarTitleText": "PDA 钢瓶查询"
+			}
+		},
+		{
+			"path": "pages/pda/movement-query",
+			"style": {
+				"navigationBarTitleText": "PDA 流转查询"
+			}
+		},
+		{
+			"path": "pages/pda/customer-query",
+			"style": {
+				"navigationBarTitleText": "PDA 客户查询"
+			}
+		},
+		{
+			"path": "pages/pda/filling-board",
+			"style": {
+				"navigationBarTitleText": "PDA 灌装看板"
+			}
+		},
+		{
+			"path": "pages/pda/filling-station",
+			"style": {
+				"navigationBarTitleText": "PDA 灌装工位"
+			}
+		},
+		{
+			"path": "pages/pda/filling-create",
+			"style": {
+				"navigationBarTitleText": "PDA 灌装录入"
+			}
+		},
+		{
+			"path": "pages/pda/filling-complete",
+			"style": {
+				"navigationBarTitleText": "PDA 灌装完成"
+			}
+		},
+		{
+			"path": "pages/pda/sale-create",
+			"style": {
+				"navigationBarTitleText": "PDA 销售录入"
+			}
+		},
+		{
 			"path": "pages/sale/list",
 			"style": {
 				"navigationBarTitleText": "销售列表"
@@ -229,5 +283,15 @@
 		"navigationBarTitleText": "新拓 CRM",
 		"navigationBarBackgroundColor": "#F5F7FB",
 		"backgroundColor": "#F5F7FB"
+	},
+	"condition" : { //模式配置，仅开发期间生效
+		"current": 0, //当前激活的模式(list 的索引项)
+		"list": [
+			{
+				"name": "", //模式名称
+				"path": "", //启动页面，必选
+				"query": "" //启动参数，在页面的onLoad函数里面得到
+			}
+		]
 	}
 }

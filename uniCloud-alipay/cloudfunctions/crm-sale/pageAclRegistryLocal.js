@@ -15,7 +15,8 @@ const GROUP_DEFAULTS = {
 		accounting: { view: true, create: true, update: true, delete: true },
 		collection: { view: true, create: true, update: true, delete: true },
 		logs: { view: true, create: false, update: false, delete: false },
-		userAdmin: { view: true, create: true, update: true, delete: true }
+		userAdmin: { view: true, create: true, update: true, delete: true },
+		pda: { view: true, create: true, update: true, delete: false }
 	},
 	admin: {
 		dashboard: { view: true, create: false, update: false, delete: false },
@@ -29,7 +30,8 @@ const GROUP_DEFAULTS = {
 		accounting: { view: true, create: true, update: true, delete: true },
 		collection: { view: true, create: true, update: true, delete: true },
 		logs: { view: true, create: false, update: false, delete: false },
-		userAdmin: { view: false, create: false, update: false, delete: false }
+		userAdmin: { view: false, create: false, update: false, delete: false },
+		pda: { view: true, create: true, update: true, delete: false }
 	},
 	finance: {
 		dashboard: { view: true, create: false, update: false, delete: false },
@@ -43,7 +45,8 @@ const GROUP_DEFAULTS = {
 		accounting: { view: true, create: true, update: true, delete: true },
 		collection: { view: true, create: true, update: true, delete: true },
 		logs: { view: true, create: false, update: false, delete: false },
-		userAdmin: { view: false, create: false, update: false, delete: false }
+		userAdmin: { view: false, create: false, update: false, delete: false },
+		pda: { view: false, create: false, update: false, delete: false }
 	},
 	user: {
 		dashboard: { view: true, create: false, update: false, delete: false },
@@ -57,7 +60,23 @@ const GROUP_DEFAULTS = {
 		accounting: { view: false, create: false, update: false, delete: false },
 		collection: { view: false, create: false, update: false, delete: false },
 		logs: { view: false, create: false, update: false, delete: false },
-		userAdmin: { view: false, create: false, update: false, delete: false }
+		userAdmin: { view: false, create: false, update: false, delete: false },
+		pda: { view: false, create: false, update: false, delete: false }
+	},
+	pda_operator: {
+		dashboard: { view: false, create: false, update: false, delete: false },
+		sales: { view: false, create: false, update: false, delete: false },
+		customers: { view: false, create: false, update: false, delete: false },
+		bottles: { view: false, create: false, update: false, delete: false },
+		vehicles: { view: false, create: false, update: false, delete: false },
+		deliveries: { view: false, create: false, update: false, delete: false },
+		filling: { view: false, create: false, update: false, delete: false },
+		gas: { view: false, create: false, update: false, delete: false },
+		accounting: { view: false, create: false, update: false, delete: false },
+		collection: { view: false, create: false, update: false, delete: false },
+		logs: { view: false, create: false, update: false, delete: false },
+		userAdmin: { view: false, create: false, update: false, delete: false },
+		pda: { view: true, create: true, update: true, delete: false }
 	}
 }
 
@@ -97,7 +116,13 @@ const PAGE_REGISTRY = [
 	{ pagePath: '/pages/collection/task-list', label: '追款任务', group: 'collection', supports: { view: true, update: true } },
 	{ pagePath: '/pages/collection/task-detail', label: '追款详情', group: 'collection', supports: { view: true, update: true } },
 	{ pagePath: '/pages/log/list', label: '操作日志', group: 'logs', supports: { view: true } },
-	{ pagePath: '/pages/user/list', label: '用户管理', group: 'userAdmin', supports: { view: true, create: true, update: true, delete: true } }
+	{ pagePath: '/pages/user/list', label: '用户管理', group: 'userAdmin', supports: { view: true, create: true, update: true, delete: true } },
+	{ pagePath: '/pages/pda/home', label: 'PDA 工作台', group: 'pda', supports: { view: true } },
+	{ pagePath: '/pages/pda/bottle-query', label: 'PDA 钢瓶查询', group: 'pda', supports: { view: true } },
+	{ pagePath: '/pages/pda/movement-query', label: 'PDA 流转查询', group: 'pda', supports: { view: true } },
+	{ pagePath: '/pages/pda/customer-query', label: 'PDA 客户查询', group: 'pda', supports: { view: true } },
+	{ pagePath: '/pages/pda/filling-create', label: 'PDA 灌装录入', group: 'pda', supports: { view: true, create: true } },
+	{ pagePath: '/pages/pda/sale-create', label: 'PDA 销售录入', group: 'pda', supports: { view: true, create: true } }
 ]
 
 const PAGE_REGISTRY_MAP = PAGE_REGISTRY.reduce((map, item) => {

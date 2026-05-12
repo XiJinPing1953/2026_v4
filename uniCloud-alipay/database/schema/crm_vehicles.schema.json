@@ -14,6 +14,7 @@
     "_id": { "bsonType": "string" },
     "uniq_key": { "bsonType": "string" },
     "plate_no": { "bsonType": "string" },
+    "qr_code": { "bsonType": "string" },
     "remark": { "bsonType": "string" },
     "is_active": { "bsonType": "bool" },
     "created_at": { "bsonType": "number" },
@@ -28,6 +29,7 @@
   "indexes": [
     { "key": { "uniq_key": 1 }, "name": "uniq_key", "unique": true },
     { "key": { "plate_no": 1 }, "name": "idx_plate_no" },
+    { "key": { "qr_code": 1 }, "name": "idx_qr_code" },
     { "key": { "is_active": 1, "updated_at": -1 }, "name": "idx_active_updated_at" },
     { "key": { "updated_at": -1 }, "name": "idx_updated_at" }
   ]

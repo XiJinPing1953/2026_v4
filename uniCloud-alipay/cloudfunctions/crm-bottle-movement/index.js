@@ -21,9 +21,18 @@ const ANOMALY_RANK_MAX_LIMIT = 30
 const ANOMALY_RANK_PAGE_SIZE_DEFAULT = 20
 const ANOMALY_RANK_PAGE_SIZE_MAX = 200
 const PAGE_ACTION_RULES = {
-	listV1: [{ pagePath: '/pages/bottle/movement', action: 'view' }],
-	getV1: [{ pagePath: '/pages/bottle/movement', action: 'view' }],
-	timelineV1: [{ pagePath: '/pages/bottle/timeline', action: 'view' }],
+	listV1: [
+		{ pagePath: '/pages/bottle/movement', action: 'view' },
+		{ pagePath: '/pages/pda/movement-query', action: 'view' }
+	],
+	getV1: [
+		{ pagePath: '/pages/bottle/movement', action: 'view' },
+		{ pagePath: '/pages/pda/movement-query', action: 'view' }
+	],
+	timelineV1: [
+		{ pagePath: '/pages/bottle/timeline', action: 'view' },
+		{ pagePath: '/pages/pda/movement-query', action: 'view' }
+	],
 	lossStatsV1: [{ pagePath: '/pages/bottle/loss', action: 'view' }],
 	cycleLossV1: [{ pagePath: '/pages/bottle/loss', action: 'view' }],
 	lossAnomalyRankV1: [{ pagePath: '/pages/bottle/loss', action: 'view' }],

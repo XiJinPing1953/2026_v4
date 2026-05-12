@@ -1,0 +1,76 @@
+{
+  "bsonType": "object",
+  "description": "PDA filling station tasks",
+  "additionalProperties": false,
+  "required": [
+    "station_code",
+    "station_name",
+    "scale_code",
+    "date",
+    "bottle_no",
+    "target_net_weight",
+    "target_gross_weight",
+    "weight_start",
+    "status",
+    "target_write_status",
+    "remark",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "station_code": { "bsonType": "string" },
+    "station_name": { "bsonType": "string" },
+    "scale_code": { "bsonType": "string" },
+    "date": { "bsonType": "string" },
+    "bottle_id": { "bsonType": ["string", "null"] },
+    "bottle_no": { "bsonType": "string" },
+    "suggested_fill_weight_kg": { "bsonType": ["number", "null"] },
+    "target_net_weight": { "bsonType": "number" },
+    "target_gross_weight": { "bsonType": "number" },
+    "weight_start": { "bsonType": "number" },
+    "weight_end": { "bsonType": ["number", "null"] },
+    "actual_net_weight": { "bsonType": ["number", "null"] },
+    "deviation": { "bsonType": ["number", "null"] },
+    "status": {
+      "bsonType": "string",
+      "enum": ["write_pending", "write_claimed", "ready", "completed", "abnormal", "error"]
+    },
+    "target_write_status": {
+      "bsonType": "string",
+      "enum": ["pending", "claimed", "success", "failed"]
+    },
+    "target_write_claimed_at": { "bsonType": ["number", "null"] },
+    "target_write_finished_at": { "bsonType": ["number", "null"] },
+    "target_write_attempts": { "bsonType": ["number", "null"] },
+    "target_write_error": { "bsonType": ["string", "null"] },
+    "target_write_payload": { "bsonType": ["object", "null"] },
+    "target_write_readback": { "bsonType": ["number", "null"] },
+    "started_at": { "bsonType": ["number", "null"] },
+    "ended_at": { "bsonType": ["number", "null"] },
+    "completed_at": { "bsonType": ["number", "null"] },
+    "filling_record_id": { "bsonType": ["string", "null"] },
+    "alarm_state": { "bsonType": ["bool", "null"] },
+    "raw_scale_payload": { "bsonType": ["object", "null"] },
+    "remark": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" },
+    "created_by": { "bsonType": ["string", "null"] },
+    "created_by_name": { "bsonType": "string" },
+    "updated_by": { "bsonType": ["string", "null"] },
+    "updated_by_name": { "bsonType": "string" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "station_code": 1, "status": 1, "updated_at": -1 }, "name": "idx_station_status_updated" },
+    { "key": { "target_write_status": 1, "updated_at": 1 }, "name": "idx_write_status_updated" },
+    { "key": { "scale_code": 1, "target_write_status": 1 }, "name": "idx_scale_write_status" },
+    { "key": { "bottle_no": 1, "created_at": -1 }, "name": "idx_bottle_created" },
+    { "key": { "created_at": -1 }, "name": "idx_created_at" }
+  ]
+}

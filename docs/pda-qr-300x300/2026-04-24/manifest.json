@@ -1,0 +1,57 @@
+{
+  "generated_at": "2026-04-23T16:01:31.398Z",
+  "space_id": "env-00jxuffegf2n",
+  "space_config_from": "/Users/wangbo/Library/Application Support/HBuilder X/projects/39637144c7c598fa8663d4ea84645a0e/setting.json",
+  "size": "300x300",
+  "count": 6,
+  "items": [
+    {
+      "type": "customer",
+      "id": "694045c0adf6dbd796e26213",
+      "name": "旭昶皮厂",
+      "qr_code": "PDA-CUSTOMER-PILOT-0001",
+      "file": "/Users/wangbo/Downloads/2026_v4/docs/pda-qr-300x300/2026-04-24/01_customer_旭昶皮厂.png"
+    },
+    {
+      "type": "delivery",
+      "id": "69c9cdeb96fed1435b9c3248",
+      "name": "李凤荣",
+      "qr_code": "PDA-DELIVERY-PILOT-0002",
+      "file": "/Users/wangbo/Downloads/2026_v4/docs/pda-qr-300x300/2026-04-24/02_delivery_李凤荣.png"
+    },
+    {
+      "type": "vehicle",
+      "id": "69c8b4c9ad2f4ad42ebc786e",
+      "plate_no": "冀A300AN",
+      "qr_code": "PDA-VEHICLE-PILOT-0001",
+      "file": "/Users/wangbo/Downloads/2026_v4/docs/pda-qr-300x300/2026-04-24/03_vehicle_冀A300AN.png"
+    },
+    {
+      "type": "bottle",
+      "id": "693fbee16dd837518fa12056",
+      "bottle_no": "135",
+      "tare_weight": 117,
+      "qr_code": "PDA-BOTTLE-PILOT-0001",
+      "qr_field": "pda_qr_code",
+      "file": "/Users/wangbo/Downloads/2026_v4/docs/pda-qr-300x300/2026-04-24/04_bottle_135.png"
+    },
+    {
+      "type": "bottle",
+      "id": "693fbee16dd837518fa1205a",
+      "bottle_no": "137",
+      "tare_weight": 117,
+      "qr_code": "PDA-BOTTLE-PILOT-0005",
+      "qr_field": "pda_qr_code",
+      "file": "/Users/wangbo/Downloads/2026_v4/docs/pda-qr-300x300/2026-04-24/05_bottle_137.png"
+    },
+    {
+      "type": "bottle",
+      "id": "693fbee16dd837518fa12058",
+      "bottle_no": "138",
+      "tare_weight": 117,
+      "qr_code": "PDA-BOTTLE-PILOT-0003",
+      "qr_field": "pda_qr_code",
+      "file": "/Users/wangbo/Downloads/2026_v4/docs/pda-qr-300x300/2026-04-24/06_bottle_138.png"
+    }
+  ]
+}

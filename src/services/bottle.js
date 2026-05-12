@@ -47,6 +47,28 @@ export async function getBottleV1(params) {
 	})
 }
 
+export async function resolveBottlePdaQrCodeV1(params = {}) {
+	return callCloud('crm-bottle', {
+		action: 'resolveQrCodeV1',
+		data: {
+			pda_qr_code: params.pda_qr_code || params.pdaQrCode || params.qr_code || params.qrCode || params.token || ''
+		}
+	})
+}
+
+export async function resolveBottleQrCodeV1(params = {}) {
+	return resolveBottlePdaQrCodeV1(params)
+}
+
+export async function resolveBottleNoV1(params = {}) {
+	return callCloud('crm-bottle', {
+		action: 'resolveBottleNoV1',
+		data: {
+			bottle_no: params.bottle_no || params.bottleNo || params.token || ''
+		}
+	})
+}
+
 export async function createBottleV1(data) {
 	return callCloud('crm-bottle', {
 		action: 'createV1',

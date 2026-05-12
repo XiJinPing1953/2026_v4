@@ -25,6 +25,7 @@
     "equipment_type": { "bsonType": "string" },
     "product_no": { "bsonType": "string" },
     "qr_code": { "bsonType": "string" },
+    "pda_qr_code": { "bsonType": "string" },
     "gas_medium_code": { "bsonType": "string", "enum": ["LNG", "LPG", "O2", "N2", "Ar", "OTHER"] },
     "station_id": { "bsonType": "string" },
     "manufacturer": { "bsonType": "string" },
@@ -46,6 +47,7 @@
     "safety_valve_next_check_date": { "bsonType": "string" },
     "safety_valve_cycle_months": { "bsonType": "number" },
     "tare_weight": { "bsonType": ["number", "null"] },
+    "suggested_fill_weight_kg": { "bsonType": ["number", "null"] },
     "status": {
       "bsonType": "string",
       "enum": ["unknown", "in_station", "at_customer", "scrapped", "lost"]
@@ -66,6 +68,7 @@
   "indexes": [
     { "key": { "bottle_no": 1 }, "name": "bottle_no", "unique": true },
     { "key": { "qr_code": 1 }, "name": "idx_qr_code" },
+    { "key": { "pda_qr_code": 1 }, "name": "idx_pda_qr_code" },
     { "key": { "pressure_gauge_no": 1 }, "name": "idx_pressure_gauge_no" },
     { "key": { "station_id": 1, "is_active": 1, "updated_at": -1 }, "name": "idx_station_active_updated_at" },
     { "key": { "gas_medium_code": 1, "updated_at": -1 }, "name": "idx_medium_updated_at" },

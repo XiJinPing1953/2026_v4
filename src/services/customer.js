@@ -36,6 +36,15 @@ export async function getCustomerV1(params) {
 	})
 }
 
+export async function resolveCustomerQrCodeV1(params = {}) {
+	return callCloud('crm-customer', {
+		action: 'resolveQrCodeV1',
+		data: {
+			qr_code: params.qr_code || params.qrCode || params.token || ''
+		}
+	})
+}
+
 export async function createCustomerV1(data) {
 	return callCloud('crm-customer', {
 		action: 'createV1',

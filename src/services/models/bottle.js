@@ -115,6 +115,13 @@ function validateBottleDraftV1(input = {}) {
 		if (!(typeof tare === 'number' && tare >= 0)) return { ok: false, msg: '皮重必须为非负数字' }
 	}
 
+	if (input.suggested_fill_weight_kg != null || input.suggestedFillWeightKg != null) {
+		const suggestedFillWeightKg = toNumber(input.suggested_fill_weight_kg ?? input.suggestedFillWeightKg, null)
+		if (!(typeof suggestedFillWeightKg === 'number' && suggestedFillWeightKg > 0)) {
+			return { ok: false, msg: '建议目标必须为大于 0 的数字' }
+		}
+	}
+
 	if (input.safety_valve_count != null || input.safetyValveCount != null) {
 		const count = Number(input.safety_valve_count ?? input.safetyValveCount)
 		if (!Number.isInteger(count) || count !== 2) return { ok: false, msg: '安全阀数量固定为 2' }

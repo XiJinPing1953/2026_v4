@@ -1,0 +1,55 @@
+{
+  "bsonType": "object",
+  "description": "Latest scale snapshot for PDA filling page",
+  "additionalProperties": false,
+  "required": [
+    "scale_code",
+    "weight_raw",
+    "weight_kg",
+    "unit_code",
+    "decimal_places",
+    "stable_metric",
+    "stable_threshold",
+    "is_stable",
+    "is_online",
+    "sampled_at",
+    "gateway_at",
+    "error_code",
+    "error_message",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "scale_code": { "bsonType": "string" },
+    "weight_raw": { "bsonType": ["number", "null"] },
+    "weight_kg": { "bsonType": ["number", "null"] },
+    "scale_read_mode": { "bsonType": ["string", "null"] },
+    "raw_scale_payload": { "bsonType": ["object", "null"] },
+    "unit_code": { "bsonType": ["number", "null"] },
+    "decimal_places": { "bsonType": ["number", "null"] },
+    "stable_metric": { "bsonType": ["number", "null"] },
+    "stable_threshold": { "bsonType": ["number", "null"] },
+    "is_stable": { "bsonType": "bool" },
+    "is_online": { "bsonType": "bool" },
+    "sampled_at": { "bsonType": ["number", "null"] },
+    "gateway_at": { "bsonType": ["number", "null"] },
+    "error_code": { "bsonType": ["string", "null"] },
+    "error_message": { "bsonType": ["string", "null"] },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" },
+    "updated_by": { "bsonType": ["string", "null"] },
+    "updated_by_name": { "bsonType": "string" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "scale_code": 1 }, "name": "uniq_scale_code", "unique": true },
+    { "key": { "updated_at": -1 }, "name": "idx_updated_at" },
+    { "key": { "is_online": 1, "updated_at": -1 }, "name": "idx_online_updated_at" }
+  ]
+}
