@@ -6724,9 +6724,12 @@ async function getCustomerStatementV1(user, data) {
 
 	const balances = await rebuildCustomerBalances(customerId)
 	let scopedSummary = null
-	if (summaryDateFrom && summaryDateTo) {
-		const scopedSalesDocs = await listCustomerSales(customerId, { dateFrom: summaryDateFrom, dateTo: summaryDateTo })
-		const scopedFlowDocs = await listCustomerFlowSettlements(customerId, { dateFrom: summaryDateFrom, dateTo: summaryDateTo })
+	let scopedSalesDocs = []
+	let scopedFlowDocs = []
+	const hasScopedRange = Boolean(summaryDateFrom && summaryDateTo)
+	if (hasScopedRange) {
+		scopedSalesDocs = await listCustomerSales(customerId, { dateFrom: summaryDateFrom, dateTo: summaryDateTo })
+		scopedFlowDocs = await listCustomerFlowSettlements(customerId, { dateFrom: summaryDateFrom, dateTo: summaryDateTo })
 		const scopedOpeningDebtDocs = await listCustomerOpeningDebts(customerId, { dateFrom: summaryDateFrom, dateTo: summaryDateTo })
 		const scopedReceipts = await listCustomerReceipts(customerId, { dateFrom: summaryDateFrom, dateTo: summaryDateTo })
 		const scoped = await buildBusinessSummaryFromTargets(customer, {
@@ -6852,10 +6855,15 @@ async function getCustomerStatementV1(user, data) {
 		.slice(0, 100)
 		.map((row) => normalizeId(row && row._id))
 		.filter(Boolean)
-	const saleOffsetSummaryMap = await getSaleOffsetSummaryMap(customerId, recentSaleIds)
+	const scopedOutstandingSaleIds = (hasScopedRange ? scopedSalesDocs : salesDocs)
+		.filter((doc) => computeSaleSnapshot(doc).outstanding > 0)
+		.map((doc) => normalizeId(doc && doc._id))
+		.filter(Boolean)
+	const saleOffsetLookupIds = Array.from(new Set([...recentSaleIds, ...scopedOutstandingSaleIds]))
+	const saleOffsetSummaryMap = await getSaleOffsetSummaryMap(customerId, saleOffsetLookupIds)
 	const saleOffsetTargetSummaryMap = await getSaleOffsetTargetSummaryMap(
 		customerId,
-		recentSaleIds,
+		saleOffsetLookupIds,
 		{ salesDocs, flowDocs, openingDebtDocs }
 	)
 	saleRows = saleRows.map((row) => {
@@ -6885,6 +6893,10 @@ async function getCustomerStatementV1(user, data) {
 				: []
 		}
 	})
+	const scopedOutstandingSaleIdSet = new Set(scopedOutstandingSaleIds)
+	const netDebtSourceSales = saleRows
+		.filter((row) => scopedOutstandingSaleIdSet.has(normalizeId(row && row._id)))
+		.slice(0, 200)
 
 	const receiptRes = await receipts
 		.where({ customer_id: customerId, status: 'posted' })
@@ -6966,6 +6978,34 @@ async function getCustomerStatementV1(user, data) {
 			if (a.biz_date !== b.biz_date) return a.biz_date < b.biz_date ? 1 : -1
 			return a.created_at < b.created_at ? 1 : -1
 		})
+	const netDebtSourceFlowSettlements = (hasScopedRange ? scopedFlowDocs : flowDocs)
+		.map((doc) => {
+			const snapshot = computeFlowSettlementSnapshot(doc)
+			return {
+				_id: normalizeId(doc._id),
+				biz_date: normalizeString(doc.biz_date),
+				flow_index_prev: toNumber(doc.flow_index_prev, null),
+				flow_index_curr: toNumber(doc.flow_index_curr, null),
+				flow_volume_m3: toNumber(doc.flow_volume_m3, null),
+				flow_theory_ratio: toNumber(doc.flow_theory_ratio, null),
+				theory_weight_kg: toNumber(doc.theory_weight_kg, null),
+				actual_weight_kg: toNumber(doc.actual_weight_kg, null),
+				loss_weight_kg: toNumber(doc.loss_weight_kg, null),
+				should_receive: snapshot.should_receive,
+				amount_received: snapshot.amount_received,
+				receipt_rounding_amount: snapshot.receipt_rounding_amount,
+				outstanding: snapshot.outstanding,
+				payment_status: snapshot.payment_status,
+				note: normalizeString(doc.note),
+				created_at: toNumber(doc.created_at, 0)
+			}
+		})
+		.filter((row) => toNumber(row && row.outstanding, 0) > 0)
+		.sort((a, b) => {
+			if (a.biz_date !== b.biz_date) return a.biz_date < b.biz_date ? 1 : -1
+			return a.created_at < b.created_at ? 1 : -1
+		})
+		.slice(0, 200)
 	const recentOpeningDebts = openingDebtDocs
 		.filter((doc) => resolveOpeningDebtEntryType(doc) === 'opening_debt')
 		.map((doc) => {
@@ -7027,8 +7067,10 @@ async function getCustomerStatementV1(user, data) {
 			},
 			summary_scope: scopedSummary,
 			recent_sales: saleRows.slice(0, 100),
+			net_debt_source_sales: netDebtSourceSales,
 			recent_receipts: recentReceipts,
 			recent_flow_settlements: recentFlowSettlements.slice(0, 20),
+			net_debt_source_flow_settlements: netDebtSourceFlowSettlements,
 			recent_opening_debts: recentOpeningDebts.slice(0, 20),
 			recent_other_fees: recentOtherFees.slice(0, 20)
 		}

@@ -723,18 +723,26 @@
 				</AppList>
 			</AppSection>
 
-			<AppSection title="销售明细（近100条）">
-				<AppList :loading="loading" :empty="recentSalesDisplayRows.length === 0" empty-title="暂无销售明细">
-					<AppListItem
-						v-for="row in recentSalesDisplayRows"
-						:key="row.record_key || row._id"
-						:title="`${row.date || '-'} · ${bizModeText(row.biz_mode)}`"
-						:subtitle="`单据 ${row._id}`"
-						:status="paymentStatusText(row.payment_status)"
-						:status-kind="paymentStatusKind(row.payment_status)"
-						icon="document"
-						icon-class="bg-primary"
-					>
+			<view id="statement-sales-detail-section">
+				<AppSection :title="salesDetailSectionTitle">
+					<template #actions>
+						<view v-if="salesDetailMode === 'net_debt'" class="section-actions">
+							<text class="section-hint">{{ salesDetailLocatedHint }}</text>
+							<AppButton size="sm" kind="neutral" @click="clearSalesDetailLocateMode">查看全部</AppButton>
+						</view>
+					</template>
+					<AppList :loading="loading" :empty="salesDetailRows.length === 0" :empty-title="salesDetailEmptyTitle">
+						<AppListItem
+							v-for="row in salesDetailRows"
+							:key="row.record_key || row._id"
+							:class="{ 'statement-sale-row--located': isLocatedSalesDetailRow(row) }"
+							:title="`${row.date || '-'} · ${bizModeText(row.biz_mode)}`"
+							:subtitle="`单据 ${row._id}`"
+							:status="paymentStatusText(row.payment_status)"
+							:status-kind="paymentStatusKind(row.payment_status)"
+							icon="document"
+							icon-class="bg-primary"
+						>
 						<template #default>
 							<view class="mini-amounts mini-amounts--left">
 								<text>应收 ¥{{ formatMoney(row.should_receive) }}</text>
@@ -783,9 +791,10 @@
 							<AppButton v-if="isSaleRecordRow(row)" size="sm" kind="ghost" @click="onOpenSale(row._id)">查看销售单</AppButton>
 							<AppButton v-else size="sm" kind="ghost" @click="onEditFlowSettlement(row)">编辑结算单</AppButton>
 						</template>
-					</AppListItem>
-				</AppList>
-			</AppSection>
+						</AppListItem>
+					</AppList>
+				</AppSection>
+			</view>
 
 			<AppSection title="账务流水">
 				<template #actions>
@@ -918,8 +927,10 @@ const offsetAllocating = ref(false)
 
 const customer = ref({})
 const recentSales = ref([])
+const netDebtSourceSales = ref([])
 const recentReceipts = ref([])
 const recentFlowSettlements = ref([])
+const netDebtSourceFlowSettlements = ref([])
 const recentOpeningDebts = ref([])
 const recentOtherFees = ref([])
 const previewPlan = ref(null)
@@ -932,6 +943,7 @@ const offsetCheckedTargetKeys = ref([])
 const offsetPoolRows = ref([])
 const selectedOffsetReceipts = ref([])
 const quickSceneApplied = ref(false)
+const salesDetailMode = ref('all')
 const editingReceiptId = ref('')
 const editingReceiptSourceType = ref('')
 const editingFlowSettlementId = ref('')
@@ -1429,30 +1441,33 @@ const selectedOffsetReceiptSummary = computed(() => {
 	return `已选 ${selectedOffsetReceiptCount.value} 笔（可用合计 ¥${formatMoney(selectedOffsetReceiptAvailableTotal.value)}）`
 })
 const recentSalesDisplayRows = computed(() => {
-	const saleRows = (Array.isArray(recentSales.value) ? recentSales.value : []).map((row) => ({
-		...row,
-		record_type: 'sale',
-		record_key: `sale:${normalizeString(row?._id)}`
-	}))
+	const saleRows = buildSaleDetailSaleRows(recentSales.value)
 	if (!isFlowCustomer.value) return saleRows
-	const flowRows = (Array.isArray(recentFlowSettlements.value) ? recentFlowSettlements.value : []).map((row) => ({
-		...row,
-		date: normalizeDate(row?.biz_date),
-		biz_mode: 'flow_settlement',
-		record_type: 'flow_settlement',
-		record_key: `flow_settlement:${normalizeString(row?._id)}`
-	}))
-	return [...flowRows, ...saleRows]
-		.sort((a, b) => {
-			const leftDate = normalizeDate(a?.date)
-			const rightDate = normalizeDate(b?.date)
-			if (leftDate !== rightDate) return leftDate < rightDate ? 1 : -1
-			const leftId = normalizeString(a?._id)
-			const rightId = normalizeString(b?._id)
-			return leftId < rightId ? 1 : -1
-		})
-		.slice(0, 100)
+	const flowRows = buildSaleDetailFlowRows(recentFlowSettlements.value)
+	return sortSaleDetailRows([...flowRows, ...saleRows]).slice(0, 100)
 })
+const netDebtSalesDetailRows = computed(() =>
+	buildNetDebtSalesDetailSourceRows().filter((row) => isNetDebtSalesDetailRow(row))
+)
+const salesDetailRows = computed(() => (
+	salesDetailMode.value === 'net_debt'
+		? netDebtSalesDetailRows.value
+		: recentSalesDisplayRows.value
+))
+const salesDetailSectionTitle = computed(() => (
+	salesDetailMode.value === 'net_debt'
+		? '销售明细（净欠款来源）'
+		: '销售明细（近100条）'
+))
+const salesDetailLocatedHint = computed(() => {
+	const count = netDebtSalesDetailRows.value.length
+	if (count <= 0) return '当前日期范围暂无净欠款来源'
+	const scope = resolveSalesDetailScopeText()
+	return `${scope} · ${count} 条`
+})
+const salesDetailEmptyTitle = computed(() => (
+	salesDetailMode.value === 'net_debt' ? '当前日期范围暂无净欠款来源销售单' : '暂无销售明细'
+))
 
 function toNumber(value, fallback = 0) {
 	const num = Number(value)
@@ -1768,6 +1783,86 @@ function bizModeText(value) {
 
 function isSaleRecordRow(row) {
 	return normalizeString(row?.record_type || 'sale') === 'sale'
+}
+
+function buildSaleDetailSaleRows(rows = []) {
+	return (Array.isArray(rows) ? rows : []).map((row) => ({
+		...row,
+		record_type: 'sale',
+		record_key: `sale:${normalizeString(row?._id)}`
+	}))
+}
+
+function buildSaleDetailFlowRows(rows = []) {
+	return (Array.isArray(rows) ? rows : []).map((row) => ({
+		...row,
+		date: normalizeDate(row?.biz_date),
+		biz_mode: 'flow_settlement',
+		record_type: 'flow_settlement',
+		record_key: `flow_settlement:${normalizeString(row?._id)}`
+	}))
+}
+
+function sortSaleDetailRows(rows = []) {
+	return [...rows].sort((a, b) => {
+		const leftDate = normalizeDate(a?.date)
+		const rightDate = normalizeDate(b?.date)
+		if (leftDate !== rightDate) return leftDate < rightDate ? 1 : -1
+		const leftId = normalizeString(a?._id)
+		const rightId = normalizeString(b?._id)
+		return leftId < rightId ? 1 : -1
+	})
+}
+
+function buildNetDebtSalesDetailSourceRows() {
+	const sourceSales = netDebtSourceSales.value.length ? netDebtSourceSales.value : recentSales.value
+	const saleRows = buildSaleDetailSaleRows(sourceSales)
+	const flowRows = isFlowCustomer.value
+		? buildSaleDetailFlowRows(
+			netDebtSourceFlowSettlements.value.length
+				? netDebtSourceFlowSettlements.value
+				: recentFlowSettlements.value
+		)
+		: []
+	return sortSaleDetailRows([...flowRows, ...saleRows])
+}
+
+function resolveSalesDetailScope() {
+	return {
+		dateFrom: normalizeDate(summaryScope.date_from || rowFilters.dateFrom),
+		dateTo: normalizeDate(summaryScope.date_to || rowFilters.dateTo)
+	}
+}
+
+function resolveSalesDetailScopeText() {
+	const { dateFrom, dateTo } = resolveSalesDetailScope()
+	if (dateFrom && dateTo) return `${dateFrom} ~ ${dateTo}`
+	if (dateFrom) return `${dateFrom} 起`
+	if (dateTo) return `截至 ${dateTo}`
+	return '全量口径'
+}
+
+function isRowInSalesDetailScope(row) {
+	const date = normalizeDate(row?.date || row?.biz_date)
+	if (!date) return false
+	const { dateFrom, dateTo } = resolveSalesDetailScope()
+	if (dateFrom && date < dateFrom) return false
+	if (dateTo && date > dateTo) return false
+	return true
+}
+
+function resolveSalesDetailOutstanding(row) {
+	const outstanding = fix2(toNumber(row?.outstanding, 0))
+	return outstanding > 0 ? outstanding : 0
+}
+
+function isNetDebtSalesDetailRow(row) {
+	if (!isRowInSalesDetailScope(row)) return false
+	return resolveSalesDetailOutstanding(row) > 0
+}
+
+function isLocatedSalesDetailRow(row) {
+	return salesDetailMode.value === 'net_debt' && isNetDebtSalesDetailRow(row)
 }
 
 function resolveSaleEffectiveShouldReceive(row) {
@@ -2592,8 +2687,10 @@ async function loadStatement({ summaryOnly = false } = {}) {
 		applyStatementSummary(data)
 		if (summaryOnly) return
 		recentSales.value = Array.isArray(data.recent_sales) ? data.recent_sales : []
+		netDebtSourceSales.value = Array.isArray(data.net_debt_source_sales) ? data.net_debt_source_sales : []
 		recentReceipts.value = Array.isArray(data.recent_receipts) ? data.recent_receipts : []
 		recentFlowSettlements.value = Array.isArray(data.recent_flow_settlements) ? data.recent_flow_settlements : []
+		netDebtSourceFlowSettlements.value = Array.isArray(data.net_debt_source_flow_settlements) ? data.net_debt_source_flow_settlements : []
 		recentOpeningDebts.value = Array.isArray(data.recent_opening_debts) ? data.recent_opening_debts : []
 		recentOtherFees.value = Array.isArray(data.recent_other_fees) ? data.recent_other_fees : []
 		syncFlowFormDefaults()
@@ -3645,21 +3742,28 @@ function onOpenSale(id) {
 	uni.navigateTo({ url: `/pages/sale/detail?_id=${encodeURIComponent(saleId)}` })
 }
 
+function scrollToSalesDetailSection() {
+	uni.pageScrollTo({
+		selector: '#statement-sales-detail-section',
+		duration: 240,
+		offsetTop: 12
+	})
+}
+
+function clearSalesDetailLocateMode() {
+	salesDetailMode.value = 'all'
+	scrollToSalesDetailSection()
+}
+
 function onOpenNetDebtSaleSources() {
-	const customerId = normalizeString(recordId.value)
-	if (!customerId) return
-	const params = {
-		customerId,
-		keyword: normalizeString(customer.value?.name),
-		dateStart: normalizeDate(summaryScope.date_from || rowFilters.dateFrom),
-		dateEnd: normalizeDate(summaryScope.date_to || rowFilters.dateTo),
-		settlementScope: 'net_outstanding_non_zero'
+	salesDetailMode.value = 'net_debt'
+	scrollToSalesDetailSection()
+	if (netDebtSalesDetailRows.value.length <= 0) {
+		uni.showToast({
+			title: '当前日期范围暂无净欠款来源销售单',
+			icon: 'none'
+		})
 	}
-	const query = Object.entries(params)
-		.filter(([, value]) => normalizeString(value))
-		.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
-		.join('&')
-	uni.navigateTo({ url: `/pages/sale/list?${query}` })
 }
 
 function onBack() {
@@ -3671,6 +3775,7 @@ watch(
 	async (id) => {
 		if (!id) return
 		quickSceneApplied.value = false
+		salesDetailMode.value = 'all'
 		activeOperationTab.value = 'receipt'
 		openingDebtRecentExpanded.value = false
 		otherFeeRecentExpanded.value = false
@@ -4116,6 +4221,12 @@ onMounted(() => {
 	flex-wrap: wrap;
 	gap: 10rpx;
 	justify-content: flex-end;
+}
+
+.statement-sale-row--located {
+	border-color: #f59e0b;
+	background: #fffbeb;
+	box-shadow: 0 0 0 2rpx rgba(245, 158, 11, 0.16);
 }
 
 .row-detail-grid {

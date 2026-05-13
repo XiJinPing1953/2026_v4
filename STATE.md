@@ -7680,3 +7680,22 @@
   - `git diff --check`（通过）
 - 剩余问题：
   - 需要上传 `crm-sale`、`crm-customer-settlement` 云函数，并发布前端后验证：超级管理员勾选“使用冲抵款”保存后，冲抵来源生成分配流水，销售单 `amount_received/payment_status` 与客户对账余额同步更新。
+
+### 2026-05-14 CURRENT — 净欠款定位改为客户对账页内销售明细
+- 做了什么：
+  - 修正“净欠款(扣冲抵后)”点击行为：不再跳转到全局销售记录列表，而是在当前客户对账页内切换销售明细为“净欠款来源”视图并滚动定位到该区域。
+  - 销售明细新增定位态高亮和“查看全部”按钮；定位态只显示当前对账日期范围内仍有未收余额的销售/流量结算来源。
+  - `getCustomerStatementV1` 增加 `net_debt_source_sales` 与 `net_debt_source_flow_settlements`，避免只依赖“近100条”导致更早的欠款销售单无法定位；如果当前日期范围没有来源，不回退到全量历史，避免误定位。
+- 改动文件列表：
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `node --check src/services/customerSettlement.js`（通过）
+  - `node --check src/components/domain/customer/statement/exportWorkbook.js`（通过）
+  - `git diff --check`（通过）
+  - `npm run build:h5`（通过）
+  - 未运行 `npm run build:mp-alipay`（本轮按要求只验证 H5，当前不计划支付宝小程序上线）
+- 剩余问题：
+  - 需要上传 `crm-customer-settlement` 云函数并发布 H5 前端后验证点击定位效果。
