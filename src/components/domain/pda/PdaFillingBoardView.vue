@@ -1,34 +1,27 @@
 <template>
 	<AppPage title="灌装看板" subtitle="PDA FILLING" icon="list" hideBottleQuery>
 		<template #headerActions>
-			<AppButton size="sm" kind="neutral" :loading="loading" @click="loadBoard">刷新</AppButton>
-			<AppButton size="sm" kind="primary" @click="goFirstCreatable">扫码</AppButton>
+			<AppButton size="sm" kind="neutral" :loading="loading" @click="loadBoard({ loading: true })">刷新</AppButton>
+			<AppButton size="sm" kind="primary" @click="promptStationSelect">选择工位</AppButton>
 		</template>
 
 		<AppSection title="统计">
 			<view class="summary-grid">
-				<view class="summary-cell">
-					<text class="summary-label">空闲</text>
-					<text class="summary-value">{{ summary.idle || 0 }}</text>
-				</view>
-				<view class="summary-cell">
-					<text class="summary-label">充装中</text>
-					<text class="summary-value">{{ summary.filling || 0 }}</text>
-				</view>
-				<view class="summary-cell">
-					<text class="summary-label">已到量</text>
-					<text class="summary-value">{{ summary.reached || 0 }}</text>
-				</view>
-				<view class="summary-cell">
-					<text class="summary-label">异常</text>
-					<text class="summary-value">{{ summary.abnormal || 0 }}</text>
+				<view v-for="item in summaryItems" :key="item.key" :class="['summary-cell', `summary-cell--${item.key}`]">
+					<text class="summary-label">{{ item.label }}</text>
+					<text class="summary-value">{{ item.value }}</text>
 				</view>
 			</view>
 		</AppSection>
 
 		<AppSection title="工位卡片">
 			<view class="station-list">
-				<view v-for="station in stations" :key="station.stationCode" class="station-card" @click="goStation(station.stationCode)">
+				<view
+					v-for="station in stations"
+					:key="station.stationCode"
+					:class="['station-card', `station-card--${station.status || 'unknown'}`]"
+					@click="goStation(station.stationCode)"
+				>
 					<view class="station-head">
 						<view class="station-title">
 							<text class="station-name">{{ station.stationName }}</text>
@@ -43,25 +36,38 @@
 							创建任务
 						</AppButton>
 						<AppButton
-							v-else-if="station.task && station.status === 'reached'"
+							v-else-if="station.task && station.status === PDA_FILLING_STATION_STATUS.REACHED"
 							size="sm"
 							kind="primary"
 							@click.stop="goComplete(station.task._id)"
 						>
 							确认完成
 						</AppButton>
+						<AppButton
+							v-else-if="station.task && station.status === PDA_FILLING_STATION_STATUS.ABNORMAL"
+							size="sm"
+							kind="neutral"
+							@click.stop="goComplete(station.task._id)"
+						>
+							处理异常
+						</AppButton>
 					</view>
 
 					<view v-if="station.task" class="task-lines">
 						<text class="task-line">{{ station.task.bottleNo || '-' }}</text>
 						<text class="task-line">
-							{{ weightText(station.task.currentNetWeight) }} / {{ weightText(station.task.targetNetWeight) }}
+							已充 {{ weightText(station.task.currentNetWeight) }} / 目标 {{ weightText(station.task.targetNetWeight) }}
 						</text>
+						<text :class="['task-line', 'task-line--delta', deltaClass(station)]">{{ deltaText(station.task) }}</text>
 						<text class="task-line">{{ stationHint(station) }}</text>
+					</view>
+					<view v-else-if="station.status === PDA_FILLING_STATION_STATUS.WAIT_ZERO" class="task-lines task-lines--wait-zero">
+						<text class="task-line task-line--strong">等待回零：当前 {{ weightText(station.scale.weightKg) }}</text>
+						<text class="task-line">回零后可创建新任务</text>
 					</view>
 					<view v-else class="task-lines">
 						<text class="task-line">当前 {{ weightText(station.scale.weightKg) }}</text>
-						<text class="task-line">{{ station.status === 'wait_zero' ? '等待回零' : '可创建任务' }}</text>
+						<text class="task-line">可创建任务</text>
 					</view>
 				</view>
 			</view>
@@ -87,8 +93,17 @@ const loading = ref(false)
 const stations = ref([])
 const summary = ref({})
 let timer = null
+let boardRequest = null
 
-const idleStation = computed(() => stations.value.find((item) => canCreateTask(item)) || null)
+const summaryItems = computed(() => [
+	{ key: 'idle', label: '空闲', value: summary.value.idle || 0 },
+	{ key: 'writing', label: '写入中', value: summary.value.writing || 0 },
+	{ key: 'ready', label: '待启动', value: summary.value.ready || 0 },
+	{ key: 'filling', label: '充装中', value: summary.value.filling || 0 },
+	{ key: 'reached', label: '已到量', value: summary.value.reached || 0 },
+	{ key: 'abnormal', label: '异常', value: summary.value.abnormal || 0 },
+	{ key: 'wait_zero', label: '待回零', value: summary.value.wait_zero || 0 }
+])
 
 function statusLabel(status) {
 	return getPdaFillingStatusLabel(status)
@@ -100,6 +115,36 @@ function statusKind(status) {
 
 function weightText(value) {
 	return formatPdaFillingWeight(value, 1)
+}
+
+function toNumber(value) {
+	const num = Number(value)
+	return Number.isFinite(num) ? num : null
+}
+
+function deltaValue(task) {
+	const current = toNumber(task?.currentNetWeight)
+	const target = toNumber(task?.targetNetWeight)
+	if (current == null || target == null) return null
+	return Number((target - current).toFixed(3))
+}
+
+function deltaText(task) {
+	const delta = deltaValue(task)
+	if (delta == null) return '差值 --'
+	if (delta > 0) return `还差 ${weightText(delta)}`
+	if (delta < 0) return `超 ${weightText(Math.abs(delta))}`
+	return '已到目标'
+}
+
+function deltaClass(station) {
+	if (station?.status === PDA_FILLING_STATION_STATUS.REACHED) return 'task-line--ok'
+	if (station?.status === PDA_FILLING_STATION_STATUS.ABNORMAL) return 'task-line--danger'
+	const delta = deltaValue(station?.task)
+	if (delta == null) return ''
+	if (delta < 0) return 'task-line--danger'
+	if (delta <= 0.5) return 'task-line--warning'
+	return ''
 }
 
 function canCreateTask(station) {
@@ -115,19 +160,26 @@ function stationHint(station) {
 	return station.scale?.isOnline ? '可创建任务' : station.scale?.errorMessage || '秤离线'
 }
 
-async function loadBoard() {
-	loading.value = true
-	try {
-		const res = await getPdaFillingBoardV1()
-		if (res.code !== 0) {
-			showToast(res.msg || '看板加载失败')
-			return
+async function loadBoard(options = {}) {
+	if (boardRequest) return boardRequest
+	const showLoading = options.loading !== false
+	const silent = options.silent === true
+	if (showLoading) loading.value = true
+	boardRequest = (async () => {
+		try {
+			const res = await getPdaFillingBoardV1()
+			if (res.code !== 0) {
+				if (!silent) showToast(res.msg || '看板加载失败')
+				return
+			}
+			stations.value = res.data.stations
+			summary.value = res.data.summary || {}
+		} finally {
+			if (showLoading) loading.value = false
+			boardRequest = null
 		}
-		stations.value = res.data.stations
-		summary.value = res.data.summary || {}
-	} finally {
-		loading.value = false
-	}
+	})()
+	return boardRequest
 }
 
 function goStation(stationCode) {
@@ -142,12 +194,8 @@ function goComplete(taskId) {
 	uni.navigateTo({ url: `/pages/pda/filling-complete?task_id=${encodeURIComponent(taskId)}` })
 }
 
-function goFirstCreatable() {
-	if (!idleStation.value) {
-		showToast('暂无空闲工位')
-		return
-	}
-	goCreate(idleStation.value.stationCode)
+function promptStationSelect() {
+	showToast('请在下方选择具体工位')
 }
 
 function showToast(message) {
@@ -155,8 +203,8 @@ function showToast(message) {
 }
 
 onMounted(() => {
-	loadBoard()
-	timer = setInterval(loadBoard, 1200)
+	loadBoard({ loading: true })
+	timer = setInterval(() => loadBoard({ loading: false, silent: true }), 1200)
 })
 
 onBeforeUnmount(() => {
@@ -170,7 +218,7 @@ defineExpose({ loadBoard })
 <style scoped>
 .summary-grid {
 	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: repeat(7, minmax(0, 1fr));
 	gap: 16rpx;
 }
 
@@ -195,6 +243,24 @@ defineExpose({ loadBoard })
 	color: var(--crm-text);
 }
 
+.summary-cell--writing .summary-value,
+.summary-cell--ready .summary-value,
+.summary-cell--filling .summary-value {
+	color: #8a5a00;
+}
+
+.summary-cell--reached .summary-value {
+	color: #2e844a;
+}
+
+.summary-cell--abnormal .summary-value {
+	color: #ba0517;
+}
+
+.summary-cell--wait_zero .summary-value {
+	color: #706e6b;
+}
+
 .station-list {
 	display: grid;
 	grid-template-columns: 1fr;
@@ -209,6 +275,27 @@ defineExpose({ loadBoard })
 	display: flex;
 	flex-direction: column;
 	gap: 18rpx;
+}
+
+.station-card--reached {
+	border-color: #91db8b;
+	background: #f3fff2;
+}
+
+.station-card--abnormal {
+	border-color: #ea001e;
+	background: #fff5f5;
+}
+
+.station-card--wait_zero {
+	border-color: #c9c7c5;
+	background: #f7f7f7;
+}
+
+.station-card--writing,
+.station-card--ready,
+.station-card--filling {
+	border-color: #fcc003;
 }
 
 .station-card:active {
@@ -241,6 +328,13 @@ defineExpose({ loadBoard })
 	gap: 8rpx;
 }
 
+.task-lines--wait-zero {
+	padding: 14rpx;
+	border-radius: var(--crm-radius-sm);
+	background: #fff;
+	border: 1rpx dashed #c9c7c5;
+}
+
 .task-line {
 	font-size: 28rpx;
 	color: var(--crm-text-muted);
@@ -248,7 +342,35 @@ defineExpose({ loadBoard })
 	word-break: break-all;
 }
 
+.task-line--strong {
+	font-weight: 700;
+	color: var(--crm-text);
+}
+
+.task-line--delta {
+	font-weight: 700;
+	color: var(--crm-text);
+}
+
+.task-line--warning {
+	color: #8a5a00;
+}
+
+.task-line--ok {
+	color: #2e844a;
+}
+
+.task-line--danger {
+	color: #ba0517;
+}
+
 @media (max-width: 680px) {
+	.summary-grid {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+
+@media (max-width: 420px) {
 	.summary-grid {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
