@@ -55,7 +55,7 @@ import { callCloud } from '@/services/api'
 import { setToken, setUser } from '@/services/auth'
 import { canViewPage } from '@/services/pageAcl'
 import { consumePendingLoginRedirect, setPendingLoginRedirect } from '@/services/navigation'
-import { resolveHomePath } from '@/services/pda/entry'
+import { normalizeAppPagePath, resolveHomePath, resolveLoginRedirectForRuntime } from '@/services/pda/entry'
 
 const username = ref('')
 const password = ref('')
@@ -67,9 +67,10 @@ function normalizeText(value) {
 
 function resolveRedirectPathAfterLogin(user) {
 	const redirectUrl = consumePendingLoginRedirect()
-	const redirectPath = normalizeText(redirectUrl.split('?')[0])
-	if (redirectUrl && redirectPath && canViewPage(redirectPath, user)) {
-		return redirectUrl
+	const runtimeRedirectUrl = resolveLoginRedirectForRuntime(redirectUrl, user)
+	const redirectPath = normalizeAppPagePath(runtimeRedirectUrl)
+	if (runtimeRedirectUrl && redirectPath && canViewPage(redirectPath, user)) {
+		return runtimeRedirectUrl
 	}
 	return resolveHomePath(user || null)
 }

@@ -2,7 +2,13 @@
 import { getUser, syncCurrentUser } from '@/services/auth'
 import { ensureLatestH5Bundle } from '@/services/h5VersionGuard'
 import { consumePendingLoginRedirect, goLogin } from '@/services/navigation'
-import { resolveHomePath, shouldRedirectToPreferredHome } from '@/services/pda/entry'
+import { canViewPage } from '@/services/pageAcl'
+import {
+  normalizeAppPagePath,
+  resolveHomePath,
+  resolveLoginRedirectForRuntime,
+  shouldRedirectToPreferredHome
+} from '@/services/pda/entry'
 import { restoreScannerProfile } from '@/services/pda/capture'
 
 export default {
@@ -33,8 +39,10 @@ export default {
       const currentPath = current?.route || ''
       if (currentPath === 'pages/login/login') {
         const pendingRedirect = consumePendingLoginRedirect()
-        if (pendingRedirect && user) {
-          uni.reLaunch({ url: pendingRedirect })
+        const runtimeRedirect = resolveLoginRedirectForRuntime(pendingRedirect, user)
+        const redirectPath = normalizeAppPagePath(runtimeRedirect)
+        if (runtimeRedirect && redirectPath && user && canViewPage(redirectPath, user)) {
+          uni.reLaunch({ url: runtimeRedirect })
           return
         }
       }

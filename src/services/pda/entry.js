@@ -7,7 +7,18 @@ export const LOGIN_PATH = '/pages/login/login'
 export function normalizeAppPagePath(value) {
 	const text = normalizeText(value)
 	if (!text) return ''
-	return text.startsWith('/') ? text : `/${text}`
+	const queryIndex = text.search(/[?#]/)
+	const path = queryIndex >= 0 ? text.slice(0, queryIndex) : text
+	return path.startsWith('/') ? path : `/${path}`
+}
+
+export function normalizeAppPageUrl(value) {
+	const text = normalizeText(value)
+	if (!text) return ''
+	const queryIndex = text.search(/[?#]/)
+	const suffix = queryIndex >= 0 ? text.slice(queryIndex) : ''
+	const path = normalizeAppPagePath(queryIndex >= 0 ? text.slice(0, queryIndex) : text)
+	return path ? `${path}${suffix}` : ''
 }
 
 export function isPdaAppMode() {
@@ -22,9 +33,21 @@ export function isPdaOperatorRole(value) {
 	return normalizeText(rawRole).toLowerCase() === 'pda_operator'
 }
 
+export function isPdaPagePath(pagePath) {
+	const normalized = normalizeAppPagePath(pagePath)
+	return normalized === PDA_HOME_PATH || normalized.startsWith('/pages/pda/')
+}
+
 export function resolveHomePath(userLike) {
 	if (isPdaAppMode() && userLike) return PDA_HOME_PATH
 	return isPdaOperatorRole(userLike) ? PDA_HOME_PATH : DEFAULT_HOME_PATH
+}
+
+export function resolveLoginRedirectForRuntime(redirectUrl, userLike) {
+	const normalizedUrl = normalizeAppPageUrl(redirectUrl)
+	if (!normalizedUrl) return ''
+	if (isPdaPagePath(normalizedUrl) && !isPdaAppMode() && !isPdaOperatorRole(userLike)) return ''
+	return normalizedUrl
 }
 
 export function shouldRedirectToPreferredHome(pagePath, userLike) {
