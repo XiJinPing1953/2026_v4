@@ -3033,7 +3033,9 @@ async function createV2(user, payload, requestId, token) {
 			requestId
 		)
 		if (prepayApplyRes.code !== 0) {
-			sideWarnings.push(normalizeString(prepayApplyRes.msg) || '客户预付款抵扣未同步')
+			const applyMsg = normalizeString(prepayApplyRes.msg) || '客户预付款抵扣未同步'
+			if (nextApplyOffsetCredit) return { code: prepayApplyRes.code, msg: applyMsg }
+			sideWarnings.push(applyMsg)
 		} else if (toNumber(prepayApplyRes?.data?.applied_amount, 0) > 0) {
 			try {
 				await resyncSaleVoucherById(user, res.id, requestId)
@@ -3104,6 +3106,7 @@ async function createV2(user, payload, requestId, token) {
 
 function buildSaleListWhere(data = {}) {
 	const keyword = normalizeString(data.keyword)
+	const customerId = normalizeString(data.customerId || data.customer_id)
 	const priceUnit = normalizeString(data.priceUnit)
 	const bizMode = normalizeString(data.bizMode)
 	const dateStart = normalizeString(data.dateStart)
@@ -3127,6 +3130,7 @@ function buildSaleListWhere(data = {}) {
 		if (normalizedRx) keywordConditions.push({ remark_normalized: normalizedRx })
 		conditions.push(dbCmd.or(keywordConditions))
 	}
+	if (customerId) conditions.push({ customer_id: customerId })
 	if (priceUnit) conditions.push({ price_unit: priceUnit })
 	if (bizMode) conditions.push({ biz_mode: bizMode })
 	if (dateStart) conditions.push({ date: dbCmd.gte(dateStart) })
@@ -4522,10 +4526,7 @@ async function updateV2(user, data, requestId, token) {
 				: Math.max(toNumber(existing && existing.rounding_amount, 0), 0)
 		})
 	const existingOffsetEnabled = resolveSaleOffsetEnabled(existing, true)
-	const existingApplyOffsetCredit = toBoolean(existing && (existing.apply_offset_credit ?? existing.applyOffsetCredit), false)
-	const nextApplyOffsetCredit = settlementMode === 'customer_flow'
-		? false
-		: existingApplyOffsetCredit
+	const nextApplyOffsetCredit = false
 	const amountReceived = settlementMode === 'customer_flow' ? 0 : toNumber(existing && existing.amount_received, 0)
 	const nextOffsetEnabled = settlementMode === 'customer_flow' ? false : existingOffsetEnabled
 	const paymentStatus = settlementMode === 'customer_flow'
@@ -4710,7 +4711,7 @@ async function updateV2(user, data, requestId, token) {
 			'autoApplyPrepayToSaleV1',
 			{
 				sale_id: recordId,
-				exclude_offset_credit: !nextApplyOffsetCredit
+				exclude_offset_credit: !(nextApplyOffsetCredit && normalizeRole(user && user.role) === 'superadmin')
 			},
 			token,
 			requestId
@@ -4854,6 +4855,10 @@ async function updateSettlementV1(user, data, requestId, token) {
 	const requestedOffsetEnabled = toBoolean(payload.offsetEnabled ?? payload.offset_enabled, existingOffsetEnabled)
 	const existingApplyOffsetCredit = toBoolean(existing && (existing.apply_offset_credit ?? existing.applyOffsetCredit), false)
 	const nextApplyOffsetCredit = toBoolean(payload.applyOffsetCredit ?? payload.apply_offset_credit, existingApplyOffsetCredit)
+	const canApplyOffsetCredit = normalizeRole(user && user.role) === 'superadmin'
+	if (nextApplyOffsetCredit && !canApplyOffsetCredit) {
+		return { code: 403, msg: '仅超级管理员可在销售单保存时使用冲抵款' }
+	}
 
 	const effectiveShouldReceive = toNumber(amounts.effective_should_receive, 0)
 	const offsetDelta = fix2(Math.max(0, amountReceived - effectiveShouldReceive))
@@ -4902,13 +4907,15 @@ async function updateSettlementV1(user, data, requestId, token) {
 		'autoApplyPrepayToSaleV1',
 		{
 			sale_id: recordId,
-			exclude_offset_credit: !nextApplyOffsetCredit
+			exclude_offset_credit: !(nextApplyOffsetCredit && canApplyOffsetCredit)
 		},
 		token,
 		requestId
 	)
 	if (prepayApplyRes.code !== 0) {
-		sideWarnings.push(normalizeString(prepayApplyRes.msg) || '客户预付款抵扣未同步')
+		const applyMsg = normalizeString(prepayApplyRes.msg) || '客户预付款抵扣未同步'
+		if (nextApplyOffsetCredit) return { code: prepayApplyRes.code, msg: applyMsg }
+		sideWarnings.push(applyMsg)
 	} else if (toNumber(prepayApplyRes?.data?.applied_amount, 0) > 0) {
 		try {
 			await resyncSaleVoucherById(user, recordId, requestId)

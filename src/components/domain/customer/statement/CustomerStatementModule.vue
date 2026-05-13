@@ -34,6 +34,15 @@
 				>
 					导出对账单
 				</AppButton>
+				<AppButton
+					size="sm"
+					kind="outline"
+					:loading="exportingAccountingLedger"
+					:disabled="loading || rowsLoading || analysisLoading"
+					@click="onExportAccountingLedger"
+				>
+					会计导出
+				</AppButton>
 				<AppButton size="sm" kind="neutral" :disabled="loading || rowsLoading || analysisLoading" @click="refreshAll">刷新</AppButton>
 				<AppButton size="sm" kind="neutral" @click="onBack">返回</AppButton>
 			</view>
@@ -43,7 +52,7 @@
 			<view class="summary-row">
 				<AppStatCard class="summary-card" label="应收余额(未扣冲抵)" :value="formatSummaryMoney(summaryReceivableBalanceDisplay)" hint="元" icon="alert" />
 				<AppStatCard class="summary-card" label="可冲抵余额" :value="formatSummaryMoney(summaryPrepayBalanceDisplay)" hint="元" icon="check-circle" />
-				<AppStatCard class="summary-card" label="净欠款(扣冲抵后)" :value="formatSummaryMoney(summaryNetBalanceDisplay)" hint="元" icon="wallet" />
+				<AppStatCard class="summary-card" label="净欠款(扣冲抵后)" :value="formatSummaryMoney(summaryNetBalanceDisplay)" hint="元" icon="wallet" @click="onOpenNetDebtSaleSources" />
 				<AppStatCard class="summary-card" label="最近回款" :value="summaryLastReceiptText" hint="日期" icon="calendar" />
 			</view>
 		</template>
@@ -856,6 +865,7 @@ import {
 	createPrepayEntryV1,
 	createFlowSettlementV1,
 	createReceiptV1,
+	exportCustomerAccountingLedgerV1,
 	exportCustomerStatementV1,
 	getCustomerStatementAnalysisV1,
 	getCustomerStatementV1,
@@ -873,6 +883,8 @@ import {
 	updateReceiptV1
 } from '@/services/customerSettlement'
 import {
+	buildCustomerAccountingLedgerExportFileName,
+	buildCustomerAccountingLedgerWorkbookXml,
 	buildCustomerStatementExportFileName,
 	buildCustomerStatementWorkbookXml,
 	downloadWorkbookFile
@@ -896,6 +908,7 @@ const confirming = ref(false)
 const prepaySubmitting = ref(false)
 const offsetEntrySubmitting = ref(false)
 const exportingStatement = ref(false)
+const exportingAccountingLedger = ref(false)
 const flowPreviewLoading = ref(false)
 const flowSubmitting = ref(false)
 const openingDebtSubmitting = ref(false)
@@ -3184,6 +3197,37 @@ async function onExportStatement() {
 	}
 }
 
+async function onExportAccountingLedger() {
+	if (!recordId.value || exportingAccountingLedger.value) return
+	const range = resolveStatementExportRange()
+	if (!range) return
+	exportingAccountingLedger.value = true
+	uni.showLoading({ title: '正在导出...', mask: true })
+	try {
+		const res = await exportCustomerAccountingLedgerV1({
+			customerId: recordId.value,
+			dateFrom: range.dateFrom,
+			dateTo: range.dateTo
+		})
+		if (res?.code !== 0) {
+			uni.showToast({ title: res?.msg || '会计导出失败', icon: 'none' })
+			return
+		}
+		const payload = res?.data || {}
+		const workbookText = buildCustomerAccountingLedgerWorkbookXml(payload)
+		const fileName = buildCustomerAccountingLedgerExportFileName(payload)
+		const downloaded = await downloadWorkbookFile(workbookText, fileName)
+		if (!downloaded) {
+			uni.showToast({ title: '当前端暂不支持导出，请联系管理员', icon: 'none', duration: 2800 })
+			return
+		}
+		uni.showToast({ title: '会计明细账已导出', icon: 'success' })
+	} finally {
+		uni.hideLoading()
+		exportingAccountingLedger.value = false
+	}
+}
+
 function onAllocationInput(key, value) {
 	editableAllocations.value = editableAllocations.value.map((item) => {
 		if (item.key !== key) return item
@@ -3599,6 +3643,23 @@ function onOpenSale(id) {
 	const saleId = normalizeString(id)
 	if (!saleId) return
 	uni.navigateTo({ url: `/pages/sale/detail?_id=${encodeURIComponent(saleId)}` })
+}
+
+function onOpenNetDebtSaleSources() {
+	const customerId = normalizeString(recordId.value)
+	if (!customerId) return
+	const params = {
+		customerId,
+		keyword: normalizeString(customer.value?.name),
+		dateStart: normalizeDate(summaryScope.date_from || rowFilters.dateFrom),
+		dateEnd: normalizeDate(summaryScope.date_to || rowFilters.dateTo),
+		settlementScope: 'net_outstanding_non_zero'
+	}
+	const query = Object.entries(params)
+		.filter(([, value]) => normalizeString(value))
+		.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+		.join('&')
+	uni.navigateTo({ url: `/pages/sale/list?${query}` })
 }
 
 function onBack() {

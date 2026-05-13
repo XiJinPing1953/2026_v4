@@ -410,6 +410,18 @@ export async function exportCustomerStatementV1(params = {}) {
 	})
 }
 
+export async function exportCustomerAccountingLedgerV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'exportCustomerAccountingLedgerV1',
+		data: {
+			customer_id: params.customerId || params.customer_id || '',
+			date_from: params.dateFrom || params.date_from || '',
+			date_to: params.dateTo || params.date_to || ''
+		},
+		timeout: 30000
+	})
+}
+
 export async function refreshCustomerBalancesV1(params = {}) {
 	return callCloud('crm-customer-settlement', {
 		action: 'refreshCustomerBalancesV1',

@@ -7589,3 +7589,94 @@
   - `npm run build:mp-alipay`（通过）
 - 剩余问题：
   - 真机需验证：B001 与 B002 同重量连续称重时，第二行扫码后等待稳定事件可自动回填；回瓶净重显示为 `0.6`。
+
+### 2026-05-13 CURRENT — 客户对账会计明细账导出
+- 做了什么：
+  - 新增 `crm-customer-settlement.exportCustomerAccountingLedgerV1`，按好会计明细账样式输出客户应收账款流水：销售/流量/历史欠款/其他费用走借方，收款和收款抹零走贷方，分配流水不进入会计导出。
+  - 客户对账页新增“会计导出”按钮，保留原“导出对账单”不变；客户列表的对账入口新增批量“会计导出”。
+  - 新增会计明细账 SpreadsheetML 生成器，列结构为 `日期/凭证号/摘要/借方/贷方/方向/余额`，含期初余额、本月合计、本年累计和批量失败 sheet。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `src/services/customerSettlement.js`
+  - `src/components/domain/customer/statement/exportWorkbook.js`
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `src/components/domain/customer/CustomerListView.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `node --check src/services/customerSettlement.js`（通过）
+  - `node --check src/components/domain/customer/statement/exportWorkbook.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 这轮未部署 `crm-customer-settlement` 云函数；线上使用前需要上传该云函数并发布前端。
+  - 第一版未维护好会计 `112202...` 客户明细科目编码，导出标题默认使用 `1122 应收账款_<客户名称>`；如需精确匹配好会计科目，下一步再补客户档案映射字段。
+
+### 2026-05-14 CURRENT — 客户会计明细账负数销售与月结行修正
+- 做了什么：
+  - 对齐好会计明细账口径：负数销售保留为借方负数，余额统一按 `借方 - 贷方` 逐行滚动，负借方会减少应收并可转为贷方余额。
+  - 会计导出的收款行按收款单发生日期生成贷方，收款抹零单独生成贷方；排除负销售形成的冲抵池来源，避免 1.12、1.29 这类负销售重复扣减余额，同时保留跨期收款和未分配预收款。
+  - 补充历史已收兜底：如果销售、流量结算、历史欠款、其他费用单据自身已有 `amount_received/receipt_rounding_amount`，但没有对应收款单或分配流水承载，会计明细账按业务日期补出贷方，避免已结清历史单据在导出里只显示借方。
+  - 明细账 workbook 改用 `display_rows`，每个月明细后立即插入“本月合计”“本年累计”；期初余额行月份改用导出起始月份。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `src/components/domain/customer/statement/exportWorkbook.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `node --check src/components/domain/customer/statement/exportWorkbook.js`（通过）
+  - `node --check src/services/customerSettlement.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 这轮仍未部署 `crm-customer-settlement` 云函数；线上导出要看到新口径，需要上传该云函数并发布前端。
+
+### 2026-05-14 CURRENT — 会计导出历史已收兜底参数修复
+- 做了什么：
+  - 修复上一轮历史已收兜底里自引入的参数传递错误：`pushAccountingTargetReceivedFallback` 调用时补传 `allocationBackedMap`，避免云函数执行到 `backedMap.get(...)` 抛错，导致点击“会计导出”后无正常返回。
+  - 单客户会计导出前端补充异常 toast 和控制台错误输出，避免云函数异常时用户只看到 loading 消失。
+  - 将“回归优先检查最近 Codex 改动”的排查原则写入 `/Users/wangbo/.codex/skills/crm-2026-v4/SKILL.md`。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `STATE.md`
+  - `/Users/wangbo/.codex/skills/crm-2026-v4/SKILL.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `node --check src/components/domain/customer/statement/exportWorkbook.js`（通过）
+  - `node --check src/services/customerSettlement.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 需要重新上传 `crm-customer-settlement` 云函数；如果前端错误提示改动也要生效，需要重新发布前端。
+
+### 2026-05-14 CURRENT — 销售单手动冲抵款分配与净欠款来源跳转
+- 做了什么：
+  - 销售单“使用冲抵款”保持默认关闭；编辑加载时不再沿用历史 `apply_offset_credit` 勾选态。
+  - 仅超级管理员可在销售单结算区开启“使用冲抵款”；前端禁用非超级管理员开关，后端 `crm-sale.updateSettlementV1` 和 `crm-customer-settlement.autoApplyPrepayToSaleV1` 同步兜底 403。
+  - 销售单保存结算时，如果超级管理员手动开启冲抵款，云函数会按客户冲抵池中未分配来源，排除当前销售单自身形成的冲抵来源，分配到当前销售单欠款；保存尝试后会把 `apply_offset_credit` 复位为关闭，未找到可用冲抵款时回写为真实未结清状态并返回失败提示。
+  - 销售列表新增 `customerId` 路由/筛选参数，客户对账页点击“净欠款(扣冲抵后)”会跳转到该客户销售列表，并套用当前日期范围和 `net_outstanding_non_zero` 口径。
+- 改动文件列表：
+  - `src/components/domain/sale/SaleEditView.vue`
+  - `src/components/domain/sale/SaleSettlementCard.vue`
+  - `src/components/domain/sale/SaleListView.vue`
+  - `src/pages/sale/list.vue`
+  - `src/services/sale.js`
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `uniCloud-alipay/cloudfunctions/crm-sale/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-sale/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `node --check src/services/sale.js`（通过）
+  - `node --check src/services/customerSettlement.js`（通过）
+  - `node --check src/components/domain/customer/statement/exportWorkbook.js`（通过）
+  - `npm run build:h5`（通过）
+  - `npm run build:mp-alipay`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 需要上传 `crm-sale`、`crm-customer-settlement` 云函数，并发布前端后验证：超级管理员勾选“使用冲抵款”保存后，冲抵来源生成分配流水，销售单 `amount_received/payment_status` 与客户对账余额同步更新。

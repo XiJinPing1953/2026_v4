@@ -12,6 +12,11 @@ function fix2(value) {
 	return Number(toNumber(value, 0).toFixed(2))
 }
 
+function fixByScale(value, scale = 2) {
+	const digits = Number(scale) === 3 ? 3 : 2
+	return Number(toNumber(value, 0).toFixed(digits))
+}
+
 function sanitizeFilePart(value) {
 	return normalizeString(value).replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, '')
 }
@@ -40,6 +45,11 @@ function moneyCell(value) {
 	return { type: 'Number', style: 'sMoney', value: fix2(value) }
 }
 
+function moneyCellByScale(value, scale = 2) {
+	const style = Number(scale) === 3 ? 'sMoney3' : 'sMoney'
+	return { type: 'Number', style, value: fixByScale(value, scale) }
+}
+
 function numberOrSlashCell(value) {
 	if (value == null || value === '') return { type: 'String', value: '/' }
 	const num = Number(value)
@@ -66,6 +76,55 @@ function buildRowXml(cells = []) {
 function buildWorksheetXml(name, rows = []) {
 	const body = rows.map((row) => buildRowXml(row)).join('')
 	return `<Worksheet ss:Name="${escapeXml(name)}"><Table>${body}</Table></Worksheet>`
+}
+
+function buildWorkbookXml(sheets = []) {
+	return [
+		'<?xml version="1.0"?>',
+		'<?mso-application progid="Excel.Sheet"?>',
+		'<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"',
+		' xmlns:o="urn:schemas-microsoft-com:office:office"',
+		' xmlns:x="urn:schemas-microsoft-com:office:excel"',
+		' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"',
+		' xmlns:html="http://www.w3.org/TR/REC-html40">',
+		'<Styles>',
+		'<Style ss:ID="sMoney"><NumberFormat ss:Format="0.00"/></Style>',
+		'<Style ss:ID="sMoney3"><NumberFormat ss:Format="0.000"/></Style>',
+		'</Styles>',
+		sheets.join(''),
+		'</Workbook>'
+	].join('')
+}
+
+function sanitizeSheetName(value) {
+	const text = normalizeString(value).replace(/[:\\/?*\[\]]/g, ' ').replace(/\s+/g, ' ')
+	return text || '会计明细账'
+}
+
+function trimSheetName(value, maxLen = 31) {
+	const text = sanitizeSheetName(value)
+	if (text.length <= maxLen) return text
+	return text.slice(0, Math.max(1, maxLen))
+}
+
+function buildUniqueSheetName(baseName, usedNames = new Set()) {
+	let next = trimSheetName(baseName)
+	if (!usedNames.has(next)) {
+		usedNames.add(next)
+		return next
+	}
+	for (let index = 2; index <= 999; index += 1) {
+		const suffix = `(${index})`
+		const head = trimSheetName(baseName, 31 - suffix.length)
+		next = `${head}${suffix}`
+		if (!usedNames.has(next)) {
+			usedNames.add(next)
+			return next
+		}
+	}
+	const fallback = trimSheetName(`会计明细账${Date.now()}`)
+	usedNames.add(fallback)
+	return fallback
 }
 
 function paymentStatusText(value) {
@@ -194,6 +253,144 @@ function buildSaleDetailSheetRows(payload = {}) {
 		{ type: 'String', value: '' }
 	])
 	return rows
+}
+
+function moneyOrBlankCell(value, scale = 2) {
+	const amount = fixByScale(value, scale)
+	if (amount === 0) return { type: 'String', value: '' }
+	return moneyCellByScale(amount, scale)
+}
+
+function balanceCell(row = {}, scale = 2) {
+	const abs = row.balance_abs == null ? Math.abs(toNumber(row.balance, 0)) : row.balance_abs
+	return moneyCellByScale(abs, scale)
+}
+
+function buildAccountingLedgerSheetRows(payload = {}) {
+	const companyName = normalizeString(payload.company_name) || '新拓能源'
+	const moneyScale = Number(payload.money_scale) === 3 ? 3 : 2
+	const subjectTitle = normalizeString(payload?.subject?.title)
+		|| `${normalizeString(payload?.subject?.code) || '1122'} ${normalizeString(payload?.subject?.name) || '应收账款'}`
+	const periodFrom = normalizeString(payload?.period?.date_from)
+	const periodTo = normalizeString(payload?.period?.date_to)
+	const periodMonth = normalizeString(periodFrom).slice(0, 7) || normalizeString(payload?.period?.month) || normalizeString(periodTo).slice(0, 7)
+	const rows = Array.isArray(payload.display_rows)
+		? payload.display_rows
+		: (Array.isArray(payload.rows) ? payload.rows : [])
+	const opening = payload.opening || {
+		direction: toNumber(payload.opening_balance, 0) > 0 ? '借' : (toNumber(payload.opening_balance, 0) < 0 ? '贷' : '平'),
+		balance_abs: Math.abs(toNumber(payload.opening_balance, 0))
+	}
+	const result = []
+
+	result.push([{ type: 'String', value: subjectTitle }])
+	result.push([{ type: 'String', value: `${companyName} ${periodFrom || '-'} 至 ${periodTo || '-'}` }])
+	result.push([{ type: 'String', value: '' }])
+	result.push([
+		{ type: 'String', value: '日期' },
+		{ type: 'String', value: '凭证号' },
+		{ type: 'String', value: '摘要' },
+		{ type: 'String', value: '借方' },
+		{ type: 'String', value: '贷方' },
+		{ type: 'String', value: '方向' },
+		{ type: 'String', value: '余额' }
+	])
+	result.push([
+		{ type: 'String', value: periodMonth },
+		{ type: 'String', value: '' },
+		{ type: 'String', value: '期初余额' },
+		{ type: 'String', value: '' },
+		{ type: 'String', value: '' },
+		{ type: 'String', value: normalizeString(opening.direction) || '平' },
+		balanceCell(opening, moneyScale)
+	])
+
+	rows.forEach((row) => {
+		result.push([
+			{ type: 'String', value: normalizeString(row.biz_date) },
+			{ type: 'String', value: normalizeString(row.voucher_no) },
+			{ type: 'String', value: normalizeString(row.summary) },
+			moneyOrBlankCell(row.debit, moneyScale),
+			moneyOrBlankCell(row.credit, moneyScale),
+			{ type: 'String', value: normalizeString(row.direction) || '平' },
+			balanceCell(row, moneyScale)
+		])
+	})
+
+	return result
+}
+
+function buildAccountingLedgerBatchSummaryRows(payload = {}) {
+	const sheets = Array.isArray(payload.ledgerSheets) ? payload.ledgerSheets : []
+	const errors = Array.isArray(payload.ledgerSheetErrors) ? payload.ledgerSheetErrors : []
+	const filter = payload.filter || payload.filters || {}
+	const dateStart = normalizeString(filter.dateStart || filter.statementDateStart) || '不限'
+	const dateEnd = normalizeString(filter.dateEnd || filter.statementDateEnd) || '不限'
+	const customerLabel = normalizeString(filter.customerLabel) || '当前筛选客户'
+	return [
+		[{ type: 'String', value: '客户会计明细账导出' }],
+		[{ type: 'String', value: '导出时间' }, { type: 'String', value: formatNowForFile() }],
+		[{ type: 'String', value: '导出客户' }, { type: 'String', value: customerLabel }],
+		[{ type: 'String', value: '日期范围' }, { type: 'String', value: `${dateStart} ~ ${dateEnd}` }],
+		[{ type: 'String', value: '成功客户数' }, { type: 'Number', value: sheets.length }],
+		[{ type: 'String', value: '失败客户数' }, { type: 'Number', value: errors.length }]
+	]
+}
+
+function buildAccountingLedgerErrorRows(errors = []) {
+	const rows = [
+		[
+			{ type: 'String', value: '客户ID' },
+			{ type: 'String', value: '客户名称' },
+			{ type: 'String', value: '失败原因' }
+		]
+	]
+	;(Array.isArray(errors) ? errors : []).forEach((item) => {
+		rows.push([
+			{ type: 'String', value: normalizeString(item.customer_id) },
+			{ type: 'String', value: normalizeString(item.customer_name) },
+			{ type: 'String', value: normalizeString(item.msg) || '未知错误' }
+		])
+	})
+	return rows
+}
+
+export function buildCustomerAccountingLedgerWorkbookXml(payload = {}) {
+	return buildWorkbookXml([
+		buildWorksheetXml('会计明细账', buildAccountingLedgerSheetRows(payload))
+	])
+}
+
+export function buildCustomerAccountingLedgerBatchWorkbookXml(payload = {}) {
+	const usedSheetNames = new Set()
+	const sheets = []
+	const pushSheet = (name, rows) => {
+		sheets.push(buildWorksheetXml(buildUniqueSheetName(name, usedSheetNames), rows))
+	}
+	pushSheet('导出说明', buildAccountingLedgerBatchSummaryRows(payload))
+	const ledgerSheets = Array.isArray(payload.ledgerSheets) ? payload.ledgerSheets : []
+	ledgerSheets.forEach((sheet, index) => {
+		const customerName = normalizeString(sheet?.customer?.name) || `客户${index + 1}`
+		pushSheet(`会计-${customerName}`, buildAccountingLedgerSheetRows(sheet))
+	})
+	const errors = Array.isArray(payload.ledgerSheetErrors) ? payload.ledgerSheetErrors : []
+	if (errors.length) pushSheet('会计导出失败', buildAccountingLedgerErrorRows(errors))
+	return buildWorkbookXml(sheets)
+}
+
+export function buildCustomerAccountingLedgerExportFileName(payload = {}) {
+	const customerName = sanitizeFilePart(payload?.customer?.name || '客户')
+	const periodFrom = sanitizeFilePart(payload?.period?.date_from || '起')
+	const periodTo = sanitizeFilePart(payload?.period?.date_to || '止')
+	return `${customerName}_会计明细账_${periodFrom}_${periodTo}_${formatNowForFile()}.xls`
+}
+
+export function buildCustomerAccountingLedgerBatchExportFileName(payload = {}) {
+	const filter = payload.filter || payload.filters || {}
+	const dateStart = sanitizeFilePart(filter.dateStart || filter.statementDateStart || '起')
+	const dateEnd = sanitizeFilePart(filter.dateEnd || filter.statementDateEnd || '止')
+	const total = Math.max(toNumber(payload.total, 0), 0)
+	return `客户会计明细账_日期-${dateStart}_${dateEnd}_${total}客户_${formatNowForFile()}.xls`
 }
 
 export function buildCustomerStatementWorkbookXml(payload = {}) {

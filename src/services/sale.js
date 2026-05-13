@@ -151,6 +151,7 @@ export async function listSalesV2(filters) {
 		action: 'listV2',
 		data: {
 			keyword: filters.keyword || '',
+			customerId: filters.customerId || filters.customer_id || '',
 			dateStart: filters.dateStart || '',
 			dateEnd: filters.dateEnd || '',
 			priceUnit: filters.priceUnit || '',

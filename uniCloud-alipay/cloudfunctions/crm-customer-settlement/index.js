@@ -78,6 +78,7 @@ const PAGE_ACTION_RULES = {
 	allocateOffsetCreditV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	getCustomerStatementAnalysisV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	exportCustomerStatementV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
+	exportCustomerAccountingLedgerV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	refreshCustomerBalancesV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	getCustomerStatementV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	listCustomerStatementRowsV1: [{ pagePath: '/pages/customer/statement', action: 'view' }]
@@ -5053,6 +5054,501 @@ async function exportCustomerStatementV1(user, data) {
 	}
 }
 
+function resolveAccountingSubject(customer) {
+	const customerName = normalizeString(customer && customer.name) || '客户'
+	return {
+		code: '1122',
+		name: `应收账款_${customerName}`,
+		title: `1122 应收账款_${customerName}`
+	}
+}
+
+function resolveAccountingDirection(balance, moneyScale = 2) {
+	const fixed = fixByScale(balance, moneyScale)
+	if (fixed > 0) return '借'
+	if (fixed < 0) return '贷'
+	return '平'
+}
+
+function buildAccountingBalance(balance, moneyScale = 2) {
+	const fixed = fixByScale(balance, moneyScale)
+	return {
+		balance: fixed,
+		direction: resolveAccountingDirection(fixed, moneyScale),
+		balance_abs: fixByScale(Math.abs(fixed), moneyScale)
+	}
+}
+
+function shortAccountingDateText(dateText) {
+	const date = normalizeDate(dateText)
+	if (!date) return ''
+	const parts = date.split('-')
+	return `${Number(parts[1])}.${Number(parts[2])}`
+}
+
+function splitAccountingDebitCredit(amount, moneyScale = 2) {
+	const fixed = fixByScale(amount, moneyScale)
+	if (fixed > 0) return { debit: fixed, credit: 0 }
+	if (fixed < 0) return { debit: 0, credit: fixByScale(Math.abs(fixed), moneyScale) }
+	return { debit: 0, credit: 0 }
+}
+
+function pushAccountingMovement(rows, item = {}, moneyScale = 2) {
+	const bizDate = normalizeDate(item.biz_date || item.bizDate)
+	const amount = fixByScale(item.amount, moneyScale)
+	if (!bizDate || amount === 0) return
+	const split = item.normal_balance === 'debit'
+		? { debit: amount, credit: 0 }
+		: item.normal_balance === 'credit'
+		? { debit: 0, credit: fixByScale(Math.abs(amount), moneyScale) }
+		: splitAccountingDebitCredit(amount, moneyScale)
+	if (split.debit === 0 && split.credit === 0) return
+	rows.push({
+		biz_date: bizDate,
+		created_at: toNumber(item.created_at, 0),
+		row_order: toNumber(item.row_order, 50),
+		voucher_no: '',
+		summary: normalizeString(item.summary),
+		debit: split.debit,
+		credit: split.credit,
+		source_type: normalizeString(item.source_type),
+		source_id: normalizeId(item.source_id)
+	})
+}
+
+function sortAccountingMovements(rows = []) {
+	return [...rows].sort((a, b) => {
+		if (a.biz_date !== b.biz_date) return a.biz_date < b.biz_date ? -1 : 1
+		if (a.row_order !== b.row_order) return a.row_order - b.row_order
+		if (a.created_at !== b.created_at) return a.created_at - b.created_at
+		return normalizeString(a.source_id) < normalizeString(b.source_id) ? -1 : 1
+	})
+}
+
+function sumAccountingMovements(rows = [], moneyScale = 2) {
+	const totals = rows.reduce(
+		(acc, row) => {
+			acc.debit += toNumber(row && row.debit, 0)
+			acc.credit += toNumber(row && row.credit, 0)
+			return acc
+		},
+		{ debit: 0, credit: 0 }
+	)
+	return {
+		debit: fixByScale(totals.debit, moneyScale),
+		credit: fixByScale(totals.credit, moneyScale)
+	}
+}
+
+function accountingTargetKey(targetType, targetId) {
+	const type = normalizeReceivableTargetType(targetType)
+	const id = normalizeId(targetId)
+	return type && id ? `${type}:${id}` : ''
+}
+
+function resolveAccountingAllocationTarget(row) {
+	const targetType = normalizeReceivableTargetType(row && row.target_type)
+	let targetId = normalizeId(row && row.target_id)
+	if (!targetId && targetType === 'flow_settlement') targetId = normalizeId(row && row.flow_settlement_id)
+	if (!targetId) targetId = normalizeId(row && row.sale_id)
+	return {
+		target_type: targetType,
+		target_id: targetId,
+		key: accountingTargetKey(targetType, targetId)
+	}
+}
+
+async function listCustomerAccountingAllocationsByTargets(customerId, targetRefs = [], limitPerChunk = 5000) {
+	const normalizedCustomerId = normalizeId(customerId)
+	if (!normalizedCustomerId) return []
+	const ids = Array.from(
+		new Set(
+			(Array.isArray(targetRefs) ? targetRefs : [])
+				.map((item) => normalizeId(item && item.target_id))
+				.filter(Boolean)
+		)
+	)
+	if (!ids.length) return []
+	const wantedKeys = new Set(
+		(Array.isArray(targetRefs) ? targetRefs : [])
+			.map((item) => accountingTargetKey(item && item.target_type, item && item.target_id))
+			.filter(Boolean)
+	)
+	const maxRows = Math.min(Math.max(toNumber(limitPerChunk, 5000), 1), 5000)
+	const rows = []
+	for (const idChunk of chunkStrings(ids, 80)) {
+		let page = 1
+		let guard = 0
+		let loaded = 0
+		while (guard < 500 && loaded < maxRows) {
+			const res = await allocations
+				.where(
+					dbCmd.and([
+						{ customer_id: normalizedCustomerId },
+						dbCmd.or([
+							{ target_id: dbCmd.in(idChunk) },
+							{ sale_id: dbCmd.in(idChunk) },
+							{ flow_settlement_id: dbCmd.in(idChunk) }
+						])
+					])
+				)
+				.orderBy('created_at', 'asc')
+				.skip((page - 1) * 200)
+				.limit(200)
+				.get()
+			const list = Array.isArray(res.data) ? res.data : []
+			if (!list.length) break
+			for (const row of list) {
+				const target = resolveAccountingAllocationTarget(row)
+				if (target.key && wantedKeys.has(target.key)) rows.push(row)
+			}
+			loaded += list.length
+			if (list.length < 200 || loaded >= maxRows) break
+			page += 1
+			guard += 1
+		}
+	}
+	return rows
+}
+
+function buildAccountingAllocationBackedMap(rows = [], moneyScale = 2) {
+	const map = new Map()
+	for (const row of rows || []) {
+		const target = resolveAccountingAllocationTarget(row)
+		if (!target.key) continue
+		const amount = fixByScale(toNumber(row && row.allocate_amount, 0), moneyScale)
+		if (!(amount > 0)) continue
+		if (!map.has(target.key)) map.set(target.key, { receipt: 0, rounding: 0 })
+		const item = map.get(target.key)
+		if (normalizeAllocateKind(row && row.allocate_kind, 'receipt') === 'rounding') {
+			item.rounding = fixByScale(item.rounding + amount, moneyScale)
+		} else {
+			item.receipt = fixByScale(item.receipt + amount, moneyScale)
+		}
+	}
+	return map
+}
+
+function pushAccountingTargetReceivedFallback(rows, item = {}, backedMap = new Map(), moneyScale = 2) {
+	const targetKey = accountingTargetKey(item.target_type, item.target_id)
+	const backed = backedMap.get(targetKey) || { receipt: 0, rounding: 0 }
+	const amountReceived = fixByScale(toNumber(item.amount_received, 0), moneyScale)
+	const missingReceived = fixByScale(amountReceived - toNumber(backed.receipt, 0), moneyScale)
+	if (missingReceived > 0) {
+		pushAccountingMovement(rows, {
+			biz_date: item.biz_date,
+			created_at: item.created_at,
+			row_order: item.row_order,
+			summary: normalizeString(item.summary),
+			amount: missingReceived,
+			normal_balance: 'credit',
+			source_type: `${normalizeString(item.source_type) || 'target'}_received_fallback`,
+			source_id: item.target_id
+		}, moneyScale)
+	}
+	const receiptRounding = fixByScale(toNumber(item.receipt_rounding_amount, 0), moneyScale)
+	const missingRounding = fixByScale(receiptRounding - toNumber(backed.rounding, 0), moneyScale)
+	if (missingRounding > 0) {
+		pushAccountingMovement(rows, {
+			biz_date: item.biz_date,
+			created_at: toNumber(item.created_at, 0) + 1,
+			row_order: toNumber(item.row_order, 50) + 0.1,
+			summary: normalizeString(item.rounding_summary) || '收款抹零',
+			amount: missingRounding,
+			normal_balance: 'credit',
+			source_type: `${normalizeString(item.source_type) || 'target'}_rounding_fallback`,
+			source_id: item.target_id
+		}, moneyScale)
+	}
+}
+
+function buildAccountingDisplayRows(movements = [], openingBalance = 0, moneyScale = 2) {
+	const displayRows = []
+	const ledgerRows = []
+	let runningBalance = fixByScale(openingBalance, moneyScale)
+	let currentMonth = ''
+	let currentYear = ''
+	let monthDebit = 0
+	let monthCredit = 0
+	let yearDebit = 0
+	let yearCredit = 0
+
+	const pushSummaryRows = () => {
+		if (!currentMonth) return
+		const balance = buildAccountingBalance(runningBalance, moneyScale)
+		displayRows.push({
+			row_type: 'month_total',
+			biz_date: currentMonth,
+			summary: '本月合计',
+			debit: fixByScale(monthDebit, moneyScale),
+			credit: fixByScale(monthCredit, moneyScale),
+			...balance
+		})
+		displayRows.push({
+			row_type: 'year_total',
+			biz_date: currentMonth,
+			summary: '本年累计',
+			debit: fixByScale(yearDebit, moneyScale),
+			credit: fixByScale(yearCredit, moneyScale),
+			...balance
+		})
+	}
+
+	movements.forEach((movement) => {
+		const rowMonth = normalizeDate(movement && movement.biz_date).slice(0, 7)
+		if (!rowMonth) return
+		const rowYear = rowMonth.slice(0, 4)
+		if (currentMonth && rowMonth !== currentMonth) {
+			pushSummaryRows()
+			monthDebit = 0
+			monthCredit = 0
+		}
+		if (!currentMonth || rowMonth !== currentMonth) currentMonth = rowMonth
+		if (!currentYear || rowYear !== currentYear) {
+			currentYear = rowYear
+			yearDebit = 0
+			yearCredit = 0
+		}
+
+		const debit = fixByScale(toNumber(movement.debit, 0), moneyScale)
+		const credit = fixByScale(toNumber(movement.credit, 0), moneyScale)
+		runningBalance = fixByScale(runningBalance + debit - credit, moneyScale)
+		monthDebit = fixByScale(monthDebit + debit, moneyScale)
+		monthCredit = fixByScale(monthCredit + credit, moneyScale)
+		yearDebit = fixByScale(yearDebit + debit, moneyScale)
+		yearCredit = fixByScale(yearCredit + credit, moneyScale)
+		const ledgerRow = {
+			...movement,
+			row_type: 'movement',
+			...buildAccountingBalance(runningBalance, moneyScale)
+		}
+		ledgerRows.push(ledgerRow)
+		displayRows.push(ledgerRow)
+	})
+	pushSummaryRows()
+	return { rows: ledgerRows, display_rows: displayRows }
+}
+
+async function listCustomerAccountingMovements(customer, { dateFrom = '', dateTo = '', moneyScale = 2 } = {}) {
+	const customerId = normalizeId(customer && customer._id ? customer._id : customer)
+	const receiptLabel = normalizeString(customer && customer.short_name) || normalizeString(customer && customer.name) || '客户'
+	const salesDocs = await listCustomerSales(customerId, { dateFrom, dateTo })
+	const flowDocs = await listCustomerFlowSettlements(customerId, { dateFrom, dateTo })
+	const openingDebtDocs = await listCustomerOpeningDebts(customerId, { dateFrom, dateTo })
+	const receiptDocs = await listCustomerReceipts(customerId, { dateFrom, dateTo })
+	const targetRefs = [
+		...salesDocs.map((doc) => ({ target_type: 'sale', target_id: doc && doc._id })),
+		...flowDocs.map((doc) => ({ target_type: 'flow_settlement', target_id: doc && doc._id })),
+		...openingDebtDocs.map((doc) => ({
+			target_type: resolveOpeningDebtEntryType(doc),
+			target_id: doc && doc._id
+		}))
+	]
+	const targetAllocationRows = await listCustomerAccountingAllocationsByTargets(customerId, targetRefs, 5000)
+	const allocationBackedMap = buildAccountingAllocationBackedMap(targetAllocationRows, moneyScale)
+	const rows = []
+
+	salesDocs.forEach((doc) => {
+		const date = normalizeDate(doc && doc.date)
+		const snapshot = computeSaleSnapshot(doc)
+		const targetId = normalizeId(doc && doc._id)
+		pushAccountingMovement(rows, {
+			biz_date: date,
+			created_at: doc && doc.created_at,
+			row_order: 10,
+			summary: `${shortAccountingDateText(date)}销售`,
+			amount: snapshot.should_receive,
+			normal_balance: 'debit',
+			source_type: 'sale',
+			source_id: targetId
+		}, moneyScale)
+		pushAccountingTargetReceivedFallback(rows, {
+			target_type: 'sale',
+			target_id: targetId,
+			biz_date: date,
+			created_at: doc && doc.created_at,
+			row_order: 11,
+			summary: `收款 ${receiptLabel}`,
+			rounding_summary: `${shortAccountingDateText(date)}收款抹零`,
+			amount_received: snapshot.amount_received,
+			receipt_rounding_amount: snapshot.receipt_rounding_amount,
+			source_type: 'sale'
+		}, allocationBackedMap, moneyScale)
+	})
+
+	flowDocs.forEach((doc) => {
+		const date = normalizeDate(doc && doc.biz_date)
+		const snapshot = computeFlowSettlementSnapshot(doc)
+		const targetId = normalizeId(doc && doc._id)
+		pushAccountingMovement(rows, {
+			biz_date: date,
+			created_at: doc && doc.created_at,
+			row_order: 20,
+			summary: `${shortAccountingDateText(date)}流量结算`,
+			amount: snapshot.should_receive,
+			normal_balance: 'debit',
+			source_type: 'flow_settlement',
+			source_id: targetId
+		}, moneyScale)
+		pushAccountingTargetReceivedFallback(rows, {
+			target_type: 'flow_settlement',
+			target_id: targetId,
+			biz_date: date,
+			created_at: doc && doc.created_at,
+			row_order: 21,
+			summary: `收款 ${receiptLabel}`,
+			rounding_summary: `${shortAccountingDateText(date)}收款抹零`,
+			amount_received: snapshot.amount_received,
+			receipt_rounding_amount: snapshot.receipt_rounding_amount,
+			source_type: 'flow_settlement'
+		}, allocationBackedMap, moneyScale)
+	})
+
+	openingDebtDocs.forEach((doc) => {
+		const date = normalizeDate(doc && doc.biz_date)
+		const entryType = resolveOpeningDebtEntryType(doc)
+		const snapshot = computeOpeningDebtSnapshot(doc, moneyScale)
+		const targetId = normalizeId(doc && doc._id)
+		pushAccountingMovement(rows, {
+			biz_date: date,
+			created_at: doc && doc.created_at,
+			row_order: entryType === 'other_fee' ? 31 : 30,
+			summary: `${shortAccountingDateText(date)}${openingDebtEntryLabelByType(entryType)}`,
+			amount: snapshot.should_receive_effective,
+			normal_balance: 'debit',
+			source_type: entryType,
+			source_id: targetId
+		}, moneyScale)
+		pushAccountingTargetReceivedFallback(rows, {
+			target_type: entryType,
+			target_id: targetId,
+			biz_date: date,
+			created_at: doc && doc.created_at,
+			row_order: entryType === 'other_fee' ? 32 : 31,
+			summary: `收款 ${receiptLabel}`,
+			rounding_summary: `${shortAccountingDateText(date)}收款抹零`,
+			amount_received: snapshot.amount_received,
+			receipt_rounding_amount: snapshot.receipt_rounding_amount,
+			source_type: entryType
+		}, allocationBackedMap, moneyScale)
+	})
+
+	receiptDocs.forEach((doc) => {
+		if (isOffsetCreditReceiptRow(doc)) return
+		const date = normalizeDate(doc && doc.biz_date)
+		const amount = fixByScale(toNumber(doc && doc.amount, 0), moneyScale)
+		if (amount > 0) {
+			pushAccountingMovement(rows, {
+				biz_date: date,
+				created_at: doc && doc.created_at,
+				row_order: 80,
+				summary: `收款 ${receiptLabel}`,
+				amount,
+				normal_balance: 'credit',
+				source_type: 'receipt',
+				source_id: doc && doc._id
+			}, moneyScale)
+		}
+		const roundingAmount = fixByScale(toNumber(doc && doc.rounding_allocated_amount, 0), moneyScale)
+		if (roundingAmount > 0) {
+			pushAccountingMovement(rows, {
+				biz_date: date,
+				created_at: toNumber(doc && doc.created_at, 0) + 1,
+				row_order: 80.1,
+				summary: `${shortAccountingDateText(date)}收款抹零`,
+				amount: roundingAmount,
+				normal_balance: 'credit',
+				source_type: 'receipt_rounding',
+				source_id: doc && doc._id
+			}, moneyScale)
+		}
+	})
+
+	return sortAccountingMovements(rows)
+}
+
+async function calculateCustomerAccountingOpeningBalance(customerId, dateFrom, moneyScale = 2) {
+	const openingDateTo = addDays(dateFrom, -1)
+	if (!openingDateTo) return 0
+	const openingMovements = await listCustomerAccountingMovements(customerId, { dateTo: openingDateTo, moneyScale })
+	const totals = sumAccountingMovements(openingMovements, moneyScale)
+	return fixByScale(toNumber(totals.debit, 0) - toNumber(totals.credit, 0), moneyScale)
+}
+
+async function buildCustomerAccountingLedgerPayload(customer, { dateFrom = '', dateTo = '' } = {}) {
+	const customerId = normalizeId(customer && customer._id)
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const openingBalance = await calculateCustomerAccountingOpeningBalance(customerId, dateFrom, moneyScale)
+	const rangeMovements = await listCustomerAccountingMovements(customer, { dateFrom, dateTo, moneyScale })
+	const ledger = buildAccountingDisplayRows(rangeMovements, openingBalance, moneyScale)
+	const rows = ledger.rows
+	const closingBalance = rows.length ? rows[rows.length - 1].balance : fixByScale(openingBalance, moneyScale)
+	const closing = buildAccountingBalance(closingBalance, moneyScale)
+	const monthStart = `${dateTo.slice(0, 7)}-01`
+	const yearStart = `${dateTo.slice(0, 4)}-01-01`
+	const monthMovements = dateFrom <= monthStart
+		? rangeMovements.filter((row) => row.biz_date >= monthStart && row.biz_date <= dateTo)
+		: await listCustomerAccountingMovements(customer, { dateFrom: monthStart, dateTo, moneyScale })
+	const yearMovements = dateFrom <= yearStart
+		? rangeMovements.filter((row) => row.biz_date >= yearStart && row.biz_date <= dateTo)
+		: await listCustomerAccountingMovements(customer, { dateFrom: yearStart, dateTo, moneyScale })
+
+	return {
+		company_name: STATEMENT_COMPANY_NAME,
+		customer: {
+			_id: customer._id,
+			name: normalizeString(customer.name),
+			contact: normalizeString(customer.contact),
+			phone: normalizeString(customer.phone),
+			default_price_unit: normalizeString(customer.default_price_unit) || 'kg'
+		},
+		subject: resolveAccountingSubject(customer),
+		period: {
+			date_from: dateFrom,
+			date_to: dateTo,
+			month: dateTo.slice(0, 7),
+			year: dateTo.slice(0, 4)
+		},
+		money_scale: moneyScale,
+		opening: buildAccountingBalance(openingBalance, moneyScale),
+		opening_balance: fixByScale(openingBalance, moneyScale),
+		rows,
+		display_rows: ledger.display_rows,
+		totals: sumAccountingMovements(rangeMovements, moneyScale),
+		month_total: {
+			label: '本月合计',
+			...sumAccountingMovements(monthMovements, moneyScale),
+			...closing
+		},
+		year_total: {
+			label: '本年累计',
+			...sumAccountingMovements(yearMovements, moneyScale),
+			...closing
+		},
+		closing_balance: closing.balance,
+		closing
+	}
+}
+
+async function exportCustomerAccountingLedgerV1(user, data) {
+	void user
+	const customerId = normalizeId(data.customer_id || data.customerId)
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { code: 404, msg: '客户不存在' }
+
+	const dateFrom = normalizeDate(data.date_from || data.dateFrom)
+	const dateTo = normalizeDate(data.date_to || data.dateTo)
+	if (!dateFrom || !dateTo) return { code: 400, msg: 'date_from/date_to 必填' }
+	if (dateFrom > dateTo) return { code: 400, msg: '开始日期不能晚于结束日期' }
+
+	return {
+		code: 0,
+		msg: 'ok',
+		data: await buildCustomerAccountingLedgerPayload(customer, { dateFrom, dateTo })
+	}
+}
+
 async function confirmAllocationV1(user, data, requestId) {
 	const auth = await ensureWritePermission(user, 'confirmAllocationV1', requestId)
 	if (!auth.ok) return { code: auth.code, msg: auth.msg }
@@ -5698,6 +6194,7 @@ async function autoApplyPrepayToSaleV1(user, data, requestId) {
 
 	const saleId = normalizeId(data.sale_id || data.saleId || data._id || data.id)
 	if (!saleId) return { code: 400, msg: 'sale_id 必填' }
+	const includeOffsetCredit = data.exclude_offset_credit === false || data.excludeOffsetCredit === false
 
 	const saleRes = await sales.doc(saleId).get()
 	const saleDoc = (saleRes.data && saleRes.data[0]) || null
@@ -5720,29 +6217,160 @@ async function autoApplyPrepayToSaleV1(user, data, requestId) {
 
 	const customer = await getCustomerById(customerId)
 	if (!customer) return { code: 400, msg: '客户不存在' }
-	const saleSnapshotForDisabled = computeSaleSnapshot(saleDoc)
-	const balancesForDisabled = await rebuildCustomerBalances(customerId)
+	if (!includeOffsetCredit) {
+		const saleSnapshotForDisabled = computeSaleSnapshot(saleDoc)
+		const balancesForDisabled = await rebuildCustomerBalances(customerId)
+		await recordLog(
+			user,
+			'customer_auto_apply_prepay_v1',
+			{
+				sale_id: saleId,
+				customer_id: customerId,
+				applied_amount: 0,
+				auto_prepay_disabled: true
+			},
+			requestId
+		)
+		return {
+			code: 0,
+			msg: '自动预付款抵扣已关闭，请手动选择冲抵款后保存',
+			data: {
+				sale_id: saleId,
+				applied_amount: 0,
+				payment_status: saleSnapshotForDisabled.payment_status,
+				outstanding: saleSnapshotForDisabled.outstanding,
+				auto_prepay_disabled: true,
+				balances: balancesForDisabled
+			}
+		}
+	}
+	if (normalizeString(user && user.role).toLowerCase() !== 'superadmin') {
+		await recordLog(
+			user,
+			'customer_sale_offset_apply_forbidden',
+			{
+				sale_id: saleId,
+				customer_id: customerId
+			},
+			requestId
+		)
+		return { code: 403, msg: '仅超级管理员可在销售单保存时使用冲抵款' }
+	}
+
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const initialSnapshot = computeSaleSnapshot(saleDoc)
+	let remaining = fixMoney(initialSnapshot.outstanding)
+	let appliedTotal = 0
+	let appliedSourceCount = 0
+	const appliedReceipts = []
+	const allocationTargets = [{ target_type: 'sale', target_id: saleId }]
+
+	if (remaining > 0) {
+		const offsetRows = []
+		let page = 0
+		let guard = 0
+		const pageSize = 200
+		while (guard < 200) {
+			const receiptRes = await receipts
+				.where(buildOffsetCreditPoolWhere(customerId, true))
+				.orderBy('biz_date', 'asc')
+				.orderBy('created_at', 'asc')
+				.skip(page * pageSize)
+				.limit(pageSize)
+				.get()
+			const rows = Array.isArray(receiptRes.data) ? receiptRes.data : []
+			if (!rows.length) break
+			rows.forEach((row) => {
+				if (normalizeId(row && row.source_id) !== saleId) offsetRows.push(row)
+			})
+			if (rows.length < pageSize) break
+			page += 1
+			guard += 1
+		}
+		for (const row of offsetRows) {
+			if (remaining <= 0) break
+			const receiptId = normalizeId(row && row._id)
+			if (!receiptId) continue
+			const sourceAvailable = fixMoney(toNumber(row && row.unallocated_amount, 0))
+			if (sourceAvailable <= 0) continue
+			const applyAmount = fixMoney(Math.min(remaining, sourceAvailable))
+			if (applyAmount <= 0) continue
+			const plan = await buildAllocationPlan(customerId, applyAmount, {
+				manualAllocations: [
+					{
+						target_type: 'sale',
+						target_id: saleId,
+						allocate_amount: applyAmount
+					}
+				],
+				allocationMode: 'checked',
+				allocationTargets
+			})
+			if (!plan.ok) return { code: plan.code || 400, msg: plan.msg || '冲抵分配计划生成失败' }
+			if (fixMoney(toNumber(plan.allocated_total, 0)) <= 0) break
+			const applyRes = await applyOffsetAllocationsToReceipt({
+				user,
+				requestId,
+				customer,
+				receiptDoc: row,
+				plan,
+				allocationMode: 'checked',
+				allocationTargets
+			})
+			if (!applyRes.ok) return { code: applyRes.code || 400, msg: applyRes.msg || '冲抵分配失败' }
+			const allocatedDelta = fixMoney(toNumber(applyRes.allocated_delta, 0))
+			if (allocatedDelta <= 0) continue
+			appliedTotal = fixMoney(appliedTotal + allocatedDelta)
+			remaining = fixMoney(Math.max(remaining - allocatedDelta, 0))
+			appliedSourceCount += 1
+			appliedReceipts.push({
+				receipt_id: receiptId,
+				allocated_amount: allocatedDelta,
+				unallocated_amount: fixMoney(toNumber(applyRes.unallocated_amount, 0))
+			})
+		}
+	}
+
+	const latestSaleRes = await sales.doc(saleId).get()
+	const latestSaleDoc = (latestSaleRes.data && latestSaleRes.data[0]) || saleDoc
+	const latestSnapshot = computeSaleSnapshot(latestSaleDoc)
+	await sales.doc(saleId).update({
+		payment_status: latestSnapshot.payment_status,
+		payment_method: normalizePaymentMethod(latestSaleDoc && latestSaleDoc.payment_method, latestSnapshot.payment_status),
+		apply_offset_credit: false,
+		updated_at: Date.now()
+	})
+	const balances = await rebuildCustomerBalances(customerId)
 	await recordLog(
 		user,
-		'customer_auto_apply_prepay_v1',
+		'customer_sale_offset_apply_v1',
 		{
 			sale_id: saleId,
 			customer_id: customerId,
-			applied_amount: 0,
-			auto_prepay_disabled: true
+			applied_amount: appliedTotal,
+			applied_source_count: appliedSourceCount,
+			outstanding_before: initialSnapshot.outstanding,
+			outstanding_after: latestSnapshot.outstanding
 		},
 		requestId
 	)
+	const message = appliedTotal > 0
+		? '冲抵款已分配'
+		: (initialSnapshot.outstanding <= 0 ? '销售单无待冲抵欠款' : '未找到可用冲抵款')
 	return {
-		code: 0,
-		msg: '自动预付款抵扣已关闭，请在客户对账中手工分配',
+		code: appliedTotal > 0 || initialSnapshot.outstanding <= 0 ? 0 : 400,
+		msg: message,
 		data: {
 			sale_id: saleId,
-			applied_amount: 0,
-			payment_status: saleSnapshotForDisabled.payment_status,
-			outstanding: saleSnapshotForDisabled.outstanding,
-			auto_prepay_disabled: true,
-			balances: balancesForDisabled
+			applied_amount: appliedTotal,
+			applied_source_count: appliedSourceCount,
+			applied_receipts: appliedReceipts,
+			payment_status: latestSnapshot.payment_status,
+			amount_received: latestSnapshot.amount_received,
+			outstanding: latestSnapshot.outstanding,
+			auto_prepay_disabled: false,
+			balances
 		}
 	}
 }
@@ -6686,6 +7314,7 @@ exports.main = async (event, context) => {
 	if (action === 'updateFlowSettlementV1') return updateFlowSettlementV1(user, data, requestId)
 	if (action === 'removeFlowSettlementV1') return removeFlowSettlementV1(user, data, requestId)
 	if (action === 'exportCustomerStatementV1') return exportCustomerStatementV1(user, data)
+	if (action === 'exportCustomerAccountingLedgerV1') return exportCustomerAccountingLedgerV1(user, data)
 	if (action === 'getCustomerStatementAnalysisV1') return getCustomerStatementAnalysisV1(user, data, token, requestId)
 	if (action === 'refreshCustomerBalancesV1') return refreshCustomerBalancesV1(user, data, requestId)
 	if (action === 'getCustomerStatementV1') return getCustomerStatementV1(user, data)

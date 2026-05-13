@@ -3,6 +3,11 @@
 		ref="listRef"
 		:preset-has-remark="routePreset.hasRemark"
 		:preset-remark-tag="routePreset.remarkTag"
+		:preset-keyword="routePreset.keyword"
+		:preset-customer-id="routePreset.customerId"
+		:preset-date-start="routePreset.dateStart"
+		:preset-date-end="routePreset.dateEnd"
+		:preset-settlement-scope="routePreset.settlementScope"
 	/>
 </template>
 
@@ -14,7 +19,12 @@ import SaleListView from '@/components/domain/sale/SaleListView.vue'
 const listRef = ref(null)
 const routePreset = reactive({
 	hasRemark: '',
-	remarkTag: ''
+	remarkTag: '',
+	keyword: '',
+	customerId: '',
+	dateStart: '',
+	dateEnd: '',
+	settlementScope: ''
 })
 const routePresetPending = ref(false)
 let firstShow = true
@@ -34,7 +44,20 @@ function consumeListRefreshSignal() {
 onLoad((options = {}) => {
 	routePreset.hasRemark = String(options.hasRemark || '')
 	routePreset.remarkTag = String(options.remarkTag || '')
-	routePresetPending.value = Boolean(routePreset.hasRemark || routePreset.remarkTag)
+	routePreset.keyword = String(options.keyword || '')
+	routePreset.customerId = String(options.customerId || options.customer_id || '')
+	routePreset.dateStart = String(options.dateStart || options.date_start || '')
+	routePreset.dateEnd = String(options.dateEnd || options.date_end || '')
+	routePreset.settlementScope = String(options.settlementScope || options.settlement_scope || '')
+	routePresetPending.value = Boolean(
+		routePreset.hasRemark ||
+		routePreset.remarkTag ||
+		routePreset.keyword ||
+		routePreset.customerId ||
+		routePreset.dateStart ||
+		routePreset.dateEnd ||
+		routePreset.settlementScope
+	)
 })
 
 onShow(() => {

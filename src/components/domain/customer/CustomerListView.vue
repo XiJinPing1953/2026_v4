@@ -3,6 +3,17 @@
 		<template #headerActions>
 			<AppButton v-if="canCreateCustomer" size="sm" kind="primary" icon="plus" @click="onAdd">新增客户</AppButton>
 			<AppButton size="sm" kind="neutral" icon="document" :loading="exporting" :disabled="loading" @click="onExport">导出</AppButton>
+			<AppButton
+				v-if="isStatementEntryMode && canViewStatement"
+				size="sm"
+				kind="neutral"
+				icon="document"
+				:loading="exportingAccounting"
+				:disabled="loading || exporting"
+				@click="onExportAccountingLedger"
+			>
+				会计导出
+			</AppButton>
 			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch">刷新</AppButton>
 		</template>
 
@@ -281,8 +292,12 @@ import AppStatCard from '@/components/base/AppStatCard.vue'
 import { useQuery } from '@/composables/useQuery'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { listCustomersV1 } from '@/services/customer'
-import { exportCustomerStatementV1 } from '@/services/customerSettlement'
-import { downloadWorkbookFile } from '@/components/domain/customer/statement/exportWorkbook'
+import { exportCustomerAccountingLedgerV1, exportCustomerStatementV1 } from '@/services/customerSettlement'
+import {
+	buildCustomerAccountingLedgerBatchExportFileName,
+	buildCustomerAccountingLedgerBatchWorkbookXml,
+	downloadWorkbookFile
+} from '@/components/domain/customer/statement/exportWorkbook'
 import {
 	buildCustomerListWorkbookXml,
 	buildCustomerListExportFileName
@@ -314,6 +329,7 @@ const filters = reactive({
 const showSuggestions = ref(false)
 const suggestions = ref([])
 const exporting = ref(false)
+const exportingAccounting = ref(false)
 let searchTimer = null
 
 const activeOptions = [
@@ -627,6 +643,53 @@ async function onExport() {
 	}
 }
 
+async function onExportAccountingLedger() {
+	if (exportingAccounting.value) return
+	if (!isStatementEntryMode.value || !canViewStatement.value) {
+		uni.showToast({ title: '当前账号没有客户对账导出权限', icon: 'none' })
+		return
+	}
+	exportingAccounting.value = true
+	uni.showLoading({ title: '正在导出会计明细...', mask: true })
+	try {
+		const rows = await fetchAllRowsForExport()
+		if (!rows.length) {
+			uni.showToast({ title: '没有可导出的数据', icon: 'none' })
+			return
+		}
+		const statementPeriod = resolveStatementExportPeriod()
+		const { ledgerSheets, ledgerSheetErrors } = await fetchCustomerAccountingLedgerSheetsForExport(rows, statementPeriod)
+		const workbookPayload = {
+			ledgerSheets,
+			ledgerSheetErrors,
+			total: rows.length,
+			filters: {
+				dateStart: statementPeriod.dateFrom,
+				dateEnd: statementPeriod.dateTo,
+				customerLabel: normalizeString(filters.keyword) || '当前筛选客户'
+			}
+		}
+		const workbookText = buildCustomerAccountingLedgerBatchWorkbookXml(workbookPayload)
+		const fileName = buildCustomerAccountingLedgerBatchExportFileName(workbookPayload)
+		const downloaded = await downloadWorkbookFile(workbookText, fileName)
+		if (!downloaded) {
+			uni.showToast({ title: '当前端暂不支持导出，请联系管理员', icon: 'none', duration: 2800 })
+			return
+		}
+		const errorCount = Number(ledgerSheetErrors?.length || 0)
+		if (errorCount > 0) {
+			uni.showToast({ title: `已导出${ledgerSheets.length}客户，${errorCount}个客户失败（见失败sheet）`, icon: 'none', duration: 3000 })
+		} else {
+			uni.showToast({ title: `已导出${ledgerSheets.length}个客户会计明细`, icon: 'success' })
+		}
+	} catch (err) {
+		uni.showToast({ title: err?.message || '会计导出失败', icon: 'none', duration: 2800 })
+	} finally {
+		uni.hideLoading()
+		exportingAccounting.value = false
+	}
+}
+
 function onReset() {
 	filters.keyword = ''
 	filters.activeIndex = 0
@@ -788,6 +851,39 @@ async function fetchCustomerStatementSheetsForExport(rows = [], period = { dateF
 		}
 	}
 	return { statementSheets, statementSheetErrors }
+}
+
+async function fetchCustomerAccountingLedgerSheetsForExport(rows = [], period = { dateFrom: '', dateTo: '' }) {
+	const source = Array.isArray(rows) ? rows : []
+	const ledgerSheets = []
+	const ledgerSheetErrors = []
+	for (const row of source) {
+		const customerId = normalizeString(row?._id)
+		if (!customerId) continue
+		try {
+			const res = await exportCustomerAccountingLedgerV1({
+				customerId,
+				dateFrom: period.dateFrom,
+				dateTo: period.dateTo
+			})
+			if (res?.code !== 0 || !res?.data) {
+				ledgerSheetErrors.push({
+					customer_id: customerId,
+					customer_name: normalizeString(row?.name),
+					msg: normalizeString(res?.msg) || '会计导出接口失败'
+				})
+				continue
+			}
+			ledgerSheets.push(res.data)
+		} catch (err) {
+			ledgerSheetErrors.push({
+				customer_id: customerId,
+				customer_name: normalizeString(row?.name),
+				msg: normalizeString(err?.message) || '会计导出请求异常'
+			})
+		}
+	}
+	return { ledgerSheets, ledgerSheetErrors }
 }
 
 function onKeywordInput(value) {

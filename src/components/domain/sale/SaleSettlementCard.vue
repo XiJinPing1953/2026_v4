@@ -65,7 +65,7 @@
 					</view>
 					<switch
 						:checked="applyOffsetCredit"
-						:disabled="offsetCreditLoading || readonly"
+						:disabled="offsetCreditLoading || readonly || !canApplyOffsetCredit"
 						color="#1677ff"
 						@change="onApplyOffsetCreditChange"
 					/>
@@ -115,7 +115,9 @@ const props = defineProps({
 	offsetCreditAvailable: { type: [Number, String], default: 0 },
 	offsetCreditLoading: { type: Boolean, default: false },
 	expectedOffsetApplied: { type: [Number, String], default: 0 },
-	finalAmountReceived: { type: [Number, String], default: 0 }
+	finalAmountReceived: { type: [Number, String], default: 0 },
+	canApplyOffsetCredit: { type: Boolean, default: true },
+	applyOffsetDisabledReason: { type: String, default: '' }
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -199,6 +201,9 @@ const applyOffsetCredit = computed(() => Boolean(props.modelValue?.applyOffsetCr
 const applyOffsetHintText = computed(() => {
 	if (props.offsetCreditLoading) return '冲抵款查询中...'
 	const available = offsetCreditAvailableNumber.value.toFixed(2)
+	if (!props.canApplyOffsetCredit) {
+		return props.applyOffsetDisabledReason || `当前可用 ¥${available}，仅超级管理员可使用冲抵款`
+	}
 	if (applyOffsetCredit.value && expectedOffsetAppliedNumber.value > 0) {
 		return `当前可用 ¥${available}，预计冲抵 ¥${expectedOffsetAppliedNumber.value.toFixed(2)}，最终冲销 ¥${finalAmountReceivedNumber.value.toFixed(2)}`
 	}
@@ -230,7 +235,7 @@ function onOffsetEnabledChange(e) {
 }
 
 function onApplyOffsetCreditChange(e) {
-	if (props.readonly) return
+	if (props.readonly || !props.canApplyOffsetCredit) return
 	patchModel({ applyOffsetCredit: Boolean(e?.detail?.value) })
 }
 

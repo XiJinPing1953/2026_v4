@@ -258,7 +258,12 @@ import { buildDatePresetRange, detectDatePreset } from '@/utils/datePreset'
 
 const props = defineProps({
 	presetHasRemark: { type: String, default: '' },
-	presetRemarkTag: { type: String, default: '' }
+	presetRemarkTag: { type: String, default: '' },
+	presetKeyword: { type: String, default: '' },
+	presetCustomerId: { type: String, default: '' },
+	presetDateStart: { type: String, default: '' },
+	presetDateEnd: { type: String, default: '' },
+	presetSettlementScope: { type: String, default: '' }
 })
 
 const { canPageAction, canViewPage } = useAuthGuard()
@@ -316,6 +321,7 @@ let searchTimer = null
 
 const filters = reactive({
 	keyword: '',
+	customerId: '',
 	dateStart: '',
 	dateEnd: '',
 	priceUnit: '',
@@ -426,7 +432,11 @@ const netModeHintText = computed(() => {
 
 const filterChips = computed(() => {
 	const chips = []
-	if (filters.keyword) chips.push({ key: 'keyword', label: `关键词: ${filters.keyword}` })
+	if (filters.customerId) {
+		chips.push({ key: 'customerId', label: `客户: ${filters.keyword || filters.customerId.slice(-6)}` })
+	} else if (filters.keyword) {
+		chips.push({ key: 'keyword', label: `关键词: ${filters.keyword}` })
+	}
 	if (filters.dateStart || filters.dateEnd) {
 		const start = filters.dateStart || '起'
 		const end = filters.dateEnd || '今'
@@ -460,6 +470,10 @@ const filterChips = computed(() => {
 
 function clearFilterChip(key) {
 	if (key === 'keyword') filters.keyword = ''
+	if (key === 'customerId') {
+		filters.customerId = ''
+		filters.keyword = ''
+	}
 	if (key === 'date') {
 		filters.dateStart = ''
 		filters.dateEnd = ''
@@ -495,6 +509,7 @@ const { loading, run: fetchList } = useQuery(
 	async () => {
 		const res = await listSalesV2({
 			keyword: filters.keyword,
+			customerId: filters.customerId,
 			dateStart: filters.dateStart,
 			dateEnd: filters.dateEnd,
 			priceUnit: filters.priceUnit,
@@ -600,7 +615,7 @@ const { loading, run: fetchList } = useQuery(
 		cacheTTL: 10000,
 		throttleMs: 300,
 			cacheKey: () =>
-				`sale:list:${filters.keyword}:${filters.dateStart}:${filters.dateEnd}:${filters.priceUnit}:${filters.bizMode}:${filters.paymentStatus}:${filters.settlementScope}:${filters.hasRemark}:${filters.remarkTag}:${pager.page}:${pager.pageSize}`,
+				`sale:list:${filters.keyword}:${filters.customerId}:${filters.dateStart}:${filters.dateEnd}:${filters.priceUnit}:${filters.bizMode}:${filters.paymentStatus}:${filters.settlementScope}:${filters.hasRemark}:${filters.remarkTag}:${pager.page}:${pager.pageSize}`,
 		onError(err) {
 			uni.showToast({ title: err?.message || '销售记录加载失败', icon: 'none' })
 		}
@@ -668,6 +683,7 @@ async function refreshList() {
 
 function onReset() {
 	filters.keyword = ''
+	filters.customerId = ''
 	filters.dateStart = ''
 	filters.dateEnd = ''
 	filters.priceUnit = ''
@@ -1124,6 +1140,7 @@ function onNextPage() {
 function buildListParams(page = 1, pageSize = 50) {
 	return {
 		keyword: filters.keyword,
+		customerId: filters.customerId,
 		dateStart: filters.dateStart,
 		dateEnd: filters.dateEnd,
 		priceUnit: filters.priceUnit,
@@ -1363,8 +1380,18 @@ async function onExport() {
 function applyRoutePreset(params = {}, autoSearch = true) {
 	const hasRemarkValue = String(params?.hasRemark || '').trim()
 	const remarkTagValue = String(params?.remarkTag || '').trim()
+	const keywordValue = String(params?.keyword || '').trim()
+	const customerIdValue = String(params?.customerId || params?.customer_id || '').trim()
+	const dateStartValue = String(params?.dateStart || params?.date_start || '').trim()
+	const dateEndValue = String(params?.dateEnd || params?.date_end || '').trim()
+	const settlementScopeValue = String(params?.settlementScope || params?.settlement_scope || '').trim()
 	const hasRemarkOptionIndex = hasRemarkOptions.findIndex((item) => item.value === hasRemarkValue)
 	const remarkTagOptionIndex = remarkTagOptions.findIndex((item) => item.value === remarkTagValue)
+	if (keywordValue) filters.keyword = keywordValue
+	if (customerIdValue) filters.customerId = customerIdValue
+	if (dateStartValue) filters.dateStart = dateStartValue
+	if (dateEndValue) filters.dateEnd = dateEndValue
+	if (settlementScopeTextMap[settlementScopeValue]) filters.settlementScope = settlementScopeValue
 	if (hasRemarkOptionIndex >= 0) {
 		hasRemarkIndex.value = hasRemarkOptionIndex
 		filters.hasRemark = hasRemarkOptions[hasRemarkOptionIndex].value
@@ -1373,6 +1400,7 @@ function applyRoutePreset(params = {}, autoSearch = true) {
 		remarkTagIndex.value = remarkTagOptionIndex
 		filters.remarkTag = remarkTagOptions[remarkTagOptionIndex].value
 	}
+	if (dateStartValue || dateEndValue) syncDatePreset()
 	if (autoSearch) onSearch(true)
 }
 
@@ -1380,7 +1408,12 @@ onMounted(() => {
 	applyRoutePreset(
 		{
 			hasRemark: props.presetHasRemark,
-			remarkTag: props.presetRemarkTag
+			remarkTag: props.presetRemarkTag,
+			keyword: props.presetKeyword,
+			customerId: props.presetCustomerId,
+			dateStart: props.presetDateStart,
+			dateEnd: props.presetDateEnd,
+			settlementScope: props.presetSettlementScope
 		},
 		false
 	)
@@ -1389,10 +1422,18 @@ onMounted(() => {
 })
 
 watch(
-	() => [props.presetHasRemark, props.presetRemarkTag],
-	([hasRemark, remarkTag]) => {
-		if (!hasRemark && !remarkTag) return
-		applyRoutePreset({ hasRemark, remarkTag }, true)
+	() => [
+		props.presetHasRemark,
+		props.presetRemarkTag,
+		props.presetKeyword,
+		props.presetCustomerId,
+		props.presetDateStart,
+		props.presetDateEnd,
+		props.presetSettlementScope
+	],
+	([hasRemark, remarkTag, keyword, customerId, dateStart, dateEnd, settlementScope]) => {
+		if (!hasRemark && !remarkTag && !keyword && !customerId && !dateStart && !dateEnd && !settlementScope) return
+		applyRoutePreset({ hasRemark, remarkTag, keyword, customerId, dateStart, dateEnd, settlementScope }, true)
 	}
 )
 

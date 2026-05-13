@@ -130,11 +130,13 @@
 							:should-receive="settlementSummary.amount"
 							:formula="settlementSummary.formula"
 							:payment-status-locked="true"
-						:offset-credit-available="offsetCreditAvailable"
-						:offset-credit-loading="offsetCreditLoading"
-						:expected-offset-applied="expectedOffsetAppliedAmount"
-						:final-amount-received="finalAmountReceivedPreview"
-					/>
+							:offset-credit-available="offsetCreditAvailable"
+							:offset-credit-loading="offsetCreditLoading"
+							:expected-offset-applied="expectedOffsetAppliedAmount"
+							:final-amount-received="finalAmountReceivedPreview"
+							:can-apply-offset-credit="canApplyOffsetCredit"
+							:apply-offset-disabled-reason="applyOffsetDisabledReason"
+						/>
 						<view v-if="recordId" class="settlement-external-note">
 							<view class="settlement-external-note__row">
 								<text class="settlement-external-note__label">收款抹零（客户对账）</text>
@@ -185,6 +187,7 @@ import AppSection from '@/components/base/AppSection.vue'
 import AppCard from '@/components/base/AppCard.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
+import { getRoleTemplate } from '@/services/auth'
 import { normalizeBottleNo } from '@/services/models'
 import { createSaleV2, getSaleV2, updateSaleV2, updateSaleSettlementV1, getCustomerDepositV1 } from '@/services/sale'
 import { listOffsetCreditPoolV1 } from '@/services/customerSettlement'
@@ -270,6 +273,10 @@ const ticketImageUploading = computed(() => ticketImages.value.some((item) => Bo
 const canCreateBusiness = computed(() => canPageAction('/pages/sale/edit', 'create'))
 const canUpdateBusiness = computed(() => canPageAction('/pages/sale/edit', 'update'))
 const canUpdateSettlement = computed(() => canPageAction('/pages/sale/settlement', 'update'))
+const canApplyOffsetCredit = computed(() => getRoleTemplate() === 'superadmin')
+const applyOffsetDisabledReason = computed(() =>
+	canApplyOffsetCredit.value ? '' : '仅超级管理员可在销售单保存时使用冲抵款'
+)
 const canEditBusinessContent = computed(() =>
 	recordId.value ? canUpdateBusiness.value : canCreateBusiness.value
 )
@@ -325,6 +332,7 @@ const normalizedOffsetCreditAvailable = computed(() => {
 })
 const expectedOffsetAppliedAmount = computed(() => {
 	if (!showSettlementBlocks.value || !settlement.value?.applyOffsetCredit) return 0
+	if (!canApplyOffsetCredit.value) return 0
 	if (effectiveShouldReceive.value <= 0) return 0
 	const outstanding = fix2(
 		effectiveShouldReceive.value - manualAmountReceived.value - externalReceiptRoundingAmount.value
@@ -375,18 +383,6 @@ function normalizeIdValue(value) {
 
 function resolveOffsetEnabled(doc, fallback = false) {
 	const raw = doc?.offset_enabled
-	if (raw == null || raw === '') return Boolean(fallback)
-	if (typeof raw === 'boolean') return raw
-	if (typeof raw === 'number') return raw !== 0
-	const text = String(raw).trim().toLowerCase()
-	if (!text) return Boolean(fallback)
-	if (['1', 'true', 'yes', 'y', 'on'].includes(text)) return true
-	if (['0', 'false', 'no', 'n', 'off'].includes(text)) return false
-	return Boolean(fallback)
-}
-
-function resolveApplyOffsetCredit(doc, fallback = false) {
-	const raw = doc?.apply_offset_credit ?? doc?.applyOffsetCredit
 	if (raw == null || raw === '') return Boolean(fallback)
 	if (typeof raw === 'boolean') return raw
 	if (typeof raw === 'number') return raw !== 0
@@ -677,7 +673,7 @@ async function loadDetail(id) {
 		paymentMethod: doc.payment_method || ((doc.payment_status || 'unpaid') === 'unpaid' ? 'on_account' : 'cash'),
 		amountReceived: doc.amount_received == null ? '' : String(doc.amount_received),
 		roundingAmount: doc.rounding_amount == null ? '' : String(doc.rounding_amount),
-		applyOffsetCredit: resolveApplyOffsetCredit(doc, false),
+		applyOffsetCredit: false,
 		offsetEnabled: resolveOffsetEnabled(doc, true),
 		paymentNote: doc.payment_note || ''
 	}
@@ -772,12 +768,13 @@ async function loadOffsetCreditAvailability(customerId = form.value.customerId) 
 		if (fetchSeq !== offsetCreditFetchSeq) return
 		offsetCreditAvailable.value = fix2(Math.max(availableTotal, 0))
 		offsetCreditLoading.value = false
-		if (offsetCreditAvailable.value <= 0) settlement.value.applyOffsetCredit = false
+		if (offsetCreditAvailable.value <= 0 || !canApplyOffsetCredit.value) settlement.value.applyOffsetCredit = false
 	}
 }
 
 function syncSettlementStatusForSubmit() {
 	if (!showSettlementBlocks.value) return
+	if (!canApplyOffsetCredit.value) settlement.value.applyOffsetCredit = false
 	settlement.value.paymentStatus = autoPaymentStatus.value
 	if (settlement.value.paymentStatus === 'unpaid') {
 		settlement.value.paymentMethod = 'on_account'
