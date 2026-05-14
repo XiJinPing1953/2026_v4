@@ -1,6 +1,6 @@
 {
   "bsonType": "object",
-  "description": "Latest read-only tank telemetry collected from the site Modbus-TCP gateway",
+  "description": "Latest read-only tank telemetry collected from the site S7 PLC gateway",
   "additionalProperties": false,
   "required": [
     "tank_id",

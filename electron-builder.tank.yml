@@ -1,0 +1,25 @@
+appId: com.xintuo.tankgateway
+productName: 新拓储罐网关
+copyright: Copyright © 2026
+asar: true
+directories:
+  output: release/tank-gateway
+extraMetadata:
+  main: apps/tank-gateway/main.cjs
+files:
+  - apps/tank-gateway/**/*
+  - scripts/tankTelemetryCore.cjs
+  - node_modules/nodes7/**/*
+  - node_modules/keytar/**/*
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 新拓储罐网关

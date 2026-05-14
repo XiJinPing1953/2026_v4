@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>新拓储罐网关</title>
+		<link rel="stylesheet" href="./styles.css" />
+	</head>
+	<body>
+		<main class="app-shell">
+			<header class="topbar">
+				<div>
+					<h1>新拓储罐网关</h1>
+					<p id="statusText">未启动</p>
+				</div>
+				<div class="actions">
+					<button id="probeBtn" type="button">单次探测</button>
+					<button id="startBtn" type="button" class="primary">启动</button>
+					<button id="stopBtn" type="button">停止</button>
+				</div>
+			</header>
+
+			<section class="grid">
+				<form id="configForm" class="panel settings">
+					<h2>连接设置</h2>
+					<label class="field span-2">
+						<span>云端接口 URL</span>
+						<input id="gatewayUrl" name="gatewayUrl" type="url" placeholder="https://..." />
+					</label>
+					<label class="field">
+						<span>网关 ID</span>
+						<input id="gatewayId" name="gatewayId" type="text" />
+					</label>
+					<label class="field">
+						<span>PLC IP</span>
+						<input id="host" name="host" type="text" />
+					</label>
+					<label class="field">
+						<span>端口</span>
+						<input id="port" name="port" type="number" min="1" max="65535" />
+					</label>
+					<label class="field">
+						<span>Rack</span>
+						<input id="rack" name="rack" type="number" min="0" max="7" />
+					</label>
+					<label class="field">
+						<span>Slot</span>
+						<input id="slot" name="slot" type="number" min="0" max="7" />
+					</label>
+					<label class="field">
+						<span>液位地址</span>
+						<input id="levelAddress" name="levelAddress" type="text" />
+					</label>
+					<label class="field">
+						<span>压力地址</span>
+						<input id="pressureAddress" name="pressureAddress" type="text" />
+					</label>
+					<label class="field">
+						<span>满量程 m</span>
+						<input id="fullLevelM" name="fullLevelM" type="number" step="0.01" min="0.01" />
+					</label>
+					<label class="field">
+						<span>轮询 ms</span>
+						<input id="intervalMs" name="intervalMs" type="number" min="1000" step="500" />
+					</label>
+					<label class="field">
+						<span>超时 ms</span>
+						<input id="timeoutMs" name="timeoutMs" type="number" min="500" step="500" />
+					</label>
+					<label class="field">
+						<span>储罐 ID</span>
+						<input id="tankId" name="tankId" type="text" />
+					</label>
+					<div class="form-row span-2">
+						<button id="saveConfigBtn" type="submit">保存设置</button>
+					</div>
+				</form>
+
+				<section class="panel auth">
+					<h2>登录</h2>
+					<label class="field">
+						<span>网关密码</span>
+						<input id="password" type="password" autocomplete="current-password" />
+					</label>
+					<label class="check-row">
+						<input id="savePassword" type="checkbox" checked />
+						<span>保存到系统凭据</span>
+					</label>
+					<div class="button-row">
+						<button id="loginBtn" type="button" class="primary">登录</button>
+						<button id="clearPasswordBtn" type="button">清除凭据</button>
+					</div>
+					<dl class="meta">
+						<div>
+							<dt>凭据存储</dt>
+							<dd id="credentialBackend">-</dd>
+						</div>
+						<div>
+							<dt>密码状态</dt>
+							<dd id="passwordSaved">-</dd>
+						</div>
+					</dl>
+				</section>
+
+				<section class="panel telemetry">
+					<h2>当前读数</h2>
+					<div class="gauge-row">
+						<div class="tank">
+							<div id="tankFill" class="tank-fill"></div>
+							<span id="levelPercent">--%</span>
+						</div>
+						<div class="readings">
+							<div>
+								<span>储罐液位</span>
+								<strong id="levelM">-- m</strong>
+							</div>
+							<div>
+								<span>储罐压力</span>
+								<strong id="pressureMpa">-- MPa</strong>
+							</div>
+							<div>
+								<span>更新时间</span>
+								<strong id="sampledAt">--</strong>
+							</div>
+						</div>
+					</div>
+				</section>
+
+				<section class="panel log-panel span-2">
+					<h2>运行日志</h2>
+					<div id="logList" class="log-list"></div>
+				</section>
+			</section>
+		</main>
+		<script src="./renderer.js"></script>
+	</body>
+</html>

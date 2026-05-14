@@ -9,6 +9,7 @@ try {
 }
 const db = uniCloud.database()
 const dbCmd = db.command
+const tankTelemetryCore = require('../common/tankTelemetry')
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
@@ -189,21 +190,7 @@ function buildTankSummary(row, now = Date.now()) {
 }
 
 async function getTankTelemetrySummary(tankId = 'main') {
-	try {
-		const res = await tankTelemetry.where({ tank_id: normalizeTankId(tankId) }).orderBy('updated_at', 'desc').limit(1).get()
-		return buildTankSummary((res.data && res.data[0]) || null)
-	} catch (err) {
-		console.error('[crm-dashboard] getTankTelemetrySummary failed', err)
-		return {
-			level_m: null,
-			level_percent: null,
-			pressure_mpa: null,
-			status: 'error',
-			sampled_at: null,
-			updated_at: null,
-			message: '储罐读数加载失败'
-		}
-	}
+	return tankTelemetryCore.getTankTelemetrySummary(tankTelemetry, tankId)
 }
 
 function normalizeRawTelemetry(raw) {
@@ -492,47 +479,11 @@ function classifyAnomalyGroup(type) {
 }
 
 async function ingestTankTelemetry(user, data, requestId) {
-	const tankId = normalizeTankId(data.tank_id || data.tankId)
-	const gatewayId = normalizeString(data.gateway_id || data.gatewayId) || 'tank-gateway'
-	const status = normalizeTankStatus(data.status, 'online')
-	const levelM = nullableNumber(data.level_m ?? data.levelM)
-	const pressureMpa = nullableNumber(data.pressure_mpa ?? data.pressureMpa)
-	const rawFullLevelM = nullableNumber(data.full_level_m ?? data.fullLevelM)
-	const fullLevelM = rawFullLevelM != null && rawFullLevelM > 0 ? rawFullLevelM : 10
-	const explicitPercent = nullableNumber(data.level_percent ?? data.levelPercent)
-	const computedPercent = levelM != null && fullLevelM > 0 ? (levelM / fullLevelM) * 100 : null
-	const levelPercent = explicitPercent != null ? explicitPercent : computedPercent
-	const sampledAt = normalizeTimestamp(data.sampled_at ?? data.sampledAt, Date.now())
-	const now = Date.now()
-
-	if (status !== 'error' && (levelM == null || pressureMpa == null)) {
-		return { code: 400, msg: '缺少有效液位或压力读数' }
-	}
-
-	const doc = {
-		tank_id: tankId,
-		gateway_id: gatewayId,
-		plc_host: normalizeString(data.plc_host || data.plcHost),
-		status,
-		level_m: levelM == null ? null : fix2(levelM),
-		level_percent: levelPercent == null ? null : fix2(clampNumber(levelPercent, 0, 100)),
-		pressure_mpa: pressureMpa == null ? null : fix2(pressureMpa),
-		full_level_m: fullLevelM,
-		raw: normalizeRawTelemetry(data.raw),
-		message: normalizeString(data.message),
-		sampled_at: sampledAt,
-		updated_at: now
-	}
-
-	const existingRes = await tankTelemetry.where({ tank_id: tankId }).field({ _id: true }).limit(1).get()
-	const existing = existingRes.data && existingRes.data[0]
-	if (existing && existing._id) {
-		await tankTelemetry.doc(existing._id).update(doc)
-	} else {
-		await tankTelemetry.add({ ...doc, created_at: now })
-	}
-
-	return { code: 0, data: buildTankSummary(doc, now) }
+	void user
+	void requestId
+	const res = await tankTelemetryCore.upsertTankTelemetry(tankTelemetry, data)
+	if (res && res.doc) delete res.doc
+	return res
 }
 
 async function summaryV1(user, data, requestId) {
