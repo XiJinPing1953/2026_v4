@@ -1,7 +1,7 @@
 'use strict'
 
 const crypto = require('crypto')
-const tankTelemetryCore = require('../common/tankTelemetry')
+const tankTelemetryCore = require('./tankTelemetry')
 
 const db = uniCloud.database()
 const tankTelemetry = db.collection('crm_tank_telemetry')

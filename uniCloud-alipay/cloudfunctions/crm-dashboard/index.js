@@ -9,7 +9,7 @@ try {
 }
 const db = uniCloud.database()
 const dbCmd = db.command
-const tankTelemetryCore = require('../common/tankTelemetry')
+const tankTelemetryCore = require('./tankTelemetry')
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
