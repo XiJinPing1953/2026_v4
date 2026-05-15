@@ -7699,3 +7699,20 @@
   - 未运行 `npm run build:mp-alipay`（本轮按要求只验证 H5，当前不计划支付宝小程序上线）
 - 剩余问题：
   - 需要上传 `crm-customer-settlement` 云函数并发布 H5 前端后验证点击定位效果。
+
+### 2026-05-15 CURRENT — 出纳收款单客户对账抹零放开
+- 做了什么：
+  - 客户对账页编辑出纳登记来源收款单时，继续锁定真实收款金额、业务日期、收款方式和备注，但允许录入/调整收款抹零。
+  - 后端 `updateReceiptV1` 放开出纳来源收款单的 `rounding_amount` 调整，仍禁止从客户对账反改金额/日期/方式/备注等出纳登记字段。
+  - 提示文案同步改为“仅支持调整分配和抹零”。
+- 改动文件列表：
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+  - 未运行 `npm run build:mp-alipay`（本轮按计划只验证 H5）
+- 剩余问题：
+  - 需要上传 `crm-customer-settlement` 云函数并发布 H5 前端后，在线上验证出纳收款 `22610.00` + 抹零 `9.50` 可结清 `22619.50` 区间欠款。

@@ -3169,7 +3169,6 @@ async function updateReceiptV1(user, data, requestId) {
 		const inputEntryKind = normalizeString(data.entry_kind || data.entryKind)
 		if (
 			amount !== receiptAmount ||
-			roundingAmount !== receiptRoundingAmount ||
 			bizDate !== receiptBizDate ||
 			paymentMethod !== receiptPaymentMethod ||
 			note !== receiptNote ||
@@ -3177,7 +3176,7 @@ async function updateReceiptV1(user, data, requestId) {
 			(inputSourceIdProvided && inputSourceId !== sourceId) ||
 			(inputEntryKind && normalizeEntryKind(inputEntryKind, entryKind) !== entryKind)
 		) {
-			return { code: 400, msg: '出纳登记来源收款单仅支持调整分配，金额/日期/方式/备注请在出纳登记处理' }
+			return { code: 400, msg: '出纳登记来源收款单仅支持调整分配和抹零，金额/日期/方式/备注请在出纳登记处理' }
 		}
 	}
 

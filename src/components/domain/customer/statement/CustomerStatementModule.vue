@@ -172,7 +172,6 @@
 							label="抹零金额(元)"
 							:placeholder="moneyInputPlaceholder"
 							size="sm"
-							:readonly="isEditingCashierReceipt"
 							@blur="onReceiptRoundingAmountBlur"
 						/>
 						<picker class="picker-block" mode="date" :disabled="isEditingCashierReceipt" @change="onBizDateChange">
@@ -212,7 +211,7 @@
 						当前区间累计欠款：¥{{ formatMoney(receiptPeriodRangeOutstandingTotal) }}（{{ receiptPeriodRangeTargetCount }} 笔）
 					</text>
 					<text v-else class="section-hint">分配口径：仅冲销勾选单据；现金剩余自动计入预付款/冲抵池，抹零需全部落到勾选目标。</text>
-					<text v-if="isEditingCashierReceipt" class="section-hint section-hint--warning">当前收款单来源于出纳登记，仅支持调整分配；金额、业务日期、收款方式与备注请在“出纳收款登记”处理。</text>
+					<text v-if="isEditingCashierReceipt" class="section-hint section-hint--warning">当前收款单来源于出纳登记，仅支持调整分配和抹零；金额、业务日期、收款方式与备注请在“出纳收款登记”处理。</text>
 
 					<view v-if="receiptForm.allocationMode === 'checked'" class="checked-target-box">
 						<view class="checked-target-head">
@@ -3098,7 +3097,7 @@ function onEditReceipt(row) {
 	previewPlan.value = null
 	editableAllocations.value = []
 	uni.showToast({
-		title: isCashierReceiptRow(row) ? '已加载出纳收款单，仅可调整分配' : '已加载收款单，修改后点保存收款单',
+		title: isCashierReceiptRow(row) ? '已加载出纳收款单，仅可调整分配和抹零' : '已加载收款单，修改后点保存收款单',
 		icon: 'none'
 	})
 }
