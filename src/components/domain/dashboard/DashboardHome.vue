@@ -490,7 +490,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
@@ -581,6 +581,9 @@ const dailyReportRangeOptions = [
 const dailyReportRangePreset = ref('last5')
 const DAILY_REPORT_MAX_VISIBLE_DAYS = 5
 const MONTH_EXPORT_PRESET_SET = new Set(['lastMonth', 'thisMonth'])
+const DASHBOARD_REFRESH_MS = 15000
+const isDashboardPolling = ref(false)
+let dashboardRefreshTimer = null
 
 const dailyReportDateRange = computed(() => resolveDailyReportDateRange(dailyReportRangePreset.value))
 const dailyReportRangeLabel = computed(() => {
@@ -893,11 +896,11 @@ function applyDashboard(data) {
 	applyTankTelemetry(data.tank)
 }
 
-useQuery(
-	async () => {
+const { run: fetchDashboardSummary } = useQuery(
+	async (options = {}) => {
 		const res = await getDashboardSummaryV1({ days: 7 })
 		if (res?.code !== 0) {
-			uni.showToast({ title: res?.msg || '工作台数据加载失败', icon: 'none' })
+			if (!options.silent) uni.showToast({ title: res?.msg || '工作台数据加载失败', icon: 'none' })
 			return null
 		}
 		return res.data || null
@@ -908,10 +911,27 @@ useQuery(
 		throttleMs: 300,
 		onSuccess: applyDashboard,
 		onError(err) {
-			uni.showToast({ title: err?.message || '工作台数据加载失败', icon: 'none' })
+			if (!isDashboardPolling.value) uni.showToast({ title: err?.message || '工作台数据加载失败', icon: 'none' })
 		}
 	}
 )
+
+function refreshDashboardSilently() {
+	if (isDashboardPolling.value) return
+	isDashboardPolling.value = true
+	Promise.resolve(fetchDashboardSummary({ force: true, silent: true })).finally(() => {
+		isDashboardPolling.value = false
+	})
+}
+
+onMounted(() => {
+	dashboardRefreshTimer = setInterval(refreshDashboardSilently, DASHBOARD_REFRESH_MS)
+})
+
+onBeforeUnmount(() => {
+	if (dashboardRefreshTimer) clearInterval(dashboardRefreshTimer)
+	dashboardRefreshTimer = null
+})
 
 function go(url) {
 	uni.navigateTo({ url })

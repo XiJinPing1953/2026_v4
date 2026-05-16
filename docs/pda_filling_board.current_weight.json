@@ -1,0 +1,57 @@
+{
+  "started_at": "2026-05-13T13:21:42.387Z",
+  "space_id": "env-00jxuffegf2n",
+  "result": {
+    "code": 0,
+    "msg": "PDA灌装看板读取完成",
+    "data": {
+      "refreshed_at": 1778678502434,
+      "summary": {
+        "idle": 3,
+        "writing": 0,
+        "ready": 0,
+        "filling": 0,
+        "reached": 0,
+        "abnormal": 0,
+        "wait_zero": 0
+      },
+      "active_count": 0,
+      "current": [],
+      "stations": [
+        {
+          "station_code": "station_1",
+          "station_name": "1号机",
+          "status": "idle",
+          "scale_code": "filling_scale_main",
+          "has_task": false,
+          "scale_weight_text": "--",
+          "scale_is_online": false,
+          "scale_is_stable": false,
+          "error_message": "C606+称重网关尚未上报"
+        },
+        {
+          "station_code": "station_2",
+          "station_name": "2号机",
+          "status": "idle",
+          "scale_code": "filling_scale_2",
+          "has_task": false,
+          "scale_weight_text": "--",
+          "scale_is_online": false,
+          "scale_is_stable": false,
+          "error_message": "C606+称重网关尚未上报"
+        },
+        {
+          "station_code": "station_3",
+          "station_name": "3号机",
+          "status": "idle",
+          "scale_code": "filling_scale_3",
+          "has_task": false,
+          "scale_weight_text": "--",
+          "scale_is_online": false,
+          "scale_is_stable": false,
+          "error_message": "C606+称重网关尚未上报"
+        }
+      ]
+    }
+  }
+}

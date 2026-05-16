@@ -78,7 +78,7 @@ function buildTankSummary(row, now = Date.now()) {
 		status,
 		sampled_at: sampledAt,
 		updated_at: updatedAt,
-		message: normalizeString(row.message) || fallbackMessage
+		message: status === 'stale' ? fallbackMessage : normalizeString(row.message) || fallbackMessage
 	}
 }
 
