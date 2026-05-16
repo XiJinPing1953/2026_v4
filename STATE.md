@@ -7716,3 +7716,209 @@
   - 未运行 `npm run build:mp-alipay`（本轮按计划只验证 H5）
 - 剩余问题：
   - 需要上传 `crm-customer-settlement` 云函数并发布 H5 前端后，在线上验证出纳收款 `22610.00` + 抹零 `9.50` 可结清 `22619.50` 区间欠款。
+
+### 2026-05-15 CURRENT — 会计导出补负数实收退款行
+- 做了什么：
+  - 客户会计明细账导出中，销售/流量/历史欠款等目标若存在负数 `amount_received`，现在会额外生成“退款 <客户>”借方正数行。
+  - 保留原负数销售借方负数口径，使 `-1127` 负数销售与 `1127` 已退款借方行在应收明细账中抵平。
+  - 统一复用目标已收兜底函数，正数已收仍走贷方，收款抹零仍走贷方。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+  - 未运行 `npm run build:mp-alipay`（本轮按 H5/云函数导出口径验证）
+- 剩余问题：
+  - 需要上传 `crm-customer-settlement` 云函数后，导出“云海木业”会计明细账验证 `2026-01-21` 显示“1.21销售”借方 `-1127.00` 与“退款 云海木业”借方 `1127.00`。
+
+### 2026-05-15 CURRENT — 客户对账金额间距与累计实收退款口径修正
+- 做了什么：
+  - 客户对账概览卡片和“当前区间累计欠款”提示改为货币符/数字分段展示，避免 `¥` 与金额视觉贴连。
+  - 确认累计营收口径：按当前范围内销售/流量/历史欠款的净应收汇总，负数销售继续计入负数营收。
+  - 修正累计实收口径：正数实收仍扣除冲抵池分配；负数实收（退款）不再裁成 0，按负数计入累计实收，避免退款客户实收被高估。
+- 改动文件列表：
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+  - 未运行 `npm run build:mp-alipay`（本轮按 H5/云函数口径验证）
+- 剩余问题：
+  - 需要上传 `crm-customer-settlement` 云函数并发布 H5 前端后，在线上复查客户“云海木业”的累计实收是否扣减 `-1127.00` 退款，以及金额符号间距是否生效。
+
+### 2026-05-15 CURRENT — 会计导出补历史销售抹零贷方
+- 做了什么：
+  - 客户会计明细账导出中，销售目标的自身抹零现在会作为贷方“收款抹零”兜底行输出。
+  - 同时兼容新字段 `rounding_amount` 和历史导入字段 `write_off`，避免老销售单“已收清但差额为抹零”的金额只留在余额里。
+  - 仍保留客户对账分配产生的 `receipt_rounding_amount` 口径；若已有分配/收款单抹零，不重复冲减。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 需要上传 `crm-customer-settlement` 云函数后，重新导出“云海木业”会计明细账，验证历史抹零合计从 `24.00` 补到 `47.00`，余额从借方 `23.00` 归零。
+
+### 2026-05-15 CURRENT — 累计营收保留历史销售抹零前金额
+- 做了什么：
+  - 客户对账总览“累计营收”的销售单汇总口径从 `should_receive_effective` 改为 `should_receive`。
+  - 历史销售单 `write_off/rounding_amount` 只在会计导出里作为贷方“收款抹零”表达，不再从累计营收里扣除。
+  - 累计实收仍按真实实收口径统计，负数实收（退款）继续按负数扣减。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 需要上传 `crm-customer-settlement` 云函数后，按“云海木业”会计软件截止日 `2026-05-11` 复查累计营收不再扣除历史销售抹零 `23.00`。
+
+### 2026-05-15 CURRENT — 客户对账快捷抹零结清历史小额欠款
+- 做了什么：
+  - 客户对账“销售明细”每条存在未收余额的销售/流量结算行增加“抹零结清”按钮。
+  - 销售明细顶部增加“本页小额抹零”，批量处理当前可见且未收不超过 `20.00` 元的单据。
+  - 快捷抹零不再要求进入销售单编辑；前端调用现有 `createReceiptV1`，生成 `0` 元收款单 + 抹零分配，落到目标单据 `receipt_rounding_amount`。
+  - 批量抹零按目标单据日期分组生成收款单，避免历史抹零统一落到当前日期影响会计期间。
+- 改动文件列表：
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 需要上传 `crm-customer-settlement` 云函数并发布 H5 后，在客户对账页手工验证单笔“抹零结清”和“本页小额抹零”均能生成抹零收款单并结清对应单据。
+
+### 2026-05-15 CURRENT — 累计营收/实收排除期初历史欠款
+- 做了什么：
+  - 客户对账总览汇总中，`opening_debt`（历史欠款/期初余额）继续参与应收余额和净欠款，但不再参与“累计营收”和“累计实收”。
+  - `other_fee` 仍作为本期其他费用应收参与累计营收/实收。
+  - 解决系统从 1 月 1 日启用、期初余额统一以 `2026-01-01` 历史欠款录入时，被误算进本年营收的问题。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 需要上传 `crm-customer-settlement` 云函数后，复查云海木业 `2026-01-01 ~ 2026-05-14` 的累计营收/实收不再包含期初历史欠款 `700.00`。
+
+### 2026-05-16 CURRENT — 收款单待分配余额支持继续分配
+- 做了什么：
+  - 客户对账新增 `allocatePrepayReceiptV1`（沿用接口名），只消费已入账收款单的 `unallocated_amount`，追加分配，不回滚原有已分配金额。
+  - 客户对账新增 `beginReceiptAdjustmentV1` / `cancelReceiptAdjustmentV1`，整单调整进入时立即释放原分配并保存快照，取消/重置/切换操作时恢复原分配。
+  - 收款单列表将 `预付+` 改为 `待分配收款/剩余预付款/剩余冲抵`：普通收款未分配余额不再叫预付，只有“预付录入”来源才显示为预付款。
+  - 客户汇总新增 `receipt_unallocated_balance`，把普通待分配收款、预付款、冲抵池拆开展示；“可抵扣余额”仍作为三者合计用于净欠款扣减。
+  - “继续分配”加载原收款单待分配金额，锁定金额/日期/方式/备注，只允许选择区间或目标继续冲欠。
+  - 原“编辑”改为“调整整单”，进入调整即释放旧分配，让原已分配目标重新进入可选欠款；保存按当前选择重新入账。
+- 改动文件列表：
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `src/services/customerSettlement.js`
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 需要上传 `crm-customer-settlement` 云函数并发布 H5 后，手工验证 `801.00` 收款单已分配 `513.00`、待分配收款 `288.00` 时，点击“继续分配”只追加分配 `288.00`，点击“调整整单”会先释放 `513.00`，取消可恢复原分配。
+
+### 2026-05-16 CURRENT — 调整整单释放原分配性能优化
+- 做了什么：
+  - `rollbackReceiptAllocations` 从逐条分配记录查写目标，改为先按目标单据聚合，再批量读取销售/流量/历史欠款目标并逐目标更新。
+  - `beginReceiptAdjustmentV1` 复用进入调整前已读取的分配快照，不再重复查询同一张收款单分配。
+  - 进入整单调整时不再同步执行一次完整客户余额重建；后续客户对账刷新、保存、取消仍会重建，避免点击“调整整单”时重复等待。
+  - 前端进入调整后的刷新改为只阻塞客户对账主数据，流水异步刷新，不再等待分析和冲抵池加载。
+- 改动文件列表：
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 需要上传 `crm-customer-settlement` 云函数并发布 H5 后，在有多条分配目标的收款单上实测“调整整单”的进入速度和取消恢复结果。
+
+### 2026-05-16 CURRENT — 调整整单进入改为逻辑释放避免长时间卡死
+- 做了什么：
+  - `beginReceiptAdjustmentV1` 不再进入时物理回滚所有目标单据；现在只保存分配快照、标记收款单处于调整中，并返回 `released_targets` 给前端。
+  - 前端整单调整界面把 `released_targets` 临时并入可勾选欠款目标，达到“进入后原目标可重新选择”的效果，但不在进入时执行大量销售/欠款写操作。
+  - `cancelReceiptAdjustmentV1` 对新逻辑释放的调整只清理 pending 标记，原分配保持不变；若遇到旧物理回滚遗留的 pending，仍走恢复分配兜底。
+  - `updateReceiptV1` 在保存整单调整时再真正回滚原分配并按当前选择重算，避免点击进入阶段卡数分钟。
+- 改动文件列表：
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 需要上传 `crm-customer-settlement` 云函数并发布 H5 后重新测试；如果线上已有旧请求卡住，需刷新页面后重试新版本。
+
+### 2026-05-16 CURRENT — 修复调整整单依赖缺失集合导致线上卡住
+- 探查结果：
+  - 只读探查客户“清真白记”`2026-04-05`、`1296.00` 收款单：receipt `6a07e783a4a1fa77f60221ab`，只有 4 条分配行，全部是销售目标，分配合计 `1296.00`。
+  - `listCustomerStatementRowsV1` 单日读取约 `108~616ms`，`getCustomerStatementV1` summary/full 约 `223~302ms`，数据规模不是分钟级卡顿来源。
+  - 受控调用 `beginReceiptAdjustmentV1` / `cancelReceiptAdjustmentV1` 返回线上 `HTTP 500`，错误为 `not found collection`，缺失集合是新增的 `crm_customer_receipt_adjustments`。
+- 做了什么：
+  - `beginReceiptAdjustmentV1` 改为把整单调整快照存到当前收款单字段，不再依赖 `crm_customer_receipt_adjustments` 新集合。
+  - `findPendingReceiptAdjustment` 优先读取收款单自身 pending 字段；若旧集合不存在，捕获 `not found collection` 并按无旧 pending 处理。
+  - `cancelReceiptAdjustmentV1` 对新逻辑释放模式只清理收款单 pending 字段，原分配保持不变；旧集合 pending 仍保留兼容恢复路径。
+  - `updateReceiptV1` 保存整单调整时清理收款单 pending/snapshot 字段。
+  - `crm_customer_receipts` schema 补充 `receipt_adjustment_*` 字段。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `uniCloud-alipay/database/crm_customer_receipts.schema.json`
+  - `uniCloud-alipay/database/schema/crm_customer_receipts.schema.json`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 必须上传新版 `crm-customer-settlement` 云函数；线上旧版本会继续因缺失 `crm_customer_receipt_adjustments` 报 500。
+  - 若启用了数据库 schema 校验，需要同步 `crm_customer_receipts` schema 后再测整单调整。
+
+### 2026-05-16 CURRENT — 冲抵分配增加历史调整与删除
+- 做了什么：
+  - “冲抵分配”页新增“冲抵历史（可调整已分配）”，展示所有冲抵来源（含已分配完、余额为 0 的来源），并显示已冲抵目标摘要。
+  - 已分配冲抵不再要求去“收款单”记录里找；在冲抵历史中可直接点“调整分配”，进入后旧目标临时释放到可选目标，保存后重算这笔冲抵来源的分配。
+  - 新增 `removeOffsetCreditAllocationV1`：删除的是冲抵来源的已分配去向，目标单据回滚，冲抵来源保留并把金额退回可用冲抵余额；不作废冲抵来源单。
+  - 冲抵来源整单调整保存时，后端把新分配行标记为 `offset_manual_allocate`，避免后续统计把它当普通收款。
+- 改动文件列表：
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `src/services/customerSettlement.js`
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 需要上传 `crm-customer-settlement` 云函数并发布 H5 后，手工验证清真白记 `2026-02-14` 的 `603.00` 冲抵来源：可在冲抵历史里调整到新目标；点“删除冲抵”后该目标入账回滚、`603.00` 回到可用冲抵余额。
+
+### 2026-05-16 CURRENT — 销售单自身实收与收款单分配去重
+- 做了什么：
+  - 客户对账汇总的“累计实收”改为：销售/流量/其他费用单据自身实收 + 非冲抵收款单实收；同时从单据自身实收中扣除已由收款单/冲抵分配写入的金额，避免销售单 `amount_received` 与出纳登记/登记收款重复计入。
+  - 收款单中冲到 `opening_debt`（历史欠款/期初余额）的现金继续从“累计实收”剔除，避免期初余额通过收款单重新算入经营实收。
+  - 销售明细展示拆分为“实收”（销售单自身录入）、“收款分配”（出纳登记/登记收款分配）、“冲抵”和“入账”，让来源不再混在同一个实收数字里。
+- 改动文件列表：
+  - `src/components/domain/customer/statement/CustomerStatementModule.vue`
+  - `uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js`（通过）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 需要上传 `crm-customer-settlement` 云函数并发布 H5 后，复查清真白记/云海木业：销售单自身实收、收款分配、冲抵分别展示；累计实收不再因为同一笔销售单入账和收款单分配重复增加。

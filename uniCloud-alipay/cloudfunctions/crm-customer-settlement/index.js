@@ -9,6 +9,7 @@ const customers = db.collection('crm_customers')
 const sales = db.collection('crm_sale_records')
 const receipts = db.collection('crm_customer_receipts')
 const allocations = db.collection('crm_customer_allocations')
+const receiptAdjustments = db.collection('crm_customer_receipt_adjustments')
 const flowSettlements = db.collection('crm_customer_flow_settlements')
 const openingDebts = db.collection('crm_customer_opening_debts')
 let ensureActionAcl = null
@@ -32,7 +33,10 @@ const AUTO_PREPAY_REPAIR_CONFIRM_TEXT = 'ROLLBACK_AUTO_PREPAY_ALLOCATIONS'
 const PAGE_ACTION_RULES = {
 	previewAllocationV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	createReceiptV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	beginReceiptAdjustmentV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	cancelReceiptAdjustmentV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	updateReceiptV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	allocatePrepayReceiptV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	removeReceiptV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	createReceiptIntakeV1: [{ pagePath: '/pages/cashier/receipt-intake', action: 'create' }],
 	updateReceiptIntakeV1: [{ pagePath: '/pages/cashier/receipt-intake', action: 'update' }],
@@ -76,6 +80,7 @@ const PAGE_ACTION_RULES = {
 		{ pagePath: '/pages/sale/detail', action: 'update' }
 	],
 	allocateOffsetCreditV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	removeOffsetCreditAllocationV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	getCustomerStatementAnalysisV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	exportCustomerStatementV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	exportCustomerAccountingLedgerV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
@@ -320,12 +325,40 @@ function buildOffsetAppliedTargetMap(rows = []) {
 	return map
 }
 
+function buildTargetReceiptAllocationMaps(rows = [], moneyScale = 2) {
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const receiptMap = new Map()
+	const offsetMap = new Map()
+	const totalMap = new Map()
+	for (const row of rows || []) {
+		if (normalizeAllocateKind(row && row.allocate_kind, 'receipt') !== 'receipt') continue
+		const targetType = normalizeReceivableTargetType(row && row.target_type)
+		const targetId = normalizeId(row && (row.target_id || row.sale_id || row.flow_settlement_id))
+		if (!targetId) continue
+		const amount = fixMoney(toNumber(row && row.allocate_amount, 0))
+		if (!(amount > 0)) continue
+		const key = `${targetType}:${targetId}`
+		totalMap.set(key, fixMoney(toNumber(totalMap.get(key), 0) + amount))
+		if (isOffsetAllocationRow(row)) {
+			offsetMap.set(key, fixMoney(toNumber(offsetMap.get(key), 0) + amount))
+		} else {
+			receiptMap.set(key, fixMoney(toNumber(receiptMap.get(key), 0) + amount))
+		}
+	}
+	return {
+		receiptMap,
+		offsetMap,
+		totalMap
+	}
+}
+
 async function buildBusinessSummaryFromTargets(
 	customer,
 	{
 		salesDocs = [],
 		flowDocs = [],
-		openingDebtDocs = []
+		openingDebtDocs = [],
+		receiptDocs = []
 	} = {}
 ) {
 	const customerId = normalizeId(customer && customer._id)
@@ -340,12 +373,42 @@ async function buildBusinessSummaryFromTargets(
 			].filter(Boolean)
 		)
 	)
-	const offsetAllocRows = targetIds.length
-		? await listSaleAutoAllocationsBySaleIds(customerId, targetIds, 5000)
+	const targetRefs = [
+		...salesDocs.map((doc) => ({ target_type: 'sale', target_id: doc && doc._id })),
+		...flowDocs.map((doc) => ({ target_type: 'flow_settlement', target_id: doc && doc._id })),
+		...openingDebtDocs.map((doc) => ({
+			target_type: resolveOpeningDebtEntryType(doc),
+			target_id: doc && doc._id
+		}))
+	]
+	const targetAllocRows = targetIds.length
+		? await listCustomerAccountingAllocationsByTargets(customerId, targetRefs, 5000)
 		: []
-	const offsetAppliedTargetMap = buildOffsetAppliedTargetMap(offsetAllocRows)
-	const getOffsetApplied = (targetType, targetId) =>
-		fixMoney(toNumber(offsetAppliedTargetMap.get(`${normalizeReceivableTargetType(targetType)}:${normalizeId(targetId)}`), 0))
+	const allocationMaps = buildTargetReceiptAllocationMaps(targetAllocRows, moneyScale)
+	const getAllocated = (targetType, targetId) =>
+		fixMoney(toNumber(allocationMaps.totalMap.get(`${normalizeReceivableTargetType(targetType)}:${normalizeId(targetId)}`), 0))
+	const resolveDirectTargetReceived = (amountReceived, allocatedAmount) => {
+		const received = fixMoney(toNumber(amountReceived, 0))
+		if (received < 0) return received
+		return fixMoney(Math.max(received - allocatedAmount, 0))
+	}
+	const countableReceiptDocs = (Array.isArray(receiptDocs) ? receiptDocs : []).filter((row) => !isOffsetCreditReceiptRow(row))
+	const receiptReceivedGross = countableReceiptDocs.reduce(
+		(sum, row) => fixMoney(sum + Math.max(toNumber(row && row.amount, 0), 0)),
+		0
+	)
+	const countableReceiptIds = countableReceiptDocs
+		.map((row) => normalizeId(row && row._id))
+		.filter(Boolean)
+	const receiptAllocRows = countableReceiptIds.length
+		? await listAllocationsByReceiptIds(customerId, countableReceiptIds, 5000)
+		: []
+	const receiptOpeningDebtAllocatedTotal = receiptAllocRows.reduce((sum, row) => {
+		if (normalizeAllocateKind(row && row.allocate_kind, 'receipt') !== 'receipt') return sum
+		if (normalizeReceivableTargetType(row && row.target_type) !== 'opening_debt') return sum
+		return fixMoney(sum + Math.max(toNumber(row && row.allocate_amount, 0), 0))
+	}, 0)
+	const receiptReceivedTotal = fixMoney(Math.max(receiptReceivedGross - receiptOpeningDebtAllocatedTotal, 0))
 
 	let receivable = 0
 	let shouldTotal = 0
@@ -353,17 +416,17 @@ async function buildBusinessSummaryFromTargets(
 	for (const doc of salesDocs) {
 		const snapshot = computeSaleSnapshot(doc)
 		const saleId = normalizeId(doc && doc._id)
-		const offsetApplied = getOffsetApplied('sale', saleId)
-		const businessReceived = fixMoney(Math.max(snapshot.amount_received - offsetApplied, 0))
-		shouldTotal = fixMoney(shouldTotal + snapshot.should_receive_effective)
+		const allocated = getAllocated('sale', saleId)
+		const businessReceived = resolveDirectTargetReceived(snapshot.amount_received, allocated)
+		shouldTotal = fixMoney(shouldTotal + snapshot.should_receive)
 		receivedTotal = fixMoney(receivedTotal + businessReceived)
 		receivable = fixMoney(receivable + snapshot.outstanding)
 	}
 	for (const doc of flowDocs) {
 		const snapshot = computeFlowSettlementSnapshot(doc)
 		const flowSettlementId = normalizeId(doc && doc._id)
-		const offsetApplied = getOffsetApplied('flow_settlement', flowSettlementId)
-		const businessReceived = fixMoney(Math.max(snapshot.amount_received - offsetApplied, 0))
+		const allocated = getAllocated('flow_settlement', flowSettlementId)
+		const businessReceived = resolveDirectTargetReceived(snapshot.amount_received, allocated)
 		shouldTotal = fixMoney(shouldTotal + snapshot.should_receive)
 		receivedTotal = fixMoney(receivedTotal + businessReceived)
 		receivable = fixMoney(receivable + snapshot.outstanding)
@@ -372,17 +435,19 @@ async function buildBusinessSummaryFromTargets(
 		const snapshot = computeOpeningDebtSnapshot(doc, moneyScale)
 		const openingDebtId = normalizeId(doc && doc._id)
 		const targetType = resolveOpeningDebtEntryType(doc)
-		const offsetApplied = getOffsetApplied(targetType, openingDebtId)
-		const businessReceived = fixMoney(Math.max(snapshot.amount_received - offsetApplied, 0))
-		shouldTotal = fixMoney(shouldTotal + snapshot.should_receive_effective)
-		receivedTotal = fixMoney(receivedTotal + businessReceived)
+		const allocated = getAllocated(targetType, openingDebtId)
+		const businessReceived = resolveDirectTargetReceived(snapshot.amount_received, allocated)
+		if (targetType !== 'opening_debt') {
+			shouldTotal = fixMoney(shouldTotal + snapshot.should_receive_effective)
+			receivedTotal = fixMoney(receivedTotal + businessReceived)
+		}
 		receivable = fixMoney(receivable + snapshot.outstanding)
 	}
 
 	return {
 		receivable_balance: receivable,
 		should_receive_total: shouldTotal,
-		amount_received_total: receivedTotal
+		amount_received_total: fixMoney(receivedTotal + receiptReceivedTotal)
 	}
 }
 
@@ -394,6 +459,30 @@ function chunkStrings(list = [], size = 80) {
 		out.push(source.slice(index, index + chunkSize))
 	}
 	return out
+}
+
+async function getDocsByIds(collection, ids = []) {
+	const uniqueIds = Array.from(
+		new Set(
+			(Array.isArray(ids) ? ids : [])
+				.map((item) => normalizeId(item))
+				.filter(Boolean)
+		)
+	)
+	const map = new Map()
+	if (!uniqueIds.length) return map
+	for (const idChunk of chunkStrings(uniqueIds, 80)) {
+		const res = await collection
+			.where({ _id: dbCmd.in(idChunk) })
+			.limit(idChunk.length)
+			.get()
+		const list = Array.isArray(res.data) ? res.data : []
+		for (const doc of list) {
+			const id = normalizeId(doc && doc._id)
+			if (id) map.set(id, doc)
+		}
+	}
+	return map
 }
 
 async function listSaleAutoAllocationsBySaleIds(customerId, saleIds = [], limitPerChunk = 5000) {
@@ -851,6 +940,11 @@ function isOffsetCreditReceiptRow(row) {
 	return entryKind === 'offset_credit'
 }
 
+function isManualPrepayReceiptRow(row) {
+	const sourceType = normalizeString(row && row.source_type)
+	return sourceType === 'customer_prepay_manual'
+}
+
 function normalizeAllocationTargets(raw = []) {
 	const source = Array.isArray(raw) ? raw : []
 	const unique = new Map()
@@ -1086,6 +1180,7 @@ function computeSaleSnapshot(doc) {
 	return {
 		should_receive: shouldReceive,
 		should_receive_effective: effectiveShouldReceive,
+		rounding_amount: fix2(Math.max(toNumber(amounts.rounding_amount, 0), 0)),
 		amount_received: amountReceived,
 		receipt_rounding_amount: receiptRoundingAmount,
 		paid_total: paidTotal,
@@ -2560,115 +2655,124 @@ async function releaseSaleTargetAllocationsToPrepay({ customerId, saleId }) {
 	}
 }
 
-async function rollbackReceiptAllocations({ customerId, receiptId }) {
-	const rows = await listReceiptAllocationRows(receiptId, customerId)
-	let rollbackTotal = 0
+function buildReceiptRollbackTargetGroups(rows = []) {
+	const groups = new Map()
 	let skipped = 0
-
-	for (const row of rows) {
-		const targetType = normalizeReceivableTargetType(row.target_type)
-		const targetId = normalizeId(row.target_id || row.sale_id || row.flow_settlement_id)
+	for (const row of Array.isArray(rows) ? rows : []) {
+		const targetType = normalizeReceivableTargetType(row && row.target_type)
+		const targetId = normalizeId(row && (row.target_id || row.sale_id || row.flow_settlement_id))
 		const allocateKind = normalizeAllocateKind(row && row.allocate_kind, 'receipt')
-		const amountRaw = toNumber(row.allocate_amount, 0)
-		const amount = targetType === 'flow_settlement' ? fix3(amountRaw) : fix2(amountRaw)
-		if (!targetId || amount <= 0) {
+		const amountRaw = toNumber(row && row.allocate_amount, 0)
+		if (!targetId || amountRaw <= 0) {
 			skipped += 1
 			continue
 		}
+		const key = `${targetType}:${targetId}`
+		const group = groups.get(key) || {
+			target_type: targetType,
+			target_id: targetId,
+			receipt_amount_raw: 0,
+			rounding_amount_raw: 0,
+			row_count: 0
+		}
+		if (allocateKind === 'rounding') {
+			group.rounding_amount_raw += amountRaw
+		} else {
+			group.receipt_amount_raw += amountRaw
+		}
+		group.row_count += 1
+		groups.set(key, group)
+	}
+	return {
+		groups: Array.from(groups.values()),
+		skipped
+	}
+}
 
+async function rollbackReceiptAllocations({ customerId, receiptId, allocationRows = null }) {
+	const rows = Array.isArray(allocationRows)
+		? allocationRows
+		: await listReceiptAllocationRows(receiptId, customerId)
+	let rollbackTotal = 0
+	const grouped = buildReceiptRollbackTargetGroups(rows)
+	let skipped = grouped.skipped
+	const saleGroups = grouped.groups.filter((item) => item.target_type === 'sale')
+	const flowGroups = grouped.groups.filter((item) => item.target_type === 'flow_settlement')
+	const debtGroups = grouped.groups.filter((item) => item.target_type === 'opening_debt' || item.target_type === 'other_fee')
+	const saleMap = await getDocsByIds(sales, saleGroups.map((item) => item.target_id))
+	const flowMap = await getDocsByIds(flowSettlements, flowGroups.map((item) => item.target_id))
+	const debtMap = await getDocsByIds(openingDebts, debtGroups.map((item) => item.target_id))
+
+	for (const group of grouped.groups) {
+		const targetType = normalizeReceivableTargetType(group.target_type)
+		const targetId = normalizeId(group.target_id)
 		if (targetType === 'flow_settlement') {
-			const flowRes = await flowSettlements.doc(targetId).get()
-			const flowDoc = (flowRes.data && flowRes.data[0]) || null
+			const flowDoc = flowMap.get(targetId) || null
 			if (!flowDoc || normalizeId(flowDoc.customer_id) !== customerId) {
-				skipped += 1
+				skipped += group.row_count
 				continue
 			}
 			const snapshot = computeFlowSettlementSnapshot(flowDoc)
-			if (allocateKind === 'rounding') {
-				const nextReceiptRounding = fix3(Math.max(snapshot.receipt_rounding_amount - amount, 0))
-				const nextPaidTotal = fix3(snapshot.amount_received + nextReceiptRounding)
-				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextPaidTotal, 3)
-				await flowSettlements.doc(targetId).update({
-					receipt_rounding_amount: nextReceiptRounding,
-					payment_status: nextStatus,
-					updated_at: Date.now()
-				})
-			} else {
-				const nextAmountReceived = fix3(Math.max(snapshot.amount_received - amount, 0))
-				const nextPaidTotal = fix3(nextAmountReceived + snapshot.receipt_rounding_amount)
-				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextPaidTotal, 3)
-				await flowSettlements.doc(targetId).update({
-					amount_received: nextAmountReceived,
-					payment_status: nextStatus,
-					updated_at: Date.now()
-				})
-			}
-			rollbackTotal = fix3(rollbackTotal + amount)
+			const receiptAmount = fix3(group.receipt_amount_raw)
+			const roundingAmount = fix3(group.rounding_amount_raw)
+			const nextAmountReceived = fix3(Math.max(snapshot.amount_received - receiptAmount, 0))
+			const nextReceiptRounding = fix3(Math.max(snapshot.receipt_rounding_amount - roundingAmount, 0))
+			const nextPaidTotal = fix3(nextAmountReceived + nextReceiptRounding)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextPaidTotal, 3)
+			await flowSettlements.doc(targetId).update({
+				amount_received: nextAmountReceived,
+				receipt_rounding_amount: nextReceiptRounding,
+				payment_status: nextStatus,
+				updated_at: Date.now()
+			})
+			rollbackTotal = fix3(rollbackTotal + receiptAmount + roundingAmount)
 			continue
 		}
 		if (targetType === 'opening_debt' || targetType === 'other_fee') {
-			const debtRes = await openingDebts.doc(targetId).get()
-			const debtDoc = (debtRes.data && debtRes.data[0]) || null
+			const debtDoc = debtMap.get(targetId) || null
 			if (!debtDoc || normalizeId(debtDoc.customer_id) !== customerId || normalizeString(debtDoc.status) !== 'posted') {
-				skipped += 1
+				skipped += group.row_count
 				continue
 			}
 			const moneyScale = resolveOpeningDebtMoneyScale(debtDoc, 2)
 			const fixMoney = (value) => fixByScale(value, moneyScale)
 			const snapshot = computeOpeningDebtSnapshot(debtDoc, moneyScale)
-			const amountFixed = fixMoney(amountRaw)
-			if (allocateKind === 'rounding') {
-				const nextReceiptRounding = fixMoney(Math.max(snapshot.receipt_rounding_amount - amountFixed, 0))
-				const nextPaidTotal = fixMoney(snapshot.amount_received + nextReceiptRounding)
-				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal, moneyScale)
-				await openingDebts.doc(targetId).update({
-					receipt_rounding_amount: nextReceiptRounding,
-					outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextPaidTotal, 0)),
-					payment_status: nextStatus,
-					updated_at: Date.now()
-				})
-			} else {
-				const nextAmountReceived = fixMoney(Math.max(snapshot.amount_received - amountFixed, 0))
-				const nextPaidTotal = fixMoney(nextAmountReceived + snapshot.receipt_rounding_amount)
-				const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal, moneyScale)
-				await openingDebts.doc(targetId).update({
-					amount_received: nextAmountReceived,
-					outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextPaidTotal, 0)),
-					payment_status: nextStatus,
-					updated_at: Date.now()
-				})
-			}
-			rollbackTotal = fix3(rollbackTotal + amountFixed)
+			const receiptAmount = fixMoney(group.receipt_amount_raw)
+			const roundingAmount = fixMoney(group.rounding_amount_raw)
+			const nextAmountReceived = fixMoney(Math.max(snapshot.amount_received - receiptAmount, 0))
+			const nextReceiptRounding = fixMoney(Math.max(snapshot.receipt_rounding_amount - roundingAmount, 0))
+			const nextPaidTotal = fixMoney(nextAmountReceived + nextReceiptRounding)
+			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal, moneyScale)
+			await openingDebts.doc(targetId).update({
+				amount_received: nextAmountReceived,
+				receipt_rounding_amount: nextReceiptRounding,
+				outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextPaidTotal, 0)),
+				payment_status: nextStatus,
+				updated_at: Date.now()
+			})
+			rollbackTotal = fix3(rollbackTotal + receiptAmount + roundingAmount)
 			continue
 		}
 
-		const saleRes = await sales.doc(targetId).get()
-		const saleDoc = (saleRes.data && saleRes.data[0]) || null
+		const saleDoc = saleMap.get(targetId) || null
 		if (!saleDoc || normalizeId(saleDoc.customer_id) !== customerId) {
-			skipped += 1
+			skipped += group.row_count
 			continue
 		}
 		const snapshot = computeSaleSnapshot(saleDoc)
-		if (allocateKind === 'rounding') {
-			const nextReceiptRounding = fix2(Math.max(snapshot.receipt_rounding_amount - amount, 0))
-			const nextPaidTotal = fix2(snapshot.amount_received + nextReceiptRounding)
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal)
-			await sales.doc(targetId).update({
-				receipt_rounding_amount: nextReceiptRounding,
-				payment_status: nextStatus,
-				updated_at: Date.now()
-			})
-		} else {
-			const nextAmountReceived = fix2(Math.max(snapshot.amount_received - amount, 0))
-			const nextPaidTotal = fix2(nextAmountReceived + snapshot.receipt_rounding_amount)
-			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal)
-			await sales.doc(targetId).update({
-				amount_received: nextAmountReceived,
-				payment_status: nextStatus,
-				updated_at: Date.now()
-			})
-		}
-		rollbackTotal = fix3(rollbackTotal + amount)
+		const receiptAmount = fix2(group.receipt_amount_raw)
+		const roundingAmount = fix2(group.rounding_amount_raw)
+		const nextAmountReceived = fix2(Math.max(snapshot.amount_received - receiptAmount, 0))
+		const nextReceiptRounding = fix2(Math.max(snapshot.receipt_rounding_amount - roundingAmount, 0))
+		const nextPaidTotal = fix2(nextAmountReceived + nextReceiptRounding)
+		const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal)
+		await sales.doc(targetId).update({
+			amount_received: nextAmountReceived,
+			receipt_rounding_amount: nextReceiptRounding,
+			payment_status: nextStatus,
+			updated_at: Date.now()
+		})
+		rollbackTotal = fix3(rollbackTotal + receiptAmount + roundingAmount)
 	}
 
 	await allocations.where({ receipt_id: normalizeId(receiptId), customer_id: customerId }).remove()
@@ -2676,6 +2780,358 @@ async function rollbackReceiptAllocations({ customerId, receiptId }) {
 		rows: rows.length,
 		rollback_total: rollbackTotal,
 		skipped
+	}
+}
+
+function buildReceiptAdjustmentSnapshot(receiptDoc = {}, allocationRows = [], moneyScale = 2) {
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	return {
+		receipt: {
+			customer_name: normalizeString(receiptDoc.customer_name),
+			biz_date: normalizeDate(receiptDoc.biz_date),
+			amount: fixMoney(toNumber(receiptDoc.amount, 0)),
+			rounding_amount: fixMoney(toNumber(receiptDoc.rounding_amount, 0)),
+			allocated_amount: fixMoney(toNumber(receiptDoc.allocated_amount, 0)),
+			rounding_allocated_amount: fixMoney(toNumber(receiptDoc.rounding_allocated_amount, 0)),
+			unallocated_amount: fixMoney(toNumber(receiptDoc.unallocated_amount, 0)),
+			payment_method: normalizePaymentMethod(receiptDoc.payment_method, 'paid'),
+			entry_kind: normalizeEntryKind(
+				receiptDoc.entry_kind,
+				normalizeString(receiptDoc.source_type).includes('offset') ? 'offset_credit' : 'prepay'
+			),
+			allocation_mode: normalizeAllocationMode(receiptDoc.allocation_mode, 'period'),
+			allocation_start_date: normalizeDate(receiptDoc.allocation_start_date),
+			allocation_end_date: normalizeDate(receiptDoc.allocation_end_date),
+			allocation_targets: normalizeAllocationTargets(receiptDoc.allocation_targets),
+			note: normalizeString(receiptDoc.note),
+			source_type: normalizeString(receiptDoc.source_type),
+			source_id: normalizeId(receiptDoc.source_id)
+		},
+		allocation_rows: (Array.isArray(allocationRows) ? allocationRows : []).map((row) => ({
+			target_type: normalizeReceivableTargetType(row && row.target_type),
+			target_id: normalizeId(row && (row.target_id || row.sale_id || row.flow_settlement_id)),
+			target_title: normalizeString(row && row.target_title),
+			target_date: normalizeDate(row && (row.target_date || row.sale_date || row.biz_date)),
+			allocate_kind: normalizeAllocateKind(row && row.allocate_kind, 'receipt'),
+			allocate_amount: fixByScale(toNumber(row && row.allocate_amount, 0), normalizeReceivableTargetType(row && row.target_type) === 'flow_settlement' ? 3 : moneyScale),
+			seq: toNumber(row && row.seq, 0)
+		})).filter((row) => row.target_id && row.allocate_amount > 0)
+	}
+}
+
+function buildReceiptAdjustmentReleasedTargets(snapshot = {}, moneyScale = 2) {
+	const grouped = new Map()
+	const rows = Array.isArray(snapshot && snapshot.allocation_rows) ? snapshot.allocation_rows : []
+	for (const row of rows) {
+		const targetType = normalizeReceivableTargetType(row && row.target_type)
+		const targetId = normalizeId(row && row.target_id)
+		if (!targetId) continue
+		const key = `${targetType}:${targetId}`
+		const current = grouped.get(key) || {
+			key,
+			target_type: targetType,
+			target_id: targetId,
+			target_title: normalizeString(row && row.target_title),
+			target_date: normalizeDate(row && row.target_date),
+			outstanding: 0
+		}
+		const scale = targetType === 'flow_settlement' ? 3 : moneyScale
+		current.outstanding = fixByScale(current.outstanding + toNumber(row && row.allocate_amount, 0), scale)
+		if (!current.target_title) current.target_title = normalizeString(row && row.target_title)
+		if (!current.target_date) current.target_date = normalizeDate(row && row.target_date)
+		grouped.set(key, current)
+	}
+	return Array.from(grouped.values())
+		.filter((row) => row.target_id && toNumber(row.outstanding, 0) > 0)
+		.sort((a, b) => {
+			if (a.target_date !== b.target_date) return a.target_date < b.target_date ? -1 : 1
+			return a.key < b.key ? -1 : 1
+		})
+}
+
+async function findPendingReceiptAdjustment(customerId, receiptId) {
+	const normalizedCustomerId = normalizeId(customerId)
+	const normalizedReceiptId = normalizeId(receiptId)
+	try {
+		const receiptRes = await receipts.doc(normalizedReceiptId).get()
+		const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
+		if (
+			receiptDoc &&
+			normalizeId(receiptDoc.customer_id) === normalizedCustomerId &&
+			normalizeString(receiptDoc.receipt_adjustment_status) === 'pending'
+		) {
+			return {
+				_id: normalizeId(receiptDoc.receipt_adjustment_id) || normalizedReceiptId,
+				customer_id: normalizedCustomerId,
+				receipt_id: normalizedReceiptId,
+				status: 'pending',
+				rollback_strategy: normalizeString(receiptDoc.receipt_adjustment_rollback_strategy) || 'deferred',
+				snapshot: receiptDoc.receipt_adjustment_snapshot || null,
+				storage: 'receipt'
+			}
+		}
+	} catch (err) {
+		console.warn('[crm-customer-settlement] find receipt pending adjustment failed', err && err.message)
+	}
+	try {
+		const res = await receiptAdjustments
+			.where({
+				customer_id: normalizedCustomerId,
+				receipt_id: normalizedReceiptId,
+				status: 'pending'
+			})
+			.orderBy('created_at', 'desc')
+			.limit(1)
+			.get()
+		const row = (Array.isArray(res.data) && res.data[0]) || null
+		return row ? { ...row, storage: 'collection' } : null
+	} catch (err) {
+		if (normalizeString(err && err.message).includes('not found collection')) return null
+		throw err
+	}
+}
+
+async function beginReceiptAdjustmentV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'beginReceiptAdjustmentV1', requestId)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const receiptId = normalizeId(data.receipt_id || data.receiptId || data._id)
+	if (!receiptId) return { code: 400, msg: 'receipt_id 必填' }
+	const receiptRes = await receipts.doc(receiptId).get()
+	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
+	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持调整已入账收款单' }
+
+	const receiptCustomerId = normalizeId(receiptDoc.customer_id)
+	const customerId = normalizeId(data.customer_id || data.customerId || receiptCustomerId)
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if (customerId !== receiptCustomerId) return { code: 400, msg: '收款单不属于该客户' }
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { code: 404, msg: '客户不存在' }
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+
+	const existingPending = await findPendingReceiptAdjustment(customerId, receiptId)
+	if (existingPending) {
+		const pendingSnapshot = existingPending.snapshot || {}
+		return {
+			code: 0,
+			msg: '收款单已处于调整中',
+			data: {
+				receipt_id: receiptId,
+				adjustment_id: normalizeId(existingPending._id),
+				already_pending: true,
+				rollback_strategy: normalizeString(existingPending.rollback_strategy) || 'physical',
+				released_targets: buildReceiptAdjustmentReleasedTargets(pendingSnapshot, moneyScale)
+			}
+		}
+	}
+
+	const allocationRows = await listReceiptAllocationRows(receiptId, customerId)
+	const snapshot = buildReceiptAdjustmentSnapshot(receiptDoc, allocationRows, moneyScale)
+	const adjustmentId = generateRequestId()
+	await receipts.doc(receiptId).update({
+		receipt_adjustment_status: 'pending',
+		receipt_adjustment_id: adjustmentId,
+		receipt_adjustment_rollback_strategy: 'deferred',
+		receipt_adjustment_snapshot: snapshot,
+		receipt_adjustment_started_at: Date.now(),
+		receipt_adjustment_request_id: requestId,
+		updated_at: Date.now(),
+		updated_by: normalizeId(user && user._id) || null,
+		updated_by_name: normalizeString(user && user.username)
+	})
+	await recordLog(
+		user,
+		'customer_receipt_adjustment_begin_v1',
+		{
+			customer_id: customerId,
+			receipt_id: receiptId,
+			adjustment_id: adjustmentId,
+			rollback_strategy: 'deferred',
+			allocation_rows: allocationRows.length
+		},
+		requestId
+	)
+	return {
+		code: 0,
+		msg: '已进入整单调整，原分配已在编辑中释放',
+		data: {
+			receipt_id: receiptId,
+			adjustment_id: adjustmentId,
+			rollback_strategy: 'deferred',
+			allocation_rows: allocationRows.length,
+			released_targets: buildReceiptAdjustmentReleasedTargets(snapshot, moneyScale)
+		}
+	}
+}
+
+async function cancelReceiptAdjustmentV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'cancelReceiptAdjustmentV1', requestId)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const receiptId = normalizeId(data.receipt_id || data.receiptId || data._id)
+	const customerId = normalizeId(data.customer_id || data.customerId)
+	if (!receiptId) return { code: 400, msg: 'receipt_id 必填' }
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	const receiptRes = await receipts.doc(receiptId).get()
+	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
+	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (normalizeId(receiptDoc.customer_id) !== customerId) return { code: 400, msg: '收款单不属于该客户' }
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { code: 404, msg: '客户不存在' }
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const pending = await findPendingReceiptAdjustment(customerId, receiptId)
+	if (!pending) return { code: 400, msg: '该收款单没有待恢复的整单调整' }
+	const pendingRollbackStrategy = normalizeString(pending.rollback_strategy)
+	if (pendingRollbackStrategy === 'deferred') {
+		const currentRows = await listReceiptAllocationRows(receiptId, customerId)
+		if (currentRows.length > 0) {
+			await receipts.doc(receiptId).update({
+				receipt_adjustment_status: '',
+				receipt_adjustment_id: '',
+				receipt_adjustment_rollback_strategy: '',
+				receipt_adjustment_snapshot: null,
+				receipt_adjustment_finished_at: Date.now(),
+				updated_at: Date.now(),
+				updated_by: normalizeId(user && user._id) || null,
+				updated_by_name: normalizeString(user && user.username)
+			})
+			if (pending.storage === 'collection') {
+				await receiptAdjustments.doc(normalizeId(pending._id)).update({
+					status: 'cancelled',
+					cancelled_at: Date.now(),
+					cancelled_by: normalizeId(user && user._id) || null,
+					cancelled_by_name: normalizeString(user && user.username),
+					request_id: requestId
+				})
+			}
+			await recordLog(
+				user,
+				'customer_receipt_adjustment_cancel_v1',
+				{
+					customer_id: customerId,
+					receipt_id: receiptId,
+					adjustment_id: normalizeId(pending._id),
+					rollback_strategy: 'deferred',
+					restored_rows: 0
+				},
+				requestId
+			)
+			return {
+				code: 0,
+				msg: '已放弃调整，原分配保持不变',
+				data: {
+					receipt_id: receiptId,
+					customer_id: customerId,
+					adjustment_id: normalizeId(pending._id),
+					restored_total: 0
+				}
+			}
+		}
+	}
+	const currentRollback = await rollbackReceiptAllocations({ customerId, receiptId })
+	const snapshot = pending.snapshot || {}
+	const receiptSnapshot = snapshot.receipt || {}
+	const allocationRows = Array.isArray(snapshot.allocation_rows) ? snapshot.allocation_rows : []
+	const restorePlan = {
+		ok: true,
+		amount: fixMoney(toNumber(receiptSnapshot.amount, 0)),
+		rounding_amount: fixMoney(toNumber(receiptSnapshot.rounding_amount, 0)),
+		allocation_mode: normalizeAllocationMode(receiptSnapshot.allocation_mode, 'period'),
+		allocation_start_date: normalizeDate(receiptSnapshot.allocation_start_date),
+		allocation_end_date: normalizeDate(receiptSnapshot.allocation_end_date),
+		allocation_targets: normalizeAllocationTargets(receiptSnapshot.allocation_targets),
+		allocations: allocationRows.map((row) => ({
+			target_type: normalizeReceivableTargetType(row && row.target_type),
+			target_id: normalizeId(row && row.target_id),
+			target_title: normalizeString(row && row.target_title),
+			allocate_kind: normalizeAllocateKind(row && row.allocate_kind, 'receipt'),
+			allocate_amount: toNumber(row && row.allocate_amount, 0)
+		}))
+	}
+	const applyRes = await applyPlanToExistingReceipt({
+		user,
+		requestId,
+		customer,
+		receiptDoc: {
+			...receiptDoc,
+			biz_date: receiptSnapshot.biz_date,
+			payment_method: receiptSnapshot.payment_method,
+			entry_kind: receiptSnapshot.entry_kind
+		},
+		plan: restorePlan,
+		paymentMethod: receiptSnapshot.payment_method,
+		allocationMode: restorePlan.allocation_mode,
+		allocationStartDate: restorePlan.allocation_start_date,
+		allocationEndDate: restorePlan.allocation_end_date,
+		allocationTargets: restorePlan.allocation_targets,
+		sourceType: receiptSnapshot.source_type,
+		sourceId: receiptSnapshot.source_id,
+		allocationNote: '整单调整取消恢复',
+		entryKind: receiptSnapshot.entry_kind
+	})
+	if (!applyRes.ok) return { code: applyRes.code || 400, msg: applyRes.msg || '恢复原分配失败' }
+	await receipts.doc(receiptId).update({
+		customer_name: customer.name,
+		biz_date: normalizeDate(receiptSnapshot.biz_date),
+		amount: fixMoney(toNumber(receiptSnapshot.amount, 0)),
+		rounding_amount: fixMoney(toNumber(receiptSnapshot.rounding_amount, 0)),
+		allocated_amount: fixMoney(toNumber(receiptSnapshot.allocated_amount, applyRes.receipt_allocated_total)),
+		rounding_allocated_amount: fixMoney(toNumber(receiptSnapshot.rounding_allocated_amount, applyRes.rounding_allocated_total)),
+		unallocated_amount: fixMoney(toNumber(receiptSnapshot.unallocated_amount, applyRes.prepay_amount)),
+		payment_method: normalizePaymentMethod(receiptSnapshot.payment_method, 'paid'),
+		entry_kind: normalizeEntryKind(receiptSnapshot.entry_kind, normalizeString(receiptSnapshot.source_type).includes('offset') ? 'offset_credit' : 'prepay'),
+		allocation_mode: restorePlan.allocation_mode,
+		allocation_start_date: restorePlan.allocation_start_date,
+		allocation_end_date: restorePlan.allocation_end_date,
+		allocation_targets: restorePlan.allocation_targets,
+		note: normalizeString(receiptSnapshot.note),
+		source_type: normalizeString(receiptSnapshot.source_type) || 'manual',
+		source_id: normalizeId(receiptSnapshot.source_id) || null,
+		receipt_adjustment_status: '',
+		receipt_adjustment_id: '',
+		receipt_adjustment_rollback_strategy: '',
+		receipt_adjustment_snapshot: null,
+		receipt_adjustment_finished_at: Date.now(),
+		updated_at: Date.now(),
+		updated_by: normalizeId(user && user._id) || null,
+		updated_by_name: normalizeString(user && user.username)
+	})
+	if (pending.storage === 'collection') {
+		await receiptAdjustments.doc(normalizeId(pending._id)).update({
+			status: 'cancelled',
+			cancelled_at: Date.now(),
+			cancelled_by: normalizeId(user && user._id) || null,
+			cancelled_by_name: normalizeString(user && user.username),
+			request_id: requestId
+		})
+	}
+	const balances = await rebuildCustomerBalances(customerId)
+	await recordLog(
+		user,
+		'customer_receipt_adjustment_cancel_v1',
+		{
+			customer_id: customerId,
+			receipt_id: receiptId,
+			adjustment_id: normalizeId(pending._id),
+			rollback_current_rows: currentRollback.rows,
+			restored_rows: allocationRows.length,
+			restored_total: applyRes.allocated_total
+		},
+		requestId
+	)
+	return {
+		code: 0,
+		msg: '已放弃调整并恢复原分配',
+		data: {
+			receipt_id: receiptId,
+			customer_id: customerId,
+			adjustment_id: normalizeId(pending._id),
+			restored_total: applyRes.allocated_total,
+			balances
+		}
 	}
 }
 
@@ -2890,17 +3346,10 @@ async function rebuildCustomerBalances(customerId) {
 	const salesDocs = await listCustomerSales(customer._id)
 	const flowDocs = await listCustomerFlowSettlements(customer._id)
 	const openingDebtDocs = await listCustomerOpeningDebts(customer._id)
-	const businessSummary = await buildBusinessSummaryFromTargets(customer, {
-		salesDocs,
-		flowDocs,
-		openingDebtDocs
-	})
-	const receivable = fixMoney(businessSummary.receivable_balance)
-	const shouldTotal = fixMoney(businessSummary.should_receive_total)
-	const receivedTotal = fixMoney(businessSummary.amount_received_total)
 
-	let prepay = 0
-	let prepayOnly = 0
+	let deductibleBalance = 0
+	let manualPrepay = 0
+	let receiptUnallocated = 0
 	let offsetCredit = 0
 	let lastReceiptAt = null
 	let lastReceiptBizDate = ''
@@ -2925,13 +3374,25 @@ async function rebuildCustomerBalances(customerId) {
 		guard += 1
 	}
 
+	const businessSummary = await buildBusinessSummaryFromTargets(customer, {
+		salesDocs,
+		flowDocs,
+		openingDebtDocs,
+		receiptDocs: receiptRows
+	})
+	const receivable = fixMoney(businessSummary.receivable_balance)
+	const shouldTotal = fixMoney(businessSummary.should_receive_total)
+	const receivedTotal = fixMoney(businessSummary.amount_received_total)
+
 	for (const row of receiptRows) {
 		const amount = Math.max(0, toNumber(row.unallocated_amount, 0))
-		prepay = fixMoney(prepay + amount)
+		deductibleBalance = fixMoney(deductibleBalance + amount)
 		if (isOffsetCreditReceiptRow(row)) {
 			offsetCredit = fixMoney(offsetCredit + amount)
+		} else if (isManualPrepayReceiptRow(row)) {
+			manualPrepay = fixMoney(manualPrepay + amount)
 		} else {
-			prepayOnly = fixMoney(prepayOnly + amount)
+			receiptUnallocated = fixMoney(receiptUnallocated + amount)
 		}
 		const receiptAmount = fixMoney(Math.max(toNumber(row && row.amount, 0), 0))
 		if (receiptAmount > 0) {
@@ -2949,11 +3410,12 @@ async function rebuildCustomerBalances(customerId) {
 		lastReceiptAt = Number.isFinite(lastReceiptCreatedAt) && lastReceiptCreatedAt > 0 ? lastReceiptCreatedAt : null
 	}
 
-	const net = fixMoney(receivable - prepay)
+	const net = fixMoney(receivable - deductibleBalance)
 	await customers.doc(customer._id).update({
 		receivable_balance: receivable,
-		prepay_balance: prepay,
-		prepay_manual_balance: prepayOnly,
+		prepay_balance: deductibleBalance,
+		prepay_manual_balance: manualPrepay,
+		receipt_unallocated_balance: receiptUnallocated,
 		offset_credit_balance: offsetCredit,
 		net_balance: net,
 		should_receive_total: shouldTotal,
@@ -2966,8 +3428,9 @@ async function rebuildCustomerBalances(customerId) {
 		customer_id: customer._id,
 		customer_name: customer.name,
 		receivable_balance: receivable,
-		prepay_balance: prepay,
-		prepay_manual_balance: prepayOnly,
+		prepay_balance: deductibleBalance,
+		prepay_manual_balance: manualPrepay,
+		receipt_unallocated_balance: receiptUnallocated,
 		offset_credit_balance: offsetCredit,
 		net_balance: net,
 		should_receive_total: shouldTotal,
@@ -3162,6 +3625,12 @@ async function updateReceiptV1(user, data, requestId) {
 		isCashierSource ? receiptEntryKind : data.entry_kind || data.entryKind || receiptDoc.entry_kind,
 		sourceType.includes('offset') ? 'offset_credit' : 'prepay'
 	)
+	const isOffsetCreditSource = isOffsetCreditReceiptRow(receiptDoc)
+	const allocationSourceType = isOffsetCreditSource ? 'offset_manual_allocate' : sourceType
+	const allocationSourceId = isOffsetCreditSource ? receiptId : sourceId
+	const allocationNote = isOffsetCreditSource
+		? (allocation.allocation_mode === 'period' ? '冲抵区间调整' : '冲抵手工调整')
+		: ''
 	if (isCashierSource) {
 		const inputSourceType = normalizeString(data.source_type || data.sourceType)
 		const inputSourceIdProvided = data.source_id !== undefined || data.sourceId !== undefined
@@ -3180,7 +3649,9 @@ async function updateReceiptV1(user, data, requestId) {
 		}
 	}
 
+	const pendingAdjustment = await findPendingReceiptAdjustment(customerId, receiptId)
 	const rollback = await rollbackReceiptAllocations({ customerId, receiptId })
+	if (pendingAdjustment) rollback.adjustment_id = normalizeId(pendingAdjustment._id)
 	const plan = await buildReceiptAllocationPlan(customerId, amount, roundingAmount, {
 		allocationMode: allocation.allocation_mode,
 		allocationStartDate: allocation.allocation_start_date,
@@ -3205,9 +3676,9 @@ async function updateReceiptV1(user, data, requestId) {
 		allocationStartDate: allocation.allocation_start_date,
 		allocationEndDate: allocation.allocation_end_date,
 		allocationTargets: allocation.allocation_targets,
-		sourceType,
-		sourceId,
-		allocationNote: '',
+		sourceType: allocationSourceType,
+		sourceId: allocationSourceId,
+		allocationNote,
 		entryKind
 	})
 	if (!applyRes.ok) return { code: applyRes.code || 400, msg: applyRes.msg || '收款单重算失败' }
@@ -3223,11 +3694,25 @@ async function updateReceiptV1(user, data, requestId) {
 		source_id: sourceId || null,
 		payment_method: paymentMethod,
 		entry_kind: entryKind,
+		receipt_adjustment_status: '',
+		receipt_adjustment_id: '',
+		receipt_adjustment_rollback_strategy: '',
+		receipt_adjustment_snapshot: null,
+		receipt_adjustment_finished_at: Date.now(),
 		request_id: requestId,
 		updated_at: Date.now(),
 		updated_by: normalizeId(user && user._id) || null,
 		updated_by_name: normalizeString(user && user.username)
 	})
+	if (pendingAdjustment && pendingAdjustment.storage === 'collection') {
+		await receiptAdjustments.doc(normalizeId(pendingAdjustment._id)).update({
+			status: 'saved',
+			saved_at: Date.now(),
+			saved_by: normalizeId(user && user._id) || null,
+			saved_by_name: normalizeString(user && user.username),
+			request_id: requestId
+		})
+	}
 
 	const balances = await rebuildCustomerBalances(customerId)
 	await recordLog(
@@ -3240,6 +3725,7 @@ async function updateReceiptV1(user, data, requestId) {
 			rounding_amount: roundingAmount,
 			allocation_mode: allocation.allocation_mode,
 			rollback_total: rollback.rollback_total,
+			adjustment_id: rollback.adjustment_id || '',
 			allocated_total: applyRes.allocated_total,
 			rounding_allocated_total: applyRes.rounding_allocated_total,
 			prepay_amount: applyRes.prepay_amount
@@ -4526,6 +5012,18 @@ async function listOffsetCreditPoolV1(user, data) {
 		.limit(filters.page_size)
 		.get()
 	const list = Array.isArray(res.data) ? res.data : []
+	const receiptIds = list
+		.map((row) => normalizeId(row && row._id))
+		.filter(Boolean)
+	const allocationRows = await listAllocationsByReceiptIds(filters.customer_id, receiptIds, 5000)
+	const allocationMap = new Map()
+	for (const alloc of allocationRows) {
+		const receiptId = normalizeId(alloc && alloc.receipt_id)
+		if (!receiptId) continue
+		const rows = allocationMap.get(receiptId) || []
+		rows.push(alloc)
+		allocationMap.set(receiptId, rows)
+	}
 
 	const sourceSaleIds = Array.from(
 		new Set(
@@ -4550,20 +5048,42 @@ async function listOffsetCreditPoolV1(user, data) {
 	}
 
 	const rows = list.map((row) => {
+		const receiptId = normalizeId(row && row._id)
 		const sourceSaleId = normalizeId(row && row.source_id)
 		const sourceSale = sourceSaleId ? saleMap.get(sourceSaleId) : null
+		const targetRows = buildAllocationTargetSummaryRows(
+			allocationMap.get(receiptId) || [],
+			moneyScale
+		)
+		const targetDates = Array.from(
+			new Set(
+				targetRows
+					.map((item) => normalizeDate(item && item.target_date))
+					.filter(Boolean)
+			)
+		).sort((a, b) => (a === b ? 0 : a < b ? -1 : 1))
 		return {
-			_id: normalizeId(row && row._id),
+			_id: receiptId,
 			biz_date: normalizeDate(row && row.biz_date),
 			amount: fixMoney(toNumber(row && row.amount, 0)),
 			allocated_amount: fixMoney(toNumber(row && row.allocated_amount, 0)),
 			unallocated_amount: fixMoney(toNumber(row && row.unallocated_amount, 0)),
+			payment_method: normalizePaymentMethod(row && row.payment_method, 'paid'),
 			note: normalizeString(row && row.note),
 			entry_kind: normalizeEntryKind(row && row.entry_kind, normalizeString(row && row.source_type).includes('offset') ? 'offset_credit' : 'prepay'),
 			source_type: normalizeString(row && row.source_type),
 			source_id: sourceSaleId,
 			source_sale_date: normalizeDate(sourceSale && sourceSale.date),
 			source_sale_offset_enabled: sourceSale ? resolveSaleOffsetEnabled(sourceSale, true) : null,
+			allocation_mode: normalizeAllocationMode(row && row.allocation_mode, 'checked'),
+			allocation_start_date: normalizeDate(row && row.allocation_start_date),
+			allocation_end_date: normalizeDate(row && row.allocation_end_date),
+			allocation_targets: normalizeAllocationTargets(row && row.allocation_targets),
+			allocation_target_date_start: targetDates[0] || '',
+			allocation_target_date_end: targetDates[targetDates.length - 1] || '',
+			allocation_target_date_count: targetDates.length,
+			allocation_target_summary: targetRows,
+			allocation_target_count: targetRows.length,
 			created_at: toNumber(row && row.created_at, 0)
 		}
 	})
@@ -4592,7 +5112,9 @@ async function applyOffsetAllocationsToReceipt({
 	allocationMode = 'checked',
 	allocationStartDate = '',
 	allocationEndDate = '',
-	allocationTargets = []
+	allocationTargets = [],
+	allocationNote = '',
+	allocationSourceType = 'offset_manual_allocate'
 }) {
 	const receiptId = normalizeId(receiptDoc && receiptDoc._id)
 	if (!receiptId) return { ok: false, code: 400, msg: 'receipt_id 无效' }
@@ -4602,7 +5124,8 @@ async function applyOffsetAllocationsToReceipt({
 	const normalizedStartDate = normalizedMode === 'period' ? normalizeDate(allocationStartDate || plan.allocation_start_date) : ''
 	const normalizedEndDate = normalizedMode === 'period' ? normalizeDate(allocationEndDate || plan.allocation_end_date) : ''
 	const normalizedTargets = normalizeAllocationTargets(allocationTargets || plan.allocation_targets || [])
-	const allocationNote = normalizedMode === 'period' ? '冲抵区间分配' : '冲抵手工分配'
+	const resolvedAllocationNote = normalizeString(allocationNote) || (normalizedMode === 'period' ? '冲抵区间分配' : '冲抵手工分配')
+	const resolvedAllocationSourceType = normalizeString(allocationSourceType) || 'offset_manual_allocate'
 	const currentAllocated = fixMoney(toNumber(receiptDoc && receiptDoc.allocated_amount, 0))
 	const currentUnallocated = fixMoney(toNumber(receiptDoc && receiptDoc.unallocated_amount, 0))
 	const receiptSourceType = normalizeString(receiptDoc && receiptDoc.source_type)
@@ -4700,7 +5223,7 @@ async function applyOffsetAllocationsToReceipt({
 			allocate_kind: 'receipt',
 			allocate_amount: allocateAmount,
 			seq,
-			note: allocationNote,
+			note: resolvedAllocationNote,
 			receipt_source_type: receiptSourceType,
 			receipt_entry_kind: receiptEntryKind,
 			receipt_biz_date: normalizeString(receiptDoc && receiptDoc.biz_date),
@@ -4708,7 +5231,7 @@ async function applyOffsetAllocationsToReceipt({
 			allocation_start_date: normalizedStartDate,
 			allocation_end_date: normalizedEndDate,
 			allocation_targets: normalizedTargets,
-			source_type: 'offset_manual_allocate',
+			source_type: resolvedAllocationSourceType,
 			source_id: receiptId,
 			request_id: requestId,
 			created_at: Date.now(),
@@ -4837,6 +5360,189 @@ async function allocateOffsetCreditV1(user, data, requestId) {
 	return {
 		code: 0,
 		msg: '冲抵分配成功',
+		data: {
+			receipt_id: receiptId,
+			customer_id: customerId,
+			allocation_mode: allocation.allocation_mode,
+			allocation_start_date: allocation.allocation_start_date,
+			allocation_end_date: allocation.allocation_end_date,
+			allocated_total: applyRes.allocated_delta,
+			remaining_unallocated: applyRes.unallocated_amount,
+			allocations: Array.isArray(plan.allocations) ? plan.allocations : [],
+			balances
+		}
+	}
+}
+
+async function removeOffsetCreditAllocationV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'removeOffsetCreditAllocationV1', requestId)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const customerId = normalizeId(data.customer_id || data.customerId)
+	const receiptId = normalizeId(data.receipt_id || data.receiptId || data._id)
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if (!receiptId) return { code: 400, msg: 'receipt_id 必填' }
+
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { code: 404, msg: '客户不存在' }
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+
+	const receiptRes = await receipts.doc(receiptId).get()
+	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
+	if (!receiptDoc) return { code: 404, msg: '冲抵来源不存在' }
+	if (normalizeId(receiptDoc.customer_id) !== customerId) return { code: 400, msg: '冲抵来源不属于该客户' }
+	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持已入账冲抵来源' }
+	if (!isOffsetCreditReceiptRow(receiptDoc)) return { code: 400, msg: '该单据不是冲抵款来源' }
+
+	const allocationRows = await listReceiptAllocationRows(receiptId, customerId)
+	if (!allocationRows.length) return { code: 400, msg: '该冲抵来源暂无已分配记录' }
+
+	const rollback = await rollbackReceiptAllocations({
+		customerId,
+		receiptId,
+		allocationRows
+	})
+	const amount = fixMoney(toNumber(receiptDoc.amount, 0))
+	await receipts.doc(receiptId).update({
+		allocated_amount: 0,
+		rounding_allocated_amount: 0,
+		unallocated_amount: amount,
+		allocation_targets: [],
+		updated_at: Date.now(),
+		updated_by: normalizeId(user && user._id) || null,
+		updated_by_name: normalizeString(user && user.username)
+	})
+
+	const balances = await rebuildCustomerBalances(customerId)
+	await recordLog(
+		user,
+		'customer_offset_credit_allocation_remove_v1',
+		{
+			customer_id: customerId,
+			receipt_id: receiptId,
+			rollback_total: rollback.rollback_total,
+			allocation_rows: rollback.rows,
+			rollback_skipped: rollback.skipped
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		msg: '冲抵分配已删除，金额已退回可用冲抵余额',
+		data: {
+			receipt_id: receiptId,
+			customer_id: customerId,
+			released_total: fixMoney(toNumber(rollback.rollback_total, 0)),
+			remaining_unallocated: amount,
+			balances
+		}
+	}
+}
+
+async function allocatePrepayReceiptV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'allocatePrepayReceiptV1', requestId)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const customerId = normalizeId(data.customer_id || data.customerId)
+	const receiptId = normalizeId(data.receipt_id || data.receiptId)
+	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if (!receiptId) return { code: 400, msg: 'receipt_id 必填' }
+
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { code: 404, msg: '客户不存在' }
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+
+	const receiptRes = await receipts.doc(receiptId).get()
+	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
+	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (normalizeId(receiptDoc.customer_id) !== customerId) return { code: 400, msg: '收款单不属于该客户' }
+	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持已入账收款单' }
+	if (isOffsetCreditReceiptRow(receiptDoc)) return { code: 400, msg: '该单据是冲抵款来源，请在冲抵分配中处理' }
+
+	const available = fixMoney(toNumber(receiptDoc.unallocated_amount, 0))
+	if (!(available > 0)) return { code: 400, msg: '该收款单无待分配余额' }
+	const amountInputProvided = data.amount != null && data.amount !== ''
+	const amount = amountInputProvided ? fixMoney(toNumber(data.amount, 0)) : available
+	if (!(amount > 0)) return { code: 400, msg: '本次分配金额必须大于0' }
+	if (amount - available > moneyEpsilon(moneyScale)) return { code: 400, msg: '本次分配金额不能超过待分配余额' }
+	const isManualPrepaySource = isManualPrepayReceiptRow(receiptDoc)
+	const allocationNote = isManualPrepaySource ? '预付款继续分配' : '待分配收款继续分配'
+	const allocationSourceType = isManualPrepaySource ? 'prepay_manual_allocate' : 'receipt_unallocated_allocate'
+
+	const inputTargets = normalizeAllocationTargets(data.allocation_targets || data.allocationTargets || [])
+	const inputStartDate = normalizeDate(data.allocation_start_date || data.allocationStartDate)
+	const inputEndDate = normalizeDate(data.allocation_end_date || data.allocationEndDate)
+	const inputMode = normalizeString(data.allocation_mode || data.allocationMode).toLowerCase()
+	const inferredMode =
+		inputMode === 'period' || inputMode === 'checked'
+			? inputMode
+			: inputTargets.length > 0 && !inputStartDate && !inputEndDate
+				? 'checked'
+				: 'period'
+	const allocation = resolveAllocationConfig(
+		{
+			allocation_mode: inferredMode,
+			allocation_start_date: inputStartDate,
+			allocation_end_date: inputEndDate,
+			allocation_targets: inputTargets
+		},
+		normalizeDate(receiptDoc.biz_date)
+	)
+	if (!allocation.ok) return { code: allocation.code || 400, msg: allocation.msg || '分配失败' }
+
+	const plan = await buildAllocationPlan(customerId, amount, {
+		allocationMode: allocation.allocation_mode,
+		allocationStartDate: allocation.allocation_start_date,
+		allocationEndDate: allocation.allocation_end_date,
+		allocationTargets: allocation.allocation_targets
+	})
+	if (!plan.ok) return { code: plan.code || 400, msg: plan.msg || '分配失败' }
+	if (!(toNumber(plan.allocated_total, 0) > 0)) {
+		return {
+			code: 400,
+			msg: allocation.allocation_mode === 'period' ? '当前时间段内无可分配欠款' : '当前勾选目标无可分配欠款'
+		}
+	}
+
+	const applyRes = await applyOffsetAllocationsToReceipt({
+		user,
+		requestId,
+		customer,
+		receiptDoc,
+		plan,
+		allocationMode: allocation.allocation_mode,
+		allocationStartDate: allocation.allocation_start_date,
+		allocationEndDate: allocation.allocation_end_date,
+		allocationTargets: allocation.allocation_targets,
+		allocationNote,
+		allocationSourceType
+	})
+	if (!applyRes.ok) return { code: applyRes.code || 400, msg: applyRes.msg || '分配失败' }
+
+	const balances = await rebuildCustomerBalances(customerId)
+	await recordLog(
+		user,
+		'customer_receipt_unallocated_allocate_v1',
+		{
+			customer_id: customerId,
+			receipt_id: receiptId,
+			allocation_mode: allocation.allocation_mode,
+			allocation_start_date: allocation.allocation_start_date,
+			allocation_end_date: allocation.allocation_end_date,
+			target_count: allocation.allocation_targets.length,
+			allocated_delta: applyRes.allocated_delta,
+			allocated_rows: Array.isArray(plan.allocations) ? plan.allocations.length : 0,
+			remaining_unallocated: applyRes.unallocated_amount
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		msg: '分配成功',
 		data: {
 			receipt_id: receiptId,
 			customer_id: customerId,
@@ -5245,20 +5951,41 @@ function pushAccountingTargetReceivedFallback(rows, item = {}, backedMap = new M
 			source_id: item.target_id
 		}, moneyScale)
 	}
+	const refundAmount = fixByScale(Math.max(-amountReceived, 0), moneyScale)
+	if (refundAmount > 0) {
+		pushAccountingMovement(rows, {
+			biz_date: item.biz_date,
+			created_at: toNumber(item.created_at, 0) + 2,
+			row_order: toNumber(item.row_order, 50) + 0.2,
+			summary: normalizeString(item.refund_summary) || '退款',
+			amount: refundAmount,
+			normal_balance: 'debit',
+			source_type: `${normalizeString(item.source_type) || 'target'}_refund_fallback`,
+			source_id: item.target_id
+		}, moneyScale)
+	}
 	const receiptRounding = fixByScale(toNumber(item.receipt_rounding_amount, 0), moneyScale)
 	const missingRounding = fixByScale(receiptRounding - toNumber(backed.rounding, 0), moneyScale)
-	if (missingRounding > 0) {
+	const targetRounding = fixByScale(Math.max(toNumber(item.rounding_amount, 0), 0), moneyScale)
+	const totalRounding = fixByScale(missingRounding + targetRounding, moneyScale)
+	if (totalRounding > 0) {
 		pushAccountingMovement(rows, {
 			biz_date: item.biz_date,
 			created_at: toNumber(item.created_at, 0) + 1,
 			row_order: toNumber(item.row_order, 50) + 0.1,
 			summary: normalizeString(item.rounding_summary) || '收款抹零',
-			amount: missingRounding,
+			amount: totalRounding,
 			normal_balance: 'credit',
 			source_type: `${normalizeString(item.source_type) || 'target'}_rounding_fallback`,
 			source_id: item.target_id
 		}, moneyScale)
 	}
+}
+
+function resolveSaleAccountingRoundingAmount(doc, snapshot = {}, moneyScale = 2) {
+	const currentRounding = fixByScale(Math.max(toNumber(snapshot.rounding_amount ?? (doc && doc.rounding_amount), 0), 0), moneyScale)
+	if (currentRounding > 0) return currentRounding
+	return fixByScale(Math.max(toNumber(doc && doc.write_off, 0), 0), moneyScale)
 }
 
 function buildAccountingDisplayRows(movements = [], openingBalance = 0, moneyScale = 2) {
@@ -5368,8 +6095,10 @@ async function listCustomerAccountingMovements(customer, { dateFrom = '', dateTo
 			created_at: doc && doc.created_at,
 			row_order: 11,
 			summary: `收款 ${receiptLabel}`,
+			refund_summary: `退款 ${receiptLabel}`,
 			rounding_summary: `${shortAccountingDateText(date)}收款抹零`,
 			amount_received: snapshot.amount_received,
+			rounding_amount: resolveSaleAccountingRoundingAmount(doc, snapshot, moneyScale),
 			receipt_rounding_amount: snapshot.receipt_rounding_amount,
 			source_type: 'sale'
 		}, allocationBackedMap, moneyScale)
@@ -5396,6 +6125,7 @@ async function listCustomerAccountingMovements(customer, { dateFrom = '', dateTo
 			created_at: doc && doc.created_at,
 			row_order: 21,
 			summary: `收款 ${receiptLabel}`,
+			refund_summary: `退款 ${receiptLabel}`,
 			rounding_summary: `${shortAccountingDateText(date)}收款抹零`,
 			amount_received: snapshot.amount_received,
 			receipt_rounding_amount: snapshot.receipt_rounding_amount,
@@ -5425,6 +6155,7 @@ async function listCustomerAccountingMovements(customer, { dateFrom = '', dateTo
 			created_at: doc && doc.created_at,
 			row_order: entryType === 'other_fee' ? 32 : 31,
 			summary: `收款 ${receiptLabel}`,
+			refund_summary: `退款 ${receiptLabel}`,
 			rounding_summary: `${shortAccountingDateText(date)}收款抹零`,
 			amount_received: snapshot.amount_received,
 			receipt_rounding_amount: snapshot.receipt_rounding_amount,
@@ -6734,7 +7465,8 @@ async function getCustomerStatementV1(user, data) {
 		const scoped = await buildBusinessSummaryFromTargets(customer, {
 			salesDocs: scopedSalesDocs,
 			flowDocs: scopedFlowDocs,
-			openingDebtDocs: scopedOpeningDebtDocs
+			openingDebtDocs: scopedOpeningDebtDocs,
+			receiptDocs: scopedReceipts
 		})
 		const scopedReceivable = fixMoney(scoped.receivable_balance)
 		const scopedPrepaySplit = scopedReceipts.reduce(
@@ -6742,14 +7474,16 @@ async function getCustomerStatementV1(user, data) {
 				const amount = Math.max(0, toNumber(row && row.unallocated_amount, 0))
 				if (!(amount > 0)) return acc
 				if (isOffsetCreditReceiptRow(row)) acc.offset += amount
-				else acc.prepay += amount
+				else if (isManualPrepayReceiptRow(row)) acc.prepay += amount
+				else acc.unallocated += amount
 				return acc
 			},
-			{ prepay: 0, offset: 0 }
+			{ prepay: 0, offset: 0, unallocated: 0 }
 		)
 		const scopedPrepayOnly = fixMoney(scopedPrepaySplit.prepay)
+		const scopedReceiptUnallocated = fixMoney(scopedPrepaySplit.unallocated)
 		const scopedOffsetCredit = fixMoney(scopedPrepaySplit.offset)
-		const scopedPrepay = fixMoney(scopedPrepayOnly + scopedOffsetCredit)
+		const scopedPrepay = fixMoney(scopedPrepayOnly + scopedReceiptUnallocated + scopedOffsetCredit)
 		const scopedLastReceiptBizDate = scopedReceipts.reduce((maxDate, row) => {
 			const amount = fixMoney(Math.max(toNumber(row && row.amount, 0), 0))
 			if (!(amount > 0)) return maxDate
@@ -6775,6 +7509,7 @@ async function getCustomerStatementV1(user, data) {
 			receivable_balance: scopedReceivable,
 			prepay_balance: scopedPrepay,
 			prepay_manual_balance: scopedPrepayOnly,
+			receipt_unallocated_balance: scopedReceiptUnallocated,
 			offset_credit_balance: scopedOffsetCredit,
 			net_balance: fixMoney(scopedReceivable - scopedPrepay),
 			should_receive_total: fixMoney(scoped.should_receive_total),
@@ -6791,6 +7526,7 @@ async function getCustomerStatementV1(user, data) {
 					receivable_balance: 0,
 					prepay_balance: 0,
 					prepay_manual_balance: 0,
+					receipt_unallocated_balance: 0,
 					offset_credit_balance: 0,
 					net_balance: 0,
 					should_receive_total: 0,
@@ -6859,7 +7595,15 @@ async function getCustomerStatementV1(user, data) {
 		.map((doc) => normalizeId(doc && doc._id))
 		.filter(Boolean)
 	const saleOffsetLookupIds = Array.from(new Set([...recentSaleIds, ...scopedOutstandingSaleIds]))
-	const saleOffsetSummaryMap = await getSaleOffsetSummaryMap(customerId, saleOffsetLookupIds)
+	const saleTargetAllocRows = saleOffsetLookupIds.length
+		? await listCustomerAccountingAllocationsByTargets(
+			customerId,
+			saleOffsetLookupIds.map((saleId) => ({ target_type: 'sale', target_id: saleId })),
+			5000
+		)
+		: []
+	const saleAllocationMaps = buildTargetReceiptAllocationMaps(saleTargetAllocRows, moneyScale)
+	const saleOffsetSummaryMap = buildSaleOffsetSummaryMap(saleTargetAllocRows)
 	const saleOffsetTargetSummaryMap = await getSaleOffsetTargetSummaryMap(
 		customerId,
 		saleOffsetLookupIds,
@@ -6867,14 +7611,22 @@ async function getCustomerStatementV1(user, data) {
 	)
 	saleRows = saleRows.map((row) => {
 		const saleId = normalizeId(row && row._id)
+		const saleKey = `sale:${saleId}`
 		const summary = saleOffsetSummaryMap.get(saleId) || { offset_applied_amount: 0, offset_sources: [] }
 		const targetSummary = saleOffsetTargetSummaryMap.get(saleId) || { offset_target_amount: 0, offset_targets: [] }
 		const postedAmount = fix2(toNumber(row && row.amount_received, 0))
-		const offsetAmount = fix2(toNumber(summary && summary.offset_applied_amount, 0))
-		const manualAmount = fix2(postedAmount - offsetAmount)
+		const receiptAllocatedAmount = fix2(toNumber(saleAllocationMaps.receiptMap.get(saleKey), 0))
+		const offsetAmount = fix2(toNumber(saleAllocationMaps.offsetMap.get(saleKey), toNumber(summary && summary.offset_applied_amount, 0)))
+		const allocationAppliedAmount = fix2(receiptAllocatedAmount + offsetAmount)
+		const manualAmount = postedAmount < 0
+			? postedAmount
+			: fix2(Math.max(postedAmount - allocationAppliedAmount, 0))
 		return {
 			...row,
 			posted_amount_received: postedAmount,
+			receipt_allocated_amount: receiptAllocatedAmount,
+			receipt_allocation_amount: receiptAllocatedAmount,
+			allocation_applied_amount: allocationAppliedAmount,
 			offset_applied_amount: offsetAmount,
 			manual_amount_received: manualAmount,
 			offset_sources: Array.isArray(summary && summary.offset_sources)
@@ -7058,6 +7810,7 @@ async function getCustomerStatementV1(user, data) {
 				receivable_balance: 0,
 				prepay_balance: 0,
 				prepay_manual_balance: 0,
+				receipt_unallocated_balance: 0,
 				offset_credit_balance: 0,
 				net_balance: 0,
 				should_receive_total: 0,
@@ -7327,7 +8080,10 @@ exports.main = async (event, context) => {
 
 	if (action === 'previewAllocationV1') return previewAllocationV1(user, data)
 	if (action === 'createReceiptV1') return createReceiptV1(user, data, requestId)
+	if (action === 'beginReceiptAdjustmentV1') return beginReceiptAdjustmentV1(user, data, requestId)
+	if (action === 'cancelReceiptAdjustmentV1') return cancelReceiptAdjustmentV1(user, data, requestId)
 	if (action === 'updateReceiptV1') return updateReceiptV1(user, data, requestId)
+	if (action === 'allocatePrepayReceiptV1') return allocatePrepayReceiptV1(user, data, requestId)
 	if (action === 'removeReceiptV1') return removeReceiptV1(user, data, requestId)
 	if (action === 'createReceiptIntakeV1') return createReceiptIntakeV1(user, data, requestId)
 	if (action === 'updateReceiptIntakeV1') return updateReceiptIntakeV1(user, data, requestId)
@@ -7344,6 +8100,7 @@ exports.main = async (event, context) => {
 	if (action === 'releaseSaleSettlementOnRemoveV1') return releaseSaleSettlementOnRemoveV1(user, data, requestId)
 	if (action === 'listOffsetCreditPoolV1') return listOffsetCreditPoolV1(user, data)
 	if (action === 'allocateOffsetCreditV1') return allocateOffsetCreditV1(user, data, requestId)
+	if (action === 'removeOffsetCreditAllocationV1') return removeOffsetCreditAllocationV1(user, data, requestId)
 	if (action === 'confirmAllocationV1') return confirmAllocationV1(user, data, requestId)
 	if (action === 'repairReceiptAllocationV1') return repairReceiptAllocationV1(user, data, requestId)
 	if (action === 'repairAutoPrepayAllocationsV1') return repairAutoPrepayAllocationsV1(user, data, requestId)

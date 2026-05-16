@@ -41,6 +41,26 @@ export async function createReceiptV1(params = {}) {
 	})
 }
 
+export async function beginReceiptAdjustmentV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'beginReceiptAdjustmentV1',
+		data: {
+			receipt_id: params.receiptId || params.receipt_id || '',
+			customer_id: params.customerId || params.customer_id || ''
+		}
+	})
+}
+
+export async function cancelReceiptAdjustmentV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'cancelReceiptAdjustmentV1',
+		data: {
+			receipt_id: params.receiptId || params.receipt_id || '',
+			customer_id: params.customerId || params.customer_id || ''
+		}
+	})
+}
+
 export async function updateReceiptV1(params = {}) {
 	return callCloud('crm-customer-settlement', {
 		action: 'updateReceiptV1',
@@ -60,6 +80,23 @@ export async function updateReceiptV1(params = {}) {
 			note: params.note || '',
 			source_type: params.sourceType || params.source_type || '',
 			source_id: params.sourceId || params.source_id || ''
+		}
+	})
+}
+
+export async function allocatePrepayReceiptV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'allocatePrepayReceiptV1',
+		data: {
+			receipt_id: params.receiptId || params.receipt_id || '',
+			customer_id: params.customerId || params.customer_id || '',
+			amount: params.amount,
+			allocation_mode: params.allocationMode || params.allocation_mode || '',
+			allocation_start_date: params.allocationStartDate || params.allocation_start_date || '',
+			allocation_end_date: params.allocationEndDate || params.allocation_end_date || '',
+			allocation_targets: Array.isArray(params.allocationTargets || params.allocation_targets)
+				? (params.allocationTargets || params.allocation_targets)
+				: []
 		}
 	})
 }
@@ -280,6 +317,17 @@ export async function allocateOffsetCreditV1(params = {}) {
 			allocation_targets: Array.isArray(params.allocationTargets || params.allocation_targets)
 				? (params.allocationTargets || params.allocation_targets)
 				: []
+		}
+	})
+}
+
+export async function removeOffsetCreditAllocationV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'removeOffsetCreditAllocationV1',
+		data: {
+			customer_id: params.customerId || params.customer_id || '',
+			receipt_id: params.receiptId || params.receipt_id || params._id || '',
+			reason: params.reason || ''
 		}
 	})
 }

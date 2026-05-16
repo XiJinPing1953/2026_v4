@@ -51,8 +51,8 @@
 		<template #highlights>
 			<view class="summary-row">
 				<AppStatCard class="summary-card" label="应收余额(未扣冲抵)" :value="formatSummaryMoney(summaryReceivableBalanceDisplay)" hint="元" icon="alert" />
-				<AppStatCard class="summary-card" label="可冲抵余额" :value="formatSummaryMoney(summaryPrepayBalanceDisplay)" hint="元" icon="check-circle" />
-				<AppStatCard class="summary-card" label="净欠款(扣冲抵后)" :value="formatSummaryMoney(summaryNetBalanceDisplay)" hint="元" icon="wallet" @click="onOpenNetDebtSaleSources" />
+				<AppStatCard class="summary-card" label="可抵扣余额" :value="formatSummaryMoney(summaryDeductibleBalanceDisplay)" hint="元" icon="check-circle" />
+				<AppStatCard class="summary-card" label="净欠款(扣抵扣后)" :value="formatSummaryMoney(summaryNetBalanceDisplay)" hint="元" icon="wallet" @click="onOpenNetDebtSaleSources" />
 				<AppStatCard class="summary-card" label="最近回款" :value="summaryLastReceiptText" hint="日期" icon="calendar" />
 			</view>
 		</template>
@@ -82,22 +82,27 @@
 					</view>
 					<view class="overview-item">
 						<text class="overview-label">累计营收</text>
-						<text class="overview-value">¥{{ formatMoney(overviewShouldReceiveTotal) }}</text>
+						<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewShouldReceiveTotal) }}</text></text>
 						<text class="overview-meta">{{ overviewScopeText }}</text>
 					</view>
 					<view class="overview-item">
 						<text class="overview-label">累计实收</text>
-						<text class="overview-value">¥{{ formatMoney(overviewAmountReceivedTotal) }}</text>
+						<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewAmountReceivedTotal) }}</text></text>
 						<text class="overview-meta">{{ overviewScopeText }}</text>
 					</view>
 					<view class="overview-item">
 						<text class="overview-label">其中预付款</text>
-						<text class="overview-value">¥{{ formatMoney(overviewPrepayManualBalance) }}</text>
+						<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewPrepayManualBalance) }}</text></text>
+						<text class="overview-meta">{{ overviewScopeText }}</text>
+					</view>
+					<view class="overview-item">
+						<text class="overview-label">其中待分配收款</text>
+						<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewReceiptUnallocatedBalance) }}</text></text>
 						<text class="overview-meta">{{ overviewScopeText }}</text>
 					</view>
 					<view class="overview-item">
 						<text class="overview-label">其中冲抵池</text>
-						<text class="overview-value">¥{{ formatMoney(overviewOffsetCreditBalance) }}</text>
+						<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewOffsetCreditBalance) }}</text></text>
 						<text class="overview-meta">{{ overviewScopeText }}</text>
 					</view>
 				</view>
@@ -129,24 +134,25 @@
 						<AppButton size="sm" kind="primary" :loading="offsetEntrySubmitting" @click="onCreateOffsetEntry">录入冲抵池</AppButton>
 					</view>
 					<view v-else-if="activeOperationTab === 'offset'" class="section-actions">
-						<AppButton size="sm" kind="ghost" @click="resetOffsetAllocateForm">重置</AppButton>
-						<AppButton size="sm" kind="neutral" :loading="offsetPoolLoading" @click="loadOffsetCreditPool(true)">刷新来源</AppButton>
+						<AppButton size="sm" kind="ghost" @click="onResetOffsetAction">重置</AppButton>
+						<AppButton v-if="isOffsetAdjustmentActive" size="sm" kind="outline" @click="cancelOffsetAdjustment">取消调整</AppButton>
+						<AppButton size="sm" kind="neutral" :loading="offsetPoolLoading || offsetHistoryLoading" @click="refreshOffsetSection(true)">刷新冲抵</AppButton>
 						<AppButton
 							size="sm"
 							kind="primary"
 							:loading="offsetAllocating"
-							:disabled="selectedOffsetReceiptCount <= 0"
-							@click="onAllocateOffsetCredit"
+							:disabled="!isOffsetAdjustmentActive && selectedOffsetReceiptCount <= 0"
+							@click="onSubmitOffsetAction"
 						>
-							提交冲抵
+							{{ isOffsetAdjustmentActive ? '保存调整' : '提交冲抵' }}
 						</AppButton>
 					</view>
 					<view v-else-if="activeOperationTab === 'receipt'" class="section-actions">
-						<AppButton size="sm" kind="ghost" @click="resetReceiptForm">重置</AppButton>
-						<AppButton v-if="isEditingReceipt" size="sm" kind="outline" @click="cancelReceiptEditing">取消编辑</AppButton>
+						<AppButton size="sm" kind="ghost" @click="onResetReceiptAction">重置</AppButton>
+						<AppButton v-if="isReceiptAdjustmentActive" size="sm" kind="outline" @click="cancelReceiptEditing">取消</AppButton>
 						<AppButton size="sm" kind="neutral" :disabled="isEditingReceipt" :loading="previewing" @click="onPreview">预览分配</AppButton>
-						<AppButton size="sm" kind="primary" :loading="submitting" @click="onCreateAutoReceipt">{{ receiptPrimaryActionLabel }}</AppButton>
-						<AppButton size="sm" kind="outline" :disabled="isEditingReceipt || !previewPlan" :loading="confirming" @click="onConfirmAllocation">确认入账</AppButton>
+						<AppButton size="sm" kind="primary" :loading="receiptPrimaryActionLoading" @click="onCreateAutoReceipt">{{ receiptPrimaryActionLabel }}</AppButton>
+						<AppButton size="sm" kind="outline" :disabled="isReceiptAdjustmentActive || !previewPlan" :loading="confirming" @click="onConfirmAllocation">确认入账</AppButton>
 					</view>
 				</template>
 
@@ -164,7 +170,7 @@
 							label="收款金额(元)"
 							:placeholder="moneyInputPlaceholder"
 							size="sm"
-							:readonly="isEditingCashierReceipt"
+							:readonly="isReceiptAmountReadonly"
 							@blur="onReceiptAmountBlur"
 						/>
 						<AppInput
@@ -172,9 +178,10 @@
 							label="抹零金额(元)"
 							:placeholder="moneyInputPlaceholder"
 							size="sm"
+							:readonly="isReceiptRoundingReadonly"
 							@blur="onReceiptRoundingAmountBlur"
 						/>
-						<picker class="picker-block" mode="date" :disabled="isEditingCashierReceipt" @change="onBizDateChange">
+						<picker class="picker-block" mode="date" :disabled="isReceiptImmutableReadonly" @change="onBizDateChange">
 							<AppInput v-model="receiptForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
 						<picker
@@ -183,7 +190,7 @@
 							:range="receiptPaymentMethodOptions"
 							range-key="label"
 							:value="receiptPaymentMethodIndex"
-							:disabled="isEditingCashierReceipt"
+							:disabled="isReceiptImmutableReadonly"
 							@change="onReceiptPaymentMethodChange"
 						>
 							<AppInput :model-value="receiptPaymentMethodLabel" label="收款方式" placeholder="请选择收款方式" readonly size="sm" />
@@ -204,14 +211,16 @@
 						<picker v-if="receiptForm.allocationMode === 'period'" class="picker-block" mode="date" @change="onAllocationEndDateChange">
 							<AppInput v-model="receiptForm.allocationEndDate" label="分配结束日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
-						<AppInput v-model="receiptForm.note" class="grid-span-4" label="备注" placeholder="可选" size="sm" :readonly="isEditingCashierReceipt" />
+						<AppInput v-model="receiptForm.note" class="grid-span-4" label="备注" placeholder="可选" size="sm" :readonly="isReceiptImmutableReadonly" />
 					</view>
-					<text v-if="receiptForm.allocationMode === 'period'" class="section-hint">分配口径：仅冲销所选日期区间内应收；现金超出部分自动计入预付款/冲抵池，抹零需全部落到应收目标。</text>
+					<text v-if="receiptForm.allocationMode === 'period'" class="section-hint">分配口径：仅冲销所选日期区间内应收；现金超出部分保留为待分配收款，抹零需全部落到应收目标。</text>
 					<text v-if="receiptForm.allocationMode === 'period'" class="section-hint section-hint--accent">
-						当前区间累计欠款：¥{{ formatMoney(receiptPeriodRangeOutstandingTotal) }}（{{ receiptPeriodRangeTargetCount }} 笔）
+						当前区间累计欠款：<text class="money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(receiptPeriodRangeOutstandingTotal) }}</text></text>（{{ receiptPeriodRangeTargetCount }} 笔）
 					</text>
-					<text v-else class="section-hint">分配口径：仅冲销勾选单据；现金剩余自动计入预付款/冲抵池，抹零需全部落到勾选目标。</text>
+					<text v-else class="section-hint">分配口径：仅冲销勾选单据；现金剩余保留为待分配收款，抹零需全部落到勾选目标。</text>
 					<text v-if="isEditingCashierReceipt" class="section-hint section-hint--warning">当前收款单来源于出纳登记，仅支持调整分配和抹零；金额、业务日期、收款方式与备注请在“出纳收款登记”处理。</text>
+					<text v-if="isEditingReceipt" class="section-hint section-hint--warning">当前为整单调整，原目标已在本次编辑中释放；取消会保留原分配，保存会按当前选择重新入账。</text>
+					<text v-if="isContinuingPrepayReceipt" class="section-hint section-hint--warning">当前为继续分配未分配余额，仅消费该收款单待分配金额，不回滚已分配金额，不修改原收款信息。</text>
 
 					<view v-if="receiptForm.allocationMode === 'checked'" class="checked-target-box">
 						<view class="checked-target-head">
@@ -236,7 +245,7 @@
 							<text>本次抹零：¥{{ formatMoney(previewPlan.rounding_amount) }}</text>
 							<text>预计冲欠：¥{{ formatMoney(previewPlan.allocated_total) }}</text>
 							<text>抹零冲欠：¥{{ formatMoney(previewPlan.rounding_allocated_total) }}</text>
-							<text>预计形成预付：¥{{ formatMoney(previewPlan.prepay_amount) }}</text>
+							<text>预计待分配收款：¥{{ formatMoney(previewPlan.prepay_amount) }}</text>
 						</view>
 						<view v-if="editableAllocations.length" class="alloc-list">
 							<view class="alloc-head">
@@ -257,12 +266,15 @@
 								</view>
 							</view>
 						</view>
-						<text v-else class="preview-empty">当前预览无可冲销欠款，登记后将全部进入预付款。</text>
+						<text v-else class="preview-empty">当前预览无可冲销欠款，登记后将全部保留为待分配收款。</text>
 					</view>
 				</view>
 
 					<view v-else-if="activeOperationTab === 'offset'" class="operation-panel">
-						<view class="checked-target-box">
+						<text v-if="isOffsetAdjustmentActive" class="section-hint section-hint--warning">
+							正在调整冲抵历史：{{ offsetAdjustmentSourceText }}。原目标已在本次编辑中释放；取消会保留原分配，保存会按当前选择重新冲抵。
+						</text>
+						<view v-if="!isOffsetAdjustmentActive" class="checked-target-box">
 							<view class="checked-target-head">
 								<text>冲抵来源池（仅可用余额）</text>
 								<text>已选 {{ selectedOffsetReceiptCount }} 笔 · 共 {{ offsetPoolPager.total }} 条 · 第 {{ offsetPoolPager.page }} / {{ offsetPoolTotalPages }} 页</text>
@@ -303,9 +315,65 @@
 						</AppList>
 						<view v-if="offsetPoolPager.total > 0" class="pager-row">
 							<AppButton size="sm" kind="neutral" :disabled="offsetPoolLoading || offsetPoolPager.page <= 1" @click="onOffsetPoolPrev">上一页</AppButton>
-							<AppButton size="sm" kind="neutral" :disabled="offsetPoolLoading || !offsetPoolPager.hasMore" @click="onOffsetPoolNext">下一页</AppButton>
+								<AppButton size="sm" kind="neutral" :disabled="offsetPoolLoading || !offsetPoolPager.hasMore" @click="onOffsetPoolNext">下一页</AppButton>
+							</view>
 						</view>
-					</view>
+
+						<view class="checked-target-box">
+							<view class="checked-target-head">
+								<text>冲抵历史（可调整已分配）</text>
+								<text>共 {{ offsetHistoryPager.total }} 条 · 第 {{ offsetHistoryPager.page }} / {{ offsetHistoryTotalPages }} 页</text>
+							</view>
+							<AppList :loading="offsetHistoryLoading" :empty="offsetHistoryRows.length === 0" empty-title="暂无冲抵历史">
+								<AppListItem
+									v-for="row in offsetHistoryRows"
+									:key="`offset-history-${row._id}`"
+									:title="`${row.source_sale_date || row.biz_date || '-'} · 冲抵来源`"
+									:subtitle="`单据 ${row._id}`"
+									status="冲抵历史"
+									status-kind="warning"
+									icon="wallet"
+									icon-class="bg-warning"
+								>
+									<template #right>
+										<view class="mini-amounts">
+											<text>来源 ¥{{ formatMoney(row.amount) }}</text>
+											<text>已冲抵 ¥{{ formatMoney(row.allocated_amount) }}</text>
+											<text>可用 ¥{{ formatMoney(row.unallocated_amount) }}</text>
+										</view>
+									</template>
+									<template #default>
+										<text class="row-detail row-detail--source">来源：{{ receiptSourceTypeText(row.source_type) }}</text>
+										<text class="row-detail">{{ offsetHistoryTargetText(row) }}</text>
+										<text v-if="row.note" class="row-detail">{{ row.note }}</text>
+									</template>
+									<template #footer>
+										<view class="row-actions">
+											<AppButton
+												size="sm"
+												kind="ghost"
+												:disabled="isOffsetAdjustmentActive && normalizeString(offsetAdjustingReceiptId) !== normalizeString(row._id)"
+												@click="onBeginOffsetAdjustment(row)"
+											>
+												{{ normalizeString(offsetAdjustingReceiptId) === normalizeString(row._id) ? '调整中' : '调整分配' }}
+											</AppButton>
+											<AppButton
+												size="sm"
+												kind="outline"
+												:disabled="isOffsetAdjustmentActive || toNumber(row.allocated_amount, 0) <= 0"
+												@click="onRemoveOffsetAllocation(row)"
+											>
+												删除冲抵
+											</AppButton>
+										</view>
+									</template>
+								</AppListItem>
+							</AppList>
+							<view v-if="offsetHistoryPager.total > 0" class="pager-row">
+								<AppButton size="sm" kind="neutral" :disabled="offsetHistoryLoading || offsetHistoryPager.page <= 1" @click="onOffsetHistoryPrev">上一页</AppButton>
+								<AppButton size="sm" kind="neutral" :disabled="offsetHistoryLoading || !offsetHistoryPager.hasMore" @click="onOffsetHistoryNext">下一页</AppButton>
+							</view>
+						</view>
 
 					<view class="receipt-grid receipt-grid--four">
 						<AppInput :model-value="selectedOffsetReceiptSummary" label="已选来源" placeholder="请选择冲抵来源" readonly size="sm" />
@@ -314,6 +382,7 @@
 							label="本次冲抵金额(元)"
 							:placeholder="moneyInputPlaceholder"
 							size="sm"
+							:readonly="isOffsetAdjustmentActive"
 							@blur="onOffsetAllocateAmountBlur"
 						/>
 						<picker
@@ -337,7 +406,7 @@
 						分配口径：单笔来源 + 时间段。仅冲销区间内应收，剩余保留在该来源可用余额中。
 					</text>
 					<text v-if="offsetAllocateForm.allocationMode === 'period'" class="section-hint section-hint--accent">
-						当前区间累计欠款：¥{{ formatMoney(offsetPeriodRangeOutstandingTotal) }}（{{ offsetPeriodRangeTargetCount }} 笔）
+						当前区间累计欠款：<text class="money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(offsetPeriodRangeOutstandingTotal) }}</text></text>（{{ offsetPeriodRangeTargetCount }} 笔）
 					</text>
 					<text v-else class="section-hint">
 						分配口径：单笔来源 + 勾选目标（支持多选）。仅消耗本来源可用余额，不回滚历史分配。
@@ -544,7 +613,7 @@
 									<text>收款 ¥{{ formatMoney(row.amount) }}</text>
 									<text v-if="toNumber(row.rounding_allocated_amount, 0) > 0">抹零 ¥{{ formatMoney(row.rounding_allocated_amount) }}</text>
 									<text>已分配 ¥{{ formatMoney(row.allocated_amount) }}</text>
-									<text>预付+ ¥{{ formatMoney(row.unallocated_amount) }}</text>
+									<text>{{ receiptRemainingBalanceLabel(row) }} ¥{{ formatMoney(row.unallocated_amount) }}</text>
 								</view>
 							</template>
 							<template #default>
@@ -557,8 +626,9 @@
 							</template>
 							<template #footer>
 								<view class="row-actions">
+									<AppButton v-if="canContinuePrepayReceipt(row)" size="sm" kind="primary" @click="onContinuePrepayReceipt(row)">继续分配</AppButton>
 									<AppButton size="sm" kind="ghost" @click="onEditReceipt(row)">
-										{{ isCashierReceiptRow(row) ? '调整分配' : '编辑' }}
+										调整整单
 									</AppButton>
 									<AppButton size="sm" kind="outline" :disabled="isCashierReceiptRow(row)" @click="onRemoveReceipt(row)">删除</AppButton>
 								</view>
@@ -725,9 +795,21 @@
 			<view id="statement-sales-detail-section">
 				<AppSection :title="salesDetailSectionTitle">
 					<template #actions>
-						<view v-if="salesDetailMode === 'net_debt'" class="section-actions">
-							<text class="section-hint">{{ salesDetailLocatedHint }}</text>
-							<AppButton size="sm" kind="neutral" @click="clearSalesDetailLocateMode">查看全部</AppButton>
+						<view v-if="salesDetailMode === 'net_debt' || quickRoundingSmallCandidateCount > 0" class="section-actions">
+							<text v-if="salesDetailMode === 'net_debt'" class="section-hint">{{ salesDetailLocatedHint }}</text>
+							<text v-if="quickRoundingSmallCandidateCount > 0" class="section-hint">
+								小额待抹零 {{ quickRoundingSmallCandidateCount }} 笔 · ¥{{ formatMoney(quickRoundingSmallCandidateTotal) }}
+							</text>
+							<AppButton
+								v-if="quickRoundingSmallCandidateCount > 0"
+								size="sm"
+								kind="primary"
+								:loading="quickRoundingSubmitting"
+								@click="onBatchQuickRoundSmallSalesDetails"
+							>
+								本页小额抹零
+							</AppButton>
+							<AppButton v-if="salesDetailMode === 'net_debt'" size="sm" kind="neutral" @click="clearSalesDetailLocateMode">查看全部</AppButton>
 						</view>
 					</template>
 					<AppList :loading="loading" :empty="salesDetailRows.length === 0" :empty-title="salesDetailEmptyTitle">
@@ -748,7 +830,10 @@
 									<text v-if="resolveSaleRoundingAmount(row) > 0" class="mini-amounts__rounding">
 										抹零 ¥{{ formatMoney(resolveSaleRoundingAmount(row)) }}（计费应收 ¥{{ formatMoney(resolveSaleEffectiveShouldReceive(row)) }}）
 									</text>
-									<text>实收 ¥{{ formatMoney(resolveSaleOffsetApplied(row) > 0 ? resolveSaleManualReceived(row) : resolveSalePostedReceived(row)) }}</text>
+									<text>实收 ¥{{ formatMoney(resolveSaleManualReceived(row)) }}</text>
+									<text v-if="resolveSaleReceiptAllocated(row) > 0" class="mini-amounts__receipt-allocation">
+										收款分配 ¥{{ formatMoney(resolveSaleReceiptAllocated(row)) }}
+									</text>
 									<text v-if="toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
 									<text v-if="resolveSaleOffsetApplied(row) > 0" class="mini-amounts__offset">
 										{{ formatSaleOffsetLine(row) }}
@@ -756,7 +841,7 @@
 									<text v-if="resolveSaleOffsetTargetApplied(row) > 0" class="mini-amounts__offset-target">
 										{{ formatSaleOffsetTargetLine(row) }}
 									</text>
-									<text v-if="resolveSaleOffsetApplied(row) > 0" class="mini-amounts__posted">
+									<text v-if="resolveSalePostedReceived(row) !== resolveSaleManualReceived(row)" class="mini-amounts__posted">
 										入账 ¥{{ formatMoney(resolveSalePostedReceived(row)) }}
 									</text>
 									<text>未收 ¥{{ formatMoney(row.outstanding) }}</text>
@@ -787,6 +872,15 @@
 							</view>
 						</template>
 						<template #footer>
+							<AppButton
+								v-if="canQuickRoundSalesDetailRow(row)"
+								size="sm"
+								kind="outline"
+								:disabled="quickRoundingSubmitting"
+								@click="onQuickRoundSalesDetailRow(row)"
+							>
+								抹零结清 ¥{{ formatMoney(resolveSalesDetailOutstanding(row)) }}
+							</AppButton>
 							<AppButton v-if="isSaleRecordRow(row)" size="sm" kind="ghost" @click="onOpenSale(row._id)">查看销售单</AppButton>
 							<AppButton v-else size="sm" kind="ghost" @click="onEditFlowSettlement(row)">编辑结算单</AppButton>
 						</template>
@@ -835,7 +929,7 @@
 								<text v-if="row.row_type === 'other_fee'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								<text v-if="row.row_type === 'receipt'">收款 ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'receipt' && toNumber(row.rounding_allocated_amount, 0) > 0">抹零 ¥{{ formatMoney(row.rounding_allocated_amount) }}</text>
-								<text v-if="row.row_type === 'receipt'">预付+ ¥{{ formatMoney(row.prepay_delta) }}</text>
+								<text v-if="row.row_type === 'receipt'">{{ receiptRemainingBalanceLabel(row) }} ¥{{ formatMoney(row.prepay_delta) }}</text>
 								<text v-if="row.row_type === 'allocation'">分配 ¥{{ formatMoney(row.amount) }}</text>
 							</view>
 						</template>
@@ -867,6 +961,9 @@ import AppDatePresetBar from '@/components/base/AppDatePresetBar.vue'
 import { buildDatePresetRange, detectDatePreset } from '@/utils/datePreset'
 import {
 	allocateOffsetCreditV1,
+	allocatePrepayReceiptV1,
+	beginReceiptAdjustmentV1,
+	cancelReceiptAdjustmentV1,
 	confirmAllocationV1,
 	createOpeningDebtEntryV1,
 	createOtherFeeEntryV1,
@@ -884,6 +981,7 @@ import {
 	removeOpeningDebtEntryV1,
 	removeOtherFeeEntryV1,
 	removeFlowSettlementV1,
+	removeOffsetCreditAllocationV1,
 	removeReceiptV1,
 	updateOpeningDebtEntryV1,
 	updateOtherFeeEntryV1,
@@ -922,7 +1020,10 @@ const flowSubmitting = ref(false)
 const openingDebtSubmitting = ref(false)
 const otherFeeSubmitting = ref(false)
 const offsetPoolLoading = ref(false)
+const offsetHistoryLoading = ref(false)
 const offsetAllocating = ref(false)
+const prepayReceiptAllocating = ref(false)
+const quickRoundingSubmitting = ref(false)
 
 const customer = ref({})
 const recentSales = ref([])
@@ -940,11 +1041,17 @@ const bottleReferencePrice = ref('')
 const checkedAllocationTargetKeys = ref([])
 const offsetCheckedTargetKeys = ref([])
 const offsetPoolRows = ref([])
+const offsetHistoryRows = ref([])
 const selectedOffsetReceipts = ref([])
 const quickSceneApplied = ref(false)
 const salesDetailMode = ref('all')
 const editingReceiptId = ref('')
 const editingReceiptSourceType = ref('')
+const receiptAdjustmentReleasedTargets = ref([])
+const continuingPrepayReceiptId = ref('')
+const continuingPrepayAvailableAmount = ref(0)
+const offsetAdjustingReceiptId = ref('')
+const offsetAdjustingReceiptRow = ref(null)
 const editingFlowSettlementId = ref('')
 const editingOpeningDebtId = ref('')
 const editingOtherFeeId = ref('')
@@ -961,6 +1068,7 @@ const operationTabs = [
 	{ label: '其他费用', value: 'other_fee' },
 	{ label: '收款单', value: 'receipt_list' }
 ]
+const QUICK_ROUNDING_SMALL_LIMIT = 20
 const analysis = reactive({
 	customer_price_unit: 'kg',
 	requires_date_range: false,
@@ -975,6 +1083,7 @@ const summary = reactive({
 	receivable_balance: 0,
 	prepay_balance: 0,
 	prepay_manual_balance: 0,
+	receipt_unallocated_balance: 0,
 	offset_credit_balance: 0,
 	net_balance: 0,
 	should_receive_total: 0,
@@ -987,6 +1096,7 @@ const summaryScope = reactive({
 	receivable_balance: 0,
 	prepay_balance: 0,
 	prepay_manual_balance: 0,
+	receipt_unallocated_balance: 0,
 	offset_credit_balance: 0,
 	net_balance: 0,
 	should_receive_total: 0,
@@ -1095,6 +1205,12 @@ const offsetPoolPager = reactive({
 	total: 0,
 	hasMore: false
 })
+const offsetHistoryPager = reactive({
+	page: 1,
+	pageSize: 10,
+	total: 0,
+	hasMore: false
+})
 
 const subtitle = computed(() => {
 	if (!customer.value?.name) return '客户账务总览与流水'
@@ -1114,14 +1230,28 @@ const offsetPoolTotalPages = computed(() => {
 	const pages = Math.ceil(Number(offsetPoolPager.total || 0) / Number(offsetPoolPager.pageSize || 10))
 	return pages > 0 ? pages : 1
 })
+const offsetHistoryTotalPages = computed(() => {
+	const pages = Math.ceil(Number(offsetHistoryPager.total || 0) / Number(offsetHistoryPager.pageSize || 10))
+	return pages > 0 ? pages : 1
+})
 const isEditingReceipt = computed(() => Boolean(normalizeString(editingReceiptId.value)))
+const isContinuingPrepayReceipt = computed(() => Boolean(normalizeString(continuingPrepayReceiptId.value)))
+const isOffsetAdjustmentActive = computed(() => Boolean(normalizeString(offsetAdjustingReceiptId.value)))
+const isReceiptAdjustmentActive = computed(() => isEditingReceipt.value || isContinuingPrepayReceipt.value)
 const isEditingCashierReceipt = computed(() => isCashierReceiptSourceType(editingReceiptSourceType.value))
 const isEditingFlowSettlement = computed(() => Boolean(normalizeString(editingFlowSettlementId.value)))
 const isEditingOpeningDebt = computed(() => Boolean(normalizeString(editingOpeningDebtId.value)))
 const isEditingOtherFee = computed(() => Boolean(normalizeString(editingOtherFeeId.value)))
+const isReceiptAmountReadonly = computed(() => isEditingCashierReceipt.value || isContinuingPrepayReceipt.value)
+const isReceiptRoundingReadonly = computed(() => isContinuingPrepayReceipt.value)
+const isReceiptImmutableReadonly = computed(() => isEditingCashierReceipt.value || isContinuingPrepayReceipt.value)
+const receiptPrimaryActionLoading = computed(() => (
+	isContinuingPrepayReceipt.value ? prepayReceiptAllocating.value : submitting.value
+))
 const receiptPrimaryActionLabel = computed(() => {
+	if (isContinuingPrepayReceipt.value) return '继续分配'
 	if (!isEditingReceipt.value) return '登记收款'
-	return isEditingCashierReceipt.value ? '保存分配' : '保存收款单'
+	return '保存整单调整'
 })
 const flowPrimaryActionLabel = computed(() => (isEditingFlowSettlement.value ? '保存结算单' : '生成结算单'))
 const openingDebtPrimaryActionLabel = computed(() => (isEditingOpeningDebt.value ? '保存欠款' : '登记欠款'))
@@ -1131,7 +1261,7 @@ const hasSummaryScope = computed(() => Boolean(summaryScope.date_from && summary
 const summaryReceivableBalanceDisplay = computed(() => (
 	hasSummaryScope.value ? toNumber(summaryScope.receivable_balance, toNumber(summary.receivable_balance, 0)) : toNumber(summary.receivable_balance, 0)
 ))
-const summaryPrepayBalanceDisplay = computed(() => (
+const summaryDeductibleBalanceDisplay = computed(() => (
 	hasSummaryScope.value ? toNumber(summaryScope.prepay_balance, toNumber(summary.prepay_balance, 0)) : toNumber(summary.prepay_balance, 0)
 ))
 const summaryNetBalanceDisplay = computed(() => (
@@ -1164,6 +1294,11 @@ const overviewPrepayManualBalance = computed(() => (
 	hasSummaryScope.value
 		? toNumber(summaryScope.prepay_manual_balance, toNumber(summary.prepay_manual_balance, 0))
 		: toNumber(summary.prepay_manual_balance, 0)
+))
+const overviewReceiptUnallocatedBalance = computed(() => (
+	hasSummaryScope.value
+		? toNumber(summaryScope.receipt_unallocated_balance, toNumber(summary.receipt_unallocated_balance, 0))
+		: toNumber(summary.receipt_unallocated_balance, 0)
 ))
 const overviewOffsetCreditBalance = computed(() => (
 	hasSummaryScope.value
@@ -1319,7 +1454,39 @@ const checkedTargetCandidates = computed(() => {
 			}
 		})
 		.filter((row) => Boolean(row.targetId))
-	return [...saleRows, ...flowRows, ...openingDebtRows, ...otherFeeRows].sort((a, b) => {
+	const releasedRows = (Array.isArray(receiptAdjustmentReleasedTargets.value) ? receiptAdjustmentReleasedTargets.value : [])
+		.map((row) => {
+			const targetType = normalizeReceivableTargetTypeForForm(row?.target_type || row?.targetType)
+			const targetId = normalizeString(row?.target_id || row?.targetId)
+			if (!targetId) return null
+			const date = normalizeString(row?.target_date || row?.date)
+			return {
+				key: `${targetType}:${targetId}`,
+				targetType,
+				targetId,
+				date,
+				title: normalizeString(row?.target_title || row?.title) || `${targetTypeText(targetType)} ${date || '-'} / ${targetId.slice(-6)}`,
+				outstanding: fix2(toNumber(row?.outstanding, row?.amount || 0))
+			}
+		})
+		.filter((row) => row && row.targetId && toNumber(row.outstanding, 0) > 0)
+	const candidateMap = new Map()
+	for (const row of [...saleRows, ...flowRows, ...openingDebtRows, ...otherFeeRows, ...releasedRows]) {
+		const key = normalizeString(row?.key)
+		if (!key) continue
+		const current = candidateMap.get(key)
+		if (!current) {
+			candidateMap.set(key, { ...row })
+			continue
+		}
+		candidateMap.set(key, {
+			...current,
+			outstanding: fix2(toNumber(current.outstanding, 0) + toNumber(row.outstanding, 0)),
+			title: current.title || row.title,
+			date: current.date || row.date
+		})
+	}
+	return Array.from(candidateMap.values()).sort((a, b) => {
 		if (a.date !== b.date) return a.date < b.date ? -1 : 1
 		return a.key < b.key ? -1 : 1
 	})
@@ -1436,8 +1603,17 @@ const selectedOffsetReceiptAvailableTotal = computed(() => {
 	)
 })
 const selectedOffsetReceiptSummary = computed(() => {
+	if (isOffsetAdjustmentActive.value) return offsetAdjustmentSourceText.value
 	if (selectedOffsetReceiptCount.value <= 0) return '-'
 	return `已选 ${selectedOffsetReceiptCount.value} 笔（可用合计 ¥${formatMoney(selectedOffsetReceiptAvailableTotal.value)}）`
+})
+const offsetAdjustmentSourceText = computed(() => {
+	const row = offsetAdjustingReceiptRow.value || {}
+	const receiptId = normalizeString(row?._id || offsetAdjustingReceiptId.value)
+	if (!receiptId) return '-'
+	const sourceDate = normalizeDate(row?.source_sale_date) || normalizeDate(row?.biz_date) || '-'
+	const amount = formatMoney(row?.amount)
+	return `${sourceDate} · ¥${amount} · ${receiptId.slice(-6)}`
 })
 const recentSalesDisplayRows = computed(() => {
 	const saleRows = buildSaleDetailSaleRows(recentSales.value)
@@ -1466,6 +1642,15 @@ const salesDetailLocatedHint = computed(() => {
 })
 const salesDetailEmptyTitle = computed(() => (
 	salesDetailMode.value === 'net_debt' ? '当前日期范围暂无净欠款来源销售单' : '暂无销售明细'
+))
+const quickRoundingSmallCandidates = computed(() => (
+	(Array.isArray(salesDetailRows.value) ? salesDetailRows.value : [])
+		.filter((row) => canQuickRoundSalesDetailRow(row))
+		.filter((row) => resolveSalesDetailOutstanding(row) <= QUICK_ROUNDING_SMALL_LIMIT)
+))
+const quickRoundingSmallCandidateCount = computed(() => quickRoundingSmallCandidates.value.length)
+const quickRoundingSmallCandidateTotal = computed(() => fix2(
+	quickRoundingSmallCandidates.value.reduce((sum, row) => sum + resolveSalesDetailOutstanding(row), 0)
 ))
 
 function toNumber(value, fallback = 0) {
@@ -1686,9 +1871,12 @@ function receiptSourceTypeText(value) {
 	if (!sourceType) return ''
 	if (sourceType === 'cashier_intake') return '出纳登记'
 	if (sourceType === 'customer_statement' || sourceType === 'customer_statement_manual') return '客户对账登记'
+	if (sourceType === 'customer_statement_quick_rounding') return '客户对账快捷抹零'
 	if (sourceType === 'customer_prepay_manual') return '预付录入'
 	if (sourceType === 'customer_offset_credit_manual_compensation') return '冲抵池录入'
 	if (sourceType === 'offset_manual_allocate') return '冲抵分配'
+	if (sourceType === 'prepay_manual_allocate') return '预付款继续分配'
+	if (sourceType === 'receipt_unallocated_allocate') return '待分配收款分配'
 	if (sourceType === 'sale_auto_prepay' || sourceType === 'flow_auto_prepay') return '自动冲销'
 	if (sourceType.startsWith('sale_offset_credit')) return '销售冲抵入池'
 	return sourceType
@@ -1700,6 +1888,27 @@ function isCashierReceiptSourceType(value) {
 
 function isCashierReceiptRow(row) {
 	return isCashierReceiptSourceType(row?.source_type || row?.meta?.source_type)
+}
+
+function isOffsetCreditReceiptRow(row) {
+	const entryKind = normalizeString(row?.entry_kind || row?.meta?.entry_kind).toLowerCase()
+	const sourceType = normalizeString(row?.source_type || row?.meta?.source_type).toLowerCase()
+	return entryKind === 'offset_credit' || sourceType.includes('offset_credit')
+}
+
+function isManualPrepayReceiptRow(row) {
+	const sourceType = normalizeString(row?.source_type || row?.meta?.source_type)
+	return sourceType === 'customer_prepay_manual'
+}
+
+function canContinuePrepayReceipt(row) {
+	return toNumber(row?.unallocated_amount, 0) > 0 && !isOffsetCreditReceiptRow(row)
+}
+
+function receiptRemainingBalanceLabel(row) {
+	if (isOffsetCreditReceiptRow(row)) return '剩余冲抵'
+	if (isManualPrepayReceiptRow(row)) return '剩余预付款'
+	return '待分配收款'
 }
 
 function receiptAllocationText(row) {
@@ -1727,6 +1936,36 @@ function receiptAllocationText(row) {
 			: `收款 ¥${formatMoney(amount)}，抹零 ¥${formatMoney(roundingAllocated)} · ${modeText}`
 	}
 	return sourceText ? `${modeText} · 来源 ${sourceText}` : modeText
+}
+
+function offsetHistoryTargetText(row) {
+	const targets = Array.isArray(row?.allocation_target_summary) ? row.allocation_target_summary : []
+	if (!targets.length) return '尚未冲抵到目标'
+	const preview = targets.slice(0, 3).map((item) => {
+		const title = normalizeString(item?.target_title) || `${targetTypeText(item?.target_type)} ${normalizeDate(item?.target_date) || '-'}`
+		return `${title} ¥${formatMoney(item?.amount)}`
+	})
+	const suffix = targets.length > 3 ? ` 等 ${targets.length} 笔` : ''
+	return `已冲抵：${preview.join('；')}${suffix}`
+}
+
+function buildOffsetHistoryTargetKeys(row) {
+	const explicitTargets = Array.isArray(row?.allocation_targets) ? row.allocation_targets : []
+	const source = explicitTargets.length > 0
+		? explicitTargets
+		: (Array.isArray(row?.allocation_target_summary) ? row.allocation_target_summary : [])
+	return Array.from(
+		new Set(
+			source
+				.map((item) => {
+					const targetType = normalizeReceivableTargetTypeForForm(item?.target_type || item?.targetType)
+					const targetId = normalizeString(item?.target_id || item?.targetId)
+					if (!targetId) return ''
+					return `${targetType}:${targetId}`
+				})
+				.filter(Boolean)
+		)
+	)
 }
 
 function receiptAllocationDateScopeText(row) {
@@ -1778,6 +2017,20 @@ function bizModeText(value) {
 	if (text === 'truck') return '整车'
 	if (text === 'agent_sale') return '代理销售'
 	return '瓶装'
+}
+
+function normalizeReceivableTargetTypeForForm(value) {
+	const text = normalizeString(value)
+	if (text === 'flow_settlement' || text === 'opening_debt' || text === 'other_fee') return text
+	return 'sale'
+}
+
+function targetTypeText(value) {
+	const text = normalizeReceivableTargetTypeForForm(value)
+	if (text === 'flow_settlement') return '流量结算'
+	if (text === 'opening_debt') return '历史欠款'
+	if (text === 'other_fee') return '其他费用'
+	return '销售单'
 }
 
 function isSaleRecordRow(row) {
@@ -1855,6 +2108,82 @@ function resolveSalesDetailOutstanding(row) {
 	return outstanding > 0 ? outstanding : 0
 }
 
+function resolveQuickRoundingTarget(row) {
+	const targetId = normalizeString(row?._id)
+	if (!targetId) return null
+	const outstanding = resolveSalesDetailOutstanding(row)
+	if (!(outstanding > 0)) return null
+	const targetType = isSaleRecordRow(row) ? 'sale' : normalizeString(row?.record_type)
+	if (targetType !== 'sale' && targetType !== 'flow_settlement') return null
+	const date = normalizeDate(row?.date || row?.biz_date) || todayYmd()
+	const title = targetType === 'flow_settlement'
+		? `流量结算 ${date} / ${targetId.slice(-6)}`
+		: `销售单 ${date} / ${targetId.slice(-6)}`
+	return {
+		key: `${targetType}:${targetId}`,
+		targetType,
+		targetId,
+		date,
+		title,
+		outstanding
+	}
+}
+
+function canQuickRoundSalesDetailRow(row) {
+	return Boolean(resolveQuickRoundingTarget(row))
+}
+
+function dedupeQuickRoundingTargets(rows = []) {
+	const map = new Map()
+	;(Array.isArray(rows) ? rows : []).forEach((row) => {
+		const target = resolveQuickRoundingTarget(row)
+		if (!target || map.has(target.key)) return
+		map.set(target.key, target)
+	})
+	return Array.from(map.values())
+}
+
+function groupQuickRoundingTargetsByDate(targets = []) {
+	const map = new Map()
+	;(Array.isArray(targets) ? targets : []).forEach((target) => {
+		const date = normalizeDate(target?.date) || todayYmd()
+		if (!map.has(date)) map.set(date, [])
+		map.get(date).push(target)
+	})
+	return Array.from(map.entries()).map(([date, list]) => ({ date, list }))
+}
+
+async function createQuickRoundingReceipts(targets = []) {
+	const groups = groupQuickRoundingTargetsByDate(targets)
+	let total = 0
+	let count = 0
+	for (const group of groups) {
+		const list = Array.isArray(group.list) ? group.list : []
+		const roundingAmount = fix2(list.reduce((sum, row) => sum + toNumber(row?.outstanding, 0), 0))
+		if (!(roundingAmount > 0)) continue
+		const res = await createReceiptV1({
+			customerId: recordId.value,
+			amount: 0,
+			roundingAmount,
+			bizDate: group.date,
+			allocationMode: 'checked',
+			allocationTargets: list.map((row) => ({
+				target_type: row.targetType,
+				target_id: row.targetId
+			})),
+			paymentMethod: 'cash',
+			note: `客户对账快捷抹零：${list.length}笔`,
+			sourceType: 'customer_statement_quick_rounding'
+		})
+		if (res?.code !== 0) {
+			throw new Error(res?.msg || `${group.date} 抹零失败`)
+		}
+		total = fix2(total + roundingAmount)
+		count += list.length
+	}
+	return { count, total }
+}
+
 function isNetDebtSalesDetailRow(row) {
 	if (!isRowInSalesDetailScope(row)) return false
 	return resolveSalesDetailOutstanding(row) > 0
@@ -1878,6 +2207,10 @@ function resolveSalePostedReceived(row) {
 
 function resolveSaleOffsetApplied(row) {
 	return fix2(toNumber(row?.offset_applied_amount, 0))
+}
+
+function resolveSaleReceiptAllocated(row) {
+	return fix2(toNumber(row?.receipt_allocated_amount ?? row?.receipt_allocation_amount, 0))
 }
 
 function resolveSaleOffsetEnabled(row, fallback = false) {
@@ -1954,7 +2287,9 @@ function formatSaleOffsetTargetsText(row) {
 function resolveSaleManualReceived(row) {
 	const manual = toNullableNumber(row?.manual_amount_received)
 	if (manual != null) return fix2(manual)
-	return fix2(resolveSalePostedReceived(row) - resolveSaleOffsetApplied(row))
+	const posted = resolveSalePostedReceived(row)
+	if (posted < 0) return posted
+	return fix2(Math.max(posted - resolveSaleOffsetApplied(row) - resolveSaleReceiptAllocated(row), 0))
 }
 
 function formatSaleOffsetLine(row) {
@@ -2084,9 +2419,31 @@ function currentYearRange() {
 	}
 }
 
-function onOperationTabChange(value) {
+async function onOperationTabChange(value) {
 	const next = normalizeString(value)
 	if (!operationTabs.some((item) => item.value === next)) return
+	if (isOffsetAdjustmentActive.value && next !== 'offset') {
+		const confirmed = await showConfirmModal({
+			title: '放弃冲抵调整',
+			content: '切换操作前需要放弃本次冲抵调整，并保留原冲抵分配。确认继续吗？',
+			confirmText: '放弃调整'
+		})
+		if (!confirmed) return
+		const cancelled = await cancelOffsetAdjustment({ silent: true })
+		if (!cancelled) return
+	}
+	if (isEditingReceipt.value) {
+		const confirmed = await showConfirmModal({
+			title: '放弃整单调整',
+			content: '切换操作前需要放弃本次整单调整，并恢复进入调整前的原分配。确认继续吗？',
+			confirmText: '放弃调整'
+		})
+		if (!confirmed) return
+		const cancelled = await cancelReceiptEditing({ silent: true })
+		if (!cancelled) return
+	} else if (isContinuingPrepayReceipt.value) {
+		resetReceiptForm()
+	}
 	activeOperationTab.value = next
 }
 
@@ -2105,6 +2462,9 @@ function toggleReceiptRecent() {
 function resetReceiptForm() {
 	editingReceiptId.value = ''
 	editingReceiptSourceType.value = ''
+	receiptAdjustmentReleasedTargets.value = []
+	continuingPrepayReceiptId.value = ''
+	continuingPrepayAvailableAmount.value = 0
 	const today = todayYmd()
 	receiptForm.amount = ''
 	receiptForm.roundingAmount = ''
@@ -2414,6 +2774,38 @@ function resetOffsetAllocateForm(options = {}) {
 	syncOffsetAmountWithAvailable({ force: true })
 }
 
+function clearOffsetAdjustmentState() {
+	offsetAdjustingReceiptId.value = ''
+	offsetAdjustingReceiptRow.value = null
+	receiptAdjustmentReleasedTargets.value = []
+}
+
+function applyOffsetAdjustmentRowToForm(row) {
+	const current = row || {}
+	selectedOffsetReceipts.value = []
+	offsetAllocateForm.amount = formatMoney(current?.amount)
+	const mode = normalizeReceiptAllocationMode(current?.allocation_mode)
+	offsetAllocateForm.allocationMode = mode
+	if (mode === 'checked') {
+		offsetAllocateForm.allocationStartDate = ''
+		offsetAllocateForm.allocationEndDate = ''
+		offsetCheckedTargetKeys.value = buildOffsetHistoryTargetKeys(current)
+		return
+	}
+	const sourceDate = normalizeDate(current?.source_sale_date) || normalizeDate(current?.biz_date) || todayYmd()
+	offsetAllocateForm.allocationStartDate = normalizeDate(current?.allocation_start_date) || sourceDate
+	offsetAllocateForm.allocationEndDate = normalizeDate(current?.allocation_end_date) || sourceDate
+	offsetCheckedTargetKeys.value = []
+}
+
+function onResetOffsetAction() {
+	if (isOffsetAdjustmentActive.value) {
+		applyOffsetAdjustmentRowToForm(offsetAdjustingReceiptRow.value)
+		return
+	}
+	resetOffsetAllocateForm()
+}
+
 function onToggleOffsetReceipt(row) {
 	const receiptId = normalizeString(row?._id)
 	if (!receiptId) return
@@ -2617,9 +3009,23 @@ function applyStatementSummary(data = {}) {
 	summary.receivable_balance = toNumber(nextSummary.receivable_balance, 0)
 	summary.prepay_balance = toNumber(nextSummary.prepay_balance, 0)
 	summary.prepay_manual_balance = toNumber(nextSummary.prepay_manual_balance, 0)
+	summary.receipt_unallocated_balance = toNumber(
+		nextSummary.receipt_unallocated_balance,
+		Math.max(
+			toNumber(nextSummary.prepay_balance, 0)
+				- toNumber(nextSummary.prepay_manual_balance, 0)
+				- toNumber(nextSummary.offset_credit_balance, 0),
+			0
+		)
+	)
 	summary.offset_credit_balance = toNumber(
 		nextSummary.offset_credit_balance,
-		Math.max(toNumber(nextSummary.prepay_balance, 0) - toNumber(nextSummary.prepay_manual_balance, 0), 0)
+		Math.max(
+			toNumber(nextSummary.prepay_balance, 0)
+				- toNumber(nextSummary.prepay_manual_balance, 0)
+				- toNumber(nextSummary.receipt_unallocated_balance, 0),
+			0
+		)
 	)
 	summary.net_balance = toNumber(nextSummary.net_balance, 0)
 	summary.should_receive_total = toNumber(nextSummary.should_receive_total, 0)
@@ -2638,11 +3044,16 @@ function applyStatementSummary(data = {}) {
 			nextScope.prepay_manual_balance,
 			toNumber(nextSummary.prepay_manual_balance, 0)
 		)
+		summaryScope.receipt_unallocated_balance = toNumber(
+			nextScope.receipt_unallocated_balance,
+			toNumber(nextSummary.receipt_unallocated_balance, 0)
+		)
 		summaryScope.offset_credit_balance = toNumber(
 			nextScope.offset_credit_balance,
 			Math.max(
 				toNumber(nextScope.prepay_balance, toNumber(nextSummary.prepay_balance, 0))
-					- toNumber(nextScope.prepay_manual_balance, toNumber(nextSummary.prepay_manual_balance, 0)),
+					- toNumber(nextScope.prepay_manual_balance, toNumber(nextSummary.prepay_manual_balance, 0))
+					- toNumber(nextScope.receipt_unallocated_balance, toNumber(nextSummary.receipt_unallocated_balance, 0)),
 				0
 			)
 		)
@@ -2658,6 +3069,7 @@ function applyStatementSummary(data = {}) {
 		summaryScope.receivable_balance = 0
 		summaryScope.prepay_balance = 0
 		summaryScope.prepay_manual_balance = 0
+		summaryScope.receipt_unallocated_balance = 0
 		summaryScope.offset_credit_balance = 0
 		summaryScope.net_balance = 0
 		summaryScope.should_receive_total = 0
@@ -2814,10 +3226,57 @@ async function loadOffsetCreditPool(reset = false) {
 	}
 }
 
+async function loadOffsetCreditHistory(reset = false) {
+	if (!recordId.value) return
+	if (reset) offsetHistoryPager.page = 1
+	offsetHistoryLoading.value = true
+	try {
+		const res = await listOffsetCreditPoolV1({
+			customerId: recordId.value,
+			onlyUnallocated: false,
+			page: offsetHistoryPager.page,
+			pageSize: offsetHistoryPager.pageSize
+		})
+		if (res?.code !== 0) {
+			uni.showToast({ title: res?.msg || '冲抵历史加载失败', icon: 'none' })
+			offsetHistoryRows.value = []
+			offsetHistoryPager.total = 0
+			offsetHistoryPager.hasMore = false
+			return
+		}
+		offsetHistoryRows.value = Array.isArray(res.data) ? res.data : []
+		const paging = res.paging || {}
+		offsetHistoryPager.page = Number(paging.page || offsetHistoryPager.page || 1)
+		offsetHistoryPager.pageSize = Number(paging.pageSize || offsetHistoryPager.pageSize || 10)
+		offsetHistoryPager.total = Number(paging.total || res.total || 0)
+		offsetHistoryPager.hasMore = Boolean(paging.hasMore)
+		const adjustingId = normalizeString(offsetAdjustingReceiptId.value)
+		if (adjustingId) {
+			const latestRow = offsetHistoryRows.value.find((row) => normalizeString(row?._id) === adjustingId)
+			if (latestRow) offsetAdjustingReceiptRow.value = latestRow
+		}
+	} finally {
+		offsetHistoryLoading.value = false
+	}
+}
+
+async function refreshOffsetSection(reset = false) {
+	await Promise.all([
+		loadOffsetCreditPool(reset),
+		loadOffsetCreditHistory(reset)
+	])
+}
+
 async function refreshAll() {
 	syncRowsFilterDefaults()
 	await loadStatement()
-	await Promise.all([loadRows(), loadAnalysis(), loadOffsetCreditPool()])
+	await Promise.all([loadRows(), loadAnalysis(), loadOffsetCreditPool(), loadOffsetCreditHistory()])
+}
+
+async function refreshReceiptAdjustmentEntry() {
+	syncRowsFilterDefaults()
+	await loadStatement()
+	void loadRows()
 }
 
 function onOffsetPoolPrev() {
@@ -2830,6 +3289,18 @@ function onOffsetPoolNext() {
 	if (!offsetPoolPager.hasMore) return
 	offsetPoolPager.page += 1
 	loadOffsetCreditPool()
+}
+
+function onOffsetHistoryPrev() {
+	if (offsetHistoryPager.page <= 1) return
+	offsetHistoryPager.page -= 1
+	loadOffsetCreditHistory()
+}
+
+function onOffsetHistoryNext() {
+	if (!offsetHistoryPager.hasMore) return
+	offsetHistoryPager.page += 1
+	loadOffsetCreditHistory()
 }
 
 async function searchAnalysis() {
@@ -2997,6 +3468,10 @@ function buildManualAllocations() {
 }
 
 async function onCreateAutoReceipt() {
+	if (isContinuingPrepayReceipt.value) {
+		await onAllocatePrepayReceipt()
+		return
+	}
 	if (!recordId.value || submitting.value) return
 	const amount = receiptForm.amount === '' ? 0 : Number(receiptForm.amount)
 	const roundingAmount = receiptForm.roundingAmount === '' ? 0 : Number(receiptForm.roundingAmount)
@@ -3014,6 +3489,17 @@ async function onCreateAutoReceipt() {
 	}
 	const allocationPayload = buildReceiptAllocationPayload()
 	if (!allocationPayload) return
+	if (isEditingReceipt.value) {
+		const confirmed = await showConfirmModal({
+			title: '保存整单调整',
+			content: '当前原目标已在本次编辑中释放。保存后会按当前金额和目标重新分配整张收款单；当前范围冲不完的现金仍会保留为待分配收款。取消会保留进入调整前的原分配。',
+			confirmText: '保存'
+		})
+		if (!confirmed) return
+	} else {
+		const confirmed = await confirmReceiptPrepayIfNeeded(amount, roundingAmount, allocationPayload)
+		if (!confirmed) return
+	}
 	submitting.value = true
 	try {
 		const isEditing = isEditingReceipt.value
@@ -3048,7 +3534,7 @@ async function onCreateAutoReceipt() {
 			uni.showToast({ title: res?.msg || (isEditing ? '保存失败' : '登记失败'), icon: 'none' })
 			return
 		}
-		uni.showToast({ title: res?.msg || (isEditing ? '收款单已保存' : '登记成功'), icon: 'success' })
+		uni.showToast({ title: res?.msg || (isEditing ? '整单调整已保存' : '登记成功'), icon: 'success' })
 		resetReceiptForm()
 		await refreshAll()
 	} finally {
@@ -3056,16 +3542,165 @@ async function onCreateAutoReceipt() {
 	}
 }
 
-function cancelReceiptEditing() {
+async function confirmReceiptPrepayIfNeeded(amount, roundingAmount, allocationPayload) {
+	const res = await previewAllocationV1({
+		customerId: recordId.value,
+		amount,
+		roundingAmount,
+		allocationMode: allocationPayload.allocationMode,
+		allocationStartDate: allocationPayload.allocationStartDate,
+		allocationEndDate: allocationPayload.allocationEndDate,
+		allocationTargets: allocationPayload.allocationTargets
+	})
+	if (res?.code !== 0) {
+		uni.showToast({ title: res?.msg || '待分配校验失败', icon: 'none' })
+		return false
+	}
+	const plan = res.data || null
+	const prepayAmount = toNumber(plan?.prepay_amount, 0)
+	if (!(prepayAmount > 0)) return true
+	previewPlan.value = plan
+	const confirmed = await showConfirmModal({
+		title: '确认保留待分配收款',
+		content: `本次登记后将剩余 ¥${formatMoney(prepayAmount)} 保留为待分配收款，后续可在收款单上点“继续分配”冲欠款。`,
+		confirmText: '继续'
+	})
+	return Boolean(confirmed)
+}
+
+async function onAllocatePrepayReceipt() {
+	if (!recordId.value || prepayReceiptAllocating.value) return
+	const receiptId = normalizeString(continuingPrepayReceiptId.value)
+	const available = fix2(toNumber(continuingPrepayAvailableAmount.value, 0))
+	if (!receiptId || !(available > 0)) {
+		uni.showToast({ title: '当前收款单无待分配余额', icon: 'none' })
+		return
+	}
+	const amount = receiptForm.amount === '' ? available : fix2(Number(receiptForm.amount))
+	if (!Number.isFinite(amount) || amount <= 0) {
+		uni.showToast({ title: '本次分配金额必须大于0', icon: 'none' })
+		return
+	}
+	if (amount > available) {
+		uni.showToast({ title: '本次分配金额不能超过待分配余额', icon: 'none' })
+		return
+	}
+	const roundingAmount = receiptForm.roundingAmount === '' ? 0 : Number(receiptForm.roundingAmount)
+	if (roundingAmount > 0) {
+		uni.showToast({ title: '继续分配不支持抹零', icon: 'none' })
+		return
+	}
+	const allocationPayload = buildReceiptAllocationPayload()
+	if (!allocationPayload) return
+	prepayReceiptAllocating.value = true
+	try {
+		const res = await allocatePrepayReceiptV1({
+			receiptId,
+			customerId: recordId.value,
+			amount,
+			allocationMode: allocationPayload.allocationMode,
+			allocationStartDate: allocationPayload.allocationStartDate,
+			allocationEndDate: allocationPayload.allocationEndDate,
+			allocationTargets: allocationPayload.allocationTargets
+		})
+		if (res?.code !== 0) {
+			uni.showToast({ title: res?.msg || '分配失败', icon: 'none' })
+			return
+		}
+		uni.showToast({ title: res?.msg || '分配成功', icon: 'success' })
+		resetReceiptForm()
+		await refreshAll()
+	} finally {
+		prepayReceiptAllocating.value = false
+	}
+}
+
+async function cancelReceiptEditing(options = {}) {
+	if (isEditingReceipt.value) {
+		const receiptId = normalizeString(editingReceiptId.value)
+		if (!receiptId || !recordId.value) return false
+		const res = await cancelReceiptAdjustmentV1({
+			receiptId,
+			customerId: recordId.value
+		})
+		if (res?.code !== 0) {
+			uni.showToast({ title: res?.msg || '恢复原分配失败', icon: 'none' })
+			return false
+		}
+		resetReceiptForm()
+		await refreshAll()
+		if (!options.silent) uni.showToast({ title: res?.msg || '已恢复原分配', icon: 'success' })
+		return true
+	}
+	resetReceiptForm()
+	return true
+}
+
+async function onResetReceiptAction() {
+	if (isEditingReceipt.value) {
+		const confirmed = await showConfirmModal({
+			title: '放弃整单调整',
+			content: '重置会放弃本次整单调整，并恢复进入调整前的原分配。确认继续吗？',
+			confirmText: '放弃调整'
+		})
+		if (!confirmed) return
+		await cancelReceiptEditing()
+		return
+	}
 	resetReceiptForm()
 }
 
-function onEditReceipt(row) {
+function onContinuePrepayReceipt(row) {
+	const receiptId = normalizeString(row?._id)
+	const available = fix2(toNumber(row?.unallocated_amount, 0))
+	if (!receiptId || !(available > 0) || isOffsetCreditReceiptRow(row)) return
+	activeOperationTab.value = 'receipt'
+	editingReceiptId.value = ''
+	editingReceiptSourceType.value = ''
+	receiptAdjustmentReleasedTargets.value = []
+	continuingPrepayReceiptId.value = receiptId
+	continuingPrepayAvailableAmount.value = available
+	receiptForm.amount = formatMoney(available)
+	receiptForm.roundingAmount = ''
+	receiptForm.bizDate = normalizeDate(row?.biz_date) || todayYmd()
+	receiptForm.paymentMethod = normalizeReceiptPaymentMethod(row?.payment_method)
+	receiptForm.note = normalizeString(row?.note)
+	receiptForm.allocationMode = 'checked'
+	receiptForm.allocationStartDate = ''
+	receiptForm.allocationEndDate = ''
+	checkedAllocationTargetKeys.value = []
+	previewPlan.value = null
+	editableAllocations.value = []
+	uni.showToast({ title: `已加载${receiptRemainingBalanceLabel(row)} ¥${formatMoney(available)}`, icon: 'none' })
+}
+
+async function onEditReceipt(row) {
 	const receiptId = normalizeString(row?._id)
 	if (!receiptId) return
+	const confirmed = await showConfirmModal({
+		title: '调整整单',
+		content: '进入调整后，原目标会在本次编辑中重新出现在待分配欠款里；取消会保留原分配，保存会按当前选择重新入账。如果只是分配未分配余额，请点“继续分配”。',
+		confirmText: '进入调整'
+	})
+	if (!confirmed) return
+	uni.showLoading({ title: '进入调整...', mask: true })
+	const beginRes = await beginReceiptAdjustmentV1({
+		receiptId,
+		customerId: recordId.value
+	})
+	uni.hideLoading()
+	if (beginRes?.code !== 0) {
+		uni.showToast({ title: beginRes?.msg || '进入调整失败', icon: 'none' })
+		return
+	}
 	activeOperationTab.value = 'receipt'
 	editingReceiptId.value = receiptId
 	editingReceiptSourceType.value = normalizeString(row?.source_type || row?.meta?.source_type)
+	receiptAdjustmentReleasedTargets.value = Array.isArray(beginRes?.data?.released_targets)
+		? beginRes.data.released_targets
+		: []
+	continuingPrepayReceiptId.value = ''
+	continuingPrepayAvailableAmount.value = 0
 	receiptForm.amount = formatMoney(row?.amount)
 	const roundingAmount = toNumber(row?.rounding_amount, 0)
 	receiptForm.roundingAmount = roundingAmount > 0 ? formatMoney(roundingAmount) : ''
@@ -3096,8 +3731,9 @@ function onEditReceipt(row) {
 	}
 	previewPlan.value = null
 	editableAllocations.value = []
+	await refreshReceiptAdjustmentEntry()
 	uni.showToast({
-		title: isCashierReceiptRow(row) ? '已加载出纳收款单，仅可调整分配和抹零' : '已加载收款单，修改后点保存收款单',
+		title: beginRes?.msg || '原目标已可重新选择',
 		icon: 'none'
 	})
 }
@@ -3735,6 +4371,197 @@ async function onAllocateOffsetCredit() {
 	}
 }
 
+async function onBeginOffsetAdjustment(row) {
+	const receiptId = normalizeString(row?._id)
+	if (!recordId.value || !receiptId || offsetAllocating.value) return
+	if (normalizeString(offsetAdjustingReceiptId.value) === receiptId) return
+	const confirmed = await showConfirmModal({
+		title: '调整冲抵分配',
+		content: '进入后可重新选择这笔冲抵来源要冲抵的目标；取消会保留原冲抵分配，保存后才按新目标重算。确认继续吗？',
+		confirmText: '进入调整'
+	})
+	if (!confirmed) return
+	uni.showLoading({ title: '进入调整...', mask: true })
+	const beginRes = await beginReceiptAdjustmentV1({
+		receiptId,
+		customerId: recordId.value
+	})
+	uni.hideLoading()
+	if (beginRes?.code !== 0) {
+		uni.showToast({ title: beginRes?.msg || '进入冲抵调整失败', icon: 'none' })
+		return
+	}
+	activeOperationTab.value = 'offset'
+	offsetAdjustingReceiptId.value = receiptId
+	offsetAdjustingReceiptRow.value = { ...row, _id: receiptId }
+	receiptAdjustmentReleasedTargets.value = Array.isArray(beginRes?.data?.released_targets)
+		? beginRes.data.released_targets
+		: []
+	applyOffsetAdjustmentRowToForm(offsetAdjustingReceiptRow.value)
+	await refreshReceiptAdjustmentEntry()
+	uni.showToast({ title: beginRes?.msg || '原冲抵目标已可重新选择', icon: 'none' })
+}
+
+async function cancelOffsetAdjustment(options = {}) {
+	const receiptId = normalizeString(offsetAdjustingReceiptId.value)
+	if (!receiptId) {
+		clearOffsetAdjustmentState()
+		resetOffsetAllocateForm()
+		return true
+	}
+	const res = await cancelReceiptAdjustmentV1({
+		receiptId,
+		customerId: recordId.value
+	})
+	if (res?.code !== 0) {
+		uni.showToast({ title: res?.msg || '放弃冲抵调整失败', icon: 'none' })
+		return false
+	}
+	clearOffsetAdjustmentState()
+	resetOffsetAllocateForm()
+	await refreshAll()
+	if (!options.silent) uni.showToast({ title: res?.msg || '已保留原冲抵分配', icon: 'success' })
+	return true
+}
+
+async function onSaveOffsetAdjustment() {
+	if (!recordId.value || offsetAllocating.value) return
+	const receiptId = normalizeString(offsetAdjustingReceiptId.value)
+	const row = offsetAdjustingReceiptRow.value || {}
+	if (!receiptId) return
+	const allocationPayload = buildOffsetAllocationPayload()
+	if (!allocationPayload) return
+	const amount = Number(offsetAllocateForm.amount)
+	if (!Number.isFinite(amount) || amount <= 0) {
+		uni.showToast({ title: '冲抵来源金额无效', icon: 'none' })
+		return
+	}
+	offsetAllocating.value = true
+	try {
+		const res = await updateReceiptV1({
+			customerId: recordId.value,
+			receiptId,
+			amount,
+			roundingAmount: 0,
+			bizDate: normalizeDate(row?.biz_date) || todayYmd(),
+			paymentMethod: normalizeReceiptPaymentMethod(row?.payment_method),
+			note: normalizeString(row?.note),
+			allocationMode: allocationPayload.allocationMode,
+			allocationStartDate: allocationPayload.allocationStartDate,
+			allocationEndDate: allocationPayload.allocationEndDate,
+			allocationTargets: allocationPayload.allocationTargets
+		})
+		if (res?.code !== 0) {
+			uni.showToast({ title: res?.msg || '冲抵调整保存失败', icon: 'none' })
+			return
+		}
+		clearOffsetAdjustmentState()
+		resetOffsetAllocateForm()
+		await refreshAll()
+		uni.showToast({ title: res?.msg || '冲抵分配已调整', icon: 'success' })
+	} finally {
+		offsetAllocating.value = false
+	}
+}
+
+async function onSubmitOffsetAction() {
+	if (isOffsetAdjustmentActive.value) {
+		await onSaveOffsetAdjustment()
+		return
+	}
+	await onAllocateOffsetCredit()
+}
+
+async function onRemoveOffsetAllocation(row) {
+	const receiptId = normalizeString(row?._id)
+	if (!recordId.value || !receiptId || offsetAllocating.value) return
+	if (isOffsetAdjustmentActive.value) {
+		uni.showToast({ title: '请先完成或取消当前冲抵调整', icon: 'none' })
+		return
+	}
+	const allocatedAmount = fix2(toNumber(row?.allocated_amount, 0))
+	if (!(allocatedAmount > 0)) {
+		uni.showToast({ title: '该冲抵来源暂无已分配记录', icon: 'none' })
+		return
+	}
+	const confirmed = await showConfirmModal({
+		title: '删除冲抵分配',
+		content: `将删除这笔来源当前已冲抵的 ¥${formatMoney(allocatedAmount)}，金额退回可用冲抵余额；冲抵来源本身不会作废。确认继续吗？`,
+		confirmText: '删除冲抵'
+	})
+	if (!confirmed) return
+	offsetAllocating.value = true
+	try {
+		const res = await removeOffsetCreditAllocationV1({
+			customerId: recordId.value,
+			receiptId
+		})
+		if (res?.code !== 0) {
+			uni.showToast({ title: res?.msg || '删除冲抵失败', icon: 'none' })
+			return
+		}
+		resetOffsetAllocateForm()
+		await refreshAll()
+		uni.showToast({ title: res?.msg || '冲抵分配已删除', icon: 'success' })
+	} finally {
+		offsetAllocating.value = false
+	}
+}
+
+async function onQuickRoundSalesDetailRow(row) {
+	if (!recordId.value || quickRoundingSubmitting.value) return
+	const target = resolveQuickRoundingTarget(row)
+	if (!target) return
+	const confirmed = await showConfirmModal({
+		title: '抹零结清',
+		content: `将把 ${target.title} 的未收 ¥${formatMoney(target.outstanding)} 作为抹零结清，并按单据日期 ${target.date} 生成0元抹零收款单。确认继续吗？`,
+		confirmText: '抹零结清'
+	})
+	if (!confirmed) return
+	quickRoundingSubmitting.value = true
+	try {
+		const result = await createQuickRoundingReceipts([target])
+		await refreshAll()
+		uni.showToast({
+			title: `已抹零 ¥${formatMoney(result.total)}`,
+			icon: 'success'
+		})
+	} catch (err) {
+		uni.showToast({ title: err?.message || '抹零失败', icon: 'none' })
+	} finally {
+		quickRoundingSubmitting.value = false
+	}
+}
+
+async function onBatchQuickRoundSmallSalesDetails() {
+	if (!recordId.value || quickRoundingSubmitting.value) return
+	const targets = dedupeQuickRoundingTargets(quickRoundingSmallCandidates.value)
+	const total = fix2(targets.reduce((sum, row) => sum + toNumber(row?.outstanding, 0), 0))
+	if (!targets.length || !(total > 0)) return
+	const confirmed = await showConfirmModal({
+		title: '本页小额抹零',
+		content: `将把当前销售明细中未收不超过 ¥${formatMoney(QUICK_ROUNDING_SMALL_LIMIT)} 的 ${targets.length} 笔作为抹零结清，合计 ¥${formatMoney(total)}。确认继续吗？`,
+		confirmText: '批量抹零'
+	})
+	if (!confirmed) return
+	quickRoundingSubmitting.value = true
+	uni.showLoading({ title: '正在抹零...', mask: true })
+	try {
+		const result = await createQuickRoundingReceipts(targets)
+		await refreshAll()
+		uni.hideLoading()
+		uni.showToast({
+			title: `已抹零 ${result.count} 笔 ¥${formatMoney(result.total)}`,
+			icon: 'success'
+		})
+	} catch (err) {
+		uni.showToast({ title: err?.message || '批量抹零失败', icon: 'none' })
+	} finally {
+		uni.hideLoading()
+		quickRoundingSubmitting.value = false
+	}
+}
+
 function onOpenSale(id) {
 	const saleId = normalizeString(id)
 	if (!saleId) return
@@ -3785,11 +4612,16 @@ watch(
 		resetFlowForm({ preservePrev: false })
 		resetOpeningDebtForm()
 		resetOtherFeeForm()
+		clearOffsetAdjustmentState()
 		resetOffsetAllocateForm()
 		offsetPoolRows.value = []
 		offsetPoolPager.page = 1
 		offsetPoolPager.total = 0
 		offsetPoolPager.hasMore = false
+		offsetHistoryRows.value = []
+		offsetHistoryPager.page = 1
+		offsetHistoryPager.total = 0
+		offsetHistoryPager.hasMore = false
 		analysisFilters.dateFrom = ''
 		analysisFilters.dateTo = ''
 		analysisDatePreset.value = 'custom'
@@ -3935,6 +4767,22 @@ onMounted(() => {
 	font-size: 26rpx;
 	font-weight: 700;
 	color: var(--crm-text);
+}
+
+.money-inline {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 6rpx;
+	white-space: nowrap;
+}
+
+.money-symbol {
+	font-size: 0.9em;
+	line-height: 1;
+}
+
+.money-number {
+	line-height: 1;
 }
 
 .overview-meta {
@@ -4177,6 +5025,11 @@ onMounted(() => {
 
 .mini-amounts__offset-target {
 	color: #92400e;
+	font-weight: 700;
+}
+
+.mini-amounts__receipt-allocation {
+	color: #1d4ed8;
 	font-weight: 700;
 }
 
