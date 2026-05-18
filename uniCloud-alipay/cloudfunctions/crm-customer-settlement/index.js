@@ -3439,6 +3439,53 @@ async function rebuildCustomerBalances(customerId) {
 	}
 }
 
+function buildCustomerBalanceSnapshot(customer) {
+	if (!customer) return null
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const receivable = fixMoney(toNumber(customer.receivable_balance, 0))
+	const prepay = fixMoney(toNumber(customer.prepay_balance, 0))
+	const manualPrepay = fixMoney(toNumber(customer.prepay_manual_balance, 0))
+	const receiptUnallocated = fixMoney(toNumber(customer.receipt_unallocated_balance, 0))
+	const offsetCredit = fixMoney(toNumber(customer.offset_credit_balance, 0))
+	const net = fixMoney(toNumber(customer.net_balance, receivable - prepay))
+	const lastReceiptAtRaw = customer.last_receipt_at == null ? null : Number(customer.last_receipt_at)
+	return {
+		customer_id: normalizeId(customer._id),
+		customer_name: normalizeString(customer.name),
+		receivable_balance: receivable,
+		prepay_balance: prepay,
+		prepay_manual_balance: manualPrepay,
+		receipt_unallocated_balance: receiptUnallocated,
+		offset_credit_balance: offsetCredit,
+		net_balance: net,
+		should_receive_total: fixMoney(toNumber(customer.should_receive_total, 0)),
+		amount_received_total: fixMoney(toNumber(customer.amount_received_total, 0)),
+		last_receipt_at: Number.isFinite(lastReceiptAtRaw) && lastReceiptAtRaw > 0 ? lastReceiptAtRaw : null
+	}
+}
+
+function createStatementTrace(action, meta = {}) {
+	const startedAt = Date.now()
+	let lastAt = startedAt
+	return function traceStatementStage(stage, extra = {}) {
+		const now = Date.now()
+		console.log('[crm-customer-settlement] statement_trace', {
+			action,
+			requestId: normalizeString(meta.requestId),
+			customerId: normalizeId(meta.customerId),
+			dateFrom: normalizeDate(meta.dateFrom),
+			dateTo: normalizeDate(meta.dateTo),
+			summaryOnly: Boolean(meta.summaryOnly),
+			stage,
+			stage_ms: now - lastAt,
+			total_ms: now - startedAt,
+			...extra
+		})
+		lastAt = now
+	}
+}
+
 async function previewAllocationV1(user, data) {
 	void user
 	const customerId = normalizeId(data.customer_id || data.customerId)
@@ -7415,7 +7462,7 @@ async function refreshCustomerBalancesV1(user, data, requestId) {
 	return { code: 0, msg: 'ok', data: balances }
 }
 
-async function getCustomerStatementV1(user, data) {
+async function getCustomerStatementV1(user, data, requestId = '') {
 	void user
 	const customerId = normalizeId(data.customer_id || data.customerId)
 	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
@@ -7440,6 +7487,14 @@ async function getCustomerStatementV1(user, data) {
 		return { code: 400, msg: 'summary_date_from 不能晚于 summary_date_to' }
 	}
 	const summaryOnly = Boolean(data.summary_only || data.summaryOnly)
+	const trace = createStatementTrace('getCustomerStatementV1', {
+		requestId,
+		customerId,
+		dateFrom: summaryDateFrom,
+		dateTo: summaryDateTo,
+		summaryOnly
+	})
+	trace('customer_loaded')
 	const moneyScale = resolveCustomerMoneyScale(customer)
 	const fixMoney = (value) => fixByScale(value, moneyScale)
 	const customerPayload = {
@@ -7452,7 +7507,10 @@ async function getCustomerStatementV1(user, data) {
 		default_unit_price: toNumber(customer.default_unit_price, null)
 	}
 
-	const balances = await rebuildCustomerBalances(customerId)
+	const balances = summaryOnly
+		? buildCustomerBalanceSnapshot(customer)
+		: await rebuildCustomerBalances(customerId)
+	trace(summaryOnly ? 'balance_snapshot_loaded' : 'balances_rebuilt')
 	let scopedSummary = null
 	let scopedSalesDocs = []
 	let scopedFlowDocs = []
@@ -7462,12 +7520,19 @@ async function getCustomerStatementV1(user, data) {
 		scopedFlowDocs = await listCustomerFlowSettlements(customerId, { dateFrom: summaryDateFrom, dateTo: summaryDateTo })
 		const scopedOpeningDebtDocs = await listCustomerOpeningDebts(customerId, { dateFrom: summaryDateFrom, dateTo: summaryDateTo })
 		const scopedReceipts = await listCustomerReceipts(customerId, { dateFrom: summaryDateFrom, dateTo: summaryDateTo })
+		trace('scoped_docs_loaded', {
+			sales: scopedSalesDocs.length,
+			flowSettlements: scopedFlowDocs.length,
+			openingDebts: scopedOpeningDebtDocs.length,
+			receipts: scopedReceipts.length
+		})
 		const scoped = await buildBusinessSummaryFromTargets(customer, {
 			salesDocs: scopedSalesDocs,
 			flowDocs: scopedFlowDocs,
 			openingDebtDocs: scopedOpeningDebtDocs,
 			receiptDocs: scopedReceipts
 		})
+		trace('scoped_summary_built')
 		const scopedReceivable = fixMoney(scoped.receivable_balance)
 		const scopedPrepaySplit = scopedReceipts.reduce(
 			(acc, row) => {
@@ -7518,6 +7583,7 @@ async function getCustomerStatementV1(user, data) {
 		}
 	}
 	if (summaryOnly) {
+		trace('done')
 		return {
 			code: 0,
 			data: {
@@ -7545,6 +7611,11 @@ async function getCustomerStatementV1(user, data) {
 	const salesDocs = await listCustomerSales(customerId)
 	const flowDocs = await listCustomerFlowSettlements(customerId)
 	const openingDebtDocs = await listCustomerOpeningDebts(customerId)
+	trace('full_docs_loaded', {
+		sales: salesDocs.length,
+		flowSettlements: flowDocs.length,
+		openingDebts: openingDebtDocs.length
+	})
 	const saleDepositBalanceSnapshotMap = buildSaleDepositBalanceSnapshotMap(salesDocs, 20)
 	let saleRows = salesDocs
 		.map((doc) => {
@@ -7609,6 +7680,10 @@ async function getCustomerStatementV1(user, data) {
 		saleOffsetLookupIds,
 		{ salesDocs, flowDocs, openingDebtDocs }
 	)
+	trace('sale_allocation_summary_loaded', {
+		targets: saleOffsetLookupIds.length,
+		allocations: saleTargetAllocRows.length
+	})
 	saleRows = saleRows.map((row) => {
 		const saleId = normalizeId(row && row._id)
 		const saleKey = `sale:${saleId}`
@@ -7802,6 +7877,14 @@ async function getCustomerStatementV1(user, data) {
 			return a.created_at < b.created_at ? 1 : -1
 		})
 
+	trace('done', {
+		recentSales: saleRows.length,
+		recentReceipts: recentReceipts.length,
+		recentFlowSettlements: recentFlowSettlements.length,
+		recentOpeningDebts: recentOpeningDebts.length,
+		recentOtherFees: recentOtherFees.length
+	})
+
 	return {
 		code: 0,
 		data: {
@@ -7829,23 +7912,35 @@ async function getCustomerStatementV1(user, data) {
 	}
 }
 
-async function listCustomerStatementRowsV1(user, data) {
+async function listCustomerStatementRowsV1(user, data, requestId = '') {
 	void user
 	const customerId = normalizeId(data.customer_id || data.customerId)
 	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
 	const customer = await getCustomerById(customerId)
 	if (!customer) return { code: 404, msg: '客户不存在' }
+	const dateFrom = normalizeDate(data.date_from || data.dateFrom)
+	const dateTo = normalizeDate(data.date_to || data.dateTo)
+	const trace = createStatementTrace('listCustomerStatementRowsV1', {
+		requestId,
+		customerId,
+		dateFrom,
+		dateTo
+	})
+	trace('customer_loaded')
 	const moneyScale = resolveCustomerMoneyScale(customer)
 	const fixMoney = (value) => fixByScale(value, moneyScale)
 
-	const dateFrom = normalizeDate(data.date_from || data.dateFrom)
-	const dateTo = normalizeDate(data.date_to || data.dateTo)
 	const page = Math.max(toNumber(data.page, 1), 1)
 	const pageSize = Math.min(Math.max(toNumber(data.pageSize, 50), 1), 200)
 
 	const salesDocs = await listCustomerSales(customerId, { dateFrom, dateTo })
 	const flowDocs = await listCustomerFlowSettlements(customerId, { dateFrom, dateTo })
 	const openingDebtDocs = await listCustomerOpeningDebts(customerId, { dateFrom, dateTo })
+	trace('target_docs_loaded', {
+		sales: salesDocs.length,
+		flowSettlements: flowDocs.length,
+		openingDebts: openingDebtDocs.length
+	})
 	const saleRows = salesDocs.map((doc) => {
 		const snapshot = computeSaleSnapshot(doc)
 		return {
@@ -7878,6 +7973,9 @@ async function listCustomerStatementRowsV1(user, data) {
 		.orderBy('created_at', 'desc')
 		.limit(5000)
 		.get()
+	trace('receipts_loaded', {
+		receipts: Array.isArray(receiptRes.data) ? receiptRes.data.length : 0
+	})
 	const receiptRows = (Array.isArray(receiptRes.data) ? receiptRes.data : []).map((row) => ({
 		row_type: 'receipt',
 		row_id: normalizeId(row._id),
@@ -7913,6 +8011,9 @@ async function listCustomerStatementRowsV1(user, data) {
 		.orderBy('created_at', 'desc')
 		.limit(5000)
 		.get()
+	trace('allocations_loaded', {
+		allocations: Array.isArray(allocRes.data) ? allocRes.data.length : 0
+	})
 	const allocRows = (Array.isArray(allocRes.data) ? allocRes.data : []).map((row) => ({
 		row_type: 'allocation',
 		row_id: normalizeId(row._id),
@@ -7993,6 +8094,13 @@ async function listCustomerStatementRowsV1(user, data) {
 	const end = start + pageSize
 	const dataRows = rows.slice(start, end)
 	const hasMore = end < total
+
+	trace('done', {
+		total,
+		page,
+		pageSize,
+		returned: dataRows.length
+	})
 
 	return {
 		code: 0,
@@ -8115,8 +8223,8 @@ exports.main = async (event, context) => {
 	if (action === 'exportCustomerAccountingLedgerV1') return exportCustomerAccountingLedgerV1(user, data)
 	if (action === 'getCustomerStatementAnalysisV1') return getCustomerStatementAnalysisV1(user, data, token, requestId)
 	if (action === 'refreshCustomerBalancesV1') return refreshCustomerBalancesV1(user, data, requestId)
-	if (action === 'getCustomerStatementV1') return getCustomerStatementV1(user, data)
-	if (action === 'listCustomerStatementRowsV1') return listCustomerStatementRowsV1(user, data)
+	if (action === 'getCustomerStatementV1') return getCustomerStatementV1(user, data, requestId)
+	if (action === 'listCustomerStatementRowsV1') return listCustomerStatementRowsV1(user, data, requestId)
 	if (action === 'rebuildOpeningBalancesV1') return rebuildOpeningBalancesV1(user, data, requestId)
 
 	return { code: 400, msg: '未知 action' }

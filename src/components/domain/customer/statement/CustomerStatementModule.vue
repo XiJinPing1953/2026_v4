@@ -2,17 +2,17 @@
 	<AppPage title="客户对账" :subtitle="subtitle" icon="wallet">
 		<template #headerActions>
 			<view class="statement-header-actions">
-				<picker class="header-date-picker" mode="date" @change="onRowsDateFromChange">
-					<AppButton size="sm" kind="neutral" :disabled="rowsLoading || analysisLoading">{{ headerRowsDateFromText }}</AppButton>
+				<picker class="header-date-picker" mode="date" :value="datePickerValue(rowFilters.dateFrom)" @change="onRowsDateFromChange">
+					<AppButton size="sm" kind="neutral" :disabled="rowsLoading || rowSummaryLoading || analysisLoading">{{ headerRowsDateFromText }}</AppButton>
 				</picker>
-				<picker class="header-date-picker" mode="date" @change="onRowsDateToChange">
-					<AppButton size="sm" kind="neutral" :disabled="rowsLoading || analysisLoading">{{ headerRowsDateToText }}</AppButton>
+				<picker class="header-date-picker" mode="date" :value="datePickerValue(rowFilters.dateTo)" @change="onRowsDateToChange">
+					<AppButton size="sm" kind="neutral" :disabled="rowsLoading || rowSummaryLoading || analysisLoading">{{ headerRowsDateToText }}</AppButton>
 				</picker>
-				<AppButton size="sm" kind="primary" :loading="rowsLoading || analysisLoading" @click="searchRows(true)">查询日期</AppButton>
+				<AppButton size="sm" kind="primary" :loading="rowsLoading || rowSummaryLoading || analysisLoading" @click="searchRows(true)">查询日期</AppButton>
 				<AppButton
 					size="sm"
 					:kind="rowsDatePreset === 'year' ? 'primary' : 'ghost'"
-					:disabled="rowsLoading || analysisLoading"
+					:disabled="rowsLoading || rowSummaryLoading || analysisLoading"
 					@click="onRowsYearQuick"
 				>
 					本年累计
@@ -20,7 +20,7 @@
 				<AppButton
 					size="sm"
 					:kind="rowsDatePreset === 'month' ? 'primary' : 'ghost'"
-					:disabled="rowsLoading || analysisLoading"
+					:disabled="rowsLoading || rowSummaryLoading || analysisLoading"
 					@click="onRowsMonthQuick"
 				>
 					本月累计
@@ -108,8 +108,9 @@
 				</view>
 			</AppSection>
 
-			<AppSection title="账务操作">
-				<template #actions>
+			<view id="statement-operation-section">
+				<AppSection title="账务操作">
+					<template #actions>
 					<view v-if="activeOperationTab === 'opening_debt'" class="section-actions">
 						<AppButton size="sm" kind="ghost" @click="resetOpeningDebtForm">重置</AppButton>
 						<AppButton v-if="isEditingOpeningDebt" size="sm" kind="outline" @click="cancelOpeningDebtEditing">取消编辑</AppButton>
@@ -162,6 +163,21 @@
 				<view class="operation-tabs-scroll">
 					<AppTabs :model-value="activeOperationTab" :items="operationTabs" @update:modelValue="onOperationTabChange" />
 				</view>
+				<view v-if="operationSummaryItems.length" class="operation-summary-strip">
+					<view
+						v-for="item in operationSummaryItems"
+						:key="item.key"
+						class="operation-summary-card"
+						:class="[
+							`operation-summary-card--${item.tone || 'neutral'}`,
+							{ 'operation-summary-card--pending': item.pending }
+						]"
+					>
+						<text class="operation-summary-card__label">{{ item.label }}</text>
+						<text class="operation-summary-card__value">{{ item.value }}</text>
+						<text v-if="item.meta" class="operation-summary-card__meta">{{ item.meta }}</text>
+					</view>
+				</view>
 
 				<view v-if="activeOperationTab === 'receipt'" class="operation-panel">
 					<view class="receipt-grid receipt-grid--four">
@@ -181,7 +197,7 @@
 							:readonly="isReceiptRoundingReadonly"
 							@blur="onReceiptRoundingAmountBlur"
 						/>
-						<picker class="picker-block" mode="date" :disabled="isReceiptImmutableReadonly" @change="onBizDateChange">
+						<picker class="picker-block" mode="date" :value="datePickerValue(receiptForm.bizDate)" :disabled="isReceiptImmutableReadonly" @change="onBizDateChange">
 							<AppInput v-model="receiptForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
 						<picker
@@ -205,16 +221,16 @@
 						>
 							<AppInput :model-value="receiptAllocationModeLabel" label="分配模式" placeholder="请选择模式" readonly size="sm" />
 						</picker>
-						<picker v-if="receiptForm.allocationMode === 'period'" class="picker-block" mode="date" @change="onAllocationStartDateChange">
+						<picker v-if="receiptForm.allocationMode === 'period'" class="picker-block" mode="date" :value="datePickerValue(receiptForm.allocationStartDate)" @change="onAllocationStartDateChange">
 							<AppInput v-model="receiptForm.allocationStartDate" label="分配开始日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
-						<picker v-if="receiptForm.allocationMode === 'period'" class="picker-block" mode="date" @change="onAllocationEndDateChange">
+						<picker v-if="receiptForm.allocationMode === 'period'" class="picker-block" mode="date" :value="datePickerValue(receiptForm.allocationEndDate)" @change="onAllocationEndDateChange">
 							<AppInput v-model="receiptForm.allocationEndDate" label="分配结束日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
 						<AppInput v-model="receiptForm.note" class="grid-span-4" label="备注" placeholder="可选" size="sm" :readonly="isReceiptImmutableReadonly" />
 					</view>
 					<text v-if="receiptForm.allocationMode === 'period'" class="section-hint">分配口径：仅冲销所选日期区间内应收；现金超出部分保留为待分配收款，抹零需全部落到应收目标。</text>
-					<text v-if="receiptForm.allocationMode === 'period'" class="section-hint section-hint--accent">
+					<text v-if="receiptForm.allocationMode === 'period'" class="section-hint">
 						当前区间累计欠款：<text class="money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(receiptPeriodRangeOutstandingTotal) }}</text></text>（{{ receiptPeriodRangeTargetCount }} 笔）
 					</text>
 					<text v-else class="section-hint">分配口径：仅冲销勾选单据；现金剩余保留为待分配收款，抹零需全部落到勾选目标。</text>
@@ -231,8 +247,11 @@
 							<label v-for="row in checkedTargetCandidates" :key="row.key" class="checked-target-item">
 								<checkbox :value="row.key" :checked="isAllocationTargetChecked(row.key)" color="#2563eb" />
 								<view class="checked-target-item__body">
-									<text class="checked-target-item__title">{{ row.title }}</text>
-									<text class="checked-target-item__meta">日期 {{ row.date || '-' }} · 欠款 ¥{{ formatMoney(row.outstanding) }}</text>
+									<view class="checked-target-item__title-row">
+										<text class="checked-target-item__title">{{ row.title }}</text>
+										<text class="checked-target-item__debt">欠款 ¥{{ formatMoney(row.outstanding) }}</text>
+									</view>
+									<text class="checked-target-item__meta">日期 {{ row.date || '-' }}</text>
 								</view>
 							</label>
 						</checkbox-group>
@@ -240,33 +259,27 @@
 					</view>
 
 					<view v-if="previewPlan" class="preview-box">
-						<view class="preview-summary">
-							<text>本次收款：¥{{ formatMoney(previewPlan.amount) }}</text>
-							<text>本次抹零：¥{{ formatMoney(previewPlan.rounding_amount) }}</text>
-							<text>预计冲欠：¥{{ formatMoney(previewPlan.allocated_total) }}</text>
-							<text>抹零冲欠：¥{{ formatMoney(previewPlan.rounding_allocated_total) }}</text>
-							<text>预计待分配收款：¥{{ formatMoney(previewPlan.prepay_amount) }}</text>
-						</view>
 						<view v-if="editableAllocations.length" class="alloc-list">
-							<view class="alloc-head">
-								<text class="col-sale">目标单据</text>
-								<text class="col-outstanding">欠款前</text>
-								<text class="col-amount">分配金额</text>
-							</view>
 							<view v-for="row in editableAllocations" :key="row.key" class="alloc-row">
-								<text class="col-sale">{{ row.targetTitle }}</text>
-								<text class="col-outstanding">¥{{ formatMoney(row.outstandingBefore) }}</text>
-								<view class="col-amount">
-									<AppInput
-										:model-value="row.allocateAmount"
-										placeholder="0"
-										size="sm"
-										@update:model-value="(value) => onAllocationInput(row.key, value)"
-									/>
+								<view class="alloc-row__top">
+									<text class="alloc-row__title">{{ row.targetTitle }}</text>
+									<text class="alloc-row__debt">欠款前 ¥{{ formatMoney(row.outstandingBefore) }}</text>
+								</view>
+								<view class="alloc-row__bottom">
+									<text class="alloc-row__meta">{{ row.targetMeta }}</text>
+									<view class="alloc-row__amount">
+										<text class="alloc-row__amount-label">分配金额</text>
+										<AppInput
+											:model-value="row.allocateAmount"
+											placeholder="0"
+											size="sm"
+											@update:model-value="(value) => onAllocationInput(row.key, value)"
+										/>
+									</view>
 								</view>
 							</view>
 						</view>
-						<text v-else class="preview-empty">当前预览无可冲销欠款，登记后将全部保留为待分配收款。</text>
+						<text v-else class="preview-empty">当前预览无可冲销欠款，登记后将全部留存为剩余待分配。</text>
 					</view>
 				</view>
 
@@ -395,17 +408,17 @@
 						>
 							<AppInput :model-value="offsetAllocationModeLabel" label="分配模式" placeholder="请选择模式" readonly size="sm" />
 						</picker>
-						<picker v-if="offsetAllocateForm.allocationMode === 'period'" class="picker-block" mode="date" @change="onOffsetAllocationStartDateChange">
+						<picker v-if="offsetAllocateForm.allocationMode === 'period'" class="picker-block" mode="date" :value="datePickerValue(offsetAllocateForm.allocationStartDate)" @change="onOffsetAllocationStartDateChange">
 							<AppInput v-model="offsetAllocateForm.allocationStartDate" label="分配开始日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
-						<picker v-if="offsetAllocateForm.allocationMode === 'period'" class="picker-block" mode="date" @change="onOffsetAllocationEndDateChange">
+						<picker v-if="offsetAllocateForm.allocationMode === 'period'" class="picker-block" mode="date" :value="datePickerValue(offsetAllocateForm.allocationEndDate)" @change="onOffsetAllocationEndDateChange">
 							<AppInput v-model="offsetAllocateForm.allocationEndDate" label="分配结束日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
 					</view>
 					<text v-if="offsetAllocateForm.allocationMode === 'period'" class="section-hint">
 						分配口径：单笔来源 + 时间段。仅冲销区间内应收，剩余保留在该来源可用余额中。
 					</text>
-					<text v-if="offsetAllocateForm.allocationMode === 'period'" class="section-hint section-hint--accent">
+					<text v-if="offsetAllocateForm.allocationMode === 'period'" class="section-hint">
 						当前区间累计欠款：<text class="money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(offsetPeriodRangeOutstandingTotal) }}</text></text>（{{ offsetPeriodRangeTargetCount }} 笔）
 					</text>
 					<text v-else class="section-hint">
@@ -421,8 +434,11 @@
 							<label v-for="row in checkedTargetCandidates" :key="`offset-${row.key}`" class="checked-target-item">
 								<checkbox :value="row.key" :checked="isOffsetAllocationTargetChecked(row.key)" color="#2563eb" />
 								<view class="checked-target-item__body">
-									<text class="checked-target-item__title">{{ row.title }}</text>
-									<text class="checked-target-item__meta">日期 {{ row.date || '-' }} · 欠款 ¥{{ formatMoney(row.outstanding) }}</text>
+									<view class="checked-target-item__title-row">
+										<text class="checked-target-item__title">{{ row.title }}</text>
+										<text class="checked-target-item__debt">欠款 ¥{{ formatMoney(row.outstanding) }}</text>
+									</view>
+									<text class="checked-target-item__meta">日期 {{ row.date || '-' }}</text>
 								</view>
 							</label>
 						</checkbox-group>
@@ -439,7 +455,7 @@
 							size="sm"
 							@blur="onPrepayAmountBlur"
 						/>
-						<picker class="picker-block" mode="date" @change="onPrepayBizDateChange">
+						<picker class="picker-block" mode="date" :value="datePickerValue(prepayForm.bizDate)" @change="onPrepayBizDateChange">
 							<AppInput v-model="prepayForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
 						<picker class="picker-block" mode="selector" :range="receiptPaymentMethodOptions" range-key="label" :value="prepayPaymentMethodIndex" @change="onPrepayPaymentMethodChange">
@@ -448,10 +464,10 @@
 						<picker class="picker-block" mode="selector" :range="prepayApplyStrategyOptions" range-key="label" :value="prepayApplyStrategyIndex" @change="onPrepayApplyStrategyChange">
 							<AppInput :model-value="prepayApplyStrategyLabel" label="抵扣策略" placeholder="请选择策略" readonly size="sm" />
 						</picker>
-						<picker v-if="prepayForm.applyStrategy === 'allocate_period'" class="picker-block" mode="date" @change="onPrepayAllocationStartDateChange">
+						<picker v-if="prepayForm.applyStrategy === 'allocate_period'" class="picker-block" mode="date" :value="datePickerValue(prepayForm.allocationStartDate)" @change="onPrepayAllocationStartDateChange">
 							<AppInput v-model="prepayForm.allocationStartDate" label="分配开始日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
-						<picker v-if="prepayForm.applyStrategy === 'allocate_period'" class="picker-block" mode="date" @change="onPrepayAllocationEndDateChange">
+						<picker v-if="prepayForm.applyStrategy === 'allocate_period'" class="picker-block" mode="date" :value="datePickerValue(prepayForm.allocationEndDate)" @change="onPrepayAllocationEndDateChange">
 							<AppInput v-model="prepayForm.allocationEndDate" label="分配结束日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
 						<AppInput v-model="prepayForm.note" label="备注" placeholder="可选" size="sm" />
@@ -470,7 +486,7 @@
 							size="sm"
 							@blur="onOffsetEntryAmountBlur"
 						/>
-						<picker class="picker-block" mode="date" @change="onOffsetEntryBizDateChange">
+						<picker class="picker-block" mode="date" :value="datePickerValue(offsetEntryForm.bizDate)" @change="onOffsetEntryBizDateChange">
 							<AppInput v-model="offsetEntryForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
 						<picker class="picker-block" mode="selector" :range="receiptPaymentMethodOptions" range-key="label" :value="offsetEntryPaymentMethodIndex" @change="onOffsetEntryPaymentMethodChange">
@@ -490,7 +506,7 @@
 							size="sm"
 							@blur="onOpeningDebtAmountBlur"
 						/>
-						<picker class="picker-block" mode="date" @change="onOpeningDebtBizDateChange">
+						<picker class="picker-block" mode="date" :value="datePickerValue(openingDebtForm.bizDate)" @change="onOpeningDebtBizDateChange">
 							<AppInput v-model="openingDebtForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
 						<AppInput v-model="openingDebtForm.note" class="grid-span-2" label="备注" placeholder="可选" size="sm" />
@@ -546,7 +562,7 @@
 							size="sm"
 							@blur="onOtherFeeAmountBlur"
 						/>
-						<picker class="picker-block" mode="date" @change="onOtherFeeBizDateChange">
+						<picker class="picker-block" mode="date" :value="datePickerValue(otherFeeForm.bizDate)" @change="onOtherFeeBizDateChange">
 							<AppInput v-model="otherFeeForm.bizDate" label="业务日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 						</picker>
 						<AppInput v-model="otherFeeForm.note" class="grid-span-2" label="备注" placeholder="可选" size="sm" />
@@ -601,33 +617,36 @@
 						<AppListItem
 							v-for="row in recentReceipts"
 							:key="row._id"
+							class="receipt-history-item"
 							:title="`${row.biz_date || '-'} · 收款单`"
 							:subtitle="`单据 ${row._id}`"
 							:status="paymentMethodText(row.payment_method)"
 							status-kind="info"
 							icon="wallet"
-							icon-class="bg-success"
+							:icon-class="receiptAllocationIconClass(row)"
 						>
 							<template #right>
-								<view class="mini-amounts">
+								<view class="mini-amounts mini-amounts--receipt-compact">
 									<text>收款 ¥{{ formatMoney(row.amount) }}</text>
 									<text v-if="toNumber(row.rounding_allocated_amount, 0) > 0">抹零 ¥{{ formatMoney(row.rounding_allocated_amount) }}</text>
 									<text>已分配 ¥{{ formatMoney(row.allocated_amount) }}</text>
-									<text>{{ receiptRemainingBalanceLabel(row) }} ¥{{ formatMoney(row.unallocated_amount) }}</text>
+									<text :class="{ 'mini-amounts__remaining': toNumber(row.unallocated_amount, 0) > 0 }">{{ receiptRemainingBalanceLabel(row) }} ¥{{ formatMoney(row.unallocated_amount) }}</text>
 								</view>
 							</template>
-							<template #default>
-								<text v-if="receiptSourceTypeText(row.source_type || row.meta?.source_type)" class="row-detail row-detail--source">
-									来源：{{ receiptSourceTypeText(row.source_type || row.meta?.source_type) }}
-								</text>
-								<text class="row-detail">{{ receiptAllocationText(row) }}</text>
-								<text class="row-detail row-detail--alloc-scope">{{ receiptAllocationDateScopeText(row) }}</text>
-								<text v-if="row.note" class="row-detail">{{ row.note }}</text>
+							<template #meta>
+								<view class="receipt-history-meta">
+									<text v-if="receiptSourceTypeText(row.source_type || row.meta?.source_type)" class="row-detail row-detail--source">
+										来源：{{ receiptSourceTypeText(row.source_type || row.meta?.source_type) }}
+									</text>
+									<text class="row-detail">{{ receiptAllocationText(row) }}</text>
+									<text class="row-detail row-detail--alloc-scope">{{ receiptAllocationDateScopeText(row) }}</text>
+									<text v-if="row.note" class="row-detail">{{ row.note }}</text>
+								</view>
 							</template>
 							<template #footer>
 								<view class="row-actions">
 									<AppButton v-if="canContinuePrepayReceipt(row)" size="sm" kind="primary" @click="onContinuePrepayReceipt(row)">继续分配</AppButton>
-									<AppButton size="sm" kind="ghost" @click="onEditReceipt(row)">
+									<AppButton v-if="canEditReceiptAllocation(row)" size="sm" kind="outline" @click="onEditReceipt(row)">
 										调整整单
 									</AppButton>
 									<AppButton size="sm" kind="outline" :disabled="isCashierReceiptRow(row)" @click="onRemoveReceipt(row)">删除</AppButton>
@@ -636,7 +655,8 @@
 						</AppListItem>
 					</AppList>
 				</view>
-			</AppSection>
+				</AppSection>
+			</view>
 
 			<AppSection v-if="isFlowCustomer" title="流量结算">
 				<template #actions>
@@ -647,7 +667,7 @@
 				</template>
 
 				<view class="flow-grid">
-					<picker class="picker-block" mode="date" @change="onFlowBizDateChange">
+					<picker class="picker-block" mode="date" :value="datePickerValue(flowForm.bizDate)" @change="onFlowBizDateChange">
 						<AppInput v-model="flowForm.bizDate" label="结算日期" placeholder="选择日期" prefix-icon="calendar" readonly size="sm" />
 					</picker>
 					<AppInput v-model="flowForm.flowIndexPrev" label="上次表数" placeholder="请输入上次表数" size="sm" />
@@ -694,13 +714,13 @@
 
 			<AppSection v-if="isKgCustomer || isBottleCustomer" title="经营分析">
 				<view class="quick-date-strip">
-					<AppDatePresetBar v-model="analysisDatePreset" @update:modelValue="onAnalysisDatePresetChange" />
+					<AppDatePresetBar v-model="analysisDatePreset" :disabled="analysisLoading" @update:modelValue="onAnalysisDatePresetChange" />
 				</view>
 				<view class="analysis-filter-grid">
-					<picker class="picker-block" mode="date" @change="onAnalysisDateFromChange">
+					<picker class="picker-block" mode="date" :value="datePickerValue(analysisFilters.dateFrom)" @change="onAnalysisDateFromChange">
 						<AppInput v-model="analysisFilters.dateFrom" label="开始日期" placeholder="选择开始日期" prefix-icon="calendar" readonly size="sm" />
 					</picker>
-					<picker class="picker-block" mode="date" @change="onAnalysisDateToChange">
+					<picker class="picker-block" mode="date" :value="datePickerValue(analysisFilters.dateTo)" @change="onAnalysisDateToChange">
 						<AppInput v-model="analysisFilters.dateTo" label="结束日期" placeholder="选择结束日期" prefix-icon="calendar" readonly size="sm" />
 					</picker>
 					<AppButton size="sm" kind="primary" :loading="analysisLoading" @click="searchAnalysis">查询分析</AppButton>
@@ -793,6 +813,30 @@
 			</AppSection>
 
 			<view id="statement-sales-detail-section">
+				<view v-if="allocationDecisionStickyVisible" class="allocation-decision-sticky">
+					<view class="allocation-decision-sticky__head">
+						<view class="allocation-decision-sticky__title-wrap">
+							<text class="allocation-decision-sticky__eyebrow">分配决策对照</text>
+							<text class="allocation-decision-sticky__title">{{ allocationDecisionStickyTitle }}</text>
+						</view>
+						<AppButton size="sm" kind="neutral" @click="scrollToOperationSection">回到账务操作</AppButton>
+					</view>
+					<view class="allocation-decision-sticky__items">
+						<view
+							v-for="item in operationSummaryItems"
+							:key="`sticky-${item.key}`"
+							class="allocation-decision-sticky__item"
+							:class="[
+								`allocation-decision-sticky__item--${item.tone || 'neutral'}`,
+								{ 'allocation-decision-sticky__item--pending': item.pending }
+							]"
+						>
+							<text class="allocation-decision-sticky__label">{{ item.label }}</text>
+							<text class="allocation-decision-sticky__value">{{ item.value }}</text>
+							<text v-if="item.meta" class="allocation-decision-sticky__meta">{{ item.meta }}</text>
+						</view>
+					</view>
+				</view>
 				<AppSection :title="salesDetailSectionTitle">
 					<template #actions>
 						<view v-if="salesDetailMode === 'net_debt' || quickRoundingSmallCandidateCount > 0" class="section-actions">
@@ -896,7 +940,7 @@
 					</view>
 				</template>
 				<view class="quick-date-strip">
-					<AppDatePresetBar v-model="rowsDatePreset" :items="rowsDatePresetItems" @update:modelValue="onRowsDatePresetChange" />
+					<AppDatePresetBar v-model="rowsDatePreset" :items="rowsDatePresetItems" :disabled="rowsLoading || rowSummaryLoading" @update:modelValue="onRowsDatePresetChange" />
 				</view>
 
 				<AppList :loading="rowsLoading" :empty="statementRows.length === 0" empty-title="暂无流水">
@@ -939,8 +983,8 @@
 					</AppListItem>
 				</AppList>
 				<view v-if="rowsPager.total > 0" class="pager-row">
-					<AppButton size="sm" kind="neutral" :disabled="rowsLoading || rowsPager.page <= 1" @click="onRowsPrev">上一页</AppButton>
-					<AppButton size="sm" kind="neutral" :disabled="rowsLoading || !rowsPager.hasMore" @click="onRowsNext">下一页</AppButton>
+					<AppButton size="sm" kind="neutral" :disabled="rowsLoading || rowSummaryLoading || rowsPager.page <= 1" @click="onRowsPrev">上一页</AppButton>
+					<AppButton size="sm" kind="neutral" :disabled="rowsLoading || rowSummaryLoading || !rowsPager.hasMore" @click="onRowsNext">下一页</AppButton>
 				</view>
 			</AppSection>
 		</view>
@@ -1007,6 +1051,7 @@ const scene = toRef(props, 'scene')
 const saleId = toRef(props, 'saleId')
 const loading = ref(false)
 const rowsLoading = ref(false)
+const rowSummaryLoading = ref(false)
 const analysisLoading = ref(false)
 const previewing = ref(false)
 const submitting = ref(false)
@@ -1059,6 +1104,7 @@ const activeOperationTab = ref('receipt')
 const openingDebtRecentExpanded = ref(false)
 const otherFeeRecentExpanded = ref(false)
 const receiptRecentExpanded = ref(false)
+const rowsSearchRequestSeq = ref(0)
 const operationTabs = [
 	{ label: '登记收款/分配', value: 'receipt' },
 	{ label: '冲抵分配', value: 'offset' },
@@ -1615,6 +1661,154 @@ const offsetAdjustmentSourceText = computed(() => {
 	const amount = formatMoney(row?.amount)
 	return `${sourceDate} · ¥${amount} · ${receiptId.slice(-6)}`
 })
+const receiptOperationTargetTotal = computed(() => (
+	normalizeReceiptAllocationMode(receiptForm.allocationMode) === 'period'
+		? receiptPeriodRangeOutstandingTotal.value
+		: checkedAllocationSelectedTotal.value
+))
+const receiptOperationTargetCount = computed(() => (
+	normalizeReceiptAllocationMode(receiptForm.allocationMode) === 'period'
+		? receiptPeriodRangeTargetCount.value
+		: checkedAllocationSelectedCount.value
+))
+const receiptOperationTargetMeta = computed(() => {
+	const mode = normalizeReceiptAllocationMode(receiptForm.allocationMode)
+	if (mode === 'period') {
+		const start = normalizeDate(receiptForm.allocationStartDate)
+		const end = normalizeDate(receiptForm.allocationEndDate)
+		const scope = start && end ? `${start} ~ ${end}` : '日期未完整'
+		return `${scope} · ${receiptOperationTargetCount.value} 笔`
+	}
+	return `已选 ${receiptOperationTargetCount.value} 笔`
+})
+const receiptEstimatedRemainingPrepay = computed(() => {
+	const receiptAmount = operationPositiveAmount(receiptForm.amount)
+	if (!(receiptAmount > 0)) return 0
+	const targetAmount = toNumber(receiptOperationTargetTotal.value, 0)
+	return fix2(Math.max(receiptAmount - Math.max(targetAmount, 0), 0))
+})
+const receiptOperationSummaryItems = computed(() => {
+	return [
+		{
+			key: 'receipt-target',
+			label: '待冲欠款',
+			value: formatOperationSummaryMoney(receiptOperationTargetTotal.value),
+			meta: receiptOperationTargetMeta.value,
+			tone: 'debt'
+		},
+		{
+			key: 'receipt-amount',
+			label: '本次收款',
+			value: formatOperationSummaryInput(receiptForm.amount),
+			meta: receiptPaymentMethodLabel.value,
+			tone: 'primary',
+			pending: operationPositiveAmount(receiptForm.amount) <= 0
+		},
+		{
+			key: 'receipt-rounding',
+			label: '本次抹零',
+			value: formatOperationSummaryMoney(toNumber(receiptForm.roundingAmount, 0)),
+			meta: '需全部落到应收目标',
+			tone: 'credit'
+		},
+		{
+			key: 'receipt-prepay',
+			label: '预计剩余待分配',
+			value: formatOperationSummaryMoney(receiptEstimatedRemainingPrepay.value),
+			meta: '按当前选择自动估算',
+			tone: 'result',
+			pending: operationPositiveAmount(receiptForm.amount) <= 0
+		}
+	]
+})
+const offsetOperationTargetTotal = computed(() => (
+	normalizeReceiptAllocationMode(offsetAllocateForm.allocationMode) === 'period'
+		? offsetPeriodRangeOutstandingTotal.value
+		: offsetCheckedTargetSelectedTotal.value
+))
+const offsetOperationTargetCount = computed(() => (
+	normalizeReceiptAllocationMode(offsetAllocateForm.allocationMode) === 'period'
+		? offsetPeriodRangeTargetCount.value
+		: offsetCheckedTargetSelectedCount.value
+))
+const offsetOperationTargetMeta = computed(() => {
+	const mode = normalizeReceiptAllocationMode(offsetAllocateForm.allocationMode)
+	if (mode === 'period') {
+		const start = normalizeDate(offsetAllocateForm.allocationStartDate)
+		const end = normalizeDate(offsetAllocateForm.allocationEndDate)
+		const scope = start && end ? `${start} ~ ${end}` : '日期未完整'
+		return `${scope} · ${offsetOperationTargetCount.value} 笔`
+	}
+	return `已选 ${offsetOperationTargetCount.value} 笔`
+})
+const offsetOperationAvailableAmount = computed(() => (
+	isOffsetAdjustmentActive.value
+		? operationPositiveAmount(offsetAllocateForm.amount)
+		: selectedOffsetReceiptAvailableTotal.value
+))
+const offsetEstimatedAllocatableAmount = computed(() => {
+	const amount = operationPositiveAmount(offsetAllocateForm.amount)
+	const available = toNumber(offsetOperationAvailableAmount.value, 0)
+	const target = toNumber(offsetOperationTargetTotal.value, 0)
+	if (!(amount > 0) || !(available > 0) || !(target > 0)) return 0
+	return fix2(Math.min(amount, available, target))
+})
+const offsetEstimatedAllocatableText = computed(() => {
+	if (operationPositiveAmount(offsetAllocateForm.amount) <= 0) return '待输入'
+	if (toNumber(offsetOperationAvailableAmount.value, 0) <= 0) return '暂无来源'
+	if (toNumber(offsetOperationTargetTotal.value, 0) <= 0) return '暂无欠款'
+	return formatOperationSummaryMoney(offsetEstimatedAllocatableAmount.value)
+})
+const offsetOperationSummaryItems = computed(() => [
+	{
+		key: 'offset-available',
+		label: '来源可用',
+		value: formatOperationSummaryMoney(offsetOperationAvailableAmount.value),
+		meta: isOffsetAdjustmentActive.value ? '调整当前冲抵来源' : `已选 ${selectedOffsetReceiptCount.value} 笔`,
+		tone: 'credit',
+		pending: toNumber(offsetOperationAvailableAmount.value, 0) <= 0
+	},
+	{
+		key: 'offset-amount',
+		label: '本次冲抵',
+		value: formatOperationSummaryInput(offsetAllocateForm.amount),
+		meta: offsetAllocationModeLabel.value,
+		tone: 'primary',
+		pending: operationPositiveAmount(offsetAllocateForm.amount) <= 0
+	},
+	{
+		key: 'offset-target',
+		label: '待冲欠款',
+		value: formatOperationSummaryMoney(offsetOperationTargetTotal.value),
+		meta: offsetOperationTargetMeta.value,
+		tone: 'debt'
+	},
+	{
+		key: 'offset-estimated',
+		label: '预计可冲抵',
+		value: offsetEstimatedAllocatableText.value,
+		meta: '按当前选择估算，提交前校验',
+		tone: 'result',
+		pending: offsetEstimatedAllocatableAmount.value <= 0
+	}
+])
+const operationSummaryItems = computed(() => {
+	if (activeOperationTab.value === 'receipt') return receiptOperationSummaryItems.value
+	if (activeOperationTab.value === 'offset') return offsetOperationSummaryItems.value
+	return []
+})
+const allocationDecisionStickyVisible = computed(() => {
+	return ['receipt', 'offset'].includes(activeOperationTab.value) && operationSummaryItems.value.length > 0
+})
+const allocationDecisionModeLabel = computed(() => {
+	if (activeOperationTab.value === 'receipt') return receiptAllocationModeLabel.value
+	if (activeOperationTab.value === 'offset') return offsetAllocationModeLabel.value
+	return ''
+})
+const allocationDecisionStickyTitle = computed(() => {
+	const mode = allocationDecisionModeLabel.value
+	return mode ? `${activeOperationTabLabel.value} · ${mode}` : activeOperationTabLabel.value
+})
 const recentSalesDisplayRows = computed(() => {
 	const saleRows = buildSaleDetailSaleRows(recentSales.value)
 	if (!isFlowCustomer.value) return saleRows
@@ -1667,6 +1861,22 @@ function toNullableNumber(value) {
 function fix2(value) {
 	const num = Number(value)
 	return Number.isFinite(num) ? Number(num.toFixed(2)) : 0
+}
+
+function operationPositiveAmount(value) {
+	const amount = Number(value)
+	if (!Number.isFinite(amount) || amount <= 0) return 0
+	return fix2(amount)
+}
+
+function formatOperationSummaryMoney(value) {
+	return `¥${formatMoney(value)}`
+}
+
+function formatOperationSummaryInput(value, pendingText = '待输入') {
+	const amount = operationPositiveAmount(value)
+	if (!(amount > 0)) return pendingText
+	return formatOperationSummaryMoney(amount)
 }
 
 function normalizeDecimalText(value) {
@@ -1760,6 +1970,17 @@ function formatNullableWeight(value) {
 function normalizeString(value) {
 	if (value == null) return ''
 	return String(value).trim()
+}
+
+function datePickerValue(value) {
+	const text = normalizeString(value)
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return ''
+	const [year, month, day] = text.split('-').map((item) => Number(item))
+	if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return ''
+	if (month < 1 || month > 12) return ''
+	const maxDay = new Date(year, month, 0).getDate()
+	if (day < 1 || day > maxDay) return ''
+	return text
 }
 
 function normalizeDate(value) {
@@ -1901,8 +2122,31 @@ function isManualPrepayReceiptRow(row) {
 	return sourceType === 'customer_prepay_manual'
 }
 
+function isReceiptUnallocated(row) {
+	return toNumber(row?.allocated_amount, 0) <= 0 && toNumber(row?.unallocated_amount, 0) > 0
+}
+
+function isReceiptPartiallyAllocated(row) {
+	return toNumber(row?.allocated_amount, 0) > 0 && toNumber(row?.unallocated_amount, 0) > 0
+}
+
+function isReceiptFullyAllocated(row) {
+	return toNumber(row?.allocated_amount, 0) > 0 && toNumber(row?.unallocated_amount, 0) <= 0
+}
+
+function receiptAllocationIconClass(row) {
+	if (isReceiptUnallocated(row)) return 'bg-warning'
+	if (isReceiptPartiallyAllocated(row)) return 'bg-info'
+	if (isReceiptFullyAllocated(row)) return 'bg-success'
+	return 'bg-success'
+}
+
 function canContinuePrepayReceipt(row) {
 	return toNumber(row?.unallocated_amount, 0) > 0 && !isOffsetCreditReceiptRow(row)
+}
+
+function canEditReceiptAllocation(row) {
+	return !isReceiptUnallocated(row)
 }
 
 function receiptRemainingBalanceLabel(row) {
@@ -3078,9 +3322,47 @@ function applyStatementSummary(data = {}) {
 	}
 }
 
-async function loadStatement({ summaryOnly = false } = {}) {
+function nextRowsSearchRequestSeq() {
+	rowsSearchRequestSeq.value += 1
+	return rowsSearchRequestSeq.value
+}
+
+function isLatestRowsSearchRequest(requestSeq) {
+	return !requestSeq || requestSeq === rowsSearchRequestSeq.value
+}
+
+function isTimeoutRequestError(err) {
+	const text = [
+		err?.name,
+		err?.message,
+		err?.errMsg,
+		err?.cause?.message
+	].filter(Boolean).join(' ')
+	return /timeout|timed out|HttpClientRequestTimeout/i.test(text)
+}
+
+function logCloudRequestError(scope, err) {
+	console.warn(`[CustomerStatementModule] ${scope} failed`, {
+		cloudFunction: err?.cloudFunction,
+		action: err?.action,
+		request_id: err?.request_id || err?.requestId,
+		timeout: err?.timeout,
+		message: err?.message || err?.errMsg || String(err || '')
+	}, err)
+}
+
+function showCloudRequestError(scope, err) {
+	logCloudRequestError(scope, err)
+	uni.showToast({
+		title: isTimeoutRequestError(err) ? `${scope}超时，请缩小日期范围或重试` : `${scope}失败，请重试`,
+		icon: 'none'
+	})
+}
+
+async function loadStatement({ summaryOnly = false, requestSeq = 0 } = {}) {
 	if (!recordId.value) return
 	if (!summaryOnly) loading.value = true
+	else rowSummaryLoading.value = true
 	try {
 		const summaryScopeParams = buildStatementSummaryScopeParams()
 		const res = await getCustomerStatementV1({
@@ -3089,8 +3371,9 @@ async function loadStatement({ summaryOnly = false } = {}) {
 			summaryDateTo: summaryScopeParams.summaryDateTo,
 			summaryOnly
 		})
+		if (summaryOnly && !isLatestRowsSearchRequest(requestSeq)) return
 		if (res?.code !== 0) {
-			uni.showToast({ title: res?.msg || '加载失败', icon: 'none' })
+			uni.showToast({ title: res?.msg || (summaryOnly ? '账务摘要刷新失败' : '加载失败'), icon: 'none' })
 			return
 		}
 		const data = res?.data || {}
@@ -3106,8 +3389,13 @@ async function loadStatement({ summaryOnly = false } = {}) {
 		recentOtherFees.value = Array.isArray(data.recent_other_fees) ? data.recent_other_fees : []
 		syncFlowFormDefaults()
 		syncAnalysisFilterDefaults()
+	} catch (err) {
+		if (!summaryOnly || isLatestRowsSearchRequest(requestSeq)) {
+			showCloudRequestError(summaryOnly ? '账务摘要刷新' : '客户账务加载', err)
+		}
 	} finally {
 		if (!summaryOnly) loading.value = false
+		else if (isLatestRowsSearchRequest(requestSeq)) rowSummaryLoading.value = false
 	}
 }
 
@@ -3155,7 +3443,7 @@ async function loadAnalysis() {
 	}
 }
 
-async function loadRows() {
+async function loadRows({ requestSeq = 0 } = {}) {
 	if (!recordId.value) return
 	rowsLoading.value = true
 	try {
@@ -3166,11 +3454,9 @@ async function loadRows() {
 			page: rowsPager.page,
 			pageSize: rowsPager.pageSize
 		})
+		if (!isLatestRowsSearchRequest(requestSeq)) return
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '流水加载失败', icon: 'none' })
-			statementRows.value = []
-			rowsPager.total = 0
-			rowsPager.hasMore = false
 			return
 		}
 		statementRows.value = Array.isArray(res.data) ? res.data : []
@@ -3179,8 +3465,12 @@ async function loadRows() {
 		rowsPager.pageSize = Number(paging.pageSize || rowsPager.pageSize || 50)
 		rowsPager.total = Number(paging.total || res.total || 0)
 		rowsPager.hasMore = Boolean(paging.hasMore)
+	} catch (err) {
+		if (isLatestRowsSearchRequest(requestSeq)) {
+			showCloudRequestError('账务流水加载', err)
+		}
 	} finally {
-		rowsLoading.value = false
+		if (isLatestRowsSearchRequest(requestSeq)) rowsLoading.value = false
 	}
 }
 
@@ -3443,11 +3733,14 @@ async function onPreview() {
 		editableAllocations.value = alloc.map((item) => {
 			const targetType = normalizeString(item.target_type) || 'sale'
 			const targetId = normalizeString(item.target_id || item.sale_id)
+			const targetDate = normalizeDate(item.target_date || item.sale_date)
 			return {
 				key: `${targetType}:${targetId}`,
 				targetType,
 				targetId,
 				targetTitle: normalizeString(item.target_title) || `${normalizeString(item.sale_date)} / ${String(targetId).slice(-6)}`,
+				targetDate,
+				targetMeta: `日期 ${targetDate || '-'}`,
 				outstandingBefore: toNumber(item.outstanding_before, 0),
 				allocateAmount: formatMoney(item.allocate_amount)
 			}
@@ -4052,11 +4345,13 @@ function statementRowDetail(row) {
 }
 
 function onRowsDateFromChange(e) {
+	if (rowsLoading.value || rowSummaryLoading.value) return
 	rowFilters.dateFrom = normalizeString(e?.detail?.value)
 	syncRowsDatePreset()
 }
 
 function onRowsDateToChange(e) {
+	if (rowsLoading.value || rowSummaryLoading.value) return
 	rowFilters.dateTo = normalizeString(e?.detail?.value)
 	syncRowsDatePreset()
 }
@@ -4141,10 +4436,14 @@ function onOffsetEntryBizDateChange(e) {
 
 function onAllocationStartDateChange(e) {
 	receiptForm.allocationStartDate = normalizeString(e?.detail?.value)
+	previewPlan.value = null
+	editableAllocations.value = []
 }
 
 function onAllocationEndDateChange(e) {
 	receiptForm.allocationEndDate = normalizeString(e?.detail?.value)
+	previewPlan.value = null
+	editableAllocations.value = []
 }
 
 function onReceiptPaymentMethodChange(e) {
@@ -4215,6 +4514,7 @@ function syncAnalysisDatePreset() {
 }
 
 async function applyRowsDatePreset(value) {
+	if (rowsLoading.value || rowSummaryLoading.value) return
 	const preset = normalizeString(value) || 'custom'
 	rowsDatePreset.value = preset
 	if (preset === 'custom') return
@@ -4241,17 +4541,24 @@ function syncRowsDatePreset() {
 }
 
 async function searchRows(reset = false) {
+	if (rowsLoading.value || rowSummaryLoading.value) return
+	const requestSeq = nextRowsSearchRequestSeq()
 	if (reset) rowsPager.page = 1
-	await Promise.all([loadRows(), loadStatement({ summaryOnly: true })])
+	await Promise.allSettled([
+		loadRows({ requestSeq }),
+		loadStatement({ summaryOnly: true, requestSeq })
+	])
 }
 
 function onRowsPrev() {
+	if (rowsLoading.value || rowSummaryLoading.value) return
 	if (rowsPager.page <= 1) return
 	rowsPager.page -= 1
 	loadRows()
 }
 
 function onRowsNext() {
+	if (rowsLoading.value || rowSummaryLoading.value) return
 	if (!rowsPager.hasMore) return
 	rowsPager.page += 1
 	loadRows()
@@ -4568,6 +4875,14 @@ function onOpenSale(id) {
 	uni.navigateTo({ url: `/pages/sale/detail?_id=${encodeURIComponent(saleId)}` })
 }
 
+function scrollToOperationSection() {
+	uni.pageScrollTo({
+		selector: '#statement-operation-section',
+		duration: 240,
+		offsetTop: 12
+	})
+}
+
 function scrollToSalesDetailSection() {
 	uni.pageScrollTo({
 		selector: '#statement-sales-detail-section',
@@ -4689,6 +5004,214 @@ onMounted(() => {
 
 .operation-tabs-scroll :deep(.tabs) {
 	min-width: max-content;
+}
+
+.operation-summary-strip {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 12rpx;
+	margin: 12rpx 0 16rpx;
+}
+
+.operation-summary-card {
+	position: relative;
+	min-width: 0;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	gap: 8rpx;
+	padding: 14rpx 16rpx 14rpx 20rpx;
+	border: 1rpx solid #e2e8f0;
+	border-radius: var(--crm-radius-md);
+	background: #ffffff;
+}
+
+.operation-summary-card::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 5rpx;
+	background: #94a3b8;
+}
+
+.operation-summary-card--primary::before {
+	background: var(--crm-primary);
+}
+
+.operation-summary-card--debt::before {
+	background: #0b5cab;
+}
+
+.operation-summary-card--credit::before {
+	background: #0f766e;
+}
+
+.operation-summary-card--result::before {
+	background: var(--crm-success);
+}
+
+.operation-summary-card--pending {
+	background: #f8fafc;
+}
+
+.operation-summary-card__label {
+	font-size: 21rpx;
+	color: var(--crm-text-muted);
+	line-height: 1.2;
+}
+
+.operation-summary-card__value {
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 31rpx;
+	font-weight: 800;
+	color: #0f172a;
+	line-height: 1.15;
+}
+
+.operation-summary-card--pending .operation-summary-card__value {
+	color: #64748b;
+}
+
+.operation-summary-card__meta {
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 20rpx;
+	color: #64748b;
+	line-height: 1.25;
+}
+
+.allocation-decision-sticky {
+	position: sticky;
+	top: 0;
+	z-index: 12;
+	display: flex;
+	flex-direction: column;
+	gap: 12rpx;
+	margin-bottom: 12rpx;
+	padding: 14rpx 16rpx;
+	border: 1rpx solid #dbe7ff;
+	border-left: 5rpx solid var(--crm-primary);
+	border-radius: var(--crm-radius-md);
+	background: rgba(255, 255, 255, 0.96);
+	box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.08);
+}
+
+.allocation-decision-sticky__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16rpx;
+}
+
+.allocation-decision-sticky__title-wrap {
+	display: flex;
+	flex-direction: column;
+	gap: 4rpx;
+	min-width: 0;
+}
+
+.allocation-decision-sticky__eyebrow {
+	font-size: 20rpx;
+	color: var(--crm-text-muted);
+	line-height: 1.2;
+}
+
+.allocation-decision-sticky__title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 25rpx;
+	font-weight: 800;
+	color: #0f172a;
+	line-height: 1.2;
+}
+
+.allocation-decision-sticky__items {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 8rpx;
+}
+
+.allocation-decision-sticky__item {
+	position: relative;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4rpx;
+	padding: 10rpx 12rpx 10rpx 16rpx;
+	border: 1rpx solid #e2e8f0;
+	border-radius: 10rpx;
+	background: #ffffff;
+	overflow: hidden;
+}
+
+.allocation-decision-sticky__item::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 4rpx;
+	background: #94a3b8;
+}
+
+.allocation-decision-sticky__item--primary::before {
+	background: var(--crm-primary);
+}
+
+.allocation-decision-sticky__item--debt::before {
+	background: #0b5cab;
+}
+
+.allocation-decision-sticky__item--credit::before {
+	background: #0f766e;
+}
+
+.allocation-decision-sticky__item--result::before {
+	background: var(--crm-success);
+}
+
+.allocation-decision-sticky__item--pending {
+	background: #f8fafc;
+}
+
+.allocation-decision-sticky__label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 19rpx;
+	color: var(--crm-text-muted);
+	line-height: 1.2;
+}
+
+.allocation-decision-sticky__value {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 25rpx;
+	font-weight: 800;
+	color: #0f172a;
+	line-height: 1.15;
+}
+
+.allocation-decision-sticky__item--pending .allocation-decision-sticky__value {
+	color: #64748b;
+}
+
+.allocation-decision-sticky__meta {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 18rpx;
+	color: #64748b;
+	line-height: 1.2;
 }
 
 .operation-panel {
@@ -4871,11 +5394,6 @@ onMounted(() => {
 	font-weight: 600;
 }
 
-.section-hint--accent {
-	color: #0f766e;
-	font-weight: 700;
-}
-
 .row-detail--source {
 	color: #0f766e;
 	font-weight: 700;
@@ -4884,6 +5402,62 @@ onMounted(() => {
 .row-detail--alloc-scope {
 	color: #0f766e;
 	font-weight: 600;
+}
+
+.receipt-history-item {
+	padding: 16rpx 18rpx;
+	gap: 8rpx;
+}
+
+.receipt-history-item :deep(.item__main) {
+	gap: 16rpx;
+}
+
+.receipt-history-item :deep(.item__icon-wrapper) {
+	width: 64rpx;
+	height: 64rpx;
+}
+
+.receipt-history-item :deep(.item__icon-wrapper .app-icon) {
+	width: 34rpx;
+	height: 34rpx;
+}
+
+.receipt-history-item :deep(.item__title) {
+	font-size: 25rpx;
+	line-height: 1.25;
+}
+
+.receipt-history-item :deep(.item__subtitle) {
+	font-size: 21rpx;
+	line-height: 1.25;
+}
+
+.receipt-history-item :deep(.item__right) {
+	gap: 4rpx;
+}
+
+.receipt-history-item :deep(.item__meta) {
+	margin-top: 4rpx;
+	gap: 0;
+}
+
+.receipt-history-item :deep(.item__footer) {
+	margin-top: 0;
+	gap: 8rpx;
+}
+
+.receipt-history-meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4rpx 12rpx;
+	min-width: 0;
+}
+
+.receipt-history-meta .row-detail {
+	font-size: 20rpx;
+	line-height: 1.3;
 }
 
 .preview-box {
@@ -4949,13 +5523,34 @@ onMounted(() => {
 .checked-target-item__body {
 	display: flex;
 	flex-direction: column;
-	gap: 2rpx;
+	gap: 4rpx;
+	min-width: 0;
+	flex: 1;
+}
+
+.checked-target-item__title-row {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 56rpx;
 	min-width: 0;
 }
 
 .checked-target-item__title {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 	font-size: 22rpx;
+	font-weight: 700;
 	color: #0f172a;
+}
+
+.checked-target-item__debt {
+	flex: 0 0 auto;
+	font-size: 22rpx;
+	font-weight: 800;
+	color: #dc2626;
 }
 
 .checked-target-item__meta {
@@ -4969,35 +5564,66 @@ onMounted(() => {
 	gap: 8rpx;
 }
 
-.alloc-head,
 .alloc-row {
-	display: grid;
-	grid-template-columns: 1.6fr 1fr 1fr;
-	gap: 10rpx;
+	display: flex;
+	flex-direction: column;
+	gap: 8rpx;
+	padding: 10rpx 0;
+	border-bottom: 1rpx solid #e2e8f0;
+}
+
+.alloc-row:last-child {
+	border-bottom: none;
+}
+
+.alloc-row__top,
+.alloc-row__bottom {
+	display: flex;
 	align-items: center;
-}
-
-.alloc-head {
-	font-size: 21rpx;
-	color: var(--crm-text-muted);
-	font-weight: 600;
-}
-
-.alloc-row {
-	font-size: 22rpx;
-	color: #0f172a;
-}
-
-.col-sale {
+	gap: 16rpx;
 	min-width: 0;
 }
 
-.col-outstanding {
-	text-align: right;
+.alloc-row__top {
+	justify-content: flex-start;
 }
 
-.col-amount {
-	min-width: 160rpx;
+.alloc-row__bottom {
+	justify-content: space-between;
+}
+
+.alloc-row__title {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 22rpx;
+	font-weight: 700;
+	color: #0f172a;
+}
+
+.alloc-row__debt {
+	flex: 0 0 auto;
+	font-size: 22rpx;
+	font-weight: 700;
+	color: #0f172a;
+}
+
+.alloc-row__meta {
+	font-size: 20rpx;
+	color: #64748b;
+}
+
+.alloc-row__amount {
+	display: grid;
+	grid-template-columns: auto minmax(160rpx, 280rpx);
+	align-items: center;
+	gap: 10rpx;
+}
+
+.alloc-row__amount-label {
+	font-size: 20rpx;
+	color: #64748b;
 }
 
 .mini-amounts {
@@ -5011,6 +5637,16 @@ onMounted(() => {
 
 .mini-amounts--left {
 	align-items: flex-start;
+}
+
+.mini-amounts--receipt-compact {
+	display: grid;
+	grid-template-columns: repeat(2, max-content);
+	align-items: center;
+	justify-items: end;
+	gap: 3rpx 14rpx;
+	font-size: 20rpx;
+	line-height: 1.2;
 }
 
 .mini-amounts__warning {
@@ -5040,6 +5676,11 @@ onMounted(() => {
 
 .mini-amounts__receipt-rounding {
 	color: #0f766e;
+	font-weight: 700;
+}
+
+.mini-amounts__remaining {
+	color: #b45309;
 	font-weight: 700;
 }
 
@@ -5097,6 +5738,33 @@ onMounted(() => {
 }
 
 @media (max-width: 760px) {
+	.operation-summary-strip {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.allocation-decision-sticky {
+		padding: 12rpx;
+	}
+
+	.allocation-decision-sticky__head {
+		align-items: flex-start;
+		flex-wrap: wrap;
+	}
+
+	.allocation-decision-sticky__title {
+		white-space: normal;
+	}
+
+	.allocation-decision-sticky__items {
+		display: flex;
+		overflow-x: auto;
+		padding-bottom: 2rpx;
+	}
+
+	.allocation-decision-sticky__item {
+		flex: 0 0 230rpx;
+	}
+
 	.receipt-grid,
 	.filter-grid,
 	.flow-grid,
@@ -5109,14 +5777,46 @@ onMounted(() => {
 		grid-column: auto;
 	}
 
-	.alloc-head,
 	.alloc-row {
-		grid-template-columns: 1fr;
+		gap: 8rpx;
+	}
+
+	.checked-target-item__title-row,
+	.alloc-row__top,
+	.alloc-row__bottom {
+		align-items: flex-start;
+		flex-direction: column;
 		gap: 6rpx;
 	}
 
-	.col-outstanding {
-		text-align: left;
+	.checked-target-item__title,
+	.alloc-row__title {
+		white-space: normal;
+	}
+
+	.checked-target-item__debt,
+	.alloc-row__debt {
+		font-size: 21rpx;
+	}
+
+	.alloc-row__amount {
+		width: 100%;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 6rpx;
+	}
+
+	.receipt-history-item :deep(.item__row) {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 8rpx;
+	}
+
+	.receipt-history-item :deep(.item__right) {
+		align-items: flex-start;
+	}
+
+	.mini-amounts--receipt-compact {
+		justify-items: start;
 	}
 
 	.section-actions {
@@ -5143,6 +5843,14 @@ onMounted(() => {
 }
 
 @media (max-width: 420px) {
+	.operation-summary-strip {
+		grid-template-columns: 1fr;
+	}
+
+	.allocation-decision-sticky__item {
+		flex-basis: 260rpx;
+	}
+
 	.receipt-grid--four {
 		grid-template-columns: 1fr;
 	}

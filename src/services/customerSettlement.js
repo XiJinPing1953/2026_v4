@@ -300,7 +300,8 @@ export async function listOffsetCreditPoolV1(params = {}) {
 			only_unallocated: params.onlyUnallocated ?? params.only_unallocated ?? true,
 			page: params.page || 1,
 			pageSize: params.pageSize || 20
-		}
+		},
+		timeout: 30000
 	})
 }
 
@@ -362,7 +363,8 @@ export async function getCustomerStatementV1(params = {}) {
 			summary_date_from: params.summaryDateFrom || params.summary_date_from || '',
 			summary_date_to: params.summaryDateTo || params.summary_date_to || '',
 			summary_only: Boolean(params.summaryOnly || params.summary_only)
-		}
+		},
+		timeout: 30000
 	})
 }
 
@@ -442,7 +444,8 @@ export async function listCustomerStatementRowsV1(params = {}) {
 			date_to: params.dateTo || params.date_to || '',
 			page: params.page || 1,
 			pageSize: params.pageSize || 50
-		}
+		},
+		timeout: 30000
 	})
 }
 

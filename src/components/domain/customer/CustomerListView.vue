@@ -238,12 +238,17 @@
 						</template>
 						<template #right>
 							<view class="info-box">
-								<text class="info-label">应收欠款</text>
+								<text class="info-label">未结清欠款</text>
 								<view class="price-box">
 									<text class="price-symbol">¥</text>
-									<text class="price-value" :class="balanceValueClass(item)">{{ formatMoney(item.net_balance) }}</text>
+									<text class="price-value" :class="balanceValueClass(item)">{{ formatMoney(item.receivable_balance) }}</text>
 								</view>
-								<text class="balance-hint">应收 {{ formatMoney(item.receivable_balance) }} / 预付 {{ formatMoney(item.prepay_balance) }}</text>
+								<view class="balance-hint">
+									<text>待分配收款 {{ formatMoney(item.receipt_unallocated_balance) }}</text>
+									<text>预付款 {{ formatMoney(item.prepay_manual_balance) }}</text>
+									<text>冲抵池 {{ formatMoney(item.offset_credit_balance) }}</text>
+									<text>净额 {{ formatMoney(item.net_balance) }}</text>
+								</view>
 							</view>
 						</template>
 						
@@ -255,15 +260,15 @@
 								</AppTag>
 								<AppTag kind="soft" class="tag-item">{{ item.qr_code ? `码 ${item.qr_code}` : '无码' }}</AppTag>
 								<AppTag v-if="!isStatementEntryMode" kind="soft" class="tag-item">{{ item.default_price_unit || 'kg' }}</AppTag>
-								<AppTag kind="soft" class="tag-item">应收 {{ formatMoney(item.receivable_balance) }}</AppTag>
-								<AppTag kind="soft" class="tag-item">预付 {{ formatMoney(item.prepay_balance) }}</AppTag>
+								<AppTag kind="soft" class="tag-item">未结清 {{ formatMoney(item.receivable_balance) }}</AppTag>
+								<AppTag kind="soft" class="tag-item">可用款 {{ formatMoney(item.prepay_balance) }}</AppTag>
 								<text v-if="item.short_name" class="mode-label">{{ item.short_name }}</text>
 							</view>
 						</template>
 						
 						<template #footer>
 							<view class="footer-btns">
-								<AppButton v-if="canViewStatement" kind="outline" size="sm" @click.stop="onStatement(item)">客户对账</AppButton>
+								<AppButton v-if="canViewStatement && !isStatementEntryMode" kind="outline" size="sm" @click.stop="onStatement(item)">客户对账</AppButton>
 								<AppButton v-if="canUpdateCustomer" kind="ghost" size="sm" @click.stop="onEdit(item)">编辑档案</AppButton>
 							</view>
 						</template>
@@ -340,8 +345,8 @@ const activeOptions = [
 
 const balanceOptions = [
 	{ label: '全部余额', value: 'all' },
-	{ label: '应收欠款', value: 'receivable' },
-	{ label: '预付余额', value: 'prepay' },
+	{ label: '未结清欠款', value: 'receivable' },
+	{ label: '净预收客户', value: 'prepay' },
 	{ label: '已结清', value: 'settled' }
 ]
 const cashierUnallocatedOptions = [
@@ -494,9 +499,8 @@ function buildListParams(page = 1, pageSize = 50) {
 }
 
 function balanceValueClass(item) {
-	const net = toNumber(item?.net_balance, 0)
-	if (net > 0.009) return 'price-value--danger'
-	if (net < -0.009) return 'price-value--success'
+	const receivable = toNumber(item?.receivable_balance, 0)
+	if (receivable > 0.009) return 'price-value--danger'
 	return 'price-value--neutral'
 }
 
@@ -1196,6 +1200,11 @@ defineExpose({
 }
 
 .balance-hint {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 4rpx 10rpx;
+	max-width: 420rpx;
 	font-size: 20rpx;
 	color: var(--crm-text-muted);
 }

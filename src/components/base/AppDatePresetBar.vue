@@ -1,11 +1,14 @@
 <template>
-	<view class="preset-bar">
+	<view class="preset-bar" :class="{ 'preset-bar--disabled': disabled }">
 		<view
 			v-for="item in items"
 			:key="item.value"
 			class="preset-bar__item"
-			:class="{ 'preset-bar__item--active': modelValue === item.value }"
-			@click="$emit('update:modelValue', item.value)"
+			:class="{
+				'preset-bar__item--active': modelValue === item.value,
+				'preset-bar__item--disabled': disabled
+			}"
+			@click="onPresetClick(item.value)"
 		>
 			{{ item.label }}
 		</view>
@@ -13,8 +16,9 @@
 </template>
 
 <script setup>
-defineProps({
+const props = defineProps({
 	modelValue: { type: String, default: 'custom' },
+	disabled: { type: Boolean, default: false },
 	items: {
 		type: Array,
 		default: () => [
@@ -26,7 +30,12 @@ defineProps({
 	}
 })
 
-defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue'])
+
+function onPresetClick(value) {
+	if (props.disabled) return
+	emit('update:modelValue', value)
+}
 </script>
 
 <style scoped>
@@ -39,6 +48,10 @@ defineEmits(['update:modelValue'])
 	border-radius: 999rpx;
 }
 
+.preset-bar--disabled {
+	opacity: 0.72;
+}
+
 .preset-bar__item {
 	min-width: 108rpx;
 	padding: 12rpx 28rpx;
@@ -48,6 +61,10 @@ defineEmits(['update:modelValue'])
 	font-weight: 600;
 	text-align: center;
 	transition: all 0.2s ease;
+}
+
+.preset-bar__item--disabled {
+	pointer-events: none;
 }
 
 .preset-bar__item--active {

@@ -15,7 +15,8 @@ export async function callCloud(name, { action, data = {}, token, timeout } = {}
 	const t = token != null ? token : getToken()
 	const payload = { action, data }
 	if (t) payload.token = t
-	payload.request_id = generateRequestId()
+	const requestId = generateRequestId()
+	payload.request_id = requestId
 
 	const invokeOptions = {
 		name,
@@ -25,7 +26,24 @@ export async function callCloud(name, { action, data = {}, token, timeout } = {}
 		invokeOptions.timeout = Number(timeout)
 	}
 
-	const res = await uniCloud.callFunction(invokeOptions)
+	let res
+	try {
+		res = await uniCloud.callFunction(invokeOptions)
+	} catch (err) {
+		const error = err instanceof Error ? err : new Error(String(err || 'Cloud function request failed'))
+		error.cloudFunction = name
+		error.action = action
+		error.request_id = requestId
+		error.requestId = requestId
+		error.timeout = invokeOptions.timeout
+		error.invokeOptions = {
+			name,
+			action,
+			request_id: requestId,
+			timeout: invokeOptions.timeout
+		}
+		throw error
+	}
 
 	const result = res.result || {}
 	if (result.code === 401) {
