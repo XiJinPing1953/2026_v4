@@ -236,7 +236,8 @@
 					<text v-else class="section-hint">分配口径：仅冲销勾选单据；现金剩余保留为待分配收款，抹零需全部落到勾选目标。</text>
 					<text v-if="isEditingCashierReceipt" class="section-hint section-hint--warning">当前收款单来源于出纳登记，仅支持调整分配和抹零；金额、业务日期、收款方式与备注请在“出纳收款登记”处理。</text>
 					<text v-if="isEditingReceipt" class="section-hint section-hint--warning">当前为整单调整，原目标已在本次编辑中释放；取消会保留原分配，保存会按当前选择重新入账。</text>
-					<text v-if="isContinuingPrepayReceipt" class="section-hint section-hint--warning">当前为继续分配未分配余额，仅消费该收款单待分配金额，不回滚已分配金额，不修改原收款信息。</text>
+					<text v-if="isStartingPrepayReceiptAllocation" class="section-hint section-hint--warning">当前为收款单分配，使用该收款单待分配金额冲销欠款，可同时录入抹零。</text>
+					<text v-if="isAppendingPrepayReceiptAllocation" class="section-hint section-hint--warning">当前为继续分配，追加消费待分配金额并可同时录入抹零，不回滚已分配记录。</text>
 
 					<view v-if="receiptForm.allocationMode === 'checked'" class="checked-target-box">
 						<view class="checked-target-head">
@@ -645,6 +646,7 @@
 							</template>
 							<template #footer>
 								<view class="row-actions">
+									<AppButton v-if="canStartPrepayReceiptAllocation(row)" size="sm" kind="primary" @click="onContinuePrepayReceipt(row)">分配</AppButton>
 									<AppButton v-if="canContinuePrepayReceipt(row)" size="sm" kind="primary" @click="onContinuePrepayReceipt(row)">继续分配</AppButton>
 									<AppButton v-if="canEditReceiptAllocation(row)" size="sm" kind="outline" @click="onEditReceipt(row)">
 										调整整单
@@ -1095,6 +1097,7 @@ const editingReceiptSourceType = ref('')
 const receiptAdjustmentReleasedTargets = ref([])
 const continuingPrepayReceiptId = ref('')
 const continuingPrepayAvailableAmount = ref(0)
+const continuingPrepayReceiptMode = ref('')
 const offsetAdjustingReceiptId = ref('')
 const offsetAdjustingReceiptRow = ref(null)
 const editingFlowSettlementId = ref('')
@@ -1282,6 +1285,8 @@ const offsetHistoryTotalPages = computed(() => {
 })
 const isEditingReceipt = computed(() => Boolean(normalizeString(editingReceiptId.value)))
 const isContinuingPrepayReceipt = computed(() => Boolean(normalizeString(continuingPrepayReceiptId.value)))
+const isStartingPrepayReceiptAllocation = computed(() => isContinuingPrepayReceipt.value && continuingPrepayReceiptMode.value === 'start')
+const isAppendingPrepayReceiptAllocation = computed(() => isContinuingPrepayReceipt.value && continuingPrepayReceiptMode.value === 'continue')
 const isOffsetAdjustmentActive = computed(() => Boolean(normalizeString(offsetAdjustingReceiptId.value)))
 const isReceiptAdjustmentActive = computed(() => isEditingReceipt.value || isContinuingPrepayReceipt.value)
 const isEditingCashierReceipt = computed(() => isCashierReceiptSourceType(editingReceiptSourceType.value))
@@ -1289,13 +1294,13 @@ const isEditingFlowSettlement = computed(() => Boolean(normalizeString(editingFl
 const isEditingOpeningDebt = computed(() => Boolean(normalizeString(editingOpeningDebtId.value)))
 const isEditingOtherFee = computed(() => Boolean(normalizeString(editingOtherFeeId.value)))
 const isReceiptAmountReadonly = computed(() => isEditingCashierReceipt.value || isContinuingPrepayReceipt.value)
-const isReceiptRoundingReadonly = computed(() => isContinuingPrepayReceipt.value)
+const isReceiptRoundingReadonly = computed(() => false)
 const isReceiptImmutableReadonly = computed(() => isEditingCashierReceipt.value || isContinuingPrepayReceipt.value)
 const receiptPrimaryActionLoading = computed(() => (
 	isContinuingPrepayReceipt.value ? prepayReceiptAllocating.value : submitting.value
 ))
 const receiptPrimaryActionLabel = computed(() => {
-	if (isContinuingPrepayReceipt.value) return '继续分配'
+	if (isContinuingPrepayReceipt.value) return '保存分配'
 	if (!isEditingReceipt.value) return '登记收款'
 	return '保存整单调整'
 })
@@ -2122,16 +2127,20 @@ function isManualPrepayReceiptRow(row) {
 	return sourceType === 'customer_prepay_manual'
 }
 
+function receiptAllocatedProgressAmount(row) {
+	return fix2(toNumber(row?.allocated_amount, 0) + toNumber(row?.rounding_allocated_amount, 0))
+}
+
 function isReceiptUnallocated(row) {
-	return toNumber(row?.allocated_amount, 0) <= 0 && toNumber(row?.unallocated_amount, 0) > 0
+	return receiptAllocatedProgressAmount(row) <= 0 && toNumber(row?.unallocated_amount, 0) > 0
 }
 
 function isReceiptPartiallyAllocated(row) {
-	return toNumber(row?.allocated_amount, 0) > 0 && toNumber(row?.unallocated_amount, 0) > 0
+	return receiptAllocatedProgressAmount(row) > 0 && toNumber(row?.unallocated_amount, 0) > 0
 }
 
 function isReceiptFullyAllocated(row) {
-	return toNumber(row?.allocated_amount, 0) > 0 && toNumber(row?.unallocated_amount, 0) <= 0
+	return receiptAllocatedProgressAmount(row) > 0 && toNumber(row?.unallocated_amount, 0) <= 0
 }
 
 function receiptAllocationIconClass(row) {
@@ -2141,12 +2150,16 @@ function receiptAllocationIconClass(row) {
 	return 'bg-success'
 }
 
+function canStartPrepayReceiptAllocation(row) {
+	return isReceiptUnallocated(row) && !isOffsetCreditReceiptRow(row)
+}
+
 function canContinuePrepayReceipt(row) {
-	return toNumber(row?.unallocated_amount, 0) > 0 && !isOffsetCreditReceiptRow(row)
+	return isReceiptPartiallyAllocated(row) && !isOffsetCreditReceiptRow(row)
 }
 
 function canEditReceiptAllocation(row) {
-	return !isReceiptUnallocated(row)
+	return receiptAllocatedProgressAmount(row) > 0 && !isOffsetCreditReceiptRow(row)
 }
 
 function receiptRemainingBalanceLabel(row) {
@@ -2709,6 +2722,7 @@ function resetReceiptForm() {
 	receiptAdjustmentReleasedTargets.value = []
 	continuingPrepayReceiptId.value = ''
 	continuingPrepayAvailableAmount.value = 0
+	continuingPrepayReceiptMode.value = ''
 	const today = todayYmd()
 	receiptForm.amount = ''
 	receiptForm.roundingAmount = ''
@@ -3855,7 +3869,7 @@ async function confirmReceiptPrepayIfNeeded(amount, roundingAmount, allocationPa
 	previewPlan.value = plan
 	const confirmed = await showConfirmModal({
 		title: '确认保留待分配收款',
-		content: `本次登记后将剩余 ¥${formatMoney(prepayAmount)} 保留为待分配收款，后续可在收款单上点“继续分配”冲欠款。`,
+		content: `本次登记后将剩余 ¥${formatMoney(prepayAmount)} 保留为待分配收款，后续可在收款单上点“分配/继续分配”冲欠款。`,
 		confirmText: '继续'
 	})
 	return Boolean(confirmed)
@@ -3879,8 +3893,8 @@ async function onAllocatePrepayReceipt() {
 		return
 	}
 	const roundingAmount = receiptForm.roundingAmount === '' ? 0 : Number(receiptForm.roundingAmount)
-	if (roundingAmount > 0) {
-		uni.showToast({ title: '继续分配不支持抹零', icon: 'none' })
+	if (!Number.isFinite(roundingAmount) || roundingAmount < 0) {
+		uni.showToast({ title: '抹零金额不能小于0', icon: 'none' })
 		return
 	}
 	const allocationPayload = buildReceiptAllocationPayload()
@@ -3891,6 +3905,7 @@ async function onAllocatePrepayReceipt() {
 			receiptId,
 			customerId: recordId.value,
 			amount,
+			roundingAmount,
 			allocationMode: allocationPayload.allocationMode,
 			allocationStartDate: allocationPayload.allocationStartDate,
 			allocationEndDate: allocationPayload.allocationEndDate,
@@ -3953,6 +3968,7 @@ function onContinuePrepayReceipt(row) {
 	receiptAdjustmentReleasedTargets.value = []
 	continuingPrepayReceiptId.value = receiptId
 	continuingPrepayAvailableAmount.value = available
+	continuingPrepayReceiptMode.value = isReceiptUnallocated(row) ? 'start' : 'continue'
 	receiptForm.amount = formatMoney(available)
 	receiptForm.roundingAmount = ''
 	receiptForm.bizDate = normalizeDate(row?.biz_date) || todayYmd()

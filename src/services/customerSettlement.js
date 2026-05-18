@@ -91,6 +91,7 @@ export async function allocatePrepayReceiptV1(params = {}) {
 			receipt_id: params.receiptId || params.receipt_id || '',
 			customer_id: params.customerId || params.customer_id || '',
 			amount: params.amount,
+			rounding_amount: params.roundingAmount ?? params.rounding_amount ?? 0,
 			allocation_mode: params.allocationMode || params.allocation_mode || '',
 			allocation_start_date: params.allocationStartDate || params.allocation_start_date || '',
 			allocation_end_date: params.allocationEndDate || params.allocation_end_date || '',
