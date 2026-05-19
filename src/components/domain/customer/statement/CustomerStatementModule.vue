@@ -336,9 +336,14 @@
 						<view class="checked-target-box">
 							<view class="checked-target-head">
 								<text>冲抵历史（可调整已分配）</text>
-								<text>共 {{ offsetHistoryPager.total }} 条 · 第 {{ offsetHistoryPager.page }} / {{ offsetHistoryTotalPages }} 页</text>
+								<view class="checked-target-head__actions">
+									<text>共 {{ offsetHistoryPager.total }} 条 · 第 {{ offsetHistoryPager.page }} / {{ offsetHistoryTotalPages }} 页</text>
+									<AppButton size="sm" kind="neutral" @click="toggleOffsetHistory">
+										{{ offsetHistoryExpanded ? '收起历史' : '查看冲抵历史' }}
+									</AppButton>
+								</view>
 							</view>
-							<AppList :loading="offsetHistoryLoading" :empty="offsetHistoryRows.length === 0" empty-title="暂无冲抵历史">
+							<AppList v-if="offsetHistoryExpanded" :loading="offsetHistoryLoading" :empty="offsetHistoryRows.length === 0" empty-title="暂无冲抵历史">
 								<AppListItem
 									v-for="row in offsetHistoryRows"
 									:key="`offset-history-${row._id}`"
@@ -383,7 +388,7 @@
 									</template>
 								</AppListItem>
 							</AppList>
-							<view v-if="offsetHistoryPager.total > 0" class="pager-row">
+							<view v-if="offsetHistoryExpanded && offsetHistoryPager.total > 0" class="pager-row">
 								<AppButton size="sm" kind="neutral" :disabled="offsetHistoryLoading || offsetHistoryPager.page <= 1" @click="onOffsetHistoryPrev">上一页</AppButton>
 								<AppButton size="sm" kind="neutral" :disabled="offsetHistoryLoading || !offsetHistoryPager.hasMore" @click="onOffsetHistoryNext">下一页</AppButton>
 							</view>
@@ -1104,6 +1109,7 @@ const editingFlowSettlementId = ref('')
 const editingOpeningDebtId = ref('')
 const editingOtherFeeId = ref('')
 const activeOperationTab = ref('receipt')
+const offsetHistoryExpanded = ref(false)
 const openingDebtRecentExpanded = ref(false)
 const otherFeeRecentExpanded = ref(false)
 const receiptRecentExpanded = ref(false)
@@ -2714,6 +2720,10 @@ function toggleOtherFeeRecent() {
 
 function toggleReceiptRecent() {
 	receiptRecentExpanded.value = !receiptRecentExpanded.value
+}
+
+function toggleOffsetHistory() {
+	offsetHistoryExpanded.value = !offsetHistoryExpanded.value
 }
 
 function resetReceiptForm() {
@@ -4934,6 +4944,7 @@ watch(
 		quickSceneApplied.value = false
 		salesDetailMode.value = 'all'
 		activeOperationTab.value = 'receipt'
+		offsetHistoryExpanded.value = false
 		openingDebtRecentExpanded.value = false
 		otherFeeRecentExpanded.value = false
 		receiptRecentExpanded.value = false
@@ -5518,6 +5529,14 @@ onMounted(() => {
 	gap: 12rpx;
 	font-size: 22rpx;
 	color: #334155;
+}
+
+.checked-target-head__actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 12rpx;
+	flex-wrap: wrap;
 }
 
 .checked-target-list {

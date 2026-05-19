@@ -244,10 +244,15 @@
 									<text class="price-value" :class="balanceValueClass(item)">{{ formatMoney(item.receivable_balance) }}</text>
 								</view>
 								<view class="balance-hint">
-									<text>待分配收款 {{ formatMoney(item.receipt_unallocated_balance) }}</text>
-									<text>预付款 {{ formatMoney(item.prepay_manual_balance) }}</text>
-									<text>冲抵池 {{ formatMoney(item.offset_credit_balance) }}</text>
-									<text>净额 {{ formatMoney(item.net_balance) }}</text>
+									<text
+										class="balance-hint__item"
+										:class="{ 'balance-hint__item--danger': toNumber(item.receipt_unallocated_balance, 0) > 0.009 }"
+									>
+										待分配收款 {{ formatMoney(item.receipt_unallocated_balance) }}
+									</text>
+									<text class="balance-hint__item">预付款 {{ formatMoney(item.prepay_manual_balance) }}</text>
+									<text class="balance-hint__item">冲抵池 {{ formatMoney(item.offset_credit_balance) }}</text>
+									<text class="balance-hint__item">净额 {{ formatMoney(item.net_balance) }}</text>
 								</view>
 							</view>
 						</template>
@@ -1203,10 +1208,22 @@ defineExpose({
 	display: flex;
 	flex-wrap: wrap;
 	justify-content: flex-end;
-	gap: 4rpx 10rpx;
-	max-width: 420rpx;
-	font-size: 20rpx;
-	color: var(--crm-text-muted);
+	gap: 6rpx 18rpx;
+	max-width: 720rpx;
+	margin-top: 36rpx;
+	font-size: 30rpx;
+	font-weight: 650;
+	text-align: right;
+	color: var(--crm-text);
+}
+
+.balance-hint__item {
+	color: inherit;
+}
+
+.balance-hint__item--danger {
+	color: #b91c1c;
+	font-weight: 800;
 }
 
 .price-unit {
