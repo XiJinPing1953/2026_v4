@@ -82,7 +82,7 @@
 								@tap.stop="selectSuggestion(item)"
 							>
 								<text class="suggestion-text">{{ item.name }}</text>
-								<text class="suggestion-sub">{{ [item.contact, item.phone].filter(Boolean).join(' · ') }}</text>
+								<text class="suggestion-sub">{{ customerSuggestionSubText(item) }}</text>
 							</view>
 						</view>
 					</view>
@@ -233,6 +233,7 @@
 									<text class="customer-heading__deposit-count">存瓶 {{ Number(item.deposit_count || 0) }}</text>
 									<text v-if="item.deposit_bottle_nos?.length" class="customer-heading__deposit-nos">{{ item.deposit_bottle_nos.join('、') }}</text>
 									<text v-else class="customer-heading__deposit-empty">暂无存瓶</text>
+									<text v-if="depositLocationText(item)" class="customer-heading__deposit-locations">{{ depositLocationText(item) }}</text>
 								</view>
 							</view>
 						</template>
@@ -265,6 +266,7 @@
 								</AppTag>
 								<AppTag kind="soft" class="tag-item">{{ item.qr_code ? `码 ${item.qr_code}` : '无码' }}</AppTag>
 								<AppTag v-if="!isStatementEntryMode" kind="soft" class="tag-item">{{ item.default_price_unit || 'kg' }}</AppTag>
+								<AppTag v-if="matchedDeliveryText(item)" kind="soft" class="tag-item">匹配送达 {{ matchedDeliveryText(item) }}</AppTag>
 								<AppTag kind="soft" class="tag-item">未结清 {{ formatMoney(item.receivable_balance) }}</AppTag>
 								<AppTag kind="soft" class="tag-item">可用款 {{ formatMoney(item.prepay_balance) }}</AppTag>
 								<text v-if="item.short_name" class="mode-label">{{ item.short_name }}</text>
@@ -486,11 +488,38 @@ function customerUnitPriceText(item) {
 	return `单价 ${formatMoney(unitPrice)}/${unit}`
 }
 
+function depositLocationText(item) {
+	const locations = Array.isArray(item?.deposit_locations) ? item.deposit_locations : []
+	const useful = locations
+		.filter((row) => Number(row?.count || 0) > 0)
+		.map((row) => `${row.customer_name || '未命名'} ${Number(row.count || 0)}`)
+	if (useful.length <= 1) return ''
+	return useful.join(' / ')
+}
+
+function matchedDeliveryText(item) {
+	const sites = Array.isArray(item?.matched_delivery_sites) ? item.matched_delivery_sites : []
+	const names = sites
+		.map((row) => normalizeString(row?.name))
+		.filter(Boolean)
+	if (!names.length) return ''
+	return names.slice(0, 3).join(' / ')
+}
+
+function customerSuggestionSubText(item) {
+	return [
+		matchedDeliveryText(item) ? `匹配送达地点：${matchedDeliveryText(item)}` : '',
+		item?.contact,
+		item?.phone
+	].filter(Boolean).join(' · ')
+}
+
 function buildListParams(page = 1, pageSize = 50) {
 	const shouldFilterCashierUnallocated = isStatementEntryMode.value && filters.cashierUnallocatedIndex > 0
 	return {
 		keyword: filters.keyword,
 		is_active: buildIsActiveParam(),
+		settlementOnly: isStatementEntryMode.value,
 		balance_type: buildBalanceTypeParam(),
 		updated_date_start: isStatementEntryMode.value ? filters.updatedDateStart : '',
 		updated_date_end: isStatementEntryMode.value ? filters.updatedDateEnd : '',
@@ -906,7 +935,12 @@ function onKeywordInput(value) {
 	showSuggestions.value = true
 	searchTimer = setTimeout(async () => {
 		try {
-			const res = await listCustomersV1({ keyword, page: 1, pageSize: 8 })
+			const res = await listCustomersV1({
+				keyword,
+				page: 1,
+				pageSize: 8,
+				settlementOnly: isStatementEntryMode.value
+			})
 			suggestions.value = res?.code === 0 ? res.data || [] : []
 		} catch (err) {
 			console.error(err)
@@ -953,7 +987,8 @@ function onStatement(item) {
 		uni.showToast({ title: '当前账号没有客户对账权限', icon: 'none' })
 		return
 	}
-	uni.navigateTo({ url: `/pages/customer/statement?_id=${encodeURIComponent(item._id)}` })
+	const statementCustomerId = String(item.effective_settlement_customer_id || item._id || '').trim()
+	uni.navigateTo({ url: `/pages/customer/statement?_id=${encodeURIComponent(statementCustomerId)}` })
 }
 
 function onPrimaryAction(item) {
@@ -1125,6 +1160,14 @@ defineExpose({
 
 .customer-heading__deposit-empty {
 	color: #94a3b8;
+}
+
+.customer-heading__deposit-locations {
+	font-size: 22rpx;
+	line-height: 1.5;
+	color: #0f766e;
+	font-weight: 700;
+	word-break: break-all;
 }
 
 .filter-chips {

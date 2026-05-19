@@ -69,6 +69,14 @@
 				</template>
 
 					<view class="filter-grid">
+					<view class="picker-field">
+						<text class="picker-label">客户口径</text>
+						<picker class="picker-block" mode="selector" :range="customerScopeOptions" range-key="label" @change="onCustomerScopeChange">
+							<view class="picker-tap">
+								<AppInput :model-value="customerScopeOptions[customerScopeIndex].label" disabled size="sm" />
+							</view>
+						</picker>
+					</view>
 					<view class="search-field">
 					<AppInput
 						v-model="filters.keyword"
@@ -167,7 +175,7 @@
 						v-for="item in list"
 						:key="item._id"
 						class="sale-item"
-						:title="item.customer_name"
+						:title="resolveSaleDisplayCustomerName(item)"
 						:subtitle="item.date"
 						:status="paymentStatusText(item.payment_status)"
 						:status-kind="paymentStatusKind(item.payment_status)"
@@ -179,10 +187,11 @@
 						<template #header>
 							<view class="sale-header">
 								<view class="sale-title">
-									<text class="sale-name">{{ item.customer_name }}</text>
+									<text class="sale-name">{{ resolveSaleDisplayCustomerName(item) }}</text>
 									<text class="sale-date">{{ item.date }}</text>
 								</view>
 								<view class="sale-subtitle">
+									<text v-if="resolveSaleSettlementMeta(item)" class="sale-meta sale-meta--settlement">{{ resolveSaleSettlementMeta(item) }}</text>
 									<text class="sale-meta">{{ bizModeText(item.biz_mode) }}</text>
 									<text class="sale-meta">单价 {{ item.unit_price || '-' }}</text>
 									<text class="sale-meta">本单净售出 {{ saleNetSoldKgText(item) }}</text>
@@ -261,6 +270,7 @@ const props = defineProps({
 	presetRemarkTag: { type: String, default: '' },
 	presetKeyword: { type: String, default: '' },
 	presetCustomerId: { type: String, default: '' },
+	presetCustomerScope: { type: String, default: '' },
 	presetDateStart: { type: String, default: '' },
 	presetDateEnd: { type: String, default: '' },
 	presetSettlementScope: { type: String, default: '' }
@@ -322,6 +332,7 @@ let searchTimer = null
 const filters = reactive({
 	keyword: '',
 	customerId: '',
+	customerScope: 'settlement',
 	dateStart: '',
 	dateEnd: '',
 	priceUnit: '',
@@ -332,6 +343,10 @@ const filters = reactive({
 	remarkTag: ''
 })
 
+const customerScopeOptions = [
+	{ label: '按结算客户', value: 'settlement' },
+	{ label: '按送达地点', value: 'delivery' }
+]
 const priceUnitOptions = [
 	{ label: '全部单位', value: '' },
 	{ label: 'kg', value: 'kg' },
@@ -369,6 +384,7 @@ const remarkTagOptions = [
 	{ label: '其他备注', value: 'other' }
 ]
 const priceUnitIndex = ref(0)
+const customerScopeIndex = ref(0)
 const bizModeIndex = ref(0)
 const paymentStatusIndex = ref(0)
 const hasRemarkIndex = ref(0)
@@ -430,10 +446,22 @@ const netModeHintText = computed(() => {
 	return `瓶${b} / 车${t} / 代${a}`
 })
 
+function normalizeCustomerScope(value) {
+	return String(value || '').trim() === 'delivery' ? 'delivery' : 'settlement'
+}
+
+function setCustomerScope(value) {
+	const scope = normalizeCustomerScope(value)
+	filters.customerScope = scope
+	const index = customerScopeOptions.findIndex((item) => item.value === scope)
+	customerScopeIndex.value = index >= 0 ? index : 0
+}
+
 const filterChips = computed(() => {
 	const chips = []
 	if (filters.customerId) {
-		chips.push({ key: 'customerId', label: `客户: ${filters.keyword || filters.customerId.slice(-6)}` })
+		const scope = filters.customerScope === 'delivery' ? '送达地点' : '结算客户'
+		chips.push({ key: 'customerId', label: `${scope}: ${filters.keyword || filters.customerId.slice(-6)}` })
 	} else if (filters.keyword) {
 		chips.push({ key: 'keyword', label: `关键词: ${filters.keyword}` })
 	}
@@ -510,6 +538,7 @@ const { loading, run: fetchList } = useQuery(
 		const res = await listSalesV2({
 			keyword: filters.keyword,
 			customerId: filters.customerId,
+			customerScope: filters.customerScope,
 			dateStart: filters.dateStart,
 			dateEnd: filters.dateEnd,
 			priceUnit: filters.priceUnit,
@@ -615,7 +644,7 @@ const { loading, run: fetchList } = useQuery(
 		cacheTTL: 10000,
 		throttleMs: 300,
 			cacheKey: () =>
-				`sale:list:${filters.keyword}:${filters.customerId}:${filters.dateStart}:${filters.dateEnd}:${filters.priceUnit}:${filters.bizMode}:${filters.paymentStatus}:${filters.settlementScope}:${filters.hasRemark}:${filters.remarkTag}:${pager.page}:${pager.pageSize}`,
+				`sale:list:${filters.keyword}:${filters.customerId}:${filters.customerScope}:${filters.dateStart}:${filters.dateEnd}:${filters.priceUnit}:${filters.bizMode}:${filters.paymentStatus}:${filters.settlementScope}:${filters.hasRemark}:${filters.remarkTag}:${pager.page}:${pager.pageSize}`,
 		onError(err) {
 			uni.showToast({ title: err?.message || '销售记录加载失败', icon: 'none' })
 		}
@@ -684,6 +713,7 @@ async function refreshList() {
 function onReset() {
 	filters.keyword = ''
 	filters.customerId = ''
+	filters.customerScope = 'settlement'
 	filters.dateStart = ''
 	filters.dateEnd = ''
 	filters.priceUnit = ''
@@ -693,6 +723,7 @@ function onReset() {
 	filters.hasRemark = ''
 	filters.remarkTag = ''
 	priceUnitIndex.value = 0
+	customerScopeIndex.value = 0
 	bizModeIndex.value = 0
 	paymentStatusIndex.value = 0
 	hasRemarkIndex.value = 0
@@ -707,15 +738,26 @@ function buildSearchSuggestionItems(customers = [], vehicles = []) {
 	customers.forEach((item) => {
 		const name = String(item?.name || '').trim()
 		if (!name) return
-		const key = `customer:${name}`
+		const scope = filters.customerScope === 'delivery' || item?.is_settlement_child ? 'delivery' : 'settlement'
+		const id = scope === 'delivery'
+			? item?._id || ''
+			: (item?.effective_settlement_customer_id || item?.settlement_customer_id || item?._id || '')
+		const key = `customer:${scope}:${id || name}`
 		if (seen.has(key)) return
 		seen.add(key)
 		list.push({
 			key,
 			type: 'customer',
+			id,
+			scope,
 			keyword: name,
 			label: name,
-			sub: [item?.contact, item?.phone].filter(Boolean).join(' · ')
+			sub: [
+				scope === 'delivery' ? '送达地点' : '结算客户',
+				item?.is_settlement_child ? `结算客户：${item?.effective_settlement_customer_name || item?.settlement_customer_name || ''}` : '',
+				item?.contact,
+				item?.phone
+			].filter(Boolean).join(' · ')
 		})
 	})
 	vehicles.forEach((item) => {
@@ -737,6 +779,7 @@ function buildSearchSuggestionItems(customers = [], vehicles = []) {
 
 function onSearchInput(val) {
 	if (searchTimer) clearTimeout(searchTimer)
+	filters.customerId = ''
 	if (!val) {
 		suggestions.value = []
 		showSuggestions.value = false
@@ -746,7 +789,12 @@ function onSearchInput(val) {
 	searchTimer = setTimeout(async () => {
 		try {
 			const [customerRes, vehicleRes] = await Promise.all([
-				listCustomersV1({ keyword: val, page: 1, pageSize: 8 }),
+				listCustomersV1({
+					keyword: val,
+					page: 1,
+					pageSize: 8,
+					settlementOnly: false
+				}),
 				searchVehiclesV1({ keyword: val, page: 1, pageSize: 8 })
 			])
 			suggestions.value = buildSearchSuggestionItems(
@@ -769,6 +817,12 @@ function onKeywordConfirm() {
 
 function selectSuggestion(item) {
 	filters.keyword = item?.keyword || ''
+	if (item?.type === 'customer') {
+		filters.customerId = String(item?.id || '').trim()
+		setCustomerScope(item?.scope)
+	} else {
+		filters.customerId = ''
+	}
 	showSuggestions.value = false
 	onSearch(true)
 }
@@ -800,6 +854,12 @@ function onDateStartChange(e) {
 function onDateEndChange(e) {
 	filters.dateEnd = e?.detail?.value || ''
 	syncDatePreset()
+}
+
+function onCustomerScopeChange(e) {
+	const index = Number(e?.detail?.value || 0)
+	setCustomerScope(customerScopeOptions[index]?.value || 'settlement')
+	onSearch(true)
 }
 
 function onPriceUnitChange(e) {
@@ -895,6 +955,17 @@ function onCustomerStatement(item) {
 		return
 	}
 	uni.navigateTo({ url: `/pages/customer/statement?_id=${encodeURIComponent(customerId)}` })
+}
+
+function resolveSaleDisplayCustomerName(item) {
+	return String(item?.delivery_customer_name || item?.customer_name || '').trim() || '-'
+}
+
+function resolveSaleSettlementMeta(item) {
+	const deliveryName = String(item?.delivery_customer_name || item?.customer_name || '').trim()
+	const settlementName = String(item?.customer_name || '').trim()
+	if (!deliveryName || !settlementName || deliveryName === settlementName) return ''
+	return `结算 ${settlementName}`
 }
 
 function getBizModeIcon(mode) {
@@ -1141,6 +1212,7 @@ function buildListParams(page = 1, pageSize = 50) {
 	return {
 		keyword: filters.keyword,
 		customerId: filters.customerId,
+		customerScope: filters.customerScope,
 		dateStart: filters.dateStart,
 		dateEnd: filters.dateEnd,
 		priceUnit: filters.priceUnit,
@@ -1223,7 +1295,8 @@ function formatBottleNoList(rows) {
 function buildExportCsv(rows) {
 	const headers = [
 		'日期',
-		'客户',
+		'结算客户',
+		'送达地点',
 		'出瓶号',
 		'回瓶号',
 		'存瓶号',
@@ -1272,6 +1345,7 @@ function buildExportCsv(rows) {
 		const cells = [
 			row?.date || '',
 			row?.customer_name || '',
+			row?.delivery_customer_name || row?.customer_name || '',
 			formatBottleNoList(outItems),
 			formatBottleNoList(backItems),
 			formatBottleNoList(depositRows),
@@ -1382,6 +1456,7 @@ function applyRoutePreset(params = {}, autoSearch = true) {
 	const remarkTagValue = String(params?.remarkTag || '').trim()
 	const keywordValue = String(params?.keyword || '').trim()
 	const customerIdValue = String(params?.customerId || params?.customer_id || '').trim()
+	const customerScopeValue = String(params?.customerScope || params?.customer_scope || '').trim()
 	const dateStartValue = String(params?.dateStart || params?.date_start || '').trim()
 	const dateEndValue = String(params?.dateEnd || params?.date_end || '').trim()
 	const settlementScopeValue = String(params?.settlementScope || params?.settlement_scope || '').trim()
@@ -1389,6 +1464,7 @@ function applyRoutePreset(params = {}, autoSearch = true) {
 	const remarkTagOptionIndex = remarkTagOptions.findIndex((item) => item.value === remarkTagValue)
 	if (keywordValue) filters.keyword = keywordValue
 	if (customerIdValue) filters.customerId = customerIdValue
+	if (customerScopeValue) setCustomerScope(customerScopeValue)
 	if (dateStartValue) filters.dateStart = dateStartValue
 	if (dateEndValue) filters.dateEnd = dateEndValue
 	if (settlementScopeTextMap[settlementScopeValue]) filters.settlementScope = settlementScopeValue
@@ -1411,6 +1487,7 @@ onMounted(() => {
 			remarkTag: props.presetRemarkTag,
 			keyword: props.presetKeyword,
 			customerId: props.presetCustomerId,
+			customerScope: props.presetCustomerScope,
 			dateStart: props.presetDateStart,
 			dateEnd: props.presetDateEnd,
 			settlementScope: props.presetSettlementScope
@@ -1427,13 +1504,14 @@ watch(
 		props.presetRemarkTag,
 		props.presetKeyword,
 		props.presetCustomerId,
+		props.presetCustomerScope,
 		props.presetDateStart,
 		props.presetDateEnd,
 		props.presetSettlementScope
 	],
-	([hasRemark, remarkTag, keyword, customerId, dateStart, dateEnd, settlementScope]) => {
-		if (!hasRemark && !remarkTag && !keyword && !customerId && !dateStart && !dateEnd && !settlementScope) return
-		applyRoutePreset({ hasRemark, remarkTag, keyword, customerId, dateStart, dateEnd, settlementScope }, true)
+	([hasRemark, remarkTag, keyword, customerId, customerScope, dateStart, dateEnd, settlementScope]) => {
+		if (!hasRemark && !remarkTag && !keyword && !customerId && !customerScope && !dateStart && !dateEnd && !settlementScope) return
+		applyRoutePreset({ hasRemark, remarkTag, keyword, customerId, customerScope, dateStart, dateEnd, settlementScope }, true)
 	}
 )
 
@@ -1818,6 +1896,12 @@ defineExpose({
 	background: #f8fafc;
 	padding: 2px 8px;
 	border-radius: 999px;
+}
+
+.sale-meta--settlement {
+	background: #ecfdf5;
+	color: #047857;
+	font-weight: 700;
 }
 
 @media (max-width: 680px) {

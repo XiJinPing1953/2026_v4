@@ -13,8 +13,12 @@
 						<text class="pill-value">{{ bizModeLabel }}</text>
 					</view>
 					<view v-if="form.customerName" class="info-pill">
-						<text class="pill-label">当前客户</text>
+						<text class="pill-label">送达地点</text>
 						<text class="pill-value">{{ form.customerName }}</text>
+					</view>
+					<view v-if="settlementCustomerDisplayName" class="info-pill">
+						<text class="pill-label">结算客户</text>
+						<text class="pill-value">{{ settlementCustomerDisplayName }}</text>
 					</view>
 				</view>
 			</AppCard>
@@ -213,6 +217,13 @@ const form = ref({
 	date: '',
 	customerId: '',
 	customerName: '',
+	settlementCustomerId: '',
+	settlementCustomerName: '',
+	effectiveDefaultUnitPrice: null,
+	effectiveDefaultPriceUnit: '',
+	effectivePriceSource: '',
+	settlementDefaultUnitPrice: null,
+	settlementDefaultPriceUnit: '',
 	deliveryMan1: '',
 	deliveryMan2: '',
 	vehicleNo: '',
@@ -343,6 +354,15 @@ const expectedOffsetAppliedAmount = computed(() => {
 const finalAmountReceivedPreview = computed(() =>
 	fix2(manualAmountReceived.value + externalReceiptRoundingAmount.value + expectedOffsetAppliedAmount.value)
 )
+const accountingCustomerId = computed(() =>
+	String(form.value.settlementCustomerId || form.value.customerId || '').trim()
+)
+const settlementCustomerDisplayName = computed(() => {
+	const deliveryName = String(form.value.customerName || '').trim()
+	const settlementName = String(form.value.settlementCustomerName || '').trim()
+	if (!settlementName || settlementName === deliveryName) return ''
+	return settlementName
+})
 const autoPaymentStatus = computed(() =>
 	resolvePaymentStatusByAmount(effectiveShouldReceive.value, finalAmountReceivedPreview.value)
 )
@@ -511,7 +531,7 @@ watch(
 )
 
 watch(
-	() => [form.value.customerId, form.value.settlementMode],
+	() => [accountingCustomerId.value, form.value.settlementMode],
 	([customerId, settlementMode]) => {
 		if (!customerId || settlementMode === 'customer_flow') {
 			offsetCreditFetchSeq += 1
@@ -632,8 +652,15 @@ async function loadDetail(id) {
 	externalReceiptRounding.value = Math.max(toNumber(doc.receipt_rounding_amount, 0), 0)
 	form.value = {
 		date: doc.date || '',
-		customerId: doc.customer_id || '',
-		customerName: doc.customer_name || '',
+		customerId: doc.delivery_customer_id || doc.customer_id || '',
+		customerName: doc.delivery_customer_name || doc.customer_name || '',
+		settlementCustomerId: doc.customer_id || '',
+		settlementCustomerName: doc.customer_name || '',
+		effectiveDefaultUnitPrice: null,
+		effectiveDefaultPriceUnit: '',
+		effectivePriceSource: '',
+		settlementDefaultUnitPrice: null,
+		settlementDefaultPriceUnit: '',
 		vehicleNo: doc.car_no || '',
 		settlementMode: (doc.price_unit || 'kg') === 'm3' ? 'customer_flow' : (doc.settlement_mode || 'sale'),
 		priceUnit: doc.price_unit || 'kg',

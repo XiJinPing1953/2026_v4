@@ -152,6 +152,7 @@ export async function listSalesV2(filters) {
 		data: {
 			keyword: filters.keyword || '',
 			customerId: filters.customerId || filters.customer_id || '',
+			customerScope: filters.customerScope || filters.customer_scope || 'settlement',
 			dateStart: filters.dateStart || '',
 			dateEnd: filters.dateEnd || '',
 			priceUnit: filters.priceUnit || '',

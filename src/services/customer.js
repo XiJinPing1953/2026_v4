@@ -21,6 +21,8 @@ export async function listCustomersV1(params) {
 	if (cashierDateStart != null) data.cashier_unallocated_date_start = cashierDateStart
 	const cashierDateEnd = params.cashier_unallocated_date_end ?? params.cashierUnallocatedDateEnd
 	if (cashierDateEnd != null) data.cashier_unallocated_date_end = cashierDateEnd
+	const settlementOnly = params.settlement_only ?? params.settlementOnly
+	if (settlementOnly != null) data.settlement_only = Boolean(settlementOnly)
 	if (rawSummaryIgnoreActive != null) data.summary_ignore_active = Boolean(rawSummaryIgnoreActive)
 
 	return callCloud('crm-customer', {

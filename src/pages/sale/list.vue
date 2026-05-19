@@ -5,6 +5,7 @@
 		:preset-remark-tag="routePreset.remarkTag"
 		:preset-keyword="routePreset.keyword"
 		:preset-customer-id="routePreset.customerId"
+		:preset-customer-scope="routePreset.customerScope"
 		:preset-date-start="routePreset.dateStart"
 		:preset-date-end="routePreset.dateEnd"
 		:preset-settlement-scope="routePreset.settlementScope"
@@ -22,6 +23,7 @@ const routePreset = reactive({
 	remarkTag: '',
 	keyword: '',
 	customerId: '',
+	customerScope: '',
 	dateStart: '',
 	dateEnd: '',
 	settlementScope: ''
@@ -46,6 +48,7 @@ onLoad((options = {}) => {
 	routePreset.remarkTag = String(options.remarkTag || '')
 	routePreset.keyword = String(options.keyword || '')
 	routePreset.customerId = String(options.customerId || options.customer_id || '')
+	routePreset.customerScope = String(options.customerScope || options.customer_scope || '')
 	routePreset.dateStart = String(options.dateStart || options.date_start || '')
 	routePreset.dateEnd = String(options.dateEnd || options.date_end || '')
 	routePreset.settlementScope = String(options.settlementScope || options.settlement_scope || '')
@@ -54,6 +57,7 @@ onLoad((options = {}) => {
 		routePreset.remarkTag ||
 		routePreset.keyword ||
 		routePreset.customerId ||
+		routePreset.customerScope ||
 		routePreset.dateStart ||
 		routePreset.dateEnd ||
 		routePreset.settlementScope

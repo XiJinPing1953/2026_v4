@@ -12,6 +12,8 @@ const allocations = db.collection('crm_customer_allocations')
 const receiptAdjustments = db.collection('crm_customer_receipt_adjustments')
 const flowSettlements = db.collection('crm_customer_flow_settlements')
 const openingDebts = db.collection('crm_customer_opening_debts')
+const collectionTasks = db.collection('crm_collection_tasks')
+const collectionFollowups = db.collection('crm_collection_followups')
 let ensureActionAcl = null
 try {
 	;({ ensureActionAcl } = require('../common/pageAcl'))
@@ -88,7 +90,11 @@ const PAGE_ACTION_RULES = {
 	getCustomerStatementV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	listCustomerStatementRowsV1: [{ pagePath: '/pages/customer/statement', action: 'view' }]
 }
-const SUPERADMIN_ONLY_ACTIONS = ['rebuildOpeningBalancesV1', 'repairAutoPrepayAllocationsV1']
+const SUPERADMIN_ONLY_ACTIONS = [
+	'rebuildOpeningBalancesV1',
+	'repairAutoPrepayAllocationsV1',
+	'migrateTushanCakeSettlementSitesV1'
+]
 
 async function getUserByToken(token) {
 	if (!token) return null
@@ -1249,6 +1255,30 @@ function buildSaleDepositBalanceSnapshotMap(salesDocs = [], previewLimit = 20) {
 	return snapshotMap
 }
 
+function resolveSaleDeliveryCustomerId(doc = {}) {
+	return normalizeId((doc && doc.delivery_customer_id) || (doc && doc.customer_id))
+}
+
+function resolveSaleDeliveryCustomerName(doc = {}) {
+	return normalizeString((doc && doc.delivery_customer_name) || (doc && doc.customer_name))
+}
+
+function buildSaleDepositBalanceSnapshotMapByDelivery(salesDocs = [], previewLimit = 20) {
+	const docs = Array.isArray(salesDocs) ? salesDocs : []
+	const groupMap = new Map()
+	docs.forEach((doc) => {
+		const deliveryCustomerId = resolveSaleDeliveryCustomerId(doc) || '__unknown__'
+		if (!groupMap.has(deliveryCustomerId)) groupMap.set(deliveryCustomerId, [])
+		groupMap.get(deliveryCustomerId).push(doc)
+	})
+	const merged = new Map()
+	groupMap.forEach((groupDocs) => {
+		const snapshotMap = buildSaleDepositBalanceSnapshotMap(groupDocs, previewLimit)
+		snapshotMap.forEach((value, key) => merged.set(key, value))
+	})
+	return merged
+}
+
 function resolveTruckSaleNetValue(rawTruckSaleNet, rawTruckOutGross, rawTruckBackGross) {
 	const outGross = toNumber(rawTruckOutGross, null)
 	const backGross = toNumber(rawTruckBackGross, null)
@@ -1338,6 +1368,34 @@ async function getCustomerById(customerId) {
 	if (!id) return null
 	const res = await customers.doc(id).get()
 	return (res.data && res.data[0]) || null
+}
+
+async function resolveAccountingSettlementCustomer(customerId) {
+	const inputCustomer = await getCustomerById(customerId)
+	if (!inputCustomer) return { ok: false, code: 404, msg: '客户不存在' }
+	let current = inputCustomer
+	const visited = new Set()
+	for (let guard = 0; guard < 10; guard += 1) {
+		const currentId = normalizeId(current && current._id)
+		const settlementId = normalizeId(current && current.settlement_customer_id)
+		if (!currentId) return { ok: false, code: 404, msg: '客户不存在' }
+		if (!settlementId || settlementId === currentId) {
+			return {
+				ok: true,
+				customer: current,
+				inputCustomer,
+				matchedDeliveryCustomer: currentId === normalizeId(inputCustomer && inputCustomer._id) ? null : inputCustomer
+			}
+		}
+		if (visited.has(currentId) || visited.has(settlementId)) {
+			return { ok: false, code: 400, msg: '客户结算关系存在循环，请先修正客户档案' }
+		}
+		visited.add(currentId)
+		const parent = await getCustomerById(settlementId)
+		if (!parent) return { ok: false, code: 404, msg: '结算客户不存在' }
+		current = parent
+	}
+	return { ok: false, code: 400, msg: '客户结算关系层级过深，请先修正客户档案' }
 }
 
 async function listCustomerSales(customerId, { dateFrom = '', dateTo = '' } = {}) {
@@ -3863,8 +3921,9 @@ async function createReceiptIntakeV1(user, data, requestId) {
 	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
 	if (!(amountRaw > 0)) return { code: 400, msg: '收到金额必须大于0' }
 
-	const customer = await getCustomerById(customerId)
-	if (!customer) return { code: 404, msg: '客户不存在' }
+	const customerRef = await resolveAccountingSettlementCustomer(customerId)
+	if (!customerRef.ok) return { code: customerRef.code || 400, msg: customerRef.msg || '客户结算关系异常' }
+	const customer = customerRef.customer
 	const moneyScale = resolveCustomerMoneyScale(customer)
 	const fixMoney = (value) => fixByScale(value, moneyScale)
 	const amount = fixMoney(amountRaw)
@@ -3928,6 +3987,8 @@ async function createReceiptIntakeV1(user, data, requestId) {
 		{
 			receipt_id: receiptId,
 			customer_id: customer._id,
+			input_customer_id: customerRef.inputCustomer ? normalizeId(customerRef.inputCustomer._id) : customer._id,
+			matched_delivery_customer_id: customerRef.matchedDeliveryCustomer ? normalizeId(customerRef.matchedDeliveryCustomer._id) : '',
 			amount,
 			proof_images_count: proofImages.length
 		},
@@ -3964,11 +4025,13 @@ async function updateReceiptIntakeV1(user, data, requestId) {
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持编辑已入账收款单' }
 	if (!isCashierReceiptSourceType(receiptDoc.source_type)) return { code: 400, msg: '该收款单不是出纳录款来源' }
 
-	const customerId = normalizeId(data.customer_id || data.customerId || receiptDoc.customer_id)
-	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	const requestedCustomerId = normalizeId(data.customer_id || data.customerId || receiptDoc.customer_id)
+	if (!requestedCustomerId) return { code: 400, msg: 'customer_id 必填' }
+	const customerRef = await resolveAccountingSettlementCustomer(requestedCustomerId)
+	if (!customerRef.ok) return { code: customerRef.code || 400, msg: customerRef.msg || '客户结算关系异常' }
+	const customer = customerRef.customer
+	const customerId = normalizeId(customer && customer._id)
 	if (customerId !== normalizeId(receiptDoc.customer_id)) return { code: 400, msg: '收款单不属于该客户' }
-	const customer = await getCustomerById(customerId)
-	if (!customer) return { code: 404, msg: '客户不存在' }
 	const moneyScale = resolveCustomerMoneyScale(customer)
 	const fixMoney = (value) => fixByScale(value, moneyScale)
 
@@ -4025,6 +4088,8 @@ async function updateReceiptIntakeV1(user, data, requestId) {
 		'customer_receipt_intake_update_v1',
 		{
 			customer_id: customerId,
+			input_customer_id: customerRef.inputCustomer ? normalizeId(customerRef.inputCustomer._id) : customerId,
+			matched_delivery_customer_id: customerRef.matchedDeliveryCustomer ? normalizeId(customerRef.matchedDeliveryCustomer._id) : '',
 			receipt_id: receiptId,
 			amount,
 			proof_images_count: proofImages.length
@@ -4112,7 +4177,8 @@ async function removeReceiptIntakeV1(user, data, requestId) {
 
 async function listReceiptIntakeV1(user, data) {
 	void user
-	const customerId = normalizeId(data.customer_id || data.customerId)
+	const requestedCustomerId = normalizeId(data.customer_id || data.customerId)
+	let customerId = ''
 	const dateFrom = normalizeDate(data.date_from || data.dateFrom)
 	const dateTo = normalizeDate(data.date_to || data.dateTo)
 	const includeVoidInput = data.include_void ?? data.includeVoid
@@ -4122,9 +4188,10 @@ async function listReceiptIntakeV1(user, data) {
 		normalizeString(includeVoidInput).toLowerCase() === 'true' ||
 		normalizeString(includeVoidInput) === '1'
 	if (dateFrom && dateTo && dateFrom > dateTo) return { code: 400, msg: '开始日期不能晚于结束日期' }
-	if (customerId) {
-		const customer = await getCustomerById(customerId)
-		if (!customer) return { code: 404, msg: '客户不存在' }
+	if (requestedCustomerId) {
+		const customerRef = await resolveAccountingSettlementCustomer(requestedCustomerId)
+		if (!customerRef.ok) return { code: customerRef.code || 400, msg: customerRef.msg || '客户结算关系异常' }
+		customerId = normalizeId(customerRef.customer && customerRef.customer._id)
 	}
 	const pageSize = Math.min(Math.max(toNumber(data.pageSize, 20), 1), 50)
 	const page = Math.max(toNumber(data.page, 1), 1)
@@ -5785,6 +5852,10 @@ async function exportCustomerStatementV1(user, data) {
 		return {
 			biz_date: normalizeDate(row && row.date),
 			sale_id: normalizeId(row && row._id),
+			customer_id: normalizeId(row && row.customer_id),
+			customer_name: normalizeString(row && row.customer_name),
+			delivery_customer_id: resolveSaleDeliveryCustomerId(row),
+			delivery_customer_name: resolveSaleDeliveryCustomerName(row),
 			should_receive: shouldReceive,
 			should_receive_effective: effectiveShouldReceive,
 			amount_received: amountReceived,
@@ -7673,7 +7744,7 @@ async function getCustomerStatementV1(user, data, requestId = '') {
 		flowSettlements: flowDocs.length,
 		openingDebts: openingDebtDocs.length
 	})
-	const saleDepositBalanceSnapshotMap = buildSaleDepositBalanceSnapshotMap(salesDocs, 20)
+	const saleDepositBalanceSnapshotMap = buildSaleDepositBalanceSnapshotMapByDelivery(salesDocs, 20)
 	let saleRows = salesDocs
 		.map((doc) => {
 			const snapshot = computeSaleSnapshot(doc)
@@ -7688,6 +7759,10 @@ async function getCustomerStatementV1(user, data, requestId = '') {
 			return {
 				_id: saleId,
 				date: normalizeString(doc.date),
+				customer_id: normalizeId(doc.customer_id),
+				customer_name: normalizeString(doc.customer_name),
+				delivery_customer_id: resolveSaleDeliveryCustomerId(doc),
+				delivery_customer_name: resolveSaleDeliveryCustomerName(doc),
 				biz_mode: normalizeString(doc.biz_mode) || 'bottle',
 				should_receive: snapshot.should_receive,
 				should_receive_effective: snapshot.should_receive_effective,
@@ -8014,7 +8089,11 @@ async function listCustomerStatementRowsV1(user, data, requestId = '') {
 			note: normalizeString(doc.remark),
 			meta: {
 				biz_mode: normalizeString(doc.biz_mode) || 'bottle',
-				payment_status: normalizeString(doc.payment_status) || snapshot.payment_status
+				payment_status: normalizeString(doc.payment_status) || snapshot.payment_status,
+				customer_id: normalizeId(doc.customer_id),
+				customer_name: normalizeString(doc.customer_name),
+				delivery_customer_id: resolveSaleDeliveryCustomerId(doc),
+				delivery_customer_name: resolveSaleDeliveryCustomerName(doc)
 			}
 		}
 	})
@@ -8227,6 +8306,255 @@ async function rebuildOpeningBalancesV1(user, data, requestId) {
 	}
 }
 
+function isCollectionMissingError(err) {
+	const text = normalizeString((err && err.message) || err).toLowerCase()
+	return text.includes('not found collection') || text.includes('collection not found')
+}
+
+async function findCustomerByExactName(name) {
+	const normalizedName = normalizeString(name)
+	if (!normalizedName) return null
+	const res = await customers.where({ name: normalizedName }).limit(2).get()
+	const rows = Array.isArray(res.data) ? res.data : []
+	if (rows.length !== 1) return { error: rows.length > 1 ? '客户名称不唯一' : '客户不存在', rows }
+	return rows[0]
+}
+
+async function countCollectionRows(collection, where) {
+	try {
+		const res = await collection.where(where).count()
+		return { count: Number(res.total || 0), missing: false }
+	} catch (err) {
+		if (isCollectionMissingError(err)) return { count: 0, missing: true }
+		throw err
+	}
+}
+
+async function updateCollectionRows(collection, where, patch) {
+	try {
+		const res = await collection.where(where).update(patch)
+		return Number(res.updated || res.modified || res.result?.updated || 0)
+	} catch (err) {
+		if (isCollectionMissingError(err)) return 0
+		throw err
+	}
+}
+
+async function migrateCollectionTaskRows({
+	fromCustomerId,
+	toCustomerId,
+	toCustomerName,
+	execute = false,
+	now = Date.now()
+}) {
+	const summary = await summarizeRows(collectionTasks, { customer_id: fromCustomerId }, [
+		'amount_should',
+		'amount_received',
+		'amount_unpaid'
+	])
+	if (summary.missing || summary.count <= 0) return { ...summary, updated: 0, conflicts: [] }
+	const rowsRes = await collectionTasks
+		.where({ customer_id: fromCustomerId })
+		.field({ _id: true, date_from: true, date_to: true, range_key: true })
+		.limit(5000)
+		.get()
+	const rows = Array.isArray(rowsRes.data) ? rowsRes.data : []
+	const conflicts = []
+	let updated = 0
+	for (const row of rows) {
+		const taskId = normalizeId(row && row._id)
+		const dateFrom = normalizeDate(row && row.date_from)
+		const dateTo = normalizeDate(row && row.date_to)
+		const nextRangeKey = `${toCustomerId || toCustomerName}|${dateFrom}|${dateTo}`
+		const conflictRes = await collectionTasks.where({ range_key: nextRangeKey }).limit(1).get()
+		const conflict = (conflictRes.data && conflictRes.data[0]) || null
+		if (conflict && normalizeId(conflict._id) !== taskId) {
+			conflicts.push({
+				task_id: taskId,
+				existing_task_id: normalizeId(conflict._id),
+				range_key: nextRangeKey
+			})
+			continue
+		}
+		if (!execute) continue
+		await collectionTasks.doc(taskId).update({
+			customer_id: toCustomerId,
+			customer_name: toCustomerName,
+			range_key: nextRangeKey,
+			updated_at: now
+		})
+		updated += 1
+	}
+	return { ...summary, updated, conflicts }
+}
+
+async function summarizeRows(collection, where, fields = []) {
+	const countRes = await countCollectionRows(collection, where)
+	if (countRes.missing || countRes.count <= 0) return { count: countRes.count, sums: {}, missing: countRes.missing }
+	const sums = {}
+	fields.forEach((field) => {
+		sums[field] = 0
+	})
+	let page = 1
+	const pageSize = 500
+	let guard = 0
+	while (guard < 200) {
+		let query = collection.where(where).skip((page - 1) * pageSize).limit(pageSize)
+		if (fields.length) {
+			const fieldMap = fields.reduce((acc, field) => {
+				acc[field] = true
+				return acc
+			}, {})
+			query = query.field(fieldMap)
+		}
+		const res = await query.get()
+		const rows = Array.isArray(res.data) ? res.data : []
+		if (!rows.length) break
+		rows.forEach((row) => {
+			fields.forEach((field) => {
+				sums[field] = fix2(toNumber(sums[field], 0) + toNumber(row && row[field], 0))
+			})
+		})
+		if (rows.length < pageSize) break
+		page += 1
+		guard += 1
+	}
+	return { count: countRes.count, sums, missing: false }
+}
+
+async function migrateTushanCakeSettlementSitesV1(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'migrateTushanCakeSettlementSitesV1', requestId, ['superadmin'])
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+
+	const execute = Boolean(data.execute)
+	const settlementName = normalizeString(data.settlement_name || data.settlementName || '土山蛋糕')
+	const deliverySiteName = normalizeString(data.delivery_site_name || data.deliverySiteName || '土山蛋糕西厂')
+	const settlementCustomer = await findCustomerByExactName(settlementName)
+	if (!settlementCustomer || settlementCustomer.error) {
+		return { code: 400, msg: `结算客户异常：${settlementCustomer?.error || '客户不存在'}` }
+	}
+	const deliveryCustomer = await findCustomerByExactName(deliverySiteName)
+	if (!deliveryCustomer || deliveryCustomer.error) {
+		return { code: 400, msg: `送达地点异常：${deliveryCustomer?.error || '客户不存在'}` }
+	}
+
+	const settlementId = normalizeId(settlementCustomer._id)
+	const deliveryId = normalizeId(deliveryCustomer._id)
+	if (!settlementId || !deliveryId || settlementId === deliveryId) {
+		return { code: 400, msg: '结算客户与送达地点必须是两个明确客户档案' }
+	}
+
+	const salesMainMissingDeliveryWhere = dbCmd.and([
+		{ customer_id: settlementId },
+		{ delivery_customer_id: dbCmd.in([null, '']) }
+	])
+	const salesDeliveryLegacyWhere = { customer_id: deliveryId }
+	const salesDeliveryMigratedWhere = dbCmd.and([
+		{ customer_id: settlementId },
+		{ delivery_customer_id: deliveryId }
+	])
+	const accountingCollections = [
+		{ key: 'receipts', collection: receipts, fields: ['amount', 'allocated_amount', 'unallocated_amount', 'rounding_amount'], touch: true },
+		{ key: 'allocations', collection: allocations, fields: ['allocate_amount'], touch: false },
+		{ key: 'receipt_adjustments', collection: receiptAdjustments, fields: [], touch: false },
+		{ key: 'flow_settlements', collection: flowSettlements, fields: ['should_receive', 'amount_received'], touch: true },
+		{ key: 'opening_debts_and_other_fees', collection: openingDebts, fields: ['amount', 'amount_received'], touch: true },
+		{ key: 'collection_followups', collection: collectionFollowups, fields: ['amount_collected'], touch: false }
+	]
+
+	const summaries = {
+		customers: {
+			settlement: { _id: settlementId, name: normalizeString(settlementCustomer.name) },
+			delivery_site: { _id: deliveryId, name: normalizeString(deliveryCustomer.name) }
+		},
+		sales: {
+			main_missing_delivery: await summarizeRows(sales, salesMainMissingDeliveryWhere, ['amount_received']),
+			delivery_legacy_to_merge: await summarizeRows(sales, salesDeliveryLegacyWhere, ['amount_received']),
+			delivery_already_migrated: await summarizeRows(sales, salesDeliveryMigratedWhere, ['amount_received'])
+		},
+		accounting: {}
+	}
+	for (const item of accountingCollections) {
+		summaries.accounting[item.key] = await summarizeRows(item.collection, { customer_id: deliveryId }, item.fields)
+	}
+	summaries.accounting.collection_tasks = await migrateCollectionTaskRows({
+		fromCustomerId: deliveryId,
+		toCustomerId: settlementId,
+		toCustomerName: normalizeString(settlementCustomer.name),
+		execute: false
+	})
+
+	const updates = {}
+	if (execute) {
+		const now = Date.now()
+		updates.main_customer_relation = await customers.doc(settlementId).update({
+			settlement_customer_id: '',
+			settlement_customer_name: '',
+			updated_at: now
+		})
+		updates.delivery_customer_relation = await customers.doc(deliveryId).update({
+			settlement_customer_id: settlementId,
+			settlement_customer_name: normalizeString(settlementCustomer.name),
+			updated_at: now
+		})
+		updates.sales_main_delivery = await updateCollectionRows(sales, salesMainMissingDeliveryWhere, {
+			delivery_customer_id: settlementId,
+			delivery_customer_name: normalizeString(settlementCustomer.name),
+			updated_at: now
+		})
+		updates.sales_delivery_merge = await updateCollectionRows(sales, salesDeliveryLegacyWhere, {
+			customer_id: settlementId,
+			customer_name: normalizeString(settlementCustomer.name),
+			delivery_customer_id: deliveryId,
+			delivery_customer_name: normalizeString(deliveryCustomer.name),
+			updated_at: now
+		})
+		for (const item of accountingCollections) {
+			const patch = {
+				customer_id: settlementId,
+				customer_name: normalizeString(settlementCustomer.name)
+			}
+			if (item.touch) patch.updated_at = now
+			updates[item.key] = await updateCollectionRows(item.collection, { customer_id: deliveryId }, patch)
+		}
+		updates.collection_tasks = await migrateCollectionTaskRows({
+			fromCustomerId: deliveryId,
+			toCustomerId: settlementId,
+			toCustomerName: normalizeString(settlementCustomer.name),
+			execute: true,
+			now
+		})
+		updates.rebuild_balances = {
+			settlement: await rebuildCustomerBalances(settlementId),
+			delivery_site: await rebuildCustomerBalances(deliveryId)
+		}
+	}
+
+	await recordLog(
+		user,
+		'tushan_cake_settlement_sites_migration_v1',
+		{
+			execute,
+			settlement_id: settlementId,
+			delivery_site_id: deliveryId,
+			summaries,
+			updates
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		msg: execute ? '土山蛋糕结算关系迁移已执行' : '土山蛋糕结算关系迁移预览完成',
+		data: {
+			execute,
+			boundary_note: '气瓶当前位置与 crm_bottle_movements 不迁移，仍保留具体送达地点。',
+			summaries,
+			updates
+		}
+	}
+}
+
 exports.main = async (event, context) => {
 	void context
 	const { action, data = {}, token } = event || {}
@@ -8283,6 +8611,7 @@ exports.main = async (event, context) => {
 	if (action === 'getCustomerStatementV1') return getCustomerStatementV1(user, data, requestId)
 	if (action === 'listCustomerStatementRowsV1') return listCustomerStatementRowsV1(user, data, requestId)
 	if (action === 'rebuildOpeningBalancesV1') return rebuildOpeningBalancesV1(user, data, requestId)
+	if (action === 'migrateTushanCakeSettlementSitesV1') return migrateTushanCakeSettlementSitesV1(user, data, requestId)
 
 	return { code: 400, msg: '未知 action' }
 }

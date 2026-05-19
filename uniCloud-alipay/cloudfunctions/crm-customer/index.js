@@ -182,8 +182,17 @@ function toBalanceNumber(value) {
 }
 
 function withBalanceFields(doc = {}) {
+	const selfId = normalizeString(doc._id)
+	const settlementCustomerId = normalizeString(doc.settlement_customer_id)
+	const isSettlementChild = Boolean(settlementCustomerId && settlementCustomerId !== selfId)
+	const settlementCustomerName = isSettlementChild ? normalizeString(doc.settlement_customer_name) : ''
 	return {
 		...doc,
+		settlement_customer_id: isSettlementChild ? settlementCustomerId : '',
+		settlement_customer_name: settlementCustomerName,
+		effective_settlement_customer_id: isSettlementChild ? settlementCustomerId : selfId,
+		effective_settlement_customer_name: isSettlementChild ? settlementCustomerName : normalizeString(doc.name),
+		is_settlement_child: isSettlementChild,
 		receivable_balance: toBalanceNumber(doc.receivable_balance),
 		prepay_balance: toBalanceNumber(doc.prepay_balance),
 		prepay_manual_balance: toBalanceNumber(doc.prepay_manual_balance),
@@ -194,6 +203,54 @@ function withBalanceFields(doc = {}) {
 		amount_received_total: toBalanceNumber(doc.amount_received_total),
 		last_receipt_at: doc.last_receipt_at == null ? null : Number(doc.last_receipt_at) || null
 	}
+}
+
+function resolveCustomerDefaultPricing(doc = {}) {
+	const priceUnit = normalizePriceUnit(doc.default_price_unit)
+	const unitPrice = toNumber(doc.default_unit_price, null)
+	if (!priceUnit || !(unitPrice > 0)) return null
+	return {
+		unit_price: unitPrice,
+		price_unit: priceUnit
+	}
+}
+
+async function getCustomerById(customerId) {
+	const id = normalizeString(customerId)
+	if (!id) return null
+	const res = await customers.doc(id).get()
+	return (res.data && res.data[0]) || null
+}
+
+async function resolveSettlementCustomerRef(rawSettlementCustomerId, currentCustomerId = '') {
+	const currentId = normalizeString(currentCustomerId)
+	const firstId = normalizeString(rawSettlementCustomerId)
+	if (!firstId || firstId === currentId) {
+		return { ok: true, id: '', name: '', customer: null }
+	}
+
+	const visited = new Set(currentId ? [currentId] : [])
+	let cursorId = firstId
+	let cursor = null
+	for (let depth = 0; depth < 10; depth += 1) {
+		if (visited.has(cursorId)) {
+			return { ok: false, code: 400, msg: '结算客户不能循环绑定' }
+		}
+		visited.add(cursorId)
+		cursor = await getCustomerById(cursorId)
+		if (!cursor) return { ok: false, code: 400, msg: '结算客户不存在' }
+		const parentId = normalizeString(cursor.settlement_customer_id)
+		if (!parentId || parentId === cursorId) {
+			return {
+				ok: true,
+				id: normalizeString(cursor._id),
+				name: normalizeString(cursor.name),
+				customer: cursor
+			}
+		}
+		cursorId = parentId
+	}
+	return { ok: false, code: 400, msg: '结算客户绑定层级过深' }
 }
 
 async function attachDepositCounts(items = []) {
@@ -207,24 +264,114 @@ async function attachDepositCounts(items = []) {
 		}))
 	}
 	const pairs = await Promise.all(
-		ids.map(async (id) => {
+		rows.map(async (item) => {
+			const id = normalizeString(item && item._id)
+			const isChild = Boolean(normalizeString(item && item.settlement_customer_id))
+			let locationDocs = [{ _id: id, name: normalizeString(item && item.name) }]
+			if (!isChild) {
+				const childRes = await customers
+					.where({ settlement_customer_id: id })
+					.field({ _id: true, name: true })
+					.orderBy('updated_at', 'desc')
+					.limit(200)
+					.get()
+				const childDocs = (childRes.data || [])
+					.map((child) => ({
+						_id: normalizeString(child && child._id),
+						name: normalizeString(child && child.name)
+					}))
+					.filter((child) => child._id && child._id !== id)
+				locationDocs = [...locationDocs, ...childDocs]
+			}
+			const locationIds = locationDocs.map((location) => location._id).filter(Boolean)
 			const res = await bottles
-				.where({ current_customer_id: id })
-				.field({ bottle_no: true })
+				.where({ current_customer_id: dbCmd.in(locationIds) })
+				.field({ bottle_no: true, current_customer_id: true, current_customer_name: true })
 				.orderBy('bottle_no', 'asc')
 				.limit(500)
 				.get()
-			const bottleNos = (res.data || [])
-				.map((item) => normalizeString(item && item.bottle_no))
-				.filter(Boolean)
-			return [id, { count: bottleNos.length, bottleNos }]
+			const locationMap = new Map(
+				locationDocs.map((location) => [
+					location._id,
+					{ customer_id: location._id, customer_name: location.name, count: 0, bottle_nos: [] }
+				])
+			)
+			const bottleNos = []
+			;(res.data || []).forEach((row) => {
+				const bottleNo = normalizeString(row && row.bottle_no)
+				const customerId = normalizeString(row && row.current_customer_id)
+				if (!bottleNo || !customerId) return
+				bottleNos.push(bottleNo)
+				if (!locationMap.has(customerId)) {
+					locationMap.set(customerId, {
+						customer_id: customerId,
+						customer_name: normalizeString(row && row.current_customer_name),
+						count: 0,
+						bottle_nos: []
+					})
+				}
+				const location = locationMap.get(customerId)
+				location.count += 1
+				location.bottle_nos.push(bottleNo)
+			})
+			const depositLocations = Array.from(locationMap.values())
+				.filter((location) => location.count > 0 || location.customer_id === id)
+				.map((location) => ({
+					...location,
+					bottle_nos: location.bottle_nos.slice(0, 50)
+				}))
+			return [id, { count: bottleNos.length, bottleNos, depositLocations }]
 		})
 	)
 	const countMap = Object.fromEntries(pairs)
+	const settlementIds = [
+		...new Set(
+			rows
+				.map((item) => normalizeString(item && item.settlement_customer_id))
+				.filter(Boolean)
+		)
+	]
+	const settlementMap = new Map()
+	for (const chunk of chunkStrings(settlementIds, 100)) {
+		const res = await customers
+			.where({ _id: dbCmd.in(chunk) })
+			.field({
+				_id: true,
+				name: true,
+				default_unit_price: true,
+				default_price_unit: true
+			})
+			.get()
+		;(res.data || []).forEach((row) => {
+			const id = normalizeString(row && row._id)
+			if (id) settlementMap.set(id, row)
+		})
+	}
 	return rows.map((item) => ({
-		...withBalanceFields(item),
-		deposit_count: Number(countMap[normalizeString(item && item._id)]?.count || 0),
-		deposit_bottle_nos: countMap[normalizeString(item && item._id)]?.bottleNos || []
+		...(() => {
+			const base = withBalanceFields(item)
+			const settlementCustomer = settlementMap.get(normalizeString(base.settlement_customer_id)) || null
+			const deliveryPricing = resolveCustomerDefaultPricing(item)
+			const settlementPricing = settlementCustomer ? resolveCustomerDefaultPricing(settlementCustomer) : null
+			const effectivePricing = deliveryPricing || settlementPricing || {
+				unit_price: null,
+				price_unit: normalizePriceUnit(item && item.default_price_unit) || 'kg'
+			}
+			return {
+				...base,
+				effective_settlement_customer_name: settlementCustomer
+					? normalizeString(settlementCustomer.name)
+					: base.effective_settlement_customer_name,
+				effective_default_unit_price: effectivePricing.unit_price,
+				effective_default_price_unit: effectivePricing.price_unit,
+				effective_price_source: deliveryPricing ? 'delivery' : (settlementPricing ? 'settlement' : ''),
+				settlement_default_unit_price: settlementPricing ? settlementPricing.unit_price : null,
+				settlement_default_price_unit: settlementPricing ? settlementPricing.price_unit : '',
+				deposit_count: Number(countMap[normalizeString(item && item._id)]?.count || 0),
+				deposit_bottle_nos: countMap[normalizeString(item && item._id)]?.bottleNos || [],
+				deposit_locations: countMap[normalizeString(item && item._id)]?.depositLocations || []
+			}
+		})()
 	}))
 }
 
@@ -271,6 +418,8 @@ async function resolveUniqueCustomerByQrCode(rawQrCode) {
 			is_active: true,
 			default_price_unit: true,
 			default_unit_price: true,
+			settlement_customer_id: true,
+			settlement_customer_name: true,
 			receivable_balance: true,
 			prepay_balance: true,
 			net_balance: true
@@ -302,6 +451,16 @@ async function resolveUniqueCustomerByQrCode(rawQrCode) {
 						is_active: customer.is_active !== false,
 						default_price_unit: customer.default_price_unit || 'kg',
 						default_unit_price: customer.default_unit_price == null ? null : Number(customer.default_unit_price),
+						effective_default_price_unit: customer.effective_default_price_unit || customer.default_price_unit || 'kg',
+						effective_default_unit_price: customer.effective_default_unit_price == null ? null : Number(customer.effective_default_unit_price),
+						effective_price_source: customer.effective_price_source || '',
+						settlement_default_price_unit: customer.settlement_default_price_unit || '',
+						settlement_default_unit_price: customer.settlement_default_unit_price == null ? null : Number(customer.settlement_default_unit_price),
+						settlement_customer_id: customer.settlement_customer_id || '',
+						settlement_customer_name: customer.settlement_customer_name || '',
+						effective_settlement_customer_id: customer.effective_settlement_customer_id || customer._id,
+						effective_settlement_customer_name: customer.effective_settlement_customer_name || customer.name,
+						is_settlement_child: Boolean(customer.is_settlement_child),
 						receivable_balance: toBalanceNumber(customer.receivable_balance),
 						prepay_balance: toBalanceNumber(customer.prepay_balance),
 						net_balance: toBalanceNumber(customer.net_balance),
@@ -325,6 +484,7 @@ async function listV1(user, data) {
 	const cashierDateEnd = normalizeBizDate(
 		data.cashier_unallocated_date_end ?? data.cashierUnallocatedDateEnd ?? data.biz_date_end ?? data.bizDateEnd
 	)
+	const settlementOnly = normalizeBoolean(data.settlement_only ?? data.settlementOnly)
 	const page = Math.max(Number(data.page || 1) || 1, 1)
 	const pageSize = Math.min(
 		Math.max(Number(data.pageSize ?? data.limit ?? 20) || 20, 1),
@@ -351,10 +511,38 @@ async function listV1(user, data) {
 	}
 
 	let keywordWhere = null
+	const matchedDeliverySitesBySettlement = new Map()
 	if (keyword) {
 		const escaped = escapeRegExp(keyword)
 		const rx = db.RegExp({ regexp: escaped, options: 'i' })
 		keywordWhere = dbCmd.or([{ name: rx }, { short_name: rx }, { contact: rx }, { phone: rx }, { qr_code: rx }])
+		if (settlementOnly) {
+			const matchedRes = await customers
+				.where(keywordWhere)
+				.field({ _id: true, name: true, settlement_customer_id: true })
+				.limit(500)
+				.get()
+			const parentIds = [
+				...new Set(
+					(matchedRes.data || [])
+						.map((item) => normalizeString(item && item.settlement_customer_id))
+						.filter(Boolean)
+				)
+			]
+			;(matchedRes.data || []).forEach((item) => {
+				const parentId = normalizeString(item && item.settlement_customer_id)
+				const childId = normalizeString(item && item._id)
+				const childName = normalizeString(item && item.name)
+				if (!parentId || !childId || !childName) return
+				const list = matchedDeliverySitesBySettlement.get(parentId) || []
+				if (!list.some((row) => row._id === childId)) {
+					list.push({ _id: childId, name: childName })
+					matchedDeliverySitesBySettlement.set(parentId, list)
+				}
+			})
+			const parentWhere = buildIdFilterOr('_id', parentIds)
+			if (parentWhere) keywordWhere = dbCmd.or([keywordWhere, parentWhere])
+		}
 	}
 
 	let balanceWhere = null
@@ -396,12 +584,13 @@ async function listV1(user, data) {
 		if (balanceWhere) parts.push(balanceWhere)
 		if (updatedWhere) parts.push(updatedWhere)
 		if (cashierUnallocatedWhere) parts.push(cashierUnallocatedWhere)
+		if (settlementOnly) parts.push({ settlement_customer_id: dbCmd.in([null, '']) })
 		if (!parts.length) return {}
 		if (parts.length === 1) return parts[0]
 		return dbCmd.and(parts)
 	}
 	const mergeWhere = (base, extra, hasBaseFilter) => (hasBaseFilter ? dbCmd.and([base, extra]) : extra)
-	const hasListFilter = Boolean(activeWhere || keywordWhere || balanceWhere || updatedWhere || cashierUnallocatedWhere)
+	const hasListFilter = Boolean(activeWhere || keywordWhere || balanceWhere || updatedWhere || cashierUnallocatedWhere || settlementOnly)
 
 	const where = buildWhere()
 
@@ -445,9 +634,15 @@ async function listV1(user, data) {
 		.where(mergeWhere(summaryWhere, { default_unit_price: dbCmd.gt(0) }, hasSummaryFilter))
 		.count()
 
+	const rows = await attachDepositCounts(res.data || [])
+	const dataRows = rows.map((item) => ({
+		...item,
+		matched_delivery_sites: matchedDeliverySitesBySettlement.get(normalizeString(item && item._id)) || []
+	}))
+
 	return {
 		code: 0,
-		data: await attachDepositCounts(res.data || []),
+		data: dataRows,
 		total,
 		paging: {
 			page,
@@ -486,6 +681,12 @@ async function createV1(user, data, requestId) {
 	const defaultPriceUnit = normalizePriceUnit(data.default_price_unit)
 	if (!defaultPriceUnit) return { code: 400, msg: '计价单位仅支持 kg/bottle/m3' }
 
+	const settlementRef = await resolveSettlementCustomerRef(
+		data.settlement_customer_id ?? data.settlementCustomerId,
+		''
+	)
+	if (!settlementRef.ok) return { code: settlementRef.code || 400, msg: settlementRef.msg }
+
 	const now = Date.now()
 	const doc = {
 		uniq_key: uniqKey,
@@ -496,6 +697,8 @@ async function createV1(user, data, requestId) {
 		qr_code: normalizeQrCode(data.qr_code ?? data.qrCode),
 		address: normalizeString(data.address),
 		remark: normalizeString(data.remark),
+		settlement_customer_id: settlementRef.id || '',
+		settlement_customer_name: settlementRef.name || '',
 		is_active: true,
 		default_unit_price: toNumber(data.default_unit_price, null),
 		default_price_unit: defaultPriceUnit,
@@ -529,7 +732,15 @@ async function updateV1(user, data, requestId) {
 
 	const current = await customers
 		.doc(id)
-		.field({ name: true, phone: true, short_name: true, contact: true, qr_code: true })
+		.field({
+			name: true,
+			phone: true,
+			short_name: true,
+			contact: true,
+			qr_code: true,
+			settlement_customer_id: true,
+			settlement_customer_name: true
+		})
 		.get()
 	const existing = (current.data && current.data[0]) || null
 	if (!existing) return { code: 404, msg: '客户不存在' }
@@ -548,6 +759,15 @@ async function updateV1(user, data, requestId) {
 		const unit = normalizePriceUnit(data.default_price_unit)
 		if (!unit) return { code: 400, msg: '计价单位仅支持 kg/bottle/m3' }
 		patch.default_price_unit = unit
+	}
+	if (data.settlement_customer_id !== undefined || data.settlementCustomerId !== undefined) {
+		const settlementRef = await resolveSettlementCustomerRef(
+			data.settlement_customer_id ?? data.settlementCustomerId,
+			id
+		)
+		if (!settlementRef.ok) return { code: settlementRef.code || 400, msg: settlementRef.msg }
+		patch.settlement_customer_id = settlementRef.id || ''
+		patch.settlement_customer_name = settlementRef.name || ''
 	}
 
 	if (patch.short_name == null) patch.short_name = normalizeString(existing.short_name)
@@ -571,6 +791,11 @@ async function updateV1(user, data, requestId) {
 
 	try {
 		await customers.doc(id).update(patch)
+		if (patch.name != null) {
+			await customers
+				.where({ settlement_customer_id: id })
+				.update({ settlement_customer_name: patch.name, updated_at: Date.now() })
+		}
 		await recordLog(user, 'customer_update_v1', { id }, requestId)
 		return { code: 0, msg: '更新成功' }
 	} catch (err) {

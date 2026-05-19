@@ -25,8 +25,8 @@
 				>
 				<AppInput
 					:model-value="modelValue.customerName"
-					label="客户名称"
-					placeholder="输入关键字搜索"
+					label="送达地点"
+					placeholder="输入送达地点搜索"
 					prefix-icon="user"
 					confirm-type="search"
 					:size="size"
@@ -47,6 +47,7 @@
 								<view class="suggest-info">
 									<text class="suggest-name">{{ item.name }}</text>
 									<text class="suggest-sub" v-if="item.contact">{{ item.contact }}</text>
+									<text class="suggest-sub suggest-sub--settlement" v-if="item.is_settlement_child">结算客户：{{ item.effective_settlement_customer_name }}</text>
 								</view>
 								<AppIcon name="plus" size="24rpx" color="#94a3b8" />
 							</view>
@@ -64,6 +65,7 @@
 								<view class="suggest-info">
 									<text class="suggest-name">{{ item.name }}</text>
 									<text class="suggest-sub" v-if="item.contact">{{ item.contact }}</text>
+									<text class="suggest-sub suggest-sub--settlement" v-if="item.is_settlement_child">结算客户：{{ item.effective_settlement_customer_name }}</text>
 								</view>
 								<AppIcon name="plus" size="24rpx" color="#94a3b8" />
 							</view>
@@ -296,6 +298,7 @@
 						</view>
 					</view>
 				</view>
+				<text v-if="priceDifferenceHint" class="field-hint field-hint--price">{{ priceDifferenceHint }}</text>
 			</view>
 
 			<view class="form-item span-2">
@@ -312,7 +315,7 @@
 </template>
 
 <script setup>
-import { getCurrentInstance, nextTick, reactive, ref } from 'vue'
+import { computed, getCurrentInstance, nextTick, reactive, ref } from 'vue'
 import AppCard from '@/components/base/AppCard.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppIcon from '@/components/base/AppIcon.vue'
@@ -383,7 +386,14 @@ function onDateChange(e) {
 function onCustomerInput(value) {
 	emitPatch({
 		customerName: value,
-		customerId: ''
+		customerId: '',
+		settlementCustomerId: '',
+		settlementCustomerName: '',
+		effectiveDefaultUnitPrice: null,
+		effectiveDefaultPriceUnit: '',
+		effectivePriceSource: '',
+		settlementDefaultUnitPrice: null,
+		settlementDefaultPriceUnit: ''
 	})
 	if (fetchTimer.value) clearTimeout(fetchTimer.value)
 	if (!String(value || '').trim()) {
@@ -420,10 +430,35 @@ function normalizeCustomer(item) {
 		_id: item?._id || '',
 		name: item?.name || '',
 		contact: item?.contact || '',
-		default_unit_price: item?.default_unit_price,
-		default_price_unit: item?.default_price_unit || ''
+		default_unit_price: item?.effective_default_unit_price ?? item?.default_unit_price,
+		default_price_unit: item?.effective_default_price_unit || item?.default_price_unit || '',
+		effective_price_source: item?.effective_price_source || '',
+		settlement_default_unit_price: item?.settlement_default_unit_price,
+		settlement_default_price_unit: item?.settlement_default_price_unit || '',
+		settlement_customer_id: item?.settlement_customer_id || '',
+		settlement_customer_name: item?.settlement_customer_name || '',
+		effective_settlement_customer_id: item?.effective_settlement_customer_id || item?.settlement_customer_id || item?._id || '',
+		effective_settlement_customer_name: item?.effective_settlement_customer_name || item?.settlement_customer_name || item?.name || '',
+		is_settlement_child: Boolean(item?.is_settlement_child || item?.settlement_customer_id)
 	}
 }
+
+function formatPrice(value, unit) {
+	const num = Number(value)
+	if (!Number.isFinite(num) || !(num > 0)) return ''
+	return `¥${num.toFixed(2).replace(/\.?0+$/, '')}/${unit || 'kg'}`
+}
+
+const priceDifferenceHint = computed(() => {
+	if (!props.modelValue?.settlementCustomerId) return ''
+	const deliveryPrice = Number(props.modelValue?.effectiveDefaultUnitPrice ?? props.modelValue?.default_unit_price ?? props.modelValue?.unitPrice)
+	const deliveryUnit = String(props.modelValue?.effectiveDefaultPriceUnit || props.modelValue?.default_price_unit || props.modelValue?.priceUnit || 'kg').trim()
+	const settlementPrice = Number(props.modelValue?.settlementDefaultUnitPrice)
+	const settlementUnit = String(props.modelValue?.settlementDefaultPriceUnit || '').trim()
+	if (!(deliveryPrice > 0) || !(settlementPrice > 0) || !settlementUnit) return ''
+	if (deliveryUnit === settlementUnit && Math.abs(deliveryPrice - settlementPrice) < 0.0001) return ''
+	return `默认使用送达地点价 ${formatPrice(deliveryPrice, deliveryUnit)}，结算客户价为 ${formatPrice(settlementPrice, settlementUnit)}`
+})
 
 function resolveSettlementModeByCustomer(item) {
 	return String(item?.default_price_unit || '').trim() === 'm3' ? 'customer_flow' : 'sale'
@@ -434,6 +469,13 @@ function selectCustomer(item) {
 	emitPatch({
 		customerId: normalized._id,
 		customerName: normalized.name,
+		settlementCustomerId: normalized.effective_settlement_customer_id || normalized._id,
+		settlementCustomerName: normalized.effective_settlement_customer_name || normalized.name,
+		effectiveDefaultUnitPrice: normalized.default_unit_price,
+		effectiveDefaultPriceUnit: normalized.default_price_unit,
+		effectivePriceSource: normalized.effective_price_source,
+		settlementDefaultUnitPrice: normalized.settlement_default_unit_price,
+		settlementDefaultPriceUnit: normalized.settlement_default_price_unit,
 		unitPrice: normalized.default_unit_price != null ? String(normalized.default_unit_price) : props.modelValue?.unitPrice || '',
 		priceUnit: normalized.default_price_unit || props.modelValue?.priceUnit || 'kg',
 		settlementMode: resolveSettlementModeByCustomer(normalized)
@@ -736,6 +778,18 @@ function updatePopoverPlacement(fieldKey, count) {
 	gap: 16rpx;
 }
 
+.field-hint {
+	grid-column: 1 / -1;
+	font-size: 22rpx;
+	line-height: 1.5;
+	color: #64748b;
+}
+
+.field-hint--price {
+	color: #0f766e;
+	font-weight: 700;
+}
+
 .customer-field {
 	position: relative;
 }
@@ -811,6 +865,11 @@ function updatePopoverPlacement(fieldKey, count) {
 .suggest-sub {
 	font-size: 20rpx;
 	color: var(--crm-text-muted);
+}
+
+.suggest-sub--settlement {
+	color: #0f766e;
+	font-weight: 700;
 }
 
 .suggest-empty {

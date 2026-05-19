@@ -23,13 +23,13 @@
 		</view>
 
 		<template v-if="currentStep === 1">
-			<AppSection title="1. 选择客户">
+			<AppSection title="1. 选择送达地点">
 				<view class="customer-search-row">
 					<view :class="['customer-search-field', isHeaderBarcodeActive('customer') ? 'capture-field--active' : '']" @click="onScanCustomer()">
 						<AppInput
 							v-model="customerKeyword"
-							label="客户搜索"
-							placeholder="输入客户名称 / 联系人 / 手机"
+							label="送达地点搜索"
+							placeholder="输入送达地点 / 联系人 / 手机"
 							@input="onCustomerKeywordInput"
 							@focus="onCustomerFocus"
 							@blur="onCustomerBlur"
@@ -44,7 +44,7 @@
 						/>
 					</view>
 					<view class="customer-search-actions">
-						<AppButton size="sm" kind="neutral" @click.stop="onScanCustomer">扫码客户码</AppButton>
+						<AppButton size="sm" kind="neutral" @click.stop="onScanCustomer">扫码地点码</AppButton>
 						<AppButton v-if="form.customerId || customerKeyword" size="sm" kind="neutral" @click.stop="onClearCustomer">清空</AppButton>
 					</view>
 				</view>
@@ -55,6 +55,7 @@
 						<AppTag kind="soft">kg</AppTag>
 					</view>
 					<view class="selected-customer__meta">
+						<text v-if="selectedCustomer.is_settlement_child" class="meta-text meta-text--settlement">结算 {{ selectedCustomer.effective_settlement_customer_name || '-' }}</text>
 						<text class="meta-text">联系人 {{ selectedCustomer.contact || '-' }}</text>
 						<text class="meta-text">电话 {{ selectedCustomer.phone || '-' }}</text>
 						<text class="meta-text">应收 {{ formatMoney(selectedCustomer.receivable_balance) }}</text>
@@ -63,6 +64,7 @@
 						<text class="meta-text">存瓶 {{ Number(selectedCustomer.deposit_count || 0) }}</text>
 					</view>
 					<text class="selected-customer__price">默认单价 {{ form.unitPrice || '-' }} / kg</text>
+					<text v-if="customerPriceDifferenceHint" class="selected-customer__price selected-customer__price--hint">{{ customerPriceDifferenceHint }}</text>
 					<text v-if="customerPricingWarning" class="warning-text">{{ customerPricingWarning }}</text>
 				</view>
 			</AppSection>
@@ -139,10 +141,10 @@
 		</template>
 
 		<template v-else-if="currentStep === 2">
-			<AppSection title="当前客户">
+			<AppSection title="当前送达地点">
 				<view class="summary-grid">
 					<view class="summary-cell">
-						<text class="summary-label">客户</text>
+						<text class="summary-label">送达地点</text>
 						<text class="summary-value">{{ selectedCustomer?.name || form.customerName || '-' }}</text>
 					</view>
 					<view class="summary-cell">
@@ -508,7 +510,10 @@ const {
 	mapItem: (item) => ({
 		key: item?._id || item?.name || '',
 		title: item?.name || '-',
-		subtitle: `${item?.contact || '-'} · ${item?.phone || '-'} · 存瓶 ${Number(item?.deposit_count || 0)}`,
+		subtitle: [
+			item?.is_settlement_child ? `结算 ${item?.effective_settlement_customer_name || '-'}` : '',
+			`${item?.contact || '-'} · ${item?.phone || '-'} · 存瓶 ${Number(item?.deposit_count || 0)}`
+		].filter(Boolean).join(' · '),
 		raw: item
 	})
 })
@@ -518,17 +523,28 @@ const customerPricingWarning = computed(() => {
 	const pricing = resolvePdaCustomerPricing(selectedCustomer.value)
 	return pricing.ok ? '' : pricing.msg
 })
+const customerPriceDifferenceHint = computed(() => {
+	const customer = selectedCustomer.value
+	if (!customer || !customer.is_settlement_child) return ''
+	const deliveryPrice = Number(customer.default_unit_price)
+	const deliveryUnit = normalizeText(customer.default_price_unit || 'kg')
+	const settlementPrice = Number(customer.settlement_default_unit_price)
+	const settlementUnit = normalizeText(customer.settlement_default_price_unit)
+	if (!(deliveryPrice > 0) || !(settlementPrice > 0) || !settlementUnit) return ''
+	if (deliveryUnit === settlementUnit && Math.abs(deliveryPrice - settlementPrice) < 0.0001) return ''
+	return `默认使用送达地点价 ¥${formatMoney(deliveryPrice)}/${deliveryUnit}，结算客户价为 ¥${formatMoney(settlementPrice)}/${settlementUnit}`
+})
 
 const canGoToBottleStep = computed(() => Boolean(form.value.customerId) && !customerPricingWarning.value)
 
 const barcodeTargetLabel = computed(() => {
 	if (currentStep.value === 1) {
 		return {
-			customer: '客户',
+			customer: '送达地点',
 			delivery1: '配送员 1',
 			delivery2: '配送员 2',
 			vehicle: '车牌号'
-		}[activeHeaderTarget.value] || '客户'
+		}[activeHeaderTarget.value] || '送达地点'
 	}
 	if (currentStep.value === 2) {
 		const typeLabel = activeBottleTarget.value.type === 'back' ? '回瓶' : '出瓶'
@@ -1768,6 +1784,16 @@ onBeforeUnmount(() => {
 	font-size: 22rpx;
 	line-height: 1.6;
 	color: var(--crm-text-muted);
+}
+
+.meta-text--settlement {
+	color: #047857;
+	font-weight: 700;
+}
+
+.selected-customer__price--hint {
+	color: #0f766e;
+	font-weight: 700;
 }
 
 .form-grid {

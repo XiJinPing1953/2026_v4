@@ -38,6 +38,7 @@
 										<view class="suggest-info">
 											<text class="suggest-name">{{ item.name || item.label }}</text>
 											<text v-if="item.phone" class="suggest-sub">{{ item.phone }}</text>
+											<text v-if="item.settlementHint" class="suggest-sub suggest-sub--settlement">{{ item.settlementHint }}</text>
 										</view>
 										<AppIcon name="plus" size="24rpx" color="#94a3b8" />
 									</view>
@@ -55,6 +56,7 @@
 										<view class="suggest-info">
 											<text class="suggest-name">{{ item.name || item.label }}</text>
 											<text v-if="item.phone" class="suggest-sub">{{ item.phone }}</text>
+											<text v-if="item.settlementHint" class="suggest-sub suggest-sub--settlement">{{ item.settlementHint }}</text>
 										</view>
 										<AppIcon name="plus" size="24rpx" color="#94a3b8" />
 									</view>
@@ -89,9 +91,12 @@
 						/>
 					</view>
 					<view class="picker-row">
-						<text class="picker-row__text">
-							{{ selectedIntakeCustomerId ? `已选客户：${selectedIntakeCustomerLabel}` : '请从下拉候选中点选客户' }}
-						</text>
+						<view class="picker-row__text-group">
+							<text class="picker-row__text">
+								{{ selectedIntakeCustomerId ? `已选结算客户：${selectedIntakeCustomerLabel}` : '请从下拉候选中点选客户' }}
+							</text>
+							<text v-if="selectedIntakeCustomerHint" class="picker-row__hint">{{ selectedIntakeCustomerHint }}</text>
+						</view>
 						<AppButton size="sm" kind="ghost" :disabled="!selectedIntakeCustomerId" @click="clearIntakeCustomer">清空</AppButton>
 					</view>
 
@@ -190,6 +195,7 @@
 										<view class="suggest-info">
 											<text class="suggest-name">{{ item.name || item.label }}</text>
 											<text v-if="item.phone" class="suggest-sub">{{ item.phone }}</text>
+											<text v-if="item.settlementHint" class="suggest-sub suggest-sub--settlement">{{ item.settlementHint }}</text>
 										</view>
 										<AppIcon name="plus" size="24rpx" color="#94a3b8" />
 									</view>
@@ -207,6 +213,7 @@
 										<view class="suggest-info">
 											<text class="suggest-name">{{ item.name || item.label }}</text>
 											<text v-if="item.phone" class="suggest-sub">{{ item.phone }}</text>
+											<text v-if="item.settlementHint" class="suggest-sub suggest-sub--settlement">{{ item.settlementHint }}</text>
 										</view>
 										<AppIcon name="plus" size="24rpx" color="#94a3b8" />
 									</view>
@@ -226,9 +233,12 @@
 						</picker>
 					</view>
 					<view class="picker-row">
-						<text class="picker-row__text">
-							{{ selectedFilterCustomerId ? `当前筛选客户：${selectedFilterCustomerLabel}` : '当前筛选客户：全部客户' }}；{{ listFilter.dateStart || listFilter.dateEnd ? `日期 ${listFilter.dateStart || '不限'} ~ ${listFilter.dateEnd || '不限'}` : '日期不限' }}；{{ includeVoided ? '包含已作废' : '仅已入账' }}
-						</text>
+						<view class="picker-row__text-group">
+							<text class="picker-row__text">
+								{{ selectedFilterCustomerId ? `当前筛选结算客户：${selectedFilterCustomerLabel}` : '当前筛选客户：全部客户' }}；{{ listFilter.dateStart || listFilter.dateEnd ? `日期 ${listFilter.dateStart || '不限'} ~ ${listFilter.dateEnd || '不限'}` : '日期不限' }}；{{ includeVoided ? '包含已作废' : '仅已入账' }}
+							</text>
+							<text v-if="selectedFilterCustomerHint" class="picker-row__hint">{{ selectedFilterCustomerHint }}</text>
+						</view>
 						<view class="picker-row__actions">
 							<AppButton
 								size="sm"
@@ -420,6 +430,7 @@ const showIntakeSuggestions = ref(false)
 const intakeCustomerTimer = ref(null)
 const selectedIntakeCustomerId = ref('')
 const selectedIntakeCustomerName = ref('')
+const selectedIntakeMatchedDeliveryName = ref('')
 const filterCustomerKeyword = ref('')
 const filterCustomerOptions = ref([])
 const filterCustomerLoading = ref(false)
@@ -427,6 +438,7 @@ const showFilterSuggestions = ref(false)
 const filterCustomerTimer = ref(null)
 const selectedFilterCustomerId = ref('')
 const selectedFilterCustomerName = ref('')
+const selectedFilterMatchedDeliveryName = ref('')
 const rows = ref([])
 const rowsLoading = ref(false)
 const exporting = ref(false)
@@ -474,12 +486,24 @@ const selectedIntakeCustomerLabel = computed(() => {
 	if (found) return found.label || found.name || ''
 	return normalizeString(selectedIntakeCustomerName.value)
 })
+const selectedIntakeCustomerHint = computed(() => {
+	const deliveryName = normalizeString(selectedIntakeMatchedDeliveryName.value)
+	if (!deliveryName) return ''
+	const settlementName = normalizeString(selectedIntakeCustomerLabel.value)
+	return `匹配送达地点：${deliveryName}；收款归属：${settlementName || '结算客户'}`
+})
 const selectedFilterCustomerLabel = computed(() => {
 	const selectedId = normalizeString(selectedFilterCustomerId.value)
 	if (!selectedId) return ''
 	const found = filterCustomerOptions.value.find((item) => normalizeString(item?.value) === selectedId)
 	if (found) return found.label || found.name || ''
 	return normalizeString(selectedFilterCustomerName.value)
+})
+const selectedFilterCustomerHint = computed(() => {
+	const deliveryName = normalizeString(selectedFilterMatchedDeliveryName.value)
+	if (!deliveryName) return ''
+	const settlementName = normalizeString(selectedFilterCustomerLabel.value)
+	return `匹配送达地点：${deliveryName}；收款归属：${settlementName || '结算客户'}`
 })
 const intakePaymentMethodIndex = computed(() => {
 	const normalized = normalizeReceiptPaymentMethod(form.paymentMethod)
@@ -674,16 +698,51 @@ function visibleTargets(row) {
 	return Array.isArray(row?.allocation_targets_preview) ? row.allocation_targets_preview : []
 }
 
-function mapCustomerOptions(rows = []) {
+function customerMatchesKeyword(row = {}, keyword = '') {
+	const key = normalizeString(keyword).toLowerCase()
+	if (!key) return false
+	return [
+		row?.name,
+		row?.label,
+		row?.phone
+	]
+		.map((value) => normalizeString(value).toLowerCase())
+		.some((value) => value && value.includes(key))
+}
+
+function resolveMatchedDeliverySite(item = {}, keyword = '') {
+	const sites = Array.isArray(item?.matched_delivery_sites) ? item.matched_delivery_sites : []
+	if (!sites.length) return null
+	const key = normalizeString(keyword).toLowerCase()
+	if (customerMatchesKeyword(item, key)) return null
+	if (!key) return sites[0] || null
+	return sites.find((site) => {
+		const siteName = normalizeString(site?.name).toLowerCase()
+		return siteName && siteName.includes(key)
+	}) || sites[0] || null
+}
+
+function buildSettlementHint(deliveryName = '', settlementName = '') {
+	const delivery = normalizeString(deliveryName)
+	const settlement = normalizeString(settlementName)
+	if (!delivery || !settlement) return ''
+	return `匹配送达地点：${delivery}；收款归属：${settlement}`
+}
+
+function mapCustomerOptions(rows = [], keyword = '') {
 	return (Array.isArray(rows) ? rows : []).map((item) => {
 		const id = normalizeString(item?._id)
 		const name = normalizeString(item?.name)
 		const phone = normalizeString(item?.phone)
+		const matchedDeliverySite = resolveMatchedDeliverySite(item, keyword)
+		const matchedDeliveryName = normalizeString(matchedDeliverySite?.name)
 		return {
 			value: id,
 			name,
 			phone,
-			label: phone ? `${name}（${phone}）` : name
+			label: phone ? `${name}（${phone}）` : name,
+			matchedDeliveryName,
+			settlementHint: buildSettlementHint(matchedDeliveryName, name)
 		}
 	}).filter((item) => item.value && item.name)
 }
@@ -694,12 +753,13 @@ async function searchCustomersByKeyword(keyword = '') {
 	const res = await listCustomersV1({
 		keyword: key,
 		page: 1,
-		pageSize: CUSTOMER_SUGGEST_LIMIT
+		pageSize: CUSTOMER_SUGGEST_LIMIT,
+		settlementOnly: true
 	})
 	if (res?.code !== 0) {
 		throw new Error(res?.msg || '客户加载失败')
 	}
-	return mapCustomerOptions(res.data)
+	return mapCustomerOptions(res.data, key)
 }
 
 async function searchIntakeCustomers(keyword = intakeCustomerKeyword.value) {
@@ -773,6 +833,7 @@ function onIntakeCustomerInput(value) {
 	intakeCustomerKeyword.value = normalizeString(value)
 	selectedIntakeCustomerId.value = ''
 	selectedIntakeCustomerName.value = ''
+	selectedIntakeMatchedDeliveryName.value = ''
 	if (!intakeCustomerKeyword.value) {
 		intakeCustomerOptions.value = []
 		showIntakeSuggestions.value = false
@@ -807,6 +868,7 @@ function onFilterCustomerInput(value) {
 	filterCustomerKeyword.value = normalizeString(value)
 	selectedFilterCustomerId.value = ''
 	selectedFilterCustomerName.value = ''
+	selectedFilterMatchedDeliveryName.value = ''
 	if (!filterCustomerKeyword.value) {
 		filterCustomerOptions.value = []
 		showFilterSuggestions.value = false
@@ -844,6 +906,7 @@ function onPickIntakeCustomer(item) {
 	if (!customerId) return
 	selectedIntakeCustomerId.value = customerId
 	selectedIntakeCustomerName.value = normalizeString(item?.name || item?.label)
+	selectedIntakeMatchedDeliveryName.value = normalizeString(item?.matchedDeliveryName)
 	intakeCustomerKeyword.value = normalizeString(item?.name || item?.label)
 	showIntakeSuggestions.value = false
 }
@@ -851,6 +914,7 @@ function onPickIntakeCustomer(item) {
 function clearIntakeCustomer() {
 	selectedIntakeCustomerId.value = ''
 	selectedIntakeCustomerName.value = ''
+	selectedIntakeMatchedDeliveryName.value = ''
 	intakeCustomerKeyword.value = ''
 	intakeCustomerOptions.value = []
 	showIntakeSuggestions.value = false
@@ -861,6 +925,7 @@ async function onPickFilterCustomer(item) {
 	if (!customerId) return
 	selectedFilterCustomerId.value = customerId
 	selectedFilterCustomerName.value = normalizeString(item?.name || item?.label)
+	selectedFilterMatchedDeliveryName.value = normalizeString(item?.matchedDeliveryName)
 	filterCustomerKeyword.value = normalizeString(item?.name || item?.label)
 	showFilterSuggestions.value = false
 	pager.page = 1
@@ -872,6 +937,7 @@ async function applyIntakeCustomerToFilter() {
 	if (!customerId) return
 	selectedFilterCustomerId.value = customerId
 	selectedFilterCustomerName.value = normalizeString(selectedIntakeCustomerName.value || selectedIntakeCustomerLabel.value)
+	selectedFilterMatchedDeliveryName.value = normalizeString(selectedIntakeMatchedDeliveryName.value)
 	filterCustomerKeyword.value = normalizeString(selectedIntakeCustomerName.value || selectedIntakeCustomerLabel.value)
 	showFilterSuggestions.value = false
 	pager.page = 1
@@ -881,6 +947,7 @@ async function applyIntakeCustomerToFilter() {
 async function clearFilterCustomer() {
 	selectedFilterCustomerId.value = ''
 	selectedFilterCustomerName.value = ''
+	selectedFilterMatchedDeliveryName.value = ''
 	filterCustomerKeyword.value = ''
 	filterCustomerOptions.value = []
 	showFilterSuggestions.value = false
@@ -1294,6 +1361,7 @@ async function onEdit(row) {
 	if (customerId && selectedIntakeCustomerId.value !== customerId) {
 		selectedIntakeCustomerId.value = customerId
 		selectedIntakeCustomerName.value = normalizeString(row?.customer_name)
+		selectedIntakeMatchedDeliveryName.value = ''
 		intakeCustomerKeyword.value = normalizeString(row?.customer_name)
 	}
 	editingReceiptId.value = normalizeString(row?._id)
@@ -1669,6 +1737,11 @@ onShow(() => {
 	color: var(--crm-text-muted);
 }
 
+.suggest-sub--settlement {
+	color: #0f766e;
+	font-weight: 600;
+}
+
 .suggest-empty {
 	padding: 32rpx;
 	text-align: center;
@@ -1687,6 +1760,20 @@ onShow(() => {
 .picker-row__text {
 	font-size: 22rpx;
 	color: var(--crm-text-muted);
+}
+
+.picker-row__text-group {
+	display: flex;
+	flex-direction: column;
+	gap: 4rpx;
+	flex: 1;
+	min-width: 0;
+}
+
+.picker-row__hint {
+	font-size: 22rpx;
+	font-weight: 600;
+	color: #0f766e;
 }
 
 .picker-row__actions {

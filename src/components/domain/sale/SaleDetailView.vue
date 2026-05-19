@@ -1,5 +1,5 @@
 <template>
-	<AppPage title="销售单详情" :subtitle="detail.customer_name || '销售单详情'" icon="document">
+	<AppPage title="销售单详情" :subtitle="deliveryCustomerName || '销售单详情'" icon="document">
 		<template #headerActions>
 			<AppButton size="sm" kind="neutral" @click="onBack">返回</AppButton>
 			<AppButton v-if="canDeleteSale" size="sm" kind="outline" :loading="removing" @click="onRemove">删除单据</AppButton>
@@ -22,7 +22,11 @@
 			<AppSection title="基础信息">
 				<view class="info-grid info-grid--base">
 					<view class="info-item info-item--inline">
-						<text class="info-label">客户名称</text>
+						<text class="info-label">送达地点</text>
+						<text class="info-value">{{ deliveryCustomerName || '-' }}</text>
+					</view>
+					<view class="info-item info-item--inline">
+						<text class="info-label">结算客户</text>
 						<text class="info-value">{{ detail.customer_name || '-' }}</text>
 					</view>
 					<view class="info-item info-item--inline">
@@ -364,6 +368,9 @@ const deliveryVehicleText = computed(() =>
 	normalizeString(detail.value?.car_no) || normalizeString(detail.value?.truck_no) || '-'
 )
 const deliveryManText = computed(() => normalizeString(detail.value?.delivery_man) || '-')
+const deliveryCustomerName = computed(() =>
+	normalizeString(detail.value?.delivery_customer_name) || normalizeString(detail.value?.customer_name)
+)
 const priceUnitAndPriceText = computed(() => {
 	const unit = normalizeString(detail.value?.price_unit) || '-'
 	return `¥${formatMoney(detail.value?.unit_price)}/${unit}`

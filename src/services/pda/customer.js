@@ -40,8 +40,16 @@ function normalizePdaCustomerSummary(customer = null) {
 		contact: normalizeText(customer.contact),
 		phone: normalizeText(customer.phone),
 		is_active: customer.is_active !== false,
-		default_price_unit: normalizeText(customer.default_price_unit || 'kg') || 'kg',
-		default_unit_price: toNumber(customer.default_unit_price, null),
+		default_price_unit: normalizeText(customer.effective_default_price_unit || customer.default_price_unit || 'kg') || 'kg',
+		default_unit_price: toNumber(customer.effective_default_unit_price ?? customer.default_unit_price, null),
+		effective_price_source: normalizeText(customer.effective_price_source),
+		settlement_default_price_unit: normalizeText(customer.settlement_default_price_unit),
+		settlement_default_unit_price: toNumber(customer.settlement_default_unit_price, null),
+		settlement_customer_id: normalizeText(customer.settlement_customer_id),
+		settlement_customer_name: normalizeText(customer.settlement_customer_name),
+		effective_settlement_customer_id: normalizeText(customer.effective_settlement_customer_id || customer.settlement_customer_id || customer._id),
+		effective_settlement_customer_name: normalizeText(customer.effective_settlement_customer_name || customer.settlement_customer_name || customer.name),
+		is_settlement_child: Boolean(customer.is_settlement_child || customer.settlement_customer_id),
 		receivable_balance: toNumber(customer.receivable_balance, 0),
 		prepay_balance: toNumber(customer.prepay_balance, 0),
 		net_balance: toNumber(customer.net_balance, 0),
@@ -62,7 +70,7 @@ export async function listPdaCustomers(params = {}) {
 	return {
 		code: res?.code ?? -1,
 		msg: res?.msg || '',
-		data: Array.isArray(res?.data) ? res.data : [],
+		data: Array.isArray(res?.data) ? res.data.map(normalizePdaCustomerSummary).filter(Boolean) : [],
 		paging: buildPaging(res, page, pageSize)
 	}
 }
@@ -74,7 +82,7 @@ export async function getPdaCustomerById(id) {
 	return {
 		code: res?.code ?? -1,
 		msg: res?.msg || '',
-		data: res?.data || null
+		data: normalizePdaCustomerSummary(res?.data || null)
 	}
 }
 
@@ -111,7 +119,10 @@ export function resolvePdaCustomerPricing(customer) {
 	return {
 		ok: true,
 		priceUnit: 'kg',
-		unitPrice
+		unitPrice,
+		source: normalizeText(customer?.effective_price_source),
+		settlementUnitPrice: toNumber(customer?.settlement_default_unit_price, null),
+		settlementPriceUnit: normalizeText(customer?.settlement_default_price_unit)
 	}
 }
 

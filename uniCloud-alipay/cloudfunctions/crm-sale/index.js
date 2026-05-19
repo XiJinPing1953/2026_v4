@@ -94,8 +94,8 @@ function buildSaleMovementDoc({
 	scanLocation = null,
 	createdAt = Date.now()
 }) {
-	const customerId = normalizeString(saleDoc && saleDoc.customer_id)
-	const customerName = normalizeString(saleDoc && saleDoc.customer_name)
+	const customerId = normalizeString((saleDoc && saleDoc.delivery_customer_id) || (saleDoc && saleDoc.customer_id))
+	const customerName = normalizeString((saleDoc && saleDoc.delivery_customer_name) || (saleDoc && saleDoc.customer_name))
 	const normalizedDate = normalizeString(date)
 	const resolvedCreatedAt = toTimestamp(createdAt, Date.now())
 	const doc = {
@@ -1296,7 +1296,7 @@ function collectSaleBottleNosFromDoc(doc) {
 }
 
 function collectSaleCustomerIdsFromDoc(doc) {
-	const customerId = normalizeString(doc && doc.customer_id)
+	const customerId = normalizeString((doc && doc.delivery_customer_id) || (doc && doc.customer_id))
 	return customerId ? [customerId] : []
 }
 
@@ -1314,11 +1314,31 @@ function collectSaleTruckNosFromDoc(doc) {
 async function fetchCustomerDepositSaleRows(customerId, dateEnd = '', excludeSaleId = '') {
 	const resolvedCustomerId = normalizeString(customerId)
 	if (!resolvedCustomerId) return []
-	const where = { customer_id: resolvedCustomerId }
-	if (dateEnd) where.date = dbCmd.lte(dateEnd)
+	const whereParts = [
+		dbCmd.or([
+			{ delivery_customer_id: resolvedCustomerId },
+			dbCmd.and([
+				{ customer_id: resolvedCustomerId },
+				{ delivery_customer_id: dbCmd.in([null, '']) }
+			])
+		])
+	]
+	if (dateEnd) whereParts.push({ date: dbCmd.lte(dateEnd) })
+	const where = whereParts.length === 1 ? whereParts[0] : dbCmd.and(whereParts)
 	const res = await sales
 		.where(where)
-		.field({ _id: true, out_items: true, back_items: true, deposit_rows: true, date: true, created_at: true })
+		.field({
+			_id: true,
+			customer_id: true,
+			customer_name: true,
+			delivery_customer_id: true,
+			delivery_customer_name: true,
+			out_items: true,
+			back_items: true,
+			deposit_rows: true,
+			date: true,
+			created_at: true
+		})
 		.orderBy('date', 'asc')
 		.orderBy('created_at', 'asc')
 		.limit(5000)
@@ -1932,6 +1952,56 @@ async function getCustomerById(customerId) {
 	if (!id) return null
 	const res = await customers.doc(id).get()
 	return (res.data && res.data[0]) || null
+}
+
+async function resolveSaleCustomerRefs(selectedCustomerId) {
+	const deliveryCustomer = await getCustomerById(selectedCustomerId)
+	if (!deliveryCustomer) return { ok: false, code: 400, msg: '客户不存在' }
+
+	let billingCustomer = deliveryCustomer
+	const visited = new Set([normalizeString(deliveryCustomer._id)])
+	let parentId = normalizeString(deliveryCustomer.settlement_customer_id)
+	for (let depth = 0; parentId && parentId !== normalizeString(billingCustomer._id) && depth < 10; depth += 1) {
+		if (visited.has(parentId)) return { ok: false, code: 400, msg: '结算客户绑定存在循环' }
+		visited.add(parentId)
+		const parent = await getCustomerById(parentId)
+		if (!parent) return { ok: false, code: 400, msg: '结算客户不存在' }
+		billingCustomer = parent
+		parentId = normalizeString(parent.settlement_customer_id)
+	}
+	if (parentId && parentId !== normalizeString(billingCustomer._id)) {
+		return { ok: false, code: 400, msg: '结算客户绑定层级过深' }
+	}
+	return { ok: true, billingCustomer, deliveryCustomer }
+}
+
+function normalizeSalePriceUnit(value) {
+	const text = normalizeString(value)
+	if (text === 'kg' || text === 'bottle' || text === 'm3') return text
+	return ''
+}
+
+function resolveCustomerDefaultPricing(doc = {}) {
+	const priceUnit = normalizeSalePriceUnit(doc.default_price_unit)
+	const unitPrice = toNumber(doc.default_unit_price, null)
+	if (!priceUnit || !(unitPrice > 0)) return null
+	return {
+		priceUnit,
+		unitPrice
+	}
+}
+
+function resolveSaleDefaultPricing({ deliveryCustomer = null, billingCustomer = null } = {}) {
+	return (
+		resolveCustomerDefaultPricing(deliveryCustomer) ||
+		resolveCustomerDefaultPricing(billingCustomer) ||
+		{
+			priceUnit: normalizeSalePriceUnit(billingCustomer && billingCustomer.default_price_unit) ||
+				normalizeSalePriceUnit(deliveryCustomer && deliveryCustomer.default_price_unit) ||
+				'kg',
+			unitPrice: 0
+		}
+	)
 }
 
 function inferBizMode(base, outRows, backRows, agentRows) {
@@ -2780,15 +2850,18 @@ async function createV2(user, payload, requestId, token) {
 	const customerId = normalizeString(base.customerId)
 	if (!customerId) return { code: 400, msg: '客户必选' }
 
-	const customer = await getCustomerById(customerId)
-	if (!customer) return { code: 400, msg: '客户不存在' }
+	const customerRefs = await resolveSaleCustomerRefs(customerId)
+	if (!customerRefs.ok) return { code: customerRefs.code || 400, msg: customerRefs.msg }
+	const customer = customerRefs.billingCustomer
+	const deliveryCustomer = customerRefs.deliveryCustomer
 	const deliveryMan = joinDelivery(base.delivery1, base.delivery2)
 
 	const bizMode = inferBizMode(base, outRows, backRows, agentRows)
-	const customerPriceUnit = normalizeString(customer && customer.default_price_unit)
-	const priceUnit = normalizeString(base.priceUnit) || customerPriceUnit || 'kg'
+	const defaultPricing = resolveSaleDefaultPricing({ deliveryCustomer, billingCustomer: customer })
+	const priceUnit = normalizeSalePriceUnit(base.priceUnit) || defaultPricing.priceUnit || 'kg'
 	const settlementMode = priceUnit === 'm3' ? 'customer_flow' : normalizeSettlementMode(base.settlementMode, 'sale')
-	const unitPrice = toNumber(base.unitPrice, 0)
+	const submittedUnitPrice = toNumber(base.unitPrice, null)
+	const unitPrice = submittedUnitPrice > 0 ? submittedUnitPrice : toNumber(defaultPricing.unitPrice, 0)
 
 	const truckNo = normalizeTruckNoForCreate(base.truckNo, base.carNo)
 	const truckOutGross = toNumber(base.truckOutGross, 0)
@@ -2840,7 +2913,7 @@ async function createV2(user, payload, requestId, token) {
 	const bottleFlowWarnings = bizMode === 'bottle'
 		? await collectSaleBottleFlowWarnings({
 			date,
-			customerId: customer._id,
+			customerId: deliveryCustomer._id,
 			outRows,
 			backRows
 		})
@@ -2851,8 +2924,8 @@ async function createV2(user, payload, requestId, token) {
 
 	if (bizMode === 'bottle') {
 		const ensureRes = await ensureBottlesExist({
-			customerId: customer._id,
-			customerName: customer.name,
+			customerId: deliveryCustomer._id,
+			customerName: deliveryCustomer.name,
 			outRows,
 			backRows,
 			depositRows
@@ -2888,6 +2961,7 @@ async function createV2(user, payload, requestId, token) {
 	const amountReceived = 0
 	const effectiveShouldReceive = toNumber(amountsForCheck.effective_should_receive, 0)
 	const applyOffsetCredit = false
+	const nextApplyOffsetCredit = applyOffsetCredit
 	const offsetEnabled = false
 	const paymentStatus = settlementMode === 'customer_flow'
 		? 'paid'
@@ -2902,6 +2976,8 @@ async function createV2(user, payload, requestId, token) {
 		date,
 		customer_id: customer._id,
 		customer_name: customer.name,
+		delivery_customer_id: deliveryCustomer._id,
+		delivery_customer_name: deliveryCustomer.name,
 		delivery_man: deliveryMan,
 		vehicle_id: normalizeString(base.vehicleId),
 		car_no: normalizeString(base.carNo),
@@ -3107,6 +3183,9 @@ async function createV2(user, payload, requestId, token) {
 function buildSaleListWhere(data = {}) {
 	const keyword = normalizeString(data.keyword)
 	const customerId = normalizeString(data.customerId || data.customer_id)
+	const customerScope = normalizeString(data.customerScope || data.customer_scope) === 'delivery'
+		? 'delivery'
+		: 'settlement'
 	const priceUnit = normalizeString(data.priceUnit)
 	const bizMode = normalizeString(data.bizMode)
 	const dateStart = normalizeString(data.dateStart)
@@ -3123,6 +3202,7 @@ function buildSaleListWhere(data = {}) {
 			: null
 		const keywordConditions = [
 			{ customer_name: rx },
+			{ delivery_customer_name: rx },
 			{ car_no: rx },
 			{ remark: rx },
 			{ system_note: rx }
@@ -3130,7 +3210,17 @@ function buildSaleListWhere(data = {}) {
 		if (normalizedRx) keywordConditions.push({ remark_normalized: normalizedRx })
 		conditions.push(dbCmd.or(keywordConditions))
 	}
-	if (customerId) conditions.push({ customer_id: customerId })
+	if (customerId && customerScope === 'delivery') {
+		conditions.push(dbCmd.or([
+			{ delivery_customer_id: customerId },
+			dbCmd.and([
+				{ customer_id: customerId },
+				{ delivery_customer_id: dbCmd.in([null, '']) }
+			])
+		]))
+	} else if (customerId) {
+		conditions.push({ customer_id: customerId })
+	}
 	if (priceUnit) conditions.push({ price_unit: priceUnit })
 	if (bizMode) conditions.push({ biz_mode: bizMode })
 	if (dateStart) conditions.push({ date: dbCmd.gte(dateStart) })
@@ -3209,6 +3299,8 @@ function buildSaleListRow(doc) {
 	const { amounts } = computeSaleAmountsForDoc(withRemark)
 	return {
 		...withRemark,
+		delivery_customer_id: normalizeString(withRemark.delivery_customer_id || withRemark.customer_id) || null,
+		delivery_customer_name: normalizeString(withRemark.delivery_customer_name || withRemark.customer_name),
 		out_net_total: amounts.out_net_total,
 		back_net_total: amounts.back_net_total,
 		total_net_weight: amounts.total_net_weight,
@@ -3243,7 +3335,7 @@ async function enrichSaleListRowsWithBottleStats(rows = []) {
 	})
 	const customerMap = new Map()
 	enriched.forEach((row, index) => {
-		const customerId = normalizeString(row && row.customer_id)
+		const customerId = normalizeString((row && row.delivery_customer_id) || (row && row.customer_id))
 		const date = normalizeString(row && row.date)
 		if (!customerId || !date) return
 		const current = customerMap.get(customerId) || { indexes: [], maxDate: '' }
@@ -4404,17 +4496,20 @@ async function updateV2(user, data, requestId, token) {
 	const customerId = normalizeString(base.customerId)
 	if (!customerId) return { code: 400, msg: '客户必选' }
 
-	const customer = await getCustomerById(customerId)
-	if (!customer) return { code: 400, msg: '客户不存在' }
+	const customerRefs = await resolveSaleCustomerRefs(customerId)
+	if (!customerRefs.ok) return { code: customerRefs.code || 400, msg: customerRefs.msg }
+	const customer = customerRefs.billingCustomer
+	const deliveryCustomer = customerRefs.deliveryCustomer
 	const deliveryMan = joinDelivery(base.delivery1, base.delivery2)
 
 	const bizMode = inferBizMode(base, outRows, backRows, agentRows)
-	const customerPriceUnit = normalizeString(customer && customer.default_price_unit)
-	const priceUnit = normalizeString(base.priceUnit) || customerPriceUnit || 'kg'
+	const defaultPricing = resolveSaleDefaultPricing({ deliveryCustomer, billingCustomer: customer })
+	const priceUnit = normalizeSalePriceUnit(base.priceUnit) || defaultPricing.priceUnit || 'kg'
 	const settlementMode = priceUnit === 'm3'
 		? 'customer_flow'
 		: normalizeSettlementMode(base.settlementMode, normalizeSettlementMode(existing && existing.settlement_mode, 'sale'))
-	const unitPrice = toNumber(base.unitPrice, 0)
+	const submittedUnitPrice = toNumber(base.unitPrice, null)
+	const unitPrice = submittedUnitPrice > 0 ? submittedUnitPrice : toNumber(defaultPricing.unitPrice, 0)
 
 	const truckNo = normalizeTruckNoForCreate(base.truckNo, base.carNo)
 	const truckOutGross = toNumber(base.truckOutGross, 0)
@@ -4477,7 +4572,7 @@ async function updateV2(user, data, requestId, token) {
 	const bottleFlowWarnings = bizMode === 'bottle'
 		? await collectSaleBottleFlowWarnings({
 			date,
-			customerId: customer._id,
+			customerId: deliveryCustomer._id,
 			outRows,
 			backRows,
 			excludeSaleId: recordId
@@ -4489,8 +4584,8 @@ async function updateV2(user, data, requestId, token) {
 
 	if (bizMode === 'bottle') {
 		const ensureRes = await ensureBottlesExist({
-			customerId: customer._id,
-			customerName: customer.name,
+			customerId: deliveryCustomer._id,
+			customerName: deliveryCustomer.name,
 			outRows,
 			backRows,
 			depositRows
@@ -4543,6 +4638,8 @@ async function updateV2(user, data, requestId, token) {
 		date,
 		customer_id: customer._id,
 		customer_name: customer.name,
+		delivery_customer_id: deliveryCustomer._id,
+		delivery_customer_name: deliveryCustomer.name,
 		delivery_man: deliveryMan,
 		vehicle_id: normalizeString(base.vehicleId),
 		car_no: normalizeString(base.carNo),
@@ -4648,7 +4745,10 @@ async function updateV2(user, data, requestId, token) {
 	const bottleDepositReconcileRes = await reconcileBottleCurrentCustomerByDepositSnapshot({
 		customerIds: [
 			...collectSaleCustomerIdsFromDoc(existing),
-			...collectSaleCustomerIdsFromDoc({ customer_id: customer._id })
+			...collectSaleCustomerIdsFromDoc({
+				customer_id: customer._id,
+				delivery_customer_id: deliveryCustomer._id
+			})
 		],
 		bottleNos: touchedBottleNos
 	})

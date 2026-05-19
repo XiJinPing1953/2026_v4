@@ -899,6 +899,9 @@
 								<text v-if="isSaleRecordRow(row)" class="mini-amounts__movement">
 									本单出瓶 {{ resolveSaleOutBottleCount(row) }} · 本单回瓶 {{ resolveSaleBackBottleCount(row) }} · 存瓶(截止本单) {{ resolveSaleDepositBalanceCount(row) }}
 								</text>
+								<text v-if="resolveSaleDeliveryLocationText(row)" class="mini-amounts__delivery">
+									{{ resolveSaleDeliveryLocationText(row) }}
+								</text>
 								<text v-if="isSaleRecordRow(row)" class="mini-amounts__detail">
 									本单出瓶明细：{{ resolveSaleOutDetailText(row) }}
 								</text>
@@ -2621,6 +2624,15 @@ function resolveSaleBackBottleCount(row) {
 function resolveSaleDepositBalanceCount(row) {
 	const count = Math.floor(toNumber(row?.deposit_balance_count, 0))
 	return count > 0 ? count : 0
+}
+
+function resolveSaleDeliveryLocationText(row) {
+	if (!isSaleRecordRow(row)) return ''
+	const deliveryName = normalizeString(row?.delivery_customer_name || row?.meta?.delivery_customer_name)
+	if (!deliveryName) return ''
+	const settlementName = normalizeString(row?.customer_name || row?.meta?.customer_name || customer.value?.name)
+	if (settlementName && deliveryName === settlementName) return ''
+	return `送达地点：${deliveryName}`
 }
 
 function formatSaleBottlePreviewText(previewList, total, truncated) {
@@ -5726,6 +5738,11 @@ onMounted(() => {
 
 .mini-amounts__movement {
 	color: #475569;
+}
+
+.mini-amounts__delivery {
+	color: #0f766e;
+	font-weight: 700;
 }
 
 .mini-amounts__detail {

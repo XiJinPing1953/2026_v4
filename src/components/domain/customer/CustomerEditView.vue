@@ -30,6 +30,10 @@
 						<text class="pill-label">二维码</text>
 						<text class="pill-value">{{ qrCodeSummary }}</text>
 					</view>
+					<view class="info-pill">
+						<text class="pill-label">结算关系</text>
+						<text class="pill-value">{{ settlementSummary }}</text>
+					</view>
 				</view>
 			</AppCard>
 
@@ -53,6 +57,43 @@
 						</view>
 						<view class="form-item span-2">
 							<AppInput v-model="form.address" label="配送地址" placeholder="详细的送货地址" size="sm" />
+						</view>
+					</view>
+				</AppSection>
+
+				<AppSection title="结算关系">
+					<template #actions>
+						<AppButton size="sm" kind="ghost" :disabled="submitting" @click="clearSettlementCustomer">自己结算</AppButton>
+					</template>
+					<view class="form-grid">
+						<view class="form-item span-2 settlement-field">
+							<AppInput
+								:model-value="form.settlement_customer_name"
+								label="结算客户"
+								placeholder="不选则该客户自己结算"
+								prefix-icon="user"
+								size="sm"
+								@update:modelValue="onSettlementCustomerInput"
+								@focus="onSettlementCustomerFocus"
+								@blur="onSettlementCustomerBlur"
+								@confirm="onSettlementCustomerConfirm"
+							/>
+							<view v-if="showSettlementSuggestions" class="settlement-suggestions">
+								<view
+									v-for="item in settlementSuggestions"
+									:key="item._id"
+									class="settlement-suggestion"
+									@tap.stop="selectSettlementCustomer(item)"
+									@click.stop="selectSettlementCustomer(item)"
+								>
+									<text class="settlement-suggestion__name">{{ item.name }}</text>
+									<text v-if="item.contact || item.phone" class="settlement-suggestion__sub">{{ [item.contact, item.phone].filter(Boolean).join(' · ') }}</text>
+								</view>
+								<view v-if="settlementSuggestions.length === 0" class="settlement-suggestion settlement-suggestion--empty">
+									<text>未找到可绑定客户</text>
+								</view>
+							</view>
+							<text class="field-hint">送达地点绑定结算客户后，销售欠款和收款对账归到结算客户；存瓶和气瓶流转仍归当前地点。</text>
 						</view>
 					</view>
 				</AppSection>
@@ -96,7 +137,7 @@ import AppSection from '@/components/base/AppSection.vue'
 import AppCard from '@/components/base/AppCard.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
-import { createCustomerV1, getCustomerV1, updateCustomerV1 } from '@/services/customer'
+import { createCustomerV1, getCustomerV1, listCustomersV1, updateCustomerV1 } from '@/services/customer'
 
 const props = defineProps({
 	recordId: { type: String, default: '' }
@@ -120,9 +161,14 @@ const form = reactive({
 	address: '',
 	remark: '',
 	is_active: true,
+	settlement_customer_id: '',
+	settlement_customer_name: '',
 	default_unit_price: '',
 	default_price_unit: 'kg'
 })
+const settlementSuggestions = ref([])
+const showSettlementSuggestions = ref(false)
+let settlementFetchTimer = null
 
 const activeLabel = computed(() => (form.is_active ? '启用中' : '已停用'))
 
@@ -142,6 +188,10 @@ const contactSummary = computed(() => {
 const qrCodeSummary = computed(() => {
 	const value = normalizeQrCode(form.qr_code)
 	return value || '未绑定'
+})
+const settlementSummary = computed(() => {
+	const name = String(form.settlement_customer_name || '').trim()
+	return name ? `归 ${name} 结算` : '自己结算'
 })
 
 function normalizeQrCode(value) {
@@ -177,8 +227,79 @@ async function loadRecord(id) {
 	form.address = doc.address || ''
 	form.remark = doc.remark || ''
 	form.is_active = Boolean(doc.is_active)
+	form.settlement_customer_id = doc.settlement_customer_id || ''
+	form.settlement_customer_name = doc.settlement_customer_name || ''
 	form.default_unit_price = doc.default_unit_price == null ? '' : String(doc.default_unit_price)
 	form.default_price_unit = doc.default_price_unit || 'kg'
+}
+
+function clearSettlementCustomer() {
+	form.settlement_customer_id = ''
+	form.settlement_customer_name = ''
+	settlementSuggestions.value = []
+	showSettlementSuggestions.value = false
+}
+
+function onSettlementCustomerInput(value) {
+	form.settlement_customer_name = value
+	form.settlement_customer_id = ''
+	if (settlementFetchTimer) clearTimeout(settlementFetchTimer)
+	const keyword = String(value || '').trim()
+	if (!keyword) {
+		clearSettlementCustomer()
+		return
+	}
+	showSettlementSuggestions.value = true
+	settlementFetchTimer = setTimeout(() => {
+		fetchSettlementCustomers(keyword)
+	}, 200)
+}
+
+async function fetchSettlementCustomers(keyword) {
+	const key = String(keyword || '').trim()
+	if (!key) {
+		settlementSuggestions.value = []
+		showSettlementSuggestions.value = false
+		return
+	}
+	const res = await listCustomersV1({ keyword: key, pageSize: 20, is_active: true, settlementOnly: true })
+	if (res?.code !== 0) {
+		settlementSuggestions.value = []
+		return
+	}
+	const currentId = String(recordId.value || '').trim()
+	settlementSuggestions.value = (Array.isArray(res.data) ? res.data : [])
+		.filter((item) => String(item?._id || '').trim() && String(item?._id || '').trim() !== currentId)
+		.slice(0, 20)
+}
+
+function selectSettlementCustomer(item) {
+	form.settlement_customer_id = item?._id || ''
+	form.settlement_customer_name = item?.name || ''
+	settlementSuggestions.value = []
+	showSettlementSuggestions.value = false
+}
+
+function onSettlementCustomerFocus() {
+	const keyword = String(form.settlement_customer_name || '').trim()
+	if (!keyword) return
+	showSettlementSuggestions.value = true
+	if (settlementFetchTimer) clearTimeout(settlementFetchTimer)
+	settlementFetchTimer = setTimeout(() => fetchSettlementCustomers(keyword), 120)
+}
+
+function onSettlementCustomerBlur() {
+	setTimeout(() => {
+		showSettlementSuggestions.value = false
+	}, 160)
+}
+
+function onSettlementCustomerConfirm() {
+	if (settlementSuggestions.value.length > 0) {
+		selectSettlementCustomer(settlementSuggestions.value[0])
+		return
+	}
+	form.settlement_customer_name = String(form.settlement_customer_name || '').trim()
 }
 
 watch(
@@ -287,6 +408,60 @@ function onCancel() {
 .form-item {
 	display: flex;
 	flex-direction: column;
+}
+
+.settlement-field {
+	position: relative;
+}
+
+.settlement-suggestions {
+	position: absolute;
+	top: calc(100% - 32rpx);
+	left: 0;
+	right: 0;
+	z-index: 80;
+	border: 1rpx solid var(--crm-border);
+	border-radius: var(--crm-radius-sm);
+	background: #fff;
+	box-shadow: 0 12rpx 28rpx rgba(15, 23, 42, 0.1);
+	overflow: hidden;
+}
+
+.settlement-suggestion {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16rpx;
+	padding: 16rpx 18rpx;
+	border-bottom: 1rpx solid #f1f5f9;
+}
+
+.settlement-suggestion:last-child {
+	border-bottom: none;
+}
+
+.settlement-suggestion__name {
+	font-size: 26rpx;
+	font-weight: 700;
+	color: #0f172a;
+}
+
+.settlement-suggestion__sub {
+	font-size: 22rpx;
+	color: #64748b;
+}
+
+.settlement-suggestion--empty {
+	justify-content: center;
+	color: #64748b;
+	font-size: 24rpx;
+}
+
+.field-hint {
+	margin-top: 10rpx;
+	font-size: 22rpx;
+	line-height: 1.5;
+	color: #64748b;
 }
 
 .span-2 {
