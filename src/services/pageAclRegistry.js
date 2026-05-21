@@ -4,6 +4,7 @@ const GROUP_DEFAULTS = {
 	superadmin: {
 		dashboard: { view: true, create: false, update: false, delete: false },
 		sales: { view: true, create: true, update: true, delete: true },
+		salesSensitive: { view: true, create: false, update: true, delete: false },
 		customers: { view: true, create: true, update: true, delete: true },
 		bottles: { view: true, create: true, update: true, delete: true },
 		vehicles: { view: true, create: true, update: true, delete: true },
@@ -88,6 +89,7 @@ export const PAGE_REGISTRY = [
 	{ pagePath: '/pages/sale/list', label: '销售记录', group: 'sales', supports: { view: true, create: true, update: true, delete: true } },
 	{ pagePath: '/pages/sale/edit', label: '销售录入', group: 'sales', supports: { view: true, create: true, update: true } },
 	{ pagePath: '/pages/sale/settlement', label: '销售结算', group: 'sales', supports: { view: true, update: true } },
+	{ pagePath: '/pages/sale/apply-offset-credit', label: '销售结算-使用冲抵款', group: 'salesSensitive', supports: { view: true, update: true } },
 	{ pagePath: '/pages/sale/detail', label: '销售详情', group: 'sales', supports: { view: true, update: true, delete: true } },
 	{ pagePath: '/pages/customer/list', label: '客户列表', group: 'customers', supports: { view: true, create: true, update: true, delete: true } },
 	{ pagePath: '/pages/customer/edit', label: '客户录入', group: 'customers', supports: { view: true, create: true, update: true } },

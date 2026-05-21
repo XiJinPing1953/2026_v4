@@ -8,6 +8,17 @@
 				size="sm"
 				kind="neutral"
 				icon="document"
+				:loading="exportingDebtSnapshot"
+				:disabled="loading || exporting || exportingAccounting"
+				@click="onExportDebtSnapshot"
+			>
+				导出未结清欠款表
+			</AppButton>
+			<AppButton
+				v-if="isStatementEntryMode && canViewStatement"
+				size="sm"
+				kind="neutral"
+				icon="document"
 				:loading="exportingAccounting"
 				:disabled="loading || exporting"
 				@click="onExportAccountingLedger"
@@ -304,8 +315,10 @@ import AppStatCard from '@/components/base/AppStatCard.vue'
 import { useQuery } from '@/composables/useQuery'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { listCustomersV1 } from '@/services/customer'
-import { exportCustomerAccountingLedgerV1, exportCustomerStatementV1 } from '@/services/customerSettlement'
+import { exportCustomerAccountingLedgerV1, exportCustomerDebtSnapshotV1, exportCustomerStatementV1 } from '@/services/customerSettlement'
 import {
+	buildCustomerDebtSnapshotExportFileName,
+	buildCustomerDebtSnapshotWorkbookXml,
 	buildCustomerAccountingLedgerBatchExportFileName,
 	buildCustomerAccountingLedgerBatchWorkbookXml,
 	downloadWorkbookFile
@@ -342,6 +355,7 @@ const showSuggestions = ref(false)
 const suggestions = ref([])
 const exporting = ref(false)
 const exportingAccounting = ref(false)
+const exportingDebtSnapshot = ref(false)
 let searchTimer = null
 
 const activeOptions = [
@@ -678,6 +692,42 @@ async function onExport() {
 	} finally {
 		uni.hideLoading()
 		exporting.value = false
+	}
+}
+
+async function onExportDebtSnapshot() {
+	if (exportingDebtSnapshot.value) return
+	if (!isStatementEntryMode.value || !canViewStatement.value) {
+		uni.showToast({ title: '当前账号没有客户对账导出权限', icon: 'none' })
+		return
+	}
+	exportingDebtSnapshot.value = true
+	uni.showLoading({ title: '正在导出欠款表...', mask: true })
+	try {
+		const res = await exportCustomerDebtSnapshotV1()
+		if (res?.code !== 0) {
+			uni.showToast({ title: res?.msg || '未结清欠款表导出失败', icon: 'none' })
+			return
+		}
+		const payload = res?.data || {}
+		const summaryRows = Array.isArray(payload.summary_rows) ? payload.summary_rows : []
+		if (!summaryRows.length) {
+			uni.showToast({ title: '当前没有未结清欠款客户', icon: 'none' })
+			return
+		}
+		const workbookText = buildCustomerDebtSnapshotWorkbookXml(payload)
+		const fileName = buildCustomerDebtSnapshotExportFileName(payload)
+		const downloaded = await downloadWorkbookFile(workbookText, fileName)
+		if (!downloaded) {
+			uni.showToast({ title: '当前端暂不支持导出，请联系管理员', icon: 'none', duration: 2800 })
+			return
+		}
+		uni.showToast({ title: `已导出${summaryRows.length}个欠款客户`, icon: 'success' })
+	} catch (err) {
+		uni.showToast({ title: err?.message || '未结清欠款表导出失败', icon: 'none', duration: 2800 })
+	} finally {
+		uni.hideLoading()
+		exportingDebtSnapshot.value = false
 	}
 }
 

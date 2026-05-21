@@ -1368,6 +1368,7 @@ const overviewOffsetCreditBalance = computed(() => (
 
 const customerPriceUnit = computed(() => normalizeString(customer.value?.default_price_unit) || 'kg')
 const isFlowCustomer = computed(() => customerPriceUnit.value === 'm3')
+const currentMoneyScale = computed(() => (isFlowCustomer.value ? 3 : 2))
 const isKgCustomer = computed(() => customerPriceUnit.value === 'kg')
 const isBottleCustomer = computed(() => customerPriceUnit.value === 'bottle')
 const defaultUnitPriceText = computed(() => {
@@ -1877,10 +1878,19 @@ function fix2(value) {
 	return Number.isFinite(num) ? Number(num.toFixed(2)) : 0
 }
 
+function fixCurrentMoney(value) {
+	const scale = currentMoneyScale.value
+	if (scale === 3) {
+		const truncated = truncateDecimal(value, 3)
+		return truncated == null ? 0 : truncated
+	}
+	return fix2(value)
+}
+
 function operationPositiveAmount(value) {
 	const amount = Number(value)
 	if (!Number.isFinite(amount) || amount <= 0) return 0
-	return fix2(amount)
+	return fixCurrentMoney(amount)
 }
 
 function formatOperationSummaryMoney(value) {
@@ -3900,12 +3910,12 @@ async function confirmReceiptPrepayIfNeeded(amount, roundingAmount, allocationPa
 async function onAllocatePrepayReceipt() {
 	if (!recordId.value || prepayReceiptAllocating.value) return
 	const receiptId = normalizeString(continuingPrepayReceiptId.value)
-	const available = fix2(toNumber(continuingPrepayAvailableAmount.value, 0))
+	const available = fixCurrentMoney(toNumber(continuingPrepayAvailableAmount.value, 0))
 	if (!receiptId || !(available > 0)) {
 		uni.showToast({ title: '当前收款单无待分配余额', icon: 'none' })
 		return
 	}
-	const amount = receiptForm.amount === '' ? available : fix2(Number(receiptForm.amount))
+	const amount = receiptForm.amount === '' ? available : fixCurrentMoney(Number(receiptForm.amount))
 	if (!Number.isFinite(amount) || amount <= 0) {
 		uni.showToast({ title: '本次分配金额必须大于0', icon: 'none' })
 		return
@@ -3982,7 +3992,7 @@ async function onResetReceiptAction() {
 
 function onContinuePrepayReceipt(row) {
 	const receiptId = normalizeString(row?._id)
-	const available = fix2(toNumber(row?.unallocated_amount, 0))
+	const available = fixCurrentMoney(toNumber(row?.unallocated_amount, 0))
 	if (!receiptId || !(available > 0) || isOffsetCreditReceiptRow(row)) return
 	activeOperationTab.value = 'receipt'
 	editingReceiptId.value = ''

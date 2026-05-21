@@ -361,6 +361,15 @@
 							<template #footer>
 								<view class="row-actions">
 									<AppButton
+										v-if="hasReceiptProofs(row)"
+										size="sm"
+										kind="neutral"
+										:loading="previewingReceiptProofId === normalizeString(row._id)"
+										@click.stop="onPreviewReceiptProofs(row)"
+									>
+										查看凭证
+									</AppButton>
+									<AppButton
 										size="sm"
 										kind="ghost"
 										:disabled="!canUpdate || !row.editable"
@@ -446,6 +455,7 @@ const submitting = ref(false)
 const includeVoided = ref(false)
 const editingReceiptId = ref('')
 const proofImages = ref([])
+const previewingReceiptProofId = ref('')
 const expandedTargets = ref([])
 const targetDetailMap = ref({})
 const pager = reactive({
@@ -1068,6 +1078,31 @@ function previewProofImage(index = 0) {
 	if (!urls.length) return
 	const current = urls[index] || urls[0]
 	uni.previewImage({ urls, current })
+}
+
+function hasReceiptProofs(row) {
+	return normalizeProofImageIds(row?.proof_images || [], PROOF_IMAGE_LIMIT).length > 0
+}
+
+async function onPreviewReceiptProofs(row) {
+	const receiptId = normalizeString(row?._id)
+	if (previewingReceiptProofId.value) return
+	const ids = normalizeProofImageIds(row?.proof_images || [], PROOF_IMAGE_LIMIT)
+	if (!ids.length) {
+		uni.showToast({ title: '暂无可查看凭证', icon: 'none' })
+		return
+	}
+	previewingReceiptProofId.value = receiptId || '__preview__'
+	try {
+		const urls = await resolveProofImageUrls(ids)
+		if (!urls.length) {
+			uni.showToast({ title: '凭证图片加载失败', icon: 'none' })
+			return
+		}
+		uni.previewImage({ urls, current: urls[0] })
+	} finally {
+		previewingReceiptProofId.value = ''
+	}
 }
 
 function removeProofImage(index) {

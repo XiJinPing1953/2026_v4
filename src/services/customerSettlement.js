@@ -474,6 +474,14 @@ export async function exportCustomerAccountingLedgerV1(params = {}) {
 	})
 }
 
+export async function exportCustomerDebtSnapshotV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'exportCustomerDebtSnapshotV1',
+		data: {},
+		timeout: params.timeout || 30000
+	})
+}
+
 export async function refreshCustomerBalancesV1(params = {}) {
 	return callCloud('crm-customer-settlement', {
 		action: 'refreshCustomerBalancesV1',

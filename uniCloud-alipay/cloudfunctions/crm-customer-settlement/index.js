@@ -15,11 +15,13 @@ const openingDebts = db.collection('crm_customer_opening_debts')
 const collectionTasks = db.collection('crm_collection_tasks')
 const collectionFollowups = db.collection('crm_collection_followups')
 let ensureActionAcl = null
+let hasPagePermission = null
+let isSuperAdmin = null
 try {
-	;({ ensureActionAcl } = require('../common/pageAcl'))
+	;({ ensureActionAcl, hasPagePermission, isSuperAdmin } = require('../common/pageAcl'))
 } catch (err) {
 	console.warn('[crm-customer-settlement] fallback to local pageAcl helpers', err && err.message)
-	;({ ensureActionAcl } = require('./pageAclLocal'))
+	;({ ensureActionAcl, hasPagePermission, isSuperAdmin } = require('./pageAclLocal'))
 }
 
 const WRITE_ROLES = ['superadmin', 'admin', 'finance', 'user']
@@ -27,6 +29,7 @@ const REBUILD_ROLES = ['superadmin', 'admin', 'finance']
 const FLOW_WEIGHT_GO_LIVE_DATE = '2026-01-01'
 const STATEMENT_COMPANY_NAME = '无极县新拓能源开发有限公司'
 const AUTO_OFFSET_NOTE_PREFIX = '【自动冲抵】'
+const APPLY_OFFSET_CREDIT_PAGE = '/pages/sale/apply-offset-credit'
 const CASHIER_RECEIPT_SOURCE_TYPE = 'cashier_intake'
 const CASHIER_RECEIPT_SOURCE_TYPES = [CASHIER_RECEIPT_SOURCE_TYPE]
 const CASHIER_TARGET_PREVIEW_LIMIT = 3
@@ -58,7 +61,8 @@ const PAGE_ACTION_RULES = {
 	autoApplyPrepayToSaleV1: [
 		{ pagePath: '/pages/customer/statement', action: 'update' },
 		{ pagePath: '/pages/sale/edit', action: 'create' },
-		{ pagePath: '/pages/sale/edit', action: 'update' }
+		{ pagePath: '/pages/sale/edit', action: 'update' },
+		{ pagePath: '/pages/sale/settlement', action: 'update' }
 	],
 	autoApplyPrepayToFlowSettlementV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	previewFlowSettlementV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
@@ -86,6 +90,7 @@ const PAGE_ACTION_RULES = {
 	getCustomerStatementAnalysisV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	exportCustomerStatementV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	exportCustomerAccountingLedgerV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
+	exportCustomerDebtSnapshotV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	refreshCustomerBalancesV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	getCustomerStatementV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	listCustomerStatementRowsV1: [{ pagePath: '/pages/customer/statement', action: 'view' }]
@@ -121,6 +126,14 @@ async function recordLog(user, action, detail = {}, requestId = '') {
 function normalizeString(value) {
 	if (value == null) return ''
 	return String(value).trim()
+}
+
+function canUseSaleOffsetCredit(user) {
+	if (typeof isSuperAdmin === 'function' && isSuperAdmin(user)) return true
+	if (typeof hasPagePermission === 'function') {
+		return hasPagePermission(user, APPLY_OFFSET_CREDIT_PAGE, 'update')
+	}
+	return false
 }
 
 function normalizeId(value) {
@@ -1066,6 +1079,14 @@ function resolveOpeningDebtRoundingAmount(amountValue, roundingValue, moneyScale
 
 function openingDebtEntryLabelByType(entryType) {
 	return normalizeReceivableTargetType(entryType) === 'other_fee' ? '其他费用' : '历史欠款'
+}
+
+function receivableTargetTypeText(value) {
+	const type = normalizeReceivableTargetType(value)
+	if (type === 'flow_settlement') return '流量结算'
+	if (type === 'opening_debt') return '历史欠款'
+	if (type === 'other_fee') return '其他费用'
+	return '销售单'
 }
 
 function buildOpeningDebtTargetTitle({ entryType = 'opening_debt', bizDate = '', targetId = '' } = {}) {
@@ -2565,6 +2586,246 @@ async function applyAllocationAndPersist({
 		receipt_allocated_total: receiptAllocatedTotal,
 		rounding_allocated_total: roundingAllocatedTotal,
 		prepay_amount: fixMoney(receiptAmount - receiptAllocatedTotal)
+	}
+}
+
+async function listDebtSnapshotCustomers(limit = 5000) {
+	const batchSize = 200
+	const maxRows = Math.min(Math.max(toNumber(limit, 5000), 1), 5000)
+	const rows = []
+	let page = 1
+	let guard = 0
+	while (guard < 500 && rows.length < maxRows) {
+		const res = await customers
+			.where(
+				dbCmd.and([
+					{ receivable_balance: dbCmd.gt(0) },
+					{ settlement_customer_id: dbCmd.in([null, '']) }
+				])
+			)
+			.orderBy('receivable_balance', 'desc')
+			.orderBy('updated_at', 'desc')
+			.skip((page - 1) * batchSize)
+			.limit(batchSize)
+			.get()
+		const list = Array.isArray(res.data) ? res.data : []
+		if (!list.length) break
+		rows.push(...list)
+		if (list.length < batchSize || rows.length >= maxRows) break
+		page += 1
+		guard += 1
+	}
+	return rows.slice(0, maxRows)
+}
+
+function buildDebtTargetAllocationBreakdownMap(rows = [], moneyScale = 2) {
+	const map = new Map()
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	for (const row of rows || []) {
+		const target = resolveAccountingAllocationTarget(row)
+		if (!target.key) continue
+		const amount = fixMoney(toNumber(row && row.allocate_amount, 0))
+		if (!(amount > 0)) continue
+		if (!map.has(target.key)) {
+			map.set(target.key, { receipt: 0, rounding: 0, offset: 0 })
+		}
+		const item = map.get(target.key)
+		const allocateKind = normalizeAllocateKind(row && row.allocate_kind, 'receipt')
+		if (allocateKind === 'rounding') {
+			item.rounding = fixMoney(item.rounding + amount)
+		} else if (isOffsetAllocationRow(row)) {
+			item.offset = fixMoney(item.offset + amount)
+		} else {
+			item.receipt = fixMoney(item.receipt + amount)
+		}
+	}
+	return map
+}
+
+function buildDebtDetailRow({ customer, targetType, targetId, bizDate, deliveryCustomerName = '', shouldReceive = 0, snapshot = {}, allocations = {}, note = '', moneyScale = 2 }) {
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const offsetAmount = fixMoney(toNumber(allocations.offset, 0))
+	const receivedTotal = fixMoney(toNumber(snapshot.amount_received, 0))
+	const receiptAmount = fixMoney(Math.max(receivedTotal - offsetAmount, 0))
+	const roundingAmount = fixMoney(toNumber(snapshot.receipt_rounding_amount, toNumber(allocations.rounding, 0)))
+	const outstanding = fixMoney(toNumber(snapshot.outstanding, 0))
+	if (!(outstanding > 0)) return null
+	return {
+		customer_id: normalizeId(customer && customer._id),
+		customer_name: normalizeString(customer && customer.name),
+		delivery_customer_name: normalizeString(deliveryCustomerName) || normalizeString(customer && customer.name),
+		target_type: targetType,
+		target_type_label: receivableTargetTypeText(targetType),
+		target_id: normalizeId(targetId),
+		biz_date: normalizeDate(bizDate),
+		should_receive: fixMoney(shouldReceive),
+		receipt_amount: receiptAmount,
+		receipt_rounding_amount: roundingAmount,
+		offset_amount: offsetAmount,
+		outstanding,
+		note: normalizeString(note),
+		money_scale: moneyScale
+	}
+}
+
+async function buildCustomerDebtSnapshotRows(customer) {
+	const customerId = normalizeId(customer && customer._id)
+	if (!customerId) return { summary: null, details: [] }
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const salesDocs = await listCustomerSales(customerId)
+	const flowDocs = await listCustomerFlowSettlements(customerId)
+	const openingDebtDocs = await listCustomerOpeningDebts(customerId)
+
+	const targetRefs = []
+	const detailSeeds = []
+	for (const doc of salesDocs) {
+		const snapshot = computeSaleSnapshot(doc)
+		if (!(snapshot.outstanding > 0)) continue
+		const targetId = normalizeId(doc && doc._id)
+		targetRefs.push({ target_type: 'sale', target_id: targetId })
+		detailSeeds.push({
+			customer,
+			targetType: 'sale',
+			targetId,
+			bizDate: doc && doc.date,
+			deliveryCustomerName: resolveSaleDeliveryCustomerName(doc),
+			shouldReceive: snapshot.should_receive_effective,
+			snapshot,
+			note: doc && doc.remark,
+			moneyScale
+		})
+	}
+	for (const doc of flowDocs) {
+		const snapshot = computeFlowSettlementSnapshot(doc)
+		if (!(snapshot.outstanding > 0)) continue
+		const targetId = normalizeId(doc && doc._id)
+		targetRefs.push({ target_type: 'flow_settlement', target_id: targetId })
+		detailSeeds.push({
+			customer,
+			targetType: 'flow_settlement',
+			targetId,
+			bizDate: doc && doc.biz_date,
+			shouldReceive: snapshot.should_receive,
+			snapshot,
+			note: doc && doc.note,
+			moneyScale
+		})
+	}
+	for (const doc of openingDebtDocs) {
+		const targetType = resolveOpeningDebtEntryType(doc)
+		const snapshot = computeOpeningDebtSnapshot(doc, moneyScale)
+		if (!(snapshot.outstanding > 0)) continue
+		const targetId = normalizeId(doc && doc._id)
+		targetRefs.push({ target_type: targetType, target_id: targetId })
+		detailSeeds.push({
+			customer,
+			targetType,
+			targetId,
+			bizDate: doc && doc.biz_date,
+			shouldReceive: snapshot.should_receive_effective,
+			snapshot,
+			note: doc && doc.note,
+			moneyScale
+		})
+	}
+
+	const allocationRows = targetRefs.length
+		? await listCustomerAccountingAllocationsByTargets(customerId, targetRefs, 5000)
+		: []
+	const allocationMap = buildDebtTargetAllocationBreakdownMap(allocationRows, moneyScale)
+	const details = detailSeeds
+		.map((seed) => buildDebtDetailRow({
+			...seed,
+			allocations: allocationMap.get(accountingTargetKey(seed.targetType, seed.targetId)) || {}
+		}))
+		.filter(Boolean)
+		.sort((a, b) => {
+			if (a.biz_date !== b.biz_date) return a.biz_date < b.biz_date ? -1 : 1
+			return a.target_id < b.target_id ? -1 : 1
+		})
+
+	const debtTotal = fixMoney(details.reduce((sum, row) => sum + toNumber(row && row.outstanding, 0), 0))
+	if (!(debtTotal > 0)) return { summary: null, details: [] }
+	const dates = details.map((row) => normalizeDate(row && row.biz_date)).filter(Boolean).sort()
+	const summary = {
+		customer_id: customerId,
+		customer_name: normalizeString(customer && customer.name),
+		contact: normalizeString(customer && customer.contact),
+		phone: normalizeString(customer && customer.phone),
+		status: customer && customer.is_active ? '启用中' : '已停用',
+		receivable_balance: debtTotal,
+		stored_receivable_balance: fixMoney(toNumber(customer && customer.receivable_balance, 0)),
+		debt_count: details.length,
+		earliest_debt_date: dates[0] || '',
+		latest_debt_date: dates[dates.length - 1] || '',
+		receipt_unallocated_balance: fixMoney(toNumber(customer && customer.receipt_unallocated_balance, 0)),
+		prepay_balance: fixMoney(toNumber(customer && customer.prepay_balance, 0)),
+		prepay_manual_balance: fixMoney(toNumber(customer && customer.prepay_manual_balance, 0)),
+		offset_credit_balance: fixMoney(toNumber(customer && customer.offset_credit_balance, 0)),
+		net_balance: fixMoney(toNumber(customer && customer.net_balance, 0)),
+		deposit_count: toNumber(customer && customer.deposit_count, 0),
+		follow_up_note: '',
+		promise_pay_date: '',
+		money_scale: moneyScale
+	}
+	return { summary, details }
+}
+
+async function exportCustomerDebtSnapshotV1(user, data) {
+	void user
+	void data
+	const snapshotAt = Date.now()
+	const debtCustomers = await listDebtSnapshotCustomers(5000)
+	const summaryRows = []
+	const detailRows = []
+	for (const customer of debtCustomers) {
+		const built = await buildCustomerDebtSnapshotRows(customer)
+		if (!built.summary) continue
+		summaryRows.push(built.summary)
+		detailRows.push(...built.details)
+	}
+	summaryRows.sort((a, b) => {
+		const amountDiff = toNumber(b && b.receivable_balance, 0) - toNumber(a && a.receivable_balance, 0)
+		if (amountDiff !== 0) return amountDiff
+		return normalizeString(a && a.customer_name) < normalizeString(b && b.customer_name) ? -1 : 1
+	})
+	const orderMap = new Map()
+	summaryRows.forEach((row, index) => orderMap.set(normalizeId(row && row.customer_id), index))
+	detailRows.sort((a, b) => {
+		const leftOrder = orderMap.get(normalizeId(a && a.customer_id)) ?? 999999
+		const rightOrder = orderMap.get(normalizeId(b && b.customer_id)) ?? 999999
+		if (leftOrder !== rightOrder) return leftOrder - rightOrder
+		if (a.biz_date !== b.biz_date) return a.biz_date < b.biz_date ? -1 : 1
+		return a.target_id < b.target_id ? -1 : 1
+	})
+	const totals = summaryRows.reduce((acc, row) => {
+		acc.customer_count += 1
+		acc.debt_total = fix3(acc.debt_total + toNumber(row && row.receivable_balance, 0))
+		acc.receipt_unallocated_total = fix3(acc.receipt_unallocated_total + toNumber(row && row.receipt_unallocated_balance, 0))
+		acc.prepay_total = fix3(acc.prepay_total + toNumber(row && row.prepay_manual_balance, 0))
+		acc.offset_credit_total = fix3(acc.offset_credit_total + toNumber(row && row.offset_credit_balance, 0))
+		acc.net_total = fix3(acc.net_total + toNumber(row && row.net_balance, 0))
+		return acc
+	}, {
+		customer_count: 0,
+		detail_count: detailRows.length,
+		debt_total: 0,
+		receipt_unallocated_total: 0,
+		prepay_total: 0,
+		offset_credit_total: 0,
+		net_total: 0
+	})
+	totals.detail_count = detailRows.length
+	return {
+		code: 0,
+		msg: 'ok',
+		data: {
+			snapshot_at: snapshotAt,
+			summary_rows: summaryRows,
+			detail_rows: detailRows,
+			totals
+		}
 	}
 }
 
@@ -7149,7 +7410,7 @@ async function autoApplyPrepayToSaleV1(user, data, requestId) {
 			}
 		}
 	}
-	if (normalizeString(user && user.role).toLowerCase() !== 'superadmin') {
+	if (!canUseSaleOffsetCredit(user)) {
 		await recordLog(
 			user,
 			'customer_sale_offset_apply_forbidden',
@@ -7159,7 +7420,7 @@ async function autoApplyPrepayToSaleV1(user, data, requestId) {
 			},
 			requestId
 		)
-		return { code: 403, msg: '仅超级管理员可在销售单保存时使用冲抵款' }
+		return { code: 403, msg: '当前账号无使用冲抵款权限，请联系超级管理员授权' }
 	}
 
 	const moneyScale = resolveCustomerMoneyScale(customer)
@@ -8606,6 +8867,7 @@ exports.main = async (event, context) => {
 	if (action === 'removeFlowSettlementV1') return removeFlowSettlementV1(user, data, requestId)
 	if (action === 'exportCustomerStatementV1') return exportCustomerStatementV1(user, data)
 	if (action === 'exportCustomerAccountingLedgerV1') return exportCustomerAccountingLedgerV1(user, data)
+	if (action === 'exportCustomerDebtSnapshotV1') return exportCustomerDebtSnapshotV1(user, data)
 	if (action === 'getCustomerStatementAnalysisV1') return getCustomerStatementAnalysisV1(user, data, token, requestId)
 	if (action === 'refreshCustomerBalancesV1') return refreshCustomerBalancesV1(user, data, requestId)
 	if (action === 'getCustomerStatementV1') return getCustomerStatementV1(user, data, requestId)

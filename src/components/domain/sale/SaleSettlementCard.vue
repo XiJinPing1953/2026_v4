@@ -78,7 +78,7 @@
 						<text class="offset-toggle__label">{{ offsetToggleLabel }}</text>
 						<text class="offset-toggle__hint">{{ offsetToggleHintText }}</text>
 					</view>
-					<switch :checked="offsetEnabled" :disabled="readonly" color="#1677ff" @change="onOffsetEnabledChange" />
+					<switch :checked="offsetEnabled" :disabled="!canEditOffsetEnabled" color="#1677ff" @change="onOffsetEnabledChange" />
 				</view>
 			</view>
 
@@ -117,7 +117,8 @@ const props = defineProps({
 	expectedOffsetApplied: { type: [Number, String], default: 0 },
 	finalAmountReceived: { type: [Number, String], default: 0 },
 	canApplyOffsetCredit: { type: Boolean, default: true },
-	applyOffsetDisabledReason: { type: String, default: '' }
+	applyOffsetDisabledReason: { type: String, default: '' },
+	allowOffsetEnabledEdit: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -172,6 +173,7 @@ const offsetDelta = computed(() => {
 const showOffsetToggle = computed(() => offsetDelta.value > 0)
 const offsetDeltaText = computed(() => offsetDelta.value.toFixed(2))
 const offsetEnabled = computed(() => Boolean(props.modelValue?.offsetEnabled))
+const canEditOffsetEnabled = computed(() => !props.readonly || props.allowOffsetEnabledEdit)
 const offsetToggleLabel = computed(() => '入冲抵池')
 const offsetToggleHintText = computed(() => {
 	const shouldReceive = Number(props.shouldReceive)
@@ -230,7 +232,7 @@ function update(key, value) {
 }
 
 function onOffsetEnabledChange(e) {
-	if (props.readonly) return
+	if (!canEditOffsetEnabled.value) return
 	patchModel({ offsetEnabled: Boolean(e?.detail?.value) })
 }
 

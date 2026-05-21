@@ -130,7 +130,8 @@
 						<SaleSettlementCard
 							v-model="settlement"
 							size="sm"
-							:readonly="!canEditSettlement"
+							:readonly="!canEditSettlementControls"
+							:allow-offset-enabled-edit="canEditOffsetEnabled"
 							:should-receive="settlementSummary.amount"
 							:formula="settlementSummary.formula"
 							:payment-status-locked="true"
@@ -138,7 +139,7 @@
 							:offset-credit-loading="offsetCreditLoading"
 							:expected-offset-applied="expectedOffsetAppliedAmount"
 							:final-amount-received="finalAmountReceivedPreview"
-							:can-apply-offset-credit="canApplyOffsetCredit"
+							:can-apply-offset-credit="canApplyOffsetCreditInCurrentMode"
 							:apply-offset-disabled-reason="applyOffsetDisabledReason"
 						/>
 						<view v-if="recordId" class="settlement-external-note">
@@ -191,7 +192,6 @@ import AppSection from '@/components/base/AppSection.vue'
 import AppCard from '@/components/base/AppCard.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
-import { getRoleTemplate } from '@/services/auth'
 import { normalizeBottleNo } from '@/services/models'
 import { createSaleV2, getSaleV2, updateSaleV2, updateSaleSettlementV1, getCustomerDepositV1 } from '@/services/sale'
 import { listOffsetCreditPoolV1 } from '@/services/customerSettlement'
@@ -212,6 +212,7 @@ const props = defineProps({
 const recordId = toRef(props, 'recordId')
 const { canPageAction } = useAuthGuard()
 const SALE_LIST_REFRESH_KEY = 'sale:list:refresh'
+const APPLY_OFFSET_CREDIT_PERMISSION_PATH = '/pages/sale/apply-offset-credit'
 
 const form = ref({
 	date: '',
@@ -284,15 +285,25 @@ const ticketImageUploading = computed(() => ticketImages.value.some((item) => Bo
 const canCreateBusiness = computed(() => canPageAction('/pages/sale/edit', 'create'))
 const canUpdateBusiness = computed(() => canPageAction('/pages/sale/edit', 'update'))
 const canUpdateSettlement = computed(() => canPageAction('/pages/sale/settlement', 'update'))
-const canApplyOffsetCredit = computed(() => getRoleTemplate() === 'superadmin')
+const canApplyOffsetCredit = computed(() => canPageAction(APPLY_OFFSET_CREDIT_PERMISSION_PATH, 'update'))
+const canApplyOffsetCreditInCurrentMode = computed(() => Boolean(recordId.value) && canApplyOffsetCredit.value)
 const applyOffsetDisabledReason = computed(() =>
-	canApplyOffsetCredit.value ? '' : '仅超级管理员可在销售单保存时使用冲抵款'
+	!recordId.value
+		? '使用冲抵款请保存后在编辑态处理'
+		: (canApplyOffsetCredit.value ? '' : '当前账号无使用冲抵款权限，请联系超级管理员授权')
 )
 const canEditBusinessContent = computed(() =>
 	recordId.value ? canUpdateBusiness.value : canCreateBusiness.value
 )
 const canEditSettlement = computed(() =>
 	Boolean(recordId.value) && showSettlementBlocks.value && canUpdateSettlement.value
+)
+const canEditNewSettlement = computed(() =>
+	!recordId.value && showSettlementBlocks.value && canCreateBusiness.value
+)
+const canEditSettlementControls = computed(() => canEditSettlement.value || canEditNewSettlement.value)
+const canEditOffsetEnabled = computed(() =>
+	showSettlementBlocks.value && canEditSettlementControls.value
 )
 const canSaveBusiness = computed(() =>
 	recordId.value ? canUpdateBusiness.value : canCreateBusiness.value
@@ -302,7 +313,7 @@ const submittingBusiness = computed(() => submitting.value && submittingMode.val
 const submittingSettlement = computed(() => submitting.value && submittingMode.value === 'settlement')
 const settlementReadonlyHint = computed(() => {
 	if (!showSettlementBlocks.value) return ''
-	if (!recordId.value) return '新建销售单仅保存业务内容，收款结算请保存后在编辑态处理。'
+	if (!recordId.value) return '新建保存会同时保存本单收款结算；使用冲抵款请保存后在编辑态处理。'
 	if (!canUpdateSettlement.value) return '当前账号无收款结算权限，仅可查看。'
 	return ''
 })
@@ -343,7 +354,7 @@ const normalizedOffsetCreditAvailable = computed(() => {
 })
 const expectedOffsetAppliedAmount = computed(() => {
 	if (!showSettlementBlocks.value || !settlement.value?.applyOffsetCredit) return 0
-	if (!canApplyOffsetCredit.value) return 0
+	if (!canApplyOffsetCreditInCurrentMode.value) return 0
 	if (effectiveShouldReceive.value <= 0) return 0
 	const outstanding = fix2(
 		effectiveShouldReceive.value - manualAmountReceived.value - externalReceiptRoundingAmount.value
@@ -795,13 +806,13 @@ async function loadOffsetCreditAvailability(customerId = form.value.customerId) 
 		if (fetchSeq !== offsetCreditFetchSeq) return
 		offsetCreditAvailable.value = fix2(Math.max(availableTotal, 0))
 		offsetCreditLoading.value = false
-		if (offsetCreditAvailable.value <= 0 || !canApplyOffsetCredit.value) settlement.value.applyOffsetCredit = false
+		if (offsetCreditAvailable.value <= 0 || !canApplyOffsetCreditInCurrentMode.value) settlement.value.applyOffsetCredit = false
 	}
 }
 
 function syncSettlementStatusForSubmit() {
 	if (!showSettlementBlocks.value) return
-	if (!canApplyOffsetCredit.value) settlement.value.applyOffsetCredit = false
+	if (!canApplyOffsetCreditInCurrentMode.value) settlement.value.applyOffsetCredit = false
 	settlement.value.paymentStatus = autoPaymentStatus.value
 	if (settlement.value.paymentStatus === 'unpaid') {
 		settlement.value.paymentMethod = 'on_account'
@@ -821,6 +832,14 @@ async function onSubmitBusiness() {
 	if (!form.value.customerId) {
 		uni.showToast({ title: '请从列表选择客户', icon: 'none' })
 		return
+	}
+	if (!recordId.value && showSettlementBlocks.value) {
+		syncSettlementStatusForSubmit()
+		const validation = validateSettlement()
+		if (!validation.ok) {
+			uni.showToast({ title: validation.msg || '结算金额与付款状态不一致', icon: 'none' })
+			return
+		}
 	}
 
 	submittingMode.value = 'business'
@@ -986,7 +1005,7 @@ async function submitSale(ignoreBottleFlowWarning = false) {
 		},
 		flow: flow.value,
 		truck: truck.value,
-		settlement: settlement.value,
+		settlement: recordId.value ? settlement.value : { ...settlement.value, applyOffsetCredit: false },
 		outItems: outItems.value,
 		backItems: backItems.value,
 		depositRows: depositRows.value,

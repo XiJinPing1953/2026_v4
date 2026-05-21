@@ -32,6 +32,29 @@ function formatNowForFile() {
 	return `${y}${m}${d}_${hh}${mm}${ss}`
 }
 
+function formatDateTime(value) {
+	const ts = Number(value || 0)
+	if (!Number.isFinite(ts) || ts <= 0) return ''
+	const date = new Date(ts)
+	const y = date.getFullYear()
+	const m = String(date.getMonth() + 1).padStart(2, '0')
+	const d = String(date.getDate()).padStart(2, '0')
+	const hh = String(date.getHours()).padStart(2, '0')
+	const mm = String(date.getMinutes()).padStart(2, '0')
+	const ss = String(date.getSeconds()).padStart(2, '0')
+	return `${y}-${m}-${d} ${hh}:${mm}:${ss}`
+}
+
+function formatDateForFile(value) {
+	const ts = Number(value || 0)
+	if (!Number.isFinite(ts) || ts <= 0) return formatNowForFile().slice(0, 8)
+	const date = new Date(ts)
+	const y = date.getFullYear()
+	const m = String(date.getMonth() + 1).padStart(2, '0')
+	const d = String(date.getDate()).padStart(2, '0')
+	return `${y}${m}${d}`
+}
+
 function escapeXml(value) {
 	return String(value || '')
 		.replace(/&/g, '&amp;')
@@ -376,6 +399,109 @@ export function buildCustomerAccountingLedgerBatchWorkbookXml(payload = {}) {
 	const errors = Array.isArray(payload.ledgerSheetErrors) ? payload.ledgerSheetErrors : []
 	if (errors.length) pushSheet('会计导出失败', buildAccountingLedgerErrorRows(errors))
 	return buildWorkbookXml(sheets)
+}
+
+function debtSnapshotMoneyCell(row = {}, key = '') {
+	return moneyCellByScale(row?.[key], row?.money_scale)
+}
+
+function buildDebtSnapshotSummaryRows(payload = {}) {
+	const summaryRows = Array.isArray(payload.summary_rows) ? payload.summary_rows : []
+	const totals = payload.totals || {}
+	const rows = [
+		[{ type: 'String', value: '未结清欠款表（截至导出时点）' }],
+		[{ type: 'String', value: '导出时间' }, { type: 'String', value: formatDateTime(payload.snapshot_at || Date.now()) }],
+		[{ type: 'String', value: '客户数' }, { type: 'Number', value: toNumber(totals.customer_count, summaryRows.length) }],
+		[{ type: 'String', value: '未结清欠款合计' }, moneyCellByScale(totals.debt_total, 3)],
+		[{ type: 'String', value: '待分配收款合计' }, moneyCellByScale(totals.receipt_unallocated_total, 3)],
+		[{ type: 'String', value: '净额合计' }, moneyCellByScale(totals.net_total, 3)],
+		[{ type: 'String', value: '' }],
+		[
+			{ type: 'String', value: '客户名称' },
+			{ type: 'String', value: '联系人' },
+			{ type: 'String', value: '电话' },
+			{ type: 'String', value: '状态' },
+			{ type: 'String', value: '未结清欠款' },
+			{ type: 'String', value: '欠款笔数' },
+			{ type: 'String', value: '最早欠款日期' },
+			{ type: 'String', value: '最近欠款日期' },
+			{ type: 'String', value: '待分配收款' },
+			{ type: 'String', value: '预付款' },
+			{ type: 'String', value: '冲抵池' },
+			{ type: 'String', value: '净额' },
+			{ type: 'String', value: '存瓶数' },
+			{ type: 'String', value: '跟进备注' },
+			{ type: 'String', value: '承诺付款日' }
+		]
+	]
+	summaryRows.forEach((row) => {
+		rows.push([
+			{ type: 'String', value: normalizeString(row.customer_name) },
+			{ type: 'String', value: normalizeString(row.contact) },
+			{ type: 'String', value: normalizeString(row.phone) },
+			{ type: 'String', value: normalizeString(row.status) },
+			debtSnapshotMoneyCell(row, 'receivable_balance'),
+			{ type: 'Number', value: toNumber(row.debt_count, 0) },
+			{ type: 'String', value: normalizeString(row.earliest_debt_date) },
+			{ type: 'String', value: normalizeString(row.latest_debt_date) },
+			debtSnapshotMoneyCell(row, 'receipt_unallocated_balance'),
+			debtSnapshotMoneyCell(row, 'prepay_manual_balance'),
+			debtSnapshotMoneyCell(row, 'offset_credit_balance'),
+			debtSnapshotMoneyCell(row, 'net_balance'),
+			{ type: 'Number', value: toNumber(row.deposit_count, 0) },
+			{ type: 'String', value: normalizeString(row.follow_up_note) },
+			{ type: 'String', value: normalizeString(row.promise_pay_date) }
+		])
+	})
+	return rows
+}
+
+function buildDebtSnapshotDetailRows(payload = {}) {
+	const detailRows = Array.isArray(payload.detail_rows) ? payload.detail_rows : []
+	const rows = [
+		[
+			{ type: 'String', value: '客户名称' },
+			{ type: 'String', value: '送达地点' },
+			{ type: 'String', value: '单据类型' },
+			{ type: 'String', value: '业务日期' },
+			{ type: 'String', value: '单据号' },
+			{ type: 'String', value: '应收' },
+			{ type: 'String', value: '已分配收款' },
+			{ type: 'String', value: '收款抹零' },
+			{ type: 'String', value: '已冲抵' },
+			{ type: 'String', value: '未结清欠款' },
+			{ type: 'String', value: '备注' }
+		]
+	]
+	detailRows.forEach((row) => {
+		rows.push([
+			{ type: 'String', value: normalizeString(row.customer_name) },
+			{ type: 'String', value: normalizeString(row.delivery_customer_name) },
+			{ type: 'String', value: normalizeString(row.target_type_label) },
+			{ type: 'String', value: normalizeString(row.biz_date) },
+			{ type: 'String', value: normalizeString(row.target_id) },
+			debtSnapshotMoneyCell(row, 'should_receive'),
+			debtSnapshotMoneyCell(row, 'receipt_amount'),
+			debtSnapshotMoneyCell(row, 'receipt_rounding_amount'),
+			debtSnapshotMoneyCell(row, 'offset_amount'),
+			debtSnapshotMoneyCell(row, 'outstanding'),
+			{ type: 'String', value: normalizeString(row.note) }
+		])
+	})
+	return rows
+}
+
+export function buildCustomerDebtSnapshotWorkbookXml(payload = {}) {
+	return buildWorkbookXml([
+		buildWorksheetXml('欠款汇总', buildDebtSnapshotSummaryRows(payload)),
+		buildWorksheetXml('欠款明细', buildDebtSnapshotDetailRows(payload))
+	])
+}
+
+export function buildCustomerDebtSnapshotExportFileName(payload = {}) {
+	const total = Math.max(toNumber(payload?.totals?.customer_count, 0), 0)
+	const dateText = sanitizeFilePart(formatDateForFile(payload?.snapshot_at || Date.now()))
+	return `未结清欠款表_截至-${dateText}_${total}客户_${formatNowForFile()}.xls`
 }
 
 export function buildCustomerAccountingLedgerExportFileName(payload = {}) {

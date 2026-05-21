@@ -16,13 +16,16 @@ const gasInventoryMovements = db.collection('crm_gas_inventory_movements')
 const flowSettlements = db.collection('crm_customer_flow_settlements')
 const customerReceipts = db.collection('crm_customer_receipts')
 let ensureActionAcl = null
+let hasPagePermission = null
+let isSuperAdmin = null
 try {
-	;({ ensureActionAcl } = require('../common/pageAcl'))
+	;({ ensureActionAcl, hasPagePermission, isSuperAdmin } = require('../common/pageAcl'))
 } catch (err) {
 	console.warn('[crm-sale] fallback to local pageAcl helpers', err && err.message)
-	;({ ensureActionAcl } = require('./pageAclLocal'))
+	;({ ensureActionAcl, hasPagePermission, isSuperAdmin } = require('./pageAclLocal'))
 }
 const BOTTLE_FLOW_WARNING_KIND = 'bottle_flow_mismatch'
+const APPLY_OFFSET_CREDIT_PAGE = '/pages/sale/apply-offset-credit'
 const AGENT_SALE_BACKFILL_ROLES = new Set(['superadmin'])
 const AGENT_SALE_BACKFILL_CONFIRM_TEXT = 'BACKFILL_AGENT_SALE_BOTTLE_MOVEMENTS'
 const PAGE_ACTION_RULES = {
@@ -191,6 +194,14 @@ function normalizeTicketImages(images, legacyImage) {
 
 function normalizeRole(value) {
 	return normalizeString(value).toLowerCase()
+}
+
+function canUseSaleOffsetCredit(user) {
+	if (typeof isSuperAdmin === 'function' && isSuperAdmin(user)) return true
+	if (typeof hasPagePermission === 'function') {
+		return hasPagePermission(user, APPLY_OFFSET_CREDIT_PAGE, 'update')
+	}
+	return false
 }
 
 function normalizeIdString(value) {
@@ -1293,6 +1304,11 @@ function collectSaleBottleNosFromDoc(doc) {
 		...collectBottleNosFromRows(agentRows)
 	])
 	return Array.from(set)
+}
+
+function collectSaleBackBottleNosFromDoc(doc) {
+	const backRows = Array.isArray(doc && doc.back_items) ? doc.back_items : []
+	return collectBottleNosFromRows(backRows)
 }
 
 function collectSaleCustomerIdsFromDoc(doc) {
@@ -2698,6 +2714,39 @@ async function triggerAnomalyTouchV2(user, token, bottleNosOrPayload, requestId)
 	}
 }
 
+async function syncFillingStartLossAdjustments(user, token, bottleNos = [], requestId, logAction = 'sale_filling_start_loss_sync_failed') {
+	const normalizedBottleNos = Array.from(
+		new Set(
+			(bottleNos || [])
+				.map((item) => normalizeBottleNoForCreate(item))
+				.filter(Boolean)
+		)
+	)
+	if (!normalizedBottleNos.length) return { ok: true, warning: '', data: null }
+	try {
+		const res = await uniCloud.callFunction({
+			name: 'crm-filling',
+			data: {
+				action: 'syncStartLossAdjustmentsV1',
+				token,
+				request_id: requestId,
+				data: {
+					bottle_nos: normalizedBottleNos
+				}
+			}
+		})
+		const result = res && res.result ? res.result : {}
+		if (result.code === 0) return { ok: true, warning: '', data: result.data || null }
+		const warning = normalizeString(result.msg) || '灌装上秤差自动补算失败'
+		await recordLog(user, logAction, { bottle_nos: normalizedBottleNos, msg: warning }, requestId)
+		return { ok: false, warning }
+	} catch (err) {
+		const warning = normalizeString(err && err.message) || '灌装上秤差自动补算失败'
+		await recordLog(user, logAction, { bottle_nos: normalizedBottleNos, msg: warning }, requestId)
+		return { ok: false, warning }
+	}
+}
+
 function resolveRegBridgeTimeoutMs() {
 	const raw = Number(process.env.REG_BRIDGE_ENQUEUE_TIMEOUT_MS || 1200)
 	if (!Number.isFinite(raw)) return 1200
@@ -2942,6 +2991,9 @@ async function createV2(user, payload, requestId, token) {
 		},
 		priceUnit
 	)
+	const roundingAmount = settlementMode === 'customer_flow'
+		? 0
+		: Math.max(toNumber(base.roundingAmount ?? base.rounding_amount, 0), 0)
 	const amountsForCheck = computeAmounts({
 		settlementMode,
 		bizMode,
@@ -2956,19 +3008,33 @@ async function createV2(user, payload, requestId, token) {
 			truckSettleTare,
 			truckSettleGross,
 			flow: flowForCheck,
-			roundingAmount: 0
+			roundingAmount
 		})
-	const amountReceived = 0
+	const amountReceived = settlementMode === 'customer_flow'
+		? 0
+		: toNumber(base.amountReceived ?? base.amount_received, 0)
 	const effectiveShouldReceive = toNumber(amountsForCheck.effective_should_receive, 0)
 	const applyOffsetCredit = false
 	const nextApplyOffsetCredit = applyOffsetCredit
-	const offsetEnabled = false
 	const paymentStatus = settlementMode === 'customer_flow'
 		? 'paid'
-		: (effectiveShouldReceive <= 0 ? 'paid' : 'unpaid')
+		: normalizePaymentStatus(base.paymentStatus ?? base.payment_status ?? (effectiveShouldReceive <= 0 ? 'paid' : 'unpaid'))
 	const paymentMethod = settlementMode === 'customer_flow'
 		? 'on_account'
-		: normalizePaymentMethod('', paymentStatus)
+		: normalizePaymentMethod(base.paymentMethod ?? base.payment_method, paymentStatus)
+	const settlementCheck = settlementMode === 'customer_flow'
+		? { ok: true }
+		: validateSettlement({
+			shouldReceive: amountsForCheck.should_receive,
+			paymentStatus,
+			paymentMethod,
+			amountReceived,
+			roundingAmount
+		})
+	if (!settlementCheck.ok) return { code: 400, msg: settlementCheck.msg }
+	const requestedOffsetEnabled = toBoolean(base.offsetEnabled ?? base.offset_enabled, false)
+	const offsetDelta = fix2(Math.max(0, amountReceived - effectiveShouldReceive))
+	const offsetEnabled = settlementMode === 'customer_flow' ? false : (offsetDelta > 0 ? requestedOffsetEnabled : false)
 	const remarkMeta = deriveRemarkMeta(base.remark)
 	const ticketImages = normalizeTicketImages(base.ticketImages, base.ticketImage)
 
@@ -2995,8 +3061,8 @@ async function createV2(user, payload, requestId, token) {
 		payment_status: paymentStatus,
 		payment_method: paymentMethod,
 		amount_received: amountReceived,
-		rounding_amount: 0,
-		payment_note: '',
+		rounding_amount: roundingAmount,
+		payment_note: normalizeString(base.paymentNote ?? base.payment_note),
 		apply_offset_credit: applyOffsetCredit,
 		offset_enabled: offsetEnabled,
 		created_at: Date.now(),
@@ -3064,9 +3130,17 @@ async function createV2(user, payload, requestId, token) {
 			truckSettleTare,
 			truckSettleGross,
 			flow,
-			roundingAmount: toNumber(base.roundingAmount, 0)
+			roundingAmount
 		})
 	const sideWarnings = []
+	const startLossSyncRes = await syncFillingStartLossAdjustments(
+		user,
+		token,
+		collectSaleBackBottleNosFromDoc(saleDoc),
+		requestId,
+		'sale_filling_start_loss_sync_create_failed'
+	)
+	if (startLossSyncRes.warning) sideWarnings.push(startLossSyncRes.warning)
 	try {
 		await replaceSaleGasInventoryMovement({
 			sourceId: res.id,
@@ -4770,6 +4844,17 @@ async function updateV2(user, data, requestId, token) {
 			roundingAmount: toNumber(base.roundingAmount, 0)
 		})
 	const sideWarnings = []
+	const startLossSyncRes = await syncFillingStartLossAdjustments(
+		user,
+		token,
+		[
+			...collectSaleBackBottleNosFromDoc(existing),
+			...collectSaleBackBottleNosFromDoc({ back_items: backRows })
+		],
+		requestId,
+		'sale_filling_start_loss_sync_update_failed'
+	)
+	if (startLossSyncRes.warning) sideWarnings.push(startLossSyncRes.warning)
 	try {
 		await replaceSaleGasInventoryMovement({
 			sourceId: recordId,
@@ -4955,9 +5040,9 @@ async function updateSettlementV1(user, data, requestId, token) {
 	const requestedOffsetEnabled = toBoolean(payload.offsetEnabled ?? payload.offset_enabled, existingOffsetEnabled)
 	const existingApplyOffsetCredit = toBoolean(existing && (existing.apply_offset_credit ?? existing.applyOffsetCredit), false)
 	const nextApplyOffsetCredit = toBoolean(payload.applyOffsetCredit ?? payload.apply_offset_credit, existingApplyOffsetCredit)
-	const canApplyOffsetCredit = normalizeRole(user && user.role) === 'superadmin'
+	const canApplyOffsetCredit = canUseSaleOffsetCredit(user)
 	if (nextApplyOffsetCredit && !canApplyOffsetCredit) {
-		return { code: 403, msg: '仅超级管理员可在销售单保存时使用冲抵款' }
+		return { code: 403, msg: '当前账号无使用冲抵款权限，请联系超级管理员授权' }
 	}
 
 	const effectiveShouldReceive = toNumber(amounts.effective_should_receive, 0)
@@ -5059,6 +5144,7 @@ async function removeV2(user, data, requestId, token) {
 
 	const source = `sale:${recordId}`
 	const sideWarnings = []
+	const backBottleNosForStartLoss = collectSaleBackBottleNosFromDoc(saleDoc)
 	try {
 		const voucherRes = await vouchers.where({ source }).limit(1).get()
 		const voucher = (voucherRes.data && voucherRes.data[0]) || null
@@ -5088,6 +5174,14 @@ async function removeV2(user, data, requestId, token) {
 		else throw err
 	}
 	await sales.doc(recordId).remove()
+	const startLossSyncRes = await syncFillingStartLossAdjustments(
+		user,
+		token,
+		backBottleNosForStartLoss,
+		requestId,
+		'sale_filling_start_loss_sync_remove_failed'
+	)
+	if (startLossSyncRes.warning) sideWarnings.push(startLossSyncRes.warning)
 	const customerId = normalizeString(saleDoc.customer_id)
 	const releaseSaleSettlementRes = await callCustomerSettlement(
 		'releaseSaleSettlementOnRemoveV1',
