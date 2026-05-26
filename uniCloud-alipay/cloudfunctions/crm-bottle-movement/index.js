@@ -20,6 +20,7 @@ const ANOMALY_RANK_TOP_LIMIT = 5
 const ANOMALY_RANK_MAX_LIMIT = 30
 const ANOMALY_RANK_PAGE_SIZE_DEFAULT = 20
 const ANOMALY_RANK_PAGE_SIZE_MAX = 200
+const FILLING_START_LOSS_ADJUST_REASON = 'filling_start_weight_loss'
 const PAGE_ACTION_RULES = {
 	listV1: [
 		{ pagePath: '/pages/bottle/movement', action: 'view' },
@@ -393,9 +394,21 @@ function round2(value) {
 	return Math.round(num * 100) / 100
 }
 
+function isFillingStartLossAdjustRow(row) {
+	return (
+		normalizeType(row && row.type) === 'adjust' &&
+		normalizeSourceType(row && row.source_type) === 'manual_fix' &&
+		normalizeString(row && row.adjust_reason).toLowerCase() === FILLING_START_LOSS_ADJUST_REASON
+	)
+}
+
 function isMissingFillLossRow(row) {
 	if (normalizeType(row && row.type) !== 'adjust') return false
 	if (normalizeSourceType(row && row.source_type) !== 'manual_fix') return false
+	if (isFillingStartLossAdjustRow(row)) {
+		const loss = toNumber(row && row.loss_weight, null)
+		return loss != null && loss !== 0
+	}
 	const adjustReason = normalizeString(row && row.adjust_reason).toLowerCase()
 	if (
 		adjustReason === 'missing_fill_loss' ||
@@ -706,7 +719,7 @@ async function fetchAllCycleEventRowsGlobal({ maxRows = CYCLE_SCAN_MAX_ROWS, dat
 	const pageSize = 300
 	let page = 0
 	let rows = []
-	const where = { type: db.command.in(['back', 'fill', 'out']) }
+	const where = { type: db.command.in(['back', 'fill', 'out', 'adjust']) }
 	if (dateStart && dateEnd) {
 		where.event_day = db.command.and(db.command.gte(dateStart), db.command.lte(dateEnd))
 	} else if (dateStart) {
@@ -757,8 +770,16 @@ function createActiveCycleFromBack(backRow) {
 		back: backRow,
 		fillSum: 0,
 		fillCount: 0,
-		fillSourceIds: []
+		fillSourceIds: [],
+		startLossSum: 0,
+		startLossCount: 0,
+		startLossSourceIds: []
 	}
+}
+
+function isCycleRelevantEventRow(row) {
+	const type = normalizeType(row && row.type)
+	return type === 'back' || type === 'fill' || type === 'out' || isFillingStartLossAdjustRow(row)
 }
 
 function listEffectiveCycleEvents(events) {
@@ -853,8 +874,9 @@ function buildCycleRowFromActiveCycle(bottleNo, activeCycle, outRow) {
 	if (!backRow) return null
 	const backNet = toNumber(backRow && backRow.net_weight, 0) || 0
 	const fillSum = round2(activeCycle.fillSum)
+	const startLossSum = round2(activeCycle.startLossSum)
 	const outNet = toNumber(outRow && outRow.net_weight, 0) || 0
-	const theoreticalOut = round2(backNet + fillSum)
+	const theoreticalOut = round2(backNet + fillSum - startLossSum)
 	const delta = round2(theoreticalOut - outNet)
 	return {
 		bottle_no: bottleNo,
@@ -863,6 +885,8 @@ function buildCycleRowFromActiveCycle(bottleNo, activeCycle, outRow) {
 		back_net_kg: round2(backNet),
 		fill_count: activeCycle.fillCount,
 		fill_sum_kg: fillSum,
+		start_loss_sum_kg: startLossSum,
+		start_loss_count: activeCycle.startLossCount,
 		out_date: normalizeString(outRow && outRow.date),
 		out_day: eventDayOfRow(outRow),
 		out_net_kg: round2(outNet),
@@ -871,6 +895,7 @@ function buildCycleRowFromActiveCycle(bottleNo, activeCycle, outRow) {
 		result_type: delta > 0 ? 'loss' : delta < 0 ? 'swell' : 'exact',
 		source_back_id: normalizeString(backRow && backRow.source_id) || null,
 		source_fill_ids: Array.from(new Set(activeCycle.fillSourceIds)),
+		source_start_loss_ids: Array.from(new Set(activeCycle.startLossSourceIds)),
 		source_out_id: normalizeString(outRow && outRow.source_id) || null,
 		out_customer_id: normalizeString(outRow && outRow.customer_id) || null,
 		out_customer_name: normalizeString(outRow && outRow.customer_name),
@@ -953,7 +978,13 @@ function processCycleDay(state, dayEvents, cycleRows, incompleteRows) {
 		}
 
 		if (type === 'adjust') {
-			state.lastEffectiveType = 'adjust'
+			if (!isFillingStartLossAdjustRow(row)) continue
+			if (!state.activeCycle || !state.activeCycle.back) continue
+			const startLossWeight = toNumber(row && row.loss_weight, 0) || 0
+			state.activeCycle.startLossSum += startLossWeight
+			state.activeCycle.startLossCount += 1
+			const adjustSourceId = normalizeString(row && row.source_id) || normalizeString(row && row._id)
+			if (adjustSourceId) state.activeCycle.startLossSourceIds.push(adjustSourceId)
 		}
 	}
 }
@@ -1072,8 +1103,7 @@ async function rebuildCustomerLossDailySummaries(customerId, { dateStart = '', d
 		])
 
 		const cycleEvents = (eventRows || []).filter((row) => {
-			const type = normalizeType(row && row.type)
-			return type === 'back' || type === 'fill' || type === 'out'
+			return isCycleRelevantEventRow(row)
 		})
 		const { cycleRows } = buildCycleRowsFromEvents(cycleEvents)
 		cycleLossRows = cycleRows.filter((row) => {
@@ -1218,6 +1248,7 @@ function buildCycleRowsFromEvents(events) {
 			active_cycle: state.activeCycle
 				? {
 					fill_count: state.activeCycle.fillCount,
+					start_loss_count: state.activeCycle.startLossCount,
 					back_day: eventDayOfRow(state.activeCycle.back),
 					back_date: normalizeString(state.activeCycle.back && state.activeCycle.back.date)
 				}
@@ -1242,6 +1273,8 @@ function buildCycleAnomalyRows(cycleRows = [], customerMatcher) {
 		.map((row) => {
 			const delta = round2(toNumber(row && row.delta_kg, 0) || 0)
 			const absDelta = round2(Math.abs(delta))
+			const startLossSum = round2(toNumber(row && row.start_loss_sum_kg, 0) || 0)
+			const startLossText = startLossSum !== 0 ? ` - 上秤差${startLossSum}` : ''
 			return {
 				entry_type: 'cycle',
 				result_type: delta > 0 ? 'loss' : 'swell',
@@ -1251,7 +1284,7 @@ function buildCycleAnomalyRows(cycleRows = [], customerMatcher) {
 				customer_name: normalizeString(row && row.out_customer_name),
 				delta_kg: delta,
 				abs_delta_kg: absDelta,
-				detail: `回瓶${round2(toNumber(row && row.back_net_kg, 0) || 0)} + 灌装${round2(toNumber(row && row.fill_sum_kg, 0) || 0)} = 理论${round2(
+				detail: `回瓶${round2(toNumber(row && row.back_net_kg, 0) || 0)} + 灌装${round2(toNumber(row && row.fill_sum_kg, 0) || 0)}${startLossText} = 理论${round2(
 					toNumber(row && row.theoretical_out_kg, 0) || 0
 				)}，实际${round2(toNumber(row && row.out_net_kg, 0) || 0)}`,
 				source_id: normalizeString(row && row.source_out_id)
@@ -1731,8 +1764,7 @@ async function cycleLossV1(user, data, requestId) {
 	if (bottleNo) {
 		const allRows = await fetchAllBottleMovementRows(bottleNo)
 		events = allRows.filter((row) => {
-			const type = normalizeType(row && row.type)
-			return type === 'back' || type === 'fill' || type === 'out'
+			return isCycleRelevantEventRow(row)
 		})
 	} else {
 		const globalRes = await fetchAllCycleEventRowsGlobal({
@@ -1795,6 +1827,8 @@ async function cycleLossV1(user, data, requestId) {
 		back_net_kg: row.back_net_kg,
 		fill_count: row.fill_count,
 		fill_sum_kg: row.fill_sum_kg,
+		start_loss_count: row.start_loss_count,
+		start_loss_sum_kg: row.start_loss_sum_kg,
 		out_date: row.out_date,
 		out_net_kg: row.out_net_kg,
 		theoretical_out_kg: row.theoretical_out_kg,
@@ -1803,6 +1837,7 @@ async function cycleLossV1(user, data, requestId) {
 		out_customer_name: row.out_customer_name,
 		source_back_id: row.source_back_id,
 		source_fill_ids: row.source_fill_ids,
+		source_start_loss_ids: row.source_start_loss_ids,
 		source_out_id: row.source_out_id
 	}))
 
@@ -1874,8 +1909,7 @@ async function lossAnomalyRankV1(user, data, requestId) {
 	if (bottleNo) {
 		const allRows = await fetchAllBottleMovementRows(bottleNo)
 		const events = allRows.filter((row) => {
-			const type = normalizeType(row && row.type)
-			return type === 'back' || type === 'fill' || type === 'out'
+			return isCycleRelevantEventRow(row)
 		})
 		events.sort(compareCycleEventAsc)
 		const cycleResult = buildCycleRowsFromEvents(events)

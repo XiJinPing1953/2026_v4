@@ -1,0 +1,98 @@
+{
+  "started_at": "2026-05-19T07:50:25.183Z",
+  "space_id": "env-00jxuffegf2n",
+  "execute": false,
+  "settlement_name": "上庄美食美客",
+  "delivery_site_name": "美食美客清洗部",
+  "result": {
+    "code": 0,
+    "msg": "土山蛋糕结算关系迁移预览完成",
+    "data": {
+      "execute": false,
+      "boundary_note": "气瓶当前位置与 crm_bottle_movements 不迁移，仍保留具体送达地点。",
+      "summaries": {
+        "customers": {
+          "settlement": {
+            "_id": "694045c0adf6dbd796e261d2",
+            "name": "上庄美食美客"
+          },
+          "delivery_site": {
+            "_id": "694045c0adf6dbd796e261d1",
+            "name": "美食美客清洗部"
+          }
+        },
+        "sales": {
+          "main_missing_delivery": {
+            "count": 82,
+            "sums": {
+              "amount_received": 122602.5
+            },
+            "missing": false
+          },
+          "delivery_legacy_to_merge": {
+            "count": 58,
+            "sums": {
+              "amount_received": 33172.5
+            },
+            "missing": false
+          },
+          "delivery_already_migrated": {
+            "count": 0,
+            "sums": {},
+            "missing": false
+          }
+        },
+        "accounting": {
+          "receipts": {
+            "count": 5,
+            "sums": {
+              "amount": 53527.5,
+              "allocated_amount": 53527.5,
+              "unallocated_amount": 0,
+              "rounding_amount": 0
+            },
+            "missing": false
+          },
+          "allocations": {
+            "count": 28,
+            "sums": {
+              "allocate_amount": 53527.5
+            },
+            "missing": false
+          },
+          "receipt_adjustments": {
+            "count": 0,
+            "sums": {},
+            "missing": true
+          },
+          "flow_settlements": {
+            "count": 0,
+            "sums": {},
+            "missing": false
+          },
+          "opening_debts_and_other_fees": {
+            "count": 1,
+            "sums": {
+              "amount": 20355,
+              "amount_received": 20355
+            },
+            "missing": false
+          },
+          "collection_followups": {
+            "count": 0,
+            "sums": {},
+            "missing": true
+          },
+          "collection_tasks": {
+            "count": 0,
+            "sums": {},
+            "missing": true,
+            "updated": 0,
+            "conflicts": []
+          }
+        }
+      },
+      "updates": {}
+    }
+  }
+}

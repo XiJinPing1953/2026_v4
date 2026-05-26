@@ -296,8 +296,8 @@
 							<text v-if="batchCreatePreviewWarningTotal > 0" class="batch-result-line">
 								瓶流转预警：{{ batchCreatePreviewWarningTotal }} 条
 							</text>
-							<text v-if="batchCreateMissingBasisInvalidTotal > 0" class="batch-result-line batch-result-line--warning">
-								有 {{ batchCreateMissingBasisInvalidTotal }} 条新瓶缺少回瓶基准，请改批量净重录入。
+							<text v-if="batchCreatePendingBasisTotal > 0" class="batch-result-line batch-result-line--warning">
+								有 {{ batchCreatePendingBasisTotal }} 条未命中最近回瓶重量，已标记为待销售回瓶自动补算。
 							</text>
 							<text class="batch-result-line">样例{{ batchCreateIdentifierLabel }}：{{ formatBottleNoSamples(batchCreatePreviewResult.sample_bottle_nos) }}</text>
 							<view v-if="batchCreatePreviewCreateItems.length" class="batch-detail-block">
@@ -701,11 +701,11 @@ const singleCreateResolveDisplayText = computed(() => {
 	return singleCreateResolveError.value
 })
 const batchCreateIdentifierLabel = computed(() => (normalizeRecordType(batchCreateForm.record_type, '') === 'truck_out_no_sale' ? '车牌号' : '瓶号'))
-const batchCreateValueLabel = computed(() => (batchCreateInputMode.value === 'after_fill_total' ? '灌后总重' : '净重'))
+const batchCreateValueLabel = computed(() => (batchCreateInputMode.value === 'after_fill_total' ? '上秤重量/灌装完重量' : '净重'))
 const batchCreateDefaultWeightVisible = computed(() => batchCreateInputMode.value === 'net')
 const batchCreateTextareaLabel = computed(() =>
 	batchCreateInputMode.value === 'after_fill_total'
-		? `批量内容（每行一条：\`${batchCreateIdentifierLabel.value},灌后总重\`）`
+		? `批量内容（每行一条：\`${batchCreateIdentifierLabel.value},瓶子上秤重量,灌装完重量\`）`
 		: `批量内容（每行一条：\`${batchCreateIdentifierLabel.value},净重\` 或仅 \`${batchCreateIdentifierLabel.value}\`）`
 )
 const batchCreateTextareaPlaceholder = computed(() => {
@@ -715,7 +715,7 @@ const batchCreateTextareaPlaceholder = computed(() => {
 	if (batchCreateInputMode.value === 'after_fill_total') {
 		return normalizeRecordType(batchCreateForm.record_type, '') === 'truck_out_no_sale'
 			? '示例：\n冀A263AP,540\n冀A565PC,823'
-			: '示例：\n134,188\n135,187.5'
+			: '示例：\n134,118,188\n135,119.5,187.5'
 	}
 	return '示例：\n134,68\n135,67.5\n136'
 })
@@ -726,7 +726,7 @@ const batchCreateHintText = computed(() => {
 	if (batchCreateInputMode.value === 'after_fill_total') {
 		return normalizeRecordType(batchCreateForm.record_type, '') === 'truck_out_no_sale'
 			? '每行必须填写“车牌号,灌后总重”；系统将按最近整车回站总重推导净重。'
-			: '每行必须填写“瓶号,灌后总重”；系统将按最近一次回瓶总重推导净重。'
+			: '每行必须填写“瓶号,瓶子上秤重量,灌装完重量”；灌装净重=灌装完重量-瓶子上秤重量，未命中最近回瓶重量时提交后等待销售回瓶自动补算上秤差。'
 	}
 	return '若某行未填写净重，将使用“默认净重”；若默认净重也为空，该行会在预览中标为无效。'
 })
@@ -743,9 +743,13 @@ const batchCreatePreviewExistingItems = computed(() => {
 const batchCreatePreviewInvalidItems = computed(() => {
 	return Array.isArray(batchCreatePreviewResult.value?.invalid_items) ? batchCreatePreviewResult.value.invalid_items : []
 })
-const batchCreateMissingBasisInvalidTotal = computed(() =>
-	countMissingRecentBackBasisInvalidItems(batchCreatePreviewInvalidItems.value)
-)
+const batchCreatePendingBasisTotal = computed(() => {
+	const explicitTotal = Number(batchCreatePreviewResult.value?.pending_basis_total)
+	if (Number.isFinite(explicitTotal) && explicitTotal > 0) return explicitTotal
+	return batchCreatePreviewCreateItems.value.reduce((count, item) => {
+		return count + (normalizeString(item?.loss_match_status) === 'pending' || item?.basis_missing ? 1 : 0)
+	}, 0)
+})
 const normalFillWeightText = computed(() => formatWeightStat(summary.value.normalFillWeight))
 const truckOutAgentSaleWeightText = computed(() => formatWeightStat(summary.value.truckOutAgentSaleWeight))
 const truckOutNoSaleWeightText = computed(() => formatWeightStat(summary.value.truckOutNoSaleWeight))
@@ -2250,13 +2254,16 @@ function formatBatchCreatePreviewCreateItem(item) {
 	const fillWeight = Number(item?.fill_weight)
 	const weightText = Number.isFinite(fillWeight) ? formatWeightValue(fillWeight) : '-'
 	const warningReason = normalizeString(item?.warning_reason)
-	const afterFillTotalWeight = Number(item?.after_fill_total_weight)
-	if (Number.isFinite(afterFillTotalWeight) && afterFillTotalWeight > 0) {
+	const weightStart = Number(item?.weight_start)
+	const weightEnd = Number(item?.weight_end)
+	if (Number.isFinite(weightStart) && weightStart > 0 && Number.isFinite(weightEnd) && weightEnd > 0) {
 		const basisValue = Number(item?.basis_value)
-		const basisText = Number.isFinite(basisValue) ? `${formatWeightValue(basisValue)}kg` : '-'
-		const sourceLabel = getDerivedBasisSourceLabel(item?.basis_source)
-		const refText = formatDerivedBasisRef(item)
-		const baseText = `行${lineNo || '-'} · ${bottleNo} · 总重 ${formatWeightValue(afterFillTotalWeight)}kg · 依据 ${sourceLabel} ${basisText} · 推导 ${weightText}kg · 来源 ${refText}`
+		const status = normalizeString(item?.loss_match_status)
+		const startLoss = Number(item?.start_loss_weight)
+		const matchText = Number.isFinite(basisValue)
+			? `上秤差 ${Number.isFinite(startLoss) ? formatWeightValue(startLoss) : '-'}kg · 依据 ${getDerivedBasisSourceLabel(item?.basis_source)} ${formatWeightValue(basisValue)}kg · 来源 ${formatDerivedBasisRef(item)}`
+			: (status === 'pending' || item?.basis_missing ? '待销售回瓶自动补算上秤差' : '未生成上秤差')
+		const baseText = `行${lineNo || '-'} · ${bottleNo} · 上秤 ${formatWeightValue(weightStart)}kg · 灌完 ${formatWeightValue(weightEnd)}kg · 净重 ${weightText}kg · ${matchText}`
 		return warningReason ? `${baseText} · 预警 ${warningReason}` : baseText
 	}
 	const baseText = `行${lineNo || '-'} · ${bottleNo} · ${weightText}kg`

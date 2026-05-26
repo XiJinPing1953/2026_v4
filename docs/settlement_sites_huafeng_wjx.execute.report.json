@@ -1,0 +1,148 @@
+{
+  "started_at": "2026-05-19T07:50:05.932Z",
+  "space_id": "env-00jxuffegf2n",
+  "execute": true,
+  "settlement_name": "华丰皮革厂-王建新",
+  "delivery_site_name": "华丰皮革厂-王建新涂浆",
+  "result": {
+    "code": 0,
+    "msg": "土山蛋糕结算关系迁移已执行",
+    "data": {
+      "execute": true,
+      "boundary_note": "气瓶当前位置与 crm_bottle_movements 不迁移，仍保留具体送达地点。",
+      "summaries": {
+        "customers": {
+          "settlement": {
+            "_id": "694045c0adf6dbd796e2620b",
+            "name": "华丰皮革厂-王建新"
+          },
+          "delivery_site": {
+            "_id": "694045c0adf6dbd796e26211",
+            "name": "华丰皮革厂-王建新涂浆"
+          }
+        },
+        "sales": {
+          "main_missing_delivery": {
+            "count": 83,
+            "sums": {
+              "amount_received": 53135
+            },
+            "missing": false
+          },
+          "delivery_legacy_to_merge": {
+            "count": 73,
+            "sums": {
+              "amount_received": 21858
+            },
+            "missing": false
+          },
+          "delivery_already_migrated": {
+            "count": 0,
+            "sums": {},
+            "missing": false
+          }
+        },
+        "accounting": {
+          "receipts": {
+            "count": 4,
+            "sums": {
+              "amount": 34388,
+              "allocated_amount": 34388,
+              "unallocated_amount": 0,
+              "rounding_amount": 0
+            },
+            "missing": false
+          },
+          "allocations": {
+            "count": 39,
+            "sums": {
+              "allocate_amount": 34388
+            },
+            "missing": false
+          },
+          "receipt_adjustments": {
+            "count": 0,
+            "sums": {},
+            "missing": true
+          },
+          "flow_settlements": {
+            "count": 0,
+            "sums": {},
+            "missing": false
+          },
+          "opening_debts_and_other_fees": {
+            "count": 1,
+            "sums": {
+              "amount": 12530,
+              "amount_received": 12530
+            },
+            "missing": false
+          },
+          "collection_followups": {
+            "count": 0,
+            "sums": {},
+            "missing": true
+          },
+          "collection_tasks": {
+            "count": 0,
+            "sums": {},
+            "missing": true,
+            "updated": 0,
+            "conflicts": []
+          }
+        }
+      },
+      "updates": {
+        "main_customer_relation": {
+          "updated": 1
+        },
+        "delivery_customer_relation": {
+          "updated": 1
+        },
+        "sales_main_delivery": 83,
+        "sales_delivery_merge": 73,
+        "receipts": 4,
+        "allocations": 39,
+        "receipt_adjustments": 0,
+        "flow_settlements": 0,
+        "opening_debts_and_other_fees": 1,
+        "collection_followups": 0,
+        "collection_tasks": {
+          "count": 0,
+          "sums": {},
+          "missing": true,
+          "updated": 0,
+          "conflicts": []
+        },
+        "rebuild_balances": {
+          "settlement": {
+            "customer_id": "694045c0adf6dbd796e2620b",
+            "customer_name": "华丰皮革厂-王建新",
+            "receivable_balance": 35493,
+            "prepay_balance": 0,
+            "prepay_manual_balance": 0,
+            "receipt_unallocated_balance": 0,
+            "offset_credit_balance": 0,
+            "net_balance": 35493,
+            "should_receive_total": 109135,
+            "amount_received_total": 73642,
+            "last_receipt_at": 1778601600000
+          },
+          "delivery_site": {
+            "customer_id": "694045c0adf6dbd796e26211",
+            "customer_name": "华丰皮革厂-王建新涂浆",
+            "receivable_balance": 0,
+            "prepay_balance": 0,
+            "prepay_manual_balance": 0,
+            "receipt_unallocated_balance": 0,
+            "offset_credit_balance": 0,
+            "net_balance": 0,
+            "should_receive_total": 0,
+            "amount_received_total": 0,
+            "last_receipt_at": null
+          }
+        }
+      }
+    }
+  }
+}

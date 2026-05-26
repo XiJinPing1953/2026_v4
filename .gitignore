@@ -1,6 +1,7 @@
 node_modules
 unpackage
 dist
+release/
 *.log
 .DS_Store
 .hbuilderx

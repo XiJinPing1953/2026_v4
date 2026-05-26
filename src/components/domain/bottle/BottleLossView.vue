@@ -1,5 +1,5 @@
 <template>
-	<AppPage title="理论损耗统计" subtitle="按 回瓶 + 灌装 - 出瓶 计算" icon="chart">
+	<AppPage title="理论损耗统计" subtitle="按 回瓶 + 灌装 - 上秤差 - 出瓶 计算" icon="chart">
 		<template #headerActions>
 			<AppButton v-if="activeSummaryFilter" size="sm" kind="ghost" :disabled="cycleLoading" @click="clearSummaryFilter">清除卡片筛选</AppButton>
 			<AppButton size="sm" kind="neutral" icon="document" :disabled="loading || exporting || manualLoading" @click="onExport">导出</AppButton>
@@ -42,7 +42,7 @@
 				/>
 				<AppStatCard
 					:class="['summary-card', { 'summary-card--active': isSummaryFilterActive(SUMMARY_FILTER_KEYS.MANUAL_LOSS) }]"
-					label="修复损耗"
+					label="修复/上秤损耗"
 					:value="formatKg(manualLoss.summary.total_loss_kg)"
 					hint="kg"
 					icon="alert"
@@ -50,7 +50,7 @@
 				/>
 				<AppStatCard
 					:class="['summary-card', { 'summary-card--active': isSummaryFilterActive(SUMMARY_FILTER_KEYS.MANUAL_SWELL) }]"
-					label="修复胀重"
+					label="修复/上秤胀重"
 					:value="formatKg(manualLoss.summary.total_swell_kg)"
 					hint="kg"
 					icon="plus"
@@ -165,6 +165,7 @@
 							<view class="meta-tags">
 								<AppTag :kind="buildResultKind(item.result_type)">{{ buildResultLabel(item.result_type) }}</AppTag>
 								<AppTag kind="soft">灌装 {{ item.fill_count || 0 }} 次</AppTag>
+								<AppTag v-if="round2(item.start_loss_sum_kg) !== 0" kind="soft">上秤差 {{ formatKg(item.start_loss_sum_kg) }} kg</AppTag>
 								<text class="meta-text">理论 {{ formatKg(item.theoretical_out_kg) }} kg</text>
 								<text class="meta-text">实际 {{ formatKg(item.out_net_kg) }} kg</text>
 							</view>
@@ -183,7 +184,7 @@
 						{{ manualScopeHint }}
 					</text>
 				</template>
-				<AppList :loading="manualLoading" :empty="manualLoss.list.length === 0" :empty-title="searched ? '暂无修复差值记录' : '查询后可查看修复差值明细'">
+				<AppList :loading="manualLoading" :empty="manualLoss.list.length === 0" :empty-title="searched ? '暂无修复/上秤差值记录' : '查询后可查看修复/上秤差值明细'">
 					<AppListItem
 						v-for="(item, index) in manualLoss.list"
 						:key="item._id || `${item.event_day || '-'}:${item.bottle_no || '-'}:${index}`"
@@ -397,17 +398,17 @@ const cycleScopeHint = computed(() => {
 })
 
 const manualSectionTitle = computed(() => {
-	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.MANUAL_LOSS) return '修复损耗明细'
-	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.MANUAL_SWELL) return '修复胀重明细'
-	return '异常修复差值明细'
+	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.MANUAL_LOSS) return '修复/上秤损耗明细'
+	if (activeSummaryFilter.value === SUMMARY_FILTER_KEYS.MANUAL_SWELL) return '修复/上秤胀重明细'
+	return '异常修复/上秤差值明细'
 })
 
 const manualScopeHint = computed(() => {
 	const label =
 		activeSummaryFilter.value === SUMMARY_FILTER_KEYS.MANUAL_LOSS
-			? '已筛选修复损耗'
+			? '已筛选修复/上秤损耗'
 			: activeSummaryFilter.value === SUMMARY_FILTER_KEYS.MANUAL_SWELL
-				? '已筛选修复胀重'
+				? '已筛选修复/上秤胀重'
 				: ''
 	return `${label ? `${label} · ` : ''}共 ${manualLoss.value.total} 条 · 涉及 ${manualLoss.value.summary.bottle_count || 0} 瓶`
 })
@@ -693,6 +694,7 @@ function buildLossWorkbookXml(rows = []) {
 		{ label: '回瓶净重(kg)', get: (row) => formatExportNumber(row.back_net_kg) },
 		{ label: '灌装次数', get: (row) => formatExportNumber(row.fill_count) },
 		{ label: '灌装总重(kg)', get: (row) => formatExportNumber(row.fill_sum_kg) },
+		{ label: '上秤差(kg)', get: (row) => formatExportNumber(row.start_loss_sum_kg) },
 		{ label: '理论出重(kg)', get: (row) => formatExportNumber(row.theoretical_out_kg) },
 		{ label: '出瓶日期', get: (row) => normalizeString(row.out_date) },
 		{ label: '实际出瓶(kg)', get: (row) => formatExportNumber(row.out_net_kg) },
@@ -778,7 +780,9 @@ function buildDeltaIconClass(deltaValue) {
 }
 
 function buildCycleSubtitle(item) {
-	return `回瓶 ${formatKg(item.back_net_kg)} + 灌装 ${formatKg(item.fill_sum_kg)} = 理论 ${formatKg(item.theoretical_out_kg)} · 实际出瓶 ${formatKg(item.out_net_kg)}`
+	const startLoss = round2(item?.start_loss_sum_kg)
+	const startLossText = startLoss !== 0 ? ` - 上秤差 ${formatKg(startLoss)}` : ''
+	return `回瓶 ${formatKg(item.back_net_kg)} + 灌装 ${formatKg(item.fill_sum_kg)}${startLossText} = 理论 ${formatKg(item.theoretical_out_kg)} · 实际出瓶 ${formatKg(item.out_net_kg)}`
 }
 
 function buildIncompleteLabel(reason) {
@@ -1381,6 +1385,7 @@ function buildCycleExportRows(rows = []) {
 		back_net_kg: row?.back_net_kg,
 		fill_count: row?.fill_count,
 		fill_sum_kg: row?.fill_sum_kg,
+		start_loss_sum_kg: row?.start_loss_sum_kg,
 		theoretical_out_kg: row?.theoretical_out_kg,
 		out_date: normalizeString(row?.out_date),
 		out_net_kg: row?.out_net_kg,
@@ -1401,6 +1406,7 @@ function buildManualExportRows(rows = []) {
 		back_net_kg: '',
 		fill_count: '',
 		fill_sum_kg: '',
+		start_loss_sum_kg: '',
 		theoretical_out_kg: '',
 		out_date: '',
 		out_net_kg: '',
@@ -1421,6 +1427,7 @@ function buildIncompleteExportRows(rows = []) {
 		back_net_kg: '',
 		fill_count: '',
 		fill_sum_kg: '',
+		start_loss_sum_kg: '',
 		theoretical_out_kg: '',
 		out_date: normalizeString(row?.event_date),
 		out_net_kg: '',

@@ -38,6 +38,8 @@ const DATE_NORMALIZE_SCAN_LIMIT = 12000
 const FILLED_UNSOLD_SCAN_LIMIT = 12000
 const FILLING_SUMMARY_SCAN_LIMIT = 50000
 const BOTTLE_FLOW_WARNING_KIND = 'bottle_flow_mismatch'
+const FILLING_START_LOSS_ADJUST_REASON = 'filling_start_weight_loss'
+const START_LOSS_SYNC_LIMIT = 2000
 const PAGE_ACTION_RULES = {
 	listV1: [
 		{ pagePath: '/pages/filling/list', action: 'view' },
@@ -59,7 +61,15 @@ const PAGE_ACTION_RULES = {
 	updateV1: [{ pagePath: '/pages/filling/edit', action: 'update' }],
 	removeV1: [{ pagePath: '/pages/filling/list', action: 'delete' }],
 	batchCreateV1: [{ pagePath: '/pages/filling/list', action: 'create' }],
-	batchUpdateDateV1: [{ pagePath: '/pages/filling/list', action: 'update' }]
+	batchUpdateDateV1: [{ pagePath: '/pages/filling/list', action: 'update' }],
+	syncStartLossAdjustmentsV1: [
+		{ pagePath: '/pages/sale/edit', action: 'create' },
+		{ pagePath: '/pages/sale/edit', action: 'update' },
+		{ pagePath: '/pages/sale/detail', action: 'delete' },
+		{ pagePath: '/pages/filling/list', action: 'create' },
+		{ pagePath: '/pages/filling/edit', action: 'update' },
+		{ pagePath: '/pages/filling/list', action: 'delete' }
+	]
 }
 const SUPERADMIN_ONLY_ACTIONS = [
 	'cleanupOrphanFillMovementsV1',
@@ -971,7 +981,20 @@ async function fetchFillingsByWhere(where, limit = BATCH_UPDATE_LIMIT) {
 			.orderBy('created_at', 'desc')
 			.skip(skip)
 			.limit(pageSize)
-			.field({ _id: true, bottle_no: true, date: true, record_type: true, created_at: true, updated_at: true })
+			.field({
+				_id: true,
+				bottle_no: true,
+				date: true,
+				record_type: true,
+				fill_weight: true,
+				weight_start: true,
+				weight_end: true,
+				actual_net_weight: true,
+				created_at: true,
+				updated_at: true,
+				created_by: true,
+				created_by_name: true
+			})
 			.get()
 		const rows = Array.isArray(res.data) ? res.data : []
 		docs.push(...rows)
@@ -2041,6 +2064,136 @@ async function resolveDerivedFillWeight(data = {}) {
 	}
 }
 
+function buildStartScaleFillRemark(remark, payload = {}) {
+	const suffix = [
+		'[scale-fill]',
+		'mode=after_fill_total',
+		`weight_start=${formatDerivedNumber(payload.weight_start) || '-'}`,
+		`weight_end=${formatDerivedNumber(payload.weight_end) || '-'}`,
+		`fill=${formatDerivedNumber(payload.fill_weight) || '-'}`,
+		`basis=${buildDerivedBasisSourceLabel(payload.basis_source)}`,
+		`basis_value=${formatDerivedNumber(payload.basis_value) || '-'}`,
+		`basis_ref=${normalizeString(payload.basis_ref) || '-'}`,
+		`basis_date=${normalizeString(payload.basis_date) || '-'}`,
+		`start_loss=${formatDerivedNumber(payload.start_loss_weight) || '-'}`,
+		`status=${normalizeString(payload.loss_match_status) || 'pending'}`
+	].join(' ')
+	const baseRemark = normalizeString(remark)
+	return baseRemark ? `${baseRemark} ${suffix}` : suffix
+}
+
+function resolveStartLossWeightFromFillingDoc(fillingDoc = {}, basis = null) {
+	if (!basis) return null
+	const weightStart = toNumber(fillingDoc && fillingDoc.weight_start, null)
+	const basisValue = toNumber(basis && basis.value, null)
+	if (!(typeof weightStart === 'number' && Number.isFinite(weightStart) && weightStart > 0)) return null
+	if (!(typeof basisValue === 'number' && Number.isFinite(basisValue) && basisValue > 0)) return null
+	return roundTo(basisValue - weightStart, 3)
+}
+
+async function removeFillingStartLossAdjustments(fillingId) {
+	const normalizedId = normalizeString(fillingId)
+	if (!normalizedId) return
+	await movements
+		.where({
+			source_type: 'manual_fix',
+			source_id: normalizedId,
+			adjust_reason: FILLING_START_LOSS_ADJUST_REASON
+		})
+		.remove()
+}
+
+function buildFillingStartLossAdjustDoc({ fillingDoc = {}, basis = null, lossWeight = 0, now = Date.now(), user = null } = {}) {
+	const fillingId = normalizeString(fillingDoc && fillingDoc._id)
+	const bottleNo = normalizeBottleNo(fillingDoc && fillingDoc.bottle_no)
+	const date = normalizeFillingDate(fillingDoc && fillingDoc.date, fillingDoc && fillingDoc.created_at)
+	if (!fillingId || !bottleNo || !date) return null
+	const weightStart = toNumber(fillingDoc && fillingDoc.weight_start, null)
+	if (!(typeof weightStart === 'number' && Number.isFinite(weightStart) && weightStart > 0)) return null
+	const loss = roundTo(lossWeight, 3)
+	if (!Number.isFinite(loss) || loss === 0) return null
+	const resultText = loss > 0 ? '损耗' : '胀重'
+	return {
+		bottle_no: bottleNo,
+		type: 'adjust',
+		date,
+		event_day: normalizeEventDay(date, now),
+		event_at: parseEventAt(date, now),
+		type_order: 21,
+		source_type: 'manual_fix',
+		source_id: fillingId,
+		customer_id: null,
+		customer_name: '',
+		net_weight: null,
+		loss_weight: loss,
+		adjust_reason: FILLING_START_LOSS_ADJUST_REASON,
+		note: `灌装上秤差值${resultText}：最近回瓶重量${formatDerivedNumber(basis && basis.value) || '-'}kg - 瓶子上秤重量${formatDerivedNumber(weightStart) || '-'}kg = ${formatDerivedNumber(loss) || '0'}kg`,
+		context: {
+			source: 'filling_start_weight',
+			filling_id: fillingId,
+			weight_start: roundTo(weightStart, 3),
+			weight_end: toNumber(fillingDoc && fillingDoc.weight_end, null),
+			fill_weight: toNumber(fillingDoc && fillingDoc.fill_weight, null),
+			basis_value: basis ? basis.value : null,
+			basis_source: basis ? basis.source : '',
+			basis_ref: basis ? basis.ref : '',
+			basis_date: basis ? basis.date : ''
+		},
+		created_at: now,
+		created_by: user?._id || fillingDoc.created_by || null,
+		created_by_name: user?.username || fillingDoc.created_by_name || ''
+	}
+}
+
+async function replaceFillingStartLossAdjustmentForDoc(fillingDoc = {}, user = null) {
+	const fillingId = normalizeString(fillingDoc && fillingDoc._id)
+	if (!fillingId) return { status: 'skipped', reason: 'missing_filling_id' }
+	await removeFillingStartLossAdjustments(fillingId)
+	const recordType = normalizeRecordType(fillingDoc && fillingDoc.record_type, DEFAULT_RECORD_TYPE)
+	const bottleNo = normalizeBottleNo(fillingDoc && fillingDoc.bottle_no)
+	const date = normalizeFillingDate(fillingDoc && fillingDoc.date, fillingDoc && fillingDoc.created_at)
+	const weightStart = toNumber(fillingDoc && fillingDoc.weight_start, null)
+	if (!isInventoryLinkedRecordType(recordType)) return { status: 'skipped', reason: 'record_type_not_inventory_linked' }
+	if (!bottleNo || !date) return { status: 'skipped', reason: 'missing_bottle_or_date' }
+	if (!(typeof weightStart === 'number' && Number.isFinite(weightStart) && weightStart > 0)) {
+		return { status: 'skipped', reason: 'missing_weight_start' }
+	}
+	const basis = await findLatestBackBasisByBottleNo(bottleNo, date)
+	if (!basis) return { status: 'pending', reason: 'missing_back_basis', bottle_no: bottleNo }
+	const lossWeight = resolveStartLossWeightFromFillingDoc(fillingDoc, basis)
+	if (lossWeight == null) return { status: 'skipped', reason: 'invalid_weight' }
+	if (lossWeight === 0) {
+		return {
+			status: 'matched_zero',
+			bottle_no: bottleNo,
+			basis_value: basis.value,
+			basis_source: basis.source,
+			basis_ref: basis.ref,
+			basis_date: basis.date,
+			loss_weight: 0
+		}
+	}
+	const adjustDoc = buildFillingStartLossAdjustDoc({
+		fillingDoc,
+		basis,
+		lossWeight,
+		now: Date.now(),
+		user
+	})
+	if (!adjustDoc) return { status: 'skipped', reason: 'adjust_doc_invalid' }
+	const res = await movements.add(adjustDoc)
+	return {
+		status: 'matched',
+		adjust_id: res && res.id,
+		bottle_no: bottleNo,
+		basis_value: basis.value,
+		basis_source: basis.source,
+		basis_ref: basis.ref,
+		basis_date: basis.date,
+		loss_weight: lossWeight
+	}
+}
+
 function normalizeUniqueBottleNos(rawBottleNos = []) {
 	const set = new Set()
 	const out = []
@@ -2051,6 +2204,170 @@ function normalizeUniqueBottleNos(rawBottleNos = []) {
 		out.push(bottleNo)
 	}
 	return out
+}
+
+function normalizeStartLossSyncLimit(value) {
+	const num = Number(value)
+	if (!Number.isFinite(num)) return START_LOSS_SYNC_LIMIT
+	return Math.min(Math.max(Math.floor(num), 1), START_LOSS_SYNC_LIMIT)
+}
+
+function normalizeStartLossSyncPayload(data = {}) {
+	const rawBottleNos = data.bottle_nos || data.bottleNos || []
+	const rawFillingIds = data.filling_ids || data.fillingIds || data.ids || []
+	const bottleNos = normalizeUniqueBottleNos(Array.isArray(rawBottleNos) ? rawBottleNos : [rawBottleNos])
+	const fillingIds = normalizeUniqueIds(Array.isArray(rawFillingIds) ? rawFillingIds : [rawFillingIds])
+	return {
+		bottleNos,
+		fillingIds,
+		limit: normalizeStartLossSyncLimit(data.limit || data.max_rows || data.maxRows)
+	}
+}
+
+function isStartLossSyncCandidate(row = {}) {
+	const rowId = normalizeString(row && row._id)
+	const bottleNo = normalizeBottleNo(row && row.bottle_no)
+	const recordType = normalizeRecordType(row && row.record_type, DEFAULT_RECORD_TYPE)
+	const weightStart = toNumber(row && row.weight_start, null)
+	return Boolean(
+		rowId &&
+			bottleNo &&
+			isInventoryLinkedRecordType(recordType) &&
+			typeof weightStart === 'number' &&
+			Number.isFinite(weightStart) &&
+			weightStart > 0
+	)
+}
+
+async function fetchStartLossSyncCandidateFillings(payload = {}) {
+	const rows = []
+	const field = {
+		_id: true,
+		date: true,
+		bottle_no: true,
+		record_type: true,
+		fill_weight: true,
+		weight_start: true,
+		weight_end: true,
+		actual_net_weight: true,
+		created_at: true,
+		created_by: true,
+		created_by_name: true
+	}
+	const appendRows = (list = []) => {
+		for (let i = 0; i < list.length; i += 1) {
+			if (rows.length >= payload.limit) return
+			const row = list[i] || {}
+			if (isStartLossSyncCandidate(row)) rows.push(row)
+		}
+	}
+	if (payload.fillingIds.length) {
+		for (let i = 0; i < payload.fillingIds.length; i += 100) {
+			const chunk = payload.fillingIds.slice(i, i + 100)
+			const res = await fillings
+				.where({ _id: dbCmd.in(chunk) })
+				.field(field)
+				.limit(chunk.length)
+				.get()
+			appendRows(Array.isArray(res.data) ? res.data : [])
+			if (rows.length >= payload.limit) break
+		}
+		return rows
+	}
+	for (let i = 0; i < payload.bottleNos.length; i += 100) {
+		const chunk = payload.bottleNos.slice(i, i + 100)
+		let skip = 0
+		while (rows.length < payload.limit) {
+			const res = await fillings
+				.where({ bottle_no: dbCmd.in(chunk), weight_start: dbCmd.gt(0) })
+				.field(field)
+				.orderBy('date', 'asc')
+				.orderBy('created_at', 'asc')
+				.skip(skip)
+				.limit(300)
+				.get()
+			const current = Array.isArray(res.data) ? res.data : []
+			appendRows(current)
+			if (current.length < 300) break
+			skip += current.length
+			if (skip > payload.limit) break
+		}
+		if (rows.length >= payload.limit) break
+	}
+	return rows
+}
+
+async function syncStartLossAdjustmentsV1(user, data, requestId) {
+	const payload = normalizeStartLossSyncPayload(data)
+	if (!payload.bottleNos.length && !payload.fillingIds.length) {
+		return { code: 400, msg: '缺少补算瓶号或灌装记录 ID' }
+	}
+	const candidateRows = await fetchStartLossSyncCandidateFillings(payload)
+	const results = []
+	const summary = {
+		scanned_total: candidateRows.length,
+		matched_total: 0,
+		pending_total: 0,
+		zero_total: 0,
+		skipped_total: 0,
+		adjust_created_total: 0,
+		adjust_removed_total: candidateRows.length
+	}
+	for (let i = 0; i < candidateRows.length; i += 1) {
+		const row = candidateRows[i] || {}
+		try {
+			const result = await replaceFillingStartLossAdjustmentForDoc(row, user)
+			const status = normalizeString(result && result.status)
+			if (status === 'matched') {
+				summary.matched_total += 1
+				summary.adjust_created_total += 1
+			} else if (status === 'pending') {
+				summary.pending_total += 1
+			} else if (status === 'matched_zero') {
+				summary.matched_total += 1
+				summary.zero_total += 1
+			} else {
+				summary.skipped_total += 1
+			}
+			results.push({
+				filling_id: normalizeString(row._id),
+				bottle_no: normalizeBottleNo(row.bottle_no),
+				status,
+				loss_weight: result && result.loss_weight,
+				basis_value: result && result.basis_value,
+				basis_source: result && result.basis_source,
+				basis_ref: result && result.basis_ref,
+				basis_date: result && result.basis_date,
+				reason: normalizeString(result && result.reason)
+			})
+		} catch (err) {
+			summary.skipped_total += 1
+			results.push({
+				filling_id: normalizeString(row._id),
+				bottle_no: normalizeBottleNo(row.bottle_no),
+				status: 'error',
+				reason: normalizeString(err && err.message) || '补算失败'
+			})
+		}
+	}
+	await recordLog(
+		user,
+		'filling_start_loss_sync_v1',
+		{
+			bottle_nos: payload.bottleNos,
+			filling_ids: payload.fillingIds,
+			...summary
+		},
+		requestId
+	)
+	return {
+		code: 0,
+		msg: 'ok',
+		data: {
+			...summary,
+			items: results.slice(0, 100)
+		}
+	}
 }
 
 function isMissingCollectionError(err) {
@@ -2540,7 +2857,7 @@ async function createV1(user, data, requestId, token) {
 	const targetNetWeight = toNumber(data.target_net_weight ?? data.targetNetWeight, null)
 	const targetGrossWeight = toNumber(data.target_gross_weight ?? data.targetGrossWeight, null)
 	const weightEnd = toNumber(data.weight_end ?? data.weightEnd, null)
-	const actualNetWeight = toNumber(data.actual_net_weight ?? data.actualNetWeight, null)
+	let actualNetWeight = toNumber(data.actual_net_weight ?? data.actualNetWeight, null)
 	const deviation = toNumber(data.deviation, null)
 	const scaleSource = normalizeString(data.scale_source ?? data.scaleSource) || ''
 	const scaleReadMode = normalizeString(data.scale_read_mode ?? data.scaleReadMode) || ''
@@ -2549,7 +2866,20 @@ async function createV1(user, data, requestId, token) {
 	const status = normalizeFillingStatus(data.status, 'completed')
 	const alarmState = toBoolean(data.alarm_state ?? data.alarmState, false)
 	const rawScalePayload = normalizeRawScalePayload(data.raw_scale_payload ?? data.rawScalePayload)
-	if (actualNetWeight > 0) fillWeight = actualNetWeight
+	if (
+		typeof weightStart === 'number' &&
+		Number.isFinite(weightStart) &&
+		weightStart > 0 &&
+		typeof weightEnd === 'number' &&
+		Number.isFinite(weightEnd) &&
+		weightEnd > 0
+	) {
+		if (!(weightEnd > weightStart)) return { code: 400, msg: '灌装完重量必须大于瓶子上秤重量' }
+		actualNetWeight = roundTo(weightEnd - weightStart, 3)
+		fillWeight = actualNetWeight
+	} else if (actualNetWeight > 0) {
+		fillWeight = actualNetWeight
+	}
 	if (recordType === 'truck_out_no_sale' && requestedInputMode === 'after_fill_total') {
 		if (!(typeof fillWeight === 'number' && Number.isFinite(fillWeight) && fillWeight > 0)) {
 			fillWeight = toNumber(data.after_fill_total_weight ?? data.afterFillTotalWeight, null)
@@ -2656,6 +2986,7 @@ async function createV1(user, data, requestId, token) {
 			created_by: user?._id || null,
 			created_by_name: user?.username || ''
 		})
+		await replaceFillingStartLossAdjustmentForDoc({ ...doc, _id: res.id }, user)
 	}
 	const bottleStatusSyncRes = await syncBottleCurrentStatusByBottleNos(inventoryLinked && bottleNo ? [bottleNo] : [])
 	await replaceGasInventoryMovementForFilling({
@@ -2798,6 +3129,7 @@ async function updateV1(user, data, requestId, token) {
 			created_by_name: user?.username || ''
 		})
 	}
+	await replaceFillingStartLossAdjustmentForDoc({ ...oldDoc, ...updateDoc, _id: id }, user)
 	await replaceGasInventoryMovementForFilling({
 		sourceId: id,
 		date,
@@ -2903,6 +3235,7 @@ async function removeV1(user, data, requestId, token) {
 
 	await removeGasInventoryMovementForFilling(id)
 	await movements.where({ source_id: id, type: 'fill' }).remove()
+	await removeFillingStartLossAdjustments(id)
 	const bottleStatusSyncRes = await syncBottleCurrentStatusByBottleNos(
 		isInventoryLinkedRecordType(oldRecordType) && oldBottleNo ? [oldBottleNo] : []
 	)
@@ -2976,25 +3309,44 @@ function parseBatchCreateRows(batchText, defaultWeight, inputMode = 'net') {
 			continue
 		}
 		let fillWeight = defaultWeight
-		let afterFillTotalWeight = null
+		let weightStart = null
+		let weightEnd = null
 		if (inputMode === 'after_fill_total') {
-			if (!tokens[1]) {
+			if (tokens.length !== 3) {
 				invalidItems.push({
 					line_no: i + 1,
 					bottle_no: bottleNo,
-					error: '灌后总重必填'
+					error: '批量总重必须为三列：瓶号,瓶子上秤重量,灌装完重量'
 				})
 				continue
 			}
-			afterFillTotalWeight = toNumber(tokens[1], null)
-			if (!(typeof afterFillTotalWeight === 'number' && afterFillTotalWeight > 0)) {
+			weightStart = toNumber(tokens[1], null)
+			weightEnd = toNumber(tokens[2], null)
+			if (!(typeof weightStart === 'number' && weightStart > 0)) {
 				invalidItems.push({
 					line_no: i + 1,
 					bottle_no: bottleNo,
-					error: '灌后总重无效（需大于 0）'
+					error: '瓶子上秤重量无效（需大于 0）'
 				})
 				continue
 			}
+			if (!(typeof weightEnd === 'number' && weightEnd > 0)) {
+				invalidItems.push({
+					line_no: i + 1,
+					bottle_no: bottleNo,
+					error: '灌装完重量无效（需大于 0）'
+				})
+				continue
+			}
+			if (!(weightEnd > weightStart)) {
+				invalidItems.push({
+					line_no: i + 1,
+					bottle_no: bottleNo,
+					error: '灌装完重量必须大于瓶子上秤重量'
+				})
+				continue
+			}
+			fillWeight = roundTo(weightEnd - weightStart, 3)
 		} else {
 			if (tokens[1]) {
 				fillWeight = toNumber(tokens[1], null)
@@ -3022,8 +3374,14 @@ function parseBatchCreateRows(batchText, defaultWeight, inputMode = 'net') {
 			line_no: i + 1,
 			bottle_no: bottleNo
 		}
-		if (inputMode === 'after_fill_total') row.after_fill_total_weight = afterFillTotalWeight
-		else row.fill_weight = fillWeight
+		if (inputMode === 'after_fill_total') {
+			row.weight_start = roundTo(weightStart, 3)
+			row.weight_end = roundTo(weightEnd, 3)
+			row.actual_net_weight = fillWeight
+			row.fill_weight = fillWeight
+		} else {
+			row.fill_weight = fillWeight
+		}
 		validRows.push(row)
 	}
 
@@ -3142,27 +3500,23 @@ async function batchCreateV1(user, data, requestId, token) {
 			}
 		}
 		if (payload.input_mode === 'after_fill_total') {
-			const resolved = await resolveDerivedFillWeight({
-				date: payload.date,
-				record_type: payload.record_type,
-				bottle_no: row.bottle_no,
-				after_fill_total_weight: row.after_fill_total_weight
-			})
-			if (!resolved.ok) {
-				invalidItems.push({
-					line_no: row.line_no,
-					bottle_no: row.bottle_no,
-					error: resolved.msg || '推导失败'
+			const basis = inventoryLinked ? await findLatestBackBasisByBottleNo(row.bottle_no, payload.date) : null
+			if (!basis) {
+				toCreateRows.push({
+					...row,
+					basis_missing: true,
+					loss_match_status: 'pending'
 				})
 				continue
 			}
 			toCreateRows.push({
 				...row,
-				fill_weight: resolved.data.derived_fill_weight,
-				basis_value: resolved.data.basis_value,
-				basis_source: resolved.data.basis_source,
-				basis_ref: resolved.data.basis_ref,
-				basis_date: resolved.data.basis_date
+				basis_value: basis.value,
+				basis_source: basis.source,
+				basis_ref: basis.ref,
+				basis_date: basis.date,
+				start_loss_weight: roundTo(basis.value - row.weight_start, 3),
+				loss_match_status: 'matched'
 			})
 			continue
 		}
@@ -3194,17 +3548,23 @@ async function batchCreateV1(user, data, requestId, token) {
 				duplicate_total: parsedRows.duplicate_total,
 				existing_total: existingItems.length,
 				warning_total: bottleFlowWarnings.length,
+				pending_basis_total: toCreateRows.filter((row) => row.loss_match_status === 'pending').length,
 				summary_text: buildFillingBottleFlowWarningSummaryText(bottleFlowWarnings),
 				sample_bottle_nos: toSampleBottleNos(toCreateRows),
 				create_items: toCreateRows.slice(0, BATCH_PREVIEW_DETAIL_LIMIT).map((row) => ({
 					line_no: row.line_no,
 					bottle_no: row.bottle_no,
 					fill_weight: row.fill_weight,
-					after_fill_total_weight: row.after_fill_total_weight,
+					weight_start: row.weight_start,
+					weight_end: row.weight_end,
+					actual_net_weight: row.actual_net_weight,
 					basis_value: row.basis_value,
 					basis_source: row.basis_source,
 					basis_ref: row.basis_ref,
 					basis_date: row.basis_date,
+					start_loss_weight: row.start_loss_weight,
+					loss_match_status: row.loss_match_status || '',
+					basis_missing: Boolean(row.basis_missing),
 					warning_reason: bottleFlowWarningMap.get(row.bottle_no)?.reason || '',
 					warning_status_code: bottleFlowWarningMap.get(row.bottle_no)?.status_code || '',
 					warning_last_out_date: bottleFlowWarningMap.get(row.bottle_no)?.last_out_date || '',
@@ -3248,13 +3608,16 @@ async function batchCreateV1(user, data, requestId, token) {
 		try {
 			const now = Date.now()
 			const remark = payload.input_mode === 'after_fill_total'
-				? buildDerivedFillRemark(payload.remark, {
-					after_fill_total_weight: row.after_fill_total_weight,
+				? buildStartScaleFillRemark(payload.remark, {
+					weight_start: row.weight_start,
+					weight_end: row.weight_end,
+					fill_weight: row.fill_weight,
 					basis_value: row.basis_value,
 					basis_source: row.basis_source,
 					basis_ref: row.basis_ref,
 					basis_date: row.basis_date,
-					derived_fill_weight: row.fill_weight
+					start_loss_weight: row.start_loss_weight,
+					loss_match_status: row.loss_match_status
 				})
 				: payload.remark
 			const doc = {
@@ -3264,6 +3627,9 @@ async function batchCreateV1(user, data, requestId, token) {
 				operator: operatorName,
 				operator_id: operatorId,
 				fill_weight: row.fill_weight,
+				weight_start: row.weight_start == null ? null : row.weight_start,
+				weight_end: row.weight_end == null ? null : row.weight_end,
+				actual_net_weight: row.actual_net_weight == null ? null : row.actual_net_weight,
 				remark,
 				created_at: now,
 				updated_at: now,
@@ -3271,6 +3637,7 @@ async function batchCreateV1(user, data, requestId, token) {
 				created_by_name: user?.username || ''
 			}
 			const addRes = await fillings.add(doc)
+			const fillingDoc = { ...doc, _id: addRes.id }
 			if (inventoryLinked && row.bottle_no) {
 				await movements.add({
 					bottle_no: row.bottle_no,
@@ -3290,6 +3657,9 @@ async function batchCreateV1(user, data, requestId, token) {
 					created_by: user?._id || null,
 					created_by_name: user?.username || ''
 				})
+				if (payload.input_mode === 'after_fill_total') {
+					await replaceFillingStartLossAdjustmentForDoc(fillingDoc, user)
+				}
 			}
 			await replaceGasInventoryMovementForFilling({
 				sourceId: addRes.id,
@@ -3308,7 +3678,7 @@ async function batchCreateV1(user, data, requestId, token) {
 			failedItems.push({
 				line_no: row.line_no,
 				bottle_no: row.bottle_no,
-					error: normalizeString(err && err.message) || '新增失败'
+				error: normalizeString(err && err.message) || '新增失败'
 			})
 		}
 	}
@@ -3439,7 +3809,19 @@ async function batchUpdateDateV1(user, data, requestId, token) {
 		const ids = payload.selector.ids
 		const res = await fillings
 			.where({ _id: dbCmd.in(ids) })
-			.field({ _id: true, bottle_no: true, date: true, record_type: true })
+			.field({
+				_id: true,
+				bottle_no: true,
+				date: true,
+				record_type: true,
+				fill_weight: true,
+				weight_start: true,
+				weight_end: true,
+				actual_net_weight: true,
+				created_at: true,
+				created_by: true,
+				created_by_name: true
+			})
 			.get()
 		targetRows = Array.isArray(res.data) ? res.data : []
 		const foundIds = new Set(targetRows.map((row) => normalizeString(row && row._id)).filter(Boolean))
@@ -3526,6 +3908,7 @@ async function batchUpdateDateV1(user, data, requestId, token) {
 			} else {
 				await movements.where({ source_id: rowId, type: 'fill' }).remove()
 			}
+			await replaceFillingStartLossAdjustmentForDoc({ ...row, date: payload.new_date, _id: rowId }, user)
 			await updateGasInventoryMovementDateForFilling({
 				sourceId: rowId,
 				date: payload.new_date,
@@ -3693,6 +4076,7 @@ async function normalizeDatesV1(user, data, requestId, token) {
 				event_day: normalizeEventDay(row.new_date, now),
 				event_at: parseEventAt(row.new_date, now)
 			})
+			await replaceFillingStartLossAdjustmentForDoc({ ...row, date: row.new_date }, user)
 			await updateGasInventoryMovementDateForFilling({
 				sourceId: row._id,
 				date: row.new_date,
@@ -3787,6 +4171,7 @@ exports.main = async (event, context) => {
 	if (action === 'removeV1') return removeV1(user, data, requestId, token)
 	if (action === 'batchCreateV1') return batchCreateV1(user, data, requestId, token)
 	if (action === 'batchUpdateDateV1') return batchUpdateDateV1(user, data, requestId, token)
+	if (action === 'syncStartLossAdjustmentsV1') return syncStartLossAdjustmentsV1(user, data, requestId, token)
 	if (action === 'cleanupOrphanFillMovementsV1') return cleanupOrphanFillMovementsV1(user, data, requestId, token)
 	if (action === 'cleanupNoSaleMovementsV1') return cleanupNoSaleMovementsV1(user, data, requestId, token)
 	if (action === 'normalizeDatesV1') return normalizeDatesV1(user, data, requestId, token)

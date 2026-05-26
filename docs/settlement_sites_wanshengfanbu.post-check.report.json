@@ -1,0 +1,86 @@
+{
+  "started_at": "2026-05-19T07:49:51.426Z",
+  "space_id": "env-00jxuffegf2n",
+  "execute": false,
+  "settlement_name": "万盛帆布",
+  "delivery_site_name": "万盛帆布北",
+  "result": {
+    "code": 0,
+    "msg": "土山蛋糕结算关系迁移预览完成",
+    "data": {
+      "execute": false,
+      "boundary_note": "气瓶当前位置与 crm_bottle_movements 不迁移，仍保留具体送达地点。",
+      "summaries": {
+        "customers": {
+          "settlement": {
+            "_id": "694045c0adf6dbd796e261c7",
+            "name": "万盛帆布"
+          },
+          "delivery_site": {
+            "_id": "694045c0adf6dbd796e261fc",
+            "name": "万盛帆布北"
+          }
+        },
+        "sales": {
+          "main_missing_delivery": {
+            "count": 0,
+            "sums": {},
+            "missing": false
+          },
+          "delivery_legacy_to_merge": {
+            "count": 0,
+            "sums": {},
+            "missing": false
+          },
+          "delivery_already_migrated": {
+            "count": 3,
+            "sums": {
+              "amount_received": 997
+            },
+            "missing": false
+          }
+        },
+        "accounting": {
+          "receipts": {
+            "count": 0,
+            "sums": {},
+            "missing": false
+          },
+          "allocations": {
+            "count": 0,
+            "sums": {},
+            "missing": false
+          },
+          "receipt_adjustments": {
+            "count": 0,
+            "sums": {},
+            "missing": true
+          },
+          "flow_settlements": {
+            "count": 0,
+            "sums": {},
+            "missing": false
+          },
+          "opening_debts_and_other_fees": {
+            "count": 0,
+            "sums": {},
+            "missing": false
+          },
+          "collection_followups": {
+            "count": 0,
+            "sums": {},
+            "missing": true
+          },
+          "collection_tasks": {
+            "count": 0,
+            "sums": {},
+            "missing": true,
+            "updated": 0,
+            "conflicts": []
+          }
+        }
+      },
+      "updates": {}
+    }
+  }
+}

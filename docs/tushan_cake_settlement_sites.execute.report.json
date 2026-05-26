@@ -1,0 +1,143 @@
+{
+  "started_at": "2026-05-19T07:05:27.505Z",
+  "space_id": "env-00jxuffegf2n",
+  "execute": true,
+  "settlement_name": "土山蛋糕",
+  "delivery_site_name": "土山蛋糕西厂",
+  "result": {
+    "code": 0,
+    "msg": "土山蛋糕结算关系迁移已执行",
+    "data": {
+      "execute": true,
+      "boundary_note": "气瓶当前位置与 crm_bottle_movements 不迁移，仍保留具体送达地点。",
+      "summaries": {
+        "customers": {
+          "settlement": {
+            "_id": "694045c0adf6dbd796e261c5",
+            "name": "土山蛋糕"
+          },
+          "delivery_site": {
+            "_id": "694045c0adf6dbd796e261d3",
+            "name": "土山蛋糕西厂"
+          }
+        },
+        "sales": {
+          "main_missing_delivery": {
+            "count": 49,
+            "sums": {
+              "amount_received": 25310
+            },
+            "missing": false
+          },
+          "delivery_legacy_to_merge": {
+            "count": 3,
+            "sums": {
+              "amount_received": 469
+            },
+            "missing": false
+          },
+          "delivery_already_migrated": {
+            "count": 0,
+            "sums": {},
+            "missing": false
+          }
+        },
+        "accounting": {
+          "receipts": {
+            "count": 1,
+            "sums": {
+              "amount": 371,
+              "allocated_amount": 0,
+              "unallocated_amount": 371,
+              "rounding_amount": 0
+            },
+            "missing": false
+          },
+          "allocations": {
+            "count": 0,
+            "sums": {},
+            "missing": false
+          },
+          "receipt_adjustments": {
+            "count": 0,
+            "sums": {},
+            "missing": true
+          },
+          "flow_settlements": {
+            "count": 0,
+            "sums": {},
+            "missing": false
+          },
+          "opening_debts_and_other_fees": {
+            "count": 0,
+            "sums": {},
+            "missing": false
+          },
+          "collection_followups": {
+            "count": 0,
+            "sums": {},
+            "missing": true
+          },
+          "collection_tasks": {
+            "count": 0,
+            "sums": {},
+            "missing": true,
+            "updated": 0,
+            "conflicts": []
+          }
+        }
+      },
+      "updates": {
+        "main_customer_relation": {
+          "updated": 1
+        },
+        "delivery_customer_relation": {
+          "updated": 1
+        },
+        "sales_main_delivery": 49,
+        "sales_delivery_merge": 3,
+        "receipts": 1,
+        "allocations": 0,
+        "receipt_adjustments": 0,
+        "flow_settlements": 0,
+        "opening_debts_and_other_fees": 0,
+        "collection_followups": 0,
+        "collection_tasks": {
+          "count": 0,
+          "sums": {},
+          "missing": true,
+          "updated": 0,
+          "conflicts": []
+        },
+        "rebuild_balances": {
+          "settlement": {
+            "customer_id": "694045c0adf6dbd796e261c5",
+            "customer_name": "土山蛋糕",
+            "receivable_balance": 1433.5,
+            "prepay_balance": 1432,
+            "prepay_manual_balance": 0,
+            "receipt_unallocated_balance": 1061,
+            "offset_credit_balance": 371,
+            "net_balance": 1.5,
+            "should_receive_total": 26797,
+            "amount_received_total": 26840,
+            "last_receipt_at": 1779033600000
+          },
+          "delivery_site": {
+            "customer_id": "694045c0adf6dbd796e261d3",
+            "customer_name": "土山蛋糕西厂",
+            "receivable_balance": 0,
+            "prepay_balance": 0,
+            "prepay_manual_balance": 0,
+            "receipt_unallocated_balance": 0,
+            "offset_credit_balance": 0,
+            "net_balance": 0,
+            "should_receive_total": 0,
+            "amount_received_total": 0,
+            "last_receipt_at": null
+          }
+        }
+      }
+    }
+  }
+}
