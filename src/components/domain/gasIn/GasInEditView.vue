@@ -8,38 +8,41 @@
 		</template>
 
 		<view class="edit-shell">
-			<AppSection title="基础信息">
+			<AppSection class="gas-in-basic-section" title="基础信息">
 				<view class="form-grid">
 					<picker class="picker-block" mode="date" :value="form.date" @change="onDateChange">
 						<AppInput :model-value="form.date" label="入库日期" placeholder="请选择日期" prefix-icon="calendar" disabled size="sm" />
 					</picker>
-					<view class="plate-wrap span-2">
-						<AppInput
-							v-model="form.plate_no"
-							label="车牌号"
-							placeholder="输入车牌联想启用车辆"
-							prefix-icon="truck"
-							size="sm"
-							confirm-type="search"
-							@input="onPlateInput"
-							@focus="onPlateFocus"
-							@blur="onPlateBlur"
-							@confirm="onPlateConfirm"
-						/>
-						<view v-if="plateSuggestions.length" class="plate-suggestions">
-							<view
-								v-for="item in plateSuggestions"
-								:key="item._id || item.plate_no"
-								class="plate-suggestion-item"
-								@tap.stop="selectPlateSuggestion(item)"
-							>
-								<text class="plate-no">{{ item.plate_no }}</text>
-								<text class="plate-sub">{{ item.remark || '在用车辆' }}</text>
+					<view class="basic-triplet span-2">
+						<view class="plate-wrap">
+							<AppInput
+								:model-value="form.plate_no"
+								label="车牌号"
+								placeholder="输入车牌联想启用车辆"
+								prefix-icon="truck"
+								size="sm"
+								confirm-type="search"
+								@update:modelValue="onPlateInput"
+								@focus="onPlateFocus"
+								@blur="onPlateBlur"
+								@confirm="onPlateConfirm"
+							/>
+							<view v-if="showPlateSuggestions && plateSuggestions.length" class="plate-suggestions">
+								<view
+									v-for="item in plateSuggestions"
+									:key="item._id || item.plate_no"
+									class="plate-suggestion-item"
+									@tap.stop="selectPlateSuggestion(item)"
+									@click.stop="selectPlateSuggestion(item)"
+								>
+									<text class="plate-no">{{ item.plate_no }}</text>
+									<text class="plate-sub">{{ item.remark || '在用车辆' }}</text>
+								</view>
 							</view>
 						</view>
+						<AppInput v-model="form.tanker_no" label="挂车号" placeholder="可选" size="sm" />
+						<AppInput v-model="form.product_name" label="产品名称" placeholder="默认 LNG" size="sm" />
 					</view>
-					<AppInput v-model="form.tanker_no" label="挂车号" placeholder="可选" size="sm" />
-					<AppInput v-model="form.product_name" label="产品名称" placeholder="默认 LNG" size="sm" />
 				</view>
 			</AppSection>
 
@@ -159,7 +162,10 @@ const manualOverride = reactive({
 const submitting = ref(false)
 const loadingDetail = ref(false)
 const plateSuggestions = ref([])
+const showPlateSuggestions = ref(false)
 let plateTimer = 0
+let plateBlurTimer = 0
+let plateFetchSeq = 0
 
 const isEditMode = computed(() => Boolean(normalizeString(recordId.value)))
 const pageTitle = computed(() => (isEditMode.value ? '天然气入库编辑' : '天然气入库录入'))
@@ -329,40 +335,62 @@ async function fetchPlateSuggestions(keyword) {
 	const key = normalizePlateNo(keyword)
 	if (!key) {
 		plateSuggestions.value = []
+		showPlateSuggestions.value = false
 		return
 	}
+	const fetchSeq = ++plateFetchSeq
 	try {
 		const res = await searchVehiclesV1({ keyword: key, is_active: true, page: 1, pageSize: 20 })
+		if (fetchSeq !== plateFetchSeq) return
 		if (res?.code !== 0) {
 			plateSuggestions.value = []
+			showPlateSuggestions.value = false
 			return
 		}
-		plateSuggestions.value = (Array.isArray(res.data) ? res.data : []).map((row) => ({
+		const suggestions = (Array.isArray(res.data) ? res.data : []).map((row) => ({
 			_id: row._id,
 			plate_no: normalizePlateNo(row.plate_no),
 			remark: normalizeString(row.remark)
 		}))
+		plateSuggestions.value = suggestions
+		showPlateSuggestions.value = suggestions.length > 0
 	} catch (_) {
+		if (fetchSeq !== plateFetchSeq) return
 		plateSuggestions.value = []
+		showPlateSuggestions.value = false
 	}
 }
 
 function onPlateInput(value) {
-	form.plate_no = normalizePlateNo(value)
+	const plateNo = normalizePlateNo(value)
+	form.plate_no = plateNo
+	plateFetchSeq += 1
+	if (plateBlurTimer) clearTimeout(plateBlurTimer)
 	if (plateTimer) clearTimeout(plateTimer)
+	if (!plateNo) {
+		plateSuggestions.value = []
+		showPlateSuggestions.value = false
+		return
+	}
 	plateTimer = setTimeout(() => {
 		fetchPlateSuggestions(form.plate_no)
 	}, 150)
 }
 
 function onPlateFocus() {
+	if (plateBlurTimer) clearTimeout(plateBlurTimer)
+	if (plateSuggestions.value.length) {
+		showPlateSuggestions.value = true
+		return
+	}
 	if (normalizePlateNo(form.plate_no)) fetchPlateSuggestions(form.plate_no)
 }
 
 function onPlateBlur() {
-	setTimeout(() => {
-		plateSuggestions.value = []
-	}, 120)
+	if (plateBlurTimer) clearTimeout(plateBlurTimer)
+	plateBlurTimer = setTimeout(() => {
+		showPlateSuggestions.value = false
+	}, 180)
 }
 
 function onPlateConfirm() {
@@ -371,8 +399,12 @@ function onPlateConfirm() {
 }
 
 function selectPlateSuggestion(item) {
+	if (plateBlurTimer) clearTimeout(plateBlurTimer)
+	if (plateTimer) clearTimeout(plateTimer)
+	plateFetchSeq += 1
 	form.plate_no = normalizePlateNo(item && item.plate_no)
 	plateSuggestions.value = []
+	showPlateSuggestions.value = false
 }
 
 watch(
@@ -393,6 +425,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
 	if (plateTimer) clearTimeout(plateTimer)
+	if (plateBlurTimer) clearTimeout(plateBlurTimer)
 })
 </script>
 
@@ -401,6 +434,12 @@ onBeforeUnmount(() => {
 	display: flex;
 	flex-direction: column;
 	gap: 20rpx;
+}
+
+.gas-in-basic-section {
+	overflow: visible;
+	position: relative;
+	z-index: 6;
 }
 
 .form-grid {
@@ -413,13 +452,21 @@ onBeforeUnmount(() => {
 	grid-column: span 2;
 }
 
+.basic-triplet {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 16rpx;
+	align-items: start;
+	min-width: 0;
+}
+
 .picker-block {
 	display: block;
 }
 
 .plate-wrap {
 	position: relative;
-	z-index: 3;
+	z-index: 8;
 }
 
 .plate-suggestions {
@@ -433,7 +480,7 @@ onBeforeUnmount(() => {
 	box-shadow: 0 16rpx 34rpx rgba(15, 23, 42, 0.12);
 	max-height: 360rpx;
 	overflow-y: auto;
-	z-index: 18;
+	z-index: 30;
 }
 
 .plate-suggestion-item {
