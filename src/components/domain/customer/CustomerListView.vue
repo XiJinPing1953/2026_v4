@@ -140,6 +140,23 @@
 						/>
 					</picker>
 					<picker
+						v-if="canManageHiddenCustomers"
+						class="picker-block"
+						mode="selector"
+						:range="visibilityOptions"
+						range-key="label"
+						@change="onVisibilityChange"
+					>
+						<AppInput
+							:model-value="visibilityLabel"
+							label="显隐状态"
+							placeholder="显隐筛选"
+							prefix-icon="list"
+							disabled
+							size="sm"
+						/>
+					</picker>
+					<picker
 						v-if="isStatementEntryMode"
 						class="picker-block"
 						mode="selector"
@@ -228,10 +245,10 @@
 					<AppListItem
 						v-for="item in list"
 						:key="item._id"
-						:status="item.is_active ? '启用中' : '已停用'"
-						:status-kind="item.is_active ? 'success' : 'danger'"
+						:status="customerStatusText(item)"
+						:status-kind="customerStatusKind(item)"
 						icon="user"
-						:icon-class="item.is_active ? 'bg-customer' : 'bg-muted'"
+						:icon-class="customerIconClass(item)"
 						clickable
 						@click="onPrimaryAction(item)"
 					>
@@ -278,6 +295,7 @@
 								<AppTag kind="soft" class="tag-item">{{ item.qr_code ? `码 ${item.qr_code}` : '无码' }}</AppTag>
 								<AppTag v-if="!isStatementEntryMode" kind="soft" class="tag-item">{{ item.default_price_unit || 'kg' }}</AppTag>
 								<AppTag v-if="matchedDeliveryText(item)" kind="soft" class="tag-item">匹配送达 {{ matchedDeliveryText(item) }}</AppTag>
+								<AppTag v-if="item.is_hidden === true" kind="soft" class="tag-item">已隐藏</AppTag>
 								<AppTag kind="soft" class="tag-item">未结清 {{ formatMoney(item.receivable_balance) }}</AppTag>
 								<AppTag kind="soft" class="tag-item">可用款 {{ formatMoney(item.prepay_balance) }}</AppTag>
 								<text v-if="item.short_name" class="mode-label">{{ item.short_name }}</text>
@@ -288,6 +306,8 @@
 							<view class="footer-btns">
 								<AppButton v-if="canViewStatement && !isStatementEntryMode" kind="outline" size="sm" @click.stop="onStatement(item)">客户对账</AppButton>
 								<AppButton v-if="canUpdateCustomer" kind="ghost" size="sm" @click.stop="onEdit(item)">编辑档案</AppButton>
+								<AppButton v-if="canManageHiddenCustomers && item.is_hidden !== true" kind="ghost" size="sm" @click.stop="onHideCustomer(item)">隐藏</AppButton>
+								<AppButton v-if="canManageHiddenCustomers && item.is_hidden === true" kind="outline" size="sm" @click.stop="onUnhideCustomer(item)">恢复</AppButton>
 							</view>
 						</template>
 					</AppListItem>
@@ -314,7 +334,8 @@ import AppIcon from '@/components/base/AppIcon.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
 import { useQuery } from '@/composables/useQuery'
 import { useAuthGuard } from '@/composables/useAuthGuard'
-import { listCustomersV1 } from '@/services/customer'
+import { getUser } from '@/services/auth'
+import { hideCustomerV1, listCustomersV1, unhideCustomerV1 } from '@/services/customer'
 import { exportCustomerAccountingLedgerV1, exportCustomerDebtSnapshotV1, exportCustomerStatementV1 } from '@/services/customerSettlement'
 import {
 	buildCustomerDebtSnapshotExportFileName,
@@ -344,6 +365,7 @@ const pager = reactive({
 const filters = reactive({
 	keyword: '',
 	activeIndex: 0,
+	visibilityIndex: 0,
 	balanceIndex: 0,
 	updatedDateStart: '',
 	updatedDateEnd: '',
@@ -364,6 +386,12 @@ const activeOptions = [
 	{ label: '已停用', value: 'false' }
 ]
 
+const visibilityOptions = [
+	{ label: '可见客户', value: 'visible' },
+	{ label: '隐藏客户', value: 'hidden' },
+	{ label: '全部客户', value: 'all' }
+]
+
 const balanceOptions = [
 	{ label: '全部余额', value: 'all' },
 	{ label: '未结清欠款', value: 'receivable' },
@@ -379,6 +407,13 @@ const { canPageAction, canViewPage } = useAuthGuard()
 const canCreateCustomer = computed(() => canPageAction('/pages/customer/edit', 'create'))
 const canUpdateCustomer = computed(() => canPageAction('/pages/customer/edit', 'update'))
 const canViewStatement = computed(() => canViewPage('/pages/customer/statement'))
+function isSuperAdminUser(user) {
+	const role = normalizeString(user?.role).toLowerCase()
+	const roleTemplate = normalizeString(user?.role_template).toLowerCase()
+	return role === 'superadmin' || roleTemplate === 'superadmin'
+}
+const isSuperAdmin = computed(() => isSuperAdminUser(getUser()))
+const canManageHiddenCustomers = computed(() => isSuperAdmin.value)
 const normalizedEntryMode = computed(() => (props.entryMode === 'statement' ? 'statement' : 'default'))
 const isStatementEntryMode = computed(() => normalizedEntryMode.value === 'statement')
 
@@ -386,6 +421,10 @@ const pageTitle = computed(() => (isStatementEntryMode.value ? '客户对账' : 
 
 const activeLabel = computed(() => {
 	return activeOptions[filters.activeIndex]?.label || '全部状态'
+})
+
+const visibilityLabel = computed(() => {
+	return visibilityOptions[filters.visibilityIndex]?.label || '可见客户'
 })
 
 const balanceLabel = computed(() => {
@@ -425,6 +464,7 @@ const filterChips = computed(() => {
 	const chips = []
 	if (filters.keyword) chips.push({ key: 'keyword', label: `关键词: ${filters.keyword}` })
 	if (filters.activeIndex > 0) chips.push({ key: 'active', label: `状态: ${activeLabel.value}` })
+	if (canManageHiddenCustomers.value && filters.visibilityIndex > 0) chips.push({ key: 'visibility', label: `显隐: ${visibilityLabel.value}` })
 	if (isStatementEntryMode.value && filters.balanceIndex > 0) chips.push({ key: 'balance', label: `余额: ${balanceLabel.value}` })
 	if (isStatementEntryMode.value && (filters.updatedDateStart || filters.updatedDateEnd)) {
 		chips.push({ key: 'updatedDateRange', label: `时间: ${updatedDateRangeLabel.value}` })
@@ -441,6 +481,7 @@ const filterChips = computed(() => {
 function clearFilterChip(key) {
 	if (key === 'keyword') filters.keyword = ''
 	if (key === 'active') filters.activeIndex = 0
+	if (key === 'visibility') filters.visibilityIndex = 0
 	if (key === 'balance') filters.balanceIndex = 0
 	if (key === 'updatedDateRange') {
 		filters.updatedDateStart = ''
@@ -473,6 +514,12 @@ function buildBalanceTypeParam() {
 	const value = balanceOptions[filters.balanceIndex]?.value
 	if (value === 'receivable' || value === 'prepay' || value === 'settled') return value
 	return undefined
+}
+
+function buildVisibilityParam() {
+	if (!canManageHiddenCustomers.value) return 'visible'
+	const value = visibilityOptions[filters.visibilityIndex]?.value
+	return value === 'hidden' || value === 'all' ? value : 'visible'
 }
 
 function toNumber(value, fallback = 0) {
@@ -528,11 +575,13 @@ function customerSuggestionSubText(item) {
 	].filter(Boolean).join(' · ')
 }
 
-function buildListParams(page = 1, pageSize = 50) {
+function buildListParams(page = 1, pageSize = 50, options = {}) {
 	const shouldFilterCashierUnallocated = isStatementEntryMode.value && filters.cashierUnallocatedIndex > 0
+	const forceVisible = options?.forceVisible === true
 	return {
 		keyword: filters.keyword,
 		is_active: buildIsActiveParam(),
+		visibility: forceVisible ? 'visible' : buildVisibilityParam(),
 		settlementOnly: isStatementEntryMode.value,
 		balance_type: buildBalanceTypeParam(),
 		updated_date_start: isStatementEntryMode.value ? filters.updatedDateStart : '',
@@ -584,7 +633,7 @@ const { loading, run: fetchList } = useQuery(
 		cacheTTL: 15000,
 		throttleMs: 300,
 		cacheKey: () =>
-			`customer:list:${normalizedEntryMode.value}:${filters.keyword}:${filters.activeIndex}:${filters.balanceIndex}:${filters.updatedDateStart}:${filters.updatedDateEnd}:${filters.cashierUnallocatedIndex}:${filters.cashierDateStart}:${filters.cashierDateEnd}:${pager.page}:${pager.pageSize}`
+			`customer:list:${normalizedEntryMode.value}:${filters.keyword}:${filters.activeIndex}:${filters.visibilityIndex}:${filters.balanceIndex}:${filters.updatedDateStart}:${filters.updatedDateEnd}:${filters.cashierUnallocatedIndex}:${filters.cashierDateStart}:${filters.cashierDateEnd}:${pager.page}:${pager.pageSize}`
 	}
 )
 
@@ -605,9 +654,9 @@ function applyResult(payload) {
 	}
 }
 
-async function onSearch(resetPage = false) {
+async function onSearch(resetPage = false, options = {}) {
 	if (resetPage) pager.page = 1
-	const data = await fetchList()
+	const data = await fetchList({ force: Boolean(options.force) })
 	applyResult(data)
 }
 
@@ -618,7 +667,7 @@ async function fetchAllRowsForExport() {
 	let guard = 0
 	while (hasMore) {
 		if (guard > 500) throw new Error('导出分页异常，请缩小筛选后重试')
-		const res = await listCustomersV1(buildListParams(page, 50))
+		const res = await listCustomersV1(buildListParams(page, 50, { forceVisible: true }))
 		if (res?.code !== 0) throw new Error(res?.msg || '导出查询失败')
 		const pageRows = Array.isArray(res.data) ? res.data : []
 		rows.push(...pageRows)
@@ -652,6 +701,7 @@ async function onExport() {
 			filters: {
 				keyword: filters.keyword,
 				activeLabel: activeLabel.value,
+				visibilityLabel: '可见客户',
 				balanceLabel: balanceLabel.value,
 				updatedDateStart: filters.updatedDateStart,
 				updatedDateEnd: filters.updatedDateEnd,
@@ -666,6 +716,7 @@ async function onExport() {
 			filters: {
 				keyword: filters.keyword,
 				activeLabel: activeLabel.value,
+				visibilityLabel: '可见客户',
 				balanceLabel: balanceLabel.value,
 				updatedDateStart: filters.updatedDateStart,
 				updatedDateEnd: filters.updatedDateEnd,
@@ -781,6 +832,7 @@ async function onExportAccountingLedger() {
 function onReset() {
 	filters.keyword = ''
 	filters.activeIndex = 0
+	filters.visibilityIndex = 0
 	filters.balanceIndex = 0
 	filters.updatedDateStart = ''
 	filters.updatedDateEnd = ''
@@ -795,6 +847,13 @@ function onReset() {
 function onActiveChange(e) {
 	const idx = Number(e?.detail?.value)
 	filters.activeIndex = Number.isFinite(idx) ? idx : 0
+	onSearch(true)
+}
+
+function onVisibilityChange(e) {
+	if (!canManageHiddenCustomers.value) return
+	const idx = Number(e?.detail?.value)
+	filters.visibilityIndex = Number.isFinite(idx) ? idx : 0
 	onSearch(true)
 }
 
@@ -1039,6 +1098,71 @@ function onStatement(item) {
 	}
 	const statementCustomerId = String(item.effective_settlement_customer_id || item._id || '').trim()
 	uni.navigateTo({ url: `/pages/customer/statement?_id=${encodeURIComponent(statementCustomerId)}` })
+}
+
+function customerStatusText(item) {
+	if (item?.is_hidden === true) return '已隐藏'
+	return item?.is_active === false ? '已停用' : '启用中'
+}
+
+function customerStatusKind(item) {
+	if (item?.is_hidden === true) return 'danger'
+	return item?.is_active === false ? 'danger' : 'success'
+}
+
+function customerIconClass(item) {
+	if (item?.is_hidden === true) return 'bg-hidden'
+	return item?.is_active === false ? 'bg-muted' : 'bg-customer'
+}
+
+function extractAffectedText(res) {
+	const data = res?.data || {}
+	const count = Number(data.affected_count || data.affected || 0)
+	return count > 1 ? `，影响 ${count} 个客户` : ''
+}
+
+async function onHideCustomer(item) {
+	if (!item?._id || !canManageHiddenCustomers.value) return
+	const confirmed = await new Promise((resolve) => {
+		uni.showModal({
+			title: '隐藏客户',
+			content: `隐藏后普通入口将不再显示「${item.name || '该客户'}」及相关业务数据。是否继续？`,
+			confirmText: '隐藏',
+			cancelText: '取消',
+			success: (res) => resolve(Boolean(res.confirm)),
+			fail: () => resolve(false)
+		})
+	})
+	if (!confirmed) return
+	const res = await hideCustomerV1({ customer_id: item._id })
+	if (res?.code !== 0) {
+		uni.showToast({ title: res?.msg || '隐藏失败', icon: 'none' })
+		return
+	}
+	uni.showToast({ title: `已隐藏${extractAffectedText(res)}`, icon: 'success' })
+	await onSearch(true, { force: true })
+}
+
+async function onUnhideCustomer(item) {
+	if (!item?._id || !canManageHiddenCustomers.value) return
+	const confirmed = await new Promise((resolve) => {
+		uni.showModal({
+			title: '恢复客户',
+			content: `恢复后「${item.name || '该客户'}」会重新出现在普通入口，子客户不会自动恢复。是否继续？`,
+			confirmText: '恢复',
+			cancelText: '取消',
+			success: (res) => resolve(Boolean(res.confirm)),
+			fail: () => resolve(false)
+		})
+	})
+	if (!confirmed) return
+	const res = await unhideCustomerV1({ customer_id: item._id })
+	if (res?.code !== 0) {
+		uni.showToast({ title: res?.msg || '恢复失败', icon: 'none' })
+		return
+	}
+	uni.showToast({ title: '已恢复', icon: 'success' })
+	await onSearch(true, { force: true })
 }
 
 function onPrimaryAction(item) {
@@ -1350,6 +1474,10 @@ defineExpose({
 
 .bg-muted {
 	background: #94a3b8;
+}
+
+.bg-hidden {
+	background: #dc2626;
 }
 
 @media (max-width: 680px) {

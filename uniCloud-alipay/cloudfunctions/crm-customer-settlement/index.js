@@ -2,6 +2,12 @@
 
 const db = uniCloud.database()
 const dbCmd = db.command
+const {
+	visibleCustomerWhere,
+	fetchHiddenCustomerIds,
+	buildNotHiddenCustomerFieldsWhere,
+	docIsHiddenCustomer
+} = require('./customerVisibilityLocal')
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
@@ -1388,7 +1394,9 @@ async function getCustomerById(customerId) {
 	const id = normalizeId(customerId)
 	if (!id) return null
 	const res = await customers.doc(id).get()
-	return (res.data && res.data[0]) || null
+	const doc = (res.data && res.data[0]) || null
+	if (docIsHiddenCustomer(doc)) return null
+	return doc
 }
 
 async function resolveAccountingSettlementCustomer(customerId) {
@@ -1423,6 +1431,8 @@ async function listCustomerSales(customerId, { dateFrom = '', dateTo = '' } = {}
 	const id = normalizeId(customerId)
 	if (!id) return []
 	const whereParts = [{ customer_id: id }]
+	const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['customer_id', 'delivery_customer_id'])
+	if (hiddenWhere) whereParts.push(hiddenWhere)
 	if (dateFrom) whereParts.push({ date: dbCmd.gte(dateFrom) })
 	if (dateTo) whereParts.push({ date: dbCmd.lte(dateTo) })
 	const where = whereParts.length === 1 ? whereParts[0] : dbCmd.and(whereParts)
@@ -2600,7 +2610,8 @@ async function listDebtSnapshotCustomers(limit = 5000) {
 			.where(
 				dbCmd.and([
 					{ receivable_balance: dbCmd.gt(0) },
-					{ settlement_customer_id: dbCmd.in([null, '']) }
+					{ settlement_customer_id: dbCmd.in([null, '']) },
+					visibleCustomerWhere(dbCmd)
 				])
 			)
 			.orderBy('receivable_balance', 'desc')
@@ -4461,6 +4472,8 @@ async function listReceiptIntakeV1(user, data) {
 		includeVoid ? { status: dbCmd.in(['posted', 'void']) } : { status: 'posted' },
 		{ source_type: dbCmd.in(CASHIER_RECEIPT_SOURCE_TYPES) }
 	]
+	const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['customer_id'])
+	if (hiddenWhere) whereParts.push(hiddenWhere)
 	if (customerId) whereParts.unshift({ customer_id: customerId })
 	if (dateFrom) whereParts.push({ biz_date: dbCmd.gte(dateFrom) })
 	if (dateTo) whereParts.push({ biz_date: dbCmd.lte(dateTo) })

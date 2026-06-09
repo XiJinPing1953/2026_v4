@@ -2,6 +2,10 @@
 
 const db = uniCloud.database()
 const dbCmd = db.command
+const {
+	fetchHiddenCustomerIds,
+	docIsHiddenCustomer
+} = require('./customerVisibilityLocal')
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
@@ -1967,7 +1971,25 @@ async function getCustomerById(customerId) {
 	const id = normalizeString(customerId)
 	if (!id) return null
 	const res = await customers.doc(id).get()
-	return (res.data && res.data[0]) || null
+	const doc = (res.data && res.data[0]) || null
+	if (docIsHiddenCustomer(doc)) return null
+	return doc
+}
+
+function saleMentionsHiddenCustomer(doc, hiddenCustomerIds = []) {
+	const hidden = hiddenCustomerIds instanceof Set
+		? hiddenCustomerIds
+		: new Set((hiddenCustomerIds || []).map((item) => normalizeString(item)).filter(Boolean))
+	if (!hidden.size) return false
+	const customerId = normalizeString(doc && doc.customer_id)
+	const deliveryCustomerId = normalizeString(doc && doc.delivery_customer_id)
+	return Boolean((customerId && hidden.has(customerId)) || (deliveryCustomerId && hidden.has(deliveryCustomerId)))
+}
+
+function buildHiddenCustomerIdSet(hiddenCustomerIds = []) {
+	return hiddenCustomerIds instanceof Set
+		? hiddenCustomerIds
+		: new Set((hiddenCustomerIds || []).map((item) => normalizeString(item)).filter(Boolean))
 }
 
 async function resolveSaleCustomerRefs(selectedCustomerId) {
@@ -3624,10 +3646,11 @@ function buildSaleListBatchEntries(docs = []) {
 	})
 }
 
-async function computeSaleListSummary(where, filters = {}) {
+async function computeSaleListSummary(where, filters = {}, options = {}) {
 	const settlementScope = normalizeSettlementScope(filters.settlementScope || filters.settlement_scope)
 	const hasRemark = normalizeHasRemarkFilter(filters.hasRemark || filters.has_remark)
 	const remarkTag = normalizeRemarkTagFilter(filters.remarkTag || filters.remark_tag)
+	const hiddenCustomerIdSet = buildHiddenCustomerIdSet(options.hiddenCustomerIds)
 	const summary = {
 		total: 0,
 		paid: 0,
@@ -3668,6 +3691,8 @@ async function computeSaleListSummary(where, filters = {}) {
 			.where(where)
 			.field({
 				_id: true,
+				customer_id: true,
+				delivery_customer_id: true,
 				biz_mode: true,
 				price_unit: true,
 				settlement_mode: true,
@@ -3701,9 +3726,12 @@ async function computeSaleListSummary(where, filters = {}) {
 		const docs = Array.isArray(res.data) ? res.data : []
 		if (!docs.length) break
 		const entryRows = buildSaleListBatchEntries(docs)
+		const visibleEntryRows = hiddenCustomerIdSet.size
+			? entryRows.filter((entry) => !saleMentionsHiddenCustomer(entry.doc, hiddenCustomerIdSet))
+			: entryRows
 		const offsetSaleIds = Array.from(
 			new Set(
-				entryRows
+				visibleEntryRows
 					.filter((entry) => fix2(entry.effectiveShouldReceive - entry.paidTotal) < 0)
 					.map((entry) => normalizeString(entry.doc && entry.doc._id))
 					.filter(Boolean)
@@ -3713,7 +3741,7 @@ async function computeSaleListSummary(where, filters = {}) {
 			? await buildSaleOffsetPoolStatsMapBySaleIds(offsetSaleIds)
 			: new Map()
 
-		for (const entry of entryRows) {
+		for (const entry of visibleEntryRows) {
 				const doc = entry.doc
 				const row = entry.row
 				const bizMode = normalizeBizModeValue(row && row.biz_mode)
@@ -3864,10 +3892,14 @@ async function enrichSaleRowsWithNetOutstandingEffective(rows = []) {
 	})
 }
 
-async function computeMonthSalesHeadline() {
+async function computeMonthSalesHeadline(hiddenCustomerIds = null) {
+	const resolvedHiddenCustomerIds = hiddenCustomerIds == null ? await fetchHiddenCustomerIds(customers) : hiddenCustomerIds
+	const hiddenCustomerIdSet = buildHiddenCustomerIdSet(resolvedHiddenCustomerIds)
 	const monthRange = getMonthRange(getCNDate())
 	const monthWhere = dbCmd.and([{ date: dbCmd.gte(monthRange.start) }, { date: dbCmd.lte(monthRange.end) }])
 	const monthDocs = await fetchAll(sales, monthWhere, {
+		customer_id: true,
+		delivery_customer_id: true,
 		date: true,
 		biz_mode: true,
 		price_unit: true,
@@ -3884,6 +3916,7 @@ async function computeMonthSalesHeadline() {
 	})
 	let salesDocTotal = 0
 	monthDocs.forEach((doc) => {
+		if (saleMentionsHiddenCustomer(doc, hiddenCustomerIdSet)) return
 		const amounts = computeSaleAmountsForDoc(doc)
 		salesDocTotal = fix2(salesDocTotal + toNumber(amounts && amounts.amounts && amounts.amounts.should_receive, 0))
 	})
@@ -3892,9 +3925,10 @@ async function computeMonthSalesHeadline() {
 		const monthFlowDocs = await fetchAll(
 			flowSettlements,
 			dbCmd.and([{ status: 'posted' }, { biz_date: dbCmd.gte(monthRange.start) }, { biz_date: dbCmd.lte(monthRange.end) }]),
-			{ should_receive: true }
+			{ customer_id: true, should_receive: true }
 		)
 		monthFlowDocs.forEach((doc) => {
+			if (hiddenCustomerIdSet.has(normalizeString(doc && doc.customer_id))) return
 			flowSettlementTotal = fix2(flowSettlementTotal + toNumber(doc && doc.should_receive, 0))
 		})
 	} catch (err) {
@@ -3909,6 +3943,48 @@ async function computeMonthSalesHeadline() {
 	}
 }
 
+async function fetchVisibleSaleListPageRows(where, page, pageSize, hiddenCustomerIds = []) {
+	const hiddenCustomerIdSet = buildHiddenCustomerIdSet(hiddenCustomerIds)
+	if (!hiddenCustomerIdSet.size) {
+		const res = await sales
+			.where(where)
+			.orderBy('date', 'desc')
+			.orderBy('created_at', 'desc')
+			.skip((page - 1) * pageSize)
+			.limit(pageSize)
+			.get()
+		return (res.data || []).map((doc) => buildSaleListRow(doc))
+	}
+
+	const targetStart = (page - 1) * pageSize
+	const rows = []
+	let visibleSeen = 0
+	let cursor = 1
+	let guard = 0
+	const batchSize = Math.max(pageSize * 4, 100)
+	while (guard < 600) {
+		const res = await sales
+			.where(where)
+			.orderBy('date', 'desc')
+			.orderBy('created_at', 'desc')
+			.skip((cursor - 1) * batchSize)
+			.limit(batchSize)
+			.get()
+		const docs = Array.isArray(res.data) ? res.data : []
+		if (!docs.length) break
+		for (const doc of docs) {
+			if (saleMentionsHiddenCustomer(doc, hiddenCustomerIdSet)) continue
+			if (visibleSeen >= targetStart && rows.length < pageSize) rows.push(buildSaleListRow(doc))
+			visibleSeen += 1
+			if (rows.length >= pageSize) break
+		}
+		if (rows.length >= pageSize || docs.length < batchSize) break
+		cursor += 1
+		guard += 1
+	}
+	return rows
+}
+
 async function listV2(user, data) {
 	void user
 	const page = Math.max(toNumber(data.page, 1), 1)
@@ -3917,20 +3993,15 @@ async function listV2(user, data) {
 	const hasRemark = normalizeHasRemarkFilter(data.hasRemark || data.has_remark)
 	const remarkTag = normalizeRemarkTagFilter(data.remarkTag || data.remark_tag)
 
+	const hiddenCustomerIds = await fetchHiddenCustomerIds(customers)
+	const hiddenCustomerIdSet = buildHiddenCustomerIdSet(hiddenCustomerIds)
 	const where = buildSaleListWhere(data)
 	let dataList = []
 	let total = 0
 	const needPostFilter = Boolean(settlementScope || hasRemark || remarkTag)
 
 	if (!needPostFilter) {
-		const res = await sales
-			.where(where)
-			.orderBy('date', 'desc')
-			.orderBy('created_at', 'desc')
-			.skip((page - 1) * pageSize)
-			.limit(pageSize)
-			.get()
-		dataList = (res.data || []).map((doc) => buildSaleListRow(doc))
+		dataList = await fetchVisibleSaleListPageRows(where, page, pageSize, hiddenCustomerIdSet)
 	} else {
 		const matchedRows = []
 		const batchSize = 200
@@ -3950,10 +4021,13 @@ async function listV2(user, data) {
 			const docs = Array.isArray(res.data) ? res.data : []
 			if (!docs.length) break
 			const entryRows = buildSaleListBatchEntries(docs)
+			const visibleEntryRows = hiddenCustomerIdSet.size
+				? entryRows.filter((entry) => !saleMentionsHiddenCustomer(entry.doc, hiddenCustomerIdSet))
+				: entryRows
 			const offsetSaleIds = needsOffsetPool
 				? Array.from(
 					new Set(
-						entryRows
+						visibleEntryRows
 							.filter((entry) => {
 								const outstanding = fix2(entry.effectiveShouldReceive - entry.paidTotal)
 								if (!(outstanding < 0)) return false
@@ -3969,7 +4043,7 @@ async function listV2(user, data) {
 			const offsetPoolStatsMap = offsetSaleIds.length
 				? await buildSaleOffsetPoolStatsMapBySaleIds(offsetSaleIds)
 				: new Map()
-			for (const entry of entryRows) {
+			for (const entry of visibleEntryRows) {
 				const row = entry.row
 				let refundPending = null
 				let netOutstandingEffective = null
@@ -4024,8 +4098,8 @@ async function listV2(user, data) {
 	dataList = await enrichSaleRowsWithNetOutstandingEffective(dataList)
 	dataList = await enrichSaleListRowsWithBottleStats(dataList)
 
-	const summary = await computeSaleListSummary(where, { settlementScope, hasRemark, remarkTag })
-	const monthHeadline = await computeMonthSalesHeadline()
+	const summary = await computeSaleListSummary(where, { settlementScope, hasRemark, remarkTag }, { hiddenCustomerIds: hiddenCustomerIdSet })
+	const monthHeadline = await computeMonthSalesHeadline(hiddenCustomerIdSet)
 	if (!total) total = Number(summary.total || 0)
 	const hasMore = page * pageSize < total
 
@@ -4085,6 +4159,7 @@ async function getV2(user, data) {
 	const res = await sales.doc(id).get()
 	const doc = (res.data && res.data[0]) || null
 	if (!doc) return { code: 404, msg: '记录不存在' }
+	if (saleMentionsHiddenCustomer(doc, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
 	const bizMode = normalizeString(doc.biz_mode) || 'bottle'
 	const priceUnit = normalizeString(doc.price_unit) || 'kg'
 	const settlementMode = priceUnit === 'm3' ? 'customer_flow' : normalizeSettlementMode(doc.settlement_mode, 'sale')
@@ -4144,6 +4219,7 @@ async function quickReceiveV1(user, data, requestId, token) {
 	const res = await sales.doc(recordId).get()
 	const doc = (res.data && res.data[0]) || null
 	if (!doc) return { code: 404, msg: '记录不存在' }
+	if (saleMentionsHiddenCustomer(doc, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
 	if ((normalizeString(doc && doc.price_unit) || 'kg') === 'm3' || normalizeSettlementMode(doc && doc.settlement_mode) === 'customer_flow') {
 		return { code: 400, msg: '该销售单按客户对账页流量结算，不支持直接登记回款' }
 	}
@@ -4557,6 +4633,7 @@ async function updateV2(user, data, requestId, token) {
 	const existingRes = await sales.doc(recordId).get()
 	const existing = (existingRes.data && existingRes.data[0]) || null
 	if (!existing) return { code: 404, msg: '记录不存在' }
+	if (saleMentionsHiddenCustomer(existing, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
 
 	const base = payload.base || {}
 	const outRows = normalizeBottleRows(payload.outRows || [])
@@ -4999,6 +5076,7 @@ async function updateSettlementV1(user, data, requestId, token) {
 	const existingRes = await sales.doc(recordId).get()
 	const existing = (existingRes.data && existingRes.data[0]) || null
 	if (!existing) return { code: 404, msg: '记录不存在' }
+	if (saleMentionsHiddenCustomer(existing, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
 
 	const payload = data && typeof data.settlement === 'object' ? data.settlement : {}
 	const priceUnit = normalizeString(existing && existing.price_unit) || 'kg'
@@ -5141,6 +5219,7 @@ async function removeV2(user, data, requestId, token) {
 	const saleRes = await sales.doc(recordId).get()
 	const saleDoc = (saleRes.data && saleRes.data[0]) || null
 	if (!saleDoc) return { code: 404, msg: '记录不存在' }
+	if (saleMentionsHiddenCustomer(saleDoc, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
 
 	const source = `sale:${recordId}`
 	const sideWarnings = []

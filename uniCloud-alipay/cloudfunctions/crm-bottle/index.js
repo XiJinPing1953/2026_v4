@@ -9,10 +9,16 @@ try {
 }
 const db = uniCloud.database()
 const dbCmd = db.command
+const {
+	fetchHiddenCustomerIds,
+	buildNotHiddenCustomerFieldsWhere,
+	mergeWhere: mergeVisibilityWhere
+} = require('./customerVisibilityLocal')
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 const bottles = db.collection('crm_bottles')
+const customers = db.collection('crm_customers')
 const movements = db.collection('crm_bottle_movements')
 const saleRecords = db.collection('crm_sale_records')
 const bottleImportBackups = db.collection('crm_bottles_import_backups')
@@ -472,8 +478,10 @@ async function resolveUniqueBottleByField(field, rawValue, { label, normalizer, 
 	const normalize = typeof normalizer === 'function' ? normalizer : normalizeString
 	const value = normalize(rawValue)
 	if (!value) return { code: 400, msg: `${label || field}必填` }
+	const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['current_customer_id'])
+	const where = mergeVisibilityWhere(dbCmd, { [field]: value }, hiddenWhere)
 	const res = await bottles
-		.where({ [field]: value })
+		.where(where)
 		.field({
 			_id: true,
 			bottle_no: true,
@@ -1442,9 +1450,12 @@ async function listV1(user, data) {
 		bottle_no_numeric_end: numericEnd,
 		scan_limit: scanLimit
 	} = whereResult
+	const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['current_customer_id'])
+	const effectiveWhere = mergeVisibilityWhere(dbCmd, where, hiddenWhere)
+	const effectiveHasBaseFilter = Boolean(hasBaseFilter || hiddenWhere)
 
 	if (needsNumericPostFilter) {
-		const scanRes = await scanBottlesByWhereWithLimit(where, Number(scanLimit || BOTTLE_NUMERIC_SEGMENT_SCAN_LIMIT))
+		const scanRes = await scanBottlesByWhereWithLimit(effectiveWhere, Number(scanLimit || BOTTLE_NUMERIC_SEGMENT_SCAN_LIMIT))
 		if (scanRes.overflow) {
 			return {
 				code: 400,
@@ -1471,14 +1482,14 @@ async function listV1(user, data) {
 		}
 	}
 
-	let listQuery = bottles.where(where)
+	let listQuery = bottles.where(effectiveWhere)
 	listQuery = applyBottleNaturalOrder(listQuery)
 	const res = await listQuery.skip((page - 1) * pageSize).limit(pageSize).get()
 
-	const totalRes = await bottles.where(where).count()
+	const totalRes = await bottles.where(effectiveWhere).count()
 	const total = Number(totalRes.total || 0)
 	const hasMore = page * pageSize < total
-	const mergeWhere = (extra) => (hasBaseFilter ? dbCmd.and([where, extra]) : extra)
+	const mergeWhere = (extra) => (effectiveHasBaseFilter ? dbCmd.and([effectiveWhere, extra]) : extra)
 
 	const inStationRes = await bottles.where(mergeWhere({ status: 'in_station' })).count()
 	const atCustomerRes = await bottles.where(mergeWhere({ status: 'at_customer' })).count()
@@ -1827,6 +1838,9 @@ async function getV1(user, data) {
 	const res = await bottles.doc(id).get()
 	const doc = (res.data && res.data[0]) || null
 	if (!doc) return { code: 404, msg: '钢瓶不存在' }
+	const hiddenCustomerIds = new Set((await fetchHiddenCustomerIds(customers)).map((item) => normalizeString(item)).filter(Boolean))
+	const currentCustomerId = normalizeString(doc && doc.current_customer_id)
+	if (currentCustomerId && hiddenCustomerIds.has(currentCustomerId)) return { code: 404, msg: '钢瓶不存在' }
 	return { code: 0, data: doc }
 }
 
@@ -1856,6 +1870,10 @@ async function createV1(user, data, requestId, token) {
 
 	const validationMsg = validateBottlePayload(normalized)
 	if (validationMsg) return { code: 400, msg: validationMsg }
+	const normalizedCurrentCustomerId = normalizeString(normalized.current_customer_id)
+	if (normalizedCurrentCustomerId && (await fetchHiddenCustomerIds(customers)).includes(normalizedCurrentCustomerId)) {
+		return { code: 404, msg: '客户不存在' }
+	}
 
 	const uniqueMsg = await ensureBottleIdentityUnique(normalized)
 	if (uniqueMsg) return { code: 409, msg: uniqueMsg }
@@ -1925,6 +1943,10 @@ async function updateV1(user, data, requestId, token) {
 
 	const validationMsg = validateBottlePayload(merged)
 	if (validationMsg) return { code: 400, msg: validationMsg }
+	const mergedCurrentCustomerId = normalizeString(merged.current_customer_id)
+	if (mergedCurrentCustomerId && (await fetchHiddenCustomerIds(customers)).includes(mergedCurrentCustomerId)) {
+		return { code: 404, msg: '客户不存在' }
+	}
 
 	const uniqueMsg = await ensureBottleIdentityUnique(merged, id)
 	if (uniqueMsg) return { code: 409, msg: uniqueMsg }

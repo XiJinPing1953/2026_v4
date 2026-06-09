@@ -29,7 +29,11 @@ const TEST_CUSTOMER = {
 	default_price_unit: 'kg',
 	default_unit_price: 5,
 	qr_code: 'PDA-SCALE-CUST-001',
-	is_active: true
+	is_active: true,
+	is_hidden: false,
+	hidden_at: null,
+	hidden_by: null,
+	hidden_by_name: ''
 }
 
 const TEST_BOTTLES = [

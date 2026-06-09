@@ -1,12 +1,13 @@
 import { callCloud } from '@/services/api'
 
-export async function listCustomersV1(params) {
+export async function listCustomersV1(params = {}) {
 	const rawSummaryIgnoreActive = params.summary_ignore_active ?? params.summaryIgnoreActive
 	const data = {
 		keyword: params.keyword || '',
 		page: params.page || 1,
 		pageSize: params.pageSize || 20
 	}
+	if (params.visibility != null) data.visibility = params.visibility
 	if (params.is_active != null) data.is_active = params.is_active
 	else if (params.isActive != null) data.is_active = params.isActive
 	const balanceType = params.balance_type ?? params.balanceType
@@ -58,5 +59,23 @@ export async function updateCustomerV1(data) {
 	return callCloud('crm-customer', {
 		action: 'updateV1',
 		data
+	})
+}
+
+export async function hideCustomerV1(params = {}) {
+	return callCloud('crm-customer', {
+		action: 'hideCustomerV1',
+		data: {
+			customer_id: params.customer_id || params.customerId || params._id || params.id || ''
+		}
+	})
+}
+
+export async function unhideCustomerV1(params = {}) {
+	return callCloud('crm-customer', {
+		action: 'unhideCustomerV1',
+		data: {
+			customer_id: params.customer_id || params.customerId || params._id || params.id || ''
+		}
 	})
 }

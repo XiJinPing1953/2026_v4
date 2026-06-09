@@ -2,12 +2,18 @@
 
 const db = uniCloud.database()
 const dbCmd = db.command
+const {
+	fetchHiddenCustomerIds,
+	buildNotHiddenCustomerFieldsWhere,
+	mergeWhere: mergeVisibilityWhere
+} = require('./customerVisibilityLocal')
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 const tasks = db.collection('crm_collection_tasks')
 const followups = db.collection('crm_collection_followups')
 const sales = db.collection('crm_sale_records')
+const customers = db.collection('crm_customers')
 let ensureActionAcl = null
 try {
 	;({ ensureActionAcl } = require('../common/pageAcl'))
@@ -62,6 +68,13 @@ function normalizeId(value) {
 	if (value == null) return ''
 	if (typeof value === 'object' && value.$oid) return String(value.$oid).trim()
 	return String(value).trim()
+}
+
+async function taskBelongsToHiddenCustomer(taskDoc) {
+	const customerId = normalizeId(taskDoc && taskDoc.customer_id)
+	if (!customerId) return false
+	const hiddenCustomerIds = new Set((await fetchHiddenCustomerIds(customers)).map((item) => normalizeId(item)).filter(Boolean))
+	return hiddenCustomerIds.has(customerId)
 }
 
 function toNumber(value, fallback = 0) {
@@ -227,8 +240,9 @@ async function sumTaskField(where, fieldName) {
 	return fix2(total)
 }
 
-function buildTaskSalesWhere(taskDoc, dateFrom, dateTo) {
-	const dateCond = { date: dbCmd.gte(dateFrom).and(dbCmd.lte(dateTo)) }
+async function buildTaskSalesWhere(taskDoc, dateFrom, dateTo) {
+	const hiddenSalesWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['customer_id', 'delivery_customer_id'])
+	const dateCond = mergeVisibilityWhere(dbCmd, { date: dbCmd.gte(dateFrom).and(dbCmd.lte(dateTo)) }, hiddenSalesWhere)
 	const customerId = normalizeId(taskDoc.customer_id)
 	const customerName = normalizeString(taskDoc.customer_name)
 	if (customerId) {
@@ -242,7 +256,7 @@ function buildTaskSalesWhere(taskDoc, dateFrom, dateTo) {
 
 // Aggregates sales into one receivable snapshot so auto-create and recalc stay identical.
 async function aggregateTaskSnapshot(taskDoc, dateFrom, dateTo) {
-	const where = buildTaskSalesWhere(taskDoc, dateFrom, dateTo)
+	const where = await buildTaskSalesWhere(taskDoc, dateFrom, dateTo)
 	const listRes = await sales
 		.where(where)
 		.orderBy('date', 'asc')
@@ -316,7 +330,9 @@ async function listTasksV1(user, data) {
 	if (dateTo) conditions.push({ date_to: dbCmd.lte(dateTo) })
 	if (minUnpaid > 0) conditions.push({ amount_unpaid: dbCmd.gte(minUnpaid) })
 
-	const where = conditions.length === 0 ? {} : conditions.length === 1 ? conditions[0] : dbCmd.and(conditions)
+	const baseWhere = conditions.length === 0 ? {} : conditions.length === 1 ? conditions[0] : dbCmd.and(conditions)
+	const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['customer_id'])
+	const where = mergeVisibilityWhere(dbCmd, baseWhere, hiddenWhere)
 
 	const res = await tasks
 		.where(where)
@@ -328,7 +344,7 @@ async function listTasksV1(user, data) {
 	const totalRes = await tasks.where(where).count()
 	const total = Number(totalRes.total || 0)
 	const hasMore = page * pageSize < total
-	const hasBaseFilter = conditions.length > 0
+	const hasBaseFilter = conditions.length > 0 || Boolean(hiddenWhere)
 	const mergeWhere = (extra) => (hasBaseFilter ? dbCmd.and([where, extra]) : extra)
 
 	let openCount = 0
@@ -373,6 +389,7 @@ async function getTaskV1(user, data) {
 	const res = await tasks.doc(id).get()
 	const doc = (res.data && res.data[0]) || null
 	if (!doc) return { code: 404, msg: '任务不存在' }
+	if (await taskBelongsToHiddenCustomer(doc)) return { code: 404, msg: '任务不存在' }
 	return { code: 0, data: doc }
 }
 
@@ -386,6 +403,7 @@ async function updateTaskV1(user, data, requestId) {
 	const existingRes = await tasks.doc(id).get()
 	const existing = (existingRes.data && existingRes.data[0]) || null
 	if (!existing) return { code: 404, msg: '任务不存在' }
+	if (await taskBelongsToHiddenCustomer(existing)) return { code: 404, msg: '任务不存在' }
 
 	const patch = {}
 	const status = normalizeStatus(data.status)
@@ -428,6 +446,10 @@ async function listFollowupsV1(user, data) {
 	void user
 	const taskId = normalizeId(data.task_id || data.taskId)
 	if (!taskId) return { code: 400, msg: '缺少任务 ID' }
+	const taskRes = await tasks.doc(taskId).get()
+	const taskDoc = (taskRes.data && taskRes.data[0]) || null
+	if (!taskDoc) return { code: 404, msg: '任务不存在' }
+	if (await taskBelongsToHiddenCustomer(taskDoc)) return { code: 404, msg: '任务不存在' }
 	const page = Math.max(toNumber(data.page, 1), 1)
 	const pageSize = Math.min(Math.max(toNumber(data.pageSize, 50), 1), 200)
 
@@ -451,6 +473,7 @@ async function addFollowupV1(user, data, requestId) {
 	const taskRes = await tasks.doc(taskId).get()
 	const taskDoc = (taskRes.data && taskRes.data[0]) || null
 	if (!taskDoc) return { code: 404, msg: '任务不存在' }
+	if (await taskBelongsToHiddenCustomer(taskDoc)) return { code: 404, msg: '任务不存在' }
 
 	const note = normalizeString(data.note)
 	if (!note) return { code: 400, msg: '跟进内容必填' }
@@ -527,6 +550,7 @@ async function recalcTaskV1(user, data, requestId) {
 	const taskRes = await tasks.doc(id).get()
 	const taskDoc = (taskRes.data && taskRes.data[0]) || null
 	if (!taskDoc) return { code: 404, msg: '任务不存在' }
+	if (await taskBelongsToHiddenCustomer(taskDoc)) return { code: 404, msg: '任务不存在' }
 
 	const dateFrom = normalizeDate(taskDoc.date_from)
 	const dateTo = normalizeDate(taskDoc.date_to)

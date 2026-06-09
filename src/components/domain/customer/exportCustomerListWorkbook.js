@@ -130,6 +130,7 @@ function buildOverviewRows(payload = {}) {
 	const summary = summarizeRows(rows)
 	const keyword = normalizeString(payload?.filters?.keyword) || '（空）'
 	const activeLabel = normalizeString(payload?.filters?.activeLabel) || '全部状态'
+	const visibilityLabel = normalizeString(payload?.filters?.visibilityLabel) || '可见客户'
 	const balanceLabel = normalizeString(payload?.filters?.balanceLabel) || '全部余额'
 	const updatedDateRangeLabel = normalizeString(payload?.filters?.updatedDateRangeLabel) || '全部时间'
 	const cashierUnallocatedLabel = normalizeString(payload?.filters?.cashierUnallocatedLabel) || '全部客户'
@@ -144,6 +145,7 @@ function buildOverviewRows(payload = {}) {
 		[{ type: 'String', value: '导出时间' }, { type: 'String', value: exportAt }],
 		[{ type: 'String', value: '关键词' }, { type: 'String', value: keyword }],
 		[{ type: 'String', value: '状态筛选' }, { type: 'String', value: activeLabel }],
+		[{ type: 'String', value: '显隐范围' }, { type: 'String', value: visibilityLabel }],
 		[{ type: 'String', value: '余额方向' }, { type: 'String', value: balanceLabel }],
 		[{ type: 'String', value: '更新时间范围' }, { type: 'String', value: updatedDateRangeLabel }],
 		[{ type: 'String', value: '出纳未分配筛选' }, { type: 'String', value: cashierUnallocatedLabel }],

@@ -1,11 +1,20 @@
 'use strict'
 
 const db = uniCloud.database()
+const dbCmd = db.command
+const {
+	fetchHiddenCustomerRows,
+	fetchHiddenCustomerIds,
+	buildNotHiddenCustomerFieldsWhere,
+	mergeWhere: mergeVisibilityWhere,
+	logMentionsHiddenCustomer
+} = require('./customerVisibilityLocal')
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 const movements = db.collection('crm_bottle_movements')
 const anomalies = db.collection('crm_bottle_anomalies')
+const customers = db.collection('crm_customers')
 const customerLossDailySummaries = db.collection('crm_customer_loss_daily')
 let ensureActionAcl = null
 try {
@@ -219,6 +228,22 @@ function buildMovementWhere(data, options = {}) {
 		where.event_day = db.command.lte(dateEnd)
 	}
 	return where
+}
+
+function movementRowMentionsHiddenCustomer(row, hiddenRows = []) {
+	return logMentionsHiddenCustomer(
+		{
+			action: '',
+			detail: row,
+			request_id: ''
+		},
+		hiddenRows
+	)
+}
+
+function filterHiddenCustomerRows(rows = [], hiddenRows = []) {
+	if (!hiddenRows.length) return Array.isArray(rows) ? rows : []
+	return (Array.isArray(rows) ? rows : []).filter((row) => !movementRowMentionsHiddenCustomer(row, hiddenRows))
 }
 
 function normalizeDay(value) {
@@ -1539,8 +1564,10 @@ async function listV1(user, data, requestId) {
 	const page = Math.max(Number(data.page || 1) || 1, 1)
 	const pageSize = Math.min(Math.max(Number(data.pageSize || data.limit || 50) || 50, 1), 200)
 
-	const where = buildMovementWhere(data)
-	const summaryWhere = buildMovementWhere(data, { ignoreType: true })
+	const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['customer_id'])
+	const where = mergeVisibilityWhere(dbCmd, buildMovementWhere(data), hiddenWhere)
+	const summaryWhere = mergeVisibilityWhere(dbCmd, buildMovementWhere(data, { ignoreType: true }), hiddenWhere)
+	const summaryTypeWhere = (targetType) => mergeVisibilityWhere(dbCmd, summaryWhere, { type: targetType })
 
 	const res = await movements
 		.where(where)
@@ -1552,10 +1579,10 @@ async function listV1(user, data, requestId) {
 		.get()
 	const [totalRes, outRes, backRes, fillRes, adjustRes] = await Promise.all([
 		movements.where(where).count(),
-		movements.where({ ...summaryWhere, type: 'out' }).count(),
-		movements.where({ ...summaryWhere, type: 'back' }).count(),
-		movements.where({ ...summaryWhere, type: 'fill' }).count(),
-		movements.where({ ...summaryWhere, type: 'adjust' }).count()
+		movements.where(summaryTypeWhere('out')).count(),
+		movements.where(summaryTypeWhere('back')).count(),
+		movements.where(summaryTypeWhere('fill')).count(),
+		movements.where(summaryTypeWhere('adjust')).count()
 	])
 
 	await recordLog(
@@ -1587,6 +1614,9 @@ async function getV1(user, data) {
 	const res = await movements.doc(id).get()
 	const doc = (res.data && res.data[0]) || null
 	if (!doc) return { code: 404, msg: '记录不存在' }
+	if (movementRowMentionsHiddenCustomer(doc, await fetchHiddenCustomerRows(customers, { includeNames: true }))) {
+		return { code: 404, msg: '记录不存在' }
+	}
 	return { code: 0, data: doc }
 }
 
@@ -1611,8 +1641,9 @@ async function timelineV1(user, data, requestId) {
 			.get()
 	])
 
-	const events = dedupeMissingFillManualFixRows(eventRes.data || [])
-	const anomalyRows = dedupeTimelineAnomalies(anomalyRes.data || [])
+	const hiddenRows = await fetchHiddenCustomerRows(customers, { includeNames: true })
+	const events = filterHiddenCustomerRows(dedupeMissingFillManualFixRows(eventRes.data || []), hiddenRows)
+	const anomalyRows = filterHiddenCustomerRows(dedupeTimelineAnomalies(anomalyRes.data || []), hiddenRows)
 	const semanticResult = buildCycleRowsFromEvents(events)
 	const semanticState = semanticResult.semanticStateByBottle.get(bottleNo) || null
 	const markers = buildTimelineMarkers(anomalyRows)
@@ -1641,7 +1672,8 @@ async function lossStatsV1(user, data, requestId) {
 	const customerMatcher = buildCustomerNameMatcher(data.customer_name || data.customerName)
 	const where = buildLossWhere(data)
 	const allRows = await fetchAllLossRows(where)
-	const manualRows = dedupeMissingFillManualFixRows(allRows).filter((row) => {
+	const hiddenRows = await fetchHiddenCustomerRows(customers, { includeNames: true })
+	const manualRows = filterHiddenCustomerRows(dedupeMissingFillManualFixRows(allRows), hiddenRows).filter((row) => {
 		if (!isMissingFillLossRow(row)) return false
 		if (!customerMatcher.keyword) return true
 		const ctx = row && typeof row.context === 'object' && !Array.isArray(row.context) ? row.context : {}
@@ -1759,13 +1791,14 @@ async function cycleLossV1(user, data, requestId) {
 	const page = Math.max(Number(data.page || 1) || 1, 1)
 	const pageSize = Math.min(Math.max(Number(data.pageSize || data.limit || 50) || 50, 1), 200)
 	const scanLimit = Math.min(Math.max(Number(data.scan_limit || data.scanLimit || CYCLE_SCAN_MAX_ROWS) || CYCLE_SCAN_MAX_ROWS, 2000), 80000)
+	const hiddenRows = await fetchHiddenCustomerRows(customers, { includeNames: true })
 
 	let events = []
 	if (bottleNo) {
 		const allRows = await fetchAllBottleMovementRows(bottleNo)
-		events = allRows.filter((row) => {
+		events = filterHiddenCustomerRows(allRows.filter((row) => {
 			return isCycleRelevantEventRow(row)
-		})
+		}), hiddenRows)
 	} else {
 		const globalRes = await fetchAllCycleEventRowsGlobal({
 			maxRows: scanLimit,
@@ -1776,14 +1809,14 @@ async function cycleLossV1(user, data, requestId) {
 		if (globalRes.overflow) {
 			return { code: 400, msg: '查询范围过大，请输入瓶号或缩小日期范围后重试' }
 		}
-		events = globalRes.rows || []
+		events = filterHiddenCustomerRows(globalRes.rows || [], hiddenRows)
 	}
 
 	events.sort(compareCycleEventAsc)
 
 	const { cycleRows, incompleteRows } = buildCycleRowsFromEvents(events)
 
-	const filteredCycles = cycleRows
+	const filteredCycles = filterHiddenCustomerRows(cycleRows, hiddenRows)
 		.filter((row) => isDayInRange(row.out_day, dateStart, dateEnd))
 		.filter((row) => (customerMatcher.keyword ? customerMatcher.matches(row.out_customer_name) : true))
 		.sort((a, b) => {
@@ -1791,7 +1824,7 @@ async function cycleLossV1(user, data, requestId) {
 			return b.out_created_at - a.out_created_at
 		})
 
-	const filteredIncomplete = incompleteRows
+	const filteredIncomplete = filterHiddenCustomerRows(incompleteRows, hiddenRows)
 		.filter((row) => isDayInRange(row.event_day, dateStart, dateEnd))
 		.filter((row) => (customerMatcher.keyword ? customerMatcher.matches(row.customer_name) : true))
 
@@ -1903,14 +1936,15 @@ async function lossAnomalyRankV1(user, data, requestId) {
 	)
 	const topLimit = Math.min(Math.max(Number(data && data.limit) || ANOMALY_RANK_TOP_LIMIT, 1), ANOMALY_RANK_MAX_LIMIT)
 	const scanLimit = Math.min(Math.max(Number(data && (data.scan_limit || data.scanLimit) || CYCLE_SCAN_MAX_ROWS) || CYCLE_SCAN_MAX_ROWS, 2000), 80000)
+	const hiddenRows = await fetchHiddenCustomerRows(customers, { includeNames: true })
 
 	let cycleRows = []
 	let scannedEventCount = 0
 	if (bottleNo) {
 		const allRows = await fetchAllBottleMovementRows(bottleNo)
-		const events = allRows.filter((row) => {
+		const events = filterHiddenCustomerRows(allRows.filter((row) => {
 			return isCycleRelevantEventRow(row)
-		})
+		}), hiddenRows)
 		events.sort(compareCycleEventAsc)
 		const cycleResult = buildCycleRowsFromEvents(events)
 		cycleRows = Array.isArray(cycleResult.cycleRows) ? cycleResult.cycleRows : []
@@ -1925,14 +1959,14 @@ async function lossAnomalyRankV1(user, data, requestId) {
 		if (globalRes.overflow) {
 			return { code: 400, msg: '查询范围过大，请输入瓶号或缩小日期范围后重试' }
 		}
-		const events = Array.isArray(globalRes.rows) ? globalRes.rows : []
+		const events = filterHiddenCustomerRows(Array.isArray(globalRes.rows) ? globalRes.rows : [], hiddenRows)
 		events.sort(compareCycleEventAsc)
 		const cycleResult = buildCycleRowsFromEvents(events)
 		cycleRows = Array.isArray(cycleResult.cycleRows) ? cycleResult.cycleRows : []
 		scannedEventCount = events.length
 	}
 
-	const filteredCycleRows = cycleRows.filter((row) => {
+	const filteredCycleRows = filterHiddenCustomerRows(cycleRows, hiddenRows).filter((row) => {
 		if (bottleNo && normalizeBottleNo(row && row.bottle_no) !== bottleNo) return false
 		if (!isDayInRange(row && row.out_day, dateStart, dateEnd)) return false
 		if (customerMatcher.keyword && !customerMatcher.matches(row && row.out_customer_name)) return false
@@ -1945,7 +1979,7 @@ async function lossAnomalyRankV1(user, data, requestId) {
 		dateEnd
 	})
 	const manualRowsRaw = await fetchAllLossRows(manualWhere)
-	const manualRows = dedupeMissingFillManualFixRows(manualRowsRaw).filter((row) => {
+	const manualRows = filterHiddenCustomerRows(dedupeMissingFillManualFixRows(manualRowsRaw), hiddenRows).filter((row) => {
 		if (!isMissingFillLossRow(row)) return false
 		if (bottleNo && normalizeBottleNo(row && row.bottle_no) !== bottleNo) return false
 		const day = normalizeDay(row && row.event_day) || normalizeDay(row && row.date)
@@ -2005,6 +2039,7 @@ async function customerLossSummaryV1(user, data, requestId) {
 	void user
 	const customerId = normalizeString(data.customer_id || data.customerId)
 	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if ((await fetchHiddenCustomerIds(customers)).includes(customerId)) return { code: 404, msg: '客户不存在' }
 	const dateStart = normalizeDay(data.dateStart)
 	const dateEnd = normalizeDay(data.dateEnd)
 	if (dateStart && dateEnd && dateStart > dateEnd) return { code: 400, msg: '开始日期不能晚于结束日期' }
@@ -2056,6 +2091,7 @@ async function customerLossBreakdownV1(user, data, requestId) {
 	void user
 	const customerId = normalizeString(data.customer_id || data.customerId)
 	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+	if ((await fetchHiddenCustomerIds(customers)).includes(customerId)) return { code: 404, msg: '客户不存在' }
 	const dateStart = normalizeDay(data.dateStart)
 	const dateEnd = normalizeDay(data.dateEnd)
 	if (dateStart && dateEnd && dateStart > dateEnd) return { code: 400, msg: '开始日期不能晚于结束日期' }
@@ -2193,6 +2229,10 @@ async function createV1(user, data, requestId) {
 	if (!date) return { code: 400, msg: '日期必填' }
 	const sourceType = normalizeSourceType(data.source_type)
 	if (!sourceType) return { code: 400, msg: '来源类型无效' }
+	const customerId = normalizeString(data.customer_id) || null
+	if (customerId && (await fetchHiddenCustomerIds(customers)).includes(customerId)) {
+		return { code: 404, msg: '客户不存在' }
+	}
 	const now = Date.now()
 	const eventDay = normalizeEventDay(date, now)
 	const eventAt = parseEventAt(date, now)
@@ -2206,7 +2246,7 @@ async function createV1(user, data, requestId) {
 		type_order: movementTypeOrder(type),
 		source_type: sourceType,
 		source_id: normalizeString(data.source_id) || null,
-		customer_id: normalizeString(data.customer_id) || null,
+		customer_id: customerId,
 		customer_name: normalizeString(data.customer_name),
 		net_weight: toNumber(data.net_weight, null),
 		loss_weight: toNumber(data.loss_weight, null),

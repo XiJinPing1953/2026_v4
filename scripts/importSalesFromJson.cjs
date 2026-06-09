@@ -861,7 +861,11 @@ async function ensureCustomerByName(client, crmToken, customerRef, customerName)
 			address: '',
 			remark: 'legacy sale import auto-created',
 			default_price_unit: 'kg',
-			default_unit_price: null
+			default_unit_price: null,
+			is_hidden: false,
+			hidden_at: null,
+			hidden_by: null,
+			hidden_by_name: ''
 		},
 		request_id: generateRequestId()
 	})

@@ -1,14 +1,23 @@
 'use strict'
 
 let ensureActionAcl = null
+let isSuperAdmin = null
 try {
-	;({ ensureActionAcl } = require('../common/pageAcl'))
+	;({ ensureActionAcl, isSuperAdmin } = require('../common/pageAcl'))
 } catch (err) {
 	console.warn('[crm-customer] fallback to local pageAcl helpers', err && err.message)
-	;({ ensureActionAcl } = require('./pageAclLocal'))
+	;({ ensureActionAcl, isSuperAdmin } = require('./pageAclLocal'))
 }
 const db = uniCloud.database()
 const dbCmd = db.command
+const {
+	normalizeVisibility,
+	isSuperAdminUser,
+	visibleCustomerWhere,
+	customerVisibilityWhere,
+	collectCustomerAndDescendantIds,
+	docIsHiddenCustomer
+} = require('./customerVisibilityLocal')
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
@@ -29,8 +38,11 @@ const PAGE_ACTION_RULES = {
 	],
 	resolveQrCodeV1: [{ pagePath: '/pages/pda/sale-create', action: 'view' }],
 	createV1: [{ pagePath: '/pages/customer/edit', action: 'create' }],
-	updateV1: [{ pagePath: '/pages/customer/edit', action: 'update' }]
+	updateV1: [{ pagePath: '/pages/customer/edit', action: 'update' }],
+	hideCustomerV1: [{ pagePath: '/pages/customer/edit', action: 'update' }],
+	unhideCustomerV1: [{ pagePath: '/pages/customer/edit', action: 'update' }]
 }
+const SUPERADMIN_ONLY_ACTIONS = ['hideCustomerV1', 'unhideCustomerV1']
 
 async function getUserByToken(token) {
 	if (!token) return null
@@ -57,6 +69,10 @@ async function recordLog(user, action, detail = {}, requestId = '') {
 function normalizeString(value) {
 	if (value == null) return ''
 	return String(value).trim()
+}
+
+function currentIsSuperAdmin(user) {
+	return typeof isSuperAdmin === 'function' ? isSuperAdmin(user) : isSuperAdminUser(user)
 }
 
 function generateRequestId() {
@@ -239,6 +255,7 @@ async function resolveSettlementCustomerRef(rawSettlementCustomerId, currentCust
 		visited.add(cursorId)
 		cursor = await getCustomerById(cursorId)
 		if (!cursor) return { ok: false, code: 400, msg: '结算客户不存在' }
+		if (docIsHiddenCustomer(cursor)) return { ok: false, code: 400, msg: '结算客户已隐藏' }
 		const parentId = normalizeString(cursor.settlement_customer_id)
 		if (!parentId || parentId === cursorId) {
 			return {
@@ -270,7 +287,7 @@ async function attachDepositCounts(items = []) {
 			let locationDocs = [{ _id: id, name: normalizeString(item && item.name) }]
 			if (!isChild) {
 				const childRes = await customers
-					.where({ settlement_customer_id: id })
+					.where(dbCmd.and([{ settlement_customer_id: id }, visibleCustomerWhere(dbCmd)]))
 					.field({ _id: true, name: true })
 					.orderBy('updated_at', 'desc')
 					.limit(200)
@@ -409,7 +426,7 @@ async function resolveUniqueCustomerByQrCode(rawQrCode) {
 	const qrCode = normalizeQrCode(rawQrCode)
 	if (!qrCode) return { code: 400, msg: '客户二维码必填' }
 	const res = await customers
-		.where({ qr_code: qrCode })
+		.where(dbCmd.and([{ qr_code: qrCode }, visibleCustomerWhere(dbCmd)]))
 		.field({
 			_id: true,
 			name: true,
@@ -472,8 +489,11 @@ async function resolveUniqueCustomerByQrCode(rawQrCode) {
 }
 
 async function listV1(user, data) {
-	void user
 	const keyword = normalizeString(data.keyword)
+	const visibility = normalizeVisibility(data.visibility)
+	if ((visibility === 'hidden' || visibility === 'all') && !currentIsSuperAdmin(user)) {
+		return { code: 403, msg: '仅超级管理员可查看隐藏客户' }
+	}
 	const balanceType = normalizeBalanceType(data.balance_type ?? data.balanceType)
 	const updatedDateStart = parseDateStart(data.updated_date_start ?? data.updatedDateStart ?? data.date_start ?? data.dateStart)
 	const updatedDateEnd = parseDateEnd(data.updated_date_end ?? data.updatedDateEnd ?? data.date_end ?? data.dateEnd)
@@ -517,8 +537,12 @@ async function listV1(user, data) {
 		const rx = db.RegExp({ regexp: escaped, options: 'i' })
 		keywordWhere = dbCmd.or([{ name: rx }, { short_name: rx }, { contact: rx }, { phone: rx }, { qr_code: rx }])
 		if (settlementOnly) {
+			const matchedVisibilityWhere = customerVisibilityWhere(dbCmd, visibility)
+			const matchedWhere = Object.keys(matchedVisibilityWhere).length
+				? dbCmd.and([keywordWhere, matchedVisibilityWhere])
+				: keywordWhere
 			const matchedRes = await customers
-				.where(keywordWhere)
+				.where(matchedWhere)
 				.field({ _id: true, name: true, settlement_customer_id: true })
 				.limit(500)
 				.get()
@@ -579,6 +603,8 @@ async function listV1(user, data) {
 
 	const buildWhere = ({ ignoreActive = false } = {}) => {
 		const parts = []
+		const visibilityWhere = customerVisibilityWhere(dbCmd, visibility)
+		if (Object.keys(visibilityWhere).length) parts.push(visibilityWhere)
 		if (!ignoreActive && activeWhere) parts.push(activeWhere)
 		if (keywordWhere) parts.push(keywordWhere)
 		if (balanceWhere) parts.push(balanceWhere)
@@ -590,7 +616,8 @@ async function listV1(user, data) {
 		return dbCmd.and(parts)
 	}
 	const mergeWhere = (base, extra, hasBaseFilter) => (hasBaseFilter ? dbCmd.and([base, extra]) : extra)
-	const hasListFilter = Boolean(activeWhere || keywordWhere || balanceWhere || updatedWhere || cashierUnallocatedWhere || settlementOnly)
+	const hasVisibilityFilter = visibility !== 'all'
+	const hasListFilter = Boolean(hasVisibilityFilter || activeWhere || keywordWhere || balanceWhere || updatedWhere || cashierUnallocatedWhere || settlementOnly)
 
 	const where = buildWhere()
 
@@ -608,7 +635,7 @@ async function listV1(user, data) {
 
 	const summaryWhere = buildWhere({ ignoreActive: summaryIgnoreActive })
 	const hasSummaryFilter = summaryIgnoreActive
-		? Boolean(keywordWhere || balanceWhere || updatedWhere || cashierUnallocatedWhere)
+		? Boolean(hasVisibilityFilter || keywordWhere || balanceWhere || updatedWhere || cashierUnallocatedWhere || settlementOnly)
 		: hasListFilter
 	const summaryTotalRes = await customers.where(summaryWhere).count()
 	const summaryTotal = Number(summaryTotalRes.total || 0)
@@ -633,6 +660,9 @@ async function listV1(user, data) {
 	const pricedRes = await customers
 		.where(mergeWhere(summaryWhere, { default_unit_price: dbCmd.gt(0) }, hasSummaryFilter))
 		.count()
+	const hiddenRes = currentIsSuperAdmin(user)
+		? await customers.where(mergeWhere(summaryWhere, { is_hidden: true }, hasSummaryFilter)).count()
+		: { total: 0 }
 
 	const rows = await attachDepositCounts(res.data || [])
 	const dataRows = rows.map((item) => ({
@@ -654,18 +684,19 @@ async function listV1(user, data) {
 			total: summaryTotal,
 			active: activeCount,
 			inactive: inactiveCount,
-			priced: Number(pricedRes.total || 0)
+			priced: Number(pricedRes.total || 0),
+			hidden: Number(hiddenRes.total || 0)
 		}
 	}
 }
 
 async function getV1(user, data) {
-	void user
 	const id = normalizeString(data._id || data.id)
 	if (!id) return { code: 400, msg: '缺少客户 ID' }
 	const res = await customers.doc(id).get()
 	const doc = (res.data && res.data[0]) || null
 	if (!doc) return { code: 404, msg: '客户不存在' }
+	if (docIsHiddenCustomer(doc) && !currentIsSuperAdmin(user)) return { code: 404, msg: '客户不存在' }
 	const items = await attachDepositCounts([doc])
 	return { code: 0, data: items[0] || withBalanceFields(doc) }
 }
@@ -700,6 +731,10 @@ async function createV1(user, data, requestId) {
 		settlement_customer_id: settlementRef.id || '',
 		settlement_customer_name: settlementRef.name || '',
 		is_active: true,
+		is_hidden: false,
+		hidden_at: null,
+		hidden_by: null,
+		hidden_by_name: '',
 		default_unit_price: toNumber(data.default_unit_price, null),
 		default_price_unit: defaultPriceUnit,
 		receivable_balance: 0,
@@ -738,12 +773,14 @@ async function updateV1(user, data, requestId) {
 			short_name: true,
 			contact: true,
 			qr_code: true,
+			is_hidden: true,
 			settlement_customer_id: true,
 			settlement_customer_name: true
 		})
 		.get()
 	const existing = (current.data && current.data[0]) || null
 	if (!existing) return { code: 404, msg: '客户不存在' }
+	if (docIsHiddenCustomer(existing) && !currentIsSuperAdmin(user)) return { code: 404, msg: '客户不存在' }
 
 	const patch = {}
 	if (data.name != null) patch.name = normalizeString(data.name)
@@ -805,6 +842,71 @@ async function updateV1(user, data, requestId) {
 	}
 }
 
+async function updateCustomersByIds(ids = [], patch = {}) {
+	const normalizedIds = Array.from(new Set((ids || []).map((item) => normalizeString(item)).filter(Boolean)))
+	if (!normalizedIds.length) return 0
+	let updated = 0
+	for (const chunk of chunkStrings(normalizedIds, 180)) {
+		await customers.where({ _id: dbCmd.in(chunk) }).update(patch)
+		updated += chunk.length
+	}
+	return updated
+}
+
+async function hideCustomerV1(user, data, requestId) {
+	const id = normalizeString(data.customer_id || data.customerId || data._id || data.id)
+	if (!id) return { code: 400, msg: '缺少客户 ID' }
+	const current = await getCustomerById(id)
+	if (!current) return { code: 404, msg: '客户不存在' }
+	const ids = await collectCustomerAndDescendantIds(customers, dbCmd, id)
+	const now = Date.now()
+	const patch = {
+		is_hidden: true,
+		hidden_at: now,
+		hidden_by: normalizeString(user && user._id) || null,
+		hidden_by_name: normalizeString(user && user.username),
+		updated_at: now
+	}
+	const updated = await updateCustomersByIds(ids, patch)
+	await recordLog(
+		user,
+		'customer_hide_v1',
+		{
+			customer_id: id,
+			customer_name: normalizeString(current.name),
+			affected_customer_ids: ids,
+			affected_count: updated
+		},
+		requestId
+	)
+	return { code: 0, msg: '隐藏成功', data: { customer_id: id, affected_customer_ids: ids, affected_count: updated } }
+}
+
+async function unhideCustomerV1(user, data, requestId) {
+	const id = normalizeString(data.customer_id || data.customerId || data._id || data.id)
+	if (!id) return { code: 400, msg: '缺少客户 ID' }
+	const current = await getCustomerById(id)
+	if (!current) return { code: 404, msg: '客户不存在' }
+	const now = Date.now()
+	await customers.doc(id).update({
+		is_hidden: false,
+		hidden_at: null,
+		hidden_by: null,
+		hidden_by_name: '',
+		updated_at: now
+	})
+	await recordLog(
+		user,
+		'customer_unhide_v1',
+		{
+			customer_id: id,
+			customer_name: normalizeString(current.name)
+		},
+		requestId
+	)
+	return { code: 0, msg: '恢复成功', data: { customer_id: id, affected_customer_ids: [id], affected_count: 1 } }
+}
+
 async function resolveQrCodeV1(user, data) {
 	void user
 	return resolveUniqueCustomerByQrCode(data.qr_code ?? data.qrCode ?? data.token)
@@ -819,7 +921,7 @@ exports.main = async (event, context) => {
 
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
-	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, [], {
+	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, SUPERADMIN_ONLY_ACTIONS, {
 		recordLog,
 		requestId,
 		cloudFunction: 'crm-customer'
@@ -831,6 +933,8 @@ exports.main = async (event, context) => {
 	if (action === 'resolveQrCodeV1') return resolveQrCodeV1(user, data)
 	if (action === 'createV1') return createV1(user, data, requestId)
 	if (action === 'updateV1') return updateV1(user, data, requestId)
+	if (action === 'hideCustomerV1') return hideCustomerV1(user, data, requestId)
+	if (action === 'unhideCustomerV1') return unhideCustomerV1(user, data, requestId)
 
 	return { code: 400, msg: '未知 action' }
 }

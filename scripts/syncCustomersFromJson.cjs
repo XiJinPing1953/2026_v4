@@ -387,7 +387,7 @@ async function fetchAllCustomers(client, token) {
 		const res = await client.callFunction('crm-customer', {
 			action: 'listV1',
 			token,
-			data: { page, pageSize },
+			data: { page, pageSize, visibility: 'all' },
 			request_id: generateRequestId()
 		})
 		if (!res || res.code !== 0) throw new Error(`加载客户失败(page=${page}): ${JSON.stringify(res)}`)

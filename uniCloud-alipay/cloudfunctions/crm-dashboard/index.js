@@ -10,6 +10,11 @@ try {
 const db = uniCloud.database()
 const dbCmd = db.command
 const tankTelemetryCore = require('./tankTelemetry')
+const {
+	fetchHiddenCustomerIds,
+	buildNotHiddenCustomerFieldsWhere,
+	mergeWhere: mergeVisibilityWhere
+} = require('./customerVisibilityLocal')
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
@@ -18,6 +23,7 @@ const fillings = db.collection('crm_fillings')
 const flowSettlements = db.collection('crm_customer_flow_settlements')
 const receipts = db.collection('crm_customer_receipts')
 const bottles = db.collection('crm_bottles')
+const customers = db.collection('crm_customers')
 const anomalies = db.collection('crm_bottle_anomalies')
 const tankTelemetry = db.collection('crm_tank_telemetry')
 const PAGE_ACTION_RULES = {
@@ -233,12 +239,12 @@ async function fetchAll(collection, where, field) {
 	return list
 }
 
-async function countInspectionDueByField(field, today, dueEnd) {
+async function countInspectionDueByField(field, today, dueEnd, hiddenWhere = null) {
 	const validDateRx = db.RegExp({ regexp: '^\\d{4}-\\d{2}-\\d{2}$', options: '' })
 	const overdueWhere = dbCmd.and([{ [field]: validDateRx }, { [field]: dbCmd.lt(today) }])
 	const dueWhere = dbCmd.and([{ [field]: validDateRx }, { [field]: dbCmd.gte(today) }, { [field]: dbCmd.lte(dueEnd) }])
-	const overdueRes = await bottles.where(overdueWhere).count()
-	const dueRes = await bottles.where(dueWhere).count()
+	const overdueRes = await bottles.where(mergeVisibilityWhere(dbCmd, overdueWhere, hiddenWhere)).count()
+	const dueRes = await bottles.where(mergeVisibilityWhere(dbCmd, dueWhere, hiddenWhere)).count()
 	const overdue = Number(overdueRes.total || 0)
 	const due60 = Number(dueRes.total || 0)
 	return {
@@ -492,15 +498,24 @@ async function summaryV1(user, data, requestId) {
 	const recentDates = getRecentDates(days)
 	const weekStart = recentDates[0]
 	const weekEnd = recentDates[recentDates.length - 1]
+	const hiddenCustomerIds = await fetchHiddenCustomerIds(customers)
+	const saleHiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, hiddenCustomerIds, ['customer_id', 'delivery_customer_id'])
+	const customerHiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, hiddenCustomerIds, ['customer_id'])
+	const bottleHiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, hiddenCustomerIds, ['current_customer_id'])
 
 	const anomalyCountRes = await anomalies.where({ status: 'open' }).count()
 	const anomalyOpen = anomalyCountRes.total || 0
 
-	const atCustomerRes = await bottles.where({ status: 'at_customer' }).count()
+	const atCustomerRes = await bottles.where(mergeVisibilityWhere(dbCmd, { status: 'at_customer' }, bottleHiddenWhere)).count()
 	const inStationRes = await bottles.where({ status: 'in_station' }).count()
 
-	const weekWhere = dbCmd.and([{ date: dbCmd.gte(weekStart) }, { date: dbCmd.lte(weekEnd) }])
-	const weekSales = await fetchAll(sales, weekWhere, {
+	const weekDateWhere = dbCmd.and([{ date: dbCmd.gte(weekStart) }, { date: dbCmd.lte(weekEnd) }])
+	const weekSaleWhere = mergeVisibilityWhere(
+		dbCmd,
+		weekDateWhere,
+		saleHiddenWhere
+	)
+	const weekSales = await fetchAll(sales, weekSaleWhere, {
 		date: true,
 		biz_mode: true,
 		customer_id: true,
@@ -556,7 +571,7 @@ async function summaryV1(user, data, requestId) {
 			dailyReportMap[key].sale_weight = fix2(dailyReportMap[key].sale_weight + computeSaleWeight(row))
 		}
 	})
-	const weekFillings = await fetchAll(fillings, weekWhere, {
+	const weekFillings = await fetchAll(fillings, weekDateWhere, {
 		date: true,
 		bottle_no: true,
 		record_type: true,
@@ -584,7 +599,11 @@ async function summaryV1(user, data, requestId) {
 	})
 	const weekFlowSettlements = await fetchAll(
 		flowSettlements,
-		dbCmd.and([{ status: 'posted' }, { biz_date: dbCmd.gte(weekStart) }, { biz_date: dbCmd.lte(weekEnd) }]),
+		mergeVisibilityWhere(
+			dbCmd,
+			dbCmd.and([{ status: 'posted' }, { biz_date: dbCmd.gte(weekStart) }, { biz_date: dbCmd.lte(weekEnd) }]),
+			customerHiddenWhere
+		),
 		{ biz_date: true, should_receive: true }
 	)
 	weekFlowSettlements.forEach((row) => {
@@ -597,7 +616,11 @@ async function summaryV1(user, data, requestId) {
 	})
 	const weekReceipts = await fetchAll(
 		receipts,
-		dbCmd.and([{ status: 'posted' }, { biz_date: dbCmd.gte(weekStart) }, { biz_date: dbCmd.lte(weekEnd) }]),
+		mergeVisibilityWhere(
+			dbCmd,
+			dbCmd.and([{ status: 'posted' }, { biz_date: dbCmd.gte(weekStart) }, { biz_date: dbCmd.lte(weekEnd) }]),
+			customerHiddenWhere
+		),
 		{ biz_date: true, amount: true }
 	)
 	weekReceipts.forEach((row) => {
@@ -691,7 +714,11 @@ async function summaryV1(user, data, requestId) {
 	const collectionRate = receivableTotal > 0 ? fix2((receivedTotal / receivableTotal) * 100) : null
 
 	const monthRange = getMonthRange(today)
-	const monthWhere = dbCmd.and([{ date: dbCmd.gte(monthRange.start) }, { date: dbCmd.lte(monthRange.end) }])
+	const monthWhere = mergeVisibilityWhere(
+		dbCmd,
+		dbCmd.and([{ date: dbCmd.gte(monthRange.start) }, { date: dbCmd.lte(monthRange.end) }]),
+		saleHiddenWhere
+	)
 	const monthDocs = await fetchAll(sales, monthWhere, {
 			date: true,
 			biz_mode: true,
@@ -715,7 +742,11 @@ async function summaryV1(user, data, requestId) {
 	})
 	const monthFlowDocs = await fetchAll(
 		flowSettlements,
-		dbCmd.and([{ status: 'posted' }, { biz_date: dbCmd.gte(monthRange.start) }, { biz_date: dbCmd.lte(monthRange.end) }]),
+		mergeVisibilityWhere(
+			dbCmd,
+			dbCmd.and([{ status: 'posted' }, { biz_date: dbCmd.gte(monthRange.start) }, { biz_date: dbCmd.lte(monthRange.end) }]),
+			customerHiddenWhere
+		),
 		{ should_receive: true }
 	)
 	monthFlowDocs.forEach((doc) => {
@@ -724,7 +755,11 @@ async function summaryV1(user, data, requestId) {
 	monthTotal = fix2(monthTotal)
 
 	const prevRange = getPrevMonthRange(today)
-	const prevWhere = dbCmd.and([{ date: dbCmd.gte(prevRange.start) }, { date: dbCmd.lte(prevRange.end) }])
+	const prevWhere = mergeVisibilityWhere(
+		dbCmd,
+		dbCmd.and([{ date: dbCmd.gte(prevRange.start) }, { date: dbCmd.lte(prevRange.end) }]),
+		saleHiddenWhere
+	)
 	const prevDocs = await fetchAll(sales, prevWhere, {
 			date: true,
 			biz_mode: true,
@@ -748,7 +783,11 @@ async function summaryV1(user, data, requestId) {
 	})
 	const prevFlowDocs = await fetchAll(
 		flowSettlements,
-		dbCmd.and([{ status: 'posted' }, { biz_date: dbCmd.gte(prevRange.start) }, { biz_date: dbCmd.lte(prevRange.end) }]),
+		mergeVisibilityWhere(
+			dbCmd,
+			dbCmd.and([{ status: 'posted' }, { biz_date: dbCmd.gte(prevRange.start) }, { biz_date: dbCmd.lte(prevRange.end) }]),
+			customerHiddenWhere
+		),
 		{ should_receive: true }
 	)
 	prevFlowDocs.forEach((doc) => {
@@ -777,9 +816,9 @@ async function summaryV1(user, data, requestId) {
 
 	const todayDate = formatDateCN(getCNDate())
 	const dueEndDate = addDaysDateCN(todayDate, 60)
-	const bottleDue = await countInspectionDueByField('bottle_next_check_date', todayDate, dueEndDate)
-	const gaugeDue = await countInspectionDueByField('pressure_gauge_next_check_date', todayDate, dueEndDate)
-	const valveDue = await countInspectionDueByField('safety_valve_next_check_date', todayDate, dueEndDate)
+	const bottleDue = await countInspectionDueByField('bottle_next_check_date', todayDate, dueEndDate, bottleHiddenWhere)
+	const gaugeDue = await countInspectionDueByField('pressure_gauge_next_check_date', todayDate, dueEndDate, bottleHiddenWhere)
+	const valveDue = await countInspectionDueByField('safety_valve_next_check_date', todayDate, dueEndDate, bottleHiddenWhere)
 	const dueOverdueTotal = Number(bottleDue.overdue || 0) + Number(gaugeDue.overdue || 0) + Number(valveDue.overdue || 0)
 	const due60Total = Number(bottleDue.due_60d || 0) + Number(gaugeDue.due_60d || 0) + Number(valveDue.due_60d || 0)
 	const tankSummary = await getTankTelemetrySummary()

@@ -2,9 +2,15 @@
 
 const db = uniCloud.database()
 const dbCmd = db.command
+const {
+	fetchHiddenCustomerRows,
+	isSuperAdminUser,
+	logMentionsHiddenCustomer
+} = require('./customerVisibilityLocal')
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
+const customers = db.collection('crm_customers')
 let ensureActionAcl = null
 try {
 	;({ ensureActionAcl } = require('../common/pageAcl'))
@@ -204,6 +210,28 @@ function sanitizeLog(doc) {
 	}
 }
 
+async function fetchLogRowsForVisibilityFilter(where, maxRows = 5000) {
+	const rows = []
+	const pageSize = 200
+	let page = 1
+	let guard = 0
+	while (guard < 500 && rows.length < maxRows) {
+		const res = await logs
+			.where(where)
+			.orderBy('created_at', 'desc')
+			.skip((page - 1) * pageSize)
+			.limit(pageSize)
+			.get()
+		const list = Array.isArray(res && res.data) ? res.data : []
+		if (!list.length) break
+		rows.push(...list)
+		if (list.length < pageSize || rows.length >= maxRows) break
+		page += 1
+		guard += 1
+	}
+	return rows.slice(0, maxRows)
+}
+
 async function listOperationLogsV1(user, data, requestId) {
 	if (!hasReadPermission(user)) {
 		await recordForbidden(user, requestId)
@@ -214,6 +242,30 @@ async function listOperationLogsV1(user, data, requestId) {
 	const pageSize = Math.min(Math.max(Number(data.pageSize || 50) || 50, 1), 200)
 	const { where, error } = buildWhere(data || {})
 	if (error) return { code: 400, msg: error }
+
+	if (!isSuperAdminUser(user)) {
+		const hiddenRows = await fetchHiddenCustomerRows(customers, { includeNames: true })
+		if (hiddenRows.length) {
+			const allRows = await fetchLogRowsForVisibilityFilter(where)
+			const filteredRows = allRows
+				.filter((row) => !logMentionsHiddenCustomer(row, hiddenRows))
+				.map(sanitizeLog)
+				.filter(Boolean)
+			const total = filteredRows.length
+			const start = (page - 1) * pageSize
+			const rows = filteredRows.slice(start, start + pageSize)
+			return {
+				code: 0,
+				data: rows,
+				paging: {
+					page,
+					pageSize,
+					total,
+					hasMore: page * pageSize < total
+				}
+			}
+		}
+	}
 
 	const [countRes, listRes] = await Promise.all([
 		logs.where(where).count(),
