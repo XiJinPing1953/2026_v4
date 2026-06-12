@@ -1190,7 +1190,7 @@ function computeSaleSnapshot(doc) {
 	const outItems = Array.isArray(doc && doc.out_items) ? doc.out_items : []
 	const backItems = Array.isArray(doc && doc.back_items) ? doc.back_items : []
 	const agentRows = Array.isArray(doc && doc.agent_sale_items) ? doc.agent_sale_items : []
-	const truckSaleNet = resolveTruckSaleNetValue(doc && (doc.truck_gross_diff ?? doc.truck_sale_net), doc && doc.truck_out_gross, doc && doc.truck_back_gross)
+	const truckSaleNet = resolveTruckBillableNetValue(doc, priceUnit)
 	const flow = computeFlow(doc || {}, priceUnit)
 	const amounts = computeAmounts({
 		settlementMode,
@@ -1304,6 +1304,15 @@ function buildSaleDepositBalanceSnapshotMapByDelivery(salesDocs = [], previewLim
 		snapshotMap.forEach((value, key) => merged.set(key, value))
 	})
 	return merged
+}
+
+function resolveTruckBillableNetValue(doc, priceUnit = 'kg') {
+	const current = doc && typeof doc === 'object' ? doc : {}
+	if (normalizeString(priceUnit) === 'kg') {
+		const explicit = toNumber(current.truck_sale_net, null)
+		if (explicit != null && explicit > 0) return fix2(explicit)
+	}
+	return resolveTruckSaleNetValue(current.truck_gross_diff ?? current.truck_sale_net, current.truck_out_gross, current.truck_back_gross)
 }
 
 function resolveTruckSaleNetValue(rawTruckSaleNet, rawTruckOutGross, rawTruckBackGross) {
