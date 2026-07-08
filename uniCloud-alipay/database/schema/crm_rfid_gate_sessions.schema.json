@@ -1,0 +1,79 @@
+{
+  "bsonType": "object",
+  "description": "RFID gate inventory sessions uploaded by the ECS gateway",
+  "additionalProperties": false,
+  "required": [
+    "session_id",
+    "gateway_id",
+    "reader_device_code",
+    "status",
+    "started_at",
+    "ended_at",
+    "received_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "session_id": { "bsonType": "string" },
+    "gateway_id": { "bsonType": "string" },
+    "reader_device_code": { "bsonType": "string" },
+    "status": { "bsonType": "string", "enum": ["complete", "conflict", "no_vehicle"] },
+    "reason": { "bsonType": "string" },
+    "started_at": { "bsonType": "number" },
+    "ended_at": { "bsonType": "number" },
+    "duration_ms": { "bsonType": "number" },
+    "vehicle_epc": { "bsonType": "string" },
+    "vehicle_serial": { "bsonType": "string" },
+    "vehicle_entity_id": { "bsonType": "string" },
+    "vehicle_no": { "bsonType": "string" },
+    "vehicle_binding_status": { "bsonType": "string", "enum": ["bound", "unbound", "type_mismatch"] },
+    "vehicle_conflict": { "bsonType": "bool" },
+    "vehicle_epcs": {
+      "bsonType": "array",
+      "items": { "bsonType": "string" }
+    },
+    "vehicle_serials": {
+      "bsonType": "array",
+      "items": { "bsonType": "string" }
+    },
+    "bottle_total": { "bsonType": "number" },
+    "bound_bottle_total": { "bsonType": "number" },
+    "unbound_bottle_total": { "bsonType": "number" },
+    "unknown_total": { "bsonType": "number" },
+    "bottles": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "object",
+        "additionalProperties": true
+      }
+    },
+    "unknown_tags": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "object",
+        "additionalProperties": true
+      }
+    },
+    "raw": { "bsonType": "object" },
+    "uploaded_at": { "bsonType": "number" },
+    "received_at": { "bsonType": "number" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "session_id": 1 }, "name": "uniq_session_id", "unique": true },
+    { "key": { "started_at": -1 }, "name": "idx_started_at" },
+    { "key": { "gateway_id": 1, "started_at": -1 }, "name": "idx_gateway_started_at" },
+    { "key": { "reader_device_code": 1, "started_at": -1 }, "name": "idx_reader_started_at" },
+    { "key": { "status": 1, "started_at": -1 }, "name": "idx_status_started_at" },
+    { "key": { "vehicle_epc": 1, "started_at": -1 }, "name": "idx_vehicle_epc_started_at" },
+    { "key": { "vehicle_no": 1, "started_at": -1 }, "name": "idx_vehicle_no_started_at" },
+    { "key": { "received_at": -1 }, "name": "idx_received_at" }
+  ]
+}

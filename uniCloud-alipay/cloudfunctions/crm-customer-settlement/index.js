@@ -2143,11 +2143,23 @@ function buildReceivableTargetRows({ saleDocs = [], flowDocs = [], openingDebtDo
 	return [...saleRows, ...flowRows, ...openingDebtRows]
 }
 
-async function buildAllocationPlan(
+function buildAllocationOutstandingSummary(outstandingRows = [], fixMoney = fix2) {
+	const rows = Array.isArray(outstandingRows) ? outstandingRows : []
+	const targetDates = rows
+		.map((row) => normalizeDate(row && row.target_date))
+		.filter(Boolean)
+		.sort((a, b) => (a === b ? 0 : a < b ? -1 : 1))
+	return {
+		total_outstanding_before: fixMoney(rows.reduce((sum, row) => sum + toNumber(row && row.outstanding, 0), 0)),
+		target_count: rows.length,
+		target_date_start: targetDates[0] || '',
+		target_date_end: targetDates[targetDates.length - 1] || ''
+	}
+}
+
+async function buildAllocationOutstandingContext(
 	customerId,
-	amount,
 	{
-		manualAllocations = null,
 		allocationMode = 'period',
 		allocationStartDate = '',
 		allocationEndDate = '',
@@ -2158,8 +2170,6 @@ async function buildAllocationPlan(
 	if (!customer) return { ok: false, code: 400, msg: '客户不存在' }
 	const moneyScale = resolveCustomerMoneyScale(customer)
 	const fixMoney = (value) => fixByScale(value, moneyScale)
-	const totalAmount = fixMoney(toNumber(amount, 0))
-	if (totalAmount <= 0) return { ok: false, code: 400, msg: '收款金额必须大于0' }
 	const mode = normalizeAllocationMode(allocationMode, 'period')
 	const startDate = normalizeDate(allocationStartDate)
 	const endDate = normalizeDate(allocationEndDate)
@@ -2190,6 +2200,53 @@ async function buildAllocationPlan(
 			if (a.target_date !== b.target_date) return a.target_date < b.target_date ? -1 : 1
 			return a.target_id < b.target_id ? -1 : 1
 		})
+	const summary = buildAllocationOutstandingSummary(outstandingRows, fixMoney)
+
+	return {
+		ok: true,
+		customer,
+		moneyScale,
+		fixMoney,
+		mode,
+		startDate,
+		endDate,
+		targets,
+		outstandingRows,
+		summary
+	}
+}
+
+async function buildAllocationPlan(
+	customerId,
+	amount,
+	{
+		manualAllocations = null,
+		allocationMode = 'period',
+		allocationStartDate = '',
+		allocationEndDate = '',
+		allocationTargets = null
+	} = {}
+) {
+	const context = await buildAllocationOutstandingContext(customerId, {
+		allocationMode,
+		allocationStartDate,
+		allocationEndDate,
+		allocationTargets
+	})
+	if (!context.ok) return context
+	const {
+		customer,
+		moneyScale,
+		fixMoney,
+		mode,
+		startDate,
+		endDate,
+		targets,
+		outstandingRows,
+		summary
+	} = context
+	const totalAmount = fixMoney(toNumber(amount, 0))
+	if (totalAmount <= 0) return { ok: false, code: 400, msg: '收款金额必须大于0' }
 
 	let remaining = totalAmount
 	const allocationsPlan = []
@@ -2244,7 +2301,6 @@ async function buildAllocationPlan(
 
 	const allocatedTotal = fixMoney(allocationsPlan.reduce((sum, item) => sum + toNumber(item.allocate_amount, 0), 0))
 	const prepayAmount = fixMoney(totalAmount - allocatedTotal)
-	const totalOutstanding = fixMoney(outstandingRows.reduce((sum, row) => sum + toNumber(row.outstanding, 0), 0))
 
 	return {
 		ok: true,
@@ -2258,7 +2314,10 @@ async function buildAllocationPlan(
 		allocation_targets: targets,
 		allocated_total: allocatedTotal,
 		prepay_amount: prepayAmount,
-		total_outstanding_before: totalOutstanding,
+		total_outstanding_before: summary.total_outstanding_before,
+		target_count: summary.target_count,
+		target_date_start: summary.target_date_start,
+		target_date_end: summary.target_date_end,
 		allocations: allocationsPlan
 	}
 }
@@ -2688,14 +2747,15 @@ function buildDebtDetailRow({ customer, targetType, targetId, bizDate, deliveryC
 	}
 }
 
-async function buildCustomerDebtSnapshotRows(customer) {
+async function buildCustomerDebtSnapshotRows(customer, { dateFrom = '', dateTo = '' } = {}) {
 	const customerId = normalizeId(customer && customer._id)
 	if (!customerId) return { summary: null, details: [] }
 	const moneyScale = resolveCustomerMoneyScale(customer)
 	const fixMoney = (value) => fixByScale(value, moneyScale)
-	const salesDocs = await listCustomerSales(customerId)
-	const flowDocs = await listCustomerFlowSettlements(customerId)
-	const openingDebtDocs = await listCustomerOpeningDebts(customerId)
+	const targetRange = { dateFrom, dateTo }
+	const salesDocs = await listCustomerSales(customerId, targetRange)
+	const flowDocs = await listCustomerFlowSettlements(customerId, targetRange)
+	const openingDebtDocs = await listCustomerOpeningDebts(customerId, targetRange)
 
 	const targetRefs = []
 	const detailSeeds = []
@@ -2794,13 +2854,20 @@ async function buildCustomerDebtSnapshotRows(customer) {
 
 async function exportCustomerDebtSnapshotV1(user, data) {
 	void user
-	void data
+	const dateFrom = normalizeDate(data && (data.date_from || data.dateFrom))
+	const dateTo = normalizeDate(data && (data.date_to || data.dateTo))
+	if ((dateFrom && !dateTo) || (!dateFrom && dateTo)) {
+		return { code: 400, msg: 'date_from/date_to 必须同时传入' }
+	}
+	if (dateFrom && dateTo && dateFrom > dateTo) {
+		return { code: 400, msg: 'date_from 不能晚于 date_to' }
+	}
 	const snapshotAt = Date.now()
 	const debtCustomers = await listDebtSnapshotCustomers(5000)
 	const summaryRows = []
 	const detailRows = []
 	for (const customer of debtCustomers) {
-		const built = await buildCustomerDebtSnapshotRows(customer)
+		const built = await buildCustomerDebtSnapshotRows(customer, { dateFrom, dateTo })
 		if (!built.summary) continue
 		summaryRows.push(built.summary)
 		detailRows.push(...built.details)
@@ -2842,6 +2909,10 @@ async function exportCustomerDebtSnapshotV1(user, data) {
 		msg: 'ok',
 		data: {
 			snapshot_at: snapshotAt,
+			period: {
+				date_from: dateFrom,
+				date_to: dateTo
+			},
 			summary_rows: summaryRows,
 			detail_rows: detailRows,
 			totals
@@ -3830,12 +3901,58 @@ async function previewAllocationV1(user, data) {
 	const customerId = normalizeId(data.customer_id || data.customerId)
 	const amount = toNumber(data.amount, 0)
 	const roundingAmount = toNumber(data.rounding_amount ?? data.roundingAmount, 0)
+	const summaryOnly = Boolean(data.summary_only || data.summaryOnly)
 	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
 	if (amount < 0) return { code: 400, msg: '收款金额不能小于0' }
 	if (roundingAmount < 0) return { code: 400, msg: '抹零金额不能小于0' }
-	if (!(amount > 0 || roundingAmount > 0)) return { code: 400, msg: '收款金额和抹零金额不能同时为0' }
+	if (!summaryOnly && !(amount > 0 || roundingAmount > 0)) return { code: 400, msg: '收款金额和抹零金额不能同时为0' }
 	const allocation = resolveAllocationConfig(data)
 	if (!allocation.ok) return { code: allocation.code || 400, msg: allocation.msg || '分配参数无效' }
+
+	if (summaryOnly) {
+		const context = await buildAllocationOutstandingContext(customerId, {
+			allocationMode: allocation.allocation_mode,
+			allocationStartDate: allocation.allocation_start_date,
+			allocationEndDate: allocation.allocation_end_date,
+			allocationTargets: allocation.allocation_targets
+		})
+		if (!context.ok) return { code: context.code || 400, msg: context.msg || '预览失败' }
+		const fixMoney = context.fixMoney
+		const receiptAmount = fixMoney(Math.max(amount, 0))
+		const rounding = fixMoney(Math.max(roundingAmount, 0))
+		const combinedAmount = fixMoney(receiptAmount + rounding)
+		const allocatedTotal = combinedAmount > 0
+			? fixMoney(Math.min(combinedAmount, context.summary.total_outstanding_before))
+			: 0
+		const receiptAllocatedTotal = fixMoney(Math.min(receiptAmount, allocatedTotal))
+		const roundingAllocatedTotal = fixMoney(Math.max(allocatedTotal - receiptAllocatedTotal, 0))
+		return {
+			code: 0,
+			msg: 'ok',
+			data: {
+				ok: true,
+				customer_id: context.customer._id,
+				customer_name: context.customer.name,
+				money_scale: context.moneyScale,
+				amount: receiptAmount,
+				rounding_amount: rounding,
+				total_amount: combinedAmount,
+				allocation_mode: context.mode,
+				allocation_start_date: context.mode === 'period' ? context.startDate : '',
+				allocation_end_date: context.mode === 'period' ? context.endDate : '',
+				allocation_targets: context.targets,
+				allocated_total: allocatedTotal,
+				receipt_allocated_total: receiptAllocatedTotal,
+				rounding_allocated_total: roundingAllocatedTotal,
+				prepay_amount: fixMoney(Math.max(receiptAmount - receiptAllocatedTotal, 0)),
+				total_outstanding_before: context.summary.total_outstanding_before,
+				target_count: context.summary.target_count,
+				target_date_start: context.summary.target_date_start,
+				target_date_end: context.summary.target_date_end,
+				allocations: []
+			}
+		}
+	}
 
 	const manual = normalizeManualAllocations(data.allocations || [])
 	const plan = await buildReceiptAllocationPlan(customerId, amount, roundingAmount, {

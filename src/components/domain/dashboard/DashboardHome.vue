@@ -38,6 +38,10 @@
 							<AppIcon name="truck" size="24rpx" />
 							<text>车辆档案</text>
 						</view>
+						<view v-if="canView('/pages/rfid/sessions')" class="nav-item" @click="go('/pages/rfid/sessions')">
+							<AppIcon name="search" size="24rpx" />
+							<text>RFID 盘点</text>
+						</view>
 						<view v-if="canView('/pages/delivery/list')" class="nav-item" @click="go('/pages/delivery/list')">
 							<AppIcon name="user" size="24rpx" />
 							<text>配送员档案</text>
@@ -299,6 +303,10 @@
 							<view v-if="canView('/pages/vehicle/list')" class="nav-grid-item" @click="go('/pages/vehicle/list')">
 								<view class="nav-icon bg-asset"><AppIcon name="truck" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">车辆档案</text>
+							</view>
+							<view v-if="canView('/pages/rfid/sessions')" class="nav-grid-item" @click="go('/pages/rfid/sessions')">
+								<view class="nav-icon bg-asset"><AppIcon name="search" color="#fff" size="30rpx" /></view>
+								<text class="nav-text">RFID 盘点</text>
 							</view>
 							<view v-if="canView('/pages/delivery/list')" class="nav-grid-item" @click="go('/pages/delivery/list')">
 								<view class="nav-icon bg-customer"><AppIcon name="user" color="#fff" size="30rpx" /></view>

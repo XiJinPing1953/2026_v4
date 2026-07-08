@@ -7,20 +7,29 @@ const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 const vehicles = db.collection('crm_vehicles')
 const gasIn = db.collection('crm_gas_in')
+const gasSettings = db.collection('crm_gas_settings')
 const gasInventoryMovements = db.collection('crm_gas_inventory_movements')
 const gasInventoryMovementBackups = db.collection('crm_gas_inventory_movements_backup')
+const tankTelemetry = db.collection('crm_tank_telemetry')
 const fillings = db.collection('crm_fillings')
 const sales = db.collection('crm_sale_records')
 const bottleMovements = db.collection('crm_bottle_movements')
 let ensureActionAcl = null
+let tankTelemetryCore = null
 try {
 	;({ ensureActionAcl } = require('../common/pageAcl'))
 } catch (err) {
 	console.warn('[crm-gas-in] fallback to local pageAcl helpers', err && err.message)
 	;({ ensureActionAcl } = require('./pageAclLocal'))
 }
+try {
+	tankTelemetryCore = require('../common/tankTelemetry')
+} catch (err) {
+	console.warn('[crm-gas-in] tank telemetry helper unavailable', err && err.message)
+}
 
 const DEFAULT_PRODUCT_NAME = 'LNG'
+const GAS_TANK_SETTING_KEY = 'main_tank_estimate'
 const LIST_PAGE_MAX = 200
 const SUMMARY_SCAN_LIMIT = 120000
 const REBUILD_SCAN_LIMIT = 120000
@@ -36,6 +45,8 @@ const PAGE_ACTION_RULES = {
 	createV1: [{ pagePath: '/pages/gas-in/edit', action: 'create' }],
 	updateV1: [{ pagePath: '/pages/gas-in/edit', action: 'update' }],
 	removeV1: [{ pagePath: '/pages/gas-in/list', action: 'delete' }],
+	getTankConfigV1: [{ pagePath: '/pages/gas-in/list', action: 'view' }],
+	updateTankConfigV1: [{ pagePath: '/pages/gas-in/list', action: 'update' }],
 	syncCycleAdjustmentsV1: [{ pagePath: '/pages/gas-in/list', action: 'update' }]
 }
 const SUPERADMIN_ONLY_ACTIONS = ['rebuildInventoryV1', 'restoreInventoryV1']
@@ -120,6 +131,12 @@ function roundTon(value) {
 	return roundTo(value, 3)
 }
 
+function nullableNumber(value) {
+	if (value === '' || value == null) return null
+	const num = Number(value)
+	return Number.isFinite(num) ? num : null
+}
+
 function roundMoney(value) {
 	return roundTo(value, 2)
 }
@@ -128,6 +145,113 @@ function kgToTon(value) {
 	const num = Number(value)
 	if (!Number.isFinite(num)) return null
 	return roundTon(num / 1000)
+}
+
+function buildEmptyTankSummary(message = '等待现场网关上报') {
+	return {
+		level_m: null,
+		level_percent: null,
+		pressure_mpa: null,
+		status: 'empty',
+		sampled_at: null,
+		updated_at: null,
+		message
+	}
+}
+
+function normalizeTankStatus(value) {
+	const text = normalizeString(value).toLowerCase()
+	if (text === 'online' || text === 'stale' || text === 'error' || text === 'empty') return text
+	return 'empty'
+}
+
+function normalizeTankSummary(row = {}) {
+	const source = row && typeof row === 'object' ? row : {}
+	return {
+		level_m: nullableNumber(source.level_m),
+		level_percent: nullableNumber(source.level_percent),
+		pressure_mpa: nullableNumber(source.pressure_mpa),
+		status: normalizeTankStatus(source.status),
+		sampled_at: nullableNumber(source.sampled_at),
+		updated_at: nullableNumber(source.updated_at),
+		message: normalizeString(source.message)
+	}
+}
+
+function buildDefaultGasTankConfig() {
+	return {
+		key: GAS_TANK_SETTING_KEY,
+		full_tank_weight_t: 0,
+		updated_at: null,
+		updated_by: null,
+		updated_by_name: ''
+	}
+}
+
+function normalizeGasTankConfig(row = {}) {
+	const source = row && typeof row === 'object' ? row : {}
+	return {
+		key: normalizeString(source.key) || GAS_TANK_SETTING_KEY,
+		full_tank_weight_t: roundTon(Math.max(toNumber(source.full_tank_weight_t, 0) || 0, 0)),
+		updated_at: nullableNumber(source.updated_at),
+		updated_by: source.updated_by || null,
+		updated_by_name: normalizeString(source.updated_by_name)
+	}
+}
+
+async function getGasTankConfig() {
+	try {
+		const res = await gasSettings.where({ key: GAS_TANK_SETTING_KEY }).limit(1).get()
+		const doc = (res.data && res.data[0]) || null
+		return normalizeGasTankConfig(doc || buildDefaultGasTankConfig())
+	} catch (err) {
+		if (isCollectionNotFoundError(err)) return buildDefaultGasTankConfig()
+		console.error('[crm-gas-in] getGasTankConfig failed', err)
+		return buildDefaultGasTankConfig()
+	}
+}
+
+async function getTankTelemetrySummaryForGas() {
+	try {
+		if (tankTelemetryCore && typeof tankTelemetryCore.getTankTelemetrySummary === 'function') {
+			return normalizeTankSummary(await tankTelemetryCore.getTankTelemetrySummary(tankTelemetry, 'main'))
+		}
+		const res = await tankTelemetry
+			.where({ tank_id: 'main' })
+			.orderBy('updated_at', 'desc')
+			.limit(1)
+			.get()
+		return normalizeTankSummary((res.data && res.data[0]) || buildEmptyTankSummary())
+	} catch (err) {
+		if (isCollectionNotFoundError(err)) return buildEmptyTankSummary()
+		console.error('[crm-gas-in] getTankTelemetrySummaryForGas failed', err)
+		return buildEmptyTankSummary('储罐读数加载失败')
+	}
+}
+
+function buildTankEstimate(inventory = {}, tank = {}, config = {}) {
+	const fullTankWeightT = roundTon(toNumber(config.full_tank_weight_t, 0) || 0)
+	const levelPercent = nullableNumber(tank.level_percent)
+	const stationTotalT = roundTon(toNumber(inventory.station_total_t, 0) || 0)
+	const configured = fullTankWeightT > 0
+	const available = configured && levelPercent != null && normalizeTankStatus(tank.status) !== 'error'
+	const estimatedT = available ? roundTon((Math.min(Math.max(levelPercent, 0), 100) * fullTankWeightT) / 100) : null
+	const diffT = estimatedT == null ? null : roundTon(estimatedT - stationTotalT)
+	let message = ''
+	if (!configured) message = '请先配置满罐吨数'
+	else if (levelPercent == null) message = '暂无有效液位读数'
+	else if (normalizeTankStatus(tank.status) === 'error') message = '现场采集异常，暂停估算'
+	else if (normalizeTankStatus(tank.status) === 'stale') message = '液位数据延迟，估算仅供参考'
+	else message = '液位估算不参与账面库存'
+	return {
+		full_tank_weight_t: fullTankWeightT,
+		estimated_t: estimatedT,
+		station_total_t: stationTotalT,
+		diff_t: diffT,
+		configured,
+		available,
+		message
+	}
 }
 
 function pad2(value) {
@@ -966,7 +1090,20 @@ function summarizeMovementDocs(rows = []) {
 		summary.in_bottle_total_t += contribution.inBottle
 		summary.vehicle_total_t += contribution.vehicle
 		const kind = normalizeString(row.movement_kind) || 'unknown'
-		summary.by_kind[kind] = Number(summary.by_kind[kind] || 0) + 1
+		if (!summary.by_kind[kind]) {
+			summary.by_kind[kind] = {
+				total: 0,
+				asset_total_t: 0,
+				station_total_t: 0,
+				in_bottle_total_t: 0,
+				vehicle_total_t: 0
+			}
+		}
+		summary.by_kind[kind].total += 1
+		summary.by_kind[kind].asset_total_t = roundTon(summary.by_kind[kind].asset_total_t + contribution.asset)
+		summary.by_kind[kind].station_total_t = roundTon(summary.by_kind[kind].station_total_t + contribution.station)
+		summary.by_kind[kind].in_bottle_total_t = roundTon(summary.by_kind[kind].in_bottle_total_t + contribution.inBottle)
+		summary.by_kind[kind].vehicle_total_t = roundTon(summary.by_kind[kind].vehicle_total_t + contribution.vehicle)
 	}
 	summary.asset_total_t = roundTon(summary.asset_total_t)
 	summary.station_total_t = roundTon(summary.station_total_t)
@@ -1264,7 +1401,9 @@ async function listV1(user, data) {
 					balance_diff_t: 0,
 					as_of_date: inventoryAsOf,
 					scope: inventoryAsOf ? 'as_of' : 'current',
-					movement_total: 0
+					movement_total: 0,
+					tank: buildEmptyTankSummary(),
+					estimate: buildTankEstimate({}, buildEmptyTankSummary(), buildDefaultGasTankConfig())
 				}
 			}
 		}
@@ -1275,7 +1414,13 @@ async function listV1(user, data) {
 	const summaryRes = await summarizeGasInWhere(where)
 	if (!summaryRes.ok) return { code: 400, msg: summaryRes.msg || '统计失败' }
 	const summary = summaryRes.data || { net_weight_t_total: 0, amount_total: 0 }
-	const inventory = await getInventorySnapshot(inventoryAsOf)
+	const [inventory, tankConfig, tankSummary] = await Promise.all([
+		getInventorySnapshot(inventoryAsOf),
+		getGasTankConfig(),
+		getTankTelemetrySummaryForGas()
+	])
+	inventory.tank = tankSummary
+	inventory.estimate = buildTankEstimate(inventory, tankSummary, tankConfig)
 
 	const rows = Array.isArray(res.data) ? res.data.map((row) => normalizeGasInRow(row)) : []
 
@@ -1300,6 +1445,49 @@ async function listV1(user, data) {
 			inventory
 		}
 	}
+}
+
+async function getTankConfigV1(user) {
+	void user
+	const config = await getGasTankConfig()
+	return { code: 0, data: config }
+}
+
+async function updateTankConfigV1(user, data, requestId) {
+	const fullTankWeightT = toNumber(data.full_tank_weight_t ?? data.fullTankWeightT, null)
+	if (!Number.isFinite(fullTankWeightT) || fullTankWeightT <= 0) {
+		return { code: 400, msg: '满罐吨数必须大于 0' }
+	}
+	if (fullTankWeightT > 100000) {
+		return { code: 400, msg: '满罐吨数超出合理范围' }
+	}
+	const now = Date.now()
+	const saveDoc = {
+		key: GAS_TANK_SETTING_KEY,
+		full_tank_weight_t: roundTon(fullTankWeightT),
+		updated_at: now,
+		updated_by: user?._id || null,
+		updated_by_name: user?.username || ''
+	}
+	try {
+		const existingRes = await gasSettings.where({ key: GAS_TANK_SETTING_KEY }).field({ _id: true }).limit(1).get()
+		const existing = (existingRes.data && existingRes.data[0]) || null
+		if (existing && existing._id) {
+			await gasSettings.doc(existing._id).update(saveDoc)
+		} else {
+			await gasSettings.add({
+				...saveDoc,
+				created_at: now,
+				created_by: user?._id || null,
+				created_by_name: user?.username || ''
+			})
+		}
+	} catch (err) {
+		if (isCollectionNotFoundError(err)) return { code: 500, msg: '天然气配置集合未初始化，请先上传 db schema（crm_gas_settings）' }
+		throw err
+	}
+	await recordLog(user, 'gas_tank_config_update_v1', { full_tank_weight_t: saveDoc.full_tank_weight_t }, requestId)
+	return { code: 0, msg: '配置已保存', data: normalizeGasTankConfig(saveDoc) }
 }
 
 async function getV1(user, data) {
@@ -1676,6 +1864,8 @@ exports.main = async (event, context) => {
 		if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
 		if (action === 'listV1') return listV1(user, data)
+		if (action === 'getTankConfigV1') return getTankConfigV1(user, data)
+		if (action === 'updateTankConfigV1') return updateTankConfigV1(user, data, requestId)
 		if (action === 'getV1') return getV1(user, data)
 		if (action === 'createV1') return createV1(user, data, requestId)
 		if (action === 'updateV1') return updateV1(user, data, requestId)

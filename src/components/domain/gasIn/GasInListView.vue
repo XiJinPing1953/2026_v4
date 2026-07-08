@@ -33,6 +33,44 @@
 						<AppStatCard class="summary-card" label="损耗率" :value="formatPercentText(summary.lossRate)" hint="%" icon="alert" />
 					</view>
 				</view>
+				<view class="highlight-group">
+					<view class="highlight-group__head">
+						<view class="highlight-group__title-wrap">
+							<text class="highlight-group__title">现场储罐估算</text>
+							<text :class="['tank-status', tankStatusClass]">{{ tankStatusLabel }}</text>
+						</view>
+						<text class="highlight-group__hint">{{ tankSampledAtText }}</text>
+					</view>
+					<view class="tank-panel">
+						<view class="tank-gauge-card">
+							<view class="tank-gauge">
+								<view class="tank-gauge__shell">
+									<view class="tank-gauge__fill" :style="{ height: tankLevelFillHeight }"></view>
+									<text class="tank-gauge__percent">{{ tankLevelPercentText }}</text>
+								</view>
+								<view class="tank-gauge__legs">
+									<view></view>
+									<view></view>
+								</view>
+							</view>
+							<view class="tank-message">
+								<text class="tank-message__title">{{ tankEstimateMessage }}</text>
+								<text class="tank-message__body">液位估算只用于现场核对，不自动修正系统库存。</text>
+							</view>
+						</view>
+						<view class="summary-row summary-row--tank">
+							<AppStatCard class="summary-card" label="现场估算" :value="formatOptionalTonText(tankEstimate.estimated_t)" hint="吨" icon="chart" />
+							<AppStatCard class="summary-card" label="账面站内" :value="formatTonText(summary.inventory.station_total_t)" hint="吨" icon="check-circle" />
+							<AppStatCard class="summary-card" label="估算差异" :value="formatOptionalSignedTonText(tankEstimate.diff_t)" hint="吨" icon="alert" />
+							<AppStatCard class="summary-card" label="储罐液位" :value="tankLevelText" hint="米" icon="list" />
+							<AppStatCard class="summary-card" label="储罐压力" :value="tankPressureText" hint="MPa" icon="chart" />
+						</view>
+					</view>
+					<view v-if="canMaintainGasInventory" class="tank-config-row">
+						<AppInput v-model="tankConfigDraft" class="tank-config-input" label="满罐吨数" placeholder="输入满罐吨数" prefix-icon="bottle" type="number" size="sm" />
+						<AppButton size="sm" kind="primary" :loading="savingTankConfig" :disabled="loading || savingTankConfig" @click="onSaveTankConfig">保存配置</AppButton>
+					</view>
+				</view>
 			</view>
 			<view v-if="inventoryWarning" class="inventory-warning">
 				{{ inventoryWarning }}
@@ -139,10 +177,12 @@ import { useAuthGuard } from '@/composables/useAuthGuard'
 import { useQuery } from '@/composables/useQuery'
 import { buildDatePresetRange, detectDatePreset, formatDateInput } from '@/utils/datePreset'
 import {
+	getGasTankConfigV1,
 	listGasInV1,
 	removeGasInV1,
 	rebuildGasInventoryV1,
-	syncGasCycleAdjustmentsV1
+	syncGasCycleAdjustmentsV1,
+	updateGasTankConfigV1
 } from '@/services/gasIn'
 
 const list = ref([])
@@ -150,6 +190,8 @@ const removingId = ref('')
 const exporting = ref(false)
 const syncing = ref(false)
 const rebuilding = ref(false)
+const savingTankConfig = ref(false)
+const tankConfigDraft = ref('')
 const serviceWarning = ref('')
 
 const pager = reactive({
@@ -169,6 +211,30 @@ const filters = reactive({
 })
 const datePreset = ref('month')
 
+function buildEmptyTankTelemetry() {
+	return {
+		level_m: null,
+		level_percent: null,
+		pressure_mpa: null,
+		status: 'empty',
+		sampled_at: null,
+		updated_at: null,
+		message: ''
+	}
+}
+
+function buildEmptyTankEstimate() {
+	return {
+		full_tank_weight_t: 0,
+		estimated_t: null,
+		station_total_t: 0,
+		diff_t: null,
+		configured: false,
+		available: false,
+		message: ''
+	}
+}
+
 const summary = reactive({
 	total: 0,
 	loadWeightTTotal: 0,
@@ -185,7 +251,9 @@ const summary = reactive({
 		balance_diff_t: 0,
 		as_of_date: '',
 		scope: '',
-		movement_total: 0
+		movement_total: 0,
+		tank: buildEmptyTankTelemetry(),
+		estimate: buildEmptyTankEstimate()
 	}
 })
 const { canPageAction } = useAuthGuard()
@@ -209,6 +277,12 @@ function toNumber(value, fallback = 0) {
 	return Number.isFinite(num) ? num : fallback
 }
 
+function toNullableNumber(value) {
+	if (value === '' || value == null) return null
+	const num = Number(value)
+	return Number.isFinite(num) ? num : null
+}
+
 function formatWithThousands(value, digits = 3) {
 	const num = Number(value)
 	if (!Number.isFinite(num)) return '0'
@@ -223,12 +297,51 @@ function formatTonText(value) {
 	return formatWithThousands(toNumber(value, 0), 3)
 }
 
+function formatOptionalTonText(value) {
+	const num = toNullableNumber(value)
+	if (num == null) return '--'
+	return formatWithThousands(num, 3)
+}
+
+function formatOptionalSignedTonText(value) {
+	const num = toNullableNumber(value)
+	if (num == null) return '--'
+	const text = formatWithThousands(Math.abs(num), 3)
+	if (num > 0) return `+${text}`
+	if (num < 0) return `-${text}`
+	return text
+}
+
 function formatMoneyText(value) {
 	return formatWithThousands(toNumber(value, 0), 2)
 }
 
 function formatPercentText(value) {
 	return formatWithThousands(toNumber(value, 0) * 100, 2)
+}
+
+function formatRawPercentText(value) {
+	const num = toNullableNumber(value)
+	if (num == null) return '--'
+	return `${formatWithThousands(num, 2)}%`
+}
+
+function formatOptionalValueText(value, digits = 2) {
+	const num = toNullableNumber(value)
+	if (num == null) return '--'
+	return formatWithThousands(num, digits)
+}
+
+function formatDateTime(value) {
+	const num = Number(value)
+	if (!Number.isFinite(num) || num <= 0) return ''
+	const date = new Date(num)
+	const y = date.getFullYear()
+	const m = String(date.getMonth() + 1).padStart(2, '0')
+	const d = String(date.getDate()).padStart(2, '0')
+	const h = String(date.getHours()).padStart(2, '0')
+	const min = String(date.getMinutes()).padStart(2, '0')
+	return `${y}-${m}-${d} ${h}:${min}`
 }
 
 function getTodayText() {
@@ -254,6 +367,46 @@ const flowRangeText = computed(() => {
 	if (start) return `${start} 至今`
 	if (end) return `截至 ${end}`
 	return '全部入库流水'
+})
+
+const tankTelemetry = computed(() => summary.inventory.tank || buildEmptyTankTelemetry())
+const tankEstimate = computed(() => summary.inventory.estimate || buildEmptyTankEstimate())
+
+const tankLevelPercent = computed(() => {
+	const num = Number(tankTelemetry.value.level_percent)
+	if (!Number.isFinite(num)) return null
+	return Math.min(Math.max(num, 0), 100)
+})
+
+const tankLevelFillHeight = computed(() => `${tankLevelPercent.value == null ? 0 : tankLevelPercent.value}%`)
+const tankLevelPercentText = computed(() => formatRawPercentText(tankLevelPercent.value))
+const tankLevelText = computed(() => formatOptionalValueText(tankTelemetry.value.level_m, 2))
+const tankPressureText = computed(() => formatOptionalValueText(tankTelemetry.value.pressure_mpa, 2))
+
+const tankStatusLabel = computed(() => {
+	const status = normalizeString(tankTelemetry.value.status)
+	if (status === 'online') return '在线'
+	if (status === 'stale') return '数据延迟'
+	if (status === 'error') return '异常'
+	return '等待采集'
+})
+
+const tankStatusClass = computed(() => `tank-status--${normalizeString(tankTelemetry.value.status) || 'empty'}`)
+
+const tankSampledAtText = computed(() => {
+	const text = formatDateTime(tankTelemetry.value.sampled_at || tankTelemetry.value.updated_at)
+	return text ? `采集 ${text}` : '暂无采集时间'
+})
+
+const tankEstimateMessage = computed(() => {
+	const estimateMessage = normalizeString(tankEstimate.value.message)
+	if (estimateMessage) return estimateMessage
+	const tankMessage = normalizeString(tankTelemetry.value.message)
+	if (tankMessage) return tankMessage
+	if (tankTelemetry.value.status === 'online') return '现场网关在线'
+	if (tankTelemetry.value.status === 'stale') return '超过60秒未收到新数据'
+	if (tankTelemetry.value.status === 'error') return '采集异常'
+	return '等待现场网关上报'
 })
 
 const inventoryWarning = computed(() => {
@@ -336,7 +489,9 @@ const { loading, run: fetchList } = useQuery(
 					balance_diff_t: 0,
 					as_of_date: getInventoryAsOfDate(),
 					scope: 'as_of',
-					movement_total: 0
+					movement_total: 0,
+					tank: buildEmptyTankTelemetry(),
+					estimate: buildEmptyTankEstimate()
 				}
 			}
 		}
@@ -377,8 +532,19 @@ function applyResult(payload = {}) {
 		balance_diff_t: Number(s?.inventory?.balance_diff_t || 0),
 		as_of_date: normalizeString(s?.inventory?.as_of_date) || getInventoryAsOfDate(),
 		scope: normalizeString(s?.inventory?.scope),
-		movement_total: Number(s?.inventory?.movement_total || 0)
+		movement_total: Number(s?.inventory?.movement_total || 0),
+		tank: {
+			...buildEmptyTankTelemetry(),
+			...(s?.inventory?.tank && typeof s.inventory.tank === 'object' ? s.inventory.tank : {})
+		},
+		estimate: {
+			...buildEmptyTankEstimate(),
+			...(s?.inventory?.estimate && typeof s.inventory.estimate === 'object' ? s.inventory.estimate : {})
+		}
 	}
+	tankConfigDraft.value = summary.inventory.estimate.full_tank_weight_t
+		? String(summary.inventory.estimate.full_tank_weight_t)
+		: ''
 }
 
 async function onSearch(resetPage = false, options = {}) {
@@ -386,6 +552,36 @@ async function onSearch(resetPage = false, options = {}) {
 	const result = await fetchList({ force: Boolean(options.force) })
 	if (!result) return
 	applyResult(result || {})
+}
+
+async function loadTankConfig() {
+	const res = await getGasTankConfigV1()
+	if (res?.code !== 0) return
+	const value = Number(res?.data?.full_tank_weight_t || 0)
+	tankConfigDraft.value = value > 0 ? String(value) : ''
+}
+
+async function onSaveTankConfig() {
+	if (savingTankConfig.value) return
+	const value = Number(tankConfigDraft.value)
+	if (!Number.isFinite(value) || value <= 0) {
+		uni.showToast({ title: '请输入大于 0 的满罐吨数', icon: 'none' })
+		return
+	}
+	savingTankConfig.value = true
+	try {
+		const res = await updateGasTankConfigV1({ full_tank_weight_t: value })
+		if (res?.code !== 0) {
+			uni.showToast({ title: res?.msg || '配置保存失败', icon: 'none' })
+			return
+		}
+		uni.showToast({ title: '配置已保存', icon: 'success' })
+		await onSearch(false, { force: true })
+	} catch (err) {
+		uni.showToast({ title: err?.message || '配置保存失败', icon: 'none' })
+	} finally {
+		savingTankConfig.value = false
+	}
 }
 
 function onReset() {
@@ -695,6 +891,7 @@ defineExpose({ refresh })
 
 onMounted(() => {
 	syncDatePreset()
+	loadTankConfig()
 	onSearch(true)
 })
 </script>
@@ -729,6 +926,7 @@ onMounted(() => {
 }
 
 .highlight-groups {
+	width: 100%;
 	display: flex;
 	flex-direction: column;
 	gap: 18rpx;
@@ -748,6 +946,13 @@ onMounted(() => {
 	justify-content: space-between;
 	gap: 16rpx;
 	margin-bottom: 14rpx;
+}
+
+.highlight-group__title-wrap {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 12rpx;
 }
 
 .highlight-group__title {
@@ -770,6 +975,134 @@ onMounted(() => {
 
 .summary-card {
 	min-height: 176rpx;
+}
+
+.tank-panel {
+	display: grid;
+	grid-template-columns: 420rpx minmax(0, 1fr);
+	gap: 16rpx;
+	align-items: stretch;
+}
+
+.tank-gauge-card {
+	display: grid;
+	grid-template-columns: 132rpx minmax(0, 1fr);
+	align-items: center;
+	gap: 18rpx;
+	padding: 18rpx;
+	border-radius: 16rpx;
+	background: #f8fafc;
+	border: 1px solid #e2e8f0;
+	min-height: 176rpx;
+}
+
+.tank-gauge {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6rpx;
+}
+
+.tank-gauge__shell {
+	position: relative;
+	width: 92rpx;
+	height: 150rpx;
+	overflow: hidden;
+	border: 6rpx solid #2563eb;
+	border-radius: 46rpx 46rpx 24rpx 24rpx;
+	background: #fff;
+	box-shadow: inset 0 0 0 1rpx rgba(15, 23, 42, 0.08);
+}
+
+.tank-gauge__fill {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	min-height: 4rpx;
+	background: linear-gradient(180deg, #38bdf8 0%, #2563eb 100%);
+	transition: height var(--crm-duration-normal) var(--crm-easing);
+}
+
+.tank-gauge__percent {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 50%;
+	transform: translateY(-50%);
+	text-align: center;
+	font-size: 22rpx;
+	font-weight: 800;
+	color: #0f172a;
+}
+
+.tank-gauge__legs {
+	display: flex;
+	gap: 28rpx;
+}
+
+.tank-gauge__legs view {
+	width: 20rpx;
+	height: 12rpx;
+	border-radius: 0 0 8rpx 8rpx;
+	background: #2563eb;
+}
+
+.tank-message {
+	display: flex;
+	flex-direction: column;
+	gap: 8rpx;
+	min-width: 0;
+}
+
+.tank-message__title {
+	font-size: 28rpx;
+	font-weight: 800;
+	color: #0f172a;
+	line-height: 1.35;
+}
+
+.tank-message__body {
+	font-size: 23rpx;
+	color: #64748b;
+	line-height: 1.5;
+}
+
+.tank-status {
+	flex-shrink: 0;
+	padding: 6rpx 14rpx;
+	border-radius: 999rpx;
+	font-size: 22rpx;
+	font-weight: 700;
+	background: #f1f5f9;
+	color: #64748b;
+}
+
+.tank-status--online {
+	background: #dcfce7;
+	color: #166534;
+}
+
+.tank-status--stale {
+	background: #fef3c7;
+	color: #92400e;
+}
+
+.tank-status--error {
+	background: #fee2e2;
+	color: #991b1b;
+}
+
+.tank-config-row {
+	margin-top: 16rpx;
+	display: flex;
+	align-items: flex-end;
+	gap: 12rpx;
+}
+
+.tank-config-input {
+	width: 320rpx;
+	max-width: 100%;
 }
 
 .inventory-warning {
@@ -871,7 +1204,8 @@ onMounted(() => {
 	}
 
 	.summary-row--inventory,
-	.summary-row--flow {
+	.summary-row--flow,
+	.summary-row--tank {
 		grid-template-columns: repeat(5, minmax(0, 1fr));
 	}
 }
@@ -880,6 +1214,19 @@ onMounted(() => {
 	.summary-row,
 	.filter-grid {
 		grid-template-columns: 1fr;
+	}
+
+	.tank-panel {
+		grid-template-columns: 1fr;
+	}
+
+	.tank-config-row {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.tank-config-input {
+		width: 100%;
 	}
 
 	.highlight-group__head {

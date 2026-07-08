@@ -57,6 +57,11 @@ const ACTION_LABEL_MAP = {
 
 	vehicle_create_v1: '创建车辆档案',
 	vehicle_update_v1: '更新车辆档案',
+	rfid_gateway_login: 'RFID 网关登录',
+	rfid_gateway_login_failed: 'RFID 网关登录失败',
+	rfid_gateway_ingest_session: 'RFID 会话入库',
+	rfid_bind_epc: 'RFID 标签绑定',
+	rfid_unbind_epc: 'RFID 标签解绑',
 	delivery_create_v1: '创建配送员档案',
 	delivery_update_v1: '更新配送员档案',
 
@@ -92,6 +97,7 @@ const CATEGORY_LABEL_MAP = {
 	bottle: '钢瓶',
 	filling: '灌装',
 	vehicle: '车辆',
+	rfid: 'RFID',
 	delivery: '配送员',
 	accounting: '财务',
 	collection: '追款',
@@ -108,6 +114,7 @@ export const LOG_ACTION_CATEGORY_OPTIONS = [
 	{ label: '钢瓶', value: 'bottle' },
 	{ label: '灌装', value: 'filling' },
 	{ label: '车辆', value: 'vehicle' },
+	{ label: 'RFID', value: 'rfid' },
 	{ label: '配送员', value: 'delivery' },
 	{ label: '财务', value: 'accounting' },
 	{ label: '追款', value: 'collection' },
@@ -126,6 +133,7 @@ export function getLogActionCategory(action) {
 	if (/^bottle(_anomaly|_movement)?_/.test(normalized)) return 'bottle'
 	if (normalized.startsWith('filling_')) return 'filling'
 	if (normalized.startsWith('vehicle_')) return 'vehicle'
+	if (normalized.startsWith('rfid_')) return 'rfid'
 	if (normalized.startsWith('delivery_')) return 'delivery'
 	if (
 		normalized.startsWith('account_') ||

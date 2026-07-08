@@ -7922,3 +7922,258 @@
   - `git diff --check`（通过）
 - 剩余问题：
   - 需要上传 `crm-customer-settlement` 云函数并发布 H5 后，复查清真白记/云海木业：销售单自身实收、收款分配、冲抵分别展示；累计实收不再因为同一笔销售单入账和收款单分配重复增加。
+
+### 2026-06-18 CURRENT — RFID TCP 网关验收版
+- 做了什么：
+  - 新增独立 `rfid-gateway`，监听 4G UHF 读写器 TCP 透传数据，解析心跳、真实 Modbus EPC 上报帧、调试/控制帧，并支持 TCP 粘包/半包。
+  - 实现 XT 96-bit EPC 解码/编码规则，区分车辆标签、瓶子标签、未知 EPC 和无效 XT EPC。
+  - 实现车辆门口盘点会话聚合：读到车辆标签后开启窗口，窗口内瓶子标签去重入会话，窗口结束输出 JSON summary。
+- 改动文件列表：
+  - `scripts/rfid-gateway/.env.example`
+  - `scripts/rfid-gateway/README.md`
+  - `scripts/rfid-gateway/index.cjs`
+  - `scripts/rfid-gateway/protocol.cjs`
+  - `scripts/rfid-gateway/test.cjs`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check scripts/rfid-gateway/protocol.cjs`（通过）
+  - `node --check scripts/rfid-gateway/index.cjs`（通过）
+  - `node --check scripts/rfid-gateway/test.cjs`（通过）
+  - `node scripts/rfid-gateway/test.cjs`（通过：真实帧解析、心跳/粘包/半包、XT EPC、车辆会话聚合）
+- 剩余问题：
+  - 需要部署到 ECS，并用 4G 模块真实连接 `47.94.226.70:8063` 验收连续读卡日志。
+  - 当前版本只输出本地 JSON 日志，不写支付宝云；云函数入库、CRM 页面和异常比对留到下一阶段。
+
+### 2026-06-18 CURRENT — RFID 网关部署到 ECS
+- 做了什么：
+  - 使用临时 SSH key 连接 ECS `47.94.226.70`，将 RFID 网关部署到 `/opt/xt-rfid-gateway`。
+  - 创建并启动 `xt-rfid-gateway.service`，配置为 systemd 开机自启、异常自动重启。
+  - 网关监听 `0.0.0.0:8063`，已收到 4G 设备连接并解析真实 EPC 帧。
+- 改动文件列表：
+  - `STATE.md`
+  - 远端：`/opt/xt-rfid-gateway/*`
+  - 远端：`/etc/systemd/system/xt-rfid-gateway.service`
+- 验证输出要点：
+  - 远端 `node --check /opt/xt-rfid-gateway/protocol.cjs`（通过）
+  - 远端 `node --check /opt/xt-rfid-gateway/index.cjs`（通过）
+  - 远端 `node --check /opt/xt-rfid-gateway/test.cjs`（通过）
+  - 远端 `node /opt/xt-rfid-gateway/test.cjs`（通过）
+  - `systemctl is-enabled xt-rfid-gateway` => `enabled`
+  - `systemctl is-active xt-rfid-gateway` => `active`
+  - `nc -vz 47.94.226.70 8063`（通过）
+  - `journalctl -u xt-rfid-gateway` 已出现 `rfid_tag_seen`，EPC `E28068940000501BE78504D8`
+- 剩余问题：
+  - 阿里云安全组仍需在控制台确认：保留 `8063/TCP`，删除 `3389/RDP`，并将 `22/SSH` 限制到维护 IP。
+  - 当前服务只写本地 journal 日志；后续再规划写入支付宝云和 CRM 页面。
+
+### 2026-06-18 CURRENT — RFID 写标验收清单
+- 做了什么：
+  - 新增写标验收清单，固定第一轮 1 个车辆测试标签和 2 个瓶子测试标签的 XT EPC。
+  - 新增 `issue-tags.cjs`，用于生成指定车辆/瓶子 XT EPC，或校验现场读回 EPC 是否符合 XT 规则。
+  - 单元测试锁定本轮 3 个测试 EPC，避免后续协议调整时改坏 CRC 或类型识别。
+  - 已将写标说明、发标脚本和测试同步到 ECS `/opt/xt-rfid-gateway`，服务未重启且保持 active。
+- 改动文件列表：
+  - `scripts/rfid-gateway/WRITE_TAG_ACCEPTANCE.md`
+  - `scripts/rfid-gateway/issue-tags.cjs`
+  - `scripts/rfid-gateway/README.md`
+  - `scripts/rfid-gateway/test.cjs`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check scripts/rfid-gateway/protocol.cjs`（通过）
+  - `node --check scripts/rfid-gateway/index.cjs`（通过）
+  - `node --check scripts/rfid-gateway/test.cjs`（通过）
+  - `node --check scripts/rfid-gateway/issue-tags.cjs`（通过）
+  - `node scripts/rfid-gateway/test.cjs`（通过）
+  - `node scripts/rfid-gateway/issue-tags.cjs`（输出车辆 `585401020000000000011FA3`、瓶子 `58540101000000000087AD01`、瓶子 `58540101000000001388E035`）
+  - 远端 `node /opt/xt-rfid-gateway/test.cjs`（通过）
+  - 远端 `node /opt/xt-rfid-gateway/issue-tags.cjs`（输出同一批测试 EPC）
+  - 远端 `systemctl is-active xt-rfid-gateway` => `active`
+- 剩余问题：
+  - 需要用厂家 UHF Demo 工具逐个写入实体标签，并在 ECS 日志确认 `rfid_session_summary` 包含 1 车 2 瓶。
+
+### 2026-06-18 CURRENT — RFID 云端入库与 CRM 查看
+- 做了什么：
+  - 新增 `crm-rfid-gateway` 云函数，支持 `healthV1`、`loginV1`、`ingestSessionV1`，使用 RFID 网关专用密码换 token，并按 `session_id` 幂等写入门口盘点会话。
+  - 新增 `crm_rfid_bindings` 与 `crm_rfid_gate_sessions` schema，采用独立 EPC 绑定表，不改车辆/瓶档主表。
+  - 新增 `crm-rfid` 用户云函数和前端 `RFID 门口盘点` 页面，可分页查看会话、车辆/瓶子/未知标签、绑定状态和冲突状态。
+  - `scripts/rfid-gateway` 增加云端上传配置与 `rfid_cloud_upload_ok`/`rfid_cloud_upload_failed` 日志；默认关闭上传，未配置云函数 URL 时不影响现场 TCP 盘点。
+  - 工作台侧边栏、快捷入口、页面权限、操作日志分类已加入 RFID 模块。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-rfid-gateway/index.js`
+  - `uniCloud-alipay/cloudfunctions/crm-rfid/index.js`
+  - `uniCloud-alipay/database/schema/crm_rfid_bindings.schema.json`
+  - `uniCloud-alipay/database/schema/crm_rfid_gate_sessions.schema.json`
+  - `scripts/rfid-gateway/index.cjs`
+  - `scripts/rfid-gateway/test-cloud-upload.cjs`
+  - `scripts/generateRfidGatewayPasswordHash.cjs`
+  - `src/components/domain/rfid/RfidSessionListView.vue`
+  - `src/pages/rfid/sessions.vue`
+  - `src/services/rfid.js`
+  - `src/pages.json`
+  - `src/services/pageAclRegistry.js`
+  - `uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js`
+  - `src/components/domain/dashboard/DashboardHome.vue`
+  - `src/components/base/AppFloatNav.vue`
+  - `src/services/models/log.js`
+  - `uniCloud-alipay/cloudfunctions/crm-log/index.js`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-rfid-gateway/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-rfid/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-log/index.js`（通过）
+  - `node --check scripts/rfid-gateway/index.cjs`（通过）
+  - `node --check scripts/rfid-gateway/test-cloud-upload.cjs`（通过）
+  - `node scripts/rfid-gateway/test.cjs`（通过）
+  - `node scripts/rfid-gateway/test-cloud-upload.cjs`（通过：本地 mock 网关 token 登录和会话上传）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+- 剩余问题：
+  - 需要在支付宝云创建/同步 `crm_rfid_bindings`、`crm_rfid_gate_sessions` 数据表 schema。
+  - 需要部署 `crm-rfid-gateway`、`crm-rfid`，并同步更新 `common/pageAclRegistry.js`、`crm-log`。
+  - 需要给 `crm-rfid-gateway` 配置 `RFID_GATEWAY_PASSWORD_HASH`、`RFID_GATEWAY_TOKEN_SECRET` 并开启 URL 化。
+  - 需要拿到 URL 后配置 ECS `/opt/xt-rfid-gateway/.env` 的 `RFID_CLOUD_*`，再重启 `xt-rfid-gateway` 做现场上传验收。
+
+### 2026-06-18 CURRENT — RFID 入库版部署进展
+- 做了什么：
+  - 为 HBuilderX CLI 增加可识别的顶层数据库 schema 文件，保留 `database/schema/` 版本，避免本地开发和 CLI 上传路径不一致。
+  - 生成 RFID 网关专用密码、密码 hash 和 token secret，保存到本机临时密钥文件 `/private/tmp/rfid_gateway_secrets.env`，权限为 `600`，未写入仓库。
+  - 已在支付宝云 `xintuonengyuan(env-00jxuffegf2n)` 创建/同步 `crm_rfid_bindings`、`crm_rfid_gate_sessions`。
+  - 已上传云函数 `crm-rfid-gateway`、`crm-rfid`、`crm-log`。
+  - 已发布 H5 前端，静态托管访问地址为 `https://env-00jxuffegf2n-static.normal.cloudstatic.cn/`，发布包包含 `pages-rfid-sessions`。
+  - 更新 `scripts/rfid-gateway/README.md`，同步当前“本地 TCP 网关 + 可选云端上传 + CRM 查看”的实际状态。
+- 改动文件列表：
+  - `uniCloud-alipay/database/crm_rfid_bindings.schema.json`
+  - `uniCloud-alipay/database/crm_rfid_gate_sessions.schema.json`
+  - `scripts/rfid-gateway/README.md`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-rfid-gateway/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-rfid/index.js`（通过）
+  - `node --check uniCloud-alipay/cloudfunctions/crm-log/index.js`（通过）
+  - `node --check scripts/rfid-gateway/index.cjs`（通过）
+  - `node --check scripts/rfid-gateway/test-cloud-upload.cjs`（通过）
+  - `node scripts/rfid-gateway/test.cjs`（通过）
+  - `node scripts/rfid-gateway/test-cloud-upload.cjs`（通过）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+  - `cli cloud functions --list cloudfunction --cloud` 已确认云端存在 `crm-rfid`、`crm-rfid-gateway`
+  - `cli cloud functions --list db --cloud` 已确认云端存在 `crm_rfid_bindings`、`crm_rfid_gate_sessions`
+  - `nc -vz 47.94.226.70 8063`（通过）
+- 剩余问题：
+  - HBuilderX CLI 当前没有发现可安全设置云函数环境变量和 URL 化的公开命令；需要在支付宝云/uniCloud 控制台给 `crm-rfid-gateway` 配置 `/private/tmp/rfid_gateway_secrets.env` 里的三项服务端变量，并开启 URL 化。
+  - SSH 已连到 `47.94.226.70`，但服务器拒绝当前本机公钥：`Permission denied (publickey...)`。需要把 `~/.ssh/id_ed25519.pub` 追加到 ECS `root` 的 `authorized_keys` 后，才能上传新版 `/opt/xt-rfid-gateway` 并配置 `RFID_CLOUD_*`。
+  - 在拿到 URL 化地址前，不应把 ECS 网关上传开关改成 `true`，以免现场读卡日志出现持续上传失败。
+
+### 2026-06-19 CURRENT — RFID 入库版 ECS 联调完成
+- 做了什么：
+  - 已确认 `crm-rfid-gateway` URL 化地址可用：`https://env-00jxuffegf2n.dev-hz.cloudbasefunction.cn/crm-rfid-gateway`。
+  - 已从 ECS 调用 `healthV1`，返回 `password_configured=true`、`token_secret_configured=true`。
+  - 已上传最新版 `scripts/rfid-gateway` 到 ECS `/opt/xt-rfid-gateway`。
+  - 已写入 ECS `/opt/xt-rfid-gateway/.env`，开启 `RFID_CLOUD_UPLOAD_ENABLED=true`，配置 `RFID_CLOUD_URL`、`RFID_CLOUD_PASSWORD`、`RFID_CLOUD_GATEWAY_ID=rfid-gate-main`。
+  - 已重启 `xt-rfid-gateway.service`，服务保持 `active`，`0.0.0.0:8063` 正常监听。
+  - 已发一条 `deploy_smoke` 测试会话直接验证 `loginV1 + ingestSessionV1`，云端返回 `inserted=true`。
+  - 已通过 TCP 向网关模拟 1 个车辆 XT 标签和 2 个瓶子 XT 标签，验证完整链路输出 `rfid_session_summary` 和 `rfid_cloud_upload_ok`。
+- 验证输出要点：
+  - 远端 `node --check protocol.cjs && node --check index.cjs && node --check test-cloud-upload.cjs`（通过）
+  - 远端 `node test.cjs`（通过）
+  - 远端 `node test-cloud-upload.cjs`（通过）
+  - 远端 `loginV1` 实测返回 `has_token=true`
+  - `systemctl restart xt-rfid-gateway && systemctl is-active xt-rfid-gateway` => `active`
+  - `ss -lntp | grep 8063` => `LISTEN 0.0.0.0:8063`
+  - 模拟 TCP 会话日志：
+    - `rfid_tag_seen`：车辆 EPC `585401020000000000011FA3`
+    - `rfid_tag_seen`：瓶子 EPC `58540101000000000087AD01`
+    - `rfid_tag_seen`：瓶子 EPC `58540101000000001388E035`
+    - `rfid_session_summary`：`bottle_total=2`、`unknown_total=0`
+    - `rfid_cloud_upload_ok`：`inserted=true`、`unbound_bottle_total=2`
+- 剩余问题：
+  - 需要现场让 4G 读写器读真实车辆标签和瓶子标签，确认 CRM 页面出现真实门口盘点会话。
+  - 当前测试标签尚未绑定业务车辆/瓶档，所以 CRM 页面显示“未绑定”是预期结果。
+  - 8063 公网端口仍会收到非 RFID 探测流量；当前会记录 `rfid_parse_error`，后续可加来源白名单、探测限流或专用协议握手。
+
+### 2026-06-21 CURRENT — RFID EPC 绑定业务档案 v1 已部署
+- 做了什么：
+  - `crm-rfid` 新增 `bindEpcV1`、`unbindEpcV1`，仅 `superadmin/admin` 可绑定、改绑、解绑。
+  - EPC 绑定统一校验 24 位 HEX；车辆绑定到 `crm_vehicles.plate_no`，瓶子绑定到 `crm_bottles.bottle_no`。
+  - 同一 EPC 或同一车辆/瓶子已有 active 绑定时，首次返回 `409` 冲突；前端确认后会停用旧绑定并写入新绑定。
+  - 绑定/解绑传入 `session_id` 时，会同步更新当前 RFID 门口盘点会话里的车辆/瓶子绑定状态和瓶子绑定统计；历史会话不批量回填。
+  - CRM “RFID 门口盘点”详情页增加“绑定/改绑/解绑”入口，复用现有车辆/瓶子搜索接口。
+  - `crm_rfid_bindings` schema 补充 `inactive_at`、`inactive_reason`、`updated_by`、`updated_by_name` 审计字段。
+  - 已重新上传 `crm-rfid` 云函数，重新发布 H5 前端到 `https://env-00jxuffegf2n-static.normal.cloudstatic.cn/`。
+- 改动文件列表：
+  - `uniCloud-alipay/cloudfunctions/crm-rfid/index.js`
+  - `src/components/domain/rfid/RfidSessionListView.vue`
+  - `src/services/rfid.js`
+  - `src/services/models/log.js`
+  - `uniCloud-alipay/database/crm_rfid_bindings.schema.json`
+  - `uniCloud-alipay/database/schema/crm_rfid_bindings.schema.json`
+  - `STATE.md`
+- 验证输出要点：
+  - `node --check uniCloud-alipay/cloudfunctions/crm-rfid/index.js`（通过）
+  - `node --check scripts/rfid-gateway/index.cjs`（通过）
+  - `node --check scripts/rfid-gateway/protocol.cjs`（通过）
+  - `npm run build:h5`（通过）
+  - `git diff --check`（通过）
+  - HBuilderX CLI 上传 `crm-rfid` 成功。
+  - HBuilderX CLI 发布 H5 成功，上传 141 个文件。
+  - 线上非写入验证：调用 `crm-rfid.bindEpcV1`，传入不存在车辆 ID，返回预期 `code=404,msg=车辆不存在`，证明线上 action 已生效且未写入真实绑定。
+- 剩余问题：
+  - HBuilderX CLI 对已存在的 `crm_rfid_bindings.schema.json` 返回“跳过上传”，本地 schema 已更新；如后续控制台强校验字段，需要在云端控制台手动确认审计字段。
+  - 还没有把任何真实 EPC 绑定到真实车辆/瓶档；下一步应在 CRM 页面详情里选择真实车辆/瓶子做一次人工绑定验收。
+  - 绑定只影响 RFID 展示解析，不自动改销售、配送、库存或瓶子流转状态。
+
+### 2026-06-30 CURRENT — 工业气瓶追溯演示视频脚本
+- 做了什么：
+  - 新增面向客户/老板和验收人员的演示视频制作文档。
+  - 将系统定位明确为“基于真实经营业务的工业气瓶追溯系统”，突出“真实业务驱动追溯，追溯反哺经营管理”。
+  - 将 RFID、PDA、销售、灌装、回瓶、单瓶时间线、异常识别、客户对账、财务报表统一到追溯闭环分镜中。
+- 改动文件列表：
+  - `docs/industrial_cylinder_trace_demo_video.md`
+  - `STATE.md`
+- 验证输出要点：
+  - 文档变更，未运行构建或云函数校验。
+- 剩余问题：
+  - 拍摄前仍需准备可展示的完整瓶号链路、异常案例、RFID 会话和客户对账数据，并确认敏感信息已脱敏。
+
+### 2026-06-30 CURRENT — 工业气瓶追溯演示视频制作包
+- 做了什么：
+  - 新增可直接照读的演示视频旁白稿。
+  - 新增 5 分 20 秒版本 SRT 字幕文件。
+  - 新增录屏执行清单，明确录屏设置、镜头顺序、演示数据、脱敏检查和交付检查。
+  - 在主分镜文档中补充配套文件索引。
+- 改动文件列表：
+  - `docs/demo_video_industrial_trace_voiceover.md`
+  - `docs/demo_video_industrial_trace_subtitles.srt`
+  - `docs/demo_video_recording_checklist.md`
+  - `docs/industrial_cylinder_trace_demo_video.md`
+  - `STATE.md`
+- 验证输出要点：
+  - 文档变更，未运行构建或云函数校验。
+- 剩余问题：
+  - 实际成片仍需基于可登录环境和演示数据录屏；录屏前需按清单完成脱敏检查。
+
+### 2026-06-30 CURRENT — 工业气瓶追溯演示视频成片
+- 做了什么：
+  - 新增本地 Canvas/Chrome 渲染脚本，用旁白音频和分镜数据自动生成演示视频。
+  - 使用 macOS `say` 生成中文 TTS 旁白音频，并由 Chrome MediaRecorder 录制带音轨 MP4。
+  - 生成实际成片 `outputs/industrial-trace-demo-video/industrial-cylinder-trace-demo.mp4`。
+  - 使用 Quick Look 生成缩略图并做视觉检查。
+- 改动文件列表：
+  - `scripts/renderIndustrialTraceDemoVideo.cjs`
+  - `docs/industrial_cylinder_trace_demo_video.md`
+  - `STATE.md`
+  - `outputs/industrial-trace-demo-video/industrial-cylinder-trace-demo.mp4`
+  - `outputs/industrial-trace-demo-video/industrial-cylinder-trace-demo.mp4.png`
+  - `outputs/industrial-trace-demo-video/voiceover.aiff`
+  - `outputs/industrial-trace-demo-video/voiceover.wav`
+  - `outputs/industrial-trace-demo-video/voiceover.txt`
+- 验证输出要点：
+  - `node --check scripts/renderIndustrialTraceDemoVideo.cjs`（通过）
+  - `say -v Tingting -r 160 -f outputs/industrial-trace-demo-video/voiceover.txt -o outputs/industrial-trace-demo-video/voiceover.aiff`（通过，需沙箱外调用系统语音服务）
+  - `afinfo outputs/industrial-trace-demo-video/voiceover.aiff`（通过，时长约 290.91 秒）
+  - `node scripts/renderIndustrialTraceDemoVideo.cjs`（通过，生成 MP4）
+  - `file outputs/industrial-trace-demo-video/industrial-cylinder-trace-demo.mp4`（确认为 MP4）
+  - `qlmanage -t -s 960 -o outputs/industrial-trace-demo-video outputs/industrial-trace-demo-video/industrial-cylinder-trace-demo.mp4`（通过，已生成缩略图）
+  - `afinfo outputs/industrial-trace-demo-video/industrial-cylinder-trace-demo.mp4`（通过，AAC 音轨时长约 291.37 秒）
+- 剩余问题：
+  - 该成片为合成演示片，不是登录真实业务系统后的实录画面；如需真实系统实录版，需要提供可出镜演示数据和确认脱敏范围。

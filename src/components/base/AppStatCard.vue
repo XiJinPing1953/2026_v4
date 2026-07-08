@@ -124,9 +124,10 @@ const trendLabel = computed(() => {
 .stat__value-wrap {
 	display: flex;
 	flex-direction: column;
-	align-items: flex-end;
+	align-items: flex-start;
 	flex: 1;
 	gap: 4px;
+	min-width: 0;
 }
 
 .stat__value {
@@ -134,7 +135,7 @@ const trendLabel = computed(() => {
 	font-weight: 800;
 	color: #0f172a;
 	line-height: 1;
-	text-align: right;
+	text-align: left;
 	width: 100%;
 }
 

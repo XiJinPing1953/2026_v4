@@ -32,8 +32,9 @@
 										v-for="item in intakeCustomerOptions"
 										:key="`intake:${item.value}`"
 										class="suggest-item"
-										@tap.stop="onPickIntakeCustomer(item)"
-										@click.stop="onPickIntakeCustomer(item)"
+										@mousedown.stop.prevent="guardSuggestionPick('intake', item)"
+										@tap.stop="guardSuggestionPick('intake', item)"
+										@click.stop="guardSuggestionPick('intake', item)"
 									>
 										<view class="suggest-info">
 											<text class="suggest-name">{{ item.name || item.label }}</text>
@@ -50,8 +51,9 @@
 										v-for="item in intakeCustomerOptions"
 										:key="`intake:inline:${item.value}`"
 										class="suggest-item"
-										@tap.stop="onPickIntakeCustomer(item)"
-										@click.stop="onPickIntakeCustomer(item)"
+										@mousedown.stop.prevent="guardSuggestionPick('intake', item)"
+										@tap.stop="guardSuggestionPick('intake', item)"
+										@click.stop="guardSuggestionPick('intake', item)"
 									>
 										<view class="suggest-info">
 											<text class="suggest-name">{{ item.name || item.label }}</text>
@@ -189,8 +191,9 @@
 										v-for="item in filterCustomerOptions"
 										:key="`filter:${item.value}`"
 										class="suggest-item"
-										@tap.stop="onPickFilterCustomer(item)"
-										@click.stop="onPickFilterCustomer(item)"
+										@mousedown.stop.prevent="guardSuggestionPick('filter', item)"
+										@tap.stop="guardSuggestionPick('filter', item)"
+										@click.stop="guardSuggestionPick('filter', item)"
 									>
 										<view class="suggest-info">
 											<text class="suggest-name">{{ item.name || item.label }}</text>
@@ -207,8 +210,9 @@
 										v-for="item in filterCustomerOptions"
 										:key="`filter:inline:${item.value}`"
 										class="suggest-item"
-										@tap.stop="onPickFilterCustomer(item)"
-										@click.stop="onPickFilterCustomer(item)"
+										@mousedown.stop.prevent="guardSuggestionPick('filter', item)"
+										@tap.stop="guardSuggestionPick('filter', item)"
+										@click.stop="guardSuggestionPick('filter', item)"
 									>
 										<view class="suggest-info">
 											<text class="suggest-name">{{ item.name || item.label }}</text>
@@ -426,6 +430,7 @@ const PROOF_IMAGE_LIMIT = 9
 const CUSTOMER_SUGGEST_LIMIT = 20
 const CUSTOMER_SEARCH_DEBOUNCE_MS = 180
 const SUGGESTION_BLUR_DELAY_MS = 150
+const SUGGESTION_PICK_GUARD_MS = 500
 const SUGGESTION_SCROLL_THRESHOLD = 4
 const VOID_REASON_OPTIONS = ['误录作废', '重复登记', '凭证有误', '客户信息错误']
 
@@ -445,6 +450,7 @@ const filterCustomerOptions = ref([])
 const filterCustomerLoading = ref(false)
 const showFilterSuggestions = ref(false)
 const filterCustomerTimer = ref(null)
+const suggestionPickGuard = ref({ key: '', expiresAt: 0 })
 const selectedFilterCustomerId = ref('')
 const selectedFilterCustomerName = ref('')
 const selectedFilterMatchedDeliveryName = ref('')
@@ -825,15 +831,27 @@ function clearRowsAndPager() {
 	targetDetailMap.value = {}
 }
 
+function clearIntakeCustomerSearchTimer() {
+	if (!intakeCustomerTimer.value) return
+	clearTimeout(intakeCustomerTimer.value)
+	intakeCustomerTimer.value = null
+}
+
+function clearFilterCustomerSearchTimer() {
+	if (!filterCustomerTimer.value) return
+	clearTimeout(filterCustomerTimer.value)
+	filterCustomerTimer.value = null
+}
+
 function queueIntakeCustomerSearch(keyword = intakeCustomerKeyword.value) {
-	if (intakeCustomerTimer.value) clearTimeout(intakeCustomerTimer.value)
+	clearIntakeCustomerSearchTimer()
 	intakeCustomerTimer.value = setTimeout(() => {
 		searchIntakeCustomers(keyword)
 	}, CUSTOMER_SEARCH_DEBOUNCE_MS)
 }
 
 function queueFilterCustomerSearch(keyword = filterCustomerKeyword.value) {
-	if (filterCustomerTimer.value) clearTimeout(filterCustomerTimer.value)
+	clearFilterCustomerSearchTimer()
 	filterCustomerTimer.value = setTimeout(() => {
 		searchFilterCustomers(keyword)
 	}, CUSTOMER_SEARCH_DEBOUNCE_MS)
@@ -847,7 +865,7 @@ function onIntakeCustomerInput(value) {
 	if (!intakeCustomerKeyword.value) {
 		intakeCustomerOptions.value = []
 		showIntakeSuggestions.value = false
-		if (intakeCustomerTimer.value) clearTimeout(intakeCustomerTimer.value)
+		clearIntakeCustomerSearchTimer()
 		return
 	}
 	showIntakeSuggestions.value = true
@@ -882,7 +900,7 @@ function onFilterCustomerInput(value) {
 	if (!filterCustomerKeyword.value) {
 		filterCustomerOptions.value = []
 		showFilterSuggestions.value = false
-		if (filterCustomerTimer.value) clearTimeout(filterCustomerTimer.value)
+		clearFilterCustomerSearchTimer()
 		pager.page = 1
 		void loadRows(true)
 		return
@@ -911,9 +929,31 @@ function onFilterCustomerConfirm() {
 	queueFilterCustomerSearch(key)
 }
 
-function onPickIntakeCustomer(item) {
+function buildSuggestionPickKey(scope, item) {
+	return `${normalizeString(scope)}:${normalizeString(item?.value)}`
+}
+
+function guardSuggestionPick(scope, item) {
+	const key = buildSuggestionPickKey(scope, item)
+	if (!key || key.endsWith(':')) return
+	const now = Date.now()
+	const guard = suggestionPickGuard.value || {}
+	if (guard.key === key && now < Number(guard.expiresAt || 0)) return
+	suggestionPickGuard.value = {
+		key,
+		expiresAt: now + SUGGESTION_PICK_GUARD_MS
+	}
+	if (scope === 'filter') {
+		void pickFilterCustomer(item)
+		return
+	}
+	pickIntakeCustomer(item)
+}
+
+function pickIntakeCustomer(item) {
 	const customerId = normalizeString(item?.value)
 	if (!customerId) return
+	clearIntakeCustomerSearchTimer()
 	selectedIntakeCustomerId.value = customerId
 	selectedIntakeCustomerName.value = normalizeString(item?.name || item?.label)
 	selectedIntakeMatchedDeliveryName.value = normalizeString(item?.matchedDeliveryName)
@@ -927,12 +967,14 @@ function clearIntakeCustomer() {
 	selectedIntakeMatchedDeliveryName.value = ''
 	intakeCustomerKeyword.value = ''
 	intakeCustomerOptions.value = []
+	clearIntakeCustomerSearchTimer()
 	showIntakeSuggestions.value = false
 }
 
-async function onPickFilterCustomer(item) {
+async function pickFilterCustomer(item) {
 	const customerId = normalizeString(item?.value)
 	if (!customerId) return
+	clearFilterCustomerSearchTimer()
 	selectedFilterCustomerId.value = customerId
 	selectedFilterCustomerName.value = normalizeString(item?.name || item?.label)
 	selectedFilterMatchedDeliveryName.value = normalizeString(item?.matchedDeliveryName)
@@ -960,6 +1002,7 @@ async function clearFilterCustomer() {
 	selectedFilterMatchedDeliveryName.value = ''
 	filterCustomerKeyword.value = ''
 	filterCustomerOptions.value = []
+	clearFilterCustomerSearchTimer()
 	showFilterSuggestions.value = false
 	listFilter.dateStart = ''
 	listFilter.dateEnd = ''

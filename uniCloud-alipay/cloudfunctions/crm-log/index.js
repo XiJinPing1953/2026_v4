@@ -123,6 +123,9 @@ function buildActionCategoryCondition(category) {
 	if (normalized === 'vehicle') {
 		return { condition: { action: db.RegExp({ regexp: '^vehicle_', options: 'i' }) } }
 	}
+	if (normalized === 'rfid') {
+		return { condition: { action: db.RegExp({ regexp: '^rfid_', options: 'i' }) } }
+	}
 	if (normalized === 'delivery') {
 		return { condition: { action: db.RegExp({ regexp: '^delivery_', options: 'i' }) } }
 	}
@@ -150,7 +153,7 @@ function buildActionCategoryCondition(category) {
 			condition: {
 				action: db.RegExp({
 					regexp:
-						`^(?!(${AUTH_ACTIONS.join('|')})$|customer_|sale_|bottle(_anomaly|_movement)?_|filling_|vehicle_|delivery_|(account_|voucher_|ledger_|period_|report_)|collection_|dashboard_|.*forbidden).+`,
+						`^(?!(${AUTH_ACTIONS.join('|')})$|customer_|sale_|bottle(_anomaly|_movement)?_|filling_|vehicle_|rfid_|delivery_|(account_|voucher_|ledger_|period_|report_)|collection_|dashboard_|.*forbidden).+`,
 					options: 'i'
 				})
 			}

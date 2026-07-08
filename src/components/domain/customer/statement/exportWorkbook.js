@@ -405,11 +405,22 @@ function debtSnapshotMoneyCell(row = {}, key = '') {
 	return moneyCellByScale(row?.[key], row?.money_scale)
 }
 
+function resolveDebtSnapshotPeriod(payload = {}) {
+	const period = payload.period || {}
+	const dateFrom = normalizeString(period.date_from || period.dateFrom)
+	const dateTo = normalizeString(period.date_to || period.dateTo)
+	return dateFrom && dateTo ? { dateFrom, dateTo } : null
+}
+
 function buildDebtSnapshotSummaryRows(payload = {}) {
 	const summaryRows = Array.isArray(payload.summary_rows) ? payload.summary_rows : []
 	const totals = payload.totals || {}
+	const period = resolveDebtSnapshotPeriod(payload)
+	const title = period
+		? `未结清欠款表（业务日期：${period.dateFrom} ~ ${period.dateTo}）`
+		: '未结清欠款表（截至导出时点）'
 	const rows = [
-		[{ type: 'String', value: '未结清欠款表（截至导出时点）' }],
+		[{ type: 'String', value: title }],
 		[{ type: 'String', value: '导出时间' }, { type: 'String', value: formatDateTime(payload.snapshot_at || Date.now()) }],
 		[{ type: 'String', value: '客户数' }, { type: 'Number', value: toNumber(totals.customer_count, summaryRows.length) }],
 		[{ type: 'String', value: '未结清欠款合计' }, moneyCellByScale(totals.debt_total, 3)],
@@ -500,6 +511,12 @@ export function buildCustomerDebtSnapshotWorkbookXml(payload = {}) {
 
 export function buildCustomerDebtSnapshotExportFileName(payload = {}) {
 	const total = Math.max(toNumber(payload?.totals?.customer_count, 0), 0)
+	const period = resolveDebtSnapshotPeriod(payload)
+	if (period) {
+		const dateFrom = sanitizeFilePart(period.dateFrom)
+		const dateTo = sanitizeFilePart(period.dateTo)
+		return `未结清欠款表_业务日期-${dateFrom}_至-${dateTo}_${total}客户_${formatNowForFile()}.xls`
+	}
 	const dateText = sanitizeFilePart(formatDateForFile(payload?.snapshot_at || Date.now()))
 	return `未结清欠款表_截至-${dateText}_${total}客户_${formatNowForFile()}.xls`
 }

@@ -1,0 +1,43 @@
+{
+  "bsonType": "object",
+  "description": "RFID EPC bindings to CRM vehicle and bottle master data",
+  "additionalProperties": false,
+  "required": [
+    "epc",
+    "entity_type",
+    "entity_id",
+    "entity_no",
+    "serial",
+    "status",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "epc": { "bsonType": "string" },
+    "entity_type": { "bsonType": "string", "enum": ["vehicle", "bottle"] },
+    "entity_id": { "bsonType": "string" },
+    "entity_no": { "bsonType": "string" },
+    "serial": { "bsonType": "string" },
+    "status": { "bsonType": "string", "enum": ["active", "inactive"] },
+    "remark": { "bsonType": "string" },
+    "inactive_at": { "bsonType": "number" },
+    "inactive_reason": { "bsonType": "string" },
+    "updated_by": { "bsonType": "string" },
+    "updated_by_name": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "epc": 1 }, "name": "uniq_epc", "unique": true },
+    { "key": { "entity_type": 1, "entity_id": 1 }, "name": "idx_entity" },
+    { "key": { "entity_type": 1, "entity_no": 1 }, "name": "idx_entity_no" },
+    { "key": { "status": 1, "updated_at": -1 }, "name": "idx_status_updated_at" }
+  ]
+}

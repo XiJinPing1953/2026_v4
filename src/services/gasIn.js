@@ -54,6 +54,22 @@ export async function removeGasInV1(params = {}) {
 	})
 }
 
+export async function getGasTankConfigV1() {
+	return callCloud('crm-gas-in', {
+		action: 'getTankConfigV1',
+		data: {}
+	})
+}
+
+export async function updateGasTankConfigV1(params = {}) {
+	return callCloud('crm-gas-in', {
+		action: 'updateTankConfigV1',
+		data: {
+			full_tank_weight_t: params.full_tank_weight_t ?? params.fullTankWeightT ?? 0
+		}
+	})
+}
+
 export async function syncGasCycleAdjustmentsV1(params = {}) {
 	return callCloud('crm-gas-in', {
 		action: 'syncCycleAdjustmentsV1',

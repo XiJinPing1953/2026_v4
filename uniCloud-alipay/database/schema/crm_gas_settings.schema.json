@@ -1,0 +1,27 @@
+{
+  "bsonType": "object",
+  "description": "Shared settings for gas inventory and tank estimates",
+  "additionalProperties": false,
+  "required": ["key", "full_tank_weight_t", "updated_at"],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "key": { "bsonType": "string" },
+    "full_tank_weight_t": { "bsonType": "number" },
+    "created_at": { "bsonType": "number" },
+    "created_by": { "bsonType": ["string", "null"] },
+    "created_by_name": { "bsonType": "string" },
+    "updated_at": { "bsonType": "number" },
+    "updated_by": { "bsonType": ["string", "null"] },
+    "updated_by_name": { "bsonType": "string" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "key": 1 }, "name": "uniq_key", "unique": true },
+    { "key": { "updated_at": -1 }, "name": "idx_updated_at" }
+  ]
+}

@@ -231,7 +231,7 @@
 					</view>
 					<text v-if="receiptForm.allocationMode === 'period'" class="section-hint">分配口径：仅冲销所选日期区间内应收；现金超出部分保留为待分配收款，抹零需全部落到应收目标。</text>
 					<text v-if="receiptForm.allocationMode === 'period'" class="section-hint">
-						当前区间累计欠款：<text class="money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(receiptPeriodRangeOutstandingTotal) }}</text></text>（{{ receiptPeriodRangeTargetCount }} 笔）
+						{{ receiptPeriodRangeHintText }}
 					</text>
 					<text v-else class="section-hint">分配口径：仅冲销勾选单据；现金剩余保留为待分配收款，抹零需全部落到勾选目标。</text>
 					<text v-if="isEditingCashierReceipt" class="section-hint section-hint--warning">当前收款单来源于出纳登记，仅支持调整分配和抹零；金额、业务日期、收款方式与备注请在“出纳收款登记”处理。</text>
@@ -425,7 +425,7 @@
 						分配口径：单笔来源 + 时间段。仅冲销区间内应收，剩余保留在该来源可用余额中。
 					</text>
 					<text v-if="offsetAllocateForm.allocationMode === 'period'" class="section-hint">
-						当前区间累计欠款：<text class="money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(offsetPeriodRangeOutstandingTotal) }}</text></text>（{{ offsetPeriodRangeTargetCount }} 笔）
+						{{ offsetPeriodRangeHintText }}
 					</text>
 					<text v-else class="section-hint">
 						分配口径：单笔来源 + 勾选目标（支持多选）。仅消耗本来源可用余额，不回滚历史分配。
@@ -1002,7 +1002,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, toRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppTabs from '@/components/base/AppTabs.vue'
@@ -1079,6 +1079,8 @@ const offsetHistoryLoading = ref(false)
 const offsetAllocating = ref(false)
 const prepayReceiptAllocating = ref(false)
 const quickRoundingSubmitting = ref(false)
+let receiptPeriodSummaryTimer = null
+let offsetPeriodSummaryTimer = null
 
 const customer = ref({})
 const recentSales = ref([])
@@ -1090,6 +1092,8 @@ const recentOpeningDebts = ref([])
 const recentOtherFees = ref([])
 const previewPlan = ref(null)
 const editableAllocations = ref([])
+const receiptPeriodSummary = reactive(createPeriodAllocationSummaryState())
+const offsetPeriodSummary = reactive(createPeriodAllocationSummaryState())
 const statementRows = ref([])
 const flowPreview = ref(null)
 const bottleReferencePrice = ref('')
@@ -1575,34 +1579,6 @@ const checkedAllocationSelectedTotal = computed(() => {
 	}, 0)
 	return fix2(total)
 })
-const receiptPeriodRangeSummary = computed(() => {
-	const start = normalizeDate(receiptForm.allocationStartDate)
-	const end = normalizeDate(receiptForm.allocationEndDate)
-	if (!start || !end || start > end) {
-		return {
-			total: 0,
-			count: 0
-		}
-	}
-	const rows = Array.isArray(checkedTargetCandidates.value) ? checkedTargetCandidates.value : []
-	let total = 0
-	let count = 0
-	rows.forEach((row) => {
-		const date = normalizeDate(row?.date)
-		if (!date) return
-		if (date < start || date > end) return
-		const outstanding = fix2(toNumber(row?.outstanding, 0))
-		if (!(outstanding > 0)) return
-		total += outstanding
-		count += 1
-	})
-	return {
-		total: fix2(total),
-		count
-	}
-})
-const receiptPeriodRangeOutstandingTotal = computed(() => receiptPeriodRangeSummary.value.total)
-const receiptPeriodRangeTargetCount = computed(() => receiptPeriodRangeSummary.value.count)
 const offsetCheckedTargetSelectedCount = computed(() => {
 	const keys = Array.isArray(offsetCheckedTargetKeys.value) ? offsetCheckedTargetKeys.value : []
 	const uniqueKeys = Array.from(new Set(keys.map((item) => normalizeString(item)).filter(Boolean)))
@@ -1617,34 +1593,6 @@ const offsetCheckedTargetSelectedTotal = computed(() => {
 	}, 0)
 	return fix2(total)
 })
-const offsetPeriodRangeSummary = computed(() => {
-	const start = normalizeDate(offsetAllocateForm.allocationStartDate)
-	const end = normalizeDate(offsetAllocateForm.allocationEndDate)
-	if (!start || !end || start > end) {
-		return {
-			total: 0,
-			count: 0
-		}
-	}
-	const rows = Array.isArray(checkedTargetCandidates.value) ? checkedTargetCandidates.value : []
-	let total = 0
-	let count = 0
-	rows.forEach((row) => {
-		const date = normalizeDate(row?.date)
-		if (!date) return
-		if (date < start || date > end) return
-		const outstanding = fix2(toNumber(row?.outstanding, 0))
-		if (!(outstanding > 0)) return
-		total += outstanding
-		count += 1
-	})
-	return {
-		total: fix2(total),
-		count
-	}
-})
-const offsetPeriodRangeOutstandingTotal = computed(() => offsetPeriodRangeSummary.value.total)
-const offsetPeriodRangeTargetCount = computed(() => offsetPeriodRangeSummary.value.count)
 const selectedOffsetReceiptIds = computed(() => {
 	return Array.from(
 		new Set(
@@ -1676,40 +1624,100 @@ const offsetAdjustmentSourceText = computed(() => {
 	const amount = formatMoney(row?.amount)
 	return `${sourceDate} · ¥${amount} · ${receiptId.slice(-6)}`
 })
-const receiptOperationTargetTotal = computed(() => (
-	normalizeReceiptAllocationMode(receiptForm.allocationMode) === 'period'
-		? receiptPeriodRangeOutstandingTotal.value
-		: checkedAllocationSelectedTotal.value
+const receiptPeriodSummaryKey = computed(() => buildReceiptPeriodSummaryKey())
+const offsetPeriodSummaryKey = computed(() => buildOffsetPeriodSummaryKey())
+const receiptPeriodSummaryReady = computed(() => (
+	Boolean(receiptPeriodSummaryKey.value)
+	&& receiptPeriodSummary.loaded
+	&& receiptPeriodSummary.key === receiptPeriodSummaryKey.value
 ))
-const receiptOperationTargetCount = computed(() => (
-	normalizeReceiptAllocationMode(receiptForm.allocationMode) === 'period'
-		? receiptPeriodRangeTargetCount.value
-		: checkedAllocationSelectedCount.value
+const offsetPeriodSummaryReady = computed(() => (
+	Boolean(offsetPeriodSummaryKey.value)
+	&& offsetPeriodSummary.loaded
+	&& offsetPeriodSummary.key === offsetPeriodSummaryKey.value
 ))
+const receiptPeriodSummaryPending = computed(() => (
+	normalizeReceiptAllocationMode(receiptForm.allocationMode) === 'period'
+	&& Boolean(receiptPeriodSummaryKey.value)
+	&& receiptPeriodSummary.loading
+	&& receiptPeriodSummary.key === receiptPeriodSummaryKey.value
+	&& !receiptPeriodSummaryReady.value
+))
+const offsetPeriodSummaryPending = computed(() => (
+	normalizeReceiptAllocationMode(offsetAllocateForm.allocationMode) === 'period'
+	&& Boolean(offsetPeriodSummaryKey.value)
+	&& offsetPeriodSummary.loading
+	&& offsetPeriodSummary.key === offsetPeriodSummaryKey.value
+	&& !offsetPeriodSummaryReady.value
+))
+const receiptOperationTargetTotal = computed(() => {
+	if (normalizeReceiptAllocationMode(receiptForm.allocationMode) === 'period') {
+		return receiptPeriodSummaryReady.value ? receiptPeriodSummary.totalOutstanding : 0
+	}
+	return checkedAllocationSelectedTotal.value
+})
+const receiptOperationTargetCount = computed(() => {
+	if (normalizeReceiptAllocationMode(receiptForm.allocationMode) === 'period') {
+		return receiptPeriodSummaryReady.value ? receiptPeriodSummary.targetCount : 0
+	}
+	return checkedAllocationSelectedCount.value
+})
 const receiptOperationTargetMeta = computed(() => {
 	const mode = normalizeReceiptAllocationMode(receiptForm.allocationMode)
 	if (mode === 'period') {
 		const start = normalizeDate(receiptForm.allocationStartDate)
 		const end = normalizeDate(receiptForm.allocationEndDate)
 		const scope = start && end ? `${start} ~ ${end}` : '日期未完整'
+		if (!start || !end || start > end) return `${scope} · 待校验`
+		if (receiptPeriodSummaryPending.value) return `${scope} · 校验中`
+		if (receiptPeriodSummary.error && receiptPeriodSummary.key === receiptPeriodSummaryKey.value) return `${scope} · 汇总失败`
+		if (!receiptPeriodSummaryReady.value) return `${scope} · 待校验`
 		return `${scope} · ${receiptOperationTargetCount.value} 笔`
 	}
 	return `已选 ${receiptOperationTargetCount.value} 笔`
 })
+const receiptOperationTargetValue = computed(() => {
+	if (normalizeReceiptAllocationMode(receiptForm.allocationMode) !== 'period') {
+		return formatOperationSummaryMoney(receiptOperationTargetTotal.value)
+	}
+	if (receiptPeriodSummaryPending.value) return '校验中'
+	if (receiptPeriodSummary.error && receiptPeriodSummary.key === receiptPeriodSummaryKey.value) return '汇总失败'
+	if (!receiptPeriodSummaryReady.value) return '待校验'
+	return formatOperationSummaryMoney(receiptOperationTargetTotal.value)
+})
+const receiptPeriodRangeHintText = computed(() => {
+	if (receiptPeriodSummaryPending.value) return '当前区间累计欠款：校验中'
+	if (receiptPeriodSummary.error && receiptPeriodSummary.key === receiptPeriodSummaryKey.value) return '当前区间累计欠款：汇总失败'
+	if (!receiptPeriodSummaryReady.value) return '当前区间累计欠款：待校验'
+	return `当前区间累计欠款：¥${formatMoney(receiptOperationTargetTotal.value)}（${receiptOperationTargetCount.value} 笔）`
+})
 const receiptEstimatedRemainingPrepay = computed(() => {
+	if (normalizeReceiptAllocationMode(receiptForm.allocationMode) === 'period') {
+		return receiptPeriodSummaryReady.value ? receiptPeriodSummary.prepayAmount : 0
+	}
 	const receiptAmount = operationPositiveAmount(receiptForm.amount)
 	if (!(receiptAmount > 0)) return 0
 	const targetAmount = toNumber(receiptOperationTargetTotal.value, 0)
 	return fix2(Math.max(receiptAmount - Math.max(targetAmount, 0), 0))
+})
+const receiptEstimatedRemainingPrepayValue = computed(() => {
+	if (normalizeReceiptAllocationMode(receiptForm.allocationMode) !== 'period') {
+		return formatOperationSummaryMoney(receiptEstimatedRemainingPrepay.value)
+	}
+	if (receiptPeriodSummaryPending.value) return '校验中'
+	if (receiptPeriodSummary.error && receiptPeriodSummary.key === receiptPeriodSummaryKey.value) return '汇总失败'
+	if (!receiptPeriodSummaryReady.value) return '待校验'
+	return formatOperationSummaryMoney(receiptEstimatedRemainingPrepay.value)
 })
 const receiptOperationSummaryItems = computed(() => {
 	return [
 		{
 			key: 'receipt-target',
 			label: '待冲欠款',
-			value: formatOperationSummaryMoney(receiptOperationTargetTotal.value),
+			value: receiptOperationTargetValue.value,
 			meta: receiptOperationTargetMeta.value,
-			tone: 'debt'
+			tone: 'debt',
+			pending: receiptPeriodSummaryPending.value
 		},
 		{
 			key: 'receipt-amount',
@@ -1729,32 +1737,53 @@ const receiptOperationSummaryItems = computed(() => {
 		{
 			key: 'receipt-prepay',
 			label: '预计剩余待分配',
-			value: formatOperationSummaryMoney(receiptEstimatedRemainingPrepay.value),
-			meta: '按当前选择自动估算',
+			value: receiptEstimatedRemainingPrepayValue.value,
+			meta: normalizeReceiptAllocationMode(receiptForm.allocationMode) === 'period' ? '按后端全量范围校验' : '按当前选择自动估算',
 			tone: 'result',
-			pending: operationPositiveAmount(receiptForm.amount) <= 0
+			pending: operationPositiveAmount(receiptForm.amount) <= 0 || receiptPeriodSummaryPending.value
 		}
 	]
 })
-const offsetOperationTargetTotal = computed(() => (
-	normalizeReceiptAllocationMode(offsetAllocateForm.allocationMode) === 'period'
-		? offsetPeriodRangeOutstandingTotal.value
-		: offsetCheckedTargetSelectedTotal.value
-))
-const offsetOperationTargetCount = computed(() => (
-	normalizeReceiptAllocationMode(offsetAllocateForm.allocationMode) === 'period'
-		? offsetPeriodRangeTargetCount.value
-		: offsetCheckedTargetSelectedCount.value
-))
+const offsetOperationTargetTotal = computed(() => {
+	if (normalizeReceiptAllocationMode(offsetAllocateForm.allocationMode) === 'period') {
+		return offsetPeriodSummaryReady.value ? offsetPeriodSummary.totalOutstanding : 0
+	}
+	return offsetCheckedTargetSelectedTotal.value
+})
+const offsetOperationTargetCount = computed(() => {
+	if (normalizeReceiptAllocationMode(offsetAllocateForm.allocationMode) === 'period') {
+		return offsetPeriodSummaryReady.value ? offsetPeriodSummary.targetCount : 0
+	}
+	return offsetCheckedTargetSelectedCount.value
+})
 const offsetOperationTargetMeta = computed(() => {
 	const mode = normalizeReceiptAllocationMode(offsetAllocateForm.allocationMode)
 	if (mode === 'period') {
 		const start = normalizeDate(offsetAllocateForm.allocationStartDate)
 		const end = normalizeDate(offsetAllocateForm.allocationEndDate)
 		const scope = start && end ? `${start} ~ ${end}` : '日期未完整'
+		if (!start || !end || start > end) return `${scope} · 待校验`
+		if (offsetPeriodSummaryPending.value) return `${scope} · 校验中`
+		if (offsetPeriodSummary.error && offsetPeriodSummary.key === offsetPeriodSummaryKey.value) return `${scope} · 汇总失败`
+		if (!offsetPeriodSummaryReady.value) return `${scope} · 待校验`
 		return `${scope} · ${offsetOperationTargetCount.value} 笔`
 	}
 	return `已选 ${offsetOperationTargetCount.value} 笔`
+})
+const offsetOperationTargetValue = computed(() => {
+	if (normalizeReceiptAllocationMode(offsetAllocateForm.allocationMode) !== 'period') {
+		return formatOperationSummaryMoney(offsetOperationTargetTotal.value)
+	}
+	if (offsetPeriodSummaryPending.value) return '校验中'
+	if (offsetPeriodSummary.error && offsetPeriodSummary.key === offsetPeriodSummaryKey.value) return '汇总失败'
+	if (!offsetPeriodSummaryReady.value) return '待校验'
+	return formatOperationSummaryMoney(offsetOperationTargetTotal.value)
+})
+const offsetPeriodRangeHintText = computed(() => {
+	if (offsetPeriodSummaryPending.value) return '当前区间累计欠款：校验中'
+	if (offsetPeriodSummary.error && offsetPeriodSummary.key === offsetPeriodSummaryKey.value) return '当前区间累计欠款：汇总失败'
+	if (!offsetPeriodSummaryReady.value) return '当前区间累计欠款：待校验'
+	return `当前区间累计欠款：¥${formatMoney(offsetOperationTargetTotal.value)}（${offsetOperationTargetCount.value} 笔）`
 })
 const offsetOperationAvailableAmount = computed(() => (
 	isOffsetAdjustmentActive.value
@@ -1769,6 +1798,11 @@ const offsetEstimatedAllocatableAmount = computed(() => {
 	return fix2(Math.min(amount, available, target))
 })
 const offsetEstimatedAllocatableText = computed(() => {
+	if (normalizeReceiptAllocationMode(offsetAllocateForm.allocationMode) === 'period') {
+		if (offsetPeriodSummaryPending.value) return '校验中'
+		if (offsetPeriodSummary.error && offsetPeriodSummary.key === offsetPeriodSummaryKey.value) return '汇总失败'
+		if (!offsetPeriodSummaryReady.value) return '待校验'
+	}
 	if (operationPositiveAmount(offsetAllocateForm.amount) <= 0) return '待输入'
 	if (toNumber(offsetOperationAvailableAmount.value, 0) <= 0) return '暂无来源'
 	if (toNumber(offsetOperationTargetTotal.value, 0) <= 0) return '暂无欠款'
@@ -1794,9 +1828,10 @@ const offsetOperationSummaryItems = computed(() => [
 	{
 		key: 'offset-target',
 		label: '待冲欠款',
-		value: formatOperationSummaryMoney(offsetOperationTargetTotal.value),
+		value: offsetOperationTargetValue.value,
 		meta: offsetOperationTargetMeta.value,
-		tone: 'debt'
+		tone: 'debt',
+		pending: offsetPeriodSummaryPending.value
 	},
 	{
 		key: 'offset-estimated',
@@ -1901,6 +1936,171 @@ function formatOperationSummaryInput(value, pendingText = '待输入') {
 	const amount = operationPositiveAmount(value)
 	if (!(amount > 0)) return pendingText
 	return formatOperationSummaryMoney(amount)
+}
+
+function createPeriodAllocationSummaryState() {
+	return {
+		key: '',
+		loading: false,
+		loaded: false,
+		error: '',
+		totalOutstanding: 0,
+		targetCount: 0,
+		targetDateStart: '',
+		targetDateEnd: '',
+		allocatedTotal: 0,
+		receiptAllocatedTotal: 0,
+		roundingAllocatedTotal: 0,
+		prepayAmount: 0
+	}
+}
+
+function resetPeriodAllocationSummary(state, key = '', loading = false) {
+	state.key = key
+	state.loading = loading
+	state.loaded = false
+	state.error = ''
+	state.totalOutstanding = 0
+	state.targetCount = 0
+	state.targetDateStart = ''
+	state.targetDateEnd = ''
+	state.allocatedTotal = 0
+	state.receiptAllocatedTotal = 0
+	state.roundingAllocatedTotal = 0
+	state.prepayAmount = 0
+}
+
+function normalizeSummaryAmount(value) {
+	const amount = Number(value)
+	if (!Number.isFinite(amount) || amount < 0) return 0
+	return fixCurrentMoney(amount)
+}
+
+function buildReceiptPeriodSummaryParams() {
+	const customerId = normalizeString(recordId.value)
+	const mode = normalizeReceiptAllocationMode(receiptForm.allocationMode)
+	const start = normalizeDate(receiptForm.allocationStartDate)
+	const end = normalizeDate(receiptForm.allocationEndDate)
+	if (!customerId || mode !== 'period' || !start || !end || start > end) return null
+	const amount = normalizeSummaryAmount(receiptForm.amount)
+	const roundingAmount = normalizeSummaryAmount(receiptForm.roundingAmount)
+	return {
+		key: ['receipt', customerId, start, end, amount, roundingAmount].join('|'),
+		customerId,
+		amount,
+		roundingAmount,
+		start,
+		end
+	}
+}
+
+function buildOffsetPeriodSummaryParams() {
+	const customerId = normalizeString(recordId.value)
+	const mode = normalizeReceiptAllocationMode(offsetAllocateForm.allocationMode)
+	const start = normalizeDate(offsetAllocateForm.allocationStartDate)
+	const end = normalizeDate(offsetAllocateForm.allocationEndDate)
+	if (!customerId || mode !== 'period' || !start || !end || start > end) return null
+	const amount = normalizeSummaryAmount(offsetAllocateForm.amount)
+	return {
+		key: ['offset', customerId, start, end, amount].join('|'),
+		customerId,
+		amount,
+		roundingAmount: 0,
+		start,
+		end
+	}
+}
+
+function buildReceiptPeriodSummaryKey() {
+	return buildReceiptPeriodSummaryParams()?.key || ''
+}
+
+function buildOffsetPeriodSummaryKey() {
+	return buildOffsetPeriodSummaryParams()?.key || ''
+}
+
+function applyPeriodAllocationSummaryPlan(state, key, plan = {}) {
+	if (!key) return
+	state.key = key
+	state.loading = false
+	state.loaded = true
+	state.error = ''
+	state.totalOutstanding = fixCurrentMoney(toNumber(plan?.total_outstanding_before, 0))
+	state.targetCount = Math.max(toNumber(plan?.target_count, 0), 0)
+	state.targetDateStart = normalizeDate(plan?.target_date_start)
+	state.targetDateEnd = normalizeDate(plan?.target_date_end)
+	state.allocatedTotal = fixCurrentMoney(toNumber(plan?.allocated_total, 0))
+	state.receiptAllocatedTotal = fixCurrentMoney(toNumber(plan?.receipt_allocated_total, 0))
+	state.roundingAllocatedTotal = fixCurrentMoney(toNumber(plan?.rounding_allocated_total, 0))
+	state.prepayAmount = fixCurrentMoney(toNumber(plan?.prepay_amount, 0))
+}
+
+function failPeriodAllocationSummary(state, key, err) {
+	if (state.key !== key) return
+	state.loading = false
+	state.loaded = false
+	state.error = normalizeString(err?.message || err) || '汇总失败'
+}
+
+async function loadPeriodAllocationSummary(state, params) {
+	if (!params?.key) return
+	try {
+		const res = await previewAllocationV1({
+			customerId: params.customerId,
+			amount: params.amount,
+			roundingAmount: params.roundingAmount,
+			allocationMode: 'period',
+			allocationStartDate: params.start,
+			allocationEndDate: params.end,
+			summaryOnly: true
+		})
+		if (state.key !== params.key) return
+		if (res?.code !== 0) {
+			failPeriodAllocationSummary(state, params.key, res?.msg || '汇总失败')
+			return
+		}
+		applyPeriodAllocationSummaryPlan(state, params.key, res?.data || {})
+	} catch (err) {
+		failPeriodAllocationSummary(state, params.key, err)
+	}
+}
+
+function scheduleReceiptPeriodSummary() {
+	if (receiptPeriodSummaryTimer) clearTimeout(receiptPeriodSummaryTimer)
+	const params = buildReceiptPeriodSummaryParams()
+	if (!params) {
+		resetPeriodAllocationSummary(receiptPeriodSummary)
+		return
+	}
+	resetPeriodAllocationSummary(receiptPeriodSummary, params.key, true)
+	receiptPeriodSummaryTimer = setTimeout(() => {
+		loadPeriodAllocationSummary(receiptPeriodSummary, params)
+	}, 350)
+}
+
+function scheduleOffsetPeriodSummary() {
+	if (offsetPeriodSummaryTimer) clearTimeout(offsetPeriodSummaryTimer)
+	const params = buildOffsetPeriodSummaryParams()
+	if (!params) {
+		resetPeriodAllocationSummary(offsetPeriodSummary)
+		return
+	}
+	resetPeriodAllocationSummary(offsetPeriodSummary, params.key, true)
+	offsetPeriodSummaryTimer = setTimeout(() => {
+		loadPeriodAllocationSummary(offsetPeriodSummary, params)
+	}, 350)
+}
+
+function syncReceiptPeriodSummaryFromPlan(plan) {
+	const params = buildReceiptPeriodSummaryParams()
+	if (!params) return
+	applyPeriodAllocationSummaryPlan(receiptPeriodSummary, params.key, plan || {})
+}
+
+function syncOffsetPeriodSummaryFromPlan(plan) {
+	const params = buildOffsetPeriodSummaryParams()
+	if (!params) return
+	applyPeriodAllocationSummaryPlan(offsetPeriodSummary, params.key, plan || {})
 }
 
 function normalizeDecimalText(value) {
@@ -3775,6 +3975,7 @@ async function onPreview() {
 			return
 		}
 		previewPlan.value = res.data || null
+		if (allocationPayload.allocationMode === 'period') syncReceiptPeriodSummaryFromPlan(res.data || {})
 		const alloc = Array.isArray(res?.data?.allocations) ? res.data.allocations : []
 		editableAllocations.value = alloc.map((item) => {
 			const targetType = normalizeString(item.target_type) || 'sale'
@@ -3896,6 +4097,7 @@ async function confirmReceiptPrepayIfNeeded(amount, roundingAmount, allocationPa
 		return false
 	}
 	const plan = res.data || null
+	if (allocationPayload.allocationMode === 'period') syncReceiptPeriodSummaryFromPlan(plan || {})
 	const prepayAmount = toNumber(plan?.prepay_amount, 0)
 	if (!(prepayAmount > 0)) return true
 	previewPlan.value = plan
@@ -4656,6 +4858,7 @@ async function onAllocateOffsetCredit() {
 			uni.showToast({ title: previewRes?.msg || '冲抵分配失败', icon: 'none' })
 			return
 		}
+		if (allocationPayload.allocationMode === 'period') syncOffsetPeriodSummaryFromPlan(previewRes?.data || {})
 		const maxAllocatable = toNumber(previewRes?.data?.allocated_total, 0)
 		if (!(maxAllocatable > 0)) {
 			uni.showToast({
@@ -5004,6 +5207,35 @@ watch(
 	}
 )
 
+watch(
+	() => [
+		recordId.value,
+		receiptForm.allocationMode,
+		receiptForm.allocationStartDate,
+		receiptForm.allocationEndDate,
+		receiptForm.amount,
+		receiptForm.roundingAmount
+	],
+	() => {
+		scheduleReceiptPeriodSummary()
+	},
+	{ immediate: true }
+)
+
+watch(
+	() => [
+		recordId.value,
+		offsetAllocateForm.allocationMode,
+		offsetAllocateForm.allocationStartDate,
+		offsetAllocateForm.allocationEndDate,
+		offsetAllocateForm.amount
+	],
+	() => {
+		scheduleOffsetPeriodSummary()
+	},
+	{ immediate: true }
+)
+
 onMounted(() => {
 	if (!receiptForm.bizDate) receiptForm.bizDate = todayYmd()
 	if (!prepayForm.bizDate) prepayForm.bizDate = todayYmd()
@@ -5011,6 +5243,11 @@ onMounted(() => {
 	if (!flowForm.bizDate) flowForm.bizDate = todayYmd()
 	if (!openingDebtForm.bizDate) openingDebtForm.bizDate = todayYmd()
 	if (!otherFeeForm.bizDate) otherFeeForm.bizDate = todayYmd()
+})
+
+onBeforeUnmount(() => {
+	if (receiptPeriodSummaryTimer) clearTimeout(receiptPeriodSummaryTimer)
+	if (offsetPeriodSummaryTimer) clearTimeout(offsetPeriodSummaryTimer)
 })
 </script>
 

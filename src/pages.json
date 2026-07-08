@@ -157,6 +157,12 @@
 			}
 		},
 		{
+			"path": "pages/rfid/sessions",
+			"style": {
+				"navigationBarTitleText": "RFID 门口盘点"
+			}
+		},
+		{
 			"path": "pages/delivery/list",
 			"style": {
 				"navigationBarTitleText": "配送员列表"

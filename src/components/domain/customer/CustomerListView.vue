@@ -755,7 +755,11 @@ async function onExportDebtSnapshot() {
 	exportingDebtSnapshot.value = true
 	uni.showLoading({ title: '正在导出欠款表...', mask: true })
 	try {
-		const res = await exportCustomerDebtSnapshotV1()
+		const statementPeriod = resolveStatementExportPeriod()
+		const res = await exportCustomerDebtSnapshotV1({
+			dateFrom: statementPeriod.dateFrom,
+			dateTo: statementPeriod.dateTo
+		})
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '未结清欠款表导出失败', icon: 'none' })
 			return

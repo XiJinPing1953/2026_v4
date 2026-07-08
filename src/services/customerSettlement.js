@@ -13,7 +13,8 @@ export async function previewAllocationV1(params = {}) {
 			allocation_targets: Array.isArray(params.allocationTargets || params.allocation_targets)
 				? (params.allocationTargets || params.allocation_targets)
 				: [],
-			allocations: Array.isArray(params.allocations) ? params.allocations : []
+			allocations: Array.isArray(params.allocations) ? params.allocations : [],
+			summary_only: Boolean(params.summaryOnly ?? params.summary_only)
 		}
 	})
 }
@@ -477,7 +478,10 @@ export async function exportCustomerAccountingLedgerV1(params = {}) {
 export async function exportCustomerDebtSnapshotV1(params = {}) {
 	return callCloud('crm-customer-settlement', {
 		action: 'exportCustomerDebtSnapshotV1',
-		data: {},
+		data: {
+			date_from: params.dateFrom || params.date_from || '',
+			date_to: params.dateTo || params.date_to || ''
+		},
 		timeout: params.timeout || 30000
 	})
 }
