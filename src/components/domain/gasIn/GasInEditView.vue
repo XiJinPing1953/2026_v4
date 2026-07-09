@@ -55,11 +55,14 @@
 					<AppInput v-model="form.gross_weight_t" label="出厂毛重(吨)" placeholder="例如 44.590" size="sm" />
 					<AppInput v-model="form.tare_weight_t" label="回厂皮重(吨)" placeholder="例如 23.490" size="sm" />
 					<AppInput v-model="form.net_weight_t" label="净重(吨)" placeholder="自动计算，可手改" size="sm" @input="onManualInput('net_weight_t')" />
+					<AppInput v-model="form.station_weight_t" label="站内卸入(吨)" placeholder="默认等于净重" size="sm" @input="onManualInput('station_weight_t')" />
+					<AppInput v-model="form.direct_sale_weight_t" label="直销随车(吨)" placeholder="默认 0" size="sm" @input="onManualInput('direct_sale_weight_t')" />
 					<AppInput v-model="form.loss_amount_t" label="损耗(吨)" placeholder="自动计算，可手改" size="sm" @input="onManualInput('loss_amount_t')" />
 					<AppInput v-model="form.unit_price_per_ton" label="单价(元/吨)" placeholder="例如 3250" size="sm" />
 					<AppInput v-model="form.amount" label="金额(元)" placeholder="自动计算，可手改" size="sm" @input="onManualInput('amount')" />
 				</view>
 				<text v-if="lossWarning" class="warning-text">提示：当前为负损耗，请确认过磅数据</text>
+				<text v-if="splitWarning" class="warning-text">提示：站内卸入 + 直销随车 必须等于净重</text>
 			</AppSection>
 
 			<AppSection title="补充信息">
@@ -145,6 +148,8 @@ const form = reactive({
 	gross_weight_t: '',
 	tare_weight_t: '',
 	net_weight_t: '',
+	station_weight_t: '',
+	direct_sale_weight_t: '',
 	loss_amount_t: '',
 	unit_price_per_ton: '',
 	amount: '',
@@ -155,6 +160,8 @@ const form = reactive({
 
 const manualOverride = reactive({
 	net_weight_t: false,
+	station_weight_t: false,
+	direct_sale_weight_t: false,
 	loss_amount_t: false,
 	amount: false
 })
@@ -176,6 +183,14 @@ const lossWarning = computed(() => {
 	return loss != null && loss < 0
 })
 
+const splitWarning = computed(() => {
+	const net = toNumber(form.net_weight_t, null)
+	const station = toNumber(form.station_weight_t, null)
+	const directSale = toNumber(form.direct_sale_weight_t, null)
+	if (net == null || station == null || directSale == null) return false
+	return Math.abs(roundTo(station + directSale - net, 3)) > 0.001
+})
+
 function applyAutoCalculations() {
 	const gross = toNumber(form.gross_weight_t, null)
 	const tare = toNumber(form.tare_weight_t, null)
@@ -190,6 +205,14 @@ function applyAutoCalculations() {
 	}
 
 	const finalNet = toNumber(form.net_weight_t, null)
+	const station = toNumber(form.station_weight_t, null)
+	const directSale = toNumber(form.direct_sale_weight_t, 0) || 0
+	if (finalNet != null && !manualOverride.station_weight_t) {
+		form.station_weight_t = String(roundTo(finalNet - directSale, 3))
+	}
+	if (finalNet != null && manualOverride.station_weight_t && !manualOverride.direct_sale_weight_t && station != null) {
+		form.direct_sale_weight_t = String(roundTo(finalNet - station, 3))
+	}
 	if (!manualOverride.loss_amount_t && load != null && finalNet != null) {
 		form.loss_amount_t = String(roundTo(load - finalNet, 3))
 	}
@@ -209,12 +232,16 @@ watch(
 function onManualInput(field) {
 	if (!field) return
 	manualOverride[field] = true
+	applyAutoCalculations()
 }
 
 function resetAutoCalc() {
 	manualOverride.net_weight_t = false
+	manualOverride.station_weight_t = false
+	manualOverride.direct_sale_weight_t = false
 	manualOverride.loss_amount_t = false
 	manualOverride.amount = false
+	form.direct_sale_weight_t = '0'
 	applyAutoCalculations()
 }
 
@@ -232,6 +259,8 @@ function buildSubmitPayload() {
 		gross_weight_t: toNumber(form.gross_weight_t, null),
 		tare_weight_t: toNumber(form.tare_weight_t, null),
 		net_weight_t: toNumber(form.net_weight_t, null),
+		station_weight_t: toNumber(form.station_weight_t, null),
+		direct_sale_weight_t: toNumber(form.direct_sale_weight_t, 0) || 0,
 		loss_amount_t: toNumber(form.loss_amount_t, null),
 		unit_price_per_ton: toNumber(form.unit_price_per_ton, null),
 		amount: toNumber(form.amount, null),
@@ -247,6 +276,12 @@ function validatePayload(payload) {
 	if (payload.load_weight_t == null) return '装载重量必填'
 	if (payload.gross_weight_t == null) return '出厂毛重必填'
 	if (payload.tare_weight_t == null) return '回厂皮重必填'
+	if (payload.station_weight_t == null) return '站内卸入必填'
+	if (payload.station_weight_t < 0) return '站内卸入不能为负数'
+	if (payload.direct_sale_weight_t < 0) return '直销随车不能为负数'
+	if (Math.abs(roundTo(payload.station_weight_t + payload.direct_sale_weight_t - payload.net_weight_t, 3)) > 0.001) {
+		return '站内卸入 + 直销随车 必须等于净重'
+	}
 	if (payload.unit_price_per_ton == null) return '单价必填'
 	return ''
 }
@@ -303,6 +338,8 @@ function applyDetail(doc = {}) {
 	form.gross_weight_t = formatTon(doc.gross_weight_t)
 	form.tare_weight_t = formatTon(doc.tare_weight_t)
 	form.net_weight_t = formatTon(doc.net_weight_t)
+	form.station_weight_t = formatTon(doc.station_weight_t == null ? doc.net_weight_t : doc.station_weight_t)
+	form.direct_sale_weight_t = formatTon(doc.direct_sale_weight_t == null ? 0 : doc.direct_sale_weight_t)
 	form.loss_amount_t = formatTon(doc.loss_amount_t)
 	form.unit_price_per_ton = formatMoney(doc.unit_price_per_ton)
 	form.amount = formatMoney(doc.amount)
@@ -310,6 +347,8 @@ function applyDetail(doc = {}) {
 	form.factory = normalizeString(doc.factory)
 	form.remark = normalizeString(doc.remark)
 	manualOverride.net_weight_t = false
+	manualOverride.station_weight_t = false
+	manualOverride.direct_sale_weight_t = false
 	manualOverride.loss_amount_t = false
 	manualOverride.amount = false
 }

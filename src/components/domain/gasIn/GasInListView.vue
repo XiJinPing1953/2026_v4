@@ -27,7 +27,9 @@
 					</view>
 					<view class="summary-row summary-row--flow">
 						<AppStatCard class="summary-card" label="入库车次" :value="summary.total" hint="条" icon="list" />
-						<AppStatCard class="summary-card" label="入库净重" :value="formatTonText(summary.netWeightTTotal)" hint="吨" icon="chart" />
+						<AppStatCard class="summary-card" label="采购净重" :value="formatTonText(summary.netWeightTTotal)" hint="吨" icon="chart" />
+						<AppStatCard class="summary-card" label="站内卸入" :value="formatTonText(summary.stationWeightTTotal)" hint="吨" icon="check-circle" />
+						<AppStatCard class="summary-card" label="直销随车" :value="formatTonText(summary.directSaleWeightTTotal)" hint="吨" icon="truck" />
 						<AppStatCard class="summary-card" label="入库金额" :value="formatMoneyText(summary.amountTotal)" hint="元" icon="wallet" />
 						<AppStatCard class="summary-card" label="采购均价" :value="formatMoneyText(summary.avgPricePerTon)" hint="元/吨" icon="chart" />
 						<AppStatCard class="summary-card" label="损耗率" :value="formatPercentText(summary.lossRate)" hint="%" icon="alert" />
@@ -140,6 +142,8 @@
 						<template #meta>
 							<view class="meta-tags">
 								<AppTag kind="soft">{{ item.product_name || 'LNG' }}</AppTag>
+								<AppTag kind="soft">站内卸入: {{ formatTonText(item.station_weight_t == null ? item.net_weight_t : item.station_weight_t) }} 吨</AppTag>
+								<AppTag v-if="toNumber(item.direct_sale_weight_t, 0) > 0" kind="warning">直销随车: {{ formatTonText(item.direct_sale_weight_t) }} 吨</AppTag>
 								<AppTag kind="soft">单价: {{ formatMoneyText(item.unit_price_per_ton) }} 元/吨</AppTag>
 								<AppTag kind="soft">金额: {{ formatMoneyText(item.amount) }} 元</AppTag>
 								<AppTag v-if="item.loss_amount_t < 0" kind="warning">负损耗</AppTag>
@@ -239,6 +243,8 @@ const summary = reactive({
 	total: 0,
 	loadWeightTTotal: 0,
 	netWeightTTotal: 0,
+	stationWeightTTotal: 0,
+	directSaleWeightTTotal: 0,
 	lossAmountTTotal: 0,
 	avgPricePerTon: 0,
 	lossRate: 0,
@@ -477,6 +483,8 @@ const { loading, run: fetchList } = useQuery(
 				total: Number(res.total || 0),
 				load_weight_t_total: 0,
 				net_weight_t_total: 0,
+				station_weight_t_total: 0,
+				direct_sale_weight_t_total: 0,
 				loss_amount_t_total: 0,
 				avg_price_per_ton: 0,
 				loss_rate: 0,
@@ -520,6 +528,8 @@ function applyResult(payload = {}) {
 	summary.total = Number(s.total || 0)
 	summary.loadWeightTTotal = Number(s.load_weight_t_total || 0)
 	summary.netWeightTTotal = Number(s.net_weight_t_total || 0)
+	summary.stationWeightTTotal = Number(s.station_weight_t_total || 0)
+	summary.directSaleWeightTTotal = Number(s.direct_sale_weight_t_total || 0)
 	summary.lossAmountTTotal = Number(s.loss_amount_t_total || 0)
 	summary.avgPricePerTon = Number(s.avg_price_per_ton || 0)
 	summary.lossRate = Number(s.loss_rate || 0)
@@ -713,7 +723,9 @@ function buildExportCsv(rows = []) {
 		{ label: '装载重量(吨)', get: (row) => formatTonText(row.load_weight_t) },
 		{ label: '出厂毛重(吨)', get: (row) => formatTonText(row.gross_weight_t) },
 		{ label: '回厂皮重(吨)', get: (row) => formatTonText(row.tare_weight_t) },
-		{ label: '净重(吨)', get: (row) => formatTonText(row.net_weight_t) },
+		{ label: '采购净重(吨)', get: (row) => formatTonText(row.net_weight_t) },
+		{ label: '站内卸入(吨)', get: (row) => formatTonText(row.station_weight_t == null ? row.net_weight_t : row.station_weight_t) },
+		{ label: '直销随车(吨)', get: (row) => formatTonText(row.direct_sale_weight_t) },
 		{ label: '损耗(吨)', get: (row) => formatTonText(row.loss_amount_t) },
 		{ label: '单价(元/吨)', get: (row) => formatMoneyText(row.unit_price_per_ton) },
 		{ label: '金额(元)', get: (row) => formatMoneyText(row.amount) },

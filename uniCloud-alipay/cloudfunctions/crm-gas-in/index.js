@@ -378,6 +378,8 @@ function normalizeGasInPatch(data = {}, { forUpdate = false } = {}) {
 	if (!forUpdate || hasOwn(data, 'gross_weight_t')) patch.gross_weight_t = normalizeGasNumberField(data.gross_weight_t, 3)
 	if (!forUpdate || hasOwn(data, 'tare_weight_t')) patch.tare_weight_t = normalizeGasNumberField(data.tare_weight_t, 3)
 	if (!forUpdate || hasOwn(data, 'net_weight_t')) patch.net_weight_t = normalizeGasNumberField(data.net_weight_t, 3)
+	if (!forUpdate || hasOwn(data, 'station_weight_t')) patch.station_weight_t = normalizeGasNumberField(data.station_weight_t, 3)
+	if (!forUpdate || hasOwn(data, 'direct_sale_weight_t')) patch.direct_sale_weight_t = normalizeGasNumberField(data.direct_sale_weight_t, 3)
 	if (!forUpdate || hasOwn(data, 'loss_amount_t')) patch.loss_amount_t = normalizeGasNumberField(data.loss_amount_t, 3)
 	if (!forUpdate || hasOwn(data, 'unit_price_per_ton')) {
 		patch.unit_price_per_ton = normalizeGasNumberField(data.unit_price_per_ton, 2)
@@ -402,12 +404,26 @@ function finalizeGasInDoc(rawDoc = {}, manualFlags = {}) {
 	doc.gross_weight_t = normalizeGasNumberField(doc.gross_weight_t, 3)
 	doc.tare_weight_t = normalizeGasNumberField(doc.tare_weight_t, 3)
 	doc.net_weight_t = normalizeGasNumberField(doc.net_weight_t, 3)
+	doc.station_weight_t = normalizeGasNumberField(doc.station_weight_t, 3)
+	doc.direct_sale_weight_t = normalizeGasNumberField(doc.direct_sale_weight_t, 3)
 	doc.loss_amount_t = normalizeGasNumberField(doc.loss_amount_t, 3)
 	doc.unit_price_per_ton = normalizeGasNumberField(doc.unit_price_per_ton, 2)
 	doc.amount = normalizeGasNumberField(doc.amount, 2)
 
 	if (!manualFlags.net_weight_t && Number.isFinite(doc.gross_weight_t) && Number.isFinite(doc.tare_weight_t)) {
 		doc.net_weight_t = roundTon(doc.gross_weight_t - doc.tare_weight_t)
+	}
+	if (Number.isFinite(doc.net_weight_t)) {
+		const hasStationWeight = Number.isFinite(doc.station_weight_t)
+		const hasDirectSaleWeight = Number.isFinite(doc.direct_sale_weight_t)
+		if (!hasStationWeight && !hasDirectSaleWeight) {
+			doc.station_weight_t = doc.net_weight_t
+			doc.direct_sale_weight_t = 0
+		} else if (!hasStationWeight) {
+			doc.station_weight_t = roundTon(doc.net_weight_t - doc.direct_sale_weight_t)
+		} else if (!hasDirectSaleWeight) {
+			doc.direct_sale_weight_t = roundTon(doc.net_weight_t - doc.station_weight_t)
+		}
 	}
 	if (!manualFlags.loss_amount_t && Number.isFinite(doc.load_weight_t) && Number.isFinite(doc.net_weight_t)) {
 		doc.loss_amount_t = roundTon(doc.load_weight_t - doc.net_weight_t)
@@ -434,6 +450,8 @@ function validateGasInDoc(doc = {}) {
 		['gross_weight_t', '出厂毛重(吨)'],
 		['tare_weight_t', '回厂皮重(吨)'],
 		['net_weight_t', '净重(吨)'],
+		['station_weight_t', '站内卸入(吨)'],
+		['direct_sale_weight_t', '直销随车(吨)'],
 		['loss_amount_t', '损耗(吨)'],
 		['unit_price_per_ton', '单价(元/吨)'],
 		['amount', '金额(元)']
@@ -450,12 +468,17 @@ function validateGasInDoc(doc = {}) {
 		['gross_weight_t', '出厂毛重(吨)'],
 		['tare_weight_t', '回厂皮重(吨)'],
 		['net_weight_t', '净重(吨)'],
+		['station_weight_t', '站内卸入(吨)'],
+		['direct_sale_weight_t', '直销随车(吨)'],
 		['unit_price_per_ton', '单价(元/吨)'],
 		['amount', '金额(元)']
 	]
 	for (let i = 0; i < nonNegativeFields.length; i += 1) {
 		const [key, label] = nonNegativeFields[i]
 		if (doc[key] < 0) return `${label}不能为负数`
+	}
+	if (Math.abs(roundTon(doc.station_weight_t + doc.direct_sale_weight_t - doc.net_weight_t)) > 0.001) {
+		return '站内卸入 + 直销随车 必须等于采购净重'
 	}
 
 	return ''
@@ -544,6 +567,8 @@ async function summarizeGasInWhere(where) {
 	const summary = {
 		load_weight_t_total: 0,
 		net_weight_t_total: 0,
+		station_weight_t_total: 0,
+		direct_sale_weight_t_total: 0,
 		loss_amount_t_total: 0,
 		avg_price_per_ton: 0,
 		loss_rate: 0,
@@ -554,7 +579,7 @@ async function summarizeGasInWhere(where) {
 		rowsRes = await scanRows({
 			collection: gasIn,
 			where,
-			field: { load_weight_t: true, net_weight_t: true, loss_amount_t: true, amount: true },
+			field: { load_weight_t: true, net_weight_t: true, station_weight_t: true, direct_sale_weight_t: true, loss_amount_t: true, amount: true },
 			orderBy: [{ key: 'date', order: 'desc' }, { key: 'created_at', order: 'desc' }],
 			limit: SUMMARY_SCAN_LIMIT,
 			pageSize: 400
@@ -567,13 +592,18 @@ async function summarizeGasInWhere(where) {
 	const rows = rowsRes.data || []
 	for (let i = 0; i < rows.length; i += 1) {
 		const row = rows[i] || {}
+		const normalized = normalizeGasInRow(row)
 		summary.load_weight_t_total += toNumber(row.load_weight_t, 0) || 0
 		summary.net_weight_t_total += toNumber(row.net_weight_t, 0) || 0
+		summary.station_weight_t_total += toNumber(normalized.station_weight_t, 0) || 0
+		summary.direct_sale_weight_t_total += toNumber(normalized.direct_sale_weight_t, 0) || 0
 		summary.loss_amount_t_total += toNumber(row.loss_amount_t, 0) || 0
 		summary.amount_total += toNumber(row.amount, 0) || 0
 	}
 	summary.load_weight_t_total = roundTon(summary.load_weight_t_total)
 	summary.net_weight_t_total = roundTon(summary.net_weight_t_total)
+	summary.station_weight_t_total = roundTon(summary.station_weight_t_total)
+	summary.direct_sale_weight_t_total = roundTon(summary.direct_sale_weight_t_total)
 	summary.loss_amount_t_total = roundTon(summary.loss_amount_t_total)
 	summary.amount_total = roundMoney(summary.amount_total)
 	summary.avg_price_per_ton = summary.net_weight_t_total
@@ -651,6 +681,9 @@ function resolveInventoryContribution(row = {}) {
 		vehicle = roundTon(-station)
 	} else if (movementKind === 'sale_truck') {
 		vehicle = roundTon(asset)
+	} else if (movementKind === 'gas_in') {
+		const directSaleWeight = toNumber(meta.direct_sale_weight_t, null)
+		vehicle = roundTon(Number.isFinite(directSaleWeight) ? directSaleWeight : Math.max(asset - station, 0))
 	} else if (movementKind === 'filling_normal_fill' && (inventoryScope === 'truck' || looksLikeTruckNo(bottleNo))) {
 		inBottle = 0
 		vehicle = roundTon(-station)
@@ -667,6 +700,19 @@ function resolveInventoryContribution(row = {}) {
 function normalizeGasInRow(row = {}) {
 	const doc = row && typeof row === 'object' ? { ...row } : {}
 	const lossAmount = toNumber(doc.loss_amount_t, null)
+	const netWeight = toNumber(doc.net_weight_t, null)
+	let directSaleWeight = toNumber(doc.direct_sale_weight_t, null)
+	let stationWeight = toNumber(doc.station_weight_t, null)
+	if (Number.isFinite(netWeight)) {
+		if (!Number.isFinite(directSaleWeight) && Number.isFinite(stationWeight)) {
+			directSaleWeight = roundTon(netWeight - stationWeight)
+		} else if (!Number.isFinite(directSaleWeight)) {
+			directSaleWeight = 0
+		}
+		if (!Number.isFinite(stationWeight)) {
+			stationWeight = roundTon(netWeight - directSaleWeight)
+		}
+	}
 	return {
 		...doc,
 		product_name: normalizeString(doc.product_name) || DEFAULT_PRODUCT_NAME,
@@ -675,6 +721,8 @@ function normalizeGasInRow(row = {}) {
 		sender: normalizeString(doc.sender),
 		factory: normalizeString(doc.factory),
 		remark: normalizeString(doc.remark),
+		station_weight_t: Number.isFinite(stationWeight) ? roundTon(stationWeight) : null,
+		direct_sale_weight_t: Number.isFinite(directSaleWeight) ? roundTon(directSaleWeight) : null,
 		warning: Number.isFinite(lossAmount) && lossAmount < 0 ? 'loss_negative' : ''
 	}
 }
@@ -721,12 +769,16 @@ async function removeGasInventoryMovementsBySource(sourceType, sourceId) {
 		.remove()
 }
 
-async function replaceGasInInboundMovement({ sourceId, date, netWeightT, note, user }) {
+async function replaceGasInInboundMovement({ sourceId, date, netWeightT, stationWeightT, directSaleWeightT, note, user }) {
 	const normalizedSourceId = normalizeString(sourceId)
 	if (!normalizedSourceId) return
 	await removeGasInventoryMovementsBySource('gas_in', normalizedSourceId)
 	const net = toNumber(netWeightT, null)
 	if (!(typeof net === 'number' && Number.isFinite(net) && net !== 0)) return
+	const directSale = Math.max(toNumber(directSaleWeightT, 0) || 0, 0)
+	const station = Number.isFinite(toNumber(stationWeightT, null))
+		? toNumber(stationWeightT, 0)
+		: roundTon(net - directSale)
 	const now = Date.now()
 	await gasInventoryMovements.add(
 		buildMovementDoc({
@@ -736,10 +788,14 @@ async function replaceGasInInboundMovement({ sourceId, date, netWeightT, note, u
 			sourceId: normalizedSourceId,
 			movementKind: 'gas_in',
 			assetDeltaT: net,
-			stationDeltaT: net,
+			stationDeltaT: station,
 			inBottleDeltaT: 0,
 			note: normalizeString(note) || '天然气入库',
-			meta: {},
+			meta: {
+				net_weight_t: roundTon(net),
+				station_weight_t: roundTon(station),
+				direct_sale_weight_t: roundTon(directSale)
+			},
 			createdAt: now,
 			user
 		})
@@ -818,7 +874,24 @@ function buildSaleGasMovementCandidate(row = {}) {
 		const truckReferenceNet = outGross != null && backGross != null
 			? Math.max(outGross - backGross, 0)
 			: toNumber(row.truck_gross_diff, toNumber(row.truck_sale_net, null))
-		saleNetKg = truckReferenceNet != null && truckReferenceNet > 0 ? truckReferenceNet : outNetKg
+		const hasTruckSettlementBasis =
+			row.truck_settle_tare != null
+			|| row.truck_settle_gross != null
+			|| row.truck_loss_kg != null
+		const truckSettlementNet = hasTruckSettlementBasis
+			? Math.max(
+				toNumber(
+					(toNumber(row.truck_settle_gross, null) != null && toNumber(row.truck_settle_tare, null) != null)
+						? (toNumber(row.truck_settle_gross, 0) - toNumber(row.truck_settle_tare, 0))
+						: row.truck_sale_net,
+					0
+				),
+				0
+			)
+			: 0
+		saleNetKg = truckSettlementNet > 0
+			? truckSettlementNet
+			: truckReferenceNet != null && truckReferenceNet > 0 ? truckReferenceNet : outNetKg
 		movementKind = 'sale_truck'
 	} else {
 		saleNetKg = outNetKg - backNetKg
@@ -1150,6 +1223,8 @@ async function buildRebuildMovementDocs({ dateStart = '', dateEnd = '', includeC
 				_id: true,
 				date: true,
 				net_weight_t: true,
+				station_weight_t: true,
+				direct_sale_weight_t: true,
 				remark: true,
 				created_at: true,
 				created_by: true,
@@ -1191,6 +1266,9 @@ async function buildRebuildMovementDocs({ dateStart = '', dateEnd = '', includeC
 				truck_sale_net: true,
 				truck_out_gross: true,
 				truck_back_gross: true,
+				truck_settle_tare: true,
+				truck_settle_gross: true,
+				truck_loss_kg: true,
 				remark: true,
 				created_at: true,
 				created_by: true,
@@ -1215,7 +1293,10 @@ async function buildRebuildMovementDocs({ dateStart = '', dateEnd = '', includeC
 		const row = gasInRows[i] || {}
 		const sourceId = normalizeString(row._id)
 		if (!sourceId) continue
-		const net = toNumber(row.net_weight_t, 0) || 0
+		const normalizedGasIn = normalizeGasInRow(row)
+		const net = toNumber(normalizedGasIn.net_weight_t, 0) || 0
+		const station = toNumber(normalizedGasIn.station_weight_t, net) || 0
+		const directSale = toNumber(normalizedGasIn.direct_sale_weight_t, 0) || 0
 		if (net === 0) continue
 		const createdAt = Number(row.created_at) || Date.now()
 		movementDocs.push(
@@ -1226,10 +1307,14 @@ async function buildRebuildMovementDocs({ dateStart = '', dateEnd = '', includeC
 				sourceId,
 				movementKind: 'gas_in',
 				assetDeltaT: net,
-				stationDeltaT: net,
+				stationDeltaT: station,
 				inBottleDeltaT: 0,
 				note: normalizeString(row.remark) || '天然气入库',
-				meta: {},
+				meta: {
+					net_weight_t: roundTon(net),
+					station_weight_t: roundTon(station),
+					direct_sale_weight_t: roundTon(directSale)
+				},
 				createdAt,
 				createdBy: row.created_by,
 				createdByName: row.created_by_name
@@ -1389,6 +1474,8 @@ async function listV1(user, data) {
 				total: 0,
 				load_weight_t_total: 0,
 				net_weight_t_total: 0,
+				station_weight_t_total: 0,
+				direct_sale_weight_t_total: 0,
 				loss_amount_t_total: 0,
 				avg_price_per_ton: 0,
 				loss_rate: 0,
@@ -1438,6 +1525,8 @@ async function listV1(user, data) {
 			total,
 			load_weight_t_total: Number(summary.load_weight_t_total || 0),
 			net_weight_t_total: Number(summary.net_weight_t_total || 0),
+			station_weight_t_total: Number(summary.station_weight_t_total || 0),
+			direct_sale_weight_t_total: Number(summary.direct_sale_weight_t_total || 0),
 			loss_amount_t_total: Number(summary.loss_amount_t_total || 0),
 			avg_price_per_ton: Number(summary.avg_price_per_ton || 0),
 			loss_rate: Number(summary.loss_rate || 0),
@@ -1530,6 +1619,8 @@ async function createV1(user, data, requestId) {
 		sourceId: addRes.id,
 		date: saveDoc.date,
 		netWeightT: saveDoc.net_weight_t,
+		stationWeightT: saveDoc.station_weight_t,
+		directSaleWeightT: saveDoc.direct_sale_weight_t,
 		note: saveDoc.remark,
 		user
 	})
@@ -1584,6 +1675,8 @@ async function updateV1(user, data, requestId) {
 		gross_weight_t: doc.gross_weight_t,
 		tare_weight_t: doc.tare_weight_t,
 		net_weight_t: doc.net_weight_t,
+		station_weight_t: doc.station_weight_t,
+		direct_sale_weight_t: doc.direct_sale_weight_t,
 		loss_amount_t: doc.loss_amount_t,
 		unit_price_per_ton: doc.unit_price_per_ton,
 		amount: doc.amount,
@@ -1597,6 +1690,8 @@ async function updateV1(user, data, requestId) {
 		sourceId: id,
 		date: updateDoc.date,
 		netWeightT: updateDoc.net_weight_t,
+		stationWeightT: updateDoc.station_weight_t,
+		directSaleWeightT: updateDoc.direct_sale_weight_t,
 		note: updateDoc.remark,
 		user
 	})

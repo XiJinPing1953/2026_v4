@@ -2258,12 +2258,6 @@ function resolveSaleInventoryKg({ bizMode, saleDoc, amounts }) {
 	const normalized = normalizeString(bizMode).toLowerCase() || 'bottle'
 	if (normalized === 'agent_sale') return sumWeights(saleDoc && saleDoc.agent_sale_items, 'fill_weight')
 	if (normalized === 'truck') {
-		const truckReferenceNet = resolveTruckReferenceNetValue(
-			saleDoc && saleDoc.truck_gross_diff,
-			saleDoc && saleDoc.truck_out_gross,
-			saleDoc && saleDoc.truck_back_gross
-		)
-		if (truckReferenceNet > 0) return truckReferenceNet
 		const truckSaleNet = resolveTruckBillableNetValue({
 			priceUnit: normalizeString(saleDoc && saleDoc.price_unit) || 'kg',
 			rawTruckGrossDiff: saleDoc && saleDoc.truck_gross_diff,
@@ -2274,6 +2268,12 @@ function resolveSaleInventoryKg({ bizMode, saleDoc, amounts }) {
 			rawTruckSettleGross: saleDoc && saleDoc.truck_settle_gross
 		})
 		if (truckSaleNet > 0) return truckSaleNet
+		const truckReferenceNet = resolveTruckReferenceNetValue(
+			saleDoc && saleDoc.truck_gross_diff,
+			saleDoc && saleDoc.truck_out_gross,
+			saleDoc && saleDoc.truck_back_gross
+		)
+		if (truckReferenceNet > 0) return truckReferenceNet
 		const outNet = sumWeights(saleDoc && saleDoc.out_items, 'net')
 		if (outNet > 0) return outNet
 		const fallback = toNumber(amounts && amounts.total_net_weight, 0) || 0
