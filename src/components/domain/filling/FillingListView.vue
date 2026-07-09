@@ -41,7 +41,7 @@
 
 			<view class="list-shell">
 				<view class="quick-date-strip">
-					<AppDatePresetBar v-model="datePreset" @update:modelValue="onDatePresetChange" />
+					<AppDatePresetBar v-model="datePreset" :items="fillingDatePresetItems" @update:modelValue="onDatePresetChange" />
 				</view>
 				<AppSection class="filter-section" title="查询条件">
 				<template #actions>
@@ -548,6 +548,15 @@ const pager = reactive({
 	hasMore: false
 })
 const datePreset = ref('custom')
+const fillingDatePresetItems = [
+	{ label: '今日', value: 'today' },
+	{ label: '前一日', value: 'yesterday' },
+	{ label: '本周', value: 'week' },
+	{ label: '上周', value: 'lastWeek' },
+	{ label: '本月', value: 'month' },
+	{ label: '上月', value: 'lastMonth' },
+	{ label: '自定义', value: 'custom' }
+]
 
 const filters = reactive({
 	bottle_no: '',
@@ -1237,7 +1246,7 @@ async function onDatePresetChange(value) {
 }
 
 function syncDatePreset() {
-	datePreset.value = detectDatePreset(filters.dateStart, filters.dateEnd, new Date())
+	datePreset.value = detectDatePreset(filters.dateStart, filters.dateEnd, new Date(), { includePrevious: true })
 }
 
 function onFilterDateStartChange(event) {
