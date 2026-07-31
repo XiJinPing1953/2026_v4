@@ -54,7 +54,7 @@
     "filling:permit:gateway:test": "node --test scripts/filling-permit-gateway/*.test.cjs",
     "filling:permit:gateway:dist:win": "electron-builder --config electron-builder.filling-permit.yml --win nsis --x64",
     "filling:permit:password": "node scripts/generateFillingPermitGatewayPasswordHash.cjs",
-    "release:web": "/Applications/HBuilderX.app/Contents/MacOS/cli publish web --project /Users/wangbo/Downloads/2026_v4 --webHosting true --provider alipay --spaceId env-00jxuffegf2n --webTitle 新拓能源"
+    "release:web": "node scripts/releaseWeb.cjs"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-5000620260331001",
