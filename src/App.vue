@@ -28,6 +28,14 @@ export default {
   },
   methods: {
     async bootstrapAuth() {
+      const cachedUser = getUser()
+      const cachedPages = getCurrentPages()
+      const cachedCurrent = cachedPages[cachedPages.length - 1]
+      const cachedCurrentPath = cachedCurrent?.route || ''
+      if (cachedUser && shouldRedirectToPreferredHome(cachedCurrentPath, cachedUser)) {
+        uni.reLaunch({ url: resolveHomePath(cachedUser) })
+        return
+      }
       const result = await syncCurrentUser({ force: true })
       if (result?.code === 401) {
         goLogin({ captureCurrent: true })

@@ -30,6 +30,10 @@
 							<AppIcon name="wallet" size="24rpx" />
 							<text>出纳收款登记</text>
 						</view>
+						<view v-if="canView('/pages/home-safety-inspection/home')" class="nav-item" @click="go('/pages/home-safety-inspection/home')">
+							<AppIcon name="document" size="24rpx" />
+							<text>入户安全巡检</text>
+						</view>
 						<view v-if="canView('/pages/bottle/list')" class="nav-item" @click="go('/pages/bottle/list')">
 							<AppIcon name="bottle" size="24rpx" />
 							<text>钢瓶档案</text>
@@ -295,6 +299,10 @@
 							<view v-if="canView('/pages/cashier/receipt-intake')" class="nav-grid-item" @click="go('/pages/cashier/receipt-intake')">
 								<view class="nav-icon bg-finance"><AppIcon name="wallet" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">出纳收款登记</text>
+							</view>
+							<view v-if="canView('/pages/home-safety-inspection/home')" class="nav-grid-item" @click="go('/pages/home-safety-inspection/home')">
+								<view class="nav-icon bg-customer"><AppIcon name="document" color="#fff" size="30rpx" /></view>
+								<text class="nav-text">入户安全巡检</text>
 							</view>
 							<view v-if="canView('/pages/bottle/list')" class="nav-grid-item" @click="go('/pages/bottle/list')">
 								<view class="nav-icon bg-asset"><AppIcon name="bottle" color="#fff" size="30rpx" /></view>
@@ -693,6 +701,8 @@ const currentRoleLabel = computed(() => {
 	if (role === 'superadmin') return '超级管理员'
 	if (role === 'admin') return '管理员'
 	if (role === 'finance') return '财务'
+	if (role === 'pda_operator') return 'PDA 操作员'
+	if (role === 'safety_inspector') return '入户安全巡检员'
 	return '普通用户'
 })
 

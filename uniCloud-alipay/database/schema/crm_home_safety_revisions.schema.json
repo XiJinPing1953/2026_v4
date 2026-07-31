@@ -1,0 +1,40 @@
+{
+  "bsonType": "object",
+  "description": "Immutable snapshots before home safety inspection admin edits",
+  "additionalProperties": false,
+  "required": [
+    "inspection_id",
+    "version_no",
+    "customer_id_snapshot",
+    "snapshot",
+    "edit_reason",
+    "created_at",
+    "created_by",
+    "created_by_name"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "inspection_id": { "bsonType": "string" },
+    "version_no": { "bsonType": "int" },
+    "customer_id_snapshot": { "bsonType": "string" },
+    "snapshot": { "bsonType": "object" },
+    "edit_reason": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "created_by": { "bsonType": "string" },
+    "created_by_name": { "bsonType": "string" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    {
+      "key": { "inspection_id": 1, "version_no": 1 },
+      "name": "uniq_inspection_version",
+      "unique": true
+    },
+    { "key": { "customer_id_snapshot": 1, "created_at": -1 }, "name": "idx_customer_revision_at" }
+  ]
+}

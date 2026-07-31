@@ -8177,3 +8177,45 @@
   - `afinfo outputs/industrial-trace-demo-video/industrial-cylinder-trace-demo.mp4`（通过，AAC 音轨时长约 291.37 秒）
 - 剩余问题：
   - 该成片为合成演示片，不是登录真实业务系统后的实录画面；如需真实系统实录版，需要提供可出镜演示数据和确认脱敏范围。
+
+### 2026-07-20 CURRENT — TPC7022Ei + S7-200 SMART ST20 充装许可网关 V1
+- 做了什么：
+  - 新增独立 Windows Electron 充装许可网关，现有储罐网关未修改；网关作为 Modbus TCP Server 接收 TPC7022Ei 请求，不直接连接 PLC。
+  - 实现 32 个保持寄存器协议、启动 boot ID、1 秒心跳、请求序号提交、响应最后提交、重复/乱序/并发拒绝和所有异常默认禁止的状态机。
+  - 固定使用 `modbus-serial@8.0.25`，新增独立 GUI、配置持久化、安全凭据、云端登录/探测/启停、自启动、审计状态、最后查询和计数展示。
+  - 新增独立 URL 化云函数 `crm-filling-permit-gateway`，提供 `healthV1/loginV1/checkPermitV1/syncAuditV1`，使用独立 PBKDF2 密码哈希和 HMAC 令牌。
+  - 新增 `crm_filling_permit_audits` schema，以 `request_id` 唯一幂等；允许结果只有在云端审计成功且本地结果再次刷盘成功后才会输出。
+  - 实现北京时间自然日的“提前一天禁用”、气瓶唯一/启用/状态检查、三项日期完整校验、主原因和 32 位全明细掩码。
+  - 实现按日 JSONL `fsync` 本地审计和追加式系统禁止补传队列；本地磁盘、网络、鉴权、数据库、云审计、协议、端口或内部故障均保持许可为 0。
+  - 新增 TPC7022Ei 变量 CSV、McgsPro 提交/心跳/重查询脚本模板、中文原因映射、ST20 非保持 V 区符号和 3 秒 TON 联锁说明。
+  - 生成 Windows V1 x64 NSIS 安装包 `release/filling-permit-gateway/新拓充装许可网关-V1-x64-Setup.exe`。
+- 改动文件列表：
+  - `apps/filling-permit-gateway/**`
+  - `scripts/fillingPermitCore.cjs`
+  - `scripts/filling-permit-gateway/*.test.cjs`
+  - `scripts/generateFillingPermitGatewayPasswordHash.cjs`
+  - `uniCloud-alipay/cloudfunctions/crm-filling-permit-gateway/**`
+  - `uniCloud-alipay/database/crm_filling_permit_audits.schema.json`
+  - `uniCloud-alipay/database/schema/crm_filling_permit_audits.schema.json`
+  - `docs/filling_permit_gateway_v1.md`
+  - `docs/tpc7022ei_filling_permit_variables.csv`
+  - `electron-builder.filling-permit.yml`
+  - `package.json`
+  - `package-lock.json`
+  - `STATE.md`
+- 验证输出要点：
+  - `npm run filling:permit:gateway:test`（通过，28/28；包含真实回环 Modbus FC03/FC06/FC16、端口占用、重启 boot、重复/回绕/并发、日期边界、云审计幂等和全部故障关闭）。
+  - 所有新增 Node/Electron/云函数 JS 执行 `node --check`（通过）。
+  - 两份审计 schema 和 `package.json` JSON 解析（通过）。
+  - `npm ls modbus-serial --depth=0`（确认精确版本 8.0.25）。
+  - `npm run build:h5`（通过，证明现有 CRM H5 构建未受影响）。
+  - `npm run filling:permit:gateway:dist:win`（通过，生成 Windows x64 NSIS 安装包）。
+  - 安装包 SHA-256：`5751ef7ab2cbe7527722deafd59ce294819a3e630edbb7da5bd15c2c73569b84`。
+  - 解包检查确认 Electron 主进程、核心状态机、许可规则和 `modbus-serial` ServerTCP 均包含在 `app.asar`。
+  - `git diff --check`（通过）。
+- 剩余问题及 Next：
+  - 云函数、环境变量和数据库 schema 尚未上传到正式 uniCloud；必须先生成独立密码哈希/令牌密钥并确认 `uniq_request_id` 索引。
+  - 尚未直接修改 TPC7022Ei `.mcp` 或 Micro/WIN SMART 工程，符合交付边界；现场需按 CSV/文档建变量和脚本。
+  - ST20 的两个实际 V 区地址尚未分配；必须完成交叉引用并确认不在掉电保持范围后才能投运。
+  - 安装包已在 macOS 交叉构建并做内容校验，但尚未在目标 Windows 电脑完成安装、自启动、安全凭据、覆盖升级和防火墙实机验收；安装包当前未做代码签名且使用默认 Electron 图标。
+  - HMI—网关、互联网、HMI—PLC 及网关/HMI 断电后的 `FillPermitFinal` 3 秒清零，仍必须在实际 TPC7022Ei + ST20 现场逐项验收。

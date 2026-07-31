@@ -6,6 +6,10 @@ const {
 	fetchHiddenCustomerIds,
 	docIsHiddenCustomer
 } = require('./customerVisibilityLocal')
+const {
+	resolveSaleListSearchTerms,
+	buildCurrentCustomerReferenceConditions
+} = require('./saleListSearchLocal')
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
@@ -3276,12 +3280,44 @@ async function createV2(user, payload, requestId, token) {
 	}
 }
 
-function buildSaleListWhere(data = {}) {
-	const keyword = normalizeString(data.keyword)
-	const customerId = normalizeString(data.customerId || data.customer_id)
-	const customerScope = normalizeString(data.customerScope || data.customer_scope) === 'delivery'
-		? 'delivery'
-		: 'settlement'
+async function fetchCurrentCustomerIdsByKeyword(keyword, hiddenCustomerIdSet = new Set()) {
+	const normalizedKeyword = normalizeString(keyword)
+	if (!normalizedKeyword) return []
+
+	const escaped = escapeRegExp(normalizedKeyword)
+	const rx = db.RegExp({ regexp: escaped, options: 'i' })
+	const where = dbCmd.or([
+		{ name: rx },
+		{ short_name: rx },
+		{ contact: rx },
+		{ phone: rx },
+		{ qr_code: rx }
+	])
+	const ids = new Set()
+	const pageSize = 200
+	let page = 1
+	let guard = 0
+	while (guard < 50) {
+		const res = await customers
+			.where(where)
+			.field({ _id: true })
+			.skip((page - 1) * pageSize)
+			.limit(pageSize)
+			.get()
+		const rows = Array.isArray(res && res.data) ? res.data : []
+		for (const row of rows) {
+			const id = normalizeString(row && row._id)
+			if (id && !hiddenCustomerIdSet.has(id)) ids.add(id)
+		}
+		if (rows.length < pageSize) break
+		page += 1
+		guard += 1
+	}
+	return Array.from(ids)
+}
+
+function buildSaleListWhere(data = {}, currentCustomerIds = []) {
+	const { keyword, customerId, customerScope } = resolveSaleListSearchTerms(data)
 	const priceUnit = normalizeString(data.priceUnit)
 	const bizMode = normalizeString(data.bizMode)
 	const dateStart = normalizeString(data.dateStart)
@@ -3303,6 +3339,7 @@ function buildSaleListWhere(data = {}) {
 			{ remark: rx },
 			{ system_note: rx }
 		]
+		keywordConditions.push(...buildCurrentCustomerReferenceConditions(dbCmd, currentCustomerIds))
 		if (normalizedRx) keywordConditions.push({ remark_normalized: normalizedRx })
 		conditions.push(dbCmd.or(keywordConditions))
 	}
@@ -3995,7 +4032,11 @@ async function listV2(user, data) {
 
 	const hiddenCustomerIds = await fetchHiddenCustomerIds(customers)
 	const hiddenCustomerIdSet = buildHiddenCustomerIdSet(hiddenCustomerIds)
-	const where = buildSaleListWhere(data)
+	const { keyword, customerId } = resolveSaleListSearchTerms(data)
+	const currentCustomerIds = keyword && !customerId
+		? await fetchCurrentCustomerIdsByKeyword(keyword, hiddenCustomerIdSet)
+		: []
+	const where = buildSaleListWhere(data, currentCustomerIds)
 	let dataList = []
 	let total = 0
 	const needPostFilter = Boolean(settlementScope || hasRemark || remarkTag)

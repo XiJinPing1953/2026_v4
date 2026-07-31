@@ -23,6 +23,14 @@ const logs = db.collection('crm_operation_logs')
 const SUPERADMIN_USERNAME = process.env.SUPERADMIN_USERNAME || 'superadmin'
 const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || 'y7ez5CGAbivZkeP'
 const BCRYPT_SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS || 10)
+const ROLE_TEMPLATE_WHITELIST = new Set([
+	'superadmin',
+	'admin',
+	'finance',
+	'user',
+	'pda_operator',
+	'safety_inspector'
+])
 
 async function recordLog(user, action, detail = {}, requestId = '') {
 	try {
@@ -73,6 +81,29 @@ function normalizeString(value) {
 
 function normalizeNickname(value, fallback = '') {
 	return normalizeString(value || fallback)
+}
+
+function normalizeRawRole(value) {
+	return normalizeString(value).toLowerCase()
+}
+
+function resolveRequestedRoleTemplate(data = {}, fallback = 'user') {
+	const source = data && typeof data === 'object' ? data : {}
+	const hasRoleTemplate = Object.prototype.hasOwnProperty.call(source, 'role_template')
+	const hasRole = Object.prototype.hasOwnProperty.call(source, 'role')
+	const rawRoles = []
+	if (hasRoleTemplate) rawRoles.push(source.role_template)
+	if (hasRole) rawRoles.push(source.role)
+	if (!rawRoles.length) rawRoles.push(fallback)
+
+	const normalizedRoles = rawRoles.map(normalizeRawRole)
+	if (normalizedRoles.some((role) => !ROLE_TEMPLATE_WHITELIST.has(role))) {
+		return { ok: false, code: 400, msg: '角色类型无效' }
+	}
+	if (new Set(normalizedRoles).size > 1) {
+		return { ok: false, code: 400, msg: 'role 与 role_template 不一致' }
+	}
+	return { ok: true, roleTemplate: normalizedRoles[0] }
 }
 
 function ensureSuperAdminOperator(user) {
@@ -248,19 +279,16 @@ exports.main = async (event, context) => {
 
 		const username = normalizeString(data.username)
 		const password = normalizeString(data.password)
-		const role = data.role || 'user'
-		const roleTemplateRaw = data.role_template || ''
 		const nickname = normalizeNickname(data.nickname, username)
+		const roleResolution = resolveRequestedRoleTemplate(data)
+		if (!roleResolution.ok) return roleResolution
 		if (!username || !password) return { code: 400, msg: '缺少账号或密码' }
 		if (!nickname) return { code: 400, msg: '昵称必填' }
 		if (nickname.length > 20) return { code: 400, msg: '昵称最多20个字' }
 		if (username.length < 3 || password.length < 6) {
 			return { code: 400, msg: '账号至少3位，密码至少6位' }
 		}
-		const resolvedRole = normalizeRoleTemplate(roleTemplateRaw || role)
-		if (!['superadmin', 'admin', 'finance', 'user', 'pda_operator'].includes(resolvedRole)) {
-			return { code: 400, msg: '角色不合法' }
-		}
+		const resolvedRole = roleResolution.roleTemplate
 		if (username === SUPERADMIN_USERNAME) {
 			return { code: 400, msg: '无法新增同名账号' }
 		}
@@ -311,12 +339,11 @@ exports.main = async (event, context) => {
 		const denied = ensureSuperAdminOperator(user)
 		if (denied) return denied
 
-		const { userId, role, role_template = '' } = data
-		if (!userId || !role) return { code: 400, msg: '缺少用户或角色' }
-		const resolvedRole = normalizeRoleTemplate(role_template || role)
-		if (!['superadmin', 'admin', 'finance', 'user', 'pda_operator'].includes(resolvedRole)) {
-			return { code: 400, msg: '角色不合法' }
-		}
+		const { userId } = data
+		if (!userId) return { code: 400, msg: '缺少用户 ID' }
+		const roleResolution = resolveRequestedRoleTemplate(data)
+		if (!roleResolution.ok) return roleResolution
+		const resolvedRole = roleResolution.roleTemplate
 		await users.doc(userId).update({
 			role: resolvedRole,
 			role_template: resolvedRole,

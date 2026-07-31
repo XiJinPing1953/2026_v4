@@ -6,7 +6,7 @@ const {
 	PAGE_REGISTRY_MAP,
 	normalizeRoleTemplate,
 	buildRoleTemplatePermissions
-} = require('./pageAclRegistryLocal')
+} = require('./pageAclRegistry')
 
 function normalizePagePath(value) {
 	const text = String(value || '').trim()
@@ -25,6 +25,7 @@ function normalizePermissionEntry(raw = {}, supports = {}) {
 
 function normalizePagePermissions(rawPermissions, roleTemplate) {
 	const base = buildRoleTemplatePermissions(roleTemplate)
+	if (normalizeRoleTemplate(roleTemplate) === 'safety_inspector') return base
 	const source = rawPermissions && typeof rawPermissions === 'object' ? rawPermissions : {}
 	return PAGE_REGISTRY.reduce((acc, item) => {
 		const pagePath = item.pagePath
@@ -48,6 +49,12 @@ function sanitizeUser(user = {}) {
 
 function isSuperAdmin(user) {
 	return normalizeRoleTemplate(user?.role) === 'superadmin' || normalizeRoleTemplate(user?.role_template) === 'superadmin'
+}
+
+function isSafetyInspector(user) {
+	const role = String(user?.role || '').trim().toLowerCase()
+	const roleTemplate = String(user?.role_template || '').trim().toLowerCase()
+	return role === 'safety_inspector' || roleTemplate === 'safety_inspector'
 }
 
 function getResolvedPagePermissions(user) {
@@ -88,7 +95,21 @@ async function ensureActionAcl(user, action, actionRules = {}, superadminOnlyAct
 		return { ok: false, code: 403, msg: superadminDeniedMsg }
 	}
 	const rules = actionRules[action]
-	if (!rules || !rules.length) return { ok: true }
+	if (!rules || !rules.length) {
+		const isInspectionCloudFunction = cloudFunction === 'crm-home-safety-inspection'
+		if (isSafetyInspector(user) && !isInspectionCloudFunction) {
+			if (typeof recordLog === 'function') {
+				await recordLog(
+					user,
+					'acl_denied',
+					{ action, cloudFunction, reason: 'unregistered_action_for_isolated_role', ...detail },
+					requestId
+				)
+			}
+			return { ok: false, code: 403, msg: '无权限执行该操作' }
+		}
+		return { ok: true }
+	}
 	return ensurePagePermission(user, rules, {
 		recordLog,
 		requestId,
@@ -107,6 +128,7 @@ module.exports = {
 	normalizePagePermissions,
 	sanitizeUser,
 	isSuperAdmin,
+	isSafetyInspector,
 	getResolvedPagePermissions,
 	hasPagePermission,
 	hasAnyPagePermission,

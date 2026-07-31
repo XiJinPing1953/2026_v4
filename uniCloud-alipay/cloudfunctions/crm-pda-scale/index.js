@@ -1,6 +1,13 @@
 'use strict'
 
-const { ensureActionAcl } = require('../common/pageAcl')
+let aclHelpers = null
+try {
+	aclHelpers = require('../common/pageAcl')
+} catch (err) {
+	console.warn('[crm-pda-scale] fallback to local pageAcl helpers', err && err.message)
+	aclHelpers = require('./pageAclLocal')
+}
+const { ensureActionAcl } = aclHelpers
 
 const db = uniCloud.database()
 const users = db.collection('crm_users')

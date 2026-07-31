@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>新拓充装许可网关</title>
+		<link rel="stylesheet" href="./styles.css" />
+	</head>
+	<body>
+		<main class="shell">
+			<header class="topbar">
+				<div>
+					<h1>新拓充装许可网关</h1>
+					<p id="statusText">未启动 · 原始许可位保持 0</p>
+				</div>
+				<div class="actions">
+					<button id="probeBtn" type="button">探测</button>
+					<button id="startBtn" class="primary" type="button">启动</button>
+					<button id="stopBtn" class="danger" type="button">停止</button>
+				</div>
+			</header>
+
+			<section class="metrics">
+				<div><span>HMI / Modbus</span><strong id="hmiState">停止</strong><small id="endpoint">-</small></div>
+				<div><span>云端</span><strong id="cloudState">未知</strong><small id="cloudMessage">-</small></div>
+				<div><span>本地审计</span><strong id="auditState">未知</strong><small id="pendingAudits">待补传 0</small></div>
+				<div><span>Boot / 心跳</span><strong id="bootHeartbeat">-</strong><small id="faultCode">故障码 0</small></div>
+			</section>
+
+			<section class="grid">
+				<form id="configForm" class="panel settings">
+					<h2>网关设置</h2>
+					<label class="field span-2"><span>云端 URL 化云函数地址</span><input id="gatewayUrl" type="url" placeholder="https://..." /></label>
+					<label class="field"><span>网关 ID</span><input id="gatewayId" type="text" /></label>
+					<label class="field"><span>专网监听 IP</span><input id="bindHost" type="text" /></label>
+					<label class="field"><span>Modbus TCP 端口</span><input id="port" type="number" min="1" max="65535" /></label>
+					<label class="field"><span>Unit ID</span><input id="unitId" type="number" min="1" max="247" /></label>
+					<label class="field"><span>云端超时 ms</span><input id="timeoutMs" type="number" min="500" max="30000" /></label>
+					<label class="field"><span>心跳周期 ms</span><input id="heartbeatMs" type="number" min="250" max="5000" /></label>
+					<label class="field"><span>补传周期 ms</span><input id="syncIntervalMs" type="number" min="5000" /></label>
+					<label class="check"><input id="autoStart" type="checkbox" /><span>Windows 登录后自动启动</span></label>
+					<div class="row span-2"><button type="submit">保存设置</button><button id="openAuditBtn" type="button">打开审计目录</button></div>
+				</form>
+
+				<section class="side">
+					<div class="panel auth">
+						<h2>独立网关凭据</h2>
+						<label class="field"><span>网关密码</span><input id="password" type="password" autocomplete="current-password" /></label>
+						<label class="check"><input id="savePassword" type="checkbox" checked /><span>保存到系统安全凭据库</span></label>
+						<div class="row"><button id="loginBtn" class="primary" type="button">登录</button><button id="clearPasswordBtn" type="button">清除</button></div>
+						<p class="muted" id="credentialState">-</p>
+					</div>
+					<div class="panel counters">
+						<h2>许可统计</h2>
+						<div><span>总请求</span><strong id="countTotal">0</strong></div>
+						<div><span>允许</span><strong id="countAllowed" class="ok">0</strong></div>
+						<div><span>禁止</span><strong id="countDenied">0</strong></div>
+						<div><span>故障</span><strong id="countFaults" class="bad">0</strong></div>
+					</div>
+				</section>
+
+				<section class="panel last span-2">
+					<h2>最后一次查询</h2>
+					<div id="lastQuery" class="empty">尚无查询。任何故障、重启或新请求都会先清零许可。</div>
+				</section>
+
+				<section class="panel logs span-2">
+					<h2>运行日志</h2>
+					<pre id="logList"></pre>
+				</section>
+			</section>
+		</main>
+		<script src="./renderer.js"></script>
+	</body>
+</html>

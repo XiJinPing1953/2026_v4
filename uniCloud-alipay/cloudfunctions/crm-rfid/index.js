@@ -27,12 +27,13 @@ const PAGE_ACTION_RULES = {
 
 function normalizeRoleTemplate(value) {
 	const role = normalizeString(value).toLowerCase()
-	return ['superadmin', 'admin', 'finance', 'user', 'pda_operator'].includes(role) ? role : 'user'
+	return ['superadmin', 'admin', 'finance', 'user', 'pda_operator', 'safety_inspector'].includes(role) ? role : 'user'
 }
 
 function canViewRfidSessions(user = {}) {
 	const role = normalizeRoleTemplate(user.role_template || user.role)
 	if (role === 'superadmin') return true
+	if (role === 'safety_inspector') return false
 	const explicit = user.page_permissions && user.page_permissions['/pages/rfid/sessions']
 	if (explicit && typeof explicit === 'object' && explicit.view != null) return explicit.view === true
 	return role === 'admin' || role === 'finance' || role === 'user'
