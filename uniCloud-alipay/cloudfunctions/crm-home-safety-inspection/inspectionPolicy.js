@@ -240,6 +240,8 @@ function normalizePhotoIds(value, maxPhotos = 3) {
 }
 
 function toFiniteNumber(value, fallback = null) {
+	if (value == null || typeof value === 'boolean') return fallback
+	if (typeof value === 'string' && !value.trim()) return fallback
 	const number = Number(value)
 	return Number.isFinite(number) ? number : fallback
 }
@@ -247,6 +249,9 @@ function toFiniteNumber(value, fallback = null) {
 function normalizeLocationCapture(value, now = Date.now()) {
 	const source = value && typeof value === 'object' ? value : {}
 	const rawStatus = normalizeString(source.status).toLowerCase()
+	const rawCoordinateType = normalizeString(
+		source.coordinate_type ?? source.coordinateType
+	).toLowerCase()
 	const capturedAt = toFiniteNumber(source.captured_at ?? source.capturedAt, now)
 	const base = {
 		status: rawStatus || 'not_requested',
@@ -257,6 +262,7 @@ function normalizeLocationCapture(value, now = Date.now()) {
 	const latitude = toFiniteNumber(source.latitude, null)
 	const longitude = toFiniteNumber(source.longitude, null)
 	const coordinatesValid =
+		rawCoordinateType === 'wgs84' &&
 		latitude != null &&
 		longitude != null &&
 		latitude >= -90 &&

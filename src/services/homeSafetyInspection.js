@@ -2,6 +2,7 @@ import { callCloud } from '@/services/api'
 
 const CLOUD_FUNCTION = 'crm-home-safety-inspection'
 const SAVE_TIMEOUT_MS = 120000
+const LOCATION_LOOKUP_TIMEOUT_MS = 20000
 
 function call(action, data = {}, timeout) {
 	return callCloud(CLOUD_FUNCTION, { action, data, timeout })
@@ -56,4 +57,16 @@ export function updateHomeSafetyInspectionV1(data) {
 
 export function listHomeSafetyInspectionRevisionsV1(id) {
 	return call('listRevisionsV1', { _id: id })
+}
+
+export function reverseGeocodeHomeSafetyLocationV1(location = {}) {
+	return call(
+		'reverseGeocodeV1',
+		{
+			coordinate_type: location.coordinate_type || 'wgs84',
+			latitude: location.latitude,
+			longitude: location.longitude
+		},
+		LOCATION_LOOKUP_TIMEOUT_MS
+	)
 }

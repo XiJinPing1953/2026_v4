@@ -282,12 +282,39 @@ test('定位拒绝或失败不阻止提交，成功定位保留 WGS84 坐标', (
 	assert.equal(ok.data.location_capture.coordinate_type, 'wgs84')
 	assert.equal(ok.data.location_capture.latitude, 31.2304)
 
+	const nullableAccuracy = validPayload()
+	nullableAccuracy.location_capture = {
+		status: 'ok',
+		coordinate_type: 'wgs84',
+		latitude: 31.2304,
+		longitude: 121.4737,
+		accuracy: null
+	}
+	const nullableAccuracyResult = normalizeEditablePayload(nullableAccuracy, {
+		template: CURRENT_TEMPLATE
+	})
+	assert.equal(nullableAccuracyResult.ok, true)
+	assert.equal(nullableAccuracyResult.data.location_capture.accuracy, null)
+
+	const missingCoordinates = validPayload()
+	missingCoordinates.location_capture = {
+		status: 'ok',
+		coordinate_type: 'wgs84',
+		latitude: null,
+		longitude: null
+	}
+	const missingCoordinatesResult = normalizeEditablePayload(missingCoordinates, {
+		template: CURRENT_TEMPLATE
+	})
+	assert.equal(missingCoordinatesResult.ok, true)
+	assert.equal(missingCoordinatesResult.data.location_capture.status, 'failed')
+
 	const invalidPayload = validPayload()
 	invalidPayload.location_capture = {
 		status: 'ok',
 		coordinate_type: 'gcj02',
-		latitude: 120,
-		longitude: 220
+		latitude: 31.2304,
+		longitude: 121.4737
 	}
 	const invalid = normalizeEditablePayload(invalidPayload, { template: CURRENT_TEMPLATE })
 	assert.equal(invalid.ok, true)

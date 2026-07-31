@@ -86,19 +86,26 @@
 						class="textarea textarea--short"
 						maxlength="200"
 						placeholder="请输入客户现场实际地址"
+						@input="markLocationTextEdited"
 					/>
-					<text class="field__tip">本次补录或修正不会反写客户档案。</text>
+					<text class="field__tip">客户档案有地址时自动带入；档案为空时自动填入定位地址。可现场修正，不会反写客户档案。</text>
 				</view>
 
 				<view class="location-row">
 					<view>
-						<text class="location-row__label">手机定位（可选）</text>
+						<text class="location-row__label">手机定位凭证</text>
 						<text :class="['location-row__state', locationCapture.status === 'ok' ? 'location-row__state--ok' : '']">
 							{{ locationStatusText }}
 						</text>
+						<text
+							v-if="locationAddressStatusText"
+							:class="['location-row__state', geocodeStatus === 'success' ? 'location-row__state--ok' : '']"
+						>
+							{{ locationAddressStatusText }}
+						</text>
 					</view>
-					<button class="minor-button" :disabled="locating" type="button" @click="locate">
-						{{ locating ? '定位中…' : locationCapture.status === 'ok' ? '重新定位' : '尝试定位' }}
+					<button class="minor-button" :disabled="locating || geocoding" type="button" @click="locate">
+						{{ locationButtonText }}
 					</button>
 				</view>
 			</view>
@@ -301,6 +308,7 @@ import {
 	getHomeSafetyTemplateV1,
 	getVisibleHomeSafetyCustomerV1,
 	listHomeSafetyCustomersV1,
+	reverseGeocodeHomeSafetyLocationV1,
 	submitHomeSafetyInspectionV1,
 	updateHomeSafetyInspectionV1
 } from '@/services/homeSafetyInspection'
@@ -309,6 +317,11 @@ import {
 	uploadInspectionImage
 } from '@/services/homeSafetyInspectionMedia'
 import { captureWgs84Location } from '@/services/homeSafetyInspectionLocation'
+import {
+	canApplyGeocodedAddress,
+	restoredLocationText,
+	shouldInvalidateAutomaticAddress
+} from '@/services/homeSafetyInspectionLocationPolicy.mjs'
 
 const props = defineProps({
 	customerId: { type: String, default: '' },
@@ -327,6 +340,12 @@ const selectedCustomer = ref(null)
 const locationText = ref('')
 const locationCapture = ref({ status: 'not_requested', coordinate_type: 'wgs84' })
 const locating = ref(false)
+const geocoding = ref(false)
+const geocodeStatus = ref('idle')
+const geocodeMessage = ref('')
+const geocodedLocationText = ref('')
+const locationTextTouched = ref(false)
+const locationAttemptMessage = ref('')
 const items = ref([])
 const currentStep = ref(0)
 const customerSignerName = ref('')
@@ -358,7 +377,10 @@ const currentUser = getUser() || {}
 const draftOwner = String(currentUser._id || currentUser.username || 'anonymous')
 	.replace(/[^a-zA-Z0-9_-]/g, '_')
 let draftTimer = null
+let autoLocationTimer = null
 let allowBackOnce = false
+let locationRequestSequence = 0
+let disposed = false
 
 const finalStep = computed(() => items.value.length + 1)
 const activePhase = computed(() => {
@@ -393,11 +415,52 @@ const primaryButtonText = computed(() => {
 })
 const locationStatusText = computed(() => {
 	if (locationCapture.value.status === 'ok') {
-		const accuracy = Number(locationCapture.value.accuracy)
-		return Number.isFinite(accuracy) ? `定位成功，精度约 ${Math.round(accuracy)} 米` : '定位成功'
+		const rawLatitude = locationCapture.value.latitude
+		const rawLongitude = locationCapture.value.longitude
+		const latitude =
+			rawLatitude !== null && rawLatitude !== undefined && rawLatitude !== ''
+				? Number(rawLatitude)
+				: Number.NaN
+		const longitude =
+			rawLongitude !== null && rawLongitude !== undefined && rawLongitude !== ''
+				? Number(rawLongitude)
+				: Number.NaN
+		const rawAccuracy = locationCapture.value.accuracy
+		const accuracy =
+			rawAccuracy !== null && rawAccuracy !== undefined && rawAccuracy !== ''
+				? Number(rawAccuracy)
+				: Number.NaN
+		const coordinateText =
+			Number.isFinite(latitude) && Number.isFinite(longitude)
+				? `WGS84 纬度 ${latitude.toFixed(6)}，经度 ${longitude.toFixed(6)}`
+				: 'WGS84 坐标已获取'
+		const accuracyText = Number.isFinite(accuracy) ? `，精度约 ${Math.round(accuracy)} 米` : ''
+		return `${coordinateText}${accuracyText}${locationAttemptMessage.value ? `；${locationAttemptMessage.value}` : ''}`
 	}
 	if (locationCapture.value.status === 'failed') return '定位失败，不影响提交，可重试'
-	return '尚未定位，不影响提交'
+	return props.editMode
+		? '尚未定位，可按需获取定位凭证'
+		: '正在进入表单后自动定位；如失败可重试'
+})
+const locationAddressStatusText = computed(() => {
+	if (geocodeStatus.value === 'loading') return '正在将坐标转换为现场地址…'
+	if (geocodeStatus.value === 'failed') {
+		return geocodeMessage.value || '经纬度已保存，地址识别失败，可手工填写'
+	}
+	if (geocodeStatus.value !== 'success' || !geocodedLocationText.value) return ''
+	if (locationTextTouched.value) return '定位地址已识别，已保留巡检员现场修正'
+	if (String(selectedCustomer.value?.address || '').trim()) {
+		return '定位地址已识别，本次地点优先采用客户档案地址'
+	}
+	if (String(locationText.value || '').trim() === geocodedLocationText.value) {
+		return `已自动填入：${geocodedLocationText.value}`
+	}
+	return '定位地址已识别，客户或现场地点已变化，未自动覆盖'
+})
+const locationButtonText = computed(() => {
+	if (locating.value) return '定位中…'
+	if (geocoding.value) return '识别地址中…'
+	return locationCapture.value.status === 'ok' ? '重新定位' : '尝试定位'
 })
 const draftStorageKey = computed(() => {
 	const identity = props.editMode
@@ -629,7 +692,11 @@ async function loadNewForm(templateData) {
 	const customerRes = await getVisibleHomeSafetyCustomerV1(props.customerId)
 	if (customerRes?.code !== 0) throw new Error(customerRes?.msg || '客户不可用')
 	selectedCustomer.value = customerRes.data
-	locationText.value = customerRes.data.address || ''
+	locationText.value = String(customerRes.data.address || '').trim()
+	locationTextTouched.value = false
+	geocodedLocationText.value = ''
+	geocodeStatus.value = 'idle'
+	geocodeMessage.value = ''
 	items.value = makeTemplateItems(templateData)
 	const user = getUser() || {}
 	inspectorName.value = user.nickname || user.username || ''
@@ -642,9 +709,13 @@ async function loadEditForm(record) {
 	selectedCustomer.value = {
 		_id: record.customer_id,
 		name: record.customer_name_snapshot || '',
-		address: record.customer_address_snapshot || ''
+		address: String(record.customer_address_snapshot || '').trim()
 	}
-	locationText.value = record.location_text || ''
+	locationText.value = String(record.location_text || '').trim()
+	locationTextTouched.value = false
+	geocodedLocationText.value = ''
+	geocodeStatus.value = 'idle'
+	geocodeMessage.value = ''
 	locationCapture.value = record.location_capture || { status: 'not_requested', coordinate_type: 'wgs84' }
 	customerSignerName.value = record.customer_signer_name || ''
 	inspectorName.value = record.inspector_name || record.inspector_username_snapshot || ''
@@ -656,7 +727,7 @@ async function loadEditForm(record) {
 	await resolveStoredFiles(record)
 }
 
-function restoreDraft() {
+async function restoreDraft() {
 	let raw = null
 	try {
 		raw = uni.getStorageSync(draftStorageKey.value)
@@ -670,8 +741,48 @@ function restoreDraft() {
 	) {
 		return false
 	}
-	if (raw.selected_customer?._id) selectedCustomer.value = raw.selected_customer
-	locationText.value = typeof raw.location_text === 'string' ? raw.location_text : locationText.value
+	if (props.editMode && raw.selected_customer?._id) {
+		let customerRes = null
+		try {
+			customerRes = await getVisibleHomeSafetyCustomerV1(raw.selected_customer._id)
+		} catch (_) {
+			uni.showToast({
+				title: '草稿客户校验失败，已继续加载原巡检单',
+				icon: 'none',
+				duration: 3200
+			})
+			return false
+		}
+		if (customerRes?.code !== 0) {
+			uni.showToast({
+				title: '草稿中的客户已隐藏或不存在，本次未恢复该草稿',
+				icon: 'none',
+				duration: 3200
+			})
+			return false
+		}
+		selectedCustomer.value = customerRes.data
+	}
+	const draftLocationText =
+		typeof raw.location_text === 'string' ? raw.location_text : locationText.value
+	const currentCustomerAddress = String(selectedCustomer.value?.address || '').trim()
+	const draftCustomerAddress = String(raw.selected_customer?.address || '').trim()
+	locationText.value = restoredLocationText({
+		currentCustomerAddress,
+		draftCustomerAddress,
+		draftLocationText,
+		locationTextTouched: raw.location_text_touched
+	})
+	if (typeof raw.location_text_touched === 'boolean') {
+		locationTextTouched.value = raw.location_text_touched
+	} else {
+		locationTextTouched.value =
+			Boolean(String(locationText.value || '').trim()) &&
+			String(locationText.value || '').trim() !== currentCustomerAddress
+	}
+	geocodedLocationText.value =
+		typeof raw.geocoded_location_text === 'string' ? raw.geocoded_location_text : ''
+	if (geocodedLocationText.value) geocodeStatus.value = 'success'
 	if (raw.location_capture && typeof raw.location_capture === 'object') {
 		locationCapture.value = raw.location_capture
 	}
@@ -714,7 +825,20 @@ function restoreDraft() {
 	return true
 }
 
+function scheduleAutomaticLocation(callback) {
+	if (autoLocationTimer) clearTimeout(autoLocationTimer)
+	autoLocationTimer = setTimeout(() => {
+		autoLocationTimer = null
+		if (disposed) return
+		void callback()
+	}, 100)
+}
+
 async function load() {
+	if (autoLocationTimer) {
+		clearTimeout(autoLocationTimer)
+		autoLocationTimer = null
+	}
 	loading.value = true
 	loadError.value = ''
 	draftReady.value = false
@@ -739,7 +863,7 @@ async function load() {
 			template.value = templateRes.data
 			await loadNewForm(templateRes.data)
 		}
-		const restored = restoreDraft()
+		const restored = await restoreDraft()
 		if (restored) {
 			await refreshCloudPreviews()
 			uni.showToast({ title: '已恢复上次保存的草稿', icon: 'none' })
@@ -747,7 +871,14 @@ async function load() {
 		initialProgressFingerprint.value = progressFingerprint()
 		draftReady.value = true
 		if (!props.editMode && locationCapture.value.status === 'not_requested') {
-			setTimeout(locate, 100)
+			scheduleAutomaticLocation(locate)
+		} else if (
+			!props.editMode &&
+			locationCapture.value.status === 'ok' &&
+			!String(selectedCustomer.value?.address || '').trim() &&
+			!String(locationText.value || '').trim()
+		) {
+			scheduleAutomaticLocation(resolveStoredLocationAddress)
 		}
 	} catch (err) {
 		loadError.value = err?.message || '表单加载失败'
@@ -759,14 +890,121 @@ async function load() {
 	}
 }
 
-async function locate() {
-	if (locating.value) return
-	locating.value = true
+async function resolveLocationAddress(captured, requestSequence, customerIdAtStart) {
+	if (disposed) return
+	geocoding.value = true
+	geocodeStatus.value = 'loading'
+	geocodeMessage.value = ''
+	const previousGeocodedText = geocodedLocationText.value
 	try {
-		locationCapture.value = await captureWgs84Location()
+		const response = await reverseGeocodeHomeSafetyLocationV1(captured)
+		if (requestSequence !== locationRequestSequence) return
+		if ((selectedCustomer.value?._id || '') !== customerIdAtStart) return
+		const addressText = String(response?.data?.address_text || '').trim()
+		if (response?.code !== 0 || !addressText) {
+			geocodeStatus.value = 'failed'
+			geocodeMessage.value =
+				response?.msg || '经纬度已保存，地址识别失败，可手工填写'
+			return
+		}
+
+		geocodedLocationText.value = addressText
+		geocodeStatus.value = 'success'
+		const customerAddress = String(selectedCustomer.value?.address || '').trim()
+		const currentLocationText = String(locationText.value || '').trim()
+		const canReplaceAutoText = canApplyGeocodedAddress({
+			customerId: selectedCustomer.value?._id,
+			requestCustomerId: customerIdAtStart,
+			customerAddress,
+			currentLocationText,
+			previousGeocodedText,
+			locationTextTouched: locationTextTouched.value
+		})
+		if (canReplaceAutoText) {
+			locationText.value = addressText
+		}
+	} catch (_) {
+		if (requestSequence !== locationRequestSequence) return
+		geocodeStatus.value = 'failed'
+		geocodeMessage.value = '经纬度已保存，地址识别失败，可手工填写'
 	} finally {
-		locating.value = false
+		if (requestSequence === locationRequestSequence) geocoding.value = false
 	}
+}
+
+function resolveStoredLocationAddress() {
+	if (disposed || locating.value || geocoding.value || locationCapture.value.status !== 'ok') return
+	const requestSequence = ++locationRequestSequence
+	const customerIdAtStart = selectedCustomer.value?._id || ''
+	void resolveLocationAddress({ ...locationCapture.value }, requestSequence, customerIdAtStart)
+}
+
+function invalidateAutomaticAddressForNewCapture() {
+	const customerAddress = String(selectedCustomer.value?.address || '').trim()
+	const currentLocationText = String(locationText.value || '').trim()
+	const previousGeocodedText = String(geocodedLocationText.value || '').trim()
+	if (shouldInvalidateAutomaticAddress({
+		customerAddress,
+		currentLocationText,
+		previousGeocodedText,
+		locationTextTouched: locationTextTouched.value
+	})) {
+		locationText.value = ''
+	}
+	geocodedLocationText.value = ''
+	geocodeStatus.value = 'idle'
+	geocodeMessage.value = ''
+}
+
+async function locate() {
+	if (disposed || locating.value || geocoding.value) return
+	const requestSequence = ++locationRequestSequence
+	const customerIdAtStart = selectedCustomer.value?._id || ''
+	const previousSuccessfulCapture =
+		locationCapture.value.status === 'ok' ? { ...locationCapture.value } : null
+	locating.value = true
+	locationAttemptMessage.value = ''
+	try {
+		let captured
+		try {
+			captured = await captureWgs84Location()
+		} catch (err) {
+			captured = {
+				status: 'failed',
+				coordinate_type: 'wgs84',
+				latitude: null,
+				longitude: null,
+				accuracy: null,
+				error_code: 'location_exception',
+				error_message: String(err?.message || '定位失败'),
+				captured_at: Date.now(),
+				source: 'home_safety_inspection_h5'
+			}
+		}
+		if (requestSequence !== locationRequestSequence) return
+		if (captured.status !== 'ok') {
+			if (previousSuccessfulCapture) {
+				locationCapture.value = previousSuccessfulCapture
+				locationAttemptMessage.value = '本次重新定位失败，已保留上次成功坐标'
+			} else {
+				locationCapture.value = captured
+				geocodeStatus.value = 'idle'
+				geocodeMessage.value = ''
+			}
+			return
+		}
+
+		invalidateAutomaticAddressForNewCapture()
+		locationCapture.value = captured
+		locating.value = false
+		await resolveLocationAddress(captured, requestSequence, customerIdAtStart)
+	} finally {
+		if (requestSequence === locationRequestSequence) locating.value = false
+	}
+}
+
+function markLocationTextEdited() {
+	locationTextTouched.value = true
 }
 
 async function searchCustomers() {
@@ -780,9 +1018,25 @@ async function searchCustomers() {
 
 function selectCustomer(customer) {
 	const previousAddress = selectedCustomer.value?.address || ''
-	const shouldPrefillAddress = !locationText.value || locationText.value === previousAddress
-	selectedCustomer.value = customer
-	if (shouldPrefillAddress) locationText.value = customer.address || ''
+	const currentLocationText = String(locationText.value || '').trim()
+	const shouldPrefillAddress =
+		!currentLocationText ||
+		currentLocationText === String(previousAddress || '').trim() ||
+		(!locationTextTouched.value &&
+			currentLocationText === String(geocodedLocationText.value || '').trim())
+	locationRequestSequence += 1
+	locating.value = false
+	geocoding.value = false
+	geocodedLocationText.value = ''
+	geocodeStatus.value = 'idle'
+	geocodeMessage.value = ''
+	locationAttemptMessage.value = ''
+	const customerAddress = String(customer?.address || '').trim()
+	selectedCustomer.value = { ...customer, address: customerAddress }
+	if (shouldPrefillAddress) {
+		locationText.value = customerAddress
+		locationTextTouched.value = false
+	}
 	customerPickerOpen.value = false
 }
 
@@ -846,6 +1100,7 @@ function retryPhotoUpload(item, index) {
 
 function validateSite() {
 	if (!selectedCustomer.value?._id) return '请选择客户'
+	if (locating.value || geocoding.value) return '手机定位或地址识别尚未完成，请稍候'
 	if (!String(locationText.value || '').trim()) return '请填写本次实际地点'
 	if (props.editMode && (!inspectionDate.value || !inspectionTime.value || !Number.isFinite(parseInspectionAt()))) {
 		return '请填写有效的巡检时间'
@@ -1059,6 +1314,8 @@ function buildDraft() {
 			}
 			: null,
 		location_text: locationText.value,
+		location_text_touched: locationTextTouched.value,
+		geocoded_location_text: geocodedLocationText.value,
 		location_capture: locationCapture.value,
 		current_step: currentStep.value,
 		items: items.value.map((item) => ({
@@ -1231,11 +1488,18 @@ onBackPress(() => {
 })
 
 onMounted(() => {
+	disposed = false
 	if (typeof window !== 'undefined') window.addEventListener('beforeunload', beforeWindowUnload)
 	void load()
 })
 
 onBeforeUnmount(() => {
+	disposed = true
+	locationRequestSequence += 1
+	if (autoLocationTimer) {
+		clearTimeout(autoLocationTimer)
+		autoLocationTimer = null
+	}
 	if (draftTimer) clearTimeout(draftTimer)
 	saveDraft()
 	if (typeof window !== 'undefined') window.removeEventListener('beforeunload', beforeWindowUnload)
@@ -1509,6 +1773,10 @@ onBeforeUnmount(() => {
 	border-radius: 14rpx;
 	background: #f8fafc;
 }
+.location-row > view {
+	flex: 1;
+	min-width: 0;
+}
 .location-row .minor-button {
 	flex: none;
 	margin: 0;
@@ -1526,6 +1794,8 @@ onBeforeUnmount(() => {
 	margin-top: 6rpx;
 	color: #9a6700;
 	font-size: 21rpx;
+	line-height: 1.45;
+	overflow-wrap: anywhere;
 }
 .location-row__state--ok {
 	color: #047857;

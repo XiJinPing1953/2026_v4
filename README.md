@@ -27,6 +27,7 @@ npm run build:mp-alipay     # 构建支付宝小程序
 - `SUPERADMIN_USERNAME`：超级管理员账号（必填）
 - `SUPERADMIN_PASSWORD`：超级管理员密码（必填）
 - `BCRYPT_SALT_ROUNDS`：bcrypt 盐轮数（可选，默认 10）
+- `AMAP_WEB_SERVICE_KEY`：高德地图 Web 服务 Key（入户巡检 WGS84 坐标转换及逆地理编码必填，仅配置在云函数环境）
 
 ## 工作目录约定
 

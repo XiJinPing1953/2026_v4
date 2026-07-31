@@ -16,6 +16,11 @@ const {
 	normalizeEditablePayload,
 	normalizeClientSubmissionId
 } = require('./inspectionPolicy')
+const {
+	reverseGeocodeWgs84,
+	createUniCloudRequester,
+	validateWgs84Coordinates
+} = require('./locationGeocoding')
 
 const db = uniCloud.database()
 const dbCmd = db.command
@@ -24,6 +29,12 @@ const logs = db.collection('crm_operation_logs')
 const customers = db.collection('crm_customers')
 const inspections = db.collection('crm_home_safety_inspections')
 const revisions = db.collection('crm_home_safety_revisions')
+const reverseGeocodeCache = new Map()
+const reverseGeocodeInFlight = new Map()
+const reverseGeocodeRateWindows = new Map()
+const REVERSE_GEOCODE_CACHE_TTL_MS = 2 * 60 * 1000
+const REVERSE_GEOCODE_RATE_WINDOW_MS = 60 * 1000
+const REVERSE_GEOCODE_RATE_LIMIT = 12
 
 const HOME_PATH = '/pages/home-safety-inspection/home'
 const FORM_PATH = '/pages/home-safety-inspection/form'
@@ -32,6 +43,7 @@ const DETAIL_PATH = '/pages/home-safety-inspection/detail'
 
 const PAGE_ACTION_RULES = {
 	getTemplateV1: [{ pagePath: FORM_PATH, action: 'view' }, { pagePath: HOME_PATH, action: 'view' }],
+	reverseGeocodeV1: [{ pagePath: FORM_PATH, action: 'create' }],
 	listCustomersV1: [{ pagePath: HOME_PATH, action: 'view' }],
 	listV1: [{ pagePath: HISTORY_PATH, action: 'view' }],
 	getV1: [{ pagePath: DETAIL_PATH, action: 'view' }],
@@ -186,6 +198,98 @@ async function getTemplateV1(data = {}) {
 			is_current:
 				requestedTemplate.code === TEMPLATE.code && requestedTemplate.version === TEMPLATE.version,
 			server_now: Date.now()
+		}
+	}
+}
+
+function reverseGeocodeRateAllowed(user, now) {
+	if (reverseGeocodeRateWindows.size > 500) {
+		for (const [key, value] of reverseGeocodeRateWindows) {
+			if (
+				now - value.startedAt >= REVERSE_GEOCODE_RATE_WINDOW_MS ||
+				reverseGeocodeRateWindows.size > 400
+			) {
+				reverseGeocodeRateWindows.delete(key)
+			}
+		}
+	}
+	const userKey = normalizeString(user?._id || user?.username || 'unknown')
+	const current = reverseGeocodeRateWindows.get(userKey)
+	if (!current || now - current.startedAt >= REVERSE_GEOCODE_RATE_WINDOW_MS) {
+		reverseGeocodeRateWindows.set(userKey, { startedAt: now, count: 1 })
+		return true
+	}
+	if (current.count >= REVERSE_GEOCODE_RATE_LIMIT) return false
+	current.count += 1
+	return true
+}
+
+function reverseGeocodeCacheKey(latitude, longitude) {
+	return `${Number(latitude).toFixed(5)},${Number(longitude).toFixed(5)}`
+}
+
+async function reverseGeocodeV1(user, data = {}) {
+	const coordinateType = normalizeString(data.coordinate_type ?? data.coordinateType).toLowerCase()
+	if (coordinateType !== 'wgs84') {
+		return { code: 400, msg: '只支持 WGS84 手机定位坐标' }
+	}
+	const coordinates = validateWgs84Coordinates(data.latitude, data.longitude)
+	if (!coordinates.ok) return { code: 400, msg: coordinates.message }
+	const apiKey = normalizeString(process.env.AMAP_WEB_SERVICE_KEY)
+	const requester = createUniCloudRequester(uniCloud.httpclient)
+	if (!apiKey || !requester) {
+		return { code: 503, msg: '经纬度已获取，但定位地址服务尚未配置，可手工填写地址' }
+	}
+	const now = Date.now()
+	const cacheKey = reverseGeocodeCacheKey(coordinates.latitude, coordinates.longitude)
+	const cached = reverseGeocodeCache.get(cacheKey)
+	if (cached && cached.expiresAt > now) return { code: 0, data: cached.data }
+	if (cached) reverseGeocodeCache.delete(cacheKey)
+	const inFlight = reverseGeocodeInFlight.get(cacheKey)
+	if (inFlight) return inFlight
+	if (!reverseGeocodeRateAllowed(user, now)) {
+		return { code: 429, msg: '定位地址识别过于频繁，请稍后重试；经纬度仍会保留' }
+	}
+	const lookupPromise = (async () => {
+		const result = await reverseGeocodeWgs84({
+			latitude: coordinates.latitude,
+			longitude: coordinates.longitude,
+			apiKey,
+			requester,
+			timeoutMs: 8000
+		})
+		if (!result.ok) {
+			if (result.code === 'missing_api_key' || result.code === 'requester_unavailable') {
+				return { code: 503, msg: '经纬度已获取，但定位地址服务尚未配置，可手工填写地址' }
+			}
+			return { code: 502, msg: '经纬度已获取，但定位地址识别失败，可重试或手工填写' }
+		}
+		const responseData = {
+			address_text: result.data.address_text,
+			components: result.data.components,
+			provider: result.data.provider,
+			coordinate_type: result.data.coordinate_type
+		}
+		const completedAt = Date.now()
+		reverseGeocodeCache.set(cacheKey, {
+			expiresAt: completedAt + REVERSE_GEOCODE_CACHE_TTL_MS,
+			data: responseData
+		})
+		if (reverseGeocodeCache.size > 500) {
+			for (const [key, value] of reverseGeocodeCache) {
+				if (value.expiresAt <= completedAt || reverseGeocodeCache.size > 400) {
+					reverseGeocodeCache.delete(key)
+				}
+			}
+		}
+		return { code: 0, data: responseData }
+	})()
+	reverseGeocodeInFlight.set(cacheKey, lookupPromise)
+	try {
+		return await lookupPromise
+	} finally {
+		if (reverseGeocodeInFlight.get(cacheKey) === lookupPromise) {
+			reverseGeocodeInFlight.delete(cacheKey)
 		}
 	}
 }
@@ -541,6 +645,7 @@ exports.main = async (event, context) => {
 
 	try {
 		if (action === 'getTemplateV1') return getTemplateV1(data)
+		if (action === 'reverseGeocodeV1') return reverseGeocodeV1(user, data)
 		if (action === 'listCustomersV1') return listCustomersV1(user, data)
 		if (action === 'listV1') return listV1(user, data)
 		if (action === 'getV1') return getV1(user, data)

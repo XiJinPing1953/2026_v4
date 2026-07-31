@@ -143,6 +143,7 @@
 							<DetailRow label="原客户" :value="revision.snapshot?.customer_name_snapshot || '-'" />
 							<DetailRow label="原巡检时间" :value="formatDateTime(revision.snapshot?.inspection_at)" />
 							<DetailRow label="原实际地点" :value="revision.snapshot?.location_text || '-'" />
+							<DetailRow label="原手机定位" :value="locationText(revision.snapshot?.location_capture)" />
 							<DetailRow
 								label="原整单结果"
 								:value="revision.snapshot?.overall_result === 'abnormal' ? '有异常' : '正常'"
@@ -252,11 +253,23 @@ function formatDateTime(value) {
 
 function locationText(location) {
 	if (location?.status === 'ok') {
-		const latitude = Number(location.latitude)
-		const longitude = Number(location.longitude)
-		const accuracy = Number(location.accuracy)
+		const rawLatitude = location.latitude
+		const rawLongitude = location.longitude
+		const latitude =
+			rawLatitude !== null && rawLatitude !== undefined && rawLatitude !== ''
+				? Number(rawLatitude)
+				: Number.NaN
+		const longitude =
+			rawLongitude !== null && rawLongitude !== undefined && rawLongitude !== ''
+				? Number(rawLongitude)
+				: Number.NaN
+		const rawAccuracy = location.accuracy
+		const accuracy =
+			rawAccuracy !== null && rawAccuracy !== undefined && rawAccuracy !== ''
+				? Number(rawAccuracy)
+				: Number.NaN
 		const coordinate = Number.isFinite(latitude) && Number.isFinite(longitude)
-			? `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+			? `WGS84 纬度 ${latitude.toFixed(6)}，经度 ${longitude.toFixed(6)}`
 			: '已获取'
 		return Number.isFinite(accuracy) ? `${coordinate}（精度约 ${Math.round(accuracy)} 米）` : coordinate
 	}
