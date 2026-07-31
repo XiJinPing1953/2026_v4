@@ -13,6 +13,30 @@
 			}
 		},
 		{
+			"path": "pages/home-safety-inspection/home",
+			"style": {
+				"navigationBarTitleText": "入户随瓶安全巡检"
+			}
+		},
+		{
+			"path": "pages/home-safety-inspection/form",
+			"style": {
+				"navigationBarTitleText": "填写安全巡检单"
+			}
+		},
+		{
+			"path": "pages/home-safety-inspection/history",
+			"style": {
+				"navigationBarTitleText": "巡检历史"
+			}
+		},
+		{
+			"path": "pages/home-safety-inspection/detail",
+			"style": {
+				"navigationBarTitleText": "巡检单详情"
+			}
+		},
+		{
 			"path": "pages/pda/home",
 			"style": {
 				"navigationBarTitleText": "PDA 工作台"

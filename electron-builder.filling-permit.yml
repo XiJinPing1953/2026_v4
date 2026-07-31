@@ -1,0 +1,31 @@
+appId: com.xintuo.fillingpermitgateway
+productName: 新拓充装许可网关
+copyright: Copyright © 2026
+artifactName: ${productName}-V1-${arch}-Setup.${ext}
+asar: true
+npmRebuild: false
+directories:
+  output: release/filling-permit-gateway
+extraMetadata:
+  main: apps/filling-permit-gateway/main.cjs
+  version: 1.0.0
+  description: TPC7022Ei Modbus TCP filling permit gateway
+  author: Xintuo Energy
+files:
+  - apps/filling-permit-gateway/**/*
+  - scripts/fillingPermitCore.cjs
+  - uniCloud-alipay/cloudfunctions/crm-filling-permit-gateway/permitPolicy.js
+  - node_modules/modbus-serial/**/*
+  - node_modules/keytar/**/*
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 新拓充装许可网关

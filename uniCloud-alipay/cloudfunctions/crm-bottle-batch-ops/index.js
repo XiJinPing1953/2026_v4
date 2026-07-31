@@ -7,6 +7,7 @@ const db = uniCloud.database()
 const dbCmd = db.command
 const bottles = db.collection('crm_bottles')
 const backups = db.collection('crm_bottles_import_backups')
+const users = db.collection('crm_users')
 
 const BATCH_REMARK = 'import:test0314:env-00jxuffegf2n:202603141050'
 const UPDATE_REMARK = `${BATCH_REMARK}:upsert`
@@ -38,6 +39,29 @@ const UPDATE_FIELDS = [
 	'safety_valve_cycle_months',
 	'tare_weight'
 ]
+
+function normalizeString(value) {
+	if (value == null) return ''
+	return String(value).trim()
+}
+
+function normalizeRole(value) {
+	return normalizeString(value).toLowerCase()
+}
+
+function isSuperAdmin(user) {
+	if (!user) return false
+	return (
+		normalizeRole(user.role) === 'superadmin' ||
+		normalizeRole(user.role_template) === 'superadmin'
+	)
+}
+
+async function getUserByToken(token) {
+	if (!token) return null
+	const res = await users.where({ token }).limit(1).get()
+	return (res.data && res.data[0]) || null
+}
 
 function normalizeBottleNo(value) {
 	if (value == null) return ''
@@ -270,9 +294,12 @@ async function upsertByBottleNo(payload) {
 	return summary
 }
 
-exports.main = async () => {
+exports.main = async (event = {}) => {
 	const startedAt = new Date().toISOString()
 	try {
+		const user = await getUserByToken(event && event.token)
+		if (!user) return { code: 401, msg: '未登录或登录已过期' }
+		if (!isSuperAdmin(user)) return { code: 403, msg: '仅超级管理员可执行批量瓶档写入' }
 		const payload = loadPayload()
 		const rollback = await removeLegacyBatch()
 		const upsert = await upsertByBottleNo(payload)

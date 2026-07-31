@@ -22,6 +22,14 @@ const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 const BCRYPT_SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS || 10)
 const SUPERADMIN_USERNAME = process.env.SUPERADMIN_USERNAME || 'superadmin'
+const ROLE_TEMPLATE_WHITELIST = new Set([
+	'superadmin',
+	'admin',
+	'finance',
+	'user',
+	'pda_operator',
+	'safety_inspector'
+])
 
 let bcryptInstance = null
 
@@ -67,6 +75,36 @@ function normalizeNickname(value, fallback = '') {
 	const text = normalizeString(value || fallback)
 	if (!text) return ''
 	return text
+}
+
+function normalizeRawRole(value) {
+	return normalizeString(value).toLowerCase()
+}
+
+function isSafetyInspector(user) {
+	return (
+		normalizeRawRole(user?.role) === 'safety_inspector' ||
+		normalizeRawRole(user?.role_template) === 'safety_inspector'
+	)
+}
+
+function resolveRequestedRoleTemplate(data = {}, fallback = 'user') {
+	const source = data && typeof data === 'object' ? data : {}
+	const hasRoleTemplate = Object.prototype.hasOwnProperty.call(source, 'role_template')
+	const hasRole = Object.prototype.hasOwnProperty.call(source, 'role')
+	const rawRoles = []
+	if (hasRoleTemplate) rawRoles.push(source.role_template)
+	if (hasRole) rawRoles.push(source.role)
+	if (!rawRoles.length) rawRoles.push(fallback)
+
+	const normalizedRoles = rawRoles.map(normalizeRawRole)
+	if (normalizedRoles.some((role) => !ROLE_TEMPLATE_WHITELIST.has(role))) {
+		return { ok: false, code: 400, msg: '角色类型无效' }
+	}
+	if (new Set(normalizedRoles).size > 1) {
+		return { ok: false, code: 400, msg: 'role 与 role_template 不一致' }
+	}
+	return { ok: true, roleTemplate: normalizedRoles[0] }
 }
 
 function escapeRegExp(value) {
@@ -142,7 +180,9 @@ async function createV1(user, data, requestId) {
 	const username = normalizeString(data.username)
 	const password = normalizeString(data.password)
 	const nickname = normalizeNickname(data.nickname)
-	const roleTemplate = normalizeRoleTemplate(data.role_template || data.role || 'user')
+	const roleResolution = resolveRequestedRoleTemplate(data)
+	if (!roleResolution.ok) return roleResolution
+	const roleTemplate = roleResolution.roleTemplate
 	if (!username || !password || !nickname) return { code: 400, msg: '缺少账号、密码或昵称' }
 	if (username.length < 3 || password.length < 6) return { code: 400, msg: '账号至少3位，密码至少6位' }
 	if (nickname.length > 20) return { code: 400, msg: '昵称最多20个字' }
@@ -164,13 +204,15 @@ async function updateRoleV1(user, data, requestId) {
 	if (denied) return denied
 	const userId = normalizeString(data.userId || data._id || data.id)
 	if (!userId) return { code: 400, msg: '缺少用户 ID' }
+	const roleResolution = resolveRequestedRoleTemplate(data)
+	if (!roleResolution.ok) return roleResolution
 	const targetRes = await users.doc(userId).get()
 	const target = (targetRes.data || [])[0]
 	if (!target) return { code: 404, msg: '用户不存在' }
 	if (normalizeString(target.username) === SUPERADMIN_USERNAME) {
 		return { code: 400, msg: '超级管理员角色固定，不支持修改' }
 	}
-	const roleTemplate = normalizeRoleTemplate(data.role_template || data.role || 'user')
+	const roleTemplate = roleResolution.roleTemplate
 	await users.doc(userId).update({
 		role: roleTemplate,
 		role_template: roleTemplate,
@@ -225,6 +267,8 @@ async function savePermissionsV1(user, data, requestId) {
 	if (denied) return denied
 	const userId = normalizeString(data.userId || data._id || data.id)
 	if (!userId) return { code: 400, msg: '缺少用户 ID' }
+	const roleResolution = resolveRequestedRoleTemplate(data)
+	if (!roleResolution.ok) return roleResolution
 	const targetRes = await users.doc(userId).get()
 	const target = (targetRes.data || [])[0]
 	if (!target) return { code: 404, msg: '用户不存在' }
@@ -239,7 +283,7 @@ async function savePermissionsV1(user, data, requestId) {
 		await recordLog(user, 'user_manage_save_permissions_v1', { target: userId, role_template: roleTemplate, locked: true }, requestId)
 		return { code: 0, msg: '超级管理员固定全权，已校正权限' }
 	}
-	const roleTemplate = normalizeRoleTemplate(data.role_template || data.role || 'user')
+	const roleTemplate = roleResolution.roleTemplate
 	const pagePermissions = normalizePagePermissions(data.page_permissions, roleTemplate)
 	const hasNicknameField = Object.prototype.hasOwnProperty.call(data || {}, 'nickname')
 	const nickname = hasNicknameField ? normalizeNickname(data.nickname) : ''
@@ -292,6 +336,10 @@ exports.main = async (event, context) => {
 
 		const user = await getUserByToken(token)
 		if (!user) return { code: 401, msg: '未登录或登录已过期' }
+		if (isSafetyInspector(user)) {
+			await recordLog(user, 'acl_denied', { action, cloudFunction: 'crm-user', reason: 'role_isolated' }, requestId)
+			return { code: 403, msg: '巡检员账号无权访问用户管理' }
+		}
 
 		if (action === 'listV1') return listV1(user, data, requestId)
 		if (action === 'listManageV1') return listManageV1(user, requestId)

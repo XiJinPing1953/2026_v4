@@ -12,6 +12,7 @@ export function normalizePagePath(value) {
 
 export function normalizePagePermissions(rawPermissions, roleTemplate) {
 	const base = buildRoleTemplatePermissions(roleTemplate)
+	if (normalizeRoleTemplate(roleTemplate) === 'safety_inspector') return base
 	const source = rawPermissions && typeof rawPermissions === 'object' ? rawPermissions : {}
 	return PAGE_REGISTRY.reduce((acc, item) => {
 		const rawEntry = source[item.pagePath] && typeof source[item.pagePath] === 'object' ? source[item.pagePath] : {}

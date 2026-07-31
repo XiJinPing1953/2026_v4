@@ -2,6 +2,9 @@ node_modules
 unpackage
 dist
 release/
+tmp/
+output/playwright/
+scripts/__pycache__/
 *.log
 .DS_Store
 .hbuilderx

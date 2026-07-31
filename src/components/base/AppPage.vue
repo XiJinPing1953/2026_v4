@@ -1,6 +1,7 @@
 <template>
 	<view class="page">
-		<view v-if="title" class="page__header">
+		<view v-if="isSafetyRedirect" class="safety-redirect">正在返回入户安全巡检首页…</view>
+		<view v-else-if="title" class="page__header">
 			<view class="header__top">
 				<view class="header__icon-box">
 					<AppIcon :name="icon || 'document'" size="48rpx" color="#fff" />
@@ -25,7 +26,7 @@
 			</view>
 		</view>
 
-		<view class="page__body" :class="{ 'page__body--padded': bodyPadding }">
+		<view v-if="!isSafetyRedirect" class="page__body" :class="{ 'page__body--padded': bodyPadding }">
 			<AppEmpty
 				v-if="isDenied"
 				title="无权限访问"
@@ -34,16 +35,22 @@
 			<slot v-else />
 		</view>
 
-		<AppBottleQueryFloat v-if="showBottleQueryFloat && !isDenied" />
+		<AppBottleQueryFloat v-if="!isSafetyRedirect && showBottleQueryFloat && !isDenied" />
 	</view>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import AppEmpty from '@/components/base/AppEmpty.vue'
 import AppBottleQueryFloat from '@/components/base/AppBottleQueryFloat.vue'
 import AppIcon from '@/components/base/AppIcon.vue'
+import { getUser } from '@/services/auth'
 import { normalizePagePath } from '@/services/pageAcl'
+import {
+	HOME_SAFETY_INSPECTION_HOME_PATH,
+	isHomeSafetyInspectionPagePath,
+	isSafetyInspectorRole
+} from '@/services/pda/entry'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 
 const props = defineProps({
@@ -62,7 +69,16 @@ const currentPagePath = computed(() => {
 	const current = pages[pages.length - 1]
 	return normalizePagePath(current?.route || '')
 })
+const isSafetyRedirect = computed(() => {
+	const user = getUser()
+	return isSafetyInspectorRole(user) && !isHomeSafetyInspectionPagePath(currentPagePath.value)
+})
 const isDenied = computed(() => Boolean(currentPagePath.value) && !requirePageView(currentPagePath.value))
+
+onMounted(() => {
+	if (!isSafetyRedirect.value) return
+	uni.reLaunch({ url: HOME_SAFETY_INSPECTION_HOME_PATH })
+})
 </script>
 
 <style scoped>
@@ -72,6 +88,17 @@ const isDenied = computed(() => Boolean(currentPagePath.value) && !requirePageVi
 	padding-bottom: 48rpx;
 	box-sizing: border-box;
 	position: relative;
+}
+.safety-redirect {
+	min-height: 100vh;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 40rpx;
+	box-sizing: border-box;
+	color: #0f766e;
+	background: #f3f6fa;
+	font-size: 26rpx;
 }
 .page__header {
 	background: #fff;

@@ -1,6 +1,7 @@
 import { normalizeText } from './shared'
 
 export const PDA_HOME_PATH = '/pages/pda/home'
+export const HOME_SAFETY_INSPECTION_HOME_PATH = '/pages/home-safety-inspection/home'
 export const DEFAULT_HOME_PATH = '/pages/index/index'
 export const LOGIN_PATH = '/pages/login/login'
 
@@ -33,12 +34,23 @@ export function isPdaOperatorRole(value) {
 	return normalizeText(rawRole).toLowerCase() === 'pda_operator'
 }
 
+export function isSafetyInspectorRole(value) {
+	const rawRole = typeof value === 'object' ? value?.role_template || value?.role : value
+	return normalizeText(rawRole).toLowerCase() === 'safety_inspector'
+}
+
 export function isPdaPagePath(pagePath) {
 	const normalized = normalizeAppPagePath(pagePath)
 	return normalized === PDA_HOME_PATH || normalized.startsWith('/pages/pda/')
 }
 
+export function isHomeSafetyInspectionPagePath(pagePath) {
+	const normalized = normalizeAppPagePath(pagePath)
+	return normalized === HOME_SAFETY_INSPECTION_HOME_PATH || normalized.startsWith('/pages/home-safety-inspection/')
+}
+
 export function resolveHomePath(userLike) {
+	if (isSafetyInspectorRole(userLike)) return HOME_SAFETY_INSPECTION_HOME_PATH
 	if (isPdaAppMode() && userLike) return PDA_HOME_PATH
 	return isPdaOperatorRole(userLike) ? PDA_HOME_PATH : DEFAULT_HOME_PATH
 }
@@ -46,6 +58,9 @@ export function resolveHomePath(userLike) {
 export function resolveLoginRedirectForRuntime(redirectUrl, userLike) {
 	const normalizedUrl = normalizeAppPageUrl(redirectUrl)
 	if (!normalizedUrl) return ''
+	if (isSafetyInspectorRole(userLike)) {
+		return isHomeSafetyInspectionPagePath(normalizedUrl) ? normalizedUrl : ''
+	}
 	if (isPdaPagePath(normalizedUrl) && !isPdaAppMode() && !isPdaOperatorRole(userLike)) return ''
 	return normalizedUrl
 }
@@ -54,5 +69,8 @@ export function shouldRedirectToPreferredHome(pagePath, userLike) {
 	const currentPath = normalizeAppPagePath(pagePath)
 	const targetPath = resolveHomePath(userLike)
 	if (!currentPath || !targetPath || currentPath === targetPath) return false
+	if (isSafetyInspectorRole(userLike)) {
+		return currentPath !== LOGIN_PATH && !isHomeSafetyInspectionPagePath(currentPath)
+	}
 	return currentPath === DEFAULT_HOME_PATH || currentPath === LOGIN_PATH
 }

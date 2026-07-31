@@ -216,6 +216,14 @@ function isSuperAdmin(user) {
 	return role === 'superadmin' || roleTemplate === 'superadmin'
 }
 
+function isSafetyInspector(user) {
+	if (!user) return false
+	return (
+		normalizeRole(user.role) === 'safety_inspector' ||
+		normalizeRole(user.role_template) === 'safety_inspector'
+	)
+}
+
 async function getUserByToken(token) {
 	if (!token) return null
 	const res = await users.where({ token }).limit(1).get()
@@ -1190,6 +1198,9 @@ exports.main = async (event, context) => {
 		generateRequestId()
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
+	if (isSafetyInspector(user)) {
+		return { code: 403, msg: '巡检员账号无权访问监管数据桥接服务' }
+	}
 	if (SUPERADMIN_ONLY_ACTIONS.has(action) && !isSuperAdmin(user)) {
 		return { code: 403, msg: '仅超级管理员可执行该操作' }
 	}

@@ -6,6 +6,7 @@ const path = require('path')
 const db = uniCloud.database()
 const dbCmd = db.command
 const vehicles = db.collection('crm_vehicles')
+const users = db.collection('crm_users')
 
 const TARGET_PLATE = '冀A406RB'
 const TARGET_ID = '69bdedb57ae708ce6d86e636'
@@ -13,6 +14,24 @@ const TARGET_ID = '69bdedb57ae708ce6d86e636'
 function s(value) {
 	if (value == null) return ''
 	return String(value).trim()
+}
+
+function normalizeRole(value) {
+	return s(value).toLowerCase()
+}
+
+function isSuperAdmin(user) {
+	if (!user) return false
+	return (
+		normalizeRole(user.role) === 'superadmin' ||
+		normalizeRole(user.role_template) === 'superadmin'
+	)
+}
+
+async function getUserByToken(token) {
+	if (!token) return null
+	const res = await users.where({ token }).limit(1).get()
+	return (res.data && res.data[0]) || null
 }
 
 function normalizePlate(value) {
@@ -130,8 +149,11 @@ async function upsertRow(row) {
 	}
 }
 
-exports.main = async () => {
+exports.main = async (event = {}) => {
 	const startedAt = Date.now()
+	const user = await getUserByToken(event && event.token)
+	if (!user) return { code: 401, msg: '未登录或登录已过期' }
+	if (!isSuperAdmin(user)) return { code: 403, msg: '仅超级管理员可执行车辆导入' }
 	const payloadRows = readPayloadRows()
 	const report = {
 		code: 0,

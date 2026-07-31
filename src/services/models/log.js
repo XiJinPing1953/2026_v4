@@ -87,7 +87,10 @@ const ACTION_LABEL_MAP = {
 	collection_followup_add_v1: '新增追款跟进',
 	collection_task_recalc_v1: '重算追款任务金额',
 	collection_forbidden: '追款模块权限拦截',
-	operation_log_forbidden: '操作日志权限拦截'
+	operation_log_forbidden: '操作日志权限拦截',
+
+	home_safety_inspection_submit_v1: '提交入户安全巡检单',
+	home_safety_inspection_update_v1: '管理员修改入户安全巡检单'
 }
 
 const CATEGORY_LABEL_MAP = {
@@ -102,6 +105,7 @@ const CATEGORY_LABEL_MAP = {
 	accounting: '财务',
 	collection: '追款',
 	dashboard: '工作台',
+	inspection: '入户巡检',
 	security: '安全',
 	other: '其他'
 }
@@ -119,6 +123,7 @@ export const LOG_ACTION_CATEGORY_OPTIONS = [
 	{ label: '财务', value: 'accounting' },
 	{ label: '追款', value: 'collection' },
 	{ label: '工作台', value: 'dashboard' },
+	{ label: '入户巡检', value: 'inspection' },
 	{ label: '安全', value: 'security' },
 	{ label: '其他', value: 'other' }
 ]
@@ -146,6 +151,7 @@ export function getLogActionCategory(action) {
 	}
 	if (normalized.startsWith('collection_')) return 'collection'
 	if (normalized.startsWith('dashboard_')) return 'dashboard'
+	if (normalized.startsWith('home_safety_inspection_')) return 'inspection'
 	return 'other'
 }
 

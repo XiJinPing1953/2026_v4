@@ -1,0 +1,146 @@
+{
+  "bsonType": "object",
+  "description": "Home bottle safety inspection records",
+  "additionalProperties": false,
+  "required": [
+    "client_submission_id",
+    "customer_id",
+    "customer_name_snapshot",
+    "customer_address_snapshot",
+    "inspection_at",
+    "inspection_date",
+    "location_text",
+    "location_capture",
+    "template_code",
+    "template_version",
+    "template_title_snapshot",
+    "items",
+    "overall_result",
+    "customer_signer_name",
+    "customer_signature_file_id",
+    "customer_signed_at",
+    "inspector_name",
+    "inspector_signature_file_id",
+    "inspector_signed_at",
+    "inspector_user_id",
+    "inspector_username_snapshot",
+    "status",
+    "source",
+    "revision_no",
+    "created_at",
+    "created_by",
+    "created_by_name",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "client_submission_id": { "bsonType": "string" },
+    "customer_id": { "bsonType": "string" },
+    "customer_name_snapshot": { "bsonType": "string" },
+    "customer_address_snapshot": { "bsonType": "string" },
+    "inspection_at": { "bsonType": "number" },
+    "inspection_date": { "bsonType": "string" },
+    "location_text": { "bsonType": "string" },
+    "location_capture": {
+      "bsonType": "object",
+      "required": ["status", "coordinate_type", "captured_at", "source"],
+      "properties": {
+        "status": { "bsonType": "string", "enum": ["ok", "failed", "not_requested"] },
+        "coordinate_type": { "bsonType": "string" },
+        "captured_at": { "bsonType": "number" },
+        "source": { "bsonType": "string" },
+        "latitude": { "bsonType": ["number", "null"] },
+        "longitude": { "bsonType": ["number", "null"] },
+        "accuracy": { "bsonType": ["number", "null"] },
+        "error_code": { "bsonType": "string" },
+        "error_message": { "bsonType": "string" }
+      }
+    },
+    "template_code": { "bsonType": "string" },
+    "template_version": { "bsonType": "int" },
+    "template_title_snapshot": { "bsonType": "string" },
+    "items": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "object",
+        "required": [
+          "item_code",
+          "item_label_snapshot",
+          "is_abnormal",
+          "issue_note",
+          "photo_file_ids"
+        ],
+        "properties": {
+          "item_code": { "bsonType": "string" },
+          "item_label_snapshot": { "bsonType": "string" },
+          "option_code": { "bsonType": "string" },
+          "option_label_snapshot": { "bsonType": "string" },
+          "result_code": {
+            "bsonType": "string",
+            "enum": ["normal", "abnormal", "not_applicable"]
+          },
+          "result_label_snapshot": { "bsonType": "string" },
+          "is_not_applicable": { "bsonType": "bool" },
+          "answers": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "object",
+              "required": [
+                "check_code",
+                "check_label_snapshot",
+                "option_code",
+                "option_label_snapshot",
+                "is_abnormal"
+              ],
+              "properties": {
+                "check_code": { "bsonType": "string" },
+                "check_label_snapshot": { "bsonType": "string" },
+                "option_code": { "bsonType": "string" },
+                "option_label_snapshot": { "bsonType": "string" },
+                "is_abnormal": { "bsonType": "bool" }
+              }
+            }
+          },
+          "is_abnormal": { "bsonType": "bool" },
+          "issue_note": { "bsonType": "string" },
+          "photo_file_ids": {
+            "bsonType": "array",
+            "items": { "bsonType": "string" }
+          }
+        }
+      }
+    },
+    "overall_result": { "bsonType": "string", "enum": ["normal", "abnormal"] },
+    "customer_signer_name": { "bsonType": "string" },
+    "customer_signature_file_id": { "bsonType": "string" },
+    "customer_signed_at": { "bsonType": "number" },
+    "inspector_name": { "bsonType": "string" },
+    "inspector_signature_file_id": { "bsonType": "string" },
+    "inspector_signed_at": { "bsonType": "number" },
+    "inspector_user_id": { "bsonType": "string" },
+    "inspector_username_snapshot": { "bsonType": "string" },
+    "status": { "bsonType": "string", "enum": ["submitted"] },
+    "source": { "bsonType": "string", "enum": ["h5"] },
+    "revision_no": { "bsonType": "int" },
+    "last_edited_at": { "bsonType": ["number", "null"] },
+    "last_edited_by": { "bsonType": ["string", "null"] },
+    "last_edited_by_name": { "bsonType": "string" },
+    "last_edit_reason": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "created_by": { "bsonType": "string" },
+    "created_by_name": { "bsonType": "string" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "client_submission_id": 1 }, "name": "uniq_client_submission_id", "unique": true },
+    { "key": { "customer_id": 1, "inspection_at": -1 }, "name": "idx_customer_inspection_at" },
+    { "key": { "overall_result": 1, "inspection_at": -1 }, "name": "idx_result_inspection_at" },
+    { "key": { "inspection_at": -1 }, "name": "idx_inspection_at" }
+  ]
+}

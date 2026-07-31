@@ -1,0 +1,92 @@
+[
+  {
+    "IndexName": "uniq_request_id",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "request_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": true,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_gateway_created",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "gateway_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_bottle_created",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "normalized_bottle_no",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_allowed_created",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "allowed",
+          "Direction": "1",
+          "Type": "bool"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_reason_created",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "reason_code",
+          "Direction": "1",
+          "Type": "int"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  }
+]

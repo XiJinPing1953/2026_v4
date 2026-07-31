@@ -113,8 +113,11 @@
 					/>
 				</view>
 				<view v-if="isSelectedSuperAdmin" class="superadmin-tip">超级管理员固定全权，不支持单独修改权限或角色。</view>
+				<view v-else-if="isSelectedSafetyInspector" class="superadmin-tip">
+					入户安全巡检员权限固定为巡检查看、新建；不能开放 CRM、PDA、销售等其他页面。
+				</view>
 				<view class="section-actions">
-					<AppButton size="sm" kind="neutral" :disabled="isSelectedSuperAdmin" @click="onResetSelectedTemplate">按角色模板重置</AppButton>
+					<AppButton size="sm" kind="neutral" :disabled="isSelectedSuperAdmin || isSelectedSafetyInspector" @click="onResetSelectedTemplate">按角色模板重置</AppButton>
 					<AppButton size="sm" kind="outline" :loading="resettingPassword" :disabled="isSelectedSuperAdmin || !resetPassword.trim()" @click="onResetPassword">
 						提交新密码
 					</AppButton>
@@ -137,7 +140,7 @@
 							<label class="permission-cell permission-toggle">
 								<switch
 									:checked="getPermissionChecked(page.pagePath, 'view')"
-									:disabled="isSelectedSuperAdmin"
+									:disabled="isSelectedSuperAdmin || isSelectedSafetyInspector"
 									@change="(e) => onTogglePermission(page.pagePath, 'view', e.detail.value)"
 									color="#1677ff"
 								/>
@@ -146,7 +149,7 @@
 								<switch
 									v-if="page.supports?.create"
 									:checked="getPermissionChecked(page.pagePath, 'create')"
-									:disabled="isSelectedSuperAdmin"
+									:disabled="isSelectedSuperAdmin || isSelectedSafetyInspector"
 									@change="(e) => onTogglePermission(page.pagePath, 'create', e.detail.value)"
 									color="#1677ff"
 								/>
@@ -156,7 +159,7 @@
 								<switch
 									v-if="page.supports?.update"
 									:checked="getPermissionChecked(page.pagePath, 'update')"
-									:disabled="isSelectedSuperAdmin"
+									:disabled="isSelectedSuperAdmin || isSelectedSafetyInspector"
 									@change="(e) => onTogglePermission(page.pagePath, 'update', e.detail.value)"
 									color="#1677ff"
 								/>
@@ -166,7 +169,7 @@
 								<switch
 									v-if="page.supports?.delete"
 									:checked="getPermissionChecked(page.pagePath, 'delete')"
-									:disabled="isSelectedSuperAdmin"
+									:disabled="isSelectedSuperAdmin || isSelectedSafetyInspector"
 									@change="(e) => onTogglePermission(page.pagePath, 'delete', e.detail.value)"
 									color="#1677ff"
 								/>
@@ -225,6 +228,7 @@ const roleOptions = [
 	{ label: '管理员', value: 'admin' },
 	{ label: '财务', value: 'finance' },
 	{ label: 'PDA 操作员', value: 'pda_operator' },
+	{ label: '入户安全巡检员', value: 'safety_inspector' },
 	{ label: '普通用户', value: 'user' }
 ]
 
@@ -241,6 +245,9 @@ const selectedUser = computed(() => users.value.find((item) => item._id === sele
 const selectedRoleLabel = computed(() => roleText(selectedRoleTemplate.value))
 const isSelectedSuperAdmin = computed(
 	() => normalizeRoleTemplate(selectedUser.value?.role_template || selectedUser.value?.role || '') === 'superadmin'
+)
+const isSelectedSafetyInspector = computed(
+	() => normalizeRoleTemplate(selectedRoleTemplate.value) === 'safety_inspector'
 )
 
 const { loading, run: fetchData } = useQuery(
@@ -295,7 +302,10 @@ function clonePermissions(value) {
 function applySelectedUser(user) {
 	selectedUserId.value = user?._id || ''
 	selectedRoleTemplate.value = normalizeRoleTemplate(user?.role_template || user?.role || 'user')
-	selectedPagePermissions.value = clonePermissions(user?.page_permissions || buildRoleTemplatePermissions(selectedRoleTemplate.value))
+	selectedPagePermissions.value =
+		selectedRoleTemplate.value === 'safety_inspector'
+			? clonePermissions(buildRoleTemplatePermissions('safety_inspector'))
+			: clonePermissions(user?.page_permissions || buildRoleTemplatePermissions(selectedRoleTemplate.value))
 	selectedNickname.value = String(user?.nickname || '').trim()
 	resetPassword.value = ''
 }
@@ -320,6 +330,9 @@ function onCreateRoleChange(event) {
 function onSelectedRoleChange(event) {
 	const index = Number(event?.detail?.value || 0)
 	selectedRoleTemplate.value = roleOptions[index]?.value || 'user'
+	if (selectedRoleTemplate.value === 'safety_inspector') {
+		selectedPagePermissions.value = clonePermissions(buildRoleTemplatePermissions('safety_inspector'))
+	}
 }
 
 function onResetSelectedTemplate() {
