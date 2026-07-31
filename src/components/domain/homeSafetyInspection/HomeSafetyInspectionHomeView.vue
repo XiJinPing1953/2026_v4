@@ -23,7 +23,7 @@
 		<view v-if="loading && !customers.length" class="state-card">正在加载客户…</view>
 		<view v-else-if="!customers.length" class="state-card">
 			<text class="state-card__title">没有可巡检客户</text>
-			<text class="state-card__hint">隐藏客户不会出现在这里；停用但未隐藏的客户仍会显示。</text>
+			<!-- <text class="state-card__hint">隐藏客户不会出现在这里；停用但未隐藏的客户仍会显示。</text> -->
 		</view>
 
 		<view v-else class="customer-list">

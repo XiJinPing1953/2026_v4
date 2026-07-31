@@ -5,6 +5,7 @@ const assert = require('node:assert/strict')
 const {
 	TEMPLATE,
 	CURRENT_TEMPLATE,
+	STANDARD_TEMPLATE_V1,
 	LEGACY_TEMPLATE,
 	TEMPLATES,
 	getTemplate,
@@ -58,7 +59,7 @@ function findItemPayload(payload, code) {
 test('正式模板为当前八项版本，Demo 模板仍可按原版本解析', () => {
 	assert.equal(TEMPLATE, CURRENT_TEMPLATE)
 	assert.equal(CURRENT_TEMPLATE.code, 'home_safety_standard')
-	assert.equal(CURRENT_TEMPLATE.version, 1)
+	assert.equal(CURRENT_TEMPLATE.version, 2)
 	assert.equal(CURRENT_TEMPLATE.items.length, 8)
 	assert.deepEqual(
 		CURRENT_TEMPLATE.items.map((item) => item.code),
@@ -79,13 +80,23 @@ test('正式模板为当前八项版本，Demo 模板仍可按原版本解析', 
 		assert.ok(Array.isArray(item.checks))
 		assert.ok(item.checks.length >= 1)
 	}
+	const currentVaporizer = CURRENT_TEMPLATE.items.find(
+		(item) => item.code === 'vaporizer_appearance'
+	)
+	assert.deepEqual(
+		currentVaporizer.checks[0].options.map((option) => option.code),
+		['normal', 'abnormal']
+	)
 
 	assert.equal(LEGACY_TEMPLATE.code, 'home_safety_demo')
 	assert.equal(LEGACY_TEMPLATE.version, 1)
 	assert.equal(LEGACY_TEMPLATE.items.length, 3)
-	assert.equal(TEMPLATES.length, 2)
+	assert.equal(STANDARD_TEMPLATE_V1.code, 'home_safety_standard')
+	assert.equal(STANDARD_TEMPLATE_V1.version, 1)
+	assert.equal(TEMPLATES.length, 3)
 	assert.equal(getTemplate('home_safety_demo', 1), LEGACY_TEMPLATE)
-	assert.equal(getTemplate('home_safety_standard', 1), CURRENT_TEMPLATE)
+	assert.equal(getTemplate('home_safety_standard', 1), STANDARD_TEMPLATE_V1)
+	assert.equal(getTemplate('home_safety_standard', 2), CURRENT_TEMPLATE)
 	assert.equal(getTemplate('unknown', 1), null)
 })
 
@@ -162,11 +173,11 @@ test('报警器未安装时不提交通电答案，已安装时通电答案必�
 	assert.match(result.msg, /是否通电/)
 })
 
-test('气化器不适用不计异常，但仍必须上传照片', () => {
-	const payload = validPayload()
+test('旧版气化器不适用仍可解析，当前模板不再接受不适用', () => {
+	const payload = validPayload(STANDARD_TEMPLATE_V1)
 	const vaporizer = findItemPayload(payload, 'vaporizer_appearance')
 	vaporizer.answers[0].option_code = 'not_applicable'
-	let result = normalizeEditablePayload(payload, { template: CURRENT_TEMPLATE })
+	let result = normalizeEditablePayload(payload, { template: STANDARD_TEMPLATE_V1 })
 	assert.equal(result.ok, true)
 	assert.equal(result.data.overall_result, 'normal')
 	assert.equal(
@@ -180,9 +191,16 @@ test('气化器不适用不计异常，但仍必须上传照片', () => {
 	assert.equal(normalizedVaporizer.is_not_applicable, true)
 
 	vaporizer.photo_file_ids = []
-	result = normalizeEditablePayload(payload, { template: CURRENT_TEMPLATE })
+	result = normalizeEditablePayload(payload, { template: STANDARD_TEMPLATE_V1 })
 	assert.equal(result.ok, false)
 	assert.match(result.msg, /至少上传/)
+
+	const currentPayload = validPayload()
+	findItemPayload(currentPayload, 'vaporizer_appearance').answers[0].option_code =
+		'not_applicable'
+	result = normalizeEditablePayload(currentPayload, { template: CURRENT_TEMPLATE })
+	assert.equal(result.ok, false)
+	assert.match(result.msg, /请选择/)
 })
 
 test('逐项答案严格匹配模板，不接受缺失、重复、隐藏或未知子检查', () => {

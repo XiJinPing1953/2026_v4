@@ -38,7 +38,7 @@ const LEGACY_TEMPLATE = Object.freeze({
 	]
 })
 
-const CURRENT_TEMPLATE = Object.freeze({
+const STANDARD_TEMPLATE_V1 = Object.freeze({
 	code: 'home_safety_standard',
 	version: 1,
 	title: '入户随瓶安全巡检',
@@ -213,7 +213,22 @@ const CURRENT_TEMPLATE = Object.freeze({
 	]
 })
 
-const TEMPLATES = Object.freeze([LEGACY_TEMPLATE, CURRENT_TEMPLATE])
+const CURRENT_TEMPLATE = Object.freeze({
+	...STANDARD_TEMPLATE_V1,
+	version: 2,
+	items: STANDARD_TEMPLATE_V1.items.map((item) => {
+		if (item.code !== 'vaporizer_appearance') return item
+		return {
+			...item,
+			checks: item.checks.map((check) => ({
+				...check,
+				options: check.options.filter((option) => option.code !== 'not_applicable')
+			}))
+		}
+	})
+})
+
+const TEMPLATES = Object.freeze([LEGACY_TEMPLATE, STANDARD_TEMPLATE_V1, CURRENT_TEMPLATE])
 // Keep TEMPLATE as the public current-template alias used by the H5 and policy tests.
 const TEMPLATE = CURRENT_TEMPLATE
 
@@ -490,6 +505,7 @@ function normalizeClientSubmissionId(value) {
 module.exports = {
 	TEMPLATE,
 	CURRENT_TEMPLATE,
+	STANDARD_TEMPLATE_V1,
 	LEGACY_TEMPLATE,
 	TEMPLATES,
 	getTemplate,
