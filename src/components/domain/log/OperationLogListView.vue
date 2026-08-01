@@ -219,7 +219,7 @@ const roleOptions = [
 	{ label: 'finance', value: 'finance' },
 	{ label: 'user', value: 'user' },
 	{ label: 'pda_operator', value: 'pda_operator' },
-	{ label: 'safety_inspector', value: 'safety_inspector' }
+	{ label: '安全巡检员', value: 'safety_inspector' }
 ]
 
 const roleLabel = computed(() => roleOptions[filters.roleIndex]?.label || '全部角色')
@@ -340,7 +340,7 @@ function roleText(role) {
 	if (value === 'finance') return '财务'
 	if (value === 'user') return '普通用户'
 	if (value === 'pda_operator') return 'PDA 操作员'
-	if (value === 'safety_inspector') return '入户安全巡检员'
+	if (value === 'safety_inspector') return '安全巡检员'
 	return value
 }
 

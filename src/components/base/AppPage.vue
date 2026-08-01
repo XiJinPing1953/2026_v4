@@ -1,6 +1,6 @@
 <template>
 	<view class="page">
-		<view v-if="isSafetyRedirect" class="safety-redirect">正在返回入户安全巡检首页…</view>
+		<view v-if="isSafetyRedirect" class="safety-redirect">正在返回安全巡检工作台…</view>
 		<view v-else-if="title" class="page__header">
 			<view class="header__top">
 				<view class="header__icon-box">
@@ -47,8 +47,8 @@ import AppIcon from '@/components/base/AppIcon.vue'
 import { getUser } from '@/services/auth'
 import { normalizePagePath } from '@/services/pageAcl'
 import {
-	HOME_SAFETY_INSPECTION_HOME_PATH,
-	isHomeSafetyInspectionPagePath,
+	SAFETY_INSPECTION_HOME_PATH,
+	isSafetyInspectionPagePath,
 	isSafetyInspectorRole
 } from '@/services/pda/entry'
 import { useAuthGuard } from '@/composables/useAuthGuard'
@@ -71,13 +71,13 @@ const currentPagePath = computed(() => {
 })
 const isSafetyRedirect = computed(() => {
 	const user = getUser()
-	return isSafetyInspectorRole(user) && !isHomeSafetyInspectionPagePath(currentPagePath.value)
+	return isSafetyInspectorRole(user) && !isSafetyInspectionPagePath(currentPagePath.value)
 })
 const isDenied = computed(() => Boolean(currentPagePath.value) && !requirePageView(currentPagePath.value))
 
 onMounted(() => {
 	if (!isSafetyRedirect.value) return
-	uni.reLaunch({ url: HOME_SAFETY_INSPECTION_HOME_PATH })
+	uni.reLaunch({ url: SAFETY_INSPECTION_HOME_PATH })
 })
 </script>
 

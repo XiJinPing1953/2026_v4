@@ -41,15 +41,22 @@ const revisionSchemaPath = path.join(
 	'uniCloud-alipay/database/crm_home_safety_revisions.schema.json'
 )
 
-test('巡检员仅拥有巡检页面查看和新建权限', () => {
+test('安全巡检员仅拥有两类巡检及整改页面权限', () => {
 	const permissions = registry.buildRoleTemplatePermissions('safety_inspector')
 	const allowed = Object.entries(permissions)
 		.filter(([, actions]) => actions.view || actions.create || actions.update || actions.delete)
 		.map(([pagePath]) => pagePath)
-	assert.ok(allowed.length >= 4)
-	assert.ok(allowed.every((pagePath) => pagePath.startsWith('/pages/home-safety-inspection/')))
+	assert.ok(allowed.length >= 10)
+	assert.ok(allowed.every((pagePath) =>
+		pagePath === '/pages/safety-inspection/home' ||
+		pagePath.startsWith('/pages/home-safety-inspection/') ||
+		pagePath.startsWith('/pages/station-safety-inspection/')
+	))
 	assert.equal(permissions['/pages/home-safety-inspection/form'].create, true)
 	assert.equal(permissions['/pages/home-safety-inspection/form'].update, false)
+	assert.equal(permissions['/pages/station-safety-inspection/form'].create, true)
+	assert.equal(permissions['/pages/station-safety-inspection/form'].update, false)
+	assert.equal(permissions['/pages/station-safety-inspection/hazards'].update, true)
 	assert.equal(permissions['/pages/sale/list'].view, false)
 	assert.equal(permissions['/pages/pda/home'].view, false)
 })
@@ -58,13 +65,21 @@ test('巡检专用角色即使存在旧的自定义权限也会被硬性收敛',
 	const permissions = acl.normalizePagePermissions(
 		{
 			'/pages/sale/list': { view: true, create: true, update: true, delete: true },
-			'/pages/home-safety-inspection/form': { view: true, create: true, update: true, delete: true }
+			'/pages/home-safety-inspection/form': { view: true, create: true, update: true, delete: true },
+			'/pages/home-safety-inspection/export': { view: true },
+			'/pages/station-safety-inspection/export': { view: true },
+			'/pages/station-safety-inspection/form': { view: false, create: false, update: true }
 		},
 		'safety_inspector'
 	)
 	assert.equal(permissions['/pages/sale/list'].view, false)
 	assert.equal(permissions['/pages/home-safety-inspection/form'].create, true)
 	assert.equal(permissions['/pages/home-safety-inspection/form'].update, false)
+	assert.equal(permissions['/pages/home-safety-inspection/export'].view, true)
+	assert.equal(permissions['/pages/station-safety-inspection/export'].view, true)
+	assert.equal(permissions['/pages/station-safety-inspection/form'].view, true)
+	assert.equal(permissions['/pages/station-safety-inspection/form'].create, true)
+	assert.equal(permissions['/pages/station-safety-inspection/form'].update, false)
 })
 
 test('公共 ACL 对巡检员的未登记动作默认拒绝，其他角色保持原行为', async () => {
@@ -101,6 +116,14 @@ test('公共 ACL 对巡检员的未登记动作默认拒绝，其他角色保持
 		{ cloudFunction: 'crm-home-safety-inspection' }
 	)
 	assert.equal(inspectionEntryAllowed.ok, true)
+	const stationEntryAllowed = await acl.ensureActionAcl(
+		{ role: 'safety_inspector' },
+		'unregisteredV1',
+		{},
+		[],
+		{ cloudFunction: 'crm-station-safety-inspection' }
+	)
+	assert.equal(stationEntryAllowed.ok, true)
 })
 
 test('超级管理员拥有巡检查看、新建和修改权限', () => {
@@ -109,6 +132,11 @@ test('超级管理员拥有巡检查看、新建和修改权限', () => {
 	assert.equal(permissions['/pages/home-safety-inspection/form'].create, true)
 	assert.equal(permissions['/pages/home-safety-inspection/form'].update, true)
 	assert.equal(permissions['/pages/home-safety-inspection/detail'].update, true)
+	assert.equal(permissions['/pages/home-safety-inspection/export'].view, true)
+	assert.equal(permissions['/pages/safety-inspection/home'].view, true)
+	assert.equal(permissions['/pages/station-safety-inspection/form'].update, true)
+	assert.equal(permissions['/pages/station-safety-inspection/hazards'].update, true)
+	assert.equal(permissions['/pages/station-safety-inspection/export'].view, true)
 })
 
 test('所有云函数 ACL fallback 与公共 registry 一致', () => {

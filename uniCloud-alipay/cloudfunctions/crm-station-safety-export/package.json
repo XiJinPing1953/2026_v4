@@ -1,0 +1,13 @@
+{
+  "name": "crm-station-safety-export",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "exceljs": "4.4.0",
+    "sharp": "0.33.5"
+  },
+  "cloudfunction-config": {
+    "timeout": 600,
+    "memorySize": 2048
+  }
+}

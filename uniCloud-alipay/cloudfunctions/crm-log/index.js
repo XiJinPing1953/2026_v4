@@ -145,6 +145,12 @@ function buildActionCategoryCondition(category) {
 	if (normalized === 'dashboard') {
 		return { condition: { action: db.RegExp({ regexp: '^dashboard_', options: 'i' }) } }
 	}
+	if (normalized === 'inspection') {
+		return { condition: { action: db.RegExp({ regexp: '^home_safety_inspection_', options: 'i' }) } }
+	}
+	if (normalized === 'station_inspection') {
+		return { condition: { action: db.RegExp({ regexp: '^station_safety_', options: 'i' }) } }
+	}
 	if (normalized === 'security') {
 		return { condition: { action: db.RegExp({ regexp: 'forbidden', options: 'i' }) } }
 	}
@@ -153,7 +159,7 @@ function buildActionCategoryCondition(category) {
 			condition: {
 				action: db.RegExp({
 					regexp:
-						`^(?!(${AUTH_ACTIONS.join('|')})$|customer_|sale_|bottle(_anomaly|_movement)?_|filling_|vehicle_|rfid_|delivery_|(account_|voucher_|ledger_|period_|report_)|collection_|dashboard_|.*forbidden).+`,
+						`^(?!(${AUTH_ACTIONS.join('|')})$|customer_|sale_|bottle(_anomaly|_movement)?_|filling_|vehicle_|rfid_|delivery_|(account_|voucher_|ledger_|period_|report_)|collection_|dashboard_|home_safety_inspection_|station_safety_|.*forbidden).+`,
 					options: 'i'
 				})
 			}

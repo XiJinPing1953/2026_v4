@@ -90,7 +90,17 @@ const ACTION_LABEL_MAP = {
 	operation_log_forbidden: '操作日志权限拦截',
 
 	home_safety_inspection_submit_v1: '提交入户安全巡检单',
-	home_safety_inspection_update_v1: '管理员修改入户安全巡检单'
+	home_safety_inspection_update_v1: '管理员修改入户安全巡检单',
+	home_safety_inspection_number_backfill_v1: '回填巡检单编号',
+	home_safety_inspection_export_create_v1: '创建巡检记录导出',
+	home_safety_inspection_export_download_v1: '下载巡检记录导出',
+	station_safety_inspection_submit_v1: '提交厂站安全巡检单',
+	station_safety_inspection_update_v1: '管理员修改厂站安全巡检单',
+	station_safety_hazard_rectify_v1: '提交厂站隐患整改',
+	station_safety_hazard_verify_v1: '验证厂站隐患整改',
+	station_safety_hazard_admin_update_v1: '管理员修改厂站隐患闭环内容',
+	station_safety_export_create_v1: '创建厂站巡检导出',
+	station_safety_export_download_v1: '下载厂站巡检导出'
 }
 
 const CATEGORY_LABEL_MAP = {
@@ -106,6 +116,7 @@ const CATEGORY_LABEL_MAP = {
 	collection: '追款',
 	dashboard: '工作台',
 	inspection: '入户巡检',
+	station_inspection: '厂站巡检',
 	security: '安全',
 	other: '其他'
 }
@@ -124,6 +135,7 @@ export const LOG_ACTION_CATEGORY_OPTIONS = [
 	{ label: '追款', value: 'collection' },
 	{ label: '工作台', value: 'dashboard' },
 	{ label: '入户巡检', value: 'inspection' },
+	{ label: '厂站巡检', value: 'station_inspection' },
 	{ label: '安全', value: 'security' },
 	{ label: '其他', value: 'other' }
 ]
@@ -152,6 +164,7 @@ export function getLogActionCategory(action) {
 	if (normalized.startsWith('collection_')) return 'collection'
 	if (normalized.startsWith('dashboard_')) return 'dashboard'
 	if (normalized.startsWith('home_safety_inspection_')) return 'inspection'
+	if (normalized.startsWith('station_safety_')) return 'station_inspection'
 	return 'other'
 }
 

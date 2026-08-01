@@ -2,6 +2,10 @@ import { getUser } from './auth'
 import { PAGE_REGISTRY, PAGE_REGISTRY_MAP, buildRoleTemplatePermissions, normalizeRoleTemplate } from './pageAclRegistry'
 
 const ACTIONS = ['view', 'create', 'update', 'delete']
+const SAFETY_EXPORT_PATHS = new Set([
+	'/pages/home-safety-inspection/export',
+	'/pages/station-safety-inspection/export'
+])
 
 export function normalizePagePath(value) {
 	const text = String(value || '').trim()
@@ -12,10 +16,14 @@ export function normalizePagePath(value) {
 
 export function normalizePagePermissions(rawPermissions, roleTemplate) {
 	const base = buildRoleTemplatePermissions(roleTemplate)
-	if (normalizeRoleTemplate(roleTemplate) === 'safety_inspector') return base
 	const source = rawPermissions && typeof rawPermissions === 'object' ? rawPermissions : {}
+	const isSafetyInspector = normalizeRoleTemplate(roleTemplate) === 'safety_inspector'
 	return PAGE_REGISTRY.reduce((acc, item) => {
 		const rawEntry = source[item.pagePath] && typeof source[item.pagePath] === 'object' ? source[item.pagePath] : {}
+		if (isSafetyInspector && !SAFETY_EXPORT_PATHS.has(item.pagePath)) {
+			acc[item.pagePath] = { ...(base[item.pagePath] || {}) }
+			return acc
+		}
 		acc[item.pagePath] = ACTIONS.reduce((entry, action) => {
 			entry[action] =
 				action === 'view'

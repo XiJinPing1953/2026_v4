@@ -34,6 +34,10 @@
 							<AppIcon name="document" size="24rpx" />
 							<text>入户安全巡检</text>
 						</view>
+						<view v-if="canView('/pages/station-safety-inspection/home')" class="nav-item" @click="go('/pages/station-safety-inspection/home')">
+							<AppIcon name="shield" size="24rpx" />
+							<text>厂站安全巡检</text>
+						</view>
 						<view v-if="canView('/pages/bottle/list')" class="nav-item" @click="go('/pages/bottle/list')">
 							<AppIcon name="bottle" size="24rpx" />
 							<text>钢瓶档案</text>
@@ -303,6 +307,10 @@
 							<view v-if="canView('/pages/home-safety-inspection/home')" class="nav-grid-item" @click="go('/pages/home-safety-inspection/home')">
 								<view class="nav-icon bg-customer"><AppIcon name="document" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">入户安全巡检</text>
+							</view>
+							<view v-if="canView('/pages/station-safety-inspection/home')" class="nav-grid-item" @click="go('/pages/station-safety-inspection/home')">
+								<view class="nav-icon bg-asset"><AppIcon name="shield" color="#fff" size="30rpx" /></view>
+								<text class="nav-text">厂站安全巡检</text>
 							</view>
 							<view v-if="canView('/pages/bottle/list')" class="nav-grid-item" @click="go('/pages/bottle/list')">
 								<view class="nav-icon bg-asset"><AppIcon name="bottle" color="#fff" size="30rpx" /></view>
@@ -702,7 +710,7 @@ const currentRoleLabel = computed(() => {
 	if (role === 'admin') return '管理员'
 	if (role === 'finance') return '财务'
 	if (role === 'pda_operator') return 'PDA 操作员'
-	if (role === 'safety_inspector') return '入户安全巡检员'
+	if (role === 'safety_inspector') return '安全巡检员'
 	return '普通用户'
 })
 

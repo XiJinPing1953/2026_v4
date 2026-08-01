@@ -75,6 +75,9 @@
 			<circle v-if="name === 'check-circle'" cx="12" cy="12" r="9" />
 			<polyline v-if="name === 'check-circle'" points="8 12 11 15 16 9" />
 
+			<path v-if="name === 'shield'" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+			<polyline v-if="name === 'shield'" points="9 12 11 14 15 9" />
+
 			<circle v-if="name === 'minus-circle'" cx="12" cy="12" r="9" />
 			<line v-if="name === 'minus-circle'" x1="8" y1="12" x2="16" y2="12" />
 		</svg>

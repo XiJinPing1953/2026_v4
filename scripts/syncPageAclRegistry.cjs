@@ -31,7 +31,13 @@ const cloudFunctionDirs = fs
 	.readdirSync(cloudFunctionsRoot, { withFileTypes: true })
 	.filter((entry) => entry.isDirectory() && entry.name !== 'common')
 	.map((entry) => path.join(cloudFunctionsRoot, entry.name))
-const forceSyncedCloudFunctions = new Set(['crm-home-safety-inspection', 'crm-pda-scale'])
+const forceSyncedCloudFunctions = new Set([
+	'crm-home-safety-inspection',
+	'crm-home-safety-export',
+	'crm-station-safety-inspection',
+	'crm-station-safety-export',
+	'crm-pda-scale'
+])
 
 const targets = cloudFunctionDirs.flatMap((directory) =>
 	canonicalFiles

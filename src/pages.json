@@ -13,6 +13,48 @@
 			}
 		},
 		{
+			"path": "pages/safety-inspection/home",
+			"style": {
+				"navigationBarTitleText": "安全巡检工作台"
+			}
+		},
+		{
+			"path": "pages/station-safety-inspection/home",
+			"style": {
+				"navigationBarTitleText": "厂站安全巡检"
+			}
+		},
+		{
+			"path": "pages/station-safety-inspection/form",
+			"style": {
+				"navigationBarTitleText": "填写厂站巡检单"
+			}
+		},
+		{
+			"path": "pages/station-safety-inspection/history",
+			"style": {
+				"navigationBarTitleText": "厂站巡检历史"
+			}
+		},
+		{
+			"path": "pages/station-safety-inspection/detail",
+			"style": {
+				"navigationBarTitleText": "厂站巡检单详情"
+			}
+		},
+		{
+			"path": "pages/station-safety-inspection/hazards",
+			"style": {
+				"navigationBarTitleText": "隐患整改"
+			}
+		},
+		{
+			"path": "pages/station-safety-inspection/export",
+			"style": {
+				"navigationBarTitleText": "导出厂站巡检"
+			}
+		},
+		{
 			"path": "pages/home-safety-inspection/home",
 			"style": {
 				"navigationBarTitleText": "入户随瓶安全巡检"
