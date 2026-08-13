@@ -9,15 +9,18 @@
 			<view class="highlight-groups">
 				<view class="highlight-group">
 					<view class="highlight-group__head">
-						<text class="highlight-group__title">库存快照</text>
-						<text class="highlight-group__hint">截至 {{ inventoryAsOfText }} 的系统流水回算库存</text>
+						<view class="highlight-group__title-wrap">
+							<text class="highlight-group__title">现场库存</text>
+							<text :class="['tank-status', tankStatusClass]">{{ physicalStatusLabel }}</text>
+						</view>
+						<text class="highlight-group__hint">账期自 {{ currentPeriod.cutoff_day }} 起 · {{ tankSampledAtText }}</text>
 					</view>
 					<view class="summary-row summary-row--inventory">
-						<AppStatCard class="summary-card" label="总库存净值" :value="formatTonText(summary.inventory.asset_total_t)" hint="吨" icon="bottle" />
-						<AppStatCard class="summary-card" label="站内可灌装" :value="formatTonText(summary.inventory.station_total_t)" hint="吨" icon="check-circle" />
-						<AppStatCard class="summary-card" label="在瓶未售" :value="formatTonText(summary.inventory.in_bottle_total_t)" hint="吨" icon="list" />
-						<AppStatCard class="summary-card" label="在车待售" :value="formatTonText(summary.inventory.vehicle_total_t)" hint="吨" icon="truck" />
-						<AppStatCard class="summary-card" label="未归类差额" :value="formatTonText(summary.inventory.balance_diff_t)" hint="吨" icon="alert" />
+						<AppStatCard class="summary-card" label="现场总库存" :value="formatOptionalTonText(currentPhysical.total_t)" hint="吨" icon="bottle" />
+						<AppStatCard class="summary-card" label="储罐剩余" :value="formatOptionalTonText(currentPhysical.tank_t)" hint="吨" icon="check-circle" />
+						<AppStatCard class="summary-card" label="已灌未售" :value="formatTonText(currentPhysical.filled_unsold_t)" hint="吨" icon="list" />
+						<AppStatCard class="summary-card" label="已灌未售瓶数" :value="currentPhysical.filled_unsold_count" hint="只" icon="list" />
+						<AppStatCard class="summary-card" label="待核对瓶数" :value="currentQuality.unresolved_bottle_count" hint="只" icon="alert" />
 					</view>
 				</view>
 				<view class="highlight-group">
@@ -38,10 +41,10 @@
 				<view class="highlight-group">
 					<view class="highlight-group__head">
 						<view class="highlight-group__title-wrap">
-							<text class="highlight-group__title">现场储罐估算</text>
+							<text class="highlight-group__title">账面核对</text>
 							<text :class="['tank-status', tankStatusClass]">{{ tankStatusLabel }}</text>
 						</view>
-						<text class="highlight-group__hint">{{ tankSampledAtText }}</text>
+						<text class="highlight-group__hint">切点前流水已封存，不参与当前账面储罐量</text>
 					</view>
 					<view class="tank-panel">
 						<view class="tank-gauge-card">
@@ -56,20 +59,20 @@
 								</view>
 							</view>
 							<view class="tank-message">
-								<text class="tank-message__title">{{ tankEstimateMessage }}</text>
-								<text class="tank-message__body">液位估算只用于现场核对，不自动修正系统库存。</text>
+								<text class="tank-message__title">{{ currentPhysical.message }}</text>
+								<text class="tank-message__body">{{ tankWeightSourceText }}。账面差异只用于发现漏单，不会覆盖现场值。</text>
 							</view>
 						</view>
 						<view class="summary-row summary-row--tank">
-							<AppStatCard class="summary-card" label="现场估算" :value="formatOptionalTonText(tankEstimate.estimated_t)" hint="吨" icon="chart" />
-							<AppStatCard class="summary-card" label="账面站内" :value="formatTonText(summary.inventory.station_total_t)" hint="吨" icon="check-circle" />
-							<AppStatCard class="summary-card" label="估算差异" :value="formatOptionalSignedTonText(tankEstimate.diff_t)" hint="吨" icon="alert" />
-							<AppStatCard class="summary-card" label="储罐液位" :value="tankLevelText" hint="米" icon="list" />
+							<AppStatCard class="summary-card" label="账面储罐" :value="formatOptionalTonText(currentLedger.tank_t)" hint="吨" icon="chart" />
+							<AppStatCard class="summary-card" label="现场储罐" :value="formatOptionalTonText(currentPhysical.tank_t)" hint="吨" icon="check-circle" />
+							<AppStatCard class="summary-card" label="现场与账面差异" :value="formatOptionalSignedTonText(currentLedger.diff_t)" hint="吨" icon="alert" />
+							<AppStatCard class="summary-card" label="储罐液位" :value="tankLevelDisplayText" :hint="tankLevelUnit" icon="list" />
 							<AppStatCard class="summary-card" label="储罐压力" :value="tankPressureText" hint="MPa" icon="chart" />
 						</view>
 					</view>
 					<view v-if="canMaintainGasInventory" class="tank-config-row">
-						<AppInput v-model="tankConfigDraft" class="tank-config-input" label="满罐吨数" placeholder="输入满罐吨数" prefix-icon="bottle" type="number" size="sm" />
+						<AppInput v-model="tankConfigDraft" class="tank-config-input" label="备用满罐吨数" placeholder="仅PLC重量缺失时使用" prefix-icon="bottle" type="number" size="sm" />
 						<AppButton size="sm" kind="primary" :loading="savingTankConfig" :disabled="loading || savingTankConfig" @click="onSaveTankConfig">保存配置</AppButton>
 					</view>
 				</view>
@@ -84,8 +87,8 @@
 				<AppDatePresetBar v-model="datePreset" @update:modelValue="onDatePresetChange" />
 			</view>
 			<view class="ops-row">
-				<AppButton v-if="canMaintainGasInventory" size="sm" kind="neutral" :loading="syncing" :disabled="loading || rebuilding" @click="onSyncCycle">闭环同步</AppButton>
-				<AppButton v-if="canMaintainGasInventory" size="sm" kind="neutral" :loading="rebuilding" :disabled="loading || syncing" @click="onRebuildInventory">库存重建</AppButton>
+				<AppButton v-if="canMaintainGasInventory" size="sm" kind="neutral" :loading="syncing" :disabled="loading || periodActivating" @click="onSyncCycle">闭环同步</AppButton>
+				<AppButton v-if="canMaintainGasInventory" size="sm" kind="neutral" :loading="periodActivating" :disabled="loading || syncing" @click="onManagePeriod">账期管理</AppButton>
 			</view>
 			<view v-if="serviceWarning" class="service-warning">{{ serviceWarning }}</view>
 
@@ -167,7 +170,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppList from '@/components/base/AppList.vue'
@@ -181,10 +184,13 @@ import { useAuthGuard } from '@/composables/useAuthGuard'
 import { useQuery } from '@/composables/useQuery'
 import { buildDatePresetRange, detectDatePreset, formatDateInput } from '@/utils/datePreset'
 import {
+	activateGasInventoryPeriodV1,
+	getCurrentGasInventoryV1,
 	getGasTankConfigV1,
 	listGasInV1,
+	listGasInventoryPeriodsV1,
+	previewGasInventoryPeriodV1,
 	removeGasInV1,
-	rebuildGasInventoryV1,
 	syncGasCycleAdjustmentsV1,
 	updateGasTankConfigV1
 } from '@/services/gasIn'
@@ -193,10 +199,14 @@ const list = ref([])
 const removingId = ref('')
 const exporting = ref(false)
 const syncing = ref(false)
-const rebuilding = ref(false)
+const periodActivating = ref(false)
 const savingTankConfig = ref(false)
 const tankConfigDraft = ref('')
 const serviceWarning = ref('')
+const clockNow = ref(Date.now())
+let freshnessTimer = null
+let inventoryRefreshTimer = null
+let inventoryRefreshRunning = false
 
 const pager = reactive({
 	page: 1,
@@ -218,12 +228,45 @@ const datePreset = ref('month')
 function buildEmptyTankTelemetry() {
 	return {
 		level_m: null,
+		level_kpa: null,
 		level_percent: null,
 		pressure_mpa: null,
+		lng_weight_t: null,
 		status: 'empty',
 		sampled_at: null,
 		updated_at: null,
 		message: ''
+	}
+}
+
+function buildEmptyCurrentInventory() {
+	return {
+		period: {
+			cutoff_day: '2026-08-12',
+			cutoff_at: 1786464000000,
+			opening_tank_t: 0,
+			persisted: false
+		},
+		physical: {
+			tank_t: null,
+			filled_unsold_t: 0,
+			total_t: null,
+			filled_unsold_count: 0,
+			available: false,
+			status: 'empty',
+			sampled_at: null,
+			weight_source: 'unavailable',
+			is_fallback: false,
+			message: '等待储罐网关上报，总库存暂不可用'
+		},
+		ledger: {
+			tank_t: 0,
+			diff_t: null
+		},
+		quality: {
+			unresolved_bottle_count: 0,
+			message: ''
+		}
 	}
 }
 
@@ -259,7 +302,8 @@ const summary = reactive({
 		scope: '',
 		movement_total: 0,
 		tank: buildEmptyTankTelemetry(),
-		estimate: buildEmptyTankEstimate()
+		estimate: buildEmptyTankEstimate(),
+		current: buildEmptyCurrentInventory()
 	}
 })
 const { canPageAction } = useAuthGuard()
@@ -359,12 +403,9 @@ function getInventoryAsOfDate() {
 }
 
 const subtitle = computed(() => {
-	const asOf = summary.inventory.as_of_date || getInventoryAsOfDate()
-	if (!pager.total) return `库存快照截至 ${asOf} · 本月入库来源`
-	return `库存快照截至 ${asOf} · 当前入库流水 ${pager.total} 条`
+	if (!pager.total) return `现场库存 · ${flowRangeText.value}`
+	return `现场库存 · 当前筛选入库流水 ${pager.total} 条`
 })
-
-const inventoryAsOfText = computed(() => summary.inventory.as_of_date || getInventoryAsOfDate())
 
 const flowRangeText = computed(() => {
 	const start = normalizeString(filters.dateStart)
@@ -376,7 +417,27 @@ const flowRangeText = computed(() => {
 })
 
 const tankTelemetry = computed(() => summary.inventory.tank || buildEmptyTankTelemetry())
-const tankEstimate = computed(() => summary.inventory.estimate || buildEmptyTankEstimate())
+const currentInventory = computed(() => summary.inventory.current || buildEmptyCurrentInventory())
+const currentPeriod = computed(() => currentInventory.value.period || buildEmptyCurrentInventory().period)
+const currentPhysical = computed(() => {
+	const source = currentInventory.value.physical || buildEmptyCurrentInventory().physical
+	const sampledAt = Number(source.sampled_at || tankTelemetry.value.sampled_at || tankTelemetry.value.updated_at || 0)
+	if (source.status === 'online' && sampledAt > 0 && clockNow.value - sampledAt > 60000) {
+		return {
+			...source,
+			available: false,
+			status: 'stale',
+			total_t: null,
+			message: '储罐数据超过60秒未更新，总库存暂不可用'
+		}
+	}
+	return source
+})
+const currentLedger = computed(() => {
+	const source = currentInventory.value.ledger || buildEmptyCurrentInventory().ledger
+	return currentPhysical.value.available ? source : { ...source, diff_t: null }
+})
+const currentQuality = computed(() => currentInventory.value.quality || buildEmptyCurrentInventory().quality)
 
 const tankLevelPercent = computed(() => {
 	const num = Number(tankTelemetry.value.level_percent)
@@ -387,46 +448,48 @@ const tankLevelPercent = computed(() => {
 const tankLevelFillHeight = computed(() => `${tankLevelPercent.value == null ? 0 : tankLevelPercent.value}%`)
 const tankLevelPercentText = computed(() => formatRawPercentText(tankLevelPercent.value))
 const tankLevelText = computed(() => formatOptionalValueText(tankTelemetry.value.level_m, 2))
+const tankLevelKpaText = computed(() => formatOptionalValueText(tankTelemetry.value.level_kpa, 2))
+const tankLevelDisplayText = computed(() => {
+	if (toNullableNumber(tankTelemetry.value.level_kpa) != null) return tankLevelKpaText.value
+	return tankLevelText.value
+})
+const tankLevelUnit = computed(() => (toNullableNumber(tankTelemetry.value.level_kpa) != null ? 'kPa' : '米'))
 const tankPressureText = computed(() => formatOptionalValueText(tankTelemetry.value.pressure_mpa, 2))
 
 const tankStatusLabel = computed(() => {
-	const status = normalizeString(tankTelemetry.value.status)
+	const status = normalizeString(currentPhysical.value.status || tankTelemetry.value.status)
 	if (status === 'online') return '在线'
 	if (status === 'stale') return '数据延迟'
 	if (status === 'error') return '异常'
 	return '等待采集'
 })
 
-const tankStatusClass = computed(() => `tank-status--${normalizeString(tankTelemetry.value.status) || 'empty'}`)
+const tankStatusClass = computed(() => `tank-status--${normalizeString(currentPhysical.value.status || tankTelemetry.value.status) || 'empty'}`)
+
+const physicalStatusLabel = computed(() => {
+	if (currentPhysical.value.available) return currentPhysical.value.is_fallback ? '备用估算' : '可用'
+	if (currentPhysical.value.status === 'stale') return '数据延迟'
+	if (currentPhysical.value.status === 'error') return '采集异常'
+	return '暂不可用'
+})
 
 const tankSampledAtText = computed(() => {
 	const text = formatDateTime(tankTelemetry.value.sampled_at || tankTelemetry.value.updated_at)
 	return text ? `采集 ${text}` : '暂无采集时间'
 })
 
-const tankEstimateMessage = computed(() => {
-	const estimateMessage = normalizeString(tankEstimate.value.message)
-	if (estimateMessage) return estimateMessage
-	const tankMessage = normalizeString(tankTelemetry.value.message)
-	if (tankMessage) return tankMessage
-	if (tankTelemetry.value.status === 'online') return '现场网关在线'
-	if (tankTelemetry.value.status === 'stale') return '超过60秒未收到新数据'
-	if (tankTelemetry.value.status === 'error') return '采集异常'
-	return '等待现场网关上报'
+const tankWeightSourceText = computed(() => {
+	if (currentPhysical.value.weight_source === 'plc_weight') return '储罐采用 PLC 直接重量'
+	if (currentPhysical.value.weight_source === 'level_estimate') return '储罐采用液位比例备用估算'
+	return '当前没有可用的储罐重量来源'
 })
 
 const inventoryWarning = computed(() => {
-	const asset = Number(summary.inventory.asset_total_t || 0)
-	const station = Number(summary.inventory.station_total_t || 0)
-	const inBottle = Number(summary.inventory.in_bottle_total_t || 0)
-	const vehicle = Number(summary.inventory.vehicle_total_t || 0)
-	const residual = Number(summary.inventory.balance_diff_t || 0)
-	if (asset >= 0 && station >= 0 && inBottle >= 0 && vehicle >= 0 && Math.abs(residual) < 0.001) return ''
-	let text = `库存快照按截至 ${inventoryAsOfText.value} 的系统天然气流水净值回算。若系统启用前已有期初库存，或历史入库未补齐，会出现负数；建议补齐期初/历史入库后再执行库存重建。`
-	if (Math.abs(residual) >= 0.001) {
-		text += ` 当前仍有 ${formatTonText(residual)} 吨未归类差额，多来自历史整车/TRUCK 链路或旧流水残差。`
-	}
-	return text
+	const messages = []
+	if (!currentPhysical.value.available) messages.push(normalizeString(currentPhysical.value.message))
+	if (Number(currentQuality.value.unresolved_bottle_count || 0) > 0) messages.push(normalizeString(currentQuality.value.message))
+	if (currentPhysical.value.is_fallback) messages.push('当前没有PLC直接重量，满罐吨数仅用于备用估算。')
+	return messages.filter(Boolean).join(' ')
 })
 
 const totalPages = computed(() => {
@@ -499,7 +562,8 @@ const { loading, run: fetchList } = useQuery(
 					scope: 'as_of',
 					movement_total: 0,
 					tank: buildEmptyTankTelemetry(),
-					estimate: buildEmptyTankEstimate()
+					estimate: buildEmptyTankEstimate(),
+					current: buildEmptyCurrentInventory()
 				}
 			}
 		}
@@ -550,11 +614,60 @@ function applyResult(payload = {}) {
 		estimate: {
 			...buildEmptyTankEstimate(),
 			...(s?.inventory?.estimate && typeof s.inventory.estimate === 'object' ? s.inventory.estimate : {})
+		},
+		current: {
+			...buildEmptyCurrentInventory(),
+			...(s?.inventory?.current && typeof s.inventory.current === 'object' ? s.inventory.current : {}),
+			period: {
+				...buildEmptyCurrentInventory().period,
+				...(s?.inventory?.current?.period && typeof s.inventory.current.period === 'object' ? s.inventory.current.period : {})
+			},
+			physical: {
+				...buildEmptyCurrentInventory().physical,
+				...(s?.inventory?.current?.physical && typeof s.inventory.current.physical === 'object' ? s.inventory.current.physical : {})
+			},
+			ledger: {
+				...buildEmptyCurrentInventory().ledger,
+				...(s?.inventory?.current?.ledger && typeof s.inventory.current.ledger === 'object' ? s.inventory.current.ledger : {})
+			},
+			quality: {
+				...buildEmptyCurrentInventory().quality,
+				...(s?.inventory?.current?.quality && typeof s.inventory.current.quality === 'object' ? s.inventory.current.quality : {})
+			}
 		}
 	}
 	tankConfigDraft.value = summary.inventory.estimate.full_tank_weight_t
 		? String(summary.inventory.estimate.full_tank_weight_t)
 		: ''
+}
+
+async function refreshCurrentInventory() {
+	if (inventoryRefreshRunning) return
+	inventoryRefreshRunning = true
+	try {
+		const res = await getCurrentGasInventoryV1()
+		if (res?.code !== 0) return
+		const current = res?.data?.current
+		const tank = res?.data?.tank
+		if (current && typeof current === 'object') {
+			summary.inventory.current = {
+				...buildEmptyCurrentInventory(),
+				...current,
+				period: { ...buildEmptyCurrentInventory().period, ...(current.period || {}) },
+				physical: { ...buildEmptyCurrentInventory().physical, ...(current.physical || {}) },
+				ledger: { ...buildEmptyCurrentInventory().ledger, ...(current.ledger || {}) },
+				quality: { ...buildEmptyCurrentInventory().quality, ...(current.quality || {}) }
+			}
+		}
+		if (tank && typeof tank === 'object') {
+			summary.inventory.tank = { ...buildEmptyTankTelemetry(), ...tank }
+		}
+		clockNow.value = Date.now()
+	} catch (err) {
+		console.warn('[gas-in] refresh current inventory failed', err)
+	} finally {
+		inventoryRefreshRunning = false
+	}
 }
 
 async function onSearch(resetPage = false, options = {}) {
@@ -814,7 +927,7 @@ async function onExport() {
 }
 
 async function onSyncCycle() {
-	if (syncing.value || rebuilding.value) return
+	if (syncing.value || periodActivating.value) return
 	syncing.value = true
 	try {
 		const previewRes = await syncGasCycleAdjustmentsV1({ preview: true })
@@ -853,45 +966,55 @@ async function onSyncCycle() {
 	}
 }
 
-async function onRebuildInventory() {
-	if (rebuilding.value || syncing.value) return
-	rebuilding.value = true
+async function onManagePeriod() {
+	if (periodActivating.value || syncing.value) return
+	periodActivating.value = true
 	try {
-		const previewRes = await rebuildGasInventoryV1({
-			preview: true,
-			include_cycle_adjust: false
-		})
+		const params = {
+			cutoff_day: '2026-08-12',
+			opening_tank_t: 0,
+			reason: '储罐持续清零后重新建立现场库存账期'
+		}
+		const [previewRes, historyRes] = await Promise.all([
+			previewGasInventoryPeriodV1(params),
+			listGasInventoryPeriodsV1({ page: 1, pageSize: 5 })
+		])
 		if (previewRes?.code !== 0) {
-			uni.showToast({ title: previewRes?.msg || '重建预览失败', icon: 'none' })
+			uni.showToast({ title: previewRes?.msg || '账期预览失败', icon: 'none' })
 			return
 		}
-		const movementTotal = Number(previewRes?.data?.stats?.movement_total || 0)
+		const candidate = previewRes?.data?.candidate || params
+		const historyRows = Array.isArray(historyRes?.data) ? historyRes.data : []
+		const activeHistory = historyRows.find((row) => row?.status === 'active')
+		const content = [
+			`切点：${candidate.cutoff_day} 00:00`,
+			`储罐期初：${formatTonText(candidate.opening_tank_t)} 吨`,
+			activeHistory ? `当前活动账期：${activeHistory.cutoff_day}` : '当前尚未持久化活动账期',
+			`已保存历史账期：${Number(historyRes?.total || historyRows.length || 0)} 个`,
+			'切点前流水保留查询，不删除、不参与新账期。',
+			'重复确认不会创建多个活动账期。'
+		].join('\n')
 		const confirm = await new Promise((resolve) => {
 			uni.showModal({
-				title: '库存重建确认',
-				content: `将重建 ${movementTotal} 条库存流水。当前默认不自动备份旧流水，是否继续？`,
+				title: '启用现场库存账期',
+				content,
+				confirmText: '确认启用',
 				success: (res) => resolve(Boolean(res && res.confirm)),
 				fail: () => resolve(false)
 			})
 		})
 		if (!confirm) return
-
-		const executeRes = await rebuildGasInventoryV1({
-			preview: false,
-			include_cycle_adjust: false,
-			backup_before_rebuild: false
-		})
+		const executeRes = await activateGasInventoryPeriodV1(params)
 		if (executeRes?.code !== 0) {
-			uni.showToast({ title: executeRes?.msg || '重建失败', icon: 'none' })
+			uni.showToast({ title: executeRes?.msg || '账期启用失败', icon: 'none' })
 			return
 		}
-		const runId = normalizeString(executeRes?.data?.run_id)
-		uni.showToast({ title: runId ? `重建完成 run_id:${runId}` : '重建完成', icon: 'none', duration: 3600 })
-		onSearch(false, { force: true })
+		uni.showToast({ title: '账期已启用', icon: 'success' })
+		await onSearch(false, { force: true })
 	} catch (err) {
-		uni.showToast({ title: err?.message || '重建失败', icon: 'none' })
+		uni.showToast({ title: err?.message || '账期操作失败', icon: 'none' })
 	} finally {
-		rebuilding.value = false
+		periodActivating.value = false
 	}
 }
 
@@ -905,6 +1028,17 @@ onMounted(() => {
 	syncDatePreset()
 	loadTankConfig()
 	onSearch(true)
+	freshnessTimer = setInterval(() => {
+		clockNow.value = Date.now()
+	}, 10000)
+	inventoryRefreshTimer = setInterval(refreshCurrentInventory, 30000)
+})
+
+onBeforeUnmount(() => {
+	if (freshnessTimer) clearInterval(freshnessTimer)
+	if (inventoryRefreshTimer) clearInterval(inventoryRefreshTimer)
+	freshnessTimer = null
+	inventoryRefreshTimer = null
 })
 </script>
 

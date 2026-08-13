@@ -6,6 +6,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const {
+	DEFAULT_TANK_CONFIG,
 	normalizeString,
 	toNumber,
 	toInt,
@@ -26,13 +27,18 @@ function safeJsonParse(text, fallback = null) {
 
 function parseArgs(argv) {
 	const out = {
-		host: normalizeString(process.env.PLC_HOST) || '192.168.0.1',
+		host: normalizeString(process.env.PLC_HOST) || DEFAULT_TANK_CONFIG.host,
 		port: toInt(process.env.PLC_PORT, 102),
 		rack: toInt(process.env.PLC_RACK, 0),
 		slot: toInt(process.env.PLC_SLOT, 1),
-		levelAddress: normalizeString(process.env.TANK_LEVEL_ADDRESS) || 'DB1,REAL2000',
-		pressureAddress: normalizeString(process.env.TANK_PRESSURE_ADDRESS) || 'DB1,REAL2040',
-		fullLevelM: toNumber(process.env.TANK_FULL_LEVEL_M, 10),
+		levelAddress: normalizeString(process.env.TANK_LEVEL_ADDRESS) || DEFAULT_TANK_CONFIG.levelAddress,
+		pressureAddress: normalizeString(process.env.TANK_PRESSURE_ADDRESS) || DEFAULT_TANK_CONFIG.pressureAddress,
+		weightAddress: normalizeString(process.env.TANK_WEIGHT_ADDRESS) || DEFAULT_TANK_CONFIG.weightAddress,
+		levelReferenceKpa: toNumber(process.env.TANK_LEVEL_REFERENCE_KPA, DEFAULT_TANK_CONFIG.levelReferenceKpa),
+		levelReferencePercent: toNumber(
+			process.env.TANK_LEVEL_REFERENCE_PERCENT,
+			DEFAULT_TANK_CONFIG.levelReferencePercent
+		),
 		intervalMs: toInt(process.env.TANK_POLL_MS, 5000),
 		timeoutMs: toInt(process.env.TANK_S7_TIMEOUT_MS, 5000),
 		tankId: normalizeString(process.env.TANK_ID) || 'main',
@@ -69,7 +75,11 @@ function parseArgs(argv) {
 		if (key === 'slot') out.slot = toInt(value, out.slot)
 		if (key === 'level-address') out.levelAddress = normalizeString(value) || out.levelAddress
 		if (key === 'pressure-address') out.pressureAddress = normalizeString(value) || out.pressureAddress
-		if (key === 'full-level-m') out.fullLevelM = toNumber(value, out.fullLevelM)
+		if (key === 'weight-address') out.weightAddress = normalizeString(value) || out.weightAddress
+		if (key === 'level-reference-kpa') out.levelReferenceKpa = toNumber(value, out.levelReferenceKpa)
+		if (key === 'level-reference-percent') {
+			out.levelReferencePercent = toNumber(value, out.levelReferencePercent)
+		}
 		if (key === 'interval-ms') out.intervalMs = toInt(value, out.intervalMs)
 		if (key === 'timeout-ms') out.timeoutMs = toInt(value, out.timeoutMs)
 		if (key === 'tank-id') out.tankId = normalizeString(value) || out.tankId
@@ -250,8 +260,9 @@ function printTelemetry(telemetry, mode) {
 	const sampled = new Date(telemetry.sampled_at).toISOString()
 	const prefix = mode === 'dry' ? '[dry-run]' : '[upload]'
 	console.log(
-		`${prefix} ${sampled} level=${telemetry.level_m.toFixed(2)}m ` +
-			`percent=${telemetry.level_percent.toFixed(2)}% pressure=${telemetry.pressure_mpa.toFixed(2)}MPa`
+		`${prefix} ${sampled} level=${telemetry.level_kpa.toFixed(2)}kPa ` +
+			`percent=${telemetry.level_percent.toFixed(2)}% weight=${telemetry.lng_weight_t.toFixed(2)}t ` +
+			`pressure=${telemetry.pressure_mpa.toFixed(2)}MPa`
 	)
 }
 

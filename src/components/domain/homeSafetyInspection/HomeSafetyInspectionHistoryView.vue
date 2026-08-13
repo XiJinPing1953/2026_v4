@@ -22,6 +22,7 @@
 				:class="['record-card', record.overall_result === 'abnormal' ? 'record-card--danger' : '']"
 				@click="openDetail(record)"
 			>
+				<text v-if="record.inspection_no" class="record-card__number">{{ record.inspection_no }}</text>
 				<view class="record-card__head">
 					<text class="record-card__time">{{ formatDateTime(record.inspection_at) }}</text>
 					<text :class="['record-card__result', record.overall_result === 'abnormal' ? 'record-card__result--danger' : '']">
@@ -187,12 +188,19 @@ defineExpose({ refresh: () => load(true) })
 }
 .record-card__location,
 .record-card__inspector,
-.record-card__edited {
+.record-card__edited,
+.record-card__number {
 	display: block;
 	margin-top: 11rpx;
 	color: #526d82;
 	font-size: 23rpx;
 	line-height: 1.45;
+}
+.record-card__number {
+	margin-top: 0;
+	margin-bottom: 8rpx;
+	color: #0f766e;
+	font-weight: 700;
 }
 .record-card__inspector {
 	color: #718096;

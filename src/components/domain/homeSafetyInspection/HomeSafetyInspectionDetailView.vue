@@ -1,5 +1,5 @@
 <template>
-	<HomeSafetyInspectionShell title="巡检单详情" subtitle="现场记录与双方签名" back>
+	<HomeSafetyInspectionShell title="巡检单详情" subtitle="现场巡检完整记录" back>
 		<template #action>
 			<button
 				v-if="showEditAction"
@@ -36,6 +36,7 @@
 
 			<view class="section-card">
 				<view class="section-title"><text class="section-title__number">1</text><text>时间与地点</text></view>
+				<DetailRow label="巡检编号" :value="record.inspection_no || '未编号'" />
 				<DetailRow label="巡检时间" :value="formatDateTime(record.inspection_at)" />
 				<DetailRow label="客户" :value="record.customer_name_snapshot || '-'" />
 				<DetailRow label="客户地址快照" :value="record.customer_address_snapshot || '-'" />
@@ -91,29 +92,10 @@
 			</view>
 
 			<view class="section-card">
-				<view class="section-title"><text class="section-title__number">3</text><text>双方电子签名</text></view>
-				<view class="signature-card">
-					<text class="signature-card__title">客户现场人员：{{ record.customer_signer_name || '-' }}</text>
-					<image
-						class="signature-card__image"
-						:src="fileUrls[record.customer_signature_file_id] || record.customer_signature_file_id"
-						mode="aspectFit"
-						@click="previewSignature(record.customer_signature_file_id)"
-					/>
-					<text class="signature-card__time">签名记录时间：{{ formatDateTime(record.customer_signed_at) }}</text>
-				</view>
-				<view class="signature-card">
-					<text class="signature-card__title">巡检员：{{ record.inspector_name || '-' }}</text>
-					<image
-						class="signature-card__image"
-						:src="fileUrls[record.inspector_signature_file_id] || record.inspector_signature_file_id"
-						mode="aspectFit"
-						@click="previewSignature(record.inspector_signature_file_id)"
-					/>
-					<text class="signature-card__time">
-						账号：{{ record.inspector_username_snapshot || '-' }} · 签名记录时间：{{ formatDateTime(record.inspector_signed_at) }}
-					</text>
-				</view>
+				<view class="section-title"><text class="section-title__number">3</text><text>人员信息</text></view>
+				<DetailRow label="客户现场人员" :value="record.customer_signer_name || '-'" />
+				<DetailRow label="巡检员" :value="record.inspector_name || '-'" />
+				<DetailRow label="巡检员账号" :value="record.inspector_username_snapshot || '-'" />
 			</view>
 
 			<view v-if="canViewRevisions" class="section-card">
@@ -183,9 +165,9 @@
 									/>
 								</view>
 							</view>
-							<DetailRow label="原客户签名人" :value="revision.snapshot?.customer_signer_name || '-'" />
+							<DetailRow label="原客户现场人员" :value="revision.snapshot?.customer_signer_name || '-'" />
 							<DetailRow label="原巡检员" :value="revision.snapshot?.inspector_name || '-'" />
-							<text class="revision-card__notice">原照片与原签名云文件标识已完整保存在此版本中。</text>
+							<text class="revision-card__notice">原现场照片已完整保存在此版本中。</text>
 						</view>
 					</view>
 				</view>
@@ -389,7 +371,6 @@ async function load() {
 		record.value = res.data
 		const ids = []
 		for (const item of res.data.items || []) ids.push(...(item.photo_file_ids || []))
-		ids.push(res.data.customer_signature_file_id, res.data.inspector_signature_file_id)
 		fileUrls.value = await resolveInspectionFileUrls(ids)
 	} catch (err) {
 		loadError.value = err?.message || '巡检单加载失败'
@@ -402,11 +383,6 @@ function previewPhotos(fileIds, index) {
 	const urls = (fileIds || []).map((fileId) => fileUrls.value[fileId] || fileId).filter(Boolean)
 	if (!urls.length) return
 	uni.previewImage({ urls, current: urls[index] || urls[0] })
-}
-
-function previewSignature(fileId) {
-	const url = fileUrls.value[fileId] || fileId
-	if (url) uni.previewImage({ urls: [url], current: url })
 }
 
 function editRecord() {
@@ -443,7 +419,6 @@ async function resolveRevisionFileUrls(rows) {
 	for (const revision of rows || []) {
 		const snapshot = revision?.snapshot || {}
 		for (const item of snapshot.items || []) ids.push(...(item.photo_file_ids || []))
-		ids.push(snapshot.customer_signature_file_id, snapshot.inspector_signature_file_id)
 	}
 	const resolved = await resolveInspectionFileUrls(ids)
 	fileUrls.value = { ...fileUrls.value, ...resolved }
@@ -695,34 +670,6 @@ defineExpose({ refresh: load })
 	aspect-ratio: 1;
 	border-radius: 13rpx;
 	background: #e2e8f0;
-}
-.signature-card {
-	margin-top: 20rpx;
-	padding: 18rpx;
-	border-radius: 16rpx;
-	background: #f8fafc;
-}
-.signature-card__title,
-.signature-card__time {
-	display: block;
-}
-.signature-card__title {
-	color: #243b53;
-	font-size: 25rpx;
-	font-weight: 800;
-}
-.signature-card__image {
-	width: 100%;
-	height: 220rpx;
-	margin-top: 12rpx;
-	background: #fff;
-	border-radius: 12rpx;
-}
-.signature-card__time {
-	margin-top: 10rpx;
-	color: #718096;
-	font-size: 20rpx;
-	line-height: 1.45;
 }
 .revision-head,
 .revision-card__head {

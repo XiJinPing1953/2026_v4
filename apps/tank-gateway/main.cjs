@@ -5,10 +5,13 @@ const os = require('os')
 const path = require('path')
 const { app, BrowserWindow, ipcMain, safeStorage } = require('electron')
 const {
+	DEFAULT_TANK_CONFIG,
 	normalizeString,
 	toNumber,
 	toInt,
 	normalizeGatewayConfig,
+	repairKnownGatewayConfig,
+	validateGatewayConfig,
 	readTankTelemetry
 } = require('../../scripts/tankTelemetryCore.cjs')
 
@@ -20,6 +23,7 @@ try {
 }
 
 const APP_NAME = 'XintuoTankGateway'
+const CONFIG_VERSION = 3
 const CREDENTIAL_SERVICE = 'Xintuo Tank Gateway'
 const CREDENTIAL_ACCOUNT = 'tank-gateway-password'
 
@@ -42,14 +46,17 @@ let state = {
 
 function defaultConfig() {
 	return {
+		configVersion: CONFIG_VERSION,
 		gatewayUrl: '',
-		host: '192.168.0.1',
+		host: DEFAULT_TANK_CONFIG.host,
 		port: 102,
 		rack: 0,
 		slot: 1,
-		levelAddress: 'DB1,REAL2000',
-		pressureAddress: 'DB1,REAL2040',
-		fullLevelM: 10,
+		levelAddress: DEFAULT_TANK_CONFIG.levelAddress,
+		pressureAddress: DEFAULT_TANK_CONFIG.pressureAddress,
+		weightAddress: DEFAULT_TANK_CONFIG.weightAddress,
+		levelReferenceKpa: DEFAULT_TANK_CONFIG.levelReferenceKpa,
+		levelReferencePercent: DEFAULT_TANK_CONFIG.levelReferencePercent,
 		intervalMs: 5000,
 		timeoutMs: 5000,
 		tankId: 'main',
@@ -81,10 +88,22 @@ function readJsonFile(file, fallback) {
 	}
 }
 
-function normalizeAppConfig(input = {}) {
-	const merged = { ...defaultConfig(), ...(input || {}) }
-	const gateway = normalizeGatewayConfig(merged)
+function normalizeAppConfig(input = {}, options = {}) {
+	const source = input && typeof input === 'object' ? input : {}
+	let merged = { ...defaultConfig(), ...source }
+	if (options.migrateLegacy && toInt(source.configVersion, 0) < CONFIG_VERSION) {
+		if (normalizeString(source.host) === '192.168.0.1') merged.host = DEFAULT_TANK_CONFIG.host
+		if (normalizeString(source.levelAddress) === 'DB1,REAL2000') {
+			merged.levelAddress = DEFAULT_TANK_CONFIG.levelAddress
+		}
+		if (normalizeString(source.pressureAddress) === 'DB1,REAL2040') {
+			merged.pressureAddress = DEFAULT_TANK_CONFIG.pressureAddress
+		}
+		merged = repairKnownGatewayConfig(merged)
+	}
+	const gateway = validateGatewayConfig(normalizeGatewayConfig(merged))
 	return {
+		configVersion: CONFIG_VERSION,
 		gatewayUrl: normalizeString(merged.gatewayUrl || merged.gateway_url),
 		host: gateway.host,
 		port: gateway.port,
@@ -92,7 +111,9 @@ function normalizeAppConfig(input = {}) {
 		slot: gateway.slot,
 		levelAddress: gateway.levelAddress,
 		pressureAddress: gateway.pressureAddress,
-		fullLevelM: gateway.fullLevelM,
+		weightAddress: gateway.weightAddress,
+		levelReferenceKpa: gateway.levelReferenceKpa,
+		levelReferencePercent: gateway.levelReferencePercent,
 		intervalMs: gateway.intervalMs,
 		timeoutMs: gateway.timeoutMs,
 		tankId: gateway.tankId,
@@ -101,7 +122,16 @@ function normalizeAppConfig(input = {}) {
 }
 
 function loadConfig() {
-	currentConfig = normalizeAppConfig(readJsonFile(getConfigPath(), defaultConfig()))
+	const storedConfig = readJsonFile(getConfigPath(), defaultConfig())
+	currentConfig = normalizeAppConfig(storedConfig, { migrateLegacy: true })
+	ensureConfigDir()
+	fs.writeFileSync(getConfigPath(), JSON.stringify(currentConfig, null, 2))
+	if (
+		normalizeString(storedConfig.levelAddress) &&
+		normalizeString(storedConfig.levelAddress) !== normalizeString(currentConfig.levelAddress)
+	) {
+		state.message = `已自动修复液位地址为 ${currentConfig.levelAddress}`
+	}
 	return currentConfig
 }
 

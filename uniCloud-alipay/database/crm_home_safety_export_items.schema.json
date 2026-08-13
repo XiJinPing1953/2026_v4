@@ -1,0 +1,31 @@
+{
+  "bsonType": "object",
+  "description": "Per-inspection items for home safety export jobs",
+  "additionalProperties": false,
+  "required": [
+    "job_id", "inspection_id", "customer_id", "sequence", "inspection_no",
+    "status", "xlsx_file_id", "xlsx_cloud_path", "xlsx_file_name",
+    "missing_file_count", "error_message", "created_at", "updated_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "job_id": { "bsonType": "string" },
+    "inspection_id": { "bsonType": "string" },
+    "customer_id": { "bsonType": "string" },
+    "sequence": { "bsonType": "int" },
+    "inspection_no": { "bsonType": "string" },
+    "status": { "bsonType": "string", "enum": ["pending", "generated", "failed"] },
+    "xlsx_file_id": { "bsonType": "string" },
+    "xlsx_cloud_path": { "bsonType": "string" },
+    "xlsx_file_name": { "bsonType": "string" },
+    "missing_file_count": { "bsonType": "int" },
+    "error_message": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" }
+  },
+  "permission": { "read": false, "create": false, "update": false, "delete": false },
+  "indexes": [
+    { "key": { "job_id": 1, "inspection_id": 1 }, "name": "uniq_export_job_inspection", "unique": true },
+    { "key": { "job_id": 1, "status": 1, "sequence": 1 }, "name": "idx_export_job_status_sequence" }
+  ]
+}

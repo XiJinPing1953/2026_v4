@@ -216,8 +216,10 @@ async function ingestV1(event = {}, data = {}, requestId = '') {
 			{
 				gateway_id: payload.gateway_id || payload.gatewayId || '',
 				tank_id: payload.tank_id || payload.tankId || 'main',
-				level_m: payload.level_m ?? payload.levelM ?? null,
-				pressure_mpa: payload.pressure_mpa ?? payload.pressureMpa ?? null
+				level_kpa: payload.level_kpa ?? payload.levelKpa ?? null,
+				level_percent: payload.level_percent ?? payload.levelPercent ?? null,
+				pressure_mpa: payload.pressure_mpa ?? payload.pressureMpa ?? null,
+				lng_weight_t: payload.lng_weight_t ?? payload.lngWeightT ?? null
 			},
 			requestId
 		)

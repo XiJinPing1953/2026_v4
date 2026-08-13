@@ -178,6 +178,10 @@
 									<text class="tank-metric__label">储罐液位</text>
 									<text class="tank-metric__value">{{ tankLevelText }}</text>
 								</view>
+								<view class="tank-metric">
+									<text class="tank-metric__label">LNG 重量</text>
+									<text class="tank-metric__value">{{ tankWeightText }}</text>
+								</view>
 								<view class="tank-meta">
 									<text>{{ tankSampledAtText }}</text>
 									<text>{{ tankMessageText }}</text>
@@ -474,6 +478,10 @@
 								<text class="tank-metric__label">储罐液位</text>
 								<text class="tank-metric__value">{{ tankLevelText }}</text>
 							</view>
+							<view class="tank-metric">
+								<text class="tank-metric__label">LNG 重量</text>
+								<text class="tank-metric__value">{{ tankWeightText }}</text>
+							</view>
 							<view class="tank-meta">
 								<text>{{ tankSampledAtText }}</text>
 								<text>{{ tankMessageText }}</text>
@@ -582,9 +590,11 @@ const receivableSummary = reactive({
 	collectionRate: null
 })
 const tankTelemetry = reactive({
+	levelKpa: null,
 	levelM: null,
 	levelPercent: null,
 	pressureMpa: null,
+	lngWeightT: null,
 	status: 'empty',
 	sampledAt: null,
 	updatedAt: null,
@@ -681,8 +691,12 @@ const tankPercentText = computed(() => {
 	if (!Number.isFinite(Number(tankTelemetry.levelPercent))) return '--%'
 	return `${Math.round(tankLevelPercent.value)}%`
 })
-const tankLevelText = computed(() => formatTankValue(tankTelemetry.levelM, '米'))
+const tankLevelText = computed(() => {
+	if (Number.isFinite(Number(tankTelemetry.levelKpa))) return formatTankValue(tankTelemetry.levelKpa, 'kPa')
+	return formatTankValue(tankTelemetry.levelM, '米')
+})
 const tankPressureText = computed(() => formatTankValue(tankTelemetry.pressureMpa, 'MPa'))
+const tankWeightText = computed(() => formatTankValue(tankTelemetry.lngWeightT, '吨'))
 const tankSampledAtText = computed(() =>
 	tankTelemetry.sampledAt ? `采集 ${formatDateTime(tankTelemetry.sampledAt)}` : '暂无采集时间'
 )
@@ -863,9 +877,11 @@ function applyTankTelemetry(raw) {
 		const num = Number(value)
 		return Number.isFinite(num) ? num : null
 	}
+	tankTelemetry.levelKpa = toNullableNumber(tank.level_kpa ?? tank.levelKpa)
 	tankTelemetry.levelM = toNullableNumber(tank.level_m ?? tank.levelM)
 	tankTelemetry.levelPercent = toNullableNumber(tank.level_percent ?? tank.levelPercent)
 	tankTelemetry.pressureMpa = toNullableNumber(tank.pressure_mpa ?? tank.pressureMpa)
+	tankTelemetry.lngWeightT = toNullableNumber(tank.lng_weight_t ?? tank.lngWeightT)
 	tankTelemetry.status = normalizeTankStatus(tank.status)
 	tankTelemetry.sampledAt = toNullableNumber(tank.sampled_at ?? tank.sampledAt)
 	tankTelemetry.updatedAt = toNullableNumber(tank.updated_at ?? tank.updatedAt)

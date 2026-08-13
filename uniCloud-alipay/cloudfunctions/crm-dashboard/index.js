@@ -29,7 +29,7 @@ const tankTelemetry = db.collection('crm_tank_telemetry')
 const PAGE_ACTION_RULES = {
 	summaryV1: [{ pagePath: '/pages/index/index', action: 'view' }]
 }
-const SUPERADMIN_ONLY_ACTIONS = ['ingestTankTelemetry']
+const SUPERADMIN_ONLY_ACTIONS = ['ingestTankTelemetry', 'getTankTelemetryDebugV1']
 
 async function getUserByToken(token) {
 	if (!token) return null
@@ -492,6 +492,14 @@ async function ingestTankTelemetry(user, data, requestId) {
 	return res
 }
 
+async function getTankTelemetryDebugV1(user, data, requestId) {
+	const tankId = tankTelemetryCore.normalizeTankId(data.tank_id || data.tankId)
+	const res = await tankTelemetry.where({ tank_id: tankId }).orderBy('updated_at', 'desc').limit(1).get()
+	const row = (res.data && res.data[0]) || null
+	await recordLog(user, 'tank_telemetry_debug_v1', { tank_id: tankId, found: Boolean(row) }, requestId)
+	return { code: 0, data: row }
+}
+
 async function summaryV1(user, data, requestId) {
 	const days = Math.min(Math.max(Number(data.days || 7), 3), 31)
 	const today = getCNDate()
@@ -900,5 +908,6 @@ exports.main = async (event, context) => {
 
 	if (action === 'summaryV1') return summaryV1(user, data, requestId)
 	if (action === 'ingestTankTelemetry') return ingestTankTelemetry(user, data, requestId)
+	if (action === 'getTankTelemetryDebugV1') return getTankTelemetryDebugV1(user, data, requestId)
 	return { code: 400, msg: '未知 action' }
 }

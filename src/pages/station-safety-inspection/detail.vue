@@ -1,11 +1,8 @@
-<template><StationSafetyInspectionDetailView v-if="inspectionId" ref="viewRef" :inspection-id="inspectionId" /></template>
+<template><StationSafetyInspectionDetailView v-if="inspectionId" :inspection-id="inspectionId" /></template>
 <script setup>
 import { ref } from 'vue'
-import { onLoad, onShow } from '@dcloudio/uni-app'
+import { onLoad } from '@dcloudio/uni-app'
 import StationSafetyInspectionDetailView from '@/components/domain/stationSafetyInspection/StationSafetyInspectionDetailView.vue'
 const inspectionId = ref('')
-const viewRef = ref(null)
-let firstShow = true
 onLoad((query) => { inspectionId.value = String(query?.id || '').trim() })
-onShow(() => { if (firstShow) { firstShow = false; return } viewRef.value?.refresh?.() })
 </script>

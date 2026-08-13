@@ -216,50 +216,26 @@
 					<view class="section-title">
 						<text class="section-title__number">✓</text>
 						<view>
-							<text class="section-title__main">双方电子签名</text>
-							<text class="section-title__hint">双方姓名和手写签名均必填</text>
+							<text class="section-title__main">确认提交</text>
+							<text class="section-title__hint">核对客户现场人员与巡检员信息</text>
 						</view>
 					</view>
 
-					<view class="signature-block">
-						<view class="field">
-							<text class="field__label">客户现场人员姓名 <text class="required">*</text></text>
-							<input v-model="customerSignerName" class="input" maxlength="50" placeholder="请输入现场签名人姓名" />
-						</view>
-						<text class="signature-block__title">客户现场人员手写签名 <text class="required">*</text></text>
-						<view v-if="customerSignatureFileId && !replaceCustomerSignature" class="existing-signature">
-							<image class="existing-signature__image" :src="customerSignaturePreview" mode="aspectFit" @click="previewSignature(customerSignaturePreview)" />
-							<button class="minor-button" type="button" @click="replaceCustomerSignature = true">重新签名</button>
-						</view>
-						<HomeSafetyInspectionSignaturePad
-							v-else
-							ref="customerSignaturePad"
-							@change="customerSignatureHasInk = $event"
-						/>
+					<view class="field">
+						<text class="field__label">客户现场人员姓名 <text class="required">*</text></text>
+						<input v-model="customerSignerName" class="input" maxlength="50" placeholder="请输入现场人员姓名" />
 					</view>
 
-					<view class="signature-block">
-						<view class="field">
-							<text class="field__label">巡检员 <text class="required">*</text></text>
-							<input
-								v-model="inspectorName"
-								class="input"
-								maxlength="50"
-								:disabled="!editMode"
-								placeholder="巡检员姓名"
-							/>
-							<text v-if="!editMode" class="field__tip">身份由当前登录账号带出。</text>
-						</view>
-						<text class="signature-block__title">巡检员本人手写签名 <text class="required">*</text></text>
-						<view v-if="inspectorSignatureFileId && !replaceInspectorSignature" class="existing-signature">
-							<image class="existing-signature__image" :src="inspectorSignaturePreview" mode="aspectFit" @click="previewSignature(inspectorSignaturePreview)" />
-							<button class="minor-button" type="button" @click="replaceInspectorSignature = true">重新签名</button>
-						</view>
-						<HomeSafetyInspectionSignaturePad
-							v-else
-							ref="inspectorSignaturePad"
-							@change="inspectorSignatureHasInk = $event"
+					<view class="field">
+						<text class="field__label">巡检员 <text class="required">*</text></text>
+						<input
+							v-model="inspectorName"
+							class="input"
+							maxlength="50"
+							:disabled="!editMode"
+							placeholder="巡检员姓名"
 						/>
+						<text v-if="!editMode" class="field__tip">身份由当前登录账号带出。</text>
 					</view>
 				</view>
 
@@ -297,11 +273,10 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBackPress } from '@dcloudio/uni-app'
 import HomeSafetyInspectionShell from './HomeSafetyInspectionShell.vue'
 import HomeSafetyInspectionPhotoField from './HomeSafetyInspectionPhotoField.vue'
-import HomeSafetyInspectionSignaturePad from './HomeSafetyInspectionSignaturePad.vue'
 import { getUser } from '@/services/auth'
 import {
 	getHomeSafetyInspectionV1,
@@ -330,7 +305,7 @@ const props = defineProps({
 })
 
 const DRAFT_PREFIX = 'home_safety_inspection_draft_v2'
-const phases = ['现场信息', '逐项检查', '确认签名']
+const phases = ['现场信息', '逐项检查', '确认提交']
 const loading = ref(true)
 const loadError = ref('')
 const saving = ref(false)
@@ -350,16 +325,6 @@ const items = ref([])
 const currentStep = ref(0)
 const customerSignerName = ref('')
 const inspectorName = ref('')
-const customerSignatureFileId = ref('')
-const inspectorSignatureFileId = ref('')
-const customerSignaturePreview = ref('')
-const inspectorSignaturePreview = ref('')
-const replaceCustomerSignature = ref(true)
-const replaceInspectorSignature = ref(true)
-const customerSignatureHasInk = ref(false)
-const inspectorSignatureHasInk = ref(false)
-const customerSignaturePad = ref(null)
-const inspectorSignaturePad = ref(null)
 const clientSubmissionId = ref(createSubmissionId())
 const inspectionDate = ref('')
 const inspectionTime = ref('')
@@ -472,10 +437,6 @@ const hasPendingLocalPhotos = computed(() =>
 	items.value.some((item) =>
 		(item.photos || []).some((photo) => photo.localPath && !photo.fileId)
 	)
-)
-const hasUnuploadedSignatureInk = computed(() =>
-	(Boolean(customerSignatureHasInk.value) && replaceCustomerSignature.value) ||
-	(Boolean(inspectorSignatureHasInk.value) && replaceInspectorSignature.value)
 )
 const hasMeaningfulDraft = computed(() => {
 	if (!draftReady.value || submitted.value) return false
@@ -643,7 +604,6 @@ async function refreshCloudPreviews() {
 			if (photo.fileId) ids.push(photo.fileId)
 		}
 	}
-	ids.push(customerSignatureFileId.value, inspectorSignatureFileId.value)
 	const map = await resolveInspectionFileUrls(ids)
 	for (const item of items.value) {
 		item.photos = (item.photos || []).map((photo) => ({
@@ -651,8 +611,6 @@ async function refreshCloudPreviews() {
 			previewUrl: map[photo.fileId] || photo.previewUrl || photo.fileId
 		}))
 	}
-	customerSignaturePreview.value = map[customerSignatureFileId.value] || customerSignaturePreview.value || customerSignatureFileId.value
-	inspectorSignaturePreview.value = map[inspectorSignatureFileId.value] || inspectorSignaturePreview.value || inspectorSignatureFileId.value
 	items.value = items.value.slice()
 }
 
@@ -680,10 +638,6 @@ async function resolveStoredFiles(record) {
 			}))
 		}
 	})
-	customerSignatureFileId.value = record.customer_signature_file_id || ''
-	inspectorSignatureFileId.value = record.inspector_signature_file_id || ''
-	replaceCustomerSignature.value = !customerSignatureFileId.value
-	replaceInspectorSignature.value = !inspectorSignatureFileId.value
 	await refreshCloudPreviews()
 }
 
@@ -700,8 +654,6 @@ async function loadNewForm(templateData) {
 	items.value = makeTemplateItems(templateData)
 	const user = getUser() || {}
 	inspectorName.value = user.nickname || user.username || ''
-	replaceCustomerSignature.value = true
-	replaceInspectorSignature.value = true
 }
 
 async function loadEditForm(record) {
@@ -813,10 +765,6 @@ async function restoreDraft() {
 	})
 	customerSignerName.value = raw.customer_signer_name || customerSignerName.value
 	inspectorName.value = raw.inspector_name || inspectorName.value
-	customerSignatureFileId.value = raw.customer_signature_file_id || customerSignatureFileId.value
-	inspectorSignatureFileId.value = raw.inspector_signature_file_id || inspectorSignatureFileId.value
-	if (customerSignatureFileId.value) replaceCustomerSignature.value = false
-	if (inspectorSignatureFileId.value) replaceInspectorSignature.value = false
 	inspectionDate.value = raw.inspection_date || inspectionDate.value
 	inspectionTime.value = raw.inspection_time || inspectionTime.value
 	editReason.value = raw.edit_reason || ''
@@ -884,9 +832,6 @@ async function load() {
 		loadError.value = err?.message || '表单加载失败'
 	} finally {
 		loading.value = false
-		if (!loadError.value) {
-			setTimeout(refreshSignaturePads, 30)
-		}
 	}
 }
 
@@ -1108,24 +1053,15 @@ function validateSite() {
 	return ''
 }
 
-function validateSignatures() {
+function validateConfirmation() {
 	if (!String(customerSignerName.value || '').trim()) return '请填写客户现场人员姓名'
 	if (!String(inspectorName.value || '').trim()) return '巡检员姓名不能为空'
-	if (replaceCustomerSignature.value && !customerSignatureHasInk.value) return '请完成客户现场人员手写签名'
-	if (replaceInspectorSignature.value && !inspectorSignatureHasInk.value) return '请完成巡检员本人手写签名'
 	if (props.editMode && !String(editReason.value || '').trim()) return '请填写管理员修改原因'
 	return ''
 }
 
 function showValidation(message) {
 	uni.showToast({ title: message, icon: 'none', duration: 2800 })
-}
-
-async function refreshSignaturePads() {
-	if (currentStep.value !== finalStep.value) return
-	await nextTick()
-	customerSignaturePad.value?.refresh?.()
-	inspectorSignaturePad.value?.refresh?.()
 }
 
 function scrollToTop() {
@@ -1135,7 +1071,6 @@ function scrollToTop() {
 function setStep(step) {
 	currentStep.value = Math.min(Math.max(step, 0), finalStep.value)
 	scrollToTop()
-	void refreshSignaturePads()
 }
 
 function jumpToItem(itemIndex) {
@@ -1189,39 +1124,12 @@ function validateAllAndFocus() {
 			return message
 		}
 	}
-	const signatureMessage = validateSignatures()
-	if (signatureMessage) {
+	const confirmationMessage = validateConfirmation()
+	if (confirmationMessage) {
 		setStep(finalStep.value)
-		return signatureMessage
+		return confirmationMessage
 	}
 	return ''
-}
-
-async function ensureSignature(kind) {
-	const isCustomer = kind === 'customer'
-	const replacing = isCustomer ? replaceCustomerSignature.value : replaceInspectorSignature.value
-	const existingId = isCustomer ? customerSignatureFileId.value : inspectorSignatureFileId.value
-	if (!replacing && existingId) return existingId
-	const pad = isCustomer ? customerSignaturePad.value : inspectorSignaturePad.value
-	const hasInk = isCustomer ? customerSignatureHasInk.value : inspectorSignatureHasInk.value
-	if (!hasInk || !pad) throw new Error(isCustomer ? '客户现场人员签名为空' : '巡检员签名为空')
-	saveProgress.value = isCustomer ? '上传客户签名' : '上传巡检员签名'
-	const localPath = await pad.exportFile()
-	const fileId = await uploadInspectionImage({
-		filePath: localPath,
-		submissionId: clientSubmissionId.value,
-		scope: isCustomer ? 'customer-signature' : 'inspector-signature'
-	})
-	if (isCustomer) {
-		customerSignatureFileId.value = fileId
-		customerSignaturePreview.value = localPath
-		replaceCustomerSignature.value = false
-	} else {
-		inspectorSignatureFileId.value = fileId
-		inspectorSignaturePreview.value = localPath
-		replaceInspectorSignature.value = false
-	}
-	return fileId
 }
 
 function buildPayloadItem(item) {
@@ -1251,9 +1159,7 @@ function buildPayload() {
 		template_version: templateVersionOf(template.value),
 		items: items.value.map(buildPayloadItem),
 		customer_signer_name: String(customerSignerName.value || '').trim(),
-		customer_signature_file_id: customerSignatureFileId.value,
-		inspector_name: String(inspectorName.value || '').trim(),
-		inspector_signature_file_id: inspectorSignatureFileId.value
+		inspector_name: String(inspectorName.value || '').trim()
 	}
 	if (props.editMode) {
 		payload._id = props.inspectionId
@@ -1272,8 +1178,6 @@ async function save() {
 	}
 	saving.value = true
 	try {
-		await ensureSignature('customer')
-		await ensureSignature('inspector')
 		saveProgress.value = props.editMode ? '保存修改中…' : '提交巡检单…'
 		const res = props.editMode
 			? await updateHomeSafetyInspectionV1(buildPayload())
@@ -1330,8 +1234,6 @@ function buildDraft() {
 		})),
 		customer_signer_name: customerSignerName.value,
 		inspector_name: inspectorName.value,
-		customer_signature_file_id: customerSignatureFileId.value,
-		inspector_signature_file_id: inspectorSignatureFileId.value,
 		inspection_date: inspectionDate.value,
 		inspection_time: inspectionTime.value,
 		edit_reason: editReason.value,
@@ -1388,10 +1290,6 @@ function progressFingerprint() {
 		})),
 		customer_signer_name: customerSignerName.value,
 		inspector_name: inspectorName.value,
-		customer_signature_file_id: customerSignatureFileId.value,
-		inspector_signature_file_id: inspectorSignatureFileId.value,
-		customer_signature_ink: customerSignatureHasInk.value,
-		inspector_signature_ink: inspectorSignatureHasInk.value,
 		inspection_date: inspectionDate.value,
 		inspection_time: inspectionTime.value,
 		edit_reason: editReason.value
@@ -1403,14 +1301,10 @@ function confirmLeave() {
 		uni.showModal({
 			title: hasPendingLocalPhotos.value
 				? '照片尚未上传完成'
-				: hasUnuploadedSignatureInk.value
-					? '手写签名尚未提交'
-					: '退出巡检',
+				: '退出巡检',
 			content: hasPendingLocalPhotos.value
 				? '未上传成功的临时照片无法在刷新后恢复。建议先重试上传，仍要退出吗？'
-				: hasUnuploadedSignatureInk.value
-					? '其他内容已保存为草稿，但未提交的手写签名不会保存；退出后需要重新签名。确认退出吗？'
-					: '已填写内容已保存为草稿，下次进入可继续填写。确认退出吗？',
+				: '已填写内容已保存为草稿，下次进入可继续填写。确认退出吗？',
 			confirmText: '退出',
 			cancelText: '继续填写',
 			success: (res) => resolve(Boolean(res.confirm)),
@@ -1444,10 +1338,6 @@ function beforeWindowUnload(event) {
 	event.returnValue = ''
 }
 
-function previewSignature(url) {
-	if (url) uni.previewImage({ urls: [url], current: url })
-}
-
 watch(
 	() => [
 		locationText.value,
@@ -1457,8 +1347,6 @@ watch(
 		currentStep.value,
 		customerSignerName.value,
 		inspectorName.value,
-		customerSignatureFileId.value,
-		inspectorSignatureFileId.value,
 		inspectionDate.value,
 		inspectionTime.value,
 		editReason.value
@@ -1643,7 +1531,6 @@ onBeforeUnmount(() => {
 	display: block;
 }
 .field__label,
-.signature-block__title,
 .admin-title {
 	margin-bottom: 10rpx;
 	color: #334e68;
@@ -1973,30 +1860,6 @@ onBeforeUnmount(() => {
 }
 .review-item__note {
 	color: #b91c1c;
-}
-.signature-block {
-	margin-top: 24rpx;
-	padding-top: 2rpx;
-}
-.signature-block + .signature-block {
-	margin-top: 28rpx;
-	padding-top: 24rpx;
-	border-top: 1rpx solid #e2e8f0;
-}
-.signature-block__title {
-	display: block;
-	margin: 20rpx 0 12rpx;
-}
-.existing-signature {
-	padding: 14rpx;
-	border: 1rpx solid #cbd5e1;
-	border-radius: 16rpx;
-	background: #f8fafc;
-}
-.existing-signature__image {
-	width: 100%;
-	height: 220rpx;
-	background: #fff;
 }
 .admin-title {
 	display: block;

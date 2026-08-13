@@ -1,4 +1,8 @@
-import { chooseInspectionImages, resolveInspectionFileUrls } from '@/services/homeSafetyInspectionMedia'
+import {
+	chooseInspectionImages,
+	invalidateInspectionFileUrl,
+	resolveInspectionFileUrls
+} from '@/services/homeSafetyInspectionMedia'
 
 function normalizeText(value) {
 	return value == null ? '' : String(value).trim()
@@ -43,4 +47,4 @@ export async function uploadStationSafetyImage({ filePath, submissionId, scope =
 	return fileId
 }
 
-export { chooseInspectionImages, resolveInspectionFileUrls }
+export { chooseInspectionImages, invalidateInspectionFileUrl, resolveInspectionFileUrls }

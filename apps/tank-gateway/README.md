@@ -23,14 +23,14 @@ Windows 有线网卡建议同时配置两个 IPv4：
 
 ```text
 192.168.31.x / 255.255.255.0，网关 192.168.31.1，用于上网
-192.168.0.10 / 255.255.255.0，无网关，用于访问 PLC
+192.168.2.10 / 255.255.255.0，无网关，用于访问 PLC
 ```
 
 测试：
 
 ```bat
-ping 192.168.0.1
-powershell Test-NetConnection 192.168.0.1 -Port 102
+ping 192.168.2.1
+powershell Test-NetConnection 192.168.2.1 -Port 102
 ```
 
 ## 开发与打包
@@ -56,11 +56,22 @@ npm run tank:gateway:dist:win
 默认 PLC 配置：
 
 ```text
-192.168.0.1:102
+192.168.2.1:102
 rack=0
 slot=1
-levelAddress=DB1,REAL2000
-pressureAddress=DB1,REAL2040
-fullLevelM=10
+levelAddress=DB1,REAL100       # PLC VD100，储罐液位 kPa
+pressureAddress=DB1,REAL104    # PLC VD104，储罐压力 MPa
+weightAddress=DB1,REAL140      # PLC VD140，LNG 重量 t
+levelReferenceKpa=35.60
+levelReferencePercent=72
 pollMs=5000
 ```
+
+液位百分比按现场屏幕标定值计算：`当前液位 kPa / 35.60 * 72`，结果限制在 `0% ~ 100%`。
+
+## 1.0.1 升级说明
+
+- 修复旧配置把“储罐液位”和“LNG 重量”同时保存为 `DB1,REAL140` 的问题。
+- 安装升级后会保留云端 URL 和系统凭据，并自动把该已知错误修复为 `DB1,REAL100`。
+- 保存、探测和启动前会检查三个 PLC 地址；任意两个地址相同都会停止采集并提示具体冲突。
+- 单次探测成功后，运行日志会同时显示三个地址和对应读数，便于与一体机逐项核对。

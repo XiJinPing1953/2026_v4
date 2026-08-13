@@ -79,6 +79,12 @@
 			}
 		},
 		{
+			"path": "pages/home-safety-inspection/export",
+			"style": {
+				"navigationBarTitleText": "导出巡检记录"
+			}
+		},
+		{
 			"path": "pages/pda/home",
 			"style": {
 				"navigationBarTitleText": "PDA 工作台"

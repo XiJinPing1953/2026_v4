@@ -9,7 +9,9 @@ const fieldIds = [
 	'slot',
 	'levelAddress',
 	'pressureAddress',
-	'fullLevelM',
+	'weightAddress',
+	'levelReferenceKpa',
+	'levelReferencePercent',
 	'intervalMs',
 	'timeoutMs',
 	'tankId'
@@ -27,8 +29,9 @@ const els = {
 	savePassword: document.getElementById('savePassword'),
 	credentialBackend: document.getElementById('credentialBackend'),
 	passwordSaved: document.getElementById('passwordSaved'),
-	levelM: document.getElementById('levelM'),
+	levelKpa: document.getElementById('levelKpa'),
 	pressureMpa: document.getElementById('pressureMpa'),
+	weightT: document.getElementById('weightT'),
 	levelPercent: document.getElementById('levelPercent'),
 	tankFill: document.getElementById('tankFill'),
 	sampledAt: document.getElementById('sampledAt'),
@@ -69,7 +72,9 @@ function readConfigForm() {
 		slot: Number(fields.slot.value),
 		levelAddress: fields.levelAddress.value,
 		pressureAddress: fields.pressureAddress.value,
-		fullLevelM: Number(fields.fullLevelM.value),
+		weightAddress: fields.weightAddress.value,
+		levelReferenceKpa: Number(fields.levelReferenceKpa.value),
+		levelReferencePercent: Number(fields.levelReferencePercent.value),
 		intervalMs: Number(fields.intervalMs.value),
 		timeoutMs: Number(fields.timeoutMs.value),
 		tankId: fields.tankId.value
@@ -96,16 +101,18 @@ function formatTime(value) {
 
 function renderTelemetry(telemetry) {
 	if (!telemetry) {
-		els.levelM.textContent = '-- m'
+		els.levelKpa.textContent = '-- kPa'
 		els.pressureMpa.textContent = '-- MPa'
+		els.weightT.textContent = '-- t'
 		els.levelPercent.textContent = '--%'
 		els.tankFill.style.height = '0%'
 		els.sampledAt.textContent = '--'
 		return
 	}
 	const percent = Math.min(Math.max(Number(telemetry.level_percent || 0), 0), 100)
-	els.levelM.textContent = `${formatNumber(telemetry.level_m)} m`
+	els.levelKpa.textContent = `${formatNumber(telemetry.level_kpa)} kPa`
 	els.pressureMpa.textContent = `${formatNumber(telemetry.pressure_mpa)} MPa`
+	els.weightT.textContent = `${formatNumber(telemetry.lng_weight_t)} t`
 	els.levelPercent.textContent = `${formatNumber(percent)}%`
 	els.tankFill.style.height = `${percent}%`
 	els.sampledAt.textContent = formatTime(telemetry.sampled_at)
@@ -169,8 +176,15 @@ els.clearPasswordBtn.addEventListener('click', async () => {
 })
 
 els.probeBtn.addEventListener('click', async () => {
-	const telemetry = await runAction('单次探测', () => window.tankGateway.probe(readConfigForm()))
+	const config = readConfigForm()
+	const telemetry = await runAction('单次探测', () => window.tankGateway.probe(config))
 	renderTelemetry(telemetry)
+	appendLog(
+		`地址核对：液位 ${config.levelAddress}；压力 ${config.pressureAddress}；重量 ${config.weightAddress}`
+	)
+	appendLog(
+		`读数核对：液位 ${formatNumber(telemetry.level_kpa)} kPa；压力 ${formatNumber(telemetry.pressure_mpa)} MPa；重量 ${formatNumber(telemetry.lng_weight_t)} t`
+	)
 })
 
 els.startBtn.addEventListener('click', async () => {

@@ -10,10 +10,12 @@ const gasIn = db.collection('crm_gas_in')
 const gasSettings = db.collection('crm_gas_settings')
 const gasInventoryMovements = db.collection('crm_gas_inventory_movements')
 const gasInventoryMovementBackups = db.collection('crm_gas_inventory_movements_backup')
+const gasInventoryPeriods = db.collection('crm_gas_inventory_periods')
 const tankTelemetry = db.collection('crm_tank_telemetry')
 const fillings = db.collection('crm_fillings')
 const sales = db.collection('crm_sale_records')
 const bottleMovements = db.collection('crm_bottle_movements')
+const currentInventoryCore = require('./currentInventory')
 let ensureActionAcl = null
 let tankTelemetryCore = null
 try {
@@ -38,6 +40,7 @@ const REBUILD_ALLOWED_ROLES = new Set(['superadmin', 'admin'])
 const FLOW_TYPES = ['back', 'fill', 'out']
 const PAGE_ACTION_RULES = {
 	listV1: [{ pagePath: '/pages/gas-in/list', action: 'view' }],
+	getCurrentInventoryV1: [{ pagePath: '/pages/gas-in/list', action: 'view' }],
 	getV1: [
 		{ pagePath: '/pages/gas-in/list', action: 'view' },
 		{ pagePath: '/pages/gas-in/edit', action: 'view' }
@@ -47,6 +50,9 @@ const PAGE_ACTION_RULES = {
 	removeV1: [{ pagePath: '/pages/gas-in/list', action: 'delete' }],
 	getTankConfigV1: [{ pagePath: '/pages/gas-in/list', action: 'view' }],
 	updateTankConfigV1: [{ pagePath: '/pages/gas-in/list', action: 'update' }],
+	previewInventoryPeriodV1: [{ pagePath: '/pages/gas-in/list', action: 'update' }],
+	activateInventoryPeriodV1: [{ pagePath: '/pages/gas-in/list', action: 'update' }],
+	listInventoryPeriodsV1: [{ pagePath: '/pages/gas-in/list', action: 'view' }],
 	syncCycleAdjustmentsV1: [{ pagePath: '/pages/gas-in/list', action: 'update' }]
 }
 const SUPERADMIN_ONLY_ACTIONS = ['rebuildInventoryV1', 'restoreInventoryV1']
@@ -150,8 +156,10 @@ function kgToTon(value) {
 function buildEmptyTankSummary(message = '等待现场网关上报') {
 	return {
 		level_m: null,
+		level_kpa: null,
 		level_percent: null,
 		pressure_mpa: null,
+		lng_weight_t: null,
 		status: 'empty',
 		sampled_at: null,
 		updated_at: null,
@@ -169,8 +177,10 @@ function normalizeTankSummary(row = {}) {
 	const source = row && typeof row === 'object' ? row : {}
 	return {
 		level_m: nullableNumber(source.level_m),
+		level_kpa: nullableNumber(source.level_kpa),
 		level_percent: nullableNumber(source.level_percent),
 		pressure_mpa: nullableNumber(source.pressure_mpa),
+		lng_weight_t: nullableNumber(source.lng_weight_t),
 		status: normalizeTankStatus(source.status),
 		sampled_at: nullableNumber(source.sampled_at),
 		updated_at: nullableNumber(source.updated_at),
@@ -231,18 +241,20 @@ async function getTankTelemetrySummaryForGas() {
 
 function buildTankEstimate(inventory = {}, tank = {}, config = {}) {
 	const fullTankWeightT = roundTon(toNumber(config.full_tank_weight_t, 0) || 0)
-	const levelPercent = nullableNumber(tank.level_percent)
 	const stationTotalT = roundTon(toNumber(inventory.station_total_t, 0) || 0)
+	const reading = currentInventoryCore.resolveTankReading({ tank, tankConfig: config })
 	const configured = fullTankWeightT > 0
-	const available = configured && levelPercent != null && normalizeTankStatus(tank.status) !== 'error'
-	const estimatedT = available ? roundTon((Math.min(Math.max(levelPercent, 0), 100) * fullTankWeightT) / 100) : null
+	const available = reading.available
+	const estimatedT = reading.tank_t
 	const diffT = estimatedT == null ? null : roundTon(estimatedT - stationTotalT)
 	let message = ''
-	if (!configured) message = '请先配置满罐吨数'
-	else if (levelPercent == null) message = '暂无有效液位读数'
-	else if (normalizeTankStatus(tank.status) === 'error') message = '现场采集异常，暂停估算'
-	else if (normalizeTankStatus(tank.status) === 'stale') message = '液位数据延迟，估算仅供参考'
-	else message = '液位估算不参与账面库存'
+	if (reading.status === 'stale') message = '现场数据延迟，最后读数仅供查看'
+	else if (reading.status === 'error') message = '现场采集异常，暂停使用储罐重量'
+	else if (reading.status === 'empty') message = '等待现场网关上报'
+	else if (reading.weight_source === 'plc_weight') message = '使用 PLC 直接上报的储罐重量'
+	else if (reading.weight_source === 'level_estimate') message = 'PLC重量缺失，使用液位比例备用估算'
+	else if (!configured) message = 'PLC重量缺失，且未配置备用满罐吨数'
+	else message = '暂无有效储罐重量'
 	return {
 		full_tank_weight_t: fullTankWeightT,
 		estimated_t: estimatedT,
@@ -250,6 +262,8 @@ function buildTankEstimate(inventory = {}, tank = {}, config = {}) {
 		diff_t: diffT,
 		configured,
 		available,
+		weight_source: reading.weight_source,
+		is_fallback: reading.is_fallback,
 		message
 	}
 }
@@ -695,6 +709,161 @@ function resolveInventoryContribution(row = {}) {
 		inBottle: roundTon(inBottle),
 		vehicle: roundTon(vehicle)
 	}
+}
+
+async function getActiveInventoryPeriod() {
+	try {
+		const res = await gasInventoryPeriods
+			.where({ status: 'active' })
+			.orderBy('activated_at', 'desc')
+			.orderBy('updated_at', 'desc')
+			.limit(1)
+			.get()
+		const row = (res.data && res.data[0]) || null
+		return currentInventoryCore.normalizePeriod(row || currentInventoryCore.DEFAULT_PERIOD)
+	} catch (err) {
+		if (!isCollectionNotFoundError(err)) console.error('[crm-gas-in] getActiveInventoryPeriod failed', err)
+		return currentInventoryCore.normalizePeriod(currentInventoryCore.DEFAULT_PERIOD)
+	}
+}
+
+async function fetchLatestBottleMovements(bottleNos = [], cutoffAt = null) {
+	const normalized = Array.from(new Set((bottleNos || []).map((item) => normalizeBottleNo(item)).filter(Boolean)))
+	if (!normalized.length) return []
+	const result = []
+	const chunkSize = 300
+	const pageSize = 400
+	for (let i = 0; i < normalized.length; i += chunkSize) {
+		const chunk = normalized.slice(i, i + chunkSize)
+		const unresolved = new Set(chunk)
+		let skip = 0
+		let guard = 0
+		while (unresolved.size > 0) {
+			guard += 1
+			if (guard > 160) throw new Error('瓶子流转扫描超过安全限制')
+			const where = { bottle_no: dbCmd.in(chunk), type: dbCmd.in(FLOW_TYPES) }
+			if (Number.isFinite(Number(cutoffAt))) where.event_at = dbCmd.gte(Number(cutoffAt))
+			const res = await bottleMovements
+				.where(where)
+				.field({
+					_id: true,
+					bottle_no: true,
+					type: true,
+					event_day: true,
+					event_at: true,
+					type_order: true,
+					source_type: true,
+					source_id: true,
+					created_at: true
+				})
+				.orderBy('event_at', 'desc')
+				.orderBy('type_order', 'desc')
+				.orderBy('created_at', 'desc')
+				.skip(skip)
+				.limit(pageSize)
+				.get()
+			const rows = Array.isArray(res.data) ? res.data : []
+			if (!rows.length) break
+			for (let j = 0; j < rows.length; j += 1) {
+				const row = rows[j] || {}
+				const bottleNo = normalizeBottleNo(row.bottle_no)
+				if (!bottleNo || !unresolved.has(bottleNo)) continue
+				result.push(row)
+				unresolved.delete(bottleNo)
+			}
+			if (rows.length < pageSize) break
+			skip += rows.length
+		}
+	}
+	return result
+}
+
+async function getFilledUnsoldInventorySnapshot(period) {
+	const normalizedPeriod = currentInventoryCore.normalizePeriod(period)
+	try {
+		const fillingRowsRes = await scanRows({
+			collection: fillings,
+			where: { date: dbCmd.gte(normalizedPeriod.cutoff_day) },
+			field: {
+				_id: true,
+				bottle_no: true,
+				record_type: true,
+				fill_weight: true,
+				date: true,
+				created_at: true
+			},
+			limit: SUMMARY_SCAN_LIMIT,
+			pageSize: 400
+		})
+		if (!fillingRowsRes.ok) throw new Error(fillingRowsRes.msg || '灌装记录扫描失败')
+		const fillingRows = fillingRowsRes.data || []
+		const bottleNos = fillingRows.map((row) => row && row.bottle_no)
+		const movementRows = await fetchLatestBottleMovements(bottleNos, normalizedPeriod.cutoff_at)
+		return currentInventoryCore.buildFilledUnsoldSnapshot({
+			fillings: fillingRows,
+			movements: movementRows,
+			cutoffAt: normalizedPeriod.cutoff_at
+		})
+	} catch (err) {
+		if (!isCollectionNotFoundError(err)) console.error('[crm-gas-in] getFilledUnsoldInventorySnapshot failed', err)
+		return {
+			filled_unsold_t: 0,
+			filled_unsold_count: 0,
+			unresolved_bottle_count: 0,
+			unresolved: [],
+			candidate_bottle_count: 0,
+			load_error: getErrorMessage(err) || '瓶装库存读取失败'
+		}
+	}
+}
+
+async function getLedgerTankForPeriod(period) {
+	const normalized = currentInventoryCore.normalizePeriod(period)
+	let rowsRes = null
+	try {
+		rowsRes = await scanRows({
+			collection: gasInventoryMovements,
+			where: { event_at: dbCmd.gte(normalized.cutoff_at) },
+			field: { event_day: true, event_at: true, station_delta_t: true, created_at: true },
+			limit: SUMMARY_SCAN_LIMIT,
+			pageSize: 400
+		})
+	} catch (err) {
+		if (!isCollectionNotFoundError(err)) console.error('[crm-gas-in] getLedgerTankForPeriod failed', err)
+		return normalized.opening_tank_t
+	}
+	if (!rowsRes || !rowsRes.ok) return normalized.opening_tank_t
+	return currentInventoryCore.buildLedgerTankT({ period: normalized, movements: rowsRes.data || [] })
+}
+
+async function getCurrentInventorySnapshot(periodOverride = null) {
+	const period = periodOverride
+		? currentInventoryCore.normalizePeriod(periodOverride)
+		: await getActiveInventoryPeriod()
+	const [tankConfig, tankSummary, filledUnsold] = await Promise.all([
+		getGasTankConfig(),
+		getTankTelemetrySummaryForGas(),
+		getFilledUnsoldInventorySnapshot(period)
+	])
+	const ledgerTankT = await getLedgerTankForPeriod(period)
+	const current = currentInventoryCore.buildCurrentInventory({
+		period,
+		tank: tankSummary,
+		tankConfig,
+		filledUnsold,
+		ledgerTankT,
+		now: Date.now()
+	})
+	if (filledUnsold.load_error) {
+		current.physical.available = false
+		current.physical.total_t = null
+		current.physical.message = '瓶装库存读取失败，现场总库存暂不可用'
+		current.quality.message = filledUnsold.load_error
+		current.quality.load_error = true
+	}
+	current.quality.unresolved = filledUnsold.unresolved || []
+	current.quality.candidate_bottle_count = Number(filledUnsold.candidate_bottle_count || 0)
+	return { current, tankConfig, tankSummary }
 }
 
 function normalizeGasInRow(row = {}) {
@@ -1490,7 +1659,17 @@ async function listV1(user, data) {
 					scope: inventoryAsOf ? 'as_of' : 'current',
 					movement_total: 0,
 					tank: buildEmptyTankSummary(),
-					estimate: buildTankEstimate({}, buildEmptyTankSummary(), buildDefaultGasTankConfig())
+					estimate: buildTankEstimate({}, buildEmptyTankSummary(), buildDefaultGasTankConfig()),
+					current: currentInventoryCore.buildCurrentInventory({
+						period: currentInventoryCore.DEFAULT_PERIOD,
+						tank: buildEmptyTankSummary(),
+						tankConfig: buildDefaultGasTankConfig()
+					}),
+					legacy: {
+						label: '历史流水口径',
+						archived_before_cutoff: true,
+						current_source: false
+					}
 				}
 			}
 		}
@@ -1501,13 +1680,20 @@ async function listV1(user, data) {
 	const summaryRes = await summarizeGasInWhere(where)
 	if (!summaryRes.ok) return { code: 400, msg: summaryRes.msg || '统计失败' }
 	const summary = summaryRes.data || { net_weight_t_total: 0, amount_total: 0 }
-	const [inventory, tankConfig, tankSummary] = await Promise.all([
+	const [inventory, currentBundle] = await Promise.all([
 		getInventorySnapshot(inventoryAsOf),
-		getGasTankConfig(),
-		getTankTelemetrySummaryForGas()
+		getCurrentInventorySnapshot()
 	])
+	const { current, tankConfig, tankSummary } = currentBundle
 	inventory.tank = tankSummary
 	inventory.estimate = buildTankEstimate(inventory, tankSummary, tankConfig)
+	inventory.current = current
+	inventory.legacy = {
+		label: '历史流水口径',
+		archived_before_cutoff: true,
+		current_source: false,
+		message: '旧累计字段仅供历史查询，不作为当前库存主结果'
+	}
 
 	const rows = Array.isArray(res.data) ? res.data.map((row) => normalizeGasInRow(row)) : []
 
@@ -1532,6 +1718,19 @@ async function listV1(user, data) {
 			loss_rate: Number(summary.loss_rate || 0),
 			amount_total: Number(summary.amount_total || 0),
 			inventory
+		}
+	}
+}
+
+async function getCurrentInventoryV1(user) {
+	void user
+	const bundle = await getCurrentInventorySnapshot()
+	return {
+		code: 0,
+		data: {
+			current: bundle.current,
+			tank: bundle.tankSummary,
+			tank_config: bundle.tankConfig
 		}
 	}
 }
@@ -1577,6 +1776,158 @@ async function updateTankConfigV1(user, data, requestId) {
 	}
 	await recordLog(user, 'gas_tank_config_update_v1', { full_tank_weight_t: saveDoc.full_tank_weight_t }, requestId)
 	return { code: 0, msg: '配置已保存', data: normalizeGasTankConfig(saveDoc) }
+}
+
+function buildInventoryPeriodCandidate(data = {}) {
+	const cutoffDay = normalizeGasDate(data.cutoff_day || data.cutoffDay || currentInventoryCore.DEFAULT_PERIOD.cutoff_day)
+	if (!cutoffDay || !isValidDateString(cutoffDay)) {
+		return { ok: false, msg: '账期切点日期格式无效' }
+	}
+	const cutoffAt = currentInventoryCore.parseShanghaiDayStart(cutoffDay)
+	if (!Number.isFinite(cutoffAt)) return { ok: false, msg: '账期切点时间无效' }
+	const openingTankT = toNumber(data.opening_tank_t ?? data.openingTankT, 0)
+	if (!Number.isFinite(openingTankT) || openingTankT < 0) {
+		return { ok: false, msg: '储罐期初必须是大于或等于0的数字' }
+	}
+	const reason = normalizeString(data.reason) || currentInventoryCore.DEFAULT_PERIOD.reason
+	return {
+		ok: true,
+		data: currentInventoryCore.normalizePeriod({
+			period_key: `physical_${cutoffDay}`,
+			cutoff_day: cutoffDay,
+			cutoff_at: cutoffAt,
+			opening_tank_t: roundTon(openingTankT),
+			reason,
+			status: 'active',
+			persisted: false
+		})
+	}
+}
+
+async function previewInventoryPeriodV1(user, data) {
+	if (!REBUILD_ALLOWED_ROLES.has(normalizeRole(user && user.role))) {
+		return { code: 403, msg: '仅管理员可管理库存账期' }
+	}
+	const candidateRes = buildInventoryPeriodCandidate(data)
+	if (!candidateRes.ok) return { code: 400, msg: candidateRes.msg }
+	const [activePeriod, snapshot] = await Promise.all([
+		getActiveInventoryPeriod(),
+		getCurrentInventorySnapshot(candidateRes.data)
+	])
+	return {
+		code: 0,
+		data: {
+			candidate: candidateRes.data,
+			active: activePeriod,
+			preview: snapshot.current,
+			archive_policy: '切点前流水保留查询，不删除、不参与新账期账面核对'
+		}
+	}
+}
+
+async function activateInventoryPeriodV1(user, data, requestId) {
+	if (!REBUILD_ALLOWED_ROLES.has(normalizeRole(user && user.role))) {
+		return { code: 403, msg: '仅管理员可管理库存账期' }
+	}
+	const candidateRes = buildInventoryPeriodCandidate(data)
+	if (!candidateRes.ok) return { code: 400, msg: candidateRes.msg }
+	const candidate = candidateRes.data
+	const now = Date.now()
+	let periodId = ''
+	try {
+		const existingRes = await gasInventoryPeriods
+			.where({ period_key: candidate.period_key })
+			.orderBy('created_at', 'asc')
+			.limit(1)
+			.get()
+		const existing = (existingRes.data && existingRes.data[0]) || null
+		const saveDoc = {
+			period_key: candidate.period_key,
+			cutoff_day: candidate.cutoff_day,
+			cutoff_at: candidate.cutoff_at,
+			opening_tank_t: candidate.opening_tank_t,
+			reason: candidate.reason,
+			status: 'active',
+			activated_at: now,
+			activated_by: user?._id || null,
+			activated_by_name: normalizeString(user?.username),
+			archived_at: null,
+			updated_at: now
+		}
+		if (existing && existing._id) {
+			periodId = normalizeString(existing._id)
+			await gasInventoryPeriods.doc(existing._id).update(saveDoc)
+		} else {
+			const addRes = await gasInventoryPeriods.add({
+				...saveDoc,
+				created_at: now,
+				created_by: user?._id || null,
+				created_by_name: normalizeString(user?.username)
+			})
+			periodId = normalizeString(addRes && addRes.id)
+		}
+		await gasInventoryPeriods
+			.where({ status: 'active', period_key: dbCmd.neq(candidate.period_key) })
+			.update({ status: 'archived', archived_at: now, updated_at: now })
+	} catch (err) {
+		if (isCollectionNotFoundError(err)) {
+			return { code: 500, msg: '库存账期集合未初始化，请先上传 db schema（crm_gas_inventory_periods）' }
+		}
+		throw err
+	}
+
+	const activated = currentInventoryCore.normalizePeriod({
+		...candidate,
+		_id: periodId,
+		activated_at: now,
+		activated_by: user?._id || null,
+		activated_by_name: normalizeString(user?.username),
+		created_at: now,
+		updated_at: now,
+		persisted: true
+	})
+	await recordLog(
+		user,
+		'gas_inventory_period_activate_v1',
+		{
+			period_id: periodId,
+			period_key: activated.period_key,
+			cutoff_day: activated.cutoff_day,
+			cutoff_at: activated.cutoff_at,
+			opening_tank_t: activated.opening_tank_t,
+			reason: activated.reason
+		},
+		requestId
+	)
+	return { code: 0, msg: '新库存账期已启用', data: activated }
+}
+
+async function listInventoryPeriodsV1(user, data) {
+	if (!REBUILD_ALLOWED_ROLES.has(normalizeRole(user && user.role))) {
+		return { code: 403, msg: '仅管理员可查询库存账期' }
+	}
+	const page = Math.max(Number(data.page || 1) || 1, 1)
+	const pageSize = Math.min(Math.max(Number(data.pageSize || data.limit || 20) || 20, 1), 100)
+	try {
+		const [res, countRes] = await Promise.all([
+			gasInventoryPeriods
+				.where({})
+				.orderBy('activated_at', 'desc')
+				.orderBy('created_at', 'desc')
+				.skip((page - 1) * pageSize)
+				.limit(pageSize)
+				.get(),
+			gasInventoryPeriods.where({}).count()
+		])
+		const rows = Array.isArray(res.data) ? res.data.map((row) => currentInventoryCore.normalizePeriod(row)) : []
+		if (!rows.length && page === 1) rows.push(currentInventoryCore.normalizePeriod(currentInventoryCore.DEFAULT_PERIOD))
+		return { code: 0, data: rows, total: Number(countRes.total || rows.length) }
+	} catch (err) {
+		if (isCollectionNotFoundError(err)) {
+			return { code: 0, data: [currentInventoryCore.normalizePeriod(currentInventoryCore.DEFAULT_PERIOD)], total: 1 }
+		}
+		throw err
+	}
 }
 
 async function getV1(user, data) {
@@ -1959,8 +2310,12 @@ exports.main = async (event, context) => {
 		if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
 		if (action === 'listV1') return listV1(user, data)
+		if (action === 'getCurrentInventoryV1') return getCurrentInventoryV1(user, data)
 		if (action === 'getTankConfigV1') return getTankConfigV1(user, data)
 		if (action === 'updateTankConfigV1') return updateTankConfigV1(user, data, requestId)
+		if (action === 'previewInventoryPeriodV1') return previewInventoryPeriodV1(user, data)
+		if (action === 'activateInventoryPeriodV1') return activateInventoryPeriodV1(user, data, requestId)
+		if (action === 'listInventoryPeriodsV1') return listInventoryPeriodsV1(user, data)
 		if (action === 'getV1') return getV1(user, data)
 		if (action === 'createV1') return createV1(user, data, requestId)
 		if (action === 'updateV1') return updateV1(user, data, requestId)

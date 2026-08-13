@@ -9,6 +9,14 @@
 			<text class="welcome-card__role">{{ roleLabel }}</text>
 		</view>
 
+		<button v-if="canExport" class="export-entry" type="button" @click="openExport">
+			<view class="export-entry__body">
+				<text class="export-entry__title">导出巡检记录</text>
+				<text class="export-entry__hint">按时间生成独立 Excel，并统一打包 ZIP</text>
+			</view>
+			<text class="export-entry__arrow">›</text>
+		</button>
+
 		<view class="search-card">
 			<input
 				v-model="keyword"
@@ -58,6 +66,9 @@ import HomeSafetyInspectionShell from './HomeSafetyInspectionShell.vue'
 import { clearAuth, getUser } from '@/services/auth'
 import { goLogin } from '@/services/navigation'
 import { listHomeSafetyCustomersV1 } from '@/services/homeSafetyInspection'
+import { canViewPage } from '@/services/pageAcl'
+
+const EXPORT_PATH = '/pages/home-safety-inspection/export'
 
 const customers = ref([])
 const keyword = ref('')
@@ -65,12 +76,13 @@ const loading = ref(false)
 const page = ref(1)
 const paging = ref({ hasMore: false, total: 0 })
 const user = ref(getUser() || {})
+const canExport = computed(() => canViewPage(EXPORT_PATH, user.value))
 
 const userDisplayName = computed(() => user.value.nickname || user.value.username || '巡检员')
 const roleLabel = computed(() =>
 	String(user.value.role_template || user.value.role || '').toLowerCase() === 'superadmin'
 		? '超级管理员'
-		: '入户安全巡检员'
+		: '安全巡检员'
 )
 
 function formatDateTime(value) {
@@ -136,6 +148,10 @@ function openHistory(customer) {
 	})
 }
 
+function openExport() {
+	uni.navigateTo({ url: EXPORT_PATH })
+}
+
 async function logout() {
 	const confirmed = await new Promise((resolve) => {
 		uni.showModal({
@@ -173,8 +189,39 @@ defineExpose({ refresh })
 .logout-button::after,
 .search-button::after,
 .card-button::after,
-.load-more::after {
+.load-more::after,
+.export-entry::after {
 	border: 0;
+}
+.export-entry {
+	display: flex;
+	align-items: center;
+	gap: 18rpx;
+	width: 100%;
+	margin: 0 0 18rpx;
+	padding: 20rpx 24rpx;
+	border-radius: 20rpx;
+	background: #e7f6f2;
+	color: #0f5f59;
+	text-align: left;
+}
+.export-entry__body {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 5rpx;
+}
+.export-entry__title {
+	font-size: 27rpx;
+	font-weight: 800;
+}
+.export-entry__hint {
+	font-size: 21rpx;
+	color: #3d7d77;
+}
+.export-entry__arrow {
+	font-size: 44rpx;
+	line-height: 1;
 }
 .welcome-card,
 .search-card,

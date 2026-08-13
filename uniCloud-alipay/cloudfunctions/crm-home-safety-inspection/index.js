@@ -21,6 +21,11 @@ const {
 	createUniCloudRequester,
 	validateWgs84Coordinates
 } = require('./locationGeocoding')
+const {
+	allocateInspectionNumber,
+	normalizeDateKey,
+	parseInspectionNumber
+} = require('./inspectionNumber')
 
 const db = uniCloud.database()
 const dbCmd = db.command
@@ -29,6 +34,7 @@ const logs = db.collection('crm_operation_logs')
 const customers = db.collection('crm_customers')
 const inspections = db.collection('crm_home_safety_inspections')
 const revisions = db.collection('crm_home_safety_revisions')
+const inspectionNumberCounters = db.collection('crm_home_safety_no_counters')
 const reverseGeocodeCache = new Map()
 const reverseGeocodeInFlight = new Map()
 const reverseGeocodeRateWindows = new Map()
@@ -49,9 +55,10 @@ const PAGE_ACTION_RULES = {
 	getV1: [{ pagePath: DETAIL_PATH, action: 'view' }],
 	submitV1: [{ pagePath: FORM_PATH, action: 'create' }],
 	updateV1: [{ pagePath: FORM_PATH, action: 'update' }],
-	listRevisionsV1: [{ pagePath: DETAIL_PATH, action: 'update' }]
+	listRevisionsV1: [{ pagePath: DETAIL_PATH, action: 'update' }],
+	backfillInspectionNumbersV1: [{ pagePath: DETAIL_PATH, action: 'update' }]
 }
-const SUPERADMIN_ONLY_ACTIONS = ['updateV1', 'listRevisionsV1']
+const SUPERADMIN_ONLY_ACTIONS = ['updateV1', 'listRevisionsV1', 'backfillInspectionNumbersV1']
 
 function generateRequestId() {
 	const now = Date.now().toString(36)
@@ -132,6 +139,7 @@ function inspectionSummary(doc) {
 	if (!doc) return null
 	return {
 		_id: doc._id,
+		inspection_no: doc.inspection_no || '',
 		customer_id: doc.customer_id,
 		inspection_at: Number(doc.inspection_at || 0),
 		inspection_date: doc.inspection_date || '',
@@ -167,10 +175,17 @@ function submissionBusinessSnapshot(source, customerId, inspectorName) {
 		items: Array.isArray(data.items) ? data.items : [],
 		overall_result: data.overall_result || '',
 		customer_signer_name: data.customer_signer_name || '',
-		customer_signature_file_id: data.customer_signature_file_id || '',
-		inspector_name: normalizeString(inspectorName ?? data.inspector_name),
-		inspector_signature_file_id: data.inspector_signature_file_id || ''
+		inspector_name: normalizeString(inspectorName ?? data.inspector_name)
 	}
+}
+
+function withoutSignatureFields(source) {
+	const result = { ...(source || {}) }
+	delete result.customer_signature_file_id
+	delete result.inspector_signature_file_id
+	delete result.customer_signed_at
+	delete result.inspector_signed_at
+	return result
 }
 
 function submissionMatchesExisting(existing, customerId, normalizedData, inspectorName) {
@@ -366,7 +381,9 @@ async function listV1(user, data) {
 				items: false,
 				location_capture: false,
 				customer_signature_file_id: false,
-				inspector_signature_file_id: false
+				inspector_signature_file_id: false,
+				customer_signed_at: false,
+				inspector_signed_at: false
 			})
 			.orderBy('inspection_at', 'desc')
 			.skip((page - 1) * pageSize)
@@ -403,7 +420,7 @@ async function getV1(user, data) {
 	return {
 		code: 0,
 		data: {
-			...inspection,
+			...withoutSignatureFields(inspection),
 			can_update: Boolean(recordTemplate) && superAdmin,
 			can_view_revisions: superAdmin,
 			edit_block_reason:
@@ -440,12 +457,22 @@ async function submitV1(user, data, requestId) {
 				data: { existing_id: existing._id }
 			}
 		}
-		return { code: 0, msg: '巡检单已提交', data: { _id: existing._id, duplicate: true } }
+		return {
+			code: 0,
+			msg: '巡检单已提交',
+			data: { _id: existing._id, inspection_no: existing.inspection_no || '', duplicate: true }
+		}
 	}
 
 	const confirmedCustomer = await getVisibleCustomer(customer._id)
 	if (!confirmedCustomer) return { code: 404, msg: '客户已隐藏，无法提交巡检单' }
 	const now = Date.now()
+	const numberFields = await allocateInspectionNumber({
+		counters: inspectionNumberCounters,
+		dbCmd,
+		dateKey: shanghaiDate(now),
+		now
+	})
 	const doc = {
 		client_submission_id: clientSubmissionId,
 		customer_id: confirmedCustomer._id,
@@ -454,9 +481,8 @@ async function submitV1(user, data, requestId) {
 		...normalized.data,
 		inspection_at: now,
 		inspection_date: shanghaiDate(now),
+		...numberFields,
 		inspector_name: inspectorName,
-		customer_signed_at: now,
-		inspector_signed_at: now,
 		inspector_user_id: normalizeString(user?._id),
 		inspector_username_snapshot: normalizeString(user?.username),
 		status: 'submitted',
@@ -478,13 +504,18 @@ async function submitV1(user, data, requestId) {
 			'home_safety_inspection_submit_v1',
 			{
 				id: addRes.id,
+				inspection_no: doc.inspection_no,
 				customer_id: customer._id,
 				overall_result: doc.overall_result,
 				photo_count: doc.items.reduce((sum, item) => sum + item.photo_file_ids.length, 0)
 			},
 			requestId
 		)
-		return { code: 0, msg: '巡检单提交成功', data: { _id: addRes.id, duplicate: false } }
+		return {
+			code: 0,
+			msg: '巡检单提交成功',
+			data: { _id: addRes.id, inspection_no: doc.inspection_no, duplicate: false }
+		}
 	} catch (err) {
 		if (isDuplicateKeyError(err)) {
 			const retryRes = await inspections.where({ client_submission_id: clientSubmissionId }).limit(1).get()
@@ -497,7 +528,11 @@ async function submitV1(user, data, requestId) {
 						data: { existing_id: retry._id }
 					}
 				}
-				return { code: 0, msg: '巡检单已提交', data: { _id: retry._id, duplicate: true } }
+				return {
+					code: 0,
+					msg: '巡检单已提交',
+					data: { _id: retry._id, inspection_no: retry.inspection_no || '', duplicate: true }
+				}
 			}
 			return { code: 409, msg: '巡检单已重复提交' }
 		}
@@ -506,8 +541,72 @@ async function submitV1(user, data, requestId) {
 	}
 }
 
+async function readAllInspectionsForNumberBackfill(limit) {
+	const rows = []
+	let offset = 0
+	while (rows.length < limit) {
+		const pageSize = Math.min(100, limit - rows.length)
+		const res = await inspections
+			.field({ _id: true, inspection_no: true, inspection_number_date: true, inspection_sequence: true, inspection_at: true, inspection_date: true })
+			.orderBy('inspection_at', 'asc')
+			.skip(offset)
+			.limit(pageSize)
+			.get()
+		const page = Array.isArray(res.data) ? res.data : []
+		rows.push(...page)
+		offset += page.length
+		if (page.length < pageSize) break
+	}
+	return rows
+}
+
+async function backfillInspectionNumbersV1(user, data, requestId) {
+	const limit = Math.min(Math.max(Number(data.limit || 5000) || 5000, 1), 20000)
+	const rows = await readAllInspectionsForNumberBackfill(limit)
+	const maximumByDate = new Map()
+	for (const row of rows) {
+		const parsed = parseInspectionNumber(row.inspection_no)
+		if (!parsed) continue
+		maximumByDate.set(parsed.dateKey, Math.max(maximumByDate.get(parsed.dateKey) || 0, parsed.sequence))
+	}
+	const now = Date.now()
+	for (const [dateKey, sequence] of maximumByDate) {
+		await inspectionNumberCounters.doc(dateKey).set({
+			next_sequence: sequence,
+			created_at: now,
+			updated_at: now
+		})
+	}
+	let updated = 0
+	for (const row of rows) {
+		if (parseInspectionNumber(row.inspection_no)) continue
+		const dateKey =
+			normalizeDateKey(row.inspection_date) ||
+			normalizeDateKey(shanghaiDate(Number(row.inspection_at || now)))
+		const numberFields = await allocateInspectionNumber({
+			counters: inspectionNumberCounters,
+			dbCmd,
+			dateKey,
+			now: Date.now()
+		})
+		await inspections.doc(row._id).update(numberFields)
+		updated += 1
+	}
+	await recordLog(
+		user,
+		'home_safety_inspection_number_backfill_v1',
+		{ scanned: rows.length, updated, truncated: rows.length >= limit },
+		requestId
+	)
+	return {
+		code: 0,
+		msg: `已补齐 ${updated} 张巡检单编号`,
+		data: { scanned: rows.length, updated, truncated: rows.length >= limit }
+	}
+}
+
 function buildRevisionSnapshot(inspection) {
-	const snapshot = { ...(inspection || {}) }
+	const snapshot = withoutSignatureFields(inspection)
 	delete snapshot._id
 	return snapshot
 }
@@ -561,10 +660,6 @@ async function updateV1(user, data, requestId) {
 			created_by_name: normalizeString(user?.username)
 		})
 		revisionId = revisionRes.id
-		const customerSignatureChanged =
-			normalized.data.customer_signature_file_id !== current.customer_signature_file_id
-		const inspectorSignatureChanged =
-			normalized.data.inspector_signature_file_id !== current.inspector_signature_file_id
 		await inspections.doc(inspectionId).update({
 			customer_id: customer._id,
 			customer_name_snapshot: customer.name || '',
@@ -572,8 +667,6 @@ async function updateV1(user, data, requestId) {
 			...normalized.data,
 			inspection_at: inspectionAt,
 			inspection_date: shanghaiDate(inspectionAt),
-			customer_signed_at: customerSignatureChanged ? now : normalizeTimestamp(current.customer_signed_at, now),
-			inspector_signed_at: inspectorSignatureChanged ? now : normalizeTimestamp(current.inspector_signed_at, now),
 			revision_no: nextRevisionNo,
 			last_edited_at: now,
 			last_edited_by: normalizeString(user?._id),
@@ -623,7 +716,10 @@ async function listRevisionsV1(user, data) {
 	const visibleRows = rows.filter((item) => visibleIds.has(normalizeString(item.customer_id_snapshot)))
 	return {
 		code: 0,
-		data: visibleRows,
+		data: visibleRows.map((row) => ({
+			...row,
+			snapshot: withoutSignatureFields(row.snapshot)
+		})),
 		total: visibleRows.length,
 		truncated: rows.length >= 50
 	}
@@ -652,6 +748,7 @@ exports.main = async (event, context) => {
 		if (action === 'submitV1') return submitV1(user, data, requestId)
 		if (action === 'updateV1') return updateV1(user, data, requestId)
 		if (action === 'listRevisionsV1') return listRevisionsV1(user, data)
+		if (action === 'backfillInspectionNumbersV1') return backfillInspectionNumbersV1(user, data, requestId)
 		return { code: 400, msg: '未知 action' }
 	} catch (err) {
 		console.error('[crm-home-safety-inspection] main failed', action, err)

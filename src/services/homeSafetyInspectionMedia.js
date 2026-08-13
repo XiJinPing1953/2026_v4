@@ -2,6 +2,36 @@ function normalizeText(value) {
 	return value == null ? '' : String(value).trim()
 }
 
+const TEMP_FILE_BATCH_SIZE = 50
+const TEMP_FILE_CACHE_TTL_MS = 10 * 60 * 1000
+const tempFileUrlCache = new Map()
+
+function resolveBatchSize(value) {
+	return Math.min(Math.max(Number(value) || TEMP_FILE_BATCH_SIZE, 1), TEMP_FILE_BATCH_SIZE)
+}
+
+function readCachedTempFileUrl(fileId, now = Date.now()) {
+	const cached = tempFileUrlCache.get(fileId)
+	if (!cached || cached.expiresAt <= now) {
+		tempFileUrlCache.delete(fileId)
+		return ''
+	}
+	return cached.url
+}
+
+function emitResolvedBatch(callback, resolved, source) {
+	if (typeof callback !== 'function' || !Object.keys(resolved).length) return
+	try {
+		callback({ ...resolved }, { source })
+	} catch (_) {
+		// A rendering callback must not interrupt resolution of later batches.
+	}
+}
+
+export function invalidateInspectionFileUrl(fileId) {
+	tempFileUrlCache.delete(normalizeText(fileId))
+}
+
 function extractChooseImagePaths(res = null) {
 	const result = []
 	const add = (value) => {
@@ -83,24 +113,44 @@ export async function uploadInspectionImage({
 	return fileId
 }
 
-export async function resolveInspectionFileUrls(fileIds = []) {
+export async function resolveInspectionFileUrls(fileIds = [], options = {}) {
 	const normalized = Array.from(
 		new Set((fileIds || []).map(normalizeText).filter((item) => item.startsWith('cloud://')))
 	)
 	if (!normalized.length) return {}
-	try {
-		const res = await uniCloud.getTempFileURL({ fileList: normalized })
-		const map = {}
-		for (const item of Array.isArray(res?.fileList) ? res.fileList : []) {
-			const fileId = normalizeText(item?.fileID || item?.fileId)
-			if (!fileId) continue
-			map[fileId] = normalizeText(item?.tempFileURL || item?.tempFileUrl) || fileId
+	const map = Object.fromEntries(normalized.map((fileId) => [fileId, fileId]))
+	const pending = []
+	const cached = {}
+	const now = Date.now()
+	for (const fileId of normalized) {
+		const url = options?.forceRefresh ? '' : readCachedTempFileUrl(fileId, now)
+		if (url) {
+			map[fileId] = url
+			cached[fileId] = url
+		} else {
+			pending.push(fileId)
 		}
-		normalized.forEach((fileId) => {
-			if (!map[fileId]) map[fileId] = fileId
-		})
-		return map
-	} catch (_) {
-		return Object.fromEntries(normalized.map((fileId) => [fileId, fileId]))
 	}
+	emitResolvedBatch(options?.onBatchResolved, cached, 'cache')
+	const batchSize = resolveBatchSize(options?.batchSize)
+	for (let start = 0; start < pending.length; start += batchSize) {
+		const batch = pending.slice(start, start + batchSize)
+		try {
+			const res = await uniCloud.getTempFileURL({ fileList: batch })
+			const resolved = {}
+			for (const item of Array.isArray(res?.fileList) ? res.fileList : []) {
+				const fileId = normalizeText(item?.fileID || item?.fileId)
+				if (!fileId || !Object.prototype.hasOwnProperty.call(map, fileId)) continue
+				const url = normalizeText(item?.tempFileURL || item?.tempFileUrl)
+				if (!url || url === fileId) continue
+				map[fileId] = url
+				resolved[fileId] = url
+				tempFileUrlCache.set(fileId, { url, expiresAt: Date.now() + TEMP_FILE_CACHE_TTL_MS })
+			}
+			emitResolvedBatch(options?.onBatchResolved, resolved, 'network')
+		} catch (_) {
+			// Keep this batch's original cloud IDs while allowing other batches to resolve.
+		}
+	}
+	return map
 }

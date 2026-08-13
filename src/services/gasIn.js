@@ -15,6 +15,13 @@ export async function listGasInV1(params = {}) {
 	})
 }
 
+export async function getCurrentGasInventoryV1() {
+	return callCloud('crm-gas-in', {
+		action: 'getCurrentInventoryV1',
+		data: {}
+	})
+}
+
 export async function getGasInV1(params = {}) {
 	return callCloud('crm-gas-in', {
 		action: 'getV1',
@@ -66,6 +73,38 @@ export async function updateGasTankConfigV1(params = {}) {
 		action: 'updateTankConfigV1',
 		data: {
 			full_tank_weight_t: params.full_tank_weight_t ?? params.fullTankWeightT ?? 0
+		}
+	})
+}
+
+export async function previewGasInventoryPeriodV1(params = {}) {
+	return callCloud('crm-gas-in', {
+		action: 'previewInventoryPeriodV1',
+		data: {
+			cutoff_day: params.cutoff_day || params.cutoffDay || '2026-08-12',
+			opening_tank_t: params.opening_tank_t ?? params.openingTankT ?? 0,
+			reason: params.reason || ''
+		}
+	})
+}
+
+export async function activateGasInventoryPeriodV1(params = {}) {
+	return callCloud('crm-gas-in', {
+		action: 'activateInventoryPeriodV1',
+		data: {
+			cutoff_day: params.cutoff_day || params.cutoffDay || '2026-08-12',
+			opening_tank_t: params.opening_tank_t ?? params.openingTankT ?? 0,
+			reason: params.reason || ''
+		}
+	})
+}
+
+export async function listGasInventoryPeriodsV1(params = {}) {
+	return callCloud('crm-gas-in', {
+		action: 'listInventoryPeriodsV1',
+		data: {
+			page: params.page || 1,
+			pageSize: params.pageSize || params.limit || 20
 		}
 	})
 }

@@ -46,9 +46,7 @@ function validPayload(template = TEMPLATE) {
 			return base
 		}),
 		customer_signer_name: '客户代表',
-		customer_signature_file_id: cloudFile('customer-signature'),
-		inspector_name: '巡检员甲',
-		inspector_signature_file_id: cloudFile('inspector-signature')
+		inspector_name: '巡检员甲'
 	}
 }
 
@@ -119,6 +117,8 @@ test('完整正常八项巡检通过并保存子检查文字快照', () => {
 	assert.equal(hose.result_code, 'normal')
 	assert.equal(hose.result_label_snapshot, '正常')
 	assert.equal(hose.is_not_applicable, false)
+	assert.equal(result.data.customer_signature_file_id, undefined)
+	assert.equal(result.data.inspector_signature_file_id, undefined)
 })
 
 test('任一子检查异常会标记项目和整单异常，且必须填写问题说明', () => {
@@ -216,14 +216,12 @@ test('逐项答案严格匹配模板，不接受缺失、重复、隐藏或未�
 	assert.match(result.msg, /选择|版本不匹配/)
 })
 
-test('逐项照片、地址、双方姓名和签名均为必填', () => {
+test('逐项照片、地址和现场人员信息均为必填', () => {
 	const cases = [
 		[(payload) => { payload.location_text = '' }, /地点/],
 		[(payload) => { payload.items[0].photo_file_ids = [] }, /至少上传/],
 		[(payload) => { payload.customer_signer_name = '' }, /姓名/],
-		[(payload) => { payload.customer_signature_file_id = '' }, /客户现场人员签名/],
-		[(payload) => { payload.inspector_name = '' }, /巡检员姓名/],
-		[(payload) => { payload.inspector_signature_file_id = '' }, /巡检员签名/]
+		[(payload) => { payload.inspector_name = '' }, /巡检员姓名/]
 	]
 	for (const [mutate, expected] of cases) {
 		const payload = validPayload()
@@ -262,9 +260,13 @@ test('每项照片限制为一至三张且只接受不重复的 cloud:// 文件�
 	assert.equal(result.ok, false)
 	assert.match(result.msg, /最多上传 3 张/)
 
-	const signature = validPayload()
-	signature.customer_signature_file_id = '/tmp/signature.png'
-	assert.equal(normalizeEditablePayload(signature, { template: CURRENT_TEMPLATE }).ok, false)
+	const legacySignature = validPayload()
+	legacySignature.customer_signature_file_id = '/tmp/signature.png'
+	legacySignature.inspector_signature_file_id = cloudFile('old-inspector-signature')
+	const signatureResult = normalizeEditablePayload(legacySignature, { template: CURRENT_TEMPLATE })
+	assert.equal(signatureResult.ok, true)
+	assert.equal(signatureResult.data.customer_signature_file_id, undefined)
+	assert.equal(signatureResult.data.inspector_signature_file_id, undefined)
 })
 
 test('旧 Demo 单可按原模板校验，但不能伪装成当前模板提交', () => {

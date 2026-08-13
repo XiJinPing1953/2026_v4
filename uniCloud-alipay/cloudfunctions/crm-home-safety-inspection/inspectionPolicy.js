@@ -463,19 +463,11 @@ function normalizeEditablePayload(value, options = {}) {
 	if (!itemsResult.ok) return itemsResult
 
 	const customerSignerName = normalizeString(data.customer_signer_name ?? data.customerSignerName)
-	const customerSignatureFileId = normalizeCloudFileId(
-		data.customer_signature_file_id ?? data.customerSignatureFileId
-	)
 	const inspectorName = normalizeString(data.inspector_name ?? data.inspectorName ?? options.defaultInspectorName)
-	const inspectorSignatureFileId = normalizeCloudFileId(
-		data.inspector_signature_file_id ?? data.inspectorSignatureFileId
-	)
-	if (!customerSignerName) return { ok: false, msg: '客户现场签名人姓名必填' }
-	if (customerSignerName.length > 50) return { ok: false, msg: '客户现场签名人姓名最多 50 字' }
-	if (!customerSignatureFileId) return { ok: false, msg: '请完成客户现场人员签名' }
+	if (!customerSignerName) return { ok: false, msg: '客户现场人员姓名必填' }
+	if (customerSignerName.length > 50) return { ok: false, msg: '客户现场人员姓名最多 50 字' }
 	if (!inspectorName) return { ok: false, msg: '巡检员姓名必填' }
 	if (inspectorName.length > 50) return { ok: false, msg: '巡检员姓名最多 50 字' }
-	if (!inspectorSignatureFileId) return { ok: false, msg: '请完成巡检员签名' }
 
 	const overallResult = itemsResult.data.some((item) => item.is_abnormal) ? 'abnormal' : 'normal'
 	return {
@@ -489,9 +481,7 @@ function normalizeEditablePayload(value, options = {}) {
 			items: itemsResult.data,
 			overall_result: overallResult,
 			customer_signer_name: customerSignerName,
-			customer_signature_file_id: customerSignatureFileId,
-			inspector_name: inspectorName,
-			inspector_signature_file_id: inspectorSignatureFileId
+			inspector_name: inspectorName
 		}
 	}
 }

@@ -1,0 +1,46 @@
+{
+  "bsonType": "object",
+  "description": "Home safety inspection export jobs",
+  "additionalProperties": false,
+  "required": [
+    "client_request_id", "scope", "start_date", "end_date", "status",
+    "total_count", "processed_count", "normal_count", "abnormal_count",
+    "photo_count", "missing_file_count", "customer_ids", "zip_file_id",
+    "zip_cloud_path", "zip_file_name", "error_message", "worker_token",
+    "lease_until", "created_by", "created_by_name", "created_at", "updated_at", "expires_at"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "client_request_id": { "bsonType": "string" },
+    "scope": { "bsonType": "string", "enum": ["range", "all"] },
+    "start_date": { "bsonType": "string" },
+    "end_date": { "bsonType": "string" },
+    "start_at": { "bsonType": ["number", "null"] },
+    "end_at_exclusive": { "bsonType": ["number", "null"] },
+    "status": { "bsonType": "string", "enum": ["queued", "processing", "packaging", "ready", "failed", "stale", "expired"] },
+    "total_count": { "bsonType": "int" },
+    "processed_count": { "bsonType": "int" },
+    "normal_count": { "bsonType": "int" },
+    "abnormal_count": { "bsonType": "int" },
+    "photo_count": { "bsonType": "int" },
+    "missing_file_count": { "bsonType": "int" },
+    "customer_ids": { "bsonType": "array", "items": { "bsonType": "string" } },
+    "zip_file_id": { "bsonType": "string" },
+    "zip_cloud_path": { "bsonType": "string" },
+    "zip_file_name": { "bsonType": "string" },
+    "error_message": { "bsonType": "string" },
+    "worker_token": { "bsonType": "string" },
+    "lease_until": { "bsonType": "number" },
+    "created_by": { "bsonType": "string" },
+    "created_by_name": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" },
+    "expires_at": { "bsonType": "number" }
+  },
+  "permission": { "read": false, "create": false, "update": false, "delete": false },
+  "indexes": [
+    { "key": { "created_by": 1, "client_request_id": 1 }, "name": "uniq_export_creator_request", "unique": true },
+    { "key": { "created_by": 1, "created_at": -1 }, "name": "idx_export_creator_created" },
+    { "key": { "expires_at": 1 }, "name": "idx_export_expires" }
+  ]
+}

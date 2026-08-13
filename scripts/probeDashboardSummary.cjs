@@ -33,6 +33,9 @@ function parseArgs(argv) {
 		spaceId: '',
 		username: 'superadmin',
 		password: 'y7ez5CGAbivZkeP',
+		tankDebug: false,
+		tankLogs: false,
+		tankReconcile: false,
 		dateStart: monthStart,
 		dateEnd: monthEnd,
 		outFile: path.resolve(process.cwd(), `docs/dashboard_sales_probe_${monthStart}_${monthEnd}.json`)
@@ -46,6 +49,9 @@ function parseArgs(argv) {
 		if (key === 'space-id') out.spaceId = normalizeString(value)
 		if (key === 'username') out.username = normalizeString(value) || out.username
 		if (key === 'password') out.password = normalizeString(value) || out.password
+		if (key === 'tank-debug') out.tankDebug = value !== 'false' && value !== '0'
+		if (key === 'tank-logs') out.tankLogs = value !== 'false' && value !== '0'
+		if (key === 'tank-reconcile') out.tankReconcile = value !== 'false' && value !== '0'
 		if (key === 'date-start') out.dateStart = normalizeString(value) || out.dateStart
 		if (key === 'date-end') out.dateEnd = normalizeString(value) || out.dateEnd
 		if (key === 'out') out.outFile = path.resolve(process.cwd(), value || out.outFile)
@@ -222,6 +228,192 @@ async function callCrm(client, token, name, action, data) {
 	return res
 }
 
+function dateTextAtOffset(timestamp) {
+	const parts = new Intl.DateTimeFormat('en-CA', {
+		timeZone: 'Asia/Shanghai',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit'
+	}).formatToParts(new Date(timestamp))
+	const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+	return `${values.year}-${values.month}-${values.day}`
+}
+
+function formatBeijingTime(timestamp) {
+	const num = Number(timestamp)
+	if (!Number.isFinite(num) || num <= 0) return ''
+	return new Intl.DateTimeFormat('zh-CN', {
+		timeZone: 'Asia/Shanghai',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+		hour12: false
+	})
+		.format(new Date(num))
+		.replace(/\//g, '-')
+}
+
+function previousDateText(dateText) {
+	const timestamp = Date.parse(`${dateText}T12:00:00+08:00`)
+	return dateTextAtOffset(timestamp - 24 * 60 * 60 * 1000)
+}
+
+async function fetchAllTankOperationLogs(client, token, dateStart, dateEnd) {
+	const rows = []
+	const pageSize = 200
+	const queryStart = previousDateText(dateStart)
+	let page = 1
+	let total = 0
+	while (true) {
+		const res = await callCrm(client, token, 'crm-log', 'listOperationLogsV1', {
+			page,
+			pageSize,
+			keyword: 'tank_gateway',
+			dateStart: queryStart,
+			dateEnd
+		})
+		const list = Array.isArray(res.data) ? res.data : []
+		rows.push(...list)
+		total = Number(res?.paging?.total || rows.length)
+		if (page === 1 || page % 20 === 0 || !res?.paging?.hasMore) {
+			console.error(`[tank-log] 已拉取 ${rows.length}/${total}`)
+		}
+		if (!res?.paging?.hasMore || list.length === 0) break
+		page += 1
+		if (page > 1000) throw new Error('储罐日志分页超过安全上限')
+	}
+	const startAt = Date.parse(`${dateStart}T00:00:00+08:00`)
+	const endAt = Date.parse(`${dateEnd}T23:59:59.999+08:00`)
+	return rows
+		.filter((row) => /^tank_gateway_/.test(normalizeString(row && row.action)))
+		.filter((row) => Number(row && row.created_at) >= startAt && Number(row && row.created_at) <= endAt)
+		.sort((left, right) => Number(left.created_at || 0) - Number(right.created_at || 0))
+}
+
+async function fetchFillingReconciliation(client, token, dateStart, dateEnd) {
+	const first = await callCrm(client, token, 'crm-filling', 'listV1', {
+		page: 1,
+		pageSize: 200,
+		dateStart,
+		dateEnd
+	})
+	const rows = Array.isArray(first.data) ? [...first.data] : []
+	let page = 2
+	while (first?.paging?.total > rows.length) {
+		const res = await callCrm(client, token, 'crm-filling', 'listV1', {
+			page,
+			pageSize: 200,
+			dateStart,
+			dateEnd
+		})
+		const list = Array.isArray(res.data) ? res.data : []
+		rows.push(...list)
+		if (!res?.paging?.hasMore || !list.length) break
+		page += 1
+	}
+	return { summary: first.summary || {}, rows }
+}
+
+function metricSummary(rows, key) {
+	const values = rows
+		.map((row) => Number(row && row.detail && row.detail[key]))
+		.filter((value) => Number.isFinite(value))
+	if (!values.length) return { min: null, max: null, avg: null }
+	return {
+		min: fix2(Math.min(...values)),
+		max: fix2(Math.max(...values)),
+		avg: fix2(values.reduce((sum, value) => sum + value, 0) / values.length)
+	}
+}
+
+function summarizeTankLogRows(rows, dateStart, dateEnd) {
+	const ingestRows = rows.filter((row) => row.action === 'tank_gateway_ingest')
+	const dayMap = new Map()
+	for (const row of ingestRows) {
+		const day = dateTextAtOffset(row.created_at)
+		if (!dayMap.has(day)) dayMap.set(day, [])
+		dayMap.get(day).push(row)
+	}
+	const daily = {}
+	for (const [day, dayRows] of dayMap.entries()) {
+		let maxGapSeconds = 0
+		let gapsOver60Seconds = 0
+		for (let i = 1; i < dayRows.length; i += 1) {
+			const gapSeconds = Math.max((Number(dayRows[i].created_at) - Number(dayRows[i - 1].created_at)) / 1000, 0)
+			maxGapSeconds = Math.max(maxGapSeconds, gapSeconds)
+			if (gapSeconds > 60) gapsOver60Seconds += 1
+		}
+		daily[day] = {
+			successful_ingest_count: dayRows.length,
+			first_at: formatBeijingTime(dayRows[0] && dayRows[0].created_at),
+			last_at: formatBeijingTime(dayRows[dayRows.length - 1] && dayRows[dayRows.length - 1].created_at),
+			max_gap_seconds: fix2(maxGapSeconds),
+			gaps_over_60_seconds: gapsOver60Seconds,
+			level_kpa: metricSummary(dayRows, 'level_kpa'),
+			level_percent: metricSummary(dayRows, 'level_percent'),
+			pressure_mpa: metricSummary(dayRows, 'pressure_mpa'),
+			lng_weight_t: metricSummary(dayRows, 'lng_weight_t')
+		}
+	}
+	return {
+		timezone: 'Asia/Shanghai (+08:00)',
+		date_start: dateStart,
+		date_end: dateEnd,
+		total_log_count: rows.length,
+		successful_ingest_count: ingestRows.length,
+		login_count: rows.filter((row) => row.action === 'tank_gateway_login').length,
+		login_failed_count: rows.filter((row) => row.action === 'tank_gateway_login_failed').length,
+		gateway_ids: Array.from(
+			new Set(rows.map((row) => normalizeString(row && row.detail && row.detail.gateway_id)).filter(Boolean))
+		).sort(),
+		daily
+	}
+}
+
+function csvCell(value) {
+	const text = value == null ? '' : String(value)
+	return `"${text.replace(/"/g, '""')}"`
+}
+
+function tankLogsToCsv(rows) {
+	const headers = [
+		'北京时间',
+		'时间戳',
+		'动作',
+		'网关ID',
+		'储罐ID',
+		'液位_kPa',
+		'液位百分比',
+		'压力_MPa',
+		'LNG重量_吨',
+		'请求ID'
+	]
+	const lines = [headers.map(csvCell).join(',')]
+	for (const row of rows) {
+		const detail = row.detail && typeof row.detail === 'object' ? row.detail : {}
+		lines.push(
+			[
+				formatBeijingTime(row.created_at),
+				row.created_at,
+				row.action,
+				detail.gateway_id,
+				detail.tank_id,
+				detail.level_kpa,
+				detail.level_percent,
+				detail.pressure_mpa,
+				detail.lng_weight_t,
+				row.request_id
+			]
+				.map(csvCell)
+				.join(',')
+		)
+	}
+	return `\uFEFF${lines.join('\n')}\n`
+}
+
 async function fetchAllSales(client, token, dateStart, dateEnd) {
 	const rows = []
 	let page = 1
@@ -301,6 +493,39 @@ async function main() {
 	const args = parseArgs(process.argv)
 	const client = new AlipayFunctionClient(loadAlipayConfig(args.spaceId))
 	const token = await login(client, args.username, args.password)
+	if (args.tankDebug) {
+		const tankRes = await callCrm(client, token, 'crm-dashboard', 'getTankTelemetryDebugV1', { tank_id: 'main' })
+		const summaryRes = await callCrm(client, token, 'crm-dashboard', 'summaryV1', { days: 7 })
+		console.log(
+			JSON.stringify(
+				{
+					record: tankRes.data || null,
+					summary: (summaryRes.data && summaryRes.data.tank) || null
+				},
+				null,
+				2
+			)
+		)
+		return
+	}
+	if (args.tankLogs) {
+		const rows = await fetchAllTankOperationLogs(client, token, args.dateStart, args.dateEnd)
+		const summary = summarizeTankLogRows(rows, args.dateStart, args.dateEnd)
+		const report = { summary, rows }
+		const csvFile = args.outFile.replace(/\.json$/i, '') + '.csv'
+		fs.mkdirSync(path.dirname(args.outFile), { recursive: true })
+		fs.writeFileSync(args.outFile, JSON.stringify(report, null, 2))
+		fs.writeFileSync(csvFile, tankLogsToCsv(rows))
+		console.log(JSON.stringify(summary, null, 2))
+		console.log(`\nJSON: ${args.outFile}`)
+		console.log(`CSV: ${csvFile}`)
+		return
+	}
+	if (args.tankReconcile) {
+		const result = await fetchFillingReconciliation(client, token, args.dateStart, args.dateEnd)
+		console.log(JSON.stringify(result, null, 2))
+		return
+	}
 
 	const dashboardRes = await callCrm(client, token, 'crm-dashboard', 'summaryV1', { days: 7 })
 	const salesRes = await fetchAllSales(client, token, args.dateStart, args.dateEnd)
