@@ -193,6 +193,12 @@
 			}
 		},
 		{
+			"path": "pages/bottle/inspection",
+			"style": {
+				"navigationBarTitleText": "钢瓶检验登记"
+			}
+		},
+		{
 			"path": "pages/bottle/edit",
 			"style": {
 				"navigationBarTitleText": "瓶档录入"

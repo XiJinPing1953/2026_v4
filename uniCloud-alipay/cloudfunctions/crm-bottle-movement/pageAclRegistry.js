@@ -142,6 +142,7 @@ const PAGE_REGISTRY = [
 	{ pagePath: '/pages/cashier/receipt-intake', label: '出纳收款登记', group: 'customers', supports: { view: true, create: true, update: true, delete: true } },
 	{ pagePath: '/pages/bottle/anomaly', label: '流转异常', group: 'bottles', supports: { view: true, update: true } },
 	{ pagePath: '/pages/bottle/list', label: '瓶档列表', group: 'bottles', supports: { view: true, create: true, update: true, delete: true } },
+	{ pagePath: '/pages/bottle/inspection', label: '钢瓶检验登记', group: 'bottles', supports: { view: true, update: true } },
 	{ pagePath: '/pages/bottle/edit', label: '瓶档录入', group: 'bottles', supports: { view: true, create: true, update: true } },
 	{ pagePath: '/pages/bottle/movement', label: '流转记录', group: 'bottles', supports: { view: true } },
 	{ pagePath: '/pages/bottle/timeline', label: '单瓶时间线', group: 'bottles', supports: { view: true } },

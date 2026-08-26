@@ -45,6 +45,8 @@ const ACTION_LABEL_MAP = {
 	bottle_movement_create_v1: '记录钢瓶流转',
 	bottle_movement_loss_stats_v1: '查询损耗统计',
 	bottle_movement_cycle_loss_v1: '查询单瓶理论损耗',
+	bottle_batch_update_inspection_preview_v2: '预检钢瓶检验登记',
+	bottle_batch_update_inspection_execute_v2: '执行钢瓶检验登记',
 
 	filling_create_v1: '创建灌装记录',
 	filling_get_v1: '查询灌装记录详情',

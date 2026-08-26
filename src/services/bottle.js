@@ -99,6 +99,13 @@ export async function batchUpdateInspectionV1(data = {}) {
 	})
 }
 
+export async function batchUpdateInspectionV2(data = {}) {
+	return callCloud('crm-bottle', {
+		action: 'batchUpdateInspectionV2',
+		data
+	})
+}
+
 export async function backfillBottleSortKeysV1(data = {}) {
 	return callCloud('crm-bottle', {
 		action: 'backfillBottleSortKeysV1',

@@ -66,6 +66,7 @@ const DUPLICATE_MERGE_FIELDS = [
 const PAGE_ACTION_RULES = {
 	listV1: [
 		{ pagePath: '/pages/bottle/list', action: 'view' },
+		{ pagePath: '/pages/bottle/inspection', action: 'view' },
 		{ pagePath: '/pages/pda/bottle-query', action: 'view' },
 		{ pagePath: '/pages/pda/sale-create', action: 'view' },
 		{ pagePath: '/pages/pda/filling-create', action: 'view' }
@@ -86,6 +87,7 @@ const PAGE_ACTION_RULES = {
 	createV1: [{ pagePath: '/pages/bottle/edit', action: 'create' }],
 	updateV1: [{ pagePath: '/pages/bottle/edit', action: 'update' }],
 	batchUpdateInspectionV1: [{ pagePath: '/pages/bottle/list', action: 'update' }],
+	batchUpdateInspectionV2: [{ pagePath: '/pages/bottle/inspection', action: 'update' }],
 	rebuildCurrentStatusV1: [{ pagePath: '/pages/bottle/list', action: 'update' }],
 	backfillRegFieldsV1: [{ pagePath: '/pages/bottle/list', action: 'update' }]
 }
@@ -1037,6 +1039,7 @@ function applyBottleNaturalOrder(query) {
 function buildBottleListWhereByFilter(data = {}) {
 	const keyword = normalizeString(data.keyword)
 	const status = normalizeString(data.status)
+	const excludedIds = normalizeUniqueIds(data.excluded_ids ?? data.exclude_ids)
 	const bottleNoModeRaw = normalizeString(data.bottle_no_mode ?? data.bottleNoMode).toLowerCase()
 	const bottleNoMode = bottleNoModeRaw || 'all'
 	const bottleNoPrefix = normalizeString(data.bottle_no_prefix ?? data.bottleNoPrefix)
@@ -1059,6 +1062,9 @@ function buildBottleListWhereByFilter(data = {}) {
 	}
 	if (numericStart != null && numericEnd != null && numericStart > numericEnd) {
 		return { ok: false, msg: '纯数字分段起始号不能大于结束号' }
+	}
+	if (excludedIds.length > BATCH_INSPECTION_LIMIT) {
+		return { ok: false, msg: `排除数量超过单批上限 ${BATCH_INSPECTION_LIMIT}` }
 	}
 
 	const conditions = []
@@ -1115,6 +1121,9 @@ function buildBottleListWhereByFilter(data = {}) {
 		conditions.push({ bottle_no: db.RegExp({ regexp: '^[0-9]+$', options: '' }) })
 	} else if (bottleNoMode === 'prefix') {
 		conditions.push({ bottle_no: db.RegExp({ regexp: `^${escapeRegExp(bottleNoPrefix)}`, options: 'i' }) })
+	}
+	if (excludedIds.length) {
+		conditions.push({ _id: dbCmd.nin(excludedIds) })
 	}
 
 	const bottlePair = parseInspectionDateEqPair(
@@ -1194,6 +1203,7 @@ function buildBottleListWhereByFilter(data = {}) {
 		needs_numeric_post_filter: needsNumericPostFilter,
 		bottle_no_numeric_start: numericStart,
 		bottle_no_numeric_end: numericEnd,
+		excluded_ids: excludedIds,
 		scan_limit: BOTTLE_NUMERIC_SEGMENT_SCAN_LIMIT,
 		filters: {
 			keyword,
@@ -1677,6 +1687,279 @@ async function batchUpdateInspectionV1(user, data, requestId) {
 	)
 
 	return { code: 0, msg: '批量更新完成', data: executeData }
+}
+
+const INSPECTION_V2_MODULES = {
+	bottle: {
+		label: '钢瓶检验',
+		checkField: 'bottle_check_date',
+		nextField: 'bottle_next_check_date',
+		cycleField: 'bottle_check_cycle_months'
+	},
+	gauge: {
+		label: '压力表检验',
+		checkField: 'pressure_gauge_check_date',
+		nextField: 'pressure_gauge_next_check_date',
+		cycleField: 'pressure_gauge_cycle_months'
+	},
+	valve: {
+		label: '安全阀检验',
+		checkField: 'safety_valve_check_date',
+		nextField: 'safety_valve_next_check_date',
+		cycleField: 'safety_valve_cycle_months'
+	}
+}
+
+const INSPECTION_V2_FIELDS = {
+	_id: true,
+	bottle_no: true,
+	bottle_check_cycle_months: true,
+	pressure_gauge_cycle_months: true,
+	safety_valve_cycle_months: true
+}
+
+function parseBatchInspectionV2Payload(data = {}) {
+	const inspectionDate = normalizeDate(data.inspection_date ?? data.inspectionDate)
+	if (!isValidDateString(inspectionDate)) return { ok: false, msg: '检定日期格式无效' }
+
+	const rawModules = Array.isArray(data.modules) ? data.modules : []
+	const normalizedModules = rawModules.map((item) => normalizeString(item).toLowerCase())
+	if (!normalizedModules.length) return { ok: false, msg: '至少选择一个检验项目' }
+	if (normalizedModules.some((item) => !Object.prototype.hasOwnProperty.call(INSPECTION_V2_MODULES, item))) {
+		return { ok: false, msg: '检验项目无效' }
+	}
+	const modules = Array.from(new Set(normalizedModules))
+
+	const scopeMode = normalizeString(data.scope_mode ?? data.scopeMode).toLowerCase()
+	if (!['ids', 'filter'].includes(scopeMode)) return { ok: false, msg: '更新范围无效' }
+
+	const selector = data.selector && typeof data.selector === 'object' ? { ...data.selector } : {}
+	if (scopeMode === 'ids') {
+		const ids = normalizeUniqueIds(selector.ids)
+		if (!ids.length) return { ok: false, msg: '请先勾选要更新的钢瓶' }
+		if (ids.length > BATCH_INSPECTION_LIMIT) {
+			return { ok: false, msg: `目标数量超过单批上限 ${BATCH_INSPECTION_LIMIT}，请缩小范围` }
+		}
+		return {
+			ok: true,
+			data: {
+				inspection_date: inspectionDate,
+				modules,
+				scope_mode: 'ids',
+				selector: { ids }
+			}
+		}
+	}
+
+	const excludedIds = normalizeUniqueIds(selector.excluded_ids ?? selector.exclude_ids)
+	if (excludedIds.length > BATCH_INSPECTION_LIMIT) {
+		return { ok: false, msg: `排除数量超过单批上限 ${BATCH_INSPECTION_LIMIT}` }
+	}
+	const whereResult = buildBottleListWhereByFilter({ ...selector, excluded_ids: excludedIds })
+	if (!whereResult.ok) return { ok: false, msg: whereResult.msg }
+	return {
+		ok: true,
+		data: {
+			inspection_date: inspectionDate,
+			modules,
+			scope_mode: 'filter',
+			selector: { ...whereResult.filters, excluded_ids: excludedIds },
+			where: whereResult.where,
+			where_meta: {
+				needs_numeric_post_filter: Boolean(whereResult.needs_numeric_post_filter),
+				bottle_no_numeric_start: whereResult.bottle_no_numeric_start,
+				bottle_no_numeric_end: whereResult.bottle_no_numeric_end,
+				scan_limit: whereResult.scan_limit
+			}
+		}
+	}
+}
+
+function buildInspectionV2FieldSummary(modules, inspectionDate) {
+	return modules.map((moduleKey) => ({
+		module: moduleKey,
+		label: INSPECTION_V2_MODULES[moduleKey].label,
+		check_date: inspectionDate,
+		next_check_date: '按档案周期计算'
+	}))
+}
+
+function buildInspectionV2InvalidItems(rows, modules, missingIds = []) {
+	const invalidItems = missingIds.map((id) => ({
+		_id: id,
+		bottle_no: '',
+		missing_modules: ['钢瓶不存在']
+	}))
+	for (let i = 0; i < rows.length; i += 1) {
+		const row = rows[i] || {}
+		const missingModules = []
+		for (let j = 0; j < modules.length; j += 1) {
+			const meta = INSPECTION_V2_MODULES[modules[j]]
+			const cycle = Number(row[meta.cycleField])
+			if (!CHECK_CYCLE_MONTHS.includes(cycle)) missingModules.push(meta.label)
+		}
+		if (missingModules.length) {
+			invalidItems.push({
+				_id: normalizeString(row._id),
+				bottle_no: normalizeString(row.bottle_no),
+				missing_modules: missingModules
+			})
+		}
+	}
+	return invalidItems
+}
+
+async function loadBatchInspectionV2Targets(payload) {
+	let targetRows = []
+	let requestedTotal = 0
+	let missingIds = []
+	if (payload.scope_mode === 'ids') {
+		const ids = payload.selector.ids || []
+		const foundRows = await fetchBottlesByIds(ids, INSPECTION_V2_FIELDS)
+		const foundMap = new Map(foundRows.map((row) => [String(row._id), row]))
+		targetRows = ids.map((id) => foundMap.get(id)).filter(Boolean)
+		missingIds = ids.filter((id) => !foundMap.has(id))
+		requestedTotal = ids.length
+		return { targetRows, requestedTotal, missingIds }
+	}
+
+	const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['current_customer_id'])
+	const effectiveWhere = mergeVisibilityWhere(dbCmd, payload.where, hiddenWhere)
+	const whereMeta = payload.where_meta || {}
+	if (whereMeta.needs_numeric_post_filter) {
+		const scanLimit = Number(whereMeta.scan_limit || BOTTLE_NUMERIC_SEGMENT_SCAN_LIMIT)
+		const scanRes = await scanBottlesByWhereWithLimit(effectiveWhere, scanLimit, INSPECTION_V2_FIELDS)
+		if (scanRes.overflow) {
+			return { error: { code: 400, msg: `纯数字分段候选超过安全上限 ${scanLimit}，请缩小筛选范围` } }
+		}
+		targetRows = applyBottleNoNumericRange(
+			scanRes.rows,
+			whereMeta.bottle_no_numeric_start,
+			whereMeta.bottle_no_numeric_end
+		)
+		requestedTotal = targetRows.length
+	} else {
+		const totalRes = await bottles.where(effectiveWhere).count()
+		requestedTotal = Number(totalRes.total || 0)
+		if (requestedTotal <= BATCH_INSPECTION_LIMIT) {
+			targetRows = await fetchBottlesByWhere(effectiveWhere, BATCH_INSPECTION_LIMIT, INSPECTION_V2_FIELDS)
+		}
+	}
+	return { targetRows, requestedTotal, missingIds }
+}
+
+function formatInspectionV2InvalidItems(items = []) {
+	return items.slice(0, 200).map((item) => ({
+		_id: normalizeString(item && item._id),
+		bottle_no: normalizeString(item && item.bottle_no),
+		missing_modules: Array.isArray(item && item.missing_modules) ? item.missing_modules : []
+	}))
+}
+
+async function batchUpdateInspectionV2(user, data, requestId) {
+	const parsed = parseBatchInspectionV2Payload(data || {})
+	if (!parsed.ok) return { code: 400, msg: parsed.msg }
+	const payload = parsed.data
+	const fieldsSummary = buildInspectionV2FieldSummary(payload.modules, payload.inspection_date)
+	const loaded = await loadBatchInspectionV2Targets(payload)
+	if (loaded.error) return loaded.error
+	const { targetRows, requestedTotal, missingIds } = loaded
+	if (requestedTotal > BATCH_INSPECTION_LIMIT) {
+		return { code: 400, msg: `命中 ${requestedTotal} 条，超过单批上限 ${BATCH_INSPECTION_LIMIT}，请缩小筛选范围` }
+	}
+	const invalidItems = buildInspectionV2InvalidItems(targetRows, payload.modules, missingIds)
+	const previewData = {
+		can_execute: requestedTotal > 0 && invalidItems.length === 0,
+		scope_mode: payload.scope_mode,
+		inspection_date: payload.inspection_date,
+		modules: payload.modules,
+		target_total: requestedTotal,
+		found_total: targetRows.length,
+		invalid_total: invalidItems.length,
+		invalid_items: formatInspectionV2InvalidItems(invalidItems),
+		sample_bottle_nos: targetRows.slice(0, 20).map((item) => normalizeString(item && item.bottle_no)).filter(Boolean),
+		update_fields: fieldsSummary,
+		limit: BATCH_INSPECTION_LIMIT
+	}
+
+	if (toBoolean(data.preview, false)) {
+		await recordLog(
+			user,
+			'bottle_batch_update_inspection_preview_v2',
+			{
+				scope_mode: payload.scope_mode,
+				inspection_date: payload.inspection_date,
+				modules: payload.modules,
+				target_total: requestedTotal,
+				invalid_total: invalidItems.length
+			},
+			requestId
+		)
+		return { code: 0, msg: '预检完成', data: previewData }
+	}
+
+	if (!previewData.can_execute) {
+		return { code: 409, msg: invalidItems.length ? '存在缺少检测周期的钢瓶，整批未更新' : '没有可更新的钢瓶', data: previewData }
+	}
+
+	const failedItems = []
+	let success = 0
+	const chunkSize = 20
+	for (let i = 0; i < targetRows.length; i += chunkSize) {
+		const chunk = targetRows.slice(i, i + chunkSize)
+		const jobs = chunk.map((doc) => {
+			const patch = { updated_at: Date.now() }
+			for (let j = 0; j < payload.modules.length; j += 1) {
+				const meta = INSPECTION_V2_MODULES[payload.modules[j]]
+				const cycle = Number(doc[meta.cycleField])
+				patch[meta.checkField] = payload.inspection_date
+				patch[meta.nextField] = addMonthsDate(payload.inspection_date, cycle)
+			}
+			return bottles
+				.doc(doc._id)
+				.update(patch)
+				.then(() => ({ ok: true, doc }))
+				.catch((err) => ({ ok: false, doc, error: err && err.message ? err.message : String(err) }))
+		})
+		const results = await Promise.all(jobs)
+		for (let j = 0; j < results.length; j += 1) {
+			const row = results[j]
+			if (row.ok) {
+				success += 1
+			} else {
+				failedItems.push({
+					_id: normalizeString(row.doc && row.doc._id),
+					bottle_no: normalizeString(row.doc && row.doc.bottle_no),
+					error: row.error || '更新失败'
+				})
+			}
+		}
+	}
+
+	const executeData = {
+		scope_mode: payload.scope_mode,
+		inspection_date: payload.inspection_date,
+		modules: payload.modules,
+		total: requestedTotal,
+		success,
+		failed: Math.max(requestedTotal - success, 0),
+		update_fields: fieldsSummary,
+		failed_items: failedItems.slice(0, 200)
+	}
+	await recordLog(
+		user,
+		'bottle_batch_update_inspection_execute_v2',
+		{
+			scope_mode: payload.scope_mode,
+			inspection_date: payload.inspection_date,
+			modules: payload.modules,
+			total: executeData.total,
+			success: executeData.success,
+			failed: executeData.failed
+		},
+		requestId
+	)
+	return { code: 0, msg: '检验日期更新成功', data: executeData }
 }
 
 async function rebuildCurrentStatusV1(user, data, requestId) {
@@ -2823,6 +3106,7 @@ exports.main = async (event, context) => {
 	if (action === 'createV1') return createV1(user, data, requestId, token)
 	if (action === 'updateV1') return updateV1(user, data, requestId, token)
 	if (action === 'batchUpdateInspectionV1') return batchUpdateInspectionV1(user, data, requestId)
+	if (action === 'batchUpdateInspectionV2') return batchUpdateInspectionV2(user, data, requestId)
 	if (action === 'rebuildCurrentStatusV1') return rebuildCurrentStatusV1(user, data, requestId)
 	if (action === 'backfillBottleSortKeysV1') return backfillBottleSortKeysV1(user, data, requestId)
 	if (action === 'backfillRegFieldsV1') return backfillRegFieldsV1(user, data, requestId)

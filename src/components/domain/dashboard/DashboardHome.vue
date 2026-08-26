@@ -42,6 +42,10 @@
 							<AppIcon name="bottle" size="24rpx" />
 							<text>钢瓶档案</text>
 						</view>
+						<view v-if="canView('/pages/bottle/inspection')" class="nav-item" @click="go('/pages/bottle/inspection')">
+							<AppIcon name="calendar" size="24rpx" />
+							<text>检验登记</text>
+						</view>
 						<view v-if="canView('/pages/vehicle/list')" class="nav-item" @click="go('/pages/vehicle/list')">
 							<AppIcon name="truck" size="24rpx" />
 							<text>车辆档案</text>
@@ -121,7 +125,7 @@
 								hint="项"
 								icon="calendar"
 								:delta="kpiDelta.inspectionDue"
-								@click="go('/pages/bottle/list')"
+								@click="go('/pages/bottle/inspection')"
 							/>
 							<AppStatCard
 								class="kpi-card"
@@ -319,6 +323,10 @@
 							<view v-if="canView('/pages/bottle/list')" class="nav-grid-item" @click="go('/pages/bottle/list')">
 								<view class="nav-icon bg-asset"><AppIcon name="bottle" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">钢瓶档案</text>
+							</view>
+							<view v-if="canView('/pages/bottle/inspection')" class="nav-grid-item" @click="go('/pages/bottle/inspection')">
+								<view class="nav-icon bg-asset"><AppIcon name="calendar" color="#fff" size="30rpx" /></view>
+								<text class="nav-text">检验登记</text>
 							</view>
 							<view v-if="canView('/pages/vehicle/list')" class="nav-grid-item" @click="go('/pages/vehicle/list')">
 								<view class="nav-icon bg-asset"><AppIcon name="truck" color="#fff" size="30rpx" /></view>
@@ -1087,7 +1095,7 @@ function goInspectionDue(module) {
 	const row = inspectionDue[module] || {}
 	const overdue = Number(row.overdue || 0)
 	const state = overdue > 0 ? 'overdue' : 'due_60d'
-	go(`/pages/bottle/list?inspection_due_module=${encodeURIComponent(module)}&inspection_due_state=${encodeURIComponent(state)}`)
+	go(`/pages/bottle/inspection?inspection_due_module=${encodeURIComponent(module)}&inspection_due_state=${encodeURIComponent(state)}`)
 }
 </script>
 

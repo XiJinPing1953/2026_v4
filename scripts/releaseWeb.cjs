@@ -31,6 +31,23 @@ function readEntryScript(indexHtml) {
 	return match[1] || ''
 }
 
+function verifySourceEntry(projectRoot = REPO_ROOT) {
+	const indexPath = path.join(projectRoot, 'index.html')
+	if (!fs.existsSync(indexPath)) {
+		throw new Error('发布已停止：项目根目录缺少 index.html')
+	}
+	const source = fs.readFileSync(indexPath, 'utf8')
+	if (!source.includes('/src/main.js') && !source.includes('./src/main.js')) {
+		throw new Error(
+			'发布已停止：根 index.html 不是 CRM 的 uni-app 入口，请不要把储罐网关 HTML 放在项目根目录'
+		)
+	}
+	if (source.includes('新拓储罐网关') || source.includes('apps/tank-gateway')) {
+		throw new Error('发布已停止：检测到储罐网关页面混入 CRM 根入口')
+	}
+	console.log('[release:web] CRM 根入口校验通过')
+}
+
 function verifyUniCloudSpace(outputDir = OUTPUT_DIR) {
 	const indexPath = path.join(outputDir, 'index.html')
 	if (!fs.existsSync(indexPath)) {
@@ -56,6 +73,7 @@ function verifyUniCloudSpace(outputDir = OUTPUT_DIR) {
 }
 
 function buildWeb() {
+	verifySourceEntry()
 	run(HBUILDERX_CLI, [
 		'cloud',
 		'functions',
@@ -119,5 +137,6 @@ if (require.main === module) {
 
 module.exports = {
 	readEntryScript,
+	verifySourceEntry,
 	verifyUniCloudSpace
 }

@@ -2,6 +2,7 @@
 	<AppPage title="钢瓶档案" :subtitle="subtitle" icon="bottle">
 		<template #headerActions>
 			<AppButton v-if="canCreateBottle" size="sm" kind="primary" icon="plus" @click="onAdd">新增钢瓶</AppButton>
+			<AppButton v-if="canUpdateInspection" size="sm" kind="neutral" icon="calendar" @click="onInspectionUpdate">检验登记</AppButton>
 			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch">刷新</AppButton>
 		</template>
 
@@ -248,101 +249,6 @@
 				</view>
 			</AppSection>
 
-			<AppSection title="批量检验更新">
-				<template #actions>
-					<AppButton kind="ghost" size="sm" @click="onBatchReset">清空</AppButton>
-					<AppButton size="sm" kind="neutral" :loading="batchPreviewLoading" @click="onBatchPreview">预览</AppButton>
-					<AppButton size="sm" kind="primary" :loading="batchExecuting" @click="onBatchExecute">执行</AppButton>
-				</template>
-
-				<view class="batch-head-grid">
-					<picker class="picker-block" mode="selector" :range="batchScopeOptions" range-key="label" @change="onBatchScopeChange">
-						<AppInput :model-value="batchScopeLabel" label="更新范围" disabled prefix-icon="list" size="sm" />
-					</picker>
-					<AppInput :model-value="String(selectedCount)" label="已勾选数量" disabled prefix-icon="list" size="sm" />
-				</view>
-
-				<view class="batch-module-toggle">
-					<AppButton
-						size="sm"
-						:kind="batchForm.bottle.enabled ? 'primary' : 'neutral'"
-						@click="toggleBatchModule('bottle')"
-					>
-						钢瓶检验
-					</AppButton>
-					<AppButton size="sm" :kind="batchForm.gauge.enabled ? 'primary' : 'neutral'" @click="toggleBatchModule('gauge')">
-						压力表检验
-					</AppButton>
-					<AppButton size="sm" :kind="batchForm.valve.enabled ? 'primary' : 'neutral'" @click="toggleBatchModule('valve')">
-						安全阀检验
-					</AppButton>
-				</view>
-
-				<view v-if="batchForm.bottle.enabled" class="batch-module-card">
-					<text class="batch-module-title">钢瓶检验</text>
-					<view class="batch-module-grid">
-						<picker class="picker-block" mode="date" :value="batchForm.bottle.checkDate" @change="onBatchDateChange('bottle', 'checkDate', $event)">
-							<AppInput :model-value="batchForm.bottle.checkDate" label="检验日期" placeholder="请选择日期" disabled prefix-icon="calendar" size="sm" />
-						</picker>
-						<picker class="picker-block" mode="selector" :range="cycleOptions" range-key="label" @change="onBatchCycleChange('bottle', $event)">
-							<AppInput :model-value="getCycleLabel(batchForm.bottle.cycleMonths)" label="检测周期" disabled prefix-icon="list" size="sm" />
-						</picker>
-						<picker class="picker-block" mode="date" :value="batchForm.bottle.nextOverrideDate" @change="onBatchDateChange('bottle', 'nextOverrideDate', $event)">
-							<AppInput :model-value="batchForm.bottle.nextOverrideDate" label="下次检验日期(覆盖)" placeholder="留空则自动计算" disabled prefix-icon="calendar" size="sm" />
-						</picker>
-					</view>
-					<text class="batch-hint">自动下次日期：{{ getBatchAutoNextDate('bottle') || '待输入检验日期' }}</text>
-				</view>
-
-				<view v-if="batchForm.gauge.enabled" class="batch-module-card">
-					<text class="batch-module-title">压力表检验</text>
-					<view class="batch-module-grid">
-						<picker class="picker-block" mode="date" :value="batchForm.gauge.checkDate" @change="onBatchDateChange('gauge', 'checkDate', $event)">
-							<AppInput :model-value="batchForm.gauge.checkDate" label="检验日期" placeholder="请选择日期" disabled prefix-icon="calendar" size="sm" />
-						</picker>
-						<picker class="picker-block" mode="selector" :range="cycleOptions" range-key="label" @change="onBatchCycleChange('gauge', $event)">
-							<AppInput :model-value="getCycleLabel(batchForm.gauge.cycleMonths)" label="检测周期" disabled prefix-icon="list" size="sm" />
-						</picker>
-						<picker class="picker-block" mode="date" :value="batchForm.gauge.nextOverrideDate" @change="onBatchDateChange('gauge', 'nextOverrideDate', $event)">
-							<AppInput :model-value="batchForm.gauge.nextOverrideDate" label="下次检验日期(覆盖)" placeholder="留空则自动计算" disabled prefix-icon="calendar" size="sm" />
-						</picker>
-					</view>
-					<text class="batch-hint">自动下次日期：{{ getBatchAutoNextDate('gauge') || '待输入检验日期' }}</text>
-				</view>
-
-				<view v-if="batchForm.valve.enabled" class="batch-module-card">
-					<text class="batch-module-title">安全阀检验（2个阀共用）</text>
-					<view class="batch-module-grid">
-						<picker class="picker-block" mode="date" :value="batchForm.valve.checkDate" @change="onBatchDateChange('valve', 'checkDate', $event)">
-							<AppInput :model-value="batchForm.valve.checkDate" label="检验日期" placeholder="请选择日期" disabled prefix-icon="calendar" size="sm" />
-						</picker>
-						<picker class="picker-block" mode="selector" :range="cycleOptions" range-key="label" @change="onBatchCycleChange('valve', $event)">
-							<AppInput :model-value="getCycleLabel(batchForm.valve.cycleMonths)" label="检测周期" disabled prefix-icon="list" size="sm" />
-						</picker>
-						<picker class="picker-block" mode="date" :value="batchForm.valve.nextOverrideDate" @change="onBatchDateChange('valve', 'nextOverrideDate', $event)">
-							<AppInput :model-value="batchForm.valve.nextOverrideDate" label="下次检验日期(覆盖)" placeholder="留空则自动计算" disabled prefix-icon="calendar" size="sm" />
-						</picker>
-					</view>
-					<text class="batch-hint">自动下次日期：{{ getBatchAutoNextDate('valve') || '待输入检验日期' }}</text>
-				</view>
-
-				<view v-if="batchPreviewResult" class="batch-result">
-					<text class="batch-result-title">预览结果</text>
-					<text class="batch-result-line">命中数量：{{ batchPreviewResult.target_total }}（上限 {{ batchPreviewResult.limit }}）</text>
-					<text class="batch-result-line">更新字段：{{ formatUpdateFieldSummary(batchPreviewResult.update_fields) }}</text>
-					<text class="batch-result-line">样例瓶号：{{ formatBottleNoSamples(batchPreviewResult.sample_bottle_nos) }}</text>
-					<text class="batch-result-line" v-if="batchPreviewResult.missing_total">未命中：{{ batchPreviewResult.missing_total }}</text>
-				</view>
-
-				<view v-if="batchExecuteResult" class="batch-result">
-					<text class="batch-result-title">执行结果</text>
-					<text class="batch-result-line">总数：{{ batchExecuteResult.total }}，成功：{{ batchExecuteResult.success }}，失败：{{ batchExecuteResult.failed }}</text>
-					<text v-if="batchExecuteResult.failed > 0" class="batch-result-line">
-						失败瓶号：{{ formatFailedBottleNos(batchExecuteResult.failed_items) }}
-					</text>
-				</view>
-			</AppSection>
-
 			<AppSection title="钢瓶列表">
 				<template #actions>
 					<view class="section-actions">
@@ -394,10 +300,6 @@
 						
 						<template #footer>
 							<view class="footer-btns" @click.stop>
-								<AppTag v-if="isBottleSelected(item._id)" kind="success">已勾选</AppTag>
-								<AppButton kind="neutral" size="sm" @click="onToggleBottleSelect(item)">
-									{{ isBottleSelected(item._id) ? '取消勾选' : '勾选子集' }}
-								</AppButton>
 								<AppButton v-if="canUpdateBottle" kind="ghost" size="sm" @click="onEdit(item)">修改档案</AppButton>
 							</view>
 						</template>
@@ -413,7 +315,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppList from '@/components/base/AppList.vue'
@@ -424,7 +326,7 @@ import AppTag from '@/components/base/AppTag.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { useQuery } from '@/composables/useQuery'
-import { batchUpdateInspectionV1, searchBottlesV1 } from '@/services/bottle'
+import { searchBottlesV1 } from '@/services/bottle'
 
 const props = defineProps({
 	initialInspectionDueModule: { type: String, default: '' },
@@ -458,6 +360,7 @@ const activeOptions = [
 const { canPageAction } = useAuthGuard()
 const canCreateBottle = computed(() => canPageAction('/pages/bottle/edit', 'create'))
 const canUpdateBottle = computed(() => canPageAction('/pages/bottle/edit', 'update'))
+const canUpdateInspection = computed(() => canPageAction('/pages/bottle/inspection', 'update'))
 const inspectionDueModuleOptions = [
 	{ label: '全部模块', value: '' },
 	{ label: '钢瓶检验', value: 'bottle' },
@@ -474,17 +377,6 @@ const bottleNoModeOptions = [
 	{ label: '全部', value: 'all' },
 	{ label: '纯数字', value: 'numeric' },
 	{ label: '前缀', value: 'prefix' }
-]
-const CHECK_CYCLE_MONTHS = [6, 12, 24, 36]
-const cycleOptions = [
-	{ label: '半年', value: 6 },
-	{ label: '1 年', value: 12 },
-	{ label: '2 年', value: 24 },
-	{ label: '3 年', value: 36 }
-]
-const batchScopeOptions = [
-	{ label: '按当前筛选全量', value: 'filter' },
-	{ label: '勾选子集', value: 'ids' }
 ]
 
 const filters = reactive({
@@ -504,33 +396,6 @@ const filters = reactive({
 	valveCheckDateEq: '',
 	valveNextCheckDateEq: ''
 })
-const selectedBottleIds = ref([])
-const batchPreviewLoading = ref(false)
-const batchExecuting = ref(false)
-const batchPreviewResult = ref(null)
-const batchExecuteResult = ref(null)
-
-const batchForm = reactive({
-	scopeMode: 'filter',
-	bottle: {
-		enabled: true,
-		checkDate: '',
-		cycleMonths: 12,
-		nextOverrideDate: ''
-	},
-	gauge: {
-		enabled: false,
-		checkDate: '',
-		cycleMonths: 12,
-		nextOverrideDate: ''
-	},
-	valve: {
-		enabled: false,
-		checkDate: '',
-		cycleMonths: 12,
-		nextOverrideDate: ''
-	}
-})
 
 const statusLabel = computed(() => statusOptions[filters.statusIndex]?.label || '全部状态')
 const activeLabel = computed(() => activeOptions[filters.activeIndex]?.label || '全部启用')
@@ -539,11 +404,6 @@ const inspectionDueStateLabel = computed(() => inspectionDueStateOptions[filters
 const bottleNoModeLabel = computed(() => bottleNoModeOptions[filters.bottleNoModeIndex]?.label || '全部')
 const isPrefixMode = computed(() => bottleNoModeOptions[filters.bottleNoModeIndex]?.value === 'prefix')
 const isNumericMode = computed(() => bottleNoModeOptions[filters.bottleNoModeIndex]?.value === 'numeric')
-const batchScopeLabel = computed(() => {
-	return batchScopeOptions.find((item) => item.value === batchForm.scopeMode)?.label || batchScopeOptions[0].label
-})
-const selectedCount = computed(() => selectedBottleIds.value.length)
-
 const subtitle = computed(() => {
 	if (!pager.total) return '钢瓶生命周期与流向监控'
 	return `当前筛选 ${pager.total} 瓶`
@@ -638,11 +498,6 @@ function getInspectionFilterPairs() {
 	]
 }
 
-function getCycleLabel(value) {
-	const item = cycleOptions.find((opt) => opt.value === Number(value))
-	return item?.label || `${Number(value) || '-'} 月`
-}
-
 function isValidDateString(value) {
 	const text = normalizeString(value)
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false
@@ -651,25 +506,6 @@ function isValidDateString(value) {
 	if (month < 1 || month > 12) return false
 	const maxDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
 	return day >= 1 && day <= maxDay
-}
-
-function addMonths(dateText, months) {
-	if (!isValidDateString(dateText)) return ''
-	const [year, month, day] = dateText.split('-').map((item) => Number(item))
-	const totalMonth = month - 1 + Number(months || 0)
-	const targetYear = year + Math.floor(totalMonth / 12)
-	const targetMonth = ((totalMonth % 12) + 12) % 12
-	const maxDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate()
-	const safeDay = Math.min(day, maxDay)
-	return `${String(targetYear).padStart(4, '0')}-${String(targetMonth + 1).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`
-}
-
-function getBatchAutoNextDate(moduleKey) {
-	const moduleData = batchForm[moduleKey]
-	if (!moduleData) return ''
-	if (!isValidDateString(moduleData.checkDate)) return ''
-	if (!CHECK_CYCLE_MONTHS.includes(Number(moduleData.cycleMonths))) return ''
-	return addMonths(moduleData.checkDate, moduleData.cycleMonths)
 }
 
 function validateBottleNoRule() {
@@ -785,113 +621,6 @@ const filterChips = computed(() => {
 	return chips
 })
 
-function getFilterSnapshot() {
-	const parts = {
-		keyword: normalizeString(filters.keyword),
-		status: statusOptions[filters.statusIndex]?.value || '',
-		active: activeOptions[filters.activeIndex]?.value || 'all',
-		inspection_due_module: getInspectionDueModuleValue(),
-		inspection_due_state: getInspectionDueStateValue(),
-		bottle_no_mode: getBottleNoModeValue(),
-		bottle_no_prefix: normalizeBottleNoPrefix(filters.bottleNoPrefix),
-		bottle_no_numeric_start: normalizeString(filters.bottleNoNumericStart),
-		bottle_no_numeric_end: normalizeString(filters.bottleNoNumericEnd),
-		bottle_check_date_eq: normalizeString(filters.bottleCheckDateEq),
-		bottle_next_check_date_eq: normalizeString(filters.bottleNextCheckDateEq),
-		gauge_check_date_eq: normalizeString(filters.gaugeCheckDateEq),
-		gauge_next_check_date_eq: normalizeString(filters.gaugeNextCheckDateEq),
-		valve_check_date_eq: normalizeString(filters.valveCheckDateEq),
-		valve_next_check_date_eq: normalizeString(filters.valveNextCheckDateEq)
-	}
-	return JSON.stringify(parts)
-}
-
-function clearBatchResultState() {
-	batchPreviewResult.value = null
-	batchExecuteResult.value = null
-}
-
-function clearSelectedBottles({ silent = false, fallbackToFilter = false } = {}) {
-	if (fallbackToFilter && batchForm.scopeMode === 'ids') {
-		batchForm.scopeMode = 'filter'
-	}
-	if (!selectedBottleIds.value.length) return
-	selectedBottleIds.value = []
-	clearBatchResultState()
-	if (!silent) {
-		uni.showToast({ title: '已清空勾选子集', icon: 'none' })
-	}
-}
-
-function isBottleSelected(id) {
-	const target = normalizeString(id)
-	if (!target) return false
-	return selectedBottleIds.value.includes(target)
-}
-
-function onToggleBottleSelect(item) {
-	const id = normalizeString(item?._id)
-	if (!id) return
-	if (isBottleSelected(id)) {
-		selectedBottleIds.value = selectedBottleIds.value.filter((rowId) => rowId !== id)
-	} else {
-		selectedBottleIds.value = [...selectedBottleIds.value, id]
-	}
-	clearBatchResultState()
-}
-
-function onBatchScopeChange(e) {
-	const idx = Number(e?.detail?.value)
-	const nextScope = batchScopeOptions[idx]?.value || 'filter'
-	batchForm.scopeMode = nextScope
-	clearBatchResultState()
-	if (nextScope === 'ids' && selectedBottleIds.value.length === 0) {
-		uni.showToast({ title: '请先勾选要更新的钢瓶', icon: 'none' })
-	}
-}
-
-function toggleBatchModule(moduleKey) {
-	if (!batchForm[moduleKey]) return
-	batchForm[moduleKey].enabled = !batchForm[moduleKey].enabled
-	clearBatchResultState()
-}
-
-function onBatchDateChange(moduleKey, field, event) {
-	if (!batchForm[moduleKey]) return
-	batchForm[moduleKey][field] = event?.detail?.value || ''
-	clearBatchResultState()
-}
-
-function onBatchCycleChange(moduleKey, event) {
-	if (!batchForm[moduleKey]) return
-	const idx = Number(event?.detail?.value)
-	const item = cycleOptions[idx]
-	if (!item) return
-	batchForm[moduleKey].cycleMonths = item.value
-	clearBatchResultState()
-}
-
-function resetBatchForm() {
-	batchForm.scopeMode = 'filter'
-	batchForm.bottle.enabled = true
-	batchForm.bottle.checkDate = ''
-	batchForm.bottle.cycleMonths = 12
-	batchForm.bottle.nextOverrideDate = ''
-	batchForm.gauge.enabled = false
-	batchForm.gauge.checkDate = ''
-	batchForm.gauge.cycleMonths = 12
-	batchForm.gauge.nextOverrideDate = ''
-	batchForm.valve.enabled = false
-	batchForm.valve.checkDate = ''
-	batchForm.valve.cycleMonths = 12
-	batchForm.valve.nextOverrideDate = ''
-	clearBatchResultState()
-}
-
-function onBatchReset() {
-	resetBatchForm()
-}
-
 function onInspectionFilterDateChange(key, event) {
 	if (!Object.prototype.hasOwnProperty.call(filters, key)) return
 	filters[key] = event?.detail?.value || ''
@@ -904,7 +633,6 @@ function onClearInspectionFilter() {
 	filters.gaugeNextCheckDateEq = ''
 	filters.valveCheckDateEq = ''
 	filters.valveNextCheckDateEq = ''
-	clearBatchResultState()
 }
 
 function clearFilterChip(key) {
@@ -1122,206 +850,6 @@ function onBottleNoModeChange(e) {
 	if (mode !== 'prefix') {
 		onSearch(true)
 		return
-	}
-	clearSelectedBottles({ silent: true, fallbackToFilter: true })
-	clearBatchResultState()
-}
-
-function buildBatchSelectorByFilters() {
-	const params = buildListParams({ page: 1, pageSize: 1 })
-	const selector = {
-		keyword: normalizeString(params.keyword),
-		status: normalizeString(params.status),
-		bottle_no_mode: normalizeString(params.bottle_no_mode || 'all')
-	}
-	if (params.is_active != null) selector.is_active = Boolean(params.is_active)
-	if (selector.bottle_no_mode === 'prefix') {
-		selector.bottle_no_prefix = normalizeBottleNoPrefix(params.bottle_no_prefix)
-	}
-	if (selector.bottle_no_mode === 'numeric') {
-		if (params.bottle_no_numeric_start != null) selector.bottle_no_numeric_start = params.bottle_no_numeric_start
-		if (params.bottle_no_numeric_end != null) selector.bottle_no_numeric_end = params.bottle_no_numeric_end
-	}
-	if (params.inspection_due_module) selector.inspection_due_module = params.inspection_due_module
-	if (params.inspection_due_state) selector.inspection_due_state = params.inspection_due_state
-	if (params.bottle_check_date_eq) selector.bottle_check_date_eq = params.bottle_check_date_eq
-	if (params.bottle_next_check_date_eq) selector.bottle_next_check_date_eq = params.bottle_next_check_date_eq
-	if (params.gauge_check_date_eq) selector.gauge_check_date_eq = params.gauge_check_date_eq
-	if (params.gauge_next_check_date_eq) selector.gauge_next_check_date_eq = params.gauge_next_check_date_eq
-	if (params.valve_check_date_eq) selector.valve_check_date_eq = params.valve_check_date_eq
-	if (params.valve_next_check_date_eq) selector.valve_next_check_date_eq = params.valve_next_check_date_eq
-	return selector
-}
-
-function getBatchModuleLabel(moduleKey) {
-	if (moduleKey === 'bottle') return '钢瓶检验'
-	if (moduleKey === 'gauge') return '压力表检验'
-	if (moduleKey === 'valve') return '安全阀检验'
-	return '检验模块'
-}
-
-function buildBatchModulesPayload() {
-	const modules = {}
-	const moduleKeys = ['bottle', 'gauge', 'valve']
-	for (let i = 0; i < moduleKeys.length; i += 1) {
-		const key = moduleKeys[i]
-		const moduleData = batchForm[key]
-		if (!moduleData?.enabled) continue
-		const label = getBatchModuleLabel(key)
-		const checkDate = normalizeString(moduleData.checkDate)
-		const cycleMonths = Number(moduleData.cycleMonths)
-		const nextOverrideDate = normalizeString(moduleData.nextOverrideDate)
-		if (!isValidDateString(checkDate)) {
-			return { ok: false, msg: `${label}的检验日期必填且格式正确` }
-		}
-		if (!CHECK_CYCLE_MONTHS.includes(cycleMonths)) {
-			return { ok: false, msg: `${label}的检测周期无效` }
-		}
-		if (nextOverrideDate && !isValidDateString(nextOverrideDate)) {
-			return { ok: false, msg: `${label}的下次检验日期格式无效` }
-		}
-		modules[key] = {
-			check_date: checkDate,
-			cycle_months: cycleMonths,
-			next_check_date_override: nextOverrideDate || ''
-		}
-	}
-	if (!Object.keys(modules).length) return { ok: false, msg: '至少选择一个更新模块' }
-	return { ok: true, data: modules }
-}
-
-function buildBatchRequest(preview) {
-	const scopeMode = batchForm.scopeMode === 'ids' ? 'ids' : 'filter'
-	if (scopeMode === 'filter' && !validateFilterRules()) return null
-	const modulesResult = buildBatchModulesPayload()
-	if (!modulesResult.ok) {
-		uni.showToast({ title: modulesResult.msg, icon: 'none' })
-		return null
-	}
-	const payload = {
-		preview: Boolean(preview),
-		scope_mode: scopeMode,
-		selector: {},
-		modules: modulesResult.data
-	}
-	if (scopeMode === 'ids') {
-		const ids = Array.from(new Set(selectedBottleIds.value.map((id) => normalizeString(id)).filter(Boolean)))
-		if (!ids.length) {
-			uni.showToast({ title: '勾选子集为空，请先勾选钢瓶', icon: 'none' })
-			return null
-		}
-		payload.selector = { ids }
-		return payload
-	}
-	payload.selector = buildBatchSelectorByFilters()
-	if (payload.selector.bottle_no_mode === 'prefix' && !payload.selector.bottle_no_prefix) {
-		uni.showToast({ title: '请输入瓶号前缀', icon: 'none' })
-		return null
-	}
-	return payload
-}
-
-function formatBottleNoSamples(samples) {
-	const listData = Array.isArray(samples) ? samples.map((item) => normalizeString(item)).filter(Boolean) : []
-	if (!listData.length) return '无'
-	const preview = listData.slice(0, 12).join('、')
-	return listData.length > 12 ? `${preview} ...` : preview
-}
-
-function formatFailedBottleNos(items) {
-	const listData = Array.isArray(items) ? items : []
-	if (!listData.length) return '无'
-	const values = listData
-		.slice(0, 20)
-		.map((item) => normalizeString(item?.bottle_no) || normalizeString(item?._id))
-		.filter(Boolean)
-	const text = values.join('、') || '无'
-	return listData.length > 20 ? `${text} ...` : text
-}
-
-function formatUpdateFieldSummary(updateFields) {
-	const rows = Array.isArray(updateFields) ? updateFields : []
-	if (!rows.length) return '无'
-	return rows
-		.map((row) => {
-			const label = normalizeString(row?.label) || getBatchModuleLabel(row?.module)
-			const cycle = getCycleLabel(row?.cycle_months)
-			const nextText = row?.next_check_date && row.next_check_date !== 'auto' ? `下次=${row.next_check_date}` : '下次自动计算'
-			return `${label}(检验=${row?.check_date || '-'}，周期=${cycle}，${nextText})`
-		})
-		.join('；')
-}
-
-async function onBatchPreview() {
-	if (batchPreviewLoading.value || batchExecuting.value) return
-	const payload = buildBatchRequest(true)
-	if (!payload) return
-	batchPreviewLoading.value = true
-	batchExecuteResult.value = null
-	try {
-		const res = await batchUpdateInspectionV1(payload)
-		if (res?.code !== 0) {
-			batchPreviewResult.value = null
-			uni.showToast({ title: res?.msg || '预览失败', icon: 'none', duration: 2600 })
-			return
-		}
-		batchPreviewResult.value = res.data || null
-		uni.showToast({
-			title: `预览命中 ${Number(res?.data?.target_total || 0)} 条`,
-			icon: 'none'
-		})
-	} catch (err) {
-		batchPreviewResult.value = null
-		uni.showToast({ title: err?.message || '预览失败', icon: 'none', duration: 2600 })
-	} finally {
-		batchPreviewLoading.value = false
-	}
-}
-
-async function onBatchExecute() {
-	if (batchExecuting.value || batchPreviewLoading.value) return
-	const previewPayload = buildBatchRequest(true)
-	if (!previewPayload) return
-	batchExecuting.value = true
-	batchExecuteResult.value = null
-	try {
-		const previewRes = await batchUpdateInspectionV1(previewPayload)
-		if (previewRes?.code !== 0) {
-			uni.showToast({ title: previewRes?.msg || '预览失败', icon: 'none', duration: 2600 })
-			return
-		}
-		const previewData = previewRes.data || {}
-		batchPreviewResult.value = previewData
-		const total = Number(previewData.target_total || 0)
-		if (total <= 0) {
-			uni.showToast({ title: '没有可更新的数据', icon: 'none' })
-			return
-		}
-		const confirmRes = await uni.showModal({
-			title: '确认批量更新',
-			content: `将更新 ${total} 条钢瓶记录。\n${formatUpdateFieldSummary(previewData.update_fields)}\n确认执行吗？`,
-			showCancel: true
-		})
-		if (!confirmRes.confirm) return
-
-		const executeRes = await batchUpdateInspectionV1({ ...previewPayload, preview: false })
-		if (executeRes?.code !== 0) {
-			uni.showToast({ title: executeRes?.msg || '执行失败', icon: 'none', duration: 2800 })
-			return
-		}
-		batchExecuteResult.value = executeRes.data || null
-		const failed = Number(executeRes.data?.failed || 0)
-		const success = Number(executeRes.data?.success || 0)
-		uni.showToast({
-			title: failed > 0 ? `执行完成：成功${success}，失败${failed}` : `执行成功 ${success} 条`,
-			icon: failed > 0 ? 'none' : 'success',
-			duration: 3000
-		})
-		await onSearch()
-	} catch (err) {
-		uni.showToast({ title: err?.message || '执行失败', icon: 'none', duration: 2800 })
-	} finally {
-		batchExecuting.value = false
 	}
 }
 
@@ -1588,6 +1116,10 @@ function onAdd() {
 	uni.navigateTo({ url: '/pages/bottle/edit' })
 }
 
+function onInspectionUpdate() {
+	uni.navigateTo({ url: '/pages/bottle/inspection' })
+}
+
 function onEdit(item) {
 	if (!item?._id) return
 	uni.navigateTo({ url: `/pages/bottle/edit?_id=${encodeURIComponent(item._id)}` })
@@ -1609,15 +1141,6 @@ onMounted(() => {
 	applyInitialInspectionDueFilter()
 	onSearch(true)
 })
-
-watch(
-	() => getFilterSnapshot(),
-	(next, prev) => {
-		if (!prev || next === prev) return
-		clearSelectedBottles({ silent: true, fallbackToFilter: true })
-		clearBatchResultState()
-	}
-)
 
 defineExpose({
 	refresh: onSearch
@@ -1731,70 +1254,6 @@ defineExpose({
 	font-size: 22rpx;
 	font-weight: 600;
 	color: var(--crm-text);
-}
-
-.batch-head-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(260rpx, 1fr));
-	gap: 16rpx;
-	align-items: end;
-}
-
-.batch-module-toggle {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 12rpx;
-	margin-top: 16rpx;
-}
-
-.batch-module-card {
-	margin-top: 16rpx;
-	border: 1rpx solid var(--crm-border);
-	border-radius: var(--crm-radius-sm);
-	padding: 16rpx;
-	background: #f8fafc;
-	display: flex;
-	flex-direction: column;
-	gap: 12rpx;
-}
-
-.batch-module-title {
-	font-size: 24rpx;
-	font-weight: 700;
-	color: var(--crm-text);
-}
-
-.batch-module-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(240rpx, 1fr));
-	gap: 16rpx;
-	align-items: end;
-}
-
-.batch-hint {
-	font-size: 22rpx;
-	color: var(--crm-text-muted);
-}
-
-.batch-result {
-	margin-top: 16rpx;
-	padding: 14rpx 16rpx;
-	background: #f1f5f9;
-	border-radius: var(--crm-radius-sm);
-	display: flex;
-	flex-direction: column;
-	gap: 6rpx;
-}
-
-.batch-result-title {
-	font-size: 24rpx;
-	font-weight: 700;
-	color: var(--crm-text);
-}
-
-.batch-result-line {
-	font-size: 22rpx;
-	color: var(--crm-text-muted);
 }
 
 .section-hint {
