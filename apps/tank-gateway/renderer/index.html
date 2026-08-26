@@ -14,6 +14,8 @@
 					<p id="statusText">未启动</p>
 				</div>
 				<div class="actions">
+					<button id="openDisplayBtn" type="button">打开监控屏</button>
+					<button id="testSoundBtn" type="button">测试声音</button>
 					<button id="probeBtn" type="button">单次探测</button>
 					<button id="startBtn" type="button" class="primary">启动</button>
 					<button id="stopBtn" type="button">停止</button>
@@ -78,6 +80,59 @@
 					<label class="field">
 						<span>储罐 ID</span>
 						<input id="tankId" name="tankId" type="text" />
+					</label>
+					<section class="alarm-block span-2">
+						<div class="alarm-block-header">
+							<div>
+								<h3>储罐液位</h3>
+								<p>报警判断使用修正后的液位 kPa，百分比仅用于画面显示。</p>
+							</div>
+							<label class="alarm-function">
+								<input id="levelAlarmEnabled" name="levelAlarmEnabled" type="checkbox" />
+								<span>报警功能</span>
+							</label>
+						</div>
+						<div class="alarm-table">
+							<div class="alarm-row"><span>当前值</span><output id="levelAlarmCurrent">-- kPa</output></div>
+							<label class="alarm-row"><span>测量范围上限</span><div class="alarm-value"><input id="levelRangeUpperKpa" name="levelRangeUpperKpa" type="number" min="0" step="0.01" /><em>kPa</em></div></label>
+							<label class="alarm-row"><span>测量范围下限</span><div class="alarm-value"><input id="levelRangeLowerKpa" name="levelRangeLowerKpa" type="number" min="0" step="0.01" /><em>kPa</em></div></label>
+							<label class="alarm-row"><span>修正值</span><div class="alarm-value"><input id="levelCorrectionKpa" name="levelCorrectionKpa" type="number" step="0.01" /><em>kPa</em></div></label>
+							<label class="alarm-row"><span>报警高高限</span><div class="alarm-value"><input id="levelHighHighKpa" name="levelHighHighKpa" type="number" min="0" step="0.01" placeholder="留空不启用" /><em>kPa</em></div></label>
+							<label class="alarm-row"><span>报警高限</span><div class="alarm-value"><input id="levelHighKpa" name="levelHighKpa" type="number" min="0" step="0.01" placeholder="留空不启用" /><em>kPa</em></div></label>
+							<label class="alarm-row"><span>报警低限</span><div class="alarm-value"><input id="levelLowKpa" name="levelLowKpa" type="number" min="0" step="0.01" placeholder="留空不启用" /><em>kPa</em></div></label>
+							<label class="alarm-row"><span>报警低低限</span><div class="alarm-value"><input id="levelLowLowKpa" name="levelLowLowKpa" type="number" min="0" step="0.01" placeholder="留空不启用" /><em>kPa</em></div></label>
+						</div>
+					</section>
+
+					<section class="alarm-block span-2">
+						<div class="alarm-block-header">
+							<div>
+								<h3>储罐压力</h3>
+								<p>报警判断使用修正后的压力 MPa，PLC 原始读数不修改。</p>
+							</div>
+							<label class="alarm-function">
+								<input id="pressureAlarmEnabled" name="pressureAlarmEnabled" type="checkbox" />
+								<span>报警功能</span>
+							</label>
+						</div>
+						<div class="alarm-table">
+							<div class="alarm-row"><span>当前值</span><output id="pressureAlarmCurrent">-- MPa</output></div>
+							<label class="alarm-row"><span>测量范围上限</span><div class="alarm-value"><input id="pressureRangeUpperMpa" name="pressureRangeUpperMpa" type="number" min="0" step="0.01" /><em>MPa</em></div></label>
+							<label class="alarm-row"><span>测量范围下限</span><div class="alarm-value"><input id="pressureRangeLowerMpa" name="pressureRangeLowerMpa" type="number" min="0" step="0.01" /><em>MPa</em></div></label>
+							<label class="alarm-row"><span>修正值</span><div class="alarm-value"><input id="pressureCorrectionMpa" name="pressureCorrectionMpa" type="number" step="0.01" /><em>MPa</em></div></label>
+							<label class="alarm-row"><span>报警高高限</span><div class="alarm-value"><input id="pressureHighHighMpa" name="pressureHighHighMpa" type="number" min="0" step="0.01" placeholder="例如 1.00" /><em>MPa</em></div></label>
+							<label class="alarm-row"><span>报警高限</span><div class="alarm-value"><input id="pressureHighMpa" name="pressureHighMpa" type="number" min="0" step="0.01" placeholder="例如 0.90" /><em>MPa</em></div></label>
+							<label class="alarm-row"><span>报警低限</span><div class="alarm-value"><input id="pressureLowMpa" name="pressureLowMpa" type="number" min="0" step="0.01" placeholder="例如 0.10" /><em>MPa</em></div></label>
+							<label class="alarm-row"><span>报警低低限</span><div class="alarm-value"><input id="pressureLowLowMpa" name="pressureLowLowMpa" type="number" min="0" step="0.01" placeholder="例如 0.05" /><em>MPa</em></div></label>
+						</div>
+					</section>
+					<label class="field">
+						<span>连续超限 ms</span>
+						<input id="alarmDelayMs" name="alarmDelayMs" type="number" min="0" step="1000" />
+					</label>
+					<label class="check-row">
+						<input id="communicationAlarmEnabled" name="communicationAlarmEnabled" type="checkbox" />
+						<span>通信中断声音报警</span>
 					</label>
 					<div class="form-row span-2">
 						<button id="saveConfigBtn" type="submit">保存设置</button>

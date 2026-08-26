@@ -14,13 +14,33 @@ const fieldIds = [
 	'levelReferencePercent',
 	'intervalMs',
 	'timeoutMs',
-	'tankId'
+	'tankId',
+	'levelAlarmEnabled',
+	'levelRangeUpperKpa',
+	'levelRangeLowerKpa',
+	'levelCorrectionKpa',
+	'levelLowLowKpa',
+	'levelLowKpa',
+	'levelHighKpa',
+	'levelHighHighKpa',
+	'pressureAlarmEnabled',
+	'pressureRangeUpperMpa',
+	'pressureRangeLowerMpa',
+	'pressureCorrectionMpa',
+	'pressureLowLowMpa',
+	'pressureLowMpa',
+	'pressureHighMpa',
+	'pressureHighHighMpa',
+	'alarmDelayMs',
+	'communicationAlarmEnabled'
 ]
 
 const els = {
 	form: document.getElementById('configForm'),
 	statusText: document.getElementById('statusText'),
 	probeBtn: document.getElementById('probeBtn'),
+	openDisplayBtn: document.getElementById('openDisplayBtn'),
+	testSoundBtn: document.getElementById('testSoundBtn'),
 	startBtn: document.getElementById('startBtn'),
 	stopBtn: document.getElementById('stopBtn'),
 	loginBtn: document.getElementById('loginBtn'),
@@ -33,6 +53,8 @@ const els = {
 	pressureMpa: document.getElementById('pressureMpa'),
 	weightT: document.getElementById('weightT'),
 	levelPercent: document.getElementById('levelPercent'),
+	levelAlarmCurrent: document.getElementById('levelAlarmCurrent'),
+	pressureAlarmCurrent: document.getElementById('pressureAlarmCurrent'),
 	tankFill: document.getElementById('tankFill'),
 	sampledAt: document.getElementById('sampledAt'),
 	logList: document.getElementById('logList')
@@ -41,6 +63,7 @@ const els = {
 const fields = Object.fromEntries(fieldIds.map((id) => [id, document.getElementById(id)]))
 const logs = []
 let latestState = {}
+let latestConfig = {}
 
 function nowText() {
 	return new Date().toLocaleString('zh-CN', { hour12: false })
@@ -77,13 +100,35 @@ function readConfigForm() {
 		levelReferencePercent: Number(fields.levelReferencePercent.value),
 		intervalMs: Number(fields.intervalMs.value),
 		timeoutMs: Number(fields.timeoutMs.value),
-		tankId: fields.tankId.value
+		tankId: fields.tankId.value,
+		levelAlarmEnabled: fields.levelAlarmEnabled.checked,
+		levelRangeUpperKpa: fields.levelRangeUpperKpa.value,
+		levelRangeLowerKpa: fields.levelRangeLowerKpa.value,
+		levelCorrectionKpa: fields.levelCorrectionKpa.value,
+		communicationAlarmEnabled: fields.communicationAlarmEnabled.checked,
+		levelHighKpa: fields.levelHighKpa.value,
+		levelHighHighKpa: fields.levelHighHighKpa.value,
+		levelLowKpa: fields.levelLowKpa.value,
+		levelLowLowKpa: fields.levelLowLowKpa.value,
+		pressureAlarmEnabled: fields.pressureAlarmEnabled.checked,
+		pressureRangeUpperMpa: fields.pressureRangeUpperMpa.value,
+		pressureRangeLowerMpa: fields.pressureRangeLowerMpa.value,
+		pressureCorrectionMpa: fields.pressureCorrectionMpa.value,
+		pressureHighHighMpa: fields.pressureHighHighMpa.value,
+		pressureHighMpa: fields.pressureHighMpa.value,
+		pressureLowMpa: fields.pressureLowMpa.value,
+		pressureLowLowMpa: fields.pressureLowLowMpa.value,
+		alarmDelayMs: Number(fields.alarmDelayMs.value)
 	}
 }
 
 function fillConfigForm(config = {}) {
 	fieldIds.forEach((id) => {
 		if (!fields[id]) return
+		if (fields[id].type === 'checkbox') {
+			fields[id].checked = Boolean(config[id])
+			return
+		}
 		fields[id].value = config[id] == null ? '' : String(config[id])
 	})
 }
@@ -101,6 +146,8 @@ function formatTime(value) {
 
 function renderTelemetry(telemetry) {
 	if (!telemetry) {
+		els.levelAlarmCurrent.textContent = '-- kPa'
+		els.pressureAlarmCurrent.textContent = '-- MPa'
 		els.levelKpa.textContent = '-- kPa'
 		els.pressureMpa.textContent = '-- MPa'
 		els.weightT.textContent = '-- t'
@@ -110,6 +157,12 @@ function renderTelemetry(telemetry) {
 		return
 	}
 	const percent = Math.min(Math.max(Number(telemetry.level_percent || 0), 0), 100)
+	const levelCorrection = Number(latestConfig.levelCorrectionKpa || 0)
+	const pressureCorrection = Number(latestConfig.pressureCorrectionMpa || 0)
+	const currentLevelKpa = Number(telemetry.level_kpa) + (Number.isFinite(levelCorrection) ? levelCorrection : 0)
+	const currentPressureMpa = Number(telemetry.pressure_mpa) + (Number.isFinite(pressureCorrection) ? pressureCorrection : 0)
+	els.levelAlarmCurrent.textContent = `${formatNumber(currentLevelKpa)} kPa`
+	els.pressureAlarmCurrent.textContent = `${formatNumber(currentPressureMpa)} MPa`
 	els.levelKpa.textContent = `${formatNumber(telemetry.level_kpa)} kPa`
 	els.pressureMpa.textContent = `${formatNumber(telemetry.pressure_mpa)} MPa`
 	els.weightT.textContent = `${formatNumber(telemetry.lng_weight_t)} t`
@@ -131,6 +184,9 @@ function renderState(state = {}) {
 	}
 	const label = statusMap[state.status] || state.status || '未启动'
 	els.statusText.textContent = state.message ? `${label}：${state.message}` : label
+	if (state.alarms && state.alarms.length) {
+		els.statusText.textContent += `｜报警：${state.alarms.map((item) => item.label).join('、')}`
+	}
 	els.startBtn.disabled = Boolean(state.running)
 	els.stopBtn.disabled = !state.running
 	els.credentialBackend.textContent = state.credentialBackend || '-'
@@ -156,14 +212,17 @@ els.form.addEventListener('submit', async (event) => {
 	event.preventDefault()
 	await runAction('保存设置', async () => {
 		const config = await window.tankGateway.saveConfig(readConfigForm())
+		latestConfig = config
 		fillConfigForm(config)
 	})
 })
 
 els.loginBtn.addEventListener('click', async () => {
+	const config = readConfigForm()
+	latestConfig = config
 	await runAction('登录', () =>
 		window.tankGateway.login({
-			config: readConfigForm(),
+			config,
 			password: els.password.value,
 			savePassword: els.savePassword.checked
 		})
@@ -175,8 +234,22 @@ els.clearPasswordBtn.addEventListener('click', async () => {
 	await runAction('清除凭据', () => window.tankGateway.clearCredential())
 })
 
+els.openDisplayBtn.addEventListener('click', async () => {
+		await runAction('打开监控屏', async () => {
+			const result = await window.tankGateway.openDisplay()
+			appendLog(result.external ? '已打开外接屏全屏监控' : '未检测到第二屏，已打开监控预览')
+			return result
+		})
+})
+
+els.testSoundBtn.addEventListener('click', () => {
+	window.tankGateway.playTestSound()
+	appendLog('已请求播放测试声音')
+})
+
 els.probeBtn.addEventListener('click', async () => {
 	const config = readConfigForm()
+	latestConfig = config
 	const telemetry = await runAction('单次探测', () => window.tankGateway.probe(config))
 	renderTelemetry(telemetry)
 	appendLog(
@@ -188,7 +261,9 @@ els.probeBtn.addEventListener('click', async () => {
 })
 
 els.startBtn.addEventListener('click', async () => {
-	await runAction('启动', () => window.tankGateway.start(readConfigForm()))
+	const config = readConfigForm()
+	latestConfig = config
+	await runAction('启动', () => window.tankGateway.start(config))
 })
 
 els.stopBtn.addEventListener('click', async () => {
@@ -201,6 +276,7 @@ window.tankGateway.onState((state) => {
 })
 
 window.tankGateway.getInitialState().then(({ config, state }) => {
+	latestConfig = config || {}
 	fillConfigForm(config)
 	renderState(state)
 	appendLog('界面已就绪')

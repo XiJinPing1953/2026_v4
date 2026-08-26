@@ -48,7 +48,7 @@
     "gasin:import:dry": "node scripts/importGasInFromJson.cjs",
     "gasin:import": "node scripts/importGasInFromJson.cjs --execute",
     "tank:gateway:probe": "node scripts/tankTelemetryGateway.cjs --probe",
-    "tank:gateway:test": "node --test scripts/tankTelemetryCore.test.cjs",
+    "tank:gateway:test": "node --test scripts/tankTelemetryCore.test.cjs scripts/tankGatewayAlarm.test.cjs",
     "tank:gateway:gui": "electron apps/tank-gateway/main.cjs",
     "tank:gateway:dist:win": "electron-builder --config electron-builder.tank.yml --win nsis --x64",
     "filling:permit:gateway:gui": "electron apps/filling-permit-gateway/main.cjs",

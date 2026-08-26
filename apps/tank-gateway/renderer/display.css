@@ -1,0 +1,109 @@
+:root {
+	color-scheme: dark;
+	font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+	background: #07141d;
+	color: #edf6f9;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; min-width: 800px; min-height: 100vh; background: #07141d; }
+
+button {
+	border: 1px solid #55717f;
+	border-radius: 6px;
+	background: #142b37;
+	color: #edf6f9;
+	font: inherit;
+	padding: 10px 14px;
+	cursor: pointer;
+}
+
+button:hover { background: #1b3a49; }
+
+.monitor-shell {
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+	padding: clamp(24px, 4vw, 64px);
+	background: radial-gradient(circle at 15% 10%, #12364a 0, #07141d 45%);
+}
+
+.monitor-header, .monitor-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+}
+
+.eyebrow { margin: 0 0 10px; color: #7ca8b9; font-size: clamp(14px, 1.4vw, 20px); }
+h1 { margin: 0; font-size: clamp(30px, 4vw, 64px); letter-spacing: 0; }
+
+.header-actions { display: flex; align-items: center; gap: 12px; }
+.status-badge { padding: 9px 18px; border-radius: 999px; font-size: clamp(16px, 1.5vw, 24px); background: #263c46; }
+.status-badge--online { color: #a9f2c8; background: #123f35; }
+.status-badge--error { color: #ffd1d1; background: #712b32; }
+.status-badge--busy { color: #ffe3a6; background: #5d471d; }
+.status-badge--idle { color: #b7c9d0; }
+
+.alarm-banner {
+	margin: clamp(20px, 3vw, 38px) 0;
+	padding: clamp(16px, 2.2vw, 28px);
+	border-radius: 10px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+	font-size: clamp(18px, 2vw, 32px);
+}
+.alarm-copy { display: flex; align-items: center; gap: 24px; min-width: 0; }
+.alarm-banner strong { font-size: 1.15em; }
+.alarm-banner button { flex: 0 0 auto; border-color: rgba(255, 255, 255, 0.55); background: rgba(255, 255, 255, 0.14); }
+.alarm-banner button:hover { background: rgba(255, 255, 255, 0.24); }
+.alarm-banner button:disabled { cursor: default; opacity: 0.72; }
+.alarm-banner--hidden { background: #0e2b2b; color: #a9f2c8; }
+.alarm-banner--active { background: #8b2631; color: #fff4f4; animation: pulse 1.2s ease-in-out infinite alternate; }
+
+.monitor-grid {
+	flex: 1;
+	display: grid;
+	grid-template-columns: minmax(280px, 0.9fr) minmax(420px, 1.4fr);
+	align-items: center;
+	gap: clamp(32px, 6vw, 100px);
+}
+
+.tank-panel { display: flex; flex-direction: column; align-items: center; }
+.tank-shell {
+	position: relative;
+	width: min(30vw, 360px);
+	height: min(58vh, 560px);
+	min-height: 300px;
+	overflow: hidden;
+	border: clamp(7px, 0.8vw, 12px) solid #3672e7;
+	border-radius: 26% 26% 14% 14%;
+	background: #dbe8f1;
+	box-shadow: 0 0 0 8px rgba(54, 114, 231, 0.12), 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+.tank-fill { position: absolute; right: 0; bottom: 0; left: 0; height: 0; background: linear-gradient(180deg, #6bb3ff, #1955d8); transition: height 250ms ease; }
+.tank-shell strong { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #0b1d36; font-size: clamp(30px, 4vw, 64px); text-shadow: 0 1px 0 #fff; z-index: 1; }
+.tank-legs { display: flex; justify-content: space-between; width: 42%; margin-top: 12px; }
+.tank-legs span { width: 22px; height: 48px; border-radius: 0 0 10px 10px; background: #7a91a7; }
+.tank-label { margin: 18px 0 0; color: #a9c2cc; font-size: clamp(18px, 1.8vw, 28px); }
+
+.readings-panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(16px, 2vw, 28px); }
+.reading-card { min-height: 150px; padding: clamp(20px, 2.5vw, 38px); border: 1px solid #244554; border-radius: 12px; background: rgba(14, 42, 54, 0.88); display: flex; flex-direction: column; justify-content: center; }
+.reading-card span { color: #8aaebb; font-size: clamp(16px, 1.6vw, 26px); }
+.reading-card strong { margin-top: 12px; color: #8fc2ff; font-size: clamp(28px, 3.5vw, 58px); line-height: 1.1; }
+.reading-card--meta strong { font-size: clamp(20px, 2vw, 32px); }
+.reading-card small { margin-top: 12px; color: #8aaebb; font-size: clamp(14px, 1.4vw, 21px); }
+
+.monitor-footer { padding-top: 28px; color: #8aaebb; font-size: clamp(14px, 1.4vw, 21px); }
+
+@keyframes pulse { from { box-shadow: 0 0 0 rgba(255, 76, 76, 0.1); } to { box-shadow: 0 0 28px rgba(255, 76, 76, 0.55); } }
+
+@media (max-width: 900px) {
+	.monitor-grid { grid-template-columns: 1fr; gap: 28px; }
+	.tank-shell { width: min(42vw, 280px); height: min(45vh, 360px); }
+	.header-actions button { padding: 8px; font-size: 12px; }
+	.alarm-copy { align-items: flex-start; flex-direction: column; gap: 8px; }
+}

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>新拓储罐监控屏</title>
+		<link rel="stylesheet" href="./display.css" />
+	</head>
+	<body>
+		<main class="monitor-shell">
+			<header class="monitor-header">
+				<div>
+					<p class="eyebrow">新拓能源 · 储罐监控</p>
+					<h1>储罐运行状态</h1>
+				</div>
+				<div class="header-actions">
+					<span id="connectionStatus" class="status-badge">等待采集</span>
+					<button id="soundBtn" type="button">测试声音</button>
+					<button id="muteBtn" type="button">静音</button>
+					<button id="closeBtn" type="button">退出监控</button>
+				</div>
+			</header>
+
+			<section id="alarmBanner" class="alarm-banner alarm-banner--hidden" aria-live="assertive">
+				<div class="alarm-copy">
+					<strong id="alarmTitle">系统正常</strong>
+					<span id="alarmMessage">暂无报警</span>
+				</div>
+				<button id="acknowledgeBtn" type="button" disabled>确认报警</button>
+			</section>
+
+			<section class="monitor-grid">
+				<section class="tank-panel">
+					<div class="tank-shell">
+						<div id="tankFill" class="tank-fill"></div>
+						<strong id="levelPercent">--%</strong>
+					</div>
+					<div class="tank-legs"><span></span><span></span></div>
+					<p class="tank-label">储罐液位</p>
+				</section>
+
+				<section class="readings-panel">
+					<div class="reading-card">
+						<span>液位信号</span>
+						<strong id="levelKpa">-- kPa</strong>
+					</div>
+					<div class="reading-card">
+						<span>储罐压力</span>
+						<strong id="pressureMpa">-- MPa</strong>
+					</div>
+					<div class="reading-card">
+						<span>LNG 重量</span>
+						<strong id="weightT">-- t</strong>
+					</div>
+					<div class="reading-card reading-card--meta">
+						<span>最近采集</span>
+						<strong id="sampledAt">--</strong>
+						<small id="ageText">暂无数据</small>
+					</div>
+				</section>
+			</section>
+
+			<footer class="monitor-footer">
+				<span id="footerMessage">网关未启动</span>
+				<span>声音报警仅用于辅助提醒</span>
+			</footer>
+		</main>
+		<script src="./display.js"></script>
+	</body>
+</html>

@@ -3,7 +3,7 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { app, BrowserWindow, ipcMain, safeStorage } = require('electron')
+const { app, BrowserWindow, ipcMain, safeStorage, screen } = require('electron')
 const {
 	DEFAULT_TANK_CONFIG,
 	normalizeString,
@@ -14,6 +14,13 @@ const {
 	validateGatewayConfig,
 	readTankTelemetry
 } = require('../../scripts/tankTelemetryCore.cjs')
+const {
+	normalizeAlarmConfig,
+	buildAlarmCandidates,
+	buildAlarmRuntime
+} = require('./alarm.cjs')
+
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
 let keytar = null
 try {
@@ -23,16 +30,21 @@ try {
 }
 
 const APP_NAME = 'XintuoTankGateway'
-const CONFIG_VERSION = 3
+const CONFIG_VERSION = 5
 const CREDENTIAL_SERVICE = 'Xintuo Tank Gateway'
 const CREDENTIAL_ACCOUNT = 'tank-gateway-password'
 
 let mainWindow = null
+let displayWindow = null
+let displayReady = false
+let pendingDisplayTestSound = false
 let currentConfig = null
 let currentToken = ''
 let isRunning = false
 let loopTimer = null
 let cycleRunning = false
+let alarmRuntime = {}
+let alarmAcknowledgedCodes = new Set()
 let state = {
 	running: false,
 	status: 'idle',
@@ -41,7 +53,9 @@ let state = {
 	lastUploadAt: null,
 	lastErrorAt: null,
 	credentialBackend: 'none',
-	passwordSaved: false
+	passwordSaved: false,
+	alarms: [],
+	alarmActive: false
 }
 
 function defaultConfig() {
@@ -60,7 +74,27 @@ function defaultConfig() {
 		intervalMs: 5000,
 		timeoutMs: 5000,
 		tankId: 'main',
-		gatewayId: os.hostname() || 'tank-gateway'
+		gatewayId: os.hostname() || 'tank-gateway',
+		alarmEnabled: true,
+		levelAlarmEnabled: true,
+		pressureAlarmEnabled: true,
+		communicationAlarmEnabled: true,
+		levelRangeUpperKpa: 80,
+		levelRangeLowerKpa: 0,
+		levelCorrectionKpa: 0,
+		pressureRangeUpperMpa: 2.5,
+		pressureRangeLowerMpa: 0,
+		pressureCorrectionMpa: 0,
+		levelLowLowKpa: null,
+		levelLowKpa: null,
+		levelHighKpa: null,
+		levelHighHighKpa: null,
+		pressureLowLowMpa: null,
+		pressureLowMpa: null,
+		pressureHighMpa: null,
+		pressureHighHighMpa: null,
+		alarmDelayMs: 5000,
+		communicationDelayMs: 5000
 	}
 }
 
@@ -101,6 +135,16 @@ function normalizeAppConfig(input = {}, options = {}) {
 		}
 		merged = repairKnownGatewayConfig(merged)
 	}
+	if (
+		source.levelAlarmEnabled == null &&
+		source.level_alarm_enabled == null &&
+		source.pressureAlarmEnabled == null &&
+		source.pressure_alarm_enabled == null &&
+		(source.alarmEnabled === false || source.alarm_enabled === false)
+	) {
+		merged.levelAlarmEnabled = false
+		merged.pressureAlarmEnabled = false
+	}
 	const gateway = validateGatewayConfig(normalizeGatewayConfig(merged))
 	return {
 		configVersion: CONFIG_VERSION,
@@ -117,7 +161,8 @@ function normalizeAppConfig(input = {}, options = {}) {
 		intervalMs: gateway.intervalMs,
 		timeoutMs: gateway.timeoutMs,
 		tankId: gateway.tankId,
-		gatewayId: gateway.gatewayId
+		gatewayId: gateway.gatewayId,
+		...normalizeAlarmConfig(merged)
 	}
 }
 
@@ -194,9 +239,47 @@ async function refreshCredentialState() {
 
 function emitState(patch = {}) {
 	state = { ...state, ...patch, running: isRunning }
+	state.alarmActive = Boolean(isRunning && state.alarms && state.alarms.length)
 	if (mainWindow && !mainWindow.isDestroyed()) {
 		mainWindow.webContents.send('gateway:state', state)
 	}
+	if (displayWindow && !displayWindow.isDestroyed()) {
+		displayWindow.webContents.send('gateway:state', state)
+	}
+	return state
+}
+
+function updateAlarms({ telemetry = null, readError = '' } = {}) {
+	if (!isRunning && !telemetry) {
+		alarmRuntime = {}
+		alarmAcknowledgedCodes = new Set()
+		emitState({ alarms: [] })
+		return []
+	}
+	const candidates = buildAlarmCandidates({ telemetry, readError, config: currentConfig || defaultConfig() })
+	const candidateCodes = new Set(candidates.map((item) => item && item.code).filter(Boolean))
+	alarmAcknowledgedCodes = new Set(
+		[...alarmAcknowledgedCodes].filter((code) => candidateCodes.has(code))
+	)
+	const runtime = buildAlarmRuntime(candidates, alarmRuntime, Date.now())
+	alarmRuntime = runtime
+	const active = Object.values(runtime)
+		.filter((item) => item.active)
+		.map((item) => ({ ...item, acknowledged: alarmAcknowledgedCodes.has(item.code) }))
+	emitState({ alarms: active })
+	return active
+}
+
+function acknowledgeActiveAlarms() {
+	const active = Array.isArray(state.alarms) ? state.alarms : []
+	active.forEach((item) => {
+		if (item && item.code) alarmAcknowledgedCodes.add(item.code)
+	})
+	const alarms = active.map((item) => ({ ...item, acknowledged: true }))
+	emitState({
+		alarms,
+		message: alarms.length ? '报警已确认，等待现场值恢复后自动复位' : state.message
+	})
 	return state
 }
 
@@ -258,17 +341,20 @@ async function probeOnce(configInput = null) {
 	const config = configInput ? saveConfig(configInput) : currentConfig || loadConfig()
 	emitState({ status: 'probing', message: '正在读取 PLC' })
 	const telemetry = await readTankTelemetry(config)
-	emitState({ status: 'ready', message: '探测成功', lastTelemetry: telemetry })
+	const alarms = buildAlarmCandidates({ telemetry, config })
+	emitState({ status: 'ready', message: alarms.length ? `探测成功，发现 ${alarms.length} 项超限` : '探测成功', lastTelemetry: telemetry, alarms: [] })
 	return telemetry
 }
 
 async function runCycle() {
 	if (!isRunning || cycleRunning) return
 	cycleRunning = true
+	let telemetry = null
 	try {
 		const config = currentConfig || loadConfig()
 		const token = await ensureLoggedIn()
-		const telemetry = await readTankTelemetry(config)
+		telemetry = await readTankTelemetry(config)
+		updateAlarms({ telemetry })
 		await callGateway('ingestV1', telemetry, token)
 		emitState({
 			status: 'online',
@@ -277,6 +363,7 @@ async function runCycle() {
 			lastUploadAt: Date.now()
 		})
 	} catch (err) {
+		if (!telemetry) updateAlarms({ readError: err && err.message ? err.message : String(err) })
 		emitState({
 			status: 'error',
 			message: err && err.message ? err.message : String(err),
@@ -302,10 +389,66 @@ function startGateway(configInput = null) {
 
 function stopGateway() {
 	isRunning = false
+	alarmRuntime = {}
+	alarmAcknowledgedCodes = new Set()
 	if (loopTimer) clearTimeout(loopTimer)
 	loopTimer = null
-	emitState({ status: 'stopped', message: '已停止' })
+	emitState({ status: 'stopped', message: '已停止', alarms: [] })
 	return state
+}
+
+function getMonitorDisplay() {
+	const displays = screen.getAllDisplays()
+	const primary = screen.getPrimaryDisplay()
+	return displays.find((item) => item.id !== primary.id) || primary
+}
+
+function openDisplayWindow() {
+	if (displayWindow && !displayWindow.isDestroyed()) {
+		displayWindow.show()
+		displayWindow.focus()
+		return { opened: true, external: displayWindow.getBounds().x !== screen.getPrimaryDisplay().bounds.x }
+	}
+	const displays = screen.getAllDisplays()
+	const target = getMonitorDisplay()
+	const hasExternal = displays.length > 1
+	displayWindow = new BrowserWindow({
+		x: target.bounds.x,
+		y: target.bounds.y,
+		width: target.bounds.width,
+		height: target.bounds.height,
+		frame: false,
+		fullscreen: hasExternal,
+		kiosk: hasExternal,
+		autoHideMenuBar: true,
+		title: '新拓储罐监控屏',
+		webPreferences: {
+			preload: path.join(__dirname, 'preload.cjs'),
+			contextIsolation: true,
+			nodeIntegration: false
+		}
+	})
+	displayWindow.loadFile(path.join(__dirname, 'renderer', 'display.html'))
+	displayWindow.webContents.once('did-finish-load', () => {
+		displayReady = true
+		displayWindow.webContents.send('gateway:state', state)
+		if (pendingDisplayTestSound) {
+			pendingDisplayTestSound = false
+			displayWindow.webContents.send('display:test-sound')
+		}
+	})
+	displayWindow.on('closed', () => {
+		displayWindow = null
+		displayReady = false
+		pendingDisplayTestSound = false
+	})
+	return { opened: true, external: hasExternal }
+}
+
+function closeDisplayWindow() {
+	if (displayWindow && !displayWindow.isDestroyed()) displayWindow.close()
+	displayWindow = null
+	return { closed: true }
 }
 
 function createWindow() {
@@ -320,6 +463,10 @@ function createWindow() {
 			contextIsolation: true,
 			nodeIntegration: false
 		}
+	})
+	mainWindow.on('closed', () => {
+		mainWindow = null
+		closeDisplayWindow()
 	})
 	mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'))
 }
@@ -361,10 +508,29 @@ ipcMain.handle('gateway:stop', async () => {
 	return stopGateway()
 })
 
+ipcMain.handle('display:open', async () => openDisplayWindow())
+ipcMain.handle('display:close', async () => closeDisplayWindow())
+ipcMain.handle('alarm:acknowledge', async () => acknowledgeActiveAlarms())
+ipcMain.on('display:test-sound', () => {
+	if (!displayWindow || displayWindow.isDestroyed()) openDisplayWindow()
+	if (!displayReady) {
+		pendingDisplayTestSound = true
+		return
+	}
+	displayWindow.webContents.send('display:test-sound')
+})
+
 app.whenReady().then(async () => {
 	loadConfig()
 	await refreshCredentialState()
 	createWindow()
+	if (screen.getAllDisplays().length > 1) openDisplayWindow()
+	screen.on('display-added', () => {
+		if (!displayWindow || displayWindow.isDestroyed()) openDisplayWindow()
+	})
+	screen.on('display-removed', () => {
+		if (displayWindow && !displayWindow.isDestroyed()) displayWindow.close()
+	})
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) createWindow()
 	})
