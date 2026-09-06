@@ -1,5 +1,8 @@
 'use strict'
 
+const saleAccounting = require('./saleAccountingLocal')
+const { readComplete, withFinancialEvidence, FinancialReadError } = require('./financialReadLocal')
+
 const db = uniCloud.database()
 const dbCmd = db.command
 const {
@@ -55,6 +58,7 @@ const PAGE_ACTION_RULES = {
 	]
 }
 const SUPERADMIN_ONLY_ACTIONS = [
+	'classifyLegacyM3SettlementV1',
 	'backfillAgentSaleBottleMovementsV1',
 	'backfillTruckGrossDiffV1',
 	'cleanupPaymentMethodV1'
@@ -419,19 +423,7 @@ function getMonthRange(date) {
 }
 
 async function fetchAll(collection, where, field) {
-	const pageSize = 200
-	let page = 0
-	let list = []
-	while (true) {
-		let query = collection.where(where)
-		if (field) query = query.field(field)
-		const res = await query.skip(page * pageSize).limit(pageSize).get()
-		const rows = res.data || []
-		list = list.concat(rows)
-		if (rows.length < pageSize) break
-		page += 1
-	}
-	return list
+	return readComplete(collection, where, { command: dbCmd, field, source: 'sale_month_totals' })
 }
 
 function formatDayByTs(ts) {
@@ -2160,92 +2152,7 @@ function resolveTruckSaleNetValue(rawTruckGrossDiff, rawTruckSaleNet, rawTruckOu
 	return 0
 }
 
-function computeAmounts({
-	settlementMode = 'sale',
-	bizMode,
-	priceUnit,
-	unitPrice,
-	outItems,
-	backItems,
-	agentRows,
-	truckSaleNet,
-	truckOutGross,
-	truckBackGross,
-	truckSettleTare,
-	truckSettleGross,
-	flow,
-	roundingAmount
-}) {
-	let outNetTotal = outItems.reduce((sum, item) => sum + toNumber(item.net, 0), 0)
-	let backNetTotal = backItems.reduce((sum, item) => sum + toNumber(item.net, 0), 0)
-	const agentTotalWeight = agentRows.reduce((sum, row) => sum + toNumber(row.fill_weight, 0), 0)
-
-	let totalNetWeight = outNetTotal - backNetTotal
-	if (bizMode === 'truck') {
-		totalNetWeight = resolveTruckBillableNetValue({
-			priceUnit,
-			rawTruckGrossDiff: null,
-			rawTruckSaleNet: truckSaleNet,
-			rawTruckOutGross: truckOutGross,
-			rawTruckBackGross: truckBackGross,
-			rawTruckSettleTare: truckSettleTare,
-			rawTruckSettleGross: truckSettleGross
-		})
-	} else if (bizMode === 'agent_sale') {
-		outNetTotal = agentTotalWeight
-		backNetTotal = 0
-		totalNetWeight = agentTotalWeight
-	}
-
-	let outAmount = 0
-	let backAmount = 0
-	let shouldReceive = 0
-
-	if (normalizeSettlementMode(settlementMode) === 'customer_flow') {
-		return {
-			out_net_total: outNetTotal,
-			back_net_total: backNetTotal,
-			total_net_weight: totalNetWeight,
-			out_amount: 0,
-			back_amount: 0,
-			rounding_amount: 0,
-			effective_should_receive: 0,
-			should_receive: 0,
-			amount: 0
-		}
-	}
-
-	if (bizMode === 'agent_sale') {
-		outAmount = agentTotalWeight * unitPrice
-		shouldReceive = outAmount
-	} else if (priceUnit === 'kg') {
-		outAmount = outNetTotal * unitPrice
-		backAmount = backNetTotal * unitPrice
-		shouldReceive = totalNetWeight * unitPrice
-	} else if (priceUnit === 'bottle') {
-		outAmount = outItems.length * unitPrice
-		shouldReceive = outAmount
-	} else if (priceUnit === 'm3') {
-		const flowVolume = flow.flow_volume_m3 || 0
-		outAmount = flowVolume * unitPrice
-		shouldReceive = outAmount
-	}
-
-	const rounding = Math.max(toNumber(roundingAmount, 0), 0)
-	const effectiveShouldReceive = resolveEffectiveShouldReceive(shouldReceive, rounding)
-
-	return {
-		out_net_total: outNetTotal,
-		back_net_total: backNetTotal,
-		total_net_weight: totalNetWeight,
-		out_amount: fix2(outAmount),
-		back_amount: fix2(backAmount),
-		rounding_amount: fix2(rounding),
-		effective_should_receive: fix2(effectiveShouldReceive),
-		should_receive: fix2(shouldReceive),
-		amount: fix2(shouldReceive)
-	}
-}
+const computeAmounts = saleAccounting.computeAmounts
 
 function resolveSaleGasMovementKind(bizMode) {
 	const normalized = normalizeString(bizMode).toLowerCase()
@@ -3410,7 +3317,13 @@ function matchSaleListFilters(
 	doc,
 	{ settlementScope = '', hasRemark = '', remarkTag = '', refundPending = null, netOutstandingEffective = null } = {}
 ) {
-	const { amounts } = computeSaleAmountsForDoc(doc)
+	const { amounts, accounting } = computeSaleAmountsForDoc(doc, { allowUnresolved: true })
+	if (accounting && accounting.status === 'unresolved') {
+		// A money-based filter cannot prove whether an unresolved row belongs in the result.
+		// Non-financial filters remain usable so operators can still find and repair the source document.
+		if (settlementScope) return false
+		return matchRemarkFilters(doc, { hasRemark, remarkTag })
+	}
 	const shouldReceive = toNumber(amounts.should_receive, 0)
 	const amountReceived = toNumber(doc && doc.amount_received, 0)
 	const receiptRoundingAmount = toNumber(doc && doc.receipt_rounding_amount, 0)
@@ -3429,9 +3342,10 @@ function matchSaleListFilters(
 
 function buildSaleListRow(doc) {
 	const withRemark = applyRemarkMetaToDoc(doc || {})
-	const { amounts } = computeSaleAmountsForDoc(withRemark)
+	const { amounts, accounting } = computeSaleAmountsForDoc(withRemark, { allowUnresolved: true })
 	return {
 		...withRemark,
+		accounting,
 		delivery_customer_id: normalizeString(withRemark.delivery_customer_id || withRemark.customer_id) || null,
 		delivery_customer_name: normalizeString(withRemark.delivery_customer_name || withRemark.customer_name),
 		out_net_total: amounts.out_net_total,
@@ -3502,42 +3416,7 @@ async function enrichSaleListRowsWithBottleStats(rows = []) {
 	return enriched
 }
 
-function computeSaleAmountsForDoc(doc) {
-	const bizMode = normalizeBizModeValue(doc && doc.biz_mode)
-	const priceUnit = normalizeString(doc && doc.price_unit) || 'kg'
-	const settlementMode = priceUnit === 'm3' ? 'customer_flow' : normalizeSettlementMode(doc && doc.settlement_mode, 'sale')
-	const unitPrice = toNumber(doc && doc.unit_price, 0)
-	const outItems = Array.isArray(doc && doc.out_items) ? doc.out_items : []
-	const backItems = Array.isArray(doc && doc.back_items) ? doc.back_items : []
-	const agentRows = Array.isArray(doc && doc.agent_sale_items) ? doc.agent_sale_items : []
-	const truckSaleNet = resolveTruckBillableNetValue({
-		priceUnit,
-		rawTruckGrossDiff: doc && doc.truck_gross_diff,
-		rawTruckSaleNet: doc && doc.truck_sale_net,
-		rawTruckOutGross: doc && doc.truck_out_gross,
-		rawTruckBackGross: doc && doc.truck_back_gross,
-		rawTruckSettleTare: doc && doc.truck_settle_tare,
-		rawTruckSettleGross: doc && doc.truck_settle_gross
-	})
-	const flow = computeFlow(doc || {}, priceUnit)
-	const amounts = computeAmounts({
-		settlementMode,
-		bizMode,
-		priceUnit,
-		unitPrice,
-		outItems: bizMode === 'agent_sale' ? [] : outItems,
-		backItems: bizMode === 'agent_sale' ? [] : backItems,
-		agentRows,
-		truckSaleNet,
-		truckOutGross: doc && doc.truck_out_gross,
-		truckBackGross: doc && doc.truck_back_gross,
-		truckSettleTare: doc && doc.truck_settle_tare,
-		truckSettleGross: doc && doc.truck_settle_gross,
-		flow,
-		roundingAmount: toNumber(doc && doc.rounding_amount, 0)
-	})
-	return { bizMode, amounts }
-}
+const computeSaleAmountsForDoc = saleAccounting.computeSaleAmountsForDoc
 
 function computeSaleBottleQuantity(doc) {
 	const bizMode = normalizeBizModeValue(doc && doc.biz_mode)
@@ -3664,15 +3543,17 @@ function computeSaleNetOutstandingEffective({
 function buildSaleListBatchEntries(docs = []) {
 	return (Array.isArray(docs) ? docs : []).map((doc) => {
 		const row = buildSaleListRow(doc)
-		const shouldReceive = toNumber(row && row.should_receive, 0)
-		const roundingAmount = toNumber(row && row.rounding_amount, 0)
+		const unresolved = row && row.accounting && row.accounting.status === 'unresolved'
+		const shouldReceive = unresolved ? null : toNumber(row && row.should_receive, 0)
+		const roundingAmount = unresolved ? null : toNumber(row && row.rounding_amount, 0)
 		const amountReceived = toNumber(doc && doc.amount_received, 0)
 		const receiptRoundingAmount = toNumber(doc && doc.receipt_rounding_amount, 0)
 		const paidTotal = resolveSalePaidTotalAmount(amountReceived, receiptRoundingAmount)
-		const effectiveShouldReceive = resolveEffectiveShouldReceive(shouldReceive, roundingAmount)
+		const effectiveShouldReceive = unresolved ? null : resolveEffectiveShouldReceive(shouldReceive, roundingAmount)
 		return {
 			doc,
 			row,
+			unresolved,
 			shouldReceive,
 			roundingAmount,
 			amountReceived,
@@ -3689,6 +3570,9 @@ async function computeSaleListSummary(where, filters = {}, options = {}) {
 	const remarkTag = normalizeRemarkTagFilter(filters.remarkTag || filters.remark_tag)
 	const hiddenCustomerIdSet = buildHiddenCustomerIdSet(options.hiddenCustomerIds)
 	const summary = {
+		accounting_complete: true,
+		unresolved_count: 0,
+		unresolved_source_ids: [],
 		total: 0,
 		paid: 0,
 		paid_bottle_count: 0,
@@ -3721,13 +3605,11 @@ async function computeSaleListSummary(where, filters = {}, options = {}) {
 	}
 
 	const batchSize = 200
-	let page = 1
-	let guard = 0
-	while (guard < 600) {
-		const res = await sales
-			.where(where)
-			.field({
-				_id: true,
+	const allDocs = await readComplete(sales, where, {
+		command: dbCmd,
+		source: 'sale_list_summary',
+		field: {
+					_id: true,
 				customer_id: true,
 				delivery_customer_id: true,
 				biz_mode: true,
@@ -3756,12 +3638,10 @@ async function computeSaleListSummary(where, filters = {}, options = {}) {
 					has_remark: true,
 					amount_received: true,
 					payment_status: true
-				})
-			.skip((page - 1) * batchSize)
-			.limit(batchSize)
-			.get()
-		const docs = Array.isArray(res.data) ? res.data : []
-		if (!docs.length) break
+				}
+	})
+	for (let offset = 0; offset < allDocs.length; offset += batchSize) {
+		const docs = allDocs.slice(offset, offset + batchSize)
 		const entryRows = buildSaleListBatchEntries(docs)
 		const visibleEntryRows = hiddenCustomerIdSet.size
 			? entryRows.filter((entry) => !saleMentionsHiddenCustomer(entry.doc, hiddenCustomerIdSet))
@@ -3769,7 +3649,7 @@ async function computeSaleListSummary(where, filters = {}, options = {}) {
 		const offsetSaleIds = Array.from(
 			new Set(
 				visibleEntryRows
-					.filter((entry) => fix2(entry.effectiveShouldReceive - entry.paidTotal) < 0)
+					.filter((entry) => !entry.unresolved && fix2(entry.effectiveShouldReceive - entry.paidTotal) < 0)
 					.map((entry) => normalizeString(entry.doc && entry.doc._id))
 					.filter(Boolean)
 			)
@@ -3781,6 +3661,33 @@ async function computeSaleListSummary(where, filters = {}, options = {}) {
 		for (const entry of visibleEntryRows) {
 				const doc = entry.doc
 				const row = entry.row
+				if (entry.unresolved) {
+					const matchesNonFinancialFilters = !settlementScope && matchSaleListFilters(row, {
+						settlementScope,
+						hasRemark,
+						remarkTag
+					})
+					if (!settlementScope && !matchesNonFinancialFilters) continue
+					summary.accounting_complete = false
+					summary.unresolved_count += 1
+					if (summary.unresolved_source_ids.length < 100) summary.unresolved_source_ids.push(normalizeString(doc && doc._id))
+					if (!matchesNonFinancialFilters) continue
+					summary.total += 1
+					const unresolvedBizMode = normalizeBizModeValue(row && row.biz_mode)
+					const unresolvedNetWeight = toNumber(row && row.total_net_weight, 0)
+					if (unresolvedBizMode === 'truck') {
+						summary.truck_count += 1
+						summary.truck_net_weight = fix2(summary.truck_net_weight + unresolvedNetWeight)
+					} else if (unresolvedBizMode === 'agent_sale') {
+						summary.agent_sale_count += 1
+						summary.agent_sale_net_weight = fix2(summary.agent_sale_net_weight + unresolvedNetWeight)
+					} else {
+						summary.bottle_count += 1
+						summary.bottle_net_weight = fix2(summary.bottle_net_weight + unresolvedNetWeight)
+					}
+					summary.total_net_weight = fix2(summary.total_net_weight + unresolvedNetWeight)
+					continue
+				}
 				const bizMode = normalizeBizModeValue(row && row.biz_mode)
 				const shouldReceive = entry.shouldReceive
 				const amountReceived = entry.amountReceived
@@ -3871,9 +3778,6 @@ async function computeSaleListSummary(where, filters = {}, options = {}) {
 			}
 		}
 
-		if (docs.length < batchSize) break
-		page += 1
-		guard += 1
 	}
 	return summary
 }
@@ -3882,6 +3786,7 @@ async function enrichSaleRowsWithNetOutstandingEffective(rows = []) {
 	const source = Array.isArray(rows) ? rows : []
 	if (!source.length) return source
 	const entries = source.map((row) => {
+		const unresolved = row && row.accounting && row.accounting.status === 'unresolved'
 		const shouldReceive = toNumber(row && row.should_receive, 0)
 		const roundingAmount = toNumber(row && row.rounding_amount, 0)
 		const amountReceived = toNumber(row && row.amount_received, 0)
@@ -3890,6 +3795,7 @@ async function enrichSaleRowsWithNetOutstandingEffective(rows = []) {
 		const effectiveShouldReceive = resolveEffectiveShouldReceive(shouldReceive, roundingAmount)
 		return {
 			row,
+			unresolved,
 			shouldReceive,
 			roundingAmount,
 			amountReceived,
@@ -3902,7 +3808,7 @@ async function enrichSaleRowsWithNetOutstandingEffective(rows = []) {
 	const offsetSaleIds = Array.from(
 		new Set(
 			entries
-				.filter((entry) => fix2(entry.effectiveShouldReceive - entry.paidTotal) < 0)
+				.filter((entry) => !entry.unresolved && fix2(entry.effectiveShouldReceive - entry.paidTotal) < 0)
 				.map((entry) => entry.saleId)
 				.filter(Boolean)
 		)
@@ -3911,6 +3817,7 @@ async function enrichSaleRowsWithNetOutstandingEffective(rows = []) {
 		? await buildSaleOffsetPoolStatsMapBySaleIds(offsetSaleIds)
 		: new Map()
 	return entries.map((entry) => {
+		if (entry.unresolved) return entry.row
 		const { enteredAmount: offsetPoolEntered, allocatedAmount: offsetPoolAllocated } = resolveSaleOffsetPoolStats(offsetPoolStatsMap, entry.saleId)
 		const netOutstandingEffective = computeSaleNetOutstandingEffective({
 			shouldReceive: entry.shouldReceive,
@@ -3949,13 +3856,25 @@ async function computeMonthSalesHeadline(hiddenCustomerIds = null) {
 		truck_sale_net: true,
 		truck_out_gross: true,
 		truck_back_gross: true,
+		truck_settle_tare: true,
+		truck_settle_gross: true,
+		rounding_amount: true,
+		flow_index_prev: true,
+		flow_index_curr: true,
 		flow_volume_m3: true
 	})
 	let salesDocTotal = 0
+	const unresolvedSourceIds = []
+	let unresolvedCount = 0
 	monthDocs.forEach((doc) => {
 		if (saleMentionsHiddenCustomer(doc, hiddenCustomerIdSet)) return
-		const amounts = computeSaleAmountsForDoc(doc)
-		salesDocTotal = fix2(salesDocTotal + toNumber(amounts && amounts.amounts && amounts.amounts.should_receive, 0))
+		const computed = computeSaleAmountsForDoc(doc, { allowUnresolved: true })
+		if (computed.accounting && computed.accounting.status === 'unresolved') {
+			unresolvedCount += 1
+			if (unresolvedSourceIds.length < 100) unresolvedSourceIds.push(normalizeString(doc && doc._id))
+			return
+		}
+		salesDocTotal = fix2(salesDocTotal + toNumber(computed && computed.amounts && computed.amounts.should_receive, 0))
 	})
 	let flowSettlementTotal = 0
 	try {
@@ -3969,9 +3888,15 @@ async function computeMonthSalesHeadline(hiddenCustomerIds = null) {
 			flowSettlementTotal = fix2(flowSettlementTotal + toNumber(doc && doc.should_receive, 0))
 		})
 	} catch (err) {
-		console.error('[crm-sale] computeMonthSalesHeadline flow settlements failed', err)
+		if (err && err.code === 'FINANCIAL_READ_INCOMPLETE') throw err
+		throw new FinancialReadError('flow_settlement_read_failed', {
+			source: 'month_flow_settlements', message: normalizeString(err && err.message)
+		})
 	}
 	return {
+		accounting_complete: unresolvedCount === 0,
+		unresolved_count: unresolvedCount,
+		unresolved_source_ids: unresolvedSourceIds,
 		month_sales_doc_total: fix2(salesDocTotal),
 		month_flow_total: fix2(flowSettlementTotal),
 		month_sales_total: fix2(salesDocTotal + flowSettlementTotal),
@@ -4043,25 +3968,23 @@ async function listV2(user, data) {
 
 	if (!needPostFilter) {
 		dataList = await fetchVisibleSaleListPageRows(where, page, pageSize, hiddenCustomerIdSet)
-	} else {
-		const matchedRows = []
-		const batchSize = 200
-		let cursor = 1
-		let guard = 0
-		const needsRefundPending = settlementScope === 'refund_outstanding'
-		const needsNetOutstandingEffective = settlementScope === 'net_outstanding_non_zero'
-		const needsOffsetPool = needsRefundPending || needsNetOutstandingEffective
-		while (guard < 600) {
-			const res = await sales
-				.where(where)
-				.orderBy('date', 'desc')
-				.orderBy('created_at', 'desc')
-				.skip((cursor - 1) * batchSize)
-				.limit(batchSize)
-				.get()
-			const docs = Array.isArray(res.data) ? res.data : []
-			if (!docs.length) break
-			const entryRows = buildSaleListBatchEntries(docs)
+		} else {
+			const matchedRows = []
+			const batchSize = 200
+			const needsRefundPending = settlementScope === 'refund_outstanding'
+			const needsNetOutstandingEffective = settlementScope === 'net_outstanding_non_zero'
+			const needsOffsetPool = needsRefundPending || needsNetOutstandingEffective
+			const allDocs = await readComplete(sales, where, { command: dbCmd, source: 'sale_list_post_filter' })
+			allDocs.sort((a, b) => {
+				const aDate = normalizeString(a && a.date); const bDate = normalizeString(b && b.date)
+				if (aDate !== bDate) return aDate < bDate ? 1 : -1
+				const aCreated = toNumber(a && a.created_at, 0); const bCreated = toNumber(b && b.created_at, 0)
+				if (aCreated !== bCreated) return bCreated - aCreated
+				return normalizeString(a && a._id) < normalizeString(b && b._id) ? 1 : -1
+			})
+			for (let offset = 0; offset < allDocs.length; offset += batchSize) {
+				const docs = allDocs.slice(offset, offset + batchSize)
+				const entryRows = buildSaleListBatchEntries(docs)
 			const visibleEntryRows = hiddenCustomerIdSet.size
 				? entryRows.filter((entry) => !saleMentionsHiddenCustomer(entry.doc, hiddenCustomerIdSet))
 				: entryRows
@@ -4070,6 +3993,7 @@ async function listV2(user, data) {
 					new Set(
 						visibleEntryRows
 							.filter((entry) => {
+								if (entry.unresolved) return false
 								const outstanding = fix2(entry.effectiveShouldReceive - entry.paidTotal)
 								if (!(outstanding < 0)) return false
 								if (needsNetOutstandingEffective) return true
@@ -4084,7 +4008,11 @@ async function listV2(user, data) {
 			const offsetPoolStatsMap = offsetSaleIds.length
 				? await buildSaleOffsetPoolStatsMapBySaleIds(offsetSaleIds)
 				: new Map()
-			for (const entry of visibleEntryRows) {
+				for (const entry of visibleEntryRows) {
+					if (entry.unresolved) {
+						if (!settlementScope && matchSaleListFilters(entry.row, { settlementScope, hasRemark, remarkTag })) matchedRows.push(entry.row)
+						continue
+					}
 				const row = entry.row
 				let refundPending = null
 				let netOutstandingEffective = null
@@ -4127,10 +4055,7 @@ async function listV2(user, data) {
 				}
 				matchedRows.push(row)
 			}
-			if (docs.length < batchSize) break
-			cursor += 1
-			guard += 1
-		}
+			}
 		total = matchedRows.length
 		const start = (page - 1) * pageSize
 		const end = start + pageSize
@@ -4152,17 +4077,24 @@ async function listV2(user, data) {
 			page,
 			pageSize,
 			total,
-			hasMore
+			hasMore,
+			complete: Boolean(summary.accounting_complete)
 		},
-		summary: {
+			summary: {
+				accounting_complete: Boolean(summary.accounting_complete),
+				filter_accounting_complete: Boolean(summary.accounting_complete),
+				unresolved_count: Number(summary.unresolved_count || 0),
+				unresolved_source_ids: summary.unresolved_source_ids || [],
+				month_accounting_complete: Boolean(monthHeadline.accounting_complete),
+				month_unresolved_count: Number(monthHeadline.unresolved_count || 0),
 			total,
-			paid: Number(summary.paid || 0),
-			paid_bottle_count: Number(summary.paid_bottle_count || 0),
-			partial: Number(summary.partial || 0),
-			unpaid: Number(summary.unpaid || 0),
-			should_receive_total: fix2(summary.should_receive_total || 0),
-			amount_received_total: fix2(summary.amount_received_total || 0),
-			outstanding_total: fix2(summary.outstanding_total || 0),
+			paid: summary.accounting_complete ? Number(summary.paid || 0) : null,
+			paid_bottle_count: summary.accounting_complete ? Number(summary.paid_bottle_count || 0) : null,
+			partial: summary.accounting_complete ? Number(summary.partial || 0) : null,
+			unpaid: summary.accounting_complete ? Number(summary.unpaid || 0) : null,
+			should_receive_total: summary.accounting_complete ? fix2(summary.should_receive_total || 0) : null,
+			amount_received_total: summary.accounting_complete ? fix2(summary.amount_received_total || 0) : null,
+			outstanding_total: summary.accounting_complete ? fix2(summary.outstanding_total || 0) : null,
 			total_net_weight: fix2(summary.total_net_weight || 0),
 			bottle_count: Number(summary.bottle_count || 0),
 			truck_count: Number(summary.truck_count || 0),
@@ -4170,23 +4102,23 @@ async function listV2(user, data) {
 			bottle_net_weight: fix2(summary.bottle_net_weight || 0),
 			truck_net_weight: fix2(summary.truck_net_weight || 0),
 			agent_sale_net_weight: fix2(summary.agent_sale_net_weight || 0),
-			receivable_outstanding_total: fix2(summary.receivable_outstanding_total || 0),
-			receivable_outstanding_count: Number(summary.receivable_outstanding_count || 0),
-			receivable_outstanding_bottle_count: Number(summary.receivable_outstanding_bottle_count || 0),
-			refund_outstanding_total: fix2(summary.refund_outstanding_total || 0),
-			refund_outstanding_count: Number(summary.refund_outstanding_count || 0),
-			refund_outstanding_bottle_count: Number(summary.refund_outstanding_bottle_count || 0),
-			overpaid_total: fix2(summary.overpaid_total || 0),
-			overpaid_count: Number(summary.overpaid_count || 0),
-			overrefund_total: fix2(summary.overrefund_total || 0),
-			overrefund_count: Number(summary.overrefund_count || 0),
-			prereceive_total: fix2(summary.prereceive_total || 0),
-			prereceive_count: Number(summary.prereceive_count || 0),
-			prerefund_total: fix2(summary.prerefund_total || 0),
-			prerefund_count: Number(summary.prerefund_count || 0),
-			month_sales_doc_total: fix2(monthHeadline.month_sales_doc_total || 0),
-			month_flow_total: fix2(monthHeadline.month_flow_total || 0),
-			month_sales_total: fix2(monthHeadline.month_sales_total || 0),
+			receivable_outstanding_total: summary.accounting_complete ? fix2(summary.receivable_outstanding_total || 0) : null,
+			receivable_outstanding_count: summary.accounting_complete ? Number(summary.receivable_outstanding_count || 0) : null,
+			receivable_outstanding_bottle_count: summary.accounting_complete ? Number(summary.receivable_outstanding_bottle_count || 0) : null,
+			refund_outstanding_total: summary.accounting_complete ? fix2(summary.refund_outstanding_total || 0) : null,
+			refund_outstanding_count: summary.accounting_complete ? Number(summary.refund_outstanding_count || 0) : null,
+			refund_outstanding_bottle_count: summary.accounting_complete ? Number(summary.refund_outstanding_bottle_count || 0) : null,
+			overpaid_total: summary.accounting_complete ? fix2(summary.overpaid_total || 0) : null,
+			overpaid_count: summary.accounting_complete ? Number(summary.overpaid_count || 0) : null,
+			overrefund_total: summary.accounting_complete ? fix2(summary.overrefund_total || 0) : null,
+			overrefund_count: summary.accounting_complete ? Number(summary.overrefund_count || 0) : null,
+			prereceive_total: summary.accounting_complete ? fix2(summary.prereceive_total || 0) : null,
+			prereceive_count: summary.accounting_complete ? Number(summary.prereceive_count || 0) : null,
+			prerefund_total: summary.accounting_complete ? fix2(summary.prerefund_total || 0) : null,
+			prerefund_count: summary.accounting_complete ? Number(summary.prerefund_count || 0) : null,
+			month_sales_doc_total: monthHeadline.accounting_complete ? fix2(monthHeadline.month_sales_doc_total || 0) : null,
+			month_flow_total: monthHeadline.accounting_complete ? fix2(monthHeadline.month_flow_total || 0) : null,
+			month_sales_total: monthHeadline.accounting_complete ? fix2(monthHeadline.month_sales_total || 0) : null,
 			month_range_start: normalizeString(monthHeadline.month_range_start),
 			month_range_end: normalizeString(monthHeadline.month_range_end)
 		}
@@ -4201,46 +4133,13 @@ async function getV2(user, data) {
 	const doc = (res.data && res.data[0]) || null
 	if (!doc) return { code: 404, msg: '记录不存在' }
 	if (saleMentionsHiddenCustomer(doc, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
-	const bizMode = normalizeString(doc.biz_mode) || 'bottle'
-	const priceUnit = normalizeString(doc.price_unit) || 'kg'
-	const settlementMode = priceUnit === 'm3' ? 'customer_flow' : normalizeSettlementMode(doc.settlement_mode, 'sale')
-	const unitPrice = toNumber(doc.unit_price, 0)
-
-	const outItems = Array.isArray(doc.out_items) ? doc.out_items : []
-	const backItems = Array.isArray(doc.back_items) ? doc.back_items : []
-	const agentRows = Array.isArray(doc.agent_sale_items) ? doc.agent_sale_items : []
-	const truckSaleNet = resolveTruckBillableNetValue({
-		priceUnit,
-		rawTruckGrossDiff: doc.truck_gross_diff,
-		rawTruckSaleNet: doc.truck_sale_net,
-		rawTruckOutGross: doc.truck_out_gross,
-		rawTruckBackGross: doc.truck_back_gross,
-		rawTruckSettleTare: doc.truck_settle_tare,
-		rawTruckSettleGross: doc.truck_settle_gross
-	})
-
-	const flow = computeFlow(doc, priceUnit)
-	const amounts = computeAmounts({
-		settlementMode,
-		bizMode,
-		priceUnit,
-		unitPrice,
-		outItems: bizMode === 'agent_sale' ? [] : outItems,
-		backItems: bizMode === 'agent_sale' ? [] : backItems,
-		agentRows,
-		truckSaleNet,
-		truckOutGross: doc.truck_out_gross,
-		truckBackGross: doc.truck_back_gross,
-		truckSettleTare: doc.truck_settle_tare,
-		truckSettleGross: doc.truck_settle_gross,
-		flow,
-		roundingAmount: toNumber(doc.rounding_amount, 0)
-	})
+	const { amounts, accounting } = computeSaleAmountsForDoc(doc, { allowUnresolved: true })
 
 	return {
 		code: 0,
 		data: {
 			...applyRemarkMetaToDoc(doc),
+			accounting,
 			out_net_total: amounts.out_net_total,
 			back_net_total: amounts.back_net_total,
 			total_net_weight: amounts.total_net_weight,
@@ -4253,6 +4152,86 @@ async function getV2(user, data) {
 	}
 }
 
+async function classifyLegacyM3SettlementV1(user, data, requestId, token) {
+	const id = normalizeString(data && (data._id || data.id || data.sale_id || data.saleId))
+	const settlementMode = normalizeString(data && (data.settlement_mode || data.settlementMode))
+	const basis = normalizeString(data && (data.classification_basis || data.classificationBasis))
+	const expectedVersion = toNumber(data && (data.expected_source_version ?? data.expectedSourceVersion), NaN)
+	if (!id) return { code: 400, msg: '缺少销售单 ID' }
+	if (!['sale', 'customer_flow'].includes(settlementMode)) return { code: 400, msg: '结算归属只能是 sale 或 customer_flow' }
+	if (basis.length < 8) return { code: 400, msg: '请填写可审查的归属依据（至少 8 个字符）' }
+	if (normalizeString(data && data.confirm) !== 'CLASSIFY_M3_SETTLEMENT') {
+		return { code: 400, msg: '缺少归属确认文本 CLASSIFY_M3_SETTLEMENT' }
+	}
+	if (!Number.isFinite(expectedVersion)) return { code: 400, msg: 'expected_source_version 必填' }
+
+	const found = await sales.doc(id).get()
+	const existing = (found.data && found.data[0]) || null
+	if (!existing) return { code: 404, msg: '销售单不存在' }
+	if (saleMentionsHiddenCustomer(existing, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '销售单不存在' }
+	if (normalizeString(existing.price_unit) !== 'm3') return { code: 400, msg: '仅允许核定历史 m³ 销售单' }
+	const currentMode = normalizeString(existing.settlement_mode)
+	if (['sale', 'customer_flow'].includes(currentMode)) {
+		if (currentMode !== settlementMode) {
+			return { code: 409, error_code: 'FINANCIAL_CLASSIFICATION_ALREADY_SET', msg: '该销售单已有不同归属，请走正常改单并复核影响' }
+		}
+		return refreshClassifiedSaleBalance(existing, settlementMode, token, requestId)
+	}
+
+	const versionField = Number.isFinite(toNumber(existing.updated_at, NaN)) ? 'updated_at' : 'created_at'
+	const sourceVersion = toNumber(existing[versionField], 0)
+	if (sourceVersion !== expectedVersion) {
+		return { code: 409, error_code: 'SOURCE_VERSION_CHANGED', msg: '销售单已变化，请重新读取后核定' }
+	}
+	const now = Date.now()
+	const updateResult = await sales.where(dbCmd.and([{ _id: id }, { [versionField]: existing[versionField] },
+		{ settlement_mode: existing.settlement_mode === undefined ? dbCmd.exists(false) : existing.settlement_mode }])).update({
+		settlement_mode: settlementMode,
+		accounting_classification_basis: basis,
+		accounting_classified_at: now,
+		accounting_classified_by: normalizeString(user && user._id),
+		accounting_rule_version: saleAccounting.RULE_VERSION,
+		updated_at: now
+	})
+	if (Number(updateResult && updateResult.updated) !== 1) {
+		return { code: 409, error_code: 'SOURCE_VERSION_CHANGED', msg: '销售单已变化，请重新读取后核定' }
+	}
+	await recordLog(user, 'sale_legacy_m3_settlement_classified_v1', {
+		sale_id: id,
+		customer_id: normalizeString(existing.customer_id),
+		settlement_mode: settlementMode,
+		classification_basis: basis,
+		source_version: sourceVersion,
+		rule_version: saleAccounting.RULE_VERSION
+	}, requestId)
+
+	return refreshClassifiedSaleBalance(existing, settlementMode, token, requestId)
+}
+
+async function refreshClassifiedSaleBalance(existing, settlementMode, token, requestId) {
+	const id = existing._id
+	const refresh = await callCustomerSettlement('refreshCustomerBalancesV1', {
+		customer_id: normalizeString(existing.customer_id)
+	}, token, requestId)
+	if (Number(refresh && refresh.code) === 0) {
+		return { code: 0, msg: '结算归属已核定，客户余额已重算', data: { _id: id, settlement_mode: settlementMode, balances_refreshed: true } }
+	}
+	const remaining = refresh && refresh.error_code === 'FINANCIAL_CLASSIFICATION_REQUIRED'
+		? refresh.data && refresh.data.financial_evidence && refresh.data.financial_evidence.unresolved_source_ids || []
+		: []
+	return {
+		code: 207,
+		msg: remaining.length ? '归属已记录；该客户仍有待核 m³ 单据，余额暂未重算' : '归属已记录，但客户余额重算失败',
+		data: {
+			_id: id,
+			settlement_mode: settlementMode,
+			balances_refreshed: false,
+			remaining_unresolved_source_ids: remaining,
+			refresh_error: normalizeString(refresh && refresh.msg)
+		}
+	}
+}
+
 async function quickReceiveV1(user, data, requestId, token) {
 	const recordId = normalizeString(data.recordId || data._id || data.id)
 	if (!recordId) return { code: 400, msg: '缺少记录 ID' }
@@ -4261,7 +4240,7 @@ async function quickReceiveV1(user, data, requestId, token) {
 	const doc = (res.data && res.data[0]) || null
 	if (!doc) return { code: 404, msg: '记录不存在' }
 	if (saleMentionsHiddenCustomer(doc, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
-	if ((normalizeString(doc && doc.price_unit) || 'kg') === 'm3' || normalizeSettlementMode(doc && doc.settlement_mode) === 'customer_flow') {
+	if (saleAccounting.resolveSettlementMode(doc) === 'customer_flow') {
 		return { code: 400, msg: '该销售单按客户对账页流量结算，不支持直接登记回款' }
 	}
 
@@ -4675,6 +4654,7 @@ async function updateV2(user, data, requestId, token) {
 	const existing = (existingRes.data && existingRes.data[0]) || null
 	if (!existing) return { code: 404, msg: '记录不存在' }
 	if (saleMentionsHiddenCustomer(existing, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
+	saleAccounting.resolveSettlementMode(existing)
 
 	const base = payload.base || {}
 	const outRows = normalizeBottleRows(payload.outRows || [])
@@ -4698,8 +4678,8 @@ async function updateV2(user, data, requestId, token) {
 	const defaultPricing = resolveSaleDefaultPricing({ deliveryCustomer, billingCustomer: customer })
 	const priceUnit = normalizeSalePriceUnit(base.priceUnit) || defaultPricing.priceUnit || 'kg'
 	const settlementMode = priceUnit === 'm3'
-		? 'customer_flow'
-		: normalizeSettlementMode(base.settlementMode, normalizeSettlementMode(existing && existing.settlement_mode, 'sale'))
+		? (normalizeString(existing.price_unit) === 'm3' ? saleAccounting.resolveSettlementMode(existing) : 'customer_flow')
+		: normalizeSettlementMode(base.settlementMode, saleAccounting.resolveSettlementMode(existing))
 	const submittedUnitPrice = toNumber(base.unitPrice, null)
 	const unitPrice = submittedUnitPrice > 0 ? submittedUnitPrice : toNumber(defaultPricing.unitPrice, 0)
 
@@ -5118,12 +5098,11 @@ async function updateSettlementV1(user, data, requestId, token) {
 	const existing = (existingRes.data && existingRes.data[0]) || null
 	if (!existing) return { code: 404, msg: '记录不存在' }
 	if (saleMentionsHiddenCustomer(existing, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
+	saleAccounting.resolveSettlementMode(existing)
 
 	const payload = data && typeof data.settlement === 'object' ? data.settlement : {}
 	const priceUnit = normalizeString(existing && existing.price_unit) || 'kg'
-	const settlementMode = priceUnit === 'm3'
-		? 'customer_flow'
-		: normalizeSettlementMode(existing && existing.settlement_mode, 'sale')
+	const settlementMode = saleAccounting.resolveSettlementMode(existing)
 	if (settlementMode === 'customer_flow') {
 		return { code: 400, msg: '该销售单按客户对账页流量结算，不能在销售单内登记收款' }
 	}
@@ -5512,7 +5491,7 @@ async function cleanupPaymentMethodV1(user, data, requestId) {
 	}
 }
 
-exports.main = async (event, context) => {
+const main = async (event, context) => {
 	void context
 	const { action, data = {}, token } = event
 	const requestId =
@@ -5534,6 +5513,7 @@ exports.main = async (event, context) => {
 	if (action === 'removeV2') return removeV2(user, data, requestId, token)
 	if (action === 'listV2') return listV2(user, data)
 	if (action === 'getV2') return getV2(user, data)
+	if (action === 'classifyLegacyM3SettlementV1') return classifyLegacyM3SettlementV1(user, data, requestId, token)
 	if (action === 'searchAgentFillSuggestionsV1') return searchAgentFillSuggestionsV1(user, data)
 	if (action === 'quickReceiveV1') return quickReceiveV1(user, data, requestId, token)
 	if (action === 'getCustomerDepositV1') return getCustomerDepositV1(user, data)
@@ -5543,3 +5523,5 @@ exports.main = async (event, context) => {
 
 	return { code: 400, msg: '未知 action' }
 }
+
+exports.main = withFinancialEvidence(main, saleAccounting.RULE_VERSION)

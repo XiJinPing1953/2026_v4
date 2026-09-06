@@ -29,7 +29,7 @@
 					size="sm"
 					kind="outline"
 					:loading="exportingStatement"
-					:disabled="loading || rowsLoading || analysisLoading"
+					:disabled="Boolean(financialIssue) || loading || rowsLoading || analysisLoading"
 					@click="onExportStatement"
 				>
 					导出对账单
@@ -38,7 +38,7 @@
 					size="sm"
 					kind="outline"
 					:loading="exportingAccountingLedger"
-					:disabled="loading || rowsLoading || analysisLoading"
+					:disabled="Boolean(financialIssue) || loading || rowsLoading || analysisLoading"
 					@click="onExportAccountingLedger"
 				>
 					会计导出
@@ -49,7 +49,7 @@
 		</template>
 
 		<template #highlights>
-			<view class="summary-row">
+			<view v-if="!financialIssue" class="summary-row">
 				<AppStatCard class="summary-card" label="应收余额(未扣冲抵)" :value="formatSummaryMoney(summaryReceivableBalanceDisplay)" hint="元" icon="alert" />
 				<AppStatCard class="summary-card" label="可抵扣余额" :value="formatSummaryMoney(summaryDeductibleBalanceDisplay)" hint="元" icon="check-circle" />
 				<AppStatCard class="summary-card" label="净欠款(扣抵扣后)" :value="formatSummaryMoney(summaryNetBalanceDisplay)" hint="元" icon="wallet" @click="onOpenNetDebtSaleSources" />
@@ -57,7 +57,12 @@
 			</view>
 		</template>
 
-		<view class="content-shell">
+		<AppSection v-if="financialIssue" title="账务结果待核">
+			<text>{{ financialIssue }}</text>
+			<text v-if="financialSourceIds.length">待核销售单：{{ financialSourceIds.join('、') }}</text>
+			<text>当前不展示合计或旧的查询结果。核对完成后点击刷新。</text>
+		</AppSection>
+		<view v-if="!financialIssue" class="content-shell">
 			<AppSection title="客户总览">
 				<view class="overview-grid">
 					<view class="overview-item">
@@ -1059,6 +1064,8 @@ const props = defineProps({
 const recordId = toRef(props, 'recordId')
 const scene = toRef(props, 'scene')
 const saleId = toRef(props, 'saleId')
+const financialIssue = ref('')
+const financialSourceIds = ref([])
 const loading = ref(false)
 const rowsLoading = ref(false)
 const rowSummaryLoading = ref(false)
@@ -3619,9 +3626,13 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0 } = {}) {
 		})
 		if (summaryOnly && !isLatestRowsSearchRequest(requestSeq)) return
 		if (res?.code !== 0) {
+			financialIssue.value = res?.msg || '账务数据未完成读取，请重试'
+			financialSourceIds.value = res?.data?.financial_evidence?.unresolved_source_ids || []
 			uni.showToast({ title: res?.msg || (summaryOnly ? '账务摘要刷新失败' : '加载失败'), icon: 'none' })
 			return
 		}
+		financialIssue.value = ''
+		financialSourceIds.value = []
 		const data = res?.data || {}
 		customer.value = data.customer || customer.value || {}
 		applyStatementSummary(data)
@@ -3637,6 +3648,7 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0 } = {}) {
 		syncAnalysisFilterDefaults()
 	} catch (err) {
 		if (!summaryOnly || isLatestRowsSearchRequest(requestSeq)) {
+			financialIssue.value = '账务数据读取失败，请重试；旧结果已隐藏'
 			showCloudRequestError(summaryOnly ? '账务摘要刷新' : '客户账务加载', err)
 		}
 	} finally {
@@ -3702,6 +3714,8 @@ async function loadRows({ requestSeq = 0 } = {}) {
 		})
 		if (!isLatestRowsSearchRequest(requestSeq)) return
 		if (res?.code !== 0) {
+			financialIssue.value = res?.msg || '账务数据未完成读取，请重试'
+			financialSourceIds.value = res?.data?.financial_evidence?.unresolved_source_ids || []
 			uni.showToast({ title: res?.msg || '流水加载失败', icon: 'none' })
 			return
 		}
@@ -3713,6 +3727,7 @@ async function loadRows({ requestSeq = 0 } = {}) {
 		rowsPager.hasMore = Boolean(paging.hasMore)
 	} catch (err) {
 		if (isLatestRowsSearchRequest(requestSeq)) {
+			financialIssue.value = '账务流水读取失败，请重试；旧结果已隐藏'
 			showCloudRequestError('账务流水加载', err)
 		}
 	} finally {
@@ -4454,6 +4469,8 @@ async function onExportStatement() {
 			dateTo: range.dateTo
 		})
 		if (res?.code !== 0) {
+			financialIssue.value = res?.msg || '账务数据未完成读取，请重试'
+			financialSourceIds.value = res?.data?.financial_evidence?.unresolved_source_ids || []
 			uni.showToast({ title: res?.msg || '导出失败', icon: 'none' })
 			return
 		}
@@ -4485,6 +4502,8 @@ async function onExportAccountingLedger() {
 			dateTo: range.dateTo
 		})
 		if (res?.code !== 0) {
+			financialIssue.value = res?.msg || '账务数据未完成读取，请重试'
+			financialSourceIds.value = res?.data?.financial_evidence?.unresolved_source_ids || []
 			uni.showToast({ title: res?.msg || '会计导出失败', icon: 'none' })
 			return
 		}

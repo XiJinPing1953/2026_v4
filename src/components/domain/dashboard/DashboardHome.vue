@@ -1,6 +1,7 @@
 <template>
 	<AppPage hideNav :bodyPadding="false">
 		<view class="dashboard">
+			<text v-if="dashboardIssue" role="alert">{{ dashboardIssue }}；当前汇总不可用。</text>
 			<view class="dashboard__sidebar">
 				<view class="sidebar-menu">
 					<view class="brand">
@@ -425,7 +426,7 @@
 					</view>
 				</view>
 
-				<view class="rail-card">
+				<view v-if="!dashboardIssue" class="rail-card">
 					<text class="rail-title">近 7 日新增应收 vs 实收</text>
 					<view class="receivable-chart">
 						<view v-for="row in receivableChartRows" :key="row.date" class="receivable-day">
@@ -896,8 +897,16 @@ function applyTankTelemetry(raw) {
 	tankTelemetry.message = String(tank.message || '').trim()
 }
 
+const dashboardIssue = ref('')
 function applyDashboard(data) {
 	if (!data) return
+	dashboardIssue.value = data.load_error || ''
+	if (dashboardIssue.value) {
+		stats.sales = '待核'
+		kpiDelta.sales = ''
+		kpiTrend.sales = ''
+		return
+	}
 	const kpi = data.kpi || {}
 	stats.anomaly = formatNumber(kpi.anomaly_open)
 	stats.sales = formatNumber(kpi.sales_month)
@@ -951,7 +960,7 @@ const { run: fetchDashboardSummary } = useQuery(
 		const res = await getDashboardSummaryV1({ days: 7 })
 		if (res?.code !== 0) {
 			if (!options.silent) uni.showToast({ title: res?.msg || '工作台数据加载失败', icon: 'none' })
-			return null
+			return { load_error: res?.msg || '工作台数据读取未完成' }
 		}
 		return res.data || null
 	},
@@ -961,6 +970,7 @@ const { run: fetchDashboardSummary } = useQuery(
 		throttleMs: 300,
 		onSuccess: applyDashboard,
 		onError(err) {
+			applyDashboard({ load_error: err?.message || '工作台数据读取未完成' })
 			if (!isDashboardPolling.value) uni.showToast({ title: err?.message || '工作台数据加载失败', icon: 'none' })
 		}
 	}

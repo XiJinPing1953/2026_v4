@@ -1,5 +1,8 @@
 'use strict'
 
+const saleAccounting = require('./saleAccountingLocal')
+const { readComplete, withFinancialEvidence, FinancialReadError } = require('./financialReadLocal')
+
 const db = uniCloud.database()
 const dbCmd = db.command
 const {
@@ -102,6 +105,7 @@ const PAGE_ACTION_RULES = {
 	listCustomerStatementRowsV1: [{ pagePath: '/pages/customer/statement', action: 'view' }]
 }
 const SUPERADMIN_ONLY_ACTIONS = [
+	'getLegacyM3EvidenceV1',
 	'rebuildOpeningBalancesV1',
 	'repairAutoPrepayAllocationsV1',
 	'migrateTushanCakeSettlementSitesV1'
@@ -521,34 +525,19 @@ async function listSaleAutoAllocationsBySaleIds(customerId, saleIds = [], limitP
 		)
 	)
 	if (!uniqueSaleIds.length) return []
-	const maxRows = Math.min(Math.max(toNumber(limitPerChunk, 5000), 1), 5000)
+	void limitPerChunk // Computational reads must be complete, never sliced to a display limit.
 	const allRows = []
 	for (const saleIdChunk of chunkStrings(uniqueSaleIds, 80)) {
-		let page = 1
-		let guard = 0
-		let loaded = 0
-		while (guard < 500 && loaded < maxRows) {
-			const res = await allocations
-				.where(
+		const list = await readComplete(allocations,
 					dbCmd.and([
 						{ customer_id: normalizedCustomerId },
 						{ source_type: dbCmd.in(['sale_auto_prepay', 'flow_auto_prepay', 'offset_manual_allocate']) },
 						{ sale_id: dbCmd.in(saleIdChunk) }
 					])
-				)
-				.orderBy('created_at', 'asc')
-				.skip((page - 1) * 200)
-				.limit(200)
-				.get()
-			const list = Array.isArray(res.data) ? res.data : []
-			if (!list.length) break
-			allRows.push(...list)
-			loaded += list.length
-			if (list.length < 200 || loaded >= maxRows) break
-			page += 1
-			guard += 1
-		}
+				, { command: dbCmd, source: 'listSaleAutoAllocationsBySaleIds', sort: ['created_at'] })
+		allRows.push(...list)
 	}
+
 	return allRows
 }
 
@@ -568,35 +557,20 @@ async function listOffsetCreditReceiptsBySourceSaleIds(customerId, saleIds = [],
 		)
 	)
 	if (!uniqueSaleIds.length) return []
-	const maxRows = Math.min(Math.max(toNumber(limitPerChunk, 5000), 1), 5000)
+	void limitPerChunk // Computational reads must be complete, never sliced to a display limit.
 	const allRows = []
 	for (const saleIdChunk of chunkStrings(uniqueSaleIds, 80)) {
-		let page = 1
-		let guard = 0
-		let loaded = 0
-		while (guard < 500 && loaded < maxRows) {
-			const res = await receipts
-				.where(
+		const list = await readComplete(receipts,
 					dbCmd.and([
 						{ customer_id: normalizedCustomerId },
 						{ status: 'posted' },
 						{ source_type: dbCmd.in(['sale_offset_credit', 'sale_offset_credit_repair']) },
 						{ source_id: dbCmd.in(saleIdChunk) }
 					])
-				)
-				.orderBy('created_at', 'asc')
-				.skip((page - 1) * 200)
-				.limit(200)
-				.get()
-			const list = Array.isArray(res.data) ? res.data : []
-			if (!list.length) break
-			allRows.push(...list)
-			loaded += list.length
-			if (list.length < 200 || loaded >= maxRows) break
-			page += 1
-			guard += 1
-		}
+				, { command: dbCmd, source: 'listOffsetCreditReceiptsBySourceSaleIds', sort: ['created_at'] })
+		allRows.push(...list)
 	}
+
 	return allRows
 }
 
@@ -610,30 +584,15 @@ async function listAllocationsByReceiptIds(customerId, receiptIds = [], limitPer
 		)
 	)
 	if (!uniqueReceiptIds.length) return []
-	const maxRows = Math.min(Math.max(toNumber(limitPerChunk, 5000), 1), 5000)
+	void limitPerChunk // Computational reads must be complete, never sliced to a display limit.
 	const allRows = []
 	for (const receiptIdChunk of chunkStrings(uniqueReceiptIds, 80)) {
-		let page = 1
-		let guard = 0
-		let loaded = 0
-		while (guard < 500 && loaded < maxRows) {
-			const whereParts = [{ receipt_id: dbCmd.in(receiptIdChunk) }]
-			if (normalizedCustomerId) whereParts.unshift({ customer_id: normalizedCustomerId })
-			const res = await allocations
-				.where(whereParts.length === 1 ? whereParts[0] : dbCmd.and(whereParts))
-				.orderBy('created_at', 'asc')
-				.skip((page - 1) * 200)
-				.limit(200)
-				.get()
-			const list = Array.isArray(res.data) ? res.data : []
-			if (!list.length) break
-			allRows.push(...list)
-			loaded += list.length
-			if (list.length < 200 || loaded >= maxRows) break
-			page += 1
-			guard += 1
-		}
+		const whereParts = [{ receipt_id: dbCmd.in(receiptIdChunk) }]
+		if (normalizedCustomerId) whereParts.unshift({ customer_id: normalizedCustomerId })
+		const list = await readComplete(allocations, whereParts.length === 1 ? whereParts[0] : dbCmd.and(whereParts), { command: dbCmd, source: 'listAllocationsByReceiptIds', sort: ['created_at'] })
+		allRows.push(...list)
 	}
+
 	return allRows
 }
 
@@ -1126,84 +1085,10 @@ function computeFlow(base, priceUnit) {
 	}
 }
 
-function computeAmounts({ settlementMode = 'sale', bizMode, priceUnit, unitPrice, outItems, backItems, agentRows, truckSaleNet, flow, roundingAmount }) {
-	const outNetTotal = outItems.reduce((sum, item) => sum + toNumber(item && item.net, 0), 0)
-	const backNetTotal = backItems.reduce((sum, item) => sum + toNumber(item && item.net, 0), 0)
-
-	let totalNetWeight = outNetTotal - backNetTotal
-	if (bizMode === 'truck') totalNetWeight = toNumber(truckSaleNet, 0)
-
-	let outAmount = 0
-	let backAmount = 0
-	let shouldReceive = 0
-
-	if (normalizeSettlementMode(settlementMode) === 'customer_flow') {
-		return {
-			out_net_total: fix2(outNetTotal),
-			back_net_total: fix2(backNetTotal),
-			total_net_weight: fix2(totalNetWeight),
-			out_amount: 0,
-			back_amount: 0,
-			rounding_amount: 0,
-			effective_should_receive: 0,
-			should_receive: 0
-		}
-	}
-
-	if (bizMode === 'agent_sale') {
-		const totalWeight = agentRows.reduce((sum, row) => sum + toNumber(row && row.fill_weight, 0), 0)
-		outAmount = totalWeight * unitPrice
-		shouldReceive = outAmount
-	} else if (priceUnit === 'kg') {
-		outAmount = outNetTotal * unitPrice
-		backAmount = backNetTotal * unitPrice
-		shouldReceive = totalNetWeight * unitPrice
-	} else if (priceUnit === 'bottle') {
-		outAmount = outItems.length * unitPrice
-		shouldReceive = outAmount
-	} else if (priceUnit === 'm3') {
-		const flowVolume = flow.flow_volume_m3 || 0
-		outAmount = flowVolume * unitPrice
-		shouldReceive = outAmount
-	}
-
-	const rounding = Math.max(toNumber(roundingAmount, 0), 0)
-	const effectiveShouldReceive = resolveEffectiveShouldReceive(shouldReceive, rounding)
-
-	return {
-		out_net_total: fix2(outNetTotal),
-		back_net_total: fix2(backNetTotal),
-		total_net_weight: fix2(totalNetWeight),
-		out_amount: fix2(outAmount),
-		back_amount: fix2(backAmount),
-		rounding_amount: fix2(rounding),
-		effective_should_receive: fix2(effectiveShouldReceive),
-		should_receive: fix2(shouldReceive)
-	}
-}
+const computeAmounts = saleAccounting.computeAmounts
 
 function computeSaleSnapshot(doc) {
-	const bizMode = normalizeString(doc && doc.biz_mode) || 'bottle'
-	const priceUnit = normalizeString(doc && doc.price_unit) || 'kg'
-	const settlementMode = normalizeSettlementMode(doc && doc.settlement_mode, 'sale')
-	const unitPrice = toNumber(doc && doc.unit_price, 0)
-	const outItems = Array.isArray(doc && doc.out_items) ? doc.out_items : []
-	const backItems = Array.isArray(doc && doc.back_items) ? doc.back_items : []
-	const agentRows = Array.isArray(doc && doc.agent_sale_items) ? doc.agent_sale_items : []
-	const truckSaleNet = resolveTruckBillableNetValue(doc, priceUnit)
-	const flow = computeFlow(doc || {}, priceUnit)
-	const amounts = computeAmounts({
-		settlementMode,
-		bizMode,
-		priceUnit,
-		unitPrice,
-		outItems: bizMode === 'agent_sale' ? [] : outItems,
-		backItems: bizMode === 'agent_sale' ? [] : backItems,
-		agentRows,
-		truckSaleNet,
-		flow,
-		roundingAmount: toNumber(doc && doc.rounding_amount, 0)
-	})
+	const { amounts } = saleAccounting.computeSaleAmountsForDoc(doc)
 	const shouldReceive = fix2(amounts.should_receive)
 	const effectiveShouldReceive = fix2(amounts.effective_should_receive)
 	const amountReceived = fix2(toNumber(doc && doc.amount_received, 0))
@@ -1445,26 +1330,8 @@ async function listCustomerSales(customerId, { dateFrom = '', dateTo = '' } = {}
 	if (dateFrom) whereParts.push({ date: dbCmd.gte(dateFrom) })
 	if (dateTo) whereParts.push({ date: dbCmd.lte(dateTo) })
 	const where = whereParts.length === 1 ? whereParts[0] : dbCmd.and(whereParts)
-
-	const rows = []
-	const batchSize = 200
-	let page = 1
-	let guard = 0
-	while (guard < 500) {
-		const res = await sales
-			.where(where)
-			.orderBy('date', 'asc')
-			.orderBy('created_at', 'asc')
-			.skip((page - 1) * batchSize)
-			.limit(batchSize)
-			.get()
-		const list = Array.isArray(res.data) ? res.data : []
-		if (!list.length) break
-		rows.push(...list)
-		if (list.length < batchSize) break
-		page += 1
-		guard += 1
-	}
+	const rows = await readComplete(sales, where, { command: dbCmd, source: 'sales', sort: ['date', 'created_at'] })
+	saleAccounting.assertSalesClassified(rows)
 	return rows
 }
 
@@ -1475,26 +1342,8 @@ async function listCustomerFlowSettlements(customerId, { dateFrom = '', dateTo =
 	if (dateFrom) whereParts.push({ biz_date: dbCmd.gte(dateFrom) })
 	if (dateTo) whereParts.push({ biz_date: dbCmd.lte(dateTo) })
 	const where = whereParts.length === 1 ? whereParts[0] : dbCmd.and(whereParts)
-	const batchSize = Math.min(Math.max(toNumber(limit, 5000), 1), 5000)
-	const rows = []
-	let page = 1
-	let guard = 0
-	while (guard < 500 && rows.length < batchSize) {
-		const res = await flowSettlements
-			.where(where)
-			.orderBy('biz_date', 'asc')
-			.orderBy('created_at', 'asc')
-			.skip((page - 1) * 200)
-			.limit(200)
-			.get()
-		const list = Array.isArray(res.data) ? res.data : []
-		if (!list.length) break
-		rows.push(...list)
-		if (list.length < 200 || rows.length >= batchSize) break
-		page += 1
-		guard += 1
-	}
-	return rows.slice(0, batchSize)
+	const rows = await readComplete(flowSettlements, where, { command: dbCmd, source: 'flowSettlements', sort: ['biz_date', 'created_at'] })
+	return rows
 }
 
 async function listCustomerReceipts(customerId, { dateFrom = '', dateTo = '', dateBefore = '', limit = 5000 } = {}) {
@@ -1505,26 +1354,8 @@ async function listCustomerReceipts(customerId, { dateFrom = '', dateTo = '', da
 	if (dateTo) whereParts.push({ biz_date: dbCmd.lte(dateTo) })
 	if (dateBefore) whereParts.push({ biz_date: dbCmd.lt(dateBefore) })
 	const where = whereParts.length === 1 ? whereParts[0] : dbCmd.and(whereParts)
-	const batchSize = Math.min(Math.max(toNumber(limit, 5000), 1), 5000)
-	const rows = []
-	let page = 1
-	let guard = 0
-	while (guard < 500 && rows.length < batchSize) {
-		const res = await receipts
-			.where(where)
-			.orderBy('biz_date', 'asc')
-			.orderBy('created_at', 'asc')
-			.skip((page - 1) * 200)
-			.limit(200)
-			.get()
-		const list = Array.isArray(res.data) ? res.data : []
-		if (!list.length) break
-		rows.push(...list)
-		if (list.length < 200 || rows.length >= batchSize) break
-		page += 1
-		guard += 1
-	}
-	return rows.slice(0, batchSize)
+	const rows = await readComplete(receipts, where, { command: dbCmd, source: 'receipts', sort: ['biz_date', 'created_at'] })
+	return rows
 }
 
 async function listCustomerOpeningDebts(customerId, { dateFrom = '', dateTo = '', dateBefore = '', limit = 5000 } = {}) {
@@ -1535,26 +1366,8 @@ async function listCustomerOpeningDebts(customerId, { dateFrom = '', dateTo = ''
 	if (dateTo) whereParts.push({ biz_date: dbCmd.lte(dateTo) })
 	if (dateBefore) whereParts.push({ biz_date: dbCmd.lt(dateBefore) })
 	const where = whereParts.length === 1 ? whereParts[0] : dbCmd.and(whereParts)
-	const batchSize = Math.min(Math.max(toNumber(limit, 5000), 1), 5000)
-	const rows = []
-	let page = 1
-	let guard = 0
-	while (guard < 500 && rows.length < batchSize) {
-		const res = await openingDebts
-			.where(where)
-			.orderBy('biz_date', 'asc')
-			.orderBy('created_at', 'asc')
-			.skip((page - 1) * 200)
-			.limit(200)
-			.get()
-		const list = Array.isArray(res.data) ? res.data : []
-		if (!list.length) break
-		rows.push(...list)
-		if (list.length < 200 || rows.length >= batchSize) break
-		page += 1
-		guard += 1
-	}
-	return rows.slice(0, batchSize)
+	const rows = await readComplete(openingDebts, where, { command: dbCmd, source: 'openingDebts', sort: ['biz_date', 'created_at'] })
+	return rows
 }
 
 function isDateInExclusiveInclusiveRange(date, startExclusive = '', endInclusive = '') {
@@ -2668,34 +2481,13 @@ async function applyAllocationAndPersist({
 }
 
 async function listDebtSnapshotCustomers(limit = 5000) {
-	const batchSize = 200
-	const maxRows = Math.min(Math.max(toNumber(limit, 5000), 1), 5000)
-	const rows = []
-	let page = 1
-	let guard = 0
-	while (guard < 500 && rows.length < maxRows) {
-		const res = await customers
-			.where(
-				dbCmd.and([
-					{ receivable_balance: dbCmd.gt(0) },
-					{ settlement_customer_id: dbCmd.in([null, '']) },
-					visibleCustomerWhere(dbCmd)
-				])
-			)
-			.orderBy('receivable_balance', 'desc')
-			.orderBy('updated_at', 'desc')
-			.skip((page - 1) * batchSize)
-			.limit(batchSize)
-			.get()
-		const list = Array.isArray(res.data) ? res.data : []
-		if (!list.length) break
-		rows.push(...list)
-		if (list.length < batchSize || rows.length >= maxRows) break
-		page += 1
-		guard += 1
-	}
-	return rows.slice(0, maxRows)
+	void limit
+	const rows = await readComplete(customers, dbCmd.and([
+		{ receivable_balance: dbCmd.gt(0) }, { settlement_customer_id: dbCmd.in([null, '']) }, visibleCustomerWhere(dbCmd)
+	]), { command: dbCmd, source: 'debt_snapshot_customers' })
+	return rows.sort((a, b) => toNumber(b.receivable_balance, 0) - toNumber(a.receivable_balance, 0))
 }
+
 
 function buildDebtTargetAllocationBreakdownMap(rows = [], moneyScale = 2) {
 	const map = new Map()
@@ -2925,13 +2717,7 @@ async function listReceiptAllocationRows(receiptId, customerId) {
 		receipt_id: normalizeId(receiptId),
 		customer_id: normalizeId(customerId)
 	}
-	const res = await allocations
-		.where(where)
-		.orderBy('seq', 'asc')
-		.orderBy('created_at', 'asc')
-		.limit(5000)
-		.get()
-	return Array.isArray(res.data) ? res.data : []
+	return readComplete(allocations, where, { command: dbCmd, source: 'receipt_allocations', sort: ['created_at'] })
 }
 
 async function listSaleTargetAllocationRows(customerId, saleId) {
@@ -2939,27 +2725,11 @@ async function listSaleTargetAllocationRows(customerId, saleId) {
 	const normalizedSaleId = normalizeId(saleId)
 	if (!normalizedCustomerId || !normalizedSaleId) return []
 
-	const rows = []
-	let page = 1
-	let guard = 0
 	const where = dbCmd.and([
 		{ customer_id: normalizedCustomerId },
 		dbCmd.or([{ target_id: normalizedSaleId }, { sale_id: normalizedSaleId }])
 	])
-	while (guard < 500) {
-		const res = await allocations
-			.where(where)
-			.orderBy('created_at', 'asc')
-			.skip((page - 1) * 200)
-			.limit(200)
-			.get()
-		const list = Array.isArray(res.data) ? res.data : []
-		if (!list.length) break
-		rows.push(...list)
-		if (list.length < 200) break
-		page += 1
-		guard += 1
-	}
+	const rows = await readComplete(allocations, where, { command: dbCmd, source: 'sale_target_allocations', sort: ['created_at'] })
 	return rows.filter((row) => {
 		const targetType = normalizeReceivableTargetType(row && row.target_type)
 		const targetId = normalizeId(row && (row.target_id || row.sale_id))
@@ -3747,7 +3517,7 @@ async function applyPlanToExistingReceipt({
 	}
 }
 
-async function rebuildCustomerBalances(customerId) {
+async function rebuildCustomerBalances(customerId, { persist = true } = {}) {
 	const customer = await getCustomerById(customerId)
 	if (!customer) return null
 	const moneyScale = resolveCustomerMoneyScale(customer)
@@ -3764,25 +3534,7 @@ async function rebuildCustomerBalances(customerId) {
 	let lastReceiptAt = null
 	let lastReceiptBizDate = ''
 	let lastReceiptCreatedAt = null
-	const receiptRows = []
-	const batchSize = 200
-	let page = 1
-	let guard = 0
-	while (guard < 500) {
-		const res = await receipts
-			.where({ customer_id: customer._id, status: 'posted' })
-			.orderBy('biz_date', 'desc')
-			.orderBy('created_at', 'desc')
-			.skip((page - 1) * batchSize)
-			.limit(batchSize)
-			.get()
-		const list = Array.isArray(res.data) ? res.data : []
-		if (!list.length) break
-		receiptRows.push(...list)
-		if (list.length < batchSize) break
-		page += 1
-		guard += 1
-	}
+	const receiptRows = (await listCustomerReceipts(customer._id)).reverse()
 
 	const businessSummary = await buildBusinessSummaryFromTargets(customer, {
 		salesDocs,
@@ -3821,7 +3573,7 @@ async function rebuildCustomerBalances(customerId) {
 	}
 
 	const net = fixMoney(receivable - deductibleBalance)
-	await customers.doc(customer._id).update({
+	if (persist) await customers.doc(customer._id).update({
 		receivable_balance: receivable,
 		prepay_balance: deductibleBalance,
 		prepay_manual_balance: manualPrepay,
@@ -6160,18 +5912,13 @@ async function exportCustomerStatementV1(user, data) {
 	const rangeFlowSettlements = await listCustomerFlowSettlements(customerId, { dateFrom, dateTo })
 	const rangeOpeningDebts = await listCustomerOpeningDebts(customerId, { dateFrom, dateTo })
 	const rangeReceipts = await listCustomerReceipts(customerId, { dateFrom, dateTo })
-	const rangeAllocRes = await allocations
-		.where(
+	const rangeAllocRes = { data: await readComplete(allocations,
 			dbCmd.and([
 				{ customer_id: customerId },
 				{ biz_date: dbCmd.gte(dateFrom) },
 				{ biz_date: dbCmd.lte(dateTo) }
 			])
-		)
-		.orderBy('biz_date', 'asc')
-		.orderBy('created_at', 'asc')
-		.limit(5000)
-		.get()
+		, { command: dbCmd, source: 'allocations', sort: ['biz_date', 'created_at'] }) }
 	const rangeAllocations = Array.isArray(rangeAllocRes.data) ? rangeAllocRes.data : []
 
 	const dayMap = new Map()
@@ -6454,15 +6201,10 @@ async function listCustomerAccountingAllocationsByTargets(customerId, targetRefs
 			.map((item) => accountingTargetKey(item && item.target_type, item && item.target_id))
 			.filter(Boolean)
 	)
-	const maxRows = Math.min(Math.max(toNumber(limitPerChunk, 5000), 1), 5000)
+	void limitPerChunk // Computational reads must be complete, never sliced to a display limit.
 	const rows = []
 	for (const idChunk of chunkStrings(ids, 80)) {
-		let page = 1
-		let guard = 0
-		let loaded = 0
-		while (guard < 500 && loaded < maxRows) {
-			const res = await allocations
-				.where(
+		const list = await readComplete(allocations,
 					dbCmd.and([
 						{ customer_id: normalizedCustomerId },
 						dbCmd.or([
@@ -6471,23 +6213,13 @@ async function listCustomerAccountingAllocationsByTargets(customerId, targetRefs
 							{ flow_settlement_id: dbCmd.in(idChunk) }
 						])
 					])
-				)
-				.orderBy('created_at', 'asc')
-				.skip((page - 1) * 200)
-				.limit(200)
-				.get()
-			const list = Array.isArray(res.data) ? res.data : []
-			if (!list.length) break
-			for (const row of list) {
-				const target = resolveAccountingAllocationTarget(row)
-				if (target.key && wantedKeys.has(target.key)) rows.push(row)
-			}
-			loaded += list.length
-			if (list.length < 200 || loaded >= maxRows) break
-			page += 1
-			guard += 1
+				, { command: dbCmd, source: 'listCustomerAccountingAllocationsByTargets', sort: ['created_at'] })
+		for (const row of list) {
+			const target = resolveAccountingAllocationTarget(row)
+			if (target.key && wantedKeys.has(target.key)) rows.push(row)
 		}
 	}
+
 	return rows
 }
 
@@ -7572,27 +7304,8 @@ async function autoApplyPrepayToSaleV1(user, data, requestId) {
 	const allocationTargets = [{ target_type: 'sale', target_id: saleId }]
 
 	if (remaining > 0) {
-		const offsetRows = []
-		let page = 0
-		let guard = 0
-		const pageSize = 200
-		while (guard < 200) {
-			const receiptRes = await receipts
-				.where(buildOffsetCreditPoolWhere(customerId, true))
-				.orderBy('biz_date', 'asc')
-				.orderBy('created_at', 'asc')
-				.skip(page * pageSize)
-				.limit(pageSize)
-				.get()
-			const rows = Array.isArray(receiptRes.data) ? receiptRes.data : []
-			if (!rows.length) break
-			rows.forEach((row) => {
-				if (normalizeId(row && row.source_id) !== saleId) offsetRows.push(row)
-			})
-			if (rows.length < pageSize) break
-			page += 1
-			guard += 1
-		}
+		const offsetRows = (await readComplete(receipts, buildOffsetCreditPoolWhere(customerId, true), { command: dbCmd, source: 'offset_credit_pool', sort: ['biz_date', 'created_at'] }))
+			.filter((row) => normalizeId(row && row.source_id) !== saleId)
 		for (const row of offsetRows) {
 			if (remaining <= 0) break
 			const receiptId = normalizeId(row && row._id)
@@ -8035,9 +7748,7 @@ async function getCustomerStatementV1(user, data, requestId = '') {
 		default_unit_price: toNumber(customer.default_unit_price, null)
 	}
 
-	const balances = summaryOnly
-		? buildCustomerBalanceSnapshot(customer)
-		: await rebuildCustomerBalances(customerId)
+	const balances = await rebuildCustomerBalances(customerId, { persist: false })
 	trace(summaryOnly ? 'balance_snapshot_loaded' : 'balances_rebuilt')
 	let scopedSummary = null
 	let scopedSalesDocs = []
@@ -8503,12 +8214,7 @@ async function listCustomerStatementRowsV1(user, data, requestId = '') {
 	if (dateTo) receiptWhereParts.push({ biz_date: dbCmd.lte(dateTo) })
 	const receiptWhere = receiptWhereParts.length === 1 ? receiptWhereParts[0] : dbCmd.and(receiptWhereParts)
 
-	const receiptRes = await receipts
-		.where(receiptWhere)
-		.orderBy('biz_date', 'desc')
-		.orderBy('created_at', 'desc')
-		.limit(5000)
-		.get()
+	const receiptRes = { data: await readComplete(receipts, receiptWhere, { command: dbCmd, source: 'receipts', sort: ['biz_date', 'created_at'] }) }
 	trace('receipts_loaded', {
 		receipts: Array.isArray(receiptRes.data) ? receiptRes.data.length : 0
 	})
@@ -8541,12 +8247,7 @@ async function listCustomerStatementRowsV1(user, data, requestId = '') {
 	if (dateTo) allocWhereParts.push({ biz_date: dbCmd.lte(dateTo) })
 	const allocWhere = allocWhereParts.length === 1 ? allocWhereParts[0] : dbCmd.and(allocWhereParts)
 
-	const allocRes = await allocations
-		.where(allocWhere)
-		.orderBy('biz_date', 'desc')
-		.orderBy('created_at', 'desc')
-		.limit(5000)
-		.get()
+	const allocRes = { data: await readComplete(allocations, allocWhere, { command: dbCmd, source: 'allocations', sort: ['biz_date', 'created_at'] }) }
 	trace('allocations_loaded', {
 		allocations: Array.isArray(allocRes.data) ? allocRes.data.length : 0
 	})
@@ -8656,38 +8357,25 @@ async function rebuildOpeningBalancesV1(user, data, requestId) {
 	if (!auth.ok) return { code: auth.code, msg: auth.msg }
 
 	const execute = Boolean(data.execute)
-	const batchSize = 200
-	let page = 1
-	let guard = 0
-	let total = 0
+	const sourceCustomers = await readComplete(customers, {}, { command: dbCmd, field: { name: true }, source: 'opening_rebuild_customers' })
+	const snapshots = []
+	// Resolve every customer before the first write. Preview must remain strictly read-only.
+	for (const row of sourceCustomers) {
+		const balances = await rebuildCustomerBalances(row._id, { persist: false })
+		if (balances) snapshots.push(balances)
+	}
+	const total = sourceCustomers.length
 	let updated = 0
-	const samples = []
-
-	while (guard < 500) {
-		const res = await customers
-			.field({ _id: true, name: true })
-			.skip((page - 1) * batchSize)
-			.limit(batchSize)
-			.get()
-		const list = Array.isArray(res.data) ? res.data : []
-		if (!list.length) break
-
-		for (const row of list) {
-			total += 1
-			const balances = await rebuildCustomerBalances(row._id)
-			if (!balances) continue
-			if (!execute) {
-				if (samples.length < 20) samples.push(balances)
-				continue
-			}
+	const samples = snapshots.slice(0, 20)
+	if (execute) {
+		for (const snapshot of snapshots) {
+			const { customer_id, customer_name, ...balances } = snapshot
+			await customers.doc(customer_id).update({ ...balances, updated_at: Date.now() })
 			updated += 1
 		}
-		if (list.length < batchSize) break
-		page += 1
-		guard += 1
 	}
 
-	await recordLog(
+	if (execute) await recordLog(
 		user,
 		'customer_opening_rebuild_v1',
 		{ execute, total, updated },
@@ -8955,7 +8643,26 @@ async function migrateTushanCakeSettlementSitesV1(user, data, requestId) {
 	}
 }
 
-exports.main = async (event, context) => {
+// Raw evidence deliberately bypasses receivable calculation: unresolved sources must
+// remain auditable. Only superadmins can read this bounded, customer-scoped endpoint.
+async function getLegacyM3EvidenceV1(user, data) {
+	if (!isSuperAdmin(user)) return { code: 403, msg: '仅超级管理员可读取原始核查资料' }
+	const customerId = normalizeId(data.customer_id)
+	const from = normalizeDate(data.date_from); const to = normalizeDate(data.date_to)
+	if (!customerId || !from || !to || from > to) return { code: 400, msg: '客户及有效起止日期必填' }
+	const saleRows = await readComplete(sales, dbCmd.and([
+		{ customer_id: customerId, price_unit: 'm3' }, { date: dbCmd.gte(from) }, { date: dbCmd.lte(to) }
+	]), { command: dbCmd, maxRows: 5000, source: 'legacy_m3_raw_sales' })
+	// A settlement posted outside the sales period can cover that period. Keep all
+	// statuses and dates so the report can distinguish links from actual coverage.
+	const flowRows = await readComplete(flowSettlements, { customer_id: customerId }, {
+		command: dbCmd, maxRows: 5000, source: 'legacy_m3_raw_flow_settlements'
+	})
+	return { code: 0, data: { sales: saleRows, flow_settlements: flowRows,
+		source_projection: 'raw_documents', flow_scope: 'all_dates_all_statuses_for_customer' } }
+}
+
+const main = async (event, context) => {
 	void context
 	const { action, data = {}, token } = event || {}
 	const requestId =
@@ -8971,6 +8678,32 @@ exports.main = async (event, context) => {
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
+	if (/^(create|update|remove|allocate|confirm|repair|autoApply|release)/.test(action || '')) {
+		const financialCustomerIds = new Set([normalizeId(data.customer_id || data.customerId)].filter(Boolean))
+		const sourceRefs = [
+			[sales, data.sale_id || data.saleId],
+			[receipts, data.receipt_id || data.receiptId],
+			[flowSettlements, data.flow_settlement_id || data.flowSettlementId],
+			[openingDebts, data.opening_debt_id || data.openingDebtId || data.other_fee_id || data.otherFeeId]
+		]
+		const genericId = normalizeId(data._id || data.id)
+		if (genericId) {
+			if (/Sale/.test(action)) sourceRefs.push([sales, genericId])
+			else if (/FlowSettlement/.test(action)) sourceRefs.push([flowSettlements, genericId])
+			else if (/OpeningDebt|OtherFee/.test(action)) sourceRefs.push([openingDebts, genericId])
+			else if (/Receipt|Prepay/.test(action)) sourceRefs.push([receipts, genericId])
+		}
+		for (const [collection, rawId] of sourceRefs) {
+			const id = normalizeId(rawId)
+			if (!id) continue
+			const found = await collection.doc(id).get()
+			const sourceCustomerId = normalizeId(found.data && found.data[0] && found.data[0].customer_id)
+			if (sourceCustomerId) financialCustomerIds.add(sourceCustomerId)
+		}
+		for (const customerId of financialCustomerIds) await listCustomerSales(customerId)
+	}
+
+	if (action === 'getLegacyM3EvidenceV1') return getLegacyM3EvidenceV1(user, data)
 	if (action === 'previewAllocationV1') return previewAllocationV1(user, data)
 	if (action === 'createReceiptV1') return createReceiptV1(user, data, requestId)
 	if (action === 'beginReceiptAdjustmentV1') return beginReceiptAdjustmentV1(user, data, requestId)
@@ -9016,3 +8749,5 @@ exports.main = async (event, context) => {
 
 	return { code: 400, msg: '未知 action' }
 }
+
+exports.main = withFinancialEvidence(main, saleAccounting.RULE_VERSION)

@@ -1,5 +1,8 @@
 'use strict'
 
+const saleAccounting = require('./saleAccountingLocal')
+const { readComplete, withFinancialEvidence } = require('./financialReadLocal')
+
 const db = uniCloud.database()
 const dbCmd = db.command
 const {
@@ -140,68 +143,6 @@ async function ensureWritePermission(user, actionName, requestId) {
 	return { ok: false, code: 403, msg: '仅管理员可操作' }
 }
 
-function computeFlow(doc, priceUnit) {
-	if (priceUnit !== 'm3') return { flow_volume_m3: 0 }
-	const prev = toNumber(doc.flow_index_prev, 0)
-	const curr = toNumber(doc.flow_index_curr, 0)
-	const volume = toNumber(doc.flow_volume_m3, 0)
-	if (volume > 0) return { flow_volume_m3: volume }
-	if (curr >= prev) return { flow_volume_m3: curr - prev }
-	return { flow_volume_m3: 0 }
-}
-
-function computeAmounts({ bizMode, priceUnit, unitPrice, outItems, backItems, agentRows, truckSaleNet, flow, roundingAmount }) {
-	const outNetTotal = outItems.reduce((sum, item) => sum + toNumber(item.net, 0), 0)
-	const backNetTotal = backItems.reduce((sum, item) => sum + toNumber(item.net, 0), 0)
-
-	let totalNetWeight = outNetTotal - backNetTotal
-	if (bizMode === 'truck') totalNetWeight = toNumber(truckSaleNet, 0)
-
-	let outAmount = 0
-	let backAmount = 0
-	let shouldReceive = 0
-
-	if (bizMode === 'agent_sale') {
-		const totalWeight = agentRows.reduce((sum, row) => sum + toNumber(row.fill_weight, 0), 0)
-		outAmount = totalWeight * unitPrice
-		shouldReceive = outAmount
-	} else if (priceUnit === 'kg') {
-		outAmount = outNetTotal * unitPrice
-		backAmount = backNetTotal * unitPrice
-		shouldReceive = totalNetWeight * unitPrice
-	} else if (priceUnit === 'bottle') {
-		outAmount = outItems.length * unitPrice
-		shouldReceive = outAmount
-	} else if (priceUnit === 'm3') {
-		const flowVolume = flow.flow_volume_m3 || 0
-		outAmount = flowVolume * unitPrice
-		shouldReceive = outAmount
-	}
-
-	const rounding = Math.max(toNumber(roundingAmount, 0), 0)
-	let finalShouldReceive = shouldReceive
-	if (shouldReceive > 0) finalShouldReceive = shouldReceive - rounding
-	else if (shouldReceive < 0) finalShouldReceive = shouldReceive + rounding
-	else finalShouldReceive = 0
-
-	return {
-		out_amount: fix2(outAmount),
-		back_amount: fix2(backAmount),
-		rounding_amount: fix2(rounding),
-		should_receive: fix2(finalShouldReceive)
-	}
-}
-
-function resolveTruckSaleNetValue(rawTruckSaleNet, rawTruckOutGross, rawTruckBackGross) {
-	const outGross = toNumber(rawTruckOutGross, null)
-	const backGross = toNumber(rawTruckBackGross, null)
-	if (outGross != null && backGross != null) {
-		const diff = outGross - backGross
-		return diff > 0 ? fix2(diff) : 0
-	}
-	const explicit = toNumber(rawTruckSaleNet, null)
-	return explicit != null && explicit > 0 ? fix2(explicit) : 0
-}
 
 function pickStatusByFollowup(result, defaultStatus) {
 	if (result === 'paid') return 'paid'
@@ -219,37 +160,20 @@ function buildTaskStatusAfterRecalc(currentStatus, amountShould, amountUnpaid) {
 }
 
 async function sumTaskField(where, fieldName) {
-	const batchSize = 500
-	let skip = 0
-	let total = 0
-	while (true) {
-		const res = await tasks
-			.where(where)
-			.field({ [fieldName]: true })
-			.skip(skip)
-			.limit(batchSize)
-			.get()
-		const rows = res.data || []
-		if (!rows.length) break
-		for (const row of rows) {
-			total += toNumber(row[fieldName], 0)
-		}
-		if (rows.length < batchSize) break
-		skip += rows.length
-	}
-	return fix2(total)
+	const rows = await readComplete(tasks, where, { command: dbCmd, field: { [fieldName]: true }, source: 'collection_tasks' })
+	return fix2(rows.reduce((sum, row) => sum + toNumber(row[fieldName], 0), 0))
 }
 
 async function buildTaskSalesWhere(taskDoc, dateFrom, dateTo) {
 	const hiddenSalesWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['customer_id', 'delivery_customer_id'])
-	const dateCond = mergeVisibilityWhere(dbCmd, { date: dbCmd.gte(dateFrom).and(dbCmd.lte(dateTo)) }, hiddenSalesWhere)
+	const dateCond = mergeVisibilityWhere(dbCmd, dbCmd.and([{ date: dbCmd.gte(dateFrom) }, { date: dbCmd.lte(dateTo) }]), hiddenSalesWhere)
 	const customerId = normalizeId(taskDoc.customer_id)
 	const customerName = normalizeString(taskDoc.customer_name)
 	if (customerId) {
-		return dbCmd.and(dateCond, { customer_id: customerId })
+		return dbCmd.and([dateCond, { customer_id: customerId }])
 	}
 	if (customerName) {
-		return dbCmd.and(dateCond, { customer_name: customerName })
+		return dbCmd.and([dateCond, { customer_name: customerName }])
 	}
 	return dateCond
 }
@@ -257,41 +181,17 @@ async function buildTaskSalesWhere(taskDoc, dateFrom, dateTo) {
 // Aggregates sales into one receivable snapshot so auto-create and recalc stay identical.
 async function aggregateTaskSnapshot(taskDoc, dateFrom, dateTo) {
 	const where = await buildTaskSalesWhere(taskDoc, dateFrom, dateTo)
-	const listRes = await sales
-		.where(where)
-		.orderBy('date', 'asc')
-		.orderBy('created_at', 'asc')
-		.limit(5000)
-		.get()
-
-	const list = listRes.data || []
+	const list = await readComplete(sales, where, { command: dbCmd, source: 'collection_sales', sort: ['date', 'created_at'] })
+	saleAccounting.assertSalesClassified(list)
 	let amountShould = 0
 	let amountReceived = 0
 	let amountUnpaid = 0
 	let saleCount = 0
 
 	list.forEach((doc) => {
-		const bizMode = normalizeString(doc.biz_mode) || 'bottle'
-		const priceUnit = normalizeString(doc.price_unit) || 'kg'
-		const unitPrice = toNumber(doc.unit_price, 0)
-		const outItems = Array.isArray(doc.out_items) ? doc.out_items : []
-		const backItems = Array.isArray(doc.back_items) ? doc.back_items : []
-		const agentRows = Array.isArray(doc.agent_sale_items) ? doc.agent_sale_items : []
-		const truckSaleNet = resolveTruckSaleNetValue(doc.truck_gross_diff ?? doc.truck_sale_net, doc.truck_out_gross, doc.truck_back_gross)
-		const flow = computeFlow(doc, priceUnit)
-		const amounts = computeAmounts({
-			bizMode,
-			priceUnit,
-			unitPrice,
-			outItems: bizMode === 'agent_sale' ? [] : outItems,
-			backItems: bizMode === 'agent_sale' ? [] : backItems,
-			agentRows,
-			truckSaleNet,
-			flow,
-			roundingAmount: toNumber(doc.rounding_amount, 0)
-		})
-		const shouldReceive = toNumber(amounts.should_receive, 0)
-		const received = toNumber(doc.amount_received, 0)
+		const { amounts } = saleAccounting.computeSaleAmountsForDoc(doc)
+		const shouldReceive = amounts.effective_should_receive
+		const received = toNumber(doc.amount_received, 0) + toNumber(doc.receipt_rounding_amount, 0)
 		const unpaid = Math.max(shouldReceive - received, 0)
 		amountShould += shouldReceive
 		amountReceived += received
@@ -594,15 +494,9 @@ async function autoCreateTasksV1(user, data, requestId) {
 	if (!dateFrom || !dateTo) return { code: 400, msg: '缺少日期范围' }
 	if (dateFrom > dateTo) return { code: 400, msg: '开始日期不能大于结束日期' }
 
-	const dateCond = { date: dbCmd.gte(dateFrom).and(dbCmd.lte(dateTo)) }
-	const listRes = await sales
-		.where(dateCond)
-		.orderBy('date', 'asc')
-		.orderBy('created_at', 'asc')
-		.limit(5000)
-		.get()
-
-	const list = listRes.data || []
+	const dateCond = dbCmd.and([{ date: dbCmd.gte(dateFrom) }, { date: dbCmd.lte(dateTo) }])
+	const list = await readComplete(sales, dateCond, { command: dbCmd, source: 'collection_sales', sort: ['date', 'created_at'] })
+	saleAccounting.assertSalesClassified(list)
 	const customerMap = {}
 
 	list.forEach((doc) => {
@@ -622,27 +516,9 @@ async function autoCreateTasksV1(user, data, requestId) {
 		}
 
 		const entry = customerMap[key]
-		const bizMode = normalizeString(doc.biz_mode) || 'bottle'
-		const priceUnit = normalizeString(doc.price_unit) || 'kg'
-		const unitPrice = toNumber(doc.unit_price, 0)
-		const outItems = Array.isArray(doc.out_items) ? doc.out_items : []
-		const backItems = Array.isArray(doc.back_items) ? doc.back_items : []
-		const agentRows = Array.isArray(doc.agent_sale_items) ? doc.agent_sale_items : []
-		const truckSaleNet = resolveTruckSaleNetValue(doc.truck_gross_diff ?? doc.truck_sale_net, doc.truck_out_gross, doc.truck_back_gross)
-		const flow = computeFlow(doc, priceUnit)
-		const amounts = computeAmounts({
-			bizMode,
-			priceUnit,
-			unitPrice,
-			outItems: bizMode === 'agent_sale' ? [] : outItems,
-			backItems: bizMode === 'agent_sale' ? [] : backItems,
-			agentRows,
-			truckSaleNet,
-			flow,
-			roundingAmount: toNumber(doc.rounding_amount, 0)
-		})
-		const shouldReceive = toNumber(amounts.should_receive, 0)
-		const received = toNumber(doc.amount_received, 0)
+		const { amounts } = saleAccounting.computeSaleAmountsForDoc(doc)
+		const shouldReceive = amounts.effective_should_receive
+		const received = toNumber(doc.amount_received, 0) + toNumber(doc.receipt_rounding_amount, 0)
 		const unpaid = Math.max(shouldReceive - received, 0)
 
 		entry.amount_should += shouldReceive
@@ -739,7 +615,7 @@ async function autoCreateTasksV1(user, data, requestId) {
 	return { code: 0, data: { created: createDocs.length, updated, total: groups.length } }
 }
 
-exports.main = async (event, context) => {
+const main = async (event, context) => {
 	const { action, data = {}, token } = event
 	const requestId = normalizeString(event.request_id || event.requestId || context?.requestId || '')
 	const user = await getUserByToken(token)
@@ -761,3 +637,5 @@ exports.main = async (event, context) => {
 
 	return { code: 400, msg: '未知 action' }
 }
+
+exports.main = withFinancialEvidence(main, saleAccounting.RULE_VERSION)
