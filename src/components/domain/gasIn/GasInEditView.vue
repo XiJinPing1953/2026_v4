@@ -10,8 +10,15 @@
 		<view class="edit-shell">
 			<AppSection class="gas-in-basic-section" title="基础信息">
 				<view class="form-grid">
-					<picker class="picker-block" mode="date" :value="form.date" @change="onDateChange">
-						<AppInput :model-value="form.date" label="入库日期" placeholder="请选择日期" prefix-icon="calendar" disabled size="sm" />
+					<picker
+						class="picker-block span-2"
+						mode="multiSelector"
+						:range="businessTimeRanges"
+						:value="businessTimeSelection"
+						@columnchange="onBusinessTimeColumnChange"
+						@change="onBusinessTimeChange"
+					>
+						<AppInput :model-value="businessTimeDisplayValue" label="入库业务时间" placeholder="yyyy-mm-dd hh:mm" prefix-icon="calendar" disabled size="sm" />
 					</picker>
 					<view class="basic-triplet span-2">
 						<view class="plate-wrap">
@@ -95,14 +102,16 @@ const props = defineProps({
 
 const recordId = toRef(props, 'recordId')
 
-function formatTodayUtc8() {
+function formatNowUtc8() {
 	const now = new Date()
 	const utc8Time = now.getTime() + 8 * 60 * 60 * 1000
 	const date = new Date(utc8Time)
 	const y = date.getUTCFullYear()
 	const m = String(date.getUTCMonth() + 1).padStart(2, '0')
 	const d = String(date.getUTCDate()).padStart(2, '0')
-	return `${y}-${m}-${d}`
+	const h = String(date.getUTCHours()).padStart(2, '0')
+	const min = String(date.getUTCMinutes()).padStart(2, '0')
+	return `${y}-${m}-${d}-${h}-${min}`
 }
 
 function normalizeString(value) {
@@ -112,6 +121,54 @@ function normalizeString(value) {
 
 function normalizePlateNo(value) {
 	return normalizeString(value).toUpperCase().replace(/\s+/g, '')
+}
+
+function normalizeBusinessTime(value, fallback = '') {
+	const text = normalizeString(value)
+	const exactMatch = text.match(/^(\d{4}-\d{2}-\d{2})-(\d{2})-(\d{2})$/)
+	if (exactMatch) return text
+	const readableMatch = text.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{1,2})/)
+	if (readableMatch) {
+		return `${readableMatch[1]}-${String(readableMatch[2]).padStart(2, '0')}-${String(readableMatch[3]).padStart(2, '0')}`
+	}
+	if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return `${text}-00-00`
+	return fallback
+}
+
+function formatBusinessTimeDisplay(value) {
+	const normalized = normalizeBusinessTime(value, '')
+	if (!normalized) return ''
+	return `${normalized.slice(0, 10)} ${normalized.slice(11, 13)}:${normalized.slice(14, 16)}`
+}
+
+const BUSINESS_TIME_START_YEAR = 2000
+const BUSINESS_TIME_END_YEAR = new Date().getFullYear() + 10
+const BUSINESS_TIME_YEARS = Array.from(
+	{ length: BUSINESS_TIME_END_YEAR - BUSINESS_TIME_START_YEAR + 1 },
+	(_, index) => String(BUSINESS_TIME_START_YEAR + index)
+)
+const BUSINESS_TIME_MONTHS = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0'))
+const BUSINESS_TIME_HOURS = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'))
+const BUSINESS_TIME_MINUTES = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, '0'))
+
+function getBusinessTimeDayCount(year, month) {
+	return new Date(Number(year), Number(month), 0).getDate()
+}
+
+function buildBusinessTimeSelection(value) {
+	const normalized = normalizeBusinessTime(value, formatNowUtc8())
+	const year = Number(normalized.slice(0, 4))
+	const month = Number(normalized.slice(5, 7))
+	const day = Number(normalized.slice(8, 10))
+	const hour = Number(normalized.slice(11, 13))
+	const minute = Number(normalized.slice(14, 16))
+	return [
+		Math.max(0, Math.min(year - BUSINESS_TIME_START_YEAR, BUSINESS_TIME_YEARS.length - 1)),
+		Math.max(0, Math.min(month - 1, 11)),
+		Math.max(0, day - 1),
+		Math.max(0, Math.min(hour, 23)),
+		Math.max(0, Math.min(minute, 59))
+	]
 }
 
 function toNumber(value, fallback = null) {
@@ -140,7 +197,7 @@ function formatMoney(value) {
 }
 
 const form = reactive({
-	date: formatTodayUtc8(),
+	date: formatNowUtc8(),
 	product_name: 'LNG',
 	plate_no: '',
 	tanker_no: '',
@@ -170,6 +227,7 @@ const submitting = ref(false)
 const loadingDetail = ref(false)
 const plateSuggestions = ref([])
 const showPlateSuggestions = ref(false)
+const businessTimeSelection = ref(buildBusinessTimeSelection(form.date))
 let plateTimer = 0
 let plateBlurTimer = 0
 let plateFetchSeq = 0
@@ -177,6 +235,19 @@ let plateFetchSeq = 0
 const isEditMode = computed(() => Boolean(normalizeString(recordId.value)))
 const pageTitle = computed(() => (isEditMode.value ? '天然气入库编辑' : '天然气入库录入'))
 const pageSubtitle = computed(() => (isEditMode.value ? 'GAS IN EDIT' : 'GAS IN CREATE'))
+const businessTimeDisplayValue = computed(() => formatBusinessTimeDisplay(form.date))
+const businessTimeRanges = computed(() => {
+	const year = BUSINESS_TIME_YEARS[businessTimeSelection.value[0]] || String(new Date().getFullYear())
+	const month = BUSINESS_TIME_MONTHS[businessTimeSelection.value[1]] || '01'
+	const dayCount = getBusinessTimeDayCount(year, month)
+	return [
+		BUSINESS_TIME_YEARS,
+		BUSINESS_TIME_MONTHS,
+		Array.from({ length: dayCount }, (_, index) => String(index + 1).padStart(2, '0')),
+		BUSINESS_TIME_HOURS,
+		BUSINESS_TIME_MINUTES
+	]
+})
 
 const lossWarning = computed(() => {
 	const loss = toNumber(form.loss_amount_t, null)
@@ -245,8 +316,31 @@ function resetAutoCalc() {
 	applyAutoCalculations()
 }
 
-function onDateChange(e) {
-	form.date = e?.detail?.value || ''
+function onBusinessTimeColumnChange(e) {
+	const column = Number(e?.detail?.column)
+	const value = Number(e?.detail?.value)
+	if (!Number.isInteger(column) || !Number.isInteger(value) || column < 0 || column > 4) return
+	const next = [...businessTimeSelection.value]
+	next[column] = value
+	if (column === 0 || column === 1) {
+		const year = BUSINESS_TIME_YEARS[next[0]] || String(new Date().getFullYear())
+		const month = BUSINESS_TIME_MONTHS[next[1]] || '01'
+		next[2] = Math.min(next[2], getBusinessTimeDayCount(year, month) - 1)
+	}
+	businessTimeSelection.value = next
+}
+
+function onBusinessTimeChange(e) {
+	const selected = Array.isArray(e?.detail?.value) ? e.detail.value.map(Number) : businessTimeSelection.value
+	const year = BUSINESS_TIME_YEARS[selected[0]]
+	const month = BUSINESS_TIME_MONTHS[selected[1]]
+	const days = businessTimeRanges.value[2]
+	const day = days[selected[2]]
+	const hour = BUSINESS_TIME_HOURS[selected[3]]
+	const minute = BUSINESS_TIME_MINUTES[selected[4]]
+	if (!year || !month || !day || !hour || !minute) return
+	form.date = `${year}-${month}-${day}-${hour}-${minute}`
+	businessTimeSelection.value = buildBusinessTimeSelection(form.date)
 }
 
 function buildSubmitPayload() {
@@ -271,7 +365,7 @@ function buildSubmitPayload() {
 }
 
 function validatePayload(payload) {
-	if (!payload.date) return '入库日期必填'
+	if (!/^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}$/.test(payload.date)) return '入库业务时间必填，格式需为 yyyy-mm-dd-hh-mm'
 	if (!payload.plate_no) return '车牌号必填'
 	if (payload.load_weight_t == null) return '装载重量必填'
 	if (payload.gross_weight_t == null) return '出厂毛重必填'
@@ -330,7 +424,8 @@ function onCancel() {
 }
 
 function applyDetail(doc = {}) {
-	form.date = normalizeString(doc.date) || formatTodayUtc8()
+	form.date = normalizeBusinessTime(doc.date, formatNowUtc8())
+	businessTimeSelection.value = buildBusinessTimeSelection(form.date)
 	form.product_name = normalizeString(doc.product_name) || 'LNG'
 	form.plate_no = normalizePlateNo(doc.plate_no)
 	form.tanker_no = normalizeString(doc.tanker_no)
@@ -450,7 +545,7 @@ watch(
 	recordId,
 	() => {
 		if (!isEditMode.value) {
-			applyDetail({ date: formatTodayUtc8(), product_name: 'LNG' })
+			applyDetail({ date: formatNowUtc8(), product_name: 'LNG' })
 			return
 		}
 		loadDetail()

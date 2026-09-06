@@ -19,7 +19,10 @@
   ],
   "properties": {
     "_id": { "bsonType": "string" },
-    "date": { "bsonType": "string" },
+    "date": {
+      "bsonType": "string",
+      "description": "Inbound business time in YYYY-MM-DD-HH-mm format; independent from created_at/updated_at"
+    },
     "product_name": { "bsonType": "string" },
     "load_weight_t": { "bsonType": "number" },
     "gross_weight_t": { "bsonType": "number" },

@@ -829,7 +829,7 @@ function buildExportFileName(total) {
 
 function buildExportCsv(rows = []) {
 	const columns = [
-		{ label: '日期', get: (row) => normalizeString(row.date) },
+		{ label: '入库时间（业务时间）', get: (row) => normalizeString(row.date) },
 		{ label: '车牌号', get: (row) => normalizeString(row.plate_no) },
 		{ label: '挂车号', get: (row) => normalizeString(row.tanker_no) },
 		{ label: '产品', get: (row) => normalizeString(row.product_name || 'LNG') },

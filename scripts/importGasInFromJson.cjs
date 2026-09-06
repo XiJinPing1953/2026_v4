@@ -5,6 +5,7 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const crypto = require('crypto')
+const { normalizeGasBusinessTime } = require('../uniCloud-alipay/cloudfunctions/crm-gas-in/gasBusinessTime')
 
 const DEFAULT_INPUT = 'docs/gas_in.json'
 const DEFAULT_REPORT = 'docs/gas_in.import.report.json'
@@ -217,7 +218,7 @@ function normalizeSourceId(value) {
 }
 
 function normalizeGasInRow(row = {}) {
-	const date = normalizeDate(row.date)
+	const date = normalizeGasBusinessTime(row.date)
 	const plateNo = normalizePlateNo(row.plate_no)
 	const tankerNo = normalizePlateNo(row.tanker_no)
 
@@ -664,7 +665,9 @@ async function importGasInRow(client, token, row, options = {}) {
 		throw new Error(listRes?.msg || '查询同日同车牌失败')
 	}
 	const rows = Array.isArray(listRes.data) ? listRes.data : []
-	const existed = rows.find((item) => normalizeDate(item.date) === row.date && normalizePlateNo(item.plate_no) === row.plate_no)
+	const existed = rows.find(
+		(item) => normalizeDate(item.date) === normalizeDate(row.date) && normalizePlateNo(item.plate_no) === row.plate_no
+	)
 	if (existed && existed._id) {
 		if (!options.allowUpdateExisting) {
 			return { mode: 'skip_existing', id: existed._id, warning: 'matched_existing_same_day_plate' }
