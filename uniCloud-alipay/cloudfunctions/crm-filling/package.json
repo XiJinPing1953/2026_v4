@@ -1,0 +1,10 @@
+{
+  "name": "crm-filling",
+  "version": "1.0.0",
+  "main": "index.js",
+  "cloudfunction-config": {
+    "memorySize": 512,
+    "timeout": 60,
+    "triggers": [{ "name": "filling_consistency_resume", "type": "timer", "config": "17 * * * * * *" }]
+  }
+}

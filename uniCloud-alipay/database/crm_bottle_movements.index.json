@@ -1,0 +1,238 @@
+[
+  {
+    "IndexName": "idx_bottle_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "bottle_no",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "date",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_bottle_event",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "bottle_no",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "event_at",
+          "Direction": "1",
+          "Type": "double"
+        },
+        {
+          "Name": "type_order",
+          "Direction": "1",
+          "Type": "double"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_type_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "type",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "date",
+          "Direction": "-1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_type_event",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "type",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "event_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_source",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "source_type",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "source_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_adjust_source_reason",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "type",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "source_type",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "source_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "adjust_reason",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_type_event_day_event_at",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "type",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "event_day",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "event_at",
+          "Direction": "1",
+          "Type": "double"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_type_source_event_day",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "type",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "source_type",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "event_day",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "event_at",
+          "Direction": "1",
+          "Type": "double"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_bottle_event_cursor",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "bottle_no",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "event_at",
+          "Direction": "1",
+          "Type": "double"
+        },
+        {
+          "Name": "type_order",
+          "Direction": "1",
+          "Type": "double"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "1",
+          "Type": "double"
+        },
+        {
+          "Name": "_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  }
+]

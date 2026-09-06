@@ -1,0 +1,27 @@
+{
+  "bsonType": "object",
+  "description": "Per date/bottle atomic reservation for new batch fillings; no backfill required",
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "filling_id": {
+      "bsonType": "string"
+    },
+    "date": {
+      "bsonType": "string"
+    },
+    "bottle_no": {
+      "bsonType": "string"
+    },
+    "updated_at": {
+      "bsonType": "number"
+    }
+  }
+}

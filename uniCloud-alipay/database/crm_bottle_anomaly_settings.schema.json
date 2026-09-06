@@ -1,0 +1,23 @@
+{
+  "bsonType": "object",
+  "description": "Bottle anomaly archive and scan settings",
+  "additionalProperties": false,
+  "required": ["key", "cutoff_day", "updated_at"],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "key": { "bsonType": "string" },
+    "cutoff_day": { "bsonType": "string" },
+    "updated_at": { "bsonType": "number" },
+    "updated_by": { "bsonType": ["string", "null"] },
+    "updated_by_name": { "bsonType": "string" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "key": 1 }, "name": "uniq_key", "unique": true }
+  ]
+}

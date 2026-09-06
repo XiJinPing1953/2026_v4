@@ -1,0 +1,97 @@
+{
+  "bsonType": "object",
+  "description": "Durable batch filling intent and private worker progress; server only",
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "required": [
+    "operation_id",
+    "status",
+    "rows",
+    "targets",
+    "worker_secret"
+  ],
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "operation_id": {
+      "bsonType": "string"
+    },
+    "input_hash": {
+      "bsonType": "string"
+    },
+    "created_by": {
+      "bsonType": "string"
+    },
+    "created_by_name": {
+      "bsonType": "string"
+    },
+    "actor_role": {
+      "bsonType": "string"
+    },
+    "worker_secret": {
+      "bsonType": "string"
+    },
+    "lease_id": {
+      "bsonType": "string"
+    },
+    "status": {
+      "bsonType": "string"
+    },
+    "last_error": {
+      "bsonType": "string"
+    },
+    "rule_version": {
+      "bsonType": "string"
+    },
+    "rows": {
+      "bsonType": "array"
+    },
+    "targets": {
+      "bsonType": "array"
+    },
+    "saved_cursor": {
+      "bsonType": "number"
+    },
+    "row_cursor": {
+      "bsonType": "number"
+    },
+    "target_cursor": {
+      "bsonType": "number"
+    },
+    "lease_until": {
+      "bsonType": "number"
+    },
+    "attempts": {
+      "bsonType": "number"
+    },
+    "next_retry_at": {
+      "bsonType": "number"
+    },
+    "created_at": {
+      "bsonType": "number"
+    },
+    "updated_at": {
+      "bsonType": "number"
+    },
+    "completed_at": {
+      "bsonType": "number"
+    },
+    "scan_cursor": {
+      "bsonType": [
+        "object",
+        "null"
+      ]
+    },
+    "summary": {
+      "bsonType": "object"
+    },
+    "progress_version": {
+      "bsonType": "number"
+    }
+  }
+}

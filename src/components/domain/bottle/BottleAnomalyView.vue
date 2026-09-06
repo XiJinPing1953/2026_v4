@@ -77,7 +77,7 @@
 				</template>
 				<view class="inspect-card">
 					<text class="inspect-title">按异常类型</text>
-					<AppList :loading="loading" :empty="breakdown.byType.length === 0" empty-title="暂无类型统计">
+					<AppList :loading="visibleLoading" :empty="breakdown.byType.length === 0" empty-title="暂无类型统计">
 						<AppListItem
 							v-for="item in breakdown.byType"
 							:key="item.anomaly_type"
@@ -100,7 +100,7 @@
 				<template #actions>
 					<text class="section-hint">共 {{ pager.total }} 条 · 第 {{ pager.page }} / {{ totalPages }} 页</text>
 				</template>
-				<AppList :loading="loading" :empty="list.length === 0" empty-title="暂无异常记录">
+				<AppList :loading="visibleLoading" :empty="list.length === 0" empty-title="暂无异常记录">
 					<AppListItem
 						v-for="item in list"
 						:key="item._id"
@@ -323,24 +323,30 @@ function buildMissingFillDecision(item) {
 	}
 	const diff = roundTo(nextOutNet - lastBackNet, 3)
 	const diffAbs = roundTo(Math.abs(diff), 3)
+	const exceedsNormalLimit = diffAbs > MISSING_FILL_THRESHOLD_KG
+	const canAcceptDifference = !exceedsNormalLimit || isSuperAdmin.value
 	if (diff > MISSING_FILL_THRESHOLD_KG) {
 		return {
-			code: 'backfill',
+			code: 'swell_accept',
 			diff,
 			diffAbs,
-			lossEnabled: false,
+			lossEnabled: canAcceptDifference,
 			backfillEnabled: true,
-			hint: `净重差值 ${formatSignedWeight(diff)}kg（增重），超过 ${MISSING_FILL_THRESHOLD_KG}kg，建议补灌装单。`
+			hint: canAcceptDifference
+				? `净重差值 ${formatSignedWeight(diff)}kg（增重），超过 ${MISSING_FILL_THRESHOLD_KG}kg；超级管理员可记胀重，也可补灌装单。`
+				: `净重差值 ${formatSignedWeight(diff)}kg（增重），超过 ${MISSING_FILL_THRESHOLD_KG}kg；仅超级管理员可记胀重，也可补灌装单。`
 		}
 	}
 	if (diff < -MISSING_FILL_THRESHOLD_KG) {
 		return {
-			code: 'manual_review',
+			code: 'loss_accept',
 			diff,
 			diffAbs,
-			lossEnabled: false,
+			lossEnabled: canAcceptDifference,
 			backfillEnabled: false,
-			hint: `净重差值 ${formatSignedWeight(diff)}kg，减重超过 ${MISSING_FILL_THRESHOLD_KG}kg，请先人工核查。`
+			hint: canAcceptDifference
+				? `净重差值 ${formatSignedWeight(diff)}kg，减重超过 ${MISSING_FILL_THRESHOLD_KG}kg；超级管理员可记损耗。`
+				: `净重差值 ${formatSignedWeight(diff)}kg，减重超过 ${MISSING_FILL_THRESHOLD_KG}kg；仅超级管理员可记损耗。`
 		}
 	}
 	if (diff > 0) {
@@ -461,51 +467,67 @@ function buildLocalAnomalyIdentity(item) {
 	return `fallback:${type}|${bottleNo}|${normalizeString(item?.date)}|${normalizeString(item?.note)}`
 }
 
-function patchBreakdownCounts(item, removedCount) {
-	const count = Math.max(Number(removedCount || 0), 0)
+function patchBreakdownAfterResolution(item, resolvedCount) {
+	const count = Math.max(Number(resolvedCount || 0), 0)
 	if (!count) return
 	const type = normalizeString(item?.anomaly_type).toLowerCase()
+	const isOpenFilter = filters.status === 'open'
+	const isResolvedFilter = filters.status === 'resolved'
+	const isAllFilter = !isOpenFilter && !isResolvedFilter
 	breakdown.value = {
 		...breakdown.value,
-		scannedTotal: Math.max(0, Number(breakdown.value.scannedTotal || 0) - count),
-		byType: (breakdown.value.byType || []).map((row) => {
-			if (normalizeString(row?.anomaly_type).toLowerCase() !== type) return row
+		scannedTotal: isOpenFilter
+			? Math.max(0, Number(breakdown.value.scannedTotal || 0) - count)
+			: Number(breakdown.value.scannedTotal || 0),
+		byType: (breakdown.value.byType || [])
+			.map((row) => {
+				if (normalizeString(row?.anomaly_type).toLowerCase() !== type) return row
+				return {
+					...row,
+					total: isOpenFilter ? Math.max(0, Number(row?.total || 0) - count) : Number(row?.total || 0),
+					open: Math.max(0, Number(row?.open || 0) - count),
+					resolved: isAllFilter ? Number(row?.resolved || 0) + count : Number(row?.resolved || 0)
+				}
+			})
+			.filter((row) => Number(row?.total || 0) > 0)
+	}
+}
+
+function applyResolvedAnomalyLocally(item) {
+	const identity = buildLocalAnomalyIdentity(item)
+	const matches = (list.value || []).filter((row) => buildLocalAnomalyIdentity(row) === identity)
+	const openMatches = matches.filter((row) => normalizeString(row?.status).toLowerCase() !== 'resolved')
+	const resolvedCount = openMatches.length
+	if (!resolvedCount) return 0
+
+	if (filters.status === 'open') {
+		list.value = (list.value || []).filter((row) => buildLocalAnomalyIdentity(row) !== identity)
+		pager.total = Math.max(0, Number(pager.total || 0) - resolvedCount)
+	} else {
+		const resolvedAt = Date.now()
+		list.value = (list.value || []).map((row) => {
+			if (buildLocalAnomalyIdentity(row) !== identity) return row
 			return {
 				...row,
-				total: Math.max(0, Number(row?.total || 0) - count),
-				open: Math.max(0, Number(row?.open || 0) - count),
-				resolved: Number(row?.resolved || 0) + count
+				status: 'resolved',
+				resolved_at: resolvedAt,
+				updated_at: resolvedAt
 			}
 		})
 	}
-}
 
-function removeResolvedAnomalyLocally(item, resolvedCount = 1) {
-	if (filters.status !== 'open') return 0
-	const identity = buildLocalAnomalyIdentity(item)
-	let removed = 0
-	list.value = (list.value || []).filter((row) => {
-		const same = buildLocalAnomalyIdentity(row) === identity
-		if (same) removed += 1
-		return !same
-	})
-	const finalRemoved = Math.max(removed, Math.min(Math.max(Number(resolvedCount || 0), 0), 20))
-	if (!finalRemoved) return 0
-	pager.total = Math.max(0, Number(pager.total || 0) - finalRemoved)
-	pager.hasMore = Number(list.value.length || 0) < Number(pager.total || 0)
 	summary.value = {
 		...summary.value,
-		open: Math.max(0, Number(summary.value.open || 0) - finalRemoved),
-		resolved: Number(summary.value.resolved || 0) + finalRemoved
+		open: Math.max(0, Number(summary.value.open || 0) - resolvedCount),
+		resolved: Number(summary.value.resolved || 0) + resolvedCount
 	}
-	patchBreakdownCounts(item, finalRemoved)
-	return finalRemoved
-}
-
-function scheduleSearchSync(delay = 180) {
-	setTimeout(() => {
-		onSearch(false)
-	}, delay)
+	patchBreakdownAfterResolution(item, resolvedCount)
+	pager.hasMore = Number(pager.page || 1) * Number(pager.pageSize || 50) < Number(pager.total || 0)
+	if (filters.status === 'open' && list.value.length === 0 && pager.page > 1 && pager.page > totalPages.value) {
+		pager.page = totalPages.value
+		pager.hasMore = Number(pager.page || 1) * Number(pager.pageSize || 50) < Number(pager.total || 0)
+	}
+	return resolvedCount
 }
 
 function normalizeRouteNumber(value) {
@@ -629,6 +651,8 @@ const { loading, run: fetchList } = useQuery(
 			}
 		}
 	)
+const hasLoaded = ref(false)
+const visibleLoading = computed(() => loading.value && !hasLoaded.value)
 
 function applyResult(payload) {
 	const data = payload || {}
@@ -650,6 +674,7 @@ function applyResult(payload) {
 		limited: Boolean(breakdownData.limited),
 		byType: Array.isArray(breakdownData.byType) ? breakdownData.byType : []
 	}
+	hasLoaded.value = true
 }
 
 async function onSearch(resetPage = false) {
@@ -849,9 +874,8 @@ async function onResolve(item) {
 		const res = await resolveBottleAnomalyV1({ id: item._id })
 		if (res?.code === 0) {
 			const resolvedCount = Number(res?.data?.resolved_count || 0)
-			removeResolvedAnomalyLocally(item, resolvedCount)
+			applyResolvedAnomalyLocally(item)
 			uni.showToast({ title: resolvedCount > 1 ? `已修复，并关闭${resolvedCount}条重复异常` : '已修复', icon: 'success' })
-			scheduleSearchSync()
 		} else {
 			uni.showToast({ title: res?.msg || '修复失败', icon: 'none' })
 		}
@@ -886,9 +910,8 @@ async function onResolveMissingFillLoss(item) {
 		})
 		if (res?.code === 0) {
 			const resolvedCount = Number(res?.data?.resolved_count || 0)
-			removeResolvedAnomalyLocally(item, resolvedCount)
+			applyResolvedAnomalyLocally(item)
 			uni.showToast({ title: resolvedCount > 1 ? `已修复，并关闭${resolvedCount}条重复异常` : '已修复', icon: 'success' })
-			scheduleSearchSync()
 		} else {
 			uni.showToast({ title: res?.msg || '修复失败', icon: 'none' })
 		}
@@ -939,9 +962,8 @@ async function onRemoveContinuousFill(item) {
 			uni.showToast({ title: res?.msg || '删除失败', icon: 'none' })
 			return
 		}
-		removeResolvedAnomalyLocally(item, 1)
+		applyResolvedAnomalyLocally(item)
 		uni.showToast({ title: res?.msg || '删除成功', icon: 'success' })
-		scheduleSearchSync()
 	} finally {
 		resolvingId.value = ''
 		resolvingMode.value = ''

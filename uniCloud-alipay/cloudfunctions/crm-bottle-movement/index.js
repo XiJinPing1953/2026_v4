@@ -1,5 +1,7 @@
 'use strict'
 
+const flowRules = require('./bottleFlowRulesLocal')
+
 const db = uniCloud.database()
 const dbCmd = db.command
 const {
@@ -379,6 +381,12 @@ function anomalyIdentity(row) {
 	return `fallback:${type}|${day}|${note}`
 }
 
+function isArchivedAnomaly(row) {
+	const context = row && typeof row.context === 'object' && !Array.isArray(row.context) ? row.context : {}
+	const archive = context.archive && typeof context.archive === 'object' && !Array.isArray(context.archive) ? context.archive : {}
+	return archive.archived === true
+}
+
 function selectPreferredAnomaly(a, b) {
 	const aPriority = anomalySelectionPriority(a)
 	const bPriority = anomalySelectionPriority(b)
@@ -403,7 +411,7 @@ function dedupeTimelineAnomalies(rows) {
 		}
 		uniq.set(key, selectPreferredAnomaly(uniq.get(key), row))
 	}
-	return Array.from(uniq.values()).sort((a, b) => {
+	return Array.from(uniq.values()).filter((row) => !isArchivedAnomaly(row)).sort((a, b) => {
 		const aPriority = anomalyStatusPriority(a && a.status)
 		const bPriority = anomalyStatusPriority(b && b.status)
 		if (aPriority !== bPriority) return bPriority - aPriority
@@ -539,7 +547,7 @@ async function fetchAllLossRows(where) {
 		rows = rows.concat(current)
 		if (current.length < pageSize) break
 		page += 1
-		if (page > 200) break
+		if (page > 200) throw Object.assign(new Error('流转历史超过完整读取上限，请缩小范围；本次未形成完整结论'), { code: 'BOTTLE_FLOW_HISTORY_INCOMPLETE' })
 	}
 	return rows
 }
@@ -575,7 +583,7 @@ async function fetchCustomerOutRowsByName(customerName = '', dateStart = '', dat
 		rows.push(...current)
 		if (current.length < pageSize) break
 		page += 1
-		if (page > 500) break
+		if (page > 500) throw Object.assign(new Error('流转历史超过完整读取上限，请缩小范围；本次未形成完整结论'), { code: 'BOTTLE_FLOW_HISTORY_INCOMPLETE' })
 	}
 	return rows
 }
@@ -597,7 +605,7 @@ async function fetchAllBottleMovementRows(bottleNo) {
 		rows = rows.concat(current)
 		if (current.length < pageSize) break
 		page += 1
-		if (page > 400) break
+		if (page > 400) throw Object.assign(new Error('流转历史超过完整读取上限，请缩小范围；本次未形成完整结论'), { code: 'BOTTLE_FLOW_HISTORY_INCOMPLETE' })
 	}
 	return rows
 }
@@ -625,7 +633,7 @@ async function fetchAllBottleMovementRowsByBottleNos(bottleNos = [], { maxEventD
 			rows.push(...current)
 			if (current.length < 300) break
 			page += 1
-			if (page > 400) break
+			if (page > 400) throw Object.assign(new Error('流转历史超过完整读取上限，请缩小范围；本次未形成完整结论'), { code: 'BOTTLE_FLOW_HISTORY_INCOMPLETE' })
 		}
 	}
 	return rows
@@ -649,7 +657,7 @@ async function fetchAllAnomalyRowsByBottleNos(bottleNos = [], baseWhere = {}, li
 			rows.push(...current)
 			if (current.length < limit) break
 			page += 1
-			if (page > 400) break
+			if (page > 400) throw Object.assign(new Error('流转历史超过完整读取上限，请缩小范围；本次未形成完整结论'), { code: 'BOTTLE_FLOW_HISTORY_INCOMPLETE' })
 		}
 	}
 	return rows
@@ -684,7 +692,7 @@ async function fetchCustomerOutRows(customerId, dateStart = '', dateEnd = '') {
 		rows.push(...current)
 		if (current.length < pageSize) break
 		page += 1
-		if (page > 500) break
+		if (page > 500) throw Object.assign(new Error('流转历史超过完整读取上限，请缩小范围；本次未形成完整结论'), { code: 'BOTTLE_FLOW_HISTORY_INCOMPLETE' })
 	}
 	return rows
 }
@@ -714,7 +722,7 @@ async function fetchCustomerLossDailySummaryRows(customerId, dateStart = '', dat
 		rows.push(...current)
 		if (current.length < pageSize) break
 		page += 1
-		if (page > 500) break
+		if (page > 500) throw Object.assign(new Error('流转历史超过完整读取上限，请缩小范围；本次未形成完整结论'), { code: 'BOTTLE_FLOW_HISTORY_INCOMPLETE' })
 	}
 	return rows
 }
@@ -775,15 +783,7 @@ async function fetchAllCycleEventRowsGlobal({ maxRows = CYCLE_SCAN_MAX_ROWS, dat
 }
 
 function compareCycleEventAsc(a, b) {
-	const aAt = toTimestamp(a && a.event_at, toTimestamp(a && a.created_at, 0))
-	const bAt = toTimestamp(b && b.event_at, toTimestamp(b && b.created_at, 0))
-	if (aAt !== bAt) return aAt - bAt
-	const aOrder = Number(a && a.type_order) || movementTypeOrder(normalizeType(a && a.type))
-	const bOrder = Number(b && b.type_order) || movementTypeOrder(normalizeType(b && b.type))
-	if (aOrder !== bOrder) return aOrder - bOrder
-	const aCreated = toTimestamp(a && a.created_at, 0)
-	const bCreated = toTimestamp(b && b.created_at, 0)
-	return aCreated - bCreated
+	return flowRules.compareEvents(a, b)
 }
 
 function eventDayOfRow(row) {
@@ -808,20 +808,11 @@ function isCycleRelevantEventRow(row) {
 }
 
 function listEffectiveCycleEvents(events) {
-	if (!Array.isArray(events)) return []
-	return events.filter((row) => {
-		const type = normalizeType(row && row.type)
-		return type === 'back' || type === 'fill' || type === 'out'
-	})
+	return flowRules.effectiveEvents(events)
 }
 
 function hasSameDayBackOutWithoutFill(events) {
-	const effectiveEvents = listEffectiveCycleEvents(events)
-	if (!effectiveEvents.length) return false
-	const hasBack = effectiveEvents.some((row) => normalizeType(row && row.type) === 'back')
-	const hasFill = effectiveEvents.some((row) => normalizeType(row && row.type) === 'fill')
-	const hasOut = effectiveEvents.some((row) => normalizeType(row && row.type) === 'out')
-	return hasBack && hasOut && !hasFill
+	return flowRules.hasSameDayBackOutWithoutFill(events)
 }
 
 function sortCycleDayEventsByTypePriority(events, priorities) {
@@ -868,16 +859,7 @@ function shouldQueueSameDayBackOut(events, state) {
 }
 
 function buildCycleDayBusinessOrder(events, state) {
-	const sorted = [...events].sort(compareCycleEventAsc)
-	if (!hasSameDayBackOutWithoutFill(sorted)) return sorted
-	if (shouldQueueSameDayBackOut(sorted, state)) return sorted
-	if (state && state.activeCycle && state.activeCycle.back) {
-		return interleaveSameDayBackOutEvents(sorted, 'out')
-	}
-	if (normalizeType(state && state.lastEffectiveType) === 'out') {
-		return interleaveSameDayBackOutEvents(sorted, 'back')
-	}
-	return sorted
+	return flowRules.businessDayOrder(events, { pending: Boolean(state?.pendingSameDayBackOut?.length), hasBack: Boolean(state?.activeCycle?.back), lastWasOut: state?.lastEffectiveType === 'out' })
 }
 
 function buildPendingSameDayBackOutEntry(events) {

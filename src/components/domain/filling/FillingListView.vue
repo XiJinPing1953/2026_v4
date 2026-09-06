@@ -40,6 +40,7 @@
 		</template>
 
 			<view class="list-shell">
+				<FillingOperationPanel ref="operationPanel" :can-retry="canCreateFilling" />
 				<view class="quick-date-strip">
 					<AppDatePresetBar v-model="datePreset" :items="fillingDatePresetItems" @update:modelValue="onDatePresetChange" />
 				</view>
@@ -332,7 +333,8 @@
 
 						<view v-if="batchCreateExecuteResult" class="batch-result">
 							<text class="batch-result-title">执行结果</text>
-							<text class="batch-result-line">总数：{{ batchCreateExecuteResult.total }}，成功：{{ batchCreateExecuteResult.success }}，失败：{{ batchCreateExecuteResult.failed }}</text>
+							<text class="batch-result-line">总数：{{ batchCreateExecuteResult.total }}，已保存：{{ batchCreateExecuteResult.saved_total }}，待保存：{{ batchCreateExecuteResult.pending_save_total }}，未纳入：{{ batchCreateExecuteResult.failed }}</text>
+							<text class="batch-result-line">{{ batchCreateExecuteResult.complete ? '保存及流转核查已完成' : '后台继续处理，可在上方处理状态中查看进度' }}</text>
 							<text v-if="batchCreateExecuteResult.failed > 0" class="batch-result-line">
 								失败记录：{{ formatFailedItems(batchCreateExecuteResult.failed_items) }}
 							</text>
@@ -395,6 +397,7 @@
 							<template #meta>
 								<view class="meta-tags">
 									<AppTag kind="soft">{{ getRecordTypeLabel(item.record_type) }}</AppTag>
+									<AppTag v-if="item.consistency_status && item.consistency_status !== 'complete'" kind="warning">保存及流转核查处理中</AppTag>
 									<AppTag v-if="item.operator" kind="soft">操作人: {{ item.operator }}</AppTag>
 									<text v-if="item.remark" class="meta-text">{{ item.remark }}</text>
 								</view>
@@ -404,9 +407,10 @@
 								<AppButton size="sm" kind="neutral" @click="onToggleFillingSelect(item)">
 									{{ isFillingSelected(item._id) ? '取消勾选' : '勾选子集' }}
 								</AppButton>
-								<AppButton v-if="canUpdateFilling" size="sm" kind="outline" @click="onEdit(item)">编辑</AppButton>
+								<AppButton v-if="canUpdateFilling" size="sm" kind="outline" :disabled="Boolean(item.consistency_status && item.consistency_status !== 'complete')" @click="onEdit(item)">编辑</AppButton>
 								<AppButton
 									v-if="canDeleteFilling"
+									:disabled="Boolean(item.consistency_status && item.consistency_status !== 'complete')"
 									size="sm"
 									kind="neutral"
 								:loading="removingId === item._id"
@@ -437,6 +441,7 @@ import AppInput from '@/components/base/AppInput.vue'
 import AppTag from '@/components/base/AppTag.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
 import AppDatePresetBar from '@/components/base/AppDatePresetBar.vue'
+import FillingOperationPanel from './FillingOperationPanel.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { useQuery } from '@/composables/useQuery'
 import { searchBottleSuggestions } from '@/composables/useBottleSuggestions'
@@ -445,6 +450,7 @@ import { searchVehiclesV1 } from '@/services/vehicle'
 import { buildDatePresetRange, detectDatePreset } from '@/utils/datePreset'
 import {
 	batchCreateFillingsV1,
+	findPreviousBatchFillingSubmission,
 	batchUpdateFillingDateV1,
 	createFillingV1,
 	listFillingsV1,
@@ -518,6 +524,7 @@ const batchCreatePreviewLoading = ref(false)
 const batchCreateExecuting = ref(false)
 const batchCreatePreviewResult = ref(null)
 const batchCreateExecuteResult = ref(null)
+const operationPanel = ref(null)
 const operatorOptions = ref([])
 const { canPageAction } = useAuthGuard()
 const canCreateFilling = computed(() => canPageAction('/pages/filling/list', 'create'))
@@ -2098,6 +2105,14 @@ async function onBatchCreateExecute() {
 	batchCreateExecuting.value = true
 	batchCreateExecuteResult.value = null
 	try {
+		const previous = await findPreviousBatchFillingSubmission(previewPayload)
+		if (previous?.code === 0) {
+			batchCreateExecuteResult.value = previous.data
+			await operationPanel.value?.refresh()
+			uni.showToast({ title: previous.msg, icon: 'none', duration: 3000 })
+			await onSearch(true, { force: true })
+			return
+		}
 		const previewRes = await batchCreateFillingsV1(previewPayload)
 		if (previewRes?.code !== 0) {
 			const previewFailMsg = normalizeString(previewRes?.msg) || '预览失败'
@@ -2167,19 +2182,8 @@ async function onBatchCreateExecute() {
 			return
 		}
 		batchCreateExecuteResult.value = executeRes.data || null
-		const failed = Number(executeRes.data?.failed || 0)
-		const success = Number(executeRes.data?.success || 0)
-		const warningCount = Number(executeRes.data?.bottle_flow_warning_count || 0)
-		const savedWithOverride = Boolean(executeRes.data?.bottle_flow_warning_overridden) && warningCount > 0
-		uni.showToast({
-			title: failed > 0
-				? `新增完成：成功${success}，失败${failed}${savedWithOverride ? `，已忽略${warningCount}条预警` : ''}`
-				: savedWithOverride
-					? `新增成功 ${success} 条（已忽略${warningCount}条预警）`
-					: `新增成功 ${success} 条`,
-			icon: failed > 0 ? 'none' : 'success',
-			duration: 3000
-		})
+		await operationPanel.value?.refresh()
+		uni.showToast({ title: executeRes.msg || '提交已受理，后台继续处理', icon: 'none', duration: 3500 })
 		await onSearch(true, { force: true })
 	} catch (err) {
 		uni.showToast({ title: err?.message || '执行失败', icon: 'none', duration: 2800 })
@@ -2716,7 +2720,8 @@ watch(
 )
 
 defineExpose({
-	refresh: () => onSearch(false, { force: true }),
+	refresh: () => Promise.all([onSearch(false, { force: true }), operationPanel.value?.activate()]),
+	deactivate: () => operationPanel.value?.deactivate(),
 	applyRoutePreset
 })
 </script>

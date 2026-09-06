@@ -15,7 +15,7 @@
 
 <script setup>
 import { reactive, ref } from 'vue'
-import { onLoad, onShow } from '@dcloudio/uni-app'
+import { onLoad, onShow, onHide } from '@dcloudio/uni-app'
 import FillingListView from '@/components/domain/filling/FillingListView.vue'
 
 const listRef = ref(null)
@@ -61,4 +61,5 @@ onShow(() => {
 	}
 	listRef.value?.refresh?.()
 })
+onHide(() => listRef.value?.deactivate?.())
 </script>

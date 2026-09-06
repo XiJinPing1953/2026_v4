@@ -1,4 +1,5 @@
 import { callCloud } from '@/services/api'
+import { submitBatchFillingOperation, getRememberedBatchFillingOperation } from './fillingOperations'
 
 export async function listFillingsV1(params) {
 	const data = {
@@ -24,10 +25,7 @@ export async function createFillingV1(data, options = {}) {
 		payload.ignore_bottle_flow_warning = true
 		delete payload.ignoreBottleFlowWarning
 	}
-	return callCloud('crm-filling', {
-		action: 'createV1',
-		data: payload
-	})
+	return submitBatchFillingOperation(payload, 'createV1')
 }
 
 export async function resolveFillingFillWeightV1(params = {}) {
@@ -96,20 +94,22 @@ export async function batchUpdateFillingDateV1(params = {}) {
 	})
 }
 
+function batchFillingPayload(params = {}) {
+	return {
+		preview: Boolean(params.preview), date: params.date || '',
+		record_type: params.record_type || params.recordType || '', input_mode: params.input_mode || params.inputMode || '',
+		operator: params.operator || '', operator_id: params.operator_id || params.operatorId || '', remark: params.remark || '',
+		default_fill_weight: params.default_fill_weight ?? params.defaultFillWeight ?? '', batch_text: params.batch_text ?? params.batchText ?? '',
+		...(params.operation_id ? { operation_id: params.operation_id } : {}),
+		...(params.ignoreBottleFlowWarning ? { ignore_bottle_flow_warning: true } : {})
+	}
+}
+
+export async function findPreviousBatchFillingSubmission(params = {}) {
+	return getRememberedBatchFillingOperation(batchFillingPayload(params))
+}
+
 export async function batchCreateFillingsV1(params = {}) {
-	return callCloud('crm-filling', {
-		action: 'batchCreateV1',
-		data: {
-			preview: Boolean(params.preview),
-			date: params.date || '',
-			record_type: params.record_type || params.recordType || '',
-			input_mode: params.input_mode || params.inputMode || '',
-			operator: params.operator || '',
-			operator_id: params.operator_id || params.operatorId || '',
-			remark: params.remark || '',
-			default_fill_weight: params.default_fill_weight ?? params.defaultFillWeight ?? '',
-			batch_text: params.batch_text ?? params.batchText ?? '',
-			...(params.ignoreBottleFlowWarning ? { ignore_bottle_flow_warning: true } : {})
-		}
-	})
+	const data = batchFillingPayload(params)
+	return data.preview ? callCloud('crm-filling', { action: 'batchCreateV1', data }) : submitBatchFillingOperation(data)
 }

@@ -225,7 +225,9 @@ async function main() {
 	const bottleNo = args.bottleNo || await pickOutStatusBottle(client, token, args.date)
 	if (!bottleNo) throw new Error('No bottle found for warning probe. pass --bottle-no explicitly.')
 
+	const probeKey = require('crypto').createHash('sha256').update(`${args.spaceId}:${args.date}:${bottleNo}:${args.operator}`).digest('hex').slice(0, 32)
 	const createProbe = await callCrmLoose(client, token, 'crm-filling', 'createV1', {
+		operation_id: `probe_single_${probeKey}`,
 		date: args.date,
 		record_type: 'normal_fill',
 		input_mode: 'net',
@@ -243,7 +245,9 @@ async function main() {
 		batch_text: `${bottleNo},66`
 	})
 
-	const batchExecuteProbe = await callCrmLoose(client, token, 'crm-filling', 'batchCreateV1', {
+	const prior = await callCrmLoose(client, token, 'crm-filling', 'getOperationV1', { operation_id: `probe_batch_${probeKey}` })
+	const batchExecuteProbe = prior.code === 0 ? prior : await callCrmLoose(client, token, 'crm-filling', 'batchCreateV1', {
+		operation_id: `probe_batch_${probeKey}`,
 		preview: false,
 		date: args.date,
 		record_type: 'normal_fill',
