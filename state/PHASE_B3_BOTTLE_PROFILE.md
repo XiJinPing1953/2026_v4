@@ -1,3 +1,5 @@
+> 历史阶段材料：内容仅描述当时状态，内文 Next、分支、发布与待办不作为当前指令。当前任务从 [领域索引](INDEX.md) 和 [STATE](../STATE.md) 开始。
+
 # PHASE_B3_BOTTLE_PROFILE
 
 ## 目标

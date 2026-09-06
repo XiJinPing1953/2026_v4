@@ -1,0 +1,198 @@
+{
+  "captured_at": "2026-09-05T13:53:34.345784+00:00",
+  "head": "90336801cf67d7c31b9df7104de3c1545452285f",
+  "branch": "main",
+  "schema_version": 1,
+  "items": [
+    {
+      "path": "STATE.md",
+      "status": " M",
+      "sha256": "351c60ed96018db18cfcfffccc3c551d770c17d93eeb34e036d8335d25f2d4cb",
+      "bytes": 501807,
+      "task_group": "context"
+    },
+    {
+      "path": "package.json",
+      "status": " M",
+      "sha256": "58d8624d6173634b26673116d9a61c1ba445796dc10c65680a6fc1a6b41b3f26",
+      "bytes": 4809,
+      "task_group": "web-release"
+    },
+    {
+      "path": "scripts/importGasInFromJson.cjs",
+      "status": " M",
+      "sha256": "a5bc429b78086bef189aacf5c856ed684e72d535bf1ca6bff0a896a71bfb18bb",
+      "bytes": 26311,
+      "task_group": "gas-in-business-date"
+    },
+    {
+      "path": "src/components/domain/bottle/BottleAnomalyView.vue",
+      "status": " M",
+      "sha256": "cf13f73b9c11a07cf07ef04231b69289dadbd83185eb7da0774c11d7ed77cf7f",
+      "bytes": 36324,
+      "task_group": "anomaly-cutoff-and-permissions"
+    },
+    {
+      "path": "src/components/domain/gasIn/GasInEditView.vue",
+      "status": " M",
+      "sha256": "3087e5d0a59fb0120d108d072d88033ed80c0ea7fffbe9803e1e9c6d3c5ecb24",
+      "bytes": 21352,
+      "task_group": "gas-in-business-date"
+    },
+    {
+      "path": "src/components/domain/gasIn/GasInListView.vue",
+      "status": " M",
+      "sha256": "1127edc40ee1fab4707860f18ca53b61f7efc38c9d12139cd9366a49d3ecf2b3",
+      "bytes": 44558,
+      "task_group": "gas-in-business-date"
+    },
+    {
+      "path": "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js",
+      "status": " M",
+      "sha256": "eca7d28d6092fa089101147507206ec26b817f931210e8c5cb6bec50c56fed0d",
+      "bytes": 113204,
+      "task_group": "anomaly-cutoff-and-permissions"
+    },
+    {
+      "path": "uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js",
+      "status": " M",
+      "sha256": "2dbc13d1af7272d6252c57338184cf4721b963864e6dd70cab2fd756a7dc1b03",
+      "bytes": 82340,
+      "task_group": "anomaly-cutoff-and-permissions"
+    },
+    {
+      "path": "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
+      "status": " M",
+      "sha256": "06b2342107178ac7d4fdccf9949ffad1ae9c19e3ca464dfc6a3821432a2f8036",
+      "bytes": 152836,
+      "task_group": "filling-paging-and-maintenance"
+    },
+    {
+      "path": "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
+      "status": " M",
+      "sha256": "a643163616411f7d4b465a4c0a889c68d7784a84d818f164dcf92e914464baf3",
+      "bytes": 79666,
+      "task_group": "gas-in-business-date"
+    },
+    {
+      "path": "uniCloud-alipay/database/crm_gas_in.schema.json",
+      "status": " M",
+      "sha256": "956b7f7c8de594959e156a82dc120854b0b274f29b6098a97c25368d541086b7",
+      "bytes": 1859,
+      "task_group": "gas-in-business-date"
+    },
+    {
+      "path": "uniCloud-alipay/database/schema/crm_gas_in.schema.json",
+      "status": " M",
+      "sha256": "956b7f7c8de594959e156a82dc120854b0b274f29b6098a97c25368d541086b7",
+      "bytes": 1859,
+      "task_group": "gas-in-business-date"
+    },
+    {
+      "path": "alarm.cjs",
+      "status": "??",
+      "sha256": "24782997bb55164788d1507b84fc5b66258ead0359da2c26d8e97b53816c5535",
+      "bytes": 8844,
+      "task_group": "local-tool"
+    },
+    {
+      "path": "docs/tank_monitor_logs_2026-08-29_2026-08-30.csv",
+      "status": "??",
+      "sha256": "0bbd42d3bde412a0eb737c2bb9469d382fa87fea7accdea5c132b24f5a3db2d8",
+      "bytes": 1382204,
+      "task_group": "sensitive-telemetry-local-only"
+    },
+    {
+      "path": "docs/tank_monitor_logs_2026-08-29_2026-08-30.json",
+      "status": "??",
+      "sha256": "d4f6c278dae7e5fed61e52f860926b36542f302be4954acf3d499148d147bde6",
+      "bytes": 4480922,
+      "task_group": "sensitive-telemetry-local-only"
+    },
+    {
+      "path": "docs/tank_monitor_logs_2026-08-30.csv",
+      "status": "??",
+      "sha256": "84401c2d678556f787f7882099f43c011bf508542221725e2dd78a5d77cb807b",
+      "bytes": 200341,
+      "task_group": "sensitive-telemetry-local-only"
+    },
+    {
+      "path": "docs/tank_monitor_logs_2026-08-30.json",
+      "status": "??",
+      "sha256": "c5d98397f08b1c947234e7d531c89f62eef6a26ad1cd889fb5d66fb397258931",
+      "bytes": 647545,
+      "task_group": "sensitive-telemetry-local-only"
+    },
+    {
+      "path": "scripts/bottleAnomalyArchiveCutoff.test.cjs",
+      "status": "??",
+      "sha256": "33db59b67e86d699a466a4e4351860cb7a7c74fda3cc2a69149d9863882ed503",
+      "bytes": 2493,
+      "task_group": "anomaly-cutoff-and-permissions"
+    },
+    {
+      "path": "scripts/bottleAnomalyMissingFillPermission.test.cjs",
+      "status": "??",
+      "sha256": "6326ba4a63780458a9f2755931f72f22e6ac7b8341b20d0aa2b2968c8de32cb9",
+      "bytes": 1799,
+      "task_group": "anomaly-cutoff-and-permissions"
+    },
+    {
+      "path": "scripts/buildWebWithCloudSpace.cjs",
+      "status": "??",
+      "sha256": "80d4ebcb130198f98eb2ecf071d9ef1eab51d23cc253a1137a48a53acada6f0d",
+      "bytes": 4227,
+      "task_group": "web-release"
+    },
+    {
+      "path": "scripts/crmFillingMaintenance.test.cjs",
+      "status": "??",
+      "sha256": "d1ff48091f5fdfdf7f778efafb15033edb9aed73c74812066d566b0de196fb6a",
+      "bytes": 5267,
+      "task_group": "filling-paging-and-maintenance"
+    },
+    {
+      "path": "scripts/gasBusinessTime.test.cjs",
+      "status": "??",
+      "sha256": "86529f3cc106b209fd71e520cfb500025ac94c528cbd4aec0b33c6caab79dd2c",
+      "bytes": 1217,
+      "task_group": "gas-in-business-date"
+    },
+    {
+      "path": "uniCloud-alipay/cloudfunctions/crm-filling/flowWarningPaging.js",
+      "status": "??",
+      "sha256": "da84c837c36f4b5ff098caf870d8c92fa1bdfd8f57268ac2e7ae277e7351d251",
+      "bytes": 3382,
+      "task_group": "filling-paging-and-maintenance"
+    },
+    {
+      "path": "uniCloud-alipay/cloudfunctions/crm-filling/operatorRepairSupport.js",
+      "status": "??",
+      "sha256": "15662fae400d2b35993e437bd795af473e1b33605b87529c1eba10c902cf23b4",
+      "bytes": 2947,
+      "task_group": "filling-paging-and-maintenance"
+    },
+    {
+      "path": "uniCloud-alipay/cloudfunctions/crm-gas-in/gasBusinessTime.js",
+      "status": "??",
+      "sha256": "153b6700b69301bf0df13dc47736af2a7b13b3a5ce68b376f87fdd662391c831",
+      "bytes": 2911,
+      "task_group": "gas-in-business-date"
+    },
+    {
+      "path": "uniCloud-alipay/database/crm_bottle_anomaly_settings.schema.json",
+      "status": "??",
+      "sha256": "da01879f16bde3aa014e4f48fccd4ba426e21cb040026f5c55606d2a8fcf6184",
+      "bytes": 647,
+      "task_group": "anomaly-cutoff-and-permissions"
+    },
+    {
+      "path": "uniCloud-alipay/database/schema/crm_bottle_anomaly_settings.schema.json",
+      "status": "??",
+      "sha256": "da01879f16bde3aa014e4f48fccd4ba426e21cb040026f5c55606d2a8fcf6184",
+      "bytes": 647,
+      "task_group": "anomaly-cutoff-and-permissions"
+    }
+  ],
+  "note": "Metadata only. Grouping reflects file ownership, not authorization to include unrelated edits in a commit. No claim of current production deployment."
+}

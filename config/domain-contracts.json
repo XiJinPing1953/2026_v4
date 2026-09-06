@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "copies": [
+    {
+      "source": "uniCloud-alipay/cloudfunctions/common/saleAccounting.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-sale/saleAccountingLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-customer-settlement/saleAccountingLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-dashboard/saleAccountingLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-collection/saleAccountingLocal.js"
+      ]
+    },
+    {
+      "source": "uniCloud-alipay/cloudfunctions/common/financialRead.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-sale/financialReadLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-customer-settlement/financialReadLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-dashboard/financialReadLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-collection/financialReadLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-filling/financialReadLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/financialReadLocal.js"
+      ]
+    },
+    {
+      "source": "uniCloud-alipay/cloudfunctions/common/bottleFlowRules.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-filling/bottleFlowRulesLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-bottle-movement/bottleFlowRulesLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/bottleFlowRulesLocal.js"
+      ]
+    }
+  ],
+  "promotedSchemas": [
+    "crm_fillings",
+    "crm_bottle_movements",
+    "crm_gas_inventory_movements"
+  ],
+  "schemaPolicy": "For an existing root/schema duplicate, database/<name>.schema.json is authoritative; database/schema/<name>.schema.json is a generated compatibility copy. Schemas present only under schema/ retain their existing location."
+}

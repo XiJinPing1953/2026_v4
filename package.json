@@ -20,6 +20,7 @@
     "dev:quickapp-webview-union": "uni -p quickapp-webview-union",
     "build:custom": "uni build -p",
     "build:h5": "uni build",
+    "build:web:cloud": "node scripts/buildWebWithCloudSpace.cjs",
     "postbuild:h5": "node scripts/writeH5Version.cjs",
     "build:h5:ssr": "uni build --ssr",
     "build:mp-alipay": "uni build -p mp-alipay",
@@ -55,7 +56,16 @@
     "filling:permit:gateway:test": "node --test scripts/filling-permit-gateway/*.test.cjs",
     "filling:permit:gateway:dist:win": "electron-builder --config electron-builder.filling-permit.yml --win nsis --x64",
     "filling:permit:password": "node scripts/generateFillingPermitGatewayPasswordHash.cjs",
-    "release:web": "node scripts/releaseWeb.cjs"
+    "release:web": "node scripts/releaseWeb.cjs",
+    "test": "node scripts/verifyTrust.cjs",
+    "check:context": "node scripts/checkProjectContext.cjs",
+    "check:contracts": "node scripts/syncDomainContracts.cjs",
+    "sync:contracts": "node scripts/syncDomainContracts.cjs --write",
+    "schema:promote": "node scripts/syncDomainContracts.cjs --write",
+    "check:release": "node scripts/checkReleaseIntegrity.cjs",
+    "release:manifest": "node scripts/createReleaseManifest.cjs",
+    "audit:m3:collect": "node scripts/collectLegacyM3Evidence.cjs",
+    "audit:m3:report": "node scripts/reportLegacyM3Correspondence.cjs"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-5000620260331001",

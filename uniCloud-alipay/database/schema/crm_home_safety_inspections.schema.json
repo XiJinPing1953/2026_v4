@@ -17,11 +17,7 @@
     "items",
     "overall_result",
     "customer_signer_name",
-    "customer_signature_file_id",
-    "customer_signed_at",
     "inspector_name",
-    "inspector_signature_file_id",
-    "inspector_signed_at",
     "inspector_user_id",
     "inspector_username_snapshot",
     "status",
@@ -35,6 +31,9 @@
   "properties": {
     "_id": { "bsonType": "string" },
     "client_submission_id": { "bsonType": "string" },
+    "inspection_no": { "bsonType": "string" },
+    "inspection_number_date": { "bsonType": "string" },
+    "inspection_sequence": { "bsonType": "int" },
     "customer_id": { "bsonType": "string" },
     "customer_name_snapshot": { "bsonType": "string" },
     "customer_address_snapshot": { "bsonType": "string" },
@@ -139,6 +138,7 @@
   },
   "indexes": [
     { "key": { "client_submission_id": 1 }, "name": "uniq_client_submission_id", "unique": true },
+    { "key": { "inspection_no": 1 }, "name": "uniq_inspection_no", "unique": true, "sparse": true },
     { "key": { "customer_id": 1, "inspection_at": -1 }, "name": "idx_customer_inspection_at" },
     { "key": { "overall_result": 1, "inspection_at": -1 }, "name": "idx_result_inspection_at" },
     { "key": { "inspection_at": -1 }, "name": "idx_inspection_at" }

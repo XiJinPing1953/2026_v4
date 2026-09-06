@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "environment": {
+    "provider": "alipay",
+    "spaceId": "env-00jxuffegf2n"
+  },
+  "products": {
+    "web": {
+      "version": "1.1.0",
+      "output": "dist/build/web",
+      "acceptance": "Build, remote version equality, login and affected business path"
+    },
+    "cloud": {
+      "version": "1.1.0",
+      "output": "release/cloud",
+      "acceptance": "Exact function dependencies, schema/index verification, timer configuration, authenticated operation tests",
+      "deploymentScope": {
+        "functions": [
+          "crm-sale",
+          "crm-customer-settlement",
+          "crm-dashboard",
+          "crm-collection",
+          "crm-filling",
+          "crm-bottle-anomaly",
+          "crm-bottle-movement",
+          "crm-gas-in"
+        ],
+        "databaseFiles": [
+          "crm_sale_records.schema.json",
+          "crm_fillings.schema.json",
+          "crm_fillings.index.json",
+          "crm_bottle_movements.schema.json",
+          "crm_bottle_movements.index.json",
+          "crm_gas_inventory_movements.schema.json",
+          "crm_gas_inventory_movements.index.json",
+          "crm_filling_operations.schema.json",
+          "crm_filling_operations.index.json",
+          "crm_filling_slots.schema.json",
+          "crm_bottle_scan_locks.schema.json",
+          "crm_bottle_anomaly_settings.schema.json",
+          "crm_gas_in.schema.json"
+        ]
+      }
+    },
+    "pda": {
+      "version": "1.0.1",
+      "output": "release/pda",
+      "acceptance": "Fresh install of packaged native build, actual scanner and scale"
+    },
+    "tank-gateway": {
+      "version": "1.0.1",
+      "output": "release/tank-gateway",
+      "acceptance": "Windows install, dual screen, audio and real PLC"
+    },
+    "filling-permit-gateway": {
+      "version": "1.0.0",
+      "output": "release/filling-permit-gateway",
+      "acceptance": "Windows install and real HMI/PLC fail-closed commissioning"
+    }
+  }
+}

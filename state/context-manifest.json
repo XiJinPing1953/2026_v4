@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "active_documents": [
+    "AGENTS.md",
+    "README.md",
+    "CLAUDE.md",
+    "STATE.md",
+    "docs/RULES.md",
+    "docs/ACCOUNTING.md",
+    "docs/SYSTEM_RELIABILITY.md",
+    "state/INDEX.md",
+    "state/domains/accounting.md",
+    "state/domains/data-operations.md",
+    "state/domains/flow.md",
+    "state/domains/gateways.md",
+    "state/domains/pda.md",
+    "state/domains/presentation.md",
+    "state/handoffs/TEMPLATE.md",
+    "state/handoffs/2026-09-05-system-trust.md"
+  ],
+  "note": "Only these documents are checked as current context. History is integrity-checked separately, never interpreted as active instructions."
+}

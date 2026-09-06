@@ -34,18 +34,14 @@ npm run build:mp-alipay     # 构建支付宝小程序
 - 旧项目（仅用于对照查看代码）：`../2026_v2-1`
 - 实际重构工作目录：`2026_v4`
 
-## 文档索引
+## 文档入口
 
-| 文档 | 说明 |
-|------|------|
-| [docs/RULES.md](docs/RULES.md) | 强制约束（目录结构、架构原则、禁止事项） |
-| [docs/ACCOUNTING.md](docs/ACCOUNTING.md) | 会计凭证自动生成规则 |
-| [STATE.md](STATE.md) | 工作状态日志（SSOT，追加模式） |
-| [CLAUDE.md](CLAUDE.md) | AI 助手快速参考 |
+- [AGENTS.md](AGENTS.md)：AI 与工程协作读取路线。
+- [当前状态](STATE.md)：可更新快照，包含当前目标、未完成项和部署证据。
+- [领域索引](state/INDEX.md)：账务、流转、PDA、网关及专项工作规范。
+- [工程约束](docs/RULES.md)：业务归属、数据操作和验证契约。
+- [会计入口](docs/ACCOUNTING.md)：权威金额规则和凭证约定。
+- [可靠性证据](docs/SYSTEM_RELIABILITY.md)：反例、验收和四项改进指标。
+- [历史索引](state/history/INDEX.md)：归档原文与校验清单，仅按需追溯。
 
-## STATE.md 协议
-
-`STATE.md` 是工作状态的单一事实来源（SSOT），采用追加模式：
-- 禁止修改历史条目
-- 每次提交后追加新条目，包含：做了什么、改动文件列表、验证输出要点、剩余问题及 Next
-- 验证输出要点必须明确写清运行了什么/没运行什么
+上下文检查：`node scripts/checkProjectContext.cjs`。STATE 的维护协议统一在工程约束中定义；本页不复制协议或业务规则。
