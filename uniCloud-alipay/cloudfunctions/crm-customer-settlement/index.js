@@ -803,6 +803,7 @@ function normalizePaymentStatus(value) {
 function normalizePaymentMethod(value, paymentStatus = 'unpaid') {
 	const status = normalizePaymentStatus(paymentStatus)
 	const text = normalizeString(value).toLowerCase()
+	if (text === 'unknown') return 'unknown'
 	if (status === 'unpaid') return 'on_account'
 	if (text === 'cash' || text === '现金') return 'cash'
 	if (text === 'bank' || text === '银行' || text === '转账' || text === '银行转账') return 'bank'
@@ -6405,18 +6406,21 @@ function sortAccountingMovements(rows = []) {
 	})
 }
 
+// Add already quantized ledger amounts as integers, before converting back to yuan.
+// Floating addition followed by truncation can invent an unbacked receipt (0.018 + 0.002).
+function sumMoneyByScale(values, moneyScale = 2) {
+	const digits = Number(moneyScale) === 3 ? 3 : 2
+	const total = values.reduce((sum, value) => {
+		const text = normalizeDecimalText(fixByScale(value, digits))
+		return sum + (parseScaledBigInt(text, digits) || 0n)
+	}, 0n)
+	return Number(total) / (10 ** digits)
+}
+
 function sumAccountingMovements(rows = [], moneyScale = 2) {
-	const totals = rows.reduce(
-		(acc, row) => {
-			acc.debit += toNumber(row && row.debit, 0)
-			acc.credit += toNumber(row && row.credit, 0)
-			return acc
-		},
-		{ debit: 0, credit: 0 }
-	)
 	return {
-		debit: fixByScale(totals.debit, moneyScale),
-		credit: fixByScale(totals.credit, moneyScale)
+		debit: sumMoneyByScale(rows.map(row => toNumber(row && row.debit, 0)), moneyScale),
+		credit: sumMoneyByScale(rows.map(row => toNumber(row && row.credit, 0)), moneyScale)
 	}
 }
 
@@ -6501,9 +6505,9 @@ function buildAccountingAllocationBackedMap(rows = [], moneyScale = 2) {
 		if (!map.has(target.key)) map.set(target.key, { receipt: 0, rounding: 0 })
 		const item = map.get(target.key)
 		if (normalizeAllocateKind(row && row.allocate_kind, 'receipt') === 'rounding') {
-			item.rounding = fixByScale(item.rounding + amount, moneyScale)
+			item.rounding = sumMoneyByScale([item.rounding, amount], moneyScale)
 		} else {
-			item.receipt = fixByScale(item.receipt + amount, moneyScale)
+			item.receipt = sumMoneyByScale([item.receipt, amount], moneyScale)
 		}
 	}
 	return map
@@ -6513,7 +6517,7 @@ function pushAccountingTargetReceivedFallback(rows, item = {}, backedMap = new M
 	const targetKey = accountingTargetKey(item.target_type, item.target_id)
 	const backed = backedMap.get(targetKey) || { receipt: 0, rounding: 0 }
 	const amountReceived = fixByScale(toNumber(item.amount_received, 0), moneyScale)
-	const missingReceived = fixByScale(amountReceived - toNumber(backed.receipt, 0), moneyScale)
+	const missingReceived = sumMoneyByScale([amountReceived, -toNumber(backed.receipt, 0)], moneyScale)
 	if (missingReceived > 0) {
 		pushAccountingMovement(rows, {
 			biz_date: item.biz_date,
@@ -6540,9 +6544,9 @@ function pushAccountingTargetReceivedFallback(rows, item = {}, backedMap = new M
 		}, moneyScale)
 	}
 	const receiptRounding = fixByScale(toNumber(item.receipt_rounding_amount, 0), moneyScale)
-	const missingRounding = fixByScale(receiptRounding - toNumber(backed.rounding, 0), moneyScale)
+	const missingRounding = sumMoneyByScale([receiptRounding, -toNumber(backed.rounding, 0)], moneyScale)
 	const targetRounding = fixByScale(Math.max(toNumber(item.rounding_amount, 0), 0), moneyScale)
-	const totalRounding = fixByScale(missingRounding + targetRounding, moneyScale)
+	const totalRounding = sumMoneyByScale([missingRounding, targetRounding], moneyScale)
 	if (totalRounding > 0) {
 		pushAccountingMovement(rows, {
 			biz_date: item.biz_date,
@@ -6613,11 +6617,11 @@ function buildAccountingDisplayRows(movements = [], openingBalance = 0, moneySca
 
 		const debit = fixByScale(toNumber(movement.debit, 0), moneyScale)
 		const credit = fixByScale(toNumber(movement.credit, 0), moneyScale)
-		runningBalance = fixByScale(runningBalance + debit - credit, moneyScale)
-		monthDebit = fixByScale(monthDebit + debit, moneyScale)
-		monthCredit = fixByScale(monthCredit + credit, moneyScale)
-		yearDebit = fixByScale(yearDebit + debit, moneyScale)
-		yearCredit = fixByScale(yearCredit + credit, moneyScale)
+		runningBalance = sumMoneyByScale([runningBalance, debit, -credit], moneyScale)
+		monthDebit = sumMoneyByScale([monthDebit, debit], moneyScale)
+		monthCredit = sumMoneyByScale([monthCredit, credit], moneyScale)
+		yearDebit = sumMoneyByScale([yearDebit, debit], moneyScale)
+		yearCredit = sumMoneyByScale([yearCredit, credit], moneyScale)
 		const ledgerRow = {
 			...movement,
 			row_type: 'movement',
@@ -6777,7 +6781,7 @@ async function calculateCustomerAccountingOpeningBalance(customerId, dateFrom, m
 	if (!openingDateTo) return 0
 	const openingMovements = await listCustomerAccountingMovements(customerId, { dateTo: openingDateTo, moneyScale })
 	const totals = sumAccountingMovements(openingMovements, moneyScale)
-	return fixByScale(toNumber(totals.debit, 0) - toNumber(totals.credit, 0), moneyScale)
+	return sumMoneyByScale([toNumber(totals.debit, 0), -toNumber(totals.credit, 0)], moneyScale)
 }
 
 async function buildCustomerAccountingLedgerPayload(customer, { dateFrom = '', dateTo = '' } = {}) {
