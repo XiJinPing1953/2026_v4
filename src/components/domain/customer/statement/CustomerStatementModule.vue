@@ -2275,6 +2275,7 @@ function normalizePaymentStatus(value) {
 
 function normalizeReceiptPaymentMethod(value) {
 	const text = normalizeString(value).toLowerCase()
+	if (text === 'unknown') return 'unknown'
 	if (text === 'cash' || text === '现金') return 'cash'
 	if (text === 'bank' || text === '银行' || text === '转账' || text === '银行转账') return 'bank'
 	if (text === 'wechat' || text === '微信') return 'wechat'
@@ -2310,6 +2311,7 @@ function paymentStatusKind(value) {
 }
 
 function paymentMethodText(value) {
+	if (normalizeString(value).toLowerCase() === 'unknown') return '渠道待核'
 	const method = normalizeReceiptPaymentMethod(value)
 	if (method === 'bank') return '银行转账'
 	if (method === 'wechat') return '微信'

@@ -18,7 +18,8 @@
         "uniCloud-alipay/cloudfunctions/crm-dashboard/financialReadLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-collection/financialReadLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-filling/financialReadLocal.js",
-        "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/financialReadLocal.js"
+        "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/financialReadLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-ledger-reconciliation/financialReadLocal.js"
       ]
     },
     {
