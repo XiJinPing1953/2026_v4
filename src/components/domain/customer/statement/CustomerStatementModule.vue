@@ -881,7 +881,7 @@
 									<text v-if="resolveSaleRoundingAmount(row) > 0" class="mini-amounts__rounding">
 										抹零 ¥{{ formatMoney(resolveSaleRoundingAmount(row)) }}（计费应收 ¥{{ formatMoney(resolveSaleEffectiveShouldReceive(row)) }}）
 									</text>
-									<text>实收 ¥{{ formatMoney(resolveSaleManualReceived(row)) }}</text>
+									<text>实收 ¥{{ formatMoney(isSaleRecordRow(row) ? resolveSaleManualReceived(row) : row.amount_received) }}</text>
 									<text v-if="resolveSaleReceiptAllocated(row) > 0" class="mini-amounts__receipt-allocation">
 										收款分配 ¥{{ formatMoney(resolveSaleReceiptAllocated(row)) }}
 									</text>
@@ -892,7 +892,7 @@
 									<text v-if="resolveSaleOffsetTargetApplied(row) > 0" class="mini-amounts__offset-target">
 										{{ formatSaleOffsetTargetLine(row) }}
 									</text>
-									<text v-if="resolveSalePostedReceived(row) !== resolveSaleManualReceived(row)" class="mini-amounts__posted">
+									<text v-if="isSaleRecordRow(row) && resolveSalePostedReceived(row) !== resolveSaleManualReceived(row)" class="mini-amounts__posted">
 										入账 ¥{{ formatMoney(resolveSalePostedReceived(row)) }}
 									</text>
 									<text>未收 ¥{{ formatMoney(row.outstanding) }}</text>
@@ -2174,9 +2174,9 @@ function formatNullableNumber(value) {
 }
 
 function formatFlowNumber(value) {
-	const scaled = toScaledBigInt(value, 3)
+	const scaled = toScaledBigInt(value, 4)
 	if (scaled == null) return '-'
-	return formatScaledBigIntFixed(scaled, 3)
+	return formatScaledBigIntFixed(scaled, 4)
 }
 
 function formatFlowInput(value) {
