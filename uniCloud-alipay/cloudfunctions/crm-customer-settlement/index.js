@@ -363,11 +363,11 @@ function buildTargetReceiptAllocationMaps(rows = [], moneyScale = 2) {
 		const amount = fixMoney(toNumber(row && row.allocate_amount, 0))
 		if (!(amount > 0)) continue
 		const key = `${targetType}:${targetId}`
-		totalMap.set(key, fixMoney(toNumber(totalMap.get(key), 0) + amount))
+		totalMap.set(key, sumMoneyByScale([toNumber(totalMap.get(key), 0), amount], moneyScale))
 		if (isOffsetAllocationRow(row)) {
-			offsetMap.set(key, fixMoney(toNumber(offsetMap.get(key), 0) + amount))
+			offsetMap.set(key, sumMoneyByScale([toNumber(offsetMap.get(key), 0), amount], moneyScale))
 		} else {
-			receiptMap.set(key, fixMoney(toNumber(receiptMap.get(key), 0) + amount))
+			receiptMap.set(key, sumMoneyByScale([toNumber(receiptMap.get(key), 0), amount], moneyScale))
 		}
 	}
 	return {
@@ -415,11 +415,11 @@ async function buildBusinessSummaryFromTargets(
 	const resolveDirectTargetReceived = (amountReceived, allocatedAmount) => {
 		const received = fixMoney(toNumber(amountReceived, 0))
 		if (received < 0) return received
-		return fixMoney(Math.max(received - allocatedAmount, 0))
+		return fixMoney(Math.max(sumMoneyByScale([received, -(allocatedAmount)], moneyScale), 0))
 	}
 	const countableReceiptDocs = (Array.isArray(receiptDocs) ? receiptDocs : []).filter((row) => !isOffsetCreditReceiptRow(row))
 	const receiptReceivedGross = countableReceiptDocs.reduce(
-		(sum, row) => fixMoney(sum + Math.max(toNumber(row && row.amount, 0), 0)),
+		(sum, row) => sumMoneyByScale([sum, Math.max(toNumber(row && row.amount, 0), 0)], moneyScale),
 		0
 	)
 	const countableReceiptIds = countableReceiptDocs
@@ -431,9 +431,9 @@ async function buildBusinessSummaryFromTargets(
 	const receiptOpeningDebtAllocatedTotal = receiptAllocRows.reduce((sum, row) => {
 		if (normalizeAllocateKind(row && row.allocate_kind, 'receipt') !== 'receipt') return sum
 		if (normalizeReceivableTargetType(row && row.target_type) !== 'opening_debt') return sum
-		return fixMoney(sum + Math.max(toNumber(row && row.allocate_amount, 0), 0))
+		return sumMoneyByScale([sum, Math.max(toNumber(row && row.allocate_amount, 0), 0)], moneyScale)
 	}, 0)
-	const receiptReceivedTotal = fixMoney(Math.max(receiptReceivedGross - receiptOpeningDebtAllocatedTotal, 0))
+	const receiptReceivedTotal = fixMoney(Math.max(sumMoneyByScale([receiptReceivedGross, -(receiptOpeningDebtAllocatedTotal)], moneyScale), 0))
 
 	let receivable = 0
 	let shouldTotal = 0
@@ -443,18 +443,18 @@ async function buildBusinessSummaryFromTargets(
 		const saleId = normalizeId(doc && doc._id)
 		const allocated = getAllocated('sale', saleId)
 		const businessReceived = resolveDirectTargetReceived(snapshot.amount_received, allocated)
-		shouldTotal = fixMoney(shouldTotal + snapshot.should_receive)
-		receivedTotal = fixMoney(receivedTotal + businessReceived)
-		receivable = fixMoney(receivable + snapshot.outstanding)
+		shouldTotal = sumMoneyByScale([shouldTotal, snapshot.should_receive], moneyScale)
+		receivedTotal = sumMoneyByScale([receivedTotal, businessReceived], moneyScale)
+		receivable = sumMoneyByScale([receivable, snapshot.outstanding], moneyScale)
 	}
 	for (const doc of flowDocs) {
 		const snapshot = computeFlowSettlementSnapshot(doc)
 		const flowSettlementId = normalizeId(doc && doc._id)
 		const allocated = getAllocated('flow_settlement', flowSettlementId)
 		const businessReceived = resolveDirectTargetReceived(snapshot.amount_received, allocated)
-		shouldTotal = fixMoney(shouldTotal + snapshot.should_receive)
-		receivedTotal = fixMoney(receivedTotal + businessReceived)
-		receivable = fixMoney(receivable + snapshot.outstanding)
+		shouldTotal = sumMoneyByScale([shouldTotal, snapshot.should_receive], moneyScale)
+		receivedTotal = sumMoneyByScale([receivedTotal, businessReceived], moneyScale)
+		receivable = sumMoneyByScale([receivable, snapshot.outstanding], moneyScale)
 	}
 	for (const doc of openingDebtDocs) {
 		const snapshot = computeOpeningDebtSnapshot(doc, moneyScale)
@@ -463,16 +463,16 @@ async function buildBusinessSummaryFromTargets(
 		const allocated = getAllocated(targetType, openingDebtId)
 		const businessReceived = resolveDirectTargetReceived(snapshot.amount_received, allocated)
 		if (targetType !== 'opening_debt') {
-			shouldTotal = fixMoney(shouldTotal + snapshot.should_receive_effective)
-			receivedTotal = fixMoney(receivedTotal + businessReceived)
+			shouldTotal = sumMoneyByScale([shouldTotal, snapshot.should_receive_effective], moneyScale)
+			receivedTotal = sumMoneyByScale([receivedTotal, businessReceived], moneyScale)
 		}
-		receivable = fixMoney(receivable + snapshot.outstanding)
+		receivable = sumMoneyByScale([receivable, snapshot.outstanding], moneyScale)
 	}
 
 	return {
 		receivable_balance: receivable,
 		should_receive_total: shouldTotal,
-		amount_received_total: fixMoney(receivedTotal + receiptReceivedTotal)
+		amount_received_total: sumMoneyByScale([receivedTotal, receiptReceivedTotal], moneyScale)
 	}
 }
 
@@ -6148,14 +6148,14 @@ async function exportCustomerStatementV1(user, data) {
 	const openingFlowSettlements = openingDateTo ? await listCustomerFlowSettlements(customerId, { dateTo: openingDateTo }) : []
 	const openingDebtRowsBefore = openingDateTo ? await listCustomerOpeningDebts(customerId, { dateTo: openingDateTo }) : []
 	const openingReceipts = await listCustomerReceipts(customerId, { dateBefore: dateFrom })
-	const openingShouldReceive = fixMoney(
-		openingSales.reduce((sum, row) => sum + computeSaleSnapshot(row).should_receive, 0) +
-			openingFlowSettlements.reduce((sum, row) => sum + computeFlowSettlementSnapshot(row).should_receive, 0) +
-			openingDebtRowsBefore.reduce((sum, row) => sum + computeOpeningDebtSnapshot(row, moneyScale).should_receive_effective, 0)
-	)
-	const openingReceived = fixMoney(openingReceipts.reduce((sum, row) => sum + toNumber(row && row.amount, 0), 0))
-	const openingRounding = fixMoney(openingReceipts.reduce((sum, row) => sum + toNumber(row && row.rounding_allocated_amount, 0), 0))
-	const openingBalance = fixMoney(openingShouldReceive - openingReceived - openingRounding)
+	const openingShouldReceive = sumMoneyByScale([
+		...openingSales.map((row) => computeSaleSnapshot(row).should_receive),
+		...openingFlowSettlements.map((row) => computeFlowSettlementSnapshot(row).should_receive),
+		...openingDebtRowsBefore.map((row) => computeOpeningDebtSnapshot(row, moneyScale).should_receive_effective)
+	], moneyScale)
+	const openingReceived = fixMoney(openingReceipts.reduce((sum, row) => sumMoneyByScale([sum, toNumber(row && row.amount, 0)], moneyScale), 0))
+	const openingRounding = fixMoney(openingReceipts.reduce((sum, row) => sumMoneyByScale([sum, toNumber(row && row.rounding_allocated_amount, 0)], moneyScale), 0))
+	const openingBalance = sumMoneyByScale([openingShouldReceive, -(openingReceived), -(openingRounding)], moneyScale)
 
 	const rangeSales = await listCustomerSales(customerId, { dateFrom, dateTo })
 	const rangeFlowSettlements = await listCustomerFlowSettlements(customerId, { dateFrom, dateTo })
@@ -6195,7 +6195,7 @@ async function exportCustomerStatementV1(user, data) {
 		const day = dayMap.get(date)
 		if (!day) return
 		const snapshot = computeSaleSnapshot(row)
-		day.amount = fixMoney(day.amount + snapshot.should_receive)
+		day.amount = sumMoneyByScale([day.amount, snapshot.should_receive], moneyScale)
 		const isKgSale = normalizeString(row && row.price_unit) === 'kg'
 		const actualWeight = isKgSale ? computeSaleActualWeight(row) : 0
 		if (actualWeight > 0) {
@@ -6209,7 +6209,7 @@ async function exportCustomerStatementV1(user, data) {
 		const day = dayMap.get(date)
 		if (!day) return
 		const snapshot = computeFlowSettlementSnapshot(row)
-		day.amount = fixMoney(day.amount + snapshot.should_receive)
+		day.amount = sumMoneyByScale([day.amount, snapshot.should_receive], moneyScale)
 		day.flow_count += 1
 	})
 	rangeOpeningDebts.forEach((row) => {
@@ -6217,15 +6217,15 @@ async function exportCustomerStatementV1(user, data) {
 		const day = dayMap.get(date)
 		if (!day) return
 		const snapshot = computeOpeningDebtSnapshot(row, moneyScale)
-		day.amount = fixMoney(day.amount + snapshot.should_receive_effective)
+		day.amount = sumMoneyByScale([day.amount, snapshot.should_receive_effective], moneyScale)
 	})
 
 	rangeReceipts.forEach((row) => {
 		const date = normalizeDate(row && row.biz_date)
 		const day = dayMap.get(date)
 		if (!day) return
-		day.receipt = fixMoney(day.receipt + toNumber(row && row.amount, 0))
-		day.rounding = fixMoney(day.rounding + toNumber(row && row.rounding_allocated_amount, 0))
+		day.receipt = sumMoneyByScale([day.receipt, toNumber(row && row.amount, 0)], moneyScale)
+		day.rounding = sumMoneyByScale([day.rounding, toNumber(row && row.rounding_allocated_amount, 0)], moneyScale)
 	})
 
 	rangeAllocations.forEach((row) => {
@@ -6287,11 +6287,11 @@ async function exportCustomerStatementV1(user, data) {
 			const list = Array.from(day.offset_notes.values())
 			notes.push(list.join('；'))
 		}
-		runningBalance = fixMoney(runningBalance + amount - receipt - rounding)
+		runningBalance = sumMoneyByScale([runningBalance, amount, -(receipt), -(rounding)], moneyScale)
 		totalWeight = fix2(totalWeight + (weight || 0))
-		totalAmount = fixMoney(totalAmount + amount)
-		totalReceipt = fixMoney(totalReceipt + receipt)
-		totalRounding = fixMoney(totalRounding + rounding)
+		totalAmount = sumMoneyByScale([totalAmount, amount], moneyScale)
+		totalReceipt = sumMoneyByScale([totalReceipt, receipt], moneyScale)
+		totalRounding = sumMoneyByScale([totalRounding, rounding], moneyScale)
 		return {
 			biz_date: date,
 			weight_kg: weight,
