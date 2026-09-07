@@ -3,6 +3,7 @@ const crypto = require('crypto')
 const db = uniCloud.database()
 const { readComplete } = require('./financialReadLocal')
 const { buildPlan } = require('./plan')
+const { buildSaleStatusPlan } = require('./saleStatusPlan')
 const CUSTOMER_ID = '694045c0adf6dbd796e261fa'
 const VERSION = 'julite-reconciliation/2026-09-07.1'
 const TABLES = ['crm_sale_records', 'crm_customer_receipts', 'crm_customer_allocations',
@@ -46,6 +47,20 @@ exports.main = async (event = {}) => {
   try {
     if (event.action === 'inspectV1') return { code: 0, data: await snapshot() }
     const logs = db.collection('crm_operation_logs')
+    if (event.action === 'prepareSaleStatusV1') {
+      if (!/^[a-f0-9]{24}$/.test(event.data.parent_run_id || '')) throw Error('原核对批次无效')
+      const parent = (await logs.doc(`reconcile_${event.data.parent_run_id}`).get()).data?.[0]
+      const before = await snapshot()
+      if (before.snapshot_hash !== event.data.expected_snapshot_hash) throw Error('预览前数据已变化，请重新取证')
+      const plan = buildSaleStatusPlan(before, parent, user, Date.now())
+      const logId = `reconcile_${plan.run_id}`
+      const existing = (await logs.doc(logId).get()).data?.[0]
+      if (existing) return { code: 409, msg: '该状态修正已存在，请查询状态', data: { run_id: plan.run_id, status: existing.status } }
+      await logs.add({ _id: logId, action: 'reconciled_sale_payment_status', request_id: plan.run_id,
+        user_id: user._id, username: user.username || '', role: user.role, created_at: Date.now(),
+        status: 'prepared', customer_id: CUSTOMER_ID, detail: { before, plan } })
+      return { code: 0, data: { run_id: plan.run_id, plan_hash: plan.plan_hash, summary: plan.summary, writes: plan.writes } }
+    }
     if (event.action === 'prepareV1') {
       const before = await snapshot()
       if (before.snapshot_hash !== event.data.expected_snapshot_hash) throw Error('原始数据已变化，必须重新取证')
