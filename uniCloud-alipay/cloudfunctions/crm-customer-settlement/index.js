@@ -3748,7 +3748,7 @@ async function applyPlanToExistingReceipt({
 	}
 }
 
-async function rebuildCustomerBalances(customerId) {
+async function rebuildCustomerBalances(customerId, { persist = true } = {}) {
 	const customer = await getCustomerById(customerId)
 	if (!customer) return null
 	const moneyScale = resolveCustomerMoneyScale(customer)
@@ -3822,7 +3822,7 @@ async function rebuildCustomerBalances(customerId) {
 	}
 
 	const net = fixMoney(receivable - deductibleBalance)
-	await customers.doc(customer._id).update({
+	if (persist) await customers.doc(customer._id).update({
 		receivable_balance: receivable,
 		prepay_balance: deductibleBalance,
 		prepay_manual_balance: manualPrepay,
@@ -8041,7 +8041,7 @@ async function getCustomerStatementV1(user, data, requestId = '') {
 
 	const balances = summaryOnly
 		? buildCustomerBalanceSnapshot(customer)
-		: await rebuildCustomerBalances(customerId)
+		: await rebuildCustomerBalances(customerId, { persist: false })
 	trace(summaryOnly ? 'balance_snapshot_loaded' : 'balances_rebuilt')
 	let scopedSummary = null
 	let scopedSalesDocs = []
@@ -9019,4 +9019,35 @@ exports.main = async (event, context) => {
 	if (action === 'migrateTushanCakeSettlementSitesV1') return migrateTushanCakeSettlementSitesV1(user, data, requestId)
 
 	return { code: 400, msg: '未知 action' }
+}
+
+// Additive reporting contract; legacy balances and cached totals retain their semantics.
+const statementBaseHandler = exports.main
+exports.main = async (event, context) => {
+	try {
+		const result = await statementBaseHandler(event, context)
+		if (result?.code !== 0 || !['getCustomerStatementV1', 'exportCustomerStatementV1', 'exportCustomerAccountingLedgerV1'].includes(event?.action)) return result
+		const data = event.data || {}
+		const customerId = normalizeId(data.customer_id || data.customerId)
+		const customer = await getCustomerById(customerId)
+		const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['customer_id', 'delivery_customer_id'])
+		const saleWhere = hiddenWhere ? dbCmd.and([{ customer_id: customerId }, hiddenWhere]) : { customer_id: customerId }
+		result.data.period_summary = await require('./periodSummary').readPeriodSummary({
+			collections: { sales, flows: flowSettlements, debts: openingDebts, receipts, allocations },
+			command: dbCmd, customerId, saleWhere,
+			dateFrom: normalizeDate(data.summary_date_from || data.summaryDateFrom || data.date_from || data.dateFrom),
+			dateTo: normalizeDate(data.summary_date_to || data.summaryDateTo || data.date_to || data.dateTo),
+			moneyScale: resolveCustomerMoneyScale(customer)
+		}, {
+			sum: sumMoneyByScale, sale: computeSaleSnapshot, flow: computeFlowSettlementSnapshot,
+			debt: computeOpeningDebtSnapshot, debtType: resolveOpeningDebtEntryType,
+			isOffsetReceipt: isOffsetCreditReceiptRow, isOffsetAllocation: isOffsetAllocationRow
+		})
+		return result
+	} catch (error) {
+		if (['FINANCIAL_READ_INCOMPLETE', 'FINANCIAL_CLASSIFICATION_REQUIRED'].includes(error.code)) {
+			return { code: 409, msg: error.message, error_code: error.code, data: { financial_evidence: { ...error.details, complete: false } } }
+		}
+		throw error
+	}
 }
