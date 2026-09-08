@@ -1,0 +1,8 @@
+{
+  "name": "crm-haonuo-reconciliation",
+  "version": "1.0.0",
+  "main": "index.js",
+  "cloudfunction-config": {
+    "timeout": 60
+  }
+}
