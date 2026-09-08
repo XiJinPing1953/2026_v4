@@ -29,7 +29,7 @@
 					size="sm"
 					kind="outline"
 					:loading="exportingStatement"
-					:disabled="Boolean(financialIssue) || loading || rowsLoading || analysisLoading"
+					:disabled="loading || rowsLoading || analysisLoading"
 					@click="onExportStatement"
 				>
 					导出对账单
@@ -38,7 +38,7 @@
 					size="sm"
 					kind="outline"
 					:loading="exportingAccountingLedger"
-					:disabled="Boolean(financialIssue) || loading || rowsLoading || analysisLoading"
+					:disabled="loading || rowsLoading || analysisLoading"
 					@click="onExportAccountingLedger"
 				>
 					会计导出
@@ -49,7 +49,7 @@
 		</template>
 
 		<template #highlights>
-			<view v-if="!financialIssue" class="summary-row">
+			<view class="summary-row">
 				<AppStatCard class="summary-card" label="应收余额(未扣冲抵)" :value="formatSummaryMoney(summaryReceivableBalanceDisplay)" hint="元" icon="alert" />
 				<AppStatCard class="summary-card" label="可抵扣余额" :value="formatSummaryMoney(summaryDeductibleBalanceDisplay)" hint="元" icon="check-circle" />
 				<AppStatCard class="summary-card" label="净欠款(扣抵扣后)" :value="formatSummaryMoney(summaryNetBalanceDisplay)" hint="元" icon="wallet" @click="onOpenNetDebtSaleSources" />
@@ -57,12 +57,7 @@
 			</view>
 		</template>
 
-		<AppSection v-if="financialIssue" title="账务结果待核">
-			<text>{{ financialIssue }}</text>
-			<text v-if="financialSourceIds.length">待核销售单：{{ financialSourceIds.join('、') }}</text>
-			<text>当前不展示合计或旧的查询结果。核对完成后点击刷新。</text>
-		</AppSection>
-		<view v-if="!financialIssue" class="content-shell">
+		<view class="content-shell">
 			<AppSection title="客户总览">
 				<view class="overview-grid">
 					<view class="overview-item">
@@ -89,6 +84,7 @@
 						<text class="overview-label">{{ periodIsYear ? '本年营收' : '期间营收' }}</text>
 						<text class="overview-value">{{ periodMoney('business_revenue') }}</text>
 						<text class="overview-meta">{{ periodScopeText }} · 不含历史转入</text>
+						<text v-for="note in (periodReport?.source_notes || [])" :key="note.source_id" class="overview-meta">{{ note.text }}</text>
 					</view>
 					<view class="overview-item">
 						<text class="overview-label">所选期间应收合计（含历史款项）</text>
@@ -103,6 +99,11 @@
 						<text class="overview-meta">{{ periodScopeText }} · 按收款日期</text>
 						<text v-if="periodReport?.unresolved_count" class="overview-meta">{{ periodReport.unresolved_count }} 项账务依据待核，相关合计暂不显示</text>
 						<text v-for="(issue, index) in (periodReport?.unresolved_sources || []).slice(0, 3)" :key="index" class="overview-meta">{{ describePeriodSummaryIssue(issue) }}</text>
+					</view>
+					<view v-if="periodReport?.opening_prepay_transferred > 0" class="overview-item">
+						<text class="overview-label">期间期初预付款转入</text>
+						<text class="overview-value">{{ periodMoney('opening_prepay_transferred') }}</text>
+						<text class="overview-meta">{{ periodScopeText }} · 可抵扣气款，不计实际收款或营收</text>
 					</view>
 					<view v-if="periodReport?.refund_total !== 0" class="overview-item">
 						<text class="overview-label">期间退款</text>
@@ -644,16 +645,16 @@
 							v-for="row in recentReceipts"
 							:key="row._id"
 							class="receipt-history-item"
-							:title="`${row.biz_date || '-'} · 收款单`"
+							:title="`${row.biz_date || '-'} · ${isOpeningPrepayReceipt(row) ? '期初预付款转入' : '收款单'}`"
 							:subtitle="`单据 ${row._id}`"
-							:status="paymentMethodText(row.payment_method)"
+							:status="isOpeningPrepayReceipt(row) ? '期初转入' : paymentMethodText(row.payment_method)"
 							status-kind="info"
 							icon="wallet"
 							:icon-class="receiptAllocationIconClass(row)"
 						>
 							<template #right>
 								<view class="mini-amounts mini-amounts--receipt-compact">
-									<text>收款 ¥{{ formatMoney(row.amount) }}</text>
+									<text>{{ isOpeningPrepayReceipt(row) ? '转入' : '收款' }} ¥{{ formatMoney(row.amount) }}</text>
 									<text v-if="toNumber(row.rounding_allocated_amount, 0) > 0">抹零 ¥{{ formatMoney(row.rounding_allocated_amount) }}</text>
 									<text>已分配 ¥{{ formatMoney(row.allocated_amount) }}</text>
 									<text :class="{ 'mini-amounts__remaining': toNumber(row.unallocated_amount, 0) > 0 }">{{ receiptRemainingBalanceLabel(row) }} ¥{{ formatMoney(row.unallocated_amount) }}</text>
@@ -676,7 +677,7 @@
 									<AppButton v-if="canEditReceiptAllocation(row)" size="sm" kind="outline" @click="onEditReceipt(row)">
 										调整整单
 									</AppButton>
-									<AppButton size="sm" kind="outline" :disabled="isCashierReceiptRow(row)" @click="onRemoveReceipt(row)">删除</AppButton>
+									<AppButton size="sm" kind="outline" :disabled="isCashierReceiptRow(row) || isOpeningPrepayReceipt(row)" @click="onRemoveReceipt(row)">删除</AppButton>
 								</view>
 							</template>
 						</AppListItem>
@@ -1001,7 +1002,7 @@
 								<text v-if="row.row_type === 'other_fee'">应收 ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'other_fee' && toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
 								<text v-if="row.row_type === 'other_fee'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
-								<text v-if="row.row_type === 'receipt'">收款 ¥{{ formatMoney(row.amount) }}</text>
+								<text v-if="row.row_type === 'receipt'">{{ isOpeningPrepayReceipt(row) ? '转入' : '收款' }} ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'receipt' && toNumber(row.rounding_allocated_amount, 0) > 0">抹零 ¥{{ formatMoney(row.rounding_allocated_amount) }}</text>
 								<text v-if="row.row_type === 'receipt'">{{ receiptRemainingBalanceLabel(row) }} ¥{{ formatMoney(row.prepay_delta) }}</text>
 								<text v-if="row.row_type === 'allocation'">分配 ¥{{ formatMoney(row.amount) }}</text>
@@ -1080,8 +1081,6 @@ const props = defineProps({
 const recordId = toRef(props, 'recordId')
 const scene = toRef(props, 'scene')
 const saleId = toRef(props, 'saleId')
-const financialIssue = ref('')
-const financialSourceIds = ref([])
 const loading = ref(false)
 const rowsLoading = ref(false)
 const rowSummaryLoading = ref(false)
@@ -2354,6 +2353,8 @@ function receiptSourceTypeText(value) {
 	if (sourceType === 'cashier_intake') return '出纳登记'
 	if (sourceType === 'customer_statement' || sourceType === 'customer_statement_manual') return '客户对账登记'
 	if (sourceType === 'customer_statement_quick_rounding') return '客户对账快捷抹零'
+	if (sourceType === 'opening_prepay') return '期初预付款转入'
+	if (sourceType === 'accountant_reconciliation') return '会计依据重建'
 	if (sourceType === 'customer_prepay_manual') return '预付录入'
 	if (sourceType === 'customer_offset_credit_manual_compensation') return '冲抵池录入'
 	if (sourceType === 'offset_manual_allocate') return '冲抵分配'
@@ -2378,9 +2379,13 @@ function isOffsetCreditReceiptRow(row) {
 	return entryKind === 'offset_credit' || sourceType.includes('offset_credit')
 }
 
+function isOpeningPrepayReceipt(row) {
+	return normalizeString(row?.source_type || row?.meta?.source_type) === 'opening_prepay'
+}
+
 function isManualPrepayReceiptRow(row) {
 	const sourceType = normalizeString(row?.source_type || row?.meta?.source_type)
-	return sourceType === 'customer_prepay_manual'
+	return sourceType === 'customer_prepay_manual' || isOpeningPrepayReceipt(row)
 }
 
 function receiptAllocatedProgressAmount(row) {
@@ -2415,7 +2420,7 @@ function canContinuePrepayReceipt(row) {
 }
 
 function canEditReceiptAllocation(row) {
-	return receiptAllocatedProgressAmount(row) > 0 && !isOffsetCreditReceiptRow(row)
+	return receiptAllocatedProgressAmount(row) > 0 && !isOffsetCreditReceiptRow(row) && !isOpeningPrepayReceipt(row)
 }
 
 function receiptRemainingBalanceLabel(row) {
@@ -3659,13 +3664,9 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0 } = {}) {
 		})
 		if (summaryRequestSeq !== statementSummaryRequestSeq || (summaryOnly && !isLatestRowsSearchRequest(requestSeq))) return
 		if (res?.code !== 0) {
-			financialIssue.value = res?.msg || '账务数据未完成读取，请重试'
-			financialSourceIds.value = res?.data?.financial_evidence?.unresolved_source_ids || []
 			uni.showToast({ title: res?.msg || (summaryOnly ? '账务摘要刷新失败' : '加载失败'), icon: 'none' })
 			return
 		}
-		financialIssue.value = ''
-		financialSourceIds.value = []
 		const data = res?.data || {}
 		customer.value = data.customer || customer.value || {}
 		applyStatementSummary(data)
@@ -3682,7 +3683,6 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0 } = {}) {
 	} catch (err) {
 		if (summaryRequestSeq !== statementSummaryRequestSeq) return
 		if (!summaryOnly || isLatestRowsSearchRequest(requestSeq)) {
-			financialIssue.value = '账务数据读取失败，请重试；旧结果已隐藏'
 			showCloudRequestError(summaryOnly ? '账务摘要刷新' : '客户账务加载', err)
 		}
 	} finally {
@@ -3749,8 +3749,6 @@ async function loadRows({ requestSeq = 0 } = {}) {
 		})
 		if (!isLatestRowsSearchRequest(requestSeq)) return
 		if (res?.code !== 0) {
-			financialIssue.value = res?.msg || '账务数据未完成读取，请重试'
-			financialSourceIds.value = res?.data?.financial_evidence?.unresolved_source_ids || []
 			uni.showToast({ title: res?.msg || '流水加载失败', icon: 'none' })
 			return
 		}
@@ -3762,7 +3760,6 @@ async function loadRows({ requestSeq = 0 } = {}) {
 		rowsPager.hasMore = Boolean(paging.hasMore)
 	} catch (err) {
 		if (isLatestRowsSearchRequest(requestSeq)) {
-			financialIssue.value = '账务流水读取失败，请重试；旧结果已隐藏'
 			showCloudRequestError('账务流水加载', err)
 		}
 	} finally {
@@ -4504,8 +4501,6 @@ async function onExportStatement() {
 			dateTo: range.dateTo
 		})
 		if (res?.code !== 0) {
-			financialIssue.value = res?.msg || '账务数据未完成读取，请重试'
-			financialSourceIds.value = res?.data?.financial_evidence?.unresolved_source_ids || []
 			uni.showToast({ title: res?.msg || '导出失败', icon: 'none' })
 			return
 		}
@@ -4537,8 +4532,6 @@ async function onExportAccountingLedger() {
 			dateTo: range.dateTo
 		})
 		if (res?.code !== 0) {
-			financialIssue.value = res?.msg || '账务数据未完成读取，请重试'
-			financialSourceIds.value = res?.data?.financial_evidence?.unresolved_source_ids || []
 			uni.showToast({ title: res?.msg || '会计导出失败', icon: 'none' })
 			return
 		}
@@ -4568,7 +4561,7 @@ function onAllocationInput(key, value) {
 }
 
 function statementRowTitle(row) {
-	if (row?.row_type === 'receipt') return `收款单 ${row?.receipt_id || row?.row_id || ''}`
+	if (row?.row_type === 'receipt') return `${isOpeningPrepayReceipt(row) ? '期初预付款转入' : '收款单'} ${row?.receipt_id || row?.row_id || ''}`
 	if (row?.row_type === 'allocation') {
 		const targetTitle = normalizeString(row?.meta?.target_title)
 		if (targetTitle) return `分配到 ${targetTitle}`
@@ -4581,7 +4574,7 @@ function statementRowTitle(row) {
 }
 
 function statementRowStatus(row) {
-	if (row?.row_type === 'receipt') return '收款'
+	if (row?.row_type === 'receipt') return isOpeningPrepayReceipt(row) ? '期初转入' : '收款'
 	if (row?.row_type === 'allocation') return '分配'
 	if (row?.row_type === 'flow_settlement') return paymentStatusText(row?.meta?.payment_status)
 	if (row?.row_type === 'opening_debt') return paymentStatusText(row?.meta?.payment_status || row?.payment_status)
@@ -4608,7 +4601,7 @@ function statementRowDetail(row) {
 		const sourceText = receiptSourceTypeText(row?.meta?.source_type)
 		if (sourceText) parts.push(`来源 ${sourceText}`)
 		const method = normalizeString(row?.meta?.payment_method)
-		if (method) parts.push(`方式 ${paymentMethodText(method)}`)
+		if (method && !isOpeningPrepayReceipt(row)) parts.push(`方式 ${paymentMethodText(method)}`)
 		const startDate = normalizeString(row?.meta?.allocation_start_date)
 		const endDate = normalizeString(row?.meta?.allocation_end_date)
 		if (startDate && endDate) parts.push(`分配区间 ${startDate}~${endDate}`)

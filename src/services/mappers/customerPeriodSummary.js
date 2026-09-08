@@ -1,7 +1,7 @@
 const fields = ['business_revenue', 'historical_receivable', 'receivable_total', 'cash_received', 'historical_debt_collected', 'refund_total', 'net_cash_received']
 
 export function normalizeCustomerPeriodSummary(value, expected = {}) {
-	if (!value || value.read_complete !== true || value.rule_version !== 'customer-period-summary/2026-09-08.1') return null
+	if (!value || value.read_complete !== true || !['customer-period-summary/2026-09-08.1', 'customer-period-summary/2026-09-08.2'].includes(value.rule_version)) return null
 	if (expected.dateFrom != null && value.date_from !== expected.dateFrom) return null
 	if (expected.dateTo != null && value.date_to !== expected.dateTo) return null
 	if (![2, 3].includes(value.money_scale)) return null
@@ -18,8 +18,9 @@ export function customerPeriodSummaryRows(value) {
 		['cash_received', '期间实际收款'],
 		['historical_debt_collected', '其中收回历史欠款'],
 		['refund_total', '期间退款'],
-		['net_cash_received', '扣除退款后的净收款']
-	].map(([key, label]) => ({ key, label, value: summary ? summary[key] : null }))
+		['net_cash_received', '扣除退款后的净收款'],
+		['opening_prepay_transferred', '期间期初预付款转入（非收款）']
+	].map(([key, label]) => ({ key, label, value: summary ? (summary[key] ?? (key === 'opening_prepay_transferred' && summary.rule_version.endsWith('.1') ? 0 : null)) : null }))
 }
 
 export function describePeriodSummaryIssue(row = {}) {

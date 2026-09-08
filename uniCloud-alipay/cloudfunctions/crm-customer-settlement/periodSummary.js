@@ -1,7 +1,8 @@
 'use strict'
 
 const { readComplete, FinancialReadError } = require('./financialReadLocal')
-const VERSION = 'customer-period-summary/2026-09-08.1'
+const { isOpeningPrepayReceipt } = require('./receiptSource')
+const VERSION = 'customer-period-summary/2026-09-08.2'
 const id = value => String(value || '').trim()
 const date = value => /^\d{4}-\d{2}-\d{2}$/.test(id(value)) ? id(value) : ''
 const active = row => !row.status || row.status === 'posted'
@@ -33,7 +34,7 @@ function calculatePeriodSummary(input, rules) {
 		const receipt = receiptMap.get(id(row.receipt_id))
 		const offset = rules.isOffsetAllocation(row) || (receipt && rules.isOffsetReceipt(receipt))
 		if (offset || (receipt && receipt.status === 'posted')) backed.set(key, sum([backed.get(key) || 0, amount]))
-		if (offset) continue
+		if (offset || isOpeningPrepayReceipt(receipt)) continue
 		if (!receipt || receipt.status !== 'posted') {
 			issue('allocation', row, 'active_allocation_without_posted_receipt', amount)
 			continue
@@ -60,7 +61,7 @@ function calculatePeriodSummary(input, rules) {
 	let cashReceived = 0
 	let refundTotal = 0
 	for (const row of receipts) {
-		if (row.status !== 'posted' || rules.isOffsetReceipt(row)) continue
+		if (row.status !== 'posted' || rules.isOffsetReceipt(row) || isOpeningPrepayReceipt(row)) continue
 		const amount = sum([Number(row.amount) || 0])
 		if (!date(row.biz_date)) { if (amount) issue('receipt', row, 'receipt_date_missing', amount); continue }
 		if (!inRange(row.biz_date)) continue
@@ -68,6 +69,12 @@ function calculatePeriodSummary(input, rules) {
 		else refundTotal = sum([refundTotal, -amount])
 		if ((allocatedByReceipt.get(id(row._id)) || 0) > Math.max(amount, 0)) issue('receipt', row, 'allocations_exceed_receipt', amount)
 	}
+	const openingCredits = receipts.filter(row => row.status === 'posted' && isOpeningPrepayReceipt(row))
+	const openingTransferred = sum(openingCredits.filter(row => inRange(row.biz_date)).map(row => row.amount))
+	const sourceNotes = flows.filter(row => row.status === 'posted' && inRange(row.biz_date) && row.period_start_date && row.period_start_date.slice(0, 4) !== row.biz_date.slice(0, 4))
+		.map(row => ({ source_type: 'flow_settlement', source_id: row._id,
+			text: `${row.biz_date}流量结算包含${row.period_start_date}至${row.period_end_date || row.biz_date}的跨年用气；按结算日期计营收，未拆分为本年实际用气。` }))
+	for (const row of openingCredits) if (!date(row.biz_date) || !(Number(row.amount) >= 0)) issue('opening_prepay', row, 'opening_prepay_source_invalid', row.amount)
 	const knownCash = {
 		cash_received: cashReceived,
 		historical_debt_collected: sum([...cashAllocations.values()]),
@@ -83,6 +90,7 @@ function calculatePeriodSummary(input, rules) {
 		historical_receivable: businessComplete ? historicalReceivable : null,
 		receivable_total: businessComplete ? sum([businessRevenue, historicalReceivable]) : null,
 		...Object.fromEntries(Object.entries(knownCash).map(([key, value]) => [key, cashComplete ? value : null])),
+		opening_prepay_transferred: openingTransferred, source_notes: sourceNotes,
 		known_cash: knownCash, unresolved_count: pending.length, unresolved_sources: pending
 	}
 }
