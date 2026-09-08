@@ -1,7 +1,7 @@
 <template>
 	<AppPage hideNav :bodyPadding="false">
 		<view class="dashboard">
-			<text v-if="dashboardIssue" role="alert">{{ dashboardIssue }}；当前汇总不可用。</text>
+			<text v-if="dashboardIssue" role="alert" style="grid-column: 1 / -1">{{ dashboardIssue }}；当前汇总不可用。</text>
 			<view class="dashboard__sidebar">
 				<view class="sidebar-menu">
 					<view class="brand">
@@ -131,9 +131,10 @@
 							<AppStatCard
 								class="kpi-card"
 								label="本月销售"
+								style="overflow-wrap: anywhere"
 							:value="stats.sales"
 							hint="元"
-							icon="chart"
+							:icon="stats.sales.length > 9 ? '' : 'chart'"
 							:delta="kpiDelta.sales"
 							:trend="kpiTrend.sales"
 							@click="go('/pages/sale/list')"
@@ -427,7 +428,7 @@
 				</view>
 
 				<view v-if="!dashboardIssue" class="rail-card">
-					<text class="rail-title">近 7 日新增应收 vs 实收</text>
+					<text class="rail-title">近 7 日新增应收 vs 净收款</text>
 					<view class="receivable-chart">
 						<view v-for="row in receivableChartRows" :key="row.date" class="receivable-day">
 							<view class="receivable-bars">
@@ -445,7 +446,7 @@
 						</view>
 						<view class="shipment-legend__item">
 							<view class="shipment-legend__dot receivable-legend__dot--received"></view>
-							<text class="shipment-legend__label">实收</text>
+							<text class="shipment-legend__label">净收款</text>
 							<text class="shipment-legend__value">{{ formatCompactAmount(receivableSummary.totalReceived) }}</text>
 						</view>
 						<view class="shipment-legend__item">
@@ -459,7 +460,7 @@
 							<text class="shipment-legend__value">{{ formatPercent(receivableSummary.collectionRate) }}</text>
 						</view>
 					</view>
-					<text class="mini-caption">按业务日期统计应收与当日实收</text>
+					<text class="mini-caption">收款按到账日期扣除退款，不含期初转入与非现金冲抵</text>
 				</view>
 
 				<view class="rail-card tank-card">
@@ -798,10 +799,12 @@ function formatNumber(value) {
 }
 
 function formatCompactAmount(value) {
-	const num = Number(value)
-	if (!Number.isFinite(num) || num === 0) return '¥0'
-	if (Math.abs(num) >= 10000) return `¥${(Math.round((num / 10000) * 10) / 10).toFixed(1)}w`
-	return `¥${Math.round(num)}`
+	return `¥${formatFinancialAmount(value)}`
+}
+
+function formatFinancialAmount(value) {
+	const num = value == null || value === '' ? NaN : Number(value)
+	return Number.isFinite(num) ? num.toLocaleString('en-US', { maximumFractionDigits: 3 }) : '待核'
 }
 
 function formatCompactWeight(value) {
@@ -909,7 +912,7 @@ function applyDashboard(data) {
 	}
 	const kpi = data.kpi || {}
 	stats.anomaly = formatNumber(kpi.anomaly_open)
-	stats.sales = formatNumber(kpi.sales_month)
+	stats.sales = formatFinancialAmount(kpi.sales_month)
 	stats.atCustomer = formatNumber(kpi.at_customer)
 	stats.inStation = formatNumber(kpi.in_station)
 	const dueData = data.inspection_due || {}

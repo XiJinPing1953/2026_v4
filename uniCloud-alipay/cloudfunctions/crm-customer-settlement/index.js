@@ -1,5 +1,5 @@
 'use strict'
-const { isOpeningPrepayReceipt } = require('./receiptSource')
+const { isOpeningPrepayReceipt, isOffsetCreditReceipt } = require('./receiptSource')
 
 const saleAccounting = require('./saleAccountingLocal')
 const { readComplete, withFinancialEvidence, FinancialReadError } = require('./financialReadLocal')
@@ -920,10 +920,7 @@ function resolveSaleOffsetEnabled(doc, fallback = true) {
 }
 
 function isOffsetCreditReceiptRow(row) {
-	const sourceType = normalizeString(row && row.source_type)
-	if (sourceType.startsWith('sale_offset_credit')) return true
-	const entryKind = normalizeEntryKind(row && row.entry_kind, '')
-	return entryKind === 'offset_credit'
+	return isOffsetCreditReceipt(row)
 }
 
 function isManualPrepayReceiptRow(row) {
@@ -1245,8 +1242,8 @@ function computeFlowSettlementSnapshot(doc) {
 	const shouldReceive = fix3(toNumber(doc && doc.should_receive, 0))
 	const amountReceived = fix3(toNumber(doc && doc.amount_received, 0))
 	const receiptRoundingAmount = fix3(Math.max(toNumber(doc && doc.receipt_rounding_amount, 0), 0))
-	const paidTotal = fix3(amountReceived + receiptRoundingAmount)
-	const outstanding = shouldReceive > paidTotal ? fix3(shouldReceive - paidTotal) : 0
+	const paidTotal = sumMoneyByScale([amountReceived, receiptRoundingAmount], 3)
+	const outstanding = shouldReceive > paidTotal ? sumMoneyByScale([shouldReceive, -paidTotal], 3) : 0
 	return {
 		should_receive: shouldReceive,
 		amount_received: amountReceived,
@@ -1261,11 +1258,11 @@ function computeOpeningDebtSnapshot(doc, moneyScale = 2) {
 	const fixMoney = (value) => fixByScale(value, moneyScale)
 	const amount = fixMoney(toNumber(doc && doc.amount, 0))
 	const roundingAmount = resolveOpeningDebtRoundingAmount(amount, doc && doc.rounding_amount, moneyScale)
-	const effectiveShouldReceive = amount > 0 ? fixMoney(Math.max(amount - roundingAmount, 0)) : 0
+	const effectiveShouldReceive = amount > 0 ? Math.max(sumMoneyByScale([amount, -roundingAmount], moneyScale), 0) : 0
 	const amountReceived = fixMoney(toNumber(doc && doc.amount_received, 0))
 	const receiptRoundingAmount = fixMoney(Math.max(toNumber(doc && doc.receipt_rounding_amount, 0), 0))
-	const paidTotal = fixMoney(amountReceived + receiptRoundingAmount)
-	const outstanding = effectiveShouldReceive > paidTotal ? fixMoney(effectiveShouldReceive - paidTotal) : 0
+	const paidTotal = sumMoneyByScale([amountReceived, receiptRoundingAmount], moneyScale)
+	const outstanding = effectiveShouldReceive > paidTotal ? sumMoneyByScale([effectiveShouldReceive, -paidTotal], moneyScale) : 0
 	return {
 		amount,
 		rounding_amount: roundingAmount,
@@ -6172,12 +6169,7 @@ function sortAccountingMovements(rows = []) {
 // Add already quantized ledger amounts as integers, before converting back to yuan.
 // Floating addition followed by truncation can invent an unbacked receipt (0.018 + 0.002).
 function sumMoneyByScale(values, moneyScale = 2) {
-	const digits = Number(moneyScale) === 3 ? 3 : 2
-	const total = values.reduce((sum, value) => {
-		const text = normalizeDecimalText(fixByScale(value, digits))
-		return sum + (parseScaledBigInt(text, digits) || 0n)
-	}, 0n)
-	return Number(total) / (10 ** digits)
+	return saleAccounting.sumMoneyByScale(values, moneyScale)
 }
 
 function sumAccountingMovements(rows = [], moneyScale = 2) {
@@ -6271,7 +6263,7 @@ function pushAccountingTargetReceivedFallback(rows, item = {}, backedMap = new M
 			biz_date: item.biz_date,
 			created_at: item.created_at,
 			row_order: item.row_order,
-			summary: normalizeString(item.summary),
+			summary: '历史单据已收差额（到账日期待核，非独立收款凭证）',
 			amount: missingReceived,
 			normal_balance: 'credit',
 			source_type: `${normalizeString(item.source_type) || 'target'}_received_fallback`,
@@ -6284,7 +6276,7 @@ function pushAccountingTargetReceivedFallback(rows, item = {}, backedMap = new M
 			biz_date: item.biz_date,
 			created_at: toNumber(item.created_at, 0) + 2,
 			row_order: toNumber(item.row_order, 50) + 0.2,
-			summary: normalizeString(item.refund_summary) || '退款',
+			summary: '历史单据退款差额（到账日期待核，非独立退款凭证）',
 			amount: refundAmount,
 			normal_balance: 'debit',
 			source_type: `${normalizeString(item.source_type) || 'target'}_refund_fallback`,

@@ -2,6 +2,8 @@
 
 const saleAccounting = require('./saleAccountingLocal')
 const { readComplete, withFinancialEvidence } = require('./financialReadLocal')
+const { isCashReceipt } = require('./receiptSourceLocal')
+const sumMoney = values => saleAccounting.sumMoneyByScale(values, 3)
 
 let ensureActionAcl = null
 try {
@@ -453,8 +455,8 @@ async function summaryV1(user, data, requestId) {
 		if (key && trendMap[key] != null) {
 			trendMap[key] += 1
 			const saleAmount = computeSaleAmount(row)
-			amountTrendMap[key] = fix2(amountTrendMap[key] + saleAmount)
-			receivableMap[key] = fix2(receivableMap[key] + saleAmount)
+			amountTrendMap[key] = sumMoney([amountTrendMap[key], saleAmount])
+			receivableMap[key] = sumMoney([receivableMap[key], saleAmount])
 			const customerKey = buildCustomerKey(row)
 			if (customerKey) dailyCustomerMap[key].add(customerKey)
 			dailyReportMap[key].sale_bottle_count += computeSaleBottleCount(row)
@@ -500,8 +502,8 @@ async function summaryV1(user, data, requestId) {
 		const key = normalizeString(row.biz_date)
 		if (key && amountTrendMap[key] != null) {
 			const amount = toNumber(row.should_receive, 0)
-			amountTrendMap[key] = fix2(amountTrendMap[key] + amount)
-			receivableMap[key] = fix2(receivableMap[key] + amount)
+			amountTrendMap[key] = sumMoney([amountTrendMap[key], amount])
+			receivableMap[key] = sumMoney([receivableMap[key], amount])
 		}
 	})
 	const weekReceipts = await fetchAll(
@@ -511,16 +513,17 @@ async function summaryV1(user, data, requestId) {
 			dbCmd.and([{ status: 'posted' }, { biz_date: dbCmd.gte(weekStart) }, { biz_date: dbCmd.lte(weekEnd) }]),
 			customerHiddenWhere
 		),
-		{ biz_date: true, amount: true }
+		{ biz_date: true, amount: true, source_type: true, entry_kind: true }
 	)
 	weekReceipts.forEach((row) => {
+		if (!isCashReceipt(row)) return
 		const key = normalizeString(row.biz_date)
-		if (key && receiptMap[key] != null) receiptMap[key] = fix2(receiptMap[key] + toNumber(row.amount, 0))
+		if (key && receiptMap[key] != null) receiptMap[key] = sumMoney([receiptMap[key], toNumber(row.amount, 0)])
 	})
 	const trendWeek = recentDates.map((date) => trendMap[date] || 0)
 	const overviewDates = recentDates.slice(-6)
-	const overviewBars = overviewDates.map((date) => fix2(amountTrendMap[date] || 0))
-	const overviewTotal = fix2(overviewBars.reduce((sum, value) => sum + toNumber(value, 0), 0))
+	const overviewBars = overviewDates.map((date) => amountTrendMap[date] || 0)
+	const overviewTotal = sumMoney(overviewBars)
 	let overviewPeakDate = ''
 	let overviewPeakAmount = 0
 	overviewDates.forEach((date, index) => {
@@ -595,12 +598,12 @@ async function summaryV1(user, data, requestId) {
 	dailyReportSummary.dominant_channel = dominantChannel
 	const receivableRows = recentDates.map((date) => ({
 		date,
-		receivable: fix2(receivableMap[date] || 0),
-		received: fix2(receiptMap[date] || 0)
+		receivable: receivableMap[date] || 0,
+		received: receiptMap[date] || 0
 	}))
-	const receivableTotal = fix2(receivableRows.reduce((sum, row) => sum + toNumber(row.receivable, 0), 0))
-	const receivedTotal = fix2(receivableRows.reduce((sum, row) => sum + toNumber(row.received, 0), 0))
-	const receivableGap = fix2(receivableTotal - receivedTotal)
+	const receivableTotal = sumMoney(receivableRows.map(row => row.receivable))
+	const receivedTotal = sumMoney(receivableRows.map(row => row.received))
+	const receivableGap = sumMoney([receivableTotal, -receivedTotal])
 	const collectionRate = receivableTotal > 0 ? fix2((receivedTotal / receivableTotal) * 100) : null
 
 	const monthRange = getMonthRange(today)
@@ -628,7 +631,7 @@ async function summaryV1(user, data, requestId) {
 		})
 	let monthTotal = 0
 	monthDocs.forEach((doc) => {
-		monthTotal += computeSaleAmount(doc)
+		monthTotal = sumMoney([monthTotal, computeSaleAmount(doc)])
 	})
 	const monthFlowDocs = await fetchAll(
 		flowSettlements,
@@ -640,9 +643,8 @@ async function summaryV1(user, data, requestId) {
 		{ should_receive: true }
 	)
 	monthFlowDocs.forEach((doc) => {
-		monthTotal += toNumber(doc.should_receive, 0)
+		monthTotal = sumMoney([monthTotal, toNumber(doc.should_receive, 0)])
 	})
-	monthTotal = fix2(monthTotal)
 
 	const prevRange = getPrevMonthRange(today)
 	const prevWhere = mergeVisibilityWhere(
@@ -669,7 +671,7 @@ async function summaryV1(user, data, requestId) {
 		})
 	let prevTotal = 0
 	prevDocs.forEach((doc) => {
-		prevTotal += computeSaleAmount(doc)
+		prevTotal = sumMoney([prevTotal, computeSaleAmount(doc)])
 	})
 	const prevFlowDocs = await fetchAll(
 		flowSettlements,
@@ -681,9 +683,8 @@ async function summaryV1(user, data, requestId) {
 		{ should_receive: true }
 	)
 	prevFlowDocs.forEach((doc) => {
-		prevTotal += toNumber(doc.should_receive, 0)
+		prevTotal = sumMoney([prevTotal, toNumber(doc.should_receive, 0)])
 	})
-	prevTotal = fix2(prevTotal)
 
 	let salesDelta = ''
 	let salesTrend = ''
@@ -733,7 +734,7 @@ async function summaryV1(user, data, requestId) {
 				labels: overviewDates,
 				total_amount: overviewTotal,
 				peak_date: overviewPeakDate,
-				peak_amount: fix2(overviewPeakAmount),
+				peak_amount: overviewPeakAmount,
 				avg_amount: overviewAvgAmount
 			},
 			daily_report: {
