@@ -17,6 +17,7 @@
 - 主工作区：`node --test scripts/haonuoReconciliation.test.cjs scripts/periodSummary.test.cjs scripts/periodSummaryCustomerScope.test.cjs scripts/financeTrust.test.cjs`，30项通过。覆盖源版本冲突、失败回滚、重复提交、期初及真实余款继续抵扣、客户隔离。
 - 支付宝云 `env-00jxuffegf2n`：第17项写入中断演练与完整75项写入回滚后，原值哈希相同；正式提交75项后逐项回读匹配。再次执行同一批次没有新增。
 - 本年、跨年、历史月份的对账及两种导出共9个组合通过；两种导出分别验证4个指定日期余额。页面本年→跨年→历史月份→本年切换通过，显示独立期初来源、实际收款和结清状态。
+- 生产页面两种导出按钮实际下载的文件已逐项核对：汇总说明一致，4个日期余额正确，销售明细24张均已结清。下载原文件与校验结果保存于本地 `ui-download-verification.json` 同目录。
 - 对照客户的原始数据哈希及三种汇总接口不变。其他客户的规则隔离有本地覆盖，未逐户重新审计其历史数据。
 - H5构建 `1788853708683-05ed825f`，入口 `/assets/index-CGtQhk9j.js`，产物SHA-256 `ea74e49966c86f325d1d0e9ab5ec5d2766415db47eccd62285ebdf7911ed8593`；运行版本及入口资源与本地产物匹配。
 - 必要函数：`crm-customer-settlement`、`crm-haonuo-reconciliation`。先发布兼容后端/H5，再正式修账。云函数无独立源码哈希回读，源码对应证据为提交、上传文件清单和真实行为验收。
