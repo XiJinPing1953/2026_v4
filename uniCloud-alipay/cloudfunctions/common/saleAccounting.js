@@ -1,10 +1,25 @@
 'use strict'
 
 // Authoritative sales money rules. Deployment-local copies are generated, never edited.
-const RULE_VERSION = 'sale-accounting/2026-09-05.1'
+const RULE_VERSION = 'sale-accounting/2026-09-08.1'
 const number = (value, fallback = 0) => value === '' || value == null || !Number.isFinite(Number(value)) ? fallback : Number(value)
 const money = (value) => Number(number(value).toFixed(2))
 const text = (value) => String(value == null ? '' : value).trim()
+
+// Keep the established two-decimal rounding / three-decimal truncation policy.
+// Add quantized amounts as integers: floating addition followed by truncation loses mills.
+function sumMoneyByScale(values, moneyScale = 2) {
+	const digits = Number(moneyScale) === 3 ? 3 : 2
+	const total = values.reduce((sum, value) => {
+		const raw = digits === 2 ? String(money(value)) : text(value)
+		const normalized = /^[+-]?\d+(?:\.\d+)?$/.test(raw) ? raw : String(number(value))
+		const match = normalized.match(/^([+-]?)(\d+)(?:\.(\d+))?$/)
+		if (!match) return sum
+		const units = BigInt(match[2] + (match[3] || '').padEnd(digits, '0').slice(0, digits))
+		return sum + (match[1] === '-' ? -units : units)
+	}, 0n)
+	return Number(total) / (10 ** digits)
+}
 
 class FinancialRuleError extends Error {
 	constructor(reason, details = {}) {
@@ -111,4 +126,4 @@ function assertSalesClassified(docs = []) {
 }
 
 module.exports = { RULE_VERSION, FinancialRuleError, resolveSettlementMode, effectiveShouldReceive, truckBillableNet,
-	computeAmounts, computeSaleAmountsForDoc, assertSalesClassified }
+	computeAmounts, computeSaleAmountsForDoc, assertSalesClassified, sumMoneyByScale }

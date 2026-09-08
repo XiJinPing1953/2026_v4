@@ -2,6 +2,12 @@
   "version": 1,
   "copies": [
     {
+      "source": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/receiptSource.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-dashboard/receiptSourceLocal.js"
+      ]
+    },
+    {
       "source": "uniCloud-alipay/cloudfunctions/common/saleAccounting.js",
       "targets": [
         "uniCloud-alipay/cloudfunctions/crm-sale/saleAccountingLocal.js",
