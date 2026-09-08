@@ -35,6 +35,8 @@
 
 ## 私有证据与后续边界
 
+- 用户追问适用范围后，核查已发布源码不存在指定客户名称、ID 或验收金额的专用判断；新增 scripts/periodSummaryCustomerScope.test.cjs，以6种计费场景及空客户同时存在的隔离数据，通过7客户×2期间×3接口共42次本地调用验证。主工作区与已发布5f3846f源码分别通过，覆盖两位/三位金额、分次历史回款、待分配款与客户隔离。此次没有重新部署或逐户审计线上历史账务。
+
 - outputs/trust-audit/2026-09-08/period-summary/ 保存 before、after、verification、9次接口响应、release-manifest、live-version-verification 及6份从真实响应生成的导出文件，均不提交原始客户数据。handler-final-1788829506095/ 是后端补充发布后的最终9次接口和数据不变证据；backend-final-deployment.json 保存最后上传文件哈希与提交，云平台未提供运行源码哈希，运行行为由真实接口核验。
 - output/playwright/period-summary-2026-09-08/final/ 保存最终页面文本和日期切换截图；截图时间与接口取数时间各自独立。
 - 旧单内嵌收/退款没有可确认日期时，新收款合计会显示待核；本轮不自动给其他客户补日期或改账。未知收款渠道也不推定。
