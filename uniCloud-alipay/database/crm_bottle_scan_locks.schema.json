@@ -1,6 +1,6 @@
 {
   "bsonType": "object",
-  "description": "Lease for concurrent durable filling anomaly workers only",
+  "description": "Server-only per-bottle leases for anomaly scan entry points and filling status projection; other writers are not covered",
   "permission": {
     "read": false,
     "create": false,

@@ -2,7 +2,7 @@
 
 const crypto = require('crypto')
 const COLLECTION = 'crm_filling_operations'
-const VERSION = 'filling-consistency-2026-09-05-v1'
+const VERSION = 'filling-consistency-2026-09-08-v2'
 const LEASE_MS = 120000 // Longer than the configured 60 second function timeout.
 const operationKey = (id) => `fillop_${crypto.createHash('sha256').update(String(id)).digest('hex').slice(0, 40)}`
 const stableValue = (value) => Array.isArray(value) ? value.map(stableValue) : value && typeof value === 'object'
@@ -20,10 +20,11 @@ function publicStatus(op) {
 		pending_save_total: Math.max((op.rows || []).length - saved, 0),
 		processed_total: Number(op.target_cursor || 0), target_total: targets.length,
 		remaining_total: Math.max(targets.length - Number(op.target_cursor || 0), 0),
-		complete: op.status === 'complete', rule_version: VERSION,
+		complete: op.status === 'complete', rule_version: op.rule_version || '',
+		last_transaction_ms: op.last_transaction_ms ?? null,
 		created_at: op.created_at, updated_at: op.updated_at, attempts: op.attempts || 0,
 		last_error: op.last_error || '', next_retry_at: op.next_retry_at || 0,
-		...(op.rows && op.rows.length === 1 ? { _id: op.rows[0]._id } : {})
+		...(op.rows && op.rows.length === 1 && saved > 0 ? { _id: op.rows[0]._id } : {})
 	}
 }
 function response(op) {
@@ -79,12 +80,13 @@ function createFillingOperations({ db, saveRow, synchronizeRow, scanTarget, now 
 			op = { ...op, ...patch }
 		}
 		try {
+			if (op.rule_version !== VERSION) throw Object.assign(new Error('操作处理版本与后台不一致，请核对部署后恢复'), { permanent: true })
 			while (now() - started < maxMs && steps++ < maxSteps) {
 				if (now() >= op.lease_until) throw Object.assign(new Error('操作处理锁已失效'), { lostLease: true })
 				if (op.row_cursor < op.rows.length) {
 					const row = op.rows[op.row_cursor]
-					await saveRow(row, op, actor)
-					await checkpoint({ saved_cursor: op.row_cursor + 1 })
+					const saved = await saveRow(row, op, actor)
+					await checkpoint({ saved_cursor: op.row_cursor + 1, ...(saved ? { last_transaction_ms: saved.transaction_ms } : {}) })
 					await synchronizeRow(row, op, actor)
 					await checkpoint({ row_cursor: op.row_cursor + 1, attempts: 0, last_error: '' })
 				} else if (op.target_cursor < op.targets.length) {
@@ -113,7 +115,26 @@ function createFillingOperations({ db, saveRow, synchronizeRow, scanTarget, now 
 	async function status(user, data) {
 		const op = await get(data.operation_id)
 		if (!op) return { code: 404, msg: '未找到该提交，可使用原操作编号重试提交' }
-		return canAccess(user, op) ? response(op) : { code: 403, msg: '无权访问该灌装操作' }
+		if (!canAccess(user, op)) return { code: 403, msg: '无权访问该灌装操作' }
+		const result = response(op)
+		// Read by frozen IDs, including a committed row whose checkpoint acknowledgement was lost.
+		const sourceRecords = []
+		for (let offset = 0; offset < op.rows.length; offset += 50) {
+			const expected = op.rows.slice(offset, offset + 50)
+			const found = (await db.collection('crm_fillings').where({ _id: db.command.in(expected.map((row) => row._id)) }).limit(50).get()).data
+			if (!Array.isArray(found)) throw new Error('源单保存状态读取失败')
+			const byId = new Map(found.map((row) => [row._id, row]))
+			for (const row of expected) {
+				const source = byId.get(row._id)
+				sourceRecords.push({ _id: row._id, bottle_no: row.bottle_no, saved: Boolean(source),
+					source_version: source ? source.source_version : null,
+					version_matches: Boolean(source && source.operation_id === op.operation_id && source.source_version === row.source_version && source.updated_at === row.updated_at),
+					consistency_status: source ? source.consistency_status || '' : 'not_saved' })
+			}
+		}
+		result.data.source_records = sourceRecords
+		result.data.source_saved_total = sourceRecords.filter((row) => row.saved).length
+		return result
 	}
 	async function retry(user, data) {
 		const found = await status(user, data)
