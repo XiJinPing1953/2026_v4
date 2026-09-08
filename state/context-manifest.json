@@ -8,6 +8,7 @@
     "docs/RULES.md",
     "docs/ACCOUNTING.md",
     "docs/SYSTEM_RELIABILITY.md",
+    "docs/SYSTEM_MAINLINE.md",
     "state/INDEX.md",
     "state/domains/accounting.md",
     "state/domains/data-operations.md",
