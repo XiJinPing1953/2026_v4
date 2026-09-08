@@ -116,6 +116,8 @@ test('remote verification rejects a missing or stale lazy chunk and CSS', async 
 test('cloud manifest requires explicit deployment scope and excludes init data from database changes', (t) => {
 	const { createManifest } = require('./createReleaseManifest.cjs')
 	const { root, write } = fixture(t)
+	write('config/domain-contracts.json', JSON.stringify({ copies: [], promotedSchemas: [] }))
+	write('scripts/syncPageAclRegistry.cjs', '')
 	write('uniCloud-alipay/cloudfunctions/crm-test/index.js', 'exports.main = () => {}')
 	write('uniCloud-alipay/database/demo.schema.json', '{}')
 	write('uniCloud-alipay/database/demo.init_data.json', '[{"private":true}]')
@@ -128,4 +130,20 @@ test('cloud manifest requires explicit deployment scope and excludes init data f
 	config.products.cloud.deploymentScope.databaseFiles.push('demo.init_data.json')
 	write('config/release-products.json', JSON.stringify(config))
 	assert.throws(() => createManifest({ root, product: 'cloud', requireClean: false }), /禁止初始化数据/)
+})
+
+test('cloud manifest rejects a committed function whose required helper is missing', (t) => {
+	const { createManifest } = require('./createReleaseManifest.cjs')
+	const { root, write, git } = fixture(t)
+	write('config/domain-contracts.json', JSON.stringify({ copies: [], promotedSchemas: [] }))
+	write('config/release-products.json', JSON.stringify({
+		environment: { spaceId: 'test' },
+		products: { cloud: { version: 'test', output: 'release/cloud', deploymentScope: { functions: ['crm-test'], databaseFiles: [] } } }
+	}))
+	write('scripts/syncPageAclRegistry.cjs', '')
+	write('uniCloud-alipay/database/demo.schema.json', '{}')
+	write('uniCloud-alipay/cloudfunctions/crm-test/index.js', "require('./requiredHelper')\nexports.main = () => {}\n")
+	git('add', '.')
+	git('-c', 'user.name=Release Test', '-c', 'user.email=release-test@example.invalid', 'commit', '-m', 'broken cloud source')
+	assert.throws(() => createManifest({ root, product: 'cloud' }), /云函数本地依赖缺失.*requiredHelper/s)
 })
