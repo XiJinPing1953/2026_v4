@@ -3,7 +3,7 @@
 const flowRules = require('./bottleFlowRulesLocal')
 
 const crypto = require('crypto')
-const { createFillingOperations, operationKey } = require('./fillingOperations')
+const { createFillingOperations, operationKey, VERSION } = require('./fillingOperations')
 const db = uniCloud.database()
 const dbCmd = db.command
 const { readComplete } = require('./financialReadLocal')
@@ -55,7 +55,7 @@ const START_LOSS_SYNC_LIMIT = 2000
 const PAGE_ACTION_RULES = {
 	capabilitiesV1: [{ pagePath: '/pages/filling/list', action: 'create' }, { pagePath: '/pages/pda/filling-create', action: 'create' }],
 	getOperationV1: [{ pagePath: '/pages/filling/list', action: 'view' }, { pagePath: '/pages/pda/filling-create', action: 'view' }],
-	listOperationsV1: [{ pagePath: '/pages/filling/list', action: 'view' }],
+	listOperationsV1: [{ pagePath: '/pages/filling/list', action: 'view' }, { pagePath: '/pages/pda/filling-create', action: 'view' }],
 	retryOperationV1: [{ pagePath: '/pages/filling/list', action: 'create' }, { pagePath: '/pages/pda/filling-create', action: 'create' }],
 	listV1: [
 		{ pagePath: '/pages/filling/list', action: 'view' },
@@ -1123,7 +1123,7 @@ function withTimeout(promise, timeoutMs, message) {
 	})
 }
 
-async function enqueueRegBridge(action, data, token, requestId, user, logAction = '') {
+async function enqueueRegBridge(action, data, token, requestId, user, logAction = '', expectedBottleCount = null) {
 	const normalizedAction = normalizeString(action)
 	if (!normalizedAction) return ''
 	try {
@@ -1139,7 +1139,19 @@ async function enqueueRegBridge(action, data, token, requestId, user, logAction 
 		const timeoutMs = resolveRegBridgeTimeoutMs()
 		const res = await withTimeout(callPromise, timeoutMs, `crm-reg-bridge ${normalizedAction} timeout`)
 		const result = res && res.result ? res.result : {}
-		if (Number(result.code) === 0) return ''
+		if (Number(result.code) === 0) {
+			if (expectedBottleCount > 0) {
+				const summary = result.data || {}
+				const snapshot = summary.snapshot || {}
+				if (Number(summary.total_event_payload) !== expectedBottleCount ||
+					Number(summary.enqueued_total) + Number(summary.duplicate_total) !== expectedBottleCount ||
+					Number(summary.missing_bottle_total) !== 0 || Number(snapshot.missing_total) !== 0 ||
+					Number(snapshot.enqueued_total) + Number(snapshot.duplicate_total) !== expectedBottleCount) {
+					throw new Error('监管事件或快照尚未完整入队，后台将重试')
+				}
+			}
+			return ''
+		}
 		const warning = normalizeString(result.msg) || '监管同步入队失败'
 		await recordLog(
 			user,
@@ -2986,7 +2998,7 @@ async function createV1(user, data, requestId, token) {
 		created_by_name: user?.username || ''
 	}
 	return submitPreparedFillings(user, data, [doc], {
-		date, regulatory_enqueue: true, regulatory_source_type: normalizeString(data.source_type) || 'filling',
+		date, regulatory_enqueue: true, regulatory_source_type: 'filling',
 		bottle_flow_warning_overridden: ignoreBottleFlowWarning && bottleFlowWarnings.length > 0,
 		bottle_flow_warning_count: bottleFlowWarnings.length
 	})
@@ -4211,9 +4223,15 @@ async function saveOperationFillingRow(row, op, user) {
 	// Short per-row transaction: source + pending work + movement + inventory commit together.
 	// Frozen operations are persisted first; a crash before this transaction is recoverable.
 	const transaction = await db.startTransaction()
+	const started = Date.now()
+	// Transaction doc.get differs from ordinary queries in the uniCloud SDK.
+	const txDoc = async (query) => {
+		const result = await query.get()
+		return Array.isArray(result.data) ? result.data[0] : result.data
+	}
 	try {
 		const txFillings = transaction.collection('crm_fillings')
-		const previous = ((await txFillings.doc(row._id).get()).data || [])[0]
+		const previous = await txDoc(txFillings.doc(row._id))
 		if (previous) {
 			if (previous.operation_id !== op.operation_id || Number(previous.source_version) !== row.source_version || previous.updated_at !== row.updated_at) {
 				throw Object.assign(new Error('源记录已变更，旧操作不会覆盖新版本'), { permanent: true })
@@ -4230,9 +4248,9 @@ async function saveOperationFillingRow(row, op, user) {
 			}
 			const slots = transaction.collection('crm_filling_slots')
 			const slotId = `slot_${crypto.createHash('sha256').update(`${row.date}:${row.bottle_no}`).digest('hex').slice(0, 40)}`
-			const slot = ((await slots.doc(slotId).get()).data || [])[0]
+			const slot = await txDoc(slots.doc(slotId))
 			if (slot && slot.filling_id !== row._id) {
-				const occupying = ((await txFillings.doc(slot.filling_id).get()).data || [])[0]
+				const occupying = await txDoc(txFillings.doc(slot.filling_id))
 				if (occupying && occupying.date === row.date && occupying.bottle_no === row.bottle_no) {
 					throw Object.assign(new Error('同日期同瓶号已由另一操作保存，请核对重复提交'), { permanent: true })
 				}
@@ -4252,7 +4270,10 @@ async function saveOperationFillingRow(row, op, user) {
 			recordType: row.record_type, fillWeight: row.fill_weight, remark: row.remark, now: row.created_at, user })
 		if (inventory) await transaction.collection('crm_gas_inventory_movements').add({ _id: `${row._id}_gas`, ...inventory, source_version: row.source_version })
 		await txFillings.add(row)
+		// Leave headroom for commit; never race an uncancelled write against a JS timer.
+		if (Date.now() - started >= 8000) throw new Error('源单事务接近时限，回滚后自动重试')
 		await transaction.commit()
+		return { transaction_ms: Date.now() - started }
 	} catch (error) {
 		await transaction.rollback().catch(() => {})
 		throw error
@@ -4274,7 +4295,7 @@ async function synchronizeOperationFillingRow(row, op, user) {
 			source_type: op.summary.regulatory_source_type || 'filling', source_id: row._id,
 			event_type: 'fill', bottle_nos: isInventoryLinkedRecordType(row.record_type) ? [row.bottle_no] : [],
 			event_at: parseEventAt(row.date, row.created_at), enqueue_snapshot: true
-		}, currentUser && currentUser.token, op.operation_id, user, 'filling_reg_enqueue_create_failed')
+		}, currentUser && currentUser.token, op.operation_id, user, 'filling_reg_enqueue_create_failed', isInventoryLinkedRecordType(row.record_type) ? 1 : 0)
 		if (warning) throw new Error(warning)
 	}
 	await fillings.where({ _id: row._id, source_version: row.source_version, updated_at: row.updated_at }).update({ consistency_status: op.targets.some((target) => target.bottle_no === row.bottle_no) ? 'anomaly_pending' : 'complete' })
@@ -4287,8 +4308,21 @@ async function scanOperationTarget(target, cursor, op) {
 	} })
 	const response = result && result.result || {}
 	if (response.code === 0 && response.data && response.data.done) {
+		if (response.data.read_complete !== true || response.data.rule_version !== flowRules.RULE_VERSION) {
+			return { code: 503, msg: '异常核查缺少完整读取凭据或规则版本不一致，请核对后台部署' }
+		}
 		for (const row of op.rows.filter((item) => item.bottle_no === target.bottle_no)) {
-			await fillings.where({ _id: row._id, source_version: row.source_version, updated_at: row.updated_at }).update({ consistency_status: 'complete' })
+			const current = ((await fillings.doc(row._id).get()).data || [])[0]
+			if (!current || current.source_version !== row.source_version || current.updated_at !== row.updated_at) {
+				return { code: 409, msg: '灌装源记录在核查期间已变更，旧操作停止' }
+			}
+			const changed = await fillings.where({ _id: row._id, source_version: row.source_version, updated_at: row.updated_at }).update({ consistency_status: 'complete' })
+			if (!changed.updated) {
+				const verified = ((await fillings.doc(row._id).get()).data || [])[0]
+				if (!verified || verified.source_version !== row.source_version || verified.updated_at !== row.updated_at || verified.consistency_status !== 'complete') {
+					return { code: 409, msg: '灌装源记录在完成确认期间已变更，旧操作停止' }
+				}
+			}
 		}
 	}
 	return response
@@ -4314,7 +4348,7 @@ exports.main = async (event, context) => {
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
-	if (action === 'capabilitiesV1') return { code: 0, data: { rule_version: 'filling-consistency-2026-09-05-v1', durable_operations: true } }
+	if (action === 'capabilitiesV1') return { code: 0, data: { rule_version: VERSION, durable_operations: true, source_status_query: true } }
 	if (action === 'getOperationV1') return fillingOperations.status(user, data)
 	if (action === 'listOperationsV1') return fillingOperations.list(user)
 	if (action === 'retryOperationV1') return fillingOperations.retry(user, data)

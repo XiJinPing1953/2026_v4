@@ -1951,14 +1951,15 @@ async function onSingleCreateSubmit() {
 		}
 		const shouldReturnToAnomaly = Boolean(singleCreateRouteContext.returnToAnomaly)
 		const savedWithOverride = Boolean(res?.data?.bottle_flow_warning_overridden) && Number(res?.data?.bottle_flow_warning_count || 0) > 0
-		uni.showToast({ title: savedWithOverride ? '已核对并保存' : (res?.msg || '保存成功'), icon: 'success' })
+		uni.showToast({ title: res?.data?.complete && savedWithOverride ? '已核对并保存' : (res?.msg || '提交已受理'), icon: res?.data?.complete ? 'success' : 'none' })
+		await operationPanel.value?.refresh()
 		singleCreateForm.bottle_no = ''
 		singleCreateForm.after_fill_total_weight = ''
 		singleCreateForm.fill_weight = ''
 		singleCreateForm.remark = ''
 		clearSingleCreateSuggestions()
 		resetSingleCreateResolveState()
-		if (shouldReturnToAnomaly) {
+		if (shouldReturnToAnomaly && res?.data?.complete) {
 			const backfillReturnPayload = {
 				sourceAnomalyId: singleCreateRouteContext.sourceAnomalyId,
 				bottleNo: payload.bottle_no,

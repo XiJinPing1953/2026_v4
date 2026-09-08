@@ -336,15 +336,15 @@ async function onSubmit() {
 
 		const savedWithOverride = Boolean(result?.data?.bottle_flow_warning_overridden) && Number(result?.data?.bottle_flow_warning_count || 0) > 0
 		uni.showToast({
-			title: savedWithOverride ? '已核对并保存' : (isEditMode.value ? '更新成功' : '保存成功'),
-			icon: 'success'
+			title: !isEditMode.value && !result?.data?.complete ? (result?.msg || '提交已受理，请查看处理状态') : savedWithOverride ? '已核对并保存' : (isEditMode.value ? '更新成功' : '保存及核查已完成'),
+			icon: !isEditMode.value && !result?.data?.complete ? 'none' : 'success'
 		})
 		setTimeout(() => {
 			uni.navigateBack({ delta: 1 })
 		}, 400)
 	} catch (err) {
 		console.error('save filling failed', err)
-		uni.showToast({ title: '保存失败', icon: 'none' })
+		uni.showToast({ title: err?.message || '保存失败', icon: 'none' })
 	} finally {
 		submitting.value = false
 	}

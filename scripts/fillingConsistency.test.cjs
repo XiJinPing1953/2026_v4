@@ -73,7 +73,16 @@ function makeDatabase() {
 			await previous
 			const snapshot = clone([...tables].map(([name, rows]) => [name, [...rows]]))
 			let ended = false
-			return { collection: db.collection,
+			return { collection(name) {
+				const collection = db.collection(name)
+				return { ...collection, doc(id) {
+					const document = collection.doc(id)
+					return { ...document, async get() {
+						const result = await document.get()
+						return { data: result.data[0] || null }
+					} }
+				} }
+			},
 				async commit() { ended = true; unlock() },
 				async rollback() { if (ended) return; ended = true; tables.clear(); snapshot.forEach(([name, rows]) => tables.set(name, new Map(rows))); unlock() }
 			}
@@ -82,7 +91,7 @@ function makeDatabase() {
 	return db
 }
 
-function makeApp({ scan } = {}) {
+function makeApp({ scan, regulatory } = {}) {
 	const db = makeDatabase()
 	let time = Date.parse('2026-09-06T00:00:00Z')
 	const DateMock = class extends Date { static now() { return time } }
@@ -91,7 +100,10 @@ function makeApp({ scan } = {}) {
 	for (let i = 1; i <= 53; i++) db.data('crm_bottles').set(`b${i}`, { _id: `b${i}`, bottle_no: `B${i}`, is_active: true, status: 'empty' })
 	let scanned = []
 	const cloud = { database: () => db, callFunction: async ({ name, data }) => {
-		if (name === 'crm-reg-bridge') return { result: { code: 0 } }
+		if (name === 'crm-reg-bridge') return { result: regulatory ? await regulatory({ db, data }) : { code: 0, data: {
+			total_event_payload: 1, enqueued_total: 1, duplicate_total: 0, missing_bottle_total: 0,
+			snapshot: { found_total: 1, enqueued_total: 1, duplicate_total: 0, missing_total: 0 }
+		} } }
 		assert.equal(name, 'crm-bottle-anomaly')
 		assert.equal(data.action, 'touchFillingOperationV1')
 		const op = db.data('crm_filling_operations').get(operationKey(data.data.operation_id))
@@ -99,7 +111,7 @@ function makeApp({ scan } = {}) {
 		const target = op.targets[data.data.target_index]
 		const result = scan ? await scan({ db, op, target, scanned, advance: (n) => { time += n } }) : { code: 0, data: { done: true } }
 		if (result.code === 0 && result.data.done) scanned.push(target.bottle_no)
-		return { result }
+		return { result: { ...result, data: { read_complete: Boolean(result.data?.done), rule_version: 'bottle-flow-2026-09-05-v1', ...result.data } } }
 	} }
 	const fnPath = path.resolve('uniCloud-alipay/cloudfunctions/crm-filling/index.js')
 	const localRequire = createRequire(fnPath)
@@ -335,4 +347,191 @@ test('unfinished operations remain visible even behind many recently completed b
 	})
 	const result = await app.invoke('listOperationsV1')
 	assert.equal(result.data[0].operation_id, 'failed')
+})
+
+test('single/PDA code zero with zero regulatory payloads stays pending, then retries with current credentials', async () => {
+	let ready = false
+	const tokens = []
+	const app = makeApp({ regulatory: async ({ data }) => {
+		tokens.push(data.token)
+		return { code: 0, data: { total_event_payload: ready ? 1 : 0, enqueued_total: ready ? 1 : 0, duplicate_total: 0,
+			missing_bottle_total: 0, snapshot: { found_total: 1, enqueued_total: 1, duplicate_total: 0, missing_total: 0 } } }
+	} })
+	const input = { operation_id: 'operation_regulatory', date: '2026-09-05', bottle_no: 'B1', fill_weight: 10 }
+	const first = await app.invoke('createV1', input)
+	assert.equal(first.data.saved_total, 1)
+	assert.equal(first.data.complete, false)
+	assert.match(first.data.last_error, /监管/)
+	ready = true
+	app.user.token = 'renewed'
+	app.advance(61000)
+	await app.invoke(undefined, {}, '', { SOURCE: 'timing' })
+	assert.equal(app.operation(input.operation_id).status, 'complete')
+	assert.deepEqual(tokens, ['good', 'renewed'])
+	assert.equal(JSON.stringify(app.operation(input.operation_id)).includes('renewed'), false)
+})
+
+test('source changed during anomaly call cannot be marked complete by the old operation', async () => {
+	const app = makeApp({ scan: async ({ db, op }) => {
+		const source = db.data('crm_fillings').get(op.rows[0]._id)
+		source.source_version = 2; source.fill_weight = 99
+		return { code: 0, data: { done: true } }
+	} })
+	const result = await app.invoke('batchCreateV1', payload('operation_scan_changed', 1))
+	assert.equal(result.data.status, 'failed')
+	assert.equal(result.data.complete, false)
+	assert.equal([...app.db.data('crm_fillings').values()][0].fill_weight, 99)
+})
+
+test('scan done without complete read evidence is never accepted as complete', async () => {
+	const app = makeApp({ scan: async () => ({ code: 0, data: { done: true, read_complete: false } }) })
+	const result = await app.invoke('batchCreateV1', payload('operation_scan_unproven', 1))
+	assert.equal(result.data.complete, false)
+	assert.equal(result.data.processed_total, 0)
+})
+
+test('PDA-only creator can list own operations for recovery but cannot see another operator', async () => {
+	const app = makeApp()
+	app.db.data('crm_users').set('pda', { _id: 'pda', token: 'pda', role: 'user', page_permissions: {
+		'/pages/pda/filling-create': { view: true, create: true }, '/pages/filling/list': { view: false, create: false }
+	} })
+	await app.invoke('batchCreateV1', payload('operation_admin_only', 1))
+	const result = await app.invoke('listOperationsV1', {}, 'pda')
+	assert.equal(result.code, 0)
+	assert.equal(result.data.length, 0)
+})
+
+test('source query finds committed source even when saved cursor acknowledgement was lost', async () => {
+	const app = makeApp()
+	let fail = true
+	app.db.setFault(async (name, action, patch) => {
+		if (name === 'crm_filling_operations' && patch.saved_cursor === 1 && fail) { fail = false; throw new Error('ack lost') }
+	})
+	const input = payload('operation_query_source', 1)
+	await app.invoke('batchCreateV1', input)
+	const result = await app.invoke('getOperationV1', input)
+	assert.equal(result.data.saved_total, 0)
+	assert.equal(result.data.source_saved_total, 1)
+	assert.equal(result.data.source_records[0].version_matches, true)
+	assert.equal((await app.invoke('getV1', { _id: result.data.source_records[0]._id })).code, 0)
+})
+
+test('anomaly durable scan includes historical rows with absent paging fields across 800 boundary', async () => {
+	const db = makeDatabase()
+	const handler = loadAnomaly(db)
+	const id = 'operation_legacy_events'
+	const row = { _id: 'source', bottle_no: 'B1', source_version: 1, updated_at: 1 }
+	db.data('crm_fillings').set(row._id, row)
+	const op = { _id: operationKey(id), operation_id: id, rows: [row], row_cursor: 1, targets: [{ kind: 'bottle', bottle_no: 'B1' }],
+		target_cursor: 0, scan_cursor: null, created_by: 'owner', actor_role: 'superadmin', status: 'processing',
+		worker_secret: 'secret', lease_id: 'lease', lease_until: Date.now() + 120000 }
+	db.data('crm_filling_operations').set(op._id, op)
+	for (let i = 0; i < 1001; i++) {
+		const _id = `event_${String(i).padStart(4, '0')}`
+		db.data('crm_bottle_movements').set(_id, { _id, bottle_no: 'B1', type: 'adjust', date: '2026-01-01', event_at: 1 })
+	}
+	const input = { action: 'touchFillingOperationV1', data: { operation_id: id, worker_secret: 'secret', lease_id: 'lease', target_index: 0 } }
+	const first = await handler(input, {})
+	assert.equal(first.data.round_scanned_events, 800)
+	op.scan_cursor = first.data.cursor
+	const second = await handler(input, {})
+	assert.equal(second.data.round_scanned_events, 201)
+	assert.equal(second.data.read_complete, true)
+	assert.equal(db.data('crm_bottle_anomalies').size, 0)
+})
+
+test('real anomaly handler reads all 5189 synthetic historical events across 53 bottles without false anomalies', async () => {
+	const { buildFixture } = require('./fillingCloudAcceptance.cjs')
+	const fixture = buildFixture()
+	const db = makeDatabase()
+	const handler = loadAnomaly(db)
+	for (const [name, rows] of Object.entries(fixture.collections)) for (const row of rows) db.data(name).set(row._id, row)
+	const sources = fixture.collections.crm_bottles.map((bottle, index) => ({ _id: `source_${index}`, bottle_no: bottle.bottle_no, source_version: 1, updated_at: 1 }))
+	for (const row of sources) db.data('crm_fillings').set(row._id, row)
+	const op = { _id: operationKey(fixture.operation_id), rows: sources, row_cursor: 53,
+		targets: sources.map((row) => ({ kind: 'bottle', bottle_no: row.bottle_no })), target_cursor: 0, scan_cursor: null,
+		status: 'processing', worker_secret: 'secret', lease_id: 'lease', lease_until: Date.now() + 120000 }
+	db.data('crm_filling_operations').set(op._id, op)
+	let scanned = 0
+	for (let index = 0; index < 53; index++) {
+		op.target_cursor = index
+		const result = await handler({ action: 'touchFillingOperationV1', data: {
+			operation_id: fixture.operation_id, worker_secret: 'secret', lease_id: 'lease', target_index: index
+		} }, {})
+		assert.equal(result.data.read_complete, true)
+		assert.equal(result.data.history_total, index < 48 ? 98 : 97)
+		scanned += result.data.round_scanned_events
+	}
+	assert.equal(scanned, 5189)
+	assert.equal(db.data('crm_bottle_anomalies').size, 0)
+})
+
+test('manual scan shares bottle lease with durable scan and cannot write through an active lease', async () => {
+	const db = makeDatabase()
+	db.data('crm_users').set('owner', { _id: 'owner', role: 'superadmin', token: 'good' })
+	const lockId = `scan_${require('crypto').createHash('sha256').update('B1').digest('hex').slice(0, 40)}`
+	db.data('crm_bottle_scan_locks').set(lockId, { _id: lockId, lease_id: 'worker', lease_until: Date.now() + 120000 })
+	const result = await loadAnomaly(db)({ action: 'scanV2', token: 'good', data: { bottle_no: 'B1' } }, {})
+	assert.equal(result.data.waiting_for_lock, true)
+	assert.equal(result.data.read_complete, false)
+	assert.equal(db.data('crm_bottle_anomalies').size, 0)
+})
+
+test('transaction approaching 10-second window rolls back and remains recoverable', async () => {
+	const app = makeApp()
+	let slow = true
+	app.db.setFault(async (name, action) => { if (name === 'crm_fillings' && action === 'add' && slow) { slow = false; app.advance(8100) } })
+	const input = payload('operation_slow_transaction', 1)
+	const first = await app.invoke('batchCreateV1', input)
+	assert.equal(first.data.saved_total, 0)
+	assert.equal(app.db.data('crm_fillings').size, 0)
+	assert.equal(app.db.data('crm_bottle_movements').size, 0)
+	app.advance(61000)
+	await app.invoke(undefined, {}, '', { SOURCE: 'timing' })
+	assert.equal((await app.invoke('getOperationV1', input)).data.complete, true)
+})
+
+test('read-only acceptance tool refuses production and mismatched environment before cloud calls', async () => {
+	const { buildFixture, inspectCloud } = require('./fillingCloudAcceptance.cjs')
+	let calls = 0
+	const adapter = { provider: 'alipay', spaceId: 'test-space', isolated: true, call: () => { calls++ } }
+	await assert.rejects(inspectCloud({ adapter, spaceId: 'env-00jxuffegf2n', fixture: buildFixture() }), /生产/)
+	await assert.rejects(inspectCloud({ adapter, spaceId: 'wrong-space', fixture: buildFixture() }), /不匹配/)
+	assert.equal(calls, 0)
+})
+
+test('legacy client and current PDA task-shaped payload without operation ID fail before any source write', async () => {
+	const app = makeApp()
+	const result = await app.invoke('createV1', { date: '2026-09-05', bottle_no: 'B1', fill_weight: 10,
+		raw_scale_payload: { task: { task_id: 'synthetic_pda_task' } } })
+	assert.equal(result.code, 400)
+	assert.match(result.msg, /operation_id/)
+	assert.equal(app.db.data('crm_filling_operations').size, 0)
+	assert.equal(app.db.data('crm_fillings').size, 0)
+})
+
+test('conditional source completion losing a version race stops the operation', async () => {
+	const app = makeApp()
+	app.db.setFault(async (name, action, patch) => {
+		if (name === 'crm_fillings' && action === 'update' && patch.consistency_status === 'complete') {
+			const row = [...app.db.data('crm_fillings').values()][0]
+			row.source_version = 2; row.fill_weight = 99
+		}
+	})
+	const result = await app.invoke('batchCreateV1', payload('operation_cas_changed', 1))
+	assert.equal(result.data.status, 'failed')
+	assert.equal([...app.db.data('crm_fillings').values()][0].consistency_status, 'anomaly_pending')
+})
+
+test('old processing protocol does not execute a pending frozen operation under new code', async () => {
+	const app = makeApp()
+	app.db.setFault(async (name, action) => { if (name === 'crm_fillings' && action === 'add') throw new Error('temporary') })
+	const input = payload('operation_old_protocol', 1)
+	await app.invoke('batchCreateV1', input)
+	app.operation(input.operation_id).rule_version = 'filling-consistency-2026-09-05-v1'
+	app.db.setFault(null)
+	app.advance(61000)
+	await app.invoke(undefined, {}, '', { SOURCE: 'timing' })
+	assert.equal(app.operation(input.operation_id).status, 'failed')
+	assert.equal(app.db.data('crm_fillings').size, 0)
 })
