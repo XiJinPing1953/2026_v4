@@ -187,6 +187,7 @@ function buildStatementSheetRows(payload = {}) {
 		{ type: 'String', value: '单价（元/公斤）' },
 		{ type: 'String', value: '金额（元）' },
 		{ type: 'String', value: '收款（元）' },
+		{ type: 'String', value: '期初预付款转入（元，非收款）' },
 		{ type: 'String', value: '抹零（元）' },
 		{ type: 'String', value: '欠款（元）' },
 		{ type: 'String', value: '备注' }
@@ -195,6 +196,7 @@ function buildStatementSheetRows(payload = {}) {
 		{ type: 'String', value: '期初余额' },
 		{ type: 'String', value: '/' },
 		{ type: 'String', value: '/' },
+		{ type: 'String', value: '' },
 		{ type: 'String', value: '' },
 		{ type: 'String', value: '' },
 		openingRounding > 0 ? moneyCell(openingRounding) : { type: 'String', value: '' },
@@ -209,6 +211,7 @@ function buildStatementSheetRows(payload = {}) {
 			numberOrSlashCell(row.unit_price),
 			moneyCell(row.amount),
 			moneyCell(row.receipt),
+			moneyCell(row.opening_prepay),
 			moneyCell(row.rounding),
 			moneyCell(row.balance),
 			{ type: 'String', value: normalizeString(row.note) }
@@ -221,6 +224,7 @@ function buildStatementSheetRows(payload = {}) {
 		{ type: 'String', value: '/' },
 		moneyCell(totalAmount),
 		moneyCell(totalReceipt),
+		moneyCell(totals.opening_prepay),
 		moneyCell(totalRounding),
 		moneyCell(closingBalance),
 		{ type: 'String', value: '' }
@@ -391,8 +395,9 @@ function buildPeriodSummarySheetRows(payload = {}) {
 			{ type: 'String', value: row.label },
 			row.value == null ? { type: 'String', value: summary ? '待核' : '未完成' } : moneyCellByScale(row.value, scale)
 		]),
-		[{ type: 'String', value: '说明' }, { type: 'String', value: '营收不含历史转入；实际收款按收款日期，包含预收及待分配款，不含非现金冲抵和抹零。借贷合计不等同实际收款。' }],
+		[{ type: 'String', value: '说明' }, { type: 'String', value: '营收不含历史转入；实际收款按收款日期，包含预收及待分配款，不含期初预付款转入、非现金冲抵和抹零。借贷合计不等同实际收款。' }],
 		[{ type: 'String', value: '核查状态' }, { type: 'String', value: summary?.complete ? '完整' : summary ? `待核 ${summary.unresolved_count} 项` : '未完成' }],
+		...(summary?.source_notes || []).map(row => [{ type: 'String', value: '期间依据' }, { type: 'String', value: row.text }]),
 		...(summary?.unresolved_sources || []).map(row => [{ type: 'String', value: row.source_id }, { type: 'String', value: describePeriodSummaryIssue(row) }])
 	]
 }
