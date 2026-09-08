@@ -20,7 +20,11 @@ function buildPlan(snapshot, evidence, actor, now) {
   assert(/^[a-f0-9]{40}$/.test(evidence.source_commit || ''), '缺少发布源码版本')
   const t = snapshot.tables, customer = t.crm_customers?.[0]
   assert(customer?._id === CUSTOMER_ID && customer.name === '浩诺' && customer.is_active === true, '客户范围或启用状态变化')
-  const sales = t.crm_sale_records, oldFlows = t.crm_customer_flow_settlements, oldReceipts = t.crm_customer_receipts, oldAllocations = t.crm_customer_allocations
+  const sales = t.crm_sale_records, existingFinal=t.crm_customer_flow_settlements.find(r=>r._id===SPEC.reuse_final_flow_id)
+  assert(existingFinal?.status==='posted' && existingFinal.biz_date==='2026-09-07' && existingFinal.flow_index_prev===613882.9 && existingFinal.flow_index_curr===614935.1 && existingFinal.flow_volume_m3===1052.2 && existingFinal.should_receive===5261 && existingFinal.unit_price===5 && Number(existingFinal.amount_received || 0)===0 && Number(existingFinal.receipt_rounding_amount || 0)===0, '已补9月7日流量单与确认表数不符，停止执行')
+  const oldFlows=t.crm_customer_flow_settlements.filter(r=>r._id!==SPEC.reuse_final_flow_id)
+  const oldReceipts=t.crm_customer_receipts.filter(r=>r.status==='posted'),oldAllocations=t.crm_customer_allocations
+  assert(t.crm_customer_receipts.every(r=>['posted','void'].includes(r.status)), '收款状态未知，停止执行')
   assert(sales.length === SPEC.expected.sales && oldFlows.length === SPEC.expected.old_flows && oldReceipts.length === SPEC.expected.old_receipts && oldAllocations.length === SPEC.expected.old_allocations, '源单数量已变化，停止执行')
   assert(Object.entries(t).every(([name, rows]) => ['crm_customers','crm_vouchers'].includes(name) || rows.every(row => row.customer_id === CUSTOMER_ID)), '存在范围外记录')
   for (const name of ['crm_vouchers','crm_customer_opening_debts','crm_customer_receipt_adjustments','crm_collection_tasks','crm_collection_followups']) assert((t[name] || []).length === 0, `发现须额外核对的关联记录：${name}`)
@@ -43,11 +47,16 @@ function buildPlan(snapshot, evidence, actor, now) {
     const covered = sales.filter(row => row.date > previousDate && row.date <= date).sort((a,b) => a.date.localeCompare(b.date) || a._id.localeCompare(b._id))
     for (const sale of covered) { assert(!assigned.has(sale._id), '销售重复关联');assigned.add(sale._id) }
     const note = `依据用户表数表、预付余额表和会计收款表重建；抄表区间 (${previousDate}, ${date}]，单价5元/m³。${i === 0 ? '本笔包含2025-12-16至2026-01-12跨年用气，按结算日期计营收，未虚构年末表数。' : ''}${covered.length ? '' : '本区间没有送气源单，以确认表数建单，不补造销售。'}核对批次 ${runId}`
-    const row = add('crm_customer_flow_settlements',`flow-${date}`,{biz_date:date,period_start_date:previousDate,period_end_date:date,
+    const fields = {biz_date:date,period_start_date:previousDate,period_end_date:date,
       previous_flow_settlement_id:flows.at(-1)?._id || null,flow_index_prev:previousReading,flow_index_curr:reading,flow_volume_m3:volume,
       flow_theory_ratio:null,theory_weight_kg:null,actual_weight_kg:null,loss_weight_kg:null,unit_price:SPEC.unit_price,
       should_receive:amount,amount_received:amount,receipt_rounding_amount:0,payment_status:'paid',status:'posted',sale_ids:covered.map(r=>r._id),note,
-      accounting_reconciliation:audit})
+      accounting_reconciliation:audit}
+    let row
+    if(date===existingFinal.biz_date){
+      const patch={...fields,updated_at:now,note:`${fields.note} 保留已有9月7日单据编号；区间按9月5日零表数重新衔接，不沿用原大区间重量。`}
+      row={...existingFinal,...patch};update('crm_customer_flow_settlements',existingFinal,patch)
+    } else row=add('crm_customer_flow_settlements',`flow-${date}`,fields)
     flows.push(row);previousDate=date;previousReading=reading
   }
   assert(assigned.size===sales.length,'存在重建区间外销售，不可覆盖新增业务')
@@ -106,7 +115,7 @@ function buildPlan(snapshot, evidence, actor, now) {
   update('crm_customers',customer,{should_receive_total:SPEC.expected.gas_charges,amount_received_total:SPEC.expected.actual_receipts,receivable_balance:0,
     prepay_balance:SPEC.expected.remaining_prepay,prepay_manual_balance:0,receipt_unallocated_balance:SPEC.expected.remaining_prepay,offset_credit_balance:0,net_balance:-SPEC.expected.remaining_prepay,
     last_receipt_at:Date.parse(SPEC.receipts.at(-1)[0]+'T00:00:00+08:00'),updated_at:now,accounting_reconciliation:audit})
-  const summary={write_count:writes.length,sales_retained:sales.length,old_flows_voided:oldFlows.length,flows_created:flows.length,zero_flows:flows.filter(r=>r.should_receive===0).length,
+  const summary={write_count:writes.length,sales_retained:sales.length,old_flows_voided:oldFlows.length,flows_created:flows.length-1,flows_reused:1,effective_flows:flows.length,zero_flows:flows.filter(r=>r.should_receive===0).length,
     receipts_created:4,opening_prepay:SPEC.opening_prepay,actual_receipts:SPEC.expected.actual_receipts,gas_charges:SPEC.expected.gas_charges,unpaid_gas:0,remaining_prepay:SPEC.expected.remaining_prepay,
     allocations_created:newAllocations.length,checkpoints,customer_remains_active:true}
   const plan={run_id:runId,rule_version:VERSION,source_snapshot_hash:sourceHash,evidence,summary,writes}

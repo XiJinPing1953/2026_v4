@@ -9,7 +9,7 @@ function apply(t,p){t=structuredClone(t);for(const w of p.writes){const rows=t[w
 const q=(handler,action,from='2026-01-01',to='2026-09-07')=>invoke(handler,action,{customer_id:CUSTOMER_ID,date_from:from,date_to:to,summary_only:true})
 test('approved meter intervals, accounting receipts and FIFO allocation preserve every operational sale field',()=>{
  const before=fixture(),p=build(before),after=apply(before,p)
- assert.equal(p.summary.flows_created,11);assert.equal(p.summary.zero_flows,2);assert.equal(p.summary.gas_charges,289710);assert.equal(p.summary.actual_receipts,280000);assert.equal(p.summary.remaining_prepay,36361.68)
+ assert.equal(p.summary.flows_created,10);assert.equal(p.summary.effective_flows,11);assert.equal(p.summary.flows_reused,1);assert.equal(p.summary.zero_flows,2);assert.equal(p.summary.gas_charges,289710);assert.equal(p.summary.actual_receipts,280000);assert.equal(p.summary.remaining_prepay,36361.68)
  assert.equal(p.run_id,build(before).run_id);assert.equal(p.plan_hash,build(before).plan_hash)
  const flows=after.crm_customer_flow_settlements.filter(r=>r.status==='posted'),allIds=flows.flatMap(r=>r.sale_ids)
  assert.equal(allIds.length,24);assert.equal(new Set(allIds).size,24)
@@ -17,6 +17,7 @@ test('approved meter intervals, accounting receipts and FIFO allocation preserve
  for(const s of before.crm_sale_records){const a=after.crm_sale_records.find(r=>r._id===s._id);for(const k of Object.keys(s).filter(k=>!allowed.includes(k)))assert.deepEqual(a[k],s[k]);assert.equal(a.payment_status,'paid');assert.equal(a.amount_received,0)}
  assert.ok(after.crm_customer_allocations.filter(r=>r._id.startsWith('old-')).every(r=>r.status==='void' && r.allocate_amount===0))
  assert.equal(after.crm_customers[0].is_active,true)
+ assert.deepEqual(after.crm_customer_receipts.find(r=>r._id==='already-void'),before.crm_customer_receipts.find(r=>r._id==='already-void'))
 })
 test('source additions, changed amounts and unsupported related vouchers cannot be rebuilt',()=>{
  for(const change of [t=>t.crm_sale_records.push({...t.crm_sale_records[0],_id:'added'}),t=>t.crm_sale_records[0].amount_received++,t=>t.crm_sale_records[0].date='2026-09-08',t=>t.crm_customers[0].is_active=false,t=>t.crm_vouchers.push({_id:'voucher'}),t=>t.crm_customer_receipts[0].status='void']){const t=fixture();change(t);assert.throws(()=>build(t))}
@@ -66,4 +67,13 @@ test('transaction database failure and in-transaction source conflict leave orig
   if(mode==='conflict')t.crm_sale_records[0].updated_at=1
   assert.equal(snapshot(t).snapshot_hash,before.data.snapshot_hash)
  }
+})
+test('remaining real receipt can settle a subsequent flow without new cash or other-customer changes',async()=>{
+ const t=apply(fixture(),build(fixture())),other={_id:'other',name:'unrelated',default_price_unit:'kg',receivable_balance:17,prepay_balance:3}
+ t.crm_customers.push(other);const otherBefore=structuredClone(other)
+ const future={_id:'next-real-flow',customer_id:CUSTOMER_ID,status:'posted',biz_date:'2026-09-09',should_receive:100,amount_received:0,payment_status:'unpaid'}
+ t.crm_customer_flow_settlements.push(future);const credit=t.crm_customer_receipts.find(r=>r.status==='posted' && r.unallocated_amount>0),db=mutableDb(t),handler=loadHandler('crm-customer-settlement',db)
+ const r=await invoke(handler,'allocatePrepayReceiptV1',{customer_id:CUSTOMER_ID,receipt_id:credit._id,amount:100,allocation_mode:'checked',allocation_targets:[{target_type:'flow_settlement',target_id:future._id}]})
+ assert.equal(r.code,0,r.msg);assert.equal(credit.unallocated_amount,36261.68);assert.equal(future.payment_status,'paid')
+ const p=(await q(handler,'getCustomerStatementV1','2025-12-01','2026-09-09')).data.period_summary;assert.equal(p.cash_received,280000);assert.equal(p.complete,true);assert.deepEqual(t.crm_customers.find(r=>r._id==='other'),otherBefore)
 })

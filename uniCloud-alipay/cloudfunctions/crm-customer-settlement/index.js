@@ -2462,6 +2462,7 @@ async function applyAllocationAndPersist({
 	sourceId,
 	entryKind
 }) {
+	if (isOpeningPrepayReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '期初预付款仅能从有备份的专用转入流程创建' }
 	const now = Date.now()
 	const normalizedMode = normalizeAllocationMode(allocationMode || plan.allocation_mode, 'period')
 	const normalizedTargets = normalizeAllocationTargets(

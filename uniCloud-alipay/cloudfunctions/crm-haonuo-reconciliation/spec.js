@@ -5,6 +5,7 @@ const VERSION = 'haonuo-reconciliation/2026-09-08.1'
 const SPEC = {
   customer_id: CUSTOMER_ID, opening_date: '2025-12-16', opening_reading: 556993.1,
   opening_prepay: 46071.68, unit_price: 5,
+  reuse_final_flow_id: '6a9f8195b29a32ad121d6e00',
   periods: [
     ['2026-01-12',569469,12475.9,62379.5], ['2026-01-23',579018.3,9549.3,47746.5],
     ['2026-02-20',583743.6,4725.3,23626.5], ['2026-02-27',592650.6,8907,44535],
