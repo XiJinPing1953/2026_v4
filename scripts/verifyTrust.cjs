@@ -16,6 +16,9 @@ const CHECK_SCRIPTS = [
 const TEST_FILES = [
 	'scripts/checkProjectContext.test.cjs',
 	'scripts/financeTrust.test.cjs',
+	'scripts/mainlineAccounting.test.cjs',
+	'scripts/accountingLedgerPrecision.test.cjs',
+	'scripts/accountingReconciliationIntegration.test.cjs',
 	'scripts/periodSummary.test.cjs',
 	'scripts/periodSummaryCustomerScope.test.cjs',
 	'scripts/haonuoReconciliation.test.cjs',
