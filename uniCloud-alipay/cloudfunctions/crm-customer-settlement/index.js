@@ -8959,7 +8959,7 @@ async function migrateTushanCakeSettlementSitesV1(user, data, requestId) {
 	}
 }
 
-exports.main = async (event, context) => {
+const statementBaseHandler = async (event, context) => {
 	void context
 	const { action, data = {}, token } = event || {}
 	const requestId =
@@ -9022,12 +9022,13 @@ exports.main = async (event, context) => {
 }
 
 // Additive reporting contract; legacy balances and cached totals retain their semantics.
-const statementBaseHandler = exports.main
 exports.main = async (event, context) => {
+	const request = { ...(event || {}), data: { ...(event?.data || {}) } }
+	const action = request.action
+	const data = { ...request.data }
 	try {
-		const result = await statementBaseHandler(event, context)
-		if (result?.code !== 0 || !['getCustomerStatementV1', 'exportCustomerStatementV1', 'exportCustomerAccountingLedgerV1'].includes(event?.action)) return result
-		const data = event.data || {}
+		const result = await statementBaseHandler(request, context)
+		if (result?.code !== 0 || !['getCustomerStatementV1', 'exportCustomerStatementV1', 'exportCustomerAccountingLedgerV1'].includes(action)) return result
 		const customerId = normalizeId(data.customer_id || data.customerId)
 		const customer = await getCustomerById(customerId)
 		const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['customer_id', 'delivery_customer_id'])
