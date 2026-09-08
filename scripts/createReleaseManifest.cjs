@@ -2,14 +2,14 @@
 
 const fs = require('fs')
 const path = require('path')
-const { listFiles, sourceEvidence, assertReproducible, artifactEvidence, sha256 } = require('./lib/releaseEvidence.cjs')
+const { listFiles, artifactEvidence, sha256 } = require('./lib/releaseEvidence.cjs')
+const { checkReleaseIntegrity } = require('./checkReleaseIntegrity.cjs')
 
 function createManifest({ root = path.resolve(__dirname, '..'), product, directory, requireClean = true } = {}) {
 	const config = JSON.parse(fs.readFileSync(path.join(root, 'config/release-products.json'), 'utf8'))
 	const settings = config.products[product]
 	if (!settings) throw new Error(`未知产品：${product}`)
-	const source = sourceEvidence(root, product)
-	if (requireClean) assertReproducible(source)
+	const source = checkReleaseIntegrity({ root, product, requireClean })
 	const output = path.resolve(root, directory || settings.output)
 	const cloudRoot = path.join(root, 'uniCloud-alipay/cloudfunctions')
 	const scope = settings.deploymentScope
