@@ -86,14 +86,29 @@
 						<text class="overview-value">{{ defaultUnitPriceText }}</text>
 					</view>
 					<view class="overview-item">
-						<text class="overview-label">累计营收</text>
-						<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewShouldReceiveTotal) }}</text></text>
-						<text class="overview-meta">{{ overviewScopeText }}</text>
+						<text class="overview-label">{{ periodIsYear ? '本年营收' : '期间营收' }}</text>
+						<text class="overview-value">{{ periodMoney('business_revenue') }}</text>
+						<text class="overview-meta">{{ periodScopeText }} · 不含历史转入</text>
 					</view>
 					<view class="overview-item">
-						<text class="overview-label">累计实收</text>
-						<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewAmountReceivedTotal) }}</text></text>
-						<text class="overview-meta">{{ overviewScopeText }}</text>
+						<text class="overview-label">所选期间应收合计（含历史款项）</text>
+						<text class="overview-value">{{ periodMoney('receivable_total') }}</text>
+						<text class="overview-meta">其中历史款项 {{ periodMoney('historical_receivable') }}</text>
+						<text class="overview-meta">{{ periodScopeText }}</text>
+					</view>
+					<view class="overview-item">
+						<text class="overview-label">{{ periodIsYear ? '本年实际收款' : '期间实际收款' }}</text>
+						<text class="overview-value">{{ periodMoney('cash_received') }}</text>
+						<text class="overview-meta">其中收回历史欠款 {{ periodMoney('historical_debt_collected') }}</text>
+						<text class="overview-meta">{{ periodScopeText }} · 按收款日期</text>
+						<text v-if="periodReport?.unresolved_count" class="overview-meta">{{ periodReport.unresolved_count }} 项账务依据待核，相关合计暂不显示</text>
+						<text v-for="(issue, index) in (periodReport?.unresolved_sources || []).slice(0, 3)" :key="index" class="overview-meta">{{ describePeriodSummaryIssue(issue) }}</text>
+					</view>
+					<view v-if="periodReport?.refund_total !== 0" class="overview-item">
+						<text class="overview-label">期间退款</text>
+						<text class="overview-value">{{ periodMoney('refund_total') }}</text>
+						<text class="overview-meta">扣除退款后的净收款 {{ periodMoney('net_cash_received') }}</text>
+						<text class="overview-meta">{{ periodScopeText }}</text>
 					</view>
 					<view class="overview-item">
 						<text class="overview-label">其中预付款</text>
@@ -1007,6 +1022,7 @@
 </template>
 
 <script setup>
+import { normalizeCustomerPeriodSummary, describePeriodSummaryIssue } from '@/services/mappers/customerPeriodSummary.js'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
@@ -1352,6 +1368,18 @@ const summaryLastReceiptText = computed(() => {
 	const d = new Date(ts)
 	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 })
+const periodSummary = ref(null)
+let statementSummaryRequestSeq = 0
+const periodReport = computed(() => normalizeCustomerPeriodSummary(periodSummary.value, {
+	dateFrom: normalizeDate(rowFilters.dateFrom), dateTo: normalizeDate(rowFilters.dateTo)
+}))
+const periodScopeText = computed(() => `口径：${normalizeDate(rowFilters.dateFrom) || '--'} ~ ${normalizeDate(rowFilters.dateTo) || '--'}`)
+const periodIsYear = computed(() => normalizeDate(rowFilters.dateFrom) === `${new Date().getFullYear()}-01-01` && normalizeDate(rowFilters.dateTo) === todayYmd())
+function periodMoney(key) {
+	const value = periodReport.value?.[key]
+	return typeof value === 'number' && Number.isFinite(value) ? `¥${formatMoney(value)}` : (periodReport.value ? '待核' : '未完成')
+}
+
 const overviewScopeText = computed(() => (
 	hasSummaryScope.value ? `口径：${summaryScope.date_from} ~ ${summaryScope.date_to}` : '口径：全量'
 ))
@@ -3504,6 +3532,7 @@ function buildStatementSummaryScopeParams() {
 }
 
 function applyStatementSummary(data = {}) {
+	periodSummary.value = normalizeCustomerPeriodSummary(data.period_summary)
 	const nextSummary = data.summary || {}
 	summary.receivable_balance = toNumber(nextSummary.receivable_balance, 0)
 	summary.prepay_balance = toNumber(nextSummary.prepay_balance, 0)
@@ -3616,6 +3645,8 @@ function showCloudRequestError(scope, err) {
 
 async function loadStatement({ summaryOnly = false, requestSeq = 0 } = {}) {
 	if (!recordId.value) return
+	const summaryRequestSeq = ++statementSummaryRequestSeq
+	periodSummary.value = null
 	if (!summaryOnly) loading.value = true
 	else rowSummaryLoading.value = true
 	try {
@@ -3626,7 +3657,7 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0 } = {}) {
 			summaryDateTo: summaryScopeParams.summaryDateTo,
 			summaryOnly
 		})
-		if (summaryOnly && !isLatestRowsSearchRequest(requestSeq)) return
+		if (summaryRequestSeq !== statementSummaryRequestSeq || (summaryOnly && !isLatestRowsSearchRequest(requestSeq))) return
 		if (res?.code !== 0) {
 			financialIssue.value = res?.msg || '账务数据未完成读取，请重试'
 			financialSourceIds.value = res?.data?.financial_evidence?.unresolved_source_ids || []
@@ -3649,11 +3680,13 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0 } = {}) {
 		syncFlowFormDefaults()
 		syncAnalysisFilterDefaults()
 	} catch (err) {
+		if (summaryRequestSeq !== statementSummaryRequestSeq) return
 		if (!summaryOnly || isLatestRowsSearchRequest(requestSeq)) {
 			financialIssue.value = '账务数据读取失败，请重试；旧结果已隐藏'
 			showCloudRequestError(summaryOnly ? '账务摘要刷新' : '客户账务加载', err)
 		}
 	} finally {
+		if (summaryRequestSeq !== statementSummaryRequestSeq) return
 		if (!summaryOnly) loading.value = false
 		else if (isLatestRowsSearchRequest(requestSeq)) rowSummaryLoading.value = false
 	}

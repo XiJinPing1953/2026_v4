@@ -1,3 +1,5 @@
+import { customerPeriodSummaryRows, normalizeCustomerPeriodSummary, describePeriodSummaryIssue } from '@/services/mappers/customerPeriodSummary.js'
+
 function normalizeString(value) {
 	if (value == null) return ''
 	return String(value).trim()
@@ -378,9 +380,27 @@ function buildAccountingLedgerErrorRows(errors = []) {
 	return rows
 }
 
+function buildPeriodSummarySheetRows(payload = {}) {
+	const summary = normalizeCustomerPeriodSummary(payload.period_summary)
+	const scale = summary?.money_scale || 2
+	const period = payload.period || {}
+	return [
+		[{ type: 'String', value: '对账汇总说明' }],
+		[{ type: 'String', value: '查询期间' }, { type: 'String', value: `${period.date_from || summary?.date_from || ''} ~ ${period.date_to || summary?.date_to || ''}` }],
+		...customerPeriodSummaryRows(summary).map(row => [
+			{ type: 'String', value: row.label },
+			row.value == null ? { type: 'String', value: summary ? '待核' : '未完成' } : moneyCellByScale(row.value, scale)
+		]),
+		[{ type: 'String', value: '说明' }, { type: 'String', value: '营收不含历史转入；实际收款按收款日期，包含预收及待分配款，不含非现金冲抵和抹零。借贷合计不等同实际收款。' }],
+		[{ type: 'String', value: '核查状态' }, { type: 'String', value: summary?.complete ? '完整' : summary ? `待核 ${summary.unresolved_count} 项` : '未完成' }],
+		...(summary?.unresolved_sources || []).map(row => [{ type: 'String', value: row.source_id }, { type: 'String', value: describePeriodSummaryIssue(row) }])
+	]
+}
+
 export function buildCustomerAccountingLedgerWorkbookXml(payload = {}) {
 	return buildWorkbookXml([
-		buildWorksheetXml('会计明细账', buildAccountingLedgerSheetRows(payload))
+		buildWorksheetXml('会计明细账', buildAccountingLedgerSheetRows(payload)),
+		buildWorksheetXml('汇总说明', buildPeriodSummarySheetRows(payload))
 	])
 }
 
@@ -539,7 +559,8 @@ export function buildCustomerAccountingLedgerBatchExportFileName(payload = {}) {
 export function buildCustomerStatementWorkbookXml(payload = {}) {
 	const sheets = [
 		buildWorksheetXml('客户对账单', buildStatementSheetRows(payload)),
-		buildWorksheetXml('销售明细', buildSaleDetailSheetRows(payload))
+		buildWorksheetXml('销售明细', buildSaleDetailSheetRows(payload)),
+		buildWorksheetXml('汇总说明', buildPeriodSummarySheetRows(payload))
 	]
 	return [
 		'<?xml version="1.0"?>',
@@ -551,6 +572,7 @@ export function buildCustomerStatementWorkbookXml(payload = {}) {
 		' xmlns:html="http://www.w3.org/TR/REC-html40">',
 		'<Styles>',
 		'<Style ss:ID="sMoney"><NumberFormat ss:Format="0.00"/></Style>',
+		'<Style ss:ID="sMoney3"><NumberFormat ss:Format="0.000"/></Style>',
 		'</Styles>',
 		sheets.join(''),
 		'</Workbook>'

@@ -8754,4 +8754,36 @@ const main = async (event, context) => {
 	return { code: 400, msg: '未知 action' }
 }
 
-exports.main = withFinancialEvidence(main, saleAccounting.RULE_VERSION)
+// Additive reporting contract; legacy balances and cached totals retain their semantics.
+const statementPeriodHandler = async (event, context) => {
+	const request = { ...(event || {}), data: { ...(event?.data || {}) } }
+	const action = request.action
+	const data = { ...request.data }
+	try {
+		const result = await main(request, context)
+		if (result?.code !== 0 || !['getCustomerStatementV1', 'exportCustomerStatementV1', 'exportCustomerAccountingLedgerV1'].includes(action)) return result
+		const customerId = normalizeId(data.customer_id || data.customerId)
+		const customer = await getCustomerById(customerId)
+		const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['customer_id', 'delivery_customer_id'])
+		const saleWhere = hiddenWhere ? dbCmd.and([{ customer_id: customerId }, hiddenWhere]) : { customer_id: customerId }
+		result.data.period_summary = await require('./periodSummary').readPeriodSummary({
+			collections: { sales, flows: flowSettlements, debts: openingDebts, receipts, allocations },
+			command: dbCmd, customerId, saleWhere,
+			dateFrom: normalizeDate(data.summary_date_from || data.summaryDateFrom || data.date_from || data.dateFrom),
+			dateTo: normalizeDate(data.summary_date_to || data.summaryDateTo || data.date_to || data.dateTo),
+			moneyScale: resolveCustomerMoneyScale(customer)
+		}, {
+			sum: sumMoneyByScale, sale: computeSaleSnapshot, flow: computeFlowSettlementSnapshot,
+			debt: computeOpeningDebtSnapshot, debtType: resolveOpeningDebtEntryType,
+			isOffsetReceipt: isOffsetCreditReceiptRow, isOffsetAllocation: isOffsetAllocationRow
+		})
+		return result
+	} catch (error) {
+		if (['FINANCIAL_READ_INCOMPLETE', 'FINANCIAL_CLASSIFICATION_REQUIRED'].includes(error.code)) {
+			return { code: 409, msg: error.message, error_code: error.code, data: { financial_evidence: { ...error.details, complete: false } } }
+		}
+		throw error
+	}
+}
+
+exports.main = withFinancialEvidence(statementPeriodHandler, saleAccounting.RULE_VERSION)
