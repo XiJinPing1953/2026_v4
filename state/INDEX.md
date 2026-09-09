@@ -13,7 +13,7 @@
 
 - [工程约束](../docs/RULES.md)、[会计入口](../docs/ACCOUNTING.md)、[可靠性证据与指标](../docs/SYSTEM_RELIABILITY.md)。
 - [系统改造总表](../docs/SYSTEM_MAINLINE.md)保存主线、当前任务、依赖与验收标准；两家客户修账已关闭，不代替通用改造验收。
-- [09-09账务独立发布准备](handoffs/2026-09-09-accounting-release-preparation.md)是当前交接：候选5021753、66项验证及回退包完成，全库原始资料未取得，未停录/未上线。
+- [09-09账务独立发布准备](handoffs/2026-09-09-accounting-release-preparation.md)是当前交接：候选5021753、66项验证及回退包完成；5,943张原始销售/139客户分类核查通过，新增待核0，等待现场停录确认，尚未上线。
 - [09-09第二批总验收](handoffs/2026-09-09-mainline-entry-acceptance.md)记录PDA/导入交付、三处追加修复和168项统一验证；全量候选5312c6f尚未发布。[09-08首批验收](handoffs/2026-09-08-mainline-owner-acceptance.md)保留前一阶段证据。
 - [交接模板](handoffs/TEMPLATE.md) 与 [系统改造交接](handoffs/2026-09-05-system-trust.md)、[前次客户账务修正交接](handoffs/2026-09-07-customer-accounting-reconciliation.md)、[第二客户重建交接](handoffs/2026-09-08-haonuo-rebuild.md)。
 - [原有工作区基线](baselines/2026-09-05.json) 只含文件元数据，27 项原有改动不能视为本任务新增。
