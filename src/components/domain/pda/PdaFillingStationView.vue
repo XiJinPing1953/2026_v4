@@ -62,8 +62,8 @@
 				<text class="hint-text">{{ nextHint }}</text>
 				<view class="actions-row">
 					<AppButton v-if="canCreate" kind="primary" @click="goCreate">扫气瓶</AppButton>
-					<AppButton v-if="task" kind="primary" @click="goComplete">确认完成</AppButton>
-					<AppButton v-if="task" kind="neutral" @click="goComplete">异常上报</AppButton>
+					<AppButton v-if="task" kind="primary" @click="goComplete">{{ task.completion?.physicalComplete ? '查看保存状态' : '确认完成' }}</AppButton>
+					<AppButton v-if="task && !task.completion?.physicalComplete" kind="neutral" @click="goComplete">异常上报</AppButton>
 				</view>
 			</view>
 		</AppSection>
@@ -97,6 +97,7 @@ const title = computed(() => station.value?.stationName ? `${station.value.stati
 const canCreate = computed(() => station.value?.status === PDA_FILLING_STATION_STATUS.IDLE)
 const nextHint = computed(() => {
 	if (!station.value) return '-'
+	if (station.value.status === PDA_FILLING_STATION_STATUS.COMPLETION_PENDING) return '完成事实已冻结，请进入完成页确认源单保存'
 	if (station.value.status === PDA_FILLING_STATION_STATUS.IDLE) return '可创建任务'
 	if (station.value.status === PDA_FILLING_STATION_STATUS.WRITING) return '目标写入 C606+ 中'
 	if (station.value.status === PDA_FILLING_STATION_STATUS.READY) return '现场可启动 C606+'

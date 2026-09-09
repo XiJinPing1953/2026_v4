@@ -17,7 +17,7 @@
 				</view>
 				<view class="info-row">
 					<text class="info-label">结束重量</text>
-					<text class="info-value">{{ weightText(scale.weightKg) }}</text>
+					<text class="info-value">{{ weightText(endWeight) }}</text>
 				</view>
 				<view class="info-row">
 					<text class="info-label">实际充装</text>
@@ -29,15 +29,24 @@
 						<AppTag :kind="resultKind">{{ resultText }}</AppTag>
 					</view>
 				</view>
-				<AppInput v-model="remark" label="备注" placeholder="可选" />
+				<AppInput v-model="remark" label="备注" placeholder="可选" :disabled="completion.physicalComplete || completion.legacy" />
 			</view>
 			<view v-else class="empty-block">
 				<text class="empty-text">任务不存在或已不可用</text>
 			</view>
 
+			<view v-if="task" class="save-panel">
+				<text class="info-value">{{ saveMessage }}</text>
+				<text v-if="completion.operationId" class="status-detail">完成编号：{{ completion.operationId }}</text>
+				<text v-if="completion.sourceSaved" class="status-detail">源单：{{ completion.fillingRecordId }}</text>
+				<text v-if="completion.physicalComplete" class="status-detail">完成操作者：{{ completion.operator || '-' }}；结束重量、时间和备注已冻结</text>
+				<text class="status-detail">后续处理：{{ processingText }}</text>
+				<text v-if="completion.lastError" class="status-error">{{ completion.lastError }}</text>
+				<text v-if="requestError" class="status-error">{{ requestError }}</text>
+			</view>
 			<view class="actions-row">
-				<AppButton kind="primary" :loading="submitting" :disabled="!task" @click="onComplete">确认完成</AppButton>
-				<AppButton kind="neutral" :loading="submitting" :disabled="!task" @click="onMarkAbnormal">标记异常</AppButton>
+				<AppButton kind="primary" :loading="submitting" :disabled="!canSubmit" @click="onComplete">{{ completion.physicalComplete ? '恢复重试' : '确认完成' }}</AppButton>
+				<AppButton v-if="!completion.physicalComplete && !completion.legacy" kind="neutral" :loading="submitting" :disabled="!canSubmit" @click="onMarkAbnormal">标记异常</AppButton>
 			</view>
 		</AppSection>
 	</AppPage>
@@ -54,6 +63,8 @@ import {
 	completePdaFillingTaskV1,
 	formatPdaFillingWeight,
 	getPdaFillingTaskV1,
+	getPdaCompletionMessage,
+	normalizePdaFillingTask,
 	markPdaFillingTaskAbnormalV1
 } from '@/services/pda/fillingTask'
 
@@ -66,21 +77,39 @@ const submitting = ref(false)
 const task = ref(null)
 const scale = ref({})
 const remark = ref('')
+const requestError = ref('')
+const completion = computed(() => task.value?.completion || {})
+const saveMessage = computed(() => getPdaCompletionMessage(completion.value))
+const canSubmit = computed(() => Boolean(task.value && !loading.value && !submitting.value && !completion.value.legacy && (!completion.value.physicalComplete || completion.value.canRetry)))
+const endWeight = computed(() => completion.value.physicalComplete ? task.value?.weightEnd : scale.value?.weightKg)
+const processingText = computed(() => {
+	const state = completion.value
+	if (state.complete) return '流转、监管入队与异常核查已完成'
+	if (state.processingStatus === 'failed') return '处理失败，可恢复重试'
+	if (state.processingStatus === 'conflict') return '原操作与源单不一致，需管理员核查'
+	if (state.legacy) return '旧任务待核查'
+	if (state.remainingTotal != null) return `核查已完成 ${state.processedTotal ?? 0} / ${state.targetTotal ?? 0}，剩余 ${state.remainingTotal}；其他处理以最终完成状态为准`
+	return state.physicalComplete ? '等待查询确认' : '尚未提交'
+})
 
 const title = computed(() => (task.value?.stationName ? `${task.value.stationName} - 完成确认` : '完成确认'))
 const actualNetWeight = computed(() => {
+	if (completion.value.physicalComplete) return task.value?.actualNetWeight ?? null
+	if (task.value?.weightStart == null || endWeight.value == null) return null
 	const start = Number(task.value?.weightStart)
-	const end = Number(scale.value?.weightKg)
+	const end = Number(endWeight.value)
 	if (!Number.isFinite(start) || !Number.isFinite(end)) return null
 	return Number((end - start).toFixed(3))
 })
 const deviation = computed(() => {
+	if (actualNetWeight.value == null || task.value?.targetNetWeight == null) return null
 	const actual = Number(actualNetWeight.value)
 	const target = Number(task.value?.targetNetWeight)
 	if (!Number.isFinite(actual) || !Number.isFinite(target)) return null
 	return Number((actual - target).toFixed(3))
 })
 const resultText = computed(() => {
+	if (completion.value.physicalComplete) return ({ completed: '正常', overweight: '超量', underweight: '不足', error: '异常完成' })[completion.value.physicalStatus] || '完成结果待核'
 	if (!scale.value?.isOnline) return scale.value?.errorMessage || '秤离线'
 	if (!scale.value?.isStable) return '未稳定'
 	if (deviation.value == null) return '-'
@@ -106,7 +135,11 @@ async function loadTask() {
 		}
 		task.value = res.data.task
 		scale.value = res.data.scale || {}
-		if (!remark.value) remark.value = task.value?.remark || ''
+		if (completion.value.complete && completion.value.taskLinked) requestError.value = ''
+		if (!remark.value || completion.value.physicalComplete) remark.value = task.value?.remark || ''
+	} catch (error) {
+		requestError.value = error?.message || '查询确认中断，请刷新原任务'
+		showToast(requestError.value)
 	} finally {
 		loading.value = false
 	}
@@ -125,13 +158,16 @@ async function submit(abnormal) {
 	submitting.value = true
 	try {
 		const action = abnormal ? markPdaFillingTaskAbnormalV1 : completePdaFillingTaskV1
+		requestError.value = ''
 		const res = await action({ task_id: task.value._id, remark: remark.value })
-		if (res?.code !== 0) {
-			showToast(res?.msg || '保存失败')
-			return
-		}
-		showToast(abnormal ? '异常记录已保存' : '灌装记录已保存')
-		uni.redirectTo({ url: '/pages/pda/filling-board' })
+		if (res?.data?.task) task.value = normalizePdaFillingTask(res.data.task)
+		if (res?.code !== 0) requestError.value = res?.msg || '提交未确认，请刷新或重试原任务'
+		showToast(res?.code !== 0 ? requestError.value : getPdaCompletionMessage(task.value?.completion))
+		await loadTask()
+	} catch (error) {
+		requestError.value = error?.message || '确认中断，请刷新或重试原任务'
+		showToast(requestError.value)
+		await loadTask()
 	} finally {
 		submitting.value = false
 	}
@@ -155,6 +191,25 @@ defineExpose({ loadTask })
 </script>
 
 <style scoped>
+.save-panel {
+	margin-top: 24rpx;
+	padding: 22rpx;
+	border: 1rpx solid var(--crm-border);
+	border-radius: var(--crm-radius-sm);
+	display: flex;
+	flex-direction: column;
+	gap: 12rpx;
+}
+
+.status-detail,
+.status-error {
+	font-size: 26rpx;
+	line-height: 1.5;
+	word-break: break-all;
+}
+
+.status-error { color: #ba0517; }
+
 .confirm-panel {
 	display: flex;
 	flex-direction: column;
