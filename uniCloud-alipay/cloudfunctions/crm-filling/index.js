@@ -4348,7 +4348,7 @@ exports.main = async (event, context) => {
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
-	if (action === 'capabilitiesV1') return { code: 0, data: { rule_version: VERSION, durable_operations: true, source_status_query: true } }
+	if (action === 'capabilitiesV1') return { code: 0, data: { rule_version: VERSION, durable_operations: true, source_status_query: true, source_payload_hash: true } }
 	if (action === 'getOperationV1') return fillingOperations.status(user, data)
 	if (action === 'listOperationsV1') return fillingOperations.list(user)
 	if (action === 'retryOperationV1') return fillingOperations.retry(user, data)

@@ -1,16 +1,11 @@
 'use strict'
 
 const crypto = require('crypto')
+const { fingerprint } = require('./fillingPayloadLocal')
 const COLLECTION = 'crm_filling_operations'
 const VERSION = 'filling-consistency-2026-09-08-v2'
 const LEASE_MS = 120000 // Longer than the configured 60 second function timeout.
 const operationKey = (id) => `fillop_${crypto.createHash('sha256').update(String(id)).digest('hex').slice(0, 40)}`
-const stableValue = (value) => Array.isArray(value) ? value.map(stableValue) : value && typeof value === 'object'
-	? Object.fromEntries(Object.keys(value).sort().filter((key) => value[key] !== undefined).map((key) => [key, stableValue(value[key])])) : value
-function fingerprint(data = {}) {
-	const { operation_id, preview, ignore_bottle_flow_warning, ignoreBottleFlowWarning, ...input } = data
-	return crypto.createHash('sha256').update(JSON.stringify(stableValue(input))).digest('hex')
-}
 function publicStatus(op) {
 	const saved = Number(op.saved_cursor || 0)
 	const targets = op.targets || []
@@ -117,6 +112,10 @@ function createFillingOperations({ db, saveRow, synchronizeRow, scanTarget, now 
 		if (!op) return { code: 404, msg: '未找到该提交，可使用原操作编号重试提交' }
 		if (!canAccess(user, op)) return { code: 403, msg: '无权访问该灌装操作' }
 		const result = response(op)
+		// Bind the queried operation to the caller's frozen business facts and original actor.
+		// This is a digest and identity proof, never the private payload or worker credential.
+		result.data.input_hash = op.input_hash
+		result.data.created_by = op.created_by
 		// Read by frozen IDs, including a committed row whose checkpoint acknowledgement was lost.
 		const sourceRecords = []
 		for (let offset = 0; offset < op.rows.length; offset += 50) {

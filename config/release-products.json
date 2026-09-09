@@ -21,6 +21,7 @@
           "crm-dashboard",
           "crm-collection",
           "crm-filling",
+          "crm-pda-filling",
           "crm-bottle-anomaly",
           "crm-bottle-movement",
           "crm-gas-in"
@@ -36,6 +37,8 @@
           "crm_filling_operations.schema.json",
           "crm_filling_operations.index.json",
           "crm_filling_slots.schema.json",
+          "crm_pda_filling_tasks.schema.json",
+          "crm_pda_filling_tasks.index.json",
           "crm_bottle_scan_locks.schema.json",
           "crm_bottle_anomaly_settings.schema.json",
           "crm_gas_in.schema.json"

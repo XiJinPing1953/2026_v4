@@ -176,7 +176,7 @@ function prepareOperationRecord(row, inputPath, previousRecord) {
 	}
 }
 
-function classifyOperationStatus(response, operationId) {
+function classifyOperationStatus(response, operationId, expectedPayloadHash) {
 	if (!response || response.code !== 0) {
 		return {
 			confirmed: false,
@@ -190,6 +190,9 @@ function classifyOperationStatus(response, operationId) {
 	}
 	if (normalizeString(data.rule_version) !== FILLING_OPERATION_VERSION) {
 		return { confirmed: false, code: 0, message: '操作状态协议版本不匹配' }
+	}
+	if (!expectedPayloadHash || normalizeString(data.input_hash) !== expectedPayloadHash) {
+		return { confirmed: false, accepted: true, code: 0, message: '操作内容摘要与冻结源记录不一致或缺失，停止重放并等待核查' }
 	}
 	const sourceRecords = Array.isArray(data.source_records) ? data.source_records : []
 	if (Number(data.accepted_total) !== 1 || sourceRecords.length !== 1) {

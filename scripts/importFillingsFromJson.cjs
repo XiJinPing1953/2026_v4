@@ -900,14 +900,15 @@ async function fetchDurableCapabilities(client, crmToken) {
 	const data = response && response.data && typeof response.data === 'object' ? response.data : {}
 	if (
 		!response || response.code !== 0 || data.durable_operations !== true ||
-		data.source_status_query !== true || data.rule_version !== FILLING_OPERATION_VERSION
+		data.source_status_query !== true || data.source_payload_hash !== true || data.rule_version !== FILLING_OPERATION_VERSION
 	) {
 		throw new Error(`灌装后台不具备所需的可恢复保存协议，未执行写入: ${sanitizeLogText(response && response.msg) || '能力或版本不匹配'}`)
 	}
 	return {
 		rule_version: data.rule_version,
 		durable_operations: true,
-		source_status_query: true
+		source_status_query: true,
+		source_payload_hash: true
 	}
 }
 
@@ -1105,7 +1106,7 @@ async function run(runtime = {}) {
 		try {
 			const status = await fetchOperationStatus(client, crmToken, record.operation_id)
 			if (status && status.code === 404) return { missing: true, status }
-			const assessment = classifyOperationStatus(status, record.operation_id)
+			const assessment = classifyOperationStatus(status, record.operation_id, record.frozen_payload_hash)
 			applyOperationAssessment(record, assessment, new Date().toISOString())
 			return { missing: false, status, assessment }
 		} catch (error) {

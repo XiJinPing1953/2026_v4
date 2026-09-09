@@ -234,6 +234,8 @@ async function onCreateTask() {
 		}
 		showToast('任务已创建')
 		uni.redirectTo({ url: `/pages/pda/filling-station?station_code=${encodeURIComponent(props.stationCode)}` })
+	} catch (error) {
+		showToast(error?.message || '创建结果未确认，请刷新工位查看原任务')
 	} finally {
 		submitting.value = false
 	}

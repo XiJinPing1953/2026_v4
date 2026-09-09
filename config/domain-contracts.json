@@ -2,6 +2,13 @@
   "version": 1,
   "copies": [
     {
+      "source": "uniCloud-alipay/cloudfunctions/common/fillingPayload.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-filling/fillingPayloadLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-pda-filling/fillingPayloadLocal.js"
+      ]
+    },
+    {
       "source": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/receiptSource.js",
       "targets": [
         "uniCloud-alipay/cloudfunctions/crm-dashboard/receiptSourceLocal.js"
@@ -41,7 +48,8 @@
   "promotedSchemas": [
     "crm_fillings",
     "crm_bottle_movements",
-    "crm_gas_inventory_movements"
+    "crm_gas_inventory_movements",
+    "crm_pda_filling_tasks"
   ],
   "schemaPolicy": "For an existing root/schema duplicate, database/<name>.schema.json is authoritative; database/schema/<name>.schema.json is a generated compatibility copy. Schemas present only under schema/ retain their existing location."
 }

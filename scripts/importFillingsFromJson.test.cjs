@@ -35,6 +35,7 @@ function makeStatus(operation) {
 		msg: operation.status === 'failed' ? '提交已受理，处理遇到问题' : '提交已受理',
 		data: {
 			operation_id: operation.operationId,
+			input_hash: operation.payloadHash,
 			rule_version: FILLING_OPERATION_VERSION,
 			status: operation.status,
 			complete: operation.complete,
@@ -62,7 +63,8 @@ function createControlledTransport(resolveMode) {
 				return { code: 0, data: {
 					rule_version: FILLING_OPERATION_VERSION,
 					durable_operations: true,
-					source_status_query: true
+					source_status_query: true,
+					source_payload_hash: true
 				} }
 			}
 			if (event.action === 'listV1') return { code: 0, data: [], paging: { hasMore: false } }
@@ -342,4 +344,69 @@ test('rerun retries a failed existing operation with the same id and confirms it
 	assert.deepEqual(transport.calls.filter((call) => call.action === 'retryOperationV1').map((call) => call.operation_id), [originalId])
 	assert.equal(transport.calls.filter((call) => call.action === 'createV1').length, 1)
 	assert.equal(transport.createdBusinessTotal, 1)
+})
+
+test('actual importer and filling handler recover failed downstream work even when retry acknowledgement is lost', async (t) => {
+	const { makeApp } = require('./lib/pdaCompletionHarness.cjs')
+	let scanBlocked = true
+	const app = makeApp({ scan: async () => scanBlocked
+		? { code: 409, msg: 'controlled source check failure' }
+		: { code: 0, data: { done: true, read_complete: true, rule_version: 'bottle-flow-2026-09-05-v1' } }
+	})
+	const workspace = makeWorkspace(t)
+	writeRows(workspace.inputPath, [row({ date: '2026-09-08', bottle_no: 'B1', operator: 'operator' })])
+	const calls = []
+	const client = { async callFunction(name, event) {
+		assert.equal(name, 'crm-filling')
+		calls.push(event.action)
+		const result = await app.filling(event.action, event.data, event.token)
+		if (event.action === 'retryOperationV1') throw new Error('controlled retry acknowledgement loss')
+		return result
+	} }
+	const argv = argvFor({ ...workspace, token: 'good' })
+	const first = await run({ argv, client, logger: quietLogger })
+	assert.equal(first.operation_failed_total, 1)
+	assert.equal(first.saved_total, 1)
+	const sourceId = first.operation_records[0].source_record_id
+	const operationId = first.operation_records[0].operation_id
+	scanBlocked = false
+	const recovered = await run({ argv, client, logger: quietLogger })
+	assert.equal(recovered.completed_total, 1)
+	assert.equal(recovered.operation_records[0].operation_id, operationId)
+	assert.equal(recovered.operation_records[0].source_record_id, sourceId)
+	assert.equal(recovered.confirmation_required_total, 0)
+	const again = await run({ argv, client, logger: quietLogger })
+	assert.equal(again.completed_total, 1)
+	assert.equal(calls.filter((action) => action === 'createV1').length, 1)
+	assert.equal(calls.filter((action) => action === 'retryOperationV1').length, 1)
+	for (const name of ['crm_fillings', 'crm_bottle_movements', 'crm_gas_inventory_movements', 'crm_filling_operations']) {
+		assert.equal(app.db.data(name).size, 1, name)
+	}
+})
+
+test('import recovery rejects another payload occupying the frozen operation id', async (t) => {
+	const { makeApp } = require('./lib/pdaCompletionHarness.cjs')
+	const app = makeApp()
+	const workspace = makeWorkspace(t)
+	writeRows(workspace.inputPath, [row({ date: '2026-09-08', bottle_no: 'B1', operator: 'operator' })])
+	const calls = []
+	const client = { async callFunction(name, event) {
+		calls.push(event.action)
+		if (event.action === 'createV1') throw new Error('controlled failure before acceptance')
+		return app.filling(event.action, event.data, event.token)
+	} }
+	const argv = argvFor({ ...workspace, token: 'good' })
+	const first = await run({ argv, client, logger: quietLogger })
+	assert.equal(first.confirmation_required_total, 1)
+	const record = first.operation_records[0]
+	const unrelated = await app.filling('createV1', { ...record.frozen_payload, operation_id: record.operation_id, fill_weight: 99 })
+	assert.equal(unrelated.code, 0)
+	const recovered = await run({ argv, client, logger: quietLogger })
+	assert.equal(recovered.saved_total, 0)
+	assert.equal(recovered.completed_total, 0)
+	assert.equal(recovered.confirmation_required_total, 1)
+	assert.match(recovered.operation_records[0].message, /摘要/)
+	assert.equal(calls.filter((action) => action === 'retryOperationV1').length, 0)
+	assert.equal(app.db.data('crm_fillings').size, 1)
+	assert.equal([...app.db.data('crm_fillings').values()][0].fill_weight, 99)
 })
