@@ -13,7 +13,7 @@
 
 - [工程约束](../docs/RULES.md)、[会计入口](../docs/ACCOUNTING.md)、[可靠性证据与指标](../docs/SYSTEM_RELIABILITY.md)。
 - [系统改造总表](../docs/SYSTEM_MAINLINE.md)保存主线、当前任务、依赖与验收标准；两家客户修账已关闭，不代替通用改造验收。
-- [09-09账务发布与回退](handoffs/2026-09-09-accounting-release-rollback.md)是当前交接：候选5021753曾上传，网页资源回读失败后完整回退，原生产已验证恢复并通知恢复录入；下一步在窗口外排查。此前[发布准备](handoffs/2026-09-09-accounting-release-preparation.md)保留分类、版本及候选证据。
+- [09-09账务正式发布验收](handoffs/2026-09-09-accounting-release-accepted.md)是当前交接：5021753四函数及H5已上线，原值、接口、页面和导出验收通过，已通知恢复录入。[前次回退](handoffs/2026-09-09-accounting-release-rollback.md)与[发布准备](handoffs/2026-09-09-accounting-release-preparation.md)保留历史证据。
 - [09-09第二批总验收](handoffs/2026-09-09-mainline-entry-acceptance.md)记录PDA/导入交付、三处追加修复和168项统一验证；全量候选5312c6f尚未发布。[09-08首批验收](handoffs/2026-09-08-mainline-owner-acceptance.md)保留前一阶段证据。
 - [交接模板](handoffs/TEMPLATE.md) 与 [系统改造交接](handoffs/2026-09-05-system-trust.md)、[前次客户账务修正交接](handoffs/2026-09-07-customer-accounting-reconciliation.md)、[第二客户重建交接](handoffs/2026-09-08-haonuo-rebuild.md)。
 - [原有工作区基线](baselines/2026-09-05.json) 只含文件元数据，27 项原有改动不能视为本任务新增。
