@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "archived_at": "2026-09-05",
+  "archives": [
+    {
+      "path": "state/history/STATE-2026-08-26.md",
+      "original_path": "STATE.md",
+      "sha256": "351c60ed96018db18cfcfffccc3c551d770c17d93eeb34e036d8335d25f2d4cb",
+      "bytes": 501807,
+      "lines": 8335,
+      "meaning": "Historical record through 2026-08-26; not active instructions or proof of current deployment."
+    }
+  ]
+}
