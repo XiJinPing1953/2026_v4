@@ -55,7 +55,11 @@
     "filling:permit:gateway:test": "node --test scripts/filling-permit-gateway/*.test.cjs",
     "filling:permit:gateway:dist:win": "electron-builder --config electron-builder.filling-permit.yml --win nsis --x64",
     "filling:permit:password": "node scripts/generateFillingPermitGatewayPasswordHash.cjs",
-    "release:web": "node scripts/releaseWeb.cjs"
+    "release:web": "node scripts/releaseWeb.cjs",
+    "check:release": "node scripts/checkReleaseIntegrity.cjs",
+    "release:manifest": "node scripts/createReleaseManifest.cjs",
+    "build:web:cloud": "node scripts/buildWebWithCloudSpace.cjs",
+    "test:accounting-release": "node --test scripts/mainlineAccounting.test.cjs scripts/financeTrust.test.cjs scripts/periodSummary.test.cjs scripts/periodSummaryCustomerScope.test.cjs scripts/haonuoReconciliation.test.cjs scripts/accountingLedgerPrecision.test.cjs scripts/accountingReconciliationIntegration.test.cjs scripts/reconciledSaleStatus.test.cjs scripts/accountingFrontend.test.cjs scripts/releaseEvidence.test.cjs scripts/releaseScope.test.cjs scripts/syncDomainContracts.test.cjs"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-5000620260331001",

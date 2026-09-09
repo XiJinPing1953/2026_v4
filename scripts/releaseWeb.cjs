@@ -4,6 +4,9 @@
 const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
+const { checkReleaseIntegrity } = require('./checkReleaseIntegrity.cjs')
+const { verifyVersion, sha256, artifactEvidence } = require('./lib/releaseEvidence.cjs')
+const { createManifest } = require('./createReleaseManifest.cjs')
 
 const REPO_ROOT = path.resolve(__dirname, '..')
 const HBUILDERX_CLI = '/Applications/HBuilderX.app/Contents/MacOS/cli'
@@ -74,6 +77,7 @@ function verifyUniCloudSpace(outputDir = OUTPUT_DIR) {
 
 function buildWeb() {
 	verifySourceEntry()
+	checkReleaseIntegrity({ product: 'web', requireClean: true })
 	run(HBUILDERX_CLI, [
 		'cloud',
 		'functions',
@@ -98,7 +102,7 @@ function buildWeb() {
 		'--spaceId',
 		SPACE_ID
 	])
-	run(process.execPath, [path.join(REPO_ROOT, 'scripts', 'writeH5Version.cjs')])
+	run(process.execPath, [path.join(REPO_ROOT, 'scripts', 'writeH5Version.cjs'), `--output-dir=${OUTPUT_DIR}`, `--space-id=${SPACE_ID}`])
 	verifyUniCloudSpace()
 }
 
@@ -117,26 +121,64 @@ function deployWeb() {
 	])
 }
 
-function main() {
+async function verifyRemoteRelease({ directory = OUTPUT_DIR, baseUrl = `https://${SPACE_ID}-static.normal.cloudstatic.cn`, fetchImpl = fetch } = {}) {
+	const expected = JSON.parse(fs.readFileSync(path.join(directory, 'version.json'), 'utf8'))
+	const get = async (relative) => {
+		const url = new URL(relative.replace(/^\/+/, ''), `${baseUrl.replace(/\/+$/, '')}/`)
+		url.searchParams.set('release_check', expected.buildId)
+		const result = await fetchImpl(url, { cache: 'no-store', signal: AbortSignal.timeout(15000) })
+		if (!result.ok) throw new Error(`线上发布读取失败：${relative} HTTP ${result.status}`)
+		return result
+	}
+	const actual = await (await get('version.json')).json()
+	for (const key of ['schemaVersion', 'product', 'buildId', 'sourceCommit', 'sourceDigest', 'artifactDigest', 'sourceDirty']) {
+		if (actual[key] !== expected[key]) throw new Error(`线上版本未匹配：${key}`)
+	}
+	for (const file of artifactEvidence(directory).artifacts.map((item) => item.path)) {
+		const relative = file.replace(/^\/+/, '')
+		const local = fs.readFileSync(path.join(directory, relative))
+		const remote = Buffer.from(await (await get(relative)).arrayBuffer())
+		if (sha256(local) !== sha256(remote)) throw new Error(`线上资源未匹配：${relative}`)
+	}
+	return { status: 'version_verified', verifiedAt: new Date().toISOString(), buildId: actual.buildId, businessAcceptance: 'not_verified' }
+}
+
+async function main() {
 	if (process.argv.includes('--verify-only')) {
+		verifySourceEntry()
 		verifyUniCloudSpace()
+		verifyVersion(REPO_ROOT, OUTPUT_DIR, 'web', { requireClean: false })
 		return
 	}
 	buildWeb()
+	const version = verifyVersion(REPO_ROOT, OUTPUT_DIR)
+	if (version.environment?.spaceId !== SPACE_ID || version.environment?.provider !== PROVIDER) throw new Error('版本清单中的部署环境不匹配')
+	const manifest = createManifest({ product: 'web', directory: OUTPUT_DIR })
 	deployWeb()
+	try {
+		manifest.deployment = await verifyRemoteRelease()
+	} catch (error) {
+		manifest.deployment = { status: 'verification_failed', verifiedAt: new Date().toISOString(), reason: error.message }
+		throw error
+	} finally {
+		// The uploaded manifest describes the immutable candidate; deployment evidence is a separate receipt.
+		const receiptDirectory = path.join(REPO_ROOT, 'release', 'receipts')
+		fs.mkdirSync(receiptDirectory, { recursive: true })
+		fs.writeFileSync(path.join(receiptDirectory, `${version.buildId}.json`), JSON.stringify(manifest, null, 2) + '\n')
+	}
+	console.log('[release:web] 线上版本、入口与源码版本匹配；业务验收需另行记录')
 }
 
 if (require.main === module) {
-	try {
-		main()
-	} catch (error) {
+	main().catch((error) => {
 		console.error(error && error.message ? error.message : String(error))
-		process.exit(1)
-	}
+		process.exitCode = 1
+	})
 }
 
 module.exports = {
 	readEntryScript,
 	verifySourceEntry,
-	verifyUniCloudSpace
+	verifyUniCloudSpace,
+	verifyRemoteRelease
 }

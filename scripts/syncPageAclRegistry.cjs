@@ -6,6 +6,9 @@ const path = require('path')
 const repoRoot = path.resolve(__dirname, '..')
 const cloudFunctionsRoot = path.join(repoRoot, 'uniCloud-alipay', 'cloudfunctions')
 const writeMode = process.argv.includes('--write')
+const functionScope = process.argv.find((arg) => arg.startsWith('--functions='))?.slice(12).split(',')
+if (functionScope && (writeMode || functionScope.some((name) => !/^[a-zA-Z0-9_-]+$/.test(name) || name === 'common'))) throw new Error('ACL 范围检查须为有效函数且只读')
+if (functionScope) for (const name of functionScope) if (!fs.existsSync(path.join(cloudFunctionsRoot, name, 'index.js'))) throw new Error(`ACL 函数不存在：${name}`)
 const canonicalFiles = [
 	{
 		name: 'pageAclRegistryLocal.js',
@@ -30,6 +33,7 @@ const canonicalFiles = [
 const cloudFunctionDirs = fs
 	.readdirSync(cloudFunctionsRoot, { withFileTypes: true })
 	.filter((entry) => entry.isDirectory() && entry.name !== 'common')
+	.filter((entry) => !functionScope || functionScope.includes(entry.name))
 	.map((entry) => path.join(cloudFunctionsRoot, entry.name))
 const forceSyncedCloudFunctions = new Set([
 	'crm-home-safety-inspection',

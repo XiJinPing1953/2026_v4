@@ -11,14 +11,17 @@
 			<view class="summary-row">
 				<AppStatCard class="summary-card" label="销售日期" :value="detail.date || '-'" icon="calendar" />
 				<AppStatCard class="summary-card" label="业务模式" :value="bizModeText(detail.biz_mode)" icon="list" />
-				<AppStatCard class="summary-card" label="应收总额" :value="formatMoney(detail.should_receive)" hint="元" icon="wallet" />
+				<AppStatCard class="summary-card" label="应收总额" :value="accountingUnresolved ? '待核' : formatMoney(detail.should_receive)" hint="元" icon="wallet" />
 				<AppStatCard class="summary-card" label="实收金额" :value="formatMoney(detail.amount_received)" hint="元" icon="check-circle" />
-				<AppStatCard class="summary-card" label="净未收" :value="formatMoney(outstandingNumber)" hint="元" icon="alert" />
-				<AppStatCard class="summary-card" label="付款状态" :value="paymentStatusText(detail.payment_status)" icon="credit-card" />
+				<AppStatCard class="summary-card" label="净未收" :value="accountingUnresolved ? '待核' : formatMoney(outstandingNumber)" hint="元" icon="alert" />
+				<AppStatCard class="summary-card" label="付款状态" :value="accountingUnresolved ? '待核' : paymentStatusText(detail.payment_status)" icon="credit-card" />
 			</view>
 		</template>
 
 		<view class="detail-container">
+			<AppSection v-if="accountingUnresolved" title="结算归属待核">
+				<text>此历史销售单未明确结算归属。请核对对应流量结算后再处理账务；应收和欠款暂不计算。原始销售与流转资料仍可查看。</text>
+			</AppSection>
 			<AppSection title="基础信息">
 				<view class="info-grid info-grid--base">
 					<view class="info-item info-item--inline">
@@ -98,7 +101,7 @@
 				</view>
 			</AppSection>
 
-			<AppSection title="结算公式">
+			<AppSection v-if="!accountingUnresolved" title="结算公式">
 				<view class="formula-panel">
 					<text class="formula-text">{{ settlementFormula.formula }}</text>
 					<view class="formula-metrics">
@@ -248,7 +251,7 @@
 				</view>
 			</AppSection>
 
-				<AppSection title="结算信息">
+				<AppSection v-if="!accountingUnresolved" title="结算信息">
 					<view class="info-grid">
 					<view class="info-item">
 						<text class="info-label">付款状态</text>
@@ -284,7 +287,7 @@
 					</view>
 				</AppSection>
 
-			<AppSection title="欠款视图">
+			<AppSection v-if="!accountingUnresolved" title="欠款视图">
 				<view class="debt-grid">
 					<view class="debt-item">
 						<text class="debt-item__label">应收总额</text>
@@ -308,7 +311,7 @@
 				<text class="debt-tip">{{ outstandingScenario.tip }}</text>
 			</AppSection>
 
-			<AppSection title="回款登记">
+			<AppSection v-if="!accountingUnresolved" title="回款登记">
 				<template #actions>
 					<AppButton v-if="canViewStatement" size="sm" kind="primary" @click="onQuickReceiveGoStatement">去客户对账登记</AppButton>
 				</template>
@@ -344,6 +347,7 @@ const canViewStatement = computed(() => canViewPage('/pages/customer/statement')
 
 const recordId = toRef(props, 'recordId')
 const detail = ref({})
+const accountingUnresolved = computed(() => detail.value?.accounting?.status === 'unresolved')
 const removing = ref(false)
 const ticketImageLoading = ref(false)
 const ticketImagePreviews = ref([])

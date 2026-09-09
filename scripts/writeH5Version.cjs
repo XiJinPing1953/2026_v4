@@ -1,49 +1,34 @@
 #!/usr/bin/env node
+'use strict'
 
 const fs = require('fs')
 const path = require('path')
+const { buildVersion } = require('./lib/releaseEvidence.cjs')
 
-function readUtf8(filePath) {
-	return fs.readFileSync(filePath, 'utf8')
+function extractEntry(html) {
+ return {
+  entryScript: (html.match(/<script[^>]*type="module"[^>]*src="([^"]+)"[^>]*><\/script>/i) || [])[1] || '',
+  entryStyle: (html.match(/<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/i) || [])[1] || ''
+ }
 }
 
-function extractEntry(indexHtml) {
-	const scriptMatch =
-		indexHtml.match(/<script[^>]*type="module"[^>]*src="([^"]+)"[^>]*><\/script>/i) || []
-	const styleMatch =
-		indexHtml.match(/<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/i) || []
-	return {
-		entryScript: scriptMatch[1] || '',
-		entryStyle: styleMatch[1] || ''
-	}
+function writeVersion({ root = path.resolve(__dirname, '..'), directory, spaceId = null } = {}) {
+ // Stamp only this build output; never assign a new time to an older sibling build.
+ const target = path.resolve(root, directory || 'dist/build/h5')
+ const html = fs.readFileSync(path.join(target, 'index.html'), 'utf8')
+ const entry = extractEntry(html)
+ if (!entry.entryScript) throw new Error('缺少网页入口脚本，不能生成版本凭据')
+ const version = { ...buildVersion({ root, directory: target, spaceId, provider: spaceId ? 'alipay' : null }), ...entry }
+ fs.writeFileSync(path.join(target, 'version.json'), JSON.stringify(version, null, 2) + '\n')
+ return version
 }
 
-function main() {
-	const candidateDirs = [
-		path.resolve(process.cwd(), 'dist/build/h5'),
-		path.resolve(process.cwd(), 'dist/build/web')
-	]
-	const outputDirs = candidateDirs.filter((dir) => fs.existsSync(path.join(dir, 'index.html')))
-	if (!outputDirs.length) {
-		console.error('[writeH5Version] missing dist/build/h5/index.html or dist/build/web/index.html')
-		process.exit(1)
-	}
-	const buildId = `${Date.now()}`
-	const generatedAt = new Date().toISOString()
-	for (const dir of outputDirs) {
-		const indexPath = path.join(dir, 'index.html')
-		const versionPath = path.join(dir, 'version.json')
-		const indexHtml = readUtf8(indexPath)
-		const { entryScript, entryStyle } = extractEntry(indexHtml)
-		const payload = {
-			buildId,
-			generatedAt,
-			entryScript,
-			entryStyle
-		}
-		fs.writeFileSync(versionPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
-		console.log(`[writeH5Version] wrote ${path.relative(process.cwd(), versionPath)}`)
-	}
+if (require.main === module) {
+ try {
+  const arg = process.argv.find((item) => item.startsWith('--output-dir='))
+  const space = process.argv.find((item) => item.startsWith('--space-id='))
+  const version = writeVersion({ directory: arg?.slice('--output-dir='.length), spaceId: space?.slice('--space-id='.length) })
+  console.log(`[writeH5Version] ${version.product} ${version.buildId} source=${version.sourceCommit.slice(0, 12)} dirty=${version.sourceDirty}`)
+ } catch (error) { console.error(error.message); process.exitCode = 1 }
 }
-
-main()
+module.exports = { extractEntry, writeVersion }

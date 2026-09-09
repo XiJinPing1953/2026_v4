@@ -2,12 +2,12 @@
 		<AppPage title="销售记录" :subtitle="subtitle" icon="list">
 		<template #headerActions>
 			<AppButton v-if="canCreateSale" size="sm" kind="primary" @click="onAdd" icon="plus">新建销售单</AppButton>
-			<AppButton size="sm" kind="neutral" icon="document" :loading="exporting" :disabled="loading" @click="onExport">导出</AppButton>
+			<AppButton size="sm" kind="neutral" icon="document" :loading="exporting" :disabled="loading || Boolean(financialIssue)" @click="onExport">导出</AppButton>
 			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch">刷新</AppButton>
 		</template>
 
 			<template #highlights>
-				<view class="summary-row">
+				<view v-if="!financialIssue" class="summary-row">
 					<AppStatCard
 						:class="['summary-card', isSummaryScopeActive('paid') ? 'summary-card--active' : '']"
 						label="结算实收"
@@ -160,6 +160,10 @@
 				</view>
 			</AppSection>
 
+			<AppSection v-if="financialIssue" title="账务结果待核">
+				<text>{{ financialIssue }}</text>
+				<text>完整合计尚不可用，旧结果已隐藏。可以调整筛选后重试。</text>
+			</AppSection>
 			<AppSection title="记录列表">
 				<template #actions>
 					<text class="section-hint">共 {{ pager.total }} 条 · 第 {{ pager.page }} / {{ totalPages }} 页</text>
@@ -177,8 +181,8 @@
 						class="sale-item"
 						:title="resolveSaleDisplayCustomerName(item)"
 						:subtitle="item.date"
-						:status="paymentStatusText(item.payment_status)"
-						:status-kind="paymentStatusKind(item.payment_status)"
+							:status="isAccountingUnresolved(item) ? '待核' : paymentStatusText(item.payment_status)"
+							:status-kind="isAccountingUnresolved(item) ? 'warning' : paymentStatusKind(item.payment_status)"
 						:icon="getBizModeIcon(item.biz_mode)"
 						:icon-class="getBizModeColor(item.biz_mode)"
 						clickable
@@ -201,7 +205,7 @@
 						<template #right>
 							<view class="price-box">
 								<text class="price-symbol">¥</text>
-								<text class="price-value">{{ item.should_receive }}</text>
+									<text class="price-value">{{ saleAmountText(item) }}</text>
 								<text class="price-trend" :class="priceTrendClass(item)">{{ priceTrendText(item) }}</text>
 							</view>
 						</template>
@@ -282,6 +286,7 @@ const canViewCustomerStatement = computed(() => canViewPage('/pages/customer/sta
 
 const list = ref([])
 const exporting = ref(false)
+const financialIssue = ref('')
 const summary = ref({
 	total: 0,
 	paid: 0,
@@ -560,6 +565,7 @@ const { loading, run: fetchList } = useQuery(
 			pageSize: pager.pageSize
 		})
 		if (res?.code !== 0) {
+			financialIssue.value = res?.msg || '销售记录加载失败'
 			throw new Error(res?.msg || '销售记录加载失败')
 		}
 		return {
@@ -669,6 +675,10 @@ function applyResult(payload) {
 	pager.total = Number(paging.total || 0)
 	pager.hasMore = Boolean(paging.hasMore)
 	const summaryData = data.summary || {}
+	const unresolvedCount = Number(summaryData.unresolved_count || 0)
+	financialIssue.value = summaryData.accounting_complete === false
+		? `当前筛选范围有 ${unresolvedCount} 张历史 m³ 销售单缺少结算归属；记录仍可查看，涉及金额的合计和导出已停用。`
+		: ''
 	summary.value = {
 		total: Number(summaryData.total || 0),
 		paid: Number(summaryData.paid || 0),
@@ -1110,6 +1120,14 @@ function resolveDepositDetailText(item) {
 	return formatBottleNoList(fallbackRows)
 }
 
+function isAccountingUnresolved(item) {
+	return String(item?.accounting?.status || '') === 'unresolved'
+}
+
+function saleAmountText(item) {
+	return isAccountingUnresolved(item) ? '待核' : formatMoneyCell(item?.should_receive)
+}
+
 function priceTrendText(item) {
 	const state = getSettlementState(item)
 	return state.text
@@ -1121,6 +1139,7 @@ function priceTrendClass(item) {
 }
 
 function getSettlementState(item) {
+	if (isAccountingUnresolved(item)) return { text: '结算归属待核', className: 'price-trend--warn' }
 	const shouldReceive = Number(item?.should_receive)
 	const roundingAmount = Number(item?.rounding_amount)
 	const amountReceived = Number(item?.amount_received)
@@ -1237,6 +1256,8 @@ function buildListParams(page = 1, pageSize = 50) {
 
 async function fetchAllRowsForExport() {
 	const rows = []
+	const seenIds = new Set()
+	let expectedTotal = null
 	let page = 1
 	let hasMore = true
 	let guard = 0
@@ -1244,10 +1265,24 @@ async function fetchAllRowsForExport() {
 		if (guard > 500) throw new Error('导出分页异常，请缩小筛选后重试')
 		const res = await listSalesV2(buildListParams(page, 50))
 		if (res?.code !== 0) throw new Error(res?.msg || '导出查询失败')
+		if (res?.summary?.accounting_complete === false) {
+			throw new Error(`当前筛选范围有 ${Number(res?.summary?.unresolved_count || 0)} 张历史 m³ 销售单待核，不能导出不完整金额`)
+		}
+		const total = Number(res?.paging?.total ?? res?.total)
+		if (!Number.isInteger(total) || total < 0 || (expectedTotal !== null && total !== expectedTotal)) {
+			throw new Error('导出总数缺失或读取期间发生变化，请重试')
+		}
+		expectedTotal = total
 		const pageRows = Array.isArray(res.data) ? res.data : []
+		for (const row of pageRows) {
+			if (!row._id || seenIds.has(row._id)) throw new Error('导出分页重复或缺少单据标识，请重试')
+			seenIds.add(row._id)
+		}
 		rows.push(...pageRows)
 		hasMore = Boolean(res?.paging?.hasMore)
-		if (!pageRows.length) break
+		if (rows.length > total || (hasMore && !pageRows.length) || (!hasMore && rows.length !== total)) {
+			throw new Error('导出读取未完成，未生成文件，请重试')
+		}
 		page += 1
 		guard += 1
 	}
@@ -1435,6 +1470,10 @@ function downloadCsvOnH5(csvText, fileName) {
 
 async function onExport() {
 	if (exporting.value) return
+	if (financialIssue.value) {
+		uni.showToast({ title: financialIssue.value, icon: 'none', duration: 3200 })
+		return
+	}
 	exporting.value = true
 	uni.showLoading({ title: '正在导出...', mask: true })
 	try {

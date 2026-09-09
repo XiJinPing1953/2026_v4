@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "environment": {
+    "provider": "alipay",
+    "spaceId": "env-00jxuffegf2n"
+  },
+  "products": {
+    "web": {
+      "version": "2026.09.09-accounting",
+      "output": "dist/build/web",
+      "acceptance": "Build, remote version equality, login and affected business path",
+      "integrityScope": "deployment"
+    },
+    "cloud": {
+      "version": "2026.09.09-accounting",
+      "output": "release/cloud",
+      "acceptance": "Four complete accounting function packages; no database changes; read-only customer acceptance",
+      "deploymentScope": {
+        "functions": [
+          "crm-customer-settlement",
+          "crm-sale",
+          "crm-dashboard",
+          "crm-collection"
+        ],
+        "databaseFiles": [],
+        "baseCommit": "101068bb9580b6c0faa1b9b83886789d8b5c2de3",
+        "sourceFiles": [
+          "src/components/domain/sale/SaleDetailView.vue",
+          "src/components/domain/sale/SaleListView.vue",
+          "src/components/domain/dashboard/DashboardHome.vue",
+          "uniCloud-alipay/cloudfunctions/common/saleAccounting.js",
+          "uniCloud-alipay/cloudfunctions/common/financialRead.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/saleAccountingLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/financialReadLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/saleAccountingLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/financialReadLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/saleAccountingLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/financialReadLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-collection/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-collection/saleAccountingLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-collection/financialReadLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/receiptSource.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/receiptSourceLocal.js"
+        ]
+      },
+      "integrityScope": "deployment"
+    }
+  }
+}

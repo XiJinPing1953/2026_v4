@@ -1,5 +1,10 @@
 'use strict'
 
+const saleAccounting = require('./saleAccountingLocal')
+const { readComplete, withFinancialEvidence } = require('./financialReadLocal')
+const { isCashReceipt } = require('./receiptSourceLocal')
+const sumMoney = values => saleAccounting.sumMoneyByScale(values, 3)
+
 let ensureActionAcl = null
 try {
 	;({ ensureActionAcl } = require('../common/pageAcl'))
@@ -224,19 +229,7 @@ function getPrevMonthRange(date) {
 }
 
 async function fetchAll(collection, where, field) {
-	const pageSize = 200
-	let page = 0
-	let list = []
-	while (true) {
-		let query = collection.where(where)
-		if (field) query = query.field(field)
-		const res = await query.skip(page * pageSize).limit(pageSize).get()
-		const rows = res.data || []
-		list = list.concat(rows)
-		if (rows.length < pageSize) break
-		page += 1
-	}
-	return list
+	return readComplete(collection, where, { command: dbCmd, field, source: 'dashboard' })
 }
 
 async function countInspectionDueByField(field, today, dueEnd, hiddenWhere = null) {
@@ -289,117 +282,8 @@ function resolveTruckBillableNetValue({
 	return referenceNet
 }
 
-function computeAmounts({
-	settlementMode = 'sale',
-	bizMode,
-	priceUnit,
-	unitPrice,
-	outItems,
-	backItems,
-	agentRows,
-	truckSaleNet,
-	truckOutGross,
-	truckBackGross,
-	truckSettleTare,
-	truckSettleGross,
-	flow
-}) {
-	let outNetTotal = outItems.reduce((sum, item) => sum + toNumber(item.net, 0), 0)
-	let backNetTotal = backItems.reduce((sum, item) => sum + toNumber(item.net, 0), 0)
-	const agentTotalWeight = (Array.isArray(agentRows) ? agentRows : []).reduce((sum, row) => sum + toNumber(row.fill_weight, 0), 0)
-
-	let totalNetWeight = outNetTotal - backNetTotal
-	if (bizMode === 'truck') {
-		totalNetWeight = resolveTruckBillableNetValue({
-			priceUnit,
-			rawTruckGrossDiff: null,
-			rawTruckSaleNet: truckSaleNet,
-			rawTruckOutGross: truckOutGross,
-			rawTruckBackGross: truckBackGross,
-			rawTruckSettleTare: truckSettleTare,
-			rawTruckSettleGross: truckSettleGross
-		})
-	} else if (bizMode === 'agent_sale') {
-		outNetTotal = agentTotalWeight
-		backNetTotal = 0
-		totalNetWeight = agentTotalWeight
-	}
-
-	if (normalizeSettlementMode(settlementMode) === 'customer_flow') {
-		return {
-			out_net_total: outNetTotal,
-			back_net_total: backNetTotal,
-			total_net_weight: totalNetWeight,
-			out_amount: 0,
-			back_amount: 0,
-			should_receive: 0
-		}
-	}
-
-	let outAmount = 0
-	let backAmount = 0
-	let shouldReceive = 0
-
-	if (bizMode === 'agent_sale') {
-		outAmount = agentTotalWeight * unitPrice
-		shouldReceive = outAmount
-	} else if (priceUnit === 'kg') {
-		outAmount = outNetTotal * unitPrice
-		backAmount = backNetTotal * unitPrice
-		shouldReceive = totalNetWeight * unitPrice
-	} else if (priceUnit === 'bottle') {
-		outAmount = outItems.length * unitPrice
-		shouldReceive = outAmount
-	} else if (priceUnit === 'm3') {
-		const flowVolume = toNumber(flow?.flow_volume_m3, 0)
-		outAmount = flowVolume * unitPrice
-		shouldReceive = outAmount
-	}
-
-	return {
-		out_net_total: outNetTotal,
-		back_net_total: backNetTotal,
-		total_net_weight: totalNetWeight,
-		out_amount: fix2(outAmount),
-		back_amount: fix2(backAmount),
-		should_receive: fix2(shouldReceive)
-	}
-}
-
 function computeSaleAmount(doc) {
-	const bizMode = normalizeBizModeValue(doc && doc.biz_mode)
-	const priceUnit = normalizeString(doc && doc.price_unit) || 'kg'
-	const settlementMode = priceUnit === 'm3' ? 'customer_flow' : normalizeSettlementMode(doc.settlement_mode, 'sale')
-	if (settlementMode === 'customer_flow') return 0
-	const unitPrice = toNumber(doc.unit_price, 0)
-	const outItems = Array.isArray(doc.out_items) ? doc.out_items : []
-	const backItems = Array.isArray(doc.back_items) ? doc.back_items : []
-	const agentRows = Array.isArray(doc.agent_sale_items) ? doc.agent_sale_items : []
-	const flow = { flow_volume_m3: toNumber(doc.flow_volume_m3, 0) }
-	const amounts = computeAmounts({
-		settlementMode,
-		bizMode,
-		priceUnit,
-		unitPrice,
-		outItems,
-		backItems,
-		agentRows,
-		truckSaleNet: resolveTruckBillableNetValue({
-			priceUnit,
-			rawTruckGrossDiff: doc.truck_gross_diff,
-			rawTruckSaleNet: doc.truck_sale_net,
-			rawTruckOutGross: doc.truck_out_gross,
-			rawTruckBackGross: doc.truck_back_gross,
-			rawTruckSettleTare: doc.truck_settle_tare,
-			rawTruckSettleGross: doc.truck_settle_gross
-		}),
-		truckOutGross: doc.truck_out_gross,
-		truckBackGross: doc.truck_back_gross,
-		truckSettleTare: doc.truck_settle_tare,
-		truckSettleGross: doc.truck_settle_gross,
-		flow
-	})
-	return toNumber(amounts.should_receive, 0)
+	return saleAccounting.computeSaleAmountsForDoc(doc).amounts.should_receive
 }
 
 function computeBottleShipmentWeight(doc) {
@@ -540,7 +424,7 @@ async function summaryV1(user, data, requestId) {
 		truck_back_gross: true,
 		truck_settle_tare: true,
 		truck_settle_gross: true,
-		flow_volume_m3: true
+		flow_index_prev: true, flow_index_curr: true, flow_volume_m3: true
 	})
 	const trendMap = {}
 	const amountTrendMap = {}
@@ -571,8 +455,8 @@ async function summaryV1(user, data, requestId) {
 		if (key && trendMap[key] != null) {
 			trendMap[key] += 1
 			const saleAmount = computeSaleAmount(row)
-			amountTrendMap[key] = fix2(amountTrendMap[key] + saleAmount)
-			receivableMap[key] = fix2(receivableMap[key] + saleAmount)
+			amountTrendMap[key] = sumMoney([amountTrendMap[key], saleAmount])
+			receivableMap[key] = sumMoney([receivableMap[key], saleAmount])
 			const customerKey = buildCustomerKey(row)
 			if (customerKey) dailyCustomerMap[key].add(customerKey)
 			dailyReportMap[key].sale_bottle_count += computeSaleBottleCount(row)
@@ -618,8 +502,8 @@ async function summaryV1(user, data, requestId) {
 		const key = normalizeString(row.biz_date)
 		if (key && amountTrendMap[key] != null) {
 			const amount = toNumber(row.should_receive, 0)
-			amountTrendMap[key] = fix2(amountTrendMap[key] + amount)
-			receivableMap[key] = fix2(receivableMap[key] + amount)
+			amountTrendMap[key] = sumMoney([amountTrendMap[key], amount])
+			receivableMap[key] = sumMoney([receivableMap[key], amount])
 		}
 	})
 	const weekReceipts = await fetchAll(
@@ -629,16 +513,17 @@ async function summaryV1(user, data, requestId) {
 			dbCmd.and([{ status: 'posted' }, { biz_date: dbCmd.gte(weekStart) }, { biz_date: dbCmd.lte(weekEnd) }]),
 			customerHiddenWhere
 		),
-		{ biz_date: true, amount: true }
+		{ biz_date: true, amount: true, source_type: true, entry_kind: true }
 	)
 	weekReceipts.forEach((row) => {
+		if (!isCashReceipt(row)) return
 		const key = normalizeString(row.biz_date)
-		if (key && receiptMap[key] != null) receiptMap[key] = fix2(receiptMap[key] + toNumber(row.amount, 0))
+		if (key && receiptMap[key] != null) receiptMap[key] = sumMoney([receiptMap[key], toNumber(row.amount, 0)])
 	})
 	const trendWeek = recentDates.map((date) => trendMap[date] || 0)
 	const overviewDates = recentDates.slice(-6)
-	const overviewBars = overviewDates.map((date) => fix2(amountTrendMap[date] || 0))
-	const overviewTotal = fix2(overviewBars.reduce((sum, value) => sum + toNumber(value, 0), 0))
+	const overviewBars = overviewDates.map((date) => amountTrendMap[date] || 0)
+	const overviewTotal = sumMoney(overviewBars)
 	let overviewPeakDate = ''
 	let overviewPeakAmount = 0
 	overviewDates.forEach((date, index) => {
@@ -713,12 +598,12 @@ async function summaryV1(user, data, requestId) {
 	dailyReportSummary.dominant_channel = dominantChannel
 	const receivableRows = recentDates.map((date) => ({
 		date,
-		receivable: fix2(receivableMap[date] || 0),
-		received: fix2(receiptMap[date] || 0)
+		receivable: receivableMap[date] || 0,
+		received: receiptMap[date] || 0
 	}))
-	const receivableTotal = fix2(receivableRows.reduce((sum, row) => sum + toNumber(row.receivable, 0), 0))
-	const receivedTotal = fix2(receivableRows.reduce((sum, row) => sum + toNumber(row.received, 0), 0))
-	const receivableGap = fix2(receivableTotal - receivedTotal)
+	const receivableTotal = sumMoney(receivableRows.map(row => row.receivable))
+	const receivedTotal = sumMoney(receivableRows.map(row => row.received))
+	const receivableGap = sumMoney([receivableTotal, -receivedTotal])
 	const collectionRate = receivableTotal > 0 ? fix2((receivedTotal / receivableTotal) * 100) : null
 
 	const monthRange = getMonthRange(today)
@@ -742,11 +627,11 @@ async function summaryV1(user, data, requestId) {
 			truck_back_gross: true,
 			truck_settle_tare: true,
 			truck_settle_gross: true,
-			flow_volume_m3: true
+			flow_index_prev: true, flow_index_curr: true, flow_volume_m3: true
 		})
 	let monthTotal = 0
 	monthDocs.forEach((doc) => {
-		monthTotal += computeSaleAmount(doc)
+		monthTotal = sumMoney([monthTotal, computeSaleAmount(doc)])
 	})
 	const monthFlowDocs = await fetchAll(
 		flowSettlements,
@@ -758,9 +643,8 @@ async function summaryV1(user, data, requestId) {
 		{ should_receive: true }
 	)
 	monthFlowDocs.forEach((doc) => {
-		monthTotal += toNumber(doc.should_receive, 0)
+		monthTotal = sumMoney([monthTotal, toNumber(doc.should_receive, 0)])
 	})
-	monthTotal = fix2(monthTotal)
 
 	const prevRange = getPrevMonthRange(today)
 	const prevWhere = mergeVisibilityWhere(
@@ -783,11 +667,11 @@ async function summaryV1(user, data, requestId) {
 			truck_back_gross: true,
 			truck_settle_tare: true,
 			truck_settle_gross: true,
-			flow_volume_m3: true
+			flow_index_prev: true, flow_index_curr: true, flow_volume_m3: true
 		})
 	let prevTotal = 0
 	prevDocs.forEach((doc) => {
-		prevTotal += computeSaleAmount(doc)
+		prevTotal = sumMoney([prevTotal, computeSaleAmount(doc)])
 	})
 	const prevFlowDocs = await fetchAll(
 		flowSettlements,
@@ -799,9 +683,8 @@ async function summaryV1(user, data, requestId) {
 		{ should_receive: true }
 	)
 	prevFlowDocs.forEach((doc) => {
-		prevTotal += toNumber(doc.should_receive, 0)
+		prevTotal = sumMoney([prevTotal, toNumber(doc.should_receive, 0)])
 	})
-	prevTotal = fix2(prevTotal)
 
 	let salesDelta = ''
 	let salesTrend = ''
@@ -851,7 +734,7 @@ async function summaryV1(user, data, requestId) {
 				labels: overviewDates,
 				total_amount: overviewTotal,
 				peak_date: overviewPeakDate,
-				peak_amount: fix2(overviewPeakAmount),
+				peak_amount: overviewPeakAmount,
 				avg_amount: overviewAvgAmount
 			},
 			daily_report: {
@@ -893,7 +776,7 @@ async function summaryV1(user, data, requestId) {
 	return { code: 0, data: result }
 }
 
-exports.main = async (event, context) => {
+const main = async (event, context) => {
 	void context
 	const { action, data = {}, token } = event
 	const requestId = normalizeString(event.request_id || event.requestId || context?.requestId || '') || ''
@@ -911,3 +794,5 @@ exports.main = async (event, context) => {
 	if (action === 'getTankTelemetryDebugV1') return getTankTelemetryDebugV1(user, data, requestId)
 	return { code: 400, msg: '未知 action' }
 }
+
+exports.main = withFinancialEvidence(main, saleAccounting.RULE_VERSION)
