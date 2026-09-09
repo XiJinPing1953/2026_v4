@@ -5,6 +5,14 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const crypto = require('crypto')
+const {
+	FILLING_OPERATION_VERSION,
+	buildCreateData,
+	sourceIdentity,
+	prepareOperationRecord,
+	classifyOperationStatus,
+	sanitizePreviousRecord
+} = require('./lib/fillingImportRecovery.cjs')
 
 const DEFAULT_INPUT = 'docs/2026.json'
 const DEFAULT_REPORT = 'docs/filling.import.report.json'
@@ -110,6 +118,10 @@ Options:
 Examples:
   node scripts/importFillingsFromJson.cjs --space-id env-xxx
   node scripts/importFillingsFromJson.cjs --execute --space-id env-xxx
+
+Recovery:
+  执行时会在 report 旁写入 .recovery.ndjson。中断后须沿用同一 input、report；
+  success_total/saved_total 只统计 getOperationV1 已核实保存的源单，completed_total 才表示后续处理完成。
 `)
 }
 
@@ -626,6 +638,7 @@ function normalizeInputRows(rawRows) {
 		const operator = normalizeString(row.operator || row.created_by_name || '陈铁栓')
 		const operatorId = normalizeString(row.operator_id || row.created_by || '')
 		const remark = normalizeString(row.remark)
+		const suppliedLineNo = Number(row.line_no)
 
 		if (!date) {
 			invalidRows.push({ line_no: lineNo, reason: 'date_empty' })
@@ -646,6 +659,7 @@ function normalizeInputRows(rawRows) {
 
 		const doc = {
 			line_no: lineNo,
+			source_line_no: Number.isInteger(suppliedLineNo) && suppliedLineNo > 0 ? suppliedLineNo : null,
 			source_id: normalizeString(row._id || row.id),
 			date,
 			bottle_no: bottleNo,
@@ -684,26 +698,255 @@ function normalizeInputRows(rawRows) {
 
 function writeReport(reportPath, payload) {
 	ensureDir(reportPath)
-	fs.writeFileSync(reportPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
+	const tempPath = `${reportPath}.tmp-${process.pid}`
+	fs.writeFileSync(tempPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
+	fs.renameSync(tempPath, reportPath)
 }
 
-function createProgressPrinter(total) {
+function readPreviousReport(reportPath) {
+	if (!fs.existsSync(reportPath)) return null
+	try {
+		const parsed = JSON.parse(fs.readFileSync(reportPath, 'utf8'))
+		return parsed && typeof parsed === 'object' ? parsed : null
+	} catch (error) {
+		throw new Error(`恢复报告无法解析，未执行任何灌装写入: ${normalizeString(error && error.message)}`)
+	}
+}
+
+function recoveryLogPath(reportPath) {
+	return `${reportPath}.recovery.ndjson`
+}
+
+function recoveryRecordForStorage(record) {
+	return {
+		record_identity: record.record_identity,
+		source_id: record.source_id,
+		line_no: record.line_no,
+		source_line_no: record.source_line_no,
+		operation_id: record.operation_id,
+		frozen_payload: record.frozen_payload,
+		frozen_payload_hash: record.frozen_payload_hash,
+		dispatched: record.dispatched === true,
+		attempt_count: Number(record.attempt_count || 0),
+		first_dispatched_at: record.first_dispatched_at || '',
+		last_attempt_at: record.last_attempt_at || '',
+		last_confirmed_at: record.last_confirmed_at || '',
+		state: record.state || '',
+		accepted: record.accepted === true,
+		source_saved: record.source_saved === true,
+		post_processing_complete: record.post_processing_complete === true,
+		operation_status: record.operation_status || '',
+		source_record_id: record.source_record_id || '',
+		last_code: record.last_code,
+		message: sanitizeLogText(record.message),
+		warning: sanitizeLogText(record.warning),
+		recovery_note: sanitizeLogText(record.recovery_note)
+	}
+}
+
+function readRecoveryLog(logPath) {
+	if (!fs.existsSync(logPath)) return []
+	const text = fs.readFileSync(logPath, 'utf8')
+	const lines = text.split(/\r?\n/).filter((line) => line.trim())
+	return lines.map((line, index) => {
+		try {
+			const event = JSON.parse(line)
+			if (!event || typeof event !== 'object' || !event.record) throw new Error('事件结构无效')
+			return event
+		} catch (error) {
+			throw new Error(`恢复日志第 ${index + 1} 行无法解析，未执行任何灌装写入: ${normalizeString(error && error.message)}`)
+		}
+	})
+}
+
+function appendRecoveryRecord(logPath, report, record) {
+	ensureDir(logPath)
+	const event = {
+		report_version: report.report_version,
+		input_path: report.input_path,
+		space_id: report.space_id,
+		recorded_at: new Date().toISOString(),
+		record: recoveryRecordForStorage(record)
+	}
+	fs.appendFileSync(logPath, `${JSON.stringify(event)}\n`, 'utf8')
+}
+
+function compactRecoveryLog(logPath, report) {
+	const records = (report.operation_records || []).filter((record) => record.dispatched)
+	if (records.length === 0) return
+	ensureDir(logPath)
+	const recordedAt = new Date().toISOString()
+	const body = records.map((record) => JSON.stringify({
+		report_version: report.report_version,
+		input_path: report.input_path,
+		space_id: report.space_id,
+		recorded_at: recordedAt,
+		record: recoveryRecordForStorage(record)
+	})).join('\n')
+	const tempPath = `${logPath}.tmp-${process.pid}`
+	fs.writeFileSync(tempPath, `${body}\n`, 'utf8')
+	fs.renameSync(tempPath, logPath)
+}
+
+function sanitizeLogText(value) {
+	return normalizeString(value)
+		.replace(/("(?:token|password|client[_-]?secret|secret[_-]?key|access[_-]?key|authorization)"\s*:\s*")[^"]*(")/gi, '$1[REDACTED]$2')
+		.replace(/\b(?:token|password|client[_-]?secret|secret[_-]?key|access[_-]?key|authorization)=([^\s&,]+)/gi, (match) => `${match.split('=')[0]}=[REDACTED]`)
+		.slice(0, 600)
+}
+
+function buildPreviousOperationMap(previousReport, recoveryEvents = []) {
+	const reportRecords = previousReport && Array.isArray(previousReport.operation_records)
+		? previousReport.operation_records
+		: []
+	const records = [...reportRecords, ...recoveryEvents.map((event) => event.record)]
+	const map = new Map()
+	for (const raw of records) {
+		const record = sanitizePreviousRecord(raw)
+		if (!record || !record.record_identity) continue
+		const existing = map.get(record.record_identity)
+		if (existing && existing.dispatched && record.dispatched && (
+			existing.operation_id !== record.operation_id ||
+			existing.frozen_payload_hash !== record.frozen_payload_hash
+		)) {
+			throw new Error(`恢复报告中同一源记录存在互相矛盾的操作关联: ${record.record_identity}`)
+		}
+		if (!existing || record.dispatched || !existing.dispatched) map.set(record.record_identity, record)
+	}
+	return map
+}
+
+function reportRecordPreview(record) {
+	return {
+		line_no: record.line_no,
+		source_line_no: record.source_line_no,
+		source_id: record.source_id,
+		record_type: record.frozen_payload && record.frozen_payload.record_type,
+		date: record.frozen_payload && record.frozen_payload.date,
+		bottle_no: record.frozen_payload && record.frozen_payload.bottle_no,
+		operation_id: record.operation_id,
+		state: record.state,
+		operation_status: record.operation_status,
+		source_record_id: record.source_record_id,
+		msg: record.message
+	}
+}
+
+function refreshReportSummary(report) {
+	const records = (report.operation_records || []).filter((record) => record.in_current_input === true)
+	const states = (names) => records.filter((record) => names.includes(record.state))
+	report.accepted_total = records.filter((record) => record.accepted).length
+	report.saved_total = records.filter((record) => record.source_saved).length
+	// Backward-compatible field: success now means a source save verified via getOperationV1.
+	report.success_total = report.saved_total
+	report.completed_total = records.filter((record) => record.post_processing_complete).length
+	report.pending_save_total = states(['accepted_pending_save']).length
+	report.saved_processing_total = states(['saved_processing']).length
+	report.processing_total = report.pending_save_total + report.saved_processing_total
+	report.operation_failed_total = states(['operation_failed']).length
+	report.rejected_total = states(['rejected']).length
+	report.failed_total = report.operation_failed_total + report.rejected_total
+	report.confirmation_required_total = states(['confirmation_required']).length
+	report.conflict_total = states(['local_conflict', 'conflict']).length
+	report.conflicts_preview = states(['local_conflict', 'conflict']).slice(0, 100).map(reportRecordPreview)
+	report.failed_preview = states(['operation_failed', 'rejected', 'confirmation_required']).slice(0, 100).map(reportRecordPreview)
+	report.warnings_preview = records.filter((record) => record.warning).slice(0, 100).map((record) => ({
+		line_no: record.line_no,
+		bottle_no: record.frozen_payload && record.frozen_payload.bottle_no,
+		operation_id: record.operation_id,
+		warning: record.warning
+	}))
+	return report
+}
+
+function applyOperationAssessment(record, assessment, confirmedAt) {
+	record.last_code = assessment.code
+	record.accepted = record.accepted || assessment.accepted === true
+	if (!assessment.confirmed) {
+		record.state = 'confirmation_required'
+		record.operation_status = assessment.operation_status || record.operation_status || ''
+		record.message = sanitizeLogText(assessment.message)
+		return
+	}
+	record.state = assessment.state
+	record.accepted = true
+	record.source_saved = assessment.source_saved === true
+	record.post_processing_complete = assessment.post_processing_complete === true
+	record.operation_status = assessment.operation_status || ''
+	record.source_record_id = assessment.source_record_id || ''
+	record.message = sanitizeLogText(assessment.last_error || assessment.message)
+	record.last_confirmed_at = confirmedAt
+}
+
+function createProgressPrinter(total, logger = console) {
 	let done = 0
 	return {
 		step(label) {
 			done += 1
 			if (done % 20 === 0 || done === total) {
-				console.log(`Progress ${done}/${total} | ${label}`)
+				logger.log(`Progress ${done}/${total} | ${label}`)
 			}
 		}
 	}
 }
 
-async function run() {
-	const options = parseArgs(process.argv)
+async function fetchDurableCapabilities(client, crmToken) {
+	const response = await client.callFunction('crm-filling', {
+		action: 'capabilitiesV1',
+		token: crmToken,
+		data: {},
+		request_id: generateRequestId()
+	})
+	const data = response && response.data && typeof response.data === 'object' ? response.data : {}
+	if (
+		!response || response.code !== 0 || data.durable_operations !== true ||
+		data.source_status_query !== true || data.rule_version !== FILLING_OPERATION_VERSION
+	) {
+		throw new Error(`灌装后台不具备所需的可恢复保存协议，未执行写入: ${sanitizeLogText(response && response.msg) || '能力或版本不匹配'}`)
+	}
+	return {
+		rule_version: data.rule_version,
+		durable_operations: true,
+		source_status_query: true
+	}
+}
+
+async function fetchOperationStatus(client, crmToken, operationId) {
+	return client.callFunction('crm-filling', {
+		action: 'getOperationV1',
+		token: crmToken,
+		data: { operation_id: operationId },
+		request_id: generateRequestId()
+	})
+}
+
+async function run(runtime = {}) {
+	const logger = runtime.logger || console
+	const options = parseArgs(runtime.argv || process.argv)
 	const inputPath = path.resolve(process.cwd(), options.input)
+	const reportPath = path.resolve(process.cwd(), options.report)
+	const progressLogPath = recoveryLogPath(reportPath)
 	if (!fs.existsSync(inputPath)) {
 		throw new Error(`输入文件不存在: ${inputPath}`)
+	}
+
+	const previousReport = readPreviousReport(reportPath)
+	const recoveryEvents = readRecoveryLog(progressLogPath)
+	const previousMap = buildPreviousOperationMap(previousReport, recoveryEvents)
+	const hasDispatchedRecovery = [...previousMap.values()].some((record) => record.dispatched)
+	const recoveryContexts = [
+		...(previousReport ? [{ input_path: previousReport.input_path, space_id: previousReport.space_id }] : []),
+		...recoveryEvents
+	].filter((item) => item && item.input_path && item.space_id)
+	if (
+		options.execute && hasDispatchedRecovery && recoveryContexts.some((item) => path.resolve(item.input_path) !== inputPath)
+	) {
+		throw new Error('恢复报告属于另一输入路径，未执行写入；请使用原输入路径和报告继续')
+	}
+	if (
+		options.execute && hasDispatchedRecovery && recoveryContexts.some((item) => String(item.space_id) !== String(options.spaceId))
+	) {
+		throw new Error('恢复报告属于另一云空间，未执行写入')
 	}
 
 	const sourceText = fs.readFileSync(inputPath, 'utf8')
@@ -711,29 +954,29 @@ async function run() {
 	const normalizedInput = normalizeInputRows(parsedInput.rows)
 
 	if (!options.spaceId) throw new Error('缺少 spaceId，请用 --space-id 提供')
-	const loadedSpace = tryLoadSpaceConfig(options.spaceId)
+	const loadedSpace = runtime.client ? null : tryLoadSpaceConfig(options.spaceId)
 	if (!options.clientSecret && loadedSpace) options.clientSecret = loadedSpace.clientSecret
 	if (!options.endpoint && loadedSpace) options.endpoint = loadedSpace.endpoint
 	if (!options.accessKey && loadedSpace) options.accessKey = loadedSpace.accessKey
 	if (!options.secretKey && loadedSpace) options.secretKey = loadedSpace.secretKey
 	if (!options.spaceAppId && loadedSpace) options.spaceAppId = loadedSpace.spaceAppId
-	if (!(options.clientSecret || (options.accessKey && options.secretKey && options.spaceAppId))) {
+	if (!runtime.client && !(options.clientSecret || (options.accessKey && options.secretKey && options.spaceAppId))) {
 		throw new Error('缺少空间鉴权参数（clientSecret 或 accessKey/secretKey/spaceAppId）')
 	}
 
-	console.log(`输入文件: ${inputPath}`)
-	console.log(`解析模式: ${parsedInput.parseMode}`)
-	console.log(`原始行数: ${parsedInput.rows.length}`)
-	console.log(`规范化后: ${normalizedInput.rows.length}`)
-	console.log(`输入内重复跳过: ${normalizedInput.duplicateInputRows.length}`)
-	console.log(`输入无效跳过: ${normalizedInput.invalidRows.length}`)
-	console.log(`空间: ${options.spaceId}`)
+	logger.log(`输入文件: ${inputPath}`)
+	logger.log(`解析模式: ${parsedInput.parseMode}`)
+	logger.log(`原始行数: ${parsedInput.rows.length}`)
+	logger.log(`规范化后: ${normalizedInput.rows.length}`)
+	logger.log(`输入内重复跳过: ${normalizedInput.duplicateInputRows.length}`)
+	logger.log(`输入无效跳过: ${normalizedInput.invalidRows.length}`)
+	logger.log(`空间: ${options.spaceId}`)
 	if (loadedSpace && loadedSpace.from) {
-		console.log(`已自动加载空间配置: ${loadedSpace.from}`)
+		logger.log(`已自动加载空间配置: ${loadedSpace.from}`)
 	}
-	console.log(`模式: ${options.execute ? 'EXECUTE（写入）' : 'DRY-RUN（仅预检）'}`)
+	logger.log(`模式: ${options.execute ? 'EXECUTE（写入）' : 'DRY-RUN（仅预检）'}`)
 
-	const client =
+	const client = runtime.client || (
 		options.accessKey && options.secretKey && options.spaceAppId
 			? new AlipayFunctionClient({
 				spaceId: options.spaceId,
@@ -747,27 +990,65 @@ async function run() {
 				clientSecret: options.clientSecret,
 				endpoint: options.endpoint
 			})
+	)
 	const crmToken = await ensureCrmToken(client, options)
+	const capabilities = options.execute ? await fetchDurableCapabilities(client, crmToken) : null
 	const existing = await fetchExistingSignatureSet(client, crmToken)
 
+	const previousByLine = new Map()
+	for (const record of previousMap.values()) {
+		if (!record.dispatched || !(record.line_no > 0)) continue
+		if (previousByLine.has(record.line_no)) previousByLine.set(record.line_no, null)
+		else previousByLine.set(record.line_no, record)
+	}
+	const currentRecords = normalizedInput.rows.map((row) => {
+		const identity = sourceIdentity(row, inputPath)
+		const previous = previousMap.get(identity) || previousByLine.get(Number(row.line_no) || 0)
+		return {
+			...prepareOperationRecord(row, inputPath, previous),
+			in_current_input: true
+		}
+	})
+	const identities = new Map()
+	for (const record of currentRecords) {
+		if (!identities.has(record.record_identity)) identities.set(record.record_identity, [])
+		identities.get(record.record_identity).push(record)
+	}
+	for (const records of identities.values()) {
+		if (records.length < 2) continue
+		for (const record of records) {
+			record.state = 'local_conflict'
+			record.last_code = 409
+			record.local_conflict = '同一输入中重复使用了相同源记录 ID，未提交任何一条'
+			record.message = record.local_conflict
+		}
+	}
+
+	const currentIdentities = new Set(currentRecords.map((record) => record.record_identity))
+	const retainedRecords = [...previousMap.values()]
+		.filter((record) => record.dispatched && !currentIdentities.has(record.record_identity))
+		.map((record) => ({ ...record, in_current_input: false }))
 	const alreadyExists = []
 	const toCreate = []
-	for (let i = 0; i < normalizedInput.rows.length; i += 1) {
-		const row = normalizedInput.rows[i]
-		if (existing.signatureSet.has(row.signature)) {
-			alreadyExists.push(row)
+	for (const record of currentRecords) {
+		if (existing.signatureSet.has(record.signature)) {
+			alreadyExists.push(record)
+			if (!record.local_conflict) record.state = 'already_exists'
 		} else {
-			toCreate.push(row)
+			toCreate.push(record)
 		}
 	}
 
 	const report = {
+		report_version: 'filling-import-recovery-2026-09-09-v1',
 		started_at: new Date().toISOString(),
 		finished_at: '',
 		mode: options.execute ? 'execute' : 'dry-run',
 		input_path: inputPath,
+		recovery_log_path: progressLogPath,
 		parse_mode: parsedInput.parseMode,
 		space_id: options.spaceId,
+		durable_protocol: capabilities,
 		input_total: parsedInput.rows.length,
 		input_normalized_total: normalizedInput.rows.length,
 		input_invalid_total: normalizedInput.invalidRows.length,
@@ -777,142 +1058,216 @@ async function run() {
 		existing_loaded_by_type: existing.countsByType,
 		already_exists_total: alreadyExists.length,
 		target_total: toCreate.length,
+		accepted_total: 0,
+		saved_total: 0,
 		success_total: 0,
+		completed_total: 0,
+		processing_total: 0,
+		pending_save_total: 0,
+		saved_processing_total: 0,
+		operation_failed_total: 0,
+		rejected_total: 0,
 		conflict_total: 0,
 		failed_total: 0,
+		confirmation_required_total: 0,
 		conflicts_preview: [],
 		failed_preview: [],
 		warnings_preview: [],
 		input_invalid_preview: normalizedInput.invalidRows.slice(0, 50),
-		input_duplicate_preview: normalizedInput.duplicateInputRows.slice(0, 50)
+		input_duplicate_preview: normalizedInput.duplicateInputRows.slice(0, 50),
+		operation_records: [...currentRecords, ...retainedRecords]
 	}
 
+	const persistReport = () => writeReport(reportPath, refreshReportSummary(report))
+	const checkpointRecord = (record) => {
+		refreshReportSummary(report)
+		appendRecoveryRecord(progressLogPath, report, record)
+	}
+	persistReport()
 	if (!options.execute) {
 		report.finished_at = new Date().toISOString()
-		const reportPath = path.resolve(process.cwd(), options.report)
-		writeReport(reportPath, report)
-		console.log('预检完成：')
-		console.log(`- 已存在(精确匹配): ${report.already_exists_total}`)
-		console.log(`- 待新增:           ${report.target_total}`)
-		console.log(`- report:           ${reportPath}`)
-		return
+		persistReport()
+		logger.log('预检完成：')
+		logger.log(`- 已存在(精确匹配): ${report.already_exists_total}`)
+		logger.log(`- 待新增:           ${report.target_total}`)
+		logger.log(`- 本地冲突:         ${report.conflict_total}`)
+		logger.log(`- report:           ${reportPath}`)
+		return report
 	}
 
-	const progress = createProgressPrinter(toCreate.length || 1)
+	const actionable = currentRecords.filter((record) => (
+		!record.local_conflict && (record.state !== 'already_exists' || record.dispatched)
+	))
+	const progress = createProgressPrinter(actionable.length || 1, logger)
 	let cursor = 0
-	const conflicts = []
-	const failures = []
-	const warnings = []
+
+	async function inspectRecord(record) {
+		try {
+			const status = await fetchOperationStatus(client, crmToken, record.operation_id)
+			if (status && status.code === 404) return { missing: true, status }
+			const assessment = classifyOperationStatus(status, record.operation_id)
+			applyOperationAssessment(record, assessment, new Date().toISOString())
+			return { missing: false, status, assessment }
+		} catch (error) {
+			return { missing: false, error }
+		}
+	}
 
 	async function worker(workerId) {
 		void workerId
 		while (true) {
 			const index = cursor
 			cursor += 1
-			if (index >= toCreate.length) return
-			const row = toCreate[index]
+			if (index >= actionable.length) return
+			const record = actionable[index]
 
-			let response
+			if (record.dispatched || record.state === 'already_exists') {
+				const recovered = await inspectRecord(record)
+				if (!recovered.missing && !recovered.error) {
+					// A query never resumes a failed operation: the worker deliberately
+					// excludes failed rows. Explicit reruns must use the original retry API.
+					if (recovered.assessment && recovered.assessment.confirmed &&
+						record.state !== 'conflict' && !record.post_processing_complete &&
+						['pending', 'processing', 'failed'].includes(record.operation_status)) {
+						record.attempt_count = Number(record.attempt_count || 0) + 1
+						record.last_attempt_at = new Date().toISOString()
+						checkpointRecord(record)
+						let retryError = ''
+						try {
+							const retryResponse = await client.callFunction('crm-filling', {
+								action: 'retryOperationV1', token: crmToken,
+								data: { operation_id: record.operation_id }, request_id: generateRequestId()
+							})
+							if (!retryResponse || retryResponse.code !== 0) retryError = sanitizeLogText(retryResponse && retryResponse.msg) || '原操作重试被拒绝'
+						} catch (error) { retryError = sanitizeLogText(error && error.message) }
+						// Retry acceptance (or a lost response) is not source-save evidence.
+						const confirmed = await inspectRecord(record)
+						if (confirmed.error || confirmed.missing) {
+							record.state = 'confirmation_required'
+							record.message = '重试后未能确认原操作状态，请沿用同一报告恢复'
+						} else if (record.post_processing_complete) {
+							record.recovery_note = '已重试原操作并回读确认完成，未重新创建源单'
+						} else if (retryError) record.message = retryError
+					}
+					checkpointRecord(record)
+					progress.step(`state=${record.state}`)
+					continue
+				}
+				if (record.state === 'already_exists') {
+					record.state = recovered.error ? 'confirmation_required' : 'already_exists'
+					record.message = recovered.error
+						? `已精确匹配现有记录，但原操作状态查询失败: ${sanitizeLogText(recovered.error && recovered.error.message)}`
+						: '已精确匹配现有记录；原操作不存在，未重新创建'
+					checkpointRecord(record)
+					progress.step(`state=${record.state}`)
+					continue
+				}
+				// A missing or temporarily unqueryable prior operation can be replayed safely
+				// only with its original operation ID and frozen business payload.
+			}
+
+			const attemptedAt = new Date().toISOString()
+			record.dispatched = true
+			record.attempt_count = Number(record.attempt_count || 0) + 1
+			record.first_dispatched_at = record.first_dispatched_at || attemptedAt
+			record.last_attempt_at = attemptedAt
+			record.state = 'dispatching'
+			record.message = ''
+			checkpointRecord(record)
+
+			let response = null
+			let dispatchError = null
 			try {
 				response = await client.callFunction('crm-filling', {
 					action: 'createV1',
 					token: crmToken,
-					data: {
-						date: row.date,
-						bottle_no: row.bottle_no,
-						record_type: row.record_type,
-						operator: row.operator,
-						operator_id: row.operator_id || undefined,
-						fill_weight: row.fill_weight,
-						remark: row.remark,
-						source_type: 'legacy_import',
-						...(options.respectFlowWarning ? {} : { ignore_bottle_flow_warning: true })
-					},
+					data: buildCreateData(record.frozen_payload, record.operation_id, options.respectFlowWarning),
 					request_id: generateRequestId()
 				})
-			} catch (err) {
-				failures.push({
-					line_no: row.line_no,
-					source_id: row.source_id,
-					record_type: row.record_type,
-					date: row.date,
-					bottle_no: row.bottle_no,
-					error: normalizeString(err && err.message) || '网络/调用异常'
-				})
-				report.failed_total += 1
-				progress.step(`failed=${report.failed_total}`)
-				continue
-			}
-
-			if (response && response.code === 0) {
-				report.success_total += 1
-				existing.signatureSet.add(row.signature)
-				const warning = normalizeString(response?.data?.warning || response?.warning || '')
-				if (warning) {
-					warnings.push({
-						line_no: row.line_no,
-						bottle_no: row.bottle_no,
-						warning
-					})
-				}
-				progress.step(`success=${report.success_total}`)
-				continue
+			} catch (error) {
+				dispatchError = error
 			}
 
 			if (response && response.code === 409) {
-				report.conflict_total += 1
-				conflicts.push({
-					line_no: row.line_no,
-					source_id: row.source_id,
-					record_type: row.record_type,
-					date: row.date,
-					bottle_no: row.bottle_no,
-					msg: normalizeString(response.msg) || '同日期同瓶号冲突'
-				})
-				progress.step(`conflict=${report.conflict_total}`)
+				record.state = 'conflict'
+				record.last_code = 409
+				record.message = sanitizeLogText(response.msg) || '同日期同瓶号或操作内容冲突'
+				checkpointRecord(record)
+				progress.step(`state=${record.state}`)
 				continue
 			}
+			if (response && response.code !== 0) {
+				record.state = 'rejected'
+				record.last_code = Number.isFinite(Number(response.code)) ? Number(response.code) : null
+				record.message = sanitizeLogText(response.msg) || '创建请求被拒绝'
+				checkpointRecord(record)
+				progress.step(`state=${record.state}`)
+				continue
+			}
+			if (response && response.code === 0) {
+				record.accepted = true
+				record.last_code = 0
+				record.message = sanitizeLogText(response.msg)
+				record.warning = sanitizeLogText(response?.data?.warning || response?.warning || '')
+				checkpointRecord(record)
+			}
 
-			report.failed_total += 1
-			failures.push({
-				line_no: row.line_no,
-				source_id: row.source_id,
-				record_type: row.record_type,
-				date: row.date,
-				bottle_no: row.bottle_no,
-				msg: normalizeString(response && response.msg) || '未知错误',
-				raw: response || null
-			})
-			progress.step(`failed=${report.failed_total}`)
+			const confirmed = await inspectRecord(record)
+			if (confirmed.error) {
+				record.state = 'confirmation_required'
+				record.message = dispatchError
+					? `创建返回丢失且状态查询失败: ${sanitizeLogText(dispatchError && dispatchError.message)}; ${sanitizeLogText(confirmed.error && confirmed.error.message)}`
+					: `提交已受理但状态查询失败: ${sanitizeLogText(confirmed.error && confirmed.error.message)}`
+			} else if (confirmed.missing) {
+				record.state = 'confirmation_required'
+				record.message = dispatchError
+					? `创建返回丢失，按原 operation_id 查询仍未找到操作: ${sanitizeLogText(dispatchError && dispatchError.message)}`
+					: '提交已受理，但按原 operation_id 尚未查询到操作'
+			} else if (dispatchError) {
+				record.recovery_note = '创建返回丢失，已按原 operation_id 恢复并核实当前状态'
+			}
+			checkpointRecord(record)
+			progress.step(`state=${record.state}`)
 		}
 	}
 
 	const workers = []
 	const concurrency = Math.max(1, Math.min(options.concurrency, 10))
-	for (let i = 0; i < concurrency; i += 1) {
-		workers.push(worker(i + 1))
-	}
+	for (let i = 0; i < concurrency; i += 1) workers.push(worker(i + 1))
 	await Promise.all(workers)
 
-	report.conflicts_preview = conflicts.slice(0, 100)
-	report.failed_preview = failures.slice(0, 100)
-	report.warnings_preview = warnings.slice(0, 100)
 	report.finished_at = new Date().toISOString()
-
-	const reportPath = path.resolve(process.cwd(), options.report)
-	writeReport(reportPath, report)
-
-	console.log('导入完成：')
-	console.log(`- 已存在(精确匹配): ${report.already_exists_total}`)
-	console.log(`- 目标新增:          ${report.target_total}`)
-	console.log(`- 成功新增:          ${report.success_total}`)
-	console.log(`- 冲突(409):         ${report.conflict_total}`)
-	console.log(`- 失败:              ${report.failed_total}`)
-	console.log(`- warning:           ${warnings.length}`)
-	console.log(`- report:            ${reportPath}`)
+	persistReport()
+	compactRecoveryLog(progressLogPath, report)
+	logger.log('导入完成：')
+	logger.log(`- 已存在(精确匹配): ${report.already_exists_total}`)
+	logger.log(`- 目标新增:          ${report.target_total}`)
+	logger.log(`- 已受理:            ${report.accepted_total}`)
+	logger.log(`- 已核实保存:        ${report.saved_total}`)
+	logger.log(`- 后续处理完成:      ${report.completed_total}`)
+	logger.log(`- 仍在处理:          ${report.processing_total}`)
+	logger.log(`- 后台失败:          ${report.operation_failed_total}`)
+	logger.log(`- 待确认:            ${report.confirmation_required_total}`)
+	logger.log(`- 冲突(409):         ${report.conflict_total}`)
+	logger.log(`- 请求拒绝:          ${report.rejected_total}`)
+	logger.log(`- warning:           ${report.warnings_preview.length}`)
+	logger.log(`- report:            ${reportPath}`)
+	return report
 }
 
-run().catch((err) => {
-	console.error(`执行失败: ${normalizeString(err && err.message) || err}`)
-	process.exit(1)
-})
+if (require.main === module) {
+	run().catch((err) => {
+		console.error(`执行失败: ${normalizeString(err && err.message) || err}`)
+		process.exitCode = 1
+	})
+}
+
+module.exports = {
+	run,
+	parseArgs,
+	parseJsonLikeRows,
+	normalizeInputRows,
+	fetchExistingSignatureSet,
+	fetchDurableCapabilities,
+	refreshReportSummary
+}
