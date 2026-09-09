@@ -51,7 +51,7 @@ npm run build:mp-alipay     # 构建支付宝小程序
 `main` 是已验收基线，当前业务代码对应账务发布5021753；开发候选在 `codex/system-trust-foundation`，未发布的灌装/PDA/导入不能整包合入。生产版本与合并提交分别记录在STATE。
 
 ```bash
-npm test                         # 当前入口/归档、账务反例、四函数及H5发布范围检查
+npm test                         # 当前入口/归档、账务反例、web/cloud源码发布范围检查
 npm run test:accounting-release   # 账务、客户隔离及发布反例
 npm run check:release -- --product=cloud
 ```
