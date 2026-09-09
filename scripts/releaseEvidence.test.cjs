@@ -6,7 +6,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { execFileSync } = require('child_process')
-const { sourceEvidence, assertReproducible, artifactEvidence, verifyVersion } = require('./lib/releaseEvidence.cjs')
+const { sourceEvidence, assertReproducible, artifactEvidence, verifyVersion, sha256 } = require('./lib/releaseEvidence.cjs')
 const { writeVersion } = require('./writeH5Version.cjs')
 const { verifySourceEntry, verifyRemoteRelease } = require('./releaseWeb.cjs')
 const { sync } = require('./syncDomainContracts.cjs')
@@ -121,6 +121,83 @@ test('domain and schema check fails on semantic drift, then explicit sync fixes 
 	assert.throws(() => sync(root), /不一致/)
 	assert.equal(sync(root, true).length, 2)
 	assert.deepEqual(sync(root), [])
+})
+
+test('only an explicitly pinned CSS CRLF representation can differ, with both hashes retained', async (t) => {
+	const { root, write } = fixture(t)
+	const directory = path.join(root, 'dist/build/web')
+	const css = Buffer.from('.skeleton { color: gray }')
+	write('dist/build/web/assets/main.css', css)
+	const version = writeVersion({ root, directory })
+	const prefixed = Buffer.concat([Buffer.from('\r\n'), css])
+	const policy = { buildId: version.buildId, sourceCommit: version.sourceCommit, variants: [{ path: 'assets/main.css', prefixHex: '0d0a', sourceSha256: sha256(css), deliveredSha256: sha256(prefixed) }] }
+	const serve = (cssBytes = prefixed, jsPrefix = '', mime = 'text/css') => async (url) => {
+		const file = new URL(url).pathname.slice(1)
+		return new Response(file === 'assets/main.css' ? cssBytes : file === 'assets/main.js' ? jsPrefix + fs.readFileSync(path.join(directory, file), 'utf8') : fs.readFileSync(path.join(directory, file)), { headers: { 'content-type': file.endsWith('.css') ? mime : 'application/javascript' } })
+	}
+	const run = (deliveryPolicy, fetchImpl = serve()) => verifyRemoteRelease({ directory, baseUrl: 'https://example.invalid', deliveryPolicy, fetchImpl })
+	await assert.rejects(run(null), /线上资源未匹配/)
+	const result = await run(policy)
+	const item = result.checked.find((row) => row.path === 'assets/main.css')
+	assert.equal(item.deliveryVariant, 'declared_css_leading_crlf')
+	assert.equal(item.sourceSha256, sha256(css))
+	assert.equal(item.sha256, sha256(prefixed))
+	assert.equal(result.deliveryPolicySha256, sha256(JSON.stringify(policy)))
+	assert.equal((await run(policy, serve(css))).checked.find((row) => row.path === 'assets/main.css').deliveryVariant, null)
+	await assert.rejects(run({ ...policy, buildId: 'other build' }), /交付差异清单不匹配/)
+	await assert.rejects(run({ ...policy, variants: [{ ...policy.variants[0], sourceSha256: 'other source' }] }), /交付差异清单不匹配/)
+	for (const changed of [Buffer.concat([Buffer.from('\r\n'), prefixed]), Buffer.from('\r\n.skeleton { color: red }')]) await assert.rejects(run(policy, serve(changed)), /线上资源未匹配/)
+	await assert.rejects(run(policy, serve(prefixed, '\r\n')), /线上资源未匹配/)
+	await assert.rejects(run(policy, serve(prefixed, '', 'text/html')), /线上资源未匹配/)
+	write('dist/build/web/index.html', '<link integrity="sha256-css" href="/assets/main.css">')
+	await assert.rejects(run(policy), /交付差异清单不匹配/)
+	write('dist/build/web/index.html', '<script src="/assets/main.js"></script>')
+	for (const special of ['@charset "utf-8"; .skeleton {}', '\uFEFF.skeleton {}']) {
+		const bytes = Buffer.from(special)
+		write('dist/build/web/assets/main.css', bytes)
+		const variant = { ...policy.variants[0], sourceSha256: sha256(bytes), deliveredSha256: sha256(Buffer.concat([Buffer.from('\r\n'), bytes])) }
+		await assert.rejects(run({ ...policy, variants: [variant] }), /交付差异清单不匹配/)
+	}
+	for (const hex of ['fffe', 'feff', 'fffe0000', '0000feff']) {
+		const bytes = Buffer.concat([Buffer.from(hex, 'hex'), css])
+		write('dist/build/web/assets/main.css', bytes)
+		const variant = { ...policy.variants[0], sourceSha256: sha256(bytes), deliveredSha256: sha256(Buffer.concat([Buffer.from('\r\n'), bytes])) }
+		await assert.rejects(run({ ...policy, variants: [variant] }), /交付差异清单不匹配/)
+	}
+})
+
+test('read-only verifier explicitly loads a pinned policy and saves success or rejection receipts', async (t) => {
+	const { verifyWebReadback } = require('./verifyWebReadback.cjs')
+	const { root, write } = fixture(t)
+	const directory = path.join(root, 'dist/build/web')
+	const css = Buffer.from('.skeleton { color: gray }')
+	write('dist/build/web/assets/main.css', css)
+	const version = writeVersion({ root, directory, spaceId: 'env-test' })
+	const prefixed = Buffer.concat([Buffer.from('\r\n'), css])
+	const policy = { buildId: version.buildId, sourceCommit: version.sourceCommit, variants: [{ path: 'assets/main.css', prefixHex: '0d0a', sourceSha256: sha256(css), deliveredSha256: sha256(prefixed) }] }
+	write('policy.json', JSON.stringify(policy))
+	let requests = 0
+	const fetchImpl = async (url) => {
+		requests++
+		assert.equal(new URL(url).hostname, 'env-test-static.normal.cloudstatic.cn')
+		const file = new URL(url).pathname.slice(1)
+		return new Response(file.endsWith('.css') ? prefixed : fs.readFileSync(path.join(directory, file)), { headers: { 'content-type': file.endsWith('.css') ? 'text/css' : 'application/json' } })
+	}
+	const args = { directory, policyPath: path.join(root, 'policy.json'), policySha256: sha256(JSON.stringify(policy)), fetchImpl }
+	const receiptPath = path.join(root, 'ok.json')
+	await verifyWebReadback({ ...args, receiptPath })
+	const ok = JSON.parse(fs.readFileSync(receiptPath, 'utf8'))
+	assert.equal(ok.status, 'version_verified')
+	assert.equal(ok.deploymentReceipt, false)
+	assert.equal(ok.checked.find((item) => item.path.endsWith('.css')).deliveryVariant, 'declared_css_leading_crlf')
+	const before = requests
+	await assert.rejects(verifyWebReadback({ ...args, receiptPath }), /EEXIST/)
+	await assert.rejects(verifyWebReadback({ ...args, policySha256: '0'.repeat(64), receiptPath: path.join(root, 'wrong-policy.json') }), /policy-sha256/)
+	assert.equal(requests, before)
+	await assert.rejects(verifyWebReadback({ directory, receiptPath: path.join(root, 'strict.json'), fetchImpl }), /线上资源未匹配/)
+	const failure = JSON.parse(fs.readFileSync(path.join(root, 'strict.json'), 'utf8'))
+	assert.equal(failure.status, 'verification_failed')
+	assert.equal(failure.evidence.failure.kind, 'hash_mismatch')
 })
 
 test('release evidence excludes its own manifest and version from artifact digest', (t) => {
