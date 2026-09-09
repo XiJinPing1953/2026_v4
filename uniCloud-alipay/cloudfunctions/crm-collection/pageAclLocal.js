@@ -7,10 +7,6 @@ const {
 	normalizeRoleTemplate,
 	buildRoleTemplatePermissions
 } = require('./pageAclRegistry')
-const SAFETY_EXPORT_PATHS = new Set([
-	'/pages/home-safety-inspection/export',
-	'/pages/station-safety-inspection/export'
-])
 
 function normalizePagePath(value) {
 	const text = String(value || '').trim()
@@ -29,16 +25,12 @@ function normalizePermissionEntry(raw = {}, supports = {}) {
 
 function normalizePagePermissions(rawPermissions, roleTemplate) {
 	const base = buildRoleTemplatePermissions(roleTemplate)
+	if (normalizeRoleTemplate(roleTemplate) === 'safety_inspector') return base
 	const source = rawPermissions && typeof rawPermissions === 'object' ? rawPermissions : {}
-	const isSafetyInspectorRole = normalizeRoleTemplate(roleTemplate) === 'safety_inspector'
 	return PAGE_REGISTRY.reduce((acc, item) => {
 		const pagePath = item.pagePath
 		const supports = item.supports || {}
 		const rawEntry = source[pagePath]
-		if (isSafetyInspectorRole && !SAFETY_EXPORT_PATHS.has(pagePath)) {
-			acc[pagePath] = normalizePermissionEntry(base[pagePath] || {}, supports)
-			return acc
-		}
 		acc[pagePath] = normalizePermissionEntry(rawEntry || base[pagePath] || {}, supports)
 		return acc
 	}, {})
@@ -104,11 +96,7 @@ async function ensureActionAcl(user, action, actionRules = {}, superadminOnlyAct
 	}
 	const rules = actionRules[action]
 	if (!rules || !rules.length) {
-		const isInspectionCloudFunction =
-			cloudFunction === 'crm-home-safety-inspection' ||
-			cloudFunction === 'crm-home-safety-export' ||
-			cloudFunction === 'crm-station-safety-inspection' ||
-			cloudFunction === 'crm-station-safety-export'
+		const isInspectionCloudFunction = cloudFunction === 'crm-home-safety-inspection'
 		if (isSafetyInspector(user) && !isInspectionCloudFunction) {
 			if (typeof recordLog === 'function') {
 				await recordLog(

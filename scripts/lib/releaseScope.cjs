@@ -19,6 +19,15 @@ function resolveReleaseScope(root, product, requested) {
 	for (const name of scope.databaseFiles) {
 		if (!/^[a-zA-Z0-9_-]+\.(schema|index)\.json$/.test(name) || !fs.existsSync(path.join(root, 'uniCloud-alipay/database', name))) throw new Error(`无效数据库范围：${name}`)
 	}
+	const aclRevisions = scope.aclCanonicalRevisions || {}
+	if (typeof aclRevisions !== 'object' || Array.isArray(aclRevisions)) throw new Error('ACL 历史来源必须按函数声明')
+	for (const [name, versions] of Object.entries(aclRevisions)) {
+		if (!scope.functions.includes(name)) throw new Error(`ACL 兼容版本超出发布函数范围：${name}`)
+		if (!versions || typeof versions !== 'object' || Array.isArray(versions) || !Object.keys(versions).length) throw new Error(`ACL 历史来源无效：${name}`)
+		for (const [kind, revision] of Object.entries(versions)) {
+			if (!revision || !['helper', 'registry'].includes(kind) || !/^[0-9a-f]{40}$/.test(revision.commit || '') || !/^[0-9a-f]{64}$/.test(revision.sha256 || '')) throw new Error(`ACL 历史来源无效：${name}.${kind}`)
+		}
+	}
 	if (scope.baseCommit || scope.sourceFiles) {
 		if (!/^[0-9a-f]{40}$/.test(scope.baseCommit || '') || !Array.isArray(scope.sourceFiles) || !scope.sourceFiles.length) throw new Error('独立发布必须同时指定完整基线提交和源码清单')
 		if (new Set(scope.sourceFiles).size !== scope.sourceFiles.length || scope.sourceFiles.some((file) => typeof file !== 'string' || file.includes('..') || path.isAbsolute(file))) throw new Error('独立发布源码清单无效')
@@ -39,6 +48,6 @@ function resolveReleaseScope(root, product, requested) {
 		const databaseChanges = actual.filter((f) => f.startsWith('uniCloud-alipay/database/')).map((f) => f.slice('uniCloud-alipay/database/'.length))
 		if (databaseChanges.some((f) => !scope.databaseFiles.includes(f))) throw new Error('数据库源码变化未列入发布范围')
 	}
-	return { functions: [...scope.functions], databaseFiles: [...scope.databaseFiles], ...(scope.baseCommit ? { baseCommit: scope.baseCommit, sourceFiles: [...scope.sourceFiles] } : {}) }
+	return { functions: [...scope.functions], databaseFiles: [...scope.databaseFiles], ...(scope.baseCommit ? { baseCommit: scope.baseCommit, sourceFiles: [...scope.sourceFiles] } : {}), ...(Object.keys(aclRevisions).length ? { aclCanonicalRevisions: aclRevisions } : {}) }
 }
 module.exports = { resolveReleaseScope }

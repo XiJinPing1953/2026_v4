@@ -28,7 +28,7 @@ function verifyRelativeDependencies(root, scope = null) {
 function checkReleaseIntegrity({ root = path.resolve(__dirname, '..'), product = 'web', requireClean = false, scope } = {}) {
 	const selected = resolveReleaseScope(root, product, scope)
 	sync(root, false, selected)
-	execFileSync(process.execPath, [path.join(root, 'scripts/syncPageAclRegistry.cjs'), ...(selected ? [`--functions=${selected.functions.join(',')}`] : [])], { cwd: root, stdio: 'pipe' })
+	execFileSync(process.execPath, [path.join(root, 'scripts/syncPageAclRegistry.cjs'), ...(selected ? [`--functions=${selected.functions.join(',')}`, ...(selected.aclCanonicalRevisions ? ['--release-compatibility'] : [])] : [])], { cwd: root, stdio: 'pipe' })
 	verifyRelativeDependencies(root, selected)
 	const source = sourceEvidence(root, product)
 	source.integrityScope = selected || 'all'

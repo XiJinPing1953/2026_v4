@@ -2,6 +2,8 @@
 
 const fs = require('fs')
 const path = require('path')
+const crypto = require('crypto')
+const { execFileSync } = require('child_process')
 
 const repoRoot = path.resolve(__dirname, '..')
 const cloudFunctionsRoot = path.join(repoRoot, 'uniCloud-alipay', 'cloudfunctions')
@@ -9,6 +11,22 @@ const writeMode = process.argv.includes('--write')
 const functionScope = process.argv.find((arg) => arg.startsWith('--functions='))?.slice(12).split(',')
 if (functionScope && (writeMode || functionScope.some((name) => !/^[a-zA-Z0-9_-]+$/.test(name) || name === 'common'))) throw new Error('ACL 范围检查须为有效函数且只读')
 if (functionScope) for (const name of functionScope) if (!fs.existsSync(path.join(cloudFunctionsRoot, name, 'index.js'))) throw new Error(`ACL 函数不存在：${name}`)
+const compatibility = process.argv.includes('--release-compatibility')
+if (compatibility && (!functionScope || writeMode)) throw new Error('历史 ACL 仅允许在显式发布范围内只读核对')
+const compatibilityScope = compatibility ? require('./lib/releaseScope.cjs').resolveReleaseScope(repoRoot, 'cloud', 'deployment') : null
+if (compatibilityScope && JSON.stringify([...functionScope].sort()) !== JSON.stringify([...compatibilityScope.functions].sort())) throw new Error('ACL 兼容检查与发布函数范围不一致')
+const historical = new Map()
+function canonicalContent(directory, canonicalFile) {
+	const kind = canonicalFile.name === 'pageAclLocal.js' ? 'helper' : 'registry'
+	const revision = compatibilityScope?.aclCanonicalRevisions?.[path.basename(directory)]?.[kind]
+	if (!revision) return canonicalFile.content
+	const sourcePath = `uniCloud-alipay/cloudfunctions/common/${kind === 'helper' ? 'pageAcl.js' : 'pageAclRegistry.js'}`
+	const key = `${revision.commit}:${sourcePath}`
+	if (!historical.has(key)) historical.set(key, execFileSync('git', ['show', key], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }))
+	const content = historical.get(key)
+	if (crypto.createHash('sha256').update(content).digest('hex') !== revision.sha256) throw new Error(`ACL 历史来源哈希不匹配：${key}`)
+	return content
+}
 const canonicalFiles = [
 	{
 		name: 'pageAclRegistryLocal.js',
@@ -47,11 +65,12 @@ const targets = cloudFunctionDirs.flatMap((directory) =>
 	canonicalFiles
 		.map((canonicalFile) => ({
 			filePath: path.join(directory, canonicalFile.name),
-			content: canonicalFile.content
+			content: canonicalContent(directory, canonicalFile)
 		}))
 		.filter(
 				(target) =>
 				fs.existsSync(target.filePath) ||
+				Boolean(compatibilityScope?.aclCanonicalRevisions?.[path.basename(directory)]?.[path.basename(target.filePath) === 'pageAclLocal.js' ? 'helper' : 'registry']) ||
 				(target.filePath.endsWith('/pageAclRegistry.js') &&
 					fs.existsSync(path.join(directory, 'pageAclLocal.js'))) ||
 				forceSyncedCloudFunctions.has(path.basename(path.dirname(target.filePath)))

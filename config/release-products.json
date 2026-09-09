@@ -43,8 +43,44 @@
           "uniCloud-alipay/cloudfunctions/crm-collection/saleAccountingLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-collection/financialReadLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-customer-settlement/receiptSource.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/receiptSourceLocal.js"
-        ]
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/receiptSourceLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/pageAclLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-collection/pageAclLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-collection/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-collection/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistry.js"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          },
+          "crm-collection": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          },
+          "crm-dashboard": {
+            "registry": {
+              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
+              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     }
