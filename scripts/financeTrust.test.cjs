@@ -76,6 +76,28 @@ const tablesFor = (sale) => ({ crm_users: [{ _id: 'user-1', token: 'test', role:
 	crm_customers: [{ _id: 'customer-1', name: '测试客户', default_price_unit: 'm3', default_unit_price: 10 }], crm_sale_records: [sale] })
 const invoke = (main, action, data) => main({ action, token: 'test', data }, {})
 
+test('sale removal checks target and full customer classification before any business write', async () => {
+	for (const sibling of [false, true]) {
+		const sale = saleDoc({ _id: 'remove-me', ...(sibling ? { price_unit: 'kg', settlement_mode: 'sale' } : {}) })
+		const tables = tablesFor(sale)
+		if (sibling) tables.crm_sale_records.push(saleDoc({ _id: 'unresolved-sibling' }))
+		const db = makeDb(tables)
+		const result = await invoke(loadHandler('crm-sale', db), 'removeV2', { id: sale._id })
+		assert.equal(result.code, 409)
+		assert.equal(result.error_code, 'FINANCIAL_CLASSIFICATION_REQUIRED')
+		assert.deepEqual(db.writes.filter((write) => write.name !== 'crm_operation_logs'), [])
+	}
+})
+
+test('sale removal rejects an incomplete customer ledger before touching source or allocations', async () => {
+	const sale = saleDoc({ price_unit: 'kg', settlement_mode: 'sale' })
+	const db = makeDb(tablesFor(sale), { count: (name, total) => ({ total: name === 'crm_sale_records' ? null : total }) })
+	const result = await invoke(loadHandler('crm-sale', db), 'removeV2', { id: sale._id })
+	assert.equal(result.code, 409)
+	assert.equal(result.error_code, 'FINANCIAL_READ_INCOMPLETE')
+	assert.deepEqual(db.writes.filter((write) => write.name !== 'crm_operation_logs'), [])
+})
+
 test('explicit settlement modes remain distinct; unknown m3 is never zero', () => {
 	assert.equal(accounting.computeSaleAmountsForDoc(saleDoc({ settlement_mode: 'sale' })).amounts.should_receive, 1000)
 	assert.equal(accounting.computeSaleAmountsForDoc(saleDoc({ settlement_mode: 'customer_flow' })).amounts.should_receive, 0)

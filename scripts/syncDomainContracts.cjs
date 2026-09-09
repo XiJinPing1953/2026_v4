@@ -38,10 +38,15 @@ function buildIndexFile(schema) {
 	}))
 }
 
-function ensurePromotedSchemas(root, write = false) {
+function schemaInScope(name, scope) {
+	return !scope || scope.databaseFiles.some((file) => file === `${name}.schema.json` || file === `${name}.index.json`)
+}
+
+function ensurePromotedSchemas(root, write = false, scope = null) {
 	const database = path.join(root, 'uniCloud-alipay/database')
 	const changed = []
 	for (const name of registry(root).promotedSchemas || []) {
+		if (!schemaInScope(name, scope)) continue
 		const legacyPath = path.join(database, 'schema', `${name}.schema.json`)
 		const rootPath = path.join(database, `${name}.schema.json`)
 		const indexPath = path.join(database, `${name}.index.json`)
@@ -61,19 +66,21 @@ function ensurePromotedSchemas(root, write = false) {
 	return changed
 }
 
-function contractPairs(root) {
+function contractPairs(root, scope = null) {
 	const contractRegistry = registry(root)
-	const pairs = contractRegistry.copies.flatMap(({ source, targets }) => targets.map((target) => ({ source, target, json: false })))
+	const pairs = contractRegistry.copies.flatMap(({ source, targets }) => targets.filter((target) => !scope || scope.functions.some((name) => target.startsWith(`uniCloud-alipay/cloudfunctions/${name}/`))).map((target) => ({ source, target, json: false })))
 	const database = path.join(root, 'uniCloud-alipay/database')
 	for (const name of fs.readdirSync(database).filter((name) => name.endsWith('.schema.json')).sort()) {
+		if (!schemaInScope(name.replace(/\.schema\.json$/, ''), scope)) continue
 		if (fs.existsSync(path.join(database, 'schema', name))) pairs.push({ source: `uniCloud-alipay/database/${name}`, target: `uniCloud-alipay/database/schema/${name}`, json: true })
 	}
 	return pairs
 }
 
-function sync(root, write = false) {
-	const changed = ensurePromotedSchemas(root, write)
-	for (const pair of contractPairs(root)) {
+function sync(root, write = false, scope = null) {
+	if (scope && write) throw new Error('范围发布检查只读；生成副本须使用全仓同步')
+	const changed = ensurePromotedSchemas(root, write, scope)
+	for (const pair of contractPairs(root, scope)) {
 		const source = fs.readFileSync(path.join(root, pair.source), 'utf8')
 		const targetPath = path.join(root, pair.target)
 		const target = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, 'utf8') : ''

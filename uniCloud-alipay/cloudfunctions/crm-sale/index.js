@@ -5239,7 +5239,16 @@ async function removeV2(user, data, requestId, token) {
 	const saleRes = await sales.doc(recordId).get()
 	const saleDoc = (saleRes.data && saleRes.data[0]) || null
 	if (!saleDoc) return { code: 404, msg: '记录不存在' }
-	if (saleMentionsHiddenCustomer(saleDoc, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
+	const hiddenCustomerIds = await fetchHiddenCustomerIds(customers)
+	if (saleMentionsHiddenCustomer(saleDoc, hiddenCustomerIds)) return { code: 404, msg: '记录不存在' }
+
+	// Settlement release checks the whole customer ledger. Reject before deleting
+	// any source, voucher or movement if that later step cannot classify it.
+	saleAccounting.resolveSettlementMode(saleDoc)
+	const customerSalesBeforeRemove = await readComplete(sales, { customer_id: normalizeString(saleDoc.customer_id) }, {
+		command: dbCmd, source: 'sale_remove_preflight'
+	})
+	saleAccounting.assertSalesClassified(customerSalesBeforeRemove.filter((row) => !saleMentionsHiddenCustomer(row, hiddenCustomerIds)))
 
 	const source = `sale:${recordId}`
 	const sideWarnings = []

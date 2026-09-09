@@ -27,6 +27,7 @@ function createManifest({ root = path.resolve(__dirname, '..'), product, directo
 		return { path: file, kind: name.endsWith('.index.json') ? 'index' : 'schema', sha256: sha256(fs.readFileSync(path.join(root, file))) }
 	}) : []
 	const artifacts = fs.existsSync(output) ? artifactEvidence(output) : { artifactDigest: null, artifacts: [] }
+	if (!artifacts.artifacts.length) artifacts.artifactDigest = null
 	const manifest = {
 		schemaVersion: 1, product, productVersion: settings.version, createdAt: new Date().toISOString(),
 		environment: config.environment,

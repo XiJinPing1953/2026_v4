@@ -14,7 +14,7 @@ const PRODUCTS = {
 }
 const RELEASE_INPUTS = ['config/release-products.json', 'config/domain-contracts.json', 'scripts/releaseWeb.cjs',
 	'scripts/buildWebWithCloudSpace.cjs', 'scripts/createReleaseManifest.cjs', 'scripts/checkReleaseIntegrity.cjs',
-	'scripts/syncDomainContracts.cjs', 'scripts/syncPageAclRegistry.cjs', 'scripts/lib/releaseEvidence.cjs']
+	'scripts/syncDomainContracts.cjs', 'scripts/syncPageAclRegistry.cjs', 'scripts/lib/releaseEvidence.cjs', 'scripts/lib/releaseScope.cjs']
 const IGNORED = new Set(['node_modules', '.git', '.DS_Store'])
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex')
 
