@@ -18,6 +18,8 @@
 
 ## 已核实基线
 
+- 已验收main已更新为 `e46a44b001e10935b78289886b905255accfbd20`，包含正式账务5021753和上下文/检查整理；本开发分支的灌装/PDA/导入及schema候选尚未合入main。普通新任务从main开始，候选任务明确选择本开发分支，见 [main合并交接](state/handoffs/2026-09-09-main-accounting-integration.md)。
+
 - 原 HEAD：`90336801cf67d7c31b9df7104de3c1545452285f`；工作分支 `codex/system-trust-foundation`。
 - 开始前 27 项改动有 [脱敏元数据](state/baselines/2026-09-05.json) 和本地原文备份；8 项原有入库业务时间改动逐文件哈希核实未变化，单独提交 `ff86a35`。
 - 原 STATE 8,335 行、501,807 字节已完整 [归档](state/history/STATE-2026-08-26.md)，[校验清单](state/history/manifest.json) 保留 SHA-256。原有临时工具、遥测日志及本轮客户明细不进入提交。

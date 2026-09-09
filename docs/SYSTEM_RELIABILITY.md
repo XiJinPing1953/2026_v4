@@ -25,18 +25,18 @@
 | m³ 缺省模式分歧 | 明确 sale/customer_flow 同源一致；缺失归属 409 待核，不产生可信总计 | [账务决定](../state/domains/accounting.md)、[入口测试](../scripts/financeTrust.test.cjs)，实际结果写交接 |
 | 5,189 条事件超过旧上限 | 全量计算或明确不完整，不假报“无异常” | [流转决定](../state/domains/flow.md)，最终测试写交接 |
 | 53 瓶处理中断 | 恢复到全部完成，重试不重复，旧版本不覆盖新改单 | 灌装实际入口与最终测试写交接 |
-| 封存后旧链路复现 | 业务日不晚于截止日的旧异常不回到待处理；新异常保留 | [截止日测试](../scripts/bottleAnomalyArchiveCutoff.test.cjs) |
-| ±10 kg 边界 | 普通有权用户仅边界内，superadmin 可接受边界外，正负方向正确 | [权限测试](../scripts/bottleAnomalyMissingFillPermission.test.cjs) |
+| 封存后旧链路复现 | 业务日不晚于截止日的旧异常不回到待处理；新异常保留 | [截止日测试](https://github.com/XiJinPing1953/2026_v4/blob/659f1ebe7f335b8e61c6055416cd044e1da023d2/scripts/bottleAnomalyArchiveCutoff.test.cjs) |
+| ±10 kg 边界 | 普通有权用户仅边界内，superadmin 可接受边界外，正负方向正确 | [权限测试](https://github.com/XiJinPing1953/2026_v4/blob/659f1ebe7f335b8e61c6055416cd044e1da023d2/scripts/bottleAnomalyMissingFillPermission.test.cjs) |
 | 网关入口混入 | 发布检查拒绝错误根入口；产物与源码可对应 | 发布检查及最终测试写交接 |
 | 上下文归档篡改/断链 | 哈希、行数/大小、当前链接校验失败；不把归档当现行规则 | [上下文检查](../scripts/checkProjectContext.cjs) |
 | 期间营收与实际收款混淆 | 本年、跨年和历史月在对账及两种导出使用同一 `period_summary`，缺失/不完整不显示成零 | [期间汇总测试](../scripts/periodSummary.test.cjs) |
 | 客户汇总串数据 | 多客户、多计费模式及空客户并存时，三种入口只计算请求客户 | [客户隔离测试](../scripts/periodSummaryCustomerScope.test.cjs) |
 | 期初预付款冒充新收款 | `opening_prepay` 可分配但不计现金、退款或营收，普通收款入口不能伪造或改写该来源 | [第二客户重建测试](../scripts/haonuoReconciliation.test.cjs) |
 | 迁移销售只改显示标签 | 仅在关联流量应收已结清或确认零应收时改存储状态，保留金额和运营事实并拒绝源变化 | [迁移状态测试](../scripts/reconciledSaleStatus.test.cjs) |
-| 整车重建遇扫描锁却跳过车辆 | 保留当前车辆和游标，锁释放后续扫；不能返回全部完成 | [灌装一致性测试](../scripts/fillingConsistency.test.cjs)，主任务复现失败后修复 |
+| 整车重建遇扫描锁却跳过车辆 | 保留当前车辆和游标，锁释放后续扫；不能返回全部完成 | [灌装一致性测试](https://github.com/XiJinPing1953/2026_v4/blob/659f1ebe7f335b8e61c6055416cd044e1da023d2/scripts/fillingConsistency.test.cjs)，主任务复现失败后修复 |
 | 异常写入超过单轮120条却报完成 | 121项分轮建完；重复无新增；旧异常也须分轮全部解决后才完成 | 同一真实异常入口及[总验收](../state/handoffs/2026-09-08-mainline-owner-acceptance.md)，本地存储替身不代替真实云端 |
-| 导入失败后重跑只查状态 | 原retry接口恢复，回包丢失仍回读同源单，不重复流转/库存 | [导入测试](../scripts/importFillingsFromJson.test.cjs)，包含实际导入与实际灌装handler组合 |
-| PDA同编号不同事实被误认 | 内容摘要及创建者与冻结事实对应，失配不回链/清队列/重放 | [PDA测试](../scripts/pdaFillingCompletion.test.cjs)，导入也校验冻结摘要 |
+| 导入失败后重跑只查状态 | 原retry接口恢复，回包丢失仍回读同源单，不重复流转/库存 | [导入测试](https://github.com/XiJinPing1953/2026_v4/blob/659f1ebe7f335b8e61c6055416cd044e1da023d2/scripts/importFillingsFromJson.test.cjs)，包含实际导入与实际灌装handler组合 |
+| PDA同编号不同事实被误认 | 内容摘要及创建者与冻结事实对应，失配不回链/清队列/重放 | [PDA测试](https://github.com/XiJinPing1953/2026_v4/blob/659f1ebe7f335b8e61c6055416cd044e1da023d2/scripts/pdaFillingCompletion.test.cjs)，导入也校验冻结摘要 |
 | 旧完成任务被晚到回执重开 | 保留终态及已有source，竞争条件写入失败，不换瓶重采秤补单 | 同一PDA真实handler反例及[09-09总验收](../state/handoffs/2026-09-09-mainline-entry-acceptance.md) |
 
 本页不按测试数给系统打分。每项结论必须来自相关入口、失败/恢复路径或部署证据；测试名称存在不表示已运行通过。09-05 全量候选结果见 [系统改造交接](../state/handoffs/2026-09-05-system-trust.md)，当前生产/候选对照和统一入口复验见 [主线发布交接](../state/handoffs/2026-09-08-mainline-release.md)。
@@ -47,9 +47,9 @@
 |---|---|---|
 | 首个限定客户账务修正 | 专用可恢复修正、金额精度及结清状态已按独立发布提交上传；没有 schema 或硬件变更 | 事务预演回滚、正式写入、逐项回读、重复执行、页面及导出已验收；只证明该客户，见 [修正交接](../state/handoffs/2026-09-07-customer-accounting-reconciliation.md) |
 | 通用 `period_summary` | 通用结算模块及 H5 已发布，适用于请求客户；未部署第一阶段全量财务/灌装候选 | 三个日期范围的对账和两种导出共 9 次线上回读及页面切换通过；7 客户隔离为本地测试，不等于逐户线上审计，见 [汇总交接](../state/handoffs/2026-09-08-customer-period-summary.md) |
-| 第二个限定客户账务重建 | 当前生产源码 `101068bb9580b6c0faa1b9b83886789d8b5c2de3`；包含 `opening_prepay`、结算函数和专用重建函数；无 schema/硬件变更 | 事务中断/回滚、75 项写入、逐项回读、幂等重试、页面及实际下载的两种导出已通过；不允许重跑同范围批次，见 [重建交接](../state/handoffs/2026-09-08-haonuo-rebuild.md) |
+| 第二个限定客户账务重建 | 当时发布源码 `101068bb9580b6c0faa1b9b83886789d8b5c2de3`；包含 `opening_prepay`、结算函数和专用重建函数；无 schema/硬件变更 | 事务中断/回滚、75 项写入、逐项回读、幂等重试、页面及实际下载的两种导出已通过；不允许重跑同范围批次，见 [重建交接](../state/handoffs/2026-09-08-haonuo-rebuild.md) |
 
-以上生产源码与系统可信度主线候选不是同一条 Git 历史。主线候选保留已发布行为，但还包含未上线的账务保护、灌装闭环、schema 和页面改造；不能把候选提交号、候选清单或本地测试当作生产运行版本。
+以上生产源码与系统可信度主线候选不是同一条 Git 历史。开发候选保留已发布账务行为，另含未上线的灌装闭环、schema和页面改造；不能把候选提交号、候选清单或本地测试当作生产运行版本。
 
 ## 四项实际改进指标
 
@@ -64,4 +64,6 @@
 
 ## 当前交付边界
 
-生产已部署并验收的是上述两个限定客户修正、通用期间汇总及期初预付款识别；09-09两批任务及主任务补丁已合入`5312c6f`，168项本地验证、干净源码H5构建及发布依赖检查通过，尚未部署，见[09-09总验收](../state/handoffs/2026-09-09-mainline-entry-acceptance.md)。工位PDA及历史导入工程缺口已补齐；真实云事务/调度、PDA现场和当前全仓指标仍未测量/验收。旧清单38张不能继续写成当前待核数，也不能因两个客户已处理就推算全仓为零。Windows网关和现场硬件仍未验收；销售持久写入、全量财务指标拆分、催收流量覆盖和按瓶/客户汇总仍未完成。
+生产在09-09已完成通用账务5021753独立发布，33个源码文件、179项网页回读、18项客户保护、29次代表读取及实际页面/导出验收通过，见[正式发布验收](../state/handoffs/2026-09-09-accounting-release-accepted.md)。main收敛该已验收业务代码及上下文/检查，不包含开发分支5312c6f中的灌装/PDA/导入和schema候选。此前的本地168项结果仍只属于开发候选，见[总验收](../state/handoffs/2026-09-09-mainline-entry-acceptance.md)。
+
+全表原始分类核查新增归属不明0不代表所有历史现金均核清；47条旧内嵌收款缺到账日期保持待核。真实云事务/调度、PDA现场、Windows网关和当前全仓持续指标仍未测量/验收；销售持久写入、全量财务指标拆分、催收流量覆盖和按瓶/客户汇总仍未完成。以下开发候选反例的源码链接指向固定提交，不作为main当前实现。

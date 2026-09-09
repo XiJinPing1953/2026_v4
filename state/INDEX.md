@@ -18,3 +18,5 @@
 - [交接模板](handoffs/TEMPLATE.md) 与 [系统改造交接](handoffs/2026-09-05-system-trust.md)、[前次客户账务修正交接](handoffs/2026-09-07-customer-accounting-reconciliation.md)、[第二客户重建交接](handoffs/2026-09-08-haonuo-rebuild.md)。
 - [原有工作区基线](baselines/2026-09-05.json) 只含文件元数据，27 项原有改动不能视为本任务新增。
 - [历史索引](history/INDEX.md) 保存完整旧 STATE 与 B2/B3/C1 阶段资料，不再作为当前工作导航。
+
+- [09-09 main合并交接](handoffs/2026-09-09-main-accounting-integration.md)：已验收账务与上下文/检查回合main；本开发分支的灌装/PDA/导入及schema仍待独立验收后合并。
