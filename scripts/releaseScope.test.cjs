@@ -5,6 +5,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
+const crypto = require('node:crypto')
 const { execFileSync } = require('node:child_process')
 
 const RELEASE_TREE = path.resolve(__dirname, '..')
@@ -116,4 +117,56 @@ test('real ACL scope rejects selected drift, ignores unselected drift locally, a
 	write('uniCloud-alipay/cloudfunctions/crm-other/pageAclRegistryLocal.js', 'unselected drift\n')
 	assert.doesNotThrow(() => run(['--functions=crm-target']))
 	assert.throws(() => run(), /Command failed/)
+})
+
+test('production ACL compatibility pins historical canonical bytes without weakening the default check', (t) => {
+	const { root, write, git } = fixture(t)
+	for (const file of ['scripts/syncPageAclRegistry.cjs', 'scripts/lib/releaseScope.cjs']) write(file, fs.readFileSync(path.join(RELEASE_TREE, file)))
+	const helper = 'module.exports = { acl: "production" }\n'
+	const registry = 'module.exports = { registry: "production" }\n'
+	write('uniCloud-alipay/cloudfunctions/common/pageAcl.js', helper)
+	write('uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js', registry)
+	git('add', '.')
+	git('-c', 'user.name=Release Test', '-c', 'user.email=release-test@example.invalid', 'commit', '-m', 'production ACL canonical source')
+	const commit = git('rev-parse', 'HEAD')
+	const pin = (content) => ({ commit, sha256: crypto.createHash('sha256').update(content).digest('hex') })
+	const revisions = { 'crm-target': { helper: pin(helper), registry: pin(registry) } }
+	const config = (aclCanonicalRevisions = revisions) => write('config/release-products.json', JSON.stringify({ products: { cloud: {
+		integrityScope: 'deployment', deploymentScope: { functions: ['crm-target'], databaseFiles: [], aclCanonicalRevisions }
+	} } }))
+	config()
+	write('uniCloud-alipay/cloudfunctions/common/pageAcl.js', 'module.exports = { acl: "new" }\n')
+	write('uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js', 'module.exports = { registry: "new" }\n')
+	write('uniCloud-alipay/cloudfunctions/crm-target/pageAclLocal.js', helper)
+	write('uniCloud-alipay/cloudfunctions/crm-target/pageAclRegistry.js', registry)
+	write('uniCloud-alipay/cloudfunctions/crm-target/pageAclRegistryLocal.js', registry)
+	const args = ['--functions=crm-target', '--release-compatibility']
+	const run = (options = args) => execFileSync(process.execPath, [path.join(root, 'scripts/syncPageAclRegistry.cjs'), ...options], {
+		cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']
+	})
+	assert.doesNotThrow(() => run())
+	assert.throws(() => run([]), /Command failed/)
+	assert.throws(() => run(['--functions=crm-target']), /Command failed/)
+	assert.throws(() => run(['--release-compatibility']), /仅允许/)
+	assert.throws(() => run([...args, '--write']), /只读/)
+	assert.throws(() => run(['--functions=crm-other', '--release-compatibility']), /范围不一致/)
+	for (const [file, content] of [['pageAclLocal.js', helper], ['pageAclRegistry.js', registry], ['pageAclRegistryLocal.js', registry]]) {
+		fs.rmSync(path.join(root, 'uniCloud-alipay/cloudfunctions/crm-target', file))
+		assert.throws(() => run(), /Command failed/, `missing pinned file: ${file}`)
+		write(`uniCloud-alipay/cloudfunctions/crm-target/${file}`, content)
+	}
+
+	write('uniCloud-alipay/cloudfunctions/crm-target/pageAclRegistryLocal.js', 'unexpected content\n')
+	assert.throws(() => run(), /Command failed/)
+	write('uniCloud-alipay/cloudfunctions/crm-target/pageAclRegistryLocal.js', registry)
+	config({ 'crm-target': { helper: pin(helper), registry: { ...pin(registry), sha256: '0'.repeat(64) } } })
+	assert.throws(() => run(), /哈希不匹配/)
+	config({ 'crm-target': { registry: { ...pin(registry), commit: '0'.repeat(40) } } })
+	assert.throws(() => run(), /Command failed/)
+	config({ 'crm-other': revisions['crm-target'] })
+	assert.throws(() => run(), /超出发布函数范围/)
+	config({ 'crm-target': { registry: null } })
+	assert.throws(() => run(), /历史来源无效/)
+	config()
+	assert.doesNotThrow(() => run())
 })
