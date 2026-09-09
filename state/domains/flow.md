@@ -35,4 +35,4 @@
 
 代码入口：[灌装](../../uniCloud-alipay/cloudfunctions/crm-filling/index.js)、[流转](../../uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js)。验收证据见 [可靠性记录](../../docs/SYSTEM_RELIABILITY.md)。
 
-2026-09-08工程验收补充：候选协议为`filling-consistency-2026-09-08-v2`。扫描锁被占用或本轮达到写入上限时，目标仍未完成，须保留当前整车/瓶及续扫位置；读取完成不等于异常写入完成。主任务通过真实异常入口复现并修复这两种误报，见[总验收交接](../handoffs/2026-09-08-mainline-owner-acceptance.md)。批量/直接单条入口已接入；工位PDA任务后台与历史导入尚未完成同协议改造，不能把“单条入口支持”写成“所有PDA已接入”。候选未部署，云端与现场仍须独立验收。
+2026-09-08工程验收补充：候选协议为`filling-consistency-2026-09-08-v2`。扫描锁被占用或本轮达到写入上限时，目标仍未完成，须保留当前整车/瓶及续扫位置；读取完成不等于异常写入完成。主任务通过真实异常入口复现并修复这两种误报，见[首批验收](../handoffs/2026-09-08-mainline-owner-acceptance.md)。09-09工位PDA与历史导入已补齐，替代09-08“尚未接入”的候选状态；增加源操作内容摘要证明和失败原号恢复，见[第二批验收](../handoffs/2026-09-09-mainline-entry-acceptance.md)。候选未部署，云端与现场仍须独立验收。

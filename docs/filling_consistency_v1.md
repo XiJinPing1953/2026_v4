@@ -4,7 +4,7 @@
 
 2026-09-08 工程候选；操作协议为 `filling-consistency-2026-09-08-v2`，流转规则仍为 `bottle-flow-2026-09-05-v1`。本轮只有代码和本地验证，没有部署或真实云验收。交付详情见 [主线灌装交接](../state/handoffs/2026-09-08-mainline-filling.md)。
 
-**发布阻塞：当前 PDA 工位任务尚未接入。** `/pages/pda/filling-create` 实际挂载 `PdaFillingTaskCreateView`，完成页调用 `crm-pda-filling.completeTaskV1`。该后台调用 `crm-filling.createV1` 时没有 `operation_id`；重试还会重新取秤值和结束时间。旧文档“单条/PDA 已接入”只适用于 `src/services/pda/filling.js` 的直接录入服务，不能作为当前工位链路完成的证据。主任务须补齐任务后台的冻结提交和保存确认后才能安排配套 PDA 发布；本补丁没有修改现场控制或该范围外云函数。
+**2026-09-09更新：工位PDA和历史灌装导入已补齐并通过本地工程验收。** 此条替代09-08“工位后台尚未接入”的候选状态；生产仍未切换。PDA使用`pda-completion-2026-09-08-v1`，固定首次称重、结束时间、操作者和操作编号；回读时同时核对内容摘要、原创建者、源单及版本。历史导入失败重跑会恢复原操作，不能只查询失败状态。主任务补修了异内容占号被认作完成、旧任务被晚到回执重新打开两处PDA问题，见[第二批总验收](../state/handoffs/2026-09-09-mainline-entry-acceptance.md)。真实云事务、调度及PDA现场仍未验收，完整候选不得直接上传生产。
 
 ## 已实现的接口与组件关系
 
@@ -16,11 +16,14 @@
 | 每行后续处理 | `synchronizeOperationFillingRow` | 起始损耗调整、瓶状态；直接单条入口另要求监管事件与快照入队 |
 | 逐目标核查 | `crm-bottle-anomaly.touchFillingOperationV1` | 从私有操作读取瓶号/游标，校验凭据、租约、源版本；核查结果需完整读取凭据 |
 | 状态与恢复 | `getOperationV1`、`listOperationsV1`、`retryOperationV1`、`FillingOperationPanel` | 显示操作号、失败原因、源单保存状态、已扫/剩余数量；自动调度和人工重试 |
-| 当前 PDA 工位完成 | `src/services/pda/fillingTask.js` → `crm-pda-filling` | **仍不兼容本协议，不能上线切换** |
+| 当前 PDA 工位完成 | `src/services/pda/fillingTask.js` → `crm-pda-filling` | 服务端冻结原事实，原操作恢复、源单回链及待确认列表；已本地验收，须配套发布及现场验收 |
+| 历史灌装导入 | `scripts/importFillingsFromJson.cjs` → `crm-filling` | 稳定源身份、冻结恢复日志；回查后重试原操作，已确认保存与全部完成分列；预览不写业务 |
 
 `operation_id` 必须是 12—128 位字母、数字、下划线或连字符。相同编号不同内容返回 409；同编号同内容查询原操作，不重新生成源单。批量 `preview:true` 不写操作，无需编号。服务端输入摘要排除预览/预警确认标志；本地签名区分单条与批量入口，不保留原始批量文本、备注或 token。
 
 `code:0` 表示已受理，只有 `data.complete:true` 才表示全部处理完成。`saved_total` 是已持久化的保存检查点，确认丢失时可能滞后；`getOperationV1` 另按冻结源单 ID 回读 `source_records` 和 `source_saved_total`，可查到已提交但检查点未确认的源单。不存在的源单标明未保存，版本变化单独标记。单条未确认保存时不返回可误认为已存在的 `_id`。
+
+09-09新增`source_payload_hash:true`能力：`getOperationV1`提供`input_hash/created_by`，PDA必须核对冻结payload摘要及首次完成操作者，导入必须核对恢复日志的冻结摘要。缺少或不匹配时停止自动回链/重放，不凭编号和瓶号认作同一业务。摘要算法原样提取到`common/fillingPayload.js`并生成灌装/PDA副本，既有操作摘要不变；不返回冻结原文或凭据。PDA与导入都在写入前要求该能力，因此须使用本次完整后端，不能只按v2字符串判断兼容。
 
 操作仅本人和管理员可查，仍需灌装/PDA 查看权限；重试需创建权限。私有 `worker_secret`、冻结原文、操作者 token 不返回状态接口。列表先显示最多 100 个未完成操作，再以完成操作补足 20 条；不是全局积压总数。前端额外逐批查询本机记住而列表未包含的操作，释放已完成的本地编号，保留未确认编号和提示。
 
@@ -43,12 +46,12 @@
 
 ## 最小部署依赖与顺序（由主任务执行）
 
-1. 先解决当前 PDA 工位完成协议阻塞，确认隔离支付宝测试空间、可恢复快照和监管测试接收端；本轮不得连接真实生产瓶。核对实际线上结构后增量建立根目录 `crm_filling_operations`、`crm_filling_slots`、`crm_bottle_scan_locks`，客户端 CRUD 全关。私有集合使用确定 `_id`，必须验证唯一冲突行为。
+1. 工位PDA和导入代码缺口已补齐；先确认隔离支付宝测试空间、可恢复快照和监管测试接收端，不使用生产真实瓶演练。核对实际线上结构后增量建立根目录 `crm_filling_operations`、`crm_filling_slots`、`crm_bottle_scan_locks`，客户端 CRUD 全关。私有集合使用确定 `_id`，必须验证唯一冲突行为。`crm_pda_filling_tasks`根schema/index已登记为候选；上传前核对云端现有结构，仅增量应用两个可选完成字段、状态枚举和待确认索引，保留额外约束。
 2. 上传操作队列的 `uniq_operation_id/idx_status_retry/idx_owner_created` 索引；确认源单同日瓶号查重索引、两类流转 `source_id` 查询索引、流转 `idx_bottle_event_cursor`。保留源单/两类流转版本字段和源单一致性字段，操作新增 `last_transaction_ms`。既存集合不能用本地文件覆盖未知线上约束；禁止 `initdatabase`。
-3. 检查 `common/bottleFlowRules.js` 的三份生成副本一致。以完整目录打包 `crm-bottle-movement`、`crm-bottle-anomaly`、`crm-filling`，包含各自 `financialReadLocal`、规则和 ACL 副本；灌装另含 `fillingOperations/flowWarningPaging/operatorRepairSupport`。本轮三个 `package.json` 声明 60 秒，不能遗漏新增配置。
+3. 检查`common/bottleFlowRules.js`三份及`common/fillingPayload.js`两份生成副本。完整打包`crm-bottle-movement`、`crm-bottle-anomaly`、`crm-filling`及`crm-pda-filling`，保留各自规则、读取与ACL辅助文件；灌装另含`fillingOperations/flowWarningPaging/operatorRepairSupport/fillingPayloadLocal`，PDA含`completionProtocol/fillingPayloadLocal/package.json`。四函数显式60秒配置，不能漏包。公共发布候选范围已登记PDA函数及任务schema/index，不代表已部署。
 4. `crm-filling` 调度配置使用七位 `17 * * * * * *`；支付宝控制台直接配置用六位 `17 * * * * *`。只信任平台 `context.SOURCE === 'timing'`。真实触发源、每分钟第 17 秒运行和故障恢复均未验证，删除本地配置不等于云端触发器已删除。
-5. 核验监管桥既存版本、outbox 唯一索引、创建/查看权限及有效测试账号；任务不保存 token。部署三个函数并完成能力探测及隔离演练后，主任务安排同批 H5/PDA 版本切换。不得直接把包含未发布账务等候选的整个工作区覆盖生产。
-6. 旧 H5 缺操作号会收到升级提示，应暂停新灌装入口、保存操作号，再统一刷新/退出重登新资源。新 H5 拒绝旧后台或旧协议；旧工位 PDA 不可继续调用当前完成链路，须等任务后台修补和配套安装/真机验收。已有受理操作先排空并留证，回退代码不能丢弃操作表或退回会重复写源单的旧创建逻辑。
+5. 核验监管桥既存版本、outbox唯一索引、创建/查看权限及有效测试账号；任务不保存token。部署四函数并完成能力探测、53瓶故障恢复及实际PDA/导入入口隔离演练后，主任务安排同批H5/PDA切换。不得把包含未发布账务等候选的整个工作区覆盖生产。
+6. 新后台拒绝缺少协议的旧PDA新建/完成请求。切换前暂停旧新建入口、保存操作/源单对应关系、清点在途任务并等待旧调用退出，不让旧完成逻辑与冻结逻辑并发处理同一任务。旧completed/abnormal或已有源单却缺冻结事实的任务保持待核，晚到目标回执不能重新打开；不重新采秤补单。未完成冻结任务及已受理操作排空或制定逐项恢复方案，回退不能丢弃冻结事实或恢复会重复建单的旧逻辑。
 
 官方机制依据：[事务 API](https://doc.dcloud.net.cn/uniCloud/cf-database?id=start-transaction)、[定时触发](https://doc.dcloud.net.cn/uniCloud/trigger.html)、[函数配置](https://doc.dcloud.net.cn/uniCloud/cf-functions)、[云函数来源](https://doc.dcloud.net.cn/uniCloud/cf-callfunction)。2026-09-08 查阅；官方文档不是本项目真实云验收证据。
 
