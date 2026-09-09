@@ -67,8 +67,49 @@ test('remote verification detects old version and changed entry bytes', async (t
 	}
 	const ok = await verifyRemoteRelease({ directory, baseUrl: 'https://example.invalid', fetchImpl: serve() })
 	assert.equal(ok.status, 'version_verified')
+	assert.deepEqual(ok.checked.map((row) => row.path), ['version.json', ...artifactEvidence(directory).artifacts.map((row) => row.path)])
+	assert(ok.checked.every((row) => row.verified && row.httpStatus === 200 && row.sha256.length === 64))
 	await assert.rejects(verifyRemoteRelease({ directory, baseUrl: 'https://example.invalid', fetchImpl: serve({ 'version.json': JSON.stringify({ ...version, buildId: 'old' }) }) }), /线上版本未匹配/)
 	await assert.rejects(verifyRemoteRelease({ directory, baseUrl: 'https://example.invalid', fetchImpl: serve({ 'assets/main.js': 'old body' }) }), /线上资源未匹配/)
+})
+
+test('remote failure evidence distinguishes HTTP, timeout, invalid version and wrong bytes without saving response bodies', async (t) => {
+	const { root } = fixture(t)
+	const directory = path.join(root, 'dist/build/web')
+	writeVersion({ root, directory })
+	const run = (broken, response) => verifyRemoteRelease({ directory, baseUrl: 'https://example.invalid', fetchImpl: async (url) => {
+		const file = new URL(url).pathname.slice(1)
+		return file === broken ? response() : new Response(fs.readFileSync(path.join(directory, file)))
+	} })
+	await assert.rejects(run('assets/main.js', () => new Response('untrusted body', { status: 503 })), (error) => {
+		assert.equal(error.evidence.failure.kind, 'http_error')
+		assert.equal(error.evidence.failure.httpStatus, 503)
+		assert.equal(error.evidence.failure.path, 'assets/main.js')
+		assert.equal(error.evidence.checked[0].path, 'version.json')
+		assert(!JSON.stringify(error.evidence).includes('untrusted body'))
+		return true
+	})
+	await assert.rejects(run('assets/main.js', () => { throw new DOMException('request expired', 'TimeoutError') }), (error) => {
+		assert.equal(error.evidence.failure.kind, 'request_failed')
+		assert.equal(error.evidence.failure.errorName, 'TimeoutError')
+		assert.equal(error.evidence.failure.path, 'assets/main.js')
+		return true
+	})
+	for (const content of ['not JSON', 'null', '[]']) {
+		await assert.rejects(run('version.json', () => new Response(content)), (error) => {
+			assert.equal(error.evidence.failure.kind, 'invalid_version')
+			assert.equal(error.evidence.checked.length, 0)
+			return true
+		})
+	}
+	await assert.rejects(run('assets/main.js', () => new Response('wrong bytes')), (error) => {
+		assert.equal(error.evidence.failure.kind, 'hash_mismatch')
+		assert.equal(error.evidence.failure.httpStatus, 200)
+		assert.equal(error.evidence.failure.bytes, 11)
+		assert.notEqual(error.evidence.failure.sha256, error.evidence.failure.expectedSha256)
+		assert(!JSON.stringify(error.evidence).includes('wrong bytes'))
+		return true
+	})
 })
 
 test('domain and schema check fails on semantic drift, then explicit sync fixes it', (t) => {
