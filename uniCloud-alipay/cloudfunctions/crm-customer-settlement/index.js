@@ -5899,104 +5899,75 @@ async function exportCustomerStatementV1(user, data) {
 	if (!dateFrom || !dateTo) return { code: 400, msg: 'date_from/date_to 必填' }
 	if (dateFrom > dateTo) return { code: 400, msg: '开始日期不能晚于结束日期' }
 
-	const openingDateTo = addDays(dateFrom, -1)
-	const openingSales = openingDateTo ? await listCustomerSales(customerId, { dateTo: openingDateTo }) : []
-	const openingFlowSettlements = openingDateTo ? await listCustomerFlowSettlements(customerId, { dateTo: openingDateTo }) : []
-	const openingDebtRowsBefore = openingDateTo ? await listCustomerOpeningDebts(customerId, { dateTo: openingDateTo }) : []
+	// The daily statement is a grouping of the ledger, including its historical
+	// fallbacks. Never derive a second balance from cash-only display columns.
+	const openingBalance = await calculateCustomerAccountingOpeningBalance(customerId, dateFrom, moneyScale)
+	const movements = await listCustomerAccountingMovements(customer, { dateFrom, dateTo, moneyScale })
+	const ledger = buildAccountingDisplayRows(movements, openingBalance, moneyScale)
 	const openingReceipts = await listCustomerReceipts(customerId, { dateBefore: dateFrom })
-	const openingShouldReceive = sumMoneyByScale([
-		...openingSales.map((row) => computeSaleSnapshot(row).should_receive),
-		...openingFlowSettlements.map((row) => computeFlowSettlementSnapshot(row).should_receive),
-		...openingDebtRowsBefore.map((row) => computeOpeningDebtSnapshot(row, moneyScale).should_receive_effective)
-	], moneyScale)
-	const openingReceived = fixMoney(openingReceipts.reduce((sum, row) => sumMoneyByScale([sum, toNumber(row && row.amount, 0)], moneyScale), 0))
-	const openingRounding = fixMoney(openingReceipts.reduce((sum, row) => sumMoneyByScale([sum, toNumber(row && row.rounding_allocated_amount, 0)], moneyScale), 0))
-	const openingBalance = sumMoneyByScale([openingShouldReceive, -(openingReceived), -(openingRounding)], moneyScale)
-
+	const openingRounding = sumMoneyByScale(openingReceipts.map(row => row.rounding_allocated_amount || 0), moneyScale)
 	const rangeSales = await listCustomerSales(customerId, { dateFrom, dateTo })
-	const rangeFlowSettlements = await listCustomerFlowSettlements(customerId, { dateFrom, dateTo })
-	const rangeOpeningDebts = await listCustomerOpeningDebts(customerId, { dateFrom, dateTo })
 	const rangeReceipts = await listCustomerReceipts(customerId, { dateFrom, dateTo })
-	const rangeAllocRes = { data: await readComplete(allocations,
-			dbCmd.and([
-				{ customer_id: customerId },
-				{ biz_date: dbCmd.gte(dateFrom) },
-				{ biz_date: dbCmd.lte(dateTo) }
-			])
-		, { command: dbCmd, source: 'allocations', sort: ['biz_date', 'created_at'] }) }
-	const rangeAllocations = Array.isArray(rangeAllocRes.data) ? rangeAllocRes.data : []
-
-	const dayMap = new Map()
 	const dateSeries = buildDateSeries(dateFrom, dateTo)
-	dateSeries.forEach((date) => {
-		dayMap.set(date, {
-			date,
-			weight_kg: 0,
-			weight_amount: 0,
-			amount: 0,
-			receipt: 0,
-			opening_prepay: 0,
-			rounding: 0,
-			flow_count: 0,
-			offset_notes: new Set()
-		})
-	})
-
-	rangeSales.forEach((row) => {
-		const date = normalizeDate(row && row.date)
-		const day = dayMap.get(date)
+	const amountFields = ['amount', 'receipt', 'cash_received', 'refund', 'opening_prepay',
+		'rounding', 'legacy_received', 'legacy_refund', 'opening_debt', 'offset_credit']
+	const totals = Object.fromEntries(amountFields.map(field => [field, 0]))
+	totals.weight_kg = 0
+	const dayMap = new Map(dateSeries.map(date => [date, {
+		...Object.fromEntries(amountFields.map(field => [field, 0])),
+		weight_kg: 0, weight_amount: 0, notes: new Set()
+	}]))
+	const addAmount = (day, field, amount) => {
+		day[field] = sumMoneyByScale([day[field], amount], moneyScale)
+	}
+	ledger.rows.forEach(event => {
+		const day = dayMap.get(event.biz_date)
 		if (!day) return
-		const snapshot = computeSaleSnapshot(row)
-		day.amount = sumMoneyByScale([day.amount, snapshot.should_receive], moneyScale)
-		const isKgSale = normalizeString(row && row.price_unit) === 'kg'
-		const actualWeight = isKgSale ? computeSaleActualWeight(row) : 0
-		if (actualWeight > 0) {
-			day.weight_kg = fix2(day.weight_kg + actualWeight)
-			day.weight_amount = fix2(day.weight_amount + snapshot.should_receive)
+		const type = event.source_type
+		if (['sale', 'flow_settlement', 'opening_debt', 'other_fee'].includes(type)) {
+			addAmount(day, 'amount', event.debit)
+			if (type === 'opening_debt') {
+				addAmount(day, 'opening_debt', event.debit)
+				day.notes.add(`期初欠款转入 ${event.debit} 元已含在金额列，不属于本期营收`)
+			}
+			if (type === 'flow_settlement') day.notes.add('含流量结算')
+		} else if (type === 'receipt') {
+			addAmount(day, 'cash_received', event.credit)
+			addAmount(day, 'receipt', event.credit)
+		} else if (type === 'refund') {
+			addAmount(day, 'refund', event.debit)
+			addAmount(day, 'receipt', -event.debit) // Legacy callers retain signed net receipts.
+			day.notes.add(`已登记退款 ${event.debit} 元`)
+		} else if (type === 'opening_prepay') {
+			addAmount(day, 'opening_prepay', event.credit)
+			day.notes.add('期初预付款转入；不属于本期收款')
+		} else if (type.endsWith('_received_fallback')) {
+			addAmount(day, 'legacy_received', event.credit)
+			day.notes.add(`${event.summary} ${event.credit || event.debit} 元；按源单日期列示`)
+		} else if (type.endsWith('_refund_fallback')) {
+			addAmount(day, 'legacy_refund', event.debit)
+			day.notes.add(`${event.summary} ${event.credit || event.debit} 元；按源单日期列示`)
+		} else if (type === 'receipt_rounding' || type.endsWith('_rounding_fallback')) {
+			addAmount(day, 'rounding', event.credit)
+		}
+		day.balance = event.balance
+	})
+	rangeSales.forEach(row => {
+		const day = dayMap.get(normalizeDate(row && row.date))
+		if (!day || normalizeString(row && row.price_unit) !== 'kg') return
+		const weight = computeSaleActualWeight(row)
+		if (weight > 0) {
+			day.weight_kg = fix2(day.weight_kg + weight)
+			day.weight_amount = fix2(day.weight_amount + computeSaleSnapshot(row).should_receive)
 		}
 	})
-
-	rangeFlowSettlements.forEach((row) => {
-		const date = normalizeDate(row && row.biz_date)
-		const day = dayMap.get(date)
+	rangeReceipts.filter(isOffsetCreditReceiptRow).forEach(row => {
+		const day = dayMap.get(normalizeDate(row && row.biz_date))
 		if (!day) return
-		const snapshot = computeFlowSettlementSnapshot(row)
-		day.amount = sumMoneyByScale([day.amount, snapshot.should_receive], moneyScale)
-		day.flow_count += 1
+		addAmount(day, 'offset_credit', toNumber(row.amount, 0))
+		day.notes.add(`非现金冲抵来源 ${fixMoney(row.amount)} 元；不计现金，不再单独扣减结余`)
 	})
-	rangeOpeningDebts.forEach((row) => {
-		const date = normalizeDate(row && row.biz_date)
-		const day = dayMap.get(date)
-		if (!day) return
-		const snapshot = computeOpeningDebtSnapshot(row, moneyScale)
-		day.amount = sumMoneyByScale([day.amount, snapshot.should_receive_effective], moneyScale)
-	})
-
-	rangeReceipts.forEach((row) => {
-		const date = normalizeDate(row && row.biz_date)
-		const day = dayMap.get(date)
-		if (!day) return
-		const field = isOpeningPrepayReceipt(row) ? 'opening_prepay' : 'receipt'
-		day[field] = sumMoneyByScale([day[field], toNumber(row && row.amount, 0)], moneyScale)
-		day.rounding = sumMoneyByScale([day.rounding, toNumber(row && row.rounding_allocated_amount, 0)], moneyScale)
-	})
-
-	rangeAllocations.forEach((row) => {
-		const date = normalizeDate(row && row.biz_date)
-		const day = dayMap.get(date)
-		if (!day) return
-		const note = normalizeString(row && row.note)
-		if (!note) return
-		if (!note.startsWith('自动冲抵来源 ')) return
-		day.offset_notes.add(note)
-	})
-
 	let runningBalance = openingBalance
-	let totalWeight = 0
-	let totalAmount = 0
-	let totalReceipt = 0
-	let totalOpeningPrepay = 0
-	let totalRounding = 0
 	const saleRows = rangeSales.map((row) => {
 		const snapshot = computeSaleSnapshot(row)
 		const shouldReceive = fixMoney(snapshot.should_receive)
@@ -6020,46 +5991,19 @@ async function exportCustomerStatementV1(user, data) {
 			note: normalizeString(row && row.remark)
 		}
 	})
-	const rows = dateSeries.map((date) => {
-		const day = dayMap.get(date) || {
-			weight_kg: 0,
-			weight_amount: 0,
-			amount: 0,
-			receipt: 0,
-			opening_prepay: 0,
-			rounding: 0,
-			flow_count: 0,
-			offset_notes: new Set()
-		}
-		const amount = fixMoney(day.amount)
-		const receipt = fixMoney(day.receipt)
-		const openingPrepay = fixMoney(day.opening_prepay)
-		const rounding = fixMoney(day.rounding)
-		const weight = day.weight_kg > 0 ? fix2(day.weight_kg) : null
-		const unitPrice = day.weight_kg > 0 ? fix2(day.weight_amount / day.weight_kg) : null
-		const notes = []
-		if (openingPrepay) notes.push('期初预付款转入；不属于本期收款')
-		if (day.flow_count > 0) notes.push(`流量结算${day.flow_count}笔`)
-		if (day.offset_notes && day.offset_notes.size) {
-			const list = Array.from(day.offset_notes.values())
-			notes.push(list.join('；'))
-		}
-		runningBalance = sumMoneyByScale([runningBalance, amount, -(receipt), -(openingPrepay), -(rounding)], moneyScale)
-		totalWeight = fix2(totalWeight + (weight || 0))
-		totalAmount = sumMoneyByScale([totalAmount, amount], moneyScale)
-		totalOpeningPrepay = sumMoneyByScale([totalOpeningPrepay, openingPrepay], moneyScale)
-		totalReceipt = sumMoneyByScale([totalReceipt, receipt], moneyScale)
-		totalRounding = sumMoneyByScale([totalRounding, rounding], moneyScale)
+	const rows = dateSeries.map(date => {
+		const day = dayMap.get(date)
+		// Carry forward only on days without ledger events, including empty periods.
+		if (day.balance !== undefined) runningBalance = day.balance
+		amountFields.forEach(field => { totals[field] = sumMoneyByScale([totals[field], day[field]], moneyScale) })
+		totals.weight_kg = fix2(totals.weight_kg + day.weight_kg)
 		return {
 			biz_date: date,
-			weight_kg: weight,
-			unit_price: unitPrice,
-			amount,
-			receipt,
-			opening_prepay: openingPrepay,
-			rounding,
+			weight_kg: day.weight_kg > 0 ? day.weight_kg : null,
+			unit_price: day.weight_kg > 0 ? fix2(day.weight_amount / day.weight_kg) : null,
+			...Object.fromEntries(amountFields.map(field => [field, day[field]])),
 			balance: runningBalance,
-			note: notes.join('；')
+			note: Array.from(day.notes).join('；')
 		}
 	})
 
@@ -6079,17 +6023,13 @@ async function exportCustomerStatementV1(user, data) {
 				date_from: dateFrom,
 				date_to: dateTo
 			},
+			statement_balance_version: 'customer-statement-ledger/2026-09-10.1',
+			money_scale: moneyScale,
 			opening_balance: openingBalance,
 			opening_rounding: openingRounding,
 			rows,
 			sale_rows: saleRows,
-			totals: {
-				weight_kg: totalWeight,
-				amount: totalAmount,
-				receipt: totalReceipt,
-				opening_prepay: totalOpeningPrepay,
-				rounding: totalRounding
-			},
+			totals,
 			closing_balance: rows.length ? fixMoney(rows[rows.length - 1].balance) : openingBalance
 		}
 	}
@@ -6238,6 +6178,7 @@ async function listCustomerAccountingAllocationsByTargets(customerId, targetRefs
 function buildAccountingAllocationBackedMap(rows = [], moneyScale = 2) {
 	const map = new Map()
 	for (const row of rows || []) {
+		if (row.status && row.status !== 'posted') continue
 		const target = resolveAccountingAllocationTarget(row)
 		if (!target.key) continue
 		const amount = fixByScale(toNumber(row && row.allocate_amount, 0), moneyScale)
@@ -6495,6 +6436,18 @@ async function listCustomerAccountingMovements(customer, { dateFrom = '', dateTo
 				amount,
 				normal_balance: 'credit',
 				source_type: isOpeningPrepayReceipt(doc) ? 'opening_prepay' : 'receipt',
+				source_id: doc && doc._id
+			}, moneyScale)
+		}
+		if (amount < 0 && !isOpeningPrepayReceipt(doc)) {
+			pushAccountingMovement(rows, {
+				biz_date: date,
+				created_at: doc && doc.created_at,
+				row_order: 80,
+				summary: `退款 ${receiptLabel}`,
+				amount: -amount,
+				normal_balance: 'debit',
+				source_type: 'refund',
 				source_id: doc && doc._id
 			}, moneyScale)
 		}

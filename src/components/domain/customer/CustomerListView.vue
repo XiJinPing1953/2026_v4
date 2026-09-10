@@ -985,13 +985,10 @@ async function fetchCustomerStatementSheetsForExport(rows = [], period = { dateF
 				continue
 			}
 			statementSheets.push({
+				...res.data,
 				customer: res.data.customer || { _id: customerId, name: normalizeString(row?.name) },
 				period: res.data.period || { date_from: period.dateFrom, date_to: period.dateTo },
-				opening_balance: res.data.opening_balance,
-				opening_rounding: res.data.opening_rounding,
-				rows: Array.isArray(res.data.rows) ? res.data.rows : [],
-				totals: res.data.totals || {},
-				closing_balance: res.data.closing_balance
+				rows: Array.isArray(res.data.rows) ? res.data.rows : []
 			})
 		} catch (err) {
 			statementSheetErrors.push({

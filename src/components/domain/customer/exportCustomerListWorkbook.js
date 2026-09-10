@@ -1,3 +1,5 @@
+import { buildStatementSheetRows } from './statement/exportWorkbook.js'
+
 function normalizeString(value) {
 	if (value == null) return ''
 	return String(value).trim()
@@ -52,10 +54,11 @@ function formatDateTime(value) {
 
 function buildCellXml(cell = {}) {
 	const type = cell.type === 'Number' ? 'Number' : 'String'
+	const style = cell.style ? ` ss:StyleID="${escapeXml(cell.style)}"` : ''
 	if (type === 'Number') {
 		const num = Number(cell.value)
 		if (!Number.isFinite(num)) return '<Cell><Data ss:Type="String"></Data></Cell>'
-		return `<Cell><Data ss:Type="Number">${num}</Data></Cell>`
+		return `<Cell${style}><Data ss:Type="Number">${num}</Data></Cell>`
 	}
 	return `<Cell><Data ss:Type="String">${escapeXml(cell.value == null ? '' : cell.value)}</Data></Cell>`
 }
@@ -203,70 +206,6 @@ function buildDetailRows(payload = {}) {
 	return rows
 }
 
-function buildCustomerStatementDetailRows(payload = {}) {
-	const customerName = normalizeString(payload?.customer?.name) || '客户'
-	const periodFrom = normalizeString(payload?.period?.date_from || payload?.period?.dateFrom)
-	const periodTo = normalizeString(payload?.period?.date_to || payload?.period?.dateTo)
-	const openingBalance = fix2(payload?.opening_balance)
-	const openingRounding = fix2(payload?.opening_rounding)
-	const closingBalance = fix2(payload?.closing_balance)
-	const totals = payload?.totals || {}
-	const rows = Array.isArray(payload?.rows) ? payload.rows : []
-
-	const result = [
-		[{ type: 'String', value: `${customerName} 明细账` }],
-		[{ type: 'String', value: `区间：${periodFrom || '-'} ~ ${periodTo || '-'}` }],
-		[{ type: 'String', value: '' }],
-		[
-			{ type: 'String', value: '日期' },
-			{ type: 'String', value: '重量(kg)' },
-			{ type: 'String', value: '单价(元/kg)' },
-			{ type: 'String', value: '应收(元)' },
-			{ type: 'String', value: '收款(元)' },
-			{ type: 'String', value: '抹零(元)' },
-			{ type: 'String', value: '余额(元)' },
-			{ type: 'String', value: '备注' }
-		],
-		[
-			{ type: 'String', value: '期初余额' },
-			{ type: 'String', value: '/' },
-			{ type: 'String', value: '/' },
-			{ type: 'String', value: '' },
-			{ type: 'String', value: '' },
-			{ type: 'Number', value: openingRounding },
-			{ type: 'Number', value: openingBalance },
-			{ type: 'String', value: '' }
-		]
-	]
-
-	rows.forEach((row) => {
-		const weightValue = row?.weight_kg == null || row?.weight_kg === '' ? '/' : fix2(row?.weight_kg)
-		const unitPriceValue = row?.unit_price == null || row?.unit_price === '' ? '/' : fix2(row?.unit_price)
-		result.push([
-			{ type: 'String', value: normalizeString(row?.biz_date) },
-			typeof weightValue === 'number' ? { type: 'Number', value: weightValue } : { type: 'String', value: weightValue },
-			typeof unitPriceValue === 'number' ? { type: 'Number', value: unitPriceValue } : { type: 'String', value: unitPriceValue },
-			{ type: 'Number', value: fix2(row?.amount) },
-			{ type: 'Number', value: fix2(row?.receipt) },
-			{ type: 'Number', value: fix2(row?.rounding) },
-			{ type: 'Number', value: fix2(row?.balance) },
-			{ type: 'String', value: normalizeString(row?.note) }
-		])
-	})
-
-	result.push([
-		{ type: 'String', value: '合计' },
-		{ type: 'Number', value: fix2(totals?.weight_kg) },
-		{ type: 'String', value: '/' },
-		{ type: 'Number', value: fix2(totals?.amount) },
-		{ type: 'Number', value: fix2(totals?.receipt) },
-		{ type: 'Number', value: fix2(totals?.rounding) },
-		{ type: 'Number', value: closingBalance },
-		{ type: 'String', value: '' }
-	])
-	return result
-}
-
 function buildStatementErrorRows(payload = {}) {
 	const source = Array.isArray(payload?.statementSheetErrors) ? payload.statementSheetErrors : []
 	const rows = [
@@ -298,7 +237,7 @@ export function buildCustomerListWorkbookXml(payload = {}) {
 	const statementSheets = Array.isArray(payload?.statementSheets) ? payload.statementSheets : []
 	statementSheets.forEach((sheet, index) => {
 		const customerName = normalizeString(sheet?.customer?.name) || `客户${index + 1}`
-		pushSheet(`明细账-${customerName}`, buildCustomerStatementDetailRows(sheet))
+		pushSheet(`明细账-${customerName}`, buildStatementSheetRows(sheet))
 	})
 	const statementSheetErrors = Array.isArray(payload?.statementSheetErrors) ? payload.statementSheetErrors : []
 	if (statementSheetErrors.length) {
@@ -312,6 +251,7 @@ export function buildCustomerListWorkbookXml(payload = {}) {
 		' xmlns:x="urn:schemas-microsoft-com:office:excel"',
 		' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"',
 		' xmlns:html="http://www.w3.org/TR/REC-html40">',
+		'<Styles><Style ss:ID="sMoney"><NumberFormat ss:Format="0.00"/></Style><Style ss:ID="sMoney3"><NumberFormat ss:Format="0.000"/></Style></Styles>',
 		sheets.join(''),
 		'</Workbook>'
 	].join('')

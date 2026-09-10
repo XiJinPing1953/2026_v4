@@ -159,77 +159,54 @@ function paymentStatusText(value) {
 	return '未付款'
 }
 
-function buildStatementSheetRows(payload = {}) {
+export function buildStatementSheetRows(payload = {}) {
 	const companyName = normalizeString(payload.company_name) || '新拓能源'
 	const customerName = normalizeString(payload?.customer?.name) || '-'
 	const contact = normalizeString(payload?.customer?.contact)
 	const phone = normalizeString(payload?.customer?.phone)
 	const periodFrom = normalizeString(payload?.period?.date_from)
 	const periodTo = normalizeString(payload?.period?.date_to)
-	const openingBalance = fix2(payload.opening_balance)
-	const openingRounding = fix2(payload.opening_rounding)
-	const closingBalance = fix2(payload.closing_balance)
-	const dataRows = Array.isArray(payload.rows) ? payload.rows : []
-	const totals = payload.totals || {}
-	const totalWeight = toNumber(totals.weight_kg, 0)
-	const totalAmount = toNumber(totals.amount, 0)
-	const totalReceipt = toNumber(totals.receipt, 0)
-	const totalRounding = toNumber(totals.rounding, 0)
-
-	const result = []
-	result.push([{ type: 'String', value: `${companyName}对账单` }])
-	result.push([{ type: 'String', value: `客户：${customerName}${contact || phone ? `（${[contact, phone].filter(Boolean).join(' / ')}）` : ''}` }])
-	result.push([{ type: 'String', value: `（${periodFrom || '-'} - ${periodTo || '-'}）` }])
-	result.push([{ type: 'String', value: '' }])
-	result.push([
-		{ type: 'String', value: '日期' },
-		{ type: 'String', value: '重量（公斤）' },
-		{ type: 'String', value: '单价（元/公斤）' },
-		{ type: 'String', value: '金额（元）' },
-		{ type: 'String', value: '收款（元）' },
-		{ type: 'String', value: '期初预付款转入（元，非收款）' },
-		{ type: 'String', value: '抹零（元）' },
-		{ type: 'String', value: '欠款（元）' },
-		{ type: 'String', value: '备注' }
-	])
-	result.push([
-		{ type: 'String', value: '期初余额' },
-		{ type: 'String', value: '/' },
-		{ type: 'String', value: '/' },
-		{ type: 'String', value: '' },
-		{ type: 'String', value: '' },
-		{ type: 'String', value: '' },
-		openingRounding > 0 ? moneyCell(openingRounding) : { type: 'String', value: '' },
-		moneyCell(openingBalance),
-		{ type: 'String', value: '' }
-	])
-
-	dataRows.forEach((row) => {
+	const currentBalance = payload.statement_balance_version === 'customer-statement-ledger/2026-09-10.1'
+	const moneyScale = payload.money_scale
+	const summary = normalizeCustomerPeriodSummary(payload.period_summary, { dateFrom: periodFrom, dateTo: periodTo })
+	const cashStatus = summary?.complete === true ? '系统收退款无待核项' : `现金完整性待核${summary ? `（${summary.unresolved_count || 0}项）` : ''}`
+	const textCell = value => ({ type: 'String', value })
+	const checkedMoney = value => {
+		if (!currentBalance || ![2, 3].includes(moneyScale) || typeof value !== 'number' || !Number.isFinite(value)) return textCell('待核')
+		return moneyCellByScale(value, moneyScale)
+	}
+	const columns = [
+		['amount', '金额（元，含历史款项）'],
+		['cash_received', '已登记收款（元）'],
+		['refund', '已登记退款（元）'],
+		['legacy_received', '历史已收差额（元，日期待核）'],
+		['legacy_refund', '历史退款差额（元，日期待核）'],
+		['opening_prepay', '期初预付款转入（元，非收款）'],
+		['rounding', '抹零（元，非收款）'],
+		['balance', '结余（元，正欠款/负预付款）']
+	]
+	const result = [
+		[textCell(`${companyName}对账单`)],
+		[textCell(`客户：${customerName}${contact || phone ? `（${[contact, phone].filter(Boolean).join(' / ')}）` : ''}`)],
+		[textCell(`（${periodFrom || '-'} - ${periodTo || '-'}）`)],
+		[textCell(currentBalance
+			? `${cashStatus}；结余沿用会计账簿，含期初欠款、预付款及历史推导。历史差额按源单日期列示，非独立收退款凭证；期间之前的事项计入期初。非现金冲抵按源单反映，不重复扣款。`
+			: '旧版导出缺少账簿结余依据，请更新服务后重新导出；缺失金额显示待核。')],
+		[textCell('日期'), textCell('重量（公斤）'), textCell('单价（元/公斤）'), ...columns.map(([, label]) => textCell(label)), textCell('备注')],
+		[textCell('期初余额'), textCell('/'), textCell('/'), ...columns.map(([field]) => field === 'balance' ? checkedMoney(payload.opening_balance) : textCell('')), textCell('包含期间之前的账簿事项，抹零不重复计入本期')]
+	]
+	for (const row of Array.isArray(payload.rows) ? payload.rows : []) {
 		result.push([
-			{ type: 'String', value: normalizeString(row.biz_date) },
-			numberOrSlashCell(row.weight_kg),
-			numberOrSlashCell(row.unit_price),
-			moneyCell(row.amount),
-			moneyCell(row.receipt),
-			moneyCell(row.opening_prepay),
-			moneyCell(row.rounding),
-			moneyCell(row.balance),
-			{ type: 'String', value: normalizeString(row.note) }
+			textCell(normalizeString(row.biz_date)), numberOrSlashCell(row.weight_kg), numberOrSlashCell(row.unit_price),
+			...columns.map(([field]) => checkedMoney(row[field])), textCell(normalizeString(row.note))
 		])
-	})
-
+	}
+	const totals = payload.totals || {}
 	result.push([
-		{ type: 'String', value: '合计' },
-		totalWeight > 0 ? moneyCell(totalWeight) : { type: 'String', value: '/' },
-		{ type: 'String', value: '/' },
-		moneyCell(totalAmount),
-		moneyCell(totalReceipt),
-		moneyCell(totals.opening_prepay),
-		moneyCell(totalRounding),
-		moneyCell(closingBalance),
-		{ type: 'String', value: '' }
+		textCell('合计'), numberOrSlashCell(totals.weight_kg), textCell('/'),
+		...columns.map(([field]) => checkedMoney(field === 'balance' ? payload.closing_balance : totals[field])),
+		textCell('结余列为期末余额，不是每日余额之和')
 	])
-
 	return result
 }
 
