@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "buildId": "1789055014315-5516f66e",
+  "sourceCommit": "0948a43eefdb44fcc8496184cf27001498026c56",
+  "artifactDigest": "918e9ab7672dbfb8ce57f239965729c7acf89c54e75b46695ddac53140e342d3",
+  "scope": "Only the 15 exact CSS path/source/delivered hash tuples below; no general whitespace normalization; not a deployment receipt",
+  "allowedTransformation": {
+    "kind": "exact_prefix",
+    "prefixHex": "0d0a",
+    "bytes": "CRLF",
+    "maximumPrefixOccurrences": 1
+  },
+  "evidence": {
+    "path": "state/baselines/2026-09-09-web-css-delivery.json",
+    "sha256": "59b58deaced9c23f0121cd5fa03087edb2851104ffe0cb7eb4728c2542736dd7",
+    "priorBuildId": "1788928538096-1d9dfc98",
+    "priorSourceCommit": "5021753b6e03a938c371357c63ce0f533082a52c"
+  },
+  "variants": [
+    {
+      "path": "assets/AppCard-znCqyEy4.css",
+      "prefixHex": "0d0a",
+      "sourceSha256": "d0960ea58329ac354d08e1188fcd94dc236f3510808d244380c00e139cd01fcb",
+      "deliveredSha256": "e8b8fc48e542a022c453bb44ef122ae830e7bbfc1bd97951d38cd107bf173ea0"
+    },
+    {
+      "path": "assets/AppSection-CMmgPoRn.css",
+      "prefixHex": "0d0a",
+      "sourceSha256": "9b421587bb78b1b289b569341ef03df46ab6b329933cbcfd5609d8848e74c258",
+      "deliveredSha256": "59a6fcc4df501221bed2c8aa988892fb61f78118a82715404c1fbd38b1878c99"
+    },
+    {
+      "path": "assets/AppSkeleton-DWBgQW3-.css",
+      "prefixHex": "0d0a",
+      "sourceSha256": "3e0ec06f09b01b331b33902e2423032e60ff443d1495716c3352729d06808de3",
+      "deliveredSha256": "74e226a1aab04fc81e1b66c33332b9e86fae295e3ba5d7009871b5c0fe7c9180"
+    },
+    {
+      "path": "assets/AppTabs-C4nMD4Eu.css",
+      "prefixHex": "0d0a",
+      "sourceSha256": "947c2fe8ee48c9ad929e1d902aadf8e12817207d8d55c8e80258e5ddc1607bec",
+      "deliveredSha256": "054803af7b584085f531b1e6e75cbfdc5fd671822d5c7054db53146ee3c16865"
+    },
+    {
+      "path": "assets/bottle-query-BYMviv6m.css",
+      "prefixHex": "0d0a",
+      "sourceSha256": "2d741f54406494e85f8ba072d673c87870c86960c27d04d5b73f66fdc5f96a43",
+      "deliveredSha256": "78fd7d11f1075d96843b5013dfef7b46549fa0c2192887c149a40405b9ee3f7d"
+    },
+    {
+      "path": "assets/customer-query-YpzmEWnF.css",
+      "prefixHex": "0d0a",
+      "sourceSha256": "52bd480dc6e0633fc8f4e86e43ba58e253551f446666232ec2f23e6588d0f0c2",
+      "deliveredSha256": "250656ad6a175ebdc4a1b97916d2dbddc30f910fbecc2102568664e798b52750"
+    },
+    {
+      "path": "assets/datePreset-CrfM4YX6.css",
+      "prefixHex": "0d0a",
+      "sourceSha256": "ed81263a60de0af8e7ea5592921804f37f456fe0a3c8ffe5ac74db9a6af1b0d9",
+      "deliveredSha256": "f2afeef4e697fbee3c3d2bf197066a4f245b25ee1cacd23c4787ea5e4649f799"
+    },
+    {
+      "path": "assets/filling-complete-gEy7DzPm.css",
+      "prefixHex": "0d0a",
+      "sourceSha256": "17998494d69687fa0d37f12d79b05190d56b0867928bf23c9b21e8de25f75273",
+      "deliveredSha256": "5f40f9ce6bef65d121b3198c79726006495dd5547f2e6f632ab84f3d7986d623"
+    },
+    {
+      "path": "assets/filling-station-CiRuiNqK.css",
+      "prefixHex": "0d0a",
+      "sourceSha256": "8a9713054653c3cf269e2cf6c1c538f4a58905050c4663a55bcfc9a25a80ccb6",
+      "deliveredSha256": "b9557c738aadcc9d7d73a2ba4c8e87193f18b9e286529889e5106621af44f61d"
+    },
+    {
+      "path": "assets/movement-query-DRdEgj1P.css",
+      "prefixHex": "0d0a",
+      "sourceSha256": "03cd37df594a6a02ef005dd4622c9c3f24f4a2ae1baa9bf11f1dc600cb001326",
+      "deliveredSha256": "248c7f55392e740194c7dcbb3b4825a14d65b6daab10fd24c1651b7bc89fd4b0"
+    },
+    {
+      "path": "assets/PdaBottleSuggestField-Cz83blZd.css",
+      "prefixHex": "0d0a",
+      "sourceSha256": "7997881b9b28f0906637c15d32c0822ff6d16fe2e6543111436435dc8b7fe8a0",
+      "deliveredSha256": "738990a97765c4d7a5e1c5791ad264b63ec672a7b11e2c7d1c8e31c51a5c3e7c"
+    },
+    {
+      "path": "assets/PdaLookupSuggestField-DMos0wPL.css",
+      "prefixHex": "0d0a",
+      "sourceSha256": "f99b030dc75614e808833afe760d24a0a327c5577940dc3599942be41075ea4f",
+      "deliveredSha256": "2fbd18c53c94683d4fe0773a096c9747beba7009511480fbfd32e65e35b292b7"
+    },
+    {
+      "path": "assets/period-list-BuweYgS8.css",
+      "prefixHex": "0d0a",
+      "sourceSha256": "4c1b30a4e07dee46f77f91912774f7a887d5c2a2963bb8595403114fafef46c0",
+      "deliveredSha256": "9ee3da91fa2cdc906c47923e7d892608f3044def06b15cd5b0557c6cd64ccc5c"
+    },
+    {
+      "path": "assets/StationSafetyInspectionShell-wswGThyB.css",
+      "prefixHex": "0d0a",
+      "sourceSha256": "206600d5de2d4c2ef10b692705960ad2d373b122b787ebba4bf2de83f2af34fb",
+      "deliveredSha256": "37927bee5cce5b4a22a2a0eb692cd4512f892fca04236a48faf168e13ac0812b"
+    },
+    {
+      "path": "assets/usePdaSuggestions-B968TSpG.css",
+      "prefixHex": "0d0a",
+      "sourceSha256": "57897174299ccffa489f35ce4f2c2d3fc2c3f4323f319b64ed5c8aa44a5f85f9",
+      "deliveredSha256": "542d8347d63e170d101f3f7a6750108b5dc7e51f7b8aac9741a70c49f9293a38"
+    }
+  ]
+}
