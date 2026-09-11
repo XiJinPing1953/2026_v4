@@ -33,7 +33,8 @@
         "uniCloud-alipay/cloudfunctions/crm-filling/financialReadLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/financialReadLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-ledger-reconciliation/financialReadLocal.js",
-        "uniCloud-alipay/cloudfunctions/crm-haonuo-reconciliation/financialReadLocal.js"
+        "uniCloud-alipay/cloudfunctions/crm-haonuo-reconciliation/financialReadLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/financialReadLocal.js"
       ]
     },
     {

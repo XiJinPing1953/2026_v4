@@ -12,20 +12,22 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.10-statement-export-fix",
+      "version": "2026.09.11-baotai-receipt-conversion",
       "output": "release/cloud",
-      "acceptance": "One complete customer settlement function package; no database changes; read-only statement export acceptance",
+      "acceptance": "One K001-only legacy receipt conversion function; full raw backup, rollback rehearsal, idempotent execution and before/after accounting acceptance; no database schema changes",
       "deploymentScope": {
         "functions": [
-          "crm-customer-settlement"
+          "crm-legacy-receipt-conversion"
         ],
         "databaseFiles": [],
-        "baseCommit": "b8ea20c5d88d4c3ed391711b24b0b90ab76400ee",
+        "baseCommit": "a41df70089f1c7214ca539065b94549ef67fd2a8",
         "sourceFiles": [
-          "src/components/domain/customer/CustomerListView.vue",
-          "src/components/domain/customer/exportCustomerListWorkbook.js",
-          "src/components/domain/customer/statement/exportWorkbook.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js"
+          "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/budget.js",
+          "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/financialReadLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/package.json",
+          "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/plan.js",
+          "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/transaction.js"
         ]
       },
       "integrityScope": "deployment"
