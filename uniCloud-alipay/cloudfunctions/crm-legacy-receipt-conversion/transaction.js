@@ -40,30 +40,31 @@ async function execute({ db, logId, runId, planHash, readSnapshot, rehearse = fa
   const sourceRows = Object.values(before.tables).reduce((total, rows) => total + rows.length, 0)
   if (sourceRows > LIMITS.source_rows) throw Error('原始范围超过候选读取预算，禁止进入事务')
   const started = Date.now(), deadline = started + LIMITS.transaction_work_ms, tx = await db.startTransaction()
-  let count = 0, committed = false, commitAttempted = false, outcome, transactionMs = 0, inTransactionSnapshotMs = 0
+  let count = 0, committed = false, commitAttempted = false, outcome, transactionMs = 0, inTransactionSnapshotMs = 0, stage = 'start'
   const signal = { aborted: false }, inFlight = new Set()
   const request = async work => {
     if (signal.aborted || Date.now() >= deadline) throw Error('事务工作预算已耗尽，停止后续请求')
     const pending = Promise.resolve().then(work); inFlight.add(pending)
     try { return await pending } finally { inFlight.delete(pending) }
   }
-  const guarded = plan.writes.filter(write => write.before)
-  const checkGuards = async () => mapBounded(guarded, async write => {
-    const actual = first(await request(() => tx.collection(write.table).doc(write.id).get()))
-    if (digest(actual) !== digest(write.before)) throw Error(`事务原值冲突：${write.table}/${write.id}`)
-  })
   const budget = work => withinBudget(work, deadline, signal)
 
   try {
+    stage = 'read operation lock'
     const lock = first(await budget(() => request(() => tx.collection('crm_operation_logs').doc(logId).get())))
     if (lock?.status !== 'prepared' || lock.detail?.plan?.plan_hash !== planHash) throw Error('事务中批次状态已变化')
-    await budget(checkGuards)
-    await budget(() => mapBounded(plan.writes.filter(write => !write.before), async write => {
-      if (first(await request(() => tx.collection(write.table).doc(write.id).get()))) throw Error(`确定编号已存在：${write.id}`)
-    }))
+    // The complete ordinary-DB snapshot immediately above guards every source row
+    // and scope membership. The Alipay transaction client does not reliably allow
+    // concurrent document reads; the metadata-only source writes below establish
+    // write contention without replacing any business value.
+    // Alipay transactions return a generic Database error when get() targets a missing
+    // deterministic document. The complete pre-read already proves these IDs absent;
+    // add() remains the in-transaction uniqueness guard if another writer races us.
     // A real batch write provides contention on the fixed run; no source amounts are incremented.
+    stage = 'lock operation log'
     await budget(() => request(() => tx.collection('crm_operation_logs').doc(logId).update({ status: 'applying' })))
     for (const write of plan.writes) {
+      stage = `apply ${write.table}/${write.id}`
       if (write.before) {
         const result = await budget(() => request(() => tx.collection(write.table).doc(write.id).update(write.patch)))
         if (Number(result.updated) !== 1) throw Error(`原值版本保护未更新预期行：${write.id}`)
@@ -71,22 +72,22 @@ async function execute({ db, logId, runId, planHash, readSnapshot, rehearse = fa
       count++
       if (rehearse && failAfterWrites > 0 && count === failAfterWrites) throw Object.assign(Error('预定事务中断'), { interruption: true })
     }
-    await budget(() => mapBounded(plan.writes, async write => {
-      if (digest(first(await request(() => tx.collection(write.table).doc(write.id).get()))) !== digest(write.after)) throw Error('事务内写入文档与计划不符')
-    }))
     // Ordinary readers see the pre-commit data; compare full values, not merely row counts.
     // Customer and target updated_at writes also establish transaction write conflicts; business fields stay unchanged.
+    stage = 'verify outside snapshot'
     const outsideStarted = Date.now(), outside = await budget(() => request(() => readSnapshot({ signal })))
     inTransactionSnapshotMs = Date.now() - outsideStarted
     if (!outside.complete || outside.snapshot_hash !== before.snapshot_hash || snapshotHash(outside.tables) !== before.snapshot_hash) throw Error('事务期间原值或关联范围变化')
+    stage = 'mark operation committed'
     await budget(() => request(() => tx.collection('crm_operation_logs').doc(logId).update({ status: 'committed', committed_at: Date.now(), expected_after_hash: expectedAfter(before, plan) })))
     if (Date.now() >= deadline) throw Error('提交前事务预算不足，回滚')
-    if (rehearse) { await tx.rollback(); outcome = 'rehearsed_rolled_back' }
-    else { commitAttempted = true; await tx.commit(); committed = true; outcome = 'committed' }
+    if (rehearse) { stage = 'rollback rehearsal'; await tx.rollback(); outcome = 'rehearsed_rolled_back' }
+    else { stage = 'commit transaction'; commitAttempted = true; await tx.commit(); committed = true; outcome = 'committed' }
     transactionMs = Date.now() - started
   } catch (error) {
     signal.aborted = true
     await Promise.allSettled([...inFlight])
+    error.message = `${stage}: ${error.message}`
     if (commitAttempted && !committed) { error.commit_attempted = true; error.commit_status_unknown = true; error.message = `提交结果未确认，须status回查，不得重新准备批次：${error.message}` }
     if (!committed) await tx.rollback().catch(() => {})
     if (rehearse && error.interruption) outcome = 'interruption_rolled_back'
