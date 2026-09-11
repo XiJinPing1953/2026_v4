@@ -20,7 +20,7 @@
           "crm-legacy-receipt-conversion"
         ],
         "databaseFiles": [],
-        "baseCommit": "a41df70089f1c7214ca539065b94549ef67fd2a8",
+        "baseCommit": "12d74c96be520685bc733406df00ef9016534e1a",
         "sourceFiles": [
           "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/budget.js",
           "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/financialReadLocal.js",
