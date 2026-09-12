@@ -84,7 +84,7 @@
 						<text class="overview-label">{{ periodIsYear ? '本年营收' : '期间营收' }}</text>
 						<text class="overview-value">{{ periodMoney('business_revenue') }}</text>
 						<text class="overview-meta">{{ periodScopeText }} · 不含历史转入</text>
-						<text v-for="note in (periodReport?.source_notes || [])" :key="note.source_id" class="overview-meta">{{ note.text }}</text>
+						<text v-for="note in (periodReport?.source_notes || []).filter(item => item.source_type !== 'legacy_rounding')" :key="note.source_id" class="overview-meta">{{ note.text }}</text>
 					</view>
 					<view class="overview-item">
 						<text class="overview-label">所选期间应收合计（含历史款项）</text>
@@ -96,6 +96,8 @@
 						<text class="overview-label">{{ periodIsYear ? '本年实际收款' : '期间实际收款' }}</text>
 						<text class="overview-value">{{ periodMoney('cash_received') }}</text>
 						<text class="overview-meta">其中收回历史欠款 {{ periodMoney('historical_debt_collected') }}</text>
+						<text class="overview-meta">{{ periodIsYear ? '本年抹零汇总' : '期间抹零汇总' }} {{ periodMoney('rounding_total') }} · 不计实际收款</text>
+						<text v-for="note in (periodReport?.source_notes || []).filter(item => item.source_type === 'legacy_rounding')" :key="note.source_id" class="overview-meta">{{ note.text }}</text>
 						<text class="overview-meta">{{ periodScopeText }} · 按收款日期</text>
 						<text v-if="periodReport?.unresolved_count" class="overview-meta">{{ periodReport.unresolved_count }} 项账务依据待核，相关合计暂不显示</text>
 						<text v-for="(issue, index) in (periodReport?.unresolved_sources || []).slice(0, 3)" :key="index" class="overview-meta">{{ describePeriodSummaryIssue(issue) }}</text>

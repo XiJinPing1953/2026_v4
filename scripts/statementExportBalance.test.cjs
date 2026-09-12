@@ -44,7 +44,7 @@ test('daily export follows ledger for undated embedded receipts, sale rounding a
   assertDailyBalances(daily,ledger)
   assert.equal(daily.totals.receipt,0)
   assert.equal(daily.totals.refund,0)
-  assert.equal(daily.period_summary.rule_version,'customer-period-summary/2026-09-08.2')
+  assert.equal(daily.period_summary.rule_version,'customer-period-summary/2026-09-12.3')
   assert.equal(daily.period_summary.cash_received,null)
   assert.equal(daily.period_summary.known_cash.cash_received,0)
   if(from==='2026-01-01') {
@@ -137,7 +137,7 @@ test('single and batch render the same source columns, three-decimal signed bala
  const legacyRows=wb.rows(legacy)
  assert.match(legacyRows[3][0].value,/旧版导出.*重新导出/)
  assert.equal(legacyRows[5][10].value,'待核');assert.equal(legacyRows.at(-1)[10].value,'待核')
- const pending=structuredClone(daily);pending.period_summary.complete=false;pending.period_summary.unresolved_count=2;pending.period_summary.cash_received=null
+ const pending=structuredClone(daily);pending.period_summary.complete=false;pending.period_summary.cash_complete=false;pending.period_summary.unresolved_count=2;pending.period_summary.cash_received=null
  assert.match(wb.rows(pending)[3][0].value,/现金完整性待核（2项）/)
 })
 

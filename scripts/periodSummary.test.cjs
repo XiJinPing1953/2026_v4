@@ -71,9 +71,12 @@ test('cash includes prepayments, excludes void rows/offsets/rounding, and separa
 		{...base,_id:'rounding',amount:0,rounding_allocated_amount:12}
 	)
 	tables.crm_customer_allocations.push({...base,_id:'void-allocation',status:'void',receipt_id:'receipt-0',target_type:'opening_debt',target_id:'opening',allocate_amount:999})
+	tables.crm_customer_flow_settlements[0].receipt_rounding_amount = 12
+	tables.crm_customer_allocations.push({...base,_id:'rounding-allocation',receipt_id:'rounding',target_type:'flow_settlement',target_id:'flow-0',allocate_kind:'rounding',allocate_amount:12})
 	const p = (await query(loadHandler('crm-customer-settlement',makeDb(tables)), '2026-01-01','2026-01-31')).data.period_summary
 	assert.equal(p.complete,true); assert.equal(p.cash_received,86071.5); assert.equal(p.historical_debt_collected,77823.297)
 	assert.equal(p.refund_total,20); assert.equal(p.net_cash_received,86051.5)
+	assert.equal(p.rounding_total,12)
 })
 
 test('undated embedded cash or refunds remain pending even when the source is outside the query period', async () => {

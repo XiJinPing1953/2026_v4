@@ -8869,6 +8869,7 @@ const statementPeriodHandler = async (event, context) => {
 		}, {
 			sum: sumMoneyByScale, sale: computeSaleSnapshot, flow: computeFlowSettlementSnapshot,
 			debt: computeOpeningDebtSnapshot, debtType: resolveOpeningDebtEntryType,
+			saleRounding: resolveSaleAccountingRoundingAmount,
 			isOffsetReceipt: isOffsetCreditReceiptRow, isOffsetAllocation: isOffsetAllocationRow
 		})
 		return result

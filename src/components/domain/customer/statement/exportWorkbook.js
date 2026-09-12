@@ -169,7 +169,7 @@ export function buildStatementSheetRows(payload = {}) {
 	const currentBalance = payload.statement_balance_version === 'customer-statement-ledger/2026-09-10.1'
 	const moneyScale = payload.money_scale
 	const summary = normalizeCustomerPeriodSummary(payload.period_summary, { dateFrom: periodFrom, dateTo: periodTo })
-	const cashStatus = summary?.complete === true ? '系统收退款无待核项' : `现金完整性待核${summary ? `（${summary.unresolved_count || 0}项）` : ''}`
+	const cashStatus = (summary?.cash_complete ?? summary?.complete) === true ? '系统收退款无待核项' : `现金完整性待核${summary ? `（${summary.unresolved_count || 0}项）` : ''}`
 	const textCell = value => ({ type: 'String', value })
 	const checkedMoney = value => {
 		if (!currentBalance || ![2, 3].includes(moneyScale) || typeof value !== 'number' || !Number.isFinite(value)) return textCell('待核')
@@ -372,7 +372,7 @@ function buildPeriodSummarySheetRows(payload = {}) {
 			{ type: 'String', value: row.label },
 			row.value == null ? { type: 'String', value: summary ? '待核' : '未完成' } : moneyCellByScale(row.value, scale)
 		]),
-		[{ type: 'String', value: '说明' }, { type: 'String', value: '营收不含历史转入；实际收款按收款日期，包含预收及待分配款，不含期初预付款转入、非现金冲抵和抹零。借贷合计不等同实际收款。' }],
+		[{ type: 'String', value: '说明' }, { type: 'String', value: '营收不含历史转入；实际收款按收款日期，包含预收及待分配款，不含期初预付款转入、非现金冲抵和抹零。抹零汇总按源单业务日期或有效收款日期去重；旧单内嵌抹零按源单日期列示。预付款后续抹零缺独立发生日期时待核。借贷合计不等同实际收款。' }],
 		[{ type: 'String', value: '核查状态' }, { type: 'String', value: summary?.complete ? '完整' : summary ? `待核 ${summary.unresolved_count} 项` : '未完成' }],
 		...(summary?.source_notes || []).map(row => [{ type: 'String', value: '期间依据' }, { type: 'String', value: row.text }]),
 		...(summary?.unresolved_sources || []).map(row => [{ type: 'String', value: row.source_id }, { type: 'String', value: describePeriodSummaryIssue(row) }])

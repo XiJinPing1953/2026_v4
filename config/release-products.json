@@ -6,28 +6,27 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.10-statement-export-fix",
+      "version": "2026.09.12-period-rounding",
       "output": "dist/build/web",
-      "acceptance": "Build, remote version equality, statement export layout and batch export acceptance",
+      "acceptance": "Date-aware rounding disclosure; actual cash unchanged; statement and both exports agree",
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.11-baotai-receipt-conversion",
+      "version": "2026.09.12-period-rounding",
       "output": "release/cloud",
-      "acceptance": "One K001-only legacy receipt conversion function; full raw backup, rollback rehearsal, idempotent execution and before/after accounting acceptance; no database schema changes",
+      "acceptance": "One complete customer settlement package, read-only summary change; no financial or schema writes",
       "deploymentScope": {
         "functions": [
-          "crm-legacy-receipt-conversion"
+          "crm-customer-settlement"
         ],
         "databaseFiles": [],
-        "baseCommit": "12d74c96be520685bc733406df00ef9016534e1a",
+        "baseCommit": "acc71dc8dad040208143db5635510e55c318ee5e",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/budget.js",
-          "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/financialReadLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/plan.js",
-          "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/transaction.js"
+          "src/components/domain/customer/statement/CustomerStatementModule.vue",
+          "src/components/domain/customer/statement/exportWorkbook.js",
+          "src/services/mappers/customerPeriodSummary.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/periodSummary.js"
         ]
       },
       "integrityScope": "deployment"
