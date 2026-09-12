@@ -72,14 +72,21 @@ function transferReceipt(change, snapshot, user, now) {
 }
 async function readReceiptScope(db, customerId, receiptId) {
   const read = async (table, stage, where, { optionalLegacyAdjustment = false } = {}) => {
-    try { return { rows: await R.complete(db, table, where), absent: false } }
-    catch (error) {
-      // Existing production has never initialized this optional legacy adjustment
-      // store. Only its exact provider absence error is accepted, never a failed
-      // permission, unavailable count, interrupted read, or missing mandatory store.
-      if (optionalLegacyAdjustment && table === M.TABLES.adjustments && String(error?.message || '').trim() === 'not found collection') {
-        return { rows: [], absent: true }
+    try {
+      // Only an initial probe may establish that the optional legacy store has
+      // never been initialized. Once observed present, disappearance mid-read is
+      // an incomplete read and cannot be reclassified as a safe empty scope.
+      if (optionalLegacyAdjustment && table === M.TABLES.adjustments) {
+        let probe
+        try { probe = await db.collection(table).where(where).count() }
+        catch (error) {
+          if (String(error?.message || '').trim() !== 'not found collection') throw error
+          return { rows: [], absent: true }
+        }
+        if (!['number', 'string'].includes(typeof probe?.total) || String(probe.total).trim() === '' || !Number.isSafeInteger(Number(probe.total)) || Number(probe.total) < 0) M.fail('旧收款调整集合数量探测未完成')
       }
+      return { rows: await R.complete(db, table, where), absent: false }
+    } catch (error) {
       error.message = `read transfer scope/${stage}/${table}: ${error.message}`
       error.details = { ...(error.details || {}), read_stage: stage, source_table: table }
       throw error

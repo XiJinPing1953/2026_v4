@@ -334,3 +334,17 @@ test('an optional adjustment store appearing empty during the transaction change
   assert.equal(result.code, 409); assert.match(result.msg, /关联范围发生变化/)
   assert.equal(snapshot(h.tables), before)
 })
+
+test('legacy adjustment storage disappearing after its initial existence probe remains an incomplete read', async () => {
+  for (const failAtCount of [2, 3]) {
+    let reads = 0
+    const h = harness({}, { count: (table, total) => {
+      if (table === M.TABLES.adjustments && ++reads === failAtCount) throw Error('not found collection')
+      return { total }
+    } }), before = snapshot(h.tables)
+    const result = await h.create('transfer', 1, { rehearse: true, rehearsal_seed_amount: 10 })
+    assert.equal(result.code, 409); assert.equal(result.data.source_table, M.TABLES.adjustments)
+    assert.match(result.msg, /legacy adjustments/); assert.equal(snapshot(h.tables), before)
+    assert.equal(h.db.writes.length, 0)
+  }
+})
