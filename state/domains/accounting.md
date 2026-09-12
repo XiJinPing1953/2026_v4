@@ -133,7 +133,7 @@
 
 实现分支 `codex/baotai-receipt-conversion-20260911`，执行源码 `82f6760`；事务、页面、普通对账单和会计导出验收见 [转换交接](../handoffs/2026-09-11-baotai-receipt-conversion.md)。
 
-## A-12：冲抵额度可按真实退款拆分（2026-09-12，待发布）
+## A-12：冲抵额度可按真实退款拆分（2026-09-12，已发布后端）
 
 来源：K002保定灰鲸酒店逐户核账。用户确认1260元退液中270元用于抵扣瓶租、990元于2026-02-02实际退付；补充A-02/A-06对负销售、非现金冲抵和现金退款的区分。
 
@@ -142,4 +142,4 @@
 - 始终满足“冲抵总额＝已分配＋抹零分配＋未分配＋已转现金退款”。超额、作废来源、原值变化或不完整余额均拒绝写入。
 - 该能力不处理押金。押金收退继续与销售营收、客户气款及期间现金汇总分开。
 
-实现：`crm-customer-settlement/offsetCreditRefund.js`及受限动作`previewOffsetCreditCashRefundV1`、`convertOffsetCreditToCashRefundV1`；反例见`scripts/offsetCreditCashRefund.test.cjs`。当前仅本地实现并通过相关回归，尚未发布或用于K002写账。
+实现：`crm-customer-settlement/offsetCreditRefund.js`及受限动作`previewOffsetCreditCashRefundV1`、`convertOffsetCreditToCashRefundV1`；反例见`scripts/offsetCreditCashRefund.test.cjs`。源码`ded5e46`已上传客户结算完整函数，线上预览动作回读通过；尚未用于K002写账。
