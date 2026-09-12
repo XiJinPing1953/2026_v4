@@ -3,6 +3,7 @@ const { isOpeningPrepayReceipt, isOffsetCreditReceipt } = require('./receiptSour
 
 const saleAccounting = require('./saleAccountingLocal')
 const { readComplete, withFinancialEvidence, FinancialReadError } = require('./financialReadLocal')
+const offsetCreditRefund = require('./offsetCreditRefund')
 
 const db = uniCloud.database()
 const dbCmd = db.command
@@ -97,6 +98,8 @@ const PAGE_ACTION_RULES = {
 	],
 	allocateOffsetCreditV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	removeOffsetCreditAllocationV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	previewOffsetCreditCashRefundV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
+	convertOffsetCreditToCashRefundV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	getCustomerStatementAnalysisV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	exportCustomerStatementV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	exportCustomerAccountingLedgerV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
@@ -109,7 +112,9 @@ const SUPERADMIN_ONLY_ACTIONS = [
 	'getLegacyM3EvidenceV1',
 	'rebuildOpeningBalancesV1',
 	'repairAutoPrepayAllocationsV1',
-	'migrateTushanCakeSettlementSitesV1'
+	'migrateTushanCakeSettlementSitesV1',
+	'previewOffsetCreditCashRefundV1',
+	'convertOffsetCreditToCashRefundV1'
 ]
 
 async function getUserByToken(token) {
@@ -5694,6 +5699,132 @@ async function allocateOffsetCreditV1(user, data, requestId) {
 	}
 }
 
+function offsetRefundExpected(data) {
+	const value = data.expected_source || data.expectedSource || {}
+	return {
+		updated_at: value.updated_at ?? value.updatedAt,
+		amount: value.amount,
+		allocated_amount: value.allocated_amount ?? value.allocatedAmount,
+		rounding_allocated_amount: value.rounding_allocated_amount ?? value.roundingAllocatedAmount,
+		unallocated_amount: value.unallocated_amount ?? value.unallocatedAmount,
+		offset_cash_refunded_amount: value.offset_cash_refunded_amount ?? value.offsetCashRefundedAmount
+	}
+}
+
+async function buildOffsetRefundPreview(data, sourceCollection = receipts) {
+	const customerId = normalizeId(data.customer_id || data.customerId)
+	const receiptId = normalizeId(data.receipt_id || data.receiptId)
+	const operationId = normalizeId(data.operation_id || data.operationId)
+	if (!customerId) return { ok: false, code: 400, reason: 'customer_id_required' }
+	if (!receiptId) return { ok: false, code: 400, reason: 'receipt_id_required' }
+	const customer = await getCustomerById(customerId)
+	if (!customer) return { ok: false, code: 404, reason: 'customer_missing' }
+	const sourceRes = await sourceCollection.doc(receiptId).get()
+	const source = (sourceRes.data && sourceRes.data[0]) || null
+	return offsetCreditRefund.buildOffsetCreditRefundPlan({
+		source, customerId, operationId,
+		refundAmount: data.refund_amount ?? data.refundAmount,
+		refundDate: data.refund_date || data.refundDate,
+		expected: offsetRefundExpected(data),
+		moneyScale: resolveCustomerMoneyScale(customer)
+	})
+}
+
+async function previewOffsetCreditCashRefundV1(user, data, requestId) {
+	void user; void requestId
+	const plan = await buildOffsetRefundPreview(data)
+	return plan.ok
+		? { code: 0, msg: '冲抵余额退款预览完成', data: { execute: false, plan } }
+		: { code: plan.code || 400, msg: plan.reason || '冲抵余额退款预览失败', data: { execute: false, plan } }
+}
+
+async function convertOffsetCreditToCashRefundV1(user, data, requestId) {
+	if (!isSuperAdmin(user)) return { code: 403, msg: '仅超级管理员可执行冲抵余额退款' }
+	const operationId = normalizeId(data.operation_id || data.operationId)
+	if (!operationId) return { code: 400, msg: 'operation_id 必填，重试时必须保持不变' }
+	if (normalizeString(data.confirm_text || data.confirmText) !== offsetCreditRefund.CONFIRM_TEXT) {
+		return { code: 400, msg: `请使用确认文本 ${offsetCreditRefund.CONFIRM_TEXT}` }
+	}
+	if (!db.startTransaction) return { code: 503, msg: '当前数据库环境不支持事务，未执行退款' }
+	const customerId = normalizeId(data.customer_id || data.customerId)
+	const receiptId = normalizeId(data.receipt_id || data.receiptId)
+	const refundAmount = toNumber(data.refund_amount ?? data.refundAmount, 0)
+	const refundDate = normalizeDate(data.refund_date || data.refundDate)
+	const paymentMethodInput = normalizeString(data.payment_method || data.paymentMethod).toLowerCase()
+	if (!['cash', '现金', 'bank', '银行', '转账', '银行转账', 'wechat', '微信', 'alipay', '支付宝', 'check', 'cheque', '支票', 'unknown'].includes(paymentMethodInput)) {
+		return { code: 400, msg: '退款方式必须是真实现金、银行、微信、支付宝、支票或待核' }
+	}
+	const transaction = await db.startTransaction()
+	try {
+		const txReceipts = transaction.collection('crm_customer_receipts')
+		const txLogs = transaction.collection('crm_operation_logs')
+		const priorRes = await txReceipts.where({
+			customer_id: customerId,
+			source_type: offsetCreditRefund.SOURCE_TYPE,
+			offset_refund_operation_id: operationId
+		}).limit(2).get()
+		const prior = Array.isArray(priorRes.data) ? priorRes.data : []
+		if (prior.length > 1) throw Object.assign(new Error('幂等键对应多笔退款，已停止'), { code: 409 })
+		if (prior.length === 1) {
+			if (normalizeId(prior[0].offset_source_receipt_id) !== receiptId) throw Object.assign(new Error('operation_id 已被其他冲抵来源使用'), { code: 409 })
+			if (fix3(Math.abs(toNumber(prior[0].amount, 0))) !== fix3(refundAmount) || normalizeDate(prior[0].biz_date) !== refundDate) {
+				throw Object.assign(new Error('operation_id 对应的退款金额或日期不同'), { code: 409 })
+			}
+			await transaction.commit()
+			return { code: 0, msg: '该退款已执行', data: { execute: true, idempotent: true, refund_receipt: prior[0] } }
+		}
+		const plan = await buildOffsetRefundPreview(data, txReceipts)
+		if (!plan.ok) throw Object.assign(new Error(plan.reason || '原值检查失败'), { code: plan.code || 409, plan })
+		const now = Date.now()
+		const refundDocument = {
+			customer_id: customerId,
+			customer_name: normalizeString((await getCustomerById(customerId))?.name),
+			amount: plan.refund_receipt.amount,
+			allocated_amount: 0,
+			rounding_amount: 0,
+			rounding_allocated_amount: 0,
+			unallocated_amount: 0,
+			biz_date: plan.refund_date,
+			payment_method: normalizePaymentMethod(data.payment_method || data.paymentMethod, 'paid'),
+			note: normalizeString(data.note) || `冲抵来源${receiptId}未分配余额转真实退款`,
+			status: 'posted',
+			entry_kind: plan.refund_receipt.entry_kind,
+			source_type: plan.refund_receipt.source_type,
+			source_id: receiptId,
+			offset_source_receipt_id: receiptId,
+			offset_refund_operation_id: operationId,
+			operation_version: plan.operation_version,
+			request_id: operationId,
+			created_at: now,
+			updated_at: now,
+			created_by: normalizeId(user && user._id) || null,
+			created_by_name: normalizeString(user && user.username)
+		}
+		const addRes = await txReceipts.add(refundDocument)
+		await txReceipts.doc(receiptId).update({
+			unallocated_amount: plan.after.unallocated_amount,
+			offset_cash_refunded_amount: plan.after.offset_cash_refunded_amount,
+			updated_at: now,
+			updated_by: normalizeId(user && user._id) || null,
+			updated_by_name: normalizeString(user && user.username)
+		})
+		await txLogs.add({
+			user_id: normalizeId(user && user._id), username: normalizeString(user && user.username), role: normalizeString(user && user.role),
+			action: 'offset_credit_cash_refund_execute_v1', request_id: operationId, created_at: now,
+			detail: { operation_version: plan.operation_version, customer_id: customerId, source_receipt_id: receiptId,
+				refund_receipt_id: normalizeId(addRes && addRes.id), refund_date: plan.refund_date, refund_amount: plan.refund_amount,
+				before: plan.before, after: plan.after }
+		})
+		await transaction.commit()
+		const balances = await rebuildCustomerBalances(customerId)
+		return { code: 0, msg: '冲抵余额已转为正式现金退款', data: { execute: true, idempotent: false,
+			operation_id: operationId, refund_receipt_id: normalizeId(addRes && addRes.id), plan, balances } }
+	} catch (error) {
+		try { await transaction.rollback() } catch (_) {}
+		return { code: error.code || 500, msg: error.message || '冲抵余额退款失败，事务已回滚', data: error.plan ? { plan: error.plan } : undefined }
+	}
+}
+
 async function removeOffsetCreditAllocationV1(user, data, requestId) {
 	const auth = await ensureWritePermission(user, 'removeOffsetCreditAllocationV1', requestId)
 	if (!auth.ok) return { code: auth.code, msg: auth.msg }
@@ -8691,6 +8822,8 @@ const main = async (event, context) => {
 	if (action === 'releaseSaleSettlementOnRemoveV1') return releaseSaleSettlementOnRemoveV1(user, data, requestId)
 	if (action === 'listOffsetCreditPoolV1') return listOffsetCreditPoolV1(user, data)
 	if (action === 'allocateOffsetCreditV1') return allocateOffsetCreditV1(user, data, requestId)
+	if (action === 'previewOffsetCreditCashRefundV1') return previewOffsetCreditCashRefundV1(user, data, requestId)
+	if (action === 'convertOffsetCreditToCashRefundV1') return convertOffsetCreditToCashRefundV1(user, data, requestId)
 	if (action === 'removeOffsetCreditAllocationV1') return removeOffsetCreditAllocationV1(user, data, requestId)
 	if (action === 'confirmAllocationV1') return confirmAllocationV1(user, data, requestId)
 	if (action === 'repairReceiptAllocationV1') return repairReceiptAllocationV1(user, data, requestId)

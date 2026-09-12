@@ -29,31 +29,60 @@ function makeDb(tables = {}, hooks = {}) {
 			})
 		})
 	}
-	function query(name, opts = {}) {
+	function query(name, opts = {}, sourceTables = tables, transactional = false) {
 		return {
-			where: (where) => query(name, { ...opts, where }),
-			doc: (id) => query(name, { ...opts, where: { _id: id } }),
-			orderBy: (key, dir) => query(name, { ...opts, order: [...(opts.order || []), [key, dir]] }),
-			field: (field) => query(name, { ...opts, field }), skip: (skip) => query(name, { ...opts, skip }),
-			limit: (limit) => query(name, { ...opts, limit }),
+			where: (where) => query(name, { ...opts, where }, sourceTables, transactional),
+			doc: (id) => query(name, { ...opts, where: { _id: id } }, sourceTables, transactional),
+			orderBy: (key, dir) => query(name, { ...opts, order: [...(opts.order || []), [key, dir]] }, sourceTables, transactional),
+			field: (field) => query(name, { ...opts, field }, sourceTables, transactional), skip: (skip) => query(name, { ...opts, skip }, sourceTables, transactional),
+			limit: (limit) => query(name, { ...opts, limit }, sourceTables, transactional),
 			count: async () => {
-				const total = (tables[name] || []).filter((doc) => matches(doc, opts.where)).length
+				const total = (sourceTables[name] || []).filter((doc) => matches(doc, opts.where)).length
 				return hooks.count ? hooks.count(name, total, opts) : { total }
 			},
 			get: async () => {
-				let rows = (tables[name] || []).filter((doc) => matches(doc, opts.where))
+				let rows = (sourceTables[name] || []).filter((doc) => matches(doc, opts.where))
 				for (const [key, dir] of [...(opts.order || [])].reverse()) rows.sort((a, b) => a[key] < b[key] ? (dir === 'asc' ? -1 : 1) : a[key] > b[key] ? (dir === 'asc' ? 1 : -1) : 0)
 				rows = rows.slice(opts.skip || 0, (opts.skip || 0) + (opts.limit || 100))
 				if (opts.field) rows = rows.map((doc) => Object.fromEntries(Object.entries(doc).filter(([key]) => key === '_id' || opts.field[key])))
 				if (hooks.get) return hooks.get(name, rows, opts)
 				return { data: structuredClone(rows) }
 			},
-			update: async (data) => { writes.push({ name, opts, data }); return { updated: 1 } },
-			add: async (data) => { writes.push({ name, data }); return { id: 'new' } },
-			remove: async () => { writes.push({ name, opts, remove: true }); return { deleted: 1 } }
+			update: async (data) => {
+				if (transactional && hooks.txWrite) hooks.txWrite('update', name, data)
+				writes.push({ name, opts, data })
+				const rows = (sourceTables[name] || []).filter((doc) => matches(doc, opts.where))
+				if (hooks.mutate) for (const row of rows) Object.assign(row, structuredClone(data))
+				return { updated: rows.length }
+			},
+			add: async (data) => {
+				if (transactional && hooks.txWrite) hooks.txWrite('add', name, data)
+				const id = data._id || `new-${writes.length + 1}`
+				writes.push({ name, data })
+				if (hooks.mutate) (sourceTables[name] ||= []).push(structuredClone({ ...data, _id: id }))
+				return { id }
+			},
+			remove: async () => {
+				const rows = (sourceTables[name] || []).filter((doc) => matches(doc, opts.where))
+				writes.push({ name, opts, remove: true })
+				if (hooks.mutate) sourceTables[name] = (sourceTables[name] || []).filter((doc) => !matches(doc, opts.where))
+				return { deleted: rows.length }
+			}
 		}
 	}
-	return { command, collection: query, writes, RegExp: ({ regexp, options }) => new RegExp(regexp, options) }
+	const database = { command, collection: query, writes, RegExp: ({ regexp, options }) => new RegExp(regexp, options) }
+	if (hooks.transaction) database.startTransaction = async () => {
+		const transactionTables = structuredClone(tables)
+		return {
+			collection: (name) => query(name, {}, transactionTables, true),
+			commit: async () => {
+				for (const key of new Set([...Object.keys(tables), ...Object.keys(transactionTables)])) tables[key] = structuredClone(transactionTables[key] || [])
+				return { ok: true }
+			},
+			rollback: async () => ({ ok: true })
+		}
+	}
+	return database
 }
 
 function loadHandler(name, db) {
