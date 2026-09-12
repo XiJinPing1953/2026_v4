@@ -8,6 +8,7 @@ function depositDb(tables, hooks = {}, transactional = false) {
     return new Proxy(query, { get(q, key) {
       if (key === 'get') return async () => {
         const result = await q.get()
+        if (!transactional && docId && !result.data?.length && hooks.missingOrdinaryDocumentThrows) throw Error('not found collection')
         if (transactional && docId && !result.data?.length && hooks.missingTransactionReadThrows !== false) throw Error('Alipay missing transaction document')
         if (transactional && docId && hooks.transactionDocumentObject) return { ...result, data: result.data[0] }
         return result

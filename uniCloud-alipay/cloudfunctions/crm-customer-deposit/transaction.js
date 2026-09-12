@@ -17,7 +17,7 @@ function savedResult(row, snapshot) {
     operation_id: row.operation_id, entry: M.publicEntry(row), receipt_id: row.receipt_id || '',
     version: row.operation_result.version, balance: row.operation_result.balance_cents / 100,
     current_version: snapshot.version, current_balance: snapshot.balance_cents / 100,
-    cache_status: row.operation_result.cache_status, idempotent: true }
+    cache_status: row.operation_result.cache_status, source_evidence: row.operation_result.source_evidence || null, idempotent: true }
 }
 function findDuplicate(snapshot, input) {
   const row = snapshot.entries.find(item => item._id === M.entryId(input.command.customer_id, input.operation_id))
@@ -71,17 +71,37 @@ function transferReceipt(change, snapshot, user, now) {
     created_by: user._id, created_by_name: String(user.name || user.username || '') }
 }
 async function readReceiptScope(db, customerId, receiptId) {
-  const receipts = await R.complete(db, M.TABLES.receipts, { customer_id: customerId })
+  const read = async (table, stage, where, { optionalLegacyAdjustment = false } = {}) => {
+    try { return { rows: await R.complete(db, table, where), absent: false } }
+    catch (error) {
+      // Existing production has never initialized this optional legacy adjustment
+      // store. Only its exact provider absence error is accepted, never a failed
+      // permission, unavailable count, interrupted read, or missing mandatory store.
+      if (optionalLegacyAdjustment && table === M.TABLES.adjustments && String(error?.message || '').trim() === 'not found collection') {
+        return { rows: [], absent: true }
+      }
+      error.message = `read transfer scope/${stage}/${table}: ${error.message}`
+      error.details = { ...(error.details || {}), read_stage: stage, source_table: table }
+      throw error
+    }
+  }
+  const { rows: receipts } = await read(M.TABLES.receipts, 'customer receipts', { customer_id: customerId })
   // Reverse-link queries deliberately omit customer_id: foreign links must also block a void.
-  const [allocations, adjustments, references, fixed] = await Promise.all([
-    R.complete(db, M.TABLES.allocations, { receipt_id: receiptId }),
-    R.complete(db, M.TABLES.adjustments, { receipt_id: receiptId }),
-    R.complete(db, M.TABLES.receipts, { source_id: receiptId }),
-    db.collection(M.TABLES.receipts).doc(receiptId).get()
+  const [allocationRead, adjustmentRead, referenceRead, fixedRead] = await Promise.all([
+    read(M.TABLES.allocations, 'reverse allocations', { receipt_id: receiptId }),
+    read(M.TABLES.adjustments, 'legacy adjustments', { receipt_id: receiptId }, { optionalLegacyAdjustment: true }),
+    read(M.TABLES.receipts, 'reverse receipt sources', { source_id: receiptId }),
+    // A missing doc can throw on Alipay; a complete fixed-ID query proves absence
+    // while retaining cross-customer collision checks and mandatory-store errors.
+    read(M.TABLES.receipts, 'fixed transfer source', { _id: receiptId })
   ])
-  const receipt = R.first(fixed)
-  return { receipts, allocations, adjustments, references, receipt,
-    snapshot_hash: M.digest({ receipts, allocations, adjustments, references, receipt }) }
+  if (fixedRead.rows.length > 1) M.fail('确定转气款编号对应多条来源，未执行')
+  const allocations = allocationRead.rows, adjustments = adjustmentRead.rows, references = referenceRead.rows
+  const receipt = fixedRead.rows[0] || null
+  const sourceEvidence = { absent_collections: adjustmentRead.absent ? [M.TABLES.adjustments] : [],
+    legacy_adjustment_store_status: adjustmentRead.absent ? 'not_initialized_provider_confirmed' : 'complete_read' }
+  return { receipts, allocations, adjustments, references, receipt, source_evidence: sourceEvidence,
+    snapshot_hash: M.digest({ receipts, allocations, adjustments, references, receipt, source_evidence: sourceEvidence }) }
 }
 function ensureVoidTransfer(change, scope) {
   const original = change.original, receipt = scope.receipt
@@ -131,6 +151,7 @@ async function prepare(db, snapshot, input, user, { rehearsalSeedAmount } = {}) 
   if (isTransfer) {
     const id = change.entry.receipt_id
     receiptScope = await readReceiptScope(db, snapshot.customer_id, id)
+    change.entry.operation_result.source_evidence = receiptScope.source_evidence
     if (change.entry.kind === 'transfer') {
       if (receiptScope.receipt || receiptScope.allocations.length || receiptScope.adjustments.length || receiptScope.references.length) M.fail('确定转气款编号或关联已存在，请先核对')
       receipt = transferReceipt(change, snapshot, user, change.entry.created_at)
@@ -243,6 +264,7 @@ async function execute(db, prepared, { rehearse = false, failAfterWrites = 0 } =
       status: outcome, rehearsed: true, committed: false, snapshot_verified: true, writes,
       transaction_ms: Date.now() - started, before_balance: change.before_balance, after_balance: change.after_balance,
       rehearsal_seed_amount: seed ? seed.entry.amount_cents / 100 : 0,
+      source_evidence: receiptScope?.source_evidence || null,
       version: snapshot.version, balance: snapshot.balance_cents / 100 }
   }
   const saved = after.entries.find(row => row._id === change.entry._id)

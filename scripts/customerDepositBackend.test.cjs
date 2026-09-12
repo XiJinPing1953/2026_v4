@@ -285,3 +285,52 @@ test('Alipay single-object transaction reads retain full source checks through a
   const conflict = await raced.create('receive', 1, { rehearse: true })
   assert.equal(conflict.code, 409); assert.match(conflict.msg, /客户原值版本/); assert.equal(raced.tables.crm_customer_deposit_entries.length, 0)
 })
+
+test('fixed transfer IDs use complete queries when missing ordinary documents throw on Alipay', async () => {
+  const h = harness({}, { missingOrdinaryDocumentThrows: true, transactionDocumentObject: true }), before = snapshot(h.tables)
+  const result = success(await h.create('transfer', 3, { rehearse: true, rehearsal_seed_amount: 20 }))
+  assert.equal(result.status, 'rehearsed_rolled_back'); assert.equal(result.writes, 5); assert.equal(result.snapshot_verified, true)
+  assert.equal(snapshot(h.tables), before)
+  success(await h.create('receive', 20))
+  const transfer = success(await h.create('transfer', 3))
+  assert.equal(transfer.balance, 17); assert.equal(h.tables.crm_customer_receipts.length, 1)
+})
+
+test('only exact absence of the optional legacy adjustment store is accepted with explicit hashed evidence', async () => {
+  const options = { missingOrdinaryDocumentThrows: true, transactionDocumentObject: true, count: (table, total) => {
+    if (table === M.TABLES.adjustments) throw Error('not found collection')
+    return { total }
+  } }
+  const h = harness({}, options), before = snapshot(h.tables)
+  const result = success(await h.create('transfer', 3000, { rehearse: true, rehearsal_seed_amount: 20000 }))
+  assert.equal(result.snapshot_verified, true); assert.equal(result.writes, 5)
+  assert.deepEqual(result.source_evidence.absent_collections, [M.TABLES.adjustments])
+  assert.equal(result.source_evidence.legacy_adjustment_store_status, 'not_initialized_provider_confirmed')
+  assert.equal(snapshot(h.tables), before)
+  for (const failure of ['permission denied', 'network timeout', 'not found collection (unknown)', 'count-unavailable']) {
+    const denied = harness({}, { count: (table, total) => {
+      if (table === M.TABLES.adjustments) { if (failure === 'count-unavailable') return {}; throw Error(failure) }
+      return { total }
+    } }), original = snapshot(denied.tables)
+    const response = await denied.create('transfer', 1, { rehearse: true, rehearsal_seed_amount: 10 })
+    assert.equal(response.code, 409); assert.equal(response.data.source_table, M.TABLES.adjustments)
+    assert.match(response.msg, /read transfer scope\/legacy adjustments\/crm_customer_receipt_adjustments/)
+    assert.equal(snapshot(denied.tables), original)
+  }
+  for (const missing of [M.TABLES.receipts, M.TABLES.allocations, M.TABLES.accounts, M.TABLES.entries]) {
+    const denied = harness({}, { count: (table, total) => { if (table === missing) throw Error('not found collection'); return { total } } })
+    assert.equal((await denied.create('transfer', 1, { rehearse: true, rehearsal_seed_amount: 10 })).code, 409)
+    assert.equal(denied.db.writes.length, 0)
+  }
+})
+
+test('an optional adjustment store appearing empty during the transaction changes scope and forces rollback', async () => {
+  let exists = false
+  const h = harness({}, { count: (table, total) => {
+    if (table === M.TABLES.adjustments && !exists) throw Error('not found collection')
+    return { total }
+  }, txWrite: (_, table) => { if (table === M.TABLES.receipts) exists = true } }), before = snapshot(h.tables)
+  const result = await h.create('transfer', 1, { rehearse: true, rehearsal_seed_amount: 10 })
+  assert.equal(result.code, 409); assert.match(result.msg, /关联范围发生变化/)
+  assert.equal(snapshot(h.tables), before)
+})
