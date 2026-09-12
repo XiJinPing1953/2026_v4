@@ -372,7 +372,7 @@ function buildPeriodSummarySheetRows(payload = {}) {
 			{ type: 'String', value: row.label },
 			row.value == null ? { type: 'String', value: summary ? '待核' : '未完成' } : moneyCellByScale(row.value, scale)
 		]),
-		[{ type: 'String', value: '说明' }, { type: 'String', value: '营收不含历史转入；实际收款按收款日期，包含预收及待分配款，不含期初预付款转入、非现金冲抵和抹零。抹零汇总按源单业务日期或有效收款日期去重；旧单内嵌抹零按源单日期列示。预付款后续抹零缺独立发生日期时待核。借贷合计不等同实际收款。' }],
+		[{ type: 'String', value: '说明' }, { type: 'String', value: '营收不含历史转入；实际收款按收款日期，包含预收及待分配款，不含期初预付款转入、非现金冲抵和抹零。抹零汇总按源单业务日期或有效收款日期去重；旧单内嵌抹零按源单日期列示。后续抹零按有效分配单已登记业务日期列示，该日期可能沿用原收款日，不代表实际操作日；缺登记业务日期时待核。借贷合计不等同实际收款。' }],
 		[{ type: 'String', value: '核查状态' }, { type: 'String', value: summary?.complete ? '完整' : summary ? `待核 ${summary.unresolved_count} 项` : '未完成' }],
 		...(summary?.source_notes || []).map(row => [{ type: 'String', value: '期间依据' }, { type: 'String', value: row.text }]),
 		...(summary?.unresolved_sources || []).map(row => [{ type: 'String', value: row.source_id }, { type: 'String', value: describePeriodSummaryIssue(row) }])

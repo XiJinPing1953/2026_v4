@@ -7,7 +7,7 @@ const id = value => String(value || '').trim()
 const date = value => /^\d{4}-\d{2}-\d{2}$/.test(id(value)) ? id(value) : ''
 const active = row => !row.status || row.status === 'posted'
 
-// A receipt's business date establishes its rounding event; allocation dates never do.
+// Initial rounding uses the receipt date; later rounding uses the registered allocation date.
 // Legacy target-only rounding retains the ledger's source-date convention, explicitly labelled.
 function calculatePeriodRounding({ targets, receipts, allocations, moneyScale, inRange }, rules) {
 	const sum = values => rules.sum(values, moneyScale)
@@ -15,7 +15,7 @@ function calculatePeriodRounding({ targets, receipts, allocations, moneyScale, i
 	const targetKey = row => `${id(row.target_type || 'sale')}:${id(row.target_id || row.sale_id || row.flow_settlement_id)}`
 	const targetMap = new Map(targets.map(item => [`${item.type}:${id(item.row._id)}`, item]))
 	const receiptMap = new Map(receipts.map(row => [id(row._id), row]))
-	const backed = new Map(), relevantBacked = new Map(), byReceipt = new Map(), undatedByReceipt = new Map(), invalidTargets = new Set(), voidTargets = new Set()
+	const backed = new Map(), relevantBacked = new Map(), byReceipt = new Map(), laterByReceipt = new Map(), invalidTargets = new Set(), voidTargets = new Set()
 	const sources = [], pending = []
 	const issue = (source_type, row, reason, amount) => pending.push({ source_type, source_id: id(row._id), reason, amount, metric: 'rounding_total' })
 	const relevant = bizDate => !date(bizDate) || inRange(bizDate)
@@ -40,28 +40,30 @@ function calculatePeriodRounding({ targets, receipts, allocations, moneyScale, i
 			if (relevant(receipt?.biz_date)) issue('allocation', row, 'rounding_allocation_without_posted_receipt', amount)
 			continue
 		}
-		// Continued prepayment allocation copies the original receipt date into biz_date.
-		// Neither that copied date nor created_at establishes when the later rounding happened.
+		// This is a registered accounting date, which may copy the original receipt date.
+		// Do not present it as the later operation's timestamp or count it again on the receipt.
 		const laterRounding = isOpeningPrepayReceipt(receipt) || ['prepay_manual_allocate', 'receipt_unallocated_allocate'].includes(id(row.source_type))
+		const roundingDate = laterRounding ? date(row.biz_date) : date(receipt.biz_date)
 		if (laterRounding) {
-			issue('allocation', row, 'rounding_occurrence_date_missing', amount)
-			undatedByReceipt.set(id(receipt._id), sum([undatedByReceipt.get(id(receipt._id)) || 0, amount]))
+			if (!roundingDate) issue('allocation', row, 'rounding_allocation_date_missing', amount)
+			else add('receipt_rounding_allocation', row, amount, roundingDate, 'allocation_biz_date', { receipt_id: id(receipt._id) })
+			laterByReceipt.set(id(receipt._id), sum([laterByReceipt.get(id(receipt._id)) || 0, amount]))
 		}
-		if (!targetMap.has(key) && (laterRounding || relevant(receipt.biz_date))) issue('allocation', row, 'rounding_target_missing', amount)
+		if (!targetMap.has(key) && relevant(roundingDate)) issue('allocation', row, 'rounding_target_missing', amount)
 		backed.set(key, sum([backed.get(key) || 0, amount]))
-		if (laterRounding || relevant(receipt.biz_date)) relevantBacked.set(key, sum([relevantBacked.get(key) || 0, amount]))
+		if (relevant(roundingDate)) relevantBacked.set(key, sum([relevantBacked.get(key) || 0, amount]))
 		byReceipt.set(id(receipt._id), sum([byReceipt.get(id(receipt._id)) || 0, amount]))
 	}
 	for (const row of receipts) {
 		if (row.status !== 'posted' || rules.isOffsetReceipt(row)) continue
 		const amount = amountOf(row.rounding_allocated_amount), allocated = byReceipt.get(id(row._id)) || 0
-		const undated = undatedByReceipt.get(id(row._id)) || 0
-		if (amount !== allocated && (undated > 0 || isOpeningPrepayReceipt(row) || relevant(row.biz_date))) issue('receipt', row, 'rounding_allocation_mismatch', sum([amount, -allocated]))
+		const later = laterByReceipt.get(id(row._id)) || 0
+		if (amount !== allocated && (later > 0 || isOpeningPrepayReceipt(row) || relevant(row.biz_date))) issue('receipt', row, 'rounding_allocation_mismatch', sum([amount, -allocated]))
 		if (isOpeningPrepayReceipt(row)) {
-			if (amount > undated) issue('receipt', row, 'rounding_occurrence_date_missing', sum([amount, -undated]))
+			if (amount > later) issue('receipt', row, 'rounding_allocation_date_missing', sum([amount, -later]))
 			continue
 		}
-		add('receipt_rounding', row, Math.max(sum([amount, -undated]), 0), date(row.biz_date), 'receipt_date')
+		add('receipt_rounding', row, Math.max(sum([amount, -later]), 0), date(row.biz_date), 'receipt_date')
 	}
 	for (const { row, type, bizDate, snapshot } of targets) {
 		const key = `${type}:${id(row._id)}`
@@ -79,6 +81,7 @@ function calculatePeriodRounding({ targets, receipts, allocations, moneyScale, i
 		rounding_total: pending.length ? null : known, known_rounding_total: known,
 		rounding_complete: pending.length === 0, rounding_sources: sources,
 		legacy_rounding_total: sum(sources.filter(row => row.date_basis === 'legacy_source_date').map(row => row.amount)),
+		allocation_rounding_total: sum(sources.filter(row => row.date_basis === 'allocation_biz_date').map(row => row.amount)),
 		pending
 	}
 }
@@ -163,6 +166,8 @@ function calculatePeriodSummary(input, rules) {
 	pending.push(...roundingPending)
 	if (rounding.legacy_rounding_total > 0) sourceNotes.push({ source_type: 'legacy_rounding', source_id: 'legacy_rounding',
 		text: `旧单内嵌收款抹零${rounding.legacy_rounding_total}元按源单业务日期列示，缺少独立抹零日期；不计实际收款。` })
+	if (rounding.allocation_rounding_total > 0) sourceNotes.push({ source_type: 'allocation_rounding', source_id: 'allocation_rounding',
+		text: `后续分配抹零${rounding.allocation_rounding_total}元按有效分配单已登记业务日期列示；日期可能沿用原收款日，不代表实际操作日；不计实际收款。` })
 	return {
 		rule_version: VERSION, date_from: dateFrom, date_to: dateTo, money_scale: moneyScale,
 		read_complete: true, complete: pending.length === 0, status: pending.length ? 'needs_review' : 'complete',

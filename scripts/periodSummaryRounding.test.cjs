@@ -124,7 +124,7 @@ test('known rounding dates outside the period cannot invalidate current totals; 
 	assert.equal(p.rounding_total, null); assert.ok(p.unresolved_sources.some(row => row.reason === 'rounding_date_missing'))
 })
 
-test('later prepayment rounding cannot inherit an old receipt date; principal and known cash retain their own meaning', async () => {
+test('later rounding follows the registered allocation business date with an explicit accounting-date note, not the operation timestamp', async () => {
 	for (const [source, allocationSource] of [['opening_prepay', 'prepay_manual_allocate'], ['customer_prepay_manual', 'prepay_manual_allocate'], ['cashier_intake', 'receipt_unallocated_allocate']]) {
 		const h = harness([sale('target', '2026-01-01', { amount_received: 50, receipt_rounding_amount: 2 })])
 		h.tables.crm_customer_receipts = [receipt('opening', '2025-12-31', 2, { source_type: source, amount: 500 })]
@@ -132,11 +132,34 @@ test('later prepayment rounding cannot inherit an old receipt date; principal an
 			allocation('rounding-a', 'target', 'opening', 2, { source_type: allocationSource, biz_date: '2025-12-31', created_at: Date.parse('2026-02-01') })]
 		for (const from of ['2025-01-01', '2026-01-01']) {
 			const p = (await summaries(h, from)).summary
-			assert.equal(p.rounding_total, null); assert.equal(p.rounding_complete, false); assert.equal(p.known_rounding_total, 0)
-			assert.ok(p.unresolved_sources.some(row => row.reason === 'rounding_occurrence_date_missing'))
+			assert.equal(p.rounding_total, from === '2025-01-01' ? 2 : 0); assert.equal(p.rounding_complete, true)
+			if (from === '2025-01-01') {
+				assert.equal(p.rounding_sources[0].date_basis, 'allocation_biz_date')
+				assert.equal(p.rounding_sources[0].biz_date, '2025-12-31')
+				assert.match(p.source_notes.find(row => row.source_type === 'allocation_rounding').text, /已登记业务日期.*可能沿用原收款日.*不代表实际操作日/)
+			}
 			assert.equal(p.cash_received, source !== 'opening_prepay' && from === '2025-01-01' ? 500 : 0)
 			assert.equal(p.opening_prepay_transferred, source === 'opening_prepay' && from === '2025-01-01' ? 500 : 0)
 		}
+		h.tables.crm_customer_allocations[1].biz_date = '2026-03-01'
+		assert.equal((await summaries(h, '2026-03-01', '2026-03-31')).summary.rounding_total, 2)
+		assert.equal((await summaries(h, '2026-02-01', '2026-02-28')).summary.rounding_total, 0)
+		h.tables.crm_customer_allocations[1].biz_date = ''
+		const pending = (await summaries(h)).summary
+		assert.equal(pending.rounding_total, null); assert.equal(pending.known_rounding_total, 0)
+		assert.ok(pending.unresolved_sources.some(row => row.reason === 'rounding_allocation_date_missing'))
+	}
+})
+
+test('initial and subsequent rounding on one receipt split across dates without double counting receipt and target totals', async () => {
+	const h = harness([sale('target', '2025-12-01', { receipt_rounding_amount: 9 })])
+	h.tables.crm_customer_receipts = [receipt('r', '2025-12-31', 9)]
+	h.tables.crm_customer_allocations = [allocation('initial', 'target', 'r', 5, { source_type: 'cashier_intake', biz_date: '2025-12-31' }),
+		allocation('later', 'target', 'r', 4, { source_type: 'receipt_unallocated_allocate', biz_date: '2026-02-01' })]
+	for (const [from, to, expected] of [['2025-12-01', '2025-12-31', 5], ['2026-01-01', '2026-09-12', 4], ['2025-12-01', '2026-09-12', 9]]) {
+		const p = (await summaries(h, from, to)).summary
+		assert.equal(p.rounding_total, expected); assert.equal(p.rounding_complete, true)
+		assert.equal(p.legacy_rounding_total, 0); assert.equal(p.cash_received, 0)
 	}
 })
 
@@ -160,12 +183,14 @@ test('anonymized regression controls retain K003 41 yuan non-cash rounding and K
 		for (const [i, [sourceDate, receiptDate, amount]] of formalRounding.entries()) {
 			h.tables.crm_sale_records.push(sale(`target-${i}`, sourceDate, { receipt_rounding_amount: amount }))
 			h.tables.crm_customer_receipts.push(receipt(`r-${i}`, receiptDate, amount, { rounding_amount: amount, source_type: 'cashier_intake' }))
-			h.tables.crm_customer_allocations.push(allocation(`a-${i}`, `target-${i}`, `r-${i}`, amount, { source_type: 'cashier_intake' }))
+			h.tables.crm_customer_allocations.push(allocation(`a-${i}`, `target-${i}`, `r-${i}`, amount,
+				{ source_type: i === 2 ? 'receipt_unallocated_allocate' : 'cashier_intake', biz_date: receiptDate }))
 		}
 		const p = (await summaries(h)).summary
 		assert.equal(p.rounding_total, expected); assert.equal(p.cash_received, cash)
 		assert.equal(p.refund_total, refund); assert.equal(p.net_cash_received, cash - refund)
 		assert.equal(p.rounding_sources.length, hasRounding ? 7 : 0)
+		assert.equal(p.allocation_rounding_total, hasRounding ? 12.5 : 0)
 	}
 })
 
