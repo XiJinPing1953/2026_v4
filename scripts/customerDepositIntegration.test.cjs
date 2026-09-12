@@ -98,3 +98,10 @@ test('按m³的三位气款分配保留来源余额精度，押金金额继续�
  assert.equal(t.crm_customer_receipts[0].allocated_amount,1.234);assert.equal(t.crm_customer_receipts[0].unallocated_amount,1.766)
  const p=await invoke(deposit,'getDepositStatementV1',period);assert.equal(p.code,0,p.msg);assert.equal(p.data.current_balance,0)
 })
+
+
+test('支付宝事务单对象返回仍完成转款来源与销售债权分配',async()=>{
+ const t=fixture(),h=loadHandler('crm-customer-settlement',makeDb(t,{mutate:true,transaction:true,txDocumentObject:true}))
+ const r=await invoke(h,'allocatePrepayReceiptV1',allocation);assert.equal(r.code,0,r.msg)
+ assert.equal(t.crm_sale_records[0].amount_received,3000);assert.equal(t.crm_customer_receipts[0].unallocated_amount,0);assert.equal(t.crm_customer_allocations.length,1)
+})

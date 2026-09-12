@@ -264,3 +264,24 @@ test('third-decimal gas allocation leaves cent deposit intact and blocks transfe
   const result = await h.invoke('voidDepositEntryV1', { entry_id: transfer.entry._id, operation_id: 'void-m3-source', expected_version: 2, reason: 'test' })
   assert.equal(result.code, 409); assert.equal(h.tables.crm_customer_receipts[0].status, 'posted')
 })
+
+test('Alipay single-object transaction reads retain full source checks through actual write and rollback paths', async () => {
+  for (const kind of ['receive', 'refund', 'transfer']) for (const fail_after_writes of [0, 3]) {
+    const h = harness({}, { transactionDocumentObject: true }), before = snapshot(h.tables)
+    const result = success(await h.create(kind, 3, { rehearse: true, rehearsal_seed_amount: 20, fail_after_writes }))
+    assert.equal(result.snapshot_verified, true); assert.equal(result.committed, false)
+    assert.equal(result.status, fail_after_writes ? 'interruption_rolled_back' : 'rehearsed_rolled_back')
+    assert.equal(snapshot(h.tables), before)
+  }
+  const h = harness({}, { transactionDocumentObject: true })
+  success(await h.create('receive', 20))
+  const transfer = success(await h.create('transfer', 3))
+  const beforeVoid = snapshot(h.tables)
+  const result = success(await h.invoke('voidDepositEntryV1', { entry_id: transfer.entry._id, reason: '单对象读取回滚校验',
+    expected_version: 2, operation_id: 'object-read-void', rehearse: true }))
+  assert.equal(result.snapshot_verified, true); assert.equal(result.writes, 5)
+  assert.equal(snapshot(h.tables), beforeVoid)
+  const raced = harness({}, { transactionDocumentObject: true, start: tables => { tables.crm_customers[0].receivable_balance++ } })
+  const conflict = await raced.create('receive', 1, { rehearse: true })
+  assert.equal(conflict.code, 409); assert.match(conflict.msg, /客户原值版本/); assert.equal(raced.tables.crm_customer_deposit_entries.length, 0)
+})

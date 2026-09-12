@@ -5402,6 +5402,11 @@ async function applyOffsetAllocationsToReceipt({
 	if (!receiptId) return { ok: false, code: 400, msg: 'receipt_id 无效' }
 	// 押金转气款与原押金作废共用收款源的事务锁，避免已抵扣后恢复押金。
 	const transferTransaction = isDepositTransferReceipt(receiptDoc) ? await db.startTransaction() : null
+	const readDocument = (response) => {
+		const value = response && response.data
+		if (Array.isArray(value)) return value.length === 1 ? value[0] : null
+		return value && typeof value === 'object' && !Array.isArray(value) ? value : null
+	}
 	const targetDb = transferTransaction || db
 	const sales = targetDb.collection('crm_sale_records')
 	const receipts = targetDb.collection('crm_customer_receipts')
@@ -5410,7 +5415,7 @@ async function applyOffsetAllocationsToReceipt({
 	const openingDebts = targetDb.collection('crm_customer_opening_debts')
 	try {
 	if (transferTransaction) {
-		const current = ((await receipts.doc(receiptId).get()).data || [])[0]
+		const current = readDocument(await receipts.doc(receiptId).get())
 		const canonical = (row) => JSON.stringify(Object.keys(row || {}).sort().map((key) => [key, row[key]]))
 		if (!current || normalizeString(current.status) !== 'posted' || canonical(current) !== canonical(receiptDoc)) {
 			throw Object.assign(new Error('押金转款来源已变化，请刷新后重新分配'), { code: 409 })
@@ -5450,7 +5455,7 @@ async function applyOffsetAllocationsToReceipt({
 
 		if (targetType === 'flow_settlement') {
 			const flowRes = await flowSettlements.doc(targetId).get()
-			const flowDoc = (flowRes.data && flowRes.data[0]) || null
+			const flowDoc = readDocument(flowRes)
 			if (!flowDoc || normalizeId(flowDoc.customer_id) !== customer._id || normalizeString(flowDoc.status) !== 'posted') continue
 			const snapshot = computeFlowSettlementSnapshot(flowDoc)
 			if (snapshot.outstanding <= 0) continue
@@ -5479,7 +5484,7 @@ async function applyOffsetAllocationsToReceipt({
 			if (!targetTitle) targetTitle = `流量结算 ${targetDate} / ${targetId.slice(-6)}`
 		} else if (targetType === 'opening_debt' || targetType === 'other_fee') {
 			const debtRes = await openingDebts.doc(targetId).get()
-			const debtDoc = (debtRes.data && debtRes.data[0]) || null
+			const debtDoc = readDocument(debtRes)
 			if (!debtDoc || normalizeId(debtDoc.customer_id) !== customer._id || normalizeString(debtDoc.status) !== 'posted') continue
 			const snapshot = computeOpeningDebtSnapshot(debtDoc, moneyScale)
 			if (snapshot.outstanding <= 0) continue
@@ -5516,7 +5521,7 @@ async function applyOffsetAllocationsToReceipt({
 			}
 		} else {
 			const saleRes = await sales.doc(targetId).get()
-			const saleDoc = (saleRes.data && saleRes.data[0]) || null
+			const saleDoc = readDocument(saleRes)
 			if (!saleDoc || normalizeId(saleDoc.customer_id) !== customer._id) continue
 			const snapshot = computeSaleSnapshot(saleDoc)
 			if (snapshot.outstanding <= 0) continue

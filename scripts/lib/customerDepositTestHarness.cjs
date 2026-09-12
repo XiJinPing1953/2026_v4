@@ -9,6 +9,7 @@ function depositDb(tables, hooks = {}, transactional = false) {
       if (key === 'get') return async () => {
         const result = await q.get()
         if (transactional && docId && !result.data?.length && hooks.missingTransactionReadThrows !== false) throw Error('Alipay missing transaction document')
+        if (transactional && docId && hooks.transactionDocumentObject) return { ...result, data: result.data[0] }
         return result
       }
       if (key === 'add') return async data => {

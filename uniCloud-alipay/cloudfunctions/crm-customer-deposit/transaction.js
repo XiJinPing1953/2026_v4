@@ -3,6 +3,15 @@ const M = require('./depositModel')
 const R = require('./report')
 const { isOffsetCreditReceipt, isNonCashPrepayReceipt } = require('./receiptSource')
 
+// Alipay transaction document reads return data as one document, while ordinary
+// document reads and some test/provider clients return a one-element array.
+// Normalize only this envelope; the complete source hash below remains mandatory.
+function transactionDocument(result) {
+  const value = result?.data
+  if (Array.isArray(value)) return value.length === 1 ? value[0] : null
+  return value && typeof value === 'object' && typeof value._id === 'string' ? value : null
+}
+
 function savedResult(row, snapshot) {
   return { rule_version: M.RULE_VERSION, money_scale: 2, customer_id: row.customer_id,
     operation_id: row.operation_id, entry: M.publicEntry(row), receipt_id: row.receipt_id || '',
@@ -165,18 +174,18 @@ async function execute(db, prepared, { rehearse = false, failAfterWrites = 0 } =
   try {
     // Alipay may throw when transaction.get targets a missing deterministic ID.
     // Complete pre-reads prove absence; add uniqueness and account write contention protect races.
-    const customer = R.first(await within('read customer', () => tx.collection(M.TABLES.customers).doc(snapshot.customer_id).get()))
+    const customer = transactionDocument(await within('read customer', () => tx.collection(M.TABLES.customers).doc(snapshot.customer_id).get()))
     if (M.digest(customer) !== M.digest(snapshot.customer)) M.fail('客户原值版本已变化，请重新预览')
     if (snapshot.account) {
-      const current = R.first(await within('read account', () => tx.collection(M.TABLES.accounts).doc(snapshot.account._id).get()))
+      const current = transactionDocument(await within('read account', () => tx.collection(M.TABLES.accounts).doc(snapshot.account._id).get()))
       if (M.digest(current) !== M.digest(snapshot.account)) M.fail('押金账户版本冲突，请重新预览')
     }
     if (change.original) {
-      const original = R.first(await within('read source entry', () => tx.collection(M.TABLES.entries).doc(change.original._id).get()))
+      const original = transactionDocument(await within('read source entry', () => tx.collection(M.TABLES.entries).doc(change.original._id).get()))
       if (M.digest(original) !== M.digest(change.original)) M.fail('原押金流水版本冲突，请重新预览')
     }
     if (receiptScope?.receipt) {
-      const current = R.first(await within('read transfer receipt', () => tx.collection(M.TABLES.receipts).doc(receipt._id).get()))
+      const current = transactionDocument(await within('read transfer receipt', () => tx.collection(M.TABLES.receipts).doc(receipt._id).get()))
       if (M.digest(current) !== M.digest(receiptScope.receipt)) M.fail('转气款分配状态已变化，请重新预览')
     }
     // Update patches preserve every unrelated customer field and create contention with allocation writers.

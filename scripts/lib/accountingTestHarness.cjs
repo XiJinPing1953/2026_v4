@@ -46,6 +46,7 @@ function makeDb(tables = {}, hooks = {}) {
 				rows = rows.slice(opts.skip || 0, (opts.skip || 0) + (opts.limit || 100))
 				if (opts.field) rows = rows.map((doc) => Object.fromEntries(Object.entries(doc).filter(([key]) => key === '_id' || opts.field[key])))
 				if (hooks.get) return hooks.get(name, rows, opts)
+				if (transactional && hooks.txDocumentObject && opts.where && Object.keys(opts.where).length === 1 && opts.where._id) return { data: structuredClone(rows[0] || null) }
 				return { data: structuredClone(rows) }
 			},
 			update: async (data) => {
