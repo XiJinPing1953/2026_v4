@@ -198,6 +198,7 @@ test('page mapper and both exported summary sheets preserve 0.021, pending and o
 	const context = {}; vm.createContext(context)
 	const read = file => fs.readFileSync(path.resolve(__dirname, '../src', file), 'utf8').replace(/^import .*\n/gm, '').replace(/export /g, '')
 	vm.runInContext(read('services/mappers/customerPeriodSummary.js') + '\nthis.normalize=normalizeCustomerPeriodSummary;this.rows=customerPeriodSummaryRows', context)
+	vm.runInContext(read('services/mappers/customerDeposit.js'), context)
 	vm.runInContext(read('components/domain/customer/statement/exportWorkbook.js') + '\nthis.builders=[buildCustomerStatementWorkbookXml,buildCustomerAccountingLedgerWorkbookXml]', context)
 	const p = (await summaries(harness([]))).summary
 	assert.equal(context.normalize({ ...p, rounding_total: undefined }), null)

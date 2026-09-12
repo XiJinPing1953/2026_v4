@@ -1,3 +1,4 @@
+import { normalizeCustomerDepositStatement } from '@/services/mappers/customerDeposit.js'
 import { customerPeriodSummaryRows, normalizeCustomerPeriodSummary, describePeriodSummaryIssue } from '@/services/mappers/customerPeriodSummary.js'
 
 function normalizeString(value) {
@@ -372,17 +373,51 @@ function buildPeriodSummarySheetRows(payload = {}) {
 			{ type: 'String', value: row.label },
 			row.value == null ? { type: 'String', value: summary ? '待核' : '未完成' } : moneyCellByScale(row.value, scale)
 		]),
-		[{ type: 'String', value: '说明' }, { type: 'String', value: '营收不含历史转入；实际收款按收款日期，包含预收及待分配款，不含期初预付款转入、非现金冲抵和抹零。抹零汇总按源单业务日期或有效收款日期去重；旧单内嵌抹零按源单日期列示。后续抹零按有效分配单已登记业务日期列示，该日期可能沿用原收款日，不代表实际操作日；缺登记业务日期时待核。借贷合计不等同实际收款。' }],
+		[{ type: 'String', value: '说明' }, { type: 'String', value: '营收不含历史转入；实际收款按收款日期，包含预收及待分配款，不含期初预付款转入、押金转气款、非现金冲抵和抹零。抹零汇总按源单业务日期或有效收款日期去重；旧单内嵌抹零按源单日期列示。后续抹零按有效分配单已登记业务日期列示，该日期可能沿用原收款日，不代表实际操作日；缺登记业务日期时待核。借贷合计不等同实际收款。' }],
 		[{ type: 'String', value: '核查状态' }, { type: 'String', value: summary?.complete ? '完整' : summary ? `待核 ${summary.unresolved_count} 项` : '未完成' }],
 		...(summary?.source_notes || []).map(row => [{ type: 'String', value: '期间依据' }, { type: 'String', value: row.text }]),
 		...(summary?.unresolved_sources || []).map(row => [{ type: 'String', value: row.source_id }, { type: 'String', value: describePeriodSummaryIssue(row) }])
 	]
 }
 
+function buildDepositSheetRows(payload = {}) {
+	const deposit = normalizeCustomerDepositStatement(payload.deposit_summary, {
+		customerId: payload.customer?._id || payload.customer?.id || payload.customer_id,
+		dateFrom: payload.period?.date_from, dateTo: payload.period?.date_to
+	})
+	const valid = Boolean(deposit)
+	const metrics = [
+		['opening_balance', '期间期初押金'], ['received_total', '期间押金收取'],
+		['refunded_total', '期间押金退还'], ['opening_transferred_total', '期间期初押金转入（非新收款）'],
+		['transferred_total', '期间押金转气款（非新收款）'], ['closing_balance', '期间期末押金'],
+		['current_balance', '当前押金余额（全历史）']
+	]
+	const rows = [
+		[{ type: 'String', value: '客户押金独立账' }],
+		[{ type: 'String', value: '查询期间' }, { type: 'String', value: `${payload.period?.date_from || ''} ~ ${payload.period?.date_to || ''}` }],
+		...metrics.map(([key, label]) => [{ type: 'String', value: label }, valid ? (key === 'current_balance' && deposit.account_initialized === false ? { type: 'String', value: '尚未登记，历史押金未核实' } : moneyCellByScale(deposit[key], 2)) : { type: 'String', value: '未完成' }]),
+		[{ type: 'String', value: '历史登记状态' }, { type: 'String', value: !valid ? '未完成' : deposit.account_initialized === false ? '尚未登记，历史押金未核实' : deposit.history_status === 'opening_recorded' ? '已登记期初来源，仅反映已登记资金' : '历史押金未核实，仅反映已登记资金' }],
+		[{ type: 'String', value: '说明' }, { type: 'String', value: '押金独立于经营收入、气款实际收款及经营退款。转气款进入可分配预付款，不产生第二次到账。期初转入不是新收款；存瓶数量不自动产生押金资金动作。仅反映已登记押金；历史押金须凭原始依据核实并登记期初转入。' }],
+		[{ type: 'String', value: '日期' }, { type: 'String', value: '类型' }, { type: 'String', value: '金额' },
+		 { type: 'String', value: '状态' }, { type: 'String', value: '渠道' }, { type: 'String', value: '凭据' },
+		 { type: 'String', value: '备注' }, { type: 'String', value: '单据编号' }]
+	]
+	const kinds = { receive: '押金收取', refund: '押金退还', opening: '期初押金转入', transfer: '押金转气款', void: '作废冲回' }
+	if (valid) for (const entry of deposit.entries || []) rows.push([
+		{ type: 'String', value: entry.biz_date || '' }, { type: 'String', value: kinds[entry.kind] || entry.kind || '' },
+		moneyCellByScale(entry.amount, 2), { type: 'String', value: entry.status === 'void' ? '已作废' : entry.kind === 'void' ? '作废凭据（不计收退）' : '有效' },
+		{ type: 'String', value: entry.payment_method || '' }, { type: 'String', value: entry.voucher_ref || '' },
+		{ type: 'String', value: [entry.note, entry.void_reason || entry.reason].filter(Boolean).join('；') },
+		{ type: 'String', value: entry._id || '' }
+	])
+	return rows
+}
+
 export function buildCustomerAccountingLedgerWorkbookXml(payload = {}) {
 	return buildWorkbookXml([
 		buildWorksheetXml('会计明细账', buildAccountingLedgerSheetRows(payload)),
-		buildWorksheetXml('汇总说明', buildPeriodSummarySheetRows(payload))
+		buildWorksheetXml('汇总说明', buildPeriodSummarySheetRows(payload)),
+		buildWorksheetXml('押金独立账', buildDepositSheetRows(payload))
 	])
 }
 
@@ -397,6 +432,7 @@ export function buildCustomerAccountingLedgerBatchWorkbookXml(payload = {}) {
 	ledgerSheets.forEach((sheet, index) => {
 		const customerName = normalizeString(sheet?.customer?.name) || `客户${index + 1}`
 		pushSheet(`会计-${customerName}`, buildAccountingLedgerSheetRows(sheet))
+		pushSheet(`押金-${customerName}`, buildDepositSheetRows(sheet))
 	})
 	const errors = Array.isArray(payload.ledgerSheetErrors) ? payload.ledgerSheetErrors : []
 	if (errors.length) pushSheet('会计导出失败', buildAccountingLedgerErrorRows(errors))
@@ -542,7 +578,8 @@ export function buildCustomerStatementWorkbookXml(payload = {}) {
 	const sheets = [
 		buildWorksheetXml('客户对账单', buildStatementSheetRows(payload)),
 		buildWorksheetXml('销售明细', buildSaleDetailSheetRows(payload)),
-		buildWorksheetXml('汇总说明', buildPeriodSummarySheetRows(payload))
+		buildWorksheetXml('汇总说明', buildPeriodSummarySheetRows(payload)),
+		buildWorksheetXml('押金独立账', buildDepositSheetRows(payload))
 	]
 	return [
 		'<?xml version="1.0"?>',

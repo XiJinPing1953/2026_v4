@@ -111,6 +111,7 @@ function loadWorkbooks() {
  const read=file=>fs.readFileSync(path.resolve(__dirname,'../src',file),'utf8').replace(/^import .*\n/gm,'').replace(/export /g,'')
  const single={};vm.createContext(single)
  vm.runInContext(read('services/mappers/customerPeriodSummary.js'),single)
+ vm.runInContext(read('services/mappers/customerDeposit.js'),single)
  vm.runInContext(read('components/domain/customer/statement/exportWorkbook.js')+'\nthis.dailyRows=buildStatementSheetRows;this.single=buildCustomerStatementWorkbookXml',single)
  const batch={buildStatementSheetRows:single.dailyRows};vm.createContext(batch)
  vm.runInContext(read('components/domain/customer/exportCustomerListWorkbook.js')+'\nthis.batch=buildCustomerListWorkbookXml',batch)

@@ -1,0 +1,47 @@
+{
+  "bsonType": "object",
+  "description": "Independent customer deposit accounts; server-only, integer cents, versioned audit trail",
+  "additionalProperties": false,
+  "required": [
+    "_id",
+    "customer_id",
+    "rule_version",
+    "last_entry_id",
+    "version",
+    "balance_cents",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "customer_id": {
+      "bsonType": "string"
+    },
+    "rule_version": {
+      "bsonType": "string"
+    },
+    "last_entry_id": {
+      "bsonType": "string"
+    },
+    "version": {
+      "bsonType": "number"
+    },
+    "balance_cents": {
+      "bsonType": "number"
+    },
+    "created_at": {
+      "bsonType": "number"
+    },
+    "updated_at": {
+      "bsonType": "number"
+    }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  }
+}

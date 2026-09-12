@@ -1,0 +1,118 @@
+{
+  "bsonType": "object",
+  "description": "Independent customer deposit entries; server-only, integer cents, versioned audit trail",
+  "additionalProperties": false,
+  "required": [
+    "_id",
+    "customer_id",
+    "rule_version",
+    "operation_id",
+    "fingerprint",
+    "command",
+    "operation_result",
+    "account_version",
+    "amount_cents",
+    "kind",
+    "biz_date",
+    "payment_method",
+    "voucher_ref",
+    "note",
+    "status",
+    "created_at",
+    "updated_at",
+    "created_by",
+    "created_by_name"
+  ],
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "customer_id": {
+      "bsonType": "string"
+    },
+    "rule_version": {
+      "bsonType": "string"
+    },
+    "operation_id": {
+      "bsonType": "string"
+    },
+    "fingerprint": {
+      "bsonType": "string"
+    },
+    "created_by": {
+      "bsonType": "string"
+    },
+    "created_by_name": {
+      "bsonType": "string"
+    },
+    "status": {
+      "bsonType": "string"
+    },
+    "kind": {
+      "bsonType": "string"
+    },
+    "biz_date": {
+      "bsonType": "string"
+    },
+    "payment_method": {
+      "bsonType": "string"
+    },
+    "voucher_ref": {
+      "bsonType": "string"
+    },
+    "note": {
+      "bsonType": "string"
+    },
+    "receipt_id": {
+      "bsonType": "string"
+    },
+    "original_entry_id": {
+      "bsonType": "string"
+    },
+    "reason": {
+      "bsonType": "string"
+    },
+    "void_entry_id": {
+      "bsonType": "string"
+    },
+    "void_reason": {
+      "bsonType": "string"
+    },
+    "voided_by": {
+      "bsonType": "string"
+    },
+    "voided_by_name": {
+      "bsonType": "string"
+    },
+    "account_version": {
+      "bsonType": "number"
+    },
+    "amount_cents": {
+      "bsonType": "number"
+    },
+    "created_at": {
+      "bsonType": "number"
+    },
+    "updated_at": {
+      "bsonType": "number"
+    },
+    "voided_at": {
+      "bsonType": "number"
+    },
+    "command": {
+      "bsonType": "object"
+    },
+    "operation_result": {
+      "bsonType": "object"
+    },
+    "receipt_original": {
+      "bsonType": "object"
+    }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  }
+}

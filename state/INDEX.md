@@ -4,6 +4,7 @@
 
 | 领域 | 当前来源 | 何时读取 |
 |---|---|---|
+| 押金资金 | [deposit](../docs/DEPOSIT_IMPLEMENTATION.md) | 押金收退、期初转入、转气款、独立余额与流水 |
 | 账务 | [accounting](domains/accounting.md) | 销售金额、客户对账、收退款、冲抵、期初、导出 |
 | 流转 | [flow](domains/flow.md) | 灌装、钢瓶状态、异常、封存、历史改单 |
 | PDA | [pda](domains/pda.md) | 扫码、称重回填、原生基座与真机验收 |

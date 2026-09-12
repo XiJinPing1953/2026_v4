@@ -1,0 +1,6 @@
+{
+  "name": "crm-customer-deposit",
+  "version": "1.0.0",
+  "description": "Isolated customer deposit ledger with transactional transfer and audit history",
+  "main": "index.js"
+}

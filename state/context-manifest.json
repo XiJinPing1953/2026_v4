@@ -18,7 +18,8 @@
     "state/domains/presentation.md",
     "state/handoffs/TEMPLATE.md",
     "state/handoffs/2026-09-09-accounting-release-accepted.md",
-    "state/handoffs/2026-09-09-main-accounting-integration.md"
+    "state/handoffs/2026-09-09-main-accounting-integration.md",
+    "docs/DEPOSIT_IMPLEMENTATION.md"
   ],
   "note": "Only these documents are checked as current context. History is integrity-checked separately, never interpreted as active instructions."
 }

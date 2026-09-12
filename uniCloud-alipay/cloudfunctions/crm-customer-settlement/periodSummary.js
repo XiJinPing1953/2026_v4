@@ -1,7 +1,7 @@
 'use strict'
 
 const { readComplete, FinancialReadError } = require('./financialReadLocal')
-const { isOpeningPrepayReceipt } = require('./receiptSource')
+const { isOpeningPrepayReceipt, isDepositTransferReceipt, isNonCashPrepayReceipt } = require('./receiptSource')
 const VERSION = 'customer-period-summary/2026-09-12.3'
 const id = value => String(value || '').trim()
 const date = value => /^\d{4}-\d{2}-\d{2}$/.test(id(value)) ? id(value) : ''
@@ -42,7 +42,7 @@ function calculatePeriodRounding({ targets, receipts, allocations, moneyScale, i
 		}
 		// This is a registered accounting date, which may copy the original receipt date.
 		// Do not present it as the later operation's timestamp or count it again on the receipt.
-		const laterRounding = isOpeningPrepayReceipt(receipt) || ['prepay_manual_allocate', 'receipt_unallocated_allocate'].includes(id(row.source_type))
+		const laterRounding = isNonCashPrepayReceipt(receipt) || ['prepay_manual_allocate', 'receipt_unallocated_allocate'].includes(id(row.source_type))
 		const roundingDate = laterRounding ? date(row.biz_date) : date(receipt.biz_date)
 		if (laterRounding) {
 			if (!roundingDate) issue('allocation', row, 'rounding_allocation_date_missing', amount)
@@ -59,7 +59,7 @@ function calculatePeriodRounding({ targets, receipts, allocations, moneyScale, i
 		const amount = amountOf(row.rounding_allocated_amount), allocated = byReceipt.get(id(row._id)) || 0
 		const later = laterByReceipt.get(id(row._id)) || 0
 		if (amount !== allocated && (later > 0 || isOpeningPrepayReceipt(row) || relevant(row.biz_date))) issue('receipt', row, 'rounding_allocation_mismatch', sum([amount, -allocated]))
-		if (isOpeningPrepayReceipt(row)) {
+		if (isNonCashPrepayReceipt(row)) {
 			if (amount > later) issue('receipt', row, 'rounding_allocation_date_missing', sum([amount, -later]))
 			continue
 		}
@@ -113,7 +113,7 @@ function calculatePeriodSummary(input, rules) {
 		const receipt = receiptMap.get(id(row.receipt_id))
 		const offset = rules.isOffsetAllocation(row) || (receipt && rules.isOffsetReceipt(receipt))
 		if (offset || (receipt && receipt.status === 'posted')) backed.set(key, sum([backed.get(key) || 0, amount]))
-		if (offset || isOpeningPrepayReceipt(receipt)) continue
+		if (offset || isNonCashPrepayReceipt(receipt)) continue
 		if (!receipt || receipt.status !== 'posted') {
 			issue('allocation', row, 'active_allocation_without_posted_receipt', amount)
 			continue
@@ -140,7 +140,7 @@ function calculatePeriodSummary(input, rules) {
 	let cashReceived = 0
 	let refundTotal = 0
 	for (const row of receipts) {
-		if (row.status !== 'posted' || rules.isOffsetReceipt(row) || isOpeningPrepayReceipt(row)) continue
+		if (row.status !== 'posted' || rules.isOffsetReceipt(row) || isNonCashPrepayReceipt(row)) continue
 		const amount = sum([Number(row.amount) || 0])
 		if (!date(row.biz_date)) { if (amount) issue('receipt', row, 'receipt_date_missing', amount); continue }
 		if (!inRange(row.biz_date)) continue
@@ -150,10 +150,13 @@ function calculatePeriodSummary(input, rules) {
 	}
 	const openingCredits = receipts.filter(row => row.status === 'posted' && isOpeningPrepayReceipt(row))
 	const openingTransferred = sum(openingCredits.filter(row => inRange(row.biz_date)).map(row => row.amount))
+	const depositTransfers = receipts.filter(row => row.status === 'posted' && isDepositTransferReceipt(row))
+	const depositTransferred = sum(depositTransfers.filter(row => inRange(row.biz_date)).map(row => row.amount))
 	const sourceNotes = flows.filter(row => row.status === 'posted' && inRange(row.biz_date) && row.period_start_date && row.period_start_date.slice(0, 4) !== row.biz_date.slice(0, 4))
 		.map(row => ({ source_type: 'flow_settlement', source_id: row._id,
 			text: `${row.biz_date}流量结算包含${row.period_start_date}至${row.period_end_date || row.biz_date}的跨年用气；按结算日期计营收，未拆分为本年实际用气。` }))
 	for (const row of openingCredits) if (!date(row.biz_date) || !(Number(row.amount) >= 0)) issue('opening_prepay', row, 'opening_prepay_source_invalid', row.amount)
+	for (const row of depositTransfers) if (!date(row.biz_date) || !(Number(row.amount) > 0)) issue('deposit_transfer', row, 'deposit_transfer_source_invalid', row.amount)
 	const knownCash = {
 		cash_received: cashReceived,
 		historical_debt_collected: sum([...cashAllocations.values()]),
@@ -177,7 +180,7 @@ function calculatePeriodSummary(input, rules) {
 		receivable_total: businessComplete ? sum([businessRevenue, historicalReceivable]) : null,
 		...Object.fromEntries(Object.entries(knownCash).map(([key, value]) => [key, cashComplete ? value : null])),
 		...rounding,
-		opening_prepay_transferred: openingTransferred, source_notes: sourceNotes,
+		opening_prepay_transferred: openingTransferred, deposit_transferred: depositTransferred, source_notes: sourceNotes,
 		known_cash: knownCash, unresolved_count: pending.length, unresolved_sources: pending
 	}
 }

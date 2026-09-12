@@ -6,28 +6,64 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.12-period-rounding",
+      "version": "2026.09.12-customer-deposit",
       "output": "dist/build/web",
-      "acceptance": "Date-aware rounding disclosure; actual cash unchanged; statement and both exports agree",
+      "acceptance": "Independent deposit receive/refund/opening/transfer and balance; existing cash, rounding and exports protected",
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.12-period-rounding",
+      "version": "2026.09.12-customer-deposit",
       "output": "release/cloud",
-      "acceptance": "One complete customer settlement package, read-only summary change; no financial or schema writes",
+      "acceptance": "Three complete function packages; two new server-only deposit collections/indexes; no historic customer money migration",
       "deploymentScope": {
         "functions": [
-          "crm-customer-settlement"
+          "crm-customer-deposit",
+          "crm-customer-settlement",
+          "crm-dashboard"
         ],
-        "databaseFiles": [],
-        "baseCommit": "acc71dc8dad040208143db5635510e55c318ee5e",
+        "databaseFiles": [
+          "crm_customer_deposit_accounts.index.json",
+          "crm_customer_deposit_accounts.schema.json",
+          "crm_customer_deposit_entries.index.json",
+          "crm_customer_deposit_entries.schema.json"
+        ],
+        "baseCommit": "ff54e45ff40bac3c847a3f9955675a1aa38a7fea",
         "sourceFiles": [
+          "src/components/domain/customer/statement/CustomerDepositPanel.vue",
           "src/components/domain/customer/statement/CustomerStatementModule.vue",
           "src/components/domain/customer/statement/exportWorkbook.js",
+          "src/services/api/customerDeposit.js",
+          "src/services/mappers/customerDeposit.js",
           "src/services/mappers/customerPeriodSummary.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/depositModel.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/financialReadLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/package.json",
+          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/pageAclLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/receiptSource.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/report.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/transaction.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/depositModel.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/depositReportLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/periodSummary.js"
-        ]
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/periodSummary.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/receiptSource.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/receiptSourceLocal.js",
+          "uniCloud-alipay/database/crm_customer_deposit_accounts.index.json",
+          "uniCloud-alipay/database/crm_customer_deposit_accounts.schema.json",
+          "uniCloud-alipay/database/crm_customer_deposit_entries.index.json",
+          "uniCloud-alipay/database/crm_customer_deposit_entries.schema.json"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-dashboard": {
+            "registry": {
+              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
+              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     }

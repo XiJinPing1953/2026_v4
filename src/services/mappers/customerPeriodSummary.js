@@ -22,7 +22,8 @@ export function customerPeriodSummaryRows(value) {
 		['historical_debt_collected', '其中收回历史欠款'],
 		['refund_total', '期间退款'],
 		['net_cash_received', '扣除退款后的净收款'],
-		['opening_prepay_transferred', '期间期初预付款转入（非收款）']
+		['opening_prepay_transferred', '期间期初预付款转入（非收款）'],
+		['deposit_transferred', '期间押金转气款（非新收款）']
 	].map(([key, label]) => ({ key, label, value: summary ? (summary[key] ?? (key === 'opening_prepay_transferred' && summary.rule_version.endsWith('.1') ? 0 : null)) : null }))
 }
 
@@ -34,6 +35,7 @@ export function describePeriodSummaryIssue(row = {}) {
 		rounding_date_missing: '抹零缺少可确认的业务日期', rounding_allocation_without_posted_receipt: '抹零分配对应的有效收款单缺失',
 		rounding_allocation_date_missing: '后续抹零缺少有效分配单的登记业务日期',
 		rounding_noncash_origin_unverified: '非现金来源抹零的发生日期及归属待核',
+		deposit_transfer_source_invalid: '押金转气款来源的金额或业务日期待核',
 		rounding_target_missing: '抹零分配对应的应收单缺失', rounding_allocation_mismatch: '收款抹零与有效分配不一致',
 		rounding_exceeds_target: '抹零分配超过源单已登记抹零', rounding_void_allocation_residual: '作废抹零分配后源单仍有余额待核'
 	}

@@ -62,7 +62,8 @@
     "test:accounting-release": "node --test scripts/statementExportBalance.test.cjs scripts/mainlineAccounting.test.cjs scripts/financeTrust.test.cjs scripts/periodSummary.test.cjs scripts/periodSummaryRounding.test.cjs scripts/periodSummaryCustomerScope.test.cjs scripts/haonuoReconciliation.test.cjs scripts/accountingLedgerPrecision.test.cjs scripts/accountingReconciliationIntegration.test.cjs scripts/reconciledSaleStatus.test.cjs scripts/accountingFrontend.test.cjs scripts/releaseEvidence.test.cjs scripts/releaseScope.test.cjs scripts/syncDomainContracts.test.cjs scripts/collectLegacyM3Evidence.test.cjs",
     "check:context": "node scripts/checkProjectContext.cjs",
     "test:context": "node --test scripts/checkProjectContext.test.cjs",
-    "test": "npm run check:context && npm run test:context && npm run test:accounting-release && npm run check:release -- --product=web && npm run check:release -- --product=cloud"
+    "test": "npm run check:context && npm run test:context && npm run test:accounting-release && npm run test:customer-deposit && npm run check:release -- --product=web && npm run check:release -- --product=cloud",
+    "test:customer-deposit": "node --test scripts/customerDepositBackend.test.cjs scripts/customerDepositFrontend.test.cjs scripts/customerDepositIntegration.test.cjs"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-5000620260331001",

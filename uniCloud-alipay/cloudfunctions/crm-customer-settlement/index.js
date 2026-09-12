@@ -1,5 +1,5 @@
 'use strict'
-const { isOpeningPrepayReceipt, isOffsetCreditReceipt } = require('./receiptSource')
+const { isOpeningPrepayReceipt, isDepositTransferReceipt, isNonCashPrepayReceipt, isOffsetCreditReceipt, isCashReceipt } = require('./receiptSource')
 
 const saleAccounting = require('./saleAccountingLocal')
 const { readComplete, withFinancialEvidence, FinancialReadError } = require('./financialReadLocal')
@@ -427,7 +427,7 @@ async function buildBusinessSummaryFromTargets(
 		if (received < 0) return received
 		return fixMoney(Math.max(sumMoneyByScale([received, -(allocatedAmount)], moneyScale), 0))
 	}
-	const countableReceiptDocs = (Array.isArray(receiptDocs) ? receiptDocs : []).filter((row) => !isOffsetCreditReceiptRow(row) && !isOpeningPrepayReceipt(row))
+	const countableReceiptDocs = (Array.isArray(receiptDocs) ? receiptDocs : []).filter((row) => !isOffsetCreditReceiptRow(row) && !isNonCashPrepayReceipt(row))
 	const receiptReceivedGross = countableReceiptDocs.reduce(
 		(sum, row) => sumMoneyByScale([sum, Math.max(toNumber(row && row.amount, 0), 0)], moneyScale),
 		0
@@ -930,7 +930,7 @@ function isOffsetCreditReceiptRow(row) {
 
 function isManualPrepayReceiptRow(row) {
 	const sourceType = normalizeString(row && row.source_type)
-	return sourceType === 'customer_prepay_manual' || isOpeningPrepayReceipt(row)
+	return sourceType === 'customer_prepay_manual' || isNonCashPrepayReceipt(row)
 }
 
 function normalizeAllocationTargets(raw = []) {
@@ -2277,6 +2277,7 @@ async function applyAllocationAndPersist({
 	sourceId,
 	entryKind
 }) {
+	if (isDepositTransferReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '押金转气款只能由押金专用流程登记' }
 	if (isOpeningPrepayReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '期初预付款仅能从有备份的专用转入流程创建' }
 	const now = Date.now()
 	const normalizedMode = normalizeAllocationMode(allocationMode || plan.allocation_mode, 'period')
@@ -3085,6 +3086,7 @@ async function beginReceiptAdjustmentV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (isDepositTransferReceipt(receiptDoc)) return { code: 400, msg: '押金转气款来源受保护，请在押金流水中核对或作废；可继续分配' }
 	if (isOpeningPrepayReceipt(receiptDoc)) return { code: 400, msg: '期初预付款来源受保护，可继续分配；更正须走有备份的专用核对流程' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持调整已入账收款单' }
 
@@ -3563,7 +3565,7 @@ async function rebuildCustomerBalances(customerId, { persist = true } = {}) {
 			receiptUnallocated = fixMoney(receiptUnallocated + amount)
 		}
 		const receiptAmount = fixMoney(Math.max(toNumber(row && row.amount, 0), 0))
-		if (receiptAmount > 0 && !isOpeningPrepayReceipt(row)) {
+		if (receiptAmount > 0 && isCashReceipt(row)) {
 			const bizDate = normalizeDate(row && row.biz_date)
 			if (bizDate && (!lastReceiptBizDate || bizDate > lastReceiptBizDate)) {
 				lastReceiptBizDate = bizDate
@@ -3766,6 +3768,7 @@ async function createReceiptV1(user, data, requestId) {
 	const paymentMethod = normalizePaymentMethod(data.payment_method || data.paymentMethod, 'paid')
 	const note = normalizeString(data.note)
 	const sourceType = normalizeString(data.source_type || data.sourceType) || 'manual'
+	if (isDepositTransferReceipt({ source_type: sourceType })) return { code: 400, msg: '押金转气款只能由押金专用流程登记' }
 	if (isOpeningPrepayReceipt({ source_type: sourceType })) return { code: 400, msg: '期初预付款须经有依据的专用转入流程登记' }
 	const sourceId = normalizeId(data.source_id || data.sourceId)
 
@@ -3827,6 +3830,7 @@ async function updateReceiptV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (isDepositTransferReceipt(receiptDoc)) return { code: 400, msg: '押金转气款来源受保护，请在押金流水中核对或作废；可继续分配' }
 	if (isOpeningPrepayReceipt(receiptDoc)) return { code: 400, msg: '期初预付款来源受保护，可继续分配；更正须走有备份的专用核对流程' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持编辑已入账收款单' }
 	const receiptSourceType = normalizeString(receiptDoc.source_type) || 'manual'
@@ -4020,6 +4024,7 @@ async function removeReceiptV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (isDepositTransferReceipt(receiptDoc)) return { code: 400, msg: '押金转气款来源受保护，请在押金流水中核对或作废；可继续分配' }
 	if (isOpeningPrepayReceipt(receiptDoc)) return { code: 400, msg: '期初预付款来源受保护，可继续分配；更正须走有备份的专用核对流程' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持删除已入账收款单' }
 	if (isCashierReceiptSourceType(receiptDoc.source_type)) {
@@ -4585,6 +4590,7 @@ async function createPrepayEntryV1(user, data, requestId) {
 	}
 
 	const sourceType = normalizeString(data.source_type || data.sourceType) || (entryKind === 'offset_credit' ? 'customer_offset_credit_manual' : 'customer_prepay_manual')
+	if (isDepositTransferReceipt({ source_type: sourceType })) return { code: 400, msg: '押金转气款只能由押金专用流程登记' }
 	if (isOpeningPrepayReceipt({ source_type: sourceType })) return { code: 400, msg: '期初预付款须经有依据的专用转入流程登记' }
 	const sourceId = normalizeId(data.source_id || data.sourceId)
 	const applyRes = await applyAllocationAndPersist({
@@ -5394,7 +5400,23 @@ async function applyOffsetAllocationsToReceipt({
 }) {
 	const receiptId = normalizeId(receiptDoc && receiptDoc._id)
 	if (!receiptId) return { ok: false, code: 400, msg: 'receipt_id 无效' }
-	const moneyScale = resolveCustomerMoneyScale(customer)
+	// 押金转气款与原押金作废共用收款源的事务锁，避免已抵扣后恢复押金。
+	const transferTransaction = isDepositTransferReceipt(receiptDoc) ? await db.startTransaction() : null
+	const targetDb = transferTransaction || db
+	const sales = targetDb.collection('crm_sale_records')
+	const receipts = targetDb.collection('crm_customer_receipts')
+	const allocations = targetDb.collection('crm_customer_allocations')
+	const flowSettlements = targetDb.collection('crm_customer_flow_settlements')
+	const openingDebts = targetDb.collection('crm_customer_opening_debts')
+	try {
+	if (transferTransaction) {
+		const current = ((await receipts.doc(receiptId).get()).data || [])[0]
+		const canonical = (row) => JSON.stringify(Object.keys(row || {}).sort().map((key) => [key, row[key]]))
+		if (!current || normalizeString(current.status) !== 'posted' || canonical(current) !== canonical(receiptDoc)) {
+			throw Object.assign(new Error('押金转款来源已变化，请刷新后重新分配'), { code: 409 })
+		}
+	}
+	const moneyScale = isDepositTransferReceipt(receiptDoc) ? 3 : resolveCustomerMoneyScale(customer)
 	const fixMoney = (value) => fixByScale(value, moneyScale)
 	const normalizedMode = normalizeAllocationMode(allocationMode || plan.allocation_mode, 'checked')
 	const normalizedStartDate = normalizedMode === 'period' ? normalizeDate(allocationStartDate || plan.allocation_start_date) : ''
@@ -5560,6 +5582,7 @@ async function applyOffsetAllocationsToReceipt({
 		}
 	}
 
+	if (transferTransaction && allocatedDelta - currentUnallocated > moneyEpsilon(3)) throw Object.assign(new Error('押金转款分配超过来源可用金额，请重新预览'), { code: 409 })
 	const nextAllocated = fixMoney(currentAllocated + allocatedDelta)
 	const nextUnallocated = fixMoney(Math.max(currentUnallocated - allocatedDelta, 0))
 	const nextRoundingAmount = fixMoney(currentRoundingAmount + roundingAllocatedDelta)
@@ -5578,6 +5601,7 @@ async function applyOffsetAllocationsToReceipt({
 		updated_by_name: normalizeString(user && user.username)
 	})
 
+	if (transferTransaction) await transferTransaction.commit()
 	return {
 		ok: true,
 		receipt_id: receiptId,
@@ -5587,6 +5611,10 @@ async function applyOffsetAllocationsToReceipt({
 		rounding_amount: nextRoundingAmount,
 		rounding_allocated_amount: nextRoundingAllocated,
 		unallocated_amount: nextUnallocated
+	}
+	} catch (error) {
+		if (transferTransaction) await transferTransaction.rollback().catch(() => {})
+		throw error
 	}
 }
 
@@ -5903,8 +5931,6 @@ async function allocatePrepayReceiptV1(user, data, requestId) {
 
 	const customer = await getCustomerById(customerId)
 	if (!customer) return { code: 404, msg: '客户不存在' }
-	const moneyScale = resolveCustomerMoneyScale(customer)
-	const fixMoney = (value) => fixByScale(value, moneyScale)
 
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
@@ -5912,6 +5938,8 @@ async function allocatePrepayReceiptV1(user, data, requestId) {
 	if (normalizeId(receiptDoc.customer_id) !== customerId) return { code: 400, msg: '收款单不属于该客户' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持已入账收款单' }
 	if (isOffsetCreditReceiptRow(receiptDoc)) return { code: 400, msg: '该单据是冲抵款来源，请在冲抵分配中处理' }
+	const moneyScale = isDepositTransferReceipt(receiptDoc) ? 3 : resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
 
 	const available = fixMoney(toNumber(receiptDoc.unallocated_amount, 0))
 	if (!(available > 0)) return { code: 400, msg: '该收款单无待分配余额' }
@@ -5925,6 +5953,7 @@ async function allocatePrepayReceiptV1(user, data, requestId) {
 			: data.rounding_amount ?? data.roundingAmount
 	const roundingAmount = fixMoney(toNumber(roundingAmountRaw, 0))
 	if (roundingAmount < 0) return { code: 400, msg: '抹零金额不能小于0' }
+	if (isDepositTransferReceipt(receiptDoc) && roundingAmount > 0) return { code: 400, msg: '押金转气款只分配原转款金额；抹零请使用独立的气款抹零流程' }
 	const isManualPrepaySource = isManualPrepayReceiptRow(receiptDoc)
 	const allocationNote = isManualPrepaySource ? '预付款继续分配' : '待分配收款继续分配'
 	const allocationSourceType = isManualPrepaySource ? 'prepay_manual_allocate' : 'receipt_unallocated_allocate'
@@ -6040,7 +6069,7 @@ async function exportCustomerStatementV1(user, data) {
 	const rangeSales = await listCustomerSales(customerId, { dateFrom, dateTo })
 	const rangeReceipts = await listCustomerReceipts(customerId, { dateFrom, dateTo })
 	const dateSeries = buildDateSeries(dateFrom, dateTo)
-	const amountFields = ['amount', 'receipt', 'cash_received', 'refund', 'opening_prepay',
+	const amountFields = ['amount', 'receipt', 'cash_received', 'refund', 'opening_prepay', 'deposit_transfer',
 		'rounding', 'legacy_received', 'legacy_refund', 'opening_debt', 'offset_credit']
 	const totals = Object.fromEntries(amountFields.map(field => [field, 0]))
 	totals.weight_kg = 0
@@ -6069,6 +6098,9 @@ async function exportCustomerStatementV1(user, data) {
 			addAmount(day, 'refund', event.debit)
 			addAmount(day, 'receipt', -event.debit) // Legacy callers retain signed net receipts.
 			day.notes.add(`已登记退款 ${event.debit} 元`)
+		} else if (type === 'deposit_transfer') {
+			addAmount(day, 'deposit_transfer', event.credit)
+			day.notes.add('押金转气款；不属于新收款')
 		} else if (type === 'opening_prepay') {
 			addAmount(day, 'opening_prepay', event.credit)
 			day.notes.add('期初预付款转入；不属于本期收款')
@@ -6563,14 +6595,14 @@ async function listCustomerAccountingMovements(customer, { dateFrom = '', dateTo
 				biz_date: date,
 				created_at: doc && doc.created_at,
 				row_order: 80,
-				summary: isOpeningPrepayReceipt(doc) ? '期初预付款转入（非本期收款）' : `收款 ${receiptLabel}`,
+				summary: isDepositTransferReceipt(doc) ? '押金转气款（非新收款）' : isOpeningPrepayReceipt(doc) ? '期初预付款转入（非本期收款）' : `收款 ${receiptLabel}`,
 				amount,
 				normal_balance: 'credit',
-				source_type: isOpeningPrepayReceipt(doc) ? 'opening_prepay' : 'receipt',
+				source_type: isDepositTransferReceipt(doc) ? 'deposit_transfer' : isOpeningPrepayReceipt(doc) ? 'opening_prepay' : 'receipt',
 				source_id: doc && doc._id
 			}, moneyScale)
 		}
-		if (amount < 0 && !isOpeningPrepayReceipt(doc)) {
+		if (amount < 0 && !isNonCashPrepayReceipt(doc)) {
 			pushAccountingMovement(rows, {
 				biz_date: date,
 				created_at: doc && doc.created_at,
@@ -6719,6 +6751,7 @@ async function confirmAllocationV1(user, data, requestId) {
 	const paymentMethod = normalizePaymentMethod(data.payment_method || data.paymentMethod, 'paid')
 	const note = normalizeString(data.note)
 	const sourceType = normalizeString(data.source_type || data.sourceType) || 'manual'
+	if (sourceType === 'deposit_transfer') return { code: 400, msg: '押金转气款只能由押金专用流程登记' }
 	const sourceId = normalizeId(data.source_id || data.sourceId)
 
 	const applyRes = await applyAllocationAndPersist({
@@ -6737,6 +6770,7 @@ async function confirmAllocationV1(user, data, requestId) {
 		sourceId,
 		entryKind: 'prepay'
 	})
+	if (applyRes.ok === false) return { code: applyRes.code || 400, msg: applyRes.msg || '确认入账未完成' }
 	const balances = await rebuildCustomerBalances(customer._id)
 
 	await recordLog(
@@ -6869,6 +6903,11 @@ async function repairReceiptAllocationV1(user, data, requestId) {
 		if (!receiptDoc) {
 			errorCount += 1
 			results.push({ receipt_id: receiptId, ok: false, msg: '收款单不存在' })
+			continue
+		}
+		if (isDepositTransferReceipt(receiptDoc)) {
+			errorCount += 1
+			results.push({ receipt_id: receiptId, ok: false, msg: '押金转气款来源请通过预付继续分配，不能批量重写' })
 			continue
 		}
 		if (normalizeId(receiptDoc.customer_id) !== customerId) {
@@ -7886,7 +7925,7 @@ async function getCustomerStatementV1(user, data, requestId = '') {
 		const scopedPrepay = fixMoney(scopedPrepayOnly + scopedReceiptUnallocated + scopedOffsetCredit)
 		const scopedLastReceiptBizDate = scopedReceipts.reduce((maxDate, row) => {
 			const amount = fixMoney(Math.max(toNumber(row && row.amount, 0), 0))
-			if (!(amount > 0)) return maxDate
+			if (!(amount > 0) || !isCashReceipt(row)) return maxDate
 			const bizDate = normalizeDate(row && row.biz_date)
 			if (!bizDate) return maxDate
 			if (!maxDate || bizDate > maxDate) return bizDate
@@ -7897,7 +7936,7 @@ async function getCustomerStatementV1(user, data, requestId = '') {
 			scopedLastReceiptAt = scopedReceipts.reduce(
 				(maxValue, row) => {
 					const amount = fixMoney(Math.max(toNumber(row && row.amount, 0), 0))
-					if (!(amount > 0)) return maxValue
+					if (!(amount > 0) || !isCashReceipt(row)) return maxValue
 					return Math.max(maxValue, toNumber(row && row.created_at, 0))
 				},
 				0
@@ -8872,6 +8911,16 @@ const statementPeriodHandler = async (event, context) => {
 			saleRounding: resolveSaleAccountingRoundingAmount,
 			isOffsetReceipt: isOffsetCreditReceiptRow, isOffsetAllocation: isOffsetAllocationRow
 		})
+		try {
+			result.data.deposit_summary = await require('./depositReportLocal').readDepositStatement(db, customerId, {
+				dateFrom: normalizeDate(data.summary_date_from || data.summaryDateFrom || data.date_from || data.dateFrom),
+				dateTo: normalizeDate(data.summary_date_to || data.summaryDateTo || data.date_to || data.dateTo)
+			})
+		} catch (error) {
+			result.data.deposit_summary = { rule_version: 'customer-deposit/2026-09-12.1', customer_id: customerId,
+				read_complete: false, error_code: error.code || 'DEPOSIT_READ_FAILED', issue: '押金读取未完成，请在押金流水中核对' }
+		}
+
 		return result
 	} catch (error) {
 		if (['FINANCIAL_READ_INCOMPLETE', 'FINANCIAL_CLASSIFICATION_REQUIRED'].includes(error.code)) {

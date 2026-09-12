@@ -118,6 +118,7 @@ test('page mapper and both workbooks preserve three decimals and never turn miss
 	assert.equal(context.normalize(p,{dateFrom:'2025-12-01'}),null)
 	assert.equal(context.normalize({...p,cash_received:undefined}),null)
 	assert.equal(context.normalize({...p,read_complete:false}),null)
+	vm.runInContext(fs.readFileSync(path.resolve(__dirname,'../src/services/mappers/customerDeposit.js'),'utf8').replace(/export /g,''),context)
 	const source=fs.readFileSync(path.resolve(__dirname,'../src/components/domain/customer/statement/exportWorkbook.js'),'utf8').replace(/^import .*\n/gm,'').replace(/export /g,'')
 	vm.runInContext(source+'\nglobalThis.builders=[buildCustomerStatementWorkbookXml,buildCustomerAccountingLedgerWorkbookXml]',context)
 	for(const build of context.builders){ const xml=build({period_summary:p}); assert.match(xml,/汇总说明/); assert.match(xml,/77823.297/); assert.match(xml,/164532.1/); assert.match(xml,/ss:ID="sMoney3"/); assert.match(build({}),/未完成/) }
