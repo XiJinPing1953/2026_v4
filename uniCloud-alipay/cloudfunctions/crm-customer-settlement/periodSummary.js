@@ -30,6 +30,11 @@ function calculatePeriodRounding({ targets, receipts, allocations, moneyScale, i
 		if (!active(row)) { if (amount > 0) voidTargets.add(key); continue }
 		if (!(amount > 0)) continue
 		const receipt = receiptMap.get(id(row.receipt_id))
+		if (receipt?.status === 'posted' && (rules.isOffsetReceipt(receipt) || rules.isOffsetAllocation(row))) {
+			invalidTargets.add(key)
+			issue('allocation', row, 'rounding_noncash_origin_unverified', amount)
+			continue
+		}
 		if (!receipt || receipt.status !== 'posted' || rules.isOffsetReceipt(receipt) || rules.isOffsetAllocation(row)) {
 			invalidTargets.add(key)
 			if (relevant(receipt?.biz_date)) issue('allocation', row, 'rounding_allocation_without_posted_receipt', amount)

@@ -140,6 +140,16 @@ test('later prepayment rounding cannot inherit an old receipt date; principal an
 	}
 })
 
+test('posted non-cash rounding is pending by provenance, not falsely reported as a missing receipt', async () => {
+	const h = harness([sale('target', '2026-01-01', { receipt_rounding_amount: 9 })])
+	h.tables.crm_customer_receipts = [receipt('offset', '2026-01-02', 9, { amount: 100, entry_kind: 'offset' })]
+	h.tables.crm_customer_allocations = [allocation('a', 'target', 'offset', 9, { source_type: 'offset_credit_allocate' })]
+	const p = (await summaries(h)).summary
+	assert.equal(p.rounding_total, null)
+	assert.ok(p.unresolved_sources.some(row => row.reason === 'rounding_noncash_origin_unverified'))
+	assert.ok(!p.unresolved_sources.some(row => row.reason === 'rounding_allocation_without_posted_receipt'))
+})
+
 test('anonymized regression controls retain K003 41 yuan non-cash rounding and K002 zero rounding', async () => {
 	// Amounts/dates reproduce the verified API projections; synthetic ids and allocations are not raw evidence.
 	for (const [hasRounding, cash, refund, expected] of [[true, 118060, 0, 41], [false, 10570, 990, 0]]) {
