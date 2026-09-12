@@ -79,7 +79,7 @@ function ensureVoidTransfer(change, scope) {
   if (!receipt || receipt._id !== original.receipt_id || receipt.customer_id !== original.customer_id ||
       receipt.source_type !== 'deposit_transfer' || receipt.source_id !== original._id || receipt.entry_kind !== 'prepay' ||
       receipt.payment_method !== 'unknown' || receipt.status !== 'posted' || receipt.biz_date !== original.biz_date ||
-      M.toScaled(receipt.amount) !== original.amount_cents || M.toScaled(receipt.unallocated_amount, 2, { allowZero: true }) !== original.amount_cents ||
+      M.toScaled(receipt.amount) !== original.amount_cents || M.toScaled(receipt.unallocated_amount, 3, { allowZero: true }) !== original.amount_cents * 10 ||
       M.toScaled(receipt.allocated_amount, 3, { allowZero: true }) !== 0 ||
       M.toScaled(receipt.rounding_amount ?? 0, 3, { allowZero: true }) !== 0 ||
       M.toScaled(receipt.rounding_allocated_amount ?? 0, 3, { allowZero: true }) !== 0 ||

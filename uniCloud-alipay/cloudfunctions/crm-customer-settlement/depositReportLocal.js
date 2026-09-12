@@ -39,6 +39,14 @@ function verifyLedger(account, rows, customerId) {
       if (row.kind === 'transfer' && row.receipt_id !== M.receiptId(row._id)) M.fail('押金转气款来源编号不符')
     }
   }
+  let operationBalance = 0
+  for (const row of [...rows].sort((left, right) => left.account_version - right.account_version)) {
+    const source = row.kind === 'void' ? byId.get(row.original_entry_id) : row
+    const originalDirection = ['receive', 'opening'].includes(source.kind) ? 1 : -1
+    operationBalance = M.checkedSum([operationBalance, source.amount_cents * originalDirection * (row.kind === 'void' ? -1 : 1)])
+    if (operationBalance < 0 || row.operation_result.balance_cents !== operationBalance) M.fail('押金操作保存结果与完整版本链不符，请先核对')
+  }
+  if (account && account.last_entry_id !== rows.find(row => row.account_version === account.version)?._id) M.fail('押金账户最后操作编号与完整版本链不符')
   const balance = M.historyBalance(rows)
   if (account && account.balance_cents !== balance) M.fail('押金账户与完整流水余额不符，本次未返回可信合计')
   return balance

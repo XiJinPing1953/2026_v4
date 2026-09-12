@@ -198,7 +198,8 @@ test('incomplete reads, missing account, ledger mismatch and changed transfer so
   const h = harness(); success(await h.create('receive', 100))
   const original = structuredClone(h.tables)
   for (const mutate of [tables => tables.crm_customer_deposit_accounts.splice(0), tables => tables.crm_customer_deposit_accounts[0].balance_cents++,
-    tables => tables.crm_customer_deposit_entries[0].amount_cents++, tables => tables.crm_customer_deposit_entries[0].fingerprint = 'invalid']) {
+    tables => tables.crm_customer_deposit_entries[0].amount_cents++, tables => tables.crm_customer_deposit_entries[0].fingerprint = 'invalid',
+    tables => tables.crm_customer_deposit_entries[0].operation_result.balance_cents++, tables => tables.crm_customer_deposit_accounts[0].last_entry_id = 'wrong-last-entry']) {
     const tables = structuredClone(original); mutate(tables)
     const main = loadHandler('crm-customer-deposit', depositDb(tables)), result = await main({ token: 'test', action: 'getDepositStatementV1', data: { customer_id: 'customer-1' } })
     assert.equal(result.code, 409); assert.equal(result.data.read_complete, false); assert.equal(result.data.current_balance, undefined)
@@ -217,4 +218,49 @@ test('storage inspection remains read-only and reports unavailable metadata expl
   assert.equal(result.collections.length, 2)
   for (const row of result.collections) { assert.equal(row.count, 0); assert.equal(row.exists, null); assert.equal(row.index_query_available, false) }
   assert.equal(snapshot(h.tables), before)
+})
+
+test('complete deposit reads cross page boundaries and never accept a short page as the complete ledger', async () => {
+  const initial = harness(); success(await initial.create('receive', 1))
+  const tables = structuredClone(initial.tables), template = tables.crm_customer_deposit_entries[0]
+  tables.crm_customer_deposit_entries = Array.from({ length: 240 }, (_, index) => ({ ...structuredClone(template),
+    _id: M.entryId('customer-1', `paged-operation-${index}`), operation_id: `paged-operation-${index}`, account_version: index + 1,
+    operation_result: { ...template.operation_result, version: index + 1, balance_cents: (index + 1) * 100 } }))
+  Object.assign(tables.crm_customer_deposit_accounts[0], { version: 240, balance_cents: 24000,
+    last_entry_id: tables.crm_customer_deposit_entries[239]._id })
+  const h = harness(tables), result = success(await h.invoke('getDepositStatementV1'))
+  assert.equal(result.entries.length, 240); assert.equal(result.current_balance, 240); assert.equal(result.received_total, 240)
+  const truncated = harness(structuredClone(tables), { get: (table, rows) => ({ data: structuredClone(table === M.TABLES.entries ? rows.slice(0, 150) : rows) }) })
+  const bad = await truncated.invoke('getDepositStatementV1')
+  assert.equal(bad.code, 409); assert.equal(bad.data.current_balance, undefined)
+})
+
+test('account mutations during the read and original customer changes inside transaction reject without accepting stale results', async () => {
+  const initial = harness(); success(await initial.create('receive', 20))
+  const tables = structuredClone(initial.tables)
+  let changed = false
+  const raced = harness(tables, { get: (table, rows) => {
+    const result = { data: structuredClone(rows) }
+    if (!changed && table === M.TABLES.entries && rows.length) {
+      changed = true; tables.crm_customer_deposit_accounts[0].updated_at++
+    }
+    return result
+  } })
+  const result = await raced.invoke('getDepositStatementV1')
+  assert.equal(result.code, 409); assert.equal(result.data.current_balance, undefined)
+  const moved = harness({}, { start: current => { current.crm_customers[0].settlement_customer_id = 'customer-2' } })
+  const denied = await moved.create('receive', 1)
+  assert.equal(denied.code, 409); assert.match(denied.msg, /客户原值/)
+  assert.equal(moved.tables.crm_customer_deposit_entries.length, 0)
+})
+
+test('third-decimal gas allocation leaves cent deposit intact and blocks transfer void with complete source agreement', async () => {
+  const h = harness(); success(await h.create('receive', 3))
+  const transfer = success(await h.create('transfer', 3)), receipt = h.tables.crm_customer_receipts[0]
+  receipt.allocated_amount = 1.234; receipt.unallocated_amount = 1.766
+  h.tables.crm_customer_allocations.push({ _id: 'm3-allocation', customer_id: 'customer-1', receipt_id: receipt._id, allocate_amount: 1.234 })
+  const report = success(await h.invoke('getDepositStatementV1'))
+  assert.equal(report.current_balance, 0); assert.equal(report.transferred_total, 3)
+  const result = await h.invoke('voidDepositEntryV1', { entry_id: transfer.entry._id, operation_id: 'void-m3-source', expected_version: 2, reason: 'test' })
+  assert.equal(result.code, 409); assert.equal(h.tables.crm_customer_receipts[0].status, 'posted')
 })
