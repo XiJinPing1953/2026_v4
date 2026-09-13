@@ -16,6 +16,7 @@ export function customerPeriodSummaryRows(value) {
 	return [
 		['business_revenue', '期间营收（不含历史转入）'],
 		['historical_receivable', '期间历史款项'],
+		...(summary?.noncash_balance_adjustment ? [['noncash_balance_adjustment', '期间非现金余额调整（不计营收或收款）']] : []),
 		['receivable_total', '所选期间应收合计（含历史款项）'],
 		['cash_received', '期间实际收款'],
 		['rounding_total', '期间抹零汇总（不计实际收款）'],

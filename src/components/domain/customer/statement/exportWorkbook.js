@@ -184,6 +184,7 @@ export function buildStatementSheetRows(payload = {}) {
 		['legacy_refund', '历史退款差额（元，日期待核）'],
 		['opening_prepay', '期初预付款转入（元，非收款）'],
 		['rounding', '抹零（元，非收款）'],
+		...(payload.totals?.balance_adjustment ? [['balance_adjustment', '非现金余额调整（元）']] : []),
 		['balance', '结余（元，正欠款/负预付款）']
 	]
 	const result = [

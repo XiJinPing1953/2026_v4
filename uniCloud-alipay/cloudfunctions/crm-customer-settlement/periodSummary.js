@@ -125,11 +125,13 @@ function calculatePeriodSummary(input, rules) {
 	}
 	let businessRevenue = 0
 	let historicalReceivable = 0
+	let balanceAdjustment = 0
 	for (const item of targets) {
 		const { row, type, bizDate, snapshot } = item
-		const amount = type === 'opening_debt' || type === 'other_fee' ? snapshot.should_receive_effective : snapshot.should_receive
+		const amount = ['opening_debt', 'other_fee', 'balance_adjustment'].includes(type) ? snapshot.should_receive_effective : snapshot.should_receive
 		if (inRange(bizDate)) {
-			if (type === 'opening_debt') historicalReceivable = sum([historicalReceivable, amount])
+			if (type === 'balance_adjustment') balanceAdjustment = sum([balanceAdjustment, amount])
+			else if (type === 'opening_debt') historicalReceivable = sum([historicalReceivable, amount])
 			else businessRevenue = sum([businessRevenue, amount])
 		} else if (!bizDate && amount) issue(type, row, 'business_date_missing', amount)
 		const received = sum([snapshot.amount_received || 0])
@@ -176,8 +178,9 @@ function calculatePeriodSummary(input, rules) {
 		read_complete: true, complete: pending.length === 0, status: pending.length ? 'needs_review' : 'complete',
 		cash_complete: cashComplete,
 		business_revenue: businessComplete ? businessRevenue : null,
+		noncash_balance_adjustment: businessComplete ? balanceAdjustment : null,
 		historical_receivable: businessComplete ? historicalReceivable : null,
-		receivable_total: businessComplete ? sum([businessRevenue, historicalReceivable]) : null,
+		receivable_total: businessComplete ? sum([businessRevenue, historicalReceivable, balanceAdjustment]) : null,
 		...Object.fromEntries(Object.entries(knownCash).map(([key, value]) => [key, cashComplete ? value : null])),
 		...rounding,
 		opening_prepay_transferred: openingTransferred, deposit_transferred: depositTransferred, source_notes: sourceNotes,

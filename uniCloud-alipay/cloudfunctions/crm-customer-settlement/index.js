@@ -472,7 +472,7 @@ async function buildBusinessSummaryFromTargets(
 		const targetType = resolveOpeningDebtEntryType(doc)
 		const allocated = getAllocated(targetType, openingDebtId)
 		const businessReceived = resolveDirectTargetReceived(snapshot.amount_received, allocated)
-		if (targetType !== 'opening_debt') {
+		if (targetType === 'other_fee') {
 			shouldTotal = sumMoneyByScale([shouldTotal, snapshot.should_receive_effective], moneyScale)
 			receivedTotal = sumMoneyByScale([receivedTotal, businessReceived], moneyScale)
 		}
@@ -859,6 +859,7 @@ function receivableTargetTypeLabel(targetType) {
 	const normalized = normalizeReceivableTargetType(targetType)
 	if (normalized === 'flow_settlement') return '流量结算'
 	if (normalized === 'opening_debt') return '历史欠款'
+	if (normalized === 'balance_adjustment') return '非现金余额调整'
 	if (normalized === 'other_fee') return '其他费用'
 	return '销售单'
 }
@@ -1024,7 +1025,7 @@ function normalizeSettlementMode(value, fallback = 'sale') {
 
 function normalizeReceivableTargetType(value) {
 	const text = normalizeString(value)
-	if (text === 'flow_settlement' || text === 'sale' || text === 'opening_debt' || text === 'other_fee') return text
+	if (text === 'flow_settlement' || text === 'sale' || text === 'opening_debt' || text === 'other_fee' || text === 'balance_adjustment') return text
 	return 'sale'
 }
 
@@ -1035,6 +1036,7 @@ function isOtherFeeSourceType(value) {
 }
 
 function resolveOpeningDebtEntryType(doc) {
+	if (normalizeString(doc && doc.source_type) === 'balance_adjustment') return 'balance_adjustment'
 	return isOtherFeeSourceType(doc && doc.source_type) ? 'other_fee' : 'opening_debt'
 }
 
@@ -1047,6 +1049,7 @@ function resolveOpeningDebtRoundingAmount(amountValue, roundingValue, moneyScale
 }
 
 function openingDebtEntryLabelByType(entryType) {
+	if (entryType === 'balance_adjustment') return '非现金余额调整'
 	return normalizeReceivableTargetType(entryType) === 'other_fee' ? '其他费用' : '历史欠款'
 }
 
@@ -1054,6 +1057,7 @@ function receivableTargetTypeText(value) {
 	const type = normalizeReceivableTargetType(value)
 	if (type === 'flow_settlement') return '流量结算'
 	if (type === 'opening_debt') return '历史欠款'
+	if (type === 'balance_adjustment') return '非现金余额调整'
 	if (type === 'other_fee') return '其他费用'
 	return '销售单'
 }
@@ -2364,7 +2368,7 @@ async function applyAllocationAndPersist({
 			}
 			targetDate = normalizeString(flowDoc.biz_date)
 			if (!targetTitle) targetTitle = `流量结算 ${targetDate} / ${targetId.slice(-6)}`
-		} else if (targetType === 'opening_debt' || targetType === 'other_fee') {
+		} else if (targetType === 'opening_debt' || targetType === 'other_fee' || targetType === 'balance_adjustment') {
 			const debtRes = await openingDebts.doc(targetId).get()
 			const debtDoc = (debtRes.data && debtRes.data[0]) || null
 			if (!debtDoc) continue
@@ -2884,7 +2888,7 @@ async function rollbackReceiptAllocations({ customerId, receiptId, allocationRow
 	let skipped = grouped.skipped
 	const saleGroups = grouped.groups.filter((item) => item.target_type === 'sale')
 	const flowGroups = grouped.groups.filter((item) => item.target_type === 'flow_settlement')
-	const debtGroups = grouped.groups.filter((item) => item.target_type === 'opening_debt' || item.target_type === 'other_fee')
+	const debtGroups = grouped.groups.filter((item) => item.target_type === 'opening_debt' || item.target_type === 'other_fee' || item.target_type === 'balance_adjustment')
 	const saleMap = await getDocsByIds(sales, saleGroups.map((item) => item.target_id))
 	const flowMap = await getDocsByIds(flowSettlements, flowGroups.map((item) => item.target_id))
 	const debtMap = await getDocsByIds(openingDebts, debtGroups.map((item) => item.target_id))
@@ -2914,7 +2918,7 @@ async function rollbackReceiptAllocations({ customerId, receiptId, allocationRow
 			rollbackTotal = fix3(rollbackTotal + receiptAmount + roundingAmount)
 			continue
 		}
-		if (targetType === 'opening_debt' || targetType === 'other_fee') {
+		if (targetType === 'opening_debt' || targetType === 'other_fee' || targetType === 'balance_adjustment') {
 			const debtDoc = debtMap.get(targetId) || null
 			if (!debtDoc || normalizeId(debtDoc.customer_id) !== customerId || normalizeString(debtDoc.status) !== 'posted') {
 				skipped += group.row_count
@@ -3398,7 +3402,7 @@ async function applyPlanToExistingReceipt({
 			}
 			targetDate = normalizeString(flowDoc.biz_date)
 			if (!targetTitle) targetTitle = `流量结算 ${targetDate} / ${targetId.slice(-6)}`
-		} else if (targetType === 'opening_debt' || targetType === 'other_fee') {
+		} else if (targetType === 'opening_debt' || targetType === 'other_fee' || targetType === 'balance_adjustment') {
 			const debtRes = await openingDebts.doc(targetId).get()
 			const debtDoc = (debtRes.data && debtRes.data[0]) || null
 			if (!debtDoc || normalizeId(debtDoc.customer_id) !== customer._id || normalizeString(debtDoc.status) !== 'posted') continue
@@ -4666,6 +4670,7 @@ async function createOpeningDebtEntryV1(user, data, requestId) {
 	const bizDate = normalizeBizDate(data.biz_date || data.bizDate, Date.now())
 	const note = normalizeString(data.note)
 	const sourceTypeInput = normalizeString(data.source_type || data.sourceType)
+	if (sourceTypeInput === 'balance_adjustment') return { code: 400, msg: '非现金余额调整仅能通过有备份的专用核对流程登记' }
 	const sourceType = isOtherFeeSourceType(sourceTypeInput)
 		? 'customer_opening_debt_manual'
 		: (sourceTypeInput || 'customer_opening_debt_manual')
@@ -4771,6 +4776,7 @@ async function updateOpeningDebtEntryV1(user, data, requestId) {
 	const bizDate = normalizeBizDate(data.biz_date || data.bizDate || debtDoc.biz_date, Date.now())
 	const note = data.note === undefined ? normalizeString(debtDoc.note) : normalizeString(data.note)
 	const sourceTypeInput = normalizeString(data.source_type || data.sourceType || debtDoc.source_type)
+	if (sourceTypeInput === 'balance_adjustment') return { code: 400, msg: '非现金余额调整仅能通过有备份的专用核对流程登记' }
 	const sourceType = isOtherFeeSourceType(sourceTypeInput)
 		? 'customer_opening_debt_manual'
 		: (sourceTypeInput || 'customer_opening_debt_manual')
@@ -4918,6 +4924,7 @@ async function createOtherFeeEntryV1(user, data, requestId) {
 	const bizDate = normalizeBizDate(data.biz_date || data.bizDate, Date.now())
 	const note = normalizeString(data.note)
 	const sourceTypeInput = normalizeString(data.source_type || data.sourceType)
+	if (sourceTypeInput === 'balance_adjustment') return { code: 400, msg: '非现金余额调整仅能通过有备份的专用核对流程登记' }
 	const sourceType = isOtherFeeSourceType(sourceTypeInput)
 		? sourceTypeInput
 		: 'customer_other_fee_manual'
@@ -5013,6 +5020,7 @@ async function updateOtherFeeEntryV1(user, data, requestId) {
 	const bizDate = normalizeBizDate(data.biz_date || data.bizDate || debtDoc.biz_date, Date.now())
 	const note = data.note === undefined ? normalizeString(debtDoc.note) : normalizeString(data.note)
 	const sourceTypeInput = normalizeString(data.source_type || data.sourceType || debtDoc.source_type)
+	if (sourceTypeInput === 'balance_adjustment') return { code: 400, msg: '非现金余额调整仅能通过有备份的专用核对流程登记' }
 	const sourceType = isOtherFeeSourceType(sourceTypeInput)
 		? sourceTypeInput
 		: 'customer_other_fee_manual'
@@ -5482,7 +5490,7 @@ async function applyOffsetAllocationsToReceipt({
 			}
 			targetDate = normalizeString(flowDoc.biz_date)
 			if (!targetTitle) targetTitle = `流量结算 ${targetDate} / ${targetId.slice(-6)}`
-		} else if (targetType === 'opening_debt' || targetType === 'other_fee') {
+		} else if (targetType === 'opening_debt' || targetType === 'other_fee' || targetType === 'balance_adjustment') {
 			const debtRes = await openingDebts.doc(targetId).get()
 			const debtDoc = readDocument(debtRes)
 			if (!debtDoc || normalizeId(debtDoc.customer_id) !== customer._id || normalizeString(debtDoc.status) !== 'posted') continue
@@ -6075,7 +6083,7 @@ async function exportCustomerStatementV1(user, data) {
 	const rangeReceipts = await listCustomerReceipts(customerId, { dateFrom, dateTo })
 	const dateSeries = buildDateSeries(dateFrom, dateTo)
 	const amountFields = ['amount', 'receipt', 'cash_received', 'refund', 'opening_prepay', 'deposit_transfer',
-		'rounding', 'legacy_received', 'legacy_refund', 'opening_debt', 'offset_credit']
+		'rounding', 'legacy_received', 'legacy_refund', 'opening_debt', 'offset_credit', 'balance_adjustment']
 	const totals = Object.fromEntries(amountFields.map(field => [field, 0]))
 	totals.weight_kg = 0
 	const dayMap = new Map(dateSeries.map(date => [date, {
@@ -6096,6 +6104,9 @@ async function exportCustomerStatementV1(user, data) {
 				day.notes.add(`期初欠款转入 ${event.debit} 元已含在金额列，不属于本期营收`)
 			}
 			if (type === 'flow_settlement') day.notes.add('含流量结算')
+		} else if (type === 'balance_adjustment') {
+			addAmount(day, 'balance_adjustment', event.debit - event.credit)
+			day.notes.add('非现金余额调整；不计营收或实际收款')
 		} else if (type === 'receipt') {
 			addAmount(day, 'cash_received', event.credit)
 			addAmount(day, 'receipt', event.credit)

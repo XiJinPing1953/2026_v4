@@ -102,6 +102,10 @@
 						<text v-if="periodReport?.unresolved_count" class="overview-meta">{{ periodReport.unresolved_count }} 项账务依据待核，相关合计暂不显示</text>
 						<text v-for="(issue, index) in (periodReport?.unresolved_sources || []).slice(0, 3)" :key="index" class="overview-meta">{{ describePeriodSummaryIssue(issue) }}</text>
 					</view>
+					<view v-if="periodReport?.noncash_balance_adjustment" class="overview-item">
+						<text class="overview-label">非现金余额调整</text>
+						<text class="overview-value">{{ periodMoney('noncash_balance_adjustment') }}</text>
+					</view>
 					<view v-if="periodReport?.opening_prepay_transferred > 0" class="overview-item">
 						<text class="overview-label">期间期初预付款转入</text>
 						<text class="overview-value">{{ periodMoney('opening_prepay_transferred') }}</text>
@@ -1008,9 +1012,9 @@
 								</text>
 								<text v-if="row.row_type === 'opening_debt' && toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
 								<text v-if="row.row_type === 'opening_debt'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
-								<text v-if="row.row_type === 'other_fee'">应收 ¥{{ formatMoney(row.amount) }}</text>
-								<text v-if="row.row_type === 'other_fee' && toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
-								<text v-if="row.row_type === 'other_fee'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
+								<text v-if="['other_fee', 'balance_adjustment'].includes(row.row_type)">应收 ¥{{ formatMoney(row.amount) }}</text>
+								<text v-if="['other_fee', 'balance_adjustment'].includes(row.row_type) && toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
+								<text v-if="['other_fee', 'balance_adjustment'].includes(row.row_type)">未收 ¥{{ formatMoney(row.outstanding) }}</text>
 								<text v-if="row.row_type === 'receipt'">{{ receiptAmountLabel(row) }} ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'receipt' && toNumber(row.rounding_allocated_amount, 0) > 0">抹零 ¥{{ formatMoney(row.rounding_allocated_amount) }}</text>
 								<text v-if="row.row_type === 'receipt'">{{ receiptRemainingBalanceLabel(row) }} ¥{{ formatMoney(row.prepay_delta) }}</text>
@@ -2564,7 +2568,7 @@ function bizModeText(value) {
 
 function normalizeReceivableTargetTypeForForm(value) {
 	const text = normalizeString(value)
-	if (text === 'flow_settlement' || text === 'opening_debt' || text === 'other_fee') return text
+	if (text === 'flow_settlement' || text === 'opening_debt' || text === 'other_fee' || text === 'balance_adjustment') return text
 	return 'sale'
 }
 
@@ -2572,6 +2576,7 @@ function targetTypeText(value) {
 	const text = normalizeReceivableTargetTypeForForm(value)
 	if (text === 'flow_settlement') return '流量结算'
 	if (text === 'opening_debt') return '历史欠款'
+	if (text === 'balance_adjustment') return '非现金余额调整'
 	if (text === 'other_fee') return '其他费用'
 	return '销售单'
 }
@@ -3108,7 +3113,7 @@ function parseAllocationTargetKeys(keys = []) {
 			const parts = key.split(':')
 			if (parts.length < 2) return null
 			const rawType = normalizeString(parts[0])
-			const targetType = rawType === 'flow_settlement' || rawType === 'opening_debt' || rawType === 'other_fee'
+			const targetType = rawType === 'flow_settlement' || rawType === 'opening_debt' || rawType === 'other_fee' || rawType === 'balance_adjustment'
 				? rawType
 				: 'sale'
 			const targetId = parts.slice(1).join(':')
@@ -4336,7 +4341,7 @@ async function onEditReceipt(row) {
 		checkedAllocationTargetKeys.value = targets
 			.map((item) => {
 				const rawType = normalizeString(item?.target_type)
-				const targetType = rawType === 'flow_settlement' || rawType === 'opening_debt' || rawType === 'other_fee'
+				const targetType = rawType === 'flow_settlement' || rawType === 'opening_debt' || rawType === 'other_fee' || rawType === 'balance_adjustment'
 					? rawType
 					: 'sale'
 				const targetId = normalizeString(item?.target_id)
@@ -4603,6 +4608,7 @@ function statementRowTitle(row) {
 	}
 	if (row?.row_type === 'flow_settlement') return `流量结算单 ${row?.row_id || ''}`
 	if (row?.row_type === 'opening_debt') return `历史欠款 ${row?.row_id || ''}`
+	if (row?.row_type === 'balance_adjustment') return `非现金余额调整 ${row?.row_id || ''}`
 	if (row?.row_type === 'other_fee') return `其他费用 ${row?.row_id || ''}`
 	return `销售单 ${row?.sale_id || row?.row_id || ''}`
 }
