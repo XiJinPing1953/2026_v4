@@ -14,7 +14,7 @@
 |---|---|---|
 | 客户结算、K004专用两完整函数 | `56a11b497f59f4f16dc18d23c43b422a8c2ddec2` | [09-13验收](state/handoffs/2026-09-13-k004-accounting-audit.md) |
 | 押金、首页 | `ada8f89607e928c74969431bf7711a5891f8b6be` | [09-12发布](state/handoffs/2026-09-12-customer-deposit.md) |
-| H5 | `1789287157140-456200a3`，源码`56a11b497f59` | [09-13验收](state/handoffs/2026-09-13-k004-accounting-audit.md) |
+| H5 | `1789288581886-29a6c3ee`，源码`ba6f57748e82` | [09-13验收](state/handoffs/2026-09-13-k004-accounting-audit.md) |
 | 销售、催收 | `5021753` | [09-09发布](state/handoffs/2026-09-09-accounting-release-accepted.md) |
 | K001/K002专用转换 | 保持各自已验收版本 | [K001](state/handoffs/2026-09-11-baotai-receipt-conversion.md)、[K002](state/handoffs/2026-09-12-k002-pending.md) |
 
