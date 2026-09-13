@@ -20,8 +20,9 @@ async function snapshot(db) {
  for(const [name,field,ids] of [['crm_customer_receipts','source_id',sales],['crm_customer_allocations','receipt_id',receipts],['crm_customer_allocations','target_id',targets],['crm_customer_allocations','sale_id',sales]]) {
   for(let i=0;i<ids.length;i+=50){const rows=await readComplete(db.collection(name),{[field]:db.command.in(ids.slice(i,i+50))},{command:db.command,source:name+'_reverse',maxRows:10000});if(rows.some(x=>x.customer_id!==CUSTOMER_ID||!tables[name].some(y=>y._id===x._id)))throw Error('范围外反向关联')}
  }
- const voucherMap=new Map()
- for(const field of ['customer_id','source_key']) {
+ const voucherMap=new Map();let hasVouchers=true
+ try {await db.collection('crm_vouchers').where({customer_id:CUSTOMER_ID}).count()}catch(e){if(String(e.message).trim()!=='not found collection')throw e;hasVouchers=false;absent.push('crm_vouchers')}
+ for(const field of hasVouchers ? ['customer_id','source','source_key'] : []) {
   const values=field==='customer_id'?[CUSTOMER_ID]:sales.map(x=>'sale:'+x)
   for(let i=0;i<values.length;i+=50){const rows=await readComplete(db.collection('crm_vouchers'),{[field]:db.command.in(values.slice(i,i+50))},{command:db.command,source:'crm_vouchers',maxRows:10000});for(const x of rows)voucherMap.set(x._id,x)}
  }
