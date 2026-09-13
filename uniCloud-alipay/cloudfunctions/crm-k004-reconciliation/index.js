@@ -3,7 +3,7 @@ const crypto = require('crypto')
 const { readComplete } = require('./financialReadLocal')
 const CUSTOMER_ID = '694045c0adf6dbd796e261b5'
 const TABLES = ['crm_sale_records','crm_customer_receipts','crm_customer_allocations','crm_customer_flow_settlements','crm_customer_opening_debts','crm_customer_receipt_adjustments','crm_customer_deposit_accounts','crm_customer_deposit_entries','crm_collection_tasks','crm_collection_followups']
-const optional = new Set(['crm_customer_receipt_adjustments'])
+const optional = new Set(['crm_customer_receipt_adjustments','crm_collection_tasks','crm_collection_followups'])
 const first = r => Array.isArray(r?.data) ? r.data[0] : r?.data
 const canonical = v => Array.isArray(v) ? v.map(canonical) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])) : v
 const digest = v => crypto.createHash('sha256').update(JSON.stringify(canonical(v))).digest('hex')
@@ -13,7 +13,7 @@ async function snapshot(db) {
  const tables={crm_customers:[customer]}, absent=[]
  for(const name of TABLES) {
   try { await db.collection(name).where({customer_id:CUSTOMER_ID}).count() }
-  catch(e) { if(optional.has(name)&&String(e.message).trim()==='not found collection'){tables[name]=[];absent.push(name);continue}throw e }
+  catch(e) { if(optional.has(name)&&String(e.message).trim()==='not found collection'){tables[name]=[];absent.push(name);continue}throw Error(name+': '+e.message) }
   tables[name]=await readComplete(db.collection(name),{customer_id:CUSTOMER_ID},{command:db.command,source:name,maxRows:10000})
  }
  const sales=tables.crm_sale_records.map(x=>x._id),receipts=tables.crm_customer_receipts.map(x=>x._id),targets=[...sales,...tables.crm_customer_opening_debts.map(x=>x._id)]
