@@ -9,6 +9,9 @@ const digest = v => crypto.createHash('sha256').update(JSON.stringify(canonical(
 async function snapshot(db, CUSTOMER_ID) {
  const started=Date.now(), customer=first(await db.collection('crm_customers').doc(CUSTOMER_ID).get())
  if (!customer || customer._id !== CUSTOMER_ID) throw Error('客户范围不符')
+ if (customer.settlement_customer_id && customer.settlement_customer_id !== CUSTOMER_ID) throw Error('本版不支持合并结算客户')
+ const children=await db.collection('crm_customers').where({settlement_customer_id:CUSTOMER_ID}).get()
+ if((children.data||[]).some(r=>r._id!==CUSTOMER_ID)) throw Error('本版不支持带子客户的合并结算')
  const tables={crm_customers:[customer]}, absent=[]
  for(const name of TABLES) {
   try { await db.collection(name).where({customer_id:CUSTOMER_ID}).count() }

@@ -12,9 +12,9 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.13-accounting-correction-inspect",
+      "version": "2026.09.13-accounting-correction-v1",
       "output": "release/cloud",
-      "acceptance": "Read-only complete customer snapshot; no financial writes; superadmin only",
+      "acceptance": "Superadmin protected receipt backing/date correction, original guards and idempotency; K006 197980 cash, 351.5 rounding, zero debt; no existing function, H5 or schema upload",
       "deploymentScope": {
         "functions": [
           "crm-accounting-correction"
@@ -25,7 +25,10 @@
           "uniCloud-alipay/cloudfunctions/crm-accounting-correction/financialReadLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-accounting-correction/index.js",
           "uniCloud-alipay/cloudfunctions/crm-accounting-correction/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/snapshot.js"
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/plan.js",
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/saleAccountingLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/snapshot.js",
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/transaction.js"
         ],
         "aclCanonicalRevisions": {}
       },

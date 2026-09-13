@@ -21,7 +21,8 @@
         "uniCloud-alipay/cloudfunctions/crm-sale/saleAccountingLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-customer-settlement/saleAccountingLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-dashboard/saleAccountingLocal.js",
-        "uniCloud-alipay/cloudfunctions/crm-collection/saleAccountingLocal.js"
+        "uniCloud-alipay/cloudfunctions/crm-collection/saleAccountingLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-accounting-correction/saleAccountingLocal.js"
       ]
     },
     {
@@ -36,7 +37,8 @@
         "uniCloud-alipay/cloudfunctions/crm-ledger-reconciliation/financialReadLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-haonuo-reconciliation/financialReadLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/financialReadLocal.js",
-        "uniCloud-alipay/cloudfunctions/crm-customer-deposit/financialReadLocal.js"
+        "uniCloud-alipay/cloudfunctions/crm-customer-deposit/financialReadLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-accounting-correction/financialReadLocal.js"
       ]
     },
     {
