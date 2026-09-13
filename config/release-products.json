@@ -12,22 +12,20 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.13-k005-receipt-backing",
+      "version": "2026.09.13-accounting-correction-inspect",
       "output": "release/cloud",
-      "acceptance": "Single protected K005 conversion package; 47535 cash, 46415.5 revenue, 196.5 rounding, zero debt; no H5 or schema deployment",
+      "acceptance": "Read-only complete customer snapshot; no financial writes; superadmin only",
       "deploymentScope": {
         "functions": [
-          "crm-k005-reconciliation"
+          "crm-accounting-correction"
         ],
         "databaseFiles": [],
-        "baseCommit": "0d1d2c1b6c00e9005caf35677f8e924c4ae1dde6",
+        "baseCommit": "b85cb6f666f55d49efa27e78fe31bf8c2f48eb83",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/financialReadLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/plan.js",
-          "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/spec.js",
-          "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/transaction.js"
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/financialReadLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/package.json",
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/snapshot.js"
         ],
         "aclCanonicalRevisions": {}
       },
