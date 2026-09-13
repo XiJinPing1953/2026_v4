@@ -60,6 +60,13 @@
       "targets": [
         "uniCloud-alipay/cloudfunctions/crm-customer-settlement/depositModel.js"
       ]
+    },
+    {
+      "source": "uniCloud-alipay/cloudfunctions/common/accountingReview.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-accounting-correction/accountingReviewLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-customer-settlement/accountingReviewLocal.js"
+      ]
     }
   ],
   "promotedSchemas": [

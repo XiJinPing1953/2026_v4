@@ -42,3 +42,10 @@ export function describePeriodSummaryIssue(row = {}) {
 	}
 	return `单据 ${String(row.source_id || '').slice(-6)}：${reasons[row.reason] || '账务依据待核'}`
 }
+
+export function outstandingPeriodIssues(summary) {
+ return summary?.manual_review?.version === 'accounting-manual-review/2026-09-13.1' ? summary.manual_review.outstanding_sources : (summary?.unresolved_sources || [])
+}
+export function periodReviewLabel(summary) {
+ return summary?.manual_review?.version === 'accounting-manual-review/2026-09-13.1' && summary.manual_review.status === 'approved' ? '已人工核准' : ''
+}

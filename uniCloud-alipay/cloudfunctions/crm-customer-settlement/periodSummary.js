@@ -188,7 +188,7 @@ function calculatePeriodSummary(input, rules) {
 	}
 }
 
-async function readPeriodSummary({ collections, command, customerId, saleWhere, dateFrom, dateTo, moneyScale }, rules) {
+async function readPeriodSummary({ collections, command, customerId, saleWhere, dateFrom, dateTo, moneyScale, reviewCollection }, rules) {
 	const started = Date.now()
 	const inputs = {}
 	const sourceWhere = { customer_id: customerId }
@@ -204,7 +204,9 @@ async function readPeriodSummary({ collections, command, customerId, saleWhere, 
 		])])).limit(1).get()
 		if (!Array.isArray(changed.data) || changed.data.length) throw new FinancialReadError('period_sources_changed', { source: name })
 	}
-	return { ...calculatePeriodSummary({ ...inputs, dateFrom, dateTo, moneyScale }, rules),
+	const summary = calculatePeriodSummary({ ...inputs, dateFrom, dateTo, moneyScale }, rules)
+	const reviews = reviewCollection ? await readComplete(reviewCollection, {customer_id:customerId, action:'accounting_manual_review'}, {command,source:'manual_review'}) : []
+	return { ...require('./accountingReviewLocal').applyReview(summary, inputs, reviews, customerId),
 		read_started_at: started, read_completed_at: Date.now(), consistency: 'live_read_non_atomic' }
 }
 

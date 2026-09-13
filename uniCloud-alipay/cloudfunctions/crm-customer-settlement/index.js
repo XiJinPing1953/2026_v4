@@ -8917,7 +8917,7 @@ const statementPeriodHandler = async (event, context) => {
 		const saleWhere = hiddenWhere ? dbCmd.and([{ customer_id: customerId }, hiddenWhere]) : { customer_id: customerId }
 		result.data.period_summary = await require('./periodSummary').readPeriodSummary({
 			collections: { sales, flows: flowSettlements, debts: openingDebts, receipts, allocations },
-			command: dbCmd, customerId, saleWhere,
+			command: dbCmd, customerId, saleWhere, reviewCollection: db.collection('crm_operation_logs'),
 			dateFrom: normalizeDate(data.summary_date_from || data.summaryDateFrom || data.date_from || data.dateFrom),
 			dateTo: normalizeDate(data.summary_date_to || data.summaryDateTo || data.date_to || data.dateTo),
 			moneyScale: resolveCustomerMoneyScale(customer)

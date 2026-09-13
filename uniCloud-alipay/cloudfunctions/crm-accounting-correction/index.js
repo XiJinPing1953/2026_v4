@@ -10,6 +10,7 @@ exports.main=async(event={})=>{
   if(!user||user.role!=='superadmin')return{code:403,msg:'仅超级管理员可读取或修正原值'}
   const id=event.data?.customer_id
   if(!/^[a-f0-9]{24}$/.test(id||''))return{code:400,msg:'客户编号无效'}
+  if(event.action==='approveManualReviewV1')return await require('./manualReview')(db,user,event.data)
   if(event.action==='inspectV1')return{code:0,data:await snapshot(db,id),rule_version:VERSION}
   const data=event.data,runId=batchId(id,data.operation_id),logId='accounting_correction_'+runId
   const logs=db.collection('crm_operation_logs'),existing=first(await logs.doc(logId).get())

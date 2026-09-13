@@ -99,8 +99,9 @@
 						<text class="overview-meta">其中收回历史欠款 {{ periodMoney('historical_debt_collected') }}</text>
 						<text class="overview-meta">{{ periodIsYear ? '本年抹零汇总' : '期间抹零汇总' }} {{ periodMoney('rounding_total') }} · 不计实际收款</text>
 						<text class="overview-meta">{{ periodScopeText }} · 按收款日期</text>
-						<text v-if="periodReport?.unresolved_count" class="overview-meta">{{ periodReport.unresolved_count }} 项账务依据待核，相关合计暂不显示</text>
-						<text v-for="(issue, index) in (periodReport?.unresolved_sources || []).slice(0, 3)" :key="index" class="overview-meta">{{ describePeriodSummaryIssue(issue) }}</text>
+						<text v-if="periodReport?.manual_review" class="overview-meta">{{ periodReport.manual_review.note }}</text>
+						<text v-if="outstandingPeriodIssues(periodReport).length" class="overview-meta">{{ outstandingPeriodIssues(periodReport).length }} 项账务依据待核，相关合计暂不显示</text>
+						<text v-for="(issue, index) in outstandingPeriodIssues(periodReport).slice(0, 3)" :key="index" class="overview-meta">{{ describePeriodSummaryIssue(issue) }}</text>
 					</view>
 					<view v-if="periodReport?.noncash_balance_adjustment" class="overview-item">
 						<text class="overview-label">非现金余额调整</text>
@@ -1042,7 +1043,7 @@
 </template>
 
 <script setup>
-import { normalizeCustomerPeriodSummary, describePeriodSummaryIssue } from '@/services/mappers/customerPeriodSummary.js'
+import { normalizeCustomerPeriodSummary, outstandingPeriodIssues, periodReviewLabel, describePeriodSummaryIssue } from '@/services/mappers/customerPeriodSummary.js'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
@@ -1398,7 +1399,7 @@ const periodScopeText = computed(() => `口径：${normalizeDate(rowFilters.date
 const periodIsYear = computed(() => normalizeDate(rowFilters.dateFrom) === `${new Date().getFullYear()}-01-01` && normalizeDate(rowFilters.dateTo) === todayYmd())
 function periodMoney(key) {
 	const value = periodReport.value?.[key]
-	return typeof value === 'number' && Number.isFinite(value) ? `¥${formatMoney(value)}` : (periodReport.value ? '待核' : '未完成')
+	return typeof value === 'number' && Number.isFinite(value) ? `¥${formatMoney(value)}` : (periodReviewLabel(periodReport.value) || (periodReport.value ? '待核' : '未完成'))
 }
 
 const overviewScopeText = computed(() => (

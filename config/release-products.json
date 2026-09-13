@@ -6,29 +6,33 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.13-statement-layout",
+      "version": "2026.09.13-manual-review",
       "output": "dist/build/web",
-      "acceptance": "Customer identity and financial cards wrap separately; accounting notes outside summary cards; amounts unchanged",
+      "acceptance": "Display acknowledged legacy cash issues as manually approved; preserve financial amounts and other clients",
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.13-accounting-correction-v1",
+      "version": "2026.09.13-manual-review",
       "output": "release/cloud",
-      "acceptance": "Superadmin protected receipt backing/date correction, original guards and idempotency; K006 197980 cash, 351.5 rounding, zero debt; no existing function, H5 or schema upload",
+      "acceptance": "Only audited manual-review log writes; source-bound acknowledgement with unchanged financial records; K007 four issues",
       "deploymentScope": {
         "functions": [
-          "crm-accounting-correction"
+          "crm-accounting-correction",
+          "crm-customer-settlement"
         ],
         "databaseFiles": [],
-        "baseCommit": "b85cb6f666f55d49efa27e78fe31bf8c2f48eb83",
+        "baseCommit": "c81599d7cb2c6f8ac14294b506673e80c00439d1",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/financialReadLocal.js",
+          "src/components/domain/customer/statement/CustomerStatementModule.vue",
+          "src/components/domain/customer/statement/exportWorkbook.js",
+          "src/services/mappers/customerPeriodSummary.js",
+          "uniCloud-alipay/cloudfunctions/common/accountingReview.js",
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/accountingReviewLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-accounting-correction/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/plan.js",
-          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/saleAccountingLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/snapshot.js",
-          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/transaction.js"
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/manualReview.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/accountingReviewLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/periodSummary.js"
         ],
         "aclCanonicalRevisions": {}
       },
