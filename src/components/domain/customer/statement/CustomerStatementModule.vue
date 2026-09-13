@@ -134,8 +134,10 @@
 					</view>
 				</view>
 				<view v-if="periodReport?.source_notes?.length" class="overview-notes">
-					<text class="overview-notes-title">统计说明</text>
+					<button class="overview-notes-toggle" :aria-expanded="overviewNotesOpen" @click="overviewNotesOpen = !overviewNotesOpen">口径说明 {{ overviewNotesOpen ? '收起 −' : '展开 +' }}</button>
+					<view v-if="overviewNotesOpen" class="overview-notes-body">
 					<text v-for="note in periodReport.source_notes" :key="note.source_id" class="overview-meta">{{ note.source_type === 'allocation_rounding' ? '以下金额已包含在抹零汇总中。' + note.text.replace('后续分配抹零', '分配时登记的抹零') : note.text }}</text>
+					</view>
 				</view>
 			</AppSection>
 
@@ -1099,6 +1101,7 @@ const props = defineProps({
 const recordId = toRef(props, 'recordId')
 const scene = toRef(props, 'scene')
 const saleId = toRef(props, 'saleId')
+const overviewNotesOpen = ref(false)
 const loading = ref(false)
 const rowsLoading = ref(false)
 const rowSummaryLoading = ref(false)
@@ -5644,10 +5647,15 @@ onBeforeUnmount(() => {
 }
 
 .overview-grid--identity { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.overview-grid--finance { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 12px; align-items: start; }
+.overview-grid--finance { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 12px; align-items: stretch; }
 .overview-item { min-width: 0; overflow-wrap: anywhere; }
-.overview-notes { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; padding: 12px; background: #f8fafc; border-radius: 6px; }
-.overview-notes-title { font-size: 13px; font-weight: 600; color: var(--crm-text-muted); }
+.overview-grid--finance .overview-item { padding: 14px 16px; gap: 6px; }
+.overview-grid--finance .overview-value { margin-bottom: 2px; }
+.overview-notes { margin-top: 8px; }
+.overview-notes-toggle { display: inline-flex; align-items: center; margin: 0; padding: 4px 0; border: 0; border-radius: 0; background: transparent; color: var(--crm-text-muted); font-size: 12px; line-height: 20px; cursor: pointer; }
+.overview-notes-toggle::after { border: 0; }
+.overview-notes-toggle:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+.overview-notes-body { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; max-width: 960px; }
 @media (max-width: 1000px) {
 	.overview-grid--identity, .overview-grid--finance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
