@@ -4,7 +4,7 @@
 
 ## 当前任务
 
-- K007已按用户决定核准：客户已停用，金额与会计一致；4笔旧收款事实已确认，保留原待核提示，不补凭据、不扩展工具、不改账。见[K007交接](state/handoffs/2026-09-13-k007-accounting-audit.md)。
+- K007已按用户决定核准：客户已停用，金额与会计一致；4笔旧收款事实已确认，随后按用户要求上线人工核准提示支持并登记审计，待办0项；不补凭据、原始账务不变，页面及两导出验收通过。见[K007交接](state/handoffs/2026-09-13-k007-accounting-audit.md)。
 
 - K006已完成受保护修正并核准，页面60张销售均结清，原值及两导出核验通过；云端同批重复提交已补验通过，原始账务哈希和数量均不变。未新增收款单。见[K006交接](state/handoffs/2026-09-13-k006-accounting-audit.md)。不自动启动下一客户。
 - 核账节省重复工作契约已落实：查账、修正分阶段，默认单负责人，程序核算、模型解释例外，有效证据与测试按条件复用；保留每批资金写入保护。用户随后单独批准最小通用修正工具，已独立发布并执行K006；范围见[工具契约](docs/ACCOUNTING_CORRECTION.md)。见[RULES](docs/RULES.md#逐户核账工作方式)。
@@ -17,11 +17,11 @@
 
 | 产品 | 已验证运行源码/版本 | 证据 |
 |---|---|---|
-| 受保护收款修正工具 | `da8b196`，仅`crm-accounting-correction` | [K006执行及证据限制](state/handoffs/2026-09-13-k006-accounting-audit.md) |
+| 受保护收款修正工具及人工核准 | `d8dfe43`，`crm-accounting-correction` | [K007人工核准验收](state/handoffs/2026-09-13-k007-accounting-audit.md) |
 | K005专用转换 | `08eb38a4375c32ddb3f390cb32b73cff3fceb90d` | [K005验收](state/handoffs/2026-09-13-k005-accounting-audit.md) |
-| 客户结算、K004专用两完整函数 | `56a11b497f59f4f16dc18d23c43b422a8c2ddec2` | [09-13验收](state/handoffs/2026-09-13-k004-accounting-audit.md) |
+| 客户结算 / K004专用 | 客户结算`d8dfe43`；K004保持`56a11b4` | [K004](state/handoffs/2026-09-13-k004-accounting-audit.md)、[K007](state/handoffs/2026-09-13-k007-accounting-audit.md) |
 | 押金、首页 | `ada8f89607e928c74969431bf7711a5891f8b6be` | [09-12发布](state/handoffs/2026-09-12-customer-deposit.md) |
-| H5 | `1789288952939-a90d2174`，源码`9ad9a1acac42` | [09-13验收](state/handoffs/2026-09-13-k004-accounting-audit.md) |
+| H5 | `1789310701669-b5a59196`，源码`d8dfe43` | [K004](state/handoffs/2026-09-13-k004-accounting-audit.md)、[K007](state/handoffs/2026-09-13-k007-accounting-audit.md) |
 | 销售、催收 | `5021753` | [09-09发布](state/handoffs/2026-09-09-accounting-release-accepted.md) |
 | K001/K002专用转换 | 保持各自已验收版本 | [K001](state/handoffs/2026-09-11-baotai-receipt-conversion.md)、[K002](state/handoffs/2026-09-12-k002-pending.md) |
 
