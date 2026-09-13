@@ -12,28 +12,22 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.13-k004-adjustment",
+      "version": "2026.09.13-k005-receipt-backing",
       "output": "release/cloud",
-      "acceptance": "Settlement compatibility and protected K004 correction only; no database schema changes",
+      "acceptance": "Single protected K005 conversion package; 47535 cash, 46415.5 revenue, 196.5 rounding, zero debt; no H5 or schema deployment",
       "deploymentScope": {
         "functions": [
-          "crm-customer-settlement",
-          "crm-k004-reconciliation"
+          "crm-k005-reconciliation"
         ],
         "databaseFiles": [],
-        "baseCommit": "122de8e715b5960e502f7177e7f9f9177913a01c",
+        "baseCommit": "0d1d2c1b6c00e9005caf35677f8e924c4ae1dde6",
         "sourceFiles": [
-          "src/components/domain/customer/statement/CustomerStatementModule.vue",
-          "src/components/domain/customer/statement/exportWorkbook.js",
-          "src/services/mappers/customerPeriodSummary.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/periodSummary.js",
-          "uniCloud-alipay/cloudfunctions/crm-k004-reconciliation/financialReadLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-k004-reconciliation/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-k004-reconciliation/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-k004-reconciliation/plan.js",
-          "uniCloud-alipay/cloudfunctions/crm-k004-reconciliation/spec.js",
-          "uniCloud-alipay/cloudfunctions/crm-k004-reconciliation/transaction.js"
+          "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/financialReadLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/package.json",
+          "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/plan.js",
+          "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/spec.js",
+          "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/transaction.js"
         ],
         "aclCanonicalRevisions": {}
       },
