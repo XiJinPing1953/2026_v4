@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.13-k004-adjustment",
+      "version": "2026.09.13-statement-layout",
       "output": "dist/build/web",
-      "acceptance": "Noncash debit adjustment is separate from revenue and cash; existing deposit and exports preserved",
+      "acceptance": "Customer identity and financial cards wrap separately; accounting notes outside summary cards; amounts unchanged",
       "integrityScope": "deployment"
     },
     "cloud": {

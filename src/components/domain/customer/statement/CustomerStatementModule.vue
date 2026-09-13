@@ -59,7 +59,7 @@
 
 		<view class="content-shell">
 			<AppSection title="客户总览">
-				<view class="overview-grid">
+				<view class="overview-grid overview-grid--identity">
 					<view class="overview-item">
 						<text class="overview-label">客户名称</text>
 						<text class="overview-value">{{ customer.name || '-' }}</text>
@@ -80,11 +80,12 @@
 						<text class="overview-label">默认单价</text>
 						<text class="overview-value">{{ defaultUnitPriceText }}</text>
 					</view>
+				</view>
+				<view class="overview-grid overview-grid--finance">
 					<view class="overview-item">
 						<text class="overview-label">{{ periodIsYear ? '本年营收' : '期间营收' }}</text>
 						<text class="overview-value">{{ periodMoney('business_revenue') }}</text>
 						<text class="overview-meta">{{ periodScopeText }} · 不含历史转入</text>
-						<text v-for="note in (periodReport?.source_notes || []).filter(item => !['legacy_rounding', 'allocation_rounding'].includes(item.source_type))" :key="note.source_id" class="overview-meta">{{ note.text }}</text>
 					</view>
 					<view class="overview-item">
 						<text class="overview-label">所选期间应收合计（含历史款项）</text>
@@ -97,7 +98,6 @@
 						<text class="overview-value">{{ periodMoney('cash_received') }}</text>
 						<text class="overview-meta">其中收回历史欠款 {{ periodMoney('historical_debt_collected') }}</text>
 						<text class="overview-meta">{{ periodIsYear ? '本年抹零汇总' : '期间抹零汇总' }} {{ periodMoney('rounding_total') }} · 不计实际收款</text>
-						<text v-for="note in (periodReport?.source_notes || []).filter(item => ['legacy_rounding', 'allocation_rounding'].includes(item.source_type))" :key="note.source_id" class="overview-meta">{{ note.text }}</text>
 						<text class="overview-meta">{{ periodScopeText }} · 按收款日期</text>
 						<text v-if="periodReport?.unresolved_count" class="overview-meta">{{ periodReport.unresolved_count }} 项账务依据待核，相关合计暂不显示</text>
 						<text v-for="(issue, index) in (periodReport?.unresolved_sources || []).slice(0, 3)" :key="index" class="overview-meta">{{ describePeriodSummaryIssue(issue) }}</text>
@@ -132,6 +132,10 @@
 						<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewOffsetCreditBalance) }}</text></text>
 						<text class="overview-meta">{{ overviewScopeText }}</text>
 					</view>
+				</view>
+				<view v-if="periodReport?.source_notes?.length" class="overview-notes">
+					<text class="overview-notes-title">统计说明</text>
+					<text v-for="note in periodReport.source_notes" :key="note.source_id" class="overview-meta">{{ note.source_type === 'allocation_rounding' ? '以下金额已包含在抹零汇总中。' + note.text.replace('后续分配抹零', '分配时登记的抹零') : note.text }}</text>
 				</view>
 			</AppSection>
 
@@ -5637,6 +5641,18 @@ onBeforeUnmount(() => {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(260rpx, 1fr));
 	gap: 12rpx;
+}
+
+.overview-grid--identity { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.overview-grid--finance { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 12px; align-items: start; }
+.overview-item { min-width: 0; overflow-wrap: anywhere; }
+.overview-notes { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; padding: 12px; background: #f8fafc; border-radius: 6px; }
+.overview-notes-title { font-size: 13px; font-weight: 600; color: var(--crm-text-muted); }
+@media (max-width: 1000px) {
+	.overview-grid--identity, .overview-grid--finance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+	.overview-grid--finance { grid-template-columns: minmax(0, 1fr); }
 }
 
 .overview-item,
