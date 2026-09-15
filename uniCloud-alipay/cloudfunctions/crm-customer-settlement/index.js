@@ -8402,7 +8402,9 @@ async function listCustomerStatementRowsV1(user, data, requestId = '') {
 	trace('allocations_loaded', {
 		allocations: Array.isArray(allocRes.data) ? allocRes.data.length : 0
 	})
-	const allocRows = (Array.isArray(allocRes.data) ? allocRes.data : []).map((row) => ({
+	const allocRows = (Array.isArray(allocRes.data) ? allocRes.data : [])
+		.filter((row) => !row.status || row.status === 'posted')
+		.map((row) => ({
 		row_type: 'allocation',
 		row_id: normalizeId(row._id),
 		biz_date: normalizeString(row.biz_date),
