@@ -6308,4 +6308,10 @@ onBeforeUnmount(() => {
  .statement-theme :deep(.deposit-form) { padding:16px; }
  .statement-theme .receipt-grid, .statement-theme .flow-grid, .statement-theme .filter-grid { gap:14px 12px; }
 }
+
+/* Dates are fields; the query action keeps its natural width. */
+.statement-theme .analysis-filter-grid { grid-template-columns:minmax(180px,240px) minmax(180px,240px) max-content; justify-content:start; gap:12px; margin-top:14px; margin-bottom:14px; }
+.statement-theme .analysis-filter-grid :deep(.btn) { height:40px; justify-self:start; }
+@media(max-width:640px) { .statement-theme .analysis-filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .statement-theme .analysis-filter-grid :deep(.btn) { grid-column:1 / -1; } }
+@media(max-width:380px) { .statement-theme .analysis-filter-grid { grid-template-columns:minmax(0,1fr); } }
 </style>

@@ -83,7 +83,7 @@ function handleBlur(e) {
 	font-weight: 400;
 }
 .field__control {
-	border: 1rpx solid var(--crm-border);
+	border: 1rpx solid #d7dfe8;
 	background: #fff;
 	border-radius: var(--crm-radius-sm);
 	padding: 0 24rpx;
@@ -101,15 +101,15 @@ function handleBlur(e) {
 }
 .field__control--focus {
 	border-color: var(--crm-primary);
-	box-shadow: 0 0 0 2rpx var(--crm-primary);
+	box-shadow: 0 0 0 3px var(--crm-primary-weak);
 }
 .field__control--disabled {
-	background: #f3f3f3;
+	background: #f1f4f8;
 	border-color: var(--crm-border);
 	color: var(--crm-text-muted);
 }
 .field__control--readonly {
-    background: #f9f9f9;
+    background: #f8fafc;
     border-color: var(--crm-border);
 }
 .field__icon {

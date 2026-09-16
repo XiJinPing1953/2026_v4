@@ -21,7 +21,7 @@ defineProps({
 <style scoped>
 .section {
 	background: #fff;
-	border-radius: var(--crm-radius-sm);
+	border-radius: var(--crm-radius-md);
 	border: 1rpx solid var(--crm-border);
 	overflow: hidden;
 }
@@ -30,12 +30,12 @@ defineProps({
 	align-items: center;
 	justify-content: space-between;
 	padding: 16rpx 24rpx;
-	background: #f8f8f8;
-	border-bottom: 1rpx solid var(--crm-border);
+	background: #fff;
+	border-bottom: 1rpx solid var(--crm-border-weak);
 }
 .section__title {
 	font-size: 28rpx;
-	font-weight: 700;
+	font-weight: 600;
 	color: var(--crm-text);
 }
 .section__body {

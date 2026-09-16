@@ -20,7 +20,7 @@ defineProps({
 <style scoped>
 .card {
 	background: #fff;
-	border-radius: var(--crm-radius-sm);
+	border-radius: var(--crm-radius-md);
 	border: 1rpx solid var(--crm-border);
 	display: flex;
 	flex-direction: column;
@@ -28,12 +28,12 @@ defineProps({
 }
 .card__header {
 	padding: 16rpx 24rpx;
-	border-bottom: 1rpx solid var(--crm-border);
-	background: #f8f8f8;
+	border-bottom: 1rpx solid var(--crm-border-weak);
+	background: #fff;
 }
 .card__title {
 	font-size: 28rpx;
-	font-weight: 700;
+	font-weight: 600;
 	color: var(--crm-text);
 }
 .card__body {

@@ -22,22 +22,22 @@ $uni-color-error: #dc2626;
 
 /* Salesforce Lightning Design System (SLDS) Theme Variables */
 :root {
-	--crm-bg: #f3f3f3;
+	--crm-bg: #f5f7fa;
 	--crm-surface: #ffffff;
-	--crm-text: #181818;
-	--crm-text-muted: #444444;
-	--crm-border: #dddbda;
+	--crm-text: #263445;
+	--crm-text-muted: #64748b;
+	--crm-border: #e2e7ee;
 	--crm-primary: #0176d3;
 	--crm-primary-weak: rgba(1, 118, 211, 0.1);
 	--crm-success: #2e844a;
 	--crm-warning: #fe9339;
 	--crm-info: #0176d3;
-	--crm-border-weak: #f3f3f3;
+	--crm-border-weak: #edf0f4;
 	--crm-shadow-sm: 0 2rpx 2rpx rgba(0, 0, 0, 0.05);
 	--crm-shadow-md: 0 4rpx 8rpx rgba(0, 0, 0, 0.1);
-	--crm-radius-sm: 4rpx;
-	--crm-radius-md: 8rpx;
-	--crm-radius-lg: 12rpx;
+	--crm-radius-sm: 6px;
+	--crm-radius-md: 10px;
+	--crm-radius-lg: 12px;
 	--crm-gap-xs: 8rpx;
 	--crm-gap-sm: 12rpx;
 	--crm-gap-md: 16rpx;

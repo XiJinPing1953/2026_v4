@@ -53,6 +53,8 @@ function onPressEnd(event) {
 
 <style scoped>
 .btn {
+	margin: 0;
+	flex-shrink: 0;
 	border-radius: var(--crm-radius-sm);
 	display: flex;
 	align-items: center;

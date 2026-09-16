@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.16-statement-style",
+      "version": "2026.09.16-global-ui",
       "output": "dist/build/web",
-      "acceptance": "Full-width refund and consistent customer statement styles; H5 only",
+      "acceptance": "Shared visual tokens and base components; compact analysis filters; H5 only",
       "integrityScope": "deployment"
     },
     "cloud": {
@@ -23,7 +23,12 @@
         "baseCommit": "dc87a6874e3eeddae6147398dd60cac3c66e37f6",
         "sourceFiles": [
           "src/components/domain/customer/statement/CustomerRefundPanel.vue",
-          "src/components/domain/customer/statement/CustomerStatementModule.vue"
+          "src/components/domain/customer/statement/CustomerStatementModule.vue",
+          "src/uni.scss",
+          "src/components/base/AppCard.vue",
+          "src/components/base/AppSection.vue",
+          "src/components/base/AppInput.vue",
+          "src/components/base/AppButton.vue"
         ],
         "aclCanonicalRevisions": {}
       },
