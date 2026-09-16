@@ -59,3 +59,14 @@ test('退款权限、待调整来源、三位金额与只读预览',async()=>{
  assert.equal(t.crm_customer_receipts.find(x=>x._id==='cash').unallocated_amount,0)
  t.crm_customer_receipts[0].receipt_adjustment_status='pending';assert.equal((await invoke(h,'listCustomerRefundsV1',{customer_id:'customer-1'})).data.sources.length,0)
 })
+
+test('支付宝事务doc.get对象响应：退款提交和重复查询保持幂等',async()=>{
+ const t=fixture(),db=mutableDb(t),start=db.startTransaction;
+ db.startTransaction=async()=>{const tx=await start(),collection=tx.collection;return {...tx,collection:name=>{const c=collection(name);return new Proxy(c,{get(target,key){if(key==='doc')return id=>{const d=target.doc(id);return new Proxy(d,{get(doc,k){if(k==='get')return async()=>{const r=await doc.get();return {...r,data:r.data[0]||null}};return doc[k]}})};return target[key]}})}}};
+ const h=loadHandler('crm-customer-settlement',db),source=(await invoke(h,'listCustomerRefundsV1',{customer_id:'customer-1'})).data.sources.find(x=>x.id==='offset');
+ const req=await prepare(h,{...draft,amount:580,sources:[{id:source.id,version:source.version,amount:580}]});
+ const result=await invoke(h,'createCustomerRefundV1',req);assert.equal(result.code,0,result.msg);
+ assert.equal((await invoke(h,'createCustomerRefundV1',req)).data.idempotent,true);
+ assert.equal(t.crm_customer_receipts.filter(x=>x.source_type==='customer_cash_refund').length,1);
+ assert.equal(t.crm_customer_receipts.find(x=>x._id==='offset').unallocated_amount,0);
+})

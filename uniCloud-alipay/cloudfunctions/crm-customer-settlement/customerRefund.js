@@ -14,7 +14,7 @@ const sourceSnapshot = r => ({ id:r._id, customer_id:r.customer_id, status:r.sta
  updated_at:r.updated_at || 0, source_type:r.source_type, entry_kind:r.entry_kind, receipt_adjustment_status:r.receipt_adjustment_status })
 const protectedReceipt = r => r && (r.source_type === SOURCE || num(r.cash_refunded_amount)>0 || num(r.offset_cash_refunded_amount)>0)
 function createRefundService({ db, command, readComplete, moneyScale, refreshBalances }) {
- const get = async (store,id) => (await store.doc(id).get()).data?.[0]
+ const get = async (store,id) => { const {data}=await store.doc(id).get(); return Array.isArray(data)?data[0]:data }
  const all = async (store,cid) => readComplete(store,{customer_id:cid},{command,source:'customer_refunds',sort:['created_at']})
  async function context(cid) {
   const customer=await get(db.collection('crm_customers'),cid)
