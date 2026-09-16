@@ -6,29 +6,21 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.16-customer-refund",
+      "version": "2026.09.16-refund-layout",
       "output": "dist/build/web",
-      "acceptance": "Independent cash refund registration, multiple credit sources, pending-source linking without duplicate cash; no production financial writes",
+      "acceptance": "Refund form layout only; no accounting behavior or cloud changes",
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.16-customer-refund",
+      "version": "2026.09.16-refund-layout",
       "output": "release/cloud",
-      "acceptance": "Independent cash refund registration, multiple credit sources, pending-source linking without duplicate cash; no production financial writes",
+      "acceptance": "Refund form layout only; no accounting behavior or cloud changes",
       "deploymentScope": {
-        "functions": [
-          "crm-customer-settlement"
-        ],
+        "functions": [],
         "databaseFiles": [],
-        "baseCommit": "e3453248ec531062bf5158207414e9b05bb19b4d",
+        "baseCommit": "dc87a6874e3eeddae6147398dd60cac3c66e37f6",
         "sourceFiles": [
-          "src/components/domain/customer/statement/CustomerRefundPanel.vue",
-          "src/components/domain/customer/statement/CustomerStatementModule.vue",
-          "src/services/api/customerRefund.js",
-          "src/services/mappers/customerPeriodSummary.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/periodSummary.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerRefund.js"
+          "src/components/domain/customer/statement/CustomerRefundPanel.vue"
         ],
         "aclCanonicalRevisions": {}
       },
