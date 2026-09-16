@@ -12,24 +12,17 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.16-refund-layout",
+      "version": "2026.09.16-refund-transaction",
       "output": "release/cloud",
-      "acceptance": "Dependency check of existing settlement package only; this UI release uploads H5 only",
+      "acceptance": "Alipay transaction document object compatibility; customer settlement only; no H5 or schema",
       "deploymentScope": {
         "functions": [
           "crm-customer-settlement"
         ],
         "databaseFiles": [],
-        "baseCommit": "dc87a6874e3eeddae6147398dd60cac3c66e37f6",
+        "baseCommit": "583a526b0e0c7bb796510f07468bf75600ac4967",
         "sourceFiles": [
-          "src/components/domain/customer/statement/CustomerRefundPanel.vue",
-          "src/components/domain/customer/statement/CustomerStatementModule.vue",
-          "src/uni.scss",
-          "src/components/base/AppCard.vue",
-          "src/components/base/AppSection.vue",
-          "src/components/base/AppInput.vue",
-          "src/components/base/AppButton.vue",
-          "src/components/domain/sale/SaleBasicInfoCard.vue"
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerRefund.js"
         ],
         "aclCanonicalRevisions": {}
       },
