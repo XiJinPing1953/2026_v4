@@ -1,10 +1,13 @@
 'use strict'
 const {snapshot,digest}=require('./snapshot')
-const {buildPlan,batchId,VERSION}=require('./plan')
+const original=require('./plan')
+const {batchId}=original
+const {VERSION}=original
 const {executePrepared}=require('./transaction')
 const first=r=>Array.isArray(r?.data)?r.data[0]:r?.data
 exports.main=async(event={})=>{
  try {
+  const {buildPlan,VERSION}=event.data?.operation_id==='k016-reallocation-20260916-v1'?require('./reallocationPlan'):original
   if(typeof event.token!=='string'||!event.token.trim())return{code:403,msg:'需要超级管理员登录'}
   const db=uniCloud.database(),user=first(await db.collection('crm_users').where({token:event.token}).limit(1).get())
   if(!user||user.role!=='superadmin')return{code:403,msg:'仅超级管理员可读取或修正原值'}
