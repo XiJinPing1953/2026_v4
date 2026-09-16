@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.16-global-ui",
+      "version": "2026.09.16-sale-segments",
       "output": "dist/build/web",
-      "acceptance": "Shared visual tokens and base components; compact analysis filters; H5 only",
+      "acceptance": "Sale mode and pricing unit segmented controls; H5 only",
       "integrityScope": "deployment"
     },
     "cloud": {
@@ -28,7 +28,8 @@
           "src/components/base/AppCard.vue",
           "src/components/base/AppSection.vue",
           "src/components/base/AppInput.vue",
-          "src/components/base/AppButton.vue"
+          "src/components/base/AppButton.vue",
+          "src/components/domain/sale/SaleBasicInfoCard.vue"
         ],
         "aclCanonicalRevisions": {}
       },

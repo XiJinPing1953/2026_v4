@@ -367,7 +367,7 @@ const bizModeOptions = [
 const priceUnitOptions = [
 	{ label: 'kg', value: 'kg' },
 	{ label: '瓶', value: 'bottle' },
-	{ label: 'm3', value: 'm3' }
+	{ label: 'm³', value: 'm3' }
 ]
 
 function emitPatch(patch) {
@@ -774,7 +774,8 @@ function updatePopoverPlacement(fieldKey, count) {
 
 .unit-group {
 	display: grid;
-	grid-template-columns: 2fr 1fr;
+	grid-template-columns: minmax(0, 1fr) max-content;
+	align-items: start;
 	gap: 16rpx;
 }
 
@@ -895,29 +896,53 @@ function updatePopoverPlacement(fieldKey, count) {
 	pointer-events: none;
 }
 
-.choice-group {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 12rpx;
+.field-label {
+	display: block;
+	margin-bottom: 8rpx;
+	font-size: 24rpx;
+	font-weight: 400;
+	color: var(--crm-text-muted);
 }
 
-.choice-group--compact {
-	gap: 10rpx;
+.choice-group {
+	display: inline-flex;
+	align-self: flex-start;
+	align-items: stretch;
+	box-sizing: border-box;
+	height: calc(80rpx + 2px);
+	padding: 4px;
+	gap: 4px;
+	border-radius: 8px;
+	background: #f1f4f8;
+}
+
+.info-grid--sm .choice-group {
+	height: calc(64rpx + 2px);
 }
 
 .choice-pill {
-	padding: 10rpx 20rpx;
-	border-radius: 999rpx;
-	border: 1rpx solid #e2e8f0;
-	background: #f8fafc;
-	font-size: 24rpx;
-	color: #475569;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0 16px;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	font-size: 26rpx;
+	white-space: nowrap;
+	color: #64748b;
+	cursor: pointer;
+}
+
+.choice-group--compact .choice-pill {
+	min-width: 34px;
+	padding: 0 8px;
 }
 
 .choice-pill--active {
-	background: #e0f2fe;
-	border-color: #bae6fd;
-	color: #0f172a;
+	background: #fff;
+	border-color: #e2e7ee;
+	box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+	color: var(--crm-primary);
 	font-weight: 600;
 }
 
