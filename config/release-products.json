@@ -14,9 +14,11 @@
     "cloud": {
       "version": "2026.09.16-refund-layout",
       "output": "release/cloud",
-      "acceptance": "Refund form layout only; no accounting behavior or cloud changes",
+      "acceptance": "Dependency check of existing settlement package only; this UI release uploads H5 only",
       "deploymentScope": {
-        "functions": [],
+        "functions": [
+          "crm-customer-settlement"
+        ],
         "databaseFiles": [],
         "baseCommit": "dc87a6874e3eeddae6147398dd60cac3c66e37f6",
         "sourceFiles": [
