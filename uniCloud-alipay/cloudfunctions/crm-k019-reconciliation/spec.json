@@ -1,0 +1,114 @@
+[
+  {
+    "id": "695f5eb0ee97ef7e81a6b30e",
+    "sale_date": "2026-01-08",
+    "date": "2026-02-07",
+    "amount": 1421,
+    "voucher": "记-024"
+  },
+  {
+    "id": "696f3a752139299566fd3636",
+    "sale_date": "2026-01-20",
+    "date": "2026-01-20",
+    "amount": 896,
+    "voucher": "记-072"
+  },
+  {
+    "id": "6976b587a7c4329817668acc",
+    "sale_date": "2026-01-25",
+    "date": "2026-01-25",
+    "amount": 980,
+    "voucher": "记-094"
+  },
+  {
+    "id": "697fe88c9755e34a91d0f6c9",
+    "sale_date": "2026-02-01",
+    "date": "2026-02-01",
+    "amount": 950,
+    "voucher": "记-002"
+  },
+  {
+    "id": "6986a3da466d41193f005a4e",
+    "sale_date": "2026-02-07",
+    "date": "2026-02-07",
+    "amount": 868,
+    "voucher": "记-024"
+  },
+  {
+    "id": "69bbb2c089d8371762438b3a",
+    "sale_date": "2026-02-09",
+    "date": "2026-02-09",
+    "amount": 900,
+    "voucher": "记-030"
+  },
+  {
+    "id": "69bbaffa8a2e952d8f49b9b4",
+    "sale_date": "2026-02-11",
+    "date": "2026-02-11",
+    "amount": 770,
+    "voucher": "记-040"
+  },
+  {
+    "id": "69bbb2c11501ab29a1bd8631",
+    "sale_date": "2026-02-13",
+    "date": "2026-02-16",
+    "amount": 730,
+    "voucher": "记-056"
+  },
+  {
+    "id": "69bbaffd0add39bd434a403d",
+    "sale_date": "2026-02-24",
+    "date": "2026-02-24",
+    "amount": 840,
+    "voucher": "记-063"
+  },
+  {
+    "id": "69bbb002f7ac1a41a1adc9ab",
+    "sale_date": "2026-03-02",
+    "date": "2026-03-26",
+    "amount": 987,
+    "voucher": "记-093"
+  },
+  {
+    "id": "69bbb007f7ac1a41a1adca51",
+    "sale_date": "2026-03-07",
+    "date": "2026-03-06",
+    "amount": 1225,
+    "voucher": "记-020"
+  },
+  {
+    "id": "69bbb01389d8371762435e58",
+    "sale_date": "2026-03-15",
+    "date": "2026-03-15",
+    "amount": 966,
+    "voucher": "记-051"
+  },
+  {
+    "id": "69c8ade4bf8f8fb98cd03ec6",
+    "sale_date": "2026-03-21",
+    "date": "2026-03-21",
+    "amount": 1008,
+    "voucher": "记-074"
+  },
+  {
+    "id": "69c8afb159063e84c13ec56e",
+    "sale_date": "2026-03-26",
+    "date": "2026-03-26",
+    "amount": 840,
+    "voucher": "记-093"
+  },
+  {
+    "id": "69d2ef7459063e84c10998c6",
+    "sale_date": "2026-04-04",
+    "date": "2026-04-04",
+    "amount": 790,
+    "voucher": "记-013"
+  },
+  {
+    "id": "69d4cdde68be701c9c1adb3f",
+    "sale_date": "2026-04-07",
+    "date": "2026-04-08",
+    "amount": 987,
+    "voucher": "记-028"
+  }
+]

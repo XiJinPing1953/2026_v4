@@ -12,17 +12,25 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.16-refund-transaction",
+      "version": "2026.09.16-k019-reconciliation",
       "output": "release/cloud",
-      "acceptance": "Alipay transaction document object compatibility; customer settlement only; no H5 or schema",
+      "acceptance": "K019 confirmed receipt backing and dates only; no H5 or schema",
       "deploymentScope": {
         "functions": [
-          "crm-customer-settlement"
+          "crm-k019-reconciliation"
         ],
         "databaseFiles": [],
-        "baseCommit": "583a526b0e0c7bb796510f07468bf75600ac4967",
+        "baseCommit": "5eb40347ca2cedf4ffc270565308090fb0a0c668",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerRefund.js"
+          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/basePlan.js",
+          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/financialReadLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/package.json",
+          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/plan.js",
+          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/saleAccountingLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/snapshot.js",
+          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/spec.json",
+          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/transaction.js"
         ],
         "aclCanonicalRevisions": {}
       },
