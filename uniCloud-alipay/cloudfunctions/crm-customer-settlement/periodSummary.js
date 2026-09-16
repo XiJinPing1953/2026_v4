@@ -1,7 +1,7 @@
 'use strict'
 
 const { readComplete, FinancialReadError } = require('./financialReadLocal')
-const { isOpeningPrepayReceipt, isDepositTransferReceipt, isNonCashPrepayReceipt } = require('./receiptSource')
+const { isOpeningPrepayReceipt, isDepositTransferReceipt, isSettlementFeeReceipt, isNonCashPrepayReceipt } = require('./receiptSource')
 const VERSION = 'customer-period-summary/2026-09-12.3'
 const id = value => String(value || '').trim()
 const date = value => /^\d{4}-\d{2}-\d{2}$/.test(id(value)) ? id(value) : ''
@@ -150,6 +150,9 @@ function calculatePeriodSummary(input, rules) {
 		else refundTotal = sum([refundTotal, -amount])
 		if ((allocatedByReceipt.get(id(row._id)) || 0) > Math.max(amount, 0)) issue('receipt', row, 'allocations_exceed_receipt', amount)
 	}
+	const feeReceipts = receipts.filter(row => row.status === 'posted' && isSettlementFeeReceipt(row))
+	for (const row of feeReceipts) if (!date(row.biz_date) || !(Number(row.amount) > 0) || Number(row.unallocated_amount) !== 0) issue('settlement_fee', row, 'settlement_fee_source_invalid', row.amount)
+	const settlementFee = sum(feeReceipts.filter(row => inRange(row.biz_date)).map(row => row.amount))
 	const openingCredits = receipts.filter(row => row.status === 'posted' && isOpeningPrepayReceipt(row))
 	const openingTransferred = sum(openingCredits.filter(row => inRange(row.biz_date)).map(row => row.amount))
 	const depositTransfers = receipts.filter(row => row.status === 'posted' && isDepositTransferReceipt(row))
@@ -183,7 +186,7 @@ function calculatePeriodSummary(input, rules) {
 		receivable_total: businessComplete ? sum([businessRevenue, historicalReceivable, balanceAdjustment]) : null,
 		...Object.fromEntries(Object.entries(knownCash).map(([key, value]) => [key, cashComplete ? value : null])),
 		...rounding,
-		opening_prepay_transferred: openingTransferred, deposit_transferred: depositTransferred, source_notes: sourceNotes,
+		settlement_fee_total: settlementFee, opening_prepay_transferred: openingTransferred, deposit_transferred: depositTransferred, source_notes: sourceNotes,
 		known_cash: knownCash, unresolved_count: pending.length, unresolved_sources: pending
 	}
 }

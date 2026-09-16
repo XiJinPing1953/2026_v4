@@ -1,5 +1,5 @@
 'use strict'
-const { isOpeningPrepayReceipt, isDepositTransferReceipt, isNonCashPrepayReceipt, isOffsetCreditReceipt, isCashReceipt } = require('./receiptSource')
+const { isSettlementFeeReceipt, isOpeningPrepayReceipt, isDepositTransferReceipt, isNonCashPrepayReceipt, isOffsetCreditReceipt, isCashReceipt } = require('./receiptSource')
 
 const saleAccounting = require('./saleAccountingLocal')
 const { readComplete, withFinancialEvidence, FinancialReadError } = require('./financialReadLocal')
@@ -2281,6 +2281,7 @@ async function applyAllocationAndPersist({
 	sourceId,
 	entryKind
 }) {
+	if (isSettlementFeeReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '手续费仅能由受保护核对流程登记' }
 	if (isDepositTransferReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '押金转气款只能由押金专用流程登记' }
 	if (isOpeningPrepayReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '期初预付款仅能从有备份的专用转入流程创建' }
 	const now = Date.now()
@@ -3090,7 +3091,9 @@ async function beginReceiptAdjustmentV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费修正须走有备份的专用核对流程' }
 	if (isDepositTransferReceipt(receiptDoc)) return { code: 400, msg: '押金转气款来源受保护，请在押金流水中核对或作废；可继续分配' }
+	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费须经受保护流程修正' }
 	if (isOpeningPrepayReceipt(receiptDoc)) return { code: 400, msg: '期初预付款来源受保护，可继续分配；更正须走有备份的专用核对流程' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持调整已入账收款单' }
 
@@ -3772,6 +3775,7 @@ async function createReceiptV1(user, data, requestId) {
 	const paymentMethod = normalizePaymentMethod(data.payment_method || data.paymentMethod, 'paid')
 	const note = normalizeString(data.note)
 	const sourceType = normalizeString(data.source_type || data.sourceType) || 'manual'
+	if (isSettlementFeeReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '手续费仅能由受保护核对流程登记' }
 	if (isDepositTransferReceipt({ source_type: sourceType })) return { code: 400, msg: '押金转气款只能由押金专用流程登记' }
 	if (isOpeningPrepayReceipt({ source_type: sourceType })) return { code: 400, msg: '期初预付款须经有依据的专用转入流程登记' }
 	const sourceId = normalizeId(data.source_id || data.sourceId)
@@ -3834,7 +3838,9 @@ async function updateReceiptV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费修正须走有备份的专用核对流程' }
 	if (isDepositTransferReceipt(receiptDoc)) return { code: 400, msg: '押金转气款来源受保护，请在押金流水中核对或作废；可继续分配' }
+	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费须经受保护流程修正' }
 	if (isOpeningPrepayReceipt(receiptDoc)) return { code: 400, msg: '期初预付款来源受保护，可继续分配；更正须走有备份的专用核对流程' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持编辑已入账收款单' }
 	const receiptSourceType = normalizeString(receiptDoc.source_type) || 'manual'
@@ -4028,7 +4034,9 @@ async function removeReceiptV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费修正须走有备份的专用核对流程' }
 	if (isDepositTransferReceipt(receiptDoc)) return { code: 400, msg: '押金转气款来源受保护，请在押金流水中核对或作废；可继续分配' }
+	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费须经受保护流程修正' }
 	if (isOpeningPrepayReceipt(receiptDoc)) return { code: 400, msg: '期初预付款来源受保护，可继续分配；更正须走有备份的专用核对流程' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持删除已入账收款单' }
 	if (isCashierReceiptSourceType(receiptDoc.source_type)) {
@@ -4594,6 +4602,7 @@ async function createPrepayEntryV1(user, data, requestId) {
 	}
 
 	const sourceType = normalizeString(data.source_type || data.sourceType) || (entryKind === 'offset_credit' ? 'customer_offset_credit_manual' : 'customer_prepay_manual')
+	if (isSettlementFeeReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '手续费仅能由受保护核对流程登记' }
 	if (isDepositTransferReceipt({ source_type: sourceType })) return { code: 400, msg: '押金转气款只能由押金专用流程登记' }
 	if (isOpeningPrepayReceipt({ source_type: sourceType })) return { code: 400, msg: '期初预付款须经有依据的专用转入流程登记' }
 	const sourceId = normalizeId(data.source_id || data.sourceId)
@@ -6082,7 +6091,7 @@ async function exportCustomerStatementV1(user, data) {
 	const rangeSales = await listCustomerSales(customerId, { dateFrom, dateTo })
 	const rangeReceipts = await listCustomerReceipts(customerId, { dateFrom, dateTo })
 	const dateSeries = buildDateSeries(dateFrom, dateTo)
-	const amountFields = ['amount', 'receipt', 'cash_received', 'refund', 'opening_prepay', 'deposit_transfer',
+	const amountFields = ['amount', 'receipt', 'cash_received', 'refund', 'settlement_fee', 'opening_prepay', 'deposit_transfer',
 		'rounding', 'legacy_received', 'legacy_refund', 'opening_debt', 'offset_credit', 'balance_adjustment']
 	const totals = Object.fromEntries(amountFields.map(field => [field, 0]))
 	totals.weight_kg = 0
@@ -6114,6 +6123,9 @@ async function exportCustomerStatementV1(user, data) {
 			addAmount(day, 'refund', event.debit)
 			addAmount(day, 'receipt', -event.debit) // Legacy callers retain signed net receipts.
 			day.notes.add(`已登记退款 ${event.debit} 元`)
+		} else if (type === 'settlement_fee') {
+			addAmount(day, 'settlement_fee', event.credit)
+			day.notes.add(`收款手续费 ${event.credit} 元；不计到账或抹零，已用于结清应收`)
 		} else if (type === 'deposit_transfer') {
 			addAmount(day, 'deposit_transfer', event.credit)
 			day.notes.add('押金转气款；不属于新收款')
@@ -6611,10 +6623,10 @@ async function listCustomerAccountingMovements(customer, { dateFrom = '', dateTo
 				biz_date: date,
 				created_at: doc && doc.created_at,
 				row_order: 80,
-				summary: isDepositTransferReceipt(doc) ? '押金转气款（非新收款）' : isOpeningPrepayReceipt(doc) ? '期初预付款转入（非本期收款）' : `收款 ${receiptLabel}`,
+				summary: isSettlementFeeReceipt(doc) ? '收款手续费（非到账、非抹零）' : isDepositTransferReceipt(doc) ? '押金转气款（非新收款）' : isOpeningPrepayReceipt(doc) ? '期初预付款转入（非本期收款）' : `收款 ${receiptLabel}`,
 				amount,
 				normal_balance: 'credit',
-				source_type: isDepositTransferReceipt(doc) ? 'deposit_transfer' : isOpeningPrepayReceipt(doc) ? 'opening_prepay' : 'receipt',
+				source_type: isSettlementFeeReceipt(doc) ? 'settlement_fee' : isDepositTransferReceipt(doc) ? 'deposit_transfer' : isOpeningPrepayReceipt(doc) ? 'opening_prepay' : 'receipt',
 				source_id: doc && doc._id
 			}, moneyScale)
 		}
@@ -6767,6 +6779,7 @@ async function confirmAllocationV1(user, data, requestId) {
 	const paymentMethod = normalizePaymentMethod(data.payment_method || data.paymentMethod, 'paid')
 	const note = normalizeString(data.note)
 	const sourceType = normalizeString(data.source_type || data.sourceType) || 'manual'
+	if (sourceType === 'settlement_fee') return { code: 400, msg: '手续费仅能由受保护核对流程登记' }
 	if (sourceType === 'deposit_transfer') return { code: 400, msg: '押金转气款只能由押金专用流程登记' }
 	const sourceId = normalizeId(data.source_id || data.sourceId)
 

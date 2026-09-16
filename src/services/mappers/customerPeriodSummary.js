@@ -20,6 +20,7 @@ export function customerPeriodSummaryRows(value) {
 		['receivable_total', '所选期间应收合计（含历史款项）'],
 		['cash_received', '期间实际收款'],
 		['rounding_total', '期间抹零汇总（不计实际收款）'],
+		...(summary?.settlement_fee_total > 0 ? [['settlement_fee_total', '期间收款手续费（非到账、非抹零）']] : []),
 		['historical_debt_collected', '其中收回历史欠款'],
 		['refund_total', '期间退款'],
 		['net_cash_received', '扣除退款后的净收款'],

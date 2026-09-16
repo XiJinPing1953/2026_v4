@@ -98,6 +98,7 @@
 						<text class="overview-value">{{ periodMoney('cash_received') }}</text>
 						<text class="overview-meta">其中收回历史欠款 {{ periodMoney('historical_debt_collected') }}</text>
 						<text class="overview-meta">{{ periodIsYear ? '本年抹零汇总' : '期间抹零汇总' }} {{ periodMoney('rounding_total') }} · 不计实际收款</text>
+						<text v-if="periodReport?.settlement_fee_total > 0" class="overview-meta">收款手续费 {{ periodMoney('settlement_fee_total') }} · 不计到账或抹零</text>
 						<text class="overview-meta">{{ periodScopeText }} · 按收款日期</text>
 						<text v-if="periodReport?.manual_review" class="overview-meta">{{ periodReport.manual_review.note }}</text>
 						<text v-if="outstandingPeriodIssues(periodReport).length" class="overview-meta">{{ outstandingPeriodIssues(periodReport).length }} 项账务依据待核，相关合计暂不显示</text>
@@ -2376,6 +2377,7 @@ function receiptSourceTypeText(value) {
 	if (sourceType === 'cashier_intake') return '出纳登记'
 	if (sourceType === 'customer_statement' || sourceType === 'customer_statement_manual') return '客户对账登记'
 	if (sourceType === 'customer_statement_quick_rounding') return '客户对账快捷抹零'
+	if (sourceType === 'settlement_fee') return '收款手续费（非到账、非抹零）'
 	if (sourceType === 'opening_prepay') return '期初预付款转入'
 	if (sourceType === 'deposit_transfer') return '押金转气款（非新收款）'
 	if (sourceType === 'accountant_reconciliation') return '会计依据重建'
@@ -4098,7 +4100,7 @@ async function onCreateAutoReceipt() {
 		return
 	}
 	if (!recordId.value || submitting.value) return
-	if (isEditingReceipt.value && ['opening_prepay', 'deposit_transfer'].includes(normalizeString(editingReceiptSourceType.value))) return
+	if (isEditingReceipt.value && ['opening_prepay', 'deposit_transfer', 'settlement_fee'].includes(normalizeString(editingReceiptSourceType.value))) return
 	const amount = receiptForm.amount === '' ? 0 : Number(receiptForm.amount)
 	const roundingAmount = receiptForm.roundingAmount === '' ? 0 : Number(receiptForm.roundingAmount)
 	if (!Number.isFinite(amount) || amount < 0) {
