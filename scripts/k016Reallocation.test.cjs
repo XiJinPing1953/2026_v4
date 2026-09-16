@@ -17,6 +17,12 @@ test('K016受保护批次：失败回滚、冲突、幂等及三账务入口',as
 
  for(const old of before.tables.crm_sale_records){const current=t.crm_sale_records.find(r=>r._id===old._id);for(const k of Object.keys(old))assert.deepEqual(current[k],old[k],k)}
  for(const action of ['getCustomerStatementV1','exportCustomerStatementV1','exportCustomerAccountingLedgerV1']){r=await invoke(s,action,{customer_id:cid,date_from:'2026-01-01',date_to:'2026-09-16'});assert.equal(r.code,0,r.msg);const x=r.data.period_summary;if(!x.complete)console.log(JSON.stringify(x));for(const [k,v]of Object.entries({business_revenue:21978.8,cash_received:27382,refund_total:0,net_cash_received:27382,rounding_total:0.8,settlement_fee_total:0,complete:true}))assert.equal(x[k],v,action+':'+k);if(action!=='getCustomerStatementV1')assert.equal(r.data.closing_balance,-580);if(r.data.summary){assert.equal(r.data.summary.receivable_balance,0);assert.equal(r.data.summary.prepay_balance,580)}}
+ r=await invoke(s,'getCustomerStatementV1',{customer_id:cid,date_from:'2026-01-01',date_to:'2026-09-16'})
+ const rows=r.data.recent_sales
+ const paid=rows.find(x=>x._id==='6a83f9999a962fec68e1dee3'),returned=rows.find(x=>x._id==='6a8e9ecf8f7c293f9f40baea')
+ assert.equal(paid.receipt_allocated_amount,500);assert.equal(paid.offset_applied_amount,0);assert.equal(paid.offset_sources.length,0)
+ assert.equal(returned.offset_target_amount,0);assert.equal(returned.offset_targets.length,0)
+ assert.ok(rows.some(x=>x.offset_applied_amount>0),'有效冲抵仍保留')
  assert.equal(t.crm_customer_receipts.find(r=>r._id==='6a9fb0226c031c11faccf65c').unallocated_amount,0)
  assert.equal(t.crm_customer_receipts.find(r=>r._id==='6a8e9ed7fbc4c8ef097665ad').unallocated_amount,580)
 })

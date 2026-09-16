@@ -544,7 +544,7 @@ async function listSaleAutoAllocationsBySaleIds(customerId, saleIds = [], limitP
 		allRows.push(...list)
 	}
 
-	return allRows
+	return allRows.filter((row) => !row.status || row.status === 'posted')
 }
 
 async function getSaleOffsetSummaryMap(customerId, saleIds = []) {
@@ -599,7 +599,7 @@ async function listAllocationsByReceiptIds(customerId, receiptIds = [], limitPer
 		allRows.push(...list)
 	}
 
-	return allRows
+	return allRows.filter((row) => !row.status || row.status === 'posted')
 }
 
 function buildTargetBizDateMap({ salesDocs = [], flowDocs = [], openingDebtDocs = [] } = {}) {
@@ -6363,7 +6363,7 @@ async function listCustomerAccountingAllocationsByTargets(customerId, targetRefs
 		}
 	}
 
-	return rows
+	return rows.filter((row) => !row.status || row.status === 'posted')
 }
 
 function buildAccountingAllocationBackedMap(rows = [], moneyScale = 2) {
