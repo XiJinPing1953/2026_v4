@@ -6,49 +6,31 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.16-settlement-fee",
+      "version": "2026.09.16-customer-refund",
       "output": "dist/build/web",
-      "acceptance": "K015 confirmed net receipts 19099, settlement fees 28, rounding 0.8, debt zero; preserve other clients",
+      "acceptance": "Independent cash refund registration, multiple credit sources, pending-source linking without duplicate cash; no production financial writes",
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.16-settlement-fee",
+      "version": "2026.09.16-customer-refund",
       "output": "release/cloud",
-      "acceptance": "K015 confirmed net receipts 19099, settlement fees 28, rounding 0.8, debt zero; preserve other clients",
+      "acceptance": "Independent cash refund registration, multiple credit sources, pending-source linking without duplicate cash; no production financial writes",
       "deploymentScope": {
         "functions": [
-          "crm-customer-settlement",
-          "crm-dashboard",
-          "crm-customer-deposit",
-          "crm-k015-reconciliation"
+          "crm-customer-settlement"
         ],
         "databaseFiles": [],
-        "baseCommit": "3a310eb64fc99c42f7b19a3bbddd8a51a58d85a9",
+        "baseCommit": "e3453248ec531062bf5158207414e9b05bb19b4d",
         "sourceFiles": [
+          "src/components/domain/customer/statement/CustomerRefundPanel.vue",
           "src/components/domain/customer/statement/CustomerStatementModule.vue",
+          "src/services/api/customerRefund.js",
           "src/services/mappers/customerPeriodSummary.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/receiptSource.js",
           "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
           "uniCloud-alipay/cloudfunctions/crm-customer-settlement/periodSummary.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/receiptSource.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/receiptSourceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/basePlan.js",
-          "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/financialReadLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/plan.js",
-          "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/saleAccountingLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/snapshot.js",
-          "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/transaction.js"
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerRefund.js"
         ],
-        "aclCanonicalRevisions": {
-          "crm-dashboard": {
-            "registry": {
-              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
-              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
-            }
-          }
-        }
+        "aclCanonicalRevisions": {}
       },
       "integrityScope": "deployment"
     }

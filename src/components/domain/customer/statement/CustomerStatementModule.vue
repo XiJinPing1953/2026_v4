@@ -117,6 +117,7 @@
 						<text class="overview-label">期间退款</text>
 						<text class="overview-value">{{ periodMoney('refund_total') }}</text>
 						<text class="overview-meta">扣除退款后的净收款 {{ periodMoney('net_cash_received') }}</text>
+						<text v-if="periodReport?.refund_source_pending_total > 0" class="overview-meta">当前退款来源待核 ¥{{ formatMoney(periodReport.refund_source_pending_total) }}，余额尚未扣除，请先补关联。</text>
 						<text class="overview-meta">{{ periodScopeText }}</text>
 					</view>
 					<view class="overview-item">
@@ -647,6 +648,7 @@
 					</AppList>
 				</view>
 
+				<CustomerRefundPanel v-else-if="activeOperationTab === 'refund'" :customer-id="recordId" @changed="refreshAll" />
 				<CustomerDepositPanel
 					v-else-if="activeOperationTab === 'deposit'"
 					:customer-id="recordId"
@@ -1055,6 +1057,7 @@ import AppList from '@/components/base/AppList.vue'
 import AppListItem from '@/components/base/AppListItem.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
 import AppDatePresetBar from '@/components/base/AppDatePresetBar.vue'
+import CustomerRefundPanel from '@/components/domain/customer/statement/CustomerRefundPanel.vue'
 import CustomerDepositPanel from '@/components/domain/customer/statement/CustomerDepositPanel.vue'
 import { buildDatePresetRange, detectDatePreset } from '@/utils/datePreset'
 import {
@@ -1171,6 +1174,7 @@ const operationTabs = [
 	{ label: '冲抵分配', value: 'offset' },
 	{ label: '预付录入', value: 'prepay' },
 	{ label: '押金', value: 'deposit' },
+	{ label: '退款登记', value: 'refund' },
 	{ label: '冲抵池录入', value: 'offset_entry' },
 	{ label: '历史欠款登记', value: 'opening_debt' },
 	{ label: '其他费用', value: 'other_fee' },

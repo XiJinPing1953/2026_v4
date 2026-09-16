@@ -23,6 +23,7 @@ export function customerPeriodSummaryRows(value) {
 		...(summary?.settlement_fee_total > 0 ? [['settlement_fee_total', '期间收款手续费（非到账、非抹零）']] : []),
 		['historical_debt_collected', '其中收回历史欠款'],
 		['refund_total', '期间退款'],
+		...(summary?.refund_source_pending_total > 0 ? [['refund_source_pending_total', '当前退款来源待核（已计资金、尚未扣来源余额）']] : []),
 		['net_cash_received', '扣除退款后的净收款'],
 		['opening_prepay_transferred', '期间期初预付款转入（非收款）'],
 		['deposit_transferred', '期间押金转气款（非新收款）']

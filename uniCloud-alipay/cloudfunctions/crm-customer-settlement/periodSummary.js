@@ -162,6 +162,9 @@ function calculatePeriodSummary(input, rules) {
 			text: `${row.biz_date}流量结算包含${row.period_start_date}至${row.period_end_date || row.biz_date}的跨年用气；按结算日期计营收，未拆分为本年实际用气。` }))
 	for (const row of openingCredits) if (!date(row.biz_date) || !(Number(row.amount) >= 0)) issue('opening_prepay', row, 'opening_prepay_source_invalid', row.amount)
 	for (const row of depositTransfers) if (!date(row.biz_date) || !(Number(row.amount) > 0)) issue('deposit_transfer', row, 'deposit_transfer_source_invalid', row.amount)
+	const pendingRefunds = receipts.filter(row => row.status === 'posted' && row.source_type === 'customer_cash_refund' && row.refund_source_status === 'pending')
+	const pendingRefundTotal = sum(pendingRefunds.map(row => Math.max(-Number(row.amount), 0)))
+	if (pendingRefundTotal > 0) sourceNotes.push({ source_type:'refund_source_pending', source_id:'refund_source_pending', text:`已登记退款中有${pendingRefundTotal}元尚未确认余额来源；现金退款已计入，来源余额尚未扣除，余额需核对后使用。` })
 	const knownCash = {
 		cash_received: cashReceived,
 		historical_debt_collected: sum([...cashAllocations.values()]),
@@ -180,6 +183,7 @@ function calculatePeriodSummary(input, rules) {
 		rule_version: VERSION, date_from: dateFrom, date_to: dateTo, money_scale: moneyScale,
 		read_complete: true, complete: pending.length === 0, status: pending.length ? 'needs_review' : 'complete',
 		cash_complete: cashComplete,
+		refund_source_pending_total: pendingRefundTotal, balance_source_complete: pendingRefundTotal === 0,
 		business_revenue: businessComplete ? businessRevenue : null,
 		noncash_balance_adjustment: businessComplete ? balanceAdjustment : null,
 		historical_receivable: businessComplete ? historicalReceivable : null,

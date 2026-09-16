@@ -4,6 +4,7 @@ const { isSettlementFeeReceipt, isOpeningPrepayReceipt, isDepositTransferReceipt
 const saleAccounting = require('./saleAccountingLocal')
 const { readComplete, withFinancialEvidence, FinancialReadError } = require('./financialReadLocal')
 const offsetCreditRefund = require('./offsetCreditRefund')
+const customerRefund = require('./customerRefund')
 
 const db = uniCloud.database()
 const dbCmd = db.command
@@ -47,6 +48,10 @@ const CASHIER_TARGET_PREVIEW_LIMIT = 3
 const AUTO_PREPAY_ALLOCATION_SOURCE_TYPES = ['sale_auto_prepay', 'flow_auto_prepay']
 const AUTO_PREPAY_REPAIR_CONFIRM_TEXT = 'ROLLBACK_AUTO_PREPAY_ALLOCATIONS'
 const PAGE_ACTION_RULES = {
+	listCustomerRefundsV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
+	getCustomerRefundOperationV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
+	previewCustomerRefundV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	createCustomerRefundV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	previewAllocationV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	createReceiptV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	beginReceiptAdjustmentV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
@@ -2281,6 +2286,7 @@ async function applyAllocationAndPersist({
 	sourceId,
 	entryKind
 }) {
+	if (sourceType === customerRefund.SOURCE) return { ok: false, code: 400, msg: '请使用退款登记入口' }
 	if (isSettlementFeeReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '手续费仅能由受保护核对流程登记' }
 	if (isDepositTransferReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '押金转气款只能由押金专用流程登记' }
 	if (isOpeningPrepayReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '期初预付款仅能从有备份的专用转入流程创建' }
@@ -3091,8 +3097,10 @@ async function beginReceiptAdjustmentV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (customerRefund.protectedReceipt(receiptDoc)) return { code: 409, msg: '该单已有退款关联，不能直接调整或删除；请核查退款记录' }
 	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费修正须走有备份的专用核对流程' }
 	if (isDepositTransferReceipt(receiptDoc)) return { code: 400, msg: '押金转气款来源受保护，请在押金流水中核对或作废；可继续分配' }
+	if (customerRefund.protectedReceipt(receiptDoc)) return { code: 409, msg: '该单已有退款关联，不能直接调整或删除；请核查退款记录' }
 	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费须经受保护流程修正' }
 	if (isOpeningPrepayReceipt(receiptDoc)) return { code: 400, msg: '期初预付款来源受保护，可继续分配；更正须走有备份的专用核对流程' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持调整已入账收款单' }
@@ -3775,6 +3783,7 @@ async function createReceiptV1(user, data, requestId) {
 	const paymentMethod = normalizePaymentMethod(data.payment_method || data.paymentMethod, 'paid')
 	const note = normalizeString(data.note)
 	const sourceType = normalizeString(data.source_type || data.sourceType) || 'manual'
+	if (sourceType === customerRefund.SOURCE) return { ok: false, code: 400, msg: '请使用退款登记入口' }
 	if (isSettlementFeeReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '手续费仅能由受保护核对流程登记' }
 	if (isDepositTransferReceipt({ source_type: sourceType })) return { code: 400, msg: '押金转气款只能由押金专用流程登记' }
 	if (isOpeningPrepayReceipt({ source_type: sourceType })) return { code: 400, msg: '期初预付款须经有依据的专用转入流程登记' }
@@ -3838,8 +3847,10 @@ async function updateReceiptV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (customerRefund.protectedReceipt(receiptDoc)) return { code: 409, msg: '该单已有退款关联，不能直接调整或删除；请核查退款记录' }
 	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费修正须走有备份的专用核对流程' }
 	if (isDepositTransferReceipt(receiptDoc)) return { code: 400, msg: '押金转气款来源受保护，请在押金流水中核对或作废；可继续分配' }
+	if (customerRefund.protectedReceipt(receiptDoc)) return { code: 409, msg: '该单已有退款关联，不能直接调整或删除；请核查退款记录' }
 	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费须经受保护流程修正' }
 	if (isOpeningPrepayReceipt(receiptDoc)) return { code: 400, msg: '期初预付款来源受保护，可继续分配；更正须走有备份的专用核对流程' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持编辑已入账收款单' }
@@ -4034,8 +4045,10 @@ async function removeReceiptV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (customerRefund.protectedReceipt(receiptDoc)) return { code: 409, msg: '该单已有退款关联，不能直接调整或删除；请核查退款记录' }
 	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费修正须走有备份的专用核对流程' }
 	if (isDepositTransferReceipt(receiptDoc)) return { code: 400, msg: '押金转气款来源受保护，请在押金流水中核对或作废；可继续分配' }
+	if (customerRefund.protectedReceipt(receiptDoc)) return { code: 409, msg: '该单已有退款关联，不能直接调整或删除；请核查退款记录' }
 	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费须经受保护流程修正' }
 	if (isOpeningPrepayReceipt(receiptDoc)) return { code: 400, msg: '期初预付款来源受保护，可继续分配；更正须走有备份的专用核对流程' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持删除已入账收款单' }
@@ -4198,6 +4211,7 @@ async function updateReceiptIntakeV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (customerRefund.protectedReceipt(receiptDoc)) return { code:409, msg:'该收款已有退款关联，不能直接编辑或删除' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持编辑已入账收款单' }
 	if (!isCashierReceiptSourceType(receiptDoc.source_type)) return { code: 400, msg: '该收款单不是出纳录款来源' }
 
@@ -4298,6 +4312,7 @@ async function removeReceiptIntakeV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (customerRefund.protectedReceipt(receiptDoc)) return { code:409, msg:'该收款已有退款关联，不能直接编辑或删除' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持删除已入账收款单' }
 	if (!isCashierReceiptSourceType(receiptDoc.source_type)) return { code: 400, msg: '该收款单不是出纳录款来源' }
 
@@ -4602,6 +4617,7 @@ async function createPrepayEntryV1(user, data, requestId) {
 	}
 
 	const sourceType = normalizeString(data.source_type || data.sourceType) || (entryKind === 'offset_credit' ? 'customer_offset_credit_manual' : 'customer_prepay_manual')
+	if (sourceType === customerRefund.SOURCE) return { ok: false, code: 400, msg: '请使用退款登记入口' }
 	if (isSettlementFeeReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '手续费仅能由受保护核对流程登记' }
 	if (isDepositTransferReceipt({ source_type: sourceType })) return { code: 400, msg: '押金转气款只能由押金专用流程登记' }
 	if (isOpeningPrepayReceipt({ source_type: sourceType })) return { code: 400, msg: '期初预付款须经有依据的专用转入流程登记' }
@@ -5908,7 +5924,7 @@ async function removeOffsetCreditAllocationV1(user, data, requestId) {
 	await receipts.doc(receiptId).update({
 		allocated_amount: 0,
 		rounding_allocated_amount: 0,
-		unallocated_amount: amount,
+		unallocated_amount: fixMoney(amount - toNumber(receiptDoc.offset_cash_refunded_amount, 0)),
 		allocation_targets: [],
 		updated_at: Date.now(),
 		updated_by: normalizeId(user && user._id) || null,
@@ -8866,10 +8882,25 @@ const main = async (event, context) => {
 			const sourceCustomerId = normalizeId(found.data && found.data[0] && found.data[0].customer_id)
 			if (sourceCustomerId) financialCustomerIds.add(sourceCustomerId)
 		}
-		for (const customerId of financialCustomerIds) await listCustomerSales(customerId)
+		for (const customerId of financialCustomerIds) {
+			await listCustomerSales(customerId)
+			if (['repairReceiptAllocationV1','repairAutoPrepayAllocationsV1','repairOffsetCreditsV1','releaseSaleSettlementOnRemoveV1'].includes(action)) {
+				const linked = (await listCustomerReceipts(customerId)).filter(customerRefund.protectedReceipt)
+				const affected = action === 'releaseSaleSettlementOnRemoveV1' ? linked.filter(row => row.source_id === normalizeId(data.sale_id || data.saleId || data._id || data.id)) : linked
+				if (affected.length) return {code:409,msg:'该客户已有退款关联，不能使用旧重建或删除流程改写余额，请核查退款记录'}
+			}
+		}
+
 	}
 
 	if (action === 'getLegacyM3EvidenceV1') return getLegacyM3EvidenceV1(user, data)
+	if (['listCustomerRefundsV1','getCustomerRefundOperationV1','previewCustomerRefundV1','createCustomerRefundV1'].includes(action)) {
+		if (['previewCustomerRefundV1','createCustomerRefundV1'].includes(action) && !['superadmin','admin','finance'].includes(user.role)) return { code:403, msg:'仅财务或管理员可登记退款' }
+		try {
+			const service = customerRefund.createRefundService({db, command:dbCmd, readComplete, moneyScale:resolveCustomerMoneyScale, refreshBalances:rebuildCustomerBalances})
+			return {code:0,data:await service.run(action,data,user)}
+		} catch(error) { return {code:error.code || 500,msg:error.message || '退款处理失败，请查询原操作结果'} }
+	}
 	if (action === 'previewAllocationV1') return previewAllocationV1(user, data)
 	if (action === 'createReceiptV1') return createReceiptV1(user, data, requestId)
 	if (action === 'beginReceiptAdjustmentV1') return beginReceiptAdjustmentV1(user, data, requestId)
