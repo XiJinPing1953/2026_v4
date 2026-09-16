@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.16-refund-layout",
+      "version": "2026.09.16-statement-style",
       "output": "dist/build/web",
-      "acceptance": "Refund form layout only; no accounting behavior or cloud changes",
+      "acceptance": "Full-width refund and consistent customer statement styles; H5 only",
       "integrityScope": "deployment"
     },
     "cloud": {
@@ -22,7 +22,8 @@
         "databaseFiles": [],
         "baseCommit": "dc87a6874e3eeddae6147398dd60cac3c66e37f6",
         "sourceFiles": [
-          "src/components/domain/customer/statement/CustomerRefundPanel.vue"
+          "src/components/domain/customer/statement/CustomerRefundPanel.vue",
+          "src/components/domain/customer/statement/CustomerStatementModule.vue"
         ],
         "aclCanonicalRevisions": {}
       },

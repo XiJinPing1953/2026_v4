@@ -1,6 +1,6 @@
 <template>
  <view class="refund-panel">
-  <view class="refund-head"><text>登记已经实际退给客户的钱。退押金请使用“押金”入口。</text><AppButton size="sm" kind="neutral" :disabled="busy || !!operation" @click="load">刷新</AppButton></view>
+  <view class="refund-head"><text>登记已经实际退给客户的钱。退押金请使用“押金”入口。</text><AppButton size="sm" kind="ghost" :disabled="busy || !!operation" @click="load">刷新</AppButton></view>
   <text v-if="issue" class="warning">{{ issue }}</text>
   <text v-if="pendingTotal" class="warning">有 ¥{{ money(pendingTotal) }} 退款来源待核，尚未扣除对应余额；请补关联后再使用余额。</text>
   <view v-if="canWrite && ready" class="refund-form">
@@ -68,37 +68,43 @@ watch(()=>[form.amount,form.biz_date,form.payment_method,form.note,form.voucher_
 watch(()=>props.customerId,async()=>{operation.value=null;reset();operation.value=uni.getStorageSync(key())||null;retryable.value=!!operation.value;await load()},{immediate:true})
 </script>
 <style scoped>
-.refund-panel { display:flex; flex-direction:column; gap:24rpx; width:100%; min-width:0; box-sizing:border-box; }
-.refund-head { display:flex; justify-content:space-between; align-items:center; gap:16rpx; flex-wrap:wrap; font-size:24rpx; line-height:1.6; color:var(--crm-text-muted); }
-.refund-panel :deep(.btn) { margin:0; flex:none; }
-.refund-form { display:flex; flex-direction:column; gap:20rpx; padding:24rpx; border:1rpx solid var(--crm-border); border-radius:var(--crm-radius-sm); }
-.title { display:block; font-size:28rpx; font-weight:700; color:var(--crm-text); }
-.fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20rpx; }
+.refund-panel { width:100%;  box-sizing:border-box; padding:0; display:flex; flex-direction:column; gap:18px; color:#263445; font-size:14px; }
+.refund-head { display:flex; justify-content:space-between; align-items:center; gap:16px; color:#697586; font-size:13px; }
+.refund-panel :deep(.btn) { margin:0; flex:none; height:36px; padding:0 16px; font-size:13px; border-radius:6px; }
+.refund-form { display:flex; flex-direction:column; gap:20px; padding:22px; border:1px solid #e2e7ee; border-radius:10px; background:#fff; }
+.title { font-size:15px; font-weight:600; color:#243247; }
+.fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px 20px; }
 .fields > * { min-width:0; }
 .reason-field { grid-column:span 2; }
-.field-label { font-size:24rpx; color:var(--crm-text-muted); font-weight:400; }
-.payment-field { display:flex; flex-direction:column; gap:8rpx; }
-.select { height:80rpx; display:flex; align-items:center; justify-content:space-between; padding:0 24rpx; border:1rpx solid var(--crm-border); border-radius:var(--crm-radius-sm); font-size:28rpx; color:var(--crm-text); }
-.chevron { color:var(--crm-text-muted); }
-.source-choice { display:flex; align-items:center; gap:24rpx; padding-top:20rpx; border-top:1rpx solid var(--crm-border); flex-wrap:wrap; }
-.source-switch { display:flex; gap:8rpx; }
-.source-hint { display:block; color:var(--crm-text-muted); font-size:24rpx; margin-bottom:16rpx; line-height:1.6; }
-.source { display:grid; grid-template-columns:minmax(0,1fr) 320rpx; gap:24rpx; align-items:center; background:#f9fafb; border:1rpx solid var(--crm-border); padding:20rpx; border-radius:var(--crm-radius-sm); margin-top:16rpx; }
-.source-info { font-size:28rpx; color:var(--crm-text); line-height:1.6; }
-.source-info .muted { margin-top:8rpx; }
-.muted { display:block; color:var(--crm-text-muted); font-size:24rpx; line-height:1.6; overflow-wrap:anywhere; }
-.warning { color:#9d5e00; font-size:24rpx; line-height:1.6; }
-.preview { display:flex; flex-direction:column; gap:12rpx; padding:24rpx; background:#eef6ff; border-radius:var(--crm-radius-sm); }
-.actions { display:flex; align-items:center; gap:16rpx; flex-wrap:wrap; }
-.form-footer { border-top:1rpx solid var(--crm-border); padding-top:20rpx; }
-.history-heading { display:flex; align-items:center; gap:16rpx; margin-top:8rpx; }
-.refund-row { display:flex; flex-wrap:wrap; gap:16rpx; align-items:center; border-bottom:1rpx solid var(--crm-border); padding:20rpx 0; font-size:28rpx; }
-@media(max-width:720px) {
+.refund-panel :deep(.field) { gap:7px; }
+.refund-panel :deep(.field__label), .field-label { font-size:12px; line-height:18px; color:#64748b; }
+.refund-panel :deep(.field__control) { box-sizing:border-box; height:40px; min-height:40px; padding:0 12px; border:1px solid #d7dfe8; border-radius:6px; }
+.refund-panel :deep(.field__input) { font-size:14px; }
+.payment-field { display:flex; flex-direction:column; gap:7px; }
+.select { height:40px; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; padding:0 12px; border:1px solid #d7dfe8; border-radius:6px; font-size:14px; }
+.chevron { color:#94a3b8; }
+.source-choice { display:flex; align-items:center; gap:18px; padding-top:18px; border-top:1px solid #edf0f4; }
+.source-switch { display:flex; gap:4px; padding:3px; background:#f1f4f8; border-radius:7px; }
+.source-switch :deep(.btn) { height:32px; padding:0 14px; border-color:transparent; background:transparent; color:#66758b; }
+.source-switch :deep(.btn--primary) { background:#fff; color:#0877cd; box-shadow:0 1px 4px #24324718; }
+.source-hint { display:block; color:#758297; font-size:12px; margin-bottom:10px; line-height:1.6; }
+.source { display:grid; grid-template-columns:minmax(0,1fr) 180px; gap:24px; align-items:center; background:#f8fafc; border:1px solid #e7ecf2; padding:14px 16px; border-radius:8px; margin-top:8px; }
+.source-info { font-size:13px; line-height:1.6; }
+.source-info .muted { margin-top:4px; }
+.muted { display:block; color:#8390a2; font-size:12px; line-height:1.6; }
+.warning { color:#966014; background:#fff8eb; padding:12px 14px; border-radius:6px; font-size:13px; line-height:1.6; }
+.preview { display:flex; flex-direction:column; gap:8px; padding:14px 16px; background:#edf6ff; border-radius:8px; font-size:13px; }
+.actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.form-footer { border-top:1px solid #edf0f4; padding-top:18px; }
+.history-heading { display:flex; align-items:center; gap:10px; margin-top:8px; }
+.refund-row { display:flex; flex-wrap:wrap; gap:12px; align-items:center; border-bottom:1px solid #edf0f4; padding:12px 0; font-size:13px; }
+@media(max-width:680px) {
+ .refund-panel { padding:0; }
  .refund-head { align-items:flex-start; }
- .refund-form { padding:20rpx; }
- .fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .refund-form { padding:16px; }
+ .fields { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 12px; }
  .reason-field { grid-column:1 / -1; }
- .source { grid-template-columns:minmax(0,1fr) 240rpx; }
+ .source { grid-template-columns:minmax(0,1fr) 130px; gap:12px; padding:12px; }
 }
-@media(max-width:420px) { .fields,.source { grid-template-columns:minmax(0,1fr); } }
+@media(max-width:400px) { .fields { grid-template-columns:1fr; } .source { grid-template-columns:1fr; } }
 </style>

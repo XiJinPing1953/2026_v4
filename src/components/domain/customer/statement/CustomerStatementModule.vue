@@ -1,5 +1,5 @@
 <template>
-	<AppPage title="客户对账" :subtitle="subtitle" icon="wallet">
+	<AppPage class="statement-theme" title="客户对账" :subtitle="subtitle" icon="wallet">
 		<template #headerActions>
 			<view class="statement-header-actions">
 				<picker class="header-date-picker" mode="date" :value="datePickerValue(rowFilters.dateFrom)" @change="onRowsDateFromChange">
@@ -6274,5 +6274,38 @@ onBeforeUnmount(() => {
 	.receipt-grid--four {
 		grid-template-columns: 1fr;
 	}
+}
+
+/* This page shares the refund form's visual language; other pages are unchanged. */
+.statement-theme {
+ --crm-border:#e2e7ee;
+ --crm-radius-sm:6px;
+ --crm-text:#263445;
+ --crm-text-muted:#64748b;
+}
+.statement-theme :deep(.card), .statement-theme :deep(.section) { border-radius:10px; border-color:#e2e7ee; }
+.statement-theme :deep(.card__header), .statement-theme :deep(.section__header) { background:#fff; padding:16px 20px; border-bottom:1px solid #edf0f4; }
+.statement-theme :deep(.card__title), .statement-theme :deep(.section__title) { font-size:15px; color:#243247; font-weight:600; }
+.statement-theme :deep(.section__body), .statement-theme :deep(.card__body) { padding:20px; }
+.statement-theme :deep(.btn) { margin:0; flex:none; height:36px; padding:0 16px; border-radius:6px; font-size:13px; }
+.statement-theme :deep(.btn--md) { height:40px; }
+.statement-theme :deep(.field) { gap:7px; }
+.statement-theme :deep(.field__label) { font-size:12px; line-height:18px; color:#64748b; }
+.statement-theme :deep(.field__control) { box-sizing:border-box; height:40px; min-height:40px; padding:0 12px; border:1px solid #d7dfe8; border-radius:6px; }
+.statement-theme :deep(.field__input) { font-size:14px; }
+.statement-theme :deep(.deposit-form) { padding:22px; gap:20px; border-radius:10px; }
+.statement-theme :deep(.deposit-grid) { gap:18px 20px; }
+.statement-theme :deep(.deposit-hint), .statement-theme :deep(.deposit-preview), .statement-theme :deep(.deposit-summary-item) { font-size:13px; }
+.statement-theme :deep(.deposit-summary-item), .statement-theme .overview-item, .statement-theme .analysis-card { background:#f8fafc; border:1px solid #e7ecf2; border-radius:8px; padding:14px 16px; }
+.statement-theme .overview-label, .statement-theme .analysis-card__label { font-size:12px; color:#64748b; }
+.statement-theme .overview-value { color:#243247; }
+.statement-theme .receipt-grid, .statement-theme .flow-grid, .statement-theme .filter-grid { gap:18px 20px; }
+.statement-theme .section-hint, .statement-theme .row-detail { font-size:13px; line-height:1.6; color:#64748b; }
+.statement-theme .preview-box, .statement-theme .checked-target-box { border-radius:8px; border-color:#e7ecf2; }
+.statement-theme :deep(.item) { border-color:#e7ecf2; border-radius:8px; }
+@media(max-width:720px) {
+ .statement-theme :deep(.section__body), .statement-theme :deep(.card__body) { padding:12px; }
+ .statement-theme :deep(.deposit-form) { padding:16px; }
+ .statement-theme .receipt-grid, .statement-theme .flow-grid, .statement-theme .filter-grid { gap:14px 12px; }
 }
 </style>
