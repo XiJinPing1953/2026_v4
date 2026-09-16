@@ -1,0 +1,68 @@
+[
+  {
+    "id": "695f03a37ae7089a62ba3543",
+    "date": "2026-01-06",
+    "amount": 630,
+    "voucher": "记-019"
+  },
+  {
+    "id": "696f2a063d029cb6257dad4b",
+    "date": "2026-01-20",
+    "amount": 630,
+    "voucher": "记-072"
+  },
+  {
+    "id": "697fecc9f082103615d5b720",
+    "date": "2026-02-01",
+    "amount": 639,
+    "voucher": "记-002"
+  },
+  {
+    "id": "69bbaff889d8371762435b6d",
+    "date": "2026-02-09",
+    "amount": 450,
+    "voucher": "记-030"
+  },
+  {
+    "id": "69bbaffce238b3957b626064",
+    "date": "2026-02-14",
+    "amount": 432,
+    "voucher": "记-050"
+  },
+  {
+    "id": "69bbb0000add39bd434a40ba",
+    "date": "2026-02-28",
+    "amount": 522,
+    "voucher": "记-076"
+  },
+  {
+    "id": "69bbb0030add39bd434a413b",
+    "date": "2026-03-03",
+    "amount": 594,
+    "voucher": "记-010"
+  },
+  {
+    "id": "69bbb00df7ac1a41a1adcb53",
+    "date": "2026-03-11",
+    "amount": 495,
+    "voucher": "记-038"
+  },
+  {
+    "id": "69c8af7d91ffaeab57740ac4",
+    "date": "2026-03-22",
+    "amount": 549,
+    "voucher": "记-077"
+  },
+  {
+    "id": "69ccc864ad2f4ad42e0770ff",
+    "date": "2026-04-01",
+    "amount": 657,
+    "voucher": "记-002"
+  },
+  {
+    "id": "69d76b9c8dadf86fbfe5775c",
+    "date": "2026-04-09",
+    "amount": 558,
+    "voucher": "记-031"
+  }
+]
