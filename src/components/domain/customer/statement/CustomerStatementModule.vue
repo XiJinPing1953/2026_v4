@@ -142,12 +142,7 @@
 						<text v-if="outstandingPeriodIssues(periodReport).length" class="overview-meta">{{ outstandingPeriodIssues(periodReport).length }} 项账务依据待核，相关合计暂不显示</text>
 						<text v-for="(issue, index) in outstandingPeriodIssues(periodReport).slice(0, 3)" :key="index" class="overview-meta">{{ describePeriodSummaryIssue(issue) }}</text>
 				</view>
-				<view v-if="periodReport?.source_notes?.length" class="overview-notes">
-					<button class="overview-notes-toggle" :aria-expanded="overviewNotesOpen" @click="overviewNotesOpen = !overviewNotesOpen">口径说明 {{ overviewNotesOpen ? '收起 −' : '展开 +' }}</button>
-					<view v-if="overviewNotesOpen" class="overview-notes-body">
-					<text v-for="note in periodReport.source_notes" :key="note.source_id" class="overview-meta">{{ note.source_type === 'allocation_rounding' ? '以下金额已包含在抹零汇总中。' + note.text.replace('后续分配抹零', '分配时登记的抹零') : note.text }}</text>
-					</view>
-				</view>
+
 			</AppSection>
 
 			<view id="statement-operation-section">
@@ -1113,7 +1108,6 @@ const props = defineProps({
 const recordId = toRef(props, 'recordId')
 const scene = toRef(props, 'scene')
 const saleId = toRef(props, 'saleId')
-const overviewNotesOpen = ref(false)
 const loading = ref(false)
 const refreshingAfterSave = ref(false)
 const analysisStale = ref(true)
@@ -5729,11 +5723,6 @@ onBeforeUnmount(() => {
 .overview-item { min-width: 0; overflow-wrap: anywhere; }
 .overview-grid--finance .overview-item { padding: 14px 16px; gap: 6px; }
 .overview-grid--finance .overview-value { margin-bottom: 2px; }
-.overview-notes { margin-top: 8px; }
-.overview-notes-toggle { display: inline-flex; align-items: center; margin: 0; padding: 4px 0; border: 0; border-radius: 0; background: transparent; color: var(--crm-text-muted); font-size: 12px; line-height: 20px; cursor: pointer; }
-.overview-notes-toggle::after { border: 0; }
-.overview-notes-toggle:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
-.overview-notes-body { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; max-width: 960px; }
 @media (max-width: 1200px) {
 	.overview-grid--identity, .overview-grid--finance, .overview-grid--supplement { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
