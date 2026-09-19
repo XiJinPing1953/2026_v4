@@ -16,18 +16,14 @@ const fillings = db.collection('crm_fillings')
 const sales = db.collection('crm_sale_records')
 const bottleMovements = db.collection('crm_bottle_movements')
 const currentInventoryCore = require('./currentInventory')
+const inventoryRead = require('./inventoryRead')
 let ensureActionAcl = null
-let tankTelemetryCore = null
+const tankTelemetryCore = require('./tankTelemetryLocal')
 try {
 	;({ ensureActionAcl } = require('../common/pageAcl'))
 } catch (err) {
 	console.warn('[crm-gas-in] fallback to local pageAcl helpers', err && err.message)
 	;({ ensureActionAcl } = require('./pageAclLocal'))
-}
-try {
-	tankTelemetryCore = require('../common/tankTelemetry')
-} catch (err) {
-	console.warn('[crm-gas-in] tank telemetry helper unavailable', err && err.message)
 }
 
 const DEFAULT_PRODUCT_NAME = 'LNG'
@@ -728,54 +724,7 @@ async function getActiveInventoryPeriod() {
 }
 
 async function fetchLatestBottleMovements(bottleNos = [], cutoffAt = null) {
-	const normalized = Array.from(new Set((bottleNos || []).map((item) => normalizeBottleNo(item)).filter(Boolean)))
-	if (!normalized.length) return []
-	const result = []
-	const chunkSize = 300
-	const pageSize = 400
-	for (let i = 0; i < normalized.length; i += chunkSize) {
-		const chunk = normalized.slice(i, i + chunkSize)
-		const unresolved = new Set(chunk)
-		let skip = 0
-		let guard = 0
-		while (unresolved.size > 0) {
-			guard += 1
-			if (guard > 160) throw new Error('瓶子流转扫描超过安全限制')
-			const where = { bottle_no: dbCmd.in(chunk), type: dbCmd.in(FLOW_TYPES) }
-			if (Number.isFinite(Number(cutoffAt))) where.event_at = dbCmd.gte(Number(cutoffAt))
-			const res = await bottleMovements
-				.where(where)
-				.field({
-					_id: true,
-					bottle_no: true,
-					type: true,
-					event_day: true,
-					event_at: true,
-					type_order: true,
-					source_type: true,
-					source_id: true,
-					created_at: true
-				})
-				.orderBy('event_at', 'desc')
-				.orderBy('type_order', 'desc')
-				.orderBy('created_at', 'desc')
-				.skip(skip)
-				.limit(pageSize)
-				.get()
-			const rows = Array.isArray(res.data) ? res.data : []
-			if (!rows.length) break
-			for (let j = 0; j < rows.length; j += 1) {
-				const row = rows[j] || {}
-				const bottleNo = normalizeBottleNo(row.bottle_no)
-				if (!bottleNo || !unresolved.has(bottleNo)) continue
-				result.push(row)
-				unresolved.delete(bottleNo)
-			}
-			if (rows.length < pageSize) break
-			skip += rows.length
-		}
-	}
-	return result
+	return inventoryRead.readLatestMovements(bottleMovements, dbCmd, bottleNos, cutoffAt)
 }
 
 async function getFilledUnsoldInventorySnapshot(period) {
@@ -819,33 +768,21 @@ async function getFilledUnsoldInventorySnapshot(period) {
 
 async function getLedgerTankForPeriod(period) {
 	const normalized = currentInventoryCore.normalizePeriod(period)
-	let rowsRes = null
-	try {
-		rowsRes = await scanRows({
-			collection: gasInventoryMovements,
-			where: { event_at: dbCmd.gte(normalized.cutoff_at) },
-			field: { event_day: true, event_at: true, station_delta_t: true, created_at: true },
-			limit: SUMMARY_SCAN_LIMIT,
-			pageSize: 400
-		})
-	} catch (err) {
-		if (!isCollectionNotFoundError(err)) console.error('[crm-gas-in] getLedgerTankForPeriod failed', err)
-		return normalized.opening_tank_t
-	}
-	if (!rowsRes || !rowsRes.ok) return normalized.opening_tank_t
-	return currentInventoryCore.buildLedgerTankT({ period: normalized, movements: rowsRes.data || [] })
+	const delta = await inventoryRead.readLedgerDelta(gasInventoryMovements, dbCmd, normalized.cutoff_at)
+	return roundTon(normalized.opening_tank_t + delta)
 }
 
 async function getCurrentInventorySnapshot(periodOverride = null) {
 	const period = periodOverride
 		? currentInventoryCore.normalizePeriod(periodOverride)
 		: await getActiveInventoryPeriod()
-	const [tankConfig, tankSummary, filledUnsold] = await Promise.all([
+	const [tankConfig, tankSummary, filledUnsold, ledgerResult] = await Promise.all([
 		getGasTankConfig(),
 		getTankTelemetrySummaryForGas(),
-		getFilledUnsoldInventorySnapshot(period)
+		getFilledUnsoldInventorySnapshot(period),
+		getLedgerTankForPeriod(period).then((value) => ({ value }), (err) => ({ error: getErrorMessage(err) || '账面库存读取失败' }))
 	])
-	const ledgerTankT = await getLedgerTankForPeriod(period)
+	const ledgerTankT = ledgerResult.error ? null : ledgerResult.value
 	const current = currentInventoryCore.buildCurrentInventory({
 		period,
 		tank: tankSummary,
@@ -857,9 +794,16 @@ async function getCurrentInventorySnapshot(periodOverride = null) {
 	if (filledUnsold.load_error) {
 		current.physical.available = false
 		current.physical.total_t = null
+		current.physical.filled_unsold_t = null
+		current.physical.filled_unsold_count = null
+		current.quality.unresolved_bottle_count = null
 		current.physical.message = '瓶装库存读取失败，现场总库存暂不可用'
 		current.quality.message = filledUnsold.load_error
 		current.quality.load_error = true
+	}
+	if (ledgerResult.error) {
+		current.quality.ledger_load_error = true
+		current.quality.message = [filledUnsold.load_error, '账面库存读取失败，暂不可核对'].filter(Boolean).join('；')
 	}
 	current.quality.unresolved = filledUnsold.unresolved || []
 	current.quality.candidate_bottle_count = Number(filledUnsold.candidate_bottle_count || 0)
@@ -1680,19 +1624,23 @@ async function listV1(user, data) {
 	const summaryRes = await summarizeGasInWhere(where)
 	if (!summaryRes.ok) return { code: 400, msg: summaryRes.msg || '统计失败' }
 	const summary = summaryRes.data || { net_weight_t_total: 0, amount_total: 0 }
-	const [inventory, currentBundle] = await Promise.all([
-		getInventorySnapshot(inventoryAsOf),
-		getCurrentInventorySnapshot()
-	])
-	const { current, tankConfig, tankSummary } = currentBundle
-	inventory.tank = tankSummary
-	inventory.estimate = buildTankEstimate(inventory, tankSummary, tankConfig)
-	inventory.current = current
-	inventory.legacy = {
-		label: '历史流水口径',
-		archived_before_cutoff: true,
-		current_source: false,
-		message: '旧累计字段仅供历史查询，不作为当前库存主结果'
+	let inventory = null
+	if (data.include_inventory !== false) {
+		const [legacyInventory, currentBundle] = await Promise.all([
+			getInventorySnapshot(inventoryAsOf),
+			getCurrentInventorySnapshot()
+		])
+		const { current, tankConfig, tankSummary } = currentBundle
+		legacyInventory.tank = tankSummary
+		legacyInventory.estimate = buildTankEstimate(legacyInventory, tankSummary, tankConfig)
+		legacyInventory.current = current
+		legacyInventory.legacy = {
+			label: '历史流水口径',
+			archived_before_cutoff: true,
+			current_source: false,
+			message: '旧累计字段仅供历史查询，不作为当前库存主结果'
+		}
+		inventory = legacyInventory
 	}
 
 	const rows = Array.isArray(res.data) ? res.data.map((row) => normalizeGasInRow(row)) : []
@@ -2293,6 +2241,7 @@ async function restoreInventoryV1(user, data, requestId) {
 }
 
 exports.main = async (event, context) => {
+	const startedAt = Date.now()
 	void context
 	const { action, data = {}, token } = event
 	const requestId =
@@ -2309,8 +2258,8 @@ exports.main = async (event, context) => {
 		})
 		if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
-		if (action === 'listV1') return listV1(user, data)
-		if (action === 'getCurrentInventoryV1') return getCurrentInventoryV1(user, data)
+		if (action === 'listV1') return await listV1(user, data)
+		if (action === 'getCurrentInventoryV1') return await getCurrentInventoryV1(user, data)
 		if (action === 'getTankConfigV1') return getTankConfigV1(user, data)
 		if (action === 'updateTankConfigV1') return updateTankConfigV1(user, data, requestId)
 		if (action === 'previewInventoryPeriodV1') return previewInventoryPeriodV1(user, data)
@@ -2331,5 +2280,7 @@ exports.main = async (event, context) => {
 			: getErrorMessage(err) || '服务异常'
 		console.error('[crm-gas-in] main failed', action, err)
 		return { code: 500, msg }
+	} finally {
+		if (action === 'listV1' || action === 'getCurrentInventoryV1') console.info('[crm-gas-in] read complete', { action, request_id: requestId, elapsed_ms: Date.now() - startedAt })
 	}
 }

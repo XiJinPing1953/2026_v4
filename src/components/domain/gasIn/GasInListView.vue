@@ -18,9 +18,9 @@
 					<view class="summary-row summary-row--inventory">
 						<AppStatCard class="summary-card" label="现场总库存" :value="formatOptionalTonText(currentPhysical.total_t)" hint="吨" icon="bottle" />
 						<AppStatCard class="summary-card" label="储罐剩余" :value="formatOptionalTonText(currentPhysical.tank_t)" hint="吨" icon="check-circle" />
-						<AppStatCard class="summary-card" label="已灌未售" :value="formatTonText(currentPhysical.filled_unsold_t)" hint="吨" icon="list" />
-						<AppStatCard class="summary-card" label="已灌未售瓶数" :value="currentPhysical.filled_unsold_count" hint="只" icon="list" />
-						<AppStatCard class="summary-card" label="待核对瓶数" :value="currentQuality.unresolved_bottle_count" hint="只" icon="alert" />
+						<AppStatCard class="summary-card" label="已灌未售" :value="formatOptionalTonText(currentPhysical.filled_unsold_t)" hint="吨" icon="list" />
+						<AppStatCard class="summary-card" label="已灌未售瓶数" :value="currentPhysical.filled_unsold_count ?? '--'" hint="只" icon="list" />
+						<AppStatCard class="summary-card" label="待核对瓶数" :value="currentQuality.unresolved_bottle_count ?? '--'" hint="只" icon="alert" />
 					</view>
 				</view>
 				<view class="highlight-group">
@@ -249,22 +249,22 @@ function buildEmptyCurrentInventory() {
 		},
 		physical: {
 			tank_t: null,
-			filled_unsold_t: 0,
+			filled_unsold_t: null,
 			total_t: null,
-			filled_unsold_count: 0,
+			filled_unsold_count: null,
 			available: false,
 			status: 'empty',
 			sampled_at: null,
 			weight_source: 'unavailable',
 			is_fallback: false,
-			message: '等待储罐网关上报，总库存暂不可用'
+			message: '正在读取当前库存'
 		},
 		ledger: {
-			tank_t: 0,
+			tank_t: null,
 			diff_t: null
 		},
 		quality: {
-			unresolved_bottle_count: 0,
+			unresolved_bottle_count: null,
 			message: ''
 		}
 	}
@@ -487,7 +487,7 @@ const tankWeightSourceText = computed(() => {
 const inventoryWarning = computed(() => {
 	const messages = []
 	if (!currentPhysical.value.available) messages.push(normalizeString(currentPhysical.value.message))
-	if (Number(currentQuality.value.unresolved_bottle_count || 0) > 0) messages.push(normalizeString(currentQuality.value.message))
+	if (currentQuality.value.load_error || currentQuality.value.ledger_load_error || Number(currentQuality.value.unresolved_bottle_count || 0) > 0) messages.push(normalizeString(currentQuality.value.message))
 	if (currentPhysical.value.is_fallback) messages.push('当前没有PLC直接重量，满罐吨数仅用于备用估算。')
 	return messages.filter(Boolean).join(' ')
 })
@@ -598,6 +598,8 @@ function applyResult(payload = {}) {
 	summary.avgPricePerTon = Number(s.avg_price_per_ton || 0)
 	summary.lossRate = Number(s.loss_rate || 0)
 	summary.amountTotal = Number(s.amount_total || 0)
+	// List and inventory load independently; a late list must not clear fresh inventory.
+	if (!s.inventory) return
 	summary.inventory = {
 		asset_total_t: Number(s?.inventory?.asset_total_t || 0),
 		station_total_t: Number(s?.inventory?.station_total_t || 0),
@@ -646,9 +648,10 @@ async function refreshCurrentInventory() {
 	inventoryRefreshRunning = true
 	try {
 		const res = await getCurrentGasInventoryV1()
-		if (res?.code !== 0) return
+		if (res?.code !== 0) throw new Error(res?.msg || '库存读取失败')
 		const current = res?.data?.current
 		const tank = res?.data?.tank
+		if (!current || !current.physical) throw new Error('库存结果不完整')
 		if (current && typeof current === 'object') {
 			summary.inventory.current = {
 				...buildEmptyCurrentInventory(),
@@ -665,6 +668,10 @@ async function refreshCurrentInventory() {
 		clockNow.value = Date.now()
 	} catch (err) {
 		console.warn('[gas-in] refresh current inventory failed', err)
+		summary.inventory.current = buildEmptyCurrentInventory()
+		summary.inventory.current.physical.message = '库存读取失败，暂不可用，请稍后刷新'
+		summary.inventory.current.quality.load_error = true
+		summary.inventory.current.quality.message = normalizeString(err?.message)
 	} finally {
 		inventoryRefreshRunning = false
 	}
@@ -672,6 +679,7 @@ async function refreshCurrentInventory() {
 
 async function onSearch(resetPage = false, options = {}) {
 	if (resetPage) pager.page = 1
+	void refreshCurrentInventory()
 	const result = await fetchList({ force: Boolean(options.force) })
 	if (!result) return
 	applyResult(result || {})

@@ -3,7 +3,9 @@ import { callCloud } from '@/services/api'
 export async function listGasInV1(params = {}) {
 	return callCloud('crm-gas-in', {
 		action: 'listV1',
+		timeout: 30000,
 		data: {
+			include_inventory: params.includeInventory === true,
 			keyword: params.keyword || '',
 			plate_no: params.plate_no || params.plateNo || '',
 			dateStart: params.dateStart || '',
@@ -18,6 +20,7 @@ export async function listGasInV1(params = {}) {
 export async function getCurrentGasInventoryV1() {
 	return callCloud('crm-gas-in', {
 		action: 'getCurrentInventoryV1',
+		timeout: 65000,
 		data: {}
 	})
 }

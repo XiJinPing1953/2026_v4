@@ -6,31 +6,28 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.16-sale-segments",
+      "version": "2026.09.19-gas-in-timeout",
       "output": "dist/build/web",
-      "acceptance": "Sale mode and pricing unit segmented controls; H5 only",
+      "acceptance": "Gas inventory list decoupled from inventory reads; explicit unavailable states",
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.16-k019-reconciliation",
+      "version": "2026.09.19-gas-in-timeout",
       "output": "release/cloud",
-      "acceptance": "K019 confirmed receipt backing and dates only; no H5 or schema",
+      "acceptance": "Read-only query optimization for crm-gas-in; latest movement aggregation and ledger total; no schema or data mutations",
       "deploymentScope": {
         "functions": [
-          "crm-k019-reconciliation"
+          "crm-gas-in"
         ],
         "databaseFiles": [],
-        "baseCommit": "5eb40347ca2cedf4ffc270565308090fb0a0c668",
+        "baseCommit": "daf622915919c525a28c10074154ebdcccbb865c",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/basePlan.js",
-          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/financialReadLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/plan.js",
-          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/saleAccountingLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/snapshot.js",
-          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/spec.json",
-          "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/transaction.js"
+          "src/components/domain/gasIn/GasInListView.vue",
+          "src/services/gasIn.js",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/inventoryRead.js",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/package.json",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js"
         ],
         "aclCanonicalRevisions": {}
       },

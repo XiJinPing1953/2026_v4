@@ -67,6 +67,12 @@
         "uniCloud-alipay/cloudfunctions/crm-accounting-correction/accountingReviewLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-customer-settlement/accountingReviewLocal.js"
       ]
+    },
+    {
+      "source": "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js"
+      ]
     }
   ],
   "promotedSchemas": [
