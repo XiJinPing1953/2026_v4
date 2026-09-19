@@ -1,5 +1,6 @@
 'use strict'
 
+const { readComplete, withFinancialEvidence } = require('./financialReadLocal')
 const db = uniCloud.database()
 const dbCmd = db.command
 const {
@@ -562,6 +563,8 @@ async function fetchCustomerOutRowsByName(customerName = '', dateStart = '', dat
 	} else if (dateEnd) {
 		where.event_day = db.command.lte(dateEnd)
 	}
+	if (complete) return readComplete(movements, where, { command: dbCmd, source: 'customer_loss.outs',
+		field: { bottle_no: true, customer_name: true, event_day: true }, sort: ['event_day', 'created_at'] })
 	while (true) {
 		const res = await movements
 			.where(where)
@@ -602,11 +605,16 @@ async function fetchAllBottleMovementRows(bottleNo) {
 	return rows
 }
 
-async function fetchAllBottleMovementRowsByBottleNos(bottleNos = [], { maxEventDay = '' } = {}) {
+async function fetchAllBottleMovementRowsByBottleNos(bottleNos = [], { maxEventDay = '', complete = false } = {}) {
 	const normalized = Array.from(new Set((bottleNos || []).map((item) => normalizeBottleNo(item)).filter(Boolean)))
 	if (!normalized.length) return []
 	const rows = []
 	for (const chunk of chunkArray(normalized, 80)) {
+		if (complete) {
+			const where = { bottle_no: dbCmd.in(chunk), ...(maxEventDay ? { event_day: dbCmd.lte(maxEventDay) } : {}) }
+			rows.push(...await readComplete(movements, where, { command: dbCmd, source: 'customer_loss.events' }))
+			continue
+		}
 		let page = 0
 		while (true) {
 			const where = { bottle_no: db.command.in(chunk) }
@@ -631,11 +639,15 @@ async function fetchAllBottleMovementRowsByBottleNos(bottleNos = [], { maxEventD
 	return rows
 }
 
-async function fetchAllAnomalyRowsByBottleNos(bottleNos = [], baseWhere = {}, limit = 500) {
+async function fetchAllAnomalyRowsByBottleNos(bottleNos = [], baseWhere = {}, limit = 500, complete = false) {
 	const normalized = Array.from(new Set((bottleNos || []).map((item) => normalizeBottleNo(item)).filter(Boolean)))
 	if (!normalized.length) return []
 	const rows = []
 	for (const chunk of chunkArray(normalized, 80)) {
+		if (complete) {
+			rows.push(...await readComplete(anomalies, { ...baseWhere, bottle_no: dbCmd.in(chunk) }, { command: dbCmd, source: 'customer_loss.anomalies' }))
+			continue
+		}
 		let page = 0
 		while (true) {
 			const where = { ...baseWhere, bottle_no: db.command.in(chunk) }
@@ -655,7 +667,7 @@ async function fetchAllAnomalyRowsByBottleNos(bottleNos = [], baseWhere = {}, li
 	return rows
 }
 
-async function fetchCustomerOutRows(customerId, dateStart = '', dateEnd = '') {
+async function fetchCustomerOutRows(customerId, dateStart = '', dateEnd = '', complete = false) {
 	const rows = []
 	let page = 0
 	const pageSize = 300
@@ -1069,7 +1081,7 @@ function finalizeCustomerLossDailySummaryRow(summary, requestId, nowTs) {
 	}
 }
 
-async function rebuildCustomerLossDailySummaries(customerId, { dateStart = '', dateEnd = '', requestId = '' } = {}) {
+async function rebuildCustomerLossDailySummaries(customerId, { dateStart = '', dateEnd = '', requestId = '', readOnly = false } = {}) {
 	const normalizedCustomerId = normalizeString(customerId)
 	if (!normalizedCustomerId) {
 		return {
@@ -1080,7 +1092,7 @@ async function rebuildCustomerLossDailySummaries(customerId, { dateStart = '', d
 		}
 	}
 
-	const outRows = await fetchCustomerOutRows(normalizedCustomerId, dateStart, dateEnd)
+	const outRows = await fetchCustomerOutRows(normalizedCustomerId, dateStart, dateEnd, readOnly)
 	let effectiveDateStart = dateStart
 	let effectiveDateEnd = dateEnd
 	if (!effectiveDateStart && outRows.length) effectiveDateStart = normalizeDay(outRows[0] && outRows[0].event_day)
@@ -1107,7 +1119,7 @@ async function rebuildCustomerLossDailySummaries(customerId, { dateStart = '', d
 
 	if (bottleNos.length) {
 		const [eventRows, anomalyRowsRaw] = await Promise.all([
-			fetchAllBottleMovementRowsByBottleNos(bottleNos, { maxEventDay: effectiveDateEnd }),
+			fetchAllBottleMovementRowsByBottleNos(bottleNos, { maxEventDay: effectiveDateEnd, complete: readOnly }),
 			fetchAllAnomalyRowsByBottleNos(
 				bottleNos,
 				(() => {
@@ -1123,7 +1135,7 @@ async function rebuildCustomerLossDailySummaries(customerId, { dateStart = '', d
 						where.date = db.command.lte(effectiveDateEnd)
 					}
 					return where
-				})()
+				})(), 500, readOnly
 			)
 		])
 
@@ -1169,7 +1181,7 @@ async function rebuildCustomerLossDailySummaries(customerId, { dateStart = '', d
 		}
 	}
 
-	const existingRows = await fetchCustomerLossDailySummaryRows(normalizedCustomerId, effectiveDateStart, effectiveDateEnd)
+	const existingRows = readOnly ? [] : await fetchCustomerLossDailySummaryRows(normalizedCustomerId, effectiveDateStart, effectiveDateEnd)
 	const existingMap = new Map(existingRows.map((row) => [normalizeDay(row && row.day), row]))
 	const nowTs = Date.now()
 	const finalizedRows = Array.from(dayMap.values())
@@ -1177,6 +1189,7 @@ async function rebuildCustomerLossDailySummaries(customerId, { dateStart = '', d
 		.filter((item) => item.day && item.loss_total_weight > 0)
 		.sort((a, b) => a.day.localeCompare(b.day))
 
+	if (!readOnly) {
 	for (const row of finalizedRows) {
 		const existing = existingMap.get(row.day)
 		if (existing && normalizeString(existing._id)) {
@@ -1205,6 +1218,8 @@ async function rebuildCustomerLossDailySummaries(customerId, { dateStart = '', d
 		const staleId = normalizeString(staleRow && staleRow._id)
 		if (!staleId) continue
 		await customerLossDailySummaries.doc(staleId).remove()
+	}
+
 	}
 
 	return {
@@ -2047,32 +2062,18 @@ async function customerLossSummaryV1(user, data, requestId) {
 	const rebuildResult = await rebuildCustomerLossDailySummaries(customerId, {
 		dateStart,
 		dateEnd,
-		requestId
+		requestId, readOnly: true
 	})
-	const summaryRows = await fetchCustomerLossDailySummaryRows(customerId, rebuildResult.dateStart, rebuildResult.dateEnd)
+	const summaryRows = rebuildResult.rows
 	const lossTotal = round2(summaryRows.reduce((sum, row) => sum + Math.max(toNumber(row && row.loss_total_weight, 0), 0), 0))
 	const summaryBottleCount = new Set(
 		summaryRows.flatMap((row) => (Array.isArray(row && row.bottle_nos) ? row.bottle_nos : []).map((item) => normalizeBottleNo(item)).filter(Boolean))
 	).size
 
-	await recordLog(
-		user,
-		'bottle_movement_customer_loss_summary_v1',
-		{
-			customer_id: customerId,
-			date_start: rebuildResult.dateStart || '',
-			date_end: rebuildResult.dateEnd || '',
-			bottle_count: rebuildResult.bottleNos.length,
-			loss_bottle_count: summaryBottleCount,
-			cycle_loss_count: rebuildResult.cycleLossCount,
-			manual_loss_count: rebuildResult.manualLossCount,
-			summary_day_count: summaryRows.length
-		},
-		requestId
-	)
 
 	return {
 		code: 0,
+		query_version: 'customer-loss/2026-09-19.1',
 		data: {
 			customer_id: customerId,
 			date_start: rebuildResult.dateStart || '',
@@ -2261,7 +2262,7 @@ async function createV1(user, data, requestId) {
 	return { code: 0, msg: '创建成功', data: { _id: res.id } }
 }
 
-exports.main = async (event, context) => {
+const main = async (event, context) => {
 	void context
 	const { action, data = {}, token } = event
 	const requestId =
@@ -2289,3 +2290,5 @@ exports.main = async (event, context) => {
 
 	return { code: 400, msg: '未知 action' }
 }
+
+exports.main = withFinancialEvidence(main, 'customer-loss/2026-09-19.1')

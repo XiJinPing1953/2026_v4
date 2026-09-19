@@ -22,7 +22,8 @@
           "crm-sale",
           "crm-filling",
           "crm-bottle",
-          "crm-dashboard"
+          "crm-dashboard",
+          "crm-bottle-movement"
         ],
         "databaseFiles": [
           "crm_sale_records.schema.json",
@@ -34,7 +35,11 @@
           "crm_customer_receipts.index.json",
           "crm_customer_allocations.index.json",
           "crm_customer_flow_settlements.index.json",
-          "crm_customer_opening_debts.index.json"
+          "crm_customer_opening_debts.index.json",
+          "crm_bottle_movements.schema.json",
+          "crm_bottle_movements.index.json",
+          "crm_bottle_anomalies.schema.json",
+          "crm_bottle_anomalies.index.json"
         ],
         "baseCommit": "1e46338e4c0f0e40ed58cabe8954f6d906ea8715",
         "sourceFiles": [
@@ -77,7 +82,15 @@
           "uniCloud-alipay/database/schema/crm_customer_flow_settlements.schema.json",
           "uniCloud-alipay/database/schema/crm_customer_opening_debts.schema.json",
           "uniCloud-alipay/database/schema/crm_customer_receipts.schema.json",
-          "uniCloud-alipay/database/schema/crm_sale_records.schema.json"
+          "uniCloud-alipay/database/schema/crm_sale_records.schema.json",
+          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/financialReadLocal.js",
+          "uniCloud-alipay/database/crm_bottle_movements.schema.json",
+          "uniCloud-alipay/database/crm_bottle_movements.index.json",
+          "uniCloud-alipay/database/schema/crm_bottle_movements.schema.json",
+          "uniCloud-alipay/database/crm_bottle_anomalies.schema.json",
+          "uniCloud-alipay/database/crm_bottle_anomalies.index.json",
+          "uniCloud-alipay/database/schema/crm_bottle_anomalies.schema.json"
         ],
         "aclCanonicalRevisions": {
           "crm-sale": {

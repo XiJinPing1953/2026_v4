@@ -30,7 +30,8 @@
         "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/financialReadLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-customer-deposit/financialReadLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-accounting-correction/financialReadLocal.js",
-        "uniCloud-alipay/cloudfunctions/crm-customer/financialReadLocal.js"
+        "uniCloud-alipay/cloudfunctions/crm-customer/financialReadLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-bottle-movement/financialReadLocal.js"
       ]
     },
     {
@@ -68,7 +69,8 @@
     "crm_customer_receipts",
     "crm_customer_allocations",
     "crm_customer_flow_settlements",
-    "crm_customer_opening_debts"
+    "crm_customer_opening_debts",
+    "crm_bottle_anomalies"
   ],
   "schemaPolicy": "For an existing root/schema duplicate, database/<name>.schema.json is authoritative; database/schema/<name>.schema.json is a generated compatibility copy. Schemas present only under schema/ retain their existing location."
 }

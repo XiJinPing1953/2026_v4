@@ -47,6 +47,33 @@
         "customer_id": 1,
         "_id": 1
       }
+    },
+    {
+      "collection": "crm_bottle_movements",
+      "name": "idx_bottle_read_cursor",
+      "key": {
+        "bottle_no": 1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "crm_bottle_movements",
+      "name": "idx_customer_read_cursor",
+      "key": {
+        "customer_id": 1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "crm_bottle_anomalies",
+      "name": "idx_bottle_read_cursor",
+      "key": {
+        "bottle_no": 1,
+        "_id": 1
+      },
+      "unique": false
     }
   ]
 }
