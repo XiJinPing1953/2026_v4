@@ -34,3 +34,11 @@
 用户随后授权正式上线并保留回退。已修正：分配依据上沿与输入框上沿、左沿与第三张汇总卡左沿精确对齐（1440px实测偏差均0）；销售表格增加单号摘要、业务/付款状态标签、金额右对齐、交替行底色；标题与按钮在窄屏分行。620/390px标题正常横排，页面无横向溢出。相关24项回归再次通过。
 
 正式发布仅H5。主工作区原H5 `1789832959489-f58761c2` 已与线上版本及产物摘要核对，并完整备份至主工作区 `outputs/trust-audit/2026-09-20/statement-workspace/rollback-web`；旧版CSS交付策略及回读证据同目录保留。界面反馈截图位于同目录。待发布后补运行版本和回读结果。
+
+## 正式发布结果
+
+用户明确批准上线后，已发布支付宝 `env-00jxuffegf2n` H5：`1789836236314-37224524`，源码 `c18928abf1c21c6ec5796f7a1fee45fc80ccc4ee`，产物 SHA-256 `09d6261ff59cc36269c0e18c1eaa4f6adc3b894d9b9921b319a64195e174a4f4`。181文件上传成功；180项资源回读通过（15项CSS为绑定本构建双哈希的已知单次CRLF前缀），证据为主工作区 `outputs/trust-audit/2026-09-20/statement-workspace/web-readback.json`。24项前端/模拟回归、90项账务/发布回归以及正式构建/源码空间清单检查通过。
+
+正式站登录页正常；本次验证浏览器无生产登录态，未复验登录后的真实客户页面，也未写入真实账务。模拟交互验收与布局证据见上文。云函数、数据库和权限未部署变更。
+
+回退：在主工作区运行 `HBuilderX cli hosting deploy --prj 2026_v4 --space env-00jxuffegf2n --provider alipay --source outputs/trust-audit/2026-09-20/statement-workspace/rollback-web`（CLI全路径同 scripts/releaseWeb.cjs），再用该目录绑定的旧CSS策略回读验证。将恢复 `1789832959489-f58761c2`。
