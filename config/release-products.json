@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.19-query-performance",
+      "version": "2026.09.19-customer-overview",
       "output": "dist/build/web",
-      "acceptance": "Combined statement read, lazy optional queries and account-scoped in-flight sharing",
+      "acceptance": "Five-column customer overview with separate paired prepayment and unallocated receipt cards; responsive layout and shared scope notes",
       "integrityScope": "deployment"
     },
     "cloud": {

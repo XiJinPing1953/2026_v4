@@ -86,13 +86,12 @@
 					<view class="overview-item">
 						<text class="overview-label">{{ periodIsYear ? '本年营收' : '期间营收' }}</text>
 						<text class="overview-value">{{ periodMoney('business_revenue') }}</text>
-						<text class="overview-meta">{{ periodScopeText }} · 不含历史转入</text>
+						<text class="overview-meta">不含历史转入</text>
 					</view>
 					<view class="overview-item">
-						<text class="overview-label">所选期间应收合计（含历史款项）</text>
+						<text class="overview-label">期间应收合计</text>
 						<text class="overview-value">{{ periodMoney('receivable_total') }}</text>
-						<text class="overview-meta">其中历史款项 {{ periodMoney('historical_receivable') }}</text>
-						<text class="overview-meta">{{ periodScopeText }}</text>
+						<text class="overview-meta">含历史款项 {{ periodMoney('historical_receivable') }}</text>
 					</view>
 					<view class="overview-item">
 						<text class="overview-label">{{ periodIsYear ? '本年实际收款' : '期间实际收款' }}</text>
@@ -100,11 +99,28 @@
 						<text class="overview-meta">其中收回历史欠款 {{ periodMoney('historical_debt_collected') }}</text>
 						<text class="overview-meta">{{ periodIsYear ? '本年抹零汇总' : '期间抹零汇总' }} {{ periodMoney('rounding_total') }} · 不计实际收款</text>
 						<text v-if="periodReport?.settlement_fee_total > 0" class="overview-meta">收款手续费 {{ periodMoney('settlement_fee_total') }} · 不计到账或抹零</text>
-						<text class="overview-meta">{{ periodScopeText }} · 按收款日期</text>
-						<text v-if="periodReport?.manual_review" class="overview-meta">{{ periodReport.manual_review.note }}</text>
-						<text v-if="outstandingPeriodIssues(periodReport).length" class="overview-meta">{{ outstandingPeriodIssues(periodReport).length }} 项账务依据待核，相关合计暂不显示</text>
-						<text v-for="(issue, index) in outstandingPeriodIssues(periodReport).slice(0, 3)" :key="index" class="overview-meta">{{ describePeriodSummaryIssue(issue) }}</text>
+						<text class="overview-meta">按收款日期</text>
 					</view>
+					<view class="overview-pair">
+						<view class="overview-item">
+							<text class="overview-label">其中预付款</text>
+							<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewPrepayManualBalance) }}</text></text>
+						</view>
+						<view class="overview-item">
+							<text class="overview-label">其中待分配收款</text>
+							<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewReceiptUnallocatedBalance) }}</text></text>
+						</view>
+					</view>
+					<view class="overview-item">
+						<text class="overview-label">其中冲抵池</text>
+						<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewOffsetCreditBalance) }}</text></text>
+					</view>
+				</view>
+				<view class="overview-scope">
+					<text class="overview-meta">统计{{ periodScopeText }}</text>
+					<text v-if="overviewScopeText !== periodScopeText" class="overview-meta">预付款、待分配收款与冲抵池{{ overviewScopeText }}</text>
+				</view>
+				<view v-if="periodReport?.noncash_balance_adjustment || periodReport?.opening_prepay_transferred > 0 || (periodReport && periodReport.refund_total !== 0)" class="overview-grid overview-grid--supplement">
 					<view v-if="periodReport?.noncash_balance_adjustment" class="overview-item">
 						<text class="overview-label">非现金余额调整</text>
 						<text class="overview-value">{{ periodMoney('noncash_balance_adjustment') }}</text>
@@ -112,30 +128,19 @@
 					<view v-if="periodReport?.opening_prepay_transferred > 0" class="overview-item">
 						<text class="overview-label">期间期初预付款转入</text>
 						<text class="overview-value">{{ periodMoney('opening_prepay_transferred') }}</text>
-						<text class="overview-meta">{{ periodScopeText }} · 可抵扣气款，不计实际收款或营收</text>
+						<text class="overview-meta">可抵扣气款，不计实际收款或营收</text>
 					</view>
-					<view v-if="periodReport?.refund_total !== 0" class="overview-item">
+					<view v-if="periodReport && periodReport.refund_total !== 0" class="overview-item">
 						<text class="overview-label">期间退款</text>
 						<text class="overview-value">{{ periodMoney('refund_total') }}</text>
 						<text class="overview-meta">扣除退款后的净收款 {{ periodMoney('net_cash_received') }}</text>
 						<text v-if="periodReport?.refund_source_pending_total > 0" class="overview-meta">当前退款来源待核 ¥{{ formatMoney(periodReport.refund_source_pending_total) }}，余额尚未扣除，请先补关联。</text>
-						<text class="overview-meta">{{ periodScopeText }}</text>
 					</view>
-					<view class="overview-item">
-						<text class="overview-label">其中预付款</text>
-						<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewPrepayManualBalance) }}</text></text>
-						<text class="overview-meta">{{ overviewScopeText }}</text>
-					</view>
-					<view class="overview-item">
-						<text class="overview-label">其中待分配收款</text>
-						<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewReceiptUnallocatedBalance) }}</text></text>
-						<text class="overview-meta">{{ overviewScopeText }}</text>
-					</view>
-					<view class="overview-item">
-						<text class="overview-label">其中冲抵池</text>
-						<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewOffsetCreditBalance) }}</text></text>
-						<text class="overview-meta">{{ overviewScopeText }}</text>
-					</view>
+				</view>
+				<view v-if="periodReport?.manual_review || outstandingPeriodIssues(periodReport).length" class="overview-review" :class="{ 'overview-review--pending': outstandingPeriodIssues(periodReport).length }">
+						<text v-if="periodReport?.manual_review" class="overview-meta">{{ periodReport.manual_review.note }}</text>
+						<text v-if="outstandingPeriodIssues(periodReport).length" class="overview-meta">{{ outstandingPeriodIssues(periodReport).length }} 项账务依据待核，相关合计暂不显示</text>
+						<text v-for="(issue, index) in outstandingPeriodIssues(periodReport).slice(0, 3)" :key="index" class="overview-meta">{{ describePeriodSummaryIssue(issue) }}</text>
 				</view>
 				<view v-if="periodReport?.source_notes?.length" class="overview-notes">
 					<button class="overview-notes-toggle" :aria-expanded="overviewNotesOpen" @click="overviewNotesOpen = !overviewNotesOpen">口径说明 {{ overviewNotesOpen ? '收起 −' : '展开 +' }}</button>
@@ -5711,7 +5716,16 @@ onBeforeUnmount(() => {
 }
 
 .overview-grid--identity { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.overview-grid--finance { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 12px; align-items: stretch; }
+.overview-grid--finance { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 12px; align-items: stretch; }
+.overview-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; min-width: 0; }
+.statement-theme .overview-pair .overview-item { padding: 14px 10px; }
+.overview-pair .money-inline { white-space: normal; flex-wrap: wrap; column-gap: 3px; }
+.overview-pair .money-number { overflow-wrap: anywhere; line-height: 1.35; }
+.overview-scope { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-top: 10px; }
+.overview-grid--supplement { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 12px; }
+.overview-review { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; padding: 12px 16px; border-radius: 8px; background: #f8fafc; overflow-wrap: anywhere; }
+.overview-review--pending { background: #fffbeb; border: 1px solid #fde68a; }
+.overview-review--pending .overview-meta { color: #92400e; }
 .overview-item { min-width: 0; overflow-wrap: anywhere; }
 .overview-grid--finance .overview-item { padding: 14px 16px; gap: 6px; }
 .overview-grid--finance .overview-value { margin-bottom: 2px; }
@@ -5720,11 +5734,11 @@ onBeforeUnmount(() => {
 .overview-notes-toggle::after { border: 0; }
 .overview-notes-toggle:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
 .overview-notes-body { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; max-width: 960px; }
-@media (max-width: 1000px) {
-	.overview-grid--identity, .overview-grid--finance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 1200px) {
+	.overview-grid--identity, .overview-grid--finance, .overview-grid--supplement { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 480px) {
-	.overview-grid--finance { grid-template-columns: minmax(0, 1fr); }
+	.overview-grid--finance, .overview-grid--supplement { grid-template-columns: minmax(0, 1fr); }
 }
 
 .overview-item,
