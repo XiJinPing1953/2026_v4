@@ -63,7 +63,8 @@
     "check:context": "node scripts/checkProjectContext.cjs",
     "test:context": "node --test scripts/checkProjectContext.test.cjs",
     "test": "npm run check:context && npm run test:context && npm run test:accounting-release && npm run test:customer-deposit && npm run check:release -- --product=web && npm run check:release -- --product=cloud",
-    "test:customer-deposit": "node --test scripts/customerDepositBackend.test.cjs scripts/customerDepositFrontend.test.cjs scripts/customerDepositIntegration.test.cjs"
+    "test:customer-deposit": "node --test scripts/customerDepositBackend.test.cjs scripts/customerDepositFrontend.test.cjs scripts/customerDepositIntegration.test.cjs",
+    "preview:statement": "STATEMENT_PREVIEW=1 uni --host 127.0.0.1 --port 5190"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-5000620260331001",

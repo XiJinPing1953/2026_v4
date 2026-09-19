@@ -145,7 +145,14 @@
 
 			</AppSection>
 
-			<view id="statement-operation-section">
+			<view id="statement-workspace-nav" class="workspace-nav">
+				<view class="workspace-context"><text class="workspace-customer">{{ customer.name || '客户对账' }}</text><text>{{ periodScopeText }}</text><text class="workspace-debt-link" role="button" tabindex="0" @click="onOpenNetDebtSaleSources" @keydown.enter="onOpenNetDebtSaleSources">净欠款 <text class="workspace-balance">{{ formatSummaryMoney(summaryNetBalanceDisplay) }}</text></text></view>
+				<view class="workspace-tabs" role="tablist" aria-label="客户对账工作区">
+					<button v-for="tab in workspaceTabs" :key="tab.value" class="workspace-tab" :class="{ 'workspace-tab--active': activeWorkspace === tab.value }" role="tab" :aria-selected="activeWorkspace === tab.value" @click="onWorkspaceChange(tab.value)">{{ tab.label }}</button>
+				</view>
+			</view>
+
+			<view v-show="activeWorkspace === 'operations'" id="statement-operation-section">
 				<AppSection title="账务操作">
 					<template #actions>
 					<view v-if="activeOperationTab === 'opening_debt'" class="section-actions">
@@ -190,7 +197,7 @@
 						<AppButton v-if="isReceiptAdjustmentActive" size="sm" kind="outline" @click="cancelReceiptEditing">取消</AppButton>
 						<AppButton size="sm" kind="neutral" :disabled="isEditingReceipt" :loading="previewing" @click="onPreview">预览分配</AppButton>
 						<AppButton size="sm" kind="primary" :disabled="loading || refreshingAfterSave" :loading="receiptPrimaryActionLoading" @click="onCreateAutoReceipt">{{ receiptPrimaryActionLabel }}</AppButton>
-						<AppButton size="sm" kind="outline" :disabled="isReceiptAdjustmentActive || !previewPlan" :loading="confirming" @click="onConfirmAllocation">确认入账</AppButton>
+						<AppButton size="sm" kind="outline" :disabled="isReceiptAdjustmentActive || !receiptPreviewReady || previewing || loading || refreshingAfterSave" :loading="confirming" @click="onConfirmAllocation">确认入账</AppButton>
 					</view>
 				</template>
 
@@ -216,7 +223,8 @@
 					</view>
 				</view>
 
-				<view v-if="activeOperationTab === 'receipt'" class="operation-panel">
+				<view v-if="activeOperationTab === 'receipt'" class="operation-panel receipt-workspace">
+					<view class="receipt-workspace__form">
 					<view class="receipt-grid receipt-grid--four">
 						<AppInput
 							v-model="receiptForm.amount"
@@ -276,13 +284,22 @@
 					<text v-if="isStartingPrepayReceiptAllocation" class="section-hint section-hint--warning">当前为收款单分配，使用该收款单待分配金额冲销欠款，可同时录入抹零。</text>
 					<text v-if="isAppendingPrepayReceiptAllocation" class="section-hint section-hint--warning">当前为继续分配，追加消费待分配金额并可同时录入抹零，不回滚已分配记录。</text>
 
+					</view>
+					<view class="receipt-workspace__evidence">
+						<view class="evidence-heading"><text>分配依据</text><text class="section-hint">{{ receiptAllocationModeLabel }}</text></view>
+						<view v-if="receiptForm.allocationMode === 'period'" class="evidence-summary">
+							<text class="section-hint">{{ receiptOperationSummaryItems[0]?.meta }}</text>
+							<text>待冲欠款 {{ receiptOperationSummaryItems[0]?.value }}</text>
+							<text v-if="!previewPlan" class="section-hint">填写金额后点击“预览分配”，查看本次涉及的具体单据。</text>
+						</view>
+						<text v-if="receiptPreviewStale" class="section-hint section-hint--warning">输入已变更，原预览已失效，请重新预览分配。</text>
 					<view v-if="receiptForm.allocationMode === 'checked'" class="checked-target-box">
 						<view class="checked-target-head">
 							<text>勾选待分配单据（按日期升序自动分配）</text>
-							<text>已选 {{ checkedAllocationSelectedCount }} 笔 · 累计 ¥{{ formatMoney(checkedAllocationSelectedTotal) }}</text>
+							<text>跨页已选 {{ checkedAllocationSelectedCount }} 笔 · 累计 ¥{{ formatMoney(checkedAllocationSelectedTotal) }}</text>
 						</view>
 						<checkbox-group class="checked-target-list" @change="onCheckedTargetsChange">
-							<label v-for="row in checkedTargetCandidates" :key="row.key" class="checked-target-item">
+							<label v-for="row in receiptTargetPageRows" :key="row.key" class="checked-target-item">
 								<checkbox :value="row.key" :checked="isAllocationTargetChecked(row.key)" color="#2563eb" />
 								<view class="checked-target-item__body">
 									<view class="checked-target-item__title-row">
@@ -293,12 +310,14 @@
 								</view>
 							</label>
 						</checkbox-group>
+						<StatementPager v-model:page="receiptTargetPage" :total="checkedTargetCandidates.length" />
+						<text class="section-hint">候选来自已加载的近期单据；完整时间范围请用时间段分配。</text>
 						<text v-if="checkedTargetCandidates.length === 0" class="preview-empty">当前无可勾选欠款单据，可切换到时间段分配。</text>
 					</view>
 
 					<view v-if="previewPlan" class="preview-box">
 						<view v-if="editableAllocations.length" class="alloc-list">
-							<view v-for="row in editableAllocations" :key="row.key" class="alloc-row">
+							<view v-for="row in allocationPreviewPageRows" :key="row.key" class="alloc-row">
 								<view class="alloc-row__top">
 									<text class="alloc-row__title">{{ row.targetTitle }}</text>
 									<text class="alloc-row__debt">欠款前 ¥{{ formatMoney(row.outstandingBefore) }}</text>
@@ -318,6 +337,8 @@
 							</view>
 						</view>
 						<text v-else class="preview-empty">当前预览无可冲销欠款，登记后将全部留存为剩余待分配。</text>
+						<StatementPager v-model:page="allocationPreviewPage" :total="editableAllocations.length" />
+					</view>
 					</view>
 				</view>
 
@@ -712,7 +733,7 @@
 				</AppSection>
 			</view>
 
-			<AppSection v-if="isFlowCustomer" title="流量结算">
+			<AppSection v-if="isFlowCustomer" v-show="activeWorkspace === 'flow'" title="流量结算">
 				<template #actions>
 					<AppButton size="sm" kind="ghost" @click="resetFlowForm()">重置</AppButton>
 					<AppButton v-if="isEditingFlowSettlement" size="sm" kind="outline" @click="cancelFlowEditing">取消编辑</AppButton>
@@ -766,7 +787,7 @@
 				</view>
 			</AppSection>
 
-			<AppSection v-if="isKgCustomer || isBottleCustomer" title="经营分析">
+			<AppSection v-if="isKgCustomer || isBottleCustomer" v-show="activeWorkspace === 'analysis'" title="经营分析">
 				<text v-if="analysisStale" class="section-hint">请点击查询分析，获取当前结果。</text>
 				<view class="quick-date-strip">
 					<AppDatePresetBar v-model="analysisDatePreset" :disabled="analysisLoading" @update:modelValue="onAnalysisDatePresetChange" />
@@ -826,10 +847,10 @@
 				</template>
 			</AppSection>
 
-			<AppSection v-if="isFlowCustomer" title="流量结算单（近20条）">
+			<AppSection v-if="isFlowCustomer" v-show="activeWorkspace === 'flow'" title="流量结算单（近20条）">
 				<AppList :loading="loading" :empty="recentFlowSettlements.length === 0" empty-title="暂无流量结算单">
 					<AppListItem
-						v-for="row in recentFlowSettlements"
+						v-for="row in flowHistoryPageRows"
 						:key="row._id"
 						:title="`${row.biz_date || '-'} · 流量结算`"
 						:subtitle="`单据 ${row._id}`"
@@ -865,35 +886,13 @@
 						</template>
 					</AppListItem>
 				</AppList>
+				<StatementPager v-model:page="flowHistoryPage" :total="recentFlowSettlements.length" :size="5" :disabled="loading" />
 			</AppSection>
 
-			<view id="statement-sales-detail-section">
-				<view v-if="allocationDecisionStickyVisible" class="allocation-decision-sticky">
-					<view class="allocation-decision-sticky__head">
-						<view class="allocation-decision-sticky__title-wrap">
-							<text class="allocation-decision-sticky__eyebrow">分配决策对照</text>
-							<text class="allocation-decision-sticky__title">{{ allocationDecisionStickyTitle }}</text>
-						</view>
-						<AppButton size="sm" kind="neutral" @click="scrollToOperationSection">回到账务操作</AppButton>
-					</view>
-					<view class="allocation-decision-sticky__items">
-						<view
-							v-for="item in operationSummaryItems"
-							:key="`sticky-${item.key}`"
-							class="allocation-decision-sticky__item"
-							:class="[
-								`allocation-decision-sticky__item--${item.tone || 'neutral'}`,
-								{ 'allocation-decision-sticky__item--pending': item.pending }
-							]"
-						>
-							<text class="allocation-decision-sticky__label">{{ item.label }}</text>
-							<text class="allocation-decision-sticky__value">{{ item.value }}</text>
-							<text v-if="item.meta" class="allocation-decision-sticky__meta">{{ item.meta }}</text>
-						</view>
-					</view>
-				</view>
+			<view v-show="activeWorkspace === 'sales'" id="statement-sales-detail-section">
 				<AppSection :title="salesDetailSectionTitle">
 					<template #actions>
+						<AppButton size="sm" kind="neutral" @click="scrollToOperationSection">回到账务操作</AppButton>
 						<view v-if="salesDetailMode === 'net_debt' || quickRoundingSmallCandidateCount > 0" class="section-actions">
 							<text v-if="salesDetailMode === 'net_debt'" class="section-hint">{{ salesDetailLocatedHint }}</text>
 							<text v-if="quickRoundingSmallCandidateCount > 0" class="section-hint">
@@ -911,19 +910,8 @@
 							<AppButton v-if="salesDetailMode === 'net_debt'" size="sm" kind="neutral" @click="clearSalesDetailLocateMode">查看全部</AppButton>
 						</view>
 					</template>
-					<AppList :loading="loading" :empty="salesDetailRows.length === 0" :empty-title="salesDetailEmptyTitle">
-						<AppListItem
-							v-for="row in salesDetailRows"
-							:key="row.record_key || row._id"
-							:class="{ 'statement-sale-row--located': isLocatedSalesDetailRow(row) }"
-							:title="`${row.date || '-'} · ${bizModeText(row.biz_mode)}`"
-							:subtitle="`单据 ${row._id}`"
-							:status="paymentStatusText(row.payment_status)"
-							:status-kind="paymentStatusKind(row.payment_status)"
-							icon="document"
-							icon-class="bg-primary"
-						>
-						<template #default>
+					<StatementRecordTable :rows="salesPageRows" :columns="salesColumns" :row-key="salesRecordKey" :loading="loading" :empty-title="salesDetailEmptyTitle" label="销售明细">
+						<template #detail="{ row }"><text class="section-hint">单据 {{ row._id }}</text>
 							<view class="mini-amounts mini-amounts--left">
 								<text>应收 ¥{{ formatMoney(row.should_receive) }}</text>
 									<text v-if="resolveSaleRoundingAmount(row) > 0" class="mini-amounts__rounding">
@@ -973,7 +961,7 @@
 								</text>
 							</view>
 						</template>
-						<template #footer>
+						<template #actions="{ row }">
 							<AppButton
 								v-if="canQuickRoundSalesDetailRow(row)"
 								size="sm"
@@ -986,12 +974,12 @@
 							<AppButton v-if="isSaleRecordRow(row)" size="sm" kind="ghost" @click="onOpenSale(row._id)">查看销售单</AppButton>
 							<AppButton v-else size="sm" kind="ghost" @click="onEditFlowSettlement(row)">编辑结算单</AppButton>
 						</template>
-						</AppListItem>
-					</AppList>
+					</StatementRecordTable>
+					<StatementPager v-model:page="salesPage" :total="salesDetailRows.length" :disabled="loading" />
 				</AppSection>
 			</view>
 
-			<AppSection title="账务流水">
+			<AppSection v-show="activeWorkspace === 'ledger'" title="账务流水">
 				<template #actions>
 					<view class="section-actions">
 						<text class="section-hint">共 {{ rowsPager.total }} 条 · 第 {{ rowsPager.page }} / {{ rowsTotalPages }} 页</text>
@@ -1001,18 +989,8 @@
 					<AppDatePresetBar v-model="rowsDatePreset" :items="rowsDatePresetItems" :disabled="rowsLoading || rowSummaryLoading" @update:modelValue="onRowsDatePresetChange" />
 				</view>
 
-				<AppList :loading="rowsLoading" :empty="statementRows.length === 0" empty-title="暂无流水">
-					<AppListItem
-						v-for="row in statementRows"
-						:key="`${row.row_type}-${row.row_id}`"
-						:title="statementRowTitle(row)"
-						:subtitle="row.biz_date || '-'"
-						:status="statementRowStatus(row)"
-						:status-kind="statementRowStatusKind(row)"
-						icon="list"
-						icon-class="bg-teal"
-					>
-						<template #right>
+				<StatementRecordTable :rows="statementRows" :columns="ledgerColumns" :row-key="ledgerRecordKey" :loading="rowsLoading" empty-title="暂无流水" label="账务流水">
+					<template #detail="{ row }"><text class="section-hint">{{ statementRowTitle(row) }} · {{ row.row_id }}</text>
 							<view class="mini-amounts">
 								<text v-if="row.row_type === 'sale'">应收 ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'sale' && toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
@@ -1034,12 +1012,10 @@
 								<text v-if="row.row_type === 'receipt'">{{ receiptRemainingBalanceLabel(row) }} ¥{{ formatMoney(row.prepay_delta) }}</text>
 								<text v-if="row.row_type === 'allocation'">分配 ¥{{ formatMoney(row.amount) }}</text>
 							</view>
-						</template>
-						<template #default>
+
 							<text v-if="statementRowDetail(row)" class="row-detail">{{ statementRowDetail(row) }}</text>
 						</template>
-					</AppListItem>
-				</AppList>
+				</StatementRecordTable>
 				<view v-if="rowsPager.total > 0" class="pager-row">
 					<AppButton size="sm" kind="neutral" :disabled="rowsLoading || rowSummaryLoading || rowsPager.page <= 1" @click="onRowsPrev">上一页</AppButton>
 					<AppButton size="sm" kind="neutral" :disabled="rowsLoading || rowSummaryLoading || !rowsPager.hasMore" @click="onRowsNext">下一页</AppButton>
@@ -1051,9 +1027,12 @@
 
 <script setup>
 import { normalizeCustomerPeriodSummary, outstandingPeriodIssues, periodReviewLabel, describePeriodSummaryIssue } from '@/services/mappers/customerPeriodSummary.js'
-import { computed, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
+import StatementPager from './StatementPager.vue'
+import StatementRecordTable from './StatementRecordTable.vue'
+import { useStatementPage, mergeVisibleSelection } from '@/composables/useStatementWorkspace'
 import AppTabs from '@/components/base/AppTabs.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
@@ -1321,7 +1300,7 @@ const rowsDatePresetItems = [
 
 const rowsPager = reactive({
 	page: 1,
-	pageSize: 50,
+	pageSize: 10,
 	total: 0,
 	hasMore: false
 })
@@ -1347,7 +1326,7 @@ const activeOperationTabLabel = computed(() => {
 })
 
 const rowsTotalPages = computed(() => {
-	const pages = Math.ceil(Number(rowsPager.total || 0) / Number(rowsPager.pageSize || 50))
+	const pages = Math.ceil(Number(rowsPager.total || 0) / Number(rowsPager.pageSize || 10))
 	return pages > 0 ? pages : 1
 })
 const headerRowsDateFromText = computed(() => `开始 ${normalizeDate(rowFilters.dateFrom) || '--'}`)
@@ -1963,8 +1942,65 @@ const salesDetailLocatedHint = computed(() => {
 const salesDetailEmptyTitle = computed(() => (
 	salesDetailMode.value === 'net_debt' ? '当前日期范围暂无净欠款来源销售单' : '暂无销售明细'
 ))
+const activeWorkspace = ref('operations')
+const workspaceTabs = computed(() => [
+	{ label: '账务操作', value: 'operations' },
+	{ label: '销售明细', value: 'sales' },
+	{ label: '账务流水', value: 'ledger' },
+	...(isFlowCustomer.value ? [{ label: '流量结算', value: 'flow' }] : []),
+	...(isKgCustomer.value || isBottleCustomer.value ? [{ label: '经营分析', value: 'analysis' }] : [])
+])
+const { page: salesPage, visible: salesPageRows } = useStatementPage(salesDetailRows)
+const { page: flowHistoryPage, visible: flowHistoryPageRows } = useStatementPage(recentFlowSettlements, 5)
+const { page: receiptTargetPage, visible: receiptTargetPageRows } = useStatementPage(checkedTargetCandidates)
+const { page: allocationPreviewPage, visible: allocationPreviewPageRows } = useStatementPage(editableAllocations)
+const salesRecordKey = row => row.record_key || row._id
+const ledgerRecordKey = row => `${row.row_type}:${row.row_id}`
+const salesColumns = [
+	{ key: 'date', label: '日期', value: row => row.date || '-' },
+	{ key: 'type', label: '业务', value: row => bizModeText(row.biz_mode) },
+	{ key: 'receivable', label: '应收', value: row => `¥${formatMoney(row.should_receive)}` },
+	{ key: 'received', label: '实收', value: row => `¥${formatMoney(isSaleRecordRow(row) ? resolveSaleManualReceived(row) : row.amount_received)}` },
+	{ key: 'outstanding', label: '未收', value: row => `¥${formatMoney(row.outstanding)}` },
+	{ key: 'status', label: '状态', value: row => paymentStatusText(row.payment_status) }
+]
+const ledgerColumns = [
+	{ key: 'date', label: '日期', value: row => row.biz_date || '-' },
+	{ key: 'type', label: '单据', value: row => row.row_type === 'receipt' ? receiptDocumentLabel(row) : ({sale:'销售单',allocation:'收款分配',flow_settlement:'流量结算',opening_debt:'历史欠款',balance_adjustment:'非现金余额调整',other_fee:'其他费用'}[row.row_type] || '其他') },
+	{ key: 'amount', label: '发生金额', value: row => `¥${formatMoney(row.amount)}` },
+	{ key: 'outstanding', label: '未收', value: row => ['sale', 'flow_settlement', 'opening_debt', 'other_fee', 'balance_adjustment'].includes(row.row_type) ? `¥${formatMoney(row.outstanding)}` : '—' },
+	{ key: 'rounding', label: '收款抹零', value: row => row.row_type === 'receipt' ? `¥${formatMoney(row.rounding_allocated_amount || 0)}` : (row.receipt_rounding_amount > 0 ? `¥${formatMoney(row.receipt_rounding_amount)}` : '—') },
+	{ key: 'status', label: '状态', value: row => statementRowStatus(row) }
+]
+const receiptPreviewStale = ref(false)
+const receiptPreviewKey = ref('')
+const receiptInputKey = computed(() => JSON.stringify([
+	recordId.value, receiptForm.amount, receiptForm.roundingAmount, receiptForm.bizDate,
+	receiptForm.allocationMode, receiptForm.allocationStartDate, receiptForm.allocationEndDate,
+	receiptForm.paymentMethod, receiptForm.note, [...checkedAllocationTargetKeys.value].sort()
+]))
+const receiptPreviewReady = computed(() => Boolean(previewPlan.value) && receiptPreviewKey.value === receiptInputKey.value && !receiptPreviewStale.value)
+let receiptPreviewRequestSeq = 0
+function invalidateReceiptPreview() {
+	receiptPreviewRequestSeq += 1
+	if (receiptPreviewKey.value || previewPlan.value || previewing.value) receiptPreviewStale.value = true
+	previewPlan.value = null
+	editableAllocations.value = []
+	receiptPreviewKey.value = ''
+	allocationPreviewPage.value = 1
+}
+watch(receiptInputKey, invalidateReceiptPreview, { flush: 'sync' })
+watch(salesDetailMode, () => { salesPage.value = 1 })
+
+async function onWorkspaceChange(value) {
+	if (!workspaceTabs.value.some(tab => tab.value === value)) return
+	activeWorkspace.value = value
+	await nextTick()
+	uni.pageScrollTo({ selector: '#statement-workspace-nav', duration: 0, offsetTop: -44 })
+}
+
 const quickRoundingSmallCandidates = computed(() => (
-	(Array.isArray(salesDetailRows.value) ? salesDetailRows.value : [])
+	(Array.isArray(salesPageRows.value) ? salesPageRows.value : [])
 		.filter((row) => canQuickRoundSalesDetailRow(row))
 		.filter((row) => resolveSalesDetailOutstanding(row) <= QUICK_ROUNDING_SMALL_LIMIT)
 ))
@@ -3047,6 +3083,9 @@ function toggleOffsetHistory() {
 }
 
 function resetReceiptForm() {
+	receiptPreviewRequestSeq += 1
+	receiptPreviewKey.value = ''
+	previewPlan.value = null
 	editingReceiptId.value = ''
 	editingReceiptSourceType.value = ''
 	receiptAdjustmentReleasedTargets.value = []
@@ -3065,6 +3104,9 @@ function resetReceiptForm() {
 	checkedAllocationTargetKeys.value = []
 	previewPlan.value = null
 	editableAllocations.value = []
+	receiptPreviewStale.value = false
+	receiptTargetPage.value = 1
+	allocationPreviewPage.value = 1
 }
 
 function isAllocationTargetChecked(key) {
@@ -3082,7 +3124,7 @@ function isOffsetAllocationTargetChecked(key) {
 function onCheckedTargetsChange(e) {
 	const values = Array.isArray(e?.detail?.value) ? e.detail.value : []
 	const normalized = values.map((item) => normalizeString(item)).filter(Boolean)
-	checkedAllocationTargetKeys.value = Array.from(new Set(normalized))
+	checkedAllocationTargetKeys.value = mergeVisibleSelection(checkedAllocationTargetKeys.value, receiptTargetPageRows.value.map(row => row.key), normalized)
 	previewPlan.value = null
 	editableAllocations.value = []
 }
@@ -3706,6 +3748,7 @@ function showCloudRequestError(scope, err) {
 
 async function loadStatement({ summaryOnly = false, requestSeq = 0, includeRows = false } = {}) {
 	if (!recordId.value) return
+	if (!summaryOnly) invalidateReceiptPreview()
 	const summaryRequestSeq = ++statementSummaryRequestSeq
 	periodSummary.value = null
 	if (!summaryOnly) loading.value = true
@@ -3830,7 +3873,7 @@ async function loadRows({ requestSeq = nextRowsSearchRequestSeq() } = {}) {
 		statementRows.value = Array.isArray(res.data) ? res.data : []
 		const paging = res.paging || {}
 		rowsPager.page = Number(paging.page || rowsPager.page || 1)
-		rowsPager.pageSize = Number(paging.pageSize || rowsPager.pageSize || 50)
+		rowsPager.pageSize = Number(paging.pageSize || rowsPager.pageSize || 10)
 		rowsPager.total = Number(paging.total || res.total || 0)
 		rowsPager.hasMore = Boolean(paging.hasMore)
 	} catch (err) {
@@ -4047,6 +4090,7 @@ function cancelFlowEditing() {
 }
 
 function onEditFlowSettlement(row) {
+	activeWorkspace.value = 'flow'
 	const flowId = normalizeString(row?._id)
 	if (!flowId) return
 	editingFlowSettlementId.value = flowId
@@ -4099,6 +4143,8 @@ async function onPreview() {
 	}
 	const allocationPayload = buildReceiptAllocationPayload()
 	if (!allocationPayload) return
+	const requestKey = receiptInputKey.value
+	const requestSeq = ++receiptPreviewRequestSeq
 	previewing.value = true
 	try {
 		const res = await previewAllocationV1({
@@ -4110,10 +4156,14 @@ async function onPreview() {
 			allocationEndDate: allocationPayload.allocationEndDate,
 			allocationTargets: allocationPayload.allocationTargets
 		})
+		if (requestSeq !== receiptPreviewRequestSeq || requestKey !== receiptInputKey.value) return
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '预览失败', icon: 'none' })
 			return
 		}
+		receiptPreviewKey.value = requestKey
+		receiptPreviewStale.value = false
+		allocationPreviewPage.value = 1
 		previewPlan.value = res.data || null
 		if (allocationPayload.allocationMode === 'period') syncReceiptPeriodSummaryFromPlan(res.data || {})
 		const alloc = Array.isArray(res?.data?.allocations) ? res.data.allocations : []
@@ -4459,7 +4509,7 @@ async function onRemoveReceipt(row) {
 }
 
 async function onConfirmAllocation() {
-	if (!recordId.value || confirming.value || !previewPlan.value) return
+	if (!recordId.value || confirming.value || !receiptPreviewReady.value || previewing.value || loading.value || refreshingAfterSave.value) return
 	const amount = receiptForm.amount === '' ? 0 : Number(receiptForm.amount)
 	const roundingAmount = receiptForm.roundingAmount === '' ? 0 : Number(receiptForm.roundingAmount)
 	if (!Number.isFinite(amount) || amount < 0) {
@@ -5278,19 +5328,11 @@ function onOpenSale(id) {
 }
 
 function scrollToOperationSection() {
-	uni.pageScrollTo({
-		selector: '#statement-operation-section',
-		duration: 240,
-		offsetTop: 12
-	})
+	void onWorkspaceChange('operations')
 }
 
 function scrollToSalesDetailSection() {
-	uni.pageScrollTo({
-		selector: '#statement-sales-detail-section',
-		duration: 240,
-		offsetTop: 12
-	})
+	void onWorkspaceChange('sales')
 }
 
 function clearSalesDetailLocateMode() {
@@ -5326,6 +5368,21 @@ watch(
 		analysisLoading.value = false
 		offsetPoolLoading.value = false
 		offsetHistoryLoading.value = false
+		activeWorkspace.value = 'operations'
+		recentSales.value = []
+		netDebtSourceSales.value = []
+		recentReceipts.value = []
+		recentFlowSettlements.value = []
+		netDebtSourceFlowSettlements.value = []
+		recentOpeningDebts.value = []
+		recentOtherFees.value = []
+		statementRows.value = []
+		rowsPager.page = 1
+		rowsPager.total = 0
+		salesPage.value = 1
+		flowHistoryPage.value = 1
+		receiptTargetPage.value = 1
+		allocationPreviewPage.value = 1
 		if (!id) return
 		quickSceneApplied.value = false
 		salesDetailMode.value = 'all'
@@ -5418,6 +5475,33 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.workspace-nav { position:sticky; top:44px; z-index:20; background:#fff; border:1px solid #e7ecf2; border-radius:10px; box-shadow:0 3px 12px rgba(20,40,70,.04); }
+.workspace-context { display:flex; flex-wrap:wrap; align-items:center; gap:6px 24px; padding:10px 16px; border-bottom:1px solid #edf0f4; font-size:12px; color:#64748b; }
+.workspace-debt-link { color:#2563a6; cursor:pointer; }
+.workspace-customer { font-size:14px; font-weight:600; color:#243247; }
+.workspace-balance { color:#243247; font-weight:600; font-variant-numeric:tabular-nums; }
+.workspace-tabs { display:flex; flex-wrap:wrap; gap:4px; padding:4px 10px; }
+.workspace-tab { margin:0; padding:10px 18px; background:transparent; color:#64748b; font-size:14px; line-height:22px; border:0; border-radius:6px; }
+.workspace-tab::after { border:0; }
+.workspace-tab--active { color:#2563eb; background:#eff6ff; font-weight:600; }
+.workspace-tab:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
+#statement-operation-section { container-type:inline-size; }
+.operation-panel.receipt-workspace { display:grid; grid-template-columns:minmax(0,1fr); gap:24px; align-items:start; }
+.receipt-workspace__form, .receipt-workspace__evidence { min-width:0; }
+.receipt-workspace__evidence { padding:18px; background:#f8fafc; border:1px solid #e7ecf2; border-radius:8px; }
+.evidence-heading { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; color:#243247; font-weight:600; margin-bottom:14px; }
+.evidence-summary { display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
+@container (min-width:1100px) {
+	.operation-panel.receipt-workspace { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+	.receipt-workspace .receipt-grid--four { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+.receipt-workspace .checked-target-list, .receipt-workspace .alloc-list { max-height:none; overflow:visible; }
+@media(max-width:600px) {
+	.workspace-context { gap:4px 12px; padding:8px 10px; }
+	.workspace-tab { padding:8px 10px; font-size:13px; }
+	.receipt-workspace__evidence { padding:12px; }
+}
+
 .content-shell {
 	display: flex;
 	flex-direction: column;
@@ -6380,4 +6464,10 @@ onBeforeUnmount(() => {
 .statement-theme .analysis-filter-grid :deep(.btn) { height:40px; justify-self:start; }
 @media(max-width:640px) { .statement-theme .analysis-filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .statement-theme .analysis-filter-grid :deep(.btn) { grid-column:1 / -1; } }
 @media(max-width:380px) { .statement-theme .analysis-filter-grid { grid-template-columns:minmax(0,1fr); } }
+@media (max-width: 760px) {
+ .statement-theme :deep(.section__header) { flex-wrap:wrap; gap:10px; }
+ .statement-theme :deep(.section__actions) { max-width:100%; }
+ .section-actions { flex-direction:row; flex-wrap:wrap; gap:6px; }
+ .operation-summary-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
 </style>
