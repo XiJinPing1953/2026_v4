@@ -31,7 +31,8 @@ watch(() => props.rows, rows => { if (!rows.some(row => props.rowKey(row) === ex
 </script>
 <style scoped>
 .record-table { width:100%; min-width:0; border:1px solid #e5ebf2; border-radius:9px; overflow:hidden; box-sizing:border-box; }
-.record-table__head,.record-table__row { display:grid; grid-template-columns:150px minmax(100px,1.2fr) repeat(3,minmax(80px,1fr)) minmax(85px,0.8fr) 80px; gap:12px; align-items:center; }
+.record-table__head,.record-table__row { display:grid; grid-template-columns:110px minmax(260px,1.4fr) repeat(3,minmax(110px,.65fr)) 116px 90px; column-gap:24px; row-gap:12px; align-items:center; }
+.record-table__head > :last-child { text-align:center; }
 .record-table__head { padding:14px 16px; background:#f1f5fa; color:#52657d; font-size:12px; font-weight:600; border-bottom:1px solid #e7ecf2; }
 .record-table__row { padding:10px 16px; min-height:40px; font-size:13px; color:#243247; border-bottom:1px solid #edf0f4; }
 .record-table__cell { min-width:0; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
@@ -39,19 +40,23 @@ watch(() => props.rows, rows => { if (!rows.some(row => props.rowKey(row) === ex
 .record-table__record:hover, .record-table__record--expanded { background:#f0f6ff; }
 .record-table__cell--receivable, .record-table__cell--received, .record-table__cell--outstanding, .record-table__cell--amount, .record-table__cell--rounding { text-align:right; }
 .record-table__head > :nth-child(3), .record-table__head > :nth-child(4), .record-table__head > :nth-child(5) { text-align:right; }
-.record-table__actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.record-table__cell--status { padding-left:20px; border-left:1px solid #e7ecf2; }
+.record-table__head > :nth-child(6) { padding-left:20px; }
+.record-table__actions { display:flex; justify-content:center; flex-wrap:wrap; align-items:center; gap:6px; }
 .record-table__detail { padding:14px; background:#f8fafc; border-bottom:1px solid #e7ecf2; overflow-wrap:anywhere; }
-.record-table__detail-actions { margin-top:12px; }
+.record-table__detail-actions { margin-top:12px; justify-content:flex-start; }
 .record-table__empty { display:block; padding:30px; text-align:center; color:#64748b; }
 .record-table__mobile-label { display:none; }
-@media(max-width:1100px) {
+@media(max-width:1200px) {
  .record-table { border:0; border-radius:0; }
  .record-table__cell { text-align:left; }
+ .record-table__cell--type { grid-column:1 / -1; grid-row:1; }
+ .record-table__cell--status { padding-left:0; border-left:0; }
  .record-table__record { background:#fff; }
 	.record-table__head { display:none; }
 	.record-table__record { border:1px solid #e7ecf2; border-radius:8px; margin-bottom:10px; overflow:hidden; }
 	.record-table__row { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:14px; }
 	.record-table__mobile-label { display:block; font-size:12px; color:#64748b; margin-bottom:3px; }
-	.record-table__actions { grid-column:1 / -1; }
+	.record-table__actions { grid-column:1 / -1; justify-content:flex-start; }
 }
 </style>

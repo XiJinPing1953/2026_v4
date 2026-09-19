@@ -914,8 +914,7 @@
 						</view>
 					</template>
 					<StatementRecordTable :rows="salesPageRows" :columns="salesColumns" :row-key="salesRecordKey" :loading="loading" :empty-title="salesDetailEmptyTitle" label="销售明细">
-						<template #date="{ row }"><view class="record-date"><text>{{ row.date || '—' }}</text><text class="record-reference">{{ isSaleRecordRow(row) ? '销售单' : '结算单' }} · {{ String(row._id || '').slice(-6) }}</text></view></template>
-                        <template #type="{ row }"><text class="record-type">{{ bizModeText(row.biz_mode) }}</text></template>
+						<template #type="{ row }"><view class="record-document"><text class="record-type">{{ bizModeText(row.biz_mode) }} · {{ isSaleRecordRow(row) ? '销售单' : '结算单' }}</text><text class="record-reference" selectable>记录 ID：{{ row._id || '—' }}</text></view></template>
                         <template #outstanding="{ row }"><text class="record-balance" :class="{ 'record-balance--due': toNumber(row.outstanding, 0) > 0 }">¥{{ formatMoney(row.outstanding) }}</text></template>
                         <template #status="{ row }"><AppTag :kind="paymentStatusKind(row.payment_status)">{{ paymentStatusText(row.payment_status) }}</AppTag></template>
                         <template #detail="{ row }"><text class="section-hint">单据 {{ row._id }}</text>
@@ -997,6 +996,9 @@
 				</view>
 
 				<StatementRecordTable :rows="statementRows" :columns="ledgerColumns" :row-key="ledgerRecordKey" :loading="rowsLoading" empty-title="暂无流水" label="账务流水">
+                        <template #type="{ row }"><view class="record-document"><text class="record-type">{{ ledgerColumns[1].value(row) }}</text><text class="record-reference" selectable>记录 ID：{{ row.row_id || '—' }}</text></view></template>
+                        <template #status="{ row }"><AppTag :kind="statementRowStatusKind(row)">{{ statementRowStatus(row) }}</AppTag></template>
+                        <template #outstanding="{ row }"><text class="record-balance" :class="{ 'record-balance--due': toNumber(row.outstanding, 0) > 0 }">{{ ledgerColumns[3].value(row) }}</text></template>
 					<template #detail="{ row }"><text class="section-hint">{{ statementRowTitle(row) }} · {{ row.row_id }}</text>
 							<view class="mini-amounts">
 								<text v-if="row.row_type === 'sale'">应收 ¥{{ formatMoney(row.amount) }}</text>
@@ -1967,7 +1969,7 @@ const salesRecordKey = row => row.record_key || row._id
 const ledgerRecordKey = row => `${row.row_type}:${row.row_id}`
 const salesColumns = [
 	{ key: 'date', label: '日期', value: row => row.date || '-' },
-	{ key: 'type', label: '业务', value: row => bizModeText(row.biz_mode) },
+	{ key: 'type', label: '业务 / 单据', value: row => bizModeText(row.biz_mode) },
 	{ key: 'receivable', label: '应收', value: row => `¥${formatMoney(row.should_receive)}` },
 	{ key: 'received', label: '实收', value: row => `¥${formatMoney(isSaleRecordRow(row) ? resolveSaleManualReceived(row) : row.amount_received)}` },
 	{ key: 'outstanding', label: '未收', value: row => `¥${formatMoney(row.outstanding)}` },
@@ -6489,8 +6491,8 @@ onBeforeUnmount(() => {
 .statement-theme :deep(.header__icon-box) { flex-shrink:0; }
 .statement-theme :deep(.header__content) { min-width:180px; }
 .statement-theme :deep(.header__actions) { min-width:0; max-width:100%; }
-.record-date { display:flex; flex-direction:column; gap:4px; }
-.record-reference { color:#94a3b8; font-size:11px; font-weight:400; }
+.record-document { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+.record-reference { color:#64748b; font-size:12px; font-weight:400; line-height:1.5; overflow-wrap:anywhere; user-select:text; }
 .record-type { display:inline-block; padding:3px 8px; border-radius:5px; background:#edf3fa; color:#516780; font-size:12px; }
 .record-table :deep(.tag) { display:inline-flex; border-radius:5px; padding:3px 8px; }
 .record-balance { font-weight:600; }
