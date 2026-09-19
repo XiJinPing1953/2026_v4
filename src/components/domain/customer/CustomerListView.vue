@@ -1106,7 +1106,7 @@ function onStatement(item) {
 		return
 	}
 	const statementCustomerId = String(item.effective_settlement_customer_id || item._id || '').trim()
-	console.info('[crm-ui]', { stage: 'statement_navigation', at: Date.now() })
+	console.info('[crm-ui]', JSON.stringify({ stage: 'statement_navigation', at: Date.now() }))
 	uni.navigateTo({ url: `/pages/customer/statement?_id=${encodeURIComponent(statementCustomerId)}` })
 }
 

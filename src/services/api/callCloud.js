@@ -47,7 +47,7 @@ async function invokeCloud(name, { action, data = {}, token, timeout } = {}) {
 	}
 
 	const result = res.result || {}
-	console.info('[crm-query]', { name, action, request_id: requestId, elapsed_ms: Date.now() - started, code: result.code, server: result.query_performance, response_chars: JSON.stringify(result).length })
+	console.info('[crm-query]', JSON.stringify({ name, action, request_id: requestId, elapsed_ms: Date.now() - started, code: result.code, server: result.query_performance, response_chars: JSON.stringify(result).length }))
 	if (result.code === 401) {
 		handle401(result.msg)
 	}

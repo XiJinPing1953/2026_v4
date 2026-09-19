@@ -3743,7 +3743,7 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0, includeRows 
 		recentOtherFees.value = Array.isArray(data.recent_other_fees) ? data.recent_other_fees : []
 		syncFlowFormDefaults()
 		syncAnalysisFilterDefaults()
-		console.info('[crm-ui]', { stage: 'statement_ready', at: Date.now(), request_id: res.query_performance?.request_id })
+		console.info('[crm-ui]', JSON.stringify({ stage: 'statement_ready', at: Date.now(), request_id: res.query_performance?.request_id }))
 		return true
 	} catch (err) {
 		if (summaryRequestSeq !== statementSummaryRequestSeq) return
@@ -3941,7 +3941,7 @@ async function refreshAfterSave() {
 		if (!loaded) uni.showToast({ title: '已保存，数据刷新失败，请点刷新重试', icon: 'none' })
 	} catch (err) {
 		uni.showToast({ title: '已保存，数据刷新失败，请点刷新重试', icon: 'none' })
-	} finally { refreshingAfterSave.value = false; console.info('[crm-ui]', { stage: 'saved_refresh_finished', at: Date.now(), elapsed_ms: Date.now() - started }) }
+	} finally { refreshingAfterSave.value = false; console.info('[crm-ui]', JSON.stringify({ stage: 'saved_refresh_finished', at: Date.now(), elapsed_ms: Date.now() - started })) }
 }
 
 async function refreshReceiptAdjustmentEntry() {
@@ -5391,7 +5391,7 @@ watch(
 )
 
 onMounted(() => {
-	console.info('[crm-ui]', { stage: 'statement_shell', at: Date.now() })
+	console.info('[crm-ui]', JSON.stringify({ stage: 'statement_shell', at: Date.now() }))
 	if (!receiptForm.bizDate) receiptForm.bizDate = todayYmd()
 	if (!prepayForm.bizDate) prepayForm.bizDate = todayYmd()
 	if (!offsetEntryForm.bizDate) offsetEntryForm.bizDate = todayYmd()
