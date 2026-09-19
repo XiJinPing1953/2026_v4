@@ -109,3 +109,17 @@ test('allocation edits survive both directions of display pagination', () => {
  assert.equal(pager.visible.value[2].allocateAmount,'8.00')
  assert.equal(rows.value.length,23)
 })
+test('workspace tabs preserve scroll; explicit record navigation still reveals the workspace', async () => {
+ const calls=[]
+ const c=vm.createContext({...vue,workspaceTabs:vue.ref([{value:'sales'},{value:'operations'}]),activeWorkspace:vue.ref('operations'),uni:{pageScrollTo:options=>calls.push(options)}})
+ const start=source.indexOf('async function onWorkspaceChange(')
+ vm.runInContext(source.slice(start,source.indexOf('\nconst quickRoundingSmallCandidates',start)),c)
+ await c.onWorkspaceChange('sales')
+ assert.equal(c.activeWorkspace.value,'sales')
+ assert.equal(calls.length,0)
+ await c.onWorkspaceChange('operations',true)
+ assert.equal(calls.length,1)
+ assert.equal(calls[0].selector,'#statement-workspace-nav')
+ await c.onWorkspaceChange('unknown',true)
+ assert.equal(calls.length,1)
+})

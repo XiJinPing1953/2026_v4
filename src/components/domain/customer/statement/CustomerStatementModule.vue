@@ -152,6 +152,7 @@
 				</view>
 			</view>
 
+			<view class="workspace-panels">
 			<view v-show="activeWorkspace === 'operations'" id="statement-operation-section">
 				<AppSection class="operation-section" title="账务操作">
 					<template #actions>
@@ -1027,6 +1028,7 @@
 					<AppButton size="sm" kind="neutral" :disabled="rowsLoading || rowSummaryLoading || !rowsPager.hasMore" @click="onRowsNext">下一页</AppButton>
 				</view>
 			</AppSection>
+			</view>
 		</view>
 	</AppPage>
 </template>
@@ -1999,11 +2001,13 @@ function invalidateReceiptPreview() {
 watch(receiptInputKey, invalidateReceiptPreview, { flush: 'sync' })
 watch(salesDetailMode, () => { salesPage.value = 1 })
 
-async function onWorkspaceChange(value) {
+async function onWorkspaceChange(value, reveal = false) {
 	if (!workspaceTabs.value.some(tab => tab.value === value)) return
 	activeWorkspace.value = value
-	await nextTick()
-	uni.pageScrollTo({ selector: '#statement-workspace-nav', duration: 0, offsetTop: -44 })
+	if (reveal) {
+		await nextTick()
+		uni.pageScrollTo({ selector: '#statement-workspace-nav', duration: 200, offsetTop: -44 })
+	}
 }
 
 const quickRoundingSmallCandidates = computed(() => (
@@ -5335,11 +5339,11 @@ function onOpenSale(id) {
 }
 
 function scrollToOperationSection() {
-	void onWorkspaceChange('operations')
+	void onWorkspaceChange('operations', true)
 }
 
 function scrollToSalesDetailSection() {
-	void onWorkspaceChange('sales')
+	void onWorkspaceChange('sales', true)
 }
 
 function clearSalesDetailLocateMode() {
@@ -5482,13 +5486,14 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.workspace-panels { display:flex; flex-direction:column; gap:16rpx; min-height:calc(100vh - 140px); overflow-anchor:none; }
 .workspace-nav { position:sticky; top:44px; z-index:20; background:#fff; border:1px solid #e7ecf2; border-radius:10px; box-shadow:0 3px 12px rgba(20,40,70,.04); }
 .workspace-context { display:flex; flex-wrap:wrap; align-items:center; gap:6px 24px; padding:10px 16px; border-bottom:1px solid #edf0f4; font-size:12px; color:#64748b; }
 .workspace-debt-link { color:#2563a6; cursor:pointer; }
 .workspace-customer { font-size:14px; font-weight:600; color:#243247; }
 .workspace-balance { color:#243247; font-weight:600; font-variant-numeric:tabular-nums; }
 .workspace-tabs { display:flex; flex-wrap:wrap; gap:4px; padding:4px 10px; }
-.workspace-tab { margin:0; padding:10px 18px; background:transparent; color:#64748b; font-size:14px; line-height:22px; border:0; border-radius:6px; }
+.workspace-tab { margin:0; padding:10px 18px; background:transparent; color:#64748b; font-size:14px; font-weight:600; line-height:22px; border:0; border-radius:6px; }
 .workspace-tab::after { border:0; }
 .workspace-tab--active { color:#2563eb; background:#eff6ff; font-weight:600; }
 .workspace-tab:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
