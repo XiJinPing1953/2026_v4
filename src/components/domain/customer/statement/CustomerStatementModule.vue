@@ -911,7 +911,11 @@
 						</view>
 					</template>
 					<StatementRecordTable :rows="salesPageRows" :columns="salesColumns" :row-key="salesRecordKey" :loading="loading" :empty-title="salesDetailEmptyTitle" label="销售明细">
-						<template #detail="{ row }"><text class="section-hint">单据 {{ row._id }}</text>
+						<template #date="{ row }"><view class="record-date"><text>{{ row.date || '—' }}</text><text class="record-reference">{{ isSaleRecordRow(row) ? '销售单' : '结算单' }} · {{ String(row._id || '').slice(-6) }}</text></view></template>
+                        <template #type="{ row }"><text class="record-type">{{ bizModeText(row.biz_mode) }}</text></template>
+                        <template #outstanding="{ row }"><text class="record-balance" :class="{ 'record-balance--due': toNumber(row.outstanding, 0) > 0 }">¥{{ formatMoney(row.outstanding) }}</text></template>
+                        <template #status="{ row }"><AppTag :kind="paymentStatusKind(row.payment_status)">{{ paymentStatusText(row.payment_status) }}</AppTag></template>
+                        <template #detail="{ row }"><text class="section-hint">单据 {{ row._id }}</text>
 							<view class="mini-amounts mini-amounts--left">
 								<text>应收 ¥{{ formatMoney(row.should_receive) }}</text>
 									<text v-if="resolveSaleRoundingAmount(row) > 0" class="mini-amounts__rounding">
@@ -1032,6 +1036,7 @@ import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import StatementPager from './StatementPager.vue'
 import StatementRecordTable from './StatementRecordTable.vue'
+import AppTag from '@/components/base/AppTag.vue'
 import { useStatementPage, mergeVisibleSelection } from '@/composables/useStatementWorkspace'
 import AppTabs from '@/components/base/AppTabs.vue'
 import AppButton from '@/components/base/AppButton.vue'
@@ -5486,7 +5491,7 @@ onBeforeUnmount(() => {
 .workspace-tab--active { color:#2563eb; background:#eff6ff; font-weight:600; }
 .workspace-tab:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
 #statement-operation-section { container-type:inline-size; }
-.operation-panel.receipt-workspace { display:grid; grid-template-columns:minmax(0,1fr); gap:24px; align-items:start; }
+.operation-panel.receipt-workspace { display:grid; grid-template-columns:minmax(0,1fr); gap:12rpx; align-items:start; }
 .receipt-workspace__form, .receipt-workspace__evidence { min-width:0; }
 .receipt-workspace__evidence { padding:18px; background:#f8fafc; border:1px solid #e7ecf2; border-radius:8px; }
 .evidence-heading { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; color:#243247; font-weight:600; margin-bottom:14px; }
@@ -5494,6 +5499,7 @@ onBeforeUnmount(() => {
 @container (min-width:1100px) {
 	.operation-panel.receipt-workspace { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
 	.receipt-workspace .receipt-grid--four { grid-template-columns:repeat(2,minmax(0,1fr)); }
+	.receipt-workspace__evidence { margin-top:25px; /* 18px label + 7px field gap */ }
 }
 .receipt-workspace .checked-target-list, .receipt-workspace .alloc-list { max-height:none; overflow:visible; }
 @media(max-width:600px) {
@@ -6469,5 +6475,28 @@ onBeforeUnmount(() => {
  .statement-theme :deep(.section__actions) { max-width:100%; }
  .section-actions { flex-direction:row; flex-wrap:wrap; gap:6px; }
  .operation-summary-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+/* Keep the title's own row when the action group needs to wrap. */
+.statement-theme :deep(.header__top) { flex-wrap:wrap; }
+.statement-theme :deep(.header__icon-box) { flex-shrink:0; }
+.statement-theme :deep(.header__content) { min-width:180px; }
+.statement-theme :deep(.header__actions) { min-width:0; max-width:100%; }
+.record-date { display:flex; flex-direction:column; gap:4px; }
+.record-reference { color:#94a3b8; font-size:11px; font-weight:400; }
+.record-type { display:inline-block; padding:3px 8px; border-radius:5px; background:#edf3fa; color:#516780; font-size:12px; }
+.record-table :deep(.tag) { display:inline-flex; border-radius:5px; padding:3px 8px; }
+.record-balance { font-weight:600; }
+.record-balance--due { color:#b45309; }
+@media (max-width:1100px) {
+ .statement-theme :deep(.header__actions) { flex:1 0 100%; }
+ .statement-header-actions { width:100%; justify-content:flex-start; }
+}
+@media (max-width:600px) {
+ .statement-theme :deep(.header__top) { gap:12px; }
+ .statement-theme :deep(.header__content) { min-width:0; }
+ .statement-theme :deep(.header__label) { overflow-wrap:anywhere; }
+ .statement-header-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+ .statement-header-actions :deep(.btn) { width:100%; box-sizing:border-box; }
 }
 </style>

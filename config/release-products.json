@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.19-customer-overview",
+      "version": "2026.09.20-statement-workspaces",
       "output": "dist/build/web",
-      "acceptance": "Five-column customer overview with separate paired prepayment and unallocated receipt cards; responsive layout and shared scope notes",
+      "acceptance": "Customer statement workspaces, aligned receipt evidence, compact record tables and responsive header; original accounting APIs and protections preserved",
       "integrityScope": "deployment"
     },
     "cloud": {
@@ -95,7 +95,11 @@
           "uniCloud-alipay/database/schema/crm_bottle_anomalies.schema.json",
           "uniCloud-alipay/database/crm_operation_logs.schema.json",
           "uniCloud-alipay/database/crm_operation_logs.index.json",
-          "uniCloud-alipay/database/schema/crm_operation_logs.schema.json"
+          "uniCloud-alipay/database/schema/crm_operation_logs.schema.json",
+          "src/components/domain/customer/statement/StatementPager.vue",
+          "src/components/domain/customer/statement/StatementRecordTable.vue",
+          "src/composables/useStatementWorkspace.js",
+          "vite.config.js"
         ],
         "aclCanonicalRevisions": {
           "crm-sale": {
