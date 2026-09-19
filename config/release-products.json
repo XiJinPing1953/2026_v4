@@ -20,7 +20,7 @@
           "crm-customer-settlement"
         ],
         "databaseFiles": [],
-        "baseCommit": "1e46338",
+        "baseCommit": "1e46338e4c0f0e40ed58cabe8954f6d906ea8715",
         "sourceFiles": [
           "src/services/api/callCloud.js",
           "src/services/customerSettlement.js",
