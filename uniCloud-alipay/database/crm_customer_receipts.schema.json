@@ -57,6 +57,7 @@
     "delete": false
   },
   "indexes": [
+    { "key": { "customer_id": 1, "_id": 1 }, "name": "idx_customer_read_cursor" },
     { "key": { "customer_id": 1, "biz_date": -1, "created_at": -1 }, "name": "idx_customer_bizdate_created" },
     { "key": { "customer_id": 1, "status": 1, "biz_date": -1 }, "name": "idx_customer_status_date" },
     { "key": { "customer_id": 1, "unallocated_amount": -1, "biz_date": 1, "created_at": 1 }, "name": "idx_customer_unallocated" },

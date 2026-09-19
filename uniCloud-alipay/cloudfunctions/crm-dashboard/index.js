@@ -384,7 +384,28 @@ async function getTankTelemetryDebugV1(user, data, requestId) {
 	return { code: 0, data: row }
 }
 
+async function quickStatusV1() {
+	const hidden = await fetchHiddenCustomerIds(customers)
+	const bottleHiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, hidden, ['current_customer_id'])
+	const today = formatDateCN(getCNDate()), end = addDaysDateCN(today, 60)
+	const [anomaly, atCustomer, inStation, tank] = await Promise.all([
+		anomalies.where({ status: 'open' }).count(),
+		bottles.where(mergeVisibilityWhere(dbCmd, { status: 'at_customer' }, bottleHiddenWhere)).count(),
+		bottles.where({ status: 'in_station' }).count(), getTankTelemetrySummary()
+	])
+	const [bottle, gauge, valve] = await Promise.all([
+		countInspectionDueByField('bottle_next_check_date', today, end, bottleHiddenWhere),
+		countInspectionDueByField('pressure_gauge_next_check_date', today, end, bottleHiddenWhere),
+		countInspectionDueByField('safety_valve_next_check_date', today, end, bottleHiddenWhere)
+	])
+	const overdue = bottle.overdue + gauge.overdue + valve.overdue
+	const due = bottle.due_60d + gauge.due_60d + valve.due_60d
+	return { code: 0, data: { section: 'quick', kpi: { anomaly_open: anomaly.total, at_customer: atCustomer.total, in_station: inStation.total },
+		inspection_due: { bottle, gauge, valve, today, due_end: end, total: { overdue, due_60d: due, total: overdue + due } }, tank, updated_at: Date.now() } }
+}
+
 async function summaryV1(user, data, requestId) {
+	if (data.section === 'quick') return quickStatusV1()
 	const days = Math.min(Math.max(Number(data.days || 7), 3), 31)
 	const today = getCNDate()
 	const recentDates = getRecentDates(days)

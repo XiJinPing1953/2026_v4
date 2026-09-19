@@ -3966,7 +3966,9 @@ async function listV2(user, data) {
 	let total = 0
 	const needPostFilter = Boolean(settlementScope || hasRemark || remarkTag)
 
-	if (!needPostFilter) {
+	if (data.summary_only === true) {
+		// Statistics-only request skips page enrichment.
+	} else if (!needPostFilter) {
 		dataList = await fetchVisibleSaleListPageRows(where, page, pageSize, hiddenCustomerIdSet)
 		} else {
 			const matchedRows = []
@@ -4064,8 +4066,19 @@ async function listV2(user, data) {
 	dataList = await enrichSaleRowsWithNetOutstandingEffective(dataList)
 	dataList = await enrichSaleListRowsWithBottleStats(dataList)
 
-	const summary = await computeSaleListSummary(where, { settlementScope, hasRemark, remarkTag }, { hiddenCustomerIds: hiddenCustomerIdSet })
-	const monthHeadline = await computeMonthSalesHeadline(hiddenCustomerIdSet)
+	if (data.include_summary === false) {
+		if (!needPostFilter) {
+			if (hiddenCustomerIdSet.size) {
+				const docs = await readComplete(sales, where, { command: dbCmd, source: 'sale_visible_count' })
+				total = docs.filter(doc => !saleMentionsHiddenCustomer(doc, hiddenCustomerIdSet)).length
+			} else total = Number((await sales.where(where).count()).total)
+		}
+		return { code: 0, data: dataList, total, paging: { page, pageSize, total, hasMore: page * pageSize < total }, summary: null }
+	}
+	const [summary, monthHeadline] = await Promise.all([
+		computeSaleListSummary(where, { settlementScope, hasRemark, remarkTag }, { hiddenCustomerIds: hiddenCustomerIdSet }),
+		computeMonthSalesHeadline(hiddenCustomerIdSet)
+	])
 	if (!total) total = Number(summary.total || 0)
 	const hasMore = page * pageSize < total
 

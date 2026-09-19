@@ -7,7 +7,9 @@
 			</template>
 
 		<template #highlights>
-			<view class="summary-row">
+			<text v-if="summaryPending">统计加载中…</text>
+			<text v-else-if="summaryError">{{ summaryError }}</text>
+			<view v-if="!summaryPending && !summaryError" class="summary-row">
 				<AppStatCard
 					class="summary-card"
 					label="筛选结果"
@@ -427,6 +429,7 @@
 </template>
 
 <script setup>
+import { usePagedSummary } from '@/composables/usePagedSummary'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
@@ -1121,9 +1124,12 @@ function buildListParams({ page = 1, pageSize = 50 } = {}) {
 	}
 }
 
+const { read: readList, pending: summaryPending, error: summaryError, invalidate: invalidateSummary } = usePagedSummary(listFillingsV1, applySummary)
+
 const { loading, run: fetchList } = useQuery(
-	async () => {
-		const res = await listFillingsV1(buildListParams({ page: pager.page, pageSize: pager.pageSize }))
+	async (options = {}) => {
+		if (options.force) invalidateSummary()
+		const res = await readList(buildListParams({ page: pager.page, pageSize: pager.pageSize }))
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '加载失败', icon: 'none' })
 			return {
@@ -1150,17 +1156,7 @@ const { loading, run: fetchList } = useQuery(
 				total: 0,
 				hasMore: false
 			},
-			summary: res.summary || {
-				total: 0,
-				with_remark: 0,
-				without_remark: 0,
-				normal_fill_count: 0,
-				truck_out_agent_sale_count: 0,
-				truck_out_no_sale_count: 0,
-				normal_fill_weight: 0,
-				truck_out_agent_sale_weight: 0,
-				truck_out_no_sale_weight: 0
-			}
+			summary: res.summary || null
 		}
 	},
 	{
@@ -1181,8 +1177,7 @@ const { loading, run: fetchList } = useQuery(
 			}
 		},
 		cacheTTL: 10000,
-			cacheKey: () =>
-				`filling:list:${filters.bottle_no}:${filters.operator}:${filters.record_type}:${filters.sale_state}:${filters.dateStart}:${filters.dateEnd}:${pager.page}:${pager.pageSize}:${listRefreshVersion.value}`
+			cacheKey: () => null
 		}
 	)
 
@@ -1200,7 +1195,10 @@ function applyResult(payload) {
 	pager.pageSize = Number(paging.pageSize || pager.pageSize || 50)
 	pager.total = Number(paging.total || 0)
 	pager.hasMore = Boolean(paging.hasMore)
-	const summaryData = data.summary || {}
+	if (data.summary) applySummary(data.summary)
+}
+
+function applySummary(summaryData) {
 	summary.value = {
 		total: Number(summaryData.total || 0),
 		withRemark: Number(summaryData.with_remark ?? summaryData.withRemark ?? 0),
@@ -1218,9 +1216,9 @@ async function onSearch(resetPage = false, { force = false } = {}) {
 	if (resetPage) pager.page = 1
 	clearFilterBottleSuggestions()
 	clearFilterOperatorSuggestions()
-	if (force) listRefreshVersion.value += 1
+	if (force) { listRefreshVersion.value += 1; invalidateSummary() }
 	const data = await fetchList()
-	applyResult(data)
+	if (data) applyResult(data)
 }
 
 function onReset() {

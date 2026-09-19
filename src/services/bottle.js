@@ -7,6 +7,9 @@ export async function searchBottlesV1(params) {
 		page: params.page || 1,
 		pageSize: params.pageSize || params.limit || 20
 	}
+	data.include_summary = (params.include_summary ?? params.includeSummary) !== false
+	data.summary_only = (params.summary_only ?? params.summaryOnly) === true
+	data.include_deposit = (params.include_deposit ?? params.includeDeposit) !== false
 	if (params.is_active != null) data.is_active = params.is_active
 	else if (params.isActive != null) data.is_active = params.isActive
 	data.bottle_no_mode = params.bottle_no_mode || params.bottleNoMode || 'all'

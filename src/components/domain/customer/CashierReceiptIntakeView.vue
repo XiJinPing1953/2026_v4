@@ -1404,7 +1404,7 @@ async function onSubmit() {
 		form.bizDate = todayYmd()
 		form.paymentMethod = 'cash'
 		proofImages.value = []
-		await loadRows(true)
+		void loadRows(true).catch(() => uni.showToast({ title: '已保存，列表刷新失败，请刷新重试', icon: 'none' }))
 	} catch (err) {
 		uni.showToast({
 			title: normalizeString(err?.userMessage || err?.message) || '凭证上传失败',
@@ -1502,7 +1502,7 @@ async function onRemove(row) {
 	}
 	if (editingReceiptId.value === receiptId) cancelEditing()
 	uni.showToast({ title: res?.msg || '已作废', icon: 'success' })
-	await loadRows(true)
+	void loadRows(true).catch(() => uni.showToast({ title: '已保存，列表刷新失败，请刷新重试', icon: 'none' }))
 }
 
 let rowsRequestSeq = 0

@@ -1,0 +1,97 @@
+[
+  {
+    "IndexName": "idx_customer_read_cursor",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "customer_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_customer_bizdate_created",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "customer_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "biz_date",
+          "Direction": "-1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_customer_status_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "customer_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "status",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "biz_date",
+          "Direction": "-1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_request_id",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "request_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_previous_flow_settlement_id",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "previous_flow_settlement_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  }
+]

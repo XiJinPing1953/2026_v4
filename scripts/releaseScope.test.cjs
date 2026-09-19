@@ -170,3 +170,15 @@ test('production ACL compatibility pins historical canonical bytes without weake
 	config()
 	assert.doesNotThrow(() => run())
 })
+
+test('declared database schema includes only an identical generated legacy copy', t => {
+ const {root,write,baseCommit}=fixture(t)
+ const sourceFiles=['uniCloud-alipay/database/unchanged.schema.json','uniCloud-alipay/database/schema/unchanged.schema.json']
+ write(sourceFiles[0],'{"indexes":[]}');write(sourceFiles[1],'{"indexes":[]}')
+ writeScope(write,{baseCommit,sourceFiles})
+ const configPath=path.join(root,'config/release-products.json'),config=JSON.parse(fs.readFileSync(configPath))
+ config.products.cloud.deploymentScope.databaseFiles=['unchanged.schema.json'];fs.writeFileSync(configPath,JSON.stringify(config))
+ assert.doesNotThrow(()=>resolveReleaseScope(root,'cloud'))
+ write(sourceFiles[1],'{"indexes":["unapproved"]}')
+ assert.throws(()=>resolveReleaseScope(root,'cloud'),/生成副本与根源不一致/)
+})

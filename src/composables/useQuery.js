@@ -25,6 +25,7 @@ export function useQuery(fetcher, options = {}) {
 	const error = ref('')
 	const empty = ref(false)
 	const lastRunAt = ref(0)
+	let requestSeq = 0
 
 	function resolveEmpty(value) {
 		if (typeof options.isEmpty === 'function') {
@@ -44,8 +45,11 @@ export function useQuery(fetcher, options = {}) {
 		if (!force && throttleMs > 0 && now - lastRunAt.value < throttleMs) return data.value
 		lastRunAt.value = now
 
+		const seq = ++requestSeq
 		const cached = force ? null : getCache(cacheKey, cacheTTL)
 		if (cached != null) {
+			loading.value = false
+			error.value = ''
 			data.value = cached
 			empty.value = resolveEmpty(cached)
 			return cached
@@ -55,6 +59,7 @@ export function useQuery(fetcher, options = {}) {
 		error.value = ''
 		try {
 			const result = await fetcher(...args)
+			if (seq !== requestSeq) return undefined
 			const finalData = options.transform ? options.transform(result) : result
 			data.value = finalData
 			empty.value = resolveEmpty(finalData)
@@ -62,11 +67,12 @@ export function useQuery(fetcher, options = {}) {
 			options.onSuccess?.(finalData, result)
 			return finalData
 		} catch (err) {
+			if (seq !== requestSeq) return undefined
 			error.value = err?.message || '请求失败'
 			options.onError?.(err)
 			return null
 		} finally {
-			loading.value = false
+			if (seq === requestSeq) loading.value = false
 		}
 	}
 

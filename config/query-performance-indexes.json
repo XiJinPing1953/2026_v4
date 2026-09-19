@@ -1,0 +1,52 @@
+{
+  "provider": "alipay",
+  "spaceId": "env-00jxuffegf2n",
+  "deploymentMode": "incremental-console-only",
+  "indexes": [
+    {
+      "collection": "crm_sale_records",
+      "name": "idx_customer_read_cursor",
+      "unique": false,
+      "key": {
+        "customer_id": 1,
+        "_id": 1
+      }
+    },
+    {
+      "collection": "crm_customer_receipts",
+      "name": "idx_customer_read_cursor",
+      "unique": false,
+      "key": {
+        "customer_id": 1,
+        "_id": 1
+      }
+    },
+    {
+      "collection": "crm_customer_allocations",
+      "name": "idx_customer_read_cursor",
+      "unique": false,
+      "key": {
+        "customer_id": 1,
+        "_id": 1
+      }
+    },
+    {
+      "collection": "crm_customer_flow_settlements",
+      "name": "idx_customer_read_cursor",
+      "unique": false,
+      "key": {
+        "customer_id": 1,
+        "_id": 1
+      }
+    },
+    {
+      "collection": "crm_customer_opening_debts",
+      "name": "idx_customer_read_cursor",
+      "unique": false,
+      "key": {
+        "customer_id": 1,
+        "_id": 1
+      }
+    }
+  ]
+}

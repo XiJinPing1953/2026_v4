@@ -46,7 +46,14 @@ function resolveReleaseScope(root, product, requested) {
 		const expected = [...scope.sourceFiles].sort()
 		if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error(`发布源码范围不匹配；清单外：${actual.filter((f) => !expected.includes(f)).join('、')}；清单中未变化：${expected.filter((f) => !actual.includes(f)).join('、')}`)
 		const databaseChanges = actual.filter((f) => f.startsWith('uniCloud-alipay/database/')).map((f) => f.slice('uniCloud-alipay/database/'.length))
-		if (databaseChanges.some((f) => !scope.databaseFiles.includes(f))) throw new Error('数据库源码变化未列入发布范围')
+		for (const file of databaseChanges) {
+			const canonical = file.startsWith('schema/') ? file.slice(7) : file
+			if (!scope.databaseFiles.includes(canonical)) throw new Error('数据库源码变化未列入发布范围')
+			if (canonical !== file) {
+				const read = name => JSON.parse(fs.readFileSync(path.join(root, 'uniCloud-alipay/database', name), 'utf8'))
+				if (JSON.stringify(read(file)) !== JSON.stringify(read(canonical))) throw new Error('数据库生成副本与根源不一致：' + file)
+			}
+		}
 	}
 	return { functions: [...scope.functions], databaseFiles: [...scope.databaseFiles], ...(scope.baseCommit ? { baseCommit: scope.baseCommit, sourceFiles: [...scope.sourceFiles] } : {}), ...(Object.keys(aclRevisions).length ? { aclCanonicalRevisions: aclRevisions } : {}) }
 }

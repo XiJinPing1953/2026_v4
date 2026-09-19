@@ -25,11 +25,13 @@
 			>
 				会计导出
 			</AppButton>
-			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch">刷新</AppButton>
+			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch(false, { force: true })">刷新</AppButton>
 		</template>
 
 		<template #highlights>
-			<view class="summary-row">
+			<text v-if="summaryPending">统计加载中…</text>
+			<text v-else-if="summaryError">{{ summaryError }}</text>
+			<view v-if="!summaryPending && !summaryError" class="summary-row">
 				<AppStatCard
 					class="summary-card"
 					label="筛选结果"
@@ -239,7 +241,7 @@
 
 				<AppList :loading="loading" :empty="list.length === 0" empty-title="暂无客户数据">
 					<template #emptyAction>
-						<AppButton size="sm" @click="onSearch">刷新重试</AppButton>
+						<AppButton size="sm" @click="onSearch(false, { force: true })">刷新重试</AppButton>
 					</template>
 
 					<AppListItem
@@ -322,6 +324,7 @@
 </template>
 
 <script setup>
+import { usePagedSummary } from '@/composables/usePagedSummary'
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
@@ -601,9 +604,12 @@ function balanceValueClass(item) {
 	return 'price-value--neutral'
 }
 
+const { read: readList, pending: summaryPending, error: summaryError, invalidate: invalidateSummary } = usePagedSummary(listCustomersV1, applySummary)
+
 const { loading, run: fetchList } = useQuery(
-	async () => {
-		const res = await listCustomersV1(buildListParams(pager.page, pager.pageSize))
+	async (options = {}) => {
+		if (options.force) invalidateSummary()
+		const res = await readList(buildListParams(pager.page, pager.pageSize))
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '查询失败', icon: 'none' })
 			return {
@@ -620,7 +626,7 @@ const { loading, run: fetchList } = useQuery(
 				total: 0,
 				hasMore: false
 			},
-			summary: res.summary || { total: 0, active: 0, inactive: 0, priced: 0 }
+			summary: res.summary || null
 		}
 	},
 	{
@@ -631,9 +637,8 @@ const { loading, run: fetchList } = useQuery(
 			summary: { total: 0, active: 0, inactive: 0, priced: 0 }
 		},
 		cacheTTL: 15000,
-		throttleMs: 300,
-		cacheKey: () =>
-			`customer:list:${normalizedEntryMode.value}:${filters.keyword}:${filters.activeIndex}:${filters.visibilityIndex}:${filters.balanceIndex}:${filters.updatedDateStart}:${filters.updatedDateEnd}:${filters.cashierUnallocatedIndex}:${filters.cashierDateStart}:${filters.cashierDateEnd}:${pager.page}:${pager.pageSize}`
+		throttleMs: 0,
+		cacheKey: () => null
 	}
 )
 
@@ -645,7 +650,10 @@ function applyResult(payload) {
 	pager.pageSize = Number(paging.pageSize || pager.pageSize || 50)
 	pager.total = Number(paging.total || 0)
 	pager.hasMore = Boolean(paging.hasMore)
-	const summaryData = data.summary || {}
+	if (data.summary) applySummary(data.summary)
+}
+
+function applySummary(summaryData) {
 	summary.value = {
 		total: Number(summaryData.total || 0),
 		active: Number(summaryData.active || 0),
@@ -657,7 +665,7 @@ function applyResult(payload) {
 async function onSearch(resetPage = false, options = {}) {
 	if (resetPage) pager.page = 1
 	const data = await fetchList({ force: Boolean(options.force) })
-	applyResult(data)
+	if (data) applyResult(data)
 }
 
 async function fetchAllRowsForExport() {
@@ -1098,6 +1106,7 @@ function onStatement(item) {
 		return
 	}
 	const statementCustomerId = String(item.effective_settlement_customer_id || item._id || '').trim()
+	console.info('[crm-ui]', { stage: 'statement_navigation', at: Date.now() })
 	uni.navigateTo({ url: `/pages/customer/statement?_id=${encodeURIComponent(statementCustomerId)}` })
 }
 

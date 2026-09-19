@@ -4,7 +4,8 @@ export async function getDashboardSummaryV1(params = {}) {
 	return callCloud('crm-dashboard', {
 		action: 'summaryV1',
 		data: {
-			days: params.days || 7
+			days: params.days || 7,
+			section: params.section || 'full'
 		}
 	})
 }

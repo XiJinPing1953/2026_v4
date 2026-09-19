@@ -765,6 +765,7 @@
 			</AppSection>
 
 			<AppSection v-if="isKgCustomer || isBottleCustomer" title="经营分析">
+				<text v-if="analysisStale" class="section-hint">请点击查询分析，获取当前结果。</text>
 				<view class="quick-date-strip">
 					<AppDatePresetBar v-model="analysisDatePreset" :disabled="analysisLoading" @update:modelValue="onAnalysisDatePresetChange" />
 				</view>
@@ -1110,6 +1111,7 @@ const saleId = toRef(props, 'saleId')
 const overviewNotesOpen = ref(false)
 const loading = ref(false)
 const refreshingAfterSave = ref(false)
+const analysisStale = ref(true)
 let analysisRequestSeq = 0
 let poolRequestSeq = 0
 let historyRequestSeq = 0
@@ -3722,9 +3724,14 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0, includeRows 
 		customer.value = data.customer || customer.value || {}
 		applyStatementSummary(data)
 		if (includeRows) {
-			if (!Array.isArray(data.statement_rows) || !data.rows_paging) throw new Error('账务接口版本未更新，请重试')
-			statementRows.value = data.statement_rows
-			Object.assign(rowsPager, data.rows_paging)
+			if (Array.isArray(data.statement_rows) && data.rows_paging) {
+				statementRows.value = data.statement_rows
+				Object.assign(rowsPager, data.rows_paging)
+			} else {
+				// A rolling cloud deployment may temporarily return a legacy instance.
+				await loadRows()
+				if (summaryRequestSeq !== statementSummaryRequestSeq) return
+			}
 		}
 		if (summaryOnly) return true
 		recentSales.value = Array.isArray(data.recent_sales) ? data.recent_sales : []
@@ -3736,6 +3743,7 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0, includeRows 
 		recentOtherFees.value = Array.isArray(data.recent_other_fees) ? data.recent_other_fees : []
 		syncFlowFormDefaults()
 		syncAnalysisFilterDefaults()
+		console.info('[crm-ui]', { stage: 'statement_ready', at: Date.now(), request_id: res.query_performance?.request_id })
 		return true
 	} catch (err) {
 		if (summaryRequestSeq !== statementSummaryRequestSeq) return
@@ -3783,6 +3791,7 @@ async function loadAnalysis() {
 			analysis.bottle_should_receive_total = 0
 			return
 		}
+		analysisStale.value = false
 		const data = res?.data || {}
 		analysis.customer_price_unit = normalizeString(data.customer_price_unit) || 'kg'
 		analysis.requires_date_range = Boolean(data.requires_date_range)
@@ -3924,13 +3933,15 @@ async function refreshAll() {
 }
 
 async function refreshAfterSave() {
+	const started = Date.now()
+	analysisStale.value = true
 	refreshingAfterSave.value = true
 	try {
 		const loaded = await refreshAll()
 		if (!loaded) uni.showToast({ title: '已保存，数据刷新失败，请点刷新重试', icon: 'none' })
 	} catch (err) {
 		uni.showToast({ title: '已保存，数据刷新失败，请点刷新重试', icon: 'none' })
-	} finally { refreshingAfterSave.value = false }
+	} finally { refreshingAfterSave.value = false; console.info('[crm-ui]', { stage: 'saved_refresh_finished', at: Date.now(), elapsed_ms: Date.now() - started }) }
 }
 
 async function refreshReceiptAdjustmentEntry() {
@@ -4153,19 +4164,21 @@ async function onCreateAutoReceipt() {
 	}
 	const allocationPayload = buildReceiptAllocationPayload()
 	if (!allocationPayload) return
-	if (isEditingReceipt.value) {
-		const confirmed = await showConfirmModal({
-			title: '保存整单调整',
-			content: '当前原目标已在本次编辑中释放。保存后会按当前金额和目标重新分配整张收款单；当前范围冲不完的现金仍会保留为待分配收款。取消会保留进入调整前的原分配。',
-			confirmText: '保存'
-		})
-		if (!confirmed) return
-	} else {
-		const confirmed = await confirmReceiptPrepayIfNeeded(amount, roundingAmount, allocationPayload)
-		if (!confirmed) return
-	}
+	const savingCustomerId = recordId.value
 	submitting.value = true
 	try {
+		if (isEditingReceipt.value) {
+			const confirmed = await showConfirmModal({
+				title: '保存整单调整',
+				content: '当前原目标已在本次编辑中释放。保存后会按当前金额和目标重新分配整张收款单；当前范围冲不完的现金仍会保留为待分配收款。取消会保留进入调整前的原分配。',
+				confirmText: '保存'
+			})
+			if (!confirmed) return
+		} else {
+			const confirmed = await confirmReceiptPrepayIfNeeded(amount, roundingAmount, allocationPayload)
+			if (!confirmed) return
+		}
+		if (recordId.value !== savingCustomerId) return
 		const isEditing = isEditingReceipt.value
 		const res = isEditing
 			? await updateReceiptV1({
@@ -5303,6 +5316,11 @@ watch(
 		analysisRequestSeq += 1
 		poolRequestSeq += 1
 		historyRequestSeq += 1
+		rowsLoading.value = false
+		rowSummaryLoading.value = false
+		analysisLoading.value = false
+		offsetPoolLoading.value = false
+		offsetHistoryLoading.value = false
 		if (!id) return
 		quickSceneApplied.value = false
 		salesDetailMode.value = 'all'
@@ -5373,6 +5391,7 @@ watch(
 )
 
 onMounted(() => {
+	console.info('[crm-ui]', { stage: 'statement_shell', at: Date.now() })
 	if (!receiptForm.bizDate) receiptForm.bizDate = todayYmd()
 	if (!prepayForm.bizDate) prepayForm.bizDate = todayYmd()
 	if (!offsetEntryForm.bizDate) offsetEntryForm.bizDate = todayYmd()

@@ -1,0 +1,173 @@
+[
+  {
+    "IndexName": "idx_customer_read_cursor",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "customer_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_date_created_at",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "date",
+          "Direction": "-1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_customer_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "customer_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "date",
+          "Direction": "-1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_delivery_customer_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "delivery_customer_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "date",
+          "Direction": "-1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_truck_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "truck_no",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "date",
+          "Direction": "-1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_price_unit_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "price_unit",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "date",
+          "Direction": "-1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_biz_mode_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "biz_mode",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "date",
+          "Direction": "-1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_has_remark_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "has_remark",
+          "Direction": "1",
+          "Type": "bool"
+        },
+        {
+          "Name": "date",
+          "Direction": "-1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_remark_tags_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "remark_tags",
+          "Direction": "1",
+          "Type": "array"
+        },
+        {
+          "Name": "date",
+          "Direction": "-1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  }
+]

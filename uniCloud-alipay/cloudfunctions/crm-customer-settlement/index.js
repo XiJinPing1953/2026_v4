@@ -9011,6 +9011,7 @@ const statementPeriodHandler = async (event, context) => {
 				read_complete: false, error_code: error.code || 'DEPOSIT_READ_FAILED', issue: '押金读取未完成，请在押金流水中核对' }
 		}
 
+		result.query_version = 'statement-read/2026-09-19.1'
 		if (action === 'getCustomerStatementV1' && data.include_rows === true) {
 			const rows = await listCustomerStatementRowsV1(null, { ...data, date_from: data.summary_date_from || data.summaryDateFrom || data.date_from, date_to: data.summary_date_to || data.summaryDateTo || data.date_to }, request.request_id)
 			if (rows.code !== 0) return rows
@@ -9026,4 +9027,14 @@ const statementPeriodHandler = async (event, context) => {
 	}
 }
 
-exports.main = withFinancialEvidence(statementReads.withStatementReads(statementPeriodHandler), saleAccounting.RULE_VERSION)
+const measuredStatementHandler = withFinancialEvidence(statementReads.withStatementReads(statementPeriodHandler), saleAccounting.RULE_VERSION)
+exports.main = async (event, context) => {
+	const started = Date.now()
+	const result = await measuredStatementHandler(event, context)
+	if (result && ['getCustomerStatementV1', 'exportCustomerStatementV1', 'exportCustomerAccountingLedgerV1'].includes(event?.action)) {
+		const reads = result.financial_evidence?.reads || []
+		result.query_performance = { request_id: event.request_id || '', elapsed_ms: Date.now() - started,
+			complete_reads: reads.length, scanned_rows: reads.reduce((sum, item) => sum + Number(item.rows || 0), 0) }
+	}
+	return result
+}

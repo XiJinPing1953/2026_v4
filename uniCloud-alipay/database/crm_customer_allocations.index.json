@@ -1,0 +1,145 @@
+[
+  {
+    "IndexName": "idx_customer_read_cursor",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "customer_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_customer_bizdate_created",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "customer_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "biz_date",
+          "Direction": "-1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_sale_bizdate_created",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "sale_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "biz_date",
+          "Direction": "-1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_target_bizdate_created",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "target_type",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "target_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "biz_date",
+          "Direction": "-1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_receipt_seq",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "receipt_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "seq",
+          "Direction": "1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": true,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_source",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "source_type",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "source_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_request_id",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "request_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  }
+]

@@ -2,12 +2,14 @@
 		<AppPage title="销售记录" :subtitle="subtitle" icon="list">
 		<template #headerActions>
 			<AppButton v-if="canCreateSale" size="sm" kind="primary" @click="onAdd" icon="plus">新建销售单</AppButton>
-			<AppButton size="sm" kind="neutral" icon="document" :loading="exporting" :disabled="loading || Boolean(financialIssue)" @click="onExport">导出</AppButton>
-			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch">刷新</AppButton>
+			<AppButton size="sm" kind="neutral" icon="document" :loading="exporting" :disabled="loading || summaryPending || Boolean(summaryError) || Boolean(financialIssue)" @click="onExport">导出</AppButton>
+			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch(false, { force: true })">刷新</AppButton>
 		</template>
 
 			<template #highlights>
-				<view v-if="!financialIssue" class="summary-row">
+			<text v-if="summaryPending">统计加载中…</text>
+			<text v-else-if="summaryError">{{ summaryError }}</text>
+				<view v-if="!summaryPending && !summaryError && !financialIssue" class="summary-row">
 					<AppStatCard
 						:class="['summary-card', isSummaryScopeActive('paid') ? 'summary-card--active' : '']"
 						label="结算实收"
@@ -252,6 +254,7 @@
 </template>
 
 <script setup>
+import { usePagedSummary } from '@/composables/usePagedSummary'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppList from '@/components/base/AppList.vue'
@@ -547,9 +550,12 @@ function clearFilterChip(key) {
 	onSearch(true)
 }
 
+const { read: readList, pending: summaryPending, error: summaryError, invalidate: invalidateSummary } = usePagedSummary(listSalesV2, applySummary)
+
 const { loading, run: fetchList } = useQuery(
-	async () => {
-		const res = await listSalesV2({
+	async (options = {}) => {
+		if (options.force) invalidateSummary()
+		const res = await readList({
 			keyword: filters.keyword,
 			customerId: filters.customerId,
 			customerScope: filters.customerScope,
@@ -576,42 +582,7 @@ const { loading, run: fetchList } = useQuery(
 				total: Number(res.total || 0),
 				hasMore: false
 			},
-			summary: res.summary || {
-				total: 0,
-				paid: 0,
-				paid_bottle_count: 0,
-				partial: 0,
-				unpaid: 0,
-				should_receive_total: 0,
-				month_sales_doc_total: 0,
-				month_flow_total: 0,
-				month_sales_total: 0,
-				month_range_start: '',
-				month_range_end: '',
-				amount_received_total: 0,
-				outstanding_total: 0,
-				total_net_weight: 0,
-				bottle_count: 0,
-				truck_count: 0,
-				agent_sale_count: 0,
-				bottle_net_weight: 0,
-				truck_net_weight: 0,
-				agent_sale_net_weight: 0,
-				receivable_outstanding_total: 0,
-				receivable_outstanding_count: 0,
-				receivable_outstanding_bottle_count: 0,
-				refund_outstanding_total: 0,
-				refund_outstanding_count: 0,
-				refund_outstanding_bottle_count: 0,
-				overpaid_total: 0,
-				overpaid_count: 0,
-				overrefund_total: 0,
-				overrefund_count: 0,
-				prereceive_total: 0,
-				prereceive_count: 0,
-				prerefund_total: 0,
-				prerefund_count: 0
-			}
+			summary: res.summary || null
 			}
 		},
 	{
@@ -657,9 +628,8 @@ const { loading, run: fetchList } = useQuery(
 				}
 			},
 		cacheTTL: 10000,
-		throttleMs: 300,
-			cacheKey: () =>
-				`sale:list:${filters.keyword}:${filters.customerId}:${filters.customerScope}:${filters.dateStart}:${filters.dateEnd}:${filters.priceUnit}:${filters.bizMode}:${filters.paymentStatus}:${filters.settlementScope}:${filters.hasRemark}:${filters.remarkTag}:${pager.page}:${pager.pageSize}`,
+		throttleMs: 0,
+			cacheKey: () => null,
 		onError(err) {
 			uni.showToast({ title: err?.message || '销售记录加载失败', icon: 'none' })
 		}
@@ -674,7 +644,10 @@ function applyResult(payload) {
 	pager.pageSize = Number(paging.pageSize || pager.pageSize || 50)
 	pager.total = Number(paging.total || 0)
 	pager.hasMore = Boolean(paging.hasMore)
-	const summaryData = data.summary || {}
+	if (data.summary) applySummary(data.summary)
+}
+
+function applySummary(summaryData) {
 	const unresolvedCount = Number(summaryData.unresolved_count || 0)
 	financialIssue.value = summaryData.accounting_complete === false
 		? `当前筛选范围有 ${unresolvedCount} 张历史 m³ 销售单缺少结算归属；记录仍可查看，涉及金额的合计和导出已停用。`
@@ -722,7 +695,7 @@ async function onSearch(resetPage = false, options = {}) {
 	const force = Boolean(options?.force)
 	const data = force ? await fetchList({ force: true }) : await fetchList()
 	if (!data) return
-	applyResult(data)
+	if (data) applyResult(data)
 }
 
 async function refreshList() {

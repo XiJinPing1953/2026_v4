@@ -1494,11 +1494,12 @@ async function listV1(user, data) {
 
 	let listQuery = bottles.where(effectiveWhere)
 	listQuery = applyBottleNaturalOrder(listQuery)
-	const res = await listQuery.skip((page - 1) * pageSize).limit(pageSize).get()
+	const res = data.summary_only === true ? { data: [] } : await listQuery.skip((page - 1) * pageSize).limit(pageSize).get()
 
 	const totalRes = await bottles.where(effectiveWhere).count()
 	const total = Number(totalRes.total || 0)
 	const hasMore = page * pageSize < total
+	if (data.include_summary === false) return { code: 0, data: res.data || [], total, paging: { page, pageSize, total, hasMore }, summary: null }
 	const mergeWhere = (extra) => (effectiveHasBaseFilter ? dbCmd.and([effectiveWhere, extra]) : extra)
 
 	const inStationRes = await bottles.where(mergeWhere({ status: 'in_station' })).count()

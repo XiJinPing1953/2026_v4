@@ -136,6 +136,7 @@
     "delete": false
   },
   "indexes": [
+    { "key": { "customer_id": 1, "_id": 1 }, "name": "idx_customer_read_cursor" },
     { "key": { "date": -1, "created_at": -1 }, "name": "idx_date_created_at" },
     { "key": { "customer_id": 1, "date": -1 }, "name": "idx_customer_date" },
     { "key": { "delivery_customer_id": 1, "date": -1 }, "name": "idx_delivery_customer_date" },

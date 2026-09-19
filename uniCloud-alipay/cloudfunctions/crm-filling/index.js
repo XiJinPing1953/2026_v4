@@ -1194,7 +1194,7 @@ async function listV1(user, data) {
 		}
 	}
 
-	const res = await fillings
+	const res = data.summary_only === true ? { data: [] } : await fillings
 		.where(where)
 		.orderBy('date', 'desc')
 		.orderBy('created_at', 'desc')
@@ -1205,6 +1205,8 @@ async function listV1(user, data) {
 	const totalRes = await fillings.where(where).count()
 	const total = Number(totalRes.total || 0)
 	const hasMore = page * pageSize < total
+
+	if (data.include_summary === false) return { code: 0, data: (res.data || []).map(normalizeFillingRow), total, paging: { page, pageSize, total, hasMore }, summary: null }
 
 	const withRemarkRes = await fillings.where(mergeWhere(where, { remark: dbCmd.neq('') })).count()
 	const withRemark = Number(withRemarkRes.total || 0)

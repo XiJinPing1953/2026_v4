@@ -1,3 +1,4 @@
+const { readComplete } = require('./financialReadLocal')
 'use strict'
 
 let ensureActionAcl = null
@@ -270,7 +271,7 @@ async function resolveSettlementCustomerRef(rawSettlementCustomerId, currentCust
 	return { ok: false, code: 400, msg: '结算客户绑定层级过深' }
 }
 
-async function attachDepositCounts(items = []) {
+async function attachDepositCounts(items = [], { includeDeposit = true } = {}) {
 	const rows = Array.isArray(items) ? items : []
 	const ids = [...new Set(rows.map((item) => normalizeString(item && item._id)).filter(Boolean))]
 	if (!ids.length) {
@@ -280,66 +281,36 @@ async function attachDepositCounts(items = []) {
 			deposit_bottle_nos: []
 		}))
 	}
-	const pairs = await Promise.all(
-		rows.map(async (item) => {
-			const id = normalizeString(item && item._id)
-			const isChild = Boolean(normalizeString(item && item.settlement_customer_id))
-			let locationDocs = [{ _id: id, name: normalizeString(item && item.name) }]
-			if (!isChild) {
-				const childRes = await customers
-					.where(dbCmd.and([{ settlement_customer_id: id }, visibleCustomerWhere(dbCmd)]))
-					.field({ _id: true, name: true })
-					.orderBy('updated_at', 'desc')
-					.limit(200)
-					.get()
-				const childDocs = (childRes.data || [])
-					.map((child) => ({
-						_id: normalizeString(child && child._id),
-						name: normalizeString(child && child.name)
-					}))
-					.filter((child) => child._id && child._id !== id)
-				locationDocs = [...locationDocs, ...childDocs]
-			}
-			const locationIds = locationDocs.map((location) => location._id).filter(Boolean)
-			const res = await bottles
-				.where({ current_customer_id: dbCmd.in(locationIds) })
-				.field({ bottle_no: true, current_customer_id: true, current_customer_name: true })
-				.orderBy('bottle_no', 'asc')
-				.limit(500)
-				.get()
-			const locationMap = new Map(
-				locationDocs.map((location) => [
-					location._id,
-					{ customer_id: location._id, customer_name: location.name, count: 0, bottle_nos: [] }
-				])
-			)
-			const bottleNos = []
-			;(res.data || []).forEach((row) => {
-				const bottleNo = normalizeString(row && row.bottle_no)
-				const customerId = normalizeString(row && row.current_customer_id)
-				if (!bottleNo || !customerId) return
-				bottleNos.push(bottleNo)
-				if (!locationMap.has(customerId)) {
-					locationMap.set(customerId, {
-						customer_id: customerId,
-						customer_name: normalizeString(row && row.current_customer_name),
-						count: 0,
-						bottle_nos: []
-					})
-				}
-				const location = locationMap.get(customerId)
-				location.count += 1
-				location.bottle_nos.push(bottleNo)
-			})
-			const depositLocations = Array.from(locationMap.values())
-				.filter((location) => location.count > 0 || location.customer_id === id)
-				.map((location) => ({
-					...location,
-					bottle_nos: location.bottle_nos.slice(0, 50)
-				}))
-			return [id, { count: bottleNos.length, bottleNos, depositLocations }]
-		})
-	)
+	const pairs = []
+	if (includeDeposit) {
+		const parentIds = rows.filter(row => !normalizeString(row.settlement_customer_id)).map(row => row._id)
+		const children = []
+		for (const chunk of chunkStrings(parentIds, 100)) {
+			children.push(...await readComplete(customers, dbCmd.and([{ settlement_customer_id: dbCmd.in(chunk) }, visibleCustomerWhere(dbCmd)]),
+				{ command: dbCmd, source: 'customer_locations', field: { name: true, settlement_customer_id: true } }))
+		}
+		const locations = [...new Set([...ids, ...children.map(row => row._id)])]
+		const bottleRows = []
+		for (const chunk of chunkStrings(locations, 100)) {
+			bottleRows.push(...await readComplete(bottles, { current_customer_id: dbCmd.in(chunk) },
+				{ command: dbCmd, source: 'customer_bottles', field: { bottle_no: true, current_customer_id: true, current_customer_name: true }, sort: ['bottle_no'] }))
+		}
+		const bottlesByLocation = new Map()
+		for (const bottle of bottleRows) {
+			if (!normalizeString(bottle.bottle_no)) continue
+			const list = bottlesByLocation.get(bottle.current_customer_id) || []
+			list.push(bottle.bottle_no); bottlesByLocation.set(bottle.current_customer_id, list)
+		}
+		for (const item of rows) {
+			const locationDocs = [item, ...children.filter(child => child.settlement_customer_id === item._id && child._id !== item._id)]
+			const depositLocations = locationDocs.map(location => {
+				const nos = bottlesByLocation.get(location._id) || []
+				return { customer_id: location._id, customer_name: location.name, count: nos.length, bottle_nos: nos.slice(0, 50) }
+			}).filter(location => location.count > 0 || location.customer_id === item._id)
+			const bottleNos = locationDocs.flatMap(location => bottlesByLocation.get(location._id) || []).sort()
+			pairs.push([item._id, { count: bottleNos.length, bottleNos, depositLocations }])
+		}
+	}
 	const countMap = Object.fromEntries(pairs)
 	const settlementIds = [
 		...new Set(
@@ -384,7 +355,7 @@ async function attachDepositCounts(items = []) {
 				effective_price_source: deliveryPricing ? 'delivery' : (settlementPricing ? 'settlement' : ''),
 				settlement_default_unit_price: settlementPricing ? settlementPricing.unit_price : null,
 				settlement_default_price_unit: settlementPricing ? settlementPricing.price_unit : '',
-				deposit_count: Number(countMap[normalizeString(item && item._id)]?.count || 0),
+				deposit_count: includeDeposit ? Number(countMap[normalizeString(item && item._id)]?.count || 0) : null,
 				deposit_bottle_nos: countMap[normalizeString(item && item._id)]?.bottleNos || [],
 				deposit_locations: countMap[normalizeString(item && item._id)]?.depositLocations || []
 			}
@@ -621,7 +592,7 @@ async function listV1(user, data) {
 
 	const where = buildWhere()
 
-	const res = await customers
+	const res = data.summary_only === true ? { data: [] } : await customers
 		.where(where)
 		.field({ uniq_key: false })
 		.orderBy('updated_at', 'desc')
@@ -633,6 +604,10 @@ async function listV1(user, data) {
 	const total = Number(totalRes.total || 0)
 	const hasMore = page * pageSize < total
 
+	if (data.include_summary === false) {
+		const rows = await attachDepositCounts(res.data || [], { includeDeposit: data.include_deposit !== false })
+		return { code: 0, data: rows.map(item => ({ ...item, matched_delivery_sites: matchedDeliverySitesBySettlement.get(item._id) || [] })), total, paging: { page, pageSize, total, hasMore }, summary: null }
+	}
 	const summaryWhere = buildWhere({ ignoreActive: summaryIgnoreActive })
 	const hasSummaryFilter = summaryIgnoreActive
 		? Boolean(hasVisibilityFilter || keywordWhere || balanceWhere || updatedWhere || cashierUnallocatedWhere || settlementOnly)
@@ -664,7 +639,7 @@ async function listV1(user, data) {
 		? await customers.where(mergeWhere(summaryWhere, { is_hidden: true }, hasSummaryFilter)).count()
 		: { total: 0 }
 
-	const rows = await attachDepositCounts(res.data || [])
+	const rows = await attachDepositCounts(res.data || [], { includeDeposit: data.include_deposit !== false })
 	const dataRows = rows.map((item) => ({
 		...item,
 		matched_delivery_sites: matchedDeliverySitesBySettlement.get(normalizeString(item && item._id)) || []

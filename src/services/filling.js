@@ -2,6 +2,8 @@ import { callCloud } from '@/services/api'
 
 export async function listFillingsV1(params) {
 	const data = {
+		include_summary: (params.include_summary ?? params.includeSummary) !== false,
+		summary_only: (params.summary_only ?? params.summaryOnly) === true,
 		bottle_no: params.bottle_no || params.bottleNo || '',
 		operator: params.operator || '',
 		record_type: params.record_type || params.recordType || '',

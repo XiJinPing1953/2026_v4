@@ -3,11 +3,13 @@
 		<template #headerActions>
 			<AppButton v-if="canCreateBottle" size="sm" kind="primary" icon="plus" @click="onAdd">新增钢瓶</AppButton>
 			<AppButton v-if="canUpdateInspection" size="sm" kind="neutral" icon="calendar" @click="onInspectionUpdate">检验登记</AppButton>
-			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch">刷新</AppButton>
+			<AppButton size="sm" kind="neutral" :disabled="loading" @click="invalidateSummary(); onSearch()">刷新</AppButton>
 		</template>
 
 		<template #highlights>
-			<view class="summary-row">
+			<text v-if="summaryPending">统计加载中…</text>
+			<text v-else-if="summaryError">{{ summaryError }}</text>
+			<view v-if="!summaryPending && !summaryError" class="summary-row">
 				<AppStatCard
 					class="summary-card"
 					label="筛选结果"
@@ -315,6 +317,7 @@
 </template>
 
 <script setup>
+import { usePagedSummary } from '@/composables/usePagedSummary'
 import { computed, onMounted, reactive, ref } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
@@ -731,9 +734,12 @@ function buildListParams({ page = 1, pageSize = 50 } = {}) {
 	return data
 }
 
+const { read: readList, pending: summaryPending, error: summaryError, invalidate: invalidateSummary } = usePagedSummary(searchBottlesV1, applySummary)
+
 const { loading, run: fetchList } = useQuery(
-	async () => {
-		const res = await searchBottlesV1(buildListParams({ page: pager.page, pageSize: pager.pageSize }))
+	async (options = {}) => {
+		if (options.force) invalidateSummary()
+		const res = await readList(buildListParams({ page: pager.page, pageSize: pager.pageSize }))
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '查询失败', icon: 'none' })
 			return {
@@ -750,7 +756,7 @@ const { loading, run: fetchList } = useQuery(
 				total: Number(res.total || 0),
 				hasMore: false
 			},
-			summary: res.summary || { total: 0, in_station: 0, at_customer: 0, abnormal: 0 }
+			summary: res.summary || null
 		}
 	},
 	{
@@ -761,9 +767,8 @@ const { loading, run: fetchList } = useQuery(
 			summary: { total: 0, in_station: 0, at_customer: 0, abnormal: 0 }
 		},
 			cacheTTL: 15000,
-			throttleMs: 300,
-			cacheKey: () =>
-				`bottle:list:${filters.keyword}:${filters.statusIndex}:${filters.activeIndex}:${filters.inspectionDueModuleIndex}:${filters.inspectionDueStateIndex}:${filters.bottleNoModeIndex}:${normalizeBottleNoPrefix(filters.bottleNoPrefix)}:${normalizeString(filters.bottleNoNumericStart)}:${normalizeString(filters.bottleNoNumericEnd)}:${normalizeString(filters.bottleCheckDateEq)}:${normalizeString(filters.bottleNextCheckDateEq)}:${normalizeString(filters.gaugeCheckDateEq)}:${normalizeString(filters.gaugeNextCheckDateEq)}:${normalizeString(filters.valveCheckDateEq)}:${normalizeString(filters.valveNextCheckDateEq)}:${pager.page}:${pager.pageSize}`
+			throttleMs: 0,
+			cacheKey: () => null
 		}
 	)
 
@@ -776,7 +781,10 @@ function applyResult(payload) {
 	pager.pageSize = Number(paging.pageSize || pager.pageSize || 50)
 	pager.total = Number(paging.total || 0)
 	pager.hasMore = Boolean(paging.hasMore)
-	const summaryData = data.summary || {}
+	if (data.summary) applySummary(data.summary)
+}
+
+function applySummary(summaryData) {
 	summary.value = {
 		total: Number(summaryData.total || 0),
 		inStation: Number(summaryData.in_station ?? summaryData.inStation ?? 0),
@@ -790,7 +798,7 @@ async function onSearch(resetPage = false) {
 	if (!validateFilterRules()) return
 	if (shouldResetPage) pager.page = 1
 	const data = await fetchList()
-	applyResult(data)
+	if (data) applyResult(data)
 }
 
 function onReset() {

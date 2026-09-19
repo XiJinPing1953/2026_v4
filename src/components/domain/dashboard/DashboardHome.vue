@@ -532,6 +532,7 @@
 </template>
 
 <script setup>
+import { onShow, onHide } from '@dcloudio/uni-app'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
@@ -625,7 +626,11 @@ const dailyReportRangeOptions = [
 const dailyReportRangePreset = ref('last5')
 const DAILY_REPORT_MAX_VISIBLE_DAYS = 5
 const MONTH_EXPORT_PRESET_SET = new Set(['lastMonth', 'thisMonth'])
-const DASHBOARD_REFRESH_MS = 15000
+const DASHBOARD_REFRESH_MS = 60000
+const QUICK_REFRESH_MS = 15000
+let quickTimer = null
+let quickPolling = false
+let pageVisible = true
 const isDashboardPolling = ref(false)
 let dashboardRefreshTimer = null
 
@@ -911,28 +916,7 @@ function applyDashboard(data) {
 		return
 	}
 	const kpi = data.kpi || {}
-	stats.anomaly = formatNumber(kpi.anomaly_open)
 	stats.sales = formatFinancialAmount(kpi.sales_month)
-	stats.atCustomer = formatNumber(kpi.at_customer)
-	stats.inStation = formatNumber(kpi.in_station)
-	const dueData = data.inspection_due || {}
-	const dueTotal = dueData.total || {}
-	const dueOverdue = Number(dueTotal.overdue || 0)
-	const due60 = Number(dueTotal.due_60d || 0)
-	stats.inspectionDue = formatNumber(Number(dueTotal.total || dueOverdue + due60))
-	kpiDelta.inspectionDue = `过${dueOverdue}/近${due60}`
-	inspectionDue.bottle = {
-		overdue: Number(dueData.bottle?.overdue || 0),
-		due_60d: Number(dueData.bottle?.due_60d || 0)
-	}
-	inspectionDue.gauge = {
-		overdue: Number(dueData.gauge?.overdue || 0),
-		due_60d: Number(dueData.gauge?.due_60d || 0)
-	}
-	inspectionDue.valve = {
-		overdue: Number(dueData.valve?.overdue || 0),
-		due_60d: Number(dueData.valve?.due_60d || 0)
-	}
 
 	const delta = kpi.delta || {}
 	kpiDelta.sales = delta.sales || ''
@@ -955,7 +939,43 @@ function applyDashboard(data) {
 	receivableSummary.collectionRate =
 		receivable.collection_rate == null || receivable.collection_rate === '' ? null : Number(receivable.collection_rate)
 
+}
+
+function applyQuickStatus(data) {
+	const kpi = data.kpi || {}
+	stats.anomaly = formatNumber(kpi.anomaly_open)
+	stats.atCustomer = formatNumber(kpi.at_customer)
+	stats.inStation = formatNumber(kpi.in_station)
+	const dueData = data.inspection_due || {}
+	const dueTotal = dueData.total || {}
+	const dueOverdue = Number(dueTotal.overdue || 0)
+	const due60 = Number(dueTotal.due_60d || 0)
+	stats.inspectionDue = formatNumber(Number(dueTotal.total || dueOverdue + due60))
+	kpiDelta.inspectionDue = `过${dueOverdue}/近${due60}`
+	inspectionDue.bottle = {
+		overdue: Number(dueData.bottle?.overdue || 0),
+		due_60d: Number(dueData.bottle?.due_60d || 0)
+	}
+	inspectionDue.gauge = {
+		overdue: Number(dueData.gauge?.overdue || 0),
+		due_60d: Number(dueData.gauge?.due_60d || 0)
+	}
+	inspectionDue.valve = {
+		overdue: Number(dueData.valve?.overdue || 0),
+		due_60d: Number(dueData.valve?.due_60d || 0)
+	}
+
 	applyTankTelemetry(data.tank)
+}
+
+async function refreshQuickStatus() {
+	if (quickPolling || !pageVisible) return
+	quickPolling = true
+	try {
+		const res = await getDashboardSummaryV1({ section: 'quick' })
+		if (res.code === 0 && res.data?.section === 'quick') applyQuickStatus(res.data)
+	} catch (err) { console.warn('首页状态刷新失败', err?.message) }
+	finally { quickPolling = false }
 }
 
 const { run: fetchDashboardSummary } = useQuery(
@@ -968,7 +988,7 @@ const { run: fetchDashboardSummary } = useQuery(
 		return res.data || null
 	},
 	{
-		immediate: true,
+		immediate: false,
 		cacheTTL: 8000,
 		throttleMs: 300,
 		onSuccess: applyDashboard,
@@ -980,20 +1000,38 @@ const { run: fetchDashboardSummary } = useQuery(
 )
 
 function refreshDashboardSilently() {
-	if (isDashboardPolling.value) return
+	if (isDashboardPolling.value || !pageVisible) return
 	isDashboardPolling.value = true
 	Promise.resolve(fetchDashboardSummary({ force: true, silent: true })).finally(() => {
 		isDashboardPolling.value = false
 	})
 }
 
-onMounted(() => {
-	dashboardRefreshTimer = setInterval(refreshDashboardSilently, DASHBOARD_REFRESH_MS)
-})
-
-onBeforeUnmount(() => {
+function stopDashboardPolling() {
 	if (dashboardRefreshTimer) clearInterval(dashboardRefreshTimer)
-	dashboardRefreshTimer = null
+	if (quickTimer) clearInterval(quickTimer)
+	dashboardRefreshTimer = null; quickTimer = null
+}
+function startDashboardPolling() {
+	stopDashboardPolling()
+	if (!pageVisible || (typeof document !== 'undefined' && document.hidden)) return
+	refreshDashboardSilently(); refreshQuickStatus()
+	dashboardRefreshTimer = setInterval(refreshDashboardSilently, DASHBOARD_REFRESH_MS)
+	quickTimer = setInterval(refreshQuickStatus, QUICK_REFRESH_MS)
+}
+function onVisibilityChange() {
+	if (typeof document !== 'undefined' && document.hidden) stopDashboardPolling()
+	else startDashboardPolling()
+}
+onShow(() => { pageVisible = true; startDashboardPolling() })
+onHide(() => { pageVisible = false; stopDashboardPolling() })
+onMounted(() => {
+	startDashboardPolling()
+	if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibilityChange)
+})
+onBeforeUnmount(() => {
+	pageVisible = false; stopDashboardPolling()
+	if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 
 function go(url) {

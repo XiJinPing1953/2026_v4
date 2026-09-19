@@ -150,6 +150,8 @@ export async function listSalesV2(filters) {
 	return callCloud('crm-sale', {
 		action: 'listV2',
 		data: {
+			include_summary: (filters.include_summary ?? filters.includeSummary) !== false,
+			summary_only: (filters.summary_only ?? filters.summaryOnly) === true,
 			keyword: filters.keyword || '',
 			customerId: filters.customerId || filters.customer_id || '',
 			customerScope: filters.customerScope || filters.customer_scope || 'settlement',
