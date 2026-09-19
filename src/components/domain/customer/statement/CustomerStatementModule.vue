@@ -659,14 +659,11 @@
 				/>
 				<view v-else class="operation-panel">
 					<view class="recent-toggle-row">
-						<text class="section-hint">近20条收款单默认收起</text>
-						<AppButton size="sm" kind="neutral" @click="toggleReceiptRecent">
-							{{ receiptRecentExpanded ? '收起记录' : '查看最近记录' }}
-						</AppButton>
+						<text class="section-hint">最近{{ recentReceipts.length }}条收款单（最多20条） · 每页5条</text>
 					</view>
-					<AppList v-if="receiptRecentExpanded" :loading="loading" :empty="recentReceipts.length === 0" empty-title="暂无收款单">
+					<AppList :loading="loading" :empty="recentReceipts.length === 0" empty-title="暂无收款单">
 						<AppListItem
-							v-for="row in recentReceipts"
+							v-for="row in pagedRecentReceipts"
 							:key="row._id"
 							class="receipt-history-item"
 							:title="`${row.biz_date || '-'} · ${receiptDocumentLabel(row)}`"
@@ -706,6 +703,11 @@
 							</template>
 						</AppListItem>
 					</AppList>
+					<view v-if="recentReceipts.length > 0" class="pager-row">
+						<AppButton size="sm" kind="neutral" :disabled="loading || refreshingAfterSave || receiptRecentPage <= 1" @click="receiptRecentPage -= 1">上一页</AppButton>
+						<text class="section-hint">第 {{ receiptRecentPage }} / {{ receiptRecentPageCount }} 页</text>
+						<AppButton size="sm" kind="neutral" :disabled="loading || refreshingAfterSave || receiptRecentPage >= receiptRecentPageCount" @click="receiptRecentPage += 1">下一页</AppButton>
+					</view>
 				</view>
 				</AppSection>
 			</view>
@@ -1173,7 +1175,13 @@ const activeOperationTab = ref('receipt')
 const offsetHistoryExpanded = ref(false)
 const openingDebtRecentExpanded = ref(false)
 const otherFeeRecentExpanded = ref(false)
-const receiptRecentExpanded = ref(false)
+const receiptRecentPage = ref(1)
+const receiptRecentPageSize = 5
+const receiptRecentPageCount = computed(() => Math.max(1, Math.ceil(recentReceipts.value.length / receiptRecentPageSize)))
+const pagedRecentReceipts = computed(() => {
+	const start = (receiptRecentPage.value - 1) * receiptRecentPageSize
+	return recentReceipts.value.slice(start, start + receiptRecentPageSize)
+})
 const rowsSearchRequestSeq = ref(0)
 const operationTabs = [
 	{ label: '登记收款/分配', value: 'receipt' },
@@ -3021,6 +3029,7 @@ async function onOperationTabChange(value) {
 	} else if (isContinuingPrepayReceipt.value) {
 		resetReceiptForm()
 	}
+	if (next === 'receipt_list') receiptRecentPage.value = 1
 	activeOperationTab.value = next
 }
 
@@ -3030,10 +3039,6 @@ function toggleOpeningDebtRecent() {
 
 function toggleOtherFeeRecent() {
 	otherFeeRecentExpanded.value = !otherFeeRecentExpanded.value
-}
-
-function toggleReceiptRecent() {
-	receiptRecentExpanded.value = !receiptRecentExpanded.value
 }
 
 function toggleOffsetHistory() {
@@ -3736,6 +3741,7 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0, includeRows 
 		recentSales.value = Array.isArray(data.recent_sales) ? data.recent_sales : []
 		netDebtSourceSales.value = Array.isArray(data.net_debt_source_sales) ? data.net_debt_source_sales : []
 		recentReceipts.value = Array.isArray(data.recent_receipts) ? data.recent_receipts : []
+		receiptRecentPage.value = Math.min(receiptRecentPage.value, receiptRecentPageCount.value)
 		recentFlowSettlements.value = Array.isArray(data.recent_flow_settlements) ? data.recent_flow_settlements : []
 		netDebtSourceFlowSettlements.value = Array.isArray(data.net_debt_source_flow_settlements) ? data.net_debt_source_flow_settlements : []
 		recentOpeningDebts.value = Array.isArray(data.recent_opening_debts) ? data.recent_opening_debts : []
@@ -5327,7 +5333,7 @@ watch(
 		offsetHistoryExpanded.value = false
 		openingDebtRecentExpanded.value = false
 		otherFeeRecentExpanded.value = false
-		receiptRecentExpanded.value = false
+		receiptRecentPage.value = 1
 		resetReceiptForm()
 		resetPrepayForm()
 		resetOffsetEntryForm()
