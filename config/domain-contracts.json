@@ -70,7 +70,8 @@
     "crm_customer_allocations",
     "crm_customer_flow_settlements",
     "crm_customer_opening_debts",
-    "crm_bottle_anomalies"
+    "crm_bottle_anomalies",
+    "crm_operation_logs"
   ],
   "schemaPolicy": "For an existing root/schema duplicate, database/<name>.schema.json is authoritative; database/schema/<name>.schema.json is a generated compatibility copy. Schemas present only under schema/ retain their existing location."
 }

@@ -74,6 +74,16 @@
         "_id": 1
       },
       "unique": false
+    },
+    {
+      "collection": "crm_operation_logs",
+      "name": "idx_customer_review_cursor",
+      "key": {
+        "customer_id": 1,
+        "action": 1,
+        "_id": 1
+      },
+      "unique": false
     }
   ]
 }
