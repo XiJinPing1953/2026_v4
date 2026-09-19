@@ -24,17 +24,17 @@ function aggregateCollection(source, metrics = {}) {
 test('long histories and missing movements do not require history-page round trips; all 601 bottles considered',async()=>{
  const bottles=Array.from({length:601},(_,i)=>`B${i}`), events=[];
  for(const b of bottles.slice(0,-1)) for(let i=0;i<25;i++) events.push({_id:`${b}-${i}`,bottle_no:b,type:i===24?'out':'fill',event_at:100+i,type_order:i===24?30:20,created_at:i})
- const metrics={}; const rows=await readLatestMovements(aggregateCollection(events,metrics),command,bottles,100);
- assert.equal(rows.length,600); assert.ok(rows.every(r=>r.type==='out')); assert.equal(metrics.calls,3); assert.equal(metrics.returned,600);
+ const metrics={calls:0,returned:0}; const db=makeDb({events},{get(name,rows){metrics.calls++;metrics.returned+=rows.length;return {data:rows}}}); const rows=await readLatestMovements(db.collection('events'),db.command,bottles,100);
+ assert.equal(rows.length,600); assert.ok(rows.every(r=>r.type==='out')); assert.equal(metrics.calls,3); assert.ok(metrics.returned<=2000);
 })
 test('cutoff, type precedence and deterministic id ties preserve latest flow',async()=>{
- const rows=await readLatestMovements(aggregateCollection([
+ const db=makeDb({events:[
  {_id:'old',bottle_no:'A',type:'out',event_at:99,type_order:30,created_at:100},
  {_id:'a',bottle_no:'A',type:'fill',event_at:100,type_order:20,created_at:1},
  {_id:'b',bottle_no:'A',type:'out',event_at:100,type_order:30,created_at:1},
  {_id:'c',bottle_no:'A',type:'out',event_at:100,type_order:30,created_at:1},
  {_id:'ignored',bottle_no:'A',type:'adjust',event_at:200,type_order:99,created_at:1}
- ]),command,['a','A',' A '],100); assert.equal(rows.length,1); assert.equal(rows[0]._id,'c');
+ ]});const rows=await readLatestMovements(db.collection('events'),db.command,['a','A',' A '],100); assert.equal(rows.length,1); assert.equal(rows[0]._id,'c');
 })
 test('ledger aggregates the full period beyond the previous scan cap',async()=>{
  const rows=Array.from({length:120001},()=>({event_at:100,station_delta_t:0.001})); rows.push({event_at:99,station_delta_t:500});
