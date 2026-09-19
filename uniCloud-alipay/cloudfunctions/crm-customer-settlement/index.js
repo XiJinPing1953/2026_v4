@@ -6,6 +6,7 @@ const { readComplete, withFinancialEvidence, FinancialReadError } = require('./f
 const offsetCreditRefund = require('./offsetCreditRefund')
 const customerRefund = require('./customerRefund')
 
+const statementReads = require('./statementReadContext')
 const db = uniCloud.database()
 const dbCmd = db.command
 const {
@@ -536,6 +537,8 @@ async function listSaleAutoAllocationsBySaleIds(customerId, saleIds = [], limitP
 		)
 	)
 	if (!uniqueSaleIds.length) return []
+	const cached = statementReads.rows(normalizedCustomerId, 'allocations', row => (!row.status || row.status === 'posted') && ['sale_auto_prepay', 'flow_auto_prepay', 'offset_manual_allocate'].includes(row.source_type) && uniqueSaleIds.includes(row.sale_id))
+	if (cached) return cached
 	void limitPerChunk // Computational reads must be complete, never sliced to a display limit.
 	const allRows = []
 	for (const saleIdChunk of chunkStrings(uniqueSaleIds, 80)) {
@@ -568,6 +571,8 @@ async function listOffsetCreditReceiptsBySourceSaleIds(customerId, saleIds = [],
 		)
 	)
 	if (!uniqueSaleIds.length) return []
+	const cached = statementReads.rows(normalizedCustomerId, 'receipts', row => row.status === 'posted' && ['sale_offset_credit', 'sale_offset_credit_repair'].includes(row.source_type) && uniqueSaleIds.includes(row.source_id))
+	if (cached) return cached
 	void limitPerChunk // Computational reads must be complete, never sliced to a display limit.
 	const allRows = []
 	for (const saleIdChunk of chunkStrings(uniqueSaleIds, 80)) {
@@ -595,6 +600,8 @@ async function listAllocationsByReceiptIds(customerId, receiptIds = [], limitPer
 		)
 	)
 	if (!uniqueReceiptIds.length) return []
+	const cached = statementReads.rows(normalizedCustomerId, 'allocations', row => (!row.status || row.status === 'posted') && uniqueReceiptIds.includes(row.receipt_id))
+	if (cached) return cached
 	void limitPerChunk // Computational reads must be complete, never sliced to a display limit.
 	const allRows = []
 	for (const receiptIdChunk of chunkStrings(uniqueReceiptIds, 80)) {
@@ -1300,6 +1307,8 @@ function resolveOpeningDebtMoneyScale(doc, fallback = 2) {
 async function getCustomerById(customerId) {
 	const id = normalizeId(customerId)
 	if (!id) return null
+	const cached = statementReads.current(id)
+	if (cached) return cached.customer
 	const res = await customers.doc(id).get()
 	const doc = (res.data && res.data[0]) || null
 	if (docIsHiddenCustomer(doc)) return null
@@ -1337,6 +1346,8 @@ async function resolveAccountingSettlementCustomer(customerId) {
 async function listCustomerSales(customerId, { dateFrom = '', dateTo = '' } = {}) {
 	const id = normalizeId(customerId)
 	if (!id) return []
+	const cached = statementReads.rows(id, 'sales', row => (!dateFrom || row.date >= dateFrom) && (!dateTo || row.date <= dateTo), ['date', 'created_at'])
+	if (cached) { saleAccounting.assertSalesClassified(cached); return cached }
 	const whereParts = [{ customer_id: id }]
 	const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['customer_id', 'delivery_customer_id'])
 	if (hiddenWhere) whereParts.push(hiddenWhere)
@@ -1351,6 +1362,8 @@ async function listCustomerSales(customerId, { dateFrom = '', dateTo = '' } = {}
 async function listCustomerFlowSettlements(customerId, { dateFrom = '', dateTo = '', limit = 5000 } = {}) {
 	const id = normalizeId(customerId)
 	if (!id) return []
+	const cached = statementReads.rows(id, 'flows', row => row.status === 'posted' && (!dateFrom || row.biz_date >= dateFrom) && (!dateTo || row.biz_date <= dateTo), ['biz_date', 'created_at'])
+	if (cached) { return cached }
 	const whereParts = [{ customer_id: id }, { status: 'posted' }]
 	if (dateFrom) whereParts.push({ biz_date: dbCmd.gte(dateFrom) })
 	if (dateTo) whereParts.push({ biz_date: dbCmd.lte(dateTo) })
@@ -1362,6 +1375,8 @@ async function listCustomerFlowSettlements(customerId, { dateFrom = '', dateTo =
 async function listCustomerReceipts(customerId, { dateFrom = '', dateTo = '', dateBefore = '', limit = 5000 } = {}) {
 	const id = normalizeId(customerId)
 	if (!id) return []
+	const cached = statementReads.rows(id, 'receipts', row => row.status === 'posted' && (!dateFrom || row.biz_date >= dateFrom) && (!dateTo || row.biz_date <= dateTo) && (!dateBefore || row.biz_date < dateBefore), ['biz_date', 'created_at'])
+	if (cached) { return cached }
 	const whereParts = [{ customer_id: id }, { status: 'posted' }]
 	if (dateFrom) whereParts.push({ biz_date: dbCmd.gte(dateFrom) })
 	if (dateTo) whereParts.push({ biz_date: dbCmd.lte(dateTo) })
@@ -1374,6 +1389,8 @@ async function listCustomerReceipts(customerId, { dateFrom = '', dateTo = '', da
 async function listCustomerOpeningDebts(customerId, { dateFrom = '', dateTo = '', dateBefore = '', limit = 5000 } = {}) {
 	const id = normalizeId(customerId)
 	if (!id) return []
+	const cached = statementReads.rows(id, 'debts', row => row.status === 'posted' && (!dateFrom || row.biz_date >= dateFrom) && (!dateTo || row.biz_date <= dateTo) && (!dateBefore || row.biz_date < dateBefore), ['biz_date', 'created_at'])
+	if (cached) { return cached }
 	const whereParts = [{ customer_id: id }, { status: 'posted' }]
 	if (dateFrom) whereParts.push({ biz_date: dbCmd.gte(dateFrom) })
 	if (dateTo) whereParts.push({ biz_date: dbCmd.lte(dateTo) })
@@ -6360,6 +6377,8 @@ async function listCustomerAccountingAllocationsByTargets(customerId, targetRefs
 			.map((item) => accountingTargetKey(item && item.target_type, item && item.target_id))
 			.filter(Boolean)
 	)
+	const cached = statementReads.rows(normalizedCustomerId, 'allocations', row => (!row.status || row.status === 'posted') && wantedKeys.has(resolveAccountingAllocationTarget(row).key))
+	if (cached) return cached
 	void limitPerChunk // Computational reads must be complete, never sliced to a display limit.
 	const rows = []
 	for (const idChunk of chunkStrings(ids, 80)) {
@@ -8147,7 +8166,8 @@ async function getCustomerStatementV1(user, data, requestId = '') {
 		.filter((row) => scopedOutstandingSaleIdSet.has(normalizeId(row && row._id)))
 		.slice(0, 200)
 
-	const receiptRes = await receipts
+	const cachedReceipts = statementReads.rows(customerId, 'receipts', row => row.status === 'posted', ['biz_date', 'created_at'])
+	const receiptRes = cachedReceipts ? { data: cachedReceipts.reverse().slice(0, 20) } : await receipts
 		.where({ customer_id: customerId, status: 'posted' })
 		.orderBy('biz_date', 'desc')
 		.orderBy('created_at', 'desc')
@@ -8394,7 +8414,7 @@ async function listCustomerStatementRowsV1(user, data, requestId = '') {
 	if (dateTo) receiptWhereParts.push({ biz_date: dbCmd.lte(dateTo) })
 	const receiptWhere = receiptWhereParts.length === 1 ? receiptWhereParts[0] : dbCmd.and(receiptWhereParts)
 
-	const receiptRes = { data: await readComplete(receipts, receiptWhere, { command: dbCmd, source: 'receipts', sort: ['biz_date', 'created_at'] }) }
+	const receiptRes = { data: statementReads.rows(customerId, 'receipts', row => row.status === 'posted' && (!dateFrom || row.biz_date >= dateFrom) && (!dateTo || row.biz_date <= dateTo), ['biz_date', 'created_at']) || await readComplete(receipts, receiptWhere, { command: dbCmd, source: 'receipts', sort: ['biz_date', 'created_at'] }) }
 	trace('receipts_loaded', {
 		receipts: Array.isArray(receiptRes.data) ? receiptRes.data.length : 0
 	})
@@ -8427,7 +8447,7 @@ async function listCustomerStatementRowsV1(user, data, requestId = '') {
 	if (dateTo) allocWhereParts.push({ biz_date: dbCmd.lte(dateTo) })
 	const allocWhere = allocWhereParts.length === 1 ? allocWhereParts[0] : dbCmd.and(allocWhereParts)
 
-	const allocRes = { data: await readComplete(allocations, allocWhere, { command: dbCmd, source: 'allocations', sort: ['biz_date', 'created_at'] }) }
+	const allocRes = { data: statementReads.rows(customerId, 'allocations', row => (!dateFrom || row.biz_date >= dateFrom) && (!dateTo || row.biz_date <= dateTo), ['biz_date', 'created_at']) || await readComplete(allocations, allocWhere, { command: dbCmd, source: 'allocations', sort: ['biz_date', 'created_at'] }) }
 	trace('allocations_loaded', {
 		allocations: Array.isArray(allocRes.data) ? allocRes.data.length : 0
 	})
@@ -8859,6 +8879,14 @@ const main = async (event, context) => {
 		cloudFunction: 'crm-customer-settlement'
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
+	if (['getCustomerStatementV1', 'exportCustomerStatementV1', 'exportCustomerAccountingLedgerV1'].includes(action)) {
+		const customer = await getCustomerById(normalizeId(data.customer_id || data.customerId))
+		if (customer) {
+			const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['customer_id', 'delivery_customer_id'])
+			await statementReads.prepare({ customer, collections: { sales, flows: flowSettlements, debts: openingDebts, receipts, allocations },
+				saleWhere: hiddenWhere ? dbCmd.and([{ customer_id: customer._id }, hiddenWhere]) : { customer_id: customer._id }, command: dbCmd, readComplete })
+		}
+	}
 
 	if (/^(create|update|remove|allocate|confirm|repair|autoApply|release)/.test(action || '')) {
 		const financialCustomerIds = new Set([normalizeId(data.customer_id || data.customerId)].filter(Boolean))
@@ -8959,14 +8987,14 @@ const statementPeriodHandler = async (event, context) => {
 		if (result?.code !== 0 || !['getCustomerStatementV1', 'exportCustomerStatementV1', 'exportCustomerAccountingLedgerV1'].includes(action)) return result
 		const customerId = normalizeId(data.customer_id || data.customerId)
 		const customer = await getCustomerById(customerId)
-		const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['customer_id', 'delivery_customer_id'])
-		const saleWhere = hiddenWhere ? dbCmd.and([{ customer_id: customerId }, hiddenWhere]) : { customer_id: customerId }
+		const readContext = statementReads.current(customerId)
+		const saleWhere = readContext.saleWhere
 		result.data.period_summary = await require('./periodSummary').readPeriodSummary({
 			collections: { sales, flows: flowSettlements, debts: openingDebts, receipts, allocations },
 			command: dbCmd, customerId, saleWhere, reviewCollection: db.collection('crm_operation_logs'),
 			dateFrom: normalizeDate(data.summary_date_from || data.summaryDateFrom || data.date_from || data.dateFrom),
 			dateTo: normalizeDate(data.summary_date_to || data.summaryDateTo || data.date_to || data.dateTo),
-			moneyScale: resolveCustomerMoneyScale(customer)
+			moneyScale: resolveCustomerMoneyScale(customer), readContext
 		}, {
 			sum: sumMoneyByScale, sale: computeSaleSnapshot, flow: computeFlowSettlementSnapshot,
 			debt: computeOpeningDebtSnapshot, debtType: resolveOpeningDebtEntryType,
@@ -8983,6 +9011,12 @@ const statementPeriodHandler = async (event, context) => {
 				read_complete: false, error_code: error.code || 'DEPOSIT_READ_FAILED', issue: '押金读取未完成，请在押金流水中核对' }
 		}
 
+		if (action === 'getCustomerStatementV1' && data.include_rows === true) {
+			const rows = await listCustomerStatementRowsV1(null, { ...data, date_from: data.summary_date_from || data.summaryDateFrom || data.date_from, date_to: data.summary_date_to || data.summaryDateTo || data.date_to }, request.request_id)
+			if (rows.code !== 0) return rows
+			result.data.statement_rows = rows.data
+			result.data.rows_paging = rows.paging
+		}
 		return result
 	} catch (error) {
 		if (['FINANCIAL_READ_INCOMPLETE', 'FINANCIAL_CLASSIFICATION_REQUIRED'].includes(error.code)) {
@@ -8992,4 +9026,4 @@ const statementPeriodHandler = async (event, context) => {
 	}
 }
 
-exports.main = withFinancialEvidence(statementPeriodHandler, saleAccounting.RULE_VERSION)
+exports.main = withFinancialEvidence(statementReads.withStatementReads(statementPeriodHandler), saleAccounting.RULE_VERSION)

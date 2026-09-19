@@ -401,7 +401,6 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
@@ -770,7 +769,8 @@ async function searchCustomersByKeyword(keyword = '') {
 		keyword: key,
 		page: 1,
 		pageSize: CUSTOMER_SUGGEST_LIMIT,
-		settlementOnly: true
+		settlementOnly: true,
+		includeSummary: false, includeDeposit: false
 	})
 	if (res?.code !== 0) {
 		throw new Error(res?.msg || '客户加载失败')
@@ -1505,10 +1505,16 @@ async function onRemove(row) {
 	await loadRows(true)
 }
 
+let rowsRequestSeq = 0
+let rowsRequestKey = ''
 async function loadRows(reset = false) {
 	if (!canView.value) return
 	const customerId = normalizeString(selectedFilterCustomerId.value)
 	if (reset) pager.page = 1
+	const key = JSON.stringify([customerId, listFilter.dateStart, listFilter.dateEnd, includeVoided.value, pager.page, pager.pageSize])
+	if (rowsLoading.value && rowsRequestKey === key) return
+	rowsRequestKey = key
+	const generation = ++rowsRequestSeq
 	rowsLoading.value = true
 	try {
 		const res = await listReceiptIntakeV1({
@@ -1519,6 +1525,7 @@ async function loadRows(reset = false) {
 			page: pager.page,
 			pageSize: pager.pageSize
 		})
+		if (generation !== rowsRequestSeq) return
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '收款登记加载失败', icon: 'none' })
 			rows.value = []
@@ -1540,7 +1547,7 @@ async function loadRows(reset = false) {
 		})
 		targetDetailMap.value = nextDetailMap
 	} finally {
-		rowsLoading.value = false
+		if (generation === rowsRequestSeq) rowsLoading.value = false
 	}
 }
 
@@ -1704,11 +1711,6 @@ async function refreshAll() {
 	if (!canView.value) return
 	await loadRows(true)
 }
-
-onMounted(async () => {
-	if (!canView.value) return
-	await loadRows(true)
-})
 
 onShow(() => {
 	if (!canView.value) return

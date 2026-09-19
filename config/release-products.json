@@ -6,28 +6,29 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.19-gas-in-timeout",
+      "version": "2026.09.19-statement-performance",
       "output": "dist/build/web",
-      "acceptance": "Gas inventory list decoupled from inventory reads; explicit unavailable states",
+      "acceptance": "Combined statement read, lazy optional queries and account-scoped in-flight sharing",
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.19-gas-in-timeout",
+      "version": "2026.09.19-statement-performance",
       "output": "release/cloud",
-      "acceptance": "Read-only query optimization for crm-gas-in; latest movement aggregation and ledger total; no schema or data mutations",
+      "acceptance": "Request-local complete financial reads reused without changing accounting rules",
       "deploymentScope": {
         "functions": [
-          "crm-gas-in"
+          "crm-customer-settlement"
         ],
         "databaseFiles": [],
-        "baseCommit": "daf622915919c525a28c10074154ebdcccbb865c",
+        "baseCommit": "1e46338",
         "sourceFiles": [
-          "src/components/domain/gasIn/GasInListView.vue",
-          "src/services/gasIn.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/inventoryRead.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js"
+          "src/services/api/callCloud.js",
+          "src/services/customerSettlement.js",
+          "src/components/domain/customer/CashierReceiptIntakeView.vue",
+          "src/components/domain/customer/statement/CustomerStatementModule.vue",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/periodSummary.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/statementReadContext.js"
         ],
         "aclCanonicalRevisions": {}
       },

@@ -364,6 +364,9 @@ export async function getCustomerStatementV1(params = {}) {
 			customer_id: params.customerId || params.customer_id || '',
 			summary_date_from: params.summaryDateFrom || params.summary_date_from || '',
 			summary_date_to: params.summaryDateTo || params.summary_date_to || '',
+			include_rows: params.includeRows === true,
+			page: params.page || 1,
+			pageSize: params.pageSize || 50,
 			summary_only: Boolean(params.summaryOnly || params.summary_only)
 		},
 		timeout: 30000

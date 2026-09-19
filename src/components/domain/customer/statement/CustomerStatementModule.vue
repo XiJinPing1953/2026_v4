@@ -58,6 +58,7 @@
 		</template>
 
 		<view class="content-shell">
+			<text v-if="refreshingAfterSave" class="section-hint">已保存，正在刷新账务数据…</text>
 			<AppSection title="客户总览">
 				<view class="overview-grid overview-grid--identity">
 					<view class="overview-item">
@@ -188,7 +189,7 @@
 						<AppButton size="sm" kind="ghost" @click="onResetReceiptAction">重置</AppButton>
 						<AppButton v-if="isReceiptAdjustmentActive" size="sm" kind="outline" @click="cancelReceiptEditing">取消</AppButton>
 						<AppButton size="sm" kind="neutral" :disabled="isEditingReceipt" :loading="previewing" @click="onPreview">预览分配</AppButton>
-						<AppButton size="sm" kind="primary" :loading="receiptPrimaryActionLoading" @click="onCreateAutoReceipt">{{ receiptPrimaryActionLabel }}</AppButton>
+						<AppButton size="sm" kind="primary" :disabled="loading || refreshingAfterSave" :loading="receiptPrimaryActionLoading" @click="onCreateAutoReceipt">{{ receiptPrimaryActionLabel }}</AppButton>
 						<AppButton size="sm" kind="outline" :disabled="isReceiptAdjustmentActive || !previewPlan" :loading="confirming" @click="onConfirmAllocation">确认入账</AppButton>
 					</view>
 				</template>
@@ -1108,6 +1109,10 @@ const scene = toRef(props, 'scene')
 const saleId = toRef(props, 'saleId')
 const overviewNotesOpen = ref(false)
 const loading = ref(false)
+const refreshingAfterSave = ref(false)
+let analysisRequestSeq = 0
+let poolRequestSeq = 0
+let historyRequestSeq = 0
 const rowsLoading = ref(false)
 const rowSummaryLoading = ref(false)
 const analysisLoading = ref(false)
@@ -2129,7 +2134,7 @@ async function loadPeriodAllocationSummary(state, params) {
 
 function scheduleReceiptPeriodSummary() {
 	if (receiptPeriodSummaryTimer) clearTimeout(receiptPeriodSummaryTimer)
-	const params = buildReceiptPeriodSummaryParams()
+	const params = activeOperationTab.value === 'receipt' ? buildReceiptPeriodSummaryParams() : null
 	if (!params) {
 		resetPeriodAllocationSummary(receiptPeriodSummary)
 		return
@@ -2142,7 +2147,7 @@ function scheduleReceiptPeriodSummary() {
 
 function scheduleOffsetPeriodSummary() {
 	if (offsetPeriodSummaryTimer) clearTimeout(offsetPeriodSummaryTimer)
-	const params = buildOffsetPeriodSummaryParams()
+	const params = activeOperationTab.value === 'offset' ? buildOffsetPeriodSummaryParams() : null
 	if (!params) {
 		resetPeriodAllocationSummary(offsetPeriodSummary)
 		return
@@ -3032,6 +3037,7 @@ function toggleReceiptRecent() {
 
 function toggleOffsetHistory() {
 	offsetHistoryExpanded.value = !offsetHistoryExpanded.value
+	if (offsetHistoryExpanded.value) loadOffsetCreditHistory()
 }
 
 function resetReceiptForm() {
@@ -3692,7 +3698,7 @@ function showCloudRequestError(scope, err) {
 	})
 }
 
-async function loadStatement({ summaryOnly = false, requestSeq = 0 } = {}) {
+async function loadStatement({ summaryOnly = false, requestSeq = 0, includeRows = false } = {}) {
 	if (!recordId.value) return
 	const summaryRequestSeq = ++statementSummaryRequestSeq
 	periodSummary.value = null
@@ -3704,7 +3710,8 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0 } = {}) {
 			customerId: recordId.value,
 			summaryDateFrom: summaryScopeParams.summaryDateFrom,
 			summaryDateTo: summaryScopeParams.summaryDateTo,
-			summaryOnly
+			summaryOnly, includeRows,
+			...(includeRows ? { page: rowsPager.page, pageSize: rowsPager.pageSize } : {})
 		})
 		if (summaryRequestSeq !== statementSummaryRequestSeq || (summaryOnly && !isLatestRowsSearchRequest(requestSeq))) return
 		if (res?.code !== 0) {
@@ -3714,7 +3721,12 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0 } = {}) {
 		const data = res?.data || {}
 		customer.value = data.customer || customer.value || {}
 		applyStatementSummary(data)
-		if (summaryOnly) return
+		if (includeRows) {
+			if (!Array.isArray(data.statement_rows) || !data.rows_paging) throw new Error('账务接口版本未更新，请重试')
+			statementRows.value = data.statement_rows
+			Object.assign(rowsPager, data.rows_paging)
+		}
+		if (summaryOnly) return true
 		recentSales.value = Array.isArray(data.recent_sales) ? data.recent_sales : []
 		netDebtSourceSales.value = Array.isArray(data.net_debt_source_sales) ? data.net_debt_source_sales : []
 		recentReceipts.value = Array.isArray(data.recent_receipts) ? data.recent_receipts : []
@@ -3724,6 +3736,7 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0 } = {}) {
 		recentOtherFees.value = Array.isArray(data.recent_other_fees) ? data.recent_other_fees : []
 		syncFlowFormDefaults()
 		syncAnalysisFilterDefaults()
+		return true
 	} catch (err) {
 		if (summaryRequestSeq !== statementSummaryRequestSeq) return
 		if (!summaryOnly || isLatestRowsSearchRequest(requestSeq)) {
@@ -3738,6 +3751,8 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0 } = {}) {
 
 async function loadAnalysis() {
 	if (!recordId.value) return
+	const customerId = recordId.value
+	const generation = ++analysisRequestSeq
 	if (customerPriceUnit.value === 'kg' && (!analysisFilters.dateFrom || !analysisFilters.dateTo)) {
 		analysis.customer_price_unit = 'kg'
 		analysis.requires_date_range = true
@@ -3756,6 +3771,7 @@ async function loadAnalysis() {
 			dateTo: analysisFilters.dateTo,
 			bottleReferencePrice: bottleReferencePrice.value
 		})
+		if (generation !== analysisRequestSeq || customerId !== recordId.value) return
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '经营分析加载失败', icon: 'none' })
 			analysis.customer_price_unit = normalizeString(customer.value?.default_price_unit) || 'kg'
@@ -3776,11 +3792,11 @@ async function loadAnalysis() {
 		analysis.bottle_reference_gap = data.bottle_reference_gap == null ? null : toNumber(data.bottle_reference_gap, 0)
 		analysis.bottle_should_receive_total = toNumber(data.bottle_should_receive_total, 0)
 	} finally {
-		analysisLoading.value = false
+		if (generation === analysisRequestSeq) analysisLoading.value = false
 	}
 }
 
-async function loadRows({ requestSeq = 0 } = {}) {
+async function loadRows({ requestSeq = nextRowsSearchRequestSeq() } = {}) {
 	if (!recordId.value) return
 	rowsLoading.value = true
 	try {
@@ -3813,6 +3829,8 @@ async function loadRows({ requestSeq = 0 } = {}) {
 
 async function loadOffsetCreditPool(reset = false) {
 	if (!recordId.value) return
+	const customerId = recordId.value
+	const generation = ++poolRequestSeq
 	if (reset) offsetPoolPager.page = 1
 	offsetPoolLoading.value = true
 	try {
@@ -3822,6 +3840,7 @@ async function loadOffsetCreditPool(reset = false) {
 			page: offsetPoolPager.page,
 			pageSize: offsetPoolPager.pageSize
 		})
+		if (generation !== poolRequestSeq || customerId !== recordId.value) return
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '冲抵来源加载失败', icon: 'none' })
 			offsetPoolRows.value = []
@@ -3849,12 +3868,14 @@ async function loadOffsetCreditPool(reset = false) {
 		if (offsetPoolPager.total <= 0) selectedOffsetReceipts.value = []
 		syncOffsetAmountWithAvailable()
 	} finally {
-		offsetPoolLoading.value = false
+		if (generation === poolRequestSeq) offsetPoolLoading.value = false
 	}
 }
 
 async function loadOffsetCreditHistory(reset = false) {
 	if (!recordId.value) return
+	const customerId = recordId.value
+	const generation = ++historyRequestSeq
 	if (reset) offsetHistoryPager.page = 1
 	offsetHistoryLoading.value = true
 	try {
@@ -3864,6 +3885,7 @@ async function loadOffsetCreditHistory(reset = false) {
 			page: offsetHistoryPager.page,
 			pageSize: offsetHistoryPager.pageSize
 		})
+		if (generation !== historyRequestSeq || customerId !== recordId.value) return
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '冲抵历史加载失败', icon: 'none' })
 			offsetHistoryRows.value = []
@@ -3883,27 +3905,37 @@ async function loadOffsetCreditHistory(reset = false) {
 			if (latestRow) offsetAdjustingReceiptRow.value = latestRow
 		}
 	} finally {
-		offsetHistoryLoading.value = false
+		if (generation === historyRequestSeq) offsetHistoryLoading.value = false
 	}
 }
 
 async function refreshOffsetSection(reset = false) {
 	await Promise.all([
 		loadOffsetCreditPool(reset),
-		loadOffsetCreditHistory(reset)
+		offsetHistoryExpanded.value ? loadOffsetCreditHistory(reset) : Promise.resolve()
 	])
 }
 
 async function refreshAll() {
 	syncRowsFilterDefaults()
-	await loadStatement()
-	await Promise.all([loadRows(), loadAnalysis(), loadOffsetCreditPool(), loadOffsetCreditHistory()])
+	const loaded = await loadStatement({ includeRows: true })
+	if (activeOperationTab.value === 'offset') await refreshOffsetSection()
+	return loaded
+}
+
+async function refreshAfterSave() {
+	refreshingAfterSave.value = true
+	try {
+		const loaded = await refreshAll()
+		if (!loaded) uni.showToast({ title: '已保存，数据刷新失败，请点刷新重试', icon: 'none' })
+	} catch (err) {
+		uni.showToast({ title: '已保存，数据刷新失败，请点刷新重试', icon: 'none' })
+	} finally { refreshingAfterSave.value = false }
 }
 
 async function refreshReceiptAdjustmentEntry() {
 	syncRowsFilterDefaults()
-	await loadStatement()
-	void loadRows()
+	await loadStatement({ includeRows: true })
 }
 
 function onOffsetPoolPrev() {
@@ -4103,7 +4135,7 @@ async function onCreateAutoReceipt() {
 		await onAllocatePrepayReceipt()
 		return
 	}
-	if (!recordId.value || submitting.value) return
+	if (!recordId.value || submitting.value || loading.value || refreshingAfterSave.value) return
 	if (isEditingReceipt.value && ['opening_prepay', 'deposit_transfer', 'settlement_fee'].includes(normalizeString(editingReceiptSourceType.value))) return
 	const amount = receiptForm.amount === '' ? 0 : Number(receiptForm.amount)
 	const roundingAmount = receiptForm.roundingAmount === '' ? 0 : Number(receiptForm.roundingAmount)
@@ -4168,7 +4200,7 @@ async function onCreateAutoReceipt() {
 		}
 		uni.showToast({ title: res?.msg || (isEditing ? '整单调整已保存' : '登记成功'), icon: 'success' })
 		resetReceiptForm()
-		await refreshAll()
+		void refreshAfterSave()
 	} finally {
 		submitting.value = false
 	}
@@ -4243,7 +4275,7 @@ async function onAllocatePrepayReceipt() {
 		}
 		uni.showToast({ title: res?.msg || '分配成功', icon: 'success' })
 		resetReceiptForm()
-		await refreshAll()
+		void refreshAfterSave()
 	} finally {
 		prepayReceiptAllocating.value = false
 	}
@@ -4262,7 +4294,7 @@ async function cancelReceiptEditing(options = {}) {
 			return false
 		}
 		resetReceiptForm()
-		await refreshAll()
+		void refreshAfterSave()
 		if (!options.silent) uni.showToast({ title: res?.msg || '已恢复原分配', icon: 'success' })
 		return true
 	}
@@ -4404,7 +4436,7 @@ async function onRemoveReceipt(row) {
 	}
 	if (normalizeString(editingReceiptId.value) === receiptId) resetReceiptForm()
 	uni.showToast({ title: res?.msg || '收款单已作废', icon: 'success' })
-	await refreshAll()
+	void refreshAfterSave()
 }
 
 async function onConfirmAllocation() {
@@ -4447,7 +4479,7 @@ async function onConfirmAllocation() {
 		}
 		uni.showToast({ title: res?.msg || '确认入账成功', icon: 'success' })
 		resetReceiptForm()
-		await refreshAll()
+		void refreshAfterSave()
 	} finally {
 		confirming.value = false
 	}
@@ -4486,7 +4518,7 @@ async function onCreatePrepayEntry() {
 		}
 		uni.showToast({ title: res?.msg || '预付录入成功', icon: 'success' })
 		resetPrepayForm()
-		await refreshAll()
+		void refreshAfterSave()
 	} finally {
 		prepaySubmitting.value = false
 	}
@@ -4520,7 +4552,7 @@ async function onCreateOffsetEntry() {
 		}
 		uni.showToast({ title: '冲抵池录入成功', icon: 'success' })
 		resetOffsetEntryForm()
-		await refreshAll()
+		void refreshAfterSave()
 		activeOperationTab.value = 'offset'
 	} finally {
 		offsetEntrySubmitting.value = false
@@ -4895,10 +4927,7 @@ async function searchRows(reset = false) {
 	if (rowsLoading.value || rowSummaryLoading.value) return
 	const requestSeq = nextRowsSearchRequestSeq()
 	if (reset) rowsPager.page = 1
-	await Promise.allSettled([
-		loadRows({ requestSeq }),
-		loadStatement({ summaryOnly: true, requestSeq })
-	])
+	await loadStatement({ summaryOnly: true, requestSeq, includeRows: true })
 }
 
 function onRowsPrev() {
@@ -5004,7 +5033,7 @@ async function onAllocateOffsetCredit() {
 			return
 		}
 		offsetCheckedTargetKeys.value = []
-		await refreshAll()
+		void refreshAfterSave()
 		const nextRemaining = fix2(Math.max(amountToAllocate - allocatedTotal, 0))
 		const nextAvailable = selectedOffsetReceiptAvailableTotal.value
 		if (nextRemaining > 0) {
@@ -5079,7 +5108,7 @@ async function cancelOffsetAdjustment(options = {}) {
 	}
 	clearOffsetAdjustmentState()
 	resetOffsetAllocateForm()
-	await refreshAll()
+	void refreshAfterSave()
 	if (!options.silent) uni.showToast({ title: res?.msg || '已保留原冲抵分配', icon: 'success' })
 	return true
 }
@@ -5118,7 +5147,7 @@ async function onSaveOffsetAdjustment() {
 		}
 		clearOffsetAdjustmentState()
 		resetOffsetAllocateForm()
-		await refreshAll()
+		void refreshAfterSave()
 		uni.showToast({ title: res?.msg || '冲抵分配已调整', icon: 'success' })
 	} finally {
 		offsetAllocating.value = false
@@ -5163,7 +5192,7 @@ async function onRemoveOffsetAllocation(row) {
 			return
 		}
 		resetOffsetAllocateForm()
-		await refreshAll()
+		void refreshAfterSave()
 		uni.showToast({ title: res?.msg || '冲抵分配已删除', icon: 'success' })
 	} finally {
 		offsetAllocating.value = false
@@ -5183,7 +5212,7 @@ async function onQuickRoundSalesDetailRow(row) {
 	quickRoundingSubmitting.value = true
 	try {
 		const result = await createQuickRoundingReceipts([target])
-		await refreshAll()
+		void refreshAfterSave()
 		uni.showToast({
 			title: `已抹零 ¥${formatMoney(result.total)}`,
 			icon: 'success'
@@ -5210,7 +5239,7 @@ async function onBatchQuickRoundSmallSalesDetails() {
 	uni.showLoading({ title: '正在抹零...', mask: true })
 	try {
 		const result = await createQuickRoundingReceipts(targets)
-		await refreshAll()
+		void refreshAfterSave()
 		uni.hideLoading()
 		uni.showToast({
 			title: `已抹零 ${result.count} 笔 ¥${formatMoney(result.total)}`,
@@ -5269,6 +5298,11 @@ function onBack() {
 watch(
 	recordId,
 	async (id) => {
+		statementSummaryRequestSeq += 1
+		nextRowsSearchRequestSeq()
+		analysisRequestSeq += 1
+		poolRequestSeq += 1
+		historyRequestSeq += 1
 		if (!id) return
 		quickSceneApplied.value = false
 		salesDetailMode.value = 'all'
@@ -5298,22 +5332,19 @@ watch(
 		analysisDatePreset.value = 'custom'
 		rowsDatePreset.value = detectDatePreset(rowFilters.dateFrom, rowFilters.dateTo, new Date(), { includeYear: true })
 		await refreshAll()
-		applyQuickReceiveScene()
+		if (id === recordId.value) applyQuickReceiveScene()
 	},
 	{ immediate: true }
 )
 
-watch(
-	bottleReferencePrice,
-	() => {
-		if (!isBottleCustomer.value) return
-		loadAnalysis()
-	}
-)
+watch(activeOperationTab, (tab) => {
+	if (tab === 'offset') refreshOffsetSection()
+})
 
 watch(
 	() => [
 		recordId.value,
+		activeOperationTab.value,
 		receiptForm.allocationMode,
 		receiptForm.allocationStartDate,
 		receiptForm.allocationEndDate,
@@ -5329,6 +5360,7 @@ watch(
 watch(
 	() => [
 		recordId.value,
+		activeOperationTab.value,
 		offsetAllocateForm.allocationMode,
 		offsetAllocateForm.allocationStartDate,
 		offsetAllocateForm.allocationEndDate,

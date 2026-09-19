@@ -195,13 +195,13 @@ function calculatePeriodSummary(input, rules) {
 	}
 }
 
-async function readPeriodSummary({ collections, command, customerId, saleWhere, dateFrom, dateTo, moneyScale, reviewCollection }, rules) {
-	const started = Date.now()
-	const inputs = {}
+async function readPeriodSummary({ collections, command, customerId, saleWhere, dateFrom, dateTo, moneyScale, reviewCollection, readContext }, rules) {
+	const started = readContext?.started || Date.now()
+	const inputs = readContext?.inputs || {}
 	const sourceWhere = { customer_id: customerId }
 	// Read full customer history to detect undated embedded receipts, even outside the selected period.
 	for (const [name, collection] of Object.entries(collections)) {
-		inputs[name] = await readComplete(collection, name === 'sales' ? saleWhere : sourceWhere,
+		if (!inputs[name]) inputs[name] = await readComplete(collection, name === 'sales' ? saleWhere : sourceWhere,
 			{ command, source: `period_summary.${name}` })
 	}
 	for (const [name, collection] of Object.entries(collections)) {
