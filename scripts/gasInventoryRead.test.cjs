@@ -15,7 +15,7 @@ function aggregateCollection(source, metrics = {}) {
   return {
    match(where) { rows = rows.filter((row) => Object.entries(where).every(([key, value]) => value.in ? value.in.includes(row[key]) : row[key] >= value.gte)); return this },
    sort(order) { rows.sort((a,b) => { for (const [k,d] of Object.entries(order)) { if (a[k] !== b[k]) return (a[k] > b[k] ? 1 : -1)*d } return 0 }); return this },
-   group(spec) { if (spec.latest) { assert.equal(spec.latest.first, '$$ROOT'); const byBottle=new Map(); for (const row of rows) if (!byBottle.has(row.bottle_no)) byBottle.set(row.bottle_no,{_id:row.bottle_no,latest:row}); rows=[...byBottle.values()] } else { assert.equal(spec.station_delta_t.sum,'$station_delta_t'); rows=rows.length?[{_id:null,station_delta_t:rows.reduce((n,r)=>n+r.station_delta_t,0)}]:[] } return this },
+   group(spec) { if (spec.movement_id) { const byBottle=new Map(); for (const row of rows) if (!byBottle.has(row.bottle_no)) byBottle.set(row.bottle_no,Object.fromEntries(Object.entries(spec).map(([key,value])=>[key,key==='_id'?row.bottle_no:row[value.first.slice(1)]]))); rows=[...byBottle.values()] } else { assert.equal(spec.station_delta_t.sum,'$station_delta_t'); rows=rows.length?[{_id:null,station_delta_t:rows.reduce((n,r)=>n+r.station_delta_t,0)}]:[] } return this },
    limit(n) { rows=rows.slice(0,n); return this },
    async end() { metrics.calls=(metrics.calls||0)+1; metrics.returned=(metrics.returned||0)+rows.length; return {data:rows} }
   }

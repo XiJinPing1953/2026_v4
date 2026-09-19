@@ -11,11 +11,20 @@ async function readLatestMovements(collection, command, bottleNos, cutoffAt) {
 		const res = await collection.aggregate()
 			.match(match)
 			.sort({ event_at: -1, type_order: -1, created_at: -1, _id: -1 })
-			.group({ _id: '$bottle_no', latest: command.aggregate.first('$$ROOT') })
+			.group({
+				_id: '$bottle_no',
+				movement_id: command.aggregate.first('$_id'),
+				type: command.aggregate.first('$type'),
+				event_at: command.aggregate.first('$event_at'),
+				type_order: command.aggregate.first('$type_order'),
+				created_at: command.aggregate.first('$created_at'),
+				source_type: command.aggregate.first('$source_type'),
+				source_id: command.aggregate.first('$source_id')
+			})
 			.limit(300)
 			.end()
 		if (!Array.isArray(res.data)) throw new Error('瓶子流转查询未返回完整结果')
-		rows.push(...res.data.map((row) => row.latest))
+		rows.push(...res.data.map(({ _id, movement_id, ...row }) => ({ ...row, bottle_no: _id, _id: movement_id })))
 	}
 	return rows
 }
