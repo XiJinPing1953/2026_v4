@@ -42,3 +42,7 @@
 正式站登录页正常；本次验证浏览器无生产登录态，未复验登录后的真实客户页面，也未写入真实账务。模拟交互验收与布局证据见上文。云函数、数据库和权限未部署变更。
 
 回退：在主工作区运行 `HBuilderX cli hosting deploy --prj 2026_v4 --space env-00jxuffegf2n --provider alipay --source outputs/trust-audit/2026-09-20/statement-workspace/rollback-web`（CLI全路径同 scripts/releaseWeb.cjs），再用该目录绑定的旧CSS策略回读验证。将恢复 `1789832959489-f58761c2`。
+
+## 操作页签跳动修复
+
+用户反馈页签切换跳动。修复不同操作按钮组造成的头部高度变化、短表单导致的滚动位置收缩，固定页签字重防止选中后挤动；重复点击当前页签直接忽略，不触发调整取消。未改账务校验与提交逻辑。1440/620/390px连续切换收款、退款、收款单、押金、预付，页签Y坐标和scrollY均保持不变。工作区8项回归通过。

@@ -153,7 +153,7 @@
 			</view>
 
 			<view v-show="activeWorkspace === 'operations'" id="statement-operation-section">
-				<AppSection title="账务操作">
+				<AppSection class="operation-section" title="账务操作">
 					<template #actions>
 					<view v-if="activeOperationTab === 'opening_debt'" class="section-actions">
 						<AppButton size="sm" kind="ghost" @click="resetOpeningDebtForm">重置</AppButton>
@@ -207,6 +207,7 @@
 				<view class="operation-tabs-scroll">
 					<AppTabs :model-value="activeOperationTab" :items="operationTabs" @update:modelValue="onOperationTabChange" />
 				</view>
+				<view class="operation-content">
 				<view v-if="operationSummaryItems.length" class="operation-summary-strip">
 					<view
 						v-for="item in operationSummaryItems"
@@ -729,6 +730,7 @@
 						<text class="section-hint">第 {{ receiptRecentPage }} / {{ receiptRecentPageCount }} 页</text>
 						<AppButton size="sm" kind="neutral" :disabled="loading || refreshingAfterSave || receiptRecentPage >= receiptRecentPageCount" @click="receiptRecentPage += 1">下一页</AppButton>
 					</view>
+				</view>
 				</view>
 				</AppSection>
 			</view>
@@ -3047,7 +3049,7 @@ function currentYearRange() {
 
 async function onOperationTabChange(value) {
 	const next = normalizeString(value)
-	if (!operationTabs.some((item) => item.value === next)) return
+	if (next === activeOperationTab.value || !operationTabs.some((item) => item.value === next)) return
 	if (isOffsetAdjustmentActive.value && next !== 'offset') {
 		const confirmed = await showConfirmModal({
 			title: '放弃冲抵调整',
@@ -6498,5 +6500,15 @@ onBeforeUnmount(() => {
  .statement-theme :deep(.header__label) { overflow-wrap:anywhere; }
  .statement-header-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
  .statement-header-actions :deep(.btn) { width:100%; box-sizing:border-box; }
+}
+
+/* Reserve a screen of content so short forms cannot clamp the page scroll. */
+.operation-content { min-height:calc(100vh - 260px); overflow-anchor:none; }
+.operation-section :deep(.section__actions) { min-height:36px; }
+.operation-tabs-scroll :deep(.tab-label) { font-weight:600; }
+.operation-tabs-scroll :deep(.tab-item) { transition:color .15s ease; }
+@media(max-width:760px) {
+ .operation-section :deep(.section__header) { display:grid; grid-template-columns:minmax(0,1fr); }
+ .operation-section :deep(.section__actions) { min-height:78px; align-items:flex-start; }
 }
 </style>
