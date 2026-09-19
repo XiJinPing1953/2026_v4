@@ -7,3 +7,7 @@
 - Chrome已登录实际客户对账页面核验：新入口 `assets/index-BVPDCHXz.js`，两行五列、双卡独立边框、统一日期和展开口径说明显示正常；发布前后可见余额、营收、应收和实收一致。无业务写入。移动布局使用上一轮本地组件预览证据。
 - 部署初始回执：`release/receipts/1789831863614-00002a39.json`（保留初始校验差异）。成功回读及交付清单：`outputs/trust-audit/2026-09-19/customer-overview/`；预览：`output/playwright/customer-overview-*.png`。私有数据与证据不提交。
 - 回退可使用上个H5源码/产物按现有发布检查恢复，无数据库迁移。
+
+## 后续删除口径说明（同日）
+
+用户确认移除总览的口径说明按钮和展开文字，保留统计日期及待核提示。源码 `a61a004dd63f567932e49d28854c419703f42d5d`，H5 `1789832364300-3647b15b`，产物SHA-256 `66f0974641a986bf20c862fc12393af1bd8134c2e72c6eef653115d15b96130f`；替代上文旧H5。HBuilderX构建入口连续失败未上传，改用项目现有 `build:web:cloud` 构建，空间、版本和干净源码/发布范围检查通过后经HBuilderX托管上传181文件。180项资源回读通过（15项CSS仅前置CRLF，按本构建双哈希验证），Chrome真实客户页面确认说明消失、日期和金额保留。证据：`outputs/trust-audit/2026-09-19/customer-overview-notes-removed/web-readback.json`。仅H5，无账务写入。
