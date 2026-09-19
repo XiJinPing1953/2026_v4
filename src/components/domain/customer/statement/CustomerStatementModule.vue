@@ -781,7 +781,7 @@
 				<text v-if="isKgCustomer" class="section-hint">当前按所选时间范围统计；全历史汇总待后续接预计算</text>
 				<view v-if="analysisLoading" class="analysis-placeholder">经营分析加载中...</view>
 
-				<template v-else>
+				<template v-else-if="!analysisStale">
 					<view v-if="isKgCustomer" class="analysis-grid">
 						<view class="analysis-card analysis-card--accent">
 							<text class="analysis-card__label">客户阶段理论损耗</text>
@@ -3758,6 +3758,7 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0, includeRows 
 }
 
 async function loadAnalysis() {
+	analysisStale.value = true
 	if (!recordId.value) return
 	const customerId = recordId.value
 	const generation = ++analysisRequestSeq
@@ -4902,7 +4903,6 @@ async function onAnalysisDatePresetChange(value) {
 	const range = buildDatePresetRange(value, new Date())
 	analysisFilters.dateFrom = range.dateStart
 	analysisFilters.dateTo = range.dateEnd
-	await searchAnalysis()
 }
 
 function syncAnalysisDatePreset() {
@@ -5354,6 +5354,12 @@ watch(
 	},
 	{ immediate: true }
 )
+
+watch(() => [recordId.value, analysisFilters.dateFrom, analysisFilters.dateTo, bottleReferencePrice.value], () => {
+	analysisStale.value = true
+	analysisRequestSeq += 1
+	analysisLoading.value = false
+}, { flush: 'sync' })
 
 watch(activeOperationTab, (tab) => {
 	if (tab === 'offset') refreshOffsetSection()
