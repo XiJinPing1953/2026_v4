@@ -1,17 +1,16 @@
 <template>
 	<view class="login-page">
-		<!-- ... existing login content ... -->
-		<!-- Login page does NOT use AppPage wrapper usually, but if it did, we'd set hideNav -->
 		<view class="login-bg"></view>
 		<view class="login-content">
-            <!-- ... -->
+			<view class="login-main">
+			<view class="login-panel">
 
 			<view class="brand">
 				<view class="logo-box">
 					<image class="logo" src="/static/logo.png" mode="aspectFit" />
 				</view>
 				<text class="title">新拓能源</text>
-				<text class="subtitle">账号登录</text>
+				<text class="subtitle">登录新拓能源工作台</text>
 			</view>
 			
 			<view class="card-container">
@@ -39,8 +38,10 @@
 				</view>
 			</view>
 
+			</view>
+			</view>
 			<view class="footer">
-				<text class="footer-text">Powered by 新拓能源</text>
+				<text class="footer-text">新拓能源 · 企业工作台</text>
 				<!-- #ifdef H5 -->
 				<a class="icp-link" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">冀ICP备2026038379号-1</a>
 				<!-- #endif -->
@@ -111,127 +112,101 @@ async function onLogin() {
 
 <style scoped>
 .login-page {
-	min-height: 100vh;
-	position: relative;
-	background: #fff;
-	overflow: hidden;
+ position: relative;
+ background: #f3f6fb;
+ color: #1e293b;
 }
-
 .login-bg {
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	height: 60vh;
-	background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
-	border-bottom-left-radius: 60rpx;
-	border-bottom-right-radius: 60rpx;
-	z-index: 0;
+ position: absolute;
+ inset: 0;
+ background: radial-gradient(ellipse at 18% 12%, #dce9ff 0, transparent 55%), radial-gradient(ellipse at 90% 90%, #dff0ed 0, transparent 48%);
+ pointer-events: none;
 }
-
 .login-content {
-	position: relative;
-	z-index: 1;
-	padding: 160rpx 40rpx 40rpx;
-	display: flex;
-	flex-direction: column;
-	min-height: 100vh;
-	box-sizing: border-box;
+ position: relative;
+ min-height: 100vh;
+ box-sizing: border-box;
+ display: flex;
+ flex-direction: column;
+ padding: 24px 20px 16px;
+ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
-
+/* H5 includes a native uni-app title bar outside this page. */
+/* #ifdef H5 */
+.login-content {
+ min-height: calc(100vh - var(--window-top, 44px));
+ min-height: calc(100dvh - var(--window-top, 44px));
+}
+/* #endif */
+.login-main {
+ flex: 1;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ padding: 12px 0 24px;
+}
+.login-panel {
+ width: 100%;
+ max-width: 420px;
+ box-sizing: border-box;
+ padding: 32px 36px;
+ border: 1px solid rgba(255,255,255,.9);
+ border-radius: 24px;
+ background: rgba(255,255,255,.96);
+ box-shadow: 0 24px 70px -24px rgba(37,65,107,.22), 0 2px 8px rgba(37,65,107,.03);
+}
 .brand {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	margin-bottom: 60rpx;
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ margin-bottom: 28px;
 }
-
 .logo-box {
-	width: 120rpx;
-	height: 120rpx;
-	background: #fff;
-	border-radius: 28rpx;
-	box-shadow: 0 16rpx 32rpx rgba(37, 99, 235, 0.15);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	margin-bottom: 24rpx;
+ width: 64px;
+ height: 64px;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ margin-bottom: 16px;
+ border: 1px solid #e9eef5;
+ border-radius: 18px;
+ background: #fff;
 }
-
-.logo {
-	width: 64rpx;
-	height: 64rpx;
-}
-
-.title {
-	font-size: 40rpx;
-	font-weight: 800;
-	color: #1e293b;
-	margin-bottom: 8rpx;
-	letter-spacing: -1rpx;
-}
-
-.subtitle {
-	font-size: 26rpx;
-	color: #64748b;
-	font-weight: 500;
-}
-
-.card-container {
-	background: #fff;
-	border-radius: 32rpx;
-	padding: 40rpx 32rpx;
-	box-shadow: 0 16rpx 48rpx rgba(15, 23, 42, 0.06);
-	width: 100%;
-	max-width: 760rpx;
-	margin: 0 auto;
-}
-
-.form {
-	display: flex;
-	flex-direction: column;
-	gap: 32rpx;
-}
-
-.actions {
-	margin-top: 16rpx;
-	display: flex;
-	justify-content: center;
-}
-
+.logo { width: 48px; height: 48px; }
+.title { font-size: 26px; line-height: 1.4; font-weight: 700; letter-spacing: 1px; }
+.subtitle { margin-top: 8px; font-size: 14px; color: #7a879b; }
+.card-container { width: 100%; box-sizing: border-box; }
+.form { display: flex; flex-direction: column; gap: 20px; }
+.form :deep(.field__label) { font-size: 13px; color: #526078; }
+.form :deep(.field__control) { height: 46px; border-radius: 10px; background: #fbfcfe; box-sizing: border-box; }
+.form :deep(.field__input) { font-size: 15px; }
+.actions { margin-top: 4px; }
 .login-btn {
-	height: 88rpx !important;
-	border-radius: 44rpx !important;
-	background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
-	box-shadow: 0 8rpx 24rpx rgba(37, 99, 235, 0.25);
-	font-size: 30rpx !important;
-	font-weight: 600;
-	letter-spacing: 2rpx;
-	width: 100%;
-	max-width: 320rpx;
+ width: 100%;
+ height: 46px !important;
+ border-radius: 10px !important;
+ background: linear-gradient(110deg, #346ee8, #2455cd) !important;
+ box-shadow: 0 8px 18px -8px rgba(37,99,235,.5);
+ font-size: 16px !important;
+ font-weight: 600;
+ letter-spacing: 4px;
 }
-
-.footer {
-	margin-top: auto;
-	padding-top: 60rpx;
-	text-align: center;
+.footer { flex-shrink: 0; text-align: center; line-height: 1.6; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.footer-text { font-size: 12px; color: #8793a6; }
+.icp-link { display: block; margin-top: 4px; font-size: 12px; color: #65748b; text-decoration: none; }
+.icp-link:hover { color: #2455cd; text-decoration: underline; }
+.icp-link:focus-visible { outline: 2px solid #346ee8; outline-offset: 3px; border-radius: 3px; }
+@media (max-width: 480px) {
+ .login-content { padding: 16px 20px 12px; }
+ .login-panel { padding: 28px 24px; border-radius: 20px; }
 }
-
-.footer-text {
-	font-size: 24rpx;
-	color: #94a3b8;
-}
-
-.icp-link {
-	display: block;
-	margin-top: 16rpx;
-	font-size: 24rpx;
-	line-height: 1.5;
-	color: #64748b;
-	text-decoration: none;
-}
-
-.icp-link:hover {
-	text-decoration: underline;
+@media (max-height: 650px) {
+ .login-content { padding-top: 12px; }
+ .login-main { padding: 0 0 16px; }
+ .login-panel { padding-top: 20px; padding-bottom: 24px; }
+ .brand { margin-bottom: 20px; }
+ .logo-box { width: 48px; height: 48px; margin-bottom: 10px; border-radius: 14px; }
+ .logo { width: 36px; height: 36px; }
+ .form { gap: 16px; }
 }
 </style>

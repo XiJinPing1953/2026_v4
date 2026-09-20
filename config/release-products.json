@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.20-login-icp",
+      "version": "2026.09.20-login-layout",
       "output": "dist/build/web",
-      "acceptance": "Login footer displays 冀ICP备2026038379号-1 and links to https://beian.miit.gov.cn/; existing login behavior preserved.",
+      "acceptance": "Responsive login card and ICP footer visible within desktop and mobile viewport; authentication unchanged.",
       "integrityScope": "deployment"
     },
     "cloud": {
