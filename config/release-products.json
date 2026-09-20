@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.20-login-layout",
+      "version": "2026.09.20-login-title",
       "output": "dist/build/web",
-      "acceptance": "Responsive login card and ICP footer visible within desktop and mobile viewport; authentication unchanged.",
+      "acceptance": "Login has no native title bar; browser tab title is 新拓CRM; ICP remains visible.",
       "integrityScope": "deployment"
     },
     "cloud": {
@@ -37,6 +37,7 @@
           "src/components/domain/customer/statement/CashierIntakeRecords.vue",
           "src/components/domain/customer/statement/CustomerDepositPanel.vue",
           "src/components/domain/customer/statement/CustomerStatementModule.vue",
+          "src/pages.json",
           "src/pages/login/login.vue",
           "src/services/api/callCloud.js",
           "src/services/api/cashierIntake.js",

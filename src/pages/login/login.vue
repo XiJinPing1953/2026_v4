@@ -131,11 +131,11 @@ async function onLogin() {
  padding: 24px 20px 16px;
  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
-/* H5 includes a native uni-app title bar outside this page. */
+/* H5 login uses a custom navigation layout and fills the available viewport. */
 /* #ifdef H5 */
 .login-content {
- min-height: calc(100vh - var(--window-top, 44px));
- min-height: calc(100dvh - var(--window-top, 44px));
+ min-height: calc(100vh - var(--window-top, 0px));
+ min-height: calc(100dvh - var(--window-top, 0px));
 }
 /* #endif */
 .login-main {
