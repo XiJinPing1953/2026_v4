@@ -34,6 +34,9 @@ function verifyLedger(account, rows, customerId) {
       for (const key of ['kind', 'amount_cents', 'biz_date', 'payment_method', 'voucher_ref', 'note']) {
         if (row[key] !== row.command[key]) M.fail('押金原单与登记内容不符，请先核对')
       }
+      for (const key of ['intake_id','source_type','proof_images']) {
+        if (M.digest(row[key] ?? null) !== M.digest(row.command[key] ?? null)) M.fail('押金到账关联或凭证与原单不符，请先核对')
+      }
       if (row.command.action !== 'create') M.fail('押金操作类型不符')
       if (row.status === 'void' && (!row.void_entry_id || byId.get(row.void_entry_id)?.original_entry_id !== row._id)) M.fail('押金作废凭据缺失')
       if (row.kind === 'transfer' && row.receipt_id !== M.receiptId(row._id)) M.fail('押金转气款来源编号不符')

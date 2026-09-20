@@ -12,6 +12,7 @@ export default function statementPreview() {
    if(file.endsWith('/src/services/auth.js')) return `const user={_id:'preview-user',name:'本地模拟用户',role:'superadmin',role_template:'superadmin',status:'active'}; export const getUser=()=>user;export const getToken=()=>'';export const setToken=()=>{};export const setUser=()=>{};export const clearAuth=()=>{};export const getRoleTemplate=()=> 'superadmin';export const isLoggedIn=()=>true;export const syncCurrentUser=async()=>({code:0,user});`
    if(file.endsWith('/src/App.vue')) return `<script>export default {}</script><style lang="scss">@import "@/uni.scss";page {background:var(--crm-bg);color:var(--crm-text)}</style>`
    if(file.endsWith('/src/pages/customer/statement.vue')) return fs.readFileSync(path.join(root,'preview/statement/Preview.vue'),'utf8')
+   if(file.endsWith('/src/pages/cashier/receipt-intake.vue')) return fs.readFileSync(path.join(root,'preview/statement/CashierPreview.vue'),'utf8')
   }
  }
 }

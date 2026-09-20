@@ -1,0 +1,60 @@
+{
+  "bsonType": "object",
+  "description": "Durable actor-scoped idempotent result and immutable before/after audit",
+  "additionalProperties": false,
+  "required": [
+    "_id",
+    "actor_id",
+    "operation_id",
+    "fingerprint",
+    "result",
+    "created_at"
+  ],
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "actor_id": {
+      "bsonType": "string"
+    },
+    "operation_id": {
+      "bsonType": "string"
+    },
+    "fingerprint": {
+      "bsonType": "string"
+    },
+    "intake_id": {
+      "bsonType": "string"
+    },
+    "command": {
+      "bsonType": "object"
+    },
+    "before": {
+      "bsonType": [
+        "object",
+        "null"
+      ]
+    },
+    "after": {
+      "bsonType": [
+        "object",
+        "null"
+      ]
+    },
+    "result": {
+      "bsonType": [
+        "object",
+        "null"
+      ]
+    },
+    "created_at": {
+      "bsonType": "number"
+    }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  }
+}

@@ -62,7 +62,7 @@ const pendingReads = new Map()
 let readEpoch = 0
 const READ_ACTIONS = new Set(['getCustomerStatementV1', 'listCustomerStatementRowsV1',
  'getCustomerStatementAnalysisV1', 'previewAllocationV1', 'listOffsetCreditPoolV1',
- 'listReceiptIntakeV1', 'listReceiptAllocationTargetsV1', 'listV1', 'listV2', 'searchV1',
+ 'listReceiptIntakeV1', 'listReceiptIntakeV2', 'getReceiptIntakeDetailV2', 'getReceiptIntakeOperationV2', 'listReceiptAllocationTargetsV1', 'listV1', 'listV2', 'searchV1',
  'summaryV1', 'quickStatusV1'])
 function stableKey(value) {
  if (Array.isArray(value)) return value.map(stableKey)
@@ -73,7 +73,11 @@ export function callCloud(name, options = {}) {
  const token = options.token != null ? options.token : getToken()
  if (!READ_ACTIONS.has(options.action)) {
   readEpoch += 1
-  return invokeCloud(name, { ...options, token })
+  return invokeCloud(name, { ...options, token }).finally(() => {
+   // A read started while a write was pending may still contain the pre-commit view.
+   // The post-save refresh must never join that in-flight request.
+   readEpoch += 1
+  })
  }
  const key = JSON.stringify([readEpoch, token, name, options.action, options.timeout, stableKey(options.data || {})])
  if (pendingReads.has(key)) return pendingReads.get(key)

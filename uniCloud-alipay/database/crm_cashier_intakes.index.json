@@ -1,0 +1,79 @@
+[
+  {
+    "IndexName": "idx_intake_status_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "status",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "biz_date",
+          "Direction": "-1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "-1",
+          "Type": "double"
+        },
+        {
+          "Name": "_id",
+          "Direction": "-1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_intake_customer_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "customer_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "status",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "biz_date",
+          "Direction": "-1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "-1",
+          "Type": "double"
+        },
+        {
+          "Name": "_id",
+          "Direction": "-1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_intake_updated",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "updated_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  }
+]

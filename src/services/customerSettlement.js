@@ -68,6 +68,7 @@ export async function updateReceiptV1(params = {}) {
 		data: {
 			receipt_id: params.receiptId || params.receipt_id || '',
 			customer_id: params.customerId || params.customer_id || '',
+			operation_id: params.operationId || params.operation_id || '',
 			amount: params.amount,
 			rounding_amount: params.roundingAmount ?? params.rounding_amount ?? 0,
 			biz_date: params.bizDate || params.biz_date || '',

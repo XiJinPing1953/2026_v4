@@ -83,3 +83,15 @@ test('quick dashboard status never reads sales, fillings or financial histories'
  assert.ok(!readNames.some(name=>['crm_sale_records','crm_fillings','crm_customer_receipts','crm_customer_flow_settlements'].includes(name)))
  assert.equal(db.writes.length,0)
 })
+test('post-save refresh cannot join a read started before the write committed',async()=>{
+ const calls=[],context={getToken:()=> 'same-account',handle401(){},handle403(){},console:{info(){}},Date,Math,Map,Set,Promise,
+ uniCloud:{callFunction:opts=>new Promise(resolve=>calls.push({opts,resolve}))}}
+ vm.runInNewContext(fs.readFileSync('src/services/api/callCloud.js','utf8').replace(/^import .*\n/gm,'').replace(/export /g,'')+'\nthis.call=callCloud',context)
+ const write=context.call('crm-customer-settlement',{action:'saveReceiptIntakeV2'})
+ const before=context.call('crm-customer-settlement',{action:'listReceiptIntakeV2'})
+ calls[0].resolve({result:{code:0}});await write
+ const refreshed=context.call('crm-customer-settlement',{action:'listReceiptIntakeV2'})
+ assert.notEqual(before,refreshed);assert.equal(calls.length,3)
+ calls[1].resolve({result:{code:0,data:['old']}});calls[2].resolve({result:{code:0,data:['new']}})
+ assert.deepEqual((await refreshed).data,['new']);await before
+})

@@ -90,7 +90,7 @@ function historyBalance(rows) {
 function publicEntry(row) {
   const keys = ['_id', 'customer_id', 'kind', 'biz_date', 'payment_method', 'voucher_ref', 'note', 'status',
     'operation_id', 'account_version', 'created_at', 'created_by', 'created_by_name', 'updated_at',
-    'receipt_id', 'original_entry_id', 'reason', 'void_reason', 'voided_at', 'voided_by', 'voided_by_name', 'void_entry_id']
+    'receipt_id', 'original_entry_id', 'reason', 'void_reason', 'voided_at', 'voided_by', 'voided_by_name', 'void_entry_id', 'intake_id', 'source_type', 'proof_images']
   return { ...Object.fromEntries(keys.filter(key => row[key] !== undefined).map(key => [key, row[key]])),
     amount: row.amount_cents / 100, amount_cents: row.amount_cents,
     cash_direction: row.kind === 'receive' ? 'in' : row.kind === 'refund' ? 'out' : 'none' }

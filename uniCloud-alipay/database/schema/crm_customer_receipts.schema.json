@@ -20,35 +20,222 @@
     "updated_at"
   ],
   "properties": {
-    "_id": { "bsonType": "string" },
-    "customer_id": { "bsonType": "string" },
-    "customer_name": { "bsonType": "string" },
-    "biz_date": { "bsonType": "string" },
-    "amount": { "bsonType": ["number", "null"] },
-    "rounding_amount": { "bsonType": ["number", "null"] },
-    "allocated_amount": { "bsonType": ["number", "null"] },
-    "rounding_allocated_amount": { "bsonType": ["number", "null"] },
-    "unallocated_amount": { "bsonType": ["number", "null"] },
-    "payment_method": { "bsonType": "string" },
-    "allocation_mode": { "bsonType": ["string", "null"] },
-    "allocation_start_date": { "bsonType": ["string", "null"] },
-    "allocation_end_date": { "bsonType": ["string", "null"] },
-    "note": { "bsonType": "string" },
-    "source_type": { "bsonType": "string" },
-    "source_id": { "bsonType": ["string", "null"] },
-    "receipt_adjustment_status": { "bsonType": ["string", "null"] },
-    "receipt_adjustment_id": { "bsonType": ["string", "null"] },
-    "receipt_adjustment_rollback_strategy": { "bsonType": ["string", "null"] },
-    "receipt_adjustment_snapshot": { "bsonType": ["object", "null"] },
-    "receipt_adjustment_started_at": { "bsonType": ["number", "null"] },
-    "receipt_adjustment_finished_at": { "bsonType": ["number", "null"] },
-    "receipt_adjustment_request_id": { "bsonType": ["string", "null"] },
-    "status": { "bsonType": "string" },
-    "request_id": { "bsonType": "string" },
-    "created_at": { "bsonType": "number" },
-    "created_by": { "bsonType": ["string", "null"] },
-    "created_by_name": { "bsonType": "string" },
-    "updated_at": { "bsonType": "number" }
+    "_id": {
+      "bsonType": "string"
+    },
+    "customer_id": {
+      "bsonType": "string"
+    },
+    "customer_name": {
+      "bsonType": "string"
+    },
+    "biz_date": {
+      "bsonType": "string"
+    },
+    "amount": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "rounding_amount": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "allocated_amount": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "rounding_allocated_amount": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "unallocated_amount": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "payment_method": {
+      "bsonType": "string"
+    },
+    "allocation_mode": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "allocation_start_date": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "allocation_end_date": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "note": {
+      "bsonType": "string"
+    },
+    "source_type": {
+      "bsonType": "string"
+    },
+    "source_id": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "receipt_adjustment_status": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "receipt_adjustment_id": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "receipt_adjustment_rollback_strategy": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "receipt_adjustment_snapshot": {
+      "bsonType": [
+        "object",
+        "null"
+      ]
+    },
+    "receipt_adjustment_started_at": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "receipt_adjustment_finished_at": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "receipt_adjustment_request_id": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "bsonType": "string"
+    },
+    "request_id": {
+      "bsonType": "string"
+    },
+    "created_at": {
+      "bsonType": "number"
+    },
+    "created_by": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "created_by_name": {
+      "bsonType": "string"
+    },
+    "updated_at": {
+      "bsonType": "number"
+    },
+    "intake_id": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "purpose": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "entry_kind": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "updated_by": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "updated_by_name": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "void_reason": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "void_by": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "intake_version": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "money_scale": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "proof_images_count": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "void_at": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "intake_ever_used": {
+      "bsonType": "bool"
+    },
+    "proof_images": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "string"
+      }
+    },
+    "allocation_targets": {
+      "bsonType": "array"
+    }
   },
   "permission": {
     "read": false,
@@ -57,11 +244,67 @@
     "delete": false
   },
   "indexes": [
-    { "key": { "customer_id": 1, "_id": 1 }, "name": "idx_customer_read_cursor" },
-    { "key": { "customer_id": 1, "biz_date": -1, "created_at": -1 }, "name": "idx_customer_bizdate_created" },
-    { "key": { "customer_id": 1, "status": 1, "biz_date": -1 }, "name": "idx_customer_status_date" },
-    { "key": { "customer_id": 1, "unallocated_amount": -1, "biz_date": 1, "created_at": 1 }, "name": "idx_customer_unallocated" },
-    { "key": { "source_type": 1, "source_id": 1 }, "name": "idx_source" },
-    { "key": { "request_id": 1 }, "name": "idx_request_id" }
+    {
+      "key": {
+        "customer_id": 1,
+        "_id": 1
+      },
+      "name": "idx_customer_read_cursor"
+    },
+    {
+      "key": {
+        "customer_id": 1,
+        "biz_date": -1,
+        "created_at": -1
+      },
+      "name": "idx_customer_bizdate_created"
+    },
+    {
+      "key": {
+        "customer_id": 1,
+        "status": 1,
+        "biz_date": -1
+      },
+      "name": "idx_customer_status_date"
+    },
+    {
+      "key": {
+        "customer_id": 1,
+        "unallocated_amount": -1,
+        "biz_date": 1,
+        "created_at": 1
+      },
+      "name": "idx_customer_unallocated"
+    },
+    {
+      "key": {
+        "source_type": 1,
+        "source_id": 1
+      },
+      "name": "idx_source"
+    },
+    {
+      "key": {
+        "request_id": 1
+      },
+      "name": "idx_request_id"
+    },
+    {
+      "key": {
+        "source_type": 1,
+        "status": 1,
+        "biz_date": -1,
+        "created_at": -1,
+        "_id": -1
+      },
+      "name": "idx_cashier_intake_date"
+    },
+    {
+      "key": {
+        "source_type": 1,
+        "updated_at": -1
+      },
+      "name": "idx_cashier_intake_updated"
+    }
   ]
 }

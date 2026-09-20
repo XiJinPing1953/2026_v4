@@ -1,27 +1,18 @@
 {
   "bsonType": "object",
-  "description": "Independent customer deposit entries; server-only, integer cents, versioned audit trail",
+  "description": "One actual cashier arrival; references gas and deposit ledgers, never a third funding event",
   "additionalProperties": false,
   "required": [
     "_id",
     "customer_id",
-    "rule_version",
-    "operation_id",
-    "fingerprint",
-    "command",
-    "operation_result",
-    "account_version",
-    "amount_cents",
+    "amount",
+    "gas_amount",
+    "deposit_amount",
     "kind",
-    "biz_date",
-    "payment_method",
-    "voucher_ref",
-    "note",
     "status",
-    "created_at",
-    "updated_at",
-    "created_by",
-    "created_by_name"
+    "version",
+    "receipt_id",
+    "deposit_entry_id"
   ],
   "properties": {
     "_id": {
@@ -30,25 +21,34 @@
     "customer_id": {
       "bsonType": "string"
     },
-    "rule_version": {
+    "customer_name": {
       "bsonType": "string"
     },
-    "operation_id": {
+    "intake_id": {
       "bsonType": "string"
     },
-    "fingerprint": {
+    "receipt_id": {
       "bsonType": "string"
     },
-    "created_by": {
+    "deposit_entry_id": {
       "bsonType": "string"
     },
-    "created_by_name": {
+    "kind": {
+      "bsonType": "string"
+    },
+    "purpose": {
       "bsonType": "string"
     },
     "status": {
       "bsonType": "string"
     },
-    "kind": {
+    "command": {
+      "bsonType": "string"
+    },
+    "operation_id": {
+      "bsonType": "string"
+    },
+    "reason": {
       "bsonType": "string"
     },
     "biz_date": {
@@ -57,37 +57,40 @@
     "payment_method": {
       "bsonType": "string"
     },
-    "voucher_ref": {
-      "bsonType": "string"
-    },
     "note": {
       "bsonType": "string"
     },
-    "receipt_id": {
+    "created_by": {
       "bsonType": "string"
     },
-    "original_entry_id": {
+    "created_by_name": {
       "bsonType": "string"
     },
-    "reason": {
-      "bsonType": "string"
-    },
-    "void_entry_id": {
+    "updated_by": {
       "bsonType": "string"
     },
     "void_reason": {
       "bsonType": "string"
     },
-    "voided_by": {
+    "void_by": {
       "bsonType": "string"
     },
-    "voided_by_name": {
-      "bsonType": "string"
-    },
-    "account_version": {
+    "amount": {
       "bsonType": "number"
     },
-    "amount_cents": {
+    "gas_amount": {
+      "bsonType": "number"
+    },
+    "deposit_amount": {
+      "bsonType": "number"
+    },
+    "money_scale": {
+      "bsonType": "number"
+    },
+    "version": {
+      "bsonType": "number"
+    },
+    "expected_version": {
       "bsonType": "number"
     },
     "created_at": {
@@ -96,23 +99,11 @@
     "updated_at": {
       "bsonType": "number"
     },
-    "voided_at": {
+    "void_at": {
       "bsonType": "number"
     },
-    "command": {
-      "bsonType": "object"
-    },
-    "operation_result": {
-      "bsonType": "object"
-    },
-    "receipt_original": {
-      "bsonType": "object"
-    },
-    "intake_id": {
-      "bsonType": "string"
-    },
-    "source_type": {
-      "bsonType": "string"
+    "legacy": {
+      "bsonType": "bool"
     },
     "proof_images": {
       "bsonType": "array",

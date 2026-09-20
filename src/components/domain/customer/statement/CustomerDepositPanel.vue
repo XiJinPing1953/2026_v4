@@ -75,10 +75,25 @@
 		<AppList :loading="loading" :empty="!!statement && statement.entries.length === 0" empty-title="所选期间暂无已登记押金流水">
 			<AppListItem v-for="entry in statement?.entries || []" :key="entry.entry_id" :title="entry.kind === 'void' ? '作废留痕' : depositKindLabel(entry.kind)" :subtitle="`${entry.biz_date} · 单据 ${entry.entry_id}`" :status="entry.status === 'void' ? '已作废' : (entry.kind === 'void' ? '留痕' : '已登记')" :status-kind="entry.status === 'void' ? 'warning' : 'info'" icon="wallet">
 				<template #right><text class="deposit-summary-value">¥{{ depositMoneyText(entry.amount) }}</text></template>
-				<text class="deposit-hint">{{ depositChannelLabel(entry.payment_method) }}{{ entry.voucher_ref ? ` · 依据 ${entry.voucher_ref}` : '' }}{{ entry.note ? ` · ${entry.note}` : '' }}</text>
+				<text class="deposit-hint">{{ depositChannelLabel(entry.payment_method) }}{{ entry.voucher_ref ? ` · 依据 ${entry.voucher_ref}` : '' }}</text>
+				<text v-if="entry.source_type === 'cashier_intake' || entry.intake_id" class="deposit-hint deposit-hint--source">
+					来源：出纳到账{{ entry.intake_id ? ` · 到账单 ${entry.intake_id}` : '' }}{{ entry.created_by_name ? ` · 出纳 ${entry.created_by_name}` : '' }}{{ Number.isFinite(Number(entry.proof_images_count)) ? ` · 凭证 ${Math.max(0, Math.floor(Number(entry.proof_images_count)))} 张` : '' }}
+				</text>
+				<text v-if="isCashierIntakeEntry(entry) && entry.status === 'posted'" class="deposit-hint deposit-hint--warning">此押金来自出纳到账，原流水不可单独作废；请从到账原单统一更正。退还押金或转气款仍可使用上方登记入口。</text>
+				<text v-if="entry.note" class="deposit-hint">备注：{{ entry.note }}</text>
 				<text v-if="entry.void_reason || entry.reason" class="deposit-hint">作废原因：{{ entry.void_reason || entry.reason }}</text>
 				<text v-if="entry.kind === 'void'" class="deposit-hint">原单 {{ entry.original_entry_id }} · 作废登记 {{ formatDepositTime(entry.created_at) }}</text>
-				<template #footer><AppButton v-if="canUpdate && entry.status === 'posted' && entry.kind !== 'void'" size="sm" kind="outline" :disabled="busy || unresolved || loading || !statement" @click="beginVoid(entry)">作废</AppButton></template>
+				<template #footer>
+					<AppButton
+						v-if="canUpdate && entry.status === 'posted' && entry.kind !== 'void'"
+						size="sm"
+						kind="outline"
+						:disabled="busy || unresolved || loading || !statement || isCashierIntakeEntry(entry)"
+						@click="beginVoid(entry)"
+					>
+						{{ isCashierIntakeEntry(entry) ? '请从到账原单更正' : '作废' }}
+					</AppButton>
+				</template>
 			</AppListItem>
 		</AppList>
 	</view>
@@ -373,6 +388,10 @@ async function confirmEntry() {
 
 function beginVoid(entry) {
 	if (!writeReady.value || unresolved.value || entry.status !== 'posted' || entry.kind === 'void') return
+	if (isCashierIntakeEntry(entry)) {
+		actionIssue.value = '此押金来自出纳到账，请从到账原单统一更正，不能单独作废押金流水。'
+		return
+	}
 	if (entry.kind === 'opening' && !canOpening.value) {
 		actionIssue.value = '期初押金转入的作废需要管理员或财务权限。'
 		return
@@ -382,6 +401,10 @@ function beginVoid(entry) {
 	preview.value = null
 	operation.value = null
 	actionIssue.value = ''
+}
+
+function isCashierIntakeEntry(entry) {
+	return String(entry?.source_type || '').trim() === 'cashier_intake' || Boolean(String(entry?.intake_id || '').trim())
 }
 
 async function confirmVoid() {
@@ -450,6 +473,7 @@ onBeforeUnmount(() => { destroyed = true; scopeGeneration += 1; requestSerial +=
 .deposit-head, .deposit-operation { display: flex; justify-content: space-between; align-items: center; gap: 16rpx; flex-wrap: wrap; }
 .deposit-hint { display: block; font-size: 24rpx; line-height: 1.6; color: var(--crm-text-muted); overflow-wrap: anywhere; }
 .deposit-hint--warning { color: #9d5e00; }
+.deposit-hint--source { color: #0b5cab; }
 .deposit-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16rpx; }
 .deposit-summary-item { padding: 20rpx; border: 1rpx solid var(--crm-border); border-radius: var(--crm-radius-sm); background: #f9fafb; display: flex; flex-direction: column; gap: 8rpx; }
 .deposit-summary-value { font-size: 28rpx; font-weight: 700; color: var(--crm-text); }

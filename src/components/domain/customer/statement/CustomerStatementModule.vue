@@ -224,6 +224,9 @@
 						<text v-if="item.meta" class="operation-summary-card__meta">{{ item.meta }}</text>
 					</view>
 				</view>
+				<text v-if="['receipt', 'prepay', 'deposit'].includes(activeOperationTab)" class="section-hint section-hint--warning">
+					财务手工收款、预付和押金入口继续保留；若款项已有出纳到账原单，请到“出纳到账”处理原气款或查看押金流水，避免重复登记。
+				</text>
 
 				<view v-if="activeOperationTab === 'receipt'" class="operation-panel receipt-workspace">
 					<view class="receipt-workspace__form">
@@ -672,6 +675,14 @@
 					</AppList>
 				</view>
 
+				<CashierIntakeRecords
+					v-else-if="activeOperationTab === 'cashier_intake'"
+					:customer-id="recordId"
+					:date-from="rowFilters.dateFrom"
+					:date-to="rowFilters.dateTo"
+					@continue-receipt="onContinuePrepayReceipt"
+					@open-deposit="onOpenDepositFromIntake"
+				/>
 				<CustomerRefundPanel v-else-if="activeOperationTab === 'refund'" :customer-id="recordId" @changed="refreshAll" />
 				<CustomerDepositPanel
 					v-else-if="activeOperationTab === 'deposit'"
@@ -708,6 +719,9 @@
 								<view class="receipt-history-meta">
 									<text v-if="receiptSourceTypeText(row.source_type || row.meta?.source_type)" class="row-detail row-detail--source">
 										来源：{{ receiptSourceTypeText(row.source_type || row.meta?.source_type) }}
+									</text>
+									<text v-if="isCashierReceiptRow(row) && (row.intake_id || row.meta?.intake_id)" class="row-detail">
+										出纳到账单 {{ row.intake_id || row.meta?.intake_id }} · 来源用途（仅作来源记录）：{{ receiptPurposeText(row.purpose || row.meta?.purpose) }}
 									</text>
 									<text class="row-detail">{{ receiptAllocationText(row) }}</text>
 									<text class="row-detail row-detail--alloc-scope">{{ receiptAllocationDateScopeText(row) }}</text>
@@ -1053,6 +1067,7 @@ import AppStatCard from '@/components/base/AppStatCard.vue'
 import AppDatePresetBar from '@/components/base/AppDatePresetBar.vue'
 import CustomerRefundPanel from '@/components/domain/customer/statement/CustomerRefundPanel.vue'
 import CustomerDepositPanel from '@/components/domain/customer/statement/CustomerDepositPanel.vue'
+import CashierIntakeRecords from '@/components/domain/customer/statement/CashierIntakeRecords.vue'
 import { buildDatePresetRange, detectDatePreset } from '@/utils/datePreset'
 import {
 	allocateOffsetCreditV1,
@@ -1152,6 +1167,7 @@ const quickSceneApplied = ref(false)
 const salesDetailMode = ref('all')
 const editingReceiptId = ref('')
 const editingReceiptSourceType = ref('')
+const editingReceiptOperationId = ref('')
 const receiptAdjustmentReleasedTargets = ref([])
 const continuingPrepayReceiptId = ref('')
 const continuingPrepayAvailableAmount = ref(0)
@@ -1175,6 +1191,7 @@ const pagedRecentReceipts = computed(() => {
 const rowsSearchRequestSeq = ref(0)
 const operationTabs = [
 	{ label: '登记收款/分配', value: 'receipt' },
+	{ label: '出纳到账', value: 'cashier_intake' },
 	{ label: '冲抵分配', value: 'offset' },
 	{ label: '预付录入', value: 'prepay' },
 	{ label: '押金', value: 'deposit' },
@@ -2438,6 +2455,14 @@ function paymentMethodText(value) {
 	return '现金'
 }
 
+function receiptPurposeText(value) {
+	const purpose = normalizeString(value)
+	if (purpose === 'prepay') return '预付'
+	if (purpose === 'settlement') return '结账'
+	if (!purpose || purpose === 'unspecified') return '未注明'
+	return purpose
+}
+
 function receiptSourceTypeText(value) {
 	const sourceType = normalizeString(value)
 	if (!sourceType) return ''
@@ -3082,6 +3107,10 @@ async function onOperationTabChange(value) {
 	activeOperationTab.value = next
 }
 
+function onOpenDepositFromIntake() {
+	void onOperationTabChange('deposit')
+}
+
 function toggleOpeningDebtRecent() {
 	openingDebtRecentExpanded.value = !openingDebtRecentExpanded.value
 }
@@ -3101,6 +3130,7 @@ function resetReceiptForm() {
 	previewPlan.value = null
 	editingReceiptId.value = ''
 	editingReceiptSourceType.value = ''
+	editingReceiptOperationId.value = ''
 	receiptAdjustmentReleasedTargets.value = []
 	continuingPrepayReceiptId.value = ''
 	continuingPrepayAvailableAmount.value = 0
@@ -4253,6 +4283,7 @@ async function onCreateAutoReceipt() {
 			? await updateReceiptV1({
 				receiptId: editingReceiptId.value,
 				customerId: recordId.value,
+				operationId: editingReceiptOperationId.value,
 				amount,
 				roundingAmount,
 				bizDate: receiptForm.bizDate,
@@ -4405,6 +4436,7 @@ function onContinuePrepayReceipt(row) {
 	activeOperationTab.value = 'receipt'
 	editingReceiptId.value = ''
 	editingReceiptSourceType.value = ''
+	editingReceiptOperationId.value = ''
 	receiptAdjustmentReleasedTargets.value = []
 	continuingPrepayReceiptId.value = receiptId
 	continuingPrepayAvailableAmount.value = available
@@ -4449,6 +4481,7 @@ async function onEditReceipt(row) {
 	activeOperationTab.value = 'receipt'
 	editingReceiptId.value = receiptId
 	editingReceiptSourceType.value = normalizeString(row?.source_type || row?.meta?.source_type)
+	editingReceiptOperationId.value = normalizeString(beginRes?.data?.adjustment_id)
 	receiptAdjustmentReleasedTargets.value = Array.isArray(beginRes?.data?.released_targets)
 		? beginRes.data.released_targets
 		: []

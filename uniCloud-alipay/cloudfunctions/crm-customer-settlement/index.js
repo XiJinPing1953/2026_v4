@@ -7,6 +7,10 @@ const offsetCreditRefund = require('./offsetCreditRefund')
 const customerRefund = require('./customerRefund')
 
 const statementReads = require('./statementReadContext')
+const cashierIntake = require('./cashierIntake')
+const cashierIntakeConfig = require('./cashierIntakeConfig.json')
+const depositModel = require('./depositModel')
+const depositTransactionLocal = require('./depositTransactionLocal')
 const db = uniCloud.database()
 const dbCmd = db.command
 const {
@@ -23,6 +27,7 @@ const sales = db.collection('crm_sale_records')
 const receipts = db.collection('crm_customer_receipts')
 const allocations = db.collection('crm_customer_allocations')
 const receiptAdjustments = db.collection('crm_customer_receipt_adjustments')
+const cashierIntakeOperations = db.collection('crm_cashier_intake_operations')
 const flowSettlements = db.collection('crm_customer_flow_settlements')
 const openingDebts = db.collection('crm_customer_opening_debts')
 const collectionTasks = db.collection('crm_collection_tasks')
@@ -49,6 +54,12 @@ const CASHIER_TARGET_PREVIEW_LIMIT = 3
 const AUTO_PREPAY_ALLOCATION_SOURCE_TYPES = ['sale_auto_prepay', 'flow_auto_prepay']
 const AUTO_PREPAY_REPAIR_CONFIRM_TEXT = 'ROLLBACK_AUTO_PREPAY_ALLOCATIONS'
 const PAGE_ACTION_RULES = {
+	previewReceiptIntakeV2: [{ pagePath: '/pages/cashier/receipt-intake', action: 'view' }],
+	saveReceiptIntakeV2: [{ pagePath: '/pages/cashier/receipt-intake', action: 'view' }],
+	voidReceiptIntakeV2: [{ pagePath: '/pages/cashier/receipt-intake', action: 'delete' }],
+	getReceiptIntakeOperationV2: [{ pagePath: '/pages/cashier/receipt-intake', action: 'view' }],
+	listReceiptIntakeV2: [{ pagePath: '/pages/cashier/receipt-intake', action: 'view' }, { pagePath: '/pages/customer/statement', action: 'view' }],
+	getReceiptIntakeDetailV2: [{ pagePath: '/pages/cashier/receipt-intake', action: 'view' }, { pagePath: '/pages/customer/statement', action: 'view' }],
 	listCustomerRefundsV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	getCustomerRefundOperationV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	previewCustomerRefundV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
@@ -59,6 +70,7 @@ const PAGE_ACTION_RULES = {
 	cancelReceiptAdjustmentV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	updateReceiptV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	allocatePrepayReceiptV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	releaseReceiptAllocationsV2: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	removeReceiptV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	createReceiptIntakeV1: [{ pagePath: '/pages/cashier/receipt-intake', action: 'create' }],
 	updateReceiptIntakeV1: [{ pagePath: '/pages/cashier/receipt-intake', action: 'update' }],
@@ -140,8 +152,19 @@ async function recordLog(user, action, detail = {}, requestId = '') {
 			request_id: requestId,
 			created_at: Date.now()
 		})
+		return true
 	} catch (err) {
 		console.error('[crm-customer-settlement] recordLog failed', action, err)
+		return false
+	}
+}
+
+async function recordCommittedLog(user, action, detail = {}, requestId = '') {
+	try {
+		return (await recordLog(user, action, detail, requestId)) !== false
+	} catch (err) {
+		console.error('[crm-customer-settlement] committed recordLog failed', action, err)
+		return false
 	}
 }
 
@@ -2304,6 +2327,7 @@ async function applyAllocationAndPersist({
 	entryKind
 }) {
 	if (sourceType === customerRefund.SOURCE) return { ok: false, code: 400, msg: '请使用退款登记入口' }
+	if (isCashierReceiptSourceType(sourceType)) return { ok: false, code: 400, msg: '出纳到账来源只能通过带操作号的出纳到账入口创建' }
 	if (isSettlementFeeReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '手续费仅能由受保护核对流程登记' }
 	if (isDepositTransferReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '押金转气款只能由押金专用流程登记' }
 	if (isOpeningPrepayReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '期初预付款仅能从有备份的专用转入流程创建' }
@@ -2903,6 +2927,702 @@ function buildReceiptRollbackTargetGroups(rows = []) {
 	}
 }
 
+function transactionDocument(response) {
+	const value = response && response.data
+	if (Array.isArray(value)) return value.length === 1 ? value[0] : null
+	return value && typeof value === 'object' && !Array.isArray(value) ? value : null
+}
+
+function cashierAccountingError(message, code = 409, details = {}) {
+	throw Object.assign(new Error(message), { code, details })
+}
+
+function sortAccountingScopeRows(rows = []) {
+	return [...(Array.isArray(rows) ? rows : [])].sort((left, right) => {
+		const leftId = normalizeId(left && left._id)
+		const rightId = normalizeId(right && right._id)
+		if (leftId !== rightId) return leftId < rightId ? -1 : 1
+		return depositModel.digest(left).localeCompare(depositModel.digest(right))
+	})
+}
+
+function cashierAccountingOperationContext(user, command = {}) {
+	const actorId = normalizeId(user && user._id)
+	if (!actorId) cashierAccountingError('操作人身份无效', 401)
+	const action = normalizeString(command.action)
+	const operationId = depositModel.operationId(command.operation_id)
+	if (!action) cashierAccountingError('会计操作类型无效', 400)
+	return {
+		actorId,
+		action,
+		operationId,
+		fingerprint: depositModel.digest(command),
+		operationKey: depositModel.digest([
+			'cashier-accounting-operation-v2',
+			action,
+			actorId,
+			operationId
+		]).slice(0, 24),
+		command
+	}
+}
+
+async function readCashierAccountingOperation(context) {
+	if (!context || !context.operationKey) return null
+	// Alipay may throw for a missing doc; a fixed-ID query proves first-operation absence.
+	const saved = transactionDocument(await cashierIntakeOperations.where({ _id: context.operationKey }).limit(1).get())
+	if (!saved) return null
+	if (
+		normalizeId(saved.actor_id) !== context.actorId ||
+		normalizeString(saved.operation_id) !== context.operationId ||
+		normalizeString(saved.command && saved.command.action) !== context.action ||
+		saved.fingerprint !== context.fingerprint
+	) {
+		cashierAccountingError('该操作号已用于不同的会计分配内容，请查询原结果')
+	}
+	if (!saved.result || typeof saved.result !== 'object') cashierAccountingError('原会计分配结果不完整，请人工核对')
+	return saved
+}
+
+function cashierReceiptUpdateCommand(data = {}, operationId) {
+	const targets = data.allocation_targets ?? data.allocationTargets
+	return {
+		action: 'reallocate_receipt',
+		customer_id: normalizeId(data.customer_id || data.customerId),
+		receipt_id: normalizeId(data.receipt_id || data.receiptId || data._id),
+		operation_id: operationId,
+		amount: normalizeString(data.amount),
+		rounding_amount: normalizeString(data.rounding_amount ?? data.roundingAmount),
+		biz_date: normalizeString(data.biz_date || data.bizDate),
+		payment_method: normalizeString(data.payment_method || data.paymentMethod).toLowerCase(),
+		note: normalizeString(data.note),
+		allocation_mode: normalizeString(data.allocation_mode || data.allocationMode).toLowerCase(),
+		allocation_start_date: normalizeDate(data.allocation_start_date || data.allocationStartDate),
+		allocation_end_date: normalizeDate(data.allocation_end_date || data.allocationEndDate),
+		allocation_targets: normalizeAllocationTargets(Array.isArray(targets) ? targets : []),
+		source_type: normalizeString(data.source_type || data.sourceType),
+		source_id: normalizeId(data.source_id ?? data.sourceId),
+		entry_kind: normalizeString(data.entry_kind || data.entryKind)
+	}
+}
+
+function cashierAccountingIdempotentResponse(saved, message, extra = {}) {
+	return {
+		code: 0,
+		msg: message,
+		data: { ...saved.result, idempotent: true, ...extra }
+	}
+}
+
+function cashierMarkerScopeHash(scope = {}) {
+	return depositModel.digest({
+		customer: scope.customer || null,
+		receipt: scope.receipt || null,
+		allocation_rows: sortAccountingScopeRows(scope.allocationRows),
+		adjustments: sortAccountingScopeRows(scope.adjustmentRows),
+		references: sortAccountingScopeRows(scope.referenceRows),
+		source_evidence: scope.sourceEvidence || null
+	})
+}
+
+function cashierAccountingScopeHash(scope = {}) {
+	return depositModel.digest({
+		customer: scope.customer || null,
+		receipt: scope.receipt || null,
+		sales: sortAccountingScopeRows(scope.saleDocs),
+		flow_settlements: sortAccountingScopeRows(scope.flowDocs),
+		opening_debts: sortAccountingScopeRows(scope.openingDebtDocs),
+		receipts: sortAccountingScopeRows(scope.receiptDocs),
+		allocations: sortAccountingScopeRows(scope.allocationDocs),
+		adjustments: sortAccountingScopeRows(scope.adjustmentRows),
+		references: sortAccountingScopeRows(scope.referenceRows),
+		source_evidence: scope.sourceEvidence || null
+	})
+}
+
+async function readCashierReceiptMarkerScope(customerId, receiptId) {
+	const normalizedCustomerId = normalizeId(customerId)
+	const normalizedReceiptId = normalizeId(receiptId)
+	const [customerRes, receiptLinks] = await Promise.all([
+		customers.doc(normalizedCustomerId).get(),
+		depositTransactionLocal.readReceiptScope(db, normalizedCustomerId, normalizedReceiptId)
+	])
+	return {
+		customer: transactionDocument(customerRes),
+		receipt: receiptLinks.receipt || null,
+		allocationRows: sortAccountingScopeRows(receiptLinks.allocations),
+		adjustmentRows: sortAccountingScopeRows(receiptLinks.adjustments),
+		referenceRows: sortAccountingScopeRows(receiptLinks.references),
+		sourceEvidence: receiptLinks.source_evidence || null
+	}
+}
+
+async function readCashierReceiptAccountingScope(customerId, receiptId) {
+	const normalizedCustomerId = normalizeId(customerId)
+	const normalizedReceiptId = normalizeId(receiptId)
+	const [customerRes, receiptLinks, saleDocs, flowDocs, openingDebtDocs] = await Promise.all([
+		customers.doc(normalizedCustomerId).get(),
+		depositTransactionLocal.readReceiptScope(db, normalizedCustomerId, normalizedReceiptId),
+		listCustomerSales(normalizedCustomerId),
+		listCustomerFlowSettlements(normalizedCustomerId),
+		listCustomerOpeningDebts(normalizedCustomerId)
+	])
+	return {
+		customer: transactionDocument(customerRes),
+		receipt: receiptLinks.receipt || null,
+		saleDocs: sortAccountingScopeRows(saleDocs),
+		flowDocs: sortAccountingScopeRows(flowDocs),
+		openingDebtDocs: sortAccountingScopeRows(openingDebtDocs),
+		receiptDocs: sortAccountingScopeRows(receiptLinks.receipts),
+		allocationDocs: sortAccountingScopeRows(receiptLinks.allocations),
+		adjustmentRows: sortAccountingScopeRows(receiptLinks.adjustments),
+		referenceRows: sortAccountingScopeRows(receiptLinks.references),
+		sourceEvidence: receiptLinks.source_evidence || null
+	}
+}
+
+function assertCashierScopeIdentity(scope, customerId, receiptId) {
+	const normalizedCustomerId = normalizeId(customerId)
+	const normalizedReceiptId = normalizeId(receiptId)
+	if (!scope.customer || normalizeId(scope.customer._id) !== normalizedCustomerId) cashierAccountingError('客户账务原值不存在，请重新查询', 404)
+	if (!scope.receipt || normalizeId(scope.receipt._id) !== normalizedReceiptId) cashierAccountingError('收款单不存在', 404)
+	if (normalizeId(scope.receipt.customer_id) !== normalizedCustomerId) cashierAccountingError('收款单不属于该客户', 400)
+	if (!isCashierReceiptSourceType(scope.receipt.source_type)) cashierAccountingError('该收款单不是出纳到账来源', 400)
+	if (normalizeString(scope.receipt.status) !== 'posted') cashierAccountingError('仅支持处理已入账的出纳到账收款单', 400)
+}
+
+function assertCashierScopeDependencies(scope, { allowedPendingAdjustmentId = '' } = {}) {
+	const customerId = normalizeId(scope.customer && scope.customer._id)
+	const receiptId = normalizeId(scope.receipt && scope.receipt._id)
+	for (const row of scope.allocationRows || scope.allocationDocs || []) {
+		if (normalizeId(row && row.receipt_id) !== receiptId || normalizeId(row && row.customer_id) !== customerId) {
+			cashierAccountingError('发现跨客户或归属异常的反向分配，未执行处理')
+		}
+	}
+	if ((scope.referenceRows || []).length) cashierAccountingError('该到账收款已有退款或下游收款关联，不能直接调整分配')
+	const allowedId = normalizeId(allowedPendingAdjustmentId)
+	const foreignPending = (scope.adjustmentRows || []).find((row) =>
+		normalizeString(row && row.status) === 'pending' && normalizeId(row && row._id) !== allowedId
+	)
+	if (foreignPending) cashierAccountingError('该到账收款存在另一条待处理整单调整，请先核对')
+}
+
+function assertMutationCount(result, field, message) {
+	if (result && result[field] !== undefined && Number(result[field]) !== 1) cashierAccountingError(message)
+}
+
+async function verifyTransactionDocument(transaction, table, original, message) {
+	if (!original || !normalizeId(original._id)) cashierAccountingError(message)
+	let current = null
+	try {
+		current = transactionDocument(await transaction.collection(table).doc(normalizeId(original._id)).get())
+	} catch (_) {
+		cashierAccountingError(message)
+	}
+	if (!current || depositModel.digest(current) !== depositModel.digest(original)) cashierAccountingError(message)
+	return current
+}
+
+async function runTransactionBatches(items, within, label, action, size = 10) {
+	const rows = Array.isArray(items) ? items : Array.from(items || [])
+	const batchSize = Math.max(1, Math.floor(toNumber(size, 10)))
+	for (let index = 0; index < rows.length; index += batchSize) {
+		const batch = rows.slice(index, index + batchSize)
+		await within(label, () => Promise.all(batch.map((item) => action(item))))
+	}
+}
+
+function receiptAdjustmentAllocationRows(snapshot = {}) {
+	return sortAccountingScopeRows(Array.isArray(snapshot && snapshot.allocation_rows) ? snapshot.allocation_rows : [])
+}
+
+async function updateCashierReceiptAdjustmentMarkerAtomic({
+	customerId,
+	receiptId,
+	expectedScope,
+	receiptPatch,
+	requestId,
+	pendingCollectionRow = null,
+	pendingCollectionPatch = null
+}) {
+	if (typeof db.startTransaction !== 'function') cashierAccountingError('当前数据库不支持事务，未修改出纳到账收款单', 503)
+	const expectedHash = cashierMarkerScopeHash(expectedScope)
+	const transaction = await db.startTransaction()
+	const startedAt = Date.now()
+	const deadline = startedAt + 8500
+	let commitAttempted = false
+	let stage = '开始事务'
+	const within = async (label, action) => {
+		stage = label
+		if (Date.now() >= deadline) cashierAccountingError('收款调整事务预算不足，请刷新后重试')
+		return action()
+	}
+	try {
+		await within('核对客户原值', () => verifyTransactionDocument(transaction, 'crm_customers', expectedScope.customer, '客户账务已变化，请重新查询'))
+		await within('核对收款单原值', () => verifyTransactionDocument(transaction, 'crm_customer_receipts', expectedScope.receipt, '出纳到账收款单已变化，请重新查询'))
+		await runTransactionBatches(expectedScope.allocationRows, within, '核对分配原值', (row) =>
+			verifyTransactionDocument(transaction, 'crm_customer_allocations', row, '收款分配已变化，请重新查询'))
+		if (pendingCollectionRow) {
+			const { storage, ...storedPending } = pendingCollectionRow
+			void storage
+			await within('核对调整记录', () => verifyTransactionDocument(transaction, 'crm_customer_receipt_adjustments', storedPending, '整单调整状态已变化，请重新查询'))
+		}
+		const now = Date.now()
+		const customerUpdate = await within('锁定客户账务', () => transaction.collection('crm_customers').doc(normalizeId(customerId)).update({
+			receipt_allocation_revision: requestId,
+			updated_at: now
+		}))
+		assertMutationCount(customerUpdate, 'updated', '客户账务锁定失败，请重新查询')
+		const receiptUpdate = await within('更新整单调整状态', () => transaction.collection('crm_customer_receipts').doc(normalizeId(receiptId)).update(receiptPatch))
+		assertMutationCount(receiptUpdate, 'updated', '出纳到账收款单原值保护失败，请重新查询')
+		if (pendingCollectionRow && pendingCollectionPatch) {
+			const pendingUpdate = await within('更新旧调整记录', () => transaction.collection('crm_customer_receipt_adjustments').doc(normalizeId(pendingCollectionRow._id)).update(pendingCollectionPatch))
+			assertMutationCount(pendingUpdate, 'updated', '整单调整记录原值保护失败，请重新查询')
+		}
+		const outside = await within('复核调整范围', () => readCashierReceiptMarkerScope(customerId, receiptId))
+		if (cashierMarkerScopeHash(outside) !== expectedHash) cashierAccountingError('调整期间收款或分配范围已变化，请重新查询')
+		await within('提交整单调整状态', async () => {
+			commitAttempted = true
+			await transaction.commit()
+		})
+		return { committed: true, transaction_ms: Date.now() - startedAt }
+	} catch (error) {
+		await transaction.rollback().catch(() => {})
+		if (commitAttempted) {
+			error.message = '提交结果待查询，请刷新收款单核对后再操作：' + (error.message || '提交状态未知')
+			error.details = { ...(error.details || {}), commit_status_unknown: true }
+		} else if (stage && error && error.message && !error.message.startsWith(stage)) {
+			error.message = `${stage}：${error.message}`
+		}
+		throw error
+	}
+}
+
+function buildCashierTargetMaps(scope = {}) {
+	return {
+		sales: new Map((scope.saleDocs || []).map((doc) => [normalizeId(doc && doc._id), { ...(doc || {}) }])),
+		flows: new Map((scope.flowDocs || []).map((doc) => [normalizeId(doc && doc._id), { ...(doc || {}) }])),
+		debts: new Map((scope.openingDebtDocs || []).map((doc) => [normalizeId(doc && doc._id), { ...(doc || {}) }]))
+	}
+}
+
+function targetMapDocument(targetMaps, targetType, targetId) {
+	if (targetType === 'flow_settlement') return targetMaps.flows.get(targetId) || null
+	if (targetType === 'opening_debt' || targetType === 'other_fee' || targetType === 'balance_adjustment') return targetMaps.debts.get(targetId) || null
+	return targetMaps.sales.get(targetId) || null
+}
+
+function assertMoneyEqual(left, right, scale, message) {
+	if (Math.abs(fixByScale(toNumber(left, 0) - toNumber(right, 0), scale)) > moneyEpsilon(scale)) cashierAccountingError(message)
+}
+
+function requireAccountingAmount(value, label, { positive = false } = {}) {
+	if (value == null || value === '' || (typeof value !== 'number' && typeof value !== 'string')) cashierAccountingError(`${label}缺失或格式无效，未执行调整`)
+	const amount = Number(value)
+	if (!Number.isFinite(amount) || amount < 0 || (positive && !(amount > 0))) cashierAccountingError(`${label}缺失或格式无效，未执行调整`)
+	return amount
+}
+
+function projectCashierReceiptRollback({ scope, targetMaps, allocationRows, receiptDoc }) {
+	const customerId = normalizeId(scope.customer && scope.customer._id)
+	const receiptId = normalizeId(receiptDoc && receiptDoc._id)
+	const moneyScale = resolveCustomerMoneyScale(scope.customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const rows = Array.isArray(allocationRows) ? allocationRows : []
+	const receiptAmount = fixMoney(requireAccountingAmount(receiptDoc && receiptDoc.amount, '收款金额', { positive: true }))
+	const receiptAllocated = fixMoney(requireAccountingAmount(receiptDoc && receiptDoc.allocated_amount, '收款已分配金额'))
+	const receiptUnallocated = fixMoney(requireAccountingAmount(receiptDoc && receiptDoc.unallocated_amount, '收款待分配金额'))
+	const receiptRounding = fixMoney(requireAccountingAmount(receiptDoc && receiptDoc.rounding_amount, '收款抹零金额'))
+	const receiptRoundingAllocated = fixMoney(requireAccountingAmount(receiptDoc && receiptDoc.rounding_allocated_amount, '收款已分配抹零金额'))
+	assertMoneyEqual(receiptAllocated + receiptUnallocated, receiptAmount, moneyScale, '收款金额与已分配、待分配合计不一致，未执行调整')
+	if (receiptRoundingAllocated - receiptRounding > moneyEpsilon(moneyScale)) cashierAccountingError('收款已分配抹零超过抹零金额，未执行调整')
+	for (const row of rows) {
+		if (!normalizeId(row && row._id)) cashierAccountingError('收款分配缺少固定编号，未执行调整')
+		if (normalizeId(row && row.customer_id) !== customerId || normalizeId(row && row.receipt_id) !== receiptId) cashierAccountingError('收款分配归属不一致，未执行调整')
+		requireAccountingAmount(row && row.allocate_amount, '收款分配金额', { positive: true })
+	}
+	const grouped = buildReceiptRollbackTargetGroups(rows)
+	if (grouped.skipped) cashierAccountingError('收款分配存在无效金额或目标，未执行调整')
+	const receiptRowTotal = fixMoney(rows.reduce((sum, row) => normalizeAllocateKind(row && row.allocate_kind, 'receipt') === 'receipt'
+		? sum + toNumber(row && row.allocate_amount, 0)
+		: sum, 0))
+	const roundingRowTotal = fixMoney(rows.reduce((sum, row) => normalizeAllocateKind(row && row.allocate_kind, 'receipt') === 'rounding'
+		? sum + toNumber(row && row.allocate_amount, 0)
+		: sum, 0))
+	assertMoneyEqual(receiptRowTotal, receiptAllocated, moneyScale, '收款单已分配金额与分配明细不一致，未执行调整')
+	assertMoneyEqual(roundingRowTotal, receiptRoundingAllocated, moneyScale, '收款单抹零金额与分配明细不一致，未执行调整')
+
+	const touched = new Set()
+	let rollbackTotal = 0
+	for (const group of grouped.groups) {
+		const targetType = normalizeReceivableTargetType(group.target_type)
+		const targetId = normalizeId(group.target_id)
+		const doc = targetMapDocument(targetMaps, targetType, targetId)
+		if (!doc || normalizeId(doc.customer_id) !== customerId) cashierAccountingError('原分配目标不存在或归属已变化，未执行调整')
+		if ((targetType === 'flow_settlement' || targetType === 'opening_debt' || targetType === 'other_fee' || targetType === 'balance_adjustment') && normalizeString(doc.status) !== 'posted') {
+			cashierAccountingError('原分配目标状态已变化，未执行调整')
+		}
+		requireAccountingAmount(doc.amount_received, '原分配目标已收金额')
+		requireAccountingAmount(doc.receipt_rounding_amount ?? 0, '原分配目标已分配抹零')
+		const scale = targetType === 'flow_settlement' ? 3
+			: targetType === 'sale' ? 2
+				: resolveOpeningDebtMoneyScale(doc, moneyScale)
+		const fixTarget = (value) => fixByScale(value, scale)
+		const snapshot = targetType === 'flow_settlement'
+			? computeFlowSettlementSnapshot(doc)
+			: targetType === 'sale'
+				? computeSaleSnapshot(doc)
+				: computeOpeningDebtSnapshot(doc, scale)
+		const receiptAmount = fixTarget(group.receipt_amount_raw)
+		const roundingAmount = fixTarget(group.rounding_amount_raw)
+		if (receiptAmount - snapshot.amount_received > moneyEpsilon(scale) || roundingAmount - snapshot.receipt_rounding_amount > moneyEpsilon(scale)) {
+			cashierAccountingError('原分配目标已收金额不足以完整回滚，未执行调整')
+		}
+		const nextAmountReceived = fixTarget(snapshot.amount_received - receiptAmount)
+		const nextReceiptRounding = fixTarget(snapshot.receipt_rounding_amount - roundingAmount)
+		const nextPaidTotal = fixTarget(nextAmountReceived + nextReceiptRounding)
+		if (targetType === 'flow_settlement') {
+			doc.amount_received = nextAmountReceived
+			doc.receipt_rounding_amount = nextReceiptRounding
+			doc.payment_status = resolvePaymentStatusByAmount(snapshot.should_receive, nextPaidTotal, 3)
+		} else if (targetType === 'sale') {
+			doc.amount_received = nextAmountReceived
+			doc.receipt_rounding_amount = nextReceiptRounding
+			doc.payment_status = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal, 2)
+		} else {
+			doc.amount_received = nextAmountReceived
+			doc.receipt_rounding_amount = nextReceiptRounding
+			doc.outstanding = fixTarget(Math.max(snapshot.should_receive_effective - nextPaidTotal, 0))
+			doc.payment_status = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal, scale)
+		}
+		touched.add(`${targetType}:${targetId}`)
+		rollbackTotal = fix3(rollbackTotal + receiptAmount + roundingAmount)
+	}
+	return { rows: rows.length, rollback_total: rollbackTotal, touched }
+}
+
+function buildCashierReceiptPlanFromProjectedTargets(customer, targetMaps, amount, roundingAmount, allocation = {}) {
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const cashAmount = fixMoney(toNumber(amount, 0))
+	const rounding = fixMoney(toNumber(roundingAmount, 0))
+	if (cashAmount < 0) return { ok: false, code: 400, msg: '收款金额不能小于0' }
+	if (rounding < 0) return { ok: false, code: 400, msg: '抹零金额不能小于0' }
+	if (!(cashAmount > 0 || rounding > 0)) return { ok: false, code: 400, msg: '收款金额和抹零金额不能同时为0' }
+	const mode = normalizeAllocationMode(allocation.allocation_mode, 'period')
+	const startDate = normalizeDate(allocation.allocation_start_date)
+	const endDate = normalizeDate(allocation.allocation_end_date)
+	const targets = normalizeAllocationTargets(allocation.allocation_targets || [])
+	if (mode === 'period' && (!startDate || !endDate || startDate > endDate)) return { ok: false, code: 400, msg: '分配日期范围无效' }
+	if (mode === 'checked' && !targets.length) return { ok: false, code: 400, msg: '请先勾选至少一条待分配单据' }
+	const targetKeys = new Set(targets.map((item) => `${normalizeReceivableTargetType(item.target_type)}:${normalizeId(item.target_id)}`))
+	const receivableRows = buildReceivableTargetRows({
+		saleDocs: Array.from(targetMaps.sales.values()),
+		flowDocs: Array.from(targetMaps.flows.values()),
+		openingDebtDocs: Array.from(targetMaps.debts.values()),
+		moneyScale
+	})
+	const outstandingRows = receivableRows
+		.filter((row) => {
+			if (!(row.outstanding > 0)) return false
+			if (mode === 'checked') return targetKeys.has(`${normalizeReceivableTargetType(row.target_type)}:${normalizeId(row.target_id)}`)
+			const date = normalizeDate(row.target_date)
+			return Boolean(date && date >= startDate && date <= endDate)
+		})
+		.sort((left, right) => left.target_date === right.target_date
+			? normalizeId(left.target_id).localeCompare(normalizeId(right.target_id))
+			: normalizeDate(left.target_date).localeCompare(normalizeDate(right.target_date)))
+	const combinedAmount = fixMoney(cashAmount + rounding)
+	let remaining = combinedAmount
+	const allocationsPlan = []
+	for (const row of outstandingRows) {
+		if (remaining <= 0) break
+		const amountUse = fixMoney(Math.min(toNumber(row.outstanding, 0), remaining))
+		if (!(amountUse > 0)) continue
+		allocationsPlan.push({
+			target_type: row.target_type,
+			target_id: row.target_id,
+			target_title: row.target_title,
+			sale_id: row.sale_id,
+			sale_date: row.target_date,
+			should_receive: row.should_receive,
+			amount_received: row.amount_received,
+			outstanding_before: row.outstanding,
+			allocate_amount: amountUse,
+			outstanding_after: fixMoney(row.outstanding - amountUse)
+		})
+		remaining = fixMoney(remaining - amountUse)
+	}
+	const basePlan = {
+		ok: true,
+		customer_id: normalizeId(customer && customer._id),
+		customer_name: normalizeString(customer && customer.name),
+		money_scale: moneyScale,
+		amount: combinedAmount,
+		allocation_mode: mode,
+		allocation_start_date: mode === 'period' ? startDate : '',
+		allocation_end_date: mode === 'period' ? endDate : '',
+		allocation_targets: targets,
+		allocations: allocationsPlan
+	}
+	const split = splitReceiptAndRoundingAllocations(basePlan, cashAmount, rounding, moneyScale)
+	if (rounding > 0 && split.rounding_allocated_total < rounding) return { ok: false, code: 400, msg: '抹零金额超过可冲销欠款' }
+	return {
+		...basePlan,
+		amount: cashAmount,
+		rounding_amount: rounding,
+		total_amount: combinedAmount,
+		allocations: split.merged_allocations,
+		allocations_receipt: split.receipt_allocations,
+		allocations_rounding: split.rounding_allocations,
+		allocated_total: fixMoney(split.receipt_allocated_total + split.rounding_allocated_total),
+		receipt_allocated_total: split.receipt_allocated_total,
+		rounding_allocated_total: split.rounding_allocated_total,
+		prepay_amount: split.prepay_amount
+	}
+}
+
+function projectCashierReceiptPlan({ user, requestId, scope, targetMaps, receiptDoc, plan, allocationNote = '' }) {
+	const customer = scope.customer
+	const customerId = normalizeId(customer && customer._id)
+	const receiptId = normalizeId(receiptDoc && receiptDoc._id)
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const normalizedMode = normalizeAllocationMode(plan && plan.allocation_mode, 'period')
+	const normalizedTargets = normalizeAllocationTargets(plan && plan.allocation_targets)
+	const receiptSourceType = normalizeString(receiptDoc && receiptDoc.source_type)
+	const receiptEntryKind = normalizeEntryKind(receiptDoc && receiptDoc.entry_kind, 'prepay')
+	const newAllocationRows = []
+	const touched = new Set()
+	let receiptAllocatedTotal = 0
+	let roundingAllocatedTotal = 0
+	let seq = 1
+	for (const item of resolvePlanAllocationItems(plan)) {
+		const targetType = normalizeReceivableTargetType(item && item.target_type)
+		const targetId = normalizeId(item && (item.target_id || item.sale_id))
+		const allocateKind = normalizeAllocateKind(item && item.allocate_kind, 'receipt')
+		if (!targetId) cashierAccountingError('新分配目标编号无效，未执行调整')
+		const doc = targetMapDocument(targetMaps, targetType, targetId)
+		if (!doc || normalizeId(doc.customer_id) !== customerId) cashierAccountingError('新分配目标不存在或归属已变化，未执行调整')
+		if ((targetType === 'flow_settlement' || targetType === 'opening_debt' || targetType === 'other_fee' || targetType === 'balance_adjustment') && normalizeString(doc.status) !== 'posted') {
+			cashierAccountingError('新分配目标状态已变化，未执行调整')
+		}
+		const scale = targetType === 'flow_settlement' ? 3
+			: targetType === 'sale' ? 2
+				: resolveOpeningDebtMoneyScale(doc, moneyScale)
+		const fixTarget = (value) => fixByScale(value, scale)
+		const snapshot = targetType === 'flow_settlement'
+			? computeFlowSettlementSnapshot(doc)
+			: targetType === 'sale'
+				? computeSaleSnapshot(doc)
+				: computeOpeningDebtSnapshot(doc, scale)
+		const requested = fixTarget(toNumber(item && item.allocate_amount, 0))
+		if (!(requested > 0) || requested - snapshot.outstanding > moneyEpsilon(scale)) cashierAccountingError('新分配金额超过目标可冲销欠款，未执行调整')
+		const nextAmountReceived = allocateKind === 'receipt' ? fixTarget(snapshot.amount_received + requested) : snapshot.amount_received
+		const nextReceiptRounding = allocateKind === 'rounding' ? fixTarget(snapshot.receipt_rounding_amount + requested) : snapshot.receipt_rounding_amount
+		const nextPaidTotal = fixTarget(nextAmountReceived + nextReceiptRounding)
+		if (targetType === 'flow_settlement') {
+			doc.amount_received = nextAmountReceived
+			doc.receipt_rounding_amount = nextReceiptRounding
+			doc.payment_status = resolvePaymentStatusByAmount(snapshot.should_receive, nextPaidTotal, 3)
+		} else if (targetType === 'sale') {
+			doc.amount_received = nextAmountReceived
+			doc.receipt_rounding_amount = nextReceiptRounding
+			doc.payment_status = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal, 2)
+		} else {
+			doc.amount_received = nextAmountReceived
+			doc.receipt_rounding_amount = nextReceiptRounding
+			doc.outstanding = fixTarget(Math.max(snapshot.should_receive_effective - nextPaidTotal, 0))
+			doc.payment_status = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal, scale)
+		}
+		const targetDate = normalizeString(targetType === 'sale' ? doc.date : doc.biz_date)
+		const targetTitle = normalizeString(item && item.target_title) || (targetType === 'sale'
+			? `销售单 ${targetDate} / ${targetId.slice(-6)}`
+			: targetType === 'flow_settlement'
+				? `流量结算 ${targetDate} / ${targetId.slice(-6)}`
+				: buildOpeningDebtTargetTitle({ entryType: targetType, bizDate: targetDate, targetId }))
+		newAllocationRows.push({
+			receipt_id: receiptId,
+			customer_id: customerId,
+			customer_name: normalizeString(customer && customer.name),
+			sale_id: targetId,
+			sale_date: targetDate,
+			flow_settlement_id: targetType === 'flow_settlement' ? targetId : null,
+			target_type: targetType,
+			target_id: targetId,
+			target_title: targetTitle,
+			biz_date: normalizeDate(receiptDoc && receiptDoc.biz_date),
+			allocate_kind: allocateKind,
+			allocate_amount: requested,
+			seq,
+			note: normalizeString(allocationNote),
+			receipt_source_type: receiptSourceType,
+			receipt_entry_kind: receiptEntryKind,
+			receipt_biz_date: normalizeDate(receiptDoc && receiptDoc.biz_date),
+			allocation_mode: normalizedMode,
+			allocation_start_date: normalizeDate(plan && plan.allocation_start_date),
+			allocation_end_date: normalizeDate(plan && plan.allocation_end_date),
+			allocation_targets: normalizedTargets,
+			source_type: receiptSourceType,
+			source_id: normalizeId(receiptDoc && receiptDoc.source_id) || null,
+			request_id: requestId,
+			created_at: Date.now(),
+			created_by: normalizeId(user && user._id) || null,
+			created_by_name: normalizeString(user && user.username)
+		})
+		seq += 1
+		touched.add(`${targetType}:${targetId}`)
+		if (allocateKind === 'rounding') roundingAllocatedTotal = fixMoney(roundingAllocatedTotal + requested)
+		else receiptAllocatedTotal = fixMoney(receiptAllocatedTotal + requested)
+	}
+	assertMoneyEqual(receiptAllocatedTotal, plan && plan.receipt_allocated_total, moneyScale, '新分配现金合计未完整应用，未执行调整')
+	assertMoneyEqual(roundingAllocatedTotal, plan && plan.rounding_allocated_total, moneyScale, '新分配抹零合计未完整应用，未执行调整')
+	return {
+		newAllocationRows,
+		touched,
+		receipt_allocated_total: receiptAllocatedTotal,
+		rounding_allocated_total: roundingAllocatedTotal,
+		allocated_total: fixMoney(receiptAllocatedTotal + roundingAllocatedTotal),
+		prepay_amount: fixMoney(toNumber(receiptDoc && receiptDoc.amount, 0) - receiptAllocatedTotal)
+	}
+}
+
+function buildCashierCustomerBalancePatch(customer, targetMaps, receiptDocs, projectedReceipt, requestId, now) {
+	const moneyScale = resolveCustomerMoneyScale(customer)
+	const fixMoney = (value) => fixByScale(value, moneyScale)
+	const projectedReceipts = sortAccountingScopeRows((receiptDocs || []).map((row) => normalizeId(row && row._id) === normalizeId(projectedReceipt && projectedReceipt._id)
+		? { ...row, ...projectedReceipt }
+		: row))
+	if (!projectedReceipts.some((row) => normalizeId(row && row._id) === normalizeId(projectedReceipt && projectedReceipt._id))) cashierAccountingError('客户收款范围不完整，未执行调整')
+	const prepay = depositTransactionLocal.prepayPatch(projectedReceipts)
+	const receivable = fixMoney([
+		...Array.from(targetMaps.sales.values()).map((doc) => computeSaleSnapshot(doc).outstanding),
+		...Array.from(targetMaps.flows.values()).map((doc) => computeFlowSettlementSnapshot(doc).outstanding),
+		...Array.from(targetMaps.debts.values()).map((doc) => computeOpeningDebtSnapshot(doc, resolveOpeningDebtMoneyScale(doc, moneyScale)).outstanding)
+	].reduce((sum, amount) => sum + toNumber(amount, 0), 0))
+	return {
+		...prepay,
+		receivable_balance: receivable,
+		net_balance: fixMoney(receivable - toNumber(prepay.prepay_balance, 0)),
+		receipt_allocation_revision: requestId,
+		updated_at: now
+	}
+}
+
+function targetTableName(targetType) {
+	if (targetType === 'flow_settlement') return 'crm_customer_flow_settlements'
+	if (targetType === 'opening_debt' || targetType === 'other_fee' || targetType === 'balance_adjustment') return 'crm_customer_opening_debts'
+	return 'crm_sale_records'
+}
+
+function targetAccountingPatch(targetType, doc, now) {
+	const patch = {
+		amount_received: doc.amount_received,
+		receipt_rounding_amount: doc.receipt_rounding_amount,
+		payment_status: doc.payment_status,
+		updated_at: now
+	}
+	if (targetType === 'opening_debt' || targetType === 'other_fee' || targetType === 'balance_adjustment') patch.outstanding = doc.outstanding
+	return patch
+}
+
+async function executeCashierReceiptAllocationMutation({
+	user,
+	requestId,
+	scope,
+	targetMaps,
+	touchedTargetKeys,
+	oldAllocationRows,
+	newAllocationRows,
+	projectedReceipt,
+	receiptPatch,
+	pendingCollectionRow = null,
+	pendingCollectionPatch = null,
+	operationRow = null
+}) {
+	if (typeof db.startTransaction !== 'function') cashierAccountingError('当前数据库不支持事务，未修改出纳到账收款单', 503)
+	const expectedHash = cashierAccountingScopeHash(scope)
+	const originalsByTarget = new Map()
+	const originalTargetMaps = buildCashierTargetMaps(scope)
+	for (const targetKey of touchedTargetKeys) {
+		const splitAt = targetKey.indexOf(':')
+		const targetType = targetKey.slice(0, splitAt)
+		const targetId = targetKey.slice(splitAt + 1)
+		const original = targetMapDocument(originalTargetMaps, targetType, targetId)
+		if (!original) cashierAccountingError('分配目标原值范围不完整，未执行调整')
+		originalsByTarget.set(targetKey, original)
+	}
+	const customerPatch = buildCashierCustomerBalancePatch(scope.customer, targetMaps, scope.receiptDocs, projectedReceipt, requestId, Date.now())
+	const transaction = await db.startTransaction()
+	const startedAt = Date.now()
+	const deadline = startedAt + 8500
+	let commitAttempted = false
+	let stage = '开始事务'
+	const within = async (label, action) => {
+		stage = label
+		if (Date.now() >= deadline) cashierAccountingError('收款分配事务预算不足，请保留当前页面并刷新后核对')
+		return action()
+	}
+	try {
+		await within('核对客户原值', () => verifyTransactionDocument(transaction, 'crm_customers', scope.customer, '客户账务已变化，请重新查询'))
+		await within('核对收款单原值', () => verifyTransactionDocument(transaction, 'crm_customer_receipts', scope.receipt, '出纳到账收款单已变化，请重新查询'))
+		await runTransactionBatches(oldAllocationRows, within, '核对旧分配原值', (row) =>
+			verifyTransactionDocument(transaction, 'crm_customer_allocations', row, '原收款分配已变化，请重新查询'))
+		await runTransactionBatches(Array.from(originalsByTarget.entries()), within, '核对分配目标原值', ([targetKey, original]) => {
+			const targetType = targetKey.slice(0, targetKey.indexOf(':'))
+			return verifyTransactionDocument(transaction, targetTableName(targetType), original, '分配目标原值已变化，请重新查询')
+		})
+		if (pendingCollectionRow) {
+			const { storage, ...storedPending } = pendingCollectionRow
+			void storage
+			await within('核对调整记录', () => verifyTransactionDocument(transaction, 'crm_customer_receipt_adjustments', storedPending, '整单调整记录已变化，请重新查询'))
+		}
+		const customerUpdate = await within('更新客户余额与互斥锁', () => transaction.collection('crm_customers').doc(normalizeId(scope.customer._id)).update(customerPatch))
+		assertMutationCount(customerUpdate, 'updated', '客户余额原值保护失败，请重新查询')
+		const now = Date.now()
+		await runTransactionBatches(Array.from(touchedTargetKeys), within, '更新分配目标', async (targetKey) => {
+			const splitAt = targetKey.indexOf(':')
+			const targetType = targetKey.slice(0, splitAt)
+			const targetId = targetKey.slice(splitAt + 1)
+			const projected = targetMapDocument(targetMaps, targetType, targetId)
+			const result = await transaction.collection(targetTableName(targetType)).doc(targetId).update(targetAccountingPatch(targetType, projected, now))
+			assertMutationCount(result, 'updated', '分配目标原值保护失败，请重新查询')
+		})
+		await runTransactionBatches(oldAllocationRows, within, '删除旧分配明细', async (row) => {
+			const result = await transaction.collection('crm_customer_allocations').doc(normalizeId(row._id)).remove()
+			assertMutationCount(result, 'deleted', '旧分配明细原值保护失败，请重新查询')
+		})
+		await runTransactionBatches(newAllocationRows, within, '写入新分配明细', (row) => transaction.collection('crm_customer_allocations').add(row))
+		const receiptUpdate = await within('更新出纳到账收款单', () => transaction.collection('crm_customer_receipts').doc(normalizeId(scope.receipt._id)).update(receiptPatch))
+		assertMutationCount(receiptUpdate, 'updated', '出纳到账收款单原值保护失败，请重新查询')
+		if (pendingCollectionRow && pendingCollectionPatch) {
+			const pendingUpdate = await within('完成旧调整记录', () => transaction.collection('crm_customer_receipt_adjustments').doc(normalizeId(pendingCollectionRow._id)).update(pendingCollectionPatch))
+			assertMutationCount(pendingUpdate, 'updated', '整单调整记录原值保护失败，请重新查询')
+		}
+		if (operationRow) await within('写入会计操作凭据', () => transaction.collection('crm_cashier_intake_operations').add(operationRow))
+		const outside = await within('复核完整账务范围', () => readCashierReceiptAccountingScope(scope.customer._id, scope.receipt._id))
+		if (cashierAccountingScopeHash(outside) !== expectedHash) cashierAccountingError('提交期间客户账务范围已变化，请重新查询')
+		await within('提交收款分配事务', async () => {
+			commitAttempted = true
+			await transaction.commit()
+		})
+		return {
+			committed: true,
+			transaction_ms: Date.now() - startedAt,
+			balances: buildCustomerBalanceSnapshot({ ...scope.customer, ...customerPatch })
+		}
+	} catch (error) {
+		await transaction.rollback().catch(() => {})
+		if (commitAttempted) {
+			error.message = '事务可能已提交，请保留同一操作号或刷新收款单核对，勿重复处理：' + (error.message || '提交状态未知')
+			error.details = { ...(error.details || {}), commit_status_unknown: true }
+		} else if (stage && error && error.message && !error.message.startsWith(stage)) {
+			error.message = `${stage}：${error.message}`
+		}
+		throw error
+	}
+}
+
 async function rollbackReceiptAllocations({ customerId, receiptId, allocationRows = null }) {
 	const rows = Array.isArray(allocationRows)
 		? allocationRows
@@ -3150,6 +3870,54 @@ async function beginReceiptAdjustmentV1(user, data, requestId) {
 	const allocationRows = await listReceiptAllocationRows(receiptId, customerId)
 	const snapshot = buildReceiptAdjustmentSnapshot(receiptDoc, allocationRows, moneyScale)
 	const adjustmentId = generateRequestId()
+	if (isCashierReceiptSourceType(receiptDoc.source_type)) {
+		try {
+			const expectedScope = await readCashierReceiptMarkerScope(customerId, receiptId)
+			assertCashierScopeIdentity(expectedScope, customerId, receiptId)
+			assertCashierScopeDependencies(expectedScope)
+			if (depositModel.digest(expectedScope.receipt) !== depositModel.digest(receiptDoc)) cashierAccountingError('出纳到账收款单已变化，请重新查询')
+			const cashierSnapshot = buildReceiptAdjustmentSnapshot(expectedScope.receipt, expectedScope.allocationRows, moneyScale)
+			const now = Date.now()
+			await updateCashierReceiptAdjustmentMarkerAtomic({
+				customerId,
+				receiptId,
+				expectedScope,
+				requestId,
+				receiptPatch: {
+					receipt_adjustment_status: 'pending',
+					receipt_adjustment_id: adjustmentId,
+					receipt_adjustment_rollback_strategy: 'deferred',
+					receipt_adjustment_snapshot: cashierSnapshot,
+					receipt_adjustment_started_at: now,
+					receipt_adjustment_request_id: requestId,
+					updated_at: now,
+					updated_by: normalizeId(user && user._id) || null,
+					updated_by_name: normalizeString(user && user.username)
+				}
+			})
+			await recordLog(user, 'customer_receipt_adjustment_begin_v1', {
+				customer_id: customerId,
+				receipt_id: receiptId,
+				adjustment_id: adjustmentId,
+				rollback_strategy: 'deferred',
+				allocation_rows: expectedScope.allocationRows.length,
+				cashier_intake: true
+			}, requestId)
+			return {
+				code: 0,
+				msg: '已进入整单调整，原分配已在编辑中释放',
+				data: {
+					receipt_id: receiptId,
+					adjustment_id: adjustmentId,
+					rollback_strategy: 'deferred',
+					allocation_rows: expectedScope.allocationRows.length,
+					released_targets: buildReceiptAdjustmentReleasedTargets(cashierSnapshot, moneyScale)
+				}
+			}
+		} catch (error) {
+			return { code: error.code || 409, msg: error.message || '进入整单调整失败，请重新查询', data: { ...(error.details || {}) } }
+		}
+	}
 	await receipts.doc(receiptId).update({
 		receipt_adjustment_status: 'pending',
 		receipt_adjustment_id: adjustmentId,
@@ -3205,6 +3973,69 @@ async function cancelReceiptAdjustmentV1(user, data, requestId) {
 	const pending = await findPendingReceiptAdjustment(customerId, receiptId)
 	if (!pending) return { code: 400, msg: '该收款单没有待恢复的整单调整' }
 	const pendingRollbackStrategy = normalizeString(pending.rollback_strategy)
+	if (isCashierReceiptSourceType(receiptDoc.source_type)) {
+		if (pendingRollbackStrategy && pendingRollbackStrategy !== 'deferred') {
+			return { code: 409, msg: '该旧整单调整曾物理释放分配，不能自动取消；请先核对原分配明细' }
+		}
+		try {
+			const expectedScope = await readCashierReceiptMarkerScope(customerId, receiptId)
+			assertCashierScopeIdentity(expectedScope, customerId, receiptId)
+			assertCashierScopeDependencies(expectedScope, { allowedPendingAdjustmentId: pending.storage === 'collection' ? pending._id : '' })
+			const expectedSnapshot = pending.snapshot || {}
+			const currentSnapshot = buildReceiptAdjustmentSnapshot(expectedScope.receipt, expectedScope.allocationRows, moneyScale)
+			if (
+				depositModel.digest(currentSnapshot.receipt) !== depositModel.digest(expectedSnapshot.receipt || {}) ||
+				depositModel.digest(receiptAdjustmentAllocationRows(currentSnapshot)) !== depositModel.digest(receiptAdjustmentAllocationRows(expectedSnapshot))
+			) {
+				cashierAccountingError('进入调整后收款或分配已变化，不能直接放弃；请刷新核对')
+			}
+			const now = Date.now()
+			await updateCashierReceiptAdjustmentMarkerAtomic({
+				customerId,
+				receiptId,
+				expectedScope,
+				requestId,
+				pendingCollectionRow: pending.storage === 'collection' ? pending : null,
+				pendingCollectionPatch: pending.storage === 'collection' ? {
+					status: 'cancelled',
+					cancelled_at: now,
+					cancelled_by: normalizeId(user && user._id) || null,
+					cancelled_by_name: normalizeString(user && user.username),
+					request_id: requestId
+				} : null,
+				receiptPatch: {
+					receipt_adjustment_status: '',
+					receipt_adjustment_id: '',
+					receipt_adjustment_rollback_strategy: '',
+					receipt_adjustment_snapshot: null,
+					receipt_adjustment_finished_at: now,
+					updated_at: now,
+					updated_by: normalizeId(user && user._id) || null,
+					updated_by_name: normalizeString(user && user.username)
+				}
+			})
+			await recordLog(user, 'customer_receipt_adjustment_cancel_v1', {
+				customer_id: customerId,
+				receipt_id: receiptId,
+				adjustment_id: normalizeId(pending._id),
+				rollback_strategy: 'deferred',
+				restored_rows: 0,
+				cashier_intake: true
+			}, requestId)
+			return {
+				code: 0,
+				msg: '已放弃调整，原分配保持不变',
+				data: {
+					receipt_id: receiptId,
+					customer_id: customerId,
+					adjustment_id: normalizeId(pending._id),
+					restored_total: 0
+				}
+			}
+		} catch (error) {
+			return { code: error.code || 409, msg: error.message || '放弃整单调整失败，请重新查询', data: { ...(error.details || {}) } }
+		}
+	}
 	if (pendingRollbackStrategy === 'deferred') {
 		const currentRows = await listReceiptAllocationRows(receiptId, customerId)
 		if (currentRows.length > 0) {
@@ -3776,6 +4607,8 @@ async function createReceiptV1(user, data, requestId) {
 	if (!(amount > 0 || roundingAmount > 0)) return { code: 400, msg: '收款金额和抹零金额不能同时为0' }
 	const allocation = resolveAllocationConfig(data)
 	if (!allocation.ok) return { code: allocation.code || 400, msg: allocation.msg || '分配参数无效' }
+	const requestedSourceType = normalizeString(data.source_type || data.sourceType) || 'manual'
+	if (isCashierReceiptSourceType(requestedSourceType)) return { code: 400, msg: '出纳到账来源只能通过带操作号的出纳到账入口创建' }
 
 	const previewOnly = Boolean(data.preview)
 	const plan = await buildReceiptAllocationPlan(customerId, amount, roundingAmount, {
@@ -3801,6 +4634,7 @@ async function createReceiptV1(user, data, requestId) {
 	const note = normalizeString(data.note)
 	const sourceType = normalizeString(data.source_type || data.sourceType) || 'manual'
 	if (sourceType === customerRefund.SOURCE) return { ok: false, code: 400, msg: '请使用退款登记入口' }
+	if (isCashierReceiptSourceType(sourceType)) return { code: 400, msg: '出纳到账来源只能通过带操作号的出纳到账入口创建' }
 	if (isSettlementFeeReceipt({ source_type: sourceType })) return { ok: false, code: 400, msg: '手续费仅能由受保护核对流程登记' }
 	if (isDepositTransferReceipt({ source_type: sourceType })) return { code: 400, msg: '押金转气款只能由押金专用流程登记' }
 	if (isOpeningPrepayReceipt({ source_type: sourceType })) return { code: 400, msg: '期初预付款须经有依据的专用转入流程登记' }
@@ -3864,6 +4698,20 @@ async function updateReceiptV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	const receiptSourceType = normalizeString(receiptDoc.source_type) || 'manual'
+	const isCashierSource = isCashierReceiptSourceType(receiptSourceType)
+	if (isCashierSource && !normalizeString(data.operation_id || data.operationId)) return { code: 409, msg: '出纳到账分配已升级，请刷新页面使用固定操作号保存' }
+	let cashierUpdateOperation = null
+	if (isCashierSource && (data.operation_id != null || data.operationId != null)) {
+		try {
+			const explicitOperationId = depositModel.operationId(data.operation_id ?? data.operationId)
+			cashierUpdateOperation = cashierAccountingOperationContext(user, cashierReceiptUpdateCommand(data, explicitOperationId))
+			const saved = await readCashierAccountingOperation(cashierUpdateOperation)
+			if (saved) return cashierAccountingIdempotentResponse(saved, '该出纳到账收款单分配操作已完成')
+		} catch (error) {
+			return { code: error.code || 409, msg: error.message || '会计分配操作号校验失败', data: { ...(error.details || {}) } }
+		}
+	}
 	if (customerRefund.protectedReceipt(receiptDoc)) return { code: 409, msg: '该单已有退款关联，不能直接调整或删除；请核查退款记录' }
 	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费修正须走有备份的专用核对流程' }
 	if (isDepositTransferReceipt(receiptDoc)) return { code: 400, msg: '押金转气款来源受保护，请在押金流水中核对或作废；可继续分配' }
@@ -3871,8 +4719,6 @@ async function updateReceiptV1(user, data, requestId) {
 	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费须经受保护流程修正' }
 	if (isOpeningPrepayReceipt(receiptDoc)) return { code: 400, msg: '期初预付款来源受保护，可继续分配；更正须走有备份的专用核对流程' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持编辑已入账收款单' }
-	const receiptSourceType = normalizeString(receiptDoc.source_type) || 'manual'
-	const isCashierSource = isCashierReceiptSourceType(receiptSourceType)
 
 	const receiptCustomerId = normalizeId(receiptDoc.customer_id)
 	const customerId = normalizeId(data.customer_id || data.customerId || receiptCustomerId)
@@ -3955,6 +4801,156 @@ async function updateReceiptV1(user, data, requestId) {
 	}
 
 	const pendingAdjustment = await findPendingReceiptAdjustment(customerId, receiptId)
+	if (isCashierSource) {
+		try {
+			const operationId = depositModel.operationId(
+				data.operation_id ?? data.operationId
+			)
+			cashierUpdateOperation = cashierAccountingOperationContext(user, cashierReceiptUpdateCommand(data, operationId))
+			const savedOperation = await readCashierAccountingOperation(cashierUpdateOperation)
+			if (savedOperation) return cashierAccountingIdempotentResponse(savedOperation, '该出纳到账收款单分配操作已完成')
+			const scope = await readCashierReceiptAccountingScope(customerId, receiptId)
+			assertCashierScopeIdentity(scope, customerId, receiptId)
+			assertCashierScopeDependencies(scope, { allowedPendingAdjustmentId: pendingAdjustment && pendingAdjustment.storage === 'collection' ? pendingAdjustment._id : '' })
+			if (depositModel.digest(scope.receipt) !== depositModel.digest(receiptDoc)) cashierAccountingError('出纳到账收款单已变化，请重新查询')
+			if (pendingAdjustment) {
+				const strategy = normalizeString(pendingAdjustment.rollback_strategy)
+				if (strategy && strategy !== 'deferred') cashierAccountingError('该旧整单调整曾物理释放分配，请先核对后再保存')
+				const pendingSnapshot = pendingAdjustment.snapshot || {}
+				const currentRowsForPending = scope.allocationDocs.filter((row) => normalizeId(row && row.receipt_id) === receiptId)
+				const currentSnapshot = buildReceiptAdjustmentSnapshot(scope.receipt, currentRowsForPending, moneyScale)
+				if (
+					depositModel.digest(currentSnapshot.receipt) !== depositModel.digest(pendingSnapshot.receipt || {}) ||
+					depositModel.digest(receiptAdjustmentAllocationRows(currentSnapshot)) !== depositModel.digest(receiptAdjustmentAllocationRows(pendingSnapshot))
+				) cashierAccountingError('进入调整后收款或分配已变化，请刷新后重新开始')
+			}
+			const oldAllocationRows = sortAccountingScopeRows(scope.allocationDocs.filter((row) =>
+				normalizeId(row && row.receipt_id) === receiptId && normalizeId(row && row.customer_id) === customerId
+			))
+			const targetMaps = buildCashierTargetMaps(scope)
+			const rollback = projectCashierReceiptRollback({ scope, targetMaps, allocationRows: oldAllocationRows, receiptDoc: scope.receipt })
+			const plan = buildCashierReceiptPlanFromProjectedTargets(scope.customer, targetMaps, receiptAmount, roundingAmount, allocation)
+			if (!plan.ok) return { code: plan.code || 400, msg: plan.msg || '收款单重算失败' }
+			const applyRes = projectCashierReceiptPlan({
+				user,
+				requestId,
+				scope,
+				targetMaps,
+				receiptDoc: scope.receipt,
+				plan,
+				allocationNote
+			})
+			const now = Date.now()
+			const receiptPatch = {
+				rounding_amount: roundingAmount,
+				allocated_amount: applyRes.receipt_allocated_total,
+				rounding_allocated_amount: applyRes.rounding_allocated_total,
+				unallocated_amount: applyRes.prepay_amount,
+				allocation_mode: allocation.allocation_mode,
+				allocation_start_date: allocation.allocation_start_date,
+				allocation_end_date: allocation.allocation_end_date,
+				allocation_targets: allocation.allocation_targets,
+				intake_ever_used: true,
+				receipt_adjustment_status: '',
+				receipt_adjustment_id: '',
+				receipt_adjustment_rollback_strategy: '',
+				receipt_adjustment_snapshot: null,
+				receipt_adjustment_finished_at: now,
+				request_id: requestId,
+				updated_at: now,
+				updated_by: normalizeId(user && user._id) || null,
+				updated_by_name: normalizeString(user && user.username)
+			}
+			const touchedTargetKeys = new Set([...rollback.touched, ...applyRes.touched])
+			const projectedReceipt = { ...scope.receipt, ...receiptPatch }
+			const projectedBalancePatch = buildCashierCustomerBalancePatch(scope.customer, targetMaps, scope.receiptDocs, projectedReceipt, requestId, now)
+			const auditCommand = cashierUpdateOperation.command
+			const auditResult = {
+				operation_id: cashierUpdateOperation.operationId,
+				receipt_id: receiptId,
+				customer_id: customerId,
+				intake_id: normalizeId(scope.receipt.intake_id) || `legacy:${receiptId}`,
+				replaced_allocation_rows: oldAllocationRows.length,
+				new_allocation_rows: applyRes.newAllocationRows.length,
+				allocated_total: applyRes.allocated_total,
+				rounding_allocated_total: applyRes.rounding_allocated_total,
+				prepay_amount: applyRes.prepay_amount,
+				committed: true,
+				balances: buildCustomerBalanceSnapshot({ ...scope.customer, ...projectedBalancePatch })
+			}
+			const auditOperationRow = {
+				_id: cashierUpdateOperation.operationKey,
+				actor_id: cashierUpdateOperation.actorId,
+				operation_id: cashierUpdateOperation.operationId,
+				fingerprint: cashierUpdateOperation.fingerprint,
+				customer_id: customerId,
+				receipt_id: receiptId,
+				intake_id: auditResult.intake_id,
+				command: auditCommand,
+				before: { receipt: scope.receipt, allocation_rows: oldAllocationRows },
+				after: { receipt: projectedReceipt, allocation_rows: applyRes.newAllocationRows },
+				result: auditResult,
+				created_at: now
+			}
+			const transactionResult = await executeCashierReceiptAllocationMutation({
+				user,
+				requestId,
+				scope,
+				targetMaps,
+				touchedTargetKeys,
+				oldAllocationRows,
+				newAllocationRows: applyRes.newAllocationRows,
+				projectedReceipt,
+				receiptPatch,
+				pendingCollectionRow: pendingAdjustment && pendingAdjustment.storage === 'collection' ? pendingAdjustment : null,
+				pendingCollectionPatch: pendingAdjustment && pendingAdjustment.storage === 'collection' ? {
+					status: 'saved',
+					saved_at: now,
+					saved_by: normalizeId(user && user._id) || null,
+					saved_by_name: normalizeString(user && user.username),
+					request_id: requestId
+				} : null,
+				operationRow: auditOperationRow
+			})
+			const logSaved = await recordCommittedLog(user, 'customer_receipt_update_v1', {
+				customer_id: customerId,
+				receipt_id: receiptId,
+				amount: receiptAmount,
+				rounding_amount: roundingAmount,
+				allocation_mode: allocation.allocation_mode,
+				rollback_total: rollback.rollback_total,
+				adjustment_id: normalizeId(pendingAdjustment && pendingAdjustment._id),
+				allocated_total: applyRes.allocated_total,
+				rounding_allocated_total: applyRes.rounding_allocated_total,
+				prepay_amount: applyRes.prepay_amount,
+				cashier_intake: true,
+				transaction_ms: transactionResult.transaction_ms
+			}, requestId)
+			return {
+				code: 0,
+				msg: logSaved ? '出纳到账收款单分配已更新' : '出纳到账收款单分配已更新；操作日志待补，到账与分配结果不受影响',
+				data: {
+					...auditResult,
+					balances: transactionResult.balances,
+					log_pending: !logSaved
+				}
+			}
+		} catch (error) {
+			if (cashierUpdateOperation) {
+				try {
+					const savedOperation = await readCashierAccountingOperation(cashierUpdateOperation)
+					if (savedOperation) {
+						return cashierAccountingIdempotentResponse(
+							savedOperation,
+							'出纳到账收款单分配已提交；已从操作记录恢复结果',
+							{ commit_recovered: true }
+						)
+					}
+				} catch (_) {}
+			}
+			return { code: error.code || 409, msg: error.message || '出纳到账收款单分配未更新，请重新查询', data: { ...(error.details || {}) } }
+		}
+	}
 	const rollback = await rollbackReceiptAllocations({ customerId, receiptId })
 	if (pendingAdjustment) rollback.adjustment_id = normalizeId(pendingAdjustment._id)
 	const plan = await buildReceiptAllocationPlan(customerId, amount, roundingAmount, {
@@ -4052,6 +5048,149 @@ async function updateReceiptV1(user, data, requestId) {
 	}
 }
 
+async function releaseReceiptAllocationsV2(user, data, requestId) {
+	const auth = await ensureWritePermission(user, 'releaseReceiptAllocationsV2', requestId)
+	if (!auth.ok) return { code: auth.code, msg: auth.msg }
+	let releaseOperation = null
+	try {
+		const receiptId = normalizeId(data.receipt_id || data.receiptId || data._id)
+		const customerId = normalizeId(data.customer_id || data.customerId)
+		const operationId = depositModel.operationId(data.operation_id || data.operationId)
+		if (!receiptId) return { code: 400, msg: 'receipt_id 必填' }
+		if (!customerId) return { code: 400, msg: 'customer_id 必填' }
+		const command = {
+			action: 'release_receipt_allocations',
+			customer_id: customerId,
+			receipt_id: receiptId,
+			operation_id: operationId
+		}
+		releaseOperation = cashierAccountingOperationContext(user, command)
+		const saved = await readCashierAccountingOperation(releaseOperation)
+		if (saved) return cashierAccountingIdempotentResponse(saved, '该解除分配操作已完成')
+		const actorId = releaseOperation.actorId
+		const expectedReceipt = data.expected_receipt ?? data.expectedReceipt
+		if (!expectedReceipt || typeof expectedReceipt !== 'object' || Array.isArray(expectedReceipt)) {
+			cashierAccountingError('请先读取到账详情原值后再解除分配', 400)
+		}
+
+		const scope = await readCashierReceiptAccountingScope(customerId, receiptId)
+		assertCashierScopeIdentity(scope, customerId, receiptId)
+		if (depositModel.digest(scope.receipt) !== depositModel.digest(expectedReceipt)) {
+			cashierAccountingError('气款收款单分配已被其他会计更新，请刷新到账详情后重试', 409, { stale_receipt: true })
+		}
+		assertCashierScopeDependencies(scope)
+		if (customerRefund.protectedReceipt(scope.receipt)) cashierAccountingError('该到账收款已有退款关联，不能解除分配；请先核查退款记录')
+		if (normalizeString(scope.receipt.receipt_adjustment_status) === 'pending') cashierAccountingError('该到账收款正在整单调整，请先保存或放弃调整')
+		const oldAllocationRows = sortAccountingScopeRows(scope.allocationDocs.filter((row) =>
+			normalizeId(row && row.receipt_id) === receiptId && normalizeId(row && row.customer_id) === customerId
+		))
+		const moneyScale = resolveCustomerMoneyScale(scope.customer)
+		const fixMoney = (value) => fixByScale(value, moneyScale)
+		const currentAllocated = fixMoney(toNumber(scope.receipt.allocated_amount, 0))
+		const currentRoundingAllocated = fixMoney(toNumber(scope.receipt.rounding_allocated_amount, 0))
+		if (!oldAllocationRows.length && !(currentAllocated > 0) && !(currentRoundingAllocated > 0)) {
+			return { code: 400, msg: '该到账收款当前没有可解除的分配' }
+		}
+		const targetMaps = buildCashierTargetMaps(scope)
+		const rollback = projectCashierReceiptRollback({ scope, targetMaps, allocationRows: oldAllocationRows, receiptDoc: scope.receipt })
+		const now = Date.now()
+		const receiptPatch = {
+			rounding_amount: 0,
+			allocated_amount: 0,
+			rounding_allocated_amount: 0,
+			unallocated_amount: fixMoney(toNumber(scope.receipt.amount, 0)),
+			allocation_mode: 'checked',
+			allocation_start_date: '',
+			allocation_end_date: '',
+			allocation_targets: [],
+			intake_ever_used: true,
+			receipt_adjustment_status: '',
+			receipt_adjustment_id: '',
+			receipt_adjustment_rollback_strategy: '',
+			receipt_adjustment_snapshot: null,
+			receipt_adjustment_finished_at: now,
+			request_id: requestId,
+			updated_at: now,
+			updated_by: actorId,
+			updated_by_name: normalizeString(user && user.username)
+		}
+		const projectedReceipt = { ...scope.receipt, ...receiptPatch }
+		const projectedBalancePatch = buildCashierCustomerBalancePatch(scope.customer, targetMaps, scope.receiptDocs, projectedReceipt, requestId, now)
+		const result = {
+			operation_id: operationId,
+			receipt_id: receiptId,
+			customer_id: customerId,
+			intake_id: normalizeId(scope.receipt.intake_id) || `legacy:${receiptId}`,
+			released_allocation_rows: oldAllocationRows.length,
+			released_total: rollback.rollback_total,
+			unallocated_amount: receiptPatch.unallocated_amount,
+			arrival_preserved: true,
+			committed: true,
+			idempotent: false,
+			balances: buildCustomerBalanceSnapshot({ ...scope.customer, ...projectedBalancePatch })
+		}
+		const operationRow = {
+			_id: releaseOperation.operationKey,
+			actor_id: actorId,
+			operation_id: operationId,
+			fingerprint: releaseOperation.fingerprint,
+			customer_id: customerId,
+			receipt_id: receiptId,
+			intake_id: result.intake_id,
+			command,
+			before: { receipt: scope.receipt, allocation_rows: oldAllocationRows },
+			after: { receipt: projectedReceipt, allocation_rows: [] },
+			result,
+			created_at: now
+		}
+		const transactionResult = await executeCashierReceiptAllocationMutation({
+			user,
+			requestId,
+			scope,
+			targetMaps,
+			touchedTargetKeys: rollback.touched,
+			oldAllocationRows,
+			newAllocationRows: [],
+			projectedReceipt,
+			receiptPatch,
+			operationRow
+		})
+		const logSaved = await recordCommittedLog(user, 'customer_receipt_allocations_release_v2', {
+			customer_id: customerId,
+			receipt_id: receiptId,
+			intake_id: result.intake_id,
+			operation_id: operationId,
+			released_total: rollback.rollback_total,
+			allocation_rows: oldAllocationRows.length,
+			arrival_preserved: true,
+			transaction_ms: transactionResult.transaction_ms
+		}, requestId)
+		return {
+			code: 0,
+			msg: logSaved ? '分配已解除，原到账仍保留' : '分配已解除，原到账仍保留；操作日志待补，账务结果不受影响',
+			data: { ...result, log_pending: !logSaved }
+		}
+	} catch (error) {
+		if (releaseOperation) {
+			try {
+				const saved = await readCashierAccountingOperation(releaseOperation)
+				if (saved) {
+					return cashierAccountingIdempotentResponse(
+						saved,
+						'解除分配已提交；已从操作记录恢复结果，原到账仍保留',
+						{ commit_recovered: true }
+					)
+				}
+			} catch (_) {}
+		}
+		return {
+			code: [400, 401, 403, 404, 409, 503].includes(error && error.code) ? error.code : 409,
+			msg: (error && error.message) || '解除分配未完成，请保留同一操作号后重试',
+			data: { ...((error && error.details) || {}) }
+		}
+	}
+}
+
 async function removeReceiptV1(user, data, requestId) {
 	const auth = await ensureWritePermission(user, 'removeReceiptV1', requestId)
 	if (!auth.ok) return { code: auth.code, msg: auth.msg }
@@ -4070,7 +5209,7 @@ async function removeReceiptV1(user, data, requestId) {
 	if (isOpeningPrepayReceipt(receiptDoc)) return { code: 400, msg: '期初预付款来源受保护，可继续分配；更正须走有备份的专用核对流程' }
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持删除已入账收款单' }
 	if (isCashierReceiptSourceType(receiptDoc.source_type)) {
-		return { code: 400, msg: '出纳登记来源收款单请在出纳登记中作废处理' }
+		return { code: 400, msg: '出纳到账不能用删除入口；如需保留到账并撤销会计冲销，请使用“解除分配”，整笔未使用到账作废请回到出纳到账办理' }
 	}
 
 	const receiptCustomerId = normalizeId(receiptDoc.customer_id)
@@ -5451,7 +6590,7 @@ async function applyOffsetAllocationsToReceipt({
 	const receiptId = normalizeId(receiptDoc && receiptDoc._id)
 	if (!receiptId) return { ok: false, code: 400, msg: 'receipt_id 无效' }
 	// 押金转气款与原押金作废共用收款源的事务锁，避免已抵扣后恢复押金。
-	const transferTransaction = isDepositTransferReceipt(receiptDoc) ? await db.startTransaction() : null
+	const transferTransaction = (isDepositTransferReceipt(receiptDoc) || isCashierReceiptSourceType(receiptDoc.source_type)) ? await db.startTransaction() : null
 	const readDocument = (response) => {
 		const value = response && response.data
 		if (Array.isArray(value)) return value.length === 1 ? value[0] : null
@@ -5465,6 +6604,9 @@ async function applyOffsetAllocationsToReceipt({
 	const openingDebts = targetDb.collection('crm_customer_opening_debts')
 	try {
 	if (transferTransaction) {
+		const currentCustomer = readDocument(await transferTransaction.collection('crm_customers').doc(customer._id).get())
+		if (!currentCustomer || require('./depositModel').digest(currentCustomer) !== require('./depositModel').digest(customer)) throw Object.assign(new Error('客户账务已变化，请重新查询'),{code:409})
+		await transferTransaction.collection('crm_customers').doc(customer._id).update({updated_at:Date.now(),receipt_allocation_revision:requestId})
 		const current = readDocument(await receipts.doc(receiptId).get())
 		const canonical = (row) => JSON.stringify(Object.keys(row || {}).sort().map((key) => [key, row[key]]))
 		if (!current || normalizeString(current.status) !== 'posted' || canonical(current) !== canonical(receiptDoc)) {
@@ -5643,6 +6785,7 @@ async function applyOffsetAllocationsToReceipt({
 	const nextRoundingAmount = fixMoney(currentRoundingAmount + roundingAllocatedDelta)
 	const nextRoundingAllocated = fixMoney(currentRoundingAllocated + roundingAllocatedDelta)
 	await receipts.doc(receiptId).update({
+		...(isCashierReceiptSourceType(receiptDoc.source_type) ? {intake_ever_used:true} : {}),
 		allocated_amount: nextAllocated,
 		rounding_amount: nextRoundingAmount,
 		rounding_allocated_amount: nextRoundingAllocated,
@@ -8209,6 +9352,11 @@ async function getCustomerStatementV1(user, data, requestId = '') {
 			unallocated_amount: fixMoney(toNumber(row.unallocated_amount, 0)),
 			payment_method: normalizePaymentMethod(row.payment_method, 'paid'),
 			source_type: normalizeString(row.source_type),
+			source_id: normalizeId(row.source_id),
+			intake_id: normalizeId(row.intake_id),
+			purpose: normalizeString(row.purpose) || 'unspecified',
+			proof_images_count: Math.max(0, Math.floor(toNumber(row.proof_images_count, Array.isArray(row.proof_images) ? row.proof_images.length : 0))),
+			created_by_name: normalizeString(row.created_by_name),
 			entry_kind: normalizeEntryKind(row.entry_kind, normalizeString(row.source_type).includes('offset') ? 'offset_credit' : 'prepay'),
 			allocation_mode: normalizeAllocationMode(row.allocation_mode, 'period'),
 			allocation_start_date: normalizeDate(row.allocation_start_date),
@@ -8879,6 +10027,18 @@ const main = async (event, context) => {
 		cloudFunction: 'crm-customer-settlement'
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
+	if (['previewReceiptIntakeV2','saveReceiptIntakeV2','voidReceiptIntakeV2','getReceiptIntakeOperationV2','listReceiptIntakeV2','getReceiptIntakeDetailV2'].includes(action)) {
+		try {
+			const service = cashierIntake.createService({db,readComplete,moneyScale:resolveCustomerMoneyScale,
+				resolveCustomer:resolveAccountingSettlementCustomer,hiddenIds:()=>fetchHiddenCustomerIds(customers),
+				enabled:cashierIntakeConfig.enabled === true,
+				canAccountant:(actor)=>hasPagePermission(actor,'/pages/customer/statement','update'),
+				canWrite:(actor,command)=>hasPagePermission(actor,'/pages/cashier/receipt-intake',command==='create'?'create':command==='void'?'delete':'update')})
+			const result=await service.run(action,data,user)
+			return action==='listReceiptIntakeV2'?{code:0,data:result.rows,paging:result.paging}:{code:0,data:result}
+		} catch(error) {return {code:[400,401,403,404,409].includes(error.code)?error.code:409,msg:error.message||'到账处理未完成，请查询原操作号',data:{...(error.details||{})}}}
+	}
+	if (['createReceiptIntakeV1','updateReceiptIntakeV1','removeReceiptIntakeV1'].includes(action)) return {code:409,msg:'出纳登记已升级，请刷新页面使用带操作号的新入口'}
 	if (['getCustomerStatementV1', 'exportCustomerStatementV1', 'exportCustomerAccountingLedgerV1'].includes(action)) {
 		const customer = await getCustomerById(normalizeId(data.customer_id || data.customerId))
 		if (customer) {
@@ -8935,6 +10095,7 @@ const main = async (event, context) => {
 	if (action === 'cancelReceiptAdjustmentV1') return cancelReceiptAdjustmentV1(user, data, requestId)
 	if (action === 'updateReceiptV1') return updateReceiptV1(user, data, requestId)
 	if (action === 'allocatePrepayReceiptV1') return allocatePrepayReceiptV1(user, data, requestId)
+	if (action === 'releaseReceiptAllocationsV2') return releaseReceiptAllocationsV2(user, data, requestId)
 	if (action === 'removeReceiptV1') return removeReceiptV1(user, data, requestId)
 	if (action === 'createReceiptIntakeV1') return createReceiptIntakeV1(user, data, requestId)
 	if (action === 'updateReceiptIntakeV1') return updateReceiptIntakeV1(user, data, requestId)

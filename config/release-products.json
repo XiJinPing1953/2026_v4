@@ -6,119 +6,63 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.20-statement-workspaces",
+      "version": "2026.09.20-cashier-linked-funds",
       "output": "dist/build/web",
-      "acceptance": "Customer statement workspaces, aligned receipt evidence, compact record tables and responsive header; original accounting APIs and protections preserved",
+      "acceptance": "Unified gas/deposit/mixed arrivals, durable operation recovery, independent lazy statement arrival pages and complete cashier export; existing financial balances preserved",
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.19-query-performance",
+      "version": "2026.09.20-cashier-linked-funds",
       "output": "release/cloud",
-      "acceptance": "Read-only list/statistics split; complete batched customer inventory; independent quick dashboard and incremental nonunique read indexes",
+      "acceptance": "Atomic linked arrival with gas/deposit ledgers, versioned correction and accounting allocation locks; safe feature close retains all existing record handling",
       "deploymentScope": {
         "functions": [
           "crm-customer-settlement",
-          "crm-customer",
-          "crm-sale",
-          "crm-filling",
-          "crm-bottle",
-          "crm-dashboard",
-          "crm-bottle-movement"
+          "crm-customer-deposit"
         ],
         "databaseFiles": [
-          "crm_sale_records.schema.json",
+          "crm_cashier_intakes.schema.json",
+          "crm_cashier_intakes.index.json",
+          "crm_cashier_intake_operations.schema.json",
+          "crm_cashier_intake_operations.index.json",
           "crm_customer_receipts.schema.json",
-          "crm_customer_allocations.schema.json",
-          "crm_customer_flow_settlements.schema.json",
-          "crm_customer_opening_debts.schema.json",
-          "crm_sale_records.index.json",
           "crm_customer_receipts.index.json",
-          "crm_customer_allocations.index.json",
-          "crm_customer_flow_settlements.index.json",
-          "crm_customer_opening_debts.index.json",
-          "crm_bottle_movements.schema.json",
-          "crm_bottle_movements.index.json",
-          "crm_bottle_anomalies.schema.json",
-          "crm_bottle_anomalies.index.json",
-          "crm_operation_logs.schema.json",
-          "crm_operation_logs.index.json"
+          "crm_customer_deposit_entries.schema.json",
+          "crm_customers.schema.json"
         ],
-        "baseCommit": "1e46338e4c0f0e40ed58cabe8954f6d906ea8715",
+        "baseCommit": "1503228c73ee51bf3b80e28916779232a6daea13",
         "sourceFiles": [
-          "src/components/domain/bottle/BottleListView.vue",
           "src/components/domain/customer/CashierReceiptIntakeView.vue",
-          "src/components/domain/customer/CustomerListView.vue",
+          "src/components/domain/customer/exportCashierReceiptIntakeWorkbook.js",
+          "src/components/domain/customer/statement/CashierIntakeRecords.vue",
+          "src/components/domain/customer/statement/CustomerDepositPanel.vue",
           "src/components/domain/customer/statement/CustomerStatementModule.vue",
-          "src/components/domain/dashboard/DashboardHome.vue",
-          "src/components/domain/filling/FillingListView.vue",
-          "src/components/domain/sale/SaleListView.vue",
-          "src/composables/usePagedSummary.js",
-          "src/composables/useQuery.js",
           "src/services/api/callCloud.js",
-          "src/services/bottle.js",
-          "src/services/customer.js",
+          "src/services/api/cashierIntake.js",
           "src/services/customerSettlement.js",
-          "src/services/dashboard.js",
-          "src/services/filling.js",
-          "src/services/sale.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
+          "src/services/mappers/cashierIntake.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/depositModel.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/depositReportLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/report.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-deposit/transaction.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/cashierIntake.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/cashierIntakeConfig.json",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/depositModel.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/depositReportLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/depositTransactionLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/periodSummary.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/statementReadContext.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer/financialReadLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/database/crm_customer_allocations.index.json",
-          "uniCloud-alipay/database/crm_customer_allocations.schema.json",
-          "uniCloud-alipay/database/crm_customer_flow_settlements.index.json",
-          "uniCloud-alipay/database/crm_customer_flow_settlements.schema.json",
-          "uniCloud-alipay/database/crm_customer_opening_debts.index.json",
-          "uniCloud-alipay/database/crm_customer_opening_debts.schema.json",
+          "uniCloud-alipay/database/crm_cashier_intake_operations.index.json",
+          "uniCloud-alipay/database/crm_cashier_intake_operations.schema.json",
+          "uniCloud-alipay/database/crm_cashier_intakes.index.json",
+          "uniCloud-alipay/database/crm_cashier_intakes.schema.json",
+          "uniCloud-alipay/database/crm_customer_deposit_entries.schema.json",
           "uniCloud-alipay/database/crm_customer_receipts.index.json",
           "uniCloud-alipay/database/crm_customer_receipts.schema.json",
-          "uniCloud-alipay/database/crm_sale_records.index.json",
-          "uniCloud-alipay/database/crm_sale_records.schema.json",
-          "uniCloud-alipay/database/schema/crm_customer_allocations.schema.json",
-          "uniCloud-alipay/database/schema/crm_customer_flow_settlements.schema.json",
-          "uniCloud-alipay/database/schema/crm_customer_opening_debts.schema.json",
+          "uniCloud-alipay/database/crm_customers.schema.json",
           "uniCloud-alipay/database/schema/crm_customer_receipts.schema.json",
-          "uniCloud-alipay/database/schema/crm_sale_records.schema.json",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/financialReadLocal.js",
-          "uniCloud-alipay/database/crm_bottle_movements.schema.json",
-          "uniCloud-alipay/database/crm_bottle_movements.index.json",
-          "uniCloud-alipay/database/schema/crm_bottle_movements.schema.json",
-          "uniCloud-alipay/database/crm_bottle_anomalies.schema.json",
-          "uniCloud-alipay/database/crm_bottle_anomalies.index.json",
-          "uniCloud-alipay/database/schema/crm_bottle_anomalies.schema.json",
-          "uniCloud-alipay/database/crm_operation_logs.schema.json",
-          "uniCloud-alipay/database/crm_operation_logs.index.json",
-          "uniCloud-alipay/database/schema/crm_operation_logs.schema.json",
-          "src/components/domain/customer/statement/StatementPager.vue",
-          "src/components/domain/customer/statement/StatementRecordTable.vue",
-          "src/composables/useStatementWorkspace.js",
-          "vite.config.js"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-sale": {
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            },
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            }
-          },
-          "crm-dashboard": {
-            "registry": {
-              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
-              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
-            }
-          }
-        }
+          "uniCloud-alipay/database/schema/crm_customers.schema.json"
+        ]
       },
       "integrityScope": "deployment"
     }

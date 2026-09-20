@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { callCloud, resetFixtures } from './mock.mjs'
+import { armCashierSaveTimeout, callCloud, resetFixtures } from './mock.mjs'
 import plugin from './plugin.mjs'
 const invoke=(action,data={})=>callCloud('crm-customer-settlement',{action,data:{customer_id:'demo-kg',...data}})
 const statement=async()=> (await invoke('getCustomerStatementV1')).data
@@ -37,6 +37,7 @@ test('preview plugin refuses all builds and only transforms explicitly targeted 
  const p=plugin();assert.throws(()=>p.configResolved({command:'build'}),/development-only/)
  assert.doesNotThrow(()=>p.configResolved({command:'serve'}))
  assert.match(p.transform('', '/project/src/services/api/callCloud.js'),/mock.mjs/)
+ assert.match(p.transform('', '/project/src/pages/cashier/receipt-intake.vue'),/CashierReceiptIntakeView/)
  assert.equal(p.transform('original','/project/src/components/domain/customer/statement/CustomerStatementModule.vue'),undefined)
 })
 
@@ -68,4 +69,25 @@ test('whole-receipt adjustment snapshots survive reads; cancel restores and save
  await invoke('beginReceiptAdjustmentV1',{receipt_id});await invoke('cancelReceiptAdjustmentV1',{receipt_id})
  assert.deepEqual(await statement(),after)
  resetFixtures()
+})
+
+test('cashier fixture paginates compact rows and recovers a committed timeout by operation id',async()=>{
+ resetFixtures()
+ const first=await callCloud('crm-customer-settlement',{action:'listReceiptIntakeV2',data:{page_size:20,include_void:true}})
+ assert.equal(first.code,0);assert.equal(first.data.length,20);assert.equal(first.paging.total,72);assert.equal(first.paging.hasMore,true);assert.equal(first.paging.create_enabled,true)
+ assert.equal('proof_images' in first.data[0],false)
+ const second=await callCloud('crm-customer-settlement',{action:'listReceiptIntakeV2',data:{page_size:20,include_void:true,cursor:first.paging.next_cursor}})
+ assert.equal(second.data.length,20);assert.equal(second.paging.snapshot,first.paging.snapshot)
+ const customer=await callCloud('crm-customer',{action:'listV1',data:{keyword:'m3'}})
+ assert.equal(customer.code,0);assert.equal(customer.data.length,1);assert.equal(customer.data[0]._id,'demo-m3')
+
+ const input={command:'create',customer_id:'demo-m3',intake_id:'',operation_id:'cashier-preview-op-1',expected_version:0,kind:'mixed',amount:'120.125',gas_amount:'100.125',deposit_amount:'20.00',purpose:'prepay',biz_date:'2026-09-20',payment_method:'bank',proof_images:['cloud://demo-space/proof.jpg'],note:'模拟超时恢复',reason:''}
+ const preview=await callCloud('crm-customer-settlement',{action:'previewReceiptIntakeV2',data:input})
+ assert.equal(preview.code,0);assert.equal(preview.data.submission.amount,120.125);assert.ok(preview.data.submission.expected_snapshot)
+ armCashierSaveTimeout()
+ await assert.rejects(()=>callCloud('crm-customer-settlement',{action:'saveReceiptIntakeV2',data:preview.data.submission}),/timeout/)
+ const recovered=await callCloud('crm-customer-settlement',{action:'getReceiptIntakeOperationV2',data:{operation_id:input.operation_id}})
+ assert.equal(recovered.data.found,true);assert.equal(recovered.data.result.status,'committed')
+ const idempotentPreview=await callCloud('crm-customer-settlement',{action:'previewReceiptIntakeV2',data:input})
+ assert.equal(idempotentPreview.data.committed,true);assert.equal(idempotentPreview.data.result.idempotent,true)
 })

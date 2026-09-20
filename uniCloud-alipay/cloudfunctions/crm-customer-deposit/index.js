@@ -63,8 +63,10 @@ exports.main = async (event = {}) => {
       return { code: 0, data: row ? { found: true, ...T.savedResult(row, snapshot) } : { found: false, customer_id: customerId, operation_id: operationId } }
     }
     const isVoid = action === 'voidDepositEntryV1' || action === 'previewDepositEntryV1' && data.entry_id !== undefined
+    if (data.intake_id || data.source_type === 'cashier_intake') M.fail('出纳押金须由统一到账入口登记', 403)
     const input = isVoid ? M.normalizeVoid(data) : M.normalizeCreate(data)
     const original = isVoid ? snapshot.entries.find(row => row._id === input.command.entry_id) : null
+    if (original?.intake_id) M.fail('该押金属于出纳到账，请从原到账记录更正，避免混合单失配', 409)
     if (input.command.kind === 'opening' || original?.kind === 'opening') {
       if (!isSuperAdmin(user) && !['admin', 'finance'].includes(String(user.role_template || user.role))) M.fail('期初押金登记或作废仅限管理员及财务', 403)
     }

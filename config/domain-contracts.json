@@ -37,7 +37,8 @@
     {
       "source": "uniCloud-alipay/cloudfunctions/crm-customer-deposit/report.js",
       "targets": [
-        "uniCloud-alipay/cloudfunctions/crm-customer-settlement/depositReportLocal.js"
+        "uniCloud-alipay/cloudfunctions/crm-customer-settlement/depositReportLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-customer-deposit/depositReportLocal.js"
       ]
     },
     {
@@ -57,6 +58,12 @@
       "source": "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js",
       "targets": [
         "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js"
+      ]
+    },
+    {
+      "source": "uniCloud-alipay/cloudfunctions/crm-customer-deposit/transaction.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-customer-settlement/depositTransactionLocal.js"
       ]
     }
   ],

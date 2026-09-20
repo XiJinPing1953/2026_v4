@@ -15,9 +15,9 @@ function depositDb(tables, hooks = {}, transactional = false) {
       }
       if (key === 'add') return async data => {
         if (hooks.txWrite && transactional) await hooks.txWrite('add', name, data, tables)
-        const id = data._id
+        const id = data._id || (name === 'crm_operation_logs' ? `test-log-${(tables[name] || []).length + 1}` : '')
         if (!id || (tables[name] || []).some(row => row._id === id)) throw Error('duplicate deterministic key')
-        ;(tables[name] ||= []).push(clone(data)); writes.push({ table: name, id, data: clone(data) }); return { id }
+        ;const stored = {...data, _id:id}; (tables[name] ||= []).push(clone(stored)); writes.push({ table: name, id, data: clone(stored) }); return { id }
       }
       if (key === 'update') return async patch => {
         if (hooks.txWrite && transactional) await hooks.txWrite('update', name, patch, tables)
