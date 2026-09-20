@@ -133,7 +133,7 @@
 					</view>
 
 					<AppList :loading="rowsLoading" :empty="rows.length === 0" empty-title="暂无收款登记">
-						<AppListItem v-for="row in rows" :key="rowIntakeId(row)" :title="`${row.biz_date || '-'} · ${normalizeCashierText(row.customer_name) || '未命名客户'} · ${kindText(row.kind)}`" :subtitle="`${rowIntakeId(row)} · ${sourceText(row)} · ${normalizeCashierText(row.created_by_name) || '登记人待核'}`" :status="rowStatusText(row)" :status-kind="rowStatusKind(row)" icon="wallet" icon-class="bg-success" clickable @click="toggleDetail(row)">
+						<AppListItem class="intake-list-row" v-for="row in rows" :key="rowIntakeId(row)" :title="`${row.biz_date || '-'} · ${normalizeCashierText(row.customer_name) || '未命名客户'} · ${kindText(row.kind)}`" :subtitle="`${rowIntakeId(row)} · ${sourceText(row)} · ${normalizeCashierText(row.created_by_name) || '登记人待核'}`" :status="rowStatusText(row)" :status-kind="rowStatusKind(row)" icon="wallet" icon-class="bg-success" clickable @click="toggleDetail(row)">
 							<template #right><view class="mini-amounts"><text>合计 ¥{{ moneyText(row.amount, rowAmountScale(row)) }}</text><text>气款 ¥{{ moneyText(row.gas_amount, row.money_scale) }}</text><text>押金 ¥{{ moneyText(row.deposit_amount, 2) }}</text></view></template>
 							<template #default>
 								<view class="row-summary"><text class="row-detail">渠道：{{ paymentMethodText(row.payment_method) }} · 用途：{{ purposeText(row.purpose, row.kind) }}</text><text class="row-detail">已分配 ¥{{ moneyText(row.allocated_amount, row.money_scale) }} · 抹零 ¥{{ moneyText(row.rounding_allocated_amount, row.money_scale) }} · 未分配 ¥{{ moneyText(row.unallocated_amount, row.money_scale) }}</text><text v-if="row.note" class="row-detail">备注：{{ row.note }}</text><text class="row-detail">凭证 {{ Number(row.proof_images_count || 0) }} 张</text><text v-if="rowRestrictionReason(row) && (!rowEditable(row) || !rowRemovable(row))" class="row-detail row-detail--warning">限制：{{ rowRestrictionReason(row) }}</text></view>
@@ -1221,7 +1221,10 @@ onShow(() => {
 .filter-customer { grid-column: span 2; }
 .list-actions, .cursor-footer { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin: 16rpx 0 12rpx; }
 .mini-amounts { display: flex; flex-direction: column; gap: 6rpx; align-items: flex-end; font-size: 22rpx; color: var(--crm-text-muted); }
-.row-summary, .detail-panel { display: flex; flex-direction: column; gap: 7rpx; }
+.intake-list-row { padding: 16rpx; gap: 10rpx; }
+.intake-list-row :deep(.item__icon-wrapper) { width: 56rpx; height: 56rpx; }
+.row-summary { display: flex; flex-wrap: wrap; gap: 7rpx 24rpx; overflow-wrap: anywhere; }
+.detail-panel { display: flex; flex-direction: column; gap: 7rpx; }
 .detail-panel { margin-top: 14rpx; padding: 16rpx; background: #f8fafc; border-radius: 10rpx; }
 .detail-title { margin-top: 6rpx; font-size: 23rpx; font-weight: 700; color: var(--crm-text); }
 .row-detail { font-size: 23rpx; color: var(--crm-text-secondary); }
