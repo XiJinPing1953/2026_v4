@@ -41,6 +41,9 @@
 
 			<view class="footer">
 				<text class="footer-text">Powered by 新拓能源</text>
+				<!-- #ifdef H5 -->
+				<a class="icp-link" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">冀ICP备2026038379号-1</a>
+				<!-- #endif -->
 			</view>
 		</view>
 	</view>
@@ -217,5 +220,18 @@ async function onLogin() {
 .footer-text {
 	font-size: 24rpx;
 	color: #94a3b8;
+}
+
+.icp-link {
+	display: block;
+	margin-top: 16rpx;
+	font-size: 24rpx;
+	line-height: 1.5;
+	color: #64748b;
+	text-decoration: none;
+}
+
+.icp-link:hover {
+	text-decoration: underline;
 }
 </style>

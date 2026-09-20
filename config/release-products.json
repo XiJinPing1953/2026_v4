@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.20-cashier-linked-funds",
+      "version": "2026.09.20-login-icp",
       "output": "dist/build/web",
-      "acceptance": "Unified gas/deposit/mixed arrivals, durable operation recovery, independent lazy statement arrival pages and complete cashier export; existing financial balances preserved",
+      "acceptance": "Login footer displays 冀ICP备2026038379号-1 and links to https://beian.miit.gov.cn/; existing login behavior preserved.",
       "integrityScope": "deployment"
     },
     "cloud": {
