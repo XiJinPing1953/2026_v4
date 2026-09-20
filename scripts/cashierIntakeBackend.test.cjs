@@ -62,6 +62,17 @@ test('legacy gas corrections remain idempotent after linking to a new arrival; l
  assert.equal((await h.run('saveReceiptIntakeV2',p.submission)).intake_id,result.intake_id)
  const list=await h.run('listReceiptIntakeV2',{include_void:true});assert.equal(list.rows.length,1)
 })
+test('Alipay automatic IDs omitted by _id in still return authoritative legacy balances and complete export links',async()=>{
+ const h=harness({crm_customer_receipts:[{_id:'6aaf4a5b70a52b8b4e319d52',customer_id:'customer-1',customer_name:'合成客户',source_type:'cashier_intake',amount:960,unallocated_amount:960,allocated_amount:0,status:'posted',biz_date:'2026-09-01',payment_method:'bank',proof_images:['cloud://synthetic/old'],created_at:1,updated_at:1}]},
+ {get:(name,rows,opts)=>({data:opts.where?._id?.$in?[]:structuredClone(rows)})})
+ const page=await h.run('listReceiptIntakeV2',{})
+ assert.equal(page.rows[0].unallocated_amount,960)
+ assert.equal(page.rows[0].allocation_status,'unallocated')
+ await h.save(h.input())
+ const exported=await h.run('listReceiptIntakeV2',{export_mode:true})
+ assert.equal(exported.rows.length,2)
+ assert.ok(exported.rows.every(row=>row.allocation_status==='unallocated'))
+})
 test('allocation and later deposit refund block cashier correction, including mixed entries',async()=>{
  const h=harness(),result=await h.save(h.input())
  const input=h.input({intake_id:result.intake_id,expected_version:1,command:'void',reason:'录错'})

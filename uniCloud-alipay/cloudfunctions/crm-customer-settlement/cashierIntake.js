@@ -14,6 +14,8 @@ const compare = (a, b) => text(b.biz_date).localeCompare(text(a.biz_date)) || Nu
 function createService({ db, readComplete, moneyScale, resolveCustomer, hiddenIds, canWrite, canAccountant = user => ['superadmin','admin','finance'].includes(user.role_template || user.role), enabled = true }) {
   const cmd = db.command
   const full = (table, where) => readComplete(db.collection(table), where, { command: cmd, source: `cashier.${table}` })
+  // Alipay auto-generated ObjectIds are normalized for equality, but not _id $in.
+  const idWhere = ids => cmd.or([...new Set(ids)].map(_id=>({_id})))
   const one = async (table, id) => first(await db.collection(table).where({ _id: id }).limit(1).get())
   const opId = (user, operation) => idFor('cashier-operation-v2', user._id, M.operationId(operation))
   async function customerFor(id) {
@@ -267,8 +269,8 @@ function createService({ db, readComplete, moneyScale, resolveCustomer, hiddenId
         const heads=await full(TABLE,where(group)), legacyRows=legacyAllowed?await full(M.TABLES.receipts,where(old)):[]
         const ids=[...new Set(heads.map(x=>x.receipt_id).filter(Boolean))], linked=[]
         const depositIds=[...new Set(heads.map(x=>x.deposit_entry_id).filter(Boolean))], depositLinks=[]
-        for(let i=0;i<ids.length;i+=100) linked.push(...await full(M.TABLES.receipts,{_id:cmd.in(ids.slice(i,i+100))}))
-        for(let i=0;i<depositIds.length;i+=100) depositLinks.push(...await full(M.TABLES.entries,{_id:cmd.in(depositIds.slice(i,i+100))}))
+        for(let i=0;i<ids.length;i+=100) linked.push(...await full(M.TABLES.receipts,idWhere(ids.slice(i,i+100))))
+        for(let i=0;i<depositIds.length;i+=100) depositLinks.push(...await full(M.TABLES.entries,idWhere(depositIds.slice(i,i+100))))
         if(heads.length!==gm.count || legacyRows.length!==lm.count || linked.length!==ids.length || depositLinks.length!==depositIds.length) M.fail('导出取数不完整或来源已变化')
         for (const receipt of [...linked, ...legacyRows]) {
           if (receipt.status !== 'posted') continue
@@ -303,7 +305,7 @@ function createService({ db, readComplete, moneyScale, resolveCustomer, hiddenId
     const [a,b]=await Promise.all([read(TABLE,group,'new'),legacyAllowed?read(M.TABLES.receipts,old,'legacy'):[]])
     const sorted=[...a,...b].sort(compare), selected=sorted.slice(0,size)
     const rids=selected.map(r=>r.receipt_id).filter(Boolean), legacyCids=[...new Set(selected.filter(r=>r.legacy).map(r=>r.customer_id))],cids=[...new Set(selected.filter(r=>r.deposit_amount).map(r=>r.customer_id))]
-    const [receipts,accounts,customers]=await Promise.all([rids.length?db.collection(M.TABLES.receipts).where({_id:cmd.in(rids)}).limit(100).get():{data:[]},cids.length?db.collection(M.TABLES.accounts).where({customer_id:cmd.in(cids)}).limit(100).get():{data:[]},legacyCids.length?db.collection(M.TABLES.customers).where({_id:cmd.in(legacyCids)}).limit(100).get():{data:[]}])
+    const [receipts,accounts,customers]=await Promise.all([rids.length?db.collection(M.TABLES.receipts).where(idWhere(rids)).limit(100).get():{data:[]},cids.length?db.collection(M.TABLES.accounts).where({customer_id:cmd.in(cids)}).limit(100).get():{data:[]},legacyCids.length?db.collection(M.TABLES.customers).where(idWhere(legacyCids)).limit(100).get():{data:[]}])
     const cm=new Map((customers.data||[]).map(c=>[c._id,c]))
     for(const row of selected.filter(r=>r.legacy)) { if(!cm.has(row.customer_id)) M.fail('旧到账客户资料不完整'); row.money_scale=moneyScale(cm.get(row.customer_id)) }
     if(M.digest(before)!==M.digest(await metadata())) M.fail('查询期间到账记录发生变化，请重新查询或导出')
