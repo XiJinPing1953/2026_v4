@@ -37,6 +37,7 @@
           "src/components/domain/customer/statement/CashierIntakeRecords.vue",
           "src/components/domain/customer/statement/CustomerDepositPanel.vue",
           "src/components/domain/customer/statement/CustomerStatementModule.vue",
+          "src/pages/login/login.vue",
           "src/services/api/callCloud.js",
           "src/services/api/cashierIntake.js",
           "src/services/customerSettlement.js",
