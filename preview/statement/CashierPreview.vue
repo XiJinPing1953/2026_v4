@@ -14,6 +14,10 @@
 
 <script setup>
 import { ref } from 'vue'
+// The development-only page replacement bypasses uni's page-level style discovery.
+import '@dcloudio/uni-h5/style/picker.css'
+import '@dcloudio/uni-h5/style/picker-view.css'
+import '@dcloudio/uni-h5/style/picker-view-column.css'
 import CashierReceiptIntakeView from '@/components/domain/customer/CashierReceiptIntakeView.vue'
 import {
 	armCashierSaveTimeout,
