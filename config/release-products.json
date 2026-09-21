@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.21-daily-report-layout",
+      "version": "2026.09.21-daily-report-compact",
       "output": "dist/build/web",
-      "acceptance": "Daily report groups quantities and weights, uses responsive daily cards, and clarifies preview scope and customer-day counts.",
+      "acceptance": "Daily report retains five compact rows on desktop and mobile; two tabs expose all existing metrics without vertically expanding the homepage.",
       "integrityScope": "deployment"
     },
     "cloud": {
