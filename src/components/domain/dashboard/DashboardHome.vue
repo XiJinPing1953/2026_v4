@@ -240,7 +240,7 @@
                                     <view class="daily-report-head daily-report-row">
                                         <text>日期</text>
                                         <template v-if="dailyReportView === 'main'"><text>钢瓶充装</text><text>销售</text><text>客户</text></template>
-                                        <template v-else><text>地方车</text><text>车辆（不销售）</text></template>
+                                        <template v-else><text>地方车</text><text>车辆燃气补给</text></template>
                                     </view>
                                     <view v-for="row in dailyReportDisplayRows" :key="row.date" class="daily-report-row">
                                         <text class="daily-report-date">{{ shortDateLabel(row.date) }}</text>
