@@ -1,0 +1,2 @@
+'use strict'
+const {snapshot}=require('./snapshot');exports.main=async(e={})=>{try{const db=uniCloud.database();if(!e.token)return{code:403};const r=await db.collection('crm_users').where({token:e.token}).limit(1).get();if(r.data?.[0]?.role!=='superadmin')return{code:403};if(e.action!=='inspectV1')return{code:400,msg:'本阶段只读'};return{code:0,data:await snapshot(db,e.data?.customer_id)}}catch(x){return{code:409,msg:x.message}}}
