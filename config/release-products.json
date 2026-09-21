@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.21-daily-report-compact",
+      "version": "2026.09.21-inspection-bottle-order",
       "output": "dist/build/web",
-      "acceptance": "Daily report retains five compact rows on desktop and mobile; two tabs expose all existing metrics without vertically expanding the homepage.",
+      "acceptance": "Inspection candidates load completely and sort naturally before pagination, preserving ID-based selection.",
       "integrityScope": "deployment"
     },
     "cloud": {
@@ -32,6 +32,7 @@
         ],
         "baseCommit": "1503228c73ee51bf3b80e28916779232a6daea13",
         "sourceFiles": [
+          "src/components/domain/bottle/BottleInspectionView.vue",
           "src/components/domain/customer/CashierReceiptIntakeView.vue",
           "src/components/domain/customer/exportCashierReceiptIntakeWorkbook.js",
           "src/components/domain/customer/statement/CashierIntakeRecords.vue",
@@ -43,6 +44,7 @@
           "src/pages/login/login.vue",
           "src/services/api/callCloud.js",
           "src/services/api/cashierIntake.js",
+          "src/services/bottleInspectionCandidates.mjs",
           "src/services/customerSettlement.js",
           "src/services/mappers/cashierIntake.js",
           "src/static/police-beian.png",

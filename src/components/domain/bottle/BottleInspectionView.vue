@@ -93,7 +93,7 @@
 
 			<AppSection title="3. 勾选瓶子">
 				<template #actions>
-					<text class="section-hint">筛选 {{ pager.total }} 瓶 · 已选 {{ selectedCount }} 瓶</text>
+					<text class="section-hint">瓶号升序 · 筛选 {{ pager.total }} 瓶 · 已选 {{ selectedCount }} 瓶</text>
 				</template>
 
 				<view class="selection-toolbar">
@@ -104,9 +104,10 @@
 					<text v-else class="selection-hint">可跨页勾选，选择会保留</text>
 				</view>
 
+				<text v-if="loading" class="selection-hint">正在加载并按瓶号排序…</text>
 				<checkbox-group class="candidate-list" @change="onVisibleSelectionChange">
 					<view v-for="item in list" :key="item._id" class="candidate-card">
-						<checkbox :value="String(item._id)" :checked="isBottleSelected(item._id)" color="#2563eb" />
+						<checkbox :value="String(item._id)" :checked="isBottleSelected(item._id)" :disabled="loading" color="#2563eb" />
 							<view class="candidate-body">
 								<view class="candidate-head">
 									<view class="candidate-title-wrap">
@@ -181,6 +182,7 @@ import AppSection from '@/components/base/AppSection.vue'
 import AppTag from '@/components/base/AppTag.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { batchUpdateInspectionV2, searchBottlesV1 } from '@/services/bottle'
+import { loadInspectionCandidates } from '@/services/bottleInspectionCandidates.mjs'
 
 const BATCH_LIMIT = 2000
 const CHECK_CYCLE_MONTHS = [6, 12, 24, 36]
@@ -226,6 +228,9 @@ const inspectionDueStateOptions = [
 ]
 
 const list = ref([])
+let candidateCache = null
+let candidateCacheKey = ''
+let searchVersion = 0
 const loading = ref(false)
 const submitting = ref(false)
 const inspectionDate = ref('')
@@ -263,8 +268,8 @@ const selectedCount = computed(() => {
 	return selectedBottleIds.value.length
 })
 const selectedModuleLabels = computed(() => formatModuleLabels(selectedModules.value))
-const canSelectAll = computed(() => Number(pager.total || 0) > 0 && Number(pager.total || 0) <= BATCH_LIMIT)
-const canSubmit = computed(() => Boolean(inspectionDate.value) && selectedModules.value.length > 0 && selectedCount.value > 0 && canPageAction('/pages/bottle/inspection', 'update'))
+const canSelectAll = computed(() => !loading.value && Number(pager.total || 0) > 0 && Number(pager.total || 0) <= BATCH_LIMIT)
+const canSubmit = computed(() => !loading.value && Boolean(inspectionDate.value) && selectedModules.value.length > 0 && selectedCount.value > 0 && canPageAction('/pages/bottle/inspection', 'update'))
 
 function normalizeString(value) {
 	return value == null ? '' : String(value).trim()
@@ -543,6 +548,7 @@ async function onSubmit() {
 		clearSelection()
 		executeResult.value = resultData
 		uni.showToast({ title: `登记成功 ${Number(executeRes.data?.success || 0)} 瓶`, icon: 'success', duration: 2400 })
+		candidateCache = null
 		await onSearch(false)
 	} catch (err) {
 		uni.showToast({ title: err?.message || '提交失败', icon: 'none', duration: 2800 })
@@ -553,26 +559,32 @@ async function onSubmit() {
 
 async function onSearch(resetPage = false) {
 	if (!validateFilters()) return
-	if (resetPage) pager.page = 1
+	const version = ++searchVersion
+	const key = buildFilterSnapshot()
+	if (resetPage) { pager.page = 1; candidateCache = null }
 	loading.value = true
 	try {
-		const res = await searchBottlesV1(buildFilterParams({ page: pager.page, pageSize: pager.pageSize }))
-		if (res?.code !== 0) {
-			uni.showToast({ title: res?.msg || '查询失败', icon: 'none' })
-			list.value = []
-			pager.total = 0
-			pager.hasMore = false
-			return
+		if (!candidateCache || candidateCacheKey !== key) {
+			const rows = await loadInspectionCandidates(searchBottlesV1, buildFilterParams())
+			if (version !== searchVersion || key !== buildFilterSnapshot()) return
+			candidateCache = rows
+			candidateCacheKey = key
 		}
-		list.value = Array.isArray(res.data) ? res.data : []
-		pager.page = Number(res.paging?.page || pager.page)
-		pager.pageSize = Number(res.paging?.pageSize || pager.pageSize)
-		pager.total = Number(res.paging?.total ?? res.total ?? 0)
-		pager.hasMore = Boolean(res.paging?.hasMore)
+		pager.total = candidateCache.length
+		pager.page = Math.min(pager.page, Math.max(1, Math.ceil(pager.total / pager.pageSize)))
+		const start = (pager.page - 1) * pager.pageSize
+		list.value = candidateCache.slice(start, start + pager.pageSize)
+		pager.hasMore = start + pager.pageSize < pager.total
 	} catch (err) {
+		if (version !== searchVersion) return
+		candidateCache = null
+		list.value = []
+		pager.total = 0
+		pager.hasMore = false
+		clearSelection()
 		uni.showToast({ title: err?.message || '查询失败', icon: 'none' })
 	} finally {
-		loading.value = false
+		if (version === searchVersion) loading.value = false
 	}
 }
 
