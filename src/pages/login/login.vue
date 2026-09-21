@@ -44,6 +44,7 @@
 				<text class="footer-text">新拓能源 · 企业工作台</text>
 				<!-- #ifdef H5 -->
 				<a class="icp-link" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">冀ICP备2026038379号-1</a>
+				<a class="icp-link police-link" href="https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=13013002000385" target="_blank" rel="noopener noreferrer"><img class="police-icon" src="/static/police-beian.png" alt="" />冀公网安备13013002000385号</a>
 				<!-- #endif -->
 			</view>
 		</view>
@@ -194,6 +195,8 @@ async function onLogin() {
 .footer { flex-shrink: 0; text-align: center; line-height: 1.6; padding-bottom: env(safe-area-inset-bottom, 0px); }
 .footer-text { font-size: 12px; color: #8793a6; }
 .icp-link { display: block; margin-top: 4px; font-size: 12px; color: #65748b; text-decoration: none; }
+.police-link { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+.police-icon { width: 16px; height: 16px; flex-shrink: 0; }
 .icp-link:hover { color: #2455cd; text-decoration: underline; }
 .icp-link:focus-visible { outline: 2px solid #346ee8; outline-offset: 3px; border-radius: 3px; }
 @media (max-width: 480px) {

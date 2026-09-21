@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.20-login-title",
+      "version": "2026.09.21-police-beian",
       "output": "dist/build/web",
-      "acceptance": "Login has no native title bar; browser tab title is 新拓CRM; ICP remains visible.",
+      "acceptance": "Login footer displays 冀公网安备13013002000385号 with official icon and query link; both registrations visible.",
       "integrityScope": "deployment"
     },
     "cloud": {
@@ -43,6 +43,7 @@
           "src/services/api/cashierIntake.js",
           "src/services/customerSettlement.js",
           "src/services/mappers/cashierIntake.js",
+          "src/static/police-beian.png",
           "uniCloud-alipay/cloudfunctions/crm-customer-deposit/depositModel.js",
           "uniCloud-alipay/cloudfunctions/crm-customer-deposit/depositReportLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-customer-deposit/index.js",
