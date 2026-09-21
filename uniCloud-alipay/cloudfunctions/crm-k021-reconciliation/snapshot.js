@@ -20,6 +20,8 @@ async function snapshot(db, CUSTOMER_ID) {
   catch(e) { if(optional.has(name)&&String(e.message).trim()==='not found collection'){tables[name]=[];absent.push(name);continue}throw Error(name+': '+e.message) }
   tables[name]=await readComplete(db.collection(name),{customer_id:db.command.in(SCOPE)},{command:db.command,source:name,maxRows:10000})
  }
+ const deliveryRows=await readComplete(db.collection('crm_sale_records'),{delivery_customer_id:db.command.in(SCOPE)},{command:db.command,source:'delivery_reverse',maxRows:10000});
+ if(deliveryRows.some(x=>!tables.crm_sale_records.some(y=>y._id===x._id))||tables.crm_sale_records.some(x=>x.delivery_customer_id&&!SCOPE.includes(x.delivery_customer_id)))throw Error('配送归属范围变化');
  const sales=tables.crm_sale_records.map(x=>x._id),receipts=tables.crm_customer_receipts.map(x=>x._id),targets=[...sales,...tables.crm_customer_opening_debts.map(x=>x._id)]
  for(const [name,field,ids] of [['crm_customer_receipts','source_id',sales],['crm_customer_allocations','receipt_id',receipts],['crm_customer_allocations','target_id',targets],['crm_customer_allocations','sale_id',sales]]) {
   for(let i=0;i<ids.length;i+=50){const rows=await readComplete(db.collection(name),{[field]:db.command.in(ids.slice(i,i+50))},{command:db.command,source:name+'_reverse',maxRows:10000});if(rows.some(x=>!SCOPE.includes(x.customer_id)||!tables[name].some(y=>y._id===x._id)))throw Error('范围外反向关联')}

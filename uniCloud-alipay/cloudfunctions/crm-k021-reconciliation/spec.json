@@ -1,0 +1,113 @@
+{
+  "source": "fe0f95ba7cee6e459e50862a3ab6a20467559d88d2456e7105a6c295891dc81e",
+  "receipts": [
+    {
+      "id": "6961ee08189f862245c13e86",
+      "sale_date": "2026-01-10",
+      "date": "2026-01-10",
+      "amount": 603
+    },
+    {
+      "id": "69643c638a5c785fa8620641",
+      "sale_date": "2026-01-11",
+      "date": "2026-01-11",
+      "amount": 621
+    },
+    {
+      "id": "696b1fa10d2b314595ce8ae4",
+      "sale_date": "2026-01-17",
+      "date": "2026-01-17",
+      "amount": 882
+    },
+    {
+      "id": "69745ae8149854cdcacdc0c7",
+      "sale_date": "2026-01-24",
+      "date": "2026-01-27",
+      "amount": 612
+    },
+    {
+      "id": "697704b799c624286aae857d",
+      "sale_date": "2026-01-26",
+      "date": "2026-01-26",
+      "amount": 828
+    },
+    {
+      "id": "697fea59ce5ec90ceccf5ba8",
+      "sale_date": "2026-02-01",
+      "date": "2026-02-01",
+      "amount": 621
+    },
+    {
+      "id": "69818a743d029cb625e38c8c",
+      "sale_date": "2026-02-03",
+      "date": "2026-02-03",
+      "amount": 558
+    },
+    {
+      "id": "69bbaff789d8371762435b5a",
+      "sale_date": "2026-02-08",
+      "date": "2026-02-08",
+      "amount": 648
+    },
+    {
+      "id": "69bbaff7f7ac1a41a1adc891",
+      "sale_date": "2026-02-08",
+      "date": "2026-02-08",
+      "amount": 585
+    },
+    {
+      "id": "69bbaffb0add39bd434a3fad",
+      "sale_date": "2026-02-12",
+      "date": "2026-02-12",
+      "amount": 351
+    },
+    {
+      "id": "69bbaffd89d8371762435bea",
+      "sale_date": "2026-02-24",
+      "date": "2026-02-24",
+      "amount": 585
+    },
+    {
+      "id": "69bbb00bf7ac1a41a1adcae9",
+      "sale_date": "2026-03-10",
+      "date": "2026-03-10",
+      "amount": 648
+    },
+    {
+      "id": "69bbb2c336bc4bac6fd4c781",
+      "sale_date": "2026-03-08",
+      "date": "2026-03-08",
+      "amount": 423
+    },
+    {
+      "id": "69c8addb5c28c95aac982ee6",
+      "sale_date": "2026-03-20",
+      "date": "2026-03-20",
+      "amount": 648
+    },
+    {
+      "id": "69c8addb5c28c95aac982eef",
+      "sale_date": "2026-03-20",
+      "date": "2026-03-20",
+      "amount": 657
+    },
+    {
+      "id": "69ccc02768be701c9c96856b",
+      "sale_date": "2026-04-01",
+      "date": "2026-04-01",
+      "amount": 648
+    },
+    {
+      "id": "69d2f57d5cee11b05eb022eb",
+      "sale_date": "2026-04-04",
+      "date": "2026-04-04",
+      "amount": 612
+    },
+    {
+      "id": "69d74d6753f8a6e59413ee17",
+      "sale_date": "2026-04-09",
+      "date": "2026-04-09",
+      "amount": 594
+    }
+  ]
+}
