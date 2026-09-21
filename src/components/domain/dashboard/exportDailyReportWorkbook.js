@@ -140,7 +140,7 @@ function sortRowsForExport(rows = []) {
 function buildSummarySheetRows({ summaryRows = [], periodLabel = '' } = {}) {
 	const rows = []
 	rows.push([`业务日报汇总（${periodLabel || '-' }）`])
-	rows.push(['充装瓶数', '充装重量(kg)', '地方车次', '地方车重(kg)', '车辆次', '车辆重(kg)', '客户数', '销售瓶数', '销售重量(kg)'])
+	rows.push(['钢瓶充装瓶次', '钢瓶充装重量(kg)', '地方车充装次数', '地方车充装重量(kg)', '车辆充装次数（不销售）', '车辆充装重量(kg)', '成交客户户次（每日去重后相加）', '销售瓶数', '销售重量(kg)'])
 	const source = Array.isArray(summaryRows) ? summaryRows : []
 	const total = source.reduce(
 		(acc, row) => {

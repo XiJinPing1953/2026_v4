@@ -229,45 +229,33 @@
 										</view>
 									</view>
 								</view>
-								<scroll-view scroll-x class="daily-report-scroll">
-									<view class="daily-report-table">
-										<view class="daily-report-head daily-report-row">
-											<text class="daily-report-cell daily-report-cell--date">日期</text>
-											<text class="daily-report-cell">充装瓶数</text>
-											<text class="daily-report-cell">充装重量</text>
-											<text class="daily-report-cell">地方车次</text>
-											<text class="daily-report-cell">地方车重</text>
-											<text class="daily-report-cell">车辆次</text>
-											<text class="daily-report-cell">车辆重</text>
-											<text class="daily-report-cell">客户数</text>
-											<text class="daily-report-cell">销售瓶数</text>
-											<text class="daily-report-cell">销售重量</text>
-										</view>
-										<view v-for="row in dailyReportDisplayRows" :key="row.date" class="daily-report-row">
-											<text class="daily-report-cell daily-report-cell--date">{{ row.date }}</text>
-											<text class="daily-report-cell">{{ row.fillBottleCount }}</text>
-											<text class="daily-report-cell">{{ formatCompactWeight(row.fillBottleWeightKg) }}</text>
-											<text class="daily-report-cell">{{ row.localCount }}</text>
-											<text class="daily-report-cell">{{ formatCompactWeight(row.localWeightKg) }}</text>
-											<text class="daily-report-cell">{{ row.vehicleCount }}</text>
-											<text class="daily-report-cell">{{ formatCompactWeight(row.vehicleWeightKg) }}</text>
-											<text class="daily-report-cell">{{ row.saleCustomerCount }}</text>
-											<text class="daily-report-cell">{{ row.saleBottleCount }}</text>
-											<text class="daily-report-cell">{{ formatCompactWeight(row.saleWeightKg) }}</text>
-										</view>
-									</view>
-								</scroll-view>
+                                <text class="overview-meta">{{ dailyReportPreviewLabel }}</text>
+                                <view class="daily-report-table">
+                                    <view class="daily-report-head daily-report-row">
+                                        <text>业务日期</text><text>钢瓶充装</text><text>地方车充装</text><text>车辆充装（不销售）</text><text>销售</text><text>成交客户</text>
+                                    </view>
+                                    <view v-for="row in dailyReportDisplayRows" :key="row.date" class="daily-report-row">
+                                        <text class="daily-report-date">{{ row.date }}</text>
+                                        <view class="daily-report-cell"><text class="daily-report-label">钢瓶充装</text><text>{{ row.fillBottleCount }} 瓶次</text><text class="daily-report-weight">{{ formatCompactWeight(row.fillBottleWeightKg) }}</text></view>
+                                        <view class="daily-report-cell"><text class="daily-report-label">地方车充装</text><text>{{ row.localCount }} 次</text><text class="daily-report-weight">{{ formatCompactWeight(row.localWeightKg) }}</text></view>
+                                        <view class="daily-report-cell"><text class="daily-report-label">车辆充装（不销售）</text><text>{{ row.vehicleCount }} 次</text><text class="daily-report-weight">{{ formatCompactWeight(row.vehicleWeightKg) }}</text></view>
+                                        <view class="daily-report-cell"><text class="daily-report-label">销售</text><text>{{ row.saleBottleCount }} 瓶</text><text class="daily-report-weight">{{ formatCompactWeight(row.saleWeightKg) }}</text></view>
+                                        <view class="daily-report-cell"><text class="daily-report-label">成交客户</text><text>{{ row.saleCustomerCount }} 户</text><text class="daily-report-weight">当日去重</text></view>
+                                    </view>
+                                </view>
+                                <text v-if="!dailyReportDisplayRows.length" class="overview-meta">当前预览无数据，可导出所选月份查看完整日报。</text>
+                                <text class="daily-report-note">充装按正重量记录计次，同一钢瓶重复充装分别计数；三类充装分别统计。销售重量按销售单口径统计，不能与充装重量直接相减作为损耗。</text>
 							</view>
 
 							<view class="overview-aside">
-								<text class="overview-aside__title">业务摘要</text>
+								<text class="overview-aside__title">预览数据摘要</text>
 								<view class="overview-summary">
 									<view class="overview-summary__item">
-										<text class="overview-summary__label">充装瓶数合计</text>
+										<text class="overview-summary__label">钢瓶充装瓶次</text>
 										<text class="overview-summary__value">{{ dailyReportDisplaySummary.fillBottleCount }}</text>
 									</view>
 									<view class="overview-summary__item">
-										<text class="overview-summary__label">充装重量合计</text>
+										<text class="overview-summary__label">全部充装重量</text>
 										<text class="overview-summary__value">{{ formatCompactWeight(dailyReportDisplaySummary.fillTotalWeightKg) }}</text>
 									</view>
 									<view class="overview-summary__item">
@@ -279,13 +267,14 @@
 										<text class="overview-summary__value">{{ formatCompactWeight(dailyReportDisplaySummary.saleWeightKg) }}</text>
 									</view>
 									<view class="overview-summary__item">
-										<text class="overview-summary__label">客户数合计</text>
+										<text class="overview-summary__label">成交客户户次</text>
 										<text class="overview-summary__value">{{ dailyReportDisplaySummary.saleCustomerCount }}</text>
 									</view>
 								</view>
+								<text class="daily-report-note">摘要仅合计上方预览日期；客户户次为每日去重后相加，同一客户跨日重复计入。</text>
 								<view class="overview-mini-chart">
 									<view class="overview-mini-chart__head">
-										<text class="overview-mini-chart__title">近5日销售重量</text>
+										<text class="overview-mini-chart__title">预览日期销售重量</text>
 										<text class="overview-mini-chart__value">{{ formatCompactWeight(dailyReportDisplaySummary.saleWeightKg) }}</text>
 									</view>
 									<AppMiniBars :values="dailyReportBarValues" :height="68" :bar-width="18" :gap="10" color="#2563eb" />
@@ -618,8 +607,8 @@ const dailyReportExporting = ref(false)
 const dailyReportRangeOptions = [
 	{ value: 'today', label: '当日' },
 	{ value: 'yesterday', label: '前一日' },
-	{ value: 'last3', label: '前三日' },
-	{ value: 'last5', label: '前五日' },
+	{ value: 'last3', label: '近三日' },
+	{ value: 'last5', label: '近五日' },
 	{ value: 'lastMonth', label: '上月' },
 	{ value: 'thisMonth', label: '当月' }
 ]
@@ -649,6 +638,11 @@ const dailyReportExportRows = computed(() => {
 	})
 })
 const dailyReportDisplayRows = computed(() => dailyReportExportRows.value.slice(0, DAILY_REPORT_MAX_VISIBLE_DAYS))
+const dailyReportPreviewLabel = computed(() => {
+    const rows = dailyReportDisplayRows.value
+    const scope = rows.length ? `${rows[rows.length - 1].date} ~ ${rows[0].date}（${rows.length}天）` : '无可预览日期'
+    return `当前预览：${scope}${MONTH_EXPORT_PRESET_SET.has(dailyReportRangePreset.value) ? ' · 月份完整数据请导出' : ''}`
+})
 const dailyReportCanExport = computed(() => {
 	if (MONTH_EXPORT_PRESET_SET.has(dailyReportRangePreset.value)) return true
 	return dailyReportExportRows.value.length > 0
@@ -1356,6 +1350,9 @@ function goInspectionDue(module) {
 }
 
 .overview-card {
+	min-width: 0;
+	container-type: inline-size;
+	container-name: daily-report;
 	background: #fff;
 	border: 1px solid #eef1f5;
 	border-radius: 18px;
@@ -1367,6 +1364,7 @@ function goInspectionDue(module) {
 }
 
 .overview-header {
+	flex-wrap: wrap;
 	display: flex;
 	align-items: flex-start;
 	justify-content: space-between;
@@ -1407,10 +1405,11 @@ function goInspectionDue(module) {
 }
 
 .daily-range-cards {
-	display: inline-flex;
+	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: 8px;
-	min-width: auto;
+	min-width: 0;
 }
 
 .daily-range-card {
@@ -1440,52 +1439,22 @@ function goInspectionDue(module) {
 	justify-content: center;
 }
 
-.daily-report-scroll {
-	width: 100%;
-	display: flex;
-	justify-content: center;
-}
-
-.daily-report-table {
-	width: 100%;
-	min-width: 0;
-	border: 1px solid #e2e8f0;
-	border-radius: 14px;
-	overflow: hidden;
-	background: #f8fafc;
-}
-
-.daily-report-row {
-	display: grid;
-	grid-template-columns: 140px repeat(9, minmax(0, 1fr));
-}
-
-.daily-report-head {
-	background: #eff6ff;
-}
-
-.daily-report-row + .daily-report-row {
-	border-top: 1px solid #e2e8f0;
-}
-
-.daily-report-cell {
-	padding: 12px 10px;
-	font-size: 12px;
-	color: #334155;
-	text-align: center;
-	white-space: nowrap;
-	min-width: 0;
-}
-
-.daily-report-head .daily-report-cell {
-	font-weight: 700;
-	color: #0f172a;
-}
-
-.daily-report-cell--date {
-	text-align: left;
-	font-weight: 600;
-	color: #0f172a;
+.daily-report-table { width: 100%; min-width: 0; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; box-sizing: border-box; background: #f8fafc; }
+.daily-report-row { display: grid; grid-template-columns: 112px repeat(5, minmax(0, 1fr)); align-items: stretch; }
+.daily-report-row + .daily-report-row { border-top: 1px solid #e2e8f0; }
+.daily-report-head { background: #eff6ff; font-size: 12px; font-weight: 600; text-align: center; }
+.daily-report-head > * { padding: 12px 6px; }
+.daily-report-date { padding: 14px 10px; font-size: 12px; font-weight: 600; color: #0f172a; }
+.daily-report-cell { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 12px 6px; min-width: 0; text-align: center; font-size: 12px; color: #334155; overflow-wrap: anywhere; }
+.daily-report-weight { color: #64748b; }
+.daily-report-label { display: none; }
+.daily-report-note { font-size: 12px; line-height: 1.6; color: #64748b; }
+@container daily-report (max-width: 720px) {
+    .daily-report-head { display: none; }
+    .daily-report-row { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; gap: 12px; }
+    .daily-report-date { grid-column: 1 / -1; padding: 0 0 8px; border-bottom: 1px solid #e2e8f0; }
+    .daily-report-cell { text-align: left; padding: 0; gap: 4px; }
+    .daily-report-label { display: block; color: #64748b; }
 }
 
 .shipment-legend {
@@ -2034,19 +2003,13 @@ function goInspectionDue(module) {
 		margin-top: 4px;
 		flex-direction: column;
 	}
-	.daily-report-scroll {
-		display: block;
-		overflow-x: auto;
-	}
 	.daily-range-scroll {
 		max-width: 100%;
 	}
 	.daily-export-wrap {
 		justify-content: flex-start;
 	}
-	.daily-report-table {
-		min-width: 980px;
-	}
+
 	.topbar-right {
 		width: 100%;
 		justify-content: space-between;

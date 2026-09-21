@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.21-police-beian",
+      "version": "2026.09.21-daily-report-layout",
       "output": "dist/build/web",
-      "acceptance": "Login footer displays 冀公网安备13013002000385号 with official icon and query link; both registrations visible.",
+      "acceptance": "Daily report groups quantities and weights, uses responsive daily cards, and clarifies preview scope and customer-day counts.",
       "integrityScope": "deployment"
     },
     "cloud": {
@@ -37,6 +37,8 @@
           "src/components/domain/customer/statement/CashierIntakeRecords.vue",
           "src/components/domain/customer/statement/CustomerDepositPanel.vue",
           "src/components/domain/customer/statement/CustomerStatementModule.vue",
+          "src/components/domain/dashboard/DashboardHome.vue",
+          "src/components/domain/dashboard/exportDailyReportWorkbook.js",
           "src/pages.json",
           "src/pages/login/login.vue",
           "src/services/api/callCloud.js",
@@ -55,6 +57,15 @@
           "uniCloud-alipay/cloudfunctions/crm-customer-settlement/depositReportLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-customer-settlement/depositTransactionLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/basePlan.js",
+          "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/financialReadLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/package.json",
+          "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/plan.js",
+          "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/saleAccountingLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/snapshot.js",
+          "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/spec.json",
+          "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/transaction.js",
           "uniCloud-alipay/database/crm_cashier_intake_operations.index.json",
           "uniCloud-alipay/database/crm_cashier_intake_operations.schema.json",
           "uniCloud-alipay/database/crm_cashier_intakes.index.json",
