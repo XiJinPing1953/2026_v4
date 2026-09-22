@@ -1,0 +1,17 @@
+{
+  "source": "b5e75e4733d0f2a6e878867cdcc4d920621e1cb8b31b0594a4427b5a0262a69d",
+  "old_rounding": {
+    "receipt_id": "6a0c032da2aff69e3bfc7cea",
+    "allocation_id": "6a0c032dca40f0e8a02a3106"
+  },
+  "opening_sale_id": "69bbb2c585d19fd7c4625dab",
+  "receipts": [
+    {"sale_id":"69649896189f862245f0b294","sale_date":"2026-01-12","sale_received":1089,"parts":[{"date":"2026-01-12","voucher":"记-043","amount":1089}]},
+    {"sale_id":"697859511c90b6e9466b5e17","sale_date":"2026-01-27","sale_received":639,"parts":[{"date":"2026-01-27","voucher":"记-101","amount":639}]},
+    {"sale_id":"6986ccd78a5c785fa8fef277","sale_date":"2026-02-07","sale_received":1260,"parts":[{"date":"2026-02-07","voucher":"记-024","amount":660},{"date":"2026-02-08","voucher":"记-027","amount":600}]},
+    {"sale_id":"69bbb008f7ac1a41a1adca80","sale_date":"2026-03-08","sale_received":648,"parts":[{"date":"2026-03-08","voucher":"记-027","amount":648}]},
+    {"sale_id":"69bbb2c585d19fd7c4625dab","sale_date":"2026-03-16","sale_received":620,"parts":[{"date":"2026-03-16","voucher":"记-054","amount":620}]},
+    {"sale_id":"69c8af8759063e84c13ec055","sale_date":"2026-03-23","sale_received":567,"parts":[{"date":"2026-03-23","voucher":"记-080","amount":567}]},
+    {"sale_id":"69d85a636a89879b697f4acb","sale_date":"2026-04-10","sale_received":567,"parts":[{"date":"2026-04-10","voucher":"记-035","amount":567}]}
+  ]
+}
