@@ -111,16 +111,24 @@
 							<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewReceiptUnallocatedBalance) }}</text></text>
 						</view>
 					</view>
-					<view class="overview-item">
-						<text class="overview-label">其中冲抵池</text>
-						<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewOffsetCreditBalance) }}</text></text>
+					<view class="overview-pair">
+						<view class="overview-item">
+							<text class="overview-label">其中冲抵池</text>
+							<text class="overview-value money-inline"><text class="money-symbol">¥</text><text class="money-number">{{ formatMoney(overviewOffsetCreditBalance) }}</text></text>
+						</view>
+						<view class="overview-item">
+							<text class="overview-label">期间退款</text>
+							<text class="overview-value">{{ periodMoney('refund_total') }}</text>
+							<text class="overview-meta">扣除退款后的净收款 {{ periodMoney('net_cash_received') }}</text>
+							<text v-if="periodReport?.refund_source_pending_total > 0" class="overview-meta">当前退款来源待核 ¥{{ formatMoney(periodReport.refund_source_pending_total) }}，余额尚未扣除，请先补关联。</text>
+						</view>
 					</view>
 				</view>
 				<view class="overview-scope">
 					<text class="overview-meta">统计{{ periodScopeText }}</text>
 					<text v-if="overviewScopeText !== periodScopeText" class="overview-meta">预付款、待分配收款与冲抵池{{ overviewScopeText }}</text>
 				</view>
-				<view v-if="periodReport?.noncash_balance_adjustment || periodReport?.opening_prepay_transferred > 0 || (periodReport && periodReport.refund_total !== 0)" class="overview-grid overview-grid--supplement">
+				<view v-if="periodReport?.noncash_balance_adjustment || periodReport?.opening_prepay_transferred > 0" class="overview-grid overview-grid--supplement">
 					<view v-if="periodReport?.noncash_balance_adjustment" class="overview-item">
 						<text class="overview-label">非现金余额调整</text>
 						<text class="overview-value">{{ periodMoney('noncash_balance_adjustment') }}</text>
@@ -130,12 +138,7 @@
 						<text class="overview-value">{{ periodMoney('opening_prepay_transferred') }}</text>
 						<text class="overview-meta">可抵扣气款，不计实际收款或营收</text>
 					</view>
-					<view v-if="periodReport && periodReport.refund_total !== 0" class="overview-item">
-						<text class="overview-label">期间退款</text>
-						<text class="overview-value">{{ periodMoney('refund_total') }}</text>
-						<text class="overview-meta">扣除退款后的净收款 {{ periodMoney('net_cash_received') }}</text>
-						<text v-if="periodReport?.refund_source_pending_total > 0" class="overview-meta">当前退款来源待核 ¥{{ formatMoney(periodReport.refund_source_pending_total) }}，余额尚未扣除，请先补关联。</text>
-					</view>
+
 				</view>
 				<view v-if="periodReport?.manual_review || outstandingPeriodIssues(periodReport).length" class="overview-review" :class="{ 'overview-review--pending': outstandingPeriodIssues(periodReport).length }">
 						<text v-if="periodReport?.manual_review" class="overview-meta">{{ periodReport.manual_review.note }}</text>
