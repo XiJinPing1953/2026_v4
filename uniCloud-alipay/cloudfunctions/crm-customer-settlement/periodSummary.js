@@ -2,7 +2,8 @@
 
 const { readComplete, FinancialReadError } = require('./financialReadLocal')
 const { isOpeningPrepayReceipt, isDepositTransferReceipt, isSettlementFeeReceipt, isNonCashPrepayReceipt } = require('./receiptSource')
-const VERSION = 'customer-period-summary/2026-09-12.3'
+const { K023, isConfirmedOpeningPrepay, isConfirmedPrepayWriteoff } = require('./confirmedPrepayWriteoff')
+const VERSION = 'customer-period-summary/2026-09-23.4'
 const id = value => String(value || '').trim()
 const date = value => /^\d{4}-\d{2}-\d{2}$/.test(id(value)) ? id(value) : ''
 const active = row => !row.status || row.status === 'posted'
@@ -126,14 +127,17 @@ function calculatePeriodSummary(input, rules) {
 	let businessRevenue = 0
 	let historicalReceivable = 0
 	let balanceAdjustment = 0
+	let prepayWriteoff = 0
 	for (const item of targets) {
 		const { row, type, bizDate, snapshot } = item
 		const amount = ['opening_debt', 'other_fee', 'balance_adjustment'].includes(type) ? snapshot.should_receive_effective : snapshot.should_receive
 		if (inRange(bizDate)) {
-			if (type === 'balance_adjustment') balanceAdjustment = sum([balanceAdjustment, amount])
+			if (type === 'balance_adjustment' && isConfirmedPrepayWriteoff(row)) prepayWriteoff = sum([prepayWriteoff, amount])
+			else if (type === 'balance_adjustment') balanceAdjustment = sum([balanceAdjustment, amount])
 			else if (type === 'opening_debt') historicalReceivable = sum([historicalReceivable, amount])
 			else businessRevenue = sum([businessRevenue, amount])
 		} else if (!bizDate && amount) issue(type, row, 'business_date_missing', amount)
+		if (row._id === K023.adjustment_id && !isConfirmedPrepayWriteoff(row)) issue(type, row, 'confirmed_writeoff_source_changed', amount)
 		const received = sum([snapshot.amount_received || 0])
 		const unbacked = received < 0 ? received : sum([received, -(backed.get(`${type}:${id(row._id)}`) || 0)])
 		// No cash date exists on legacy embedded totals. Do not assign the sale date to it.
@@ -155,6 +159,9 @@ function calculatePeriodSummary(input, rules) {
 	const settlementFee = sum(feeReceipts.filter(row => inRange(row.biz_date)).map(row => row.amount))
 	const openingCredits = receipts.filter(row => row.status === 'posted' && isOpeningPrepayReceipt(row))
 	const openingTransferred = sum(openingCredits.filter(row => inRange(row.biz_date)).map(row => row.amount))
+	for (const row of receipts) if (row._id === K023.opening_receipt_id && !isConfirmedOpeningPrepay(row)) issue('opening_prepay', row, 'confirmed_opening_source_changed', row.amount)
+	if (targets.some(item => item.row._id === K023.adjustment_id) && !receipts.some(isConfirmedOpeningPrepay))
+		issue('opening_prepay', { _id: K023.opening_receipt_id }, 'confirmed_opening_source_changed')
 	const depositTransfers = receipts.filter(row => row.status === 'posted' && isDepositTransferReceipt(row))
 	const depositTransferred = sum(depositTransfers.filter(row => inRange(row.biz_date)).map(row => row.amount))
 	const sourceNotes = flows.filter(row => row.status === 'posted' && inRange(row.biz_date) && row.period_start_date && row.period_start_date.slice(0, 4) !== row.biz_date.slice(0, 4))
@@ -172,7 +179,7 @@ function calculatePeriodSummary(input, rules) {
 		net_cash_received: sum([cashReceived, -refundTotal])
 	}
 	const cashComplete = !pending.some(row => row.reason !== 'business_date_missing')
-	const businessComplete = !pending.some(row => row.reason === 'business_date_missing')
+	const businessComplete = !pending.some(row => ['business_date_missing', 'confirmed_writeoff_source_changed', 'confirmed_opening_source_changed'].includes(row.reason))
 	const { pending: roundingPending, ...rounding } = calculatePeriodRounding({ targets, receipts, allocations, moneyScale, inRange }, rules)
 	pending.push(...roundingPending)
 	if (rounding.legacy_rounding_total > 0) sourceNotes.push({ source_type: 'legacy_rounding', source_id: 'legacy_rounding',
@@ -186,6 +193,7 @@ function calculatePeriodSummary(input, rules) {
 		refund_source_pending_total: pendingRefundTotal, balance_source_complete: pendingRefundTotal === 0,
 		business_revenue: businessComplete ? businessRevenue : null,
 		noncash_balance_adjustment: businessComplete ? balanceAdjustment : null,
+		prepay_writeoff_total: businessComplete ? prepayWriteoff : null,
 		historical_receivable: businessComplete ? historicalReceivable : null,
 		receivable_total: businessComplete ? sum([businessRevenue, historicalReceivable, balanceAdjustment]) : null,
 		...Object.fromEntries(Object.entries(knownCash).map(([key, value]) => [key, cashComplete ? value : null])),

@@ -36,11 +36,24 @@ test('K023受保护批次：期初预付、现金补证、非现金调整、回�
  for(const action of ['getCustomerStatementV1','exportCustomerStatementV1','exportCustomerAccountingLedgerV1']){
   r=await invoke(s,action,{customer_id:cid,date_from:'2026-01-01',date_to:'2026-09-22'});assert.equal(r.code,0,r.msg)
   const x=r.data.period_summary
-  for(const [key,value] of Object.entries({business_revenue:13964,noncash_balance_adjustment:7,receivable_total:13971,cash_received:13963,opening_prepay_transferred:8,rounding_total:0,refund_total:0,net_cash_received:13963,complete:true}))assert.equal(x[key],value,action+':'+key)
+  for(const [key,value] of Object.entries({business_revenue:13964,noncash_balance_adjustment:0,prepay_writeoff_total:7,receivable_total:13964,cash_received:13963,opening_prepay_transferred:8,rounding_total:0,refund_total:0,net_cash_received:13963,complete:true}))assert.equal(x[key],value,action+':'+key)
   if(r.data.summary){assert.equal(r.data.summary.receivable_balance,0);assert.equal(r.data.summary.prepay_balance,0)}
   if(action!=='getCustomerStatementV1')assert.equal(r.data.closing_balance,0)
+  if(action==='exportCustomerAccountingLedgerV1'){
+   assert.equal(r.data.opening.balance,-8)
+   assert.deepEqual(r.data.year_total.debit,13964)
+   assert.deepEqual(r.data.year_total.credit,13956)
+   assert.equal(r.data.rows.find(row=>row.source_type==='balance_adjustment').credit,-7)
+  }
  }
  for(const [date,cash,opening,adjustment] of [['2026-01-01',0,8,0],['2026-02-07',660,0,0],['2026-02-08',600,0,0],['2026-06-12',0,0,7]]){
-  r=await invoke(s,'getCustomerStatementV1',{customer_id:cid,date_from:date,date_to:date});assert.equal(r.data.period_summary.cash_received,cash,date);assert.equal(r.data.period_summary.opening_prepay_transferred,opening,date);assert.equal(r.data.period_summary.noncash_balance_adjustment,adjustment,date)
+  r=await invoke(s,'getCustomerStatementV1',{customer_id:cid,date_from:date,date_to:date});assert.equal(r.data.period_summary.cash_received,cash,date);assert.equal(r.data.period_summary.opening_prepay_transferred,opening,date);assert.equal(r.data.period_summary.prepay_writeoff_total,adjustment,date)
  }
+ r=await invoke(s,'exportCustomerAccountingLedgerV1',{customer_id:cid,date_from:'2026-02-01',date_to:'2026-09-22'})
+ assert.equal(r.code,0,r.msg);assert.equal(r.data.year_total.debit,13964);assert.equal(r.data.year_total.credit,13956)
+ const writeoff=t.crm_customer_opening_debts.find(x=>x._id==='b9154df2e659c547eba3b24b')
+ writeoff.amount=6
+ r=await invoke(s,'getCustomerStatementV1',{customer_id:cid,date_from:'2026-01-01',date_to:'2026-09-22'})
+ assert.equal(r.data.period_summary.complete,false)
+ assert.equal(r.data.period_summary.receivable_total,null)
 })

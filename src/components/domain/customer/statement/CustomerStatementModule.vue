@@ -128,18 +128,6 @@
 					<text class="overview-meta">统计{{ periodScopeText }}</text>
 					<text v-if="overviewScopeText !== periodScopeText" class="overview-meta">预付款、待分配收款与冲抵池{{ overviewScopeText }}</text>
 				</view>
-				<view v-if="periodReport?.noncash_balance_adjustment || periodReport?.opening_prepay_transferred > 0" class="overview-grid overview-grid--supplement">
-					<view v-if="periodReport?.noncash_balance_adjustment" class="overview-item">
-						<text class="overview-label">非现金余额调整</text>
-						<text class="overview-value">{{ periodMoney('noncash_balance_adjustment') }}</text>
-					</view>
-					<view v-if="periodReport?.opening_prepay_transferred > 0" class="overview-item">
-						<text class="overview-label">期间期初预付款转入</text>
-						<text class="overview-value">{{ periodMoney('opening_prepay_transferred') }}</text>
-						<text class="overview-meta">可抵扣气款，不计实际收款或营收</text>
-					</view>
-
-				</view>
 				<view v-if="periodReport?.manual_review || outstandingPeriodIssues(periodReport).length" class="overview-review" :class="{ 'overview-review--pending': outstandingPeriodIssues(periodReport).length }">
 						<text v-if="periodReport?.manual_review" class="overview-meta">{{ periodReport.manual_review.note }}</text>
 						<text v-if="outstandingPeriodIssues(periodReport).length" class="overview-meta">{{ outstandingPeriodIssues(periodReport).length }} 项账务依据待核，相关合计暂不显示</text>

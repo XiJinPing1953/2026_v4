@@ -1,5 +1,6 @@
 'use strict'
 const { isSettlementFeeReceipt, isOpeningPrepayReceipt, isDepositTransferReceipt, isNonCashPrepayReceipt, isOffsetCreditReceipt, isCashReceipt } = require('./receiptSource')
+const { isConfirmedOpeningPrepay, isConfirmedPrepayWriteoff } = require('./confirmedPrepayWriteoff')
 
 const saleAccounting = require('./saleAccountingLocal')
 const { readComplete, withFinancialEvidence, FinancialReadError } = require('./financialReadLocal')
@@ -7449,6 +7450,8 @@ function pushAccountingMovement(rows, item = {}, moneyScale = 2) {
 		? { debit: amount, credit: 0 }
 		: item.normal_balance === 'credit'
 		? { debit: 0, credit: fixByScale(Math.abs(amount), moneyScale) }
+		: item.normal_balance === 'contra_credit'
+		? { debit: 0, credit: fixByScale(-Math.abs(amount), moneyScale) }
 		: splitAccountingDebitCredit(amount, moneyScale)
 	if (split.debit === 0 && split.credit === 0) return
 	rows.push({
@@ -7771,9 +7774,9 @@ async function listCustomerAccountingMovements(customer, { dateFrom = '', dateTo
 			biz_date: date,
 			created_at: doc && doc.created_at,
 			row_order: entryType === 'other_fee' ? 31 : 30,
-			summary: `${shortAccountingDateText(date)}${openingDebtEntryLabelByType(entryType)}`,
+			summary: isConfirmedPrepayWriteoff(doc) ? `${shortAccountingDateText(date)}期初预付款清账` : `${shortAccountingDateText(date)}${openingDebtEntryLabelByType(entryType)}`,
 			amount: snapshot.should_receive_effective,
-			normal_balance: 'debit',
+			normal_balance: isConfirmedPrepayWriteoff(doc) ? 'contra_credit' : 'debit',
 			source_type: entryType,
 			source_id: targetId
 		}, moneyScale)
@@ -7794,7 +7797,9 @@ async function listCustomerAccountingMovements(customer, { dateFrom = '', dateTo
 
 	receiptDocs.forEach((doc) => {
 		if (isOffsetCreditReceiptRow(doc)) return
-		const date = normalizeDate(doc && doc.biz_date)
+		// This confirmed prior-year balance is opening credit in the accounting ledger.
+		// Keep the original receipt date intact for the CRM receipt and allocation views.
+		const date = isConfirmedOpeningPrepay(doc) ? '2025-12-31' : normalizeDate(doc && doc.biz_date)
 		const amount = fixByScale(toNumber(doc && doc.amount, 0), moneyScale)
 		if (amount > 0) {
 			pushAccountingMovement(rows, {
@@ -7849,8 +7854,13 @@ async function calculateCustomerAccountingOpeningBalance(customerId, dateFrom, m
 async function buildCustomerAccountingLedgerPayload(customer, { dateFrom = '', dateTo = '' } = {}) {
 	const customerId = normalizeId(customer && customer._id)
 	const moneyScale = resolveCustomerMoneyScale(customer)
-	const openingBalance = await calculateCustomerAccountingOpeningBalance(customerId, dateFrom, moneyScale)
-	const rangeMovements = await listCustomerAccountingMovements(customer, { dateFrom, dateTo, moneyScale })
+	let openingBalance = await calculateCustomerAccountingOpeningBalance(customerId, dateFrom, moneyScale)
+	const fetchedMovements = await listCustomerAccountingMovements(customer, { dateFrom, dateTo, moneyScale })
+	const carriedMovements = fetchedMovements.filter((row) => row.biz_date < dateFrom)
+	if (carriedMovements.length) openingBalance = sumMoneyByScale([
+		openingBalance, ...carriedMovements.map((row) => toNumber(row.debit, 0) - toNumber(row.credit, 0))
+	], moneyScale)
+	const rangeMovements = fetchedMovements.filter((row) => row.biz_date >= dateFrom)
 	const ledger = buildAccountingDisplayRows(rangeMovements, openingBalance, moneyScale)
 	const rows = ledger.rows
 	const closingBalance = rows.length ? rows[rows.length - 1].balance : fixByScale(openingBalance, moneyScale)
@@ -7859,10 +7869,10 @@ async function buildCustomerAccountingLedgerPayload(customer, { dateFrom = '', d
 	const yearStart = `${dateTo.slice(0, 4)}-01-01`
 	const monthMovements = dateFrom <= monthStart
 		? rangeMovements.filter((row) => row.biz_date >= monthStart && row.biz_date <= dateTo)
-		: await listCustomerAccountingMovements(customer, { dateFrom: monthStart, dateTo, moneyScale })
+		: (await listCustomerAccountingMovements(customer, { dateFrom: monthStart, dateTo, moneyScale })).filter((row) => row.biz_date >= monthStart)
 	const yearMovements = dateFrom <= yearStart
 		? rangeMovements.filter((row) => row.biz_date >= yearStart && row.biz_date <= dateTo)
-		: await listCustomerAccountingMovements(customer, { dateFrom: yearStart, dateTo, moneyScale })
+		: (await listCustomerAccountingMovements(customer, { dateFrom: yearStart, dateTo, moneyScale })).filter((row) => row.biz_date >= yearStart)
 
 	return {
 		company_name: STATEMENT_COMPANY_NAME,

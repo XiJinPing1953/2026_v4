@@ -44,7 +44,7 @@ test('daily export follows ledger for undated embedded receipts, sale rounding a
   assertDailyBalances(daily,ledger)
   assert.equal(daily.totals.receipt,0)
   assert.equal(daily.totals.refund,0)
-  assert.equal(daily.period_summary.rule_version,'customer-period-summary/2026-09-12.3')
+  assert.equal(daily.period_summary.rule_version,'customer-period-summary/2026-09-23.4')
   assert.equal(daily.period_summary.cash_received,null)
   assert.equal(daily.period_summary.known_cash.cash_received,0)
   if(from==='2026-01-01') {
