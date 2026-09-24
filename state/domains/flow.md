@@ -1,6 +1,6 @@
 # 流转与异常当前决定
 
-本分支边界：灌装持久处理、PDA冻结完成及恢复导入属于 `codex/system-trust-foundation` 的未发布候选；main保留既有业务实现，以下候选决定用于后续验收。
+本分支边界：灌装持久处理、PDA冻结完成及恢复导入属于 `codex/system-trust-foundation` 的未发布候选；异常刷新续扫已独立发布，见 [09-24交接](../handoffs/2026-09-24-anomaly-refresh-completion.md)。
 适用：灌装、销售关联流转、钢瓶当前状态、异常扫描与封存。运行状态见 [STATE](../../STATE.md)。
 
 ## F-01：处理源单与完整事件链（2026-03，2026-09-05确认）
@@ -37,3 +37,7 @@
 代码入口：[灌装](../../uniCloud-alipay/cloudfunctions/crm-filling/index.js)、[流转](../../uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js)。验收证据见 [可靠性记录](../../docs/SYSTEM_RELIABILITY.md)。
 
 2026-09-08工程验收补充：候选协议为`filling-consistency-2026-09-08-v2`。扫描锁被占用或本轮达到写入上限时，目标仍未完成，须保留当前整车/瓶及续扫位置；读取完成不等于异常写入完成。主任务通过真实异常入口复现并修复这两种误报，见[首批验收](../handoffs/2026-09-08-mainline-owner-acceptance.md)。09-09工位PDA与历史导入已补齐，替代09-08“尚未接入”的候选状态；增加源操作内容摘要证明和失败原号恢复，见[第二批验收](../handoffs/2026-09-09-mainline-entry-acceptance.md)。候选未部署，云端与现场仍须独立验收。
+
+## F-05：异常刷新任务的完成语义（2026-09-24）
+
+`touchV2` 入队后首轮未扫完时，任务继续在服务端定时恢复；`done=true` 仅代表整批目标扫描及异常更新完成。单瓶必须完整读取、核对流转摘要且完成异常写入后才能推进下一瓶；锁等待、查询失败、输入变化均不能关闭旧异常。灌装/销售源单保存与异常刷新完成分别报告，不以异常后台排队替代源单事实。正式验收与全部待处理复核见 [交接](../handoffs/2026-09-24-anomaly-refresh-completion.md)。
