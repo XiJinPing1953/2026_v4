@@ -1047,9 +1047,8 @@ async function triggerAnomalyTouchV2(user, token, bottleNosOrPayload, requestId)
 		})
 		const result = res && res.result ? res.result : {}
 		if (result.code === 0) {
-			if (result.data && result.data.done === false) {
-				return { ok: true, warning: '异常增量扫描未完成，请在异常页继续扫描' }
-			}
+			if (!result.data?.job_id || result.data?.status === 'failed') return { ok: false, warning: '异常刷新任务未成功排队' }
+			if (result.data.done === false) return { ok: true, warning: '异常刷新已排队，后台继续处理' }
 			return { ok: true, warning: '' }
 		}
 		const warning = normalizeString(result.msg) || '异常增量扫描触发失败'

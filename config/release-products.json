@@ -23,21 +23,43 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.24-inspection-due-shortcuts",
+      "version": "2026.09.24-anomaly-refresh-completion",
       "output": "release/cloud",
-      "acceptance": "crm-bottle list and batch inspection preview accept overdue_or_due_60d with matching bottle scope; legacy due states remain available.",
+      "acceptance": "Bottle anomaly touch persists every target and resumes to completion; incomplete or changed history cannot close an open anomaly.",
       "deploymentScope": {
         "functions": [
-          "crm-bottle"
+          "crm-bottle-anomaly",
+          "crm-filling",
+          "crm-sale"
         ],
-        "databaseFiles": [],
-        "baseCommit": "be68d10ebabd81d5ab56261429ee408edeced88f",
+        "databaseFiles": [
+          "crm_bottle_anomaly_refresh_jobs.schema.json",
+          "crm_bottle_anomaly_refresh_jobs.index.json",
+          "crm_bottle_scan_locks.schema.json"
+        ],
+        "baseCommit": "ef95a7c58014c8ffcdea3180addbb1371e8d583e",
         "sourceFiles": [
-          "src/components/domain/bottle/BottleInspectionView.vue",
-          "src/components/domain/dashboard/DashboardHome.vue",
-          "src/pages/bottle/inspection.vue",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js"
-        ]
+          "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/package.json",
+          "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/refreshJobs.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+          "uniCloud-alipay/database/crm_bottle_anomaly_refresh_jobs.schema.json",
+          "uniCloud-alipay/database/crm_bottle_anomaly_refresh_jobs.index.json",
+          "uniCloud-alipay/database/crm_bottle_scan_locks.schema.json"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     }

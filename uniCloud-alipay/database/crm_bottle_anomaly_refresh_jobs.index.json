@@ -1,0 +1,26 @@
+[
+  {
+    "IndexName": "idx_status_retry_lease",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "status",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "next_retry_at",
+          "Direction": "1",
+          "Type": "double"
+        },
+        {
+          "Name": "lease_until",
+          "Direction": "1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  }
+]

@@ -1,14 +1,18 @@
 'use strict'
+const crypto = require('crypto')
+const { createRefreshJobs } = require('./refreshJobs')
 
 const db = uniCloud.database()
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 const anomalies = db.collection('crm_bottle_anomalies')
+const anomalySettings = db.collection('crm_bottle_anomaly_settings')
 const movements = db.collection('crm_bottle_movements')
 const fillings = db.collection('crm_fillings')
 const bottles = db.collection('crm_bottles')
 const sales = db.collection('crm_sale_records')
+const scanLocks = db.collection('crm_bottle_scan_locks')
 let ensureActionAcl = null
 try {
 	;({ ensureActionAcl } = require('../common/pageAcl'))
@@ -38,9 +42,11 @@ const PAGE_ACTION_RULES = {
 	scanV2: [{ pagePath: '/pages/bottle/anomaly', action: 'view' }],
 	scanTruckAnomaliesV1: [{ pagePath: '/pages/bottle/anomaly', action: 'view' }],
 	touchV2: [{ pagePath: '/pages/bottle/anomaly', action: 'view' }],
+	getRefreshJobV1: [{ pagePath: '/pages/bottle/anomaly', action: 'view' }],
+	retryRefreshJobV1: [{ pagePath: '/pages/bottle/anomaly', action: 'update' }],
 	resolveV1: [{ pagePath: '/pages/bottle/anomaly', action: 'update' }]
 }
-const SUPERADMIN_ONLY_ACTIONS = ['rebuildV2', 'purgeV1', 'cleanupDuplicatesV1']
+const SUPERADMIN_ONLY_ACTIONS = ['rebuildV2', 'purgeV1', 'cleanupDuplicatesV1', 'archiveV1', 'setArchiveCutoffV1']
 const BOTTLE_RECONCILE_TYPE_LIST = [
 	'missing_back',
 	'missing_fill',
@@ -57,6 +63,11 @@ const TRUCK_ANOMALY_TYPE_SET = new Set(TRUCK_RECONCILE_TYPE_LIST)
 const REBUILD_SCAN_ROLES = new Set(['superadmin'])
 const MISSING_FILL_THRESHOLD_KG = 10
 const TRUCK_RETURN_DIFF_THRESHOLD_KG = 100
+const ARCHIVE_CONFIRM_TEXT = 'ARCHIVE_BOTTLE_ANOMALIES'
+const ARCHIVE_CUTOFF_CONFIRM_TEXT = 'SET_BOTTLE_ANOMALY_ARCHIVE_CUTOFF'
+const ARCHIVE_CUTOFF_SETTING_ID = 'bottle_anomaly_archive_cutoff'
+const ARCHIVE_CUTOFF_CACHE_TTL_MS = 5 * 1000
+let archiveCutoffCache = { day: '', loaded_at: 0 }
 const NON_DIRECT_RESOLVE_TYPE_SET = new Set([
 	'missing_back',
 	'missing_out',
@@ -213,6 +224,16 @@ function normalizeBottleNoList(value, maxLen = 200) {
 
 function normalizeRole(value) {
 	return normalizeString(value).toLowerCase()
+}
+
+function isMissingFillDifferenceBeyondNormalLimit(diffKg) {
+	const diff = toNumber(diffKg, null)
+	return diff != null && Math.abs(diff) > MISSING_FILL_THRESHOLD_KG
+}
+
+function canUserAcceptMissingFillDifference(user, diffKg) {
+	if (!isMissingFillDifferenceBeyondNormalLimit(diffKg)) return true
+	return normalizeRole(user && user.role) === 'superadmin'
 }
 
 function toNumber(value, fallback = null) {
@@ -671,6 +692,87 @@ function normalizeContext(value) {
 	return value
 }
 
+function isArchivedAnomaly(row) {
+	const context = normalizeContext(row && row.context)
+	const archive = normalizeContext(context.archive)
+	return archive.archived === true
+}
+
+function resolveAnomalyIdentityDate(input) {
+	const anomalyType = normalizeString(input?.anomaly_type || input?.type).toLowerCase()
+	const context = normalizeContext(input?.context)
+	const pickDate = (...values) => values.map((value) => normalizeString(value)).find(Boolean) || ''
+	let date = pickDate(input?.date, context.legacy_date)
+	if (date) return date
+	if (anomalyType === 'missing_fill') {
+		return pickDate(context.next_out?.date, context.last_back?.date)
+	}
+	if (anomalyType === 'missing_back') {
+		return pickDate(context.next_fill?.date, context.last_out?.date)
+	}
+	if (anomalyType === 'missing_out') {
+		return pickDate(context.next_back?.date, context.next_fill?.date, context.last_back?.date)
+	}
+	if (anomalyType === 'continuous_out') {
+		return pickDate(context.next_out?.date, context.last_out?.date)
+	}
+	if (anomalyType === 'continuous_back') {
+		return pickDate(context.next_back?.date, context.last_back?.date)
+	}
+	if (anomalyType === 'continuous_fill') {
+		return pickDate(context.next_fill?.date, context.last_fill?.date, context.last_back?.date)
+	}
+	if (anomalyType === 'missing_truck_fill') {
+		return pickDate(context.next_truck_sale?.date, context.last_truck_sale?.date)
+	}
+	if (anomalyType === 'truck_return_diff_excess' || anomalyType === 'missing_truck_back_gross') {
+		return pickDate(context.truck_sale?.date)
+	}
+	return ''
+}
+
+function resolveAnomalyBusinessDay(input) {
+	return normalizeDay(resolveAnomalyIdentityDate(input))
+}
+
+function isAnomalyAtOrBeforeCutoff(row, cutoffDay) {
+	const normalizedCutoff = normalizeDay(cutoffDay)
+	if (!normalizedCutoff) return false
+	const businessDay = resolveAnomalyBusinessDay(row)
+	return Boolean(businessDay && businessDay <= normalizedCutoff)
+}
+
+async function getArchiveCutoffDay(force = false) {
+	const now = Date.now()
+	if (!force && now - Number(archiveCutoffCache.loaded_at || 0) < ARCHIVE_CUTOFF_CACHE_TTL_MS) {
+		return normalizeDay(archiveCutoffCache.day)
+	}
+	let day = ''
+	try {
+		const res = await anomalySettings.doc(ARCHIVE_CUTOFF_SETTING_ID).get()
+		day = normalizeDay(res?.data?.[0]?.cutoff_day)
+	} catch (err) {
+		console.warn('[crm-bottle-anomaly] archive cutoff unavailable', err && err.message)
+	}
+	archiveCutoffCache = { day, loaded_at: now }
+	return day
+}
+
+async function saveArchiveCutoffDay(user, cutoffDay) {
+	const day = normalizeDay(cutoffDay)
+	if (!day) throw new Error('封存截止日期无效')
+	const now = Date.now()
+	await anomalySettings.doc(ARCHIVE_CUTOFF_SETTING_ID).set({
+		key: ARCHIVE_CUTOFF_SETTING_ID,
+		cutoff_day: day,
+		updated_at: now,
+		updated_by: user?._id || null,
+		updated_by_name: user?.username || ''
+	})
+	archiveCutoffCache = { day, loaded_at: now }
+	return day
+}
+
 function hasMissingFillLossResolution(row) {
 	const ctx = normalizeContext(row && row.context)
 	const resolution = normalizeContext(ctx.resolution)
@@ -693,27 +795,7 @@ function buildAnomalyFingerprint(input) {
 	const bottleNo = normalizeBottleNo(input?.bottle_no)
 	const anomalyType = normalizeString(input?.anomaly_type || input?.type).toLowerCase()
 	const context = normalizeContext(input?.context)
-	const pickDate = (...values) => values.map((value) => normalizeString(value)).find(Boolean) || ''
-	let date = pickDate(input?.date, context.legacy_date)
-	if (!date) {
-		if (anomalyType === 'missing_fill') {
-			date = pickDate(context.next_out?.date, context.last_back?.date)
-		} else if (anomalyType === 'missing_back') {
-			date = pickDate(context.next_fill?.date, context.last_out?.date)
-		} else if (anomalyType === 'missing_out') {
-			date = pickDate(context.next_back?.date, context.next_fill?.date, context.last_back?.date)
-		} else if (anomalyType === 'continuous_out') {
-			date = pickDate(context.next_out?.date, context.last_out?.date)
-		} else if (anomalyType === 'continuous_back') {
-			date = pickDate(context.next_back?.date, context.last_back?.date)
-		} else if (anomalyType === 'continuous_fill') {
-			date = pickDate(context.next_fill?.date, context.last_fill?.date, context.last_back?.date)
-		} else if (anomalyType === 'missing_truck_fill') {
-			date = pickDate(context.next_truck_sale?.date, context.last_truck_sale?.date)
-		} else if (anomalyType === 'truck_return_diff_excess' || anomalyType === 'missing_truck_back_gross') {
-			date = pickDate(context.truck_sale?.date)
-		}
-	}
+	const date = resolveAnomalyIdentityDate(input)
 	const detail = normalizeString(input?.note || input?.detail)
 	const lastBack = normalizeContext(context.last_back)
 	const lastFill = normalizeContext(context.last_fill)
@@ -1263,6 +1345,18 @@ function buildOpenFingerprintRowMap(rows) {
 	return map
 }
 
+function buildArchivedFingerprintMap(rows) {
+	const map = new Map()
+	for (const row of rows || []) {
+		if (!isArchivedAnomaly(row)) continue
+		const type = normalizeAnomalyType(row && row.anomaly_type)
+		const fingerprint = getComparableAnomalyFingerprint(row)
+		if (!type || !fingerprint) continue
+		ensureTypeSet(map, type).add(fingerprint)
+	}
+	return map
+}
+
 function buildResolvedMissingFillFingerprintSet(rows) {
 	const set = new Set()
 	for (const row of rows || []) {
@@ -1377,7 +1471,8 @@ function parseScanCursor(raw, bottleNo) {
 		? {
 			event_at: toTimestamp(cursor.db_cursor.event_at, 0),
 			type_order: toNumber(cursor.db_cursor.type_order, 0) || 0,
-			created_at: toTimestamp(cursor.db_cursor.created_at, 0)
+			created_at: toTimestamp(cursor.db_cursor.created_at, 0),
+			_id: normalizeString(cursor.db_cursor._id)
 		}
 		: null
 
@@ -1441,9 +1536,34 @@ function buildMovementWhereAfterCursor(bottleNo, dbCursor) {
 		db.command.or([
 			{ event_at: db.command.gt(dbCursor.event_at) },
 			{ event_at: dbCursor.event_at, type_order: db.command.gt(dbCursor.type_order || 0) },
-			{ event_at: dbCursor.event_at, type_order: dbCursor.type_order || 0, created_at: db.command.gt(dbCursor.created_at || 0) }
+			{ event_at: dbCursor.event_at, type_order: dbCursor.type_order || 0, created_at: db.command.gt(dbCursor.created_at || 0) },
+			{ event_at: dbCursor.event_at, type_order: dbCursor.type_order || 0,
+				created_at: dbCursor.created_at || 0, _id: db.command.gt(dbCursor._id || '') }
 		])
 		)
+}
+
+async function readMovementWitness(bottleNo) {
+	const hash = crypto.createHash('sha256')
+	let after = ''
+	let total = 0
+	while (true) {
+		const where = after ? db.command.and({ bottle_no: bottleNo }, { _id: db.command.gt(after) }) : { bottle_no: bottleNo }
+		const result = await movements.where(where).orderBy('_id', 'asc').limit(500).get()
+		if (!result || !Array.isArray(result.data)) throw new Error('流转历史读取不完整')
+		for (const row of result.data) {
+			hash.update(JSON.stringify([row._id, row.type, row.date, row.event_at, row.type_order,
+				row.created_at, row.source_type, row.source_id, row.net_weight, row.customer_name, row.event_day]))
+			hash.update('\n')
+		}
+		total += result.data.length
+		if (total > 100000) throw new Error('单瓶流转历史超出安全读取上限')
+		if (result.data.length < 500) break
+		const next = normalizeString(result.data[result.data.length - 1]._id)
+		if (!next || next <= after) throw new Error('流转历史分页未前进')
+		after = next
+	}
+	return { hash: hash.digest('hex'), total }
 }
 
 function normalizeTruckSaleDoc(input, truckNoFallback = '') {
@@ -1591,6 +1711,7 @@ async function fetchTruckSaleRowsByTruckNo(truckNo) {
 		.orderBy('created_at', 'asc')
 		.limit(5000)
 		.get()
+	if (!res || !Array.isArray(res.data) || res.data.length >= 5000) throw new Error('整车销售记录读取不完整')
 	return (res.data || [])
 		.map((row) => normalizeTruckSaleDoc(row, resolvedTruckNo))
 		.filter(Boolean)
@@ -1638,6 +1759,7 @@ async function fetchTruckSupplementRowsByTruckNo(truckNo) {
 		.orderBy('created_at', 'asc')
 		.limit(5000)
 		.get()
+	if (!res || !Array.isArray(res.data) || res.data.length >= 5000) throw new Error('整车补给记录读取不完整')
 	return (res.data || [])
 		.filter((row) => {
 			const rowBottleNo = normalizeBottleNo(row && row.bottle_no)
@@ -1847,7 +1969,10 @@ async function listV1(user, data) {
 	}
 
 	const scopeRes = await fetchAnomalyRowsForBreakdown(scopeWhere, 5000)
-	const scopeRows = dedupeAnomalyRows(scopeRes.rows)
+	const archiveCutoffDay = await getArchiveCutoffDay()
+	const scopeRows = dedupeAnomalyRows(scopeRes.rows).filter(
+		(row) => !isArchivedAnomaly(row) && !isAnomalyAtOrBeforeCutoff(row, archiveCutoffDay)
+	)
 	const filteredRows = filterAnomalyRowsByStatus(scopeRows, status)
 	const total = filteredRows.length
 	const hasMore = page * pageSize < total
@@ -1895,7 +2020,7 @@ async function typesV1() {
 	return { code: 0, data: Object.values(ANOMALY_TYPES) }
 }
 
-async function scanV2(user, data, requestId) {
+async function scanV2Unlocked(user, data, requestId) {
 	const bottleNo = normalizeBottleNo(data.bottle_no || data.bottleNo)
 	if (!bottleNo) return { code: 400, msg: 'bottle_no 必填' }
 	if (looksLikeTruckNo(bottleNo)) {
@@ -1945,6 +2070,7 @@ async function scanV2(user, data, requestId) {
 	}
 	const reconcileTypeSet = new Set(reconcileTypes)
 	const shouldReconcile = reconcileAnomalies && reconcileTypes.length > 0
+	const archiveCutoffDay = await getArchiveCutoffDay()
 
 	const cursorState = parseScanCursor(data.cursor, bottleNo)
 	let dbCursor = cursorState.dbCursor
@@ -1969,13 +2095,20 @@ async function scanV2(user, data, requestId) {
 	const isWriteExceeded = () => writeCount >= maxWritesPerRound
 
 	const openRes = await anomalies.where({ bottle_no: bottleNo, status: 'open' }).limit(5000).get()
+	if (!openRes || !Array.isArray(openRes.data)) throw new Error('待处理异常读取不完整')
 	const openRows = openRes.data || []
+	if (openRows.length >= 5000) throw new Error('异常记录达到读取上限，无法安全核对')
 	const openFingerprintMap = buildOpenFingerprintMap(openRows)
 	const openFingerprintRowMap = buildOpenFingerprintRowMap(openRows)
+	const archivedRes = await anomalies.where({ bottle_no: bottleNo, status: 'resolved' }).limit(5000).get()
+	const archivedFingerprintMap = buildArchivedFingerprintMap(archivedRes.data || [])
 	const resolvedMissingFillRes = await anomalies
 		.where({ bottle_no: bottleNo, anomaly_type: 'missing_fill', status: 'resolved' })
 		.limit(5000)
 		.get()
+	if (!resolvedMissingFillRes || !Array.isArray(resolvedMissingFillRes.data) || resolvedMissingFillRes.data.length >= 5000) {
+		throw new Error('已处理缺灌装记录读取不完整')
+	}
 	const resolvedMissingFillFingerprintSet = buildResolvedMissingFillFingerprintSet(resolvedMissingFillRes.data || [])
 
 	const persistAnomaly = async (anomaly) => {
@@ -1983,8 +2116,14 @@ async function scanV2(user, data, requestId) {
 		if (!type) return { limited: false }
 		const fingerprint = buildAnomalyFingerprint(anomaly)
 		if (!fingerprint) return { limited: false }
+		if (isAnomalyAtOrBeforeCutoff(anomaly, archiveCutoffDay)) {
+			return { limited: false }
+		}
 		if (shouldReconcile && reconcileTypeSet.has(type)) {
 			ensureTypeSet(detectedFpsByTypeSet, type).add(fingerprint)
+		}
+		if (ensureTypeSet(archivedFingerprintMap, type).has(fingerprint)) {
+			return { limited: false }
 		}
 		if (type === 'missing_fill' && resolvedMissingFillFingerprintSet.has(fingerprint)) {
 			return { limited: false }
@@ -2109,8 +2248,10 @@ async function scanV2(user, data, requestId) {
 				.orderBy('event_at', 'asc')
 				.orderBy('type_order', 'asc')
 				.orderBy('created_at', 'asc')
+				.orderBy('_id', 'asc')
 				.limit(queryLimit)
 				.get()
+			if (!res || !Array.isArray(res.data)) throw new Error('流转记录读取不完整')
 			const rows = res.data || []
 			if (!rows.length) {
 				scanDone = true
@@ -2141,7 +2282,8 @@ async function scanV2(user, data, requestId) {
 				dbCursor = {
 					event_at: toTimestamp(row.event_at, event.event_at),
 					type_order: toNumber(row.type_order, movementTypeOrder(event.type)) || 0,
-					created_at: toTimestamp(row.created_at, event.created_at)
+						created_at: toTimestamp(row.created_at, event.created_at),
+						_id: normalizeString(row._id)
 				}
 			}
 
@@ -2158,6 +2300,11 @@ async function scanV2(user, data, requestId) {
 
 	if (scanDone && !stopByWriteLimit && !isTimeExceeded() && pendingAnomalies.length === 0 && dayBuffer.length === 0) {
 		if (shouldReconcile) {
+			const finalWitness = await readMovementWitness(bottleNo)
+			if (finalWitness.hash !== data.expected_witness) {
+				return { code: 0, data: { done: false, cursor: null, history_changed: true,
+					round_created: roundCreated, round_resolved_stale: 0, round_scanned_events: roundScannedEvents } }
+			}
 			for (const anomalyType of reconcileTypes) {
 				if (isTimeExceeded() || isWriteExceeded()) {
 					scanDone = false
@@ -2170,6 +2317,8 @@ async function scanV2(user, data, requestId) {
 					.limit(5000)
 					.get()
 				const openRowsByType = openResByType.data || []
+				if (!openResByType || !Array.isArray(openResByType.data)) throw new Error('待核异常读取不完整')
+				if (openRowsByType.length >= 5000) throw new Error('异常记录达到读取上限，无法安全关闭')
 				for (const row of openRowsByType) {
 					if (isTimeExceeded() || isWriteExceeded()) {
 						scanDone = false
@@ -2197,6 +2346,7 @@ async function scanV2(user, data, requestId) {
 						.limit(5000)
 						.get()
 					const verifyRows = verifyRes.data || []
+					if (!verifyRes || !Array.isArray(verifyRes.data)) throw new Error('异常复核读取不完整')
 					const staleRemaining = verifyRows.some((row) => {
 						const fp = getComparableAnomalyFingerprint(row)
 						if (!fp) return false
@@ -2255,7 +2405,47 @@ async function scanV2(user, data, requestId) {
 	}
 }
 
-async function scanTruckAnomaliesV1(user, data, requestId) {
+async function withBottleScanLease(bottleNo, cursor, handler) {
+	const lockId = `scan_${crypto.createHash('sha256').update(bottleNo).digest('hex').slice(0, 40)}`
+	const leaseId = crypto.randomBytes(16).toString('hex')
+	const leaseUntil = Date.now() + 120000
+	try {
+		await scanLocks.add({ _id: lockId, lease_id: leaseId, lease_until: leaseUntil })
+	} catch (error) {
+		const result = await scanLocks.where({ _id: lockId, lease_until: db.command.lte(Date.now()) })
+			.update({ lease_id: leaseId, lease_until: leaseUntil })
+		if (!result.updated) return { code: 0, data: { done: false, cursor: cursor || null,
+			waiting_for_lock: true, round_created: 0, round_resolved_stale: 0, round_scanned_events: 0 } }
+	}
+	try { return await handler() }
+	finally {
+		await scanLocks.where({ _id: lockId, lease_id: leaseId }).update({ lease_id: '', lease_until: 0 })
+	}
+}
+
+async function scanV2(user, data, requestId) {
+	const bottleNo = normalizeBottleNo(data.bottle_no || data.bottleNo)
+	if (!bottleNo) return { code: 400, msg: 'bottle_no 必填' }
+	return withBottleScanLease(bottleNo, data.cursor || null, async () => {
+		if (looksLikeTruckNo(bottleNo)) return scanV2Unlocked(user, data, requestId)
+		const witness = await readMovementWitness(bottleNo)
+		const prior = data.cursor && typeof data.cursor === 'object' ? data.cursor : null
+		const scanCursor = prior && Object.prototype.hasOwnProperty.call(prior, 'history_witness') ? prior.scan : data.cursor
+		const historyChanged = Boolean(prior && prior.history_witness && prior.history_witness !== witness.hash)
+		const result = await scanV2Unlocked(user, {
+			...data, cursor: historyChanged ? null : scanCursor, expected_witness: witness.hash
+		}, requestId)
+		if (result.code !== 0 || !result.data) return result
+		if (result.data.history_changed) return { ...result, data: { ...result.data,
+			cursor: { history_witness: '', scan: null } } }
+		if (!result.data.done) result.data.cursor = { history_witness: witness.hash, scan: result.data.cursor }
+		result.data.read_complete = Boolean(result.data.done)
+		result.data.history_total = witness.total
+		return result
+	})
+}
+
+async function scanTruckAnomaliesUnlocked(user, data, requestId) {
 	const truckNo = normalizeBottleNo(data.truck_no || data.truckNo)
 	if (!truckNo) return { code: 400, msg: 'truck_no 必填' }
 
@@ -2274,14 +2464,20 @@ async function scanTruckAnomaliesV1(user, data, requestId) {
 	}
 	const reconcileTypeSet = new Set(reconcileTypes)
 	const shouldReconcile = reconcileAnomalies && reconcileTypes.length > 0
+	const archiveCutoffDay = await getArchiveCutoffDay()
 
 	const openRes = await anomalies.where({ bottle_no: truckNo, status: 'open' }).limit(5000).get()
+	if (!openRes || !Array.isArray(openRes.data) || openRes.data.length >= 5000) throw new Error('整车待处理异常读取不完整')
 	const openRows = openRes.data || []
 	const openFingerprintMap = buildOpenFingerprintMap(openRows)
 	const openFingerprintRowMap = buildOpenFingerprintRowMap(openRows)
+	const archivedRes = await anomalies.where({ bottle_no: truckNo, status: 'resolved' }).limit(5000).get()
+	if (!archivedRes || !Array.isArray(archivedRes.data) || archivedRes.data.length >= 5000) throw new Error('整车已处理异常读取不完整')
+	const archivedFingerprintMap = buildArchivedFingerprintMap(archivedRes.data || [])
 	const detectedFpsByTypeSet = toDetectedFpsSetMap(buildEmptyDetectedFpsByType())
 	const saleRows = await fetchTruckSaleRowsByTruckNo(truckNo)
 	const supplementRows = await fetchTruckSupplementRowsByTruckNo(truckNo)
+	const sourceHash = crypto.createHash('sha256').update(JSON.stringify([saleRows, supplementRows])).digest('hex')
 	const detected = detectTruckAnomaliesForSales(truckNo, saleRows, supplementRows)
 
 	let roundCreated = 0
@@ -2294,9 +2490,11 @@ async function scanTruckAnomaliesV1(user, data, requestId) {
 		if (!type) return false
 		const fingerprint = buildAnomalyFingerprint(anomaly)
 		if (!fingerprint) return false
+		if (isAnomalyAtOrBeforeCutoff(anomaly, archiveCutoffDay)) return false
 		if (shouldReconcile && reconcileTypeSet.has(type)) {
 			ensureTypeSet(detectedFpsByTypeSet, type).add(fingerprint)
 		}
+		if (ensureTypeSet(archivedFingerprintMap, type).has(fingerprint)) return false
 		const typeSet = ensureTypeSet(openFingerprintMap, type)
 		if (typeSet.has(fingerprint)) {
 			const matchedRow = openFingerprintRowMap.get(type)?.get(fingerprint) || null
@@ -2346,6 +2544,12 @@ async function scanTruckAnomaliesV1(user, data, requestId) {
 	}
 
 	if (shouldReconcile) {
+		const latestSales = await fetchTruckSaleRowsByTruckNo(truckNo)
+		const latestSupplements = await fetchTruckSupplementRowsByTruckNo(truckNo)
+		const latestHash = crypto.createHash('sha256').update(JSON.stringify([latestSales, latestSupplements])).digest('hex')
+		if (latestHash !== sourceHash) return { code: 0, data: { done: false, cursor: { rescan: true },
+				history_changed: true, round_created: roundCreated, round_resolved_stale: 0,
+				round_scanned_events: roundScannedEvents } }
 		for (const anomalyType of reconcileTypes) {
 			const detectedSet = ensureTypeSet(detectedFpsByTypeSet, anomalyType)
 			const typeRows = openRows.filter((row) => normalizeAnomalyType(row && row.anomaly_type) === anomalyType)
@@ -2399,13 +2603,20 @@ async function scanTruckAnomaliesV1(user, data, requestId) {
 	return {
 		code: 0,
 		data: {
-			done: true,
-			cursor: null,
+			done: writeCount < maxWritesPerRound,
+			cursor: writeCount >= maxWritesPerRound ? { rescan: true } : null,
 			round_created: roundCreated,
 			round_resolved_stale: roundResolvedStale,
 			round_scanned_events: roundScannedEvents
 		}
 	}
+}
+
+async function scanTruckAnomaliesV1(user, data, requestId) {
+	const truckNo = normalizeBottleNo(data.truck_no || data.truckNo)
+	if (!truckNo) return { code: 400, msg: 'truck_no 必填' }
+	return withBottleScanLease(truckNo, data.cursor || null,
+		() => scanTruckAnomaliesUnlocked(user, data, requestId))
 }
 
 async function rebuildV2(user, data, requestId) {
@@ -2640,113 +2851,36 @@ async function purgeV1(user, data, requestId) {
 	}
 }
 
+const refreshJobs = createRefreshJobs({
+	db,
+	scanBottle: (user, no, cursor, requestId) => scanV2(user, {
+		bottle_no: no, cursor, reconcile_anomalies: true,
+		reconcile_types: BOTTLE_RECONCILE_TYPE_LIST,
+		batch_size: 120, max_events_per_round: 800,
+		max_ms_per_round: 2200, max_writes_per_round: 120
+	}, requestId),
+	scanTruck: (user, no, cursor, requestId) => scanTruckAnomaliesV1(user, {
+		truck_no: no, cursor, reconcile_anomalies: true,
+		reconcile_types: TRUCK_RECONCILE_TYPE_LIST, max_writes_per_round: 120
+	}, requestId)
+})
+
 async function touchV2(user, data, requestId) {
 	const rawBottleNos = normalizeBottleNoList(data.bottle_nos || data.bottleNos, 200)
-	const bottleNos = rawBottleNos.filter((item) => !looksLikeTruckNo(item))
-	const truckNos = Array.from(
-		new Set([
-			...normalizeBottleNoList(data.truck_nos || data.truckNos, 200),
-			...rawBottleNos.filter((item) => looksLikeTruckNo(item))
-		])
-	)
-	if (!bottleNos.length && !truckNos.length) return { code: 400, msg: 'bottle_nos 或 truck_nos 必填' }
-
-	const batchSize = clampNumber(data.batch_size, 20, 500, 120)
-	const maxEventsPerRound = clampNumber(data.max_events_per_round, 50, 4000, 800)
-	const maxMsPerRound = clampNumber(data.max_ms_per_round, 400, 8000, 2200)
-	const maxWritesPerRound = clampNumber(data.max_writes_per_round, 10, 800, 120)
-
-	const startedAt = Date.now()
-	const isTimeExceeded = () => Date.now() - startedAt >= maxMsPerRound
-
-	let scannedBottles = 0
-	let scannedTrucks = 0
-	let roundScannedEvents = 0
-	let roundCreated = 0
-	let roundResolvedStale = 0
-	let done = true
-
-	for (const bottleNo of bottleNos) {
-		if (isTimeExceeded()) {
-			done = false
-			break
-		}
-		const remainingMs = Math.max(maxMsPerRound - (Date.now() - startedAt), 400)
-		const res = await scanV2(
-			user,
-			{
-				bottle_no: bottleNo,
-				reconcile_anomalies: true,
-				reconcile_types: BOTTLE_RECONCILE_TYPE_LIST,
-				batch_size: batchSize,
-				max_events_per_round: maxEventsPerRound,
-				max_ms_per_round: remainingMs,
-				max_writes_per_round: maxWritesPerRound
-			},
-			requestId
-		)
-		if (res?.code !== 0) return res
-		const payload = res.data || {}
-		scannedBottles += 1
-		roundScannedEvents += Number(payload.round_scanned_events || 0)
-		roundCreated += Number(payload.round_created || 0)
-		roundResolvedStale += Number(payload.round_resolved_stale || 0)
-		if (!payload.done) done = false
-	}
-
-	for (const truckNo of truckNos) {
-		if (isTimeExceeded()) {
-			done = false
-			break
-		}
-		const res = await scanTruckAnomaliesV1(
-			user,
-			{
-				truck_no: truckNo,
-				reconcile_anomalies: true,
-				reconcile_types: TRUCK_RECONCILE_TYPE_LIST,
-				max_writes_per_round: maxWritesPerRound
-			},
-			requestId
-		)
-		if (res?.code !== 0) return res
-		const payload = res.data || {}
-		scannedTrucks += 1
-		roundScannedEvents += Number(payload.round_scanned_events || 0)
-		roundCreated += Number(payload.round_created || 0)
-		roundResolvedStale += Number(payload.round_resolved_stale || 0)
-		if (!payload.done) done = false
-	}
-
-	if (scannedBottles < bottleNos.length || scannedTrucks < truckNos.length) done = false
-
-	await recordLog(
-		user,
-		'bottle_anomaly_touch_v2',
-		{
-			done,
-			input_bottles: bottleNos.length,
-			input_trucks: truckNos.length,
-			scanned_bottles: scannedBottles,
-			scanned_trucks: scannedTrucks,
-			round_scanned_events: roundScannedEvents,
-			round_created: roundCreated,
-			round_resolved_stale: roundResolvedStale
-		},
-		requestId
-	)
-
-	return {
-		code: 0,
-		data: {
-			scanned_bottles: scannedBottles,
-			scanned_trucks: scannedTrucks,
-			round_scanned_events: roundScannedEvents,
-			round_created: roundCreated,
-			round_resolved_stale: roundResolvedStale,
-			done
-		}
-	}
+	const bottleNos = rawBottleNos.filter((item) => !looksLikeTruckNo(item)).sort()
+	const truckNos = Array.from(new Set([
+		...normalizeBottleNoList(data.truck_nos || data.truckNos, 200),
+		...rawBottleNos.filter((item) => looksLikeTruckNo(item))
+	])).sort()
+	const result = await refreshJobs.submit(user, requestId, bottleNos, truckNos)
+	if (result.code === 0) await recordLog(user, 'bottle_anomaly_touch_v2', {
+		job_id: result.data.job_id, status: result.data.status,
+		input_bottles: bottleNos.length, input_trucks: truckNos.length,
+		scanned_bottles: result.data.scanned_bottles,
+		scanned_trucks: result.data.scanned_trucks,
+		round_resolved_stale: result.data.round_resolved_stale
+	}, requestId)
+	return result
 }
 
 async function cleanupDuplicatesV1(user, data, requestId) {
@@ -2845,6 +2979,206 @@ async function cleanupDuplicatesV1(user, data, requestId) {
 	}
 }
 
+async function archiveV1(user, data, requestId) {
+	if (!REBUILD_SCAN_ROLES.has(normalizeRole(user && user.role))) {
+		return { code: 403, msg: '仅超级管理员可操作' }
+	}
+
+	const anomalyTypes = normalizeReconcileTypes(data && (data.anomaly_types || data.anomalyTypes))
+	if (!anomalyTypes.length) return { code: 400, msg: 'anomaly_types 必填' }
+
+	const rows = []
+	for (const anomalyType of anomalyTypes) {
+		const res = await anomalies.where({ anomaly_type: anomalyType, status: 'open' }).limit(5000).get()
+		rows.push(...(res.data || []))
+	}
+	const logicalRows = dedupeAnomalyRows(rows)
+	const byType = {}
+	for (const row of logicalRows) {
+		const type = normalizeAnomalyType(row && row.anomaly_type) || 'other'
+		byType[type] = Number(byType[type] || 0) + 1
+	}
+
+	const execute = toBoolean(data && data.execute, false)
+	if (!execute) {
+		return {
+			code: 0,
+			msg: '预览成功',
+			data: {
+				execute: false,
+				anomaly_types: anomalyTypes,
+				raw_total: rows.length,
+				logical_total: logicalRows.length,
+				by_type: byType
+			}
+		}
+	}
+
+	const confirmText = normalizeString(data && (data.confirm_text || data.confirmText))
+	if (confirmText !== ARCHIVE_CONFIRM_TEXT) {
+		return { code: 400, msg: '缺少确认口令，拒绝封存异常' }
+	}
+
+	const reason = normalizeString(data && data.reason) || '人工确认封存，不再作为异常展示'
+	const archivedAt = Date.now()
+	let archived = 0
+	for (const row of rows) {
+		const id = normalizeString(row && row._id)
+		if (!id) continue
+		const context = normalizeContext(row && row.context)
+		await anomalies.doc(id).update({
+			status: 'resolved',
+			context: {
+				...context,
+				archive: {
+					archived: true,
+					reason,
+					archived_at: archivedAt,
+					archived_by: user?._id || null,
+					archived_by_name: user?.username || ''
+				}
+			},
+			updated_at: archivedAt,
+			resolved_by: user?._id || null,
+			resolved_by_name: user?.username || ''
+		})
+		archived += 1
+	}
+
+	await recordLog(
+		user,
+		'bottle_anomaly_archive_v1',
+		{
+			anomaly_types: anomalyTypes,
+			raw_total: rows.length,
+			logical_total: logicalRows.length,
+			archived,
+			by_type: byType,
+			reason
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		msg: '封存完成',
+		data: {
+			execute: true,
+			anomaly_types: anomalyTypes,
+			raw_total: rows.length,
+			logical_total: logicalRows.length,
+			archived,
+			by_type: byType
+		}
+	}
+}
+
+async function setArchiveCutoffV1(user, data, requestId) {
+	if (!REBUILD_SCAN_ROLES.has(normalizeRole(user && user.role))) {
+		return { code: 403, msg: '仅超级管理员可操作' }
+	}
+
+	const cutoffDay = normalizeDay(data && (data.cutoff_day || data.cutoffDay))
+	if (!cutoffDay) return { code: 400, msg: 'cutoff_day 必须为有效日期' }
+	const currentCutoffDay = await getArchiveCutoffDay(true)
+	if (currentCutoffDay && cutoffDay < currentCutoffDay) {
+		return { code: 400, msg: `封存截止日不能早于当前 ${currentCutoffDay}` }
+	}
+
+	const openRes = await fetchAnomalyRowsForBreakdown({ status: 'open' }, 5000)
+	if (openRes.limited) return { code: 400, msg: '待处理异常超过 5000 条，已停止设置封存截止日' }
+	const targetRows = (openRes.rows || []).filter((row) => {
+		const type = normalizeAnomalyType(row && row.anomaly_type)
+		return Boolean(type && isAnomalyAtOrBeforeCutoff(row, cutoffDay))
+	})
+	const logicalRows = dedupeAnomalyRows(targetRows)
+	const byType = {}
+	for (const row of logicalRows) {
+		const type = normalizeAnomalyType(row && row.anomaly_type) || 'other'
+		byType[type] = Number(byType[type] || 0) + 1
+	}
+
+	const execute = toBoolean(data && data.execute, false)
+	if (!execute) {
+		return {
+			code: 0,
+			msg: '预览成功',
+			data: {
+				execute: false,
+				current_cutoff_day: currentCutoffDay,
+				cutoff_day: cutoffDay,
+				raw_total: targetRows.length,
+				logical_total: logicalRows.length,
+				by_type: byType
+			}
+		}
+	}
+
+	const confirmText = normalizeString(data && (data.confirm_text || data.confirmText))
+	if (confirmText !== ARCHIVE_CUTOFF_CONFIRM_TEXT) {
+		return { code: 400, msg: '缺少确认口令，拒绝设置封存截止日' }
+	}
+
+	await saveArchiveCutoffDay(user, cutoffDay)
+	const archivedAt = Date.now()
+	const reason = `业务日期 ${cutoffDay} 及以前的历史流转已封存`
+	let archived = 0
+	for (const row of targetRows) {
+		const id = normalizeString(row && row._id)
+		if (!id) continue
+		const context = normalizeContext(row && row.context)
+		const existingArchive = normalizeContext(context.archive)
+		await anomalies.doc(id).update({
+			status: 'resolved',
+			context: {
+				...context,
+				archive: {
+					...existingArchive,
+					archived: true,
+					reason,
+					cutoff_day: cutoffDay,
+					policy: 'business_day_cutoff',
+					archived_at: archivedAt,
+					archived_by: user?._id || null,
+					archived_by_name: user?.username || ''
+				}
+			},
+			updated_at: archivedAt,
+			resolved_by: user?._id || null,
+			resolved_by_name: user?.username || ''
+		})
+		archived += 1
+	}
+
+	await recordLog(
+		user,
+		'bottle_anomaly_archive_cutoff_v1',
+		{
+			previous_cutoff_day: currentCutoffDay,
+			cutoff_day: cutoffDay,
+			raw_total: targetRows.length,
+			logical_total: logicalRows.length,
+			archived,
+			by_type: byType
+		},
+		requestId
+	)
+
+	return {
+		code: 0,
+		msg: '封存截止日设置完成',
+		data: {
+			execute: true,
+			previous_cutoff_day: currentCutoffDay,
+			cutoff_day: cutoffDay,
+			raw_total: targetRows.length,
+			logical_total: logicalRows.length,
+			archived,
+			by_type: byType
+		}
+	}
+}
+
 async function resolveMissingFill(user, anomaly, resolutionMode = '') {
 	const ctx = anomaly.context || {}
 	const lastBack = ctx.last_back || {}
@@ -2859,12 +3193,12 @@ async function resolveMissingFill(user, anomaly, resolutionMode = '') {
 		return { code: 400, msg: '缺少净重，无法修复' }
 	}
 	const diff = nextOutNet - lastBackNet
-	const abs = Math.abs(diff)
-	if (diff > MISSING_FILL_THRESHOLD_KG) {
-		return { code: 400, msg: `净重差值为 +${diff.toFixed(1)} kg（增重），超过${MISSING_FILL_THRESHOLD_KG}kg，需补灌装后再修复` }
-	}
-	if (diff < -MISSING_FILL_THRESHOLD_KG) {
-		return { code: 400, msg: `净重差值为 ${diff.toFixed(1)} kg，减重超过${MISSING_FILL_THRESHOLD_KG}kg，请先人工处理` }
+	if (!canUserAcceptMissingFillDifference(user, diff)) {
+		const actionText = diff > 0 ? '记胀重' : '记损耗'
+		return {
+			code: 403,
+			msg: `净重差值为 ${diff > 0 ? '+' : ''}${diff.toFixed(1)} kg，绝对差值超过${MISSING_FILL_THRESHOLD_KG}kg，仅超级管理员可${actionText}`
+		}
 	}
 
 	const now = Date.now()
@@ -3000,7 +3334,9 @@ async function resolveV1(user, data, requestId) {
 }
 
 exports.main = async (event, context) => {
-	void context
+	// The platform context, never user-supplied event fields, authorizes scheduled work.
+	if (context && context.SOURCE === 'timing') return refreshJobs.drain()
+	event = event || {}
 	const { action, data = {}, token } = event
 	const requestId =
 		normalizeString(event.request_id || event.requestId || context?.requestId || context?.request_id || '') ||
@@ -3022,7 +3358,11 @@ exports.main = async (event, context) => {
 	if (action === 'rebuildV2') return rebuildV2(user, data, requestId)
 	if (action === 'purgeV1') return purgeV1(user, data, requestId)
 	if (action === 'touchV2') return touchV2(user, data, requestId)
+	if (action === 'getRefreshJobV1') return refreshJobs.status(user, normalizeString(data.job_id || data.jobId))
+	if (action === 'retryRefreshJobV1') return refreshJobs.retry(user, normalizeString(data.job_id || data.jobId))
 	if (action === 'cleanupDuplicatesV1') return cleanupDuplicatesV1(user, data, requestId)
+	if (action === 'archiveV1') return archiveV1(user, data, requestId)
+	if (action === 'setArchiveCutoffV1') return setArchiveCutoffV1(user, data, requestId)
 	if (action === 'resolveV1') return resolveV1(user, data, requestId)
 
 	return { code: 400, msg: '未知 action' }

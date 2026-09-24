@@ -1,0 +1,10 @@
+{
+  "name": "crm-bottle-anomaly",
+  "version": "1.0.0",
+  "main": "index.js",
+  "cloudfunction-config": {
+    "memorySize": 512,
+    "timeout": 60,
+    "triggers": [{ "name": "bottle_anomaly_refresh_resume", "type": "timer", "config": "23 * * * * * *" }]
+  }
+}

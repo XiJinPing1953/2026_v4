@@ -1,0 +1,39 @@
+{
+  "bsonType": "object",
+  "description": "Durable server-only bottle anomaly refresh jobs",
+  "permission": { "read": false, "create": false, "update": false, "delete": false },
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "request_id": { "bsonType": "string" },
+    "targets": { "bsonType": "array" },
+    "bottle_nos": { "bsonType": "array" },
+    "truck_nos": { "bsonType": "array" },
+    "targets_hash": { "bsonType": "string" },
+    "target_index": { "bsonType": "number" },
+    "scan_cursor": { "bsonType": ["object", "null"] },
+    "status": { "bsonType": "string" },
+    "lease_id": { "bsonType": "string" },
+    "lease_until": { "bsonType": "number" },
+    "attempts": { "bsonType": "number" },
+    "next_retry_at": { "bsonType": "number" },
+    "scanned_bottles": { "bsonType": "number" },
+    "scanned_trucks": { "bsonType": "number" },
+    "round_scanned_events": { "bsonType": "number" },
+    "round_created": { "bsonType": "number" },
+    "round_resolved_stale": { "bsonType": "number" },
+    "last_error": { "bsonType": "string" },
+    "created_by": { "bsonType": "string" },
+    "created_by_name": { "bsonType": "string" },
+    "created_role": { "bsonType": "string" },
+    "created_at": { "bsonType": "number" },
+    "updated_at": { "bsonType": "number" },
+    "completed_at": { "bsonType": "number" }
+  },
+  "indexes": [
+    {
+      "name": "idx_status_retry_lease",
+      "key": { "status": 1, "next_retry_at": 1, "lease_until": 1 },
+      "unique": false
+    }
+  ]
+}
