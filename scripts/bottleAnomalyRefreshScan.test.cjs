@@ -10,6 +10,7 @@ const file = path.resolve(__dirname, '../uniCloud-alipay/cloudfunctions/crm-bott
 const collections = Object.fromEntries(['crm_users', 'crm_operation_logs', 'crm_bottle_anomalies',
 	'crm_bottle_movements', 'crm_fillings', 'crm_bottles', 'crm_sale_records', 'crm_bottle_scan_locks']
 	.map((name) => [name, []]))
+let beforeMovementGet = null
 const command = {
 	gt: (value) => ({ op: 'gt', value }), lte: (value) => ({ op: 'lte', value }),
 	and: (...items) => ({ op: 'and', items }), or: (items) => ({ op: 'or', items })
@@ -33,6 +34,7 @@ function collection(name) {
 				orderBy(key, direction) { sorts.push([key, direction]); return this },
 				limit(value) { maximum = value; return this },
 				async get() {
+					if (name === 'crm_bottle_movements' && beforeMovementGet) beforeMovementGet(where, sorts)
 					const selected = rows.filter((row) => matches(row, where)).sort((a, b) => {
 						for (const [key, direction] of sorts) {
 							if (a[key] === b[key]) continue
@@ -126,6 +128,24 @@ async function main() {
 	const locked = await scanV2(actor, { bottle_no: '246', reconcile_anomalies: true }, 'test-246')
 	assert.equal(locked.data.waiting_for_lock, true)
 	assert.equal(locked.data.done, false)
+
+	collections.crm_bottle_movements.push(event('back-247', '247', 'back', '2026-09-23', -4))
+	collections.crm_bottle_movements.push(event('out-247', '247', 'out', '2026-09-24', 182))
+	collections.crm_bottle_anomalies.push({ _id: 'old-247', bottle_no: '247', anomaly_type: 'missing_fill',
+		status: 'open', fingerprint: 'old-247-fingerprint', date: '2026-09-24', note: '缺灌装', context: {}, created_at: 3 })
+	let witnessReads = 0
+	beforeMovementGet = (_, sorts) => {
+		if (sorts[0]?.[0] !== '_id') return
+		witnessReads++
+		if (witnessReads === 2) collections.crm_bottle_movements.push(event('fill-247', '247', 'fill', '2026-09-23', 186))
+	}
+	const changed = await scanV2(actor, { bottle_no: '247', reconcile_anomalies: true }, 'test-247')
+	beforeMovementGet = null
+	assert.equal(changed.data.done, false)
+	assert.equal(changed.data.history_changed, true)
+	assert.equal(collections.crm_bottle_anomalies.find((row) => row._id === 'old-247').status, 'open')
+	await complete('247', changed.data.cursor)
+	assert.equal(collections.crm_bottle_anomalies.find((row) => row._id === 'old-247').status, 'resolved')
 	console.log('240号瓶跨轮分页与旧异常关闭、真实缺灌装保留测试通过')
 }
 main().catch((error) => { console.error(error); process.exitCode = 1 })
