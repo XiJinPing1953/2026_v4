@@ -6,27 +6,37 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.23-k023-statement-presentation",
+      "version": "2026.09.24-cashier-decimal-input",
       "output": "dist/build/web",
-      "acceptance": "K023 customer overview omits adjustment and opening-transfer cards while period receivable and accounting export match confirmed source treatment.",
+      "acceptance": "Cashier total, gas, and deposit amount fields keep a usable decimal point on H5 while existing amount validation remains authoritative.",
+      "deploymentScope": {
+        "functions": [
+          "crm-bottle"
+        ],
+        "databaseFiles": [],
+        "baseCommit": "15f780c60a2c877dd1c2feb836c73fb8e16d512c",
+        "sourceFiles": [
+          "src/components/base/AppInput.vue",
+          "src/components/domain/customer/CashierReceiptIntakeView.vue"
+        ]
+      },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.23-k023-statement-presentation",
+      "version": "2026.09.24-inspection-due-shortcuts",
       "output": "release/cloud",
-      "acceptance": "Confirmed K023 opening prepayment remains prior-year credit, its seven-yuan clearance is contra credit, and unrelated adjustments retain existing treatment.",
+      "acceptance": "crm-bottle list and batch inspection preview accept overdue_or_due_60d with matching bottle scope; legacy due states remain available.",
       "deploymentScope": {
         "functions": [
-          "crm-customer-settlement"
+          "crm-bottle"
         ],
         "databaseFiles": [],
-        "baseCommit": "6997a3a2a9952667dffda1fb4d16182d29dbafbb",
+        "baseCommit": "be68d10ebabd81d5ab56261429ee408edeced88f",
         "sourceFiles": [
-          "src/components/domain/customer/statement/CustomerStatementModule.vue",
-          "src/services/mappers/customerPeriodSummary.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/confirmedPrepayWriteoff.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/periodSummary.js"
+          "src/components/domain/bottle/BottleInspectionView.vue",
+          "src/components/domain/dashboard/DashboardHome.vue",
+          "src/pages/bottle/inspection.vue",
+          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js"
         ]
       },
       "integrityScope": "deployment"

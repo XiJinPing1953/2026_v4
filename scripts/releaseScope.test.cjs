@@ -92,6 +92,17 @@ test('exact deployment source scope rejects smuggling, omissions, retained-packa
 	assert.throws(() => resolveReleaseScope(root, 'cloud'))
 })
 
+test('web release uses its own source scope without changing the cloud release scope', (t) => {
+	const { root, write, baseCommit } = fixture(t)
+	write('src/accounting.js', 'export const version = 2\n')
+	write('config/release-products.json', JSON.stringify({ products: {
+		web: { integrityScope: 'deployment', deploymentScope: { functions: ['crm-target'], databaseFiles: [], baseCommit, sourceFiles: ['src/accounting.js'] } },
+		cloud: { integrityScope: 'deployment', deploymentScope: { functions: ['crm-other'], databaseFiles: [] } }
+	} }))
+	assert.deepEqual(resolveReleaseScope(root, 'web'), { functions: ['crm-target'], databaseFiles: [], baseCommit, sourceFiles: ['src/accounting.js'] })
+	assert.deepEqual(resolveReleaseScope(root, 'cloud'), { functions: ['crm-other'], databaseFiles: [] })
+})
+
 test('real ACL scope rejects selected drift, ignores unselected drift locally, and preserves full-repo failure', (t) => {
 	const { root, write } = fixture(t)
 	const aclScript = fs.readFileSync(path.join(RELEASE_TREE, 'scripts/syncPageAclRegistry.cjs'))
