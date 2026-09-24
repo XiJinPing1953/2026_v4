@@ -76,7 +76,10 @@ function createRefreshJobs({ db, scanBottle, scanTruck, now = Date.now }) {
 			job = { ...job, ...patch }
 		}
 		try {
-			if (job.targets_hash !== digest(canonicalTargets(job.targets))) throw Object.assign(new Error('刷新任务目标摘要不一致'), { permanent: true })
+			const actualTargetsHash = digest(canonicalTargets(job.targets))
+			if (job.targets_hash !== actualTargetsHash) {
+				throw new Error(`刷新任务目标摘要不一致（expected=${String(job.targets_hash).slice(0, 12)}, actual=${actualTargetsHash.slice(0, 12)}）`)
+			}
 			while (job.target_index < job.targets.length && now() - started < maxMs) {
 				const target = job.targets[job.target_index]
 				const actor = { _id: job.created_by, username: job.created_by_name, role: job.created_role }
@@ -103,7 +106,7 @@ function createRefreshJobs({ db, scanBottle, scanTruck, now = Date.now }) {
 		} catch (error) {
 			if (!error.lostLease) {
 				const attempts = Number(job.attempts || 0) + 1
-				await checkpoint({ status: attempts >= 5 || error.permanent ? 'failed' : 'pending',
+				await checkpoint({ status: attempts >= 5 ? 'failed' : 'pending',
 					attempts, last_error: String(error.message || error).slice(0, 500),
 					next_retry_at: now() + RETRY_DELAYS[Math.min(attempts - 1, RETRY_DELAYS.length - 1)],
 					lease_id: '', lease_until: 0 })
