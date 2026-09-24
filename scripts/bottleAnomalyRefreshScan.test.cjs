@@ -66,8 +66,8 @@ function collection(name) {
 }
 const sandbox = { uniCloud: { database: () => ({ command, collection }) }, require: createRequire(file),
 	module: { exports: {} }, exports: {}, console, Buffer, Date, setTimeout, clearTimeout }
-vm.runInNewContext(fs.readFileSync(file, 'utf8') + '\nmodule.exports.__test = { scanV2 };', sandbox, { filename: file })
-const { scanV2 } = sandbox.module.exports.__test
+vm.runInNewContext(fs.readFileSync(file, 'utf8') + '\nmodule.exports.__test = { scanV2, buildContinuousFill, buildAnomalyFingerprint };', sandbox, { filename: file })
+const { scanV2, buildContinuousFill, buildAnomalyFingerprint } = sandbox.module.exports.__test
 const actor = { _id: 'test-user', username: 'tester', role: 'admin' }
 const day = (date) => Date.parse(`${date}T00:00:00+08:00`)
 function event(id, bottle, type, date, weight, created = 100) {
@@ -88,6 +88,21 @@ async function complete(no, cursor = null) {
 		cursor = result.data.cursor
 	}
 	throw Error('scan did not complete')
+}
+function filling(id, bottle, date, start, end) {
+	collections.crm_fillings.push({ _id: id, bottle_no: bottle, date, record_type: 'normal_fill',
+		weight_start: start, weight_end: end, fill_weight: end - start })
+	const row = event(id, bottle, 'fill', date, end - start)
+	row.source_id = id
+	return row
+}
+function saleOut(id, bottle, date, gross, tare) {
+	collections.crm_sale_records.push({ _id: id, date, out_items: [
+		{ bottle_no: bottle, gross, tare, net: gross - tare }
+	] })
+	const row = event(id, bottle, 'out', date, gross - tare)
+	row.source_id = id
+	return row
 }
 async function main() {
 	collections.crm_bottle_movements.push(event('back-240', '240', 'back', '2026-09-23', -4))
@@ -146,6 +161,56 @@ async function main() {
 	assert.equal(collections.crm_bottle_anomalies.find((row) => row._id === 'old-247').status, 'open')
 	await complete('247', changed.data.cursor)
 	assert.equal(collections.crm_bottle_anomalies.find((row) => row._id === 'old-247').status, 'resolved')
-	console.log('240号瓶跨轮分页与旧异常关闭、真实缺灌装保留测试通过')
+
+	// 315 is a confirmed staged fill: every scale reading connects, and the final sale
+	// uses the second fill's final gross. It must be closed even across scan rounds.
+	const back315 = event('back-315', '315', 'back', '2026-09-01', 1)
+	const first315 = filling('fill-315-a', '315', '2026-09-04', 360, 393)
+	collections.crm_bottle_movements.push(back315, first315)
+	for (let i = 0; i < 55; i++) collections.crm_bottle_movements.push(
+		event(`315-adjust-${String(i).padStart(3, '0')}`, '315', 'adjust', '2026-09-04', null))
+	const second315 = filling('fill-315-b', '315', '2026-09-05', 393, 513)
+	collections.crm_bottle_movements.push(second315)
+	collections.crm_bottle_movements.push(saleOut('out-315', '315', '2026-09-05', 513, 360))
+	const prior315 = buildContinuousFill(second315, first315, back315)
+	collections.crm_bottle_anomalies.push({ _id: 'old-315', bottle_no: '315',
+		anomaly_type: 'continuous_fill', status: 'open', date: prior315.date,
+		fingerprint: buildAnomalyFingerprint(prior315), note: prior315.detail,
+		context: prior315.context, created_at: 5 })
+	await complete('315')
+	assert.equal(collections.crm_bottle_anomalies.some((row) => row.bottle_no === '315' &&
+		row.anomaly_type === 'continuous_fill' && row.status === 'open'), false)
+	assert.equal(collections.crm_bottle_anomalies.find((row) => row._id === 'old-315')?.resolved_by_name,
+		'system-staged-fill')
+	assert.equal(collections.crm_bottle_anomalies.filter((row) => row.bottle_no === '315' &&
+		row.anomaly_type === 'continuous_fill').length, 1)
+	await complete('315')
+	assert.equal(collections.crm_bottle_anomalies.some((row) => row.bottle_no === '315' && row.status === 'open'), false)
+
+	// 291 also has adjoining fills, but its sale gross matches the first fill, not the second.
+	collections.crm_bottle_movements.push(event('back-291', '291', 'back', '2026-09-01', -11))
+	collections.crm_bottle_movements.push(filling('fill-291-a', '291', '2026-09-04', 348, 478))
+	collections.crm_bottle_movements.push(filling('fill-291-b', '291', '2026-09-05', 478, 489))
+	collections.crm_bottle_movements.push(saleOut('out-291', '291', '2026-09-05', 478, 360))
+	await complete('291')
+	assert.equal(collections.crm_bottle_anomalies.some((row) => row.bottle_no === '291' &&
+		row.anomaly_type === 'continuous_fill' && row.status === 'open'), true)
+
+	// Bottle 2's second starting scale is not the first filling's final scale.
+	collections.crm_bottle_movements.push(event('back-2', '2', 'back', '2026-06-17', 0))
+	collections.crm_bottle_movements.push(filling('fill-2-a', '2', '2026-06-19', 123, 134.5))
+	collections.crm_bottle_movements.push(filling('fill-2-b', '2', '2026-09-01', 120, 185))
+	collections.crm_bottle_movements.push(saleOut('out-2', '2', '2026-09-03', 183, 124))
+	await complete('2')
+	assert.equal(collections.crm_bottle_anomalies.some((row) => row.bottle_no === '2' &&
+		row.anomaly_type === 'continuous_fill' && row.status === 'open'), true)
+
+	collections.crm_bottle_movements.push(event('back-2461', '2461', 'back', '2026-09-17', 3))
+	collections.crm_bottle_movements.push(event('out-2461', '2461', 'out', '2026-09-18', 68))
+	await complete('2461')
+	assert.equal(collections.crm_bottle_anomalies.some((row) => row.bottle_no === '2461' &&
+		row.anomaly_type === 'missing_fill' && row.status === 'open'), true)
+
+	console.log('跨轮续扫、正常分次补灌关闭、291/2连续灌装保留、246缺灌装保留测试通过')
 }
 main().catch((error) => { console.error(error); process.exitCode = 1 })

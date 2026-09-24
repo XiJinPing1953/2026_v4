@@ -1543,10 +1543,13 @@ function buildMovementWhereAfterCursor(bottleNo, dbCursor) {
 		)
 }
 
-async function readMovementWitness(bottleNo) {
+async function readMovementWitness(bottleNo, collectRows = false) {
 	const hash = crypto.createHash('sha256')
 	let after = ''
 	let total = 0
+	// Only keep small histories needed to verify a staged-fill cycle. Large histories
+	// still get a complete witness, but cannot be classified by partial evidence.
+	let rows = collectRows ? [] : null
 	while (true) {
 		const where = after ? db.command.and({ bottle_no: bottleNo }, { _id: db.command.gt(after) }) : { bottle_no: bottleNo }
 		const result = await movements.where(where).orderBy('_id', 'asc').limit(500).get()
@@ -1556,6 +1559,10 @@ async function readMovementWitness(bottleNo) {
 				row.created_at, row.source_type, row.source_id, row.net_weight, row.customer_name, row.event_day]))
 			hash.update('\n')
 		}
+		if (rows) {
+			if (rows.length + result.data.length <= 10000) rows.push(...result.data)
+			else rows = null
+		}
 		total += result.data.length
 		if (total > 100000) throw new Error('单瓶流转历史超出安全读取上限')
 		if (result.data.length < 500) break
@@ -1563,7 +1570,81 @@ async function readMovementWitness(bottleNo) {
 		if (!next || next <= after) throw new Error('流转历史分页未前进')
 		after = next
 	}
-	return { hash: hash.digest('hex'), total }
+	return { hash: hash.digest('hex'), total, rows }
+}
+
+function sameScaleWeight(left, right) {
+	const a = toNumber(left, null)
+	const b = toNumber(right, null)
+	return a != null && b != null && Math.abs(a - b) <= 0.01
+}
+
+async function isVerifiedStagedFillCycle(bottleNo, fillEvents, outEvent) {
+	if (fillEvents.length < 2 || outEvent.source_type !== 'sale' || !outEvent.source_id) return false
+	const fillDocs = []
+	const seenIds = new Set()
+	for (const event of fillEvents) {
+		if (event.source_type !== 'filling' || !event.source_id || seenIds.has(event.source_id)) return false
+		seenIds.add(event.source_id)
+		const result = await fillings.doc(event.source_id).get()
+		if (!result || !Array.isArray(result.data)) throw new Error('分次灌装源单读取不完整')
+		const doc = result.data[0]
+		const weightStart = toNumber(doc && doc.weight_start, null)
+		const weightEnd = toNumber(doc && doc.weight_end, null)
+		const fillWeight = toNumber(doc && doc.fill_weight, null)
+		if (!doc || normalizeBottleNo(doc.bottle_no) !== bottleNo ||
+			normalizeFillingRecordType(doc.record_type) !== 'normal_fill' ||
+			normalizeDay(doc.date) !== normalizeDay(event.date) ||
+			!(weightStart > 0 && weightEnd > weightStart && fillWeight > 0) ||
+			!sameScaleWeight(weightEnd - weightStart, fillWeight) ||
+			!sameScaleWeight(doc.fill_weight, event.net_weight)) return false
+		fillDocs.push(doc)
+	}
+	for (let i = 1; i < fillDocs.length; i += 1) {
+		if (!sameScaleWeight(fillDocs[i - 1].weight_end, fillDocs[i].weight_start)) return false
+	}
+	const saleResult = await sales.doc(outEvent.source_id).get()
+	if (!saleResult || !Array.isArray(saleResult.data)) throw new Error('分次灌装出瓶源单读取不完整')
+	const sale = saleResult.data[0]
+	if (!sale || normalizeDay(sale.date) !== normalizeDay(outEvent.date)) return false
+	const outItems = (Array.isArray(sale.out_items) ? sale.out_items : [])
+		.filter((item) => normalizeBottleNo(item && item.bottle_no) === bottleNo)
+	if (outItems.length !== 1) return false
+	const item = outItems[0]
+	if (!(toNumber(item.gross, null) > 0 && toNumber(item.tare, null) > 0 &&
+		toNumber(item.net, null) != null)) return false
+	return sameScaleWeight(item.gross, fillDocs[fillDocs.length - 1].weight_end) &&
+		sameScaleWeight(item.net, outEvent.net_weight) &&
+		sameScaleWeight(toNumber(item.gross, null) - toNumber(item.tare, null), item.net)
+}
+
+async function findVerifiedStagedFillFingerprints(bottleNo, movementRows, detectedFingerprints) {
+	const verified = new Set()
+	if (!Array.isArray(movementRows) || !detectedFingerprints || !detectedFingerprints.size) return verified
+	const events = movementRows.map((row) => buildMovementEvent(row, bottleNo))
+		.sort((a, b) => compareBusinessOrder(a, b) || a._id.localeCompare(b._id))
+	let lastBack = null
+	let fills = []
+	for (const event of events) {
+		if (event.type === 'back') {
+			lastBack = event
+			fills = []
+		} else if (event.type === 'fill') {
+			fills.push(event)
+		} else if (event.type === 'out') {
+			if (lastBack && fills.length >= 2) {
+				const fingerprints = fills.slice(1).map((fill, index) =>
+					buildAnomalyFingerprint(buildContinuousFill(fill, fills[index], lastBack)))
+				if (fingerprints.every((fp) => detectedFingerprints.has(fp)) &&
+					await isVerifiedStagedFillCycle(bottleNo, fills, event)) {
+					for (const fp of fingerprints) verified.add(fp)
+				}
+			}
+			lastBack = null
+			fills = []
+		}
+	}
+	return verified
 }
 
 function normalizeTruckSaleDoc(input, truckNoFallback = '') {
@@ -2300,11 +2381,16 @@ async function scanV2Unlocked(user, data, requestId) {
 
 	if (scanDone && !stopByWriteLimit && !isTimeExceeded() && pendingAnomalies.length === 0 && dayBuffer.length === 0) {
 		if (shouldReconcile) {
-			const finalWitness = await readMovementWitness(bottleNo)
+			const continuousFps = ensureTypeSet(detectedFpsByTypeSet, 'continuous_fill')
+			const finalWitness = await readMovementWitness(bottleNo,
+				reconcileTypeSet.has('continuous_fill') && continuousFps.size > 0)
 			if (finalWitness.hash !== data.expected_witness) {
 				return { code: 0, data: { done: false, cursor: null, history_changed: true,
 					round_created: roundCreated, round_resolved_stale: 0, round_scanned_events: roundScannedEvents } }
 			}
+			const verifiedStagedFps = reconcileTypeSet.has('continuous_fill')
+				? await findVerifiedStagedFillFingerprints(bottleNo, finalWitness.rows, continuousFps)
+				: new Set()
 			for (const anomalyType of reconcileTypes) {
 				if (isTimeExceeded() || isWriteExceeded()) {
 					scanDone = false
@@ -2325,14 +2411,14 @@ async function scanV2Unlocked(user, data, requestId) {
 						break
 					}
 					const fp = getComparableAnomalyFingerprint(row)
-					if (!fp || detectedSet.has(fp)) continue
+					if (!fp || (detectedSet.has(fp) && !verifiedStagedFps.has(fp))) continue
 					const id = normalizeString(row._id)
 					if (!id) continue
 					await anomalies.doc(id).update({
 						status: 'resolved',
 						updated_at: Date.now(),
 						resolved_by: null,
-						resolved_by_name: 'system-reconcile'
+						resolved_by_name: verifiedStagedFps.has(fp) ? 'system-staged-fill' : 'system-reconcile'
 					})
 					writeCount += 1
 					roundResolvedStale += 1
@@ -2350,7 +2436,7 @@ async function scanV2Unlocked(user, data, requestId) {
 					const staleRemaining = verifyRows.some((row) => {
 						const fp = getComparableAnomalyFingerprint(row)
 						if (!fp) return false
-						return !detectedSet.has(fp)
+						return !detectedSet.has(fp) || verifiedStagedFps.has(fp)
 					})
 					if (staleRemaining) scanDone = false
 					if (verifyRows.length >= 5000) scanDone = false
