@@ -1,5 +1,7 @@
 'use strict'
 
+const { readComplete } = require('./financialReadLocal')
+
 const db = uniCloud.database()
 const dbCmd = db.command
 
@@ -1478,49 +1480,30 @@ function buildBottleFlowStateFromMovementRows(rows = []) {
 }
 
 async function fetchBottleMovementRowsByBottleNos(bottleNos = [], { dateEnd = '', excludeFillingId = '' } = {}) {
-	const normalized = Array.from(new Set((bottleNos || []).map((item) => normalizeBottleNo(item)).filter(Boolean)))
-	if (!normalized.length) return []
+	const normalized = Array.from(new Set((bottleNos || []).map(normalizeBottleNo).filter(Boolean)))
 	const result = []
-	const excludedId = normalizeString(excludeFillingId)
-	const chunkSize = 200
-	for (let i = 0; i < normalized.length; i += chunkSize) {
-		const chunk = normalized.slice(i, i + chunkSize)
-		const where = { bottle_no: dbCmd.in(chunk) }
-		if (dateEnd) where.date = dbCmd.lte(dateEnd)
-		const res = await movements
-			.where(where)
-			.field({
-				bottle_no: true,
-				type: true,
-				date: true,
-				event_day: true,
-				event_at: true,
-				type_order: true,
-				source_type: true,
-				source_id: true,
-				customer_id: true,
-				customer_name: true,
-				created_at: true
+	try {
+		// Read the complete batch before deriving any warning or updating any bottle.
+		// Unique-key pagination and count checks prevent truncated history from becoming a state.
+		for (let i = 0; i < normalized.length; i += 200) {
+			const where = { bottle_no: dbCmd.in(normalized.slice(i, i + 200)) }
+			if (dateEnd) where.date = dbCmd.lte(dateEnd)
+			const rows = await readComplete(movements, where, {
+				command: dbCmd, source: 'bottle_history',
+				field: { bottle_no: true, type: true, date: true, event_day: true, event_at: true,
+					type_order: true, source_type: true, source_id: true, customer_id: true,
+					customer_name: true, created_at: true, updated_at: true }
 			})
-			.orderBy('event_at', 'asc')
-			.orderBy('type_order', 'asc')
-			.orderBy('created_at', 'asc')
-			.limit(5000)
-			.get()
-		const rows = Array.isArray(res.data) ? res.data : []
-		for (let j = 0; j < rows.length; j += 1) {
-			const row = rows[j]
-			if (
-				excludedId
-				&& normalizeString(row && row.source_type) === 'filling'
-				&& normalizeString(row && row.source_id) === excludedId
-			) {
-				continue
-			}
-			result.push(row)
+			result.push(...rows.filter((row) => !(normalizeString(excludeFillingId)
+				&& row.source_type === 'filling' && row.source_id === normalizeString(excludeFillingId))))
 		}
+		return result
+	} catch (cause) {
+		const error = new Error('流转核查未完成，请重新预览后再提交')
+		error.code = 'BOTTLE_FLOW_HISTORY_INCOMPLETE'
+		error.details = { read_complete: false, reason: cause.details?.reason || 'query_failed' }
+		throw error
 	}
-	return result
 }
 
 function buildBottleFlowStateMap(rows = [], bottleNos = []) {
@@ -1617,7 +1600,16 @@ async function syncBottleCurrentStatusByBottleNos(bottleNos = []) {
 		return { target_total: 0, updated_total: 0, skipped_pending_total: 0 }
 	}
 	const targetBottleNos = targetDocs.map((item) => normalizeBottleNo(item && item.bottle_no)).filter(Boolean)
-	const movementRows = await fetchBottleMovementRowsByBottleNos(targetBottleNos)
+	let movementRows
+	try {
+		movementRows = await fetchBottleMovementRowsByBottleNos(targetBottleNos)
+	} catch (error) {
+		if (error.code === 'BOTTLE_FLOW_HISTORY_INCOMPLETE') {
+			error.message = '灌装变更已保存，但钢瓶状态核查未完成，请勿重复提交，请刷新后核对'
+			error.details = { ...error.details, source_saved: true }
+		}
+		throw error
+	}
 	const stateMap = buildBottleFlowStateMap(movementRows, targetBottleNos)
 	let updatedTotal = 0
 	let skippedPendingTotal = 0
@@ -3548,11 +3540,15 @@ async function batchCreateV1(user, data, requestId, token) {
 				invalid_total: invalidItems.length,
 				duplicate_total: parsedRows.duplicate_total,
 				existing_total: existingItems.length,
+				read_complete: true,
 				warning_total: bottleFlowWarnings.length,
 				pending_basis_total: toCreateRows.filter((row) => row.loss_match_status === 'pending').length,
 				summary_text: buildFillingBottleFlowWarningSummaryText(bottleFlowWarnings),
 				sample_bottle_nos: toSampleBottleNos(toCreateRows),
-				create_items: toCreateRows.slice(0, BATCH_PREVIEW_DETAIL_LIMIT).map((row) => ({
+				create_items: [...toCreateRows].sort((a, b) => {
+					const priority = (row) => bottleFlowWarningMap.has(row.bottle_no) ? 0 : row.loss_match_status === 'pending' ? 1 : 2
+					return priority(a) - priority(b) || a.line_no - b.line_no
+				}).slice(0, BATCH_PREVIEW_DETAIL_LIMIT).map((row) => ({
 					line_no: row.line_no,
 					bottle_no: row.bottle_no,
 					fill_weight: row.fill_weight,
@@ -4148,7 +4144,7 @@ async function normalizeDatesV1(user, data, requestId, token) {
 	}
 }
 
-exports.main = async (event, context) => {
+async function dispatch(event, context) {
 	void context
 	const { action, data = {}, token } = event
 	const requestId =
@@ -4178,4 +4174,14 @@ exports.main = async (event, context) => {
 	if (action === 'normalizeDatesV1') return normalizeDatesV1(user, data, requestId, token)
 
 	return { code: 400, msg: '未知 action' }
+}
+
+exports.main = async (event, context) => {
+	try {
+		return await dispatch(event, context)
+	} catch (error) {
+		if (error.code !== 'BOTTLE_FLOW_HISTORY_INCOMPLETE') throw error
+		return { code: 409, error_code: error.code, msg: error.message,
+			data: { confirmable: false, ...error.details } }
+	}
 }

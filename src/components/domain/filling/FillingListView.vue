@@ -289,6 +289,9 @@
 						</view>
 						<text class="batch-hint">{{ batchCreateHintText }}</text>
 
+						<view v-if="batchCreateCheckError" class="batch-result">
+							<text class="batch-result-line batch-result-line--warning">{{ batchCreateCheckError }}</text>
+						</view>
 						<view v-if="batchCreatePreviewResult" class="batch-result">
 							<text class="batch-result-title">预览结果</text>
 							<text class="batch-result-line">可新增：{{ batchCreatePreviewResult.target_total }}（上限 {{ batchCreatePreviewResult.limit }}）</text>
@@ -302,22 +305,12 @@
 								有 {{ batchCreatePendingBasisTotal }} 条未命中最近回瓶重量，已标记为待销售回瓶自动补算。
 							</text>
 							<text class="batch-result-line">样例{{ batchCreateIdentifierLabel }}：{{ formatBottleNoSamples(batchCreatePreviewResult.sample_bottle_nos) }}</text>
-							<view v-if="batchCreatePreviewCreateItems.length" class="batch-detail-block">
-								<text class="batch-detail-title">待新增明细（前 {{ batchCreatePreviewCreateItems.length }} 条）</text>
-								<text v-for="item in batchCreatePreviewCreateItems" :key="`create-${item.line_no}-${item.bottle_no}`" class="batch-detail-line">
-									{{ formatBatchCreatePreviewCreateItem(item) }}
-								</text>
-							</view>
-							<view v-if="batchCreatePreviewWarningItems.length" class="batch-detail-block">
-								<text class="batch-detail-title">瓶流转预警（前 {{ batchCreatePreviewWarningItems.length }} 条）</text>
-								<text
-									v-for="item in batchCreatePreviewWarningItems"
-									:key="`warning-${item.bottle_no}-${item.last_out_date}-${item.status_code}`"
-									class="batch-detail-line"
-								>
-									{{ formatBatchCreatePreviewWarningItem(item) }}
-								</text>
-							</view>
+							<FillingBatchPreview
+								v-if="batchCreatePreviewCreateItems.length"
+								:items="batchCreatePreviewCreateItems"
+								:total="Number(batchCreatePreviewResult.target_total || 0)"
+								:flow-checked="batchCreateForm.record_type !== 'truck_out_no_sale'"
+							/>
 							<view v-if="batchCreatePreviewExistingItems.length" class="batch-detail-block">
 								<text class="batch-detail-title">已存在冲突（前 {{ batchCreatePreviewExistingItems.length }} 条）</text>
 								<text v-for="item in batchCreatePreviewExistingItems" :key="`existing-${item.line_no}-${item.bottle_no}`" class="batch-detail-line">
@@ -429,6 +422,7 @@
 </template>
 
 <script setup>
+import FillingBatchPreview from './FillingBatchPreview.vue'
 import { usePagedSummary } from '@/composables/usePagedSummary'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
@@ -520,6 +514,7 @@ let singleCreateResolveToken = 0
 const batchCreatePreviewLoading = ref(false)
 const batchCreateExecuting = ref(false)
 const batchCreatePreviewResult = ref(null)
+const batchCreateCheckError = ref('')
 const batchCreateExecuteResult = ref(null)
 const operatorOptions = ref([])
 const { canPageAction } = useAuthGuard()
@@ -744,9 +739,6 @@ const batchCreateHintText = computed(() => {
 })
 const batchCreatePreviewCreateItems = computed(() => {
 	return Array.isArray(batchCreatePreviewResult.value?.create_items) ? batchCreatePreviewResult.value.create_items : []
-})
-const batchCreatePreviewWarningItems = computed(() => {
-	return Array.isArray(batchCreatePreviewResult.value?.warning_items) ? batchCreatePreviewResult.value.warning_items : []
 })
 const batchCreatePreviewWarningTotal = computed(() => Number(batchCreatePreviewResult.value?.warning_total || 0))
 const batchCreatePreviewExistingItems = computed(() => {
@@ -1069,6 +1061,7 @@ function clearBatchResultState() {
 }
 
 function clearBatchCreateResultState() {
+	batchCreateCheckError.value = ''
 	batchCreatePreviewResult.value = null
 	batchCreateExecuteResult.value = null
 }
@@ -2056,16 +2049,26 @@ function buildBatchCreatePayload(preview) {
 	}
 }
 
+function showBatchCheckFailure(result) {
+	batchCreatePreviewResult.value = null
+	if (result?.error_code === 'BOTTLE_FLOW_HISTORY_INCOMPLETE') {
+		batchCreateCheckError.value = result?.data?.source_saved
+			? '灌装变更已保存，但钢瓶状态核查未完成，请勿重复提交，请刷新后核对。'
+			: '流转核查未完成，请重新预览后再提交。该状态不能忽略。'
+	}
+}
+
 async function onBatchCreatePreview() {
 	if (batchCreatePreviewLoading.value || batchCreateExecuting.value) return
 	const payload = buildBatchCreatePayload(true)
 	if (!payload) return
 	batchCreatePreviewLoading.value = true
+	batchCreateCheckError.value = ''
 	batchCreateExecuteResult.value = null
 	try {
 		const res = await batchCreateFillingsV1(payload)
 		if (res?.code !== 0) {
-			batchCreatePreviewResult.value = null
+			showBatchCheckFailure(res)
 			const failMsg = normalizeString(res?.msg) || '预览失败'
 			if (payload.input_mode === 'after_fill_total' && isMissingRecentBackBasisError(failMsg)) {
 				await promptSwitchBatchCreateToNetMode()
@@ -2094,10 +2097,12 @@ async function onBatchCreateExecute() {
 	const previewPayload = buildBatchCreatePayload(true)
 	if (!previewPayload) return
 	batchCreateExecuting.value = true
+	batchCreateCheckError.value = ''
 	batchCreateExecuteResult.value = null
 	try {
 		const previewRes = await batchCreateFillingsV1(previewPayload)
 		if (previewRes?.code !== 0) {
+			showBatchCheckFailure(previewRes)
 			const previewFailMsg = normalizeString(previewRes?.msg) || '预览失败'
 			if (previewPayload.input_mode === 'after_fill_total' && isMissingRecentBackBasisError(previewFailMsg)) {
 				await promptSwitchBatchCreateToNetMode()
@@ -2156,6 +2161,7 @@ async function onBatchCreateExecute() {
 			})
 		}
 		if (executeRes?.code !== 0) {
+			showBatchCheckFailure(executeRes)
 			const executeFailMsg = normalizeString(executeRes?.msg) || '执行失败'
 			if (previewPayload.input_mode === 'after_fill_total' && isMissingRecentBackBasisError(executeFailMsg)) {
 				await promptSwitchBatchCreateToNetMode()
@@ -2255,39 +2261,11 @@ function formatBottleNoSamples(samples) {
 	return listData.length > 12 ? `${preview} ...` : preview
 }
 
-function formatBatchCreatePreviewCreateItem(item) {
-	const lineNo = Number(item?.line_no || 0)
-	const bottleNo = normalizeString(item?.bottle_no) || '-'
-	const fillWeight = Number(item?.fill_weight)
-	const weightText = Number.isFinite(fillWeight) ? formatWeightValue(fillWeight) : '-'
-	const warningReason = normalizeString(item?.warning_reason)
-	const weightStart = Number(item?.weight_start)
-	const weightEnd = Number(item?.weight_end)
-	if (Number.isFinite(weightStart) && weightStart > 0 && Number.isFinite(weightEnd) && weightEnd > 0) {
-		const basisValue = Number(item?.basis_value)
-		const status = normalizeString(item?.loss_match_status)
-		const startLoss = Number(item?.start_loss_weight)
-		const matchText = Number.isFinite(basisValue)
-			? `上秤差 ${Number.isFinite(startLoss) ? formatWeightValue(startLoss) : '-'}kg · 依据 ${getDerivedBasisSourceLabel(item?.basis_source)} ${formatWeightValue(basisValue)}kg · 来源 ${formatDerivedBasisRef(item)}`
-			: (status === 'pending' || item?.basis_missing ? '待销售回瓶自动补算上秤差' : '未生成上秤差')
-		const baseText = `行${lineNo || '-'} · ${bottleNo} · 上秤 ${formatWeightValue(weightStart)}kg · 灌完 ${formatWeightValue(weightEnd)}kg · 净重 ${weightText}kg · ${matchText}`
-		return warningReason ? `${baseText} · 预警 ${warningReason}` : baseText
-	}
-	const baseText = `行${lineNo || '-'} · ${bottleNo} · ${weightText}kg`
-	return warningReason ? `${baseText} · 预警 ${warningReason}` : baseText
-}
-
 function formatBatchCreatePreviewIssueItem(item) {
 	const lineNo = Number(item?.line_no || 0)
 	const bottleNo = normalizeString(item?.bottle_no) || '-'
 	const error = normalizeString(item?.error) || '无效数据'
 	return `行${lineNo || '-'} · ${bottleNo} · ${error}`
-}
-
-function formatBatchCreatePreviewWarningItem(item) {
-	const bottleNo = normalizeString(item?.bottle_no) || '-'
-	const reason = normalizeString(item?.reason) || '请检查'
-	return `${bottleNo} · ${reason}`
 }
 
 function formatFailedItems(items) {

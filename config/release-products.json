@@ -6,60 +6,40 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.24-cashier-decimal-input",
+      "version": "2026.09.24-filling-warning-complete-read",
       "output": "dist/build/web",
-      "acceptance": "Cashier total, gas, and deposit amount fields keep a usable decimal point on H5 while existing amount validation remains authoritative.",
+      "acceptance": "Complete filling flow history prevents truncated warnings; batch preview distinguishes incomplete checks and displays prioritized structured weight details.",
       "deploymentScope": {
         "functions": [
-          "crm-bottle"
+          "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "15f780c60a2c877dd1c2feb836c73fb8e16d512c",
+        "baseCommit": "0f68637cbefb67e34c0315c3b7d2f128c4fc6709",
         "sourceFiles": [
-          "src/components/base/AppInput.vue",
-          "src/components/domain/customer/CashierReceiptIntakeView.vue"
+          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/financialReadLocal.js",
+          "src/components/domain/filling/FillingListView.vue",
+          "src/components/domain/filling/FillingBatchPreview.vue"
         ]
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.24-anomaly-refresh-completion",
+      "version": "2026.09.24-filling-warning-complete-read",
       "output": "release/cloud",
-      "acceptance": "Bottle anomaly touch persists every target and resumes to completion; incomplete or changed history cannot close an open anomaly.",
+      "acceptance": "Complete filling flow history prevents truncated warnings; batch preview distinguishes incomplete checks and displays prioritized structured weight details.",
       "deploymentScope": {
         "functions": [
-          "crm-bottle-anomaly",
-          "crm-filling",
-          "crm-sale"
+          "crm-filling"
         ],
-        "databaseFiles": [
-          "crm_anomaly_refresh_jobs.schema.json",
-          "crm_anomaly_refresh_jobs.index.json",
-          "crm_bottle_scan_locks.schema.json"
-        ],
-        "baseCommit": "ef95a7c58014c8ffcdea3180addbb1371e8d583e",
+        "databaseFiles": [],
+        "baseCommit": "0f68637cbefb67e34c0315c3b7d2f128c4fc6709",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/refreshJobs.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/database/crm_anomaly_refresh_jobs.schema.json",
-          "uniCloud-alipay/database/crm_anomaly_refresh_jobs.index.json",
-          "uniCloud-alipay/database/crm_bottle_scan_locks.schema.json"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-sale": {
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            },
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            }
-          }
-        }
+          "uniCloud-alipay/cloudfunctions/crm-filling/financialReadLocal.js",
+          "src/components/domain/filling/FillingListView.vue",
+          "src/components/domain/filling/FillingBatchPreview.vue"
+        ]
       },
       "integrityScope": "deployment"
     }
