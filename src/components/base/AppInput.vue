@@ -13,6 +13,7 @@
 			<input
 				class="field__input"
 				:type="type"
+				:inputmode="inputmode"
 				:password="type === 'password'"
 				:value="modelValue"
 				:name="name"
@@ -41,6 +42,7 @@ const props = defineProps({
 	disabled: { type: Boolean, default: false },
 	readonly: { type: Boolean, default: false },
 	type: { type: String, default: 'text' },
+	inputmode: { type: String, default: undefined },
 	name: { type: String, default: '' },
 	autocomplete: { type: String, default: '' },
 	confirmType: { type: String, default: 'done' },

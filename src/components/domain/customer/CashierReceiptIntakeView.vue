@@ -72,9 +72,9 @@
 						<picker class="picker-block" mode="selector" :range="paymentMethodOptions" range-key="label" :value="paymentMethodIndex" :disabled="fieldsLocked" @change="onPaymentMethodChange">
 							<AppInput :model-value="paymentMethodOptions[paymentMethodIndex]?.label || '现金'" label="收款渠道" readonly size="sm" :disabled="fieldsLocked" />
 						</picker>
-						<AppInput v-model="form.amount" :label="`到账总额（${form.kind === 'deposit' ? 2 : selectedIntakeMoneyScale}位小数）`" type="digit" placeholder="按到账凭证填写" size="sm" :disabled="fieldsLocked" />
-						<AppInput v-if="form.kind === 'mixed'" v-model="form.gasAmount" :label="`其中气款（${selectedIntakeMoneyScale}位小数）`" type="digit" placeholder="请输入正数" size="sm" :disabled="fieldsLocked" />
-						<AppInput v-if="form.kind === 'mixed'" v-model="form.depositAmount" label="其中押金（2位小数）" type="digit" placeholder="请输入正数" size="sm" :disabled="fieldsLocked" />
+						<AppInput v-model="form.amount" :label="`到账总额（${form.kind === 'deposit' ? 2 : selectedIntakeMoneyScale}位小数）`" :type="moneyInputType" inputmode="decimal" placeholder="按到账凭证填写" size="sm" :disabled="fieldsLocked" />
+						<AppInput v-if="form.kind === 'mixed'" v-model="form.gasAmount" :label="`其中气款（${selectedIntakeMoneyScale}位小数）`" :type="moneyInputType" inputmode="decimal" placeholder="请输入正数" size="sm" :disabled="fieldsLocked" />
+						<AppInput v-if="form.kind === 'mixed'" v-model="form.depositAmount" label="其中押金（2位小数）" :type="moneyInputType" inputmode="decimal" placeholder="请输入正数" size="sm" :disabled="fieldsLocked" />
 						<picker v-if="form.kind !== 'deposit'" class="picker-block" mode="selector" :range="purposeOptions" range-key="label" :value="purposeIndex" :disabled="fieldsLocked" @change="onPurposeChange">
 							<AppInput :model-value="purposeOptions.find(item => item.value === form.purpose)?.label || '用途待核，请选择'" label="气款用途" readonly size="sm" :disabled="fieldsLocked" />
 						</picker>
@@ -208,6 +208,10 @@ const SUGGESTION_PICK_GUARD_MS = 500
 const SUGGESTION_SCROLL_THRESHOLD = 4
 const OPERATION_STORAGE_PREFIX = 'crm_cashier_intake_v2_operation'
 const VOID_REASON_OPTIONS = ['误录作废', '重复登记', '凭证有误', '客户信息错误']
+let moneyInputType = 'digit'
+// #ifdef H5
+moneyInputType = 'text'
+// #endif
 
 const { requireLogin, canPageAction } = useAuthGuard()
 requireLogin()
