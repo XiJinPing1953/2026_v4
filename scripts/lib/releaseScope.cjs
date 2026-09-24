@@ -10,7 +10,7 @@ function resolveReleaseScope(root, product, requested) {
 	const mode = requested || config.products?.[product]?.integrityScope || 'all'
 	if (mode === 'all') return null
 	if (mode !== 'deployment') throw new Error(`未知发布检查范围：${mode}`)
-	const scope = config.products?.cloud?.deploymentScope
+	const scope = config.products?.[product]?.deploymentScope || config.products?.cloud?.deploymentScope
 	if (!scope?.functions?.length || !Array.isArray(scope.databaseFiles)) throw new Error('范围检查必须明确函数和数据库清单')
 	if (new Set(scope.functions).size !== scope.functions.length || new Set(scope.databaseFiles).size !== scope.databaseFiles.length) throw new Error('发布范围存在重复项')
 	for (const name of scope.functions) {

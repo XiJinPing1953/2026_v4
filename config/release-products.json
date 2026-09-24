@@ -6,9 +6,20 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.24-inspection-due-shortcuts",
+      "version": "2026.09.24-cashier-decimal-input",
       "output": "dist/build/web",
-      "acceptance": "Inspection page combines overdue and next-60-day active bottles by module, preserves natural bottle order, and previews the same batch scope.",
+      "acceptance": "Cashier total, gas, and deposit amount fields keep a usable decimal point on H5 while existing amount validation remains authoritative.",
+      "deploymentScope": {
+        "functions": [
+          "crm-bottle"
+        ],
+        "databaseFiles": [],
+        "baseCommit": "15f780c60a2c877dd1c2feb836c73fb8e16d512c",
+        "sourceFiles": [
+          "src/components/base/AppInput.vue",
+          "src/components/domain/customer/CashierReceiptIntakeView.vue"
+        ]
+      },
       "integrityScope": "deployment"
     },
     "cloud": {
