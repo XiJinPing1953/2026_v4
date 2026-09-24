@@ -33,8 +33,8 @@
           "crm-sale"
         ],
         "databaseFiles": [
-          "crm_bottle_anomaly_refresh_jobs.schema.json",
-          "crm_bottle_anomaly_refresh_jobs.index.json",
+          "crm_anomaly_refresh_jobs.schema.json",
+          "crm_anomaly_refresh_jobs.index.json",
           "crm_bottle_scan_locks.schema.json"
         ],
         "baseCommit": "ef95a7c58014c8ffcdea3180addbb1371e8d583e",
@@ -44,8 +44,8 @@
           "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/refreshJobs.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/database/crm_bottle_anomaly_refresh_jobs.schema.json",
-          "uniCloud-alipay/database/crm_bottle_anomaly_refresh_jobs.index.json",
+          "uniCloud-alipay/database/crm_anomaly_refresh_jobs.schema.json",
+          "uniCloud-alipay/database/crm_anomaly_refresh_jobs.index.json",
           "uniCloud-alipay/database/crm_bottle_scan_locks.schema.json"
         ],
         "aclCanonicalRevisions": {

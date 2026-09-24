@@ -1,7 +1,7 @@
 'use strict'
 
 const crypto = require('crypto')
-const COLLECTION = 'crm_bottle_anomaly_refresh_jobs'
+const COLLECTION = 'crm_anomaly_refresh_jobs'
 const LEASE_MS = 120000
 const RETRY_DELAYS = [60000, 120000, 240000, 480000, 900000]
 
