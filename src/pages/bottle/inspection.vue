@@ -20,7 +20,7 @@ function normalizeInspectionDueModule(value) {
 
 function normalizeInspectionDueState(value) {
 	const normalized = String(value || '').trim().toLowerCase()
-	return ['overdue', 'due_60d'].includes(normalized) ? normalized : ''
+	return ['overdue', 'due_60d', 'overdue_or_due_60d'].includes(normalized) ? normalized : ''
 }
 
 onLoad((options = {}) => {

@@ -1152,10 +1152,7 @@ function formatInspectionDueCount(row) {
 }
 
 function goInspectionDue(module) {
-	const row = inspectionDue[module] || {}
-	const overdue = Number(row.overdue || 0)
-	const state = overdue > 0 ? 'overdue' : 'due_60d'
-	go(`/pages/bottle/inspection?inspection_due_module=${encodeURIComponent(module)}&inspection_due_state=${encodeURIComponent(state)}`)
+	go(`/pages/bottle/inspection?inspection_due_module=${encodeURIComponent(module)}&inspection_due_state=overdue_or_due_60d`)
 }
 </script>
 
