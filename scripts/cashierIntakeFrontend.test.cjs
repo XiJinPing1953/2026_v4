@@ -170,6 +170,26 @@ test('money mapper keeps mixed 2/3 scale exact and fingerprints content only', a
 	assert.notEqual(mapper.cashierDraftFingerprint(input), mapper.cashierDraftFingerprint({ ...input, note: 'changed' }))
 })
 
+test('text amount inputs reject illegal characters before preview and invalidate an earlier preview', async () => {
+	const invalid = ['12a', '1e2', '-1', '1,000', '12..3', '12.3456']
+	for (const field of ['amount', 'gasAmount', 'depositAmount']) {
+		for (const value of invalid) {
+			const h = await viewHarness()
+			fillDraft(h.view, { [field]: value })
+			assert.equal(h.view.currentAmounts.value, null, `${field}: ${value}`)
+			await h.view.previewCurrentOperation()
+			assert.equal(h.previews.length, 0, `${field}: ${value}`)
+			assert.equal(h.saves.length, 0, `${field}: ${value}`)
+		}
+	}
+	const h = await viewHarness()
+	fillDraft(h.view)
+	await h.view.previewCurrentOperation()
+	assert.equal(h.view.canConfirmPrepared.value, true)
+	h.view.form.amount = '0.011x'
+	assert.equal(h.view.canConfirmPrepared.value, false)
+})
+
 test('shared V2 API keeps snake_case, opaque cursor, export mode, and prepared submission', async () => {
 	const calls = []
 	const api = await loadApi(calls)

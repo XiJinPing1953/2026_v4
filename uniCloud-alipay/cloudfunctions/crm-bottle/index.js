@@ -26,7 +26,7 @@ const bottleImportBackups = db.collection('crm_bottles_import_backups')
 const STATUS = ['unknown', 'in_station', 'at_customer', 'scrapped', 'lost']
 const CHECK_CYCLE_MONTHS = [6, 12, 24, 36]
 const INSPECTION_DUE_MODULES = ['bottle', 'gauge', 'valve']
-const INSPECTION_DUE_STATES = ['overdue', 'due_60d']
+const INSPECTION_DUE_STATES = ['overdue', 'due_60d', 'overdue_or_due_60d']
 const BATCH_INSPECTION_LIMIT = 2000
 const BOTTLE_NUMERIC_SEGMENT_SCAN_LIMIT = 5000
 const BOTTLE_SORT_BACKFILL_LIMIT = 5000
@@ -1186,8 +1186,10 @@ function buildBottleListWhereByFilter(data = {}) {
 		conditions.push({ [dueField]: validDateRx })
 		if (dueFilterResult.data.state === 'overdue') {
 			conditions.push({ [dueField]: dbCmd.lt(dueFilterResult.data.today) })
-		} else {
+		} else if (dueFilterResult.data.state === 'due_60d') {
 			conditions.push({ [dueField]: dbCmd.gte(dueFilterResult.data.today) })
+			conditions.push({ [dueField]: dbCmd.lte(dueFilterResult.data.due_end) })
+		} else {
 			conditions.push({ [dueField]: dbCmd.lte(dueFilterResult.data.due_end) })
 		}
 	}

@@ -21,3 +21,14 @@ state/import/legacy_v2_to_v4/*
 !state/import/legacy_v2_to_v4/.gitignore
 
 outputs/trust-audit/
+
+# One-off cylinder register correction includes source records and a private batch credential.
+outputs/bottle-register-20260923/
+uniCloud-alipay/cloudfunctions/crm-bottle-register-correction/
+
+# Local raw financial and operational evidence stays outside Git.
+outputs/august-usage-*/
+outputs/k002-status-*/
+docs/tank_monitor_logs_*.csv
+docs/tank_monitor_logs_*.json
+outputs/inspection-due-shortcuts-*/crm-bottle-rollback.tar

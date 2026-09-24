@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 2,
+  "product": "web",
+  "buildId": "1790221263381-e73255b8",
+  "generatedAt": "2026-09-24T03:41:03.381Z",
+  "sourceCommit": "f594c1ed36ea52751aac4550fef88d4679603637",
+  "sourceDigest": "59f5e65f210bf8b066cf0c72d45acb63d42e8e31be557c69c5a150bf10baf7ab",
+  "sourceDirty": false,
+  "artifactDigest": "b3052123d4f9d6975b09a2df4b22ad612ca07c64c22a043bc55cc658fe6c22d2",
+  "environment": {
+    "provider": "alipay",
+    "spaceId": "env-00jxuffegf2n"
+  },
+  "entryScript": "/assets/index-BNop6Mt1.js",
+  "entryStyle": "/assets/uni.0ebefca8.css"
+}

@@ -5,6 +5,22 @@
 		</template>
 
 		<view class="inspection-shell">
+			<view class="quick-filter">
+				<view class="quick-filter__heading">
+					<text class="quick-filter__title">快速查看待检钢瓶</text>
+					<text class="quick-filter__hint">在用钢瓶 · 已过期或未来60天内到期</text>
+				</view>
+				<view class="quick-filter__actions">
+					<AppButton
+						v-for="module in moduleOptions"
+						:key="module.key"
+						size="sm"
+						:kind="isQuickFilterActive(module.key) ? 'primary' : 'neutral'"
+						@click="onQuickDueFilter(module.key)"
+						>{{ module.shortLabel }}待处理</AppButton>
+				</view>
+			</view>
+
 			<AppSection title="1. 选择检定日期和项目">
 				<view class="form-grid">
 					<picker class="picker-block" mode="date" :value="inspectionDate" @change="onInspectionDateChange">
@@ -223,6 +239,7 @@ const inspectionDueModuleOptions = [
 ]
 const inspectionDueStateOptions = [
 	{ label: '全部状态', value: '' },
+	{ label: '已过期或60天内到期', value: 'overdue_or_due_60d' },
 	{ label: '已过期', value: 'overdue' },
 	{ label: '60天内到期', value: 'due_60d' }
 ]
@@ -308,7 +325,29 @@ function applyInitialDueFilters() {
 	if (moduleIndex > 0 && stateIndex > 0) {
 		filters.inspectionDueModuleIndex = moduleIndex
 		filters.inspectionDueStateIndex = stateIndex
+		if (inspectionDueStateOptions[stateIndex].value === 'overdue_or_due_60d') selectedModules.value = [inspectionDueModuleOptions[moduleIndex].value]
 	}
+}
+
+function isQuickFilterActive(moduleKey) {
+	return getInspectionDueModuleValue() === moduleKey && getInspectionDueStateValue() === 'overdue_or_due_60d' && activeOptions[filters.activeIndex]?.value === 'true'
+}
+
+function onQuickDueFilter(moduleKey) {
+	const moduleIndex = inspectionDueModuleOptions.findIndex((item) => item.value === moduleKey)
+	if (moduleIndex < 1) return
+	filters.keyword = ''
+	filters.statusIndex = 0
+	filters.activeIndex = 1
+	filters.inspectionDueModuleIndex = moduleIndex
+	filters.inspectionDueStateIndex = inspectionDueStateOptions.findIndex((item) => item.value === 'overdue_or_due_60d')
+	filters.bottleNoModeIndex = 0
+	filters.bottleNoPrefix = ''
+	filters.bottleNoNumericStart = ''
+	filters.bottleNoNumericEnd = ''
+	clearSelection()
+	selectedModules.value = [moduleKey]
+	onSearch(true)
 }
 
 function buildFilterParams({ page = 1, pageSize = 50 } = {}) {
@@ -677,6 +716,37 @@ onMounted(() => {
 	display: flex;
 	flex-direction: column;
 	gap: 24rpx;
+}
+
+.quick-filter {
+	padding: 20rpx;
+	border: 1rpx solid var(--crm-border);
+	border-radius: var(--crm-radius-sm);
+	background: #fff;
+}
+
+.quick-filter__heading,
+.quick-filter__actions {
+	display: flex;
+	align-items: center;
+	gap: 12rpx;
+	flex-wrap: wrap;
+}
+
+.quick-filter__heading {
+	justify-content: space-between;
+	margin-bottom: 16rpx;
+}
+
+.quick-filter__title {
+	font-size: 28rpx;
+	font-weight: 700;
+	color: var(--crm-text);
+}
+
+.quick-filter__hint {
+	font-size: 22rpx;
+	color: var(--crm-text-muted);
 }
 
 .form-grid,

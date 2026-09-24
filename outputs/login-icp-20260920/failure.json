@@ -1,0 +1,11 @@
+{
+  "startedAt": "2026-09-20T09:46:26.012Z",
+  "failedAt": "2026-09-20T09:46:26.073Z",
+  "buildId": "1789897543696-c5116f3a",
+  "failure": {
+    "kind": "request_failed",
+    "path": "version.json",
+    "errorName": "TypeError"
+  },
+  "checked": []
+}

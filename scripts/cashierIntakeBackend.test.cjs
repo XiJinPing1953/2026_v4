@@ -91,11 +91,19 @@ test('concurrent customer or gas modification aborts complete transaction',async
 })
 test('precision, hidden customer, missing permissions and closed create fail without writes',async()=>{
  const h=harness()
- for(const patch of [{gas_amount:99},{deposit_amount:'20.001'},{amount:'120.001'},{proof_images:[]},{proof_images:['https://invalid']},{biz_date:'2026-02-30'}])await assert.rejects(h.preview(h.input(patch)))
+ for(const patch of [{gas_amount:99},{deposit_amount:'20.001'},{amount:'120.001'},{proof_images:[]},{proof_images:['https://invalid']},{biz_date:'2026-02-30'},
+  ...['12a','1e2','-1','1,000','12..3','12.3456'].flatMap(value=>[{amount:value},{gas_amount:value},{deposit_amount:value}])])await assert.rejects(h.preview(h.input(patch)))
  assert.equal(h.tables[TABLE].length,0)
  const closed=harness({}, {},{enabled:false});await assert.rejects(closed.preview(closed.input()),/暂时关闭/)
  const denied=harness({}, {},{canWrite:()=>false});await assert.rejects(denied.preview(denied.input()),/权限/)
  h.tables.crm_customers[0].is_hidden=true;await assert.rejects(h.preview(h.input()),/不可访问/)
+})
+test('tampered prepared submissions with illegal amount text never write',async()=>{
+ const h=harness(),preview=await h.preview(h.input()),before=structuredClone(h.tables)
+ for(const field of ['amount','gas_amount','deposit_amount']) {
+  await assert.rejects(h.run('saveReceiptIntakeV2',{...preview.submission,[field]:'12x'}),/金额/)
+  assert.deepEqual(h.tables,before)
+ }
 })
 test('new and legacy arrivals paginate without duplicates including equal timestamps; export invalidates changed children',async()=>{
  const h=harness()

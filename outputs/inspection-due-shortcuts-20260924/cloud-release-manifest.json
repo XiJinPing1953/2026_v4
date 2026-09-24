@@ -1,0 +1,1738 @@
+{
+  "schemaVersion": 1,
+  "product": "cloud",
+  "productVersion": "2026.09.24-inspection-due-shortcuts",
+  "createdAt": "2026-09-24T03:10:19.318Z",
+  "environment": {
+    "provider": "alipay",
+    "spaceId": "env-00jxuffegf2n"
+  },
+  "source": {
+    "product": "cloud",
+    "sourceCommit": "15f780c60a2c877dd1c2feb836c73fb8e16d512c",
+    "sourceDigest": "5a99ab0d2479a6fc718c3394f09202921f3561b578015d63b795bdb90a4dde3b",
+    "sourceDirty": false,
+    "untrackedInputs": [],
+    "changedTracked": [],
+    "files": [
+      {
+        "path": "config/domain-contracts.json",
+        "sha256": "74d0852b72a12759166e43fab0834a384bf73f502be65b3ed57b9a9cc5f12ba5"
+      },
+      {
+        "path": "config/release-products.json",
+        "sha256": "32fad063312f55b77bb61d840646abc711e147ce25ae12cae99c2cf9d4e843fc"
+      },
+      {
+        "path": "scripts/buildWebWithCloudSpace.cjs",
+        "sha256": "5e5ce7b7df4229f1a290004c323a4ee1fd8b10004306dd23ba7c018f511dd703"
+      },
+      {
+        "path": "scripts/checkReleaseIntegrity.cjs",
+        "sha256": "cdc8f80829e2cc1ae732fbb95cd2af8b1a2796431ffadbf2c5635dd66e28ce01"
+      },
+      {
+        "path": "scripts/createReleaseManifest.cjs",
+        "sha256": "7dd4ca6f962ea9789afaf503c2a128af206ff6a6e317d1a645528e0f77831e79"
+      },
+      {
+        "path": "scripts/lib/releaseEvidence.cjs",
+        "sha256": "d1377bad51a10bc389470fcdb3a512dca22a5b2c49b6a7bbdc20ee9be3287caa"
+      },
+      {
+        "path": "scripts/lib/releaseScope.cjs",
+        "sha256": "a718e43a060890ce72437cf6257af144a1a2e168fb987de8e4b2853a1de52364"
+      },
+      {
+        "path": "scripts/releaseWeb.cjs",
+        "sha256": "0fe553f16fcb31f212365f1b559fa554c3c6874134fc1b76795f3d948aefe7b2"
+      },
+      {
+        "path": "scripts/syncDomainContracts.cjs",
+        "sha256": "63ff18e729a4fc718777f1bfdf3ff9075565bac535aaaf36f54e87e4674f3133"
+      },
+      {
+        "path": "scripts/syncPageAclRegistry.cjs",
+        "sha256": "63d316bf665b123e45d04305be30bdd73f5f3dccd3e22a5551d43a25511673f4"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/common/accountingReview.js",
+        "sha256": "ea2a65df6e809b7a0fc9d1a828287fc2a51d47a306e38d0c6c0fda3cd5e7fd62"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/common/financialRead.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/common/pageAcl.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/common/saleAccounting.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js",
+        "sha256": "02386c14cd03133e8ee179de9c81e5a694a09947d3c87fff3f558b65db0dec29"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-account/index.js",
+        "sha256": "d5770bf8aba252563aaed20fed0027967e05d0d80c04d15419e0e5aef80b8e98"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-account/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-account/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-account/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-accounting-correction/accountingReviewLocal.js",
+        "sha256": "ea2a65df6e809b7a0fc9d1a828287fc2a51d47a306e38d0c6c0fda3cd5e7fd62"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-accounting-correction/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-accounting-correction/index.js",
+        "sha256": "1a7d3c17e32b8ef0e6957bb22f3bb30c5d52167f97717963546f702946345a92"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-accounting-correction/manualReview.js",
+        "sha256": "3b21e34adebc1fb64401ad3834526f0f590b6dc568035df23f606780221ec46d"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-accounting-correction/package.json",
+        "sha256": "b4cb0a3e7e129ee81a5a68c680d59e1b7d2af21f449d86f6897352c8280a92fb"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-accounting-correction/plan.js",
+        "sha256": "48138a757fa6fce1607db8d79043bbbc4c6a511dd757074bb31bd3d620787182"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-accounting-correction/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-accounting-correction/snapshot.js",
+        "sha256": "733ea5385070e3fee832f3eabbc2c63061445dc48160195a4d3b69e9c462b093"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-accounting-correction/transaction.js",
+        "sha256": "b7d060f6ebc88a70a75412c33a2e6963e805913a321539bcf72df26a3a0e9b52"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-auth/index.js",
+        "sha256": "edf313720e00f129c7ea423dde799fdfd823bd62a91377b971735ab64d2c608d"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-auth/package.json",
+        "sha256": "2920aa443b358340ab13a9f64f342430d6ebe12e797d75fd4d15403e0e4124b2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-auth/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js",
+        "sha256": "bbc34fbce709f70042074c098f9b5f6107313b48b9e891f40ea6814b53d44b45"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle-batch-ops/index.js",
+        "sha256": "c0ad78e193c37d66cc0579e3c55d0e5cf849f990c30953455239acf10ce060fa"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle-batch-ops/payload.json",
+        "sha256": "bfcc4b9266a83aea1d48682b0befc627441ec21a8b19f76616d54155d7aa3a90"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle-movement/customerVisibilityLocal.js",
+        "sha256": "3acedf31763dad53e1ca6ec7beb5136b6e2f7a4fb7ba459d8c28520a6c7976de"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle-movement/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js",
+        "sha256": "51ac19022477266a23f30cefc578339b1a9ba5300da24a04b60a719b3d64402e"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle-movement/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle-movement/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle-movement/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle/customerVisibilityLocal.js",
+        "sha256": "3acedf31763dad53e1ca6ec7beb5136b6e2f7a4fb7ba459d8c28520a6c7976de"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
+        "sha256": "03f652e132345bb6dd177d74b97c5c40398fbad6af7d21a85c880de59f25829c"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-collection/customerVisibilityLocal.js",
+        "sha256": "3acedf31763dad53e1ca6ec7beb5136b6e2f7a4fb7ba459d8c28520a6c7976de"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-collection/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-collection/index.js",
+        "sha256": "12af5c89ad9a533b482c30b4795a4086e5c5c91366186a6719ebd1bc5536865e"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-collection/pageAclLocal.js",
+        "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-collection/pageAclRegistry.js",
+        "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-collection/pageAclRegistryLocal.js",
+        "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-collection/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-deposit/depositModel.js",
+        "sha256": "7e63ee799f06f6a13117e2717a4bb40233a3dfad9df188ca4bfeba42b9bbd6c5"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-deposit/depositReportLocal.js",
+        "sha256": "727e8c79db1ac9a342383219989c8bd42544512dc79a44e93d9f0f42d70f6c36"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-deposit/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-deposit/index.js",
+        "sha256": "479a07c0fb615a050e945258245aebe2c2e4951ac9e567b80afda9d889b148dd"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-deposit/package.json",
+        "sha256": "a041bd135b3b7facfc24452d773eb9889ee6583053d5d9474c979a98405d583d"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-deposit/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-deposit/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-deposit/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-deposit/receiptSource.js",
+        "sha256": "02c697c6bc15ab3638d71347ce8886d374575195d5eb66d01a2a87b068e3b30e"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-deposit/report.js",
+        "sha256": "727e8c79db1ac9a342383219989c8bd42544512dc79a44e93d9f0f42d70f6c36"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-deposit/transaction.js",
+        "sha256": "fbe044ac16b7aba01e012875d0ae3bb77d81f83761845572a47fe26902701dd8"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/accountingReviewLocal.js",
+        "sha256": "ea2a65df6e809b7a0fc9d1a828287fc2a51d47a306e38d0c6c0fda3cd5e7fd62"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/cashierIntake.js",
+        "sha256": "b411524585fd76ec12de711399d50afdf717e51c8a40b94779f5200cd9f91ad5"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/cashierIntakeConfig.json",
+        "sha256": "75e864d3caec3853b2e1c2841ddde67acb315234c22efc10b494cfe10d9ec916"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/confirmedPrepayWriteoff.js",
+        "sha256": "99cd9a41a132f45dec15120e16d231958148142888da51941140f5d33f72323d"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerRefund.js",
+        "sha256": "ecf9f3f9457cfcf5813615421f476a97e8624648d16b7b71190d3e10aacae339"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerVisibilityLocal.js",
+        "sha256": "3acedf31763dad53e1ca6ec7beb5136b6e2f7a4fb7ba459d8c28520a6c7976de"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/depositModel.js",
+        "sha256": "7e63ee799f06f6a13117e2717a4bb40233a3dfad9df188ca4bfeba42b9bbd6c5"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/depositReportLocal.js",
+        "sha256": "727e8c79db1ac9a342383219989c8bd42544512dc79a44e93d9f0f42d70f6c36"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/depositTransactionLocal.js",
+        "sha256": "fbe044ac16b7aba01e012875d0ae3bb77d81f83761845572a47fe26902701dd8"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
+        "sha256": "a344b799e2d29d1756e7e0327299391cf279735442287d9e00d08dc56a748af7"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/offsetCreditRefund.js",
+        "sha256": "0633d4e6394be2e87ba2310113e4099a5382c6423faa253ac37e52ca2856ba44"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/periodSummary.js",
+        "sha256": "8c512554cfc67ae13ff46154ffb40f12c4d5f8b93878e5fa88ddc4b65dd94bb5"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/receiptSource.js",
+        "sha256": "02c697c6bc15ab3638d71347ce8886d374575195d5eb66d01a2a87b068e3b30e"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer-settlement/statementReadContext.js",
+        "sha256": "b4822c7d384b3115215c8c8f12fd6f6ccf5cb396380ef7f4cf56a78b01886f7c"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer/customerVisibilityLocal.js",
+        "sha256": "3acedf31763dad53e1ca6ec7beb5136b6e2f7a4fb7ba459d8c28520a6c7976de"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer/index.js",
+        "sha256": "64e24a6a44b57189571b806ed96e41d4bb8f69634887d0d5573acb1a60248ea6"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-customer/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-dashboard/customerVisibilityLocal.js",
+        "sha256": "3acedf31763dad53e1ca6ec7beb5136b6e2f7a4fb7ba459d8c28520a6c7976de"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-dashboard/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
+        "sha256": "6d10ce9c00177ee798fbed9bed6c123df77d840120ac31cab3030dd1547be195"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistry.js",
+        "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistryLocal.js",
+        "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-dashboard/receiptSourceLocal.js",
+        "sha256": "02c697c6bc15ab3638d71347ce8886d374575195d5eb66d01a2a87b068e3b30e"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-dashboard/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-dashboard/tankTelemetry.js",
+        "sha256": "02386c14cd03133e8ee179de9c81e5a694a09947d3c87fff3f558b65db0dec29"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-delivery/index.js",
+        "sha256": "bb05a4550d6adf7e8ca996e3052f36a6762f25563509772ac9c7dd5d78cf773e"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-delivery/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-delivery/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-delivery/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-filling-permit-gateway/index.js",
+        "sha256": "eb5bff58a22941c2c7c1acd9c56c47c23be883ea32bb5d05614c068683251b8e"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-filling-permit-gateway/permitPolicy.js",
+        "sha256": "ed477d0f476d430f1cf60dc6084efad38f23b6459107e6d5641ee163408cb85b"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
+        "sha256": "d7f086c775b953deab9e4fc215e14479e02bf5f4014247f97602f486bd5234c5"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-filling/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-gas-in/currentInventory.js",
+        "sha256": "3b3f8a416334c11863982f089ae4fd280ddfb94d6a1e907c744709394d591062"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
+        "sha256": "e26ecf003a79339bc2facb905bc0516397647d570ff5fe9596774803d0f78be2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-gas-in/inventoryRead.js",
+        "sha256": "d0d37997f3c684e8e94bb80d38efd148ca92e2f7c8a0edf41a1514dcd3648565"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-gas-in/package.json",
+        "sha256": "2179f59d8792ffe793d8e5ce02c15eb5535297c632608530889f0b8b2b1a10ed"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-gas-in/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-gas-in/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-gas-in/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js",
+        "sha256": "02386c14cd03133e8ee179de9c81e5a694a09947d3c87fff3f558b65db0dec29"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-haonuo-reconciliation/financialReadLocal.js",
+        "sha256": "a9c5a003a2d1c76dc60e4b40c9fec66f11c9345530c9ad140666afac6c0d70ed"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-haonuo-reconciliation/index.js",
+        "sha256": "81a5585aa4a42356324c5cacfccd525ad669eaf457b86898bb012da6f7b8a2a4"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-haonuo-reconciliation/package.json",
+        "sha256": "402b52e59789a3f23f66e2dda948a4782d46e8a1d96bf1709cc2cc7bbf839e64"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-haonuo-reconciliation/plan.js",
+        "sha256": "09c796011ccfd9aef93867d17e9e05e188bb72d63c1026e505c2558e48f3df12"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-haonuo-reconciliation/spec.js",
+        "sha256": "9051292ee9ff11eea6909d942ed855caa94aab128a89971aa1d092023ce54cfc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-haonuo-reconciliation/transaction.js",
+        "sha256": "dba072925022ead8badd79e5ef7f21a313ba219ee0b2add6206ff26096e701fa"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-home-safety-export/exportPolicy.js",
+        "sha256": "ba9bc7e2b87228404417567a9d19b13df3bb7c9fdaad71102cbd63d6e79cc3f7"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-home-safety-export/index.js",
+        "sha256": "e77791fdf52081f15027a726c096a2794a51c9e5af62de563ff23fb0d0f3a4de"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-home-safety-export/package-lock.json",
+        "sha256": "1a8703acb00a73dee685fdd365759c51aaf0781b655f10f2d8945e31feae1959"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-home-safety-export/package.json",
+        "sha256": "2c36db371915e0acde5ab0594c49c902b8b47c32673c1495b0334fc2d827901a"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-home-safety-export/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-home-safety-export/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-home-safety-export/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-home-safety-export/workbookBuilder.js",
+        "sha256": "c2bb8ee9db6dab09f93783a3aa3e20772dccc62b4084d618308841d6840e9ef3"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-home-safety-inspection/index.js",
+        "sha256": "fc05924acb4678d100e298f598d6560cb63ae00c3cafba1c1f6162f67f813768"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-home-safety-inspection/inspectionNumber.js",
+        "sha256": "59c16a612de28b1e12cb32e66bf3637bc1611403e88999757e2033b97487077b"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-home-safety-inspection/inspectionPolicy.js",
+        "sha256": "fa0ea169de21d5a1f1fdc71fe90eae89129be37c99c68adf714d3d7fbb766a46"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-home-safety-inspection/locationGeocoding.js",
+        "sha256": "f476894cc5f4470981713bdd3e9859487e942739697ec27ceb0313d84c861c5a"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-home-safety-inspection/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-home-safety-inspection/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-home-safety-inspection/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k002-reconciliation/financialReadLocal.js",
+        "sha256": "76ff005c8f9147e0c7a228645725f20c0d3b06311d3ba7a7780a03d01a1c872b"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k002-reconciliation/index.js",
+        "sha256": "78dc427239ec207da9dfcf9a53854d968c3f1762d04f7948de5267faee7ccb09"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k002-reconciliation/package.json",
+        "sha256": "0b992c20ece1c9a57908d0b0ca9b9fee8f1c53205f6c12035e0bc7f484d21686"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k002-reconciliation/plan.js",
+        "sha256": "41447774916f2e32fd1f6aaf4b18f980d73f9696d82e50b3af2492c44ad5fa8d"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k002-reconciliation/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k002-reconciliation/spec.js",
+        "sha256": "52ab029bd5beceec99511e596da398079aa7feec8066904de6d2cfcdb0e7778d"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k002-reconciliation/transaction.js",
+        "sha256": "b7d060f6ebc88a70a75412c33a2e6963e805913a321539bcf72df26a3a0e9b52"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k004-reconciliation/financialReadLocal.js",
+        "sha256": "76ff005c8f9147e0c7a228645725f20c0d3b06311d3ba7a7780a03d01a1c872b"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k004-reconciliation/index.js",
+        "sha256": "848ca6ed2e13d872ff69200e3f880f664c65a2deedd15176c335e115f67b3c31"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k004-reconciliation/package.json",
+        "sha256": "eb7ff49fb2194f4fda6036faacf12069699d680529eec07ccb9b218fbfd6c449"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k004-reconciliation/plan.js",
+        "sha256": "0a084f15c3c6e4d9ad571f27f85318c8d7370885ae5dfeb40f6d3ee773c7ff8f"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k004-reconciliation/spec.js",
+        "sha256": "6099abf6c4b937859a87534fe8b303265e6469cc3e161c4565b2fafbd7da0c9e"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k004-reconciliation/transaction.js",
+        "sha256": "b7d060f6ebc88a70a75412c33a2e6963e805913a321539bcf72df26a3a0e9b52"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/financialReadLocal.js",
+        "sha256": "76ff005c8f9147e0c7a228645725f20c0d3b06311d3ba7a7780a03d01a1c872b"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/index.js",
+        "sha256": "33c28e3be32df4aeccd824dc5faf04ee2a291ef564121a8c6bd481cbfeb04fa5"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/package.json",
+        "sha256": "7589c761ab0d0f8ee6cbe2c98ade5173f48b7603ca94f5125edc04b1f4dfaaec"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/plan.js",
+        "sha256": "cb47dc107c2ee0ab3c572dbacc839ccc64a4a9723e0739e3db1fc1c9cf052943"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/spec.js",
+        "sha256": "37498bf362d6b5a9eeee79b85881d4ea191581f95cb1076bf13eceae24474a99"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k005-reconciliation/transaction.js",
+        "sha256": "b7d060f6ebc88a70a75412c33a2e6963e805913a321539bcf72df26a3a0e9b52"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k010-reconciliation/basePlan.js",
+        "sha256": "48138a757fa6fce1607db8d79043bbbc4c6a511dd757074bb31bd3d620787182"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k010-reconciliation/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k010-reconciliation/index.js",
+        "sha256": "8539d3f9b6a318cc0b67ba3326dc1832c2ea9eba74993720b5b04a235e9a5c01"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k010-reconciliation/package.json",
+        "sha256": "159f4578a3b7768e1a9047524488882ed79914ab4c5d1d24c779a9b5cae1d7b1"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k010-reconciliation/plan.js",
+        "sha256": "e7991c1ff8ddf5fdabfa5554f131acedac804e1a52254b04ce5c9b7a55eecab8"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k010-reconciliation/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k010-reconciliation/snapshot.js",
+        "sha256": "733ea5385070e3fee832f3eabbc2c63061445dc48160195a4d3b69e9c462b093"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k010-reconciliation/transaction.js",
+        "sha256": "b7d060f6ebc88a70a75412c33a2e6963e805913a321539bcf72df26a3a0e9b52"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k012-reconciliation/basePlan.js",
+        "sha256": "48138a757fa6fce1607db8d79043bbbc4c6a511dd757074bb31bd3d620787182"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k012-reconciliation/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k012-reconciliation/index.js",
+        "sha256": "127db056cab3baa576b0f052839dd01d834c6379adeda7ea94d814e6d0319984"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k012-reconciliation/package.json",
+        "sha256": "c37ead38f8835891ad37ce927da7bd67a5a86a2a97938c0e859572835950eb0e"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k012-reconciliation/plan.js",
+        "sha256": "f7c1902118e4ccac6fb138231b7e4bfd37925d0bed5a3b7b972dd6fcfcac2f13"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k012-reconciliation/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k012-reconciliation/snapshot.js",
+        "sha256": "733ea5385070e3fee832f3eabbc2c63061445dc48160195a4d3b69e9c462b093"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k012-reconciliation/transaction.js",
+        "sha256": "b7d060f6ebc88a70a75412c33a2e6963e805913a321539bcf72df26a3a0e9b52"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k013-reconciliation/basePlan.js",
+        "sha256": "48138a757fa6fce1607db8d79043bbbc4c6a511dd757074bb31bd3d620787182"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k013-reconciliation/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k013-reconciliation/index.js",
+        "sha256": "77afa2c0ee813c36532f9d75cfbcbfff447d87dab9ae4f6a33e2144cf2dff409"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k013-reconciliation/package.json",
+        "sha256": "c52895d2ed0234fbbb0794000086d2aa6235ac8916ba4eadfb9bb446dc299f98"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k013-reconciliation/plan.js",
+        "sha256": "0f3481e2565927950acbccf9456aa47b068f73ae7b6b943adc5c770c6e11409d"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k013-reconciliation/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k013-reconciliation/snapshot.js",
+        "sha256": "733ea5385070e3fee832f3eabbc2c63061445dc48160195a4d3b69e9c462b093"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k013-reconciliation/transaction.js",
+        "sha256": "b7d060f6ebc88a70a75412c33a2e6963e805913a321539bcf72df26a3a0e9b52"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k014-reconciliation/basePlan.js",
+        "sha256": "48138a757fa6fce1607db8d79043bbbc4c6a511dd757074bb31bd3d620787182"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k014-reconciliation/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k014-reconciliation/index.js",
+        "sha256": "9255021a599d4100ac5998a9222cc38a0570ef52343b8b9bee3be8a2b2a3ef81"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k014-reconciliation/package.json",
+        "sha256": "64eebc4b0b55d73a8c5090ec5f8309e0a061b2f8f7bb505aac2550b72c280016"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k014-reconciliation/plan.js",
+        "sha256": "bb73ae71703bc88fd12f7d1a237308c59bf05bfc5213dbcdf6263bdcc28c642b"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k014-reconciliation/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k014-reconciliation/snapshot.js",
+        "sha256": "733ea5385070e3fee832f3eabbc2c63061445dc48160195a4d3b69e9c462b093"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k014-reconciliation/transaction.js",
+        "sha256": "b7d060f6ebc88a70a75412c33a2e6963e805913a321539bcf72df26a3a0e9b52"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/basePlan.js",
+        "sha256": "48138a757fa6fce1607db8d79043bbbc4c6a511dd757074bb31bd3d620787182"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/index.js",
+        "sha256": "fda582b2ff918199043bafb61d25f68485e1e936666dcbb9c9d5d1b09f761103"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/package.json",
+        "sha256": "1080f275ee16c25ec889dd479f6636ef22021c0f6b644cb441356f9303c0a5d6"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/plan.js",
+        "sha256": "11b65dc20fae9572cd8811756716383a7db22371d438e6075920fcd0a116e5ff"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/snapshot.js",
+        "sha256": "733ea5385070e3fee832f3eabbc2c63061445dc48160195a4d3b69e9c462b093"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k015-reconciliation/transaction.js",
+        "sha256": "b7d060f6ebc88a70a75412c33a2e6963e805913a321539bcf72df26a3a0e9b52"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k016-reconciliation/basePlan.js",
+        "sha256": "48138a757fa6fce1607db8d79043bbbc4c6a511dd757074bb31bd3d620787182"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k016-reconciliation/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k016-reconciliation/index.js",
+        "sha256": "13d12daae569f20b583ed5fe6fd40def0b9ea02e212ff7f10acead2d080936c1"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k016-reconciliation/package.json",
+        "sha256": "631408a8b791e4c978e9032b2f58ef2abd5ae7f24732cf1b0dfb6c3e4688109b"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k016-reconciliation/plan.js",
+        "sha256": "e4efa4b298ce67b6041b09c0c38f31a633391329e0ff4297fb7d91d56133b5f1"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k016-reconciliation/reallocationPlan.js",
+        "sha256": "d0952537b42275508c3c75aab6d159385b2616031a402f36692f87811e2e6400"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k016-reconciliation/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k016-reconciliation/snapshot.js",
+        "sha256": "733ea5385070e3fee832f3eabbc2c63061445dc48160195a4d3b69e9c462b093"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k016-reconciliation/transaction.js",
+        "sha256": "b7d060f6ebc88a70a75412c33a2e6963e805913a321539bcf72df26a3a0e9b52"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k017-reconciliation/basePlan.js",
+        "sha256": "48138a757fa6fce1607db8d79043bbbc4c6a511dd757074bb31bd3d620787182"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k017-reconciliation/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k017-reconciliation/index.js",
+        "sha256": "f7b68f219f32557490b45a15e2a77140adb57b92c914c86a1ac45cbf87150047"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k017-reconciliation/package.json",
+        "sha256": "be80d0f9ac9fa5a70dd6da686643d5580efdc3266f44021df79a13402ed9c3df"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k017-reconciliation/plan.js",
+        "sha256": "638671b6377774c7b70fafe1c5e6a1e68f5bd6f70b9532b7524fd9a3ec6a037e"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k017-reconciliation/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k017-reconciliation/snapshot.js",
+        "sha256": "733ea5385070e3fee832f3eabbc2c63061445dc48160195a4d3b69e9c462b093"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k017-reconciliation/spec.json",
+        "sha256": "3124c71935181265158794ff65a3088592463b234dd80ffe4ab48a97530f3ecf"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k017-reconciliation/transaction.js",
+        "sha256": "b7d060f6ebc88a70a75412c33a2e6963e805913a321539bcf72df26a3a0e9b52"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/basePlan.js",
+        "sha256": "48138a757fa6fce1607db8d79043bbbc4c6a511dd757074bb31bd3d620787182"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/index.js",
+        "sha256": "ffc99d6b0edb72f58906a24dd492f9396b485ef475890748661ae93fc6519a2b"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/package.json",
+        "sha256": "3dcc8ade2be20bcd7e7072af855f7e5d80ce64a5ca68a466e40c40ebdff1cefc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/plan.js",
+        "sha256": "6dd4428ab57c80c54556780f84740006f9cdc2b54b5bf0adecc92e97567e19d1"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/snapshot.js",
+        "sha256": "733ea5385070e3fee832f3eabbc2c63061445dc48160195a4d3b69e9c462b093"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/spec.json",
+        "sha256": "351fae5f2ee677c2c8a3fa567626db4c7eb7fe75af20a7ba8cc08bd553d04771"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k019-reconciliation/transaction.js",
+        "sha256": "b7d060f6ebc88a70a75412c33a2e6963e805913a321539bcf72df26a3a0e9b52"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/basePlan.js",
+        "sha256": "48138a757fa6fce1607db8d79043bbbc4c6a511dd757074bb31bd3d620787182"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/index.js",
+        "sha256": "b6d99fbcc617f1c0b16523f0bfdedda1b925120226bed4b757fc7925bf78bf53"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/package.json",
+        "sha256": "7f287f412f81ca6b3efe3cba2576082fdfc51cb63a5ad7e51796a11b6d77e05b"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/plan.js",
+        "sha256": "576e6580cbdb819acbe80a9f86fa8a2374e531fa1f380bc7e5a8a62e661b355b"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/snapshot.js",
+        "sha256": "b03fe62535473d47f9e34134aaf97743826571762ec5f0cc86de2abd7c68840e"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/spec.json",
+        "sha256": "a490a8232562cda703a15c604712d4d69970a65c44a6b7d6367a811da5937c4c"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k021-reconciliation/transaction.js",
+        "sha256": "b7d060f6ebc88a70a75412c33a2e6963e805913a321539bcf72df26a3a0e9b52"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k023-reconciliation/basePlan.js",
+        "sha256": "48138a757fa6fce1607db8d79043bbbc4c6a511dd757074bb31bd3d620787182"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k023-reconciliation/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k023-reconciliation/index.js",
+        "sha256": "5730d37fa1753b7f46ae6ff78310f3cbefd216f7deee1cff7ae4a43801d7b160"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k023-reconciliation/package.json",
+        "sha256": "fe3da2566e88cda6e7bd5abaa61292b384ccefc89b8dd4f9bbb0c925fbd51350"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k023-reconciliation/plan.js",
+        "sha256": "17e691ed171a02274508af8d201a1a3dbbe61b5ff2744529610c3a21608e9c37"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k023-reconciliation/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k023-reconciliation/snapshot.js",
+        "sha256": "733ea5385070e3fee832f3eabbc2c63061445dc48160195a4d3b69e9c462b093"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k023-reconciliation/spec.json",
+        "sha256": "edd26f19a75477c57519dd3549fd833983c2f7eb6efb1a63e751956fae77ff3c"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-k023-reconciliation/transaction.js",
+        "sha256": "b7d060f6ebc88a70a75412c33a2e6963e805913a321539bcf72df26a3a0e9b52"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-ledger-reconciliation/financialReadLocal.js",
+        "sha256": "a9c5a003a2d1c76dc60e4b40c9fec66f11c9345530c9ad140666afac6c0d70ed"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-ledger-reconciliation/index.js",
+        "sha256": "2ed77d2a4c3693eb359917ea8a9688ebd5c0ae3c3060e140f5bb5a959ab520fd"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-ledger-reconciliation/package.json",
+        "sha256": "3c9e922bbb373864d36dffa38822c367ae016edbe710fc084b053825594ea64a"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-ledger-reconciliation/plan.js",
+        "sha256": "a29a1f6cd77e2d4459fd86f6d885aa52a767f201cadc7639dc7cba1c759a45a0"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-ledger-reconciliation/saleStatusPlan.js",
+        "sha256": "5284ade0516ea9241b1f4b15e6499f6559937c4c6002a3e70d3b40ce05457cb3"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-ledger/index.js",
+        "sha256": "5bbdf5b924c6b48df0d6721e62e5684398889d861ceb172a4a50b7cb914f4ebf"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-ledger/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-ledger/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-ledger/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/budget.js",
+        "sha256": "a6b38075f49095131d7e059a617dd2f4ec30ca5060045330c778d25cb6ade36e"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/index.js",
+        "sha256": "7f13dbbd6474b91dc679e75fee256a48c9b7c7fafe7bdc5758efd8dfe960979f"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/package.json",
+        "sha256": "1ac0eb3b34a1852243d9dc6ca90e5e169dd3d65f4983b1a20c92ae749fb17f3a"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/plan.js",
+        "sha256": "05aa37d76432ece779b3dcb91c0b8a25fb1ef5d22c278b62c80cc31fd3d54bbe"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-legacy-receipt-conversion/transaction.js",
+        "sha256": "0b74da87319816e30eedbfc61ecdd48a13d22bf6cf0ba9d69fb5f348c0c613c8"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-log/customerVisibilityLocal.js",
+        "sha256": "3acedf31763dad53e1ca6ec7beb5136b6e2f7a4fb7ba459d8c28520a6c7976de"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-log/index.js",
+        "sha256": "0c9df282c6d9e64fa33ad89b3caaf42e16003811e0a26396f96e618febb944af"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-log/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-log/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-log/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-pda-filling/index.js",
+        "sha256": "90103d7eae88288e8c2b71e20fded9c1a355718f1fca0af40951db64d629c26e"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-pda-filling/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-pda-filling/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-pda-filling/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-pda-scale/index.js",
+        "sha256": "329bee60a515b9d00ea235bc0032692c78153dbfb04a94bf9f22500f220f0c6b"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-pda-scale/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-pda-scale/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-pda-scale/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-period/index.js",
+        "sha256": "47632fb9a302801bd1c545551183835ac001aec0a02825237e9d973ab36ae4d8"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-period/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-period/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-period/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-reg-bridge/index.js",
+        "sha256": "d37a8283bc0d47bcb660fefe890b0bdfdea7ab4c30dbcf73de2684bd4949693d"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-reg-ingest/index.js",
+        "sha256": "f76821d94238d9a0ad8d21be30e3db2df21390bdae23ea5b3fdf8232b03e3652"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-report/index.js",
+        "sha256": "ca70713b7fe9d95e5897d38dae4a2a50f2495bbe7d519f482d1e3a8ac751a6bd"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-report/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-report/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-report/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-rfid-gateway/index.js",
+        "sha256": "bc44af8007a745c6c3d720b9eb6ffe288fcd27ba4604a55367a59dfc38a6faa3"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-rfid/index.js",
+        "sha256": "f37da1852fb3f26faa0a316dcaa4ad0c5d29689558a7bfb0d2440734a7468614"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-sale/customerVisibilityLocal.js",
+        "sha256": "3acedf31763dad53e1ca6ec7beb5136b6e2f7a4fb7ba459d8c28520a6c7976de"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-sale/financialReadLocal.js",
+        "sha256": "0d5928773b735849bd9822aa5e48e55f7cd21b574746484a477f1c7ef6af33da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+        "sha256": "1be2e2137d336b15d54e3027eed2457e6db8596ccec8fefe570a9ee2dfdb0a20"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-sale/pageAclLocal.js",
+        "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-sale/pageAclRegistry.js",
+        "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-sale/pageAclRegistryLocal.js",
+        "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-sale/saleAccountingLocal.js",
+        "sha256": "0e4f3934eee92e6a6497636f094985de0598af65491d56f6cb6c687c6658f7a2"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-sale/saleListSearchLocal.js",
+        "sha256": "99e43bf82a553c5021ede5a8bfdd48d2bd0b1f03353dc246a75ffe7f2c046397"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-station-safety-export/exportPolicy.js",
+        "sha256": "7c767a3d4a5943ec345dd12c6ec2772623051e904161117abb323e6fe2ca8307"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-station-safety-export/index.js",
+        "sha256": "f45b8720545331e2faa659e6a300d017d0ceb73eba6e8ed5749df49c6c87e32b"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-station-safety-export/package-lock.json",
+        "sha256": "dd452b665cde94418f48d894c8a4a1d19ea363906b2ce0fd0b67b4eb5402bb3f"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-station-safety-export/package.json",
+        "sha256": "9bab243dee0a2b3c1475e01142badf15a59da53c73bcadcf9440ef3d332617b3"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-station-safety-export/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-station-safety-export/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-station-safety-export/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-station-safety-export/workbookBuilder.js",
+        "sha256": "6f8a6fffcb5590ad6f42743304fcb03322e07f27d375f8bb1a96287b1f520b65"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/hazardPolicy.js",
+        "sha256": "a01aa9a05de6a62863714f03ed230f33ef518e482ff0a63092f0203cfa442cdd"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/index.js",
+        "sha256": "13028131b766de14b9814c834beeddd5b34ad7e7753adad7777c73e4b4f6bdb4"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/inspectionNumber.js",
+        "sha256": "20446d600ba3e7d921276a8368058ef423352220768b4d81378c837473bc2be1"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/inspectionPolicy.js",
+        "sha256": "be08438ea1a6856ba2e6b7d8436276c2835c7466822c6df2edf67d3997cde5ff"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-tank-gateway/index.js",
+        "sha256": "9bff3160299641630df35b84df1aa844dbedd37bc91c9f5c514f1c95a6069899"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-tank-gateway/tankTelemetry.js",
+        "sha256": "02386c14cd03133e8ee179de9c81e5a694a09947d3c87fff3f558b65db0dec29"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-user/index.js",
+        "sha256": "10833e0024795421176b46412c6bc7746b2c80512ff2ca388d4871887487c60d"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-user/package-lock.json",
+        "sha256": "cf33080328e860e779e78544c525efe0a35af213e2e6c02a55e5acc48749298a"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-user/package.json",
+        "sha256": "50c120a54f203a590824d0cd4b52610dfcf34fb7fe2453bd8b5d6f095092f8da"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-user/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-vehicle-import-once/index.js",
+        "sha256": "f1c2fab8f7a266a048ffd63cd713e8e9a38595ebb4d71dc196d3581c33a27efe"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-vehicle-import-once/payload.ndjson",
+        "sha256": "568cf88ad224cbc10af820eecdcb525d53fe16b8b02b20a07c6a507e72e3c919"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-vehicle/index.js",
+        "sha256": "dc4b0e760037a26abf7b2ad0f26f421987e87918cdd3ad0879c595095121d352"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-vehicle/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-vehicle/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-vehicle/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-voucher/index.js",
+        "sha256": "8bd1f744589fbca81fc590176ded6e7427bfccfc8b87ad907d8453ddbb8e1558"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-voucher/pageAclLocal.js",
+        "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-voucher/pageAclRegistry.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/cloudfunctions/crm-voucher/pageAclRegistryLocal.js",
+        "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_bottle_anomalies.index.json",
+        "sha256": "5a290bddcdb4c45061e21834c38089a4c8364660ed9d66ede122339ac2ec3bdb"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_bottle_anomalies.schema.json",
+        "sha256": "fde7674ca81e6f9cc1da8d99a7f466d957a3a6224032fce811f62bc3e3a21606"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_bottle_movements.index.json",
+        "sha256": "cbb85697d3120f819c1499c8b65c09b2ebe28bce5e6bb3fd6706e9a66be0af93"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_bottle_movements.schema.json",
+        "sha256": "98dbb970fb4fa630c1efff77c76fcac0acf6daf1aeb98873b21f906c6b5c0833"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_bottles.init_data.json",
+        "sha256": "55676527c2bc6515e07fca85f080c73aec759121f04d10693d4d1ad32626ea26"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_cashier_intake_operations.index.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_cashier_intake_operations.schema.json",
+        "sha256": "1351eee1aa83ad5abf31b8755ced464552412f0cb35a6dba3d131e6b2c435737"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_cashier_intakes.index.json",
+        "sha256": "8bcc201be682f4366faa400c679cba779da60ac11e2974d1a4ee5d7d3384f59b"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_cashier_intakes.schema.json",
+        "sha256": "57551144ca486e02a4c279c6c01cc1770017b9473facc1798bccef3a1bd62bec"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_customer_allocations.index.json",
+        "sha256": "1934a25b2fea8406e7fd317c08f6273528cb265c5a564bfae5c480a7401cfbff"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_customer_allocations.schema.json",
+        "sha256": "94f1ef877e8f2b155b354c141305b5a64ba8b01a60443ef478e06b32d1d61c19"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_customer_deposit_accounts.index.json",
+        "sha256": "855f6dc600b7b81d3e041f5fdd99a04f0aa41b8f82002252cf33c0a22f822d3b"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_customer_deposit_accounts.schema.json",
+        "sha256": "76e28e44f5e169ea37cdbf59eb28d87b53ae6b78b37b405a83ab6e27c994a223"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_customer_deposit_entries.index.json",
+        "sha256": "b39754d788c253839630cf0a0b0b59981f0996473024cdda2a9710901be95116"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_customer_deposit_entries.schema.json",
+        "sha256": "91ae82178979e12a0e9c66ba9689d173279aa06a206fa651f9194d46fecbd133"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_customer_flow_settlements.index.json",
+        "sha256": "b7bcda8715df62f524bdd397ada59172178f6c0ff2c0e353bc5c4afe178a100f"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_customer_flow_settlements.schema.json",
+        "sha256": "66cd3dbd7b2f0695d6db421be08ee5862f56da3cd5be752146924bccf0272faf"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_customer_loss_daily.schema.json",
+        "sha256": "703fe9c1653f144d0b44da637721401bfd3ea1c24d13e7eff89c7c3ad4059c3b"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_customer_opening_debts.index.json",
+        "sha256": "ca91d9e8628b74127fd92c7e3e6648d55e616d35b634e63a11c284bfa80a0c6a"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_customer_opening_debts.schema.json",
+        "sha256": "e0156304cba179307da29b23b5028dee428c657400eb2d9665a4bebf3644bfb1"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_customer_receipts.index.json",
+        "sha256": "e892a5e3afc0f79a796ad24984450f1af4a68cc24ebdd13cdde2890e32883456"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_customer_receipts.schema.json",
+        "sha256": "fa71d07b7903ff8d4ece94734307ef89eea62fadc6a57d1f9a60eefd1f8b511b"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_customers.schema.json",
+        "sha256": "42f5d94bb92ffe2c1da7e6defca647e8545cf779afdb8bb01f9a7a7bad522c1b"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_filling_permit_audits.index.json",
+        "sha256": "497e35c9c41b38959a9918042d5d1bd533e89c06f1e339cb272186d29f943549"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_filling_permit_audits.schema.json",
+        "sha256": "e5739ef281bce8907f739441d9433ad931e734a09f7077d13ee5d93fd5b79e9a"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_gas_in.schema.json",
+        "sha256": "59595420286cf43f6f02119693fa092cfa07c55e9404e86d586f77cf56a9a59d"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_gas_inventory_periods.schema.json",
+        "sha256": "4c0871b6b871717bc446fb11adeae6f3a178fbc35e2527121ad5570db862e456"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_home_safety_export_items.schema.json",
+        "sha256": "804f4b431bd01a14152bb464392fa30024880ab37658bad93123a0a750212ef4"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_home_safety_export_jobs.schema.json",
+        "sha256": "e91d8c3619740ce31d1e14721b4fe89871cdf6d9ce5a86ad174d6d3e5925385d"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_home_safety_inspections.schema.json",
+        "sha256": "66927fc49cc23d3de50ee2bee02f23a8a4ca806e50f4ded020088604df90fdc8"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_home_safety_no_counters.schema.json",
+        "sha256": "c4f4edba0f9002b87f492c361b46c50139400ec142552a62b857e075c0f9cb95"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_home_safety_revisions.schema.json",
+        "sha256": "e7efd79eac4d1a6c951f3dcfbe26317a55332918b007f2fdce09163ce8aee0b5"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_operation_logs.index.json",
+        "sha256": "3d09d60ed67370b254a5ec3f09d1dd26ddbf057a5e2a7f508692cb8c3889744c"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_operation_logs.schema.json",
+        "sha256": "b1328ecb565c744a73be0a58c3a6f1e56b3ca930a247ccebdd7beea808128cfb"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_rfid_bindings.schema.json",
+        "sha256": "947e11a9e9855e14dd82e7fec46288678e566964bb86354e28795101c8529f40"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_rfid_gate_sessions.schema.json",
+        "sha256": "35bd6496b4adb7e62401b0a42af6d60ebd47508b057729bbc8a29c0b14ebf6f7"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_sale_records.index.json",
+        "sha256": "2be29005322defb3fd327bbca791861918c33c57cdb0fc4dcef14010fed3d03d"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_sale_records.schema.json",
+        "sha256": "cba4811dc892341e4eb22da7cb33e029a531e1a03c3a0159ed871d9442e4081d"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_station_safety_export_jobs.schema.json",
+        "sha256": "a52ec6607262f21f0312ca9adb8bcfd05e9c80c5d26d07a02bce4e94f842bb69"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_station_safety_hazards.schema.json",
+        "sha256": "30d6605b8d1e1fc489e255645968e925f5ab4d7b983b82d0f84876406e8fdb96"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_station_safety_inspections.schema.json",
+        "sha256": "6f9ebf7869be608c39ce79361d3314028821badf78689d0adb1f8fa4bfcc313e"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_station_safety_no_counters.schema.json",
+        "sha256": "33dc408c58e47573bdd1a87daff71c0089842e2b5c51cd1a003bddc280609302"
+      },
+      {
+        "path": "uniCloud-alipay/database/crm_tank_telemetry.schema.json",
+        "sha256": "adce0c5e93ef919da821709fdc307913ee2d2c52ee76752dd9c49a47b8536c8e"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_accounts.schema.json",
+        "sha256": "9d311c5561cfe7ba52e79cd0e6109faf2e7d3004a64cfd15aea853860c43181e"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_bottle_anomalies.schema.json",
+        "sha256": "fde7674ca81e6f9cc1da8d99a7f466d957a3a6224032fce811f62bc3e3a21606"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_bottle_movements.schema.json",
+        "sha256": "98dbb970fb4fa630c1efff77c76fcac0acf6daf1aeb98873b21f906c6b5c0833"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_bottles.schema.json",
+        "sha256": "1ed898d2eb09e3b08a8cc7ce433254d438ab0be966c25c2c75184bc732ba2c0e"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_collection_followups.schema.json",
+        "sha256": "6cd67d06e9809513d46d82ecf5f96bb4a24922fce9d28a7713c7ae145b444fad"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_collection_tasks.schema.json",
+        "sha256": "895dc891869da15dcfd61664768c43af67390fc5b59baa23f290cfaa3a9cbc71"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_customer_allocations.schema.json",
+        "sha256": "94f1ef877e8f2b155b354c141305b5a64ba8b01a60443ef478e06b32d1d61c19"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_customer_flow_settlements.schema.json",
+        "sha256": "66cd3dbd7b2f0695d6db421be08ee5862f56da3cd5be752146924bccf0272faf"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_customer_loss_daily.schema.json",
+        "sha256": "703fe9c1653f144d0b44da637721401bfd3ea1c24d13e7eff89c7c3ad4059c3b"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_customer_opening_debts.schema.json",
+        "sha256": "e0156304cba179307da29b23b5028dee428c657400eb2d9665a4bebf3644bfb1"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_customer_receipts.schema.json",
+        "sha256": "fa71d07b7903ff8d4ece94734307ef89eea62fadc6a57d1f9a60eefd1f8b511b"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_customers.schema.json",
+        "sha256": "42f5d94bb92ffe2c1da7e6defca647e8545cf779afdb8bb01f9a7a7bad522c1b"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_delivery_men.schema.json",
+        "sha256": "2cb3f9f7593611a322679b0df9befc4f05af25d5aac5ea8455247cfd497c3a43"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_filling_permit_audits.schema.json",
+        "sha256": "d389c78ade9fd6ea71c06fc749545c31b6390ba39efa13fb9e3e30b3eea4504a"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_fillings.schema.json",
+        "sha256": "8a3b98df4caa573f2e5522dad846c388128b601aeef1e32fd25b9a6222cc11ca"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_gas_in.schema.json",
+        "sha256": "59595420286cf43f6f02119693fa092cfa07c55e9404e86d586f77cf56a9a59d"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_gas_inventory_movements.schema.json",
+        "sha256": "97b4d5e443b85fb87bc9f08a3422308c4daaf33fb9772c9b5e5289fc7786e95d"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_gas_inventory_movements_backup.schema.json",
+        "sha256": "8991119e78913ccb5e60f029a5eb266f4e3f696ec4a59b87965b836ef3517e95"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_gas_inventory_periods.schema.json",
+        "sha256": "4c0871b6b871717bc446fb11adeae6f3a178fbc35e2527121ad5570db862e456"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_gas_settings.schema.json",
+        "sha256": "a4d5c65277bcddb5dd3c533558c8b99992e37de662c6eae8df4d9070a28abe09"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_home_safety_inspections.schema.json",
+        "sha256": "d7f18584857006677bd1c8fe3946426958fc3e07af322952ad22e95398cda600"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_home_safety_revisions.schema.json",
+        "sha256": "e7efd79eac4d1a6c951f3dcfbe26317a55332918b007f2fdce09163ce8aee0b5"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_operation_logs.schema.json",
+        "sha256": "b1328ecb565c744a73be0a58c3a6f1e56b3ca930a247ccebdd7beea808128cfb"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_pda_filling_tasks.schema.json",
+        "sha256": "620e6d169848a0f79f7d9c00867c4403c483849149e8b1e9a25a5a58dc19cb8b"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_pda_scale_latest.schema.json",
+        "sha256": "3e577f9f100e8f009dc805505e42b2dfba4205b19ea2ba396c51d8621a0332fc"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_periods.schema.json",
+        "sha256": "22fd6ca9a522341677f9bd5b7d4f7bc68fafe7372da470a5a00979fafc9173ba"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_reg_bottle_current.schema.json",
+        "sha256": "dff2a156e13e4981e347bf9edd227fe541d85e2abcee34484b4073a39f30dc85"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_reg_bottle_events.schema.json",
+        "sha256": "e8087595b4b77753266c12ea7692d7c6539aa9a69721e43273f76bdab7683561"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_reg_dead_letters.schema.json",
+        "sha256": "9b585dd2ca30ca9a39aa1e108dd6650df138905d5497a636b0662cf9afa7bd9b"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_reg_ingest_dedup.schema.json",
+        "sha256": "77ce2be7348a9e8bb10f70ce41c6564e9f419e5efec2e9ee61fbd93194fbe6df"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_reg_ingest_logs.schema.json",
+        "sha256": "bce505f8cad3b6521f50f5ad6d859e2467b1a6faba698dc86817e0fb084af4a1"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_reg_outbox.schema.json",
+        "sha256": "e8a9a9f012eba32715e8374029c3dca8a6a3c0f85a3194a60abc4bb872c614d8"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_reg_push_logs.schema.json",
+        "sha256": "ceb8bcd9b64fef3131cbcc448a802709b585cb8bef6efba39debde4631f26cc5"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_reg_station_registry.schema.json",
+        "sha256": "0d7317a771c2ffbdde8a7553c5634efa8277ba1e95c5ab63cdf1e0f5dda384eb"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_reports.schema.json",
+        "sha256": "681fc169611cad30e59001b96d0296f944b3f0b25f5b7844aaa0709cc28ccf7c"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_rfid_bindings.schema.json",
+        "sha256": "947e11a9e9855e14dd82e7fec46288678e566964bb86354e28795101c8529f40"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_rfid_gate_sessions.schema.json",
+        "sha256": "35bd6496b4adb7e62401b0a42af6d60ebd47508b057729bbc8a29c0b14ebf6f7"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_sale_records.schema.json",
+        "sha256": "cba4811dc892341e4eb22da7cb33e029a531e1a03c3a0159ed871d9442e4081d"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_station_safety_export_jobs.schema.json",
+        "sha256": "a52ec6607262f21f0312ca9adb8bcfd05e9c80c5d26d07a02bce4e94f842bb69"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_station_safety_hazards.schema.json",
+        "sha256": "30d6605b8d1e1fc489e255645968e925f5ab4d7b983b82d0f84876406e8fdb96"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_station_safety_inspections.schema.json",
+        "sha256": "6f9ebf7869be608c39ce79361d3314028821badf78689d0adb1f8fa4bfcc313e"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_station_safety_no_counters.schema.json",
+        "sha256": "33dc408c58e47573bdd1a87daff71c0089842e2b5c51cd1a003bddc280609302"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_users.schema.json",
+        "sha256": "2bcc8e9aa6dcbd57be5c6baf0bb8fa7e13564b2e6b7dbade7c30787c89e9aea1"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_vehicles.schema.json",
+        "sha256": "e4586cd1bc26b0398045a1d8bbbda44f81f88e3b1452672fa1c37bbd9cf9f6e8"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_voucher_entries.schema.json",
+        "sha256": "a7a09a66e9feb2767c1e9a1e347ae6c433f890ccdd425d11575a113ecd51c7f7"
+      },
+      {
+        "path": "uniCloud-alipay/database/schema/crm_vouchers.schema.json",
+        "sha256": "11ffb73922371dc1be1b679efba75d8f31196d457399f1c50eec452b71e7beb1"
+      }
+    ],
+    "integrityScope": {
+      "functions": [
+        "crm-bottle"
+      ],
+      "databaseFiles": [],
+      "baseCommit": "be68d10ebabd81d5ab56261429ee408edeced88f",
+      "sourceFiles": [
+        "src/components/domain/bottle/BottleInspectionView.vue",
+        "src/components/domain/dashboard/DashboardHome.vue",
+        "src/pages/bottle/inspection.vue",
+        "uniCloud-alipay/cloudfunctions/crm-bottle/index.js"
+      ]
+    }
+  },
+  "artifactDigest": null,
+  "artifacts": [],
+  "functions": [
+    {
+      "name": "crm-bottle",
+      "digest": "5d825b702997a2854300e20917c88bfe12ab9f43f213ada0bca21e8367941e74",
+      "files": [
+        {
+          "path": "customerVisibilityLocal.js",
+          "sha256": "3acedf31763dad53e1ca6ec7beb5136b6e2f7a4fb7ba459d8c28520a6c7976de"
+        },
+        {
+          "path": "index.js",
+          "sha256": "03f652e132345bb6dd177d74b97c5c40398fbad6af7d21a85c880de59f25829c"
+        },
+        {
+          "path": "pageAclLocal.js",
+          "sha256": "4229dddbe6c2e682126f2363f41bd806cca93fe9c534aca1cdd2e575f4d37acc"
+        },
+        {
+          "path": "pageAclRegistry.js",
+          "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+        },
+        {
+          "path": "pageAclRegistryLocal.js",
+          "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+        }
+      ]
+    }
+  ],
+  "databaseChanges": [],
+  "manifestKind": "release_candidate",
+  "deploymentReceiptLocation": "release/receipts/<buildId>.json",
+  "deployment": {
+    "status": "not_deployed",
+    "verifiedAt": null
+  },
+  "acceptance": {
+    "status": "not_verified",
+    "requirements": "crm-bottle list and batch inspection preview accept overdue_or_due_60d with matching bottle scope; legacy due states remain available."
+  }
+}
