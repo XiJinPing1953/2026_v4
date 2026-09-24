@@ -2182,7 +2182,17 @@ async function scanV2Unlocked(user, data, requestId) {
 	const openFingerprintMap = buildOpenFingerprintMap(openRows)
 	const openFingerprintRowMap = buildOpenFingerprintRowMap(openRows)
 	const archivedRes = await anomalies.where({ bottle_no: bottleNo, status: 'resolved' }).limit(5000).get()
+	if (!archivedRes || !Array.isArray(archivedRes.data) || archivedRes.data.length >= 5000) {
+		throw new Error('已处理异常读取不完整')
+	}
 	const archivedFingerprintMap = buildArchivedFingerprintMap(archivedRes.data || [])
+	const resolvedStagedRows = new Map()
+	for (const row of archivedRes.data) {
+		if (normalizeAnomalyType(row && row.anomaly_type) !== 'continuous_fill' ||
+			normalizeString(row && row.resolved_by_name) !== 'system-staged-fill') continue
+		const fp = getComparableAnomalyFingerprint(row)
+		if (fp && !resolvedStagedRows.has(fp)) resolvedStagedRows.set(fp, row)
+	}
 	const resolvedMissingFillRes = await anomalies
 		.where({ bottle_no: bottleNo, anomaly_type: 'missing_fill', status: 'resolved' })
 		.limit(5000)
@@ -2206,6 +2216,10 @@ async function scanV2Unlocked(user, data, requestId) {
 		if (ensureTypeSet(archivedFingerprintMap, type).has(fingerprint)) {
 			return { limited: false }
 		}
+		// Reuse a previously verified staged-fill row. The final source check below
+		// will reopen it if the weight chain no longer proves a normal top-up.
+		if (type === 'continuous_fill' && resolvedStagedRows.has(fingerprint) &&
+			!ensureTypeSet(openFingerprintMap, type).has(fingerprint)) return { limited: false }
 		if (type === 'missing_fill' && resolvedMissingFillFingerprintSet.has(fingerprint)) {
 			return { limited: false }
 		}
@@ -2391,6 +2405,19 @@ async function scanV2Unlocked(user, data, requestId) {
 			const verifiedStagedFps = reconcileTypeSet.has('continuous_fill')
 				? await findVerifiedStagedFillFingerprints(bottleNo, finalWitness.rows, continuousFps)
 				: new Set()
+			if (reconcileTypeSet.has('continuous_fill')) {
+				for (const [fp, row] of resolvedStagedRows) {
+					if (!continuousFps.has(fp) || verifiedStagedFps.has(fp)) continue
+					if (isTimeExceeded() || isWriteExceeded()) {
+						scanDone = false
+						break
+					}
+					await anomalies.doc(row._id).update({
+						status: 'open', updated_at: Date.now(), resolved_by: null, resolved_by_name: ''
+					})
+					writeCount += 1
+				}
+			}
 			for (const anomalyType of reconcileTypes) {
 				if (isTimeExceeded() || isWriteExceeded()) {
 					scanDone = false

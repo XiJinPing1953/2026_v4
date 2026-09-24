@@ -186,6 +186,17 @@ async function main() {
 		row.anomaly_type === 'continuous_fill').length, 1)
 	await complete('315')
 	assert.equal(collections.crm_bottle_anomalies.some((row) => row.bottle_no === '315' && row.status === 'open'), false)
+	assert.equal(collections.crm_bottle_anomalies.filter((row) => row.bottle_no === '315' &&
+		row.anomaly_type === 'continuous_fill').length, 1)
+	const sale315 = collections.crm_sale_records.find((row) => row._id === 'out-315')
+	sale315.out_items[0].gross = 512
+	await complete('315')
+	assert.equal(collections.crm_bottle_anomalies.find((row) => row._id === 'old-315')?.status, 'open')
+	assert.equal(collections.crm_bottle_anomalies.filter((row) => row.bottle_no === '315' &&
+		row.anomaly_type === 'continuous_fill').length, 1)
+	sale315.out_items[0].gross = 513
+	await complete('315')
+	assert.equal(collections.crm_bottle_anomalies.find((row) => row._id === 'old-315')?.status, 'resolved')
 
 	// 291 also has adjoining fills, but its sale gross matches the first fill, not the second.
 	collections.crm_bottle_movements.push(event('back-291', '291', 'back', '2026-09-01', -11))
@@ -211,6 +222,6 @@ async function main() {
 	assert.equal(collections.crm_bottle_anomalies.some((row) => row.bottle_no === '2461' &&
 		row.anomaly_type === 'missing_fill' && row.status === 'open'), true)
 
-	console.log('跨轮续扫、正常分次补灌关闭、291/2连续灌装保留、246缺灌装保留测试通过')
+	console.log('跨轮续扫、分次补灌关闭与重扫复用、证据变化重开、291/2/246异常保留测试通过')
 }
 main().catch((error) => { console.error(error); process.exitCode = 1 })
