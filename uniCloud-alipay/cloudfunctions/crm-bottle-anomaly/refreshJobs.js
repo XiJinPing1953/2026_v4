@@ -6,6 +6,8 @@ const LEASE_MS = 120000
 const RETRY_DELAYS = [60000, 120000, 240000, 480000, 900000]
 
 const digest = (value) => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex')
+const canonicalTargets = (targets) => Array.isArray(targets)
+	? targets.map((target) => ({ kind: target.kind, no: target.no })) : []
 const jobKey = (userId, requestId, targets) => `refresh_${digest([userId, requestId, targets]).slice(0, 40)}`
 
 function publicStatus(job) {
@@ -50,7 +52,7 @@ function createRefreshJobs({ db, scanBottle, scanTruck, now = Date.now }) {
 			}
 		}
 		job = job || await get(id)
-		if (job.targets_hash !== digest(targets) || job.created_by !== user._id) {
+		if (job.targets_hash !== digest(canonicalTargets(targets)) || job.created_by !== user._id) {
 			return { code: 409, msg: '刷新任务编号对应的目标不一致' }
 		}
 		if (job.status === 'pending' && job.next_retry_at <= now()) job = await run(id, { maxMs: 2300 })
@@ -74,7 +76,7 @@ function createRefreshJobs({ db, scanBottle, scanTruck, now = Date.now }) {
 			job = { ...job, ...patch }
 		}
 		try {
-			if (job.targets_hash !== digest(job.targets)) throw Object.assign(new Error('刷新任务目标摘要不一致'), { permanent: true })
+			if (job.targets_hash !== digest(canonicalTargets(job.targets))) throw Object.assign(new Error('刷新任务目标摘要不一致'), { permanent: true })
 			while (job.target_index < job.targets.length && now() - started < maxMs) {
 				const target = job.targets[job.target_index]
 				const actor = { _id: job.created_by, username: job.created_by_name, role: job.created_role }

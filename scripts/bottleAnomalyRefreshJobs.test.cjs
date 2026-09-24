@@ -41,7 +41,11 @@ function query(where) {
 const db = { command: ops, collection() { return {
 	doc(id) { return { get: async () => ({ data: docs.has(id) ? [structuredClone(docs.get(id))] : [] }) } },
 	where: query,
-	async add(row) { if (docs.has(row._id)) throw Error('duplicate'); docs.set(row._id, structuredClone(row)) }
+	async add(row) {
+		if (docs.has(row._id)) throw Error('duplicate')
+		// Alipay DB may return object keys in a different order than the submitted JSON.
+		docs.set(row._id, { ...structuredClone(row), targets: row.targets.map(({ kind, no }) => ({ no, kind })) })
+	}
 } } }
 
 async function main() {
