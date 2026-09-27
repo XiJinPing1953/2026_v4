@@ -10,12 +10,13 @@
       "output": "dist/build/web",
       "acceptance": "Exact bottle number 25 remains first despite 852 fuzzy QR matches and the 500-row scan cap.",
       "deploymentScope": {
-        "functions": [],
+        "functions": [
+          "crm-bottle"
+        ],
         "databaseFiles": [],
         "baseCommit": "2d699d4c649e63b8831a308b490db23034d68934",
         "sourceFiles": [
-          "src/composables/useBottleSuggestions.js",
-          "scripts/bottleSuggestions.test.cjs"
+          "src/composables/useBottleSuggestions.js"
         ]
       },
       "integrityScope": "deployment"
