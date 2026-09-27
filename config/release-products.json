@@ -6,20 +6,16 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.24-filling-warning-complete-read",
+      "version": "2026.09.27-bottle-exact-search",
       "output": "dist/build/web",
-      "acceptance": "Complete filling flow history prevents truncated warnings; batch preview distinguishes incomplete checks and displays prioritized structured weight details.",
+      "acceptance": "Exact bottle number 25 remains first despite 852 fuzzy QR matches and the 500-row scan cap.",
       "deploymentScope": {
-        "functions": [
-          "crm-filling"
-        ],
+        "functions": [],
         "databaseFiles": [],
-        "baseCommit": "1f599bf4408fb650bdd8a91ca4459771851fcb0d",
+        "baseCommit": "2d699d4c649e63b8831a308b490db23034d68934",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/financialReadLocal.js",
-          "src/components/domain/filling/FillingListView.vue",
-          "src/components/domain/filling/FillingBatchPreview.vue"
+          "src/composables/useBottleSuggestions.js",
+          "scripts/bottleSuggestions.test.cjs"
         ]
       },
       "integrityScope": "deployment"

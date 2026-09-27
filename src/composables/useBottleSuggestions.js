@@ -1,4 +1,4 @@
-import { searchBottlesV1 } from '@/services/bottle'
+import { resolveBottleNoV1, searchBottlesV1 } from '@/services/bottle'
 import { normalizeBottleNo } from '@/services/models/bottle'
 
 const STATUS_LABEL_MAP = {
@@ -72,6 +72,12 @@ async function searchBottleSuggestions(keyword, { limit = 20 } = {}) {
 	const maxScanRows = targetBottleNo.length <= 1 ? 800 : targetBottleNo.length <= 2 ? 500 : 200
 	const maxPages = Math.max(3, Math.ceil(maxScanRows / pageSize))
 	const merged = []
+	// 完整瓶号独立解析，避免被二维码的模糊匹配及扫描上限挤出候选。
+	const exactResult = await resolveBottleNoV1({ bottle_no: targetBottleNo }).catch(() => null)
+	const exactBottle = exactResult?.code === 0 ? exactResult.data?.bottle : null
+	if (exactBottle && exactBottle.is_active !== false && normalizeBottleNo(exactBottle.bottle_no) === targetBottleNo) {
+		merged.push(exactBottle)
+	}
 	let scanned = 0
 	let total = 0
 	for (let page = 1; page <= maxPages; page += 1) {
@@ -79,7 +85,9 @@ async function searchBottleSuggestions(keyword, { limit = 20 } = {}) {
 			keyword: targetKeyword,
 			page,
 			pageSize,
-			is_active: true
+			is_active: true,
+			include_summary: false,
+			include_deposit: false
 		})
 		if (res?.code !== 0 || !Array.isArray(res.data)) break
 		const rows = res.data.filter((item) => Boolean(item && item.is_active !== false))
