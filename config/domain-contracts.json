@@ -32,7 +32,8 @@
         "uniCloud-alipay/cloudfunctions/crm-accounting-correction/financialReadLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-customer/financialReadLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-bottle-movement/financialReadLocal.js",
-        "uniCloud-alipay/cloudfunctions/crm-filling/financialReadLocal.js"
+        "uniCloud-alipay/cloudfunctions/crm-filling/financialReadLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/financialReadLocal.js"
       ]
     },
     {
@@ -65,6 +66,21 @@
       "source": "uniCloud-alipay/cloudfunctions/crm-customer-deposit/transaction.js",
       "targets": [
         "uniCloud-alipay/cloudfunctions/crm-customer-settlement/depositTransactionLocal.js"
+      ]
+    },
+    {
+      "source": "uniCloud-alipay/cloudfunctions/common/fillingPayload.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-filling/fillingPayloadLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-pda-filling/fillingPayloadLocal.js"
+      ]
+    },
+    {
+      "source": "uniCloud-alipay/cloudfunctions/common/bottleFlowRules.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-filling/bottleFlowRulesLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-bottle-movement/bottleFlowRulesLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/bottleFlowRulesLocal.js"
       ]
     }
   ],

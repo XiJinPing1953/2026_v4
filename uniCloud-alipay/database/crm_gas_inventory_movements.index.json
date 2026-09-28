@@ -1,0 +1,50 @@
+[
+  {
+    "IndexName": "idx_event_day",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "event_day",
+          "Direction": "-1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "event_at",
+          "Direction": "-1",
+          "Type": "double"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "uniq_source_kind",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "source_type",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "source_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "movement_kind",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": true,
+      "MgoIsSparse": false
+    }
+  }
+]

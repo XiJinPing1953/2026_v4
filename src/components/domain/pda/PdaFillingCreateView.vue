@@ -347,7 +347,7 @@ async function onRefreshScale() {
 
 async function onSubmit() {
 	const res = await submit()
-	showToast(res?.code === 0 ? '灌装单已提交' : res?.msg || '提交失败')
+	showToast(res?.msg || (res?.data?.complete ? '灌装保存及核查已完成' : '提交状态待确认，请保留原内容重试'))
 }
 
 defineExpose({

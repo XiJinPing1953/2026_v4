@@ -13,7 +13,7 @@ const collections = Object.fromEntries(['crm_users', 'crm_operation_logs', 'crm_
 let beforeMovementGet = null
 const command = {
 	gt: (value) => ({ op: 'gt', value }), lte: (value) => ({ op: 'lte', value }),
-	and: (...items) => ({ op: 'and', items }), or: (items) => ({ op: 'or', items })
+	and: (...items) => ({ op: 'and', items: items.flat() }), or: (items) => ({ op: 'or', items })
 }
 function matches(row, query) {
 	if (query?.op === 'and') return query.items.every((item) => matches(row, item))
@@ -30,7 +30,10 @@ function collection(name) {
 		where(where) {
 			const sorts = []
 			let maximum = Infinity
+			let offset = 0
 			return {
+				async count() { return { total: rows.filter((row) => matches(row, where)).length } },
+				skip(value) { offset = value; return this },
 				orderBy(key, direction) { sorts.push([key, direction]); return this },
 				limit(value) { maximum = value; return this },
 				async get() {
@@ -42,7 +45,7 @@ function collection(name) {
 						}
 						return 0
 					})
-					return { data: structuredClone(selected.slice(0, maximum)) }
+					return { data: structuredClone(selected.slice(offset, offset + maximum)) }
 				},
 				async update(patch) {
 					let updated = 0

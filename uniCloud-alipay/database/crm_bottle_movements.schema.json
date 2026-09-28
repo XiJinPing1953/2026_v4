@@ -110,6 +110,9 @@
     },
     "created_by_name": {
       "bsonType": "string"
+    },
+    "source_version": {
+      "bsonType": "number"
     }
   },
   "permission": {
@@ -200,6 +203,16 @@
         "_id": 1
       },
       "unique": false
+    },
+    {
+      "key": {
+        "bottle_no": 1,
+        "event_at": 1,
+        "type_order": 1,
+        "created_at": 1,
+        "_id": 1
+      },
+      "name": "idx_bottle_event_cursor"
     }
   ]
 }

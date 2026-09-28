@@ -1,10 +1,21 @@
 {
   "bsonType": "object",
-  "description": "Server-only leases for bottle anomaly scanning",
-  "permission": { "read": false, "create": false, "update": false, "delete": false },
+  "description": "Server-only per-bottle leases for anomaly scan entry points and filling status projection; other writers are not covered",
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
   "properties": {
-    "_id": { "bsonType": "string" },
-    "lease_id": { "bsonType": "string" },
-    "lease_until": { "bsonType": "number" }
+    "_id": {
+      "bsonType": "string"
+    },
+    "lease_id": {
+      "bsonType": "string"
+    },
+    "lease_until": {
+      "bsonType": "number"
+    }
   }
 }

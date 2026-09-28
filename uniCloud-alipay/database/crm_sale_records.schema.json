@@ -32,6 +32,10 @@
     "biz_mode": { "bsonType": "string" },
     "price_unit": { "bsonType": "string" },
     "settlement_mode": { "bsonType": ["string", "null"] },
+    "accounting_classification_basis": { "bsonType": ["string", "null"] },
+    "accounting_classified_at": { "bsonType": ["number", "null"] },
+    "accounting_classified_by": { "bsonType": ["string", "null"] },
+    "accounting_rule_version": { "bsonType": ["string", "null"] },
     "unit_price": { "bsonType": ["number", "null"] },
 
     "remark": { "bsonType": "string" },

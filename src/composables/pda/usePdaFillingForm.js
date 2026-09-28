@@ -188,7 +188,7 @@ export function usePdaFillingForm(initialValues = {}) {
 		submitting.value = true
 		try {
 			const res = await submitPdaFilling(form.value, currentUser)
-			if (res?.code === 0) resetForm()
+			if (res?.code === 0 && res?.data?.complete) resetForm()
 			return res
 		} finally {
 			submitting.value = false

@@ -48,7 +48,7 @@ npm run build:mp-alipay     # 构建支付宝小程序
 
 ## 分支与检查
 
-`main` 是已验收基线；开发候选在 `codex/system-trust-foundation`，未发布的灌装/PDA/导入不能整包合入。当前生产各函数、H5版本与合并提交分别记录在STATE，不能从一个网页版本推断全部函数均已更新。
+`main` 按2026-09-28用户要求整合全部开发分支。当前生产各函数、H5版本与合并提交分别记录在STATE；未完成云端验收的候选不能因为合入主线就视为已发布。
 
 ```bash
 npm test                         # 当前入口/归档、账务反例、web/cloud源码发布范围检查
@@ -56,6 +56,6 @@ npm run test:accounting-release   # 账务、客户隔离及发布反例
 npm run check:release -- --product=cloud
 ```
 
-检查使用 `config/release-products.json` 的明确发布范围，保留生产权限历史来源。全仓契约中存在开发候选引用和已知schema差异；本分支不运行全仓自动生成来补齐这些未发布内容。`--scope=all`保留为全仓诊断，结果不能用单次发布范围检查替代。
+检查使用 `config/release-products.json` 的明确发布范围，保留生产权限历史来源。领域规则副本与schema兼容副本按规范源码同步；实际部署仍须核对线上结构并增量应用。`--scope=all`保留为全仓诊断，结果不能用单次发布范围检查替代。
 
 `release:web`会实际上传，日常合并/测试不运行它。只读网页回读使用 `scripts/verifyWebReadback.cjs`，需显式传入已构建目录和回执路径；历史CSS交付清单按构建及双哈希绑定，不适用于任意新构建。

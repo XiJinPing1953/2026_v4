@@ -1,9 +1,17 @@
 'use strict'
 
-const { readComplete } = require('./financialReadLocal')
 
+const flowRules = require('./bottleFlowRulesLocal')
+
+const crypto = require('crypto')
+const { createFillingOperations, operationKey, VERSION } = require('./fillingOperations')
 const db = uniCloud.database()
 const dbCmd = db.command
+const { readComplete } = require('./financialReadLocal')
+const {
+	OPERATOR_UPDATE_CONFIRM_TEXT,
+	inspectOperatorRepairRows
+} = require('./operatorRepairSupport')
 
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
@@ -21,6 +29,9 @@ try {
 }
 const BATCH_UPDATE_LIMIT = 2000
 const BATCH_PREVIEW_DETAIL_LIMIT = 50
+const OPERATOR_BATCH_UPDATE_LIMIT = 200
+const FLOW_WARNING_PAGE_SIZE = 500
+const FLOW_WARNING_QUERY_CONCURRENCY = 10
 const DEFAULT_RECORD_TYPE = 'normal_fill'
 const FILLING_RECORD_TYPES = [
 	'normal_fill',
@@ -43,6 +54,10 @@ const BOTTLE_FLOW_WARNING_KIND = 'bottle_flow_mismatch'
 const FILLING_START_LOSS_ADJUST_REASON = 'filling_start_weight_loss'
 const START_LOSS_SYNC_LIMIT = 2000
 const PAGE_ACTION_RULES = {
+	capabilitiesV1: [{ pagePath: '/pages/filling/list', action: 'create' }, { pagePath: '/pages/pda/filling-create', action: 'create' }],
+	getOperationV1: [{ pagePath: '/pages/filling/list', action: 'view' }, { pagePath: '/pages/pda/filling-create', action: 'view' }],
+	listOperationsV1: [{ pagePath: '/pages/filling/list', action: 'view' }, { pagePath: '/pages/pda/filling-create', action: 'view' }],
+	retryOperationV1: [{ pagePath: '/pages/filling/list', action: 'create' }, { pagePath: '/pages/pda/filling-create', action: 'create' }],
 	listV1: [
 		{ pagePath: '/pages/filling/list', action: 'view' },
 		{ pagePath: '/pages/pda/filling-create', action: 'view' }
@@ -56,6 +71,7 @@ const PAGE_ACTION_RULES = {
 		{ pagePath: '/pages/filling/list', action: 'view' },
 		{ pagePath: '/pages/pda/filling-create', action: 'view' }
 	],
+	auditBottleFlowWarningsV1: [{ pagePath: '/pages/filling/list', action: 'view' }],
 	createV1: [
 		{ pagePath: '/pages/filling/list', action: 'create' },
 		{ pagePath: '/pages/pda/filling-create', action: 'create' }
@@ -64,6 +80,7 @@ const PAGE_ACTION_RULES = {
 	removeV1: [{ pagePath: '/pages/filling/list', action: 'delete' }],
 	batchCreateV1: [{ pagePath: '/pages/filling/list', action: 'create' }],
 	batchUpdateDateV1: [{ pagePath: '/pages/filling/list', action: 'update' }],
+	batchUpdateOperatorV1: [{ pagePath: '/pages/filling/list', action: 'update' }],
 	syncStartLossAdjustmentsV1: [
 		{ pagePath: '/pages/sale/edit', action: 'create' },
 		{ pagePath: '/pages/sale/edit', action: 'update' },
@@ -74,6 +91,8 @@ const PAGE_ACTION_RULES = {
 	]
 }
 const SUPERADMIN_ONLY_ACTIONS = [
+	'auditBottleFlowWarningsV1',
+	'batchUpdateOperatorV1',
 	'cleanupOrphanFillMovementsV1',
 	'cleanupNoSaleMovementsV1',
 	'normalizeDatesV1'
@@ -1104,7 +1123,7 @@ function withTimeout(promise, timeoutMs, message) {
 	})
 }
 
-async function enqueueRegBridge(action, data, token, requestId, user, logAction = '') {
+async function enqueueRegBridge(action, data, token, requestId, user, logAction = '', expectedBottleCount = null) {
 	const normalizedAction = normalizeString(action)
 	if (!normalizedAction) return ''
 	try {
@@ -1120,7 +1139,19 @@ async function enqueueRegBridge(action, data, token, requestId, user, logAction 
 		const timeoutMs = resolveRegBridgeTimeoutMs()
 		const res = await withTimeout(callPromise, timeoutMs, `crm-reg-bridge ${normalizedAction} timeout`)
 		const result = res && res.result ? res.result : {}
-		if (Number(result.code) === 0) return ''
+		if (Number(result.code) === 0) {
+			if (expectedBottleCount > 0) {
+				const summary = result.data || {}
+				const snapshot = summary.snapshot || {}
+				if (Number(summary.total_event_payload) !== expectedBottleCount ||
+					Number(summary.enqueued_total) + Number(summary.duplicate_total) !== expectedBottleCount ||
+					Number(summary.missing_bottle_total) !== 0 || Number(snapshot.missing_total) !== 0 ||
+					Number(snapshot.enqueued_total) + Number(snapshot.duplicate_total) !== expectedBottleCount) {
+					throw new Error('监管事件或快照尚未完整入队，后台将重试')
+				}
+			}
+			return ''
+		}
 		const warning = normalizeString(result.msg) || '监管同步入队失败'
 		await recordLog(
 			user,
@@ -1309,31 +1340,15 @@ function normalizeMovementEventType(value) {
 }
 
 function compareMovementEventAsc(a, b) {
-	const aAt = toTimestamp(a && a.event_at, toTimestamp(a && a.created_at, 0))
-	const bAt = toTimestamp(b && b.event_at, toTimestamp(b && b.created_at, 0))
-	if (aAt !== bAt) return aAt - bAt
-	const aOrderRaw = Number(a && a.type_order)
-	const bOrderRaw = Number(b && b.type_order)
-	const aOrder = Number.isFinite(aOrderRaw) ? aOrderRaw : movementTypeOrder(normalizeMovementEventType(a && a.type))
-	const bOrder = Number.isFinite(bOrderRaw) ? bOrderRaw : movementTypeOrder(normalizeMovementEventType(b && b.type))
-	if (aOrder !== bOrder) return aOrder - bOrder
-	return toTimestamp(a && a.created_at, 0) - toTimestamp(b && b.created_at, 0)
+	return flowRules.compareEvents(a, b)
 }
 
 function listEffectiveMovementEvents(events) {
-	return (events || []).filter((row) => {
-		const type = normalizeMovementEventType(row && row.type)
-		return type === 'back' || type === 'fill' || type === 'out'
-	})
+	return flowRules.effectiveEvents(events)
 }
 
 function hasSameDayBackOutWithoutFill(events) {
-	const effectiveEvents = listEffectiveMovementEvents(events)
-	if (!effectiveEvents.length) return false
-	const hasBack = effectiveEvents.some((row) => normalizeMovementEventType(row && row.type) === 'back')
-	const hasFill = effectiveEvents.some((row) => normalizeMovementEventType(row && row.type) === 'fill')
-	const hasOut = effectiveEvents.some((row) => normalizeMovementEventType(row && row.type) === 'out')
-	return hasBack && hasOut && !hasFill
+	return flowRules.hasSameDayBackOutWithoutFill(events)
 }
 
 function sortMovementDayEventsByTypePriority(events, priorities) {
@@ -1356,13 +1371,7 @@ function shouldQueueSameDayBackOut(events, state) {
 }
 
 function buildMovementDayBusinessOrder(events, state) {
-	const sorted = [...events].sort(compareMovementEventAsc)
-	if (!hasSameDayBackOutWithoutFill(sorted)) return sorted
-	if (shouldQueueSameDayBackOut(sorted, state)) return sorted
-	if (state && state.activeBackEvent) {
-		return sortMovementDayEventsByTypePriority(sorted, { out: 10, back: 20, adjust: 30 })
-	}
-	return sorted
+	return flowRules.businessDayOrder(events, { pending: Boolean(state?.pendingSameDayBackOut?.length), hasBack: Boolean(state?.activeBackEvent), lastWasOut: state?.lastEffectiveType === 'out' })
 }
 
 function buildPendingSameDayBackOutEntry(events) {
@@ -1595,6 +1604,31 @@ function buildExpectedBottleCurrentState(state = null) {
 }
 
 async function syncBottleCurrentStatusByBottleNos(bottleNos = []) {
+	const total = { target_total: 0, updated_total: 0, skipped_pending_total: 0 }
+	for (const bottleNo of [...new Set(bottleNos.map(normalizeBottleNo).filter(Boolean))].sort()) {
+		const locks = db.collection('crm_bottle_scan_locks')
+		const id = `projection_${crypto.createHash('sha256').update(bottleNo).digest('hex').slice(0, 40)}`
+		const lease = crypto.randomBytes(16).toString('hex')
+		let acquired = false
+		try {
+			await locks.add({ _id: id, lease_id: lease, lease_until: Date.now() + 120000 })
+			acquired = true
+		} catch (_) {
+			const result = await locks.where({ _id: id, lease_until: dbCmd.lte(Date.now()) }).update({ lease_id: lease, lease_until: Date.now() + 120000 })
+			acquired = Boolean(result.updated)
+		}
+		if (!acquired) throw new Error('该瓶当前位置正在同步，稍后自动重试')
+		try {
+			const result = await syncBottleCurrentStatusUnlocked([bottleNo])
+			for (const key of Object.keys(total)) total[key] += result[key] || 0
+		} finally {
+			await locks.where({ _id: id, lease_id: lease }).update({ lease_until: 0, lease_id: '' })
+		}
+	}
+	return total
+}
+
+async function syncBottleCurrentStatusUnlocked(bottleNos = []) {
 	const targetDocs = await fetchBottleDocsByBottleNos(bottleNos)
 	if (!targetDocs.length) {
 		return { target_total: 0, updated_total: 0, skipped_pending_total: 0 }
@@ -1738,6 +1772,51 @@ async function collectFillingBottleFlowWarnings({ date, bottleNos = [], excludeF
 		if (item) warningItems.push(item)
 	}
 	return warningItems
+}
+
+async function collectFillingBottleFlowWarningsSafely(options = {}) {
+	try {
+		return { ok: true, data: await collectFillingBottleFlowWarnings(options) }
+	} catch (err) {
+		console.error('[crm-filling] bottle flow history read incomplete', err)
+		return {
+			ok: false,
+			code: 409,
+			error_code: 'BOTTLE_FLOW_HISTORY_INCOMPLETE',
+			msg: '瓶流转历史未完整读取，已停止预警判定，请稍后重试',
+			data: {
+				retryable: true, confirmable: false, read_complete: false,
+				warning_kind: BOTTLE_FLOW_WARNING_KIND,
+				error_code: normalizeString(err && err.code) || 'BOTTLE_FLOW_HISTORY_INCOMPLETE'
+			}
+		}
+	}
+}
+
+async function auditBottleFlowWarningsV1(user, data) {
+	void user
+	const date = normalizeString(data.date)
+	const rawBottleNos = data.bottle_nos || data.bottleNos || []
+	const bottleNos = normalizeUniqueBottleNos(Array.isArray(rawBottleNos) ? rawBottleNos : [rawBottleNos])
+	if (!isValidDateString(date)) return { code: 400, msg: '核对日期格式无效' }
+	if (!bottleNos.length) return { code: 400, msg: '瓶号列表为空' }
+	if (bottleNos.length > OPERATOR_BATCH_UPDATE_LIMIT) {
+		return { code: 400, msg: `单次最多核对 ${OPERATOR_BATCH_UPDATE_LIMIT} 个瓶号` }
+	}
+	const result = await collectFillingBottleFlowWarningsSafely({ date, bottleNos })
+	if (!result.ok) return result
+	const warningItems = result.data || []
+	return {
+		code: 0,
+		msg: 'ok',
+		data: {
+			date,
+			bottle_total: bottleNos.length,
+			warning_total: warningItems.length,
+			warning_items: warningItems,
+			summary_text: buildFillingBottleFlowWarningSummaryText(warningItems)
+		}
+	}
 }
 
 async function getBottleArchiveMapByBottleNos(bottleNos = []) {
@@ -2899,12 +2978,14 @@ async function createV1(user, data, requestId, token) {
 			return { code: 409, msg: '同日期同瓶号记录已存在，请勿重复录入' }
 		}
 	}
-	const bottleFlowWarnings = inventoryLinked && bottleNo
-		? await collectFillingBottleFlowWarnings({
+	const bottleFlowWarningResult = inventoryLinked && bottleNo
+		? await collectFillingBottleFlowWarningsSafely({
 			date,
 			bottleNos: [bottleNo]
 		})
-		: []
+		: { ok: true, data: [] }
+	if (!bottleFlowWarningResult.ok) return bottleFlowWarningResult
+	const bottleFlowWarnings = bottleFlowWarningResult.data || []
 	if (!ignoreBottleFlowWarning && bottleFlowWarnings.length > 0) {
 		return buildFillingBottleFlowWarningResponse(bottleFlowWarnings)
 	}
@@ -2938,98 +3019,11 @@ async function createV1(user, data, requestId, token) {
 		created_by: user?._id || null,
 		created_by_name: user?.username || ''
 	}
-	const movementEventDay = normalizeEventDay(date, doc.created_at)
-	const movementEventAt = parseEventAt(date, doc.created_at)
-	const movementSourceType = normalizeString(data.source_type) || 'filling'
-
-	const res = await fillings.add(doc)
-	await recordLog(
-		user,
-		'filling_create_v1',
-		{
-			id: res.id,
-			bottle_no: bottleNo,
-			record_type: recordType,
-			operator: operatorName,
-			input_mode: inputMode,
-			requested_input_mode: requestedInputMode,
-			bottle_flow_warning_overridden: ignoreBottleFlowWarning && bottleFlowWarnings.length > 0,
-			bottle_flow_warning_count: bottleFlowWarnings.length,
-			bottle_flow_warning_bottle_nos: bottleFlowWarnings.map((item) => normalizeBottleNo(item && item.bottle_no)).filter(Boolean)
-		},
-		requestId
-	)
-
-	if (inventoryLinked && bottleNo) {
-		await movements.add({
-			bottle_no: bottleNo,
-			type: 'fill',
-			date,
-			event_day: movementEventDay,
-			event_at: movementEventAt,
-			type_order: 20,
-			source_type: movementSourceType,
-			source_id: res.id,
-			customer_id: null,
-			customer_name: '',
-			net_weight: fillWeight,
-			loss_weight: null,
-			note: normalizeString(data.note || remark),
-			created_at: Date.now(),
-			created_by: user?._id || null,
-			created_by_name: user?.username || ''
-		})
-		await replaceFillingStartLossAdjustmentForDoc({ ...doc, _id: res.id }, user)
-	}
-	const bottleStatusSyncRes = await syncBottleCurrentStatusByBottleNos(inventoryLinked && bottleNo ? [bottleNo] : [])
-	await replaceGasInventoryMovementForFilling({
-		sourceId: res.id,
-		date,
-		bottleNo,
-		recordType,
-		fillWeight,
-		remark: normalizeString(data.note || remark),
-		now: Date.now(),
-		user
+	return submitPreparedFillings(user, data, [doc], {
+		date, regulatory_enqueue: true, regulatory_source_type: 'filling',
+		bottle_flow_warning_overridden: ignoreBottleFlowWarning && bottleFlowWarnings.length > 0,
+		bottle_flow_warning_count: bottleFlowWarnings.length
 	})
-
-	const touchRes = await triggerAnomalyTouchV2(
-		user,
-		token,
-		{
-			bottleNos: inventoryLinked && bottleNo ? [bottleNo] : [],
-			truckNos: shouldTouchTruckAnomalyForFilling(recordType, bottleNo) ? [bottleNo] : []
-		},
-		requestId
-	)
-	const regWarning = await enqueueRegBridge(
-		'enqueueEventV1',
-		{
-			source_type: movementSourceType,
-			source_id: res.id,
-			event_type: 'fill',
-			bottle_nos: inventoryLinked && bottleNo ? [bottleNo] : [],
-			event_at: movementEventAt,
-			enqueue_snapshot: true
-		},
-		token,
-		requestId,
-		user,
-		'filling_reg_enqueue_create_failed'
-	)
-	const warningText = [touchRes.warning || '', regWarning].filter(Boolean).join('；')
-	return {
-		code: 0,
-		msg: warningText ? `创建成功（${warningText}）` : '创建成功',
-		data: {
-			_id: res.id,
-			warning: warningText,
-			bottle_status_updated_total: bottleStatusSyncRes.updated_total,
-			bottle_status_skipped_pending_total: bottleStatusSyncRes.skipped_pending_total,
-			bottle_flow_warning_overridden: ignoreBottleFlowWarning && bottleFlowWarnings.length > 0,
-			bottle_flow_warning_count: bottleFlowWarnings.length
-		}
-	}
 }
 
 async function updateV1(user, data, requestId, token) {
@@ -3039,6 +3033,8 @@ async function updateV1(user, data, requestId, token) {
 	const oldRes = await fillings.doc(id).get()
 	const oldDoc = (oldRes.data && oldRes.data[0]) || null
 	if (!oldDoc) return { code: 404, msg: '记录不存在' }
+	const pendingEdit = await checkPendingFillingEdit(oldDoc)
+	if (pendingEdit) return pendingEdit
 
 	const date = normalizeFillingDate(data.date != null ? data.date : oldDoc.date, oldDoc.created_at)
 	if (!date) return { code: 400, msg: '日期必填' }
@@ -3075,13 +3071,15 @@ async function updateV1(user, data, requestId, token) {
 			return { code: 409, msg: '同日期同瓶号记录已存在，请修改日期或瓶号' }
 		}
 	}
-	const bottleFlowWarnings = inventoryLinked && bottleNo
-		? await collectFillingBottleFlowWarnings({
+	const bottleFlowWarningResult = inventoryLinked && bottleNo
+		? await collectFillingBottleFlowWarningsSafely({
 			date,
 			bottleNos: [bottleNo],
 			excludeFillingId: id
 		})
-		: []
+		: { ok: true, data: [] }
+	if (!bottleFlowWarningResult.ok) return bottleFlowWarningResult
+	const bottleFlowWarnings = bottleFlowWarningResult.data || []
 	if (!ignoreBottleFlowWarning && bottleFlowWarnings.length > 0) {
 		return buildFillingBottleFlowWarningResponse(bottleFlowWarnings)
 	}
@@ -3095,7 +3093,8 @@ async function updateV1(user, data, requestId, token) {
 		operator_id: operatorId,
 		fill_weight: fillWeight,
 		remark: normalizeString(data.remark != null ? data.remark : oldDoc.remark),
-		updated_at: now
+		updated_at: now,
+		source_version: Number(oldDoc.source_version || 0) + 1
 	}
 	await fillings.doc(id).update(updateDoc)
 
@@ -3223,6 +3222,8 @@ async function removeV1(user, data, requestId, token) {
 	const oldRes = await fillings.doc(id).get()
 	const oldDoc = (oldRes.data && oldRes.data[0]) || null
 	if (!oldDoc) return { code: 404, msg: '记录不存在' }
+	const pendingEdit = await checkPendingFillingEdit(oldDoc)
+	if (pendingEdit) return pendingEdit
 	const oldBottleNo = normalizeBottleNo(oldDoc.bottle_no)
 	const oldRecordType = normalizeRecordType(oldDoc.record_type, DEFAULT_RECORD_TYPE)
 
@@ -3393,11 +3394,9 @@ async function findExistingBottleNosByDate(date, bottleNos = []) {
 	const chunkSize = 200
 	for (let i = 0; i < normalized.length; i += chunkSize) {
 		const chunk = normalized.slice(i, i + chunkSize)
-		const res = await fillings
-			.where({ date, bottle_no: dbCmd.in(chunk) })
-			.field({ bottle_no: true })
-			.get()
-		const rows = Array.isArray(res.data) ? res.data : []
+		const rows = await readComplete(fillings, { date, bottle_no: dbCmd.in(chunk) }, {
+			command: dbCmd, field: { bottle_no: true }, source: 'existing_fillings'
+		})
 		for (let j = 0; j < rows.length; j += 1) {
 			const bottleNo = normalizeBottleNo(rows[j] && rows[j].bottle_no)
 			if (bottleNo) existed.add(bottleNo)
@@ -3516,12 +3515,14 @@ async function batchCreateV1(user, data, requestId, token) {
 		toCreateRows.push(row)
 	}
 
-	const bottleFlowWarnings = inventoryLinked
-		? await collectFillingBottleFlowWarnings({
+	const bottleFlowWarningResult = inventoryLinked
+		? await collectFillingBottleFlowWarningsSafely({
 			date: payload.date,
 			bottleNos: toCreateRows.map((row) => row.bottle_no)
 		})
-		: []
+		: { ok: true, data: [] }
+	if (!bottleFlowWarningResult.ok) return bottleFlowWarningResult
+	const bottleFlowWarnings = bottleFlowWarningResult.data || []
 	const bottleFlowWarningMap = new Map()
 	for (let i = 0; i < bottleFlowWarnings.length; i += 1) {
 		const item = bottleFlowWarnings[i]
@@ -3579,155 +3580,218 @@ async function batchCreateV1(user, data, requestId, token) {
 		return buildFillingBottleFlowWarningResponse(bottleFlowWarnings)
 	}
 
-	const failedItems = []
-	const touchedBottleNos = []
-	const touchedTruckNos = []
-	let success = 0
-	for (let i = 0; i < invalidItems.length; i += 1) {
-		const row = invalidItems[i]
-		failedItems.push({
-			line_no: row.line_no,
-			bottle_no: normalizeBottleNo(row.bottle_no),
-			error: normalizeString(row.error) || '无效数据'
-		})
+	const docs = toCreateRows.map((row) => {
+		const now = Date.now()
+		const remark = payload.input_mode === 'after_fill_total' ? buildStartScaleFillRemark(payload.remark, row) : payload.remark
+		return {
+			date: payload.date, bottle_no: row.bottle_no, record_type: payload.record_type,
+			operator: operatorName, operator_id: operatorId, fill_weight: row.fill_weight,
+			weight_start: row.weight_start == null ? null : row.weight_start,
+			weight_end: row.weight_end == null ? null : row.weight_end,
+			actual_net_weight: row.actual_net_weight == null ? null : row.actual_net_weight,
+			remark, created_at: now, updated_at: now, created_by: user._id, created_by_name: user.username || ''
+		}
+	})
+	return submitPreparedFillings(user, data, docs, {
+		date: payload.date, total: parsedRows.non_empty_total,
+		failed: invalidItems.length + existingItems.length,
+		failed_items: [...invalidItems, ...existingItems].slice(0, 200),
+		bottle_flow_warning_overridden: ignoreBottleFlowWarning && bottleFlowWarnings.length > 0,
+		bottle_flow_warning_count: bottleFlowWarnings.length
+	})
+}
+
+function parseBatchUpdateOperatorPayload(data = {}) {
+	const preview = Boolean(data.preview)
+	const selector = data.selector && typeof data.selector === 'object' ? data.selector : {}
+	const ids = normalizeUniqueIds(data.ids || selector.ids)
+	const operator = normalizeOperatorName(data.operator || data.target_operator || data.targetOperator)
+	const operatorId = normalizeIdString(data.operator_id || data.operatorId || data.target_operator_id || data.targetOperatorId)
+	const expectedDate = normalizeString(data.expected_date || data.expectedDate)
+	const expectedOperator = normalizeOperatorName(data.expected_operator || data.expectedOperator)
+	const confirmText = normalizeString(data.confirm_text || data.confirmText)
+
+	if (!ids.length) return { ok: false, msg: '缺少待修正记录 ID' }
+	if (ids.length > OPERATOR_BATCH_UPDATE_LIMIT) {
+		return { ok: false, msg: `单次最多修正 ${OPERATOR_BATCH_UPDATE_LIMIT} 条记录` }
 	}
-	for (let i = 0; i < existingItems.length; i += 1) {
-		const row = existingItems[i]
-		failedItems.push({
-			line_no: row.line_no,
-			bottle_no: normalizeBottleNo(row.bottle_no),
-			error: normalizeString(row.error) || '同日期同瓶号记录已存在'
-		})
+	if (!operator) return { ok: false, msg: '目标录入员必填' }
+	if (!operatorId) return { ok: false, msg: '目标录入员 ID 必填' }
+	if (!isValidDateString(expectedDate)) return { ok: false, msg: '预期灌装日期格式无效' }
+	if (!expectedOperator) return { ok: false, msg: '原录入员必填' }
+	if (operator === expectedOperator) return { ok: false, msg: '目标录入员不能与原录入员相同' }
+	if (!preview && confirmText !== OPERATOR_UPDATE_CONFIRM_TEXT) {
+		return { ok: false, msg: '缺少批量修正确认口令' }
 	}
 
-	for (let i = 0; i < toCreateRows.length; i += 1) {
-		const row = toCreateRows[i]
-		try {
-			const now = Date.now()
-			const remark = payload.input_mode === 'after_fill_total'
-				? buildStartScaleFillRemark(payload.remark, {
-					weight_start: row.weight_start,
-					weight_end: row.weight_end,
-					fill_weight: row.fill_weight,
-					basis_value: row.basis_value,
-					basis_source: row.basis_source,
-					basis_ref: row.basis_ref,
-					basis_date: row.basis_date,
-					start_loss_weight: row.start_loss_weight,
-					loss_match_status: row.loss_match_status
-				})
-				: payload.remark
-			const doc = {
-				date: payload.date,
-				bottle_no: row.bottle_no,
-				record_type: payload.record_type,
-				operator: operatorName,
-				operator_id: operatorId,
-				fill_weight: row.fill_weight,
-				weight_start: row.weight_start == null ? null : row.weight_start,
-				weight_end: row.weight_end == null ? null : row.weight_end,
-				actual_net_weight: row.actual_net_weight == null ? null : row.actual_net_weight,
-				remark,
-				created_at: now,
-				updated_at: now,
-				created_by: user?._id || null,
-				created_by_name: user?.username || ''
+	return {
+		ok: true,
+		data: {
+			preview,
+			ids,
+			operator,
+			operator_id: operatorId,
+			expected_date: expectedDate,
+			expected_operator: expectedOperator
+		}
+	}
+}
+
+async function fetchOperatorRepairRows(ids = []) {
+	if (!ids.length) return []
+	const res = await fillings
+		.where({ _id: dbCmd.in(ids) })
+		.field({
+			_id: true,
+			bottle_no: true,
+			date: true,
+			operator: true,
+			operator_id: true,
+			fill_weight: true,
+			weight_start: true,
+			weight_end: true,
+			actual_net_weight: true,
+			remark: true,
+			created_at: true,
+			updated_at: true,
+			created_by: true,
+			created_by_name: true
+		})
+		.limit(ids.length)
+		.get()
+	return Array.isArray(res && res.data) ? res.data : []
+}
+
+async function batchUpdateOperatorV1(user, data, requestId) {
+	const parsed = parseBatchUpdateOperatorPayload(data)
+	if (!parsed.ok) return { code: 400, msg: parsed.msg }
+	const payload = parsed.data
+	const beforeRows = await fetchOperatorRepairRows(payload.ids)
+	const inspection = inspectOperatorRepairRows(beforeRows, payload)
+
+	if (payload.preview) {
+		return {
+			code: 0,
+			msg: inspection.ready ? '预览通过' : '预览发现前置条件不匹配',
+			data: {
+				preview: true,
+				ready: inspection.ready,
+				expected_date: payload.expected_date,
+				expected_operator: payload.expected_operator,
+				operator: payload.operator,
+				operator_id: payload.operator_id,
+				target_total: inspection.target_total,
+				matched_total: inspection.matched_total,
+				mismatch_total: inspection.mismatch_total,
+				mismatch_items: inspection.mismatch_items,
+				items: inspection.items,
+				confirm_text: OPERATOR_UPDATE_CONFIRM_TEXT
 			}
-			const addRes = await fillings.add(doc)
-			const fillingDoc = { ...doc, _id: addRes.id }
-			if (inventoryLinked && row.bottle_no) {
-				await movements.add({
-					bottle_no: row.bottle_no,
-					type: 'fill',
-					date: payload.date,
-					event_day: normalizeEventDay(payload.date, now),
-					event_at: parseEventAt(payload.date, now),
-					type_order: 20,
-					source_type: 'filling',
-					source_id: addRes.id,
-					customer_id: null,
-					customer_name: '',
-					net_weight: row.fill_weight,
-					loss_weight: null,
-					note: remark,
-					created_at: now,
-					created_by: user?._id || null,
-					created_by_name: user?.username || ''
-				})
-				if (payload.input_mode === 'after_fill_total') {
-					await replaceFillingStartLossAdjustmentForDoc(fillingDoc, user)
-				}
-			}
-			await replaceGasInventoryMovementForFilling({
-				sourceId: addRes.id,
-				date: payload.date,
-				bottleNo: row.bottle_no,
-				recordType: payload.record_type,
-				fillWeight: row.fill_weight,
-				remark,
-				now,
-				user
-			})
-			success += 1
-			if (inventoryLinked && row.bottle_no) touchedBottleNos.push(row.bottle_no)
-			if (shouldTouchTruckAnomalyForFilling(payload.record_type, row.bottle_no)) touchedTruckNos.push(row.bottle_no)
-		} catch (err) {
-			failedItems.push({
-				line_no: row.line_no,
-				bottle_no: row.bottle_no,
-				error: normalizeString(err && err.message) || '新增失败'
-			})
 		}
 	}
 
-	const bottleStatusSyncRes = await syncBottleCurrentStatusByBottleNos(touchedBottleNos)
-	const touchRes = await triggerAnomalyTouchV2(
-		user,
-		token,
-		{
-			bottleNos: touchedBottleNos,
-			truckNos: touchedTruckNos
-		},
-		requestId
+	if (!inspection.ready) {
+		return {
+			code: 409,
+			msg: '修正前置条件已变化，未更新任何记录',
+			data: {
+				preview: false,
+				ready: false,
+				target_total: inspection.target_total,
+				matched_total: inspection.matched_total,
+				mismatch_total: inspection.mismatch_total,
+				mismatch_items: inspection.mismatch_items
+			}
+		}
+	}
+
+	for (const id of payload.ids) {
+		const pendingEdit = await checkPendingFillingEditById(id)
+		if (pendingEdit) return pendingEdit
+	}
+	const now = Date.now()
+	const updateRes = await fillings
+		.where({
+			_id: dbCmd.in(payload.ids),
+			date: payload.expected_date,
+			operator: payload.expected_operator
+		})
+		.update({
+			operator: payload.operator,
+			operator_id: payload.operator_id,
+			updated_at: now
+		})
+	const updatedTotal = Number(updateRes && (updateRes.updated ?? updateRes.updatedCount)) || 0
+	const afterRows = await fetchOperatorRepairRows(payload.ids)
+	const afterMap = new Map(
+		afterRows
+			.map((row) => [normalizeString(row && row._id), row])
+			.filter((item) => item[0])
 	)
+	const failedItems = payload.ids
+		.map((id) => {
+			const row = afterMap.get(id) || null
+			if (!row) return { _id: id, bottle_no: '', error: '更新后记录不存在' }
+			if (
+				normalizeString(row.operator) !== payload.operator
+				|| normalizeIdString(row.operator_id) !== payload.operator_id
+			) {
+				return {
+					_id: id,
+					bottle_no: normalizeBottleNo(row.bottle_no),
+					error: '更新后录入员未匹配目标值'
+				}
+			}
+			return null
+		})
+		.filter(Boolean)
+	const success = payload.ids.length - failedItems.length
+
 	await recordLog(
 		user,
-		'filling_batch_create_v1',
+		failedItems.length ? 'filling_batch_update_operator_v1_failed' : 'filling_batch_update_operator_v1',
 		{
-			date: payload.date,
-			record_type: payload.record_type,
-			input_mode: payload.input_mode,
-			requested_input_mode: payload.requested_input_mode,
-			operator: operatorName,
-			total: parsedRows.non_empty_total,
-			target_total: toCreateRows.length,
-			existing_total: existingItems.length,
-			bottle_flow_warning_overridden: ignoreBottleFlowWarning && bottleFlowWarnings.length > 0,
-			bottle_flow_warning_count: bottleFlowWarnings.length,
-			bottle_flow_warning_bottle_nos: bottleFlowWarnings.map((item) => normalizeBottleNo(item && item.bottle_no)).filter(Boolean),
-			bottle_status_updated_total: bottleStatusSyncRes.updated_total,
-			bottle_status_skipped_pending_total: bottleStatusSyncRes.skipped_pending_total,
+			record_ids: payload.ids,
+			expected_date: payload.expected_date,
+			expected_operator: payload.expected_operator,
+			operator: payload.operator,
+			operator_id: payload.operator_id,
+			total: payload.ids.length,
+			updated_total: updatedTotal,
 			success,
 			failed: failedItems.length,
-			touch_warning: touchRes.warning || ''
+			failed_items: failedItems
 		},
 		requestId
 	)
 
+	if (failedItems.length || updatedTotal !== payload.ids.length) {
+		return {
+			code: 500,
+			msg: '批量修正后复核未全部通过',
+			data: {
+				preview: false,
+				total: payload.ids.length,
+				updated_total: updatedTotal,
+				success,
+				failed: failedItems.length,
+				failed_items: failedItems
+			}
+		}
+	}
+
 	return {
 		code: 0,
-		msg: touchRes.warning ? `批量新增完成（${touchRes.warning}）` : '批量新增完成',
+		msg: '录入员批量修正完成',
 		data: {
-			date: payload.date,
-			total: parsedRows.non_empty_total,
+			preview: false,
+			total: payload.ids.length,
+			updated_total: updatedTotal,
 			success,
-			failed: failedItems.length,
-			failed_items: failedItems.slice(0, 200),
-			warning: touchRes.warning || '',
-			bottle_status_updated_total: bottleStatusSyncRes.updated_total,
-			bottle_status_skipped_pending_total: bottleStatusSyncRes.skipped_pending_total,
-			bottle_flow_warning_overridden: ignoreBottleFlowWarning && bottleFlowWarnings.length > 0,
-			bottle_flow_warning_count: bottleFlowWarnings.length
+			failed: 0,
+			operator: payload.operator,
+			operator_id: payload.operator_id,
+			updated_at: now
 		}
 	}
 }
@@ -3881,6 +3945,8 @@ async function batchUpdateDateV1(user, data, requestId, token) {
 			continue
 		}
 		try {
+			const pendingEdit = await checkPendingFillingEditById(rowId)
+			if (pendingEdit) throw new Error(pendingEdit.msg)
 			if (inventoryLinked && bottleNo) {
 				const hasDuplicate = await hasDuplicateFillingByDateBottle(payload.new_date, bottleNo, rowId)
 				if (hasDuplicate) {
@@ -4064,6 +4130,8 @@ async function normalizeDatesV1(user, data, requestId, token) {
 		}
 		try {
 			const now = Date.now()
+			const pendingEdit = await checkPendingFillingEditById(row._id)
+			if (pendingEdit) throw new Error(pendingEdit.msg)
 			await fillings.doc(row._id).update({
 				date: row.new_date,
 				updated_at: now
@@ -4144,9 +4212,155 @@ async function normalizeDatesV1(user, data, requestId, token) {
 	}
 }
 
+
+function stableFillingId(operationId, index) {
+	return `fill_${crypto.createHash('sha256').update(`${operationId}:${index}`).digest('hex').slice(0, 40)}`
+}
+
+async function checkPendingFillingEdit(doc) {
+	if (!doc || !doc.operation_id) return null
+	const op = await fillingOperations.get(doc.operation_id)
+	if (!op || op.status !== 'complete') {
+		return { code: 409, msg: '该记录的保存及流转核查尚未完成，请先在灌装处理状态中完成或重试原操作', data: { operation_id: doc.operation_id } }
+	}
+	return null
+}
+
+async function checkPendingFillingEditById(id) {
+	const doc = ((await fillings.doc(id).get()).data || [])[0]
+	return checkPendingFillingEdit(doc)
+}
+
+async function submitPreparedFillings(user, input, docs, summary) {
+	const rows = docs.map((doc, index) => ({ ...doc, _id: stableFillingId(input.operation_id, index),
+		operation_id: input.operation_id, source_version: 1, consistency_status: 'pending' }))
+	const targets = []
+	const seen = new Set()
+	for (const row of rows) {
+		const kind = shouldTouchTruckAnomalyForFilling(row.record_type, row.bottle_no) ? 'truck' : 'bottle'
+		if ((!isInventoryLinkedRecordType(row.record_type) && kind !== 'truck') || !row.bottle_no) continue
+		const key = `${kind}:${row.bottle_no}`
+		if (!seen.has(key)) { seen.add(key); targets.push({ kind, bottle_no: row.bottle_no }) }
+	}
+	return fillingOperations.submit(user, input, rows, targets, summary)
+}
+
+async function saveOperationFillingRow(row, op, user) {
+	// Short per-row transaction: source + pending work + movement + inventory commit together.
+	// Frozen operations are persisted first; a crash before this transaction is recoverable.
+	const transaction = await db.startTransaction()
+	const started = Date.now()
+	// Transaction doc.get differs from ordinary queries in the uniCloud SDK.
+	const txDoc = async (query) => {
+		const result = await query.get()
+		return Array.isArray(result.data) ? result.data[0] : result.data
+	}
+	try {
+		const txFillings = transaction.collection('crm_fillings')
+		const previous = await txDoc(txFillings.doc(row._id))
+		if (previous) {
+			if (previous.operation_id !== op.operation_id || Number(previous.source_version) !== row.source_version || previous.updated_at !== row.updated_at) {
+				throw Object.assign(new Error('源记录已变更，旧操作不会覆盖新版本'), { permanent: true })
+			}
+			await transaction.rollback()
+			return
+		}
+		if (Number(op.saved_cursor || 0) > Number(op.row_cursor || 0)) throw Object.assign(new Error('已保存源记录被删除，旧操作不会重建'), { permanent: true })
+		const inventoryLinked = isInventoryLinkedRecordType(row.record_type)
+		if (inventoryLinked && row.bottle_no) {
+			const historical = await txFillings.where({ date: row.date, bottle_no: row.bottle_no }).limit(1).get()
+			if ((historical.data || []).some((item) => item._id !== row._id)) {
+				throw Object.assign(new Error('同日期同瓶号历史记录已存在，不能重复保存'), { permanent: true })
+			}
+			const slots = transaction.collection('crm_filling_slots')
+			const slotId = `slot_${crypto.createHash('sha256').update(`${row.date}:${row.bottle_no}`).digest('hex').slice(0, 40)}`
+			const slot = await txDoc(slots.doc(slotId))
+			if (slot && slot.filling_id !== row._id) {
+				const occupying = await txDoc(txFillings.doc(slot.filling_id))
+				if (occupying && occupying.date === row.date && occupying.bottle_no === row.bottle_no) {
+					throw Object.assign(new Error('同日期同瓶号已由另一操作保存，请核对重复提交'), { permanent: true })
+				}
+			}
+			const slotDoc = { filling_id: row._id, date: row.date, bottle_no: row.bottle_no, updated_at: Date.now() }
+			if (slot) await slots.doc(slotId).update(slotDoc)
+			else await slots.add({ _id: slotId, ...slotDoc })
+			await transaction.collection('crm_bottle_movements').add({
+				_id: `${row._id}_fill`, bottle_no: row.bottle_no, type: 'fill', date: row.date,
+				event_day: normalizeEventDay(row.date, row.created_at), event_at: parseEventAt(row.date, row.created_at),
+				type_order: 20, source_type: 'filling', source_id: row._id, source_version: row.source_version,
+				customer_id: null, customer_name: '', net_weight: row.fill_weight, loss_weight: null,
+				note: row.remark, created_at: row.created_at, created_by: user._id, created_by_name: user.username || ''
+			})
+		}
+		const inventory = buildFillingGasMovementPayload({ sourceId: row._id, date: row.date, bottleNo: row.bottle_no,
+			recordType: row.record_type, fillWeight: row.fill_weight, remark: row.remark, now: row.created_at, user })
+		if (inventory) await transaction.collection('crm_gas_inventory_movements').add({ _id: `${row._id}_gas`, ...inventory, source_version: row.source_version })
+		await txFillings.add(row)
+		// Leave headroom for commit; never race an uncancelled write against a JS timer.
+		if (Date.now() - started >= 8000) throw new Error('源单事务接近时限，回滚后自动重试')
+		await transaction.commit()
+		return { transaction_ms: Date.now() - started }
+	} catch (error) {
+		await transaction.rollback().catch(() => {})
+		throw error
+	}
+}
+
+async function synchronizeOperationFillingRow(row, op, user) {
+	const current = ((await fillings.doc(row._id).get()).data || [])[0]
+	if (!current || current.source_version !== row.source_version || current.updated_at !== row.updated_at) {
+		throw Object.assign(new Error('源记录版本不匹配，旧操作已停止'), { permanent: true })
+	}
+	if (isInventoryLinkedRecordType(row.record_type) && row.bottle_no) {
+		await replaceFillingStartLossAdjustmentForDoc(current, user)
+		await syncBottleCurrentStatusByBottleNos([row.bottle_no])
+	}
+	if (op.summary && op.summary.regulatory_enqueue) {
+		const currentUser = ((await users.doc(op.created_by).get()).data || [])[0]
+		const warning = await enqueueRegBridge('enqueueEventV1', {
+			source_type: op.summary.regulatory_source_type || 'filling', source_id: row._id,
+			event_type: 'fill', bottle_nos: isInventoryLinkedRecordType(row.record_type) ? [row.bottle_no] : [],
+			event_at: parseEventAt(row.date, row.created_at), enqueue_snapshot: true
+		}, currentUser && currentUser.token, op.operation_id, user, 'filling_reg_enqueue_create_failed', isInventoryLinkedRecordType(row.record_type) ? 1 : 0)
+		if (warning) throw new Error(warning)
+	}
+	await fillings.where({ _id: row._id, source_version: row.source_version, updated_at: row.updated_at }).update({ consistency_status: op.targets.some((target) => target.bottle_no === row.bottle_no) ? 'anomaly_pending' : 'complete' })
+}
+
+async function scanOperationTarget(target, cursor, op) {
+	const result = await uniCloud.callFunction({ name: 'crm-bottle-anomaly', data: {
+		action: 'touchFillingOperationV1', data: { operation_id: op.operation_id,
+			worker_secret: op.worker_secret, lease_id: op.lease_id, target_index: op.target_cursor }
+	} })
+	const response = result && result.result || {}
+	if (response.code === 0 && response.data && response.data.done) {
+		if (response.data.read_complete !== true || response.data.rule_version !== flowRules.RULE_VERSION) {
+			return { code: 503, msg: '异常核查缺少完整读取凭据或规则版本不一致，请核对后台部署' }
+		}
+		for (const row of op.rows.filter((item) => item.bottle_no === target.bottle_no)) {
+			const current = ((await fillings.doc(row._id).get()).data || [])[0]
+			if (!current || current.source_version !== row.source_version || current.updated_at !== row.updated_at) {
+				return { code: 409, msg: '灌装源记录在核查期间已变更，旧操作停止' }
+			}
+			const changed = await fillings.where({ _id: row._id, source_version: row.source_version, updated_at: row.updated_at }).update({ consistency_status: 'complete' })
+			if (!changed.updated) {
+				const verified = ((await fillings.doc(row._id).get()).data || [])[0]
+				if (!verified || verified.source_version !== row.source_version || verified.updated_at !== row.updated_at || verified.consistency_status !== 'complete') {
+					return { code: 409, msg: '灌装源记录在完成确认期间已变更，旧操作停止' }
+				}
+			}
+		}
+	}
+	return response
+}
+
+const fillingOperations = createFillingOperations({ db,
+	saveRow: saveOperationFillingRow, synchronizeRow: synchronizeOperationFillingRow, scanTarget: scanOperationTarget })
+
 async function dispatch(event, context) {
-	void context
-	const { action, data = {}, token } = event
+	// Only the platform context can authorize a timer; never trust event.type/source.
+	if (context && context.SOURCE === 'timing') return fillingOperations.drain()
+	const { action, data = {}, token } = event || {}
 	const requestId =
 		normalizeString(event.request_id || event.requestId || context?.requestId || context?.request_id || '') ||
 		generateRequestId()
@@ -4160,14 +4374,24 @@ async function dispatch(event, context) {
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
+	if (action === 'capabilitiesV1') return { code: 0, data: { rule_version: VERSION, durable_operations: true, source_status_query: true, source_payload_hash: true } }
+	if (action === 'getOperationV1') return fillingOperations.status(user, data)
+	if (action === 'listOperationsV1') return fillingOperations.list(user)
+	if (action === 'retryOperationV1') return fillingOperations.retry(user, data)
+	if ((action === 'batchCreateV1' && !data.preview) || action === 'createV1') {
+		const prior = await fillingOperations.existing(user, data)
+		if (prior) return prior
+	}
 	if (action === 'listV1') return listV1(user, data)
 	if (action === 'getV1') return getV1(user, data)
 	if (action === 'resolveFillWeightV1') return resolveFillWeightV1(user, data)
+	if (action === 'auditBottleFlowWarningsV1') return auditBottleFlowWarningsV1(user, data)
 	if (action === 'createV1') return createV1(user, data, requestId, token)
 	if (action === 'updateV1') return updateV1(user, data, requestId, token)
 	if (action === 'removeV1') return removeV1(user, data, requestId, token)
 	if (action === 'batchCreateV1') return batchCreateV1(user, data, requestId, token)
 	if (action === 'batchUpdateDateV1') return batchUpdateDateV1(user, data, requestId, token)
+	if (action === 'batchUpdateOperatorV1') return batchUpdateOperatorV1(user, data, requestId)
 	if (action === 'syncStartLossAdjustmentsV1') return syncStartLossAdjustmentsV1(user, data, requestId, token)
 	if (action === 'cleanupOrphanFillMovementsV1') return cleanupOrphanFillMovementsV1(user, data, requestId, token)
 	if (action === 'cleanupNoSaleMovementsV1') return cleanupNoSaleMovementsV1(user, data, requestId, token)

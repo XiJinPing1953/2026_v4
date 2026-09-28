@@ -2,7 +2,7 @@
 
 const { AsyncLocalStorage } = require('async_hooks')
 const evidenceStorage = new AsyncLocalStorage()
-const READ_VERSION = 'financial-read/2026-09-05.1'
+const READ_VERSION = 'financial-read/2026-09-08.1'
 
 class FinancialReadError extends Error {
 	constructor(reason, evidence) {
@@ -12,15 +12,23 @@ class FinancialReadError extends Error {
 	}
 }
 
+function requireCount(result, evidence) {
+	const total = result && result.total
+	if (!['number', 'string'].includes(typeof total) || String(total).trim() === '' ||
+		!Number.isSafeInteger(Number(total)) || Number(total) < 0) {
+		throw new FinancialReadError('count_unavailable', evidence)
+	}
+	return Number(total)
+}
+
 // Keyset pagination has a deterministic unique order. Counts detect membership changes;
 // timestamps detect writes while this collection is read. This is not an MVCC snapshot.
 async function readComplete(collection, where = {}, { command, field, maxRows = 100000,
 	pageSize = 200, source = 'financial_collection', sort = [] } = {}) {
 	const started = Date.now()
 	const evidence = { source, read_started_at: started, read_version: READ_VERSION, rows: 0 }
-	const before = await collection.where(where).count()
-	if (!Number.isFinite(Number(before.total))) throw new FinancialReadError('count_unavailable', evidence)
-	if (Number(before.total) > maxRows) throw new FinancialReadError('row_limit', { ...evidence, expected_rows: before.total, max_rows: maxRows })
+	const before = requireCount(await collection.where(where).count(), evidence)
+	if (before > maxRows) throw new FinancialReadError('row_limit', { ...evidence, expected_rows: before, max_rows: maxRows })
 	const rows = []; let cursor = ''; let ended = false
 	while (rows.length <= maxRows) {
 		const pageWhere = cursor ? command.and([where, { _id: command.gt(cursor) }]) : where
@@ -39,8 +47,8 @@ async function readComplete(collection, where = {}, { command, field, maxRows = 
 	}
 	evidence.rows = rows.length
 	if (!ended || rows.length > maxRows) throw new FinancialReadError('row_limit', { ...evidence, max_rows: maxRows })
-	const after = await collection.where(where).count()
-	if (Number(before.total) !== rows.length || Number(after.total) !== rows.length) throw new FinancialReadError('membership_changed', evidence)
+	const after = requireCount(await collection.where(where).count(), evidence)
+	if (before !== rows.length || after !== rows.length) throw new FinancialReadError('membership_changed', evidence)
 	const changed = await collection.where(command.and([where, command.or([
 		{ updated_at: command.gt(started) }, { created_at: command.gt(started) }
 	])])).limit(1).get()
@@ -65,7 +73,8 @@ function withFinancialEvidence(handler, ruleVersion) {
 		try {
 			const result = await handler(event, context)
 			if (result && result.code === 0 && evidence.reads.length) result.financial_evidence = {
-				complete: result.summary?.accounting_complete !== false && result.data?.accounting?.status !== 'unresolved',
+				complete: result.summary?.accounting_complete !== false && result.data?.accounting?.status !== 'unresolved' &&
+					result.data?.period_summary?.complete !== false,
 				read_complete: true, consistency: 'live_read_non_atomic', snapshot_consistent: false,
 				read_started_at: evidence.started, read_completed_at: Date.now(), rule_version: ruleVersion,
 				read_version: READ_VERSION, reads: evidence.reads

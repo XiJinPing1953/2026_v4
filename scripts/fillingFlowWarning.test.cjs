@@ -15,7 +15,7 @@ function setup(rows, hooks = {}, extra = {}) {
  return { main: loadHandler('crm-filling', db), db, tables }
 }
 const payload = (extra = {}) => ({ date: '2026-09-01', preview: true, input_mode: 'net',
- record_type: 'normal_fill', batch_text: '192,66\n358,58\n228,66', operator: '测试', ...extra })
+ operation_id: 'warning-batch-test-001', record_type: 'normal_fill', batch_text: '192,66\n358,58\n228,66', operator: '测试', ...extra })
 const preview = (s, extra) => invoke(s.main, 'batchCreateV1', payload(extra))
 function largeHistory() {
  const rows = Array.from({length: 5186}, (_, i) => event(String(i).padStart(6, '0'), ['192','358','228'][i % 3],
@@ -70,7 +70,7 @@ test('create and update ignore flags cannot bypass incomplete history, update ex
  assert.equal(r.code,409);assert.equal(r.data.warning_items[0].status_code,'out');assert.equal(s.db.writes.length,0)
  for(const action of ['createV1','updateV1']) {
   const failed=setup(rows,{count:()=>({})},extra)
-  const r=await invoke(failed.main,action,{_id:'fill-self',date:'2026-09-02',bottle_no:'192',fill_weight:66,ignoreBottleFlowWarning:true})
+  const r=await invoke(failed.main,action,{operation_id:'warning-create-test-001',_id:'fill-self',date:'2026-09-02',bottle_no:'192',fill_weight:66,ignoreBottleFlowWarning:true})
   assert.equal(r.error_code,'BOTTLE_FLOW_HISTORY_INCOMPLETE');assert.equal(failed.db.writes.length,0)
  }
 })
@@ -87,14 +87,18 @@ test('warning rows beyond the old display limit are prioritized without losing i
  assert.equal(r.data.create_items.length,50);assert.equal(r.data.create_items[0].bottle_no,'51')
  assert.equal(r.data.create_items[0].line_no,51);assert.equal(r.data.warning_total,1)
 })
-test('post-save incomplete history never updates bottle status and explicitly reports the saved source',async()=>{
- let counts=0
- const s=setup([event('a','192','back','2026-08-31')],{mutate:true,count(name,total){
-  if(name==='crm_bottle_movements' && ++counts>2)return {}
-  return {total}
- }})
- const r=await invoke(s.main,'createV1',{date:'2026-09-01',bottle_no:'192',fill_weight:66})
- assert.equal(r.error_code,'BOTTLE_FLOW_HISTORY_INCOMPLETE');assert.equal(r.data.source_saved,true)
- assert.equal(s.db.writes.filter(w=>w.name==='crm_fillings').length,1)
- assert.equal(s.db.writes.filter(w=>w.name==='crm_bottles').length,0)
+test('post-save incomplete history remains recoverable and never updates bottle status',async()=>{
+ const { makeApp } = require('./lib/pdaCompletionHarness.cjs')
+ const app = makeApp()
+ app.db.setFault((name,action)=>{
+  if(name==='crm_bottle_movements' && action==='get' && app.db.data('crm_fillings').size) throw Error('history unavailable')
+ })
+ const r=await app.filling('createV1',{operation_id:'warning-create-test-002',date:'2026-09-01',bottle_no:'B1',fill_weight:66})
+ assert.equal(r.code,0);assert.equal(r.data.saved_total,1);assert.equal(r.data.complete,false)
+ assert.match(r.data.last_error,/核查未完成/)
+ assert.equal(app.db.data('crm_fillings').size,1)
+ const source=[...app.db.data('crm_fillings').values()][0]
+ assert.notEqual(source.consistency_status,'complete')
+ const status=await app.filling('getOperationV1',{operation_id:'warning-create-test-002'})
+ assert.equal(status.data.source_saved_total,1)
 })

@@ -1,6 +1,7 @@
 'use strict'
 
 const { ensureActionAcl } = require('./pageAclLocal')
+const { createCompletionProtocol, COMPLETION_VERSION } = require('./completionProtocol')
 
 const db = uniCloud.database()
 const dbCmd = db.command
@@ -15,13 +16,15 @@ const STALE_AFTER_MS = 5000
 const ZERO_THRESHOLD_KG = 0.2
 const START_THRESHOLD_KG = 0.2
 const COMPLETE_TOLERANCE_KG = 0.3
-const ACTIVE_TASK_STATUSES = ['write_pending', 'write_claimed', 'ready', 'error']
+const ACTIVE_TASK_STATUSES = ['write_pending', 'write_claimed', 'ready', 'error', 'completion_pending']
 const STATIONS = [
 	{ station_code: 'station_1', station_name: '1号机', scale_code: 'filling_scale_main' },
 	{ station_code: 'station_2', station_name: '2号机', scale_code: 'filling_scale_2' },
 	{ station_code: 'station_3', station_name: '3号机', scale_code: 'filling_scale_3' }
 ]
 const PAGE_ACTION_RULES = {
+	capabilitiesV1: [{ pagePath: '/pages/pda/filling-create', action: 'create' }, { pagePath: '/pages/pda/filling-complete', action: 'update' }],
+	listCompletionTasksV1: [{ pagePath: '/pages/pda/filling-complete', action: 'view' }],
 	getBoardV1: [{ pagePath: '/pages/pda/filling-board', action: 'view' }],
 	getStationV1: [{ pagePath: '/pages/pda/filling-station', action: 'view' }],
 	getTaskV1: [{ pagePath: '/pages/pda/filling-complete', action: 'view' }],
@@ -194,16 +197,18 @@ async function fetchTaskById(taskId) {
 	const id = normalizeString(taskId)
 	if (!id) return null
 	const res = await tasks.doc(id).get()
-	return Array.isArray(res.data) ? res.data[0] || null : null
+	return Array.isArray(res.data) ? res.data[0] || null : res.data || null
 }
 
-function buildTaskView(task = null, scaleSnapshot = null) {
+function buildTaskView(task = null, scaleSnapshot = null, completion = null) {
 	if (!task) return null
 	const weightStart = roundWeight(task.weight_start)
 	const currentWeight = roundWeight(scaleSnapshot && scaleSnapshot.is_online ? scaleSnapshot.weight_kg : null)
-	const currentNet = currentWeight != null && weightStart != null ? roundWeight(currentWeight - weightStart) : null
+	const currentNet = task.completion_intent ? roundWeight(task.actual_net_weight)
+		: currentWeight != null && weightStart != null ? roundWeight(currentWeight - weightStart) : null
 	return {
 		_id: task._id,
+		completion: completion || completionProtocol.publicView(task),
 		station_code: normalizeString(task.station_code),
 		station_name: normalizeString(task.station_name),
 		scale_code: normalizeString(task.scale_code),
@@ -241,6 +246,7 @@ function resolveEffectiveStatus(task = null, scaleSnapshot = null) {
 		return weight != null && weight > ZERO_THRESHOLD_KG ? 'wait_zero' : 'idle'
 	}
 	const status = normalizeString(task.status)
+	if (task.completion_intent) return 'completion_pending'
 	const writeStatus = normalizeString(task.target_write_status)
 	if (status === 'error' || writeStatus === 'failed') return 'abnormal'
 	if (writeStatus === 'pending' || writeStatus === 'claimed' || status === 'write_pending' || status === 'write_claimed') return 'writing'
@@ -307,10 +313,11 @@ async function getStationV1(data = {}) {
 	}
 }
 
-async function getTaskV1(data = {}) {
+async function getTaskV1(user, token, requestId, data = {}) {
 	const task = await fetchTaskById(data.task_id ?? data.taskId ?? data._id)
 	if (!task) return { code: 404, msg: '任务不存在' }
-	const scale = await fetchScaleSnapshot(task.scale_code)
+	const completion = await completionProtocol.inspect(task, user, token, requestId)
+	const scale = completion.physical_complete || completion.legacy ? null : await fetchScaleSnapshot(task.scale_code)
 	const station = getStation(task.station_code) || {
 		station_code: normalizeString(task.station_code),
 		station_name: normalizeString(task.station_name),
@@ -321,7 +328,8 @@ async function getTaskV1(data = {}) {
 		msg: '',
 		data: {
 			station: buildStationView(station, task, scale),
-			task: buildTaskView(task, scale),
+			task: buildTaskView(task, scale, completion),
+			completion_protocol: COMPLETION_VERSION,
 			scale
 		}
 	}
@@ -347,7 +355,9 @@ function assertUsableScale(scale) {
 	return ''
 }
 
-async function createTaskV1(user, data = {}) {
+async function createTaskV1(user, token, requestId, data = {}) {
+	const gate = await completionProtocol.checkClient(data, token, requestId)
+	if (gate.code !== 0) return gate
 	const station = getStation(data.station_code ?? data.stationCode)
 	if (!station) return { code: 400, msg: '请选择工位' }
 	const existing = await findActiveTaskByStation(station.station_code)
@@ -423,19 +433,6 @@ async function createTaskV1(user, data = {}) {
 	}
 }
 
-async function callFillingCreate(user, token, requestId, payload) {
-	const res = await uniCloud.callFunction({
-		name: 'crm-filling',
-		data: {
-			action: 'createV1',
-			token,
-			request_id: requestId,
-			data: payload
-		}
-	})
-	return res && res.result ? res.result : {}
-}
-
 function buildCompletionStatus(actualNetWeight, targetNetWeight, alarmState) {
 	if (alarmState) return 'error'
 	const deviation = Number(actualNetWeight) - Number(targetNetWeight)
@@ -444,27 +441,13 @@ function buildCompletionStatus(actualNetWeight, targetNetWeight, alarmState) {
 	return 'completed'
 }
 
-async function completeTaskInternal(user, token, requestId, data = {}, options = {}) {
-	const task = await fetchTaskById(data.task_id ?? data.taskId ?? data._id)
-	if (!task) return { code: 404, msg: '任务不存在' }
-	if (task.filling_record_id) {
-		return {
-			code: 0,
-			msg: '任务已保存',
-			data: { task_id: task._id, filling_record_id: task.filling_record_id }
-		}
-	}
-	if (!ACTIVE_TASK_STATUSES.includes(normalizeString(task.status))) return { code: 400, msg: '任务状态不可完成' }
-	const scale = await fetchScaleSnapshot(task.scale_code)
-	const scaleError = assertUsableScale(scale)
-	if (scaleError) return { code: 400, msg: scaleError }
+function buildCompletionPayload(task, user, data, scale, alarmState) {
 	const weightStart = roundWeight(task.weight_start)
 	const weightEnd = roundWeight(scale.weight_kg)
 	const actualNetWeight = roundWeight(weightEnd - weightStart)
 	const targetNetWeight = roundWeight(task.target_net_weight)
-	if (!(actualNetWeight > 0)) return { code: 400, msg: '实际净充重量必须大于 0' }
+	if (!(weightStart > 0) || !(targetNetWeight > 0) || !(actualNetWeight > 0)) throw new Error('实际净充重量、开始重量和目标重量必须大于 0')
 	const now = Date.now()
-	const alarmState = options.alarmState === true
 	const fillingPayload = {
 		date: normalizeString(task.date) || todayDate(),
 		bottle_no: normalizeBottleNo(task.bottle_no),
@@ -504,43 +487,17 @@ async function completeTaskInternal(user, token, requestId, data = {}, options =
 		},
 		remark: normalizeString(data.remark) || normalizeString(task.remark)
 	}
-	const fillingRes = await callFillingCreate(user, token, requestId, fillingPayload)
-	if (fillingRes.code !== 0) return fillingRes
-	const fillingRecordId = normalizeString(fillingRes?.data?._id)
-	const nextStatus = alarmState ? 'abnormal' : 'completed'
-	await tasks.doc(task._id).update({
-		status: nextStatus,
-		weight_end: weightEnd,
-		actual_net_weight: actualNetWeight,
-		deviation: fillingPayload.deviation,
-		ended_at: now,
-		completed_at: now,
-		filling_record_id: fillingRecordId || null,
-		alarm_state: alarmState,
-		remark: fillingPayload.remark,
-		updated_at: now,
-		updated_by: user?._id || null,
-		updated_by_name: normalizeString(user?.username || user?.nickname)
-	})
-	await recordLog(user, alarmState ? 'pda_filling_task_abnormal_v1' : 'pda_filling_task_complete_v1', {
-		task_id: task._id,
-		filling_record_id: fillingRecordId,
-		station_code: task.station_code,
-		bottle_no: task.bottle_no,
-		actual_net_weight: actualNetWeight,
-		deviation: fillingPayload.deviation
-	}, requestId)
-	return {
-		code: 0,
-		msg: alarmState ? '异常记录已保存' : '灌装记录已保存',
-		data: {
-			task_id: task._id,
-			filling_record_id: fillingRecordId,
-			actual_net_weight: actualNetWeight,
-			deviation: fillingPayload.deviation,
-			status: nextStatus
-		}
-	}
+	return fillingPayload
+}
+
+const completionProtocol = createCompletionProtocol({
+	db, tasks, callFunction: (request) => uniCloud.callFunction(request), recordLog,
+	fetchTaskById, fetchScaleSnapshot, assertUsableScale, buildCompletionPayload, buildTaskView,
+	activeStatuses: ACTIVE_TASK_STATUSES.filter((status) => status !== 'completion_pending')
+})
+
+async function completeTaskInternal(user, token, requestId, data = {}, options = {}) {
+	return completionProtocol.complete(user, token, requestId, data, options.alarmState === true)
 }
 
 async function completeTaskV1(user, token, requestId, data) {
@@ -566,7 +523,7 @@ async function claimTargetWriteV1(user, data = {}) {
 	const task = Array.isArray(res.data) ? res.data[0] || null : null
 	if (!task) return { code: 0, msg: '', data: { task: null } }
 	const now = Date.now()
-	await tasks.doc(task._id).update({
+	const claimed = await tasks.where({ _id: task._id, status: 'write_pending', target_write_status: 'pending', completion_intent: dbCmd.exists(false) }).update({
 		status: 'write_claimed',
 		target_write_status: 'claimed',
 		target_write_claimed_at: now,
@@ -579,7 +536,7 @@ async function claimTargetWriteV1(user, data = {}) {
 		code: 0,
 		msg: '',
 		data: {
-			task: {
+			task: claimed.updated ? {
 				_id: task._id,
 				station_code: task.station_code,
 				station_name: task.station_name,
@@ -589,7 +546,7 @@ async function claimTargetWriteV1(user, data = {}) {
 				target_register: '0x00CA',
 				target_register_decimal: 202,
 				target_value_kind: 'target_net_weight'
-			}
+			} : null
 		}
 	}
 }
@@ -612,7 +569,16 @@ async function finishTargetWriteV1(user, data = {}) {
 		updated_by: user?._id || null,
 		updated_by_name: normalizeString(user?.username || user?.nickname)
 	}
-	await tasks.doc(task._id).update(patch)
+	// Preserve completed/linked legacy tasks as well as frozen tasks. A receipt may
+	// change the task status only while all observed completion guards still match.
+	const canSetStatus = !task.completion_intent && !task.filling_record_id && ACTIVE_TASK_STATUSES.includes(task.status) && task.status !== 'completion_pending'
+	const where = { _id: task._id }
+	if (canSetStatus) {
+		Object.assign(where, { status: task.status, completion_intent: dbCmd.exists(false),
+			filling_record_id: task.filling_record_id === undefined ? dbCmd.exists(false) : task.filling_record_id })
+	} else delete patch.status
+	const updated = await tasks.where(where).update(patch)
+	if (!updated.updated) return { code: 409, msg: '任务完成状态已变化，请刷新后确认目标写入回执' }
 	await recordLog(user, success ? 'pda_filling_target_write_success_v1' : 'pda_filling_target_write_failed_v1', {
 		task_id: task._id,
 		station_code: task.station_code,
@@ -623,7 +589,7 @@ async function finishTargetWriteV1(user, data = {}) {
 	return {
 		code: 0,
 		msg: success ? '目标写入结果已确认' : '目标写入失败已记录',
-		data: { task_id: task._id, status: patch.status, target_write_status: patch.target_write_status }
+		data: { task_id: task._id, status: patch.status || task.status, target_write_status: patch.target_write_status }
 	}
 }
 
@@ -643,12 +609,14 @@ exports.main = async (event, context) => {
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
 	try {
+		if (action === 'capabilitiesV1') return await completionProtocol.capabilities(token, requestId)
+		if (action === 'listCompletionTasksV1') return await completionProtocol.list(user, data)
 		if (action === 'getBoardV1') return getBoardV1(user, data)
 		if (action === 'getStationV1') return getStationV1(data)
-		if (action === 'getTaskV1') return getTaskV1(data)
-		if (action === 'createTaskV1') return createTaskV1(user, data, requestId)
-		if (action === 'completeTaskV1') return completeTaskV1(user, token, requestId, data)
-		if (action === 'markAbnormalV1') return markAbnormalV1(user, token, requestId, data)
+		if (action === 'getTaskV1') return await getTaskV1(user, token, requestId, data)
+		if (action === 'createTaskV1') return await createTaskV1(user, token, requestId, data)
+		if (action === 'completeTaskV1') return await completeTaskV1(user, token, requestId, data)
+		if (action === 'markAbnormalV1') return await markAbnormalV1(user, token, requestId, data)
 		if (action === 'claimTargetWriteV1') return claimTargetWriteV1(user, data)
 		if (action === 'finishTargetWriteV1') return finishTargetWriteV1(user, data)
 		return { code: 400, msg: '未知 action' }

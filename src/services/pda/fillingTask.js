@@ -1,7 +1,11 @@
 import { callCloud } from '@/services/api'
 import { normalizeBottleNo, normalizeText } from './shared'
 
+export const PDA_COMPLETION_VERSION = 'pda-completion-2026-09-08-v1'
+const FILLING_VERSION = 'filling-consistency-2026-09-08-v2'
+
 export const PDA_FILLING_STATION_STATUS = {
+	COMPLETION_PENDING: 'completion_pending',
 	IDLE: 'idle',
 	WRITING: 'writing',
 	READY: 'ready',
@@ -12,6 +16,7 @@ export const PDA_FILLING_STATION_STATUS = {
 }
 
 const STATUS_LABELS = {
+	completion_pending: '完成待确认',
 	idle: '空闲',
 	writing: '写入中',
 	ready: '待启动',
@@ -22,6 +27,7 @@ const STATUS_LABELS = {
 }
 
 const STATUS_KINDS = {
+	completion_pending: 'warning',
 	idle: 'info',
 	writing: 'warning',
 	ready: 'info',
@@ -91,6 +97,7 @@ export function normalizePdaFillingTask(data = null) {
 	if (!data || typeof data !== 'object') return null
 	return {
 		_id: normalizeText(data._id || data.id),
+		completion: normalizePdaCompletion(data.completion),
 		stationCode: normalizeText(data.station_code ?? data.stationCode),
 		stationName: normalizeText(data.station_name ?? data.stationName),
 		scaleCode: normalizeText(data.scale_code ?? data.scaleCode),
@@ -190,9 +197,11 @@ export async function getPdaFillingTaskV1(params = {}) {
 }
 
 export async function createPdaFillingTaskV1(params = {}) {
+	await assertPdaCompletionCapabilities()
 	return callCloud('crm-pda-filling', {
 		action: 'createTaskV1',
 		data: {
+			completion_protocol: PDA_COMPLETION_VERSION,
 			station_code: params.station_code || params.stationCode || '',
 			bottle_no: params.bottle_no || params.bottleNo || '',
 			target_net_weight: params.target_net_weight ?? params.targetNetWeight,
@@ -202,9 +211,11 @@ export async function createPdaFillingTaskV1(params = {}) {
 }
 
 export async function completePdaFillingTaskV1(params = {}) {
+	await assertPdaCompletionCapabilities()
 	return callCloud('crm-pda-filling', {
 		action: 'completeTaskV1',
 		data: {
+			completion_protocol: PDA_COMPLETION_VERSION,
 			task_id: params.task_id || params.taskId || params._id || '',
 			remark: params.remark || ''
 		}
@@ -212,11 +223,56 @@ export async function completePdaFillingTaskV1(params = {}) {
 }
 
 export async function markPdaFillingTaskAbnormalV1(params = {}) {
+	await assertPdaCompletionCapabilities()
 	return callCloud('crm-pda-filling', {
 		action: 'markAbnormalV1',
 		data: {
+			completion_protocol: PDA_COMPLETION_VERSION,
 			task_id: params.task_id || params.taskId || params._id || '',
 			remark: params.remark || ''
 		}
 	})
+}
+
+export function normalizePdaCompletion(data = {}) {
+	return {
+		protocol: normalizeText(data?.protocol),
+		operationId: normalizeText(data?.operation_id),
+		physicalComplete: data?.physical_complete === true,
+		physicalStatus: normalizeText(data?.physical_status),
+		operator: normalizeText(data?.operator),
+		sourceSaved: data?.source_saved === true && Boolean(normalizeText(data?.filling_record_id)),
+		fillingRecordId: normalizeText(data?.filling_record_id),
+		processingStatus: normalizeText(data?.processing_status) || 'not_started',
+		complete: data?.complete === true && data?.source_saved === true && Boolean(normalizeText(data?.filling_record_id)),
+		taskLinked: data?.task_linked === true,
+		remainingTotal: toNullableNumber(data?.remaining_total),
+		processedTotal: toNullableNumber(data?.processed_total),
+		targetTotal: toNullableNumber(data?.target_total),
+		canRetry: data?.can_retry === true,
+		lastError: normalizeText(data?.last_error),
+		legacy: data?.legacy === true
+	}
+}
+
+export function getPdaCompletionMessage(completion) {
+	if (!completion?.sourceSaved) return completion?.physicalComplete ? '完成事实已冻结，源单尚未确认保存' : '源单尚未确认保存'
+	if (completion.complete && completion.taskLinked) return '源单已保存，后续处理已完成'
+	if (!completion.taskLinked) return '源单已保存，任务回链待确认'
+	return '源单已保存，后续处理待完成'
+}
+
+export async function assertPdaCompletionCapabilities() {
+	const res = await callCloud('crm-pda-filling', { action: 'capabilitiesV1', data: {} })
+	if (res?.code !== 0 || res?.data?.completion_protocol !== PDA_COMPLETION_VERSION || res?.data?.filling_protocol !== FILLING_VERSION || res?.data?.durable_completion !== true) {
+		throw new Error(res?.msg || 'PDA 灌装后台尚未配套升级，请联系管理员核对版本')
+	}
+}
+
+export async function listPdaCompletionTasksV1(beforeId = '') {
+	const res = await callCloud('crm-pda-filling', { action: 'listCompletionTasksV1', data: { before_id: beforeId } })
+	return {
+		code: res?.code ?? -1, msg: res?.msg || '',
+		data: { items: (res?.data?.items || []).map(normalizePdaFillingTask), hasMore: res?.data?.has_more === true, nextBeforeId: res?.data?.next_before_id || '' }
+	}
 }

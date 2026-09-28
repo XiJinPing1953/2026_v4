@@ -65,7 +65,8 @@
     "test": "npm run check:context && npm run test:context && npm run test:accounting-release && npm run test:customer-deposit && npm run check:release -- --product=web && npm run check:release -- --product=cloud",
     "test:customer-deposit": "node --test scripts/customerDepositBackend.test.cjs scripts/customerDepositFrontend.test.cjs scripts/customerDepositIntegration.test.cjs",
     "preview:mobile": "STATEMENT_PREVIEW=1 MOBILE_PREVIEW=1 uni --host 127.0.0.1 --port 5191",
-    "preview:statement": "STATEMENT_PREVIEW=1 uni --host 127.0.0.1 --port 5190"
+    "preview:statement": "STATEMENT_PREVIEW=1 uni --host 127.0.0.1 --port 5190",
+    "test:development-integration": "node --test scripts/fillingConsistency.test.cjs scripts/pdaFillingCompletion.test.cjs scripts/pdaFillingCompletionFrontend.test.cjs scripts/importFillingsFromJson.test.cjs scripts/bottleAnomalyRefreshJobs.test.cjs scripts/bottleAnomalyRefreshScan.test.cjs scripts/fillingFlowWarning.test.cjs scripts/crmFillingMaintenance.test.cjs scripts/bottleAnomalyArchiveCutoff.test.cjs scripts/bottleAnomalyMissingFillPermission.test.cjs scripts/gasBusinessTime.test.cjs scripts/gasInventoryCurrent.test.cjs scripts/gasInventoryRead.test.cjs scripts/frontendTrust.test.cjs"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-5000620260331001",

@@ -14,6 +14,15 @@
 			</view>
 		</AppSection>
 
+		<AppSection title="保存与后续处理待确认">
+			<view class="task-lines">
+				<text class="task-line">{{ pendingError || (pendingTasks.length ? '点击原任务查询保存结果或恢复重试' : '当前列表没有待确认任务') }}</text>
+				<AppButton v-for="item in pendingTasks" :key="item._id" kind="neutral" @click="goComplete(item._id)">{{ item.stationName }} · {{ item.bottleNo }} · 查看保存状态</AppButton>
+				<AppButton v-if="pendingHasMore" kind="neutral" :loading="pendingLoading" @click="loadPending(true)">加载更多</AppButton>
+				<AppButton size="sm" kind="neutral" :loading="pendingLoading" @click="loadPending(false)">刷新待确认任务</AppButton>
+			</view>
+		</AppSection>
+
 		<AppSection title="工位卡片">
 			<view class="station-list">
 				<view
@@ -36,12 +45,12 @@
 							创建任务
 						</AppButton>
 						<AppButton
-							v-else-if="station.task && station.status === PDA_FILLING_STATION_STATUS.REACHED"
+							v-else-if="station.task && [PDA_FILLING_STATION_STATUS.REACHED, PDA_FILLING_STATION_STATUS.COMPLETION_PENDING].includes(station.status)"
 							size="sm"
 							kind="primary"
 							@click.stop="goComplete(station.task._id)"
 						>
-							确认完成
+							{{ station.task.completion?.physicalComplete ? '查看保存状态' : '确认完成' }}
 						</AppButton>
 						<AppButton
 							v-else-if="station.task && station.status === PDA_FILLING_STATION_STATUS.ABNORMAL"
@@ -84,6 +93,7 @@ import AppTag from '@/components/base/AppTag.vue'
 import {
 	formatPdaFillingWeight,
 	getPdaFillingBoardV1,
+	listPdaCompletionTasksV1,
 	getPdaFillingStatusKind,
 	getPdaFillingStatusLabel,
 	PDA_FILLING_STATION_STATUS
@@ -92,6 +102,26 @@ import {
 const loading = ref(false)
 const stations = ref([])
 const summary = ref({})
+const pendingTasks = ref([])
+const pendingError = ref('')
+const pendingHasMore = ref(false)
+const pendingBeforeId = ref('')
+const pendingLoading = ref(false)
+
+async function loadPending(more = false) {
+	if (pendingLoading.value) return
+	pendingLoading.value = true
+	try {
+		const res = await listPdaCompletionTasksV1(more ? pendingBeforeId.value : '')
+		if (res.code !== 0) { pendingError.value = res.msg || '待确认任务未能读取'; return }
+		pendingError.value = ''
+		pendingTasks.value = more ? [...new Map([...pendingTasks.value, ...res.data.items].map((item) => [item._id, item])).values()] : res.data.items
+		pendingHasMore.value = res.data.hasMore
+		pendingBeforeId.value = res.data.nextBeforeId
+	} catch (error) {
+		pendingError.value = error?.message || '待确认任务未能读取'
+	} finally { pendingLoading.value = false }
+}
 let timer = null
 let boardRequest = null
 
@@ -102,7 +132,8 @@ const summaryItems = computed(() => [
 	{ key: 'filling', label: '充装中', value: summary.value.filling || 0 },
 	{ key: 'reached', label: '已到量', value: summary.value.reached || 0 },
 	{ key: 'abnormal', label: '异常', value: summary.value.abnormal || 0 },
-	{ key: 'wait_zero', label: '待回零', value: summary.value.wait_zero || 0 }
+	{ key: 'wait_zero', label: '待回零', value: summary.value.wait_zero || 0 },
+	{ key: 'completion_pending', label: '完成待确认', value: summary.value.completion_pending || 0 }
 ])
 
 function statusLabel(status) {
@@ -152,6 +183,7 @@ function canCreateTask(station) {
 }
 
 function stationHint(station) {
+	if (station.status === PDA_FILLING_STATION_STATUS.COMPLETION_PENDING) return '完成事实已冻结，等待确认源单保存'
 	if (station.status === PDA_FILLING_STATION_STATUS.WRITING) return station.task?.targetWriteError || '等待写入 C606+ 目标'
 	if (station.status === PDA_FILLING_STATION_STATUS.READY) return '现场可启动 C606+'
 	if (station.status === PDA_FILLING_STATION_STATUS.FILLING) return '充装中'
@@ -163,6 +195,7 @@ function stationHint(station) {
 async function loadBoard(options = {}) {
 	if (boardRequest) return boardRequest
 	const showLoading = options.loading !== false
+	if (showLoading) loadPending(false)
 	const silent = options.silent === true
 	if (showLoading) loading.value = true
 	boardRequest = (async () => {
