@@ -14,7 +14,7 @@ function makeDatabase() {
 	const data = (name) => { if (!tables.has(name)) tables.set(name, new Map()); return tables.get(name) }
 	const clone = (value) => value === undefined ? undefined : JSON.parse(JSON.stringify(value))
 	const cond = (kind, value) => ({ __condition: kind, value })
-	const command = Object.fromEntries(['in', 'nin', 'eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'exists', 'inc'].map((name) => [name, (value) => cond(name, value)]))
+	const command = Object.fromEntries(['in', 'nin', 'eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'exists', 'inc', 'set'].map((name) => [name, (value) => cond(name, value)]))
 	command.and = (...args) => cond('and', args.length === 1 && Array.isArray(args[0]) ? args[0] : args)
 	command.or = (...args) => cond('or', args.length === 1 && Array.isArray(args[0]) ? args[0] : args)
 	const matchValue = (actual, expected) => {
@@ -59,7 +59,7 @@ function makeDatabase() {
 					async count() { return { total: selected().length } },
 					async add(row) { if (fault) await fault(name, 'add', row); const id = row._id || `r${++seq}`; if (data(name).has(id)) throw new Error('duplicate key'); data(name).set(id, clone({ ...row, _id: id })); return { id } },
 					async set(row) { data(name).set(filter._id, clone({ ...row, _id: filter._id })); return { id: filter._id } },
-					async update(patch) { if (fault) await fault(name, 'update', patch); const rows = selected(); for (const row of rows) { for (const [key, value] of Object.entries(patch)) row[key] = value && value.__condition === 'inc' ? Number(row[key] || 0) + value.value : clone(value) } return { updated: rows.length } },
+					async update(patch) { if (patch.scan_cursor && !patch.scan_cursor.__condition && selected().some(row => row.scan_cursor === null)) throw Error('Cannot create field in scan_cursor: null'); if (fault) await fault(name, 'update', patch); const rows = selected(); for (const row of rows) { for (const [key, value] of Object.entries(patch)) row[key] = value && value.__condition === 'inc' ? Number(row[key] || 0) + value.value : value && value.__condition === 'set' ? clone(value.value) : clone(value) } return { updated: rows.length } },
 					async remove() { const rows = selected(); rows.forEach((row) => data(name).delete(row._id)); return { deleted: rows.length } }
 				}
 			}

@@ -70,7 +70,10 @@ function createFillingOperations({ db, saveRow, synchronizeRow, scanTarget, now 
 		let steps = 0
 		const actor = { _id: op.created_by, username: op.created_by_name, role: op.actor_role }
 		async function checkpoint(patch) {
-			const result = await operations.where({ _id: op._id, lease_id: leaseId, lease_until: db.command.gt(now()) }).update({ ...patch, progress_version: db.command.inc(1), updated_at: now() })
+			// Alipay merges plain objects; a cursor must replace null and discard stale fields.
+			const update = { ...patch }
+			if (Object.prototype.hasOwnProperty.call(patch, 'scan_cursor') && patch.scan_cursor !== null) update.scan_cursor = db.command.set(patch.scan_cursor)
+			const result = await operations.where({ _id: op._id, lease_id: leaseId, lease_until: db.command.gt(now()) }).update({ ...update, progress_version: db.command.inc(1), updated_at: now() })
 			if (!result.updated) throw Object.assign(new Error('操作处理锁已失效'), { lostLease: true })
 			op = { ...op, ...patch }
 		}
