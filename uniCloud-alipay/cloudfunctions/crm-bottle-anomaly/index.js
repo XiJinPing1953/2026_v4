@@ -4,6 +4,7 @@ const { createRefreshJobs } = require('./refreshJobs')
 const { readComplete } = require('./financialReadLocal')
 
 const flowRules = require('./bottleFlowRulesLocal')
+const confirmedFillLoss = require('./confirmedFillLossLocal')
 
 const db = uniCloud.database()
 
@@ -49,7 +50,7 @@ const PAGE_ACTION_RULES = {
 	retryRefreshJobV1: [{ pagePath: '/pages/bottle/anomaly', action: 'update' }],
 	resolveV1: [{ pagePath: '/pages/bottle/anomaly', action: 'update' }]
 }
-const SUPERADMIN_ONLY_ACTIONS = ['rebuildV2', 'purgeV1', 'cleanupDuplicatesV1', 'archiveV1', 'setArchiveCutoffV1']
+const SUPERADMIN_ONLY_ACTIONS = ['confirmFillLossV1', 'rebuildV2', 'purgeV1', 'cleanupDuplicatesV1', 'archiveV1', 'setArchiveCutoffV1']
 const BOTTLE_RECONCILE_TYPE_LIST = [
 	'missing_back',
 	'missing_fill',
@@ -2139,7 +2140,7 @@ async function scanV2Unlocked(user, data, requestId, historyRows = null) {
 	const resolvedStagedRows = new Map()
 	for (const row of archivedRes.data) {
 		if (normalizeAnomalyType(row && row.anomaly_type) !== 'continuous_fill' ||
-			normalizeString(row && row.resolved_by_name) !== 'system-staged-fill') continue
+			!['system-staged-fill', confirmedFillLoss.MARKER].includes(normalizeString(row && row.resolved_by_name))) continue
 		const fp = getComparableAnomalyFingerprint(row)
 		if (fp && !resolvedStagedRows.has(fp)) resolvedStagedRows.set(fp, row)
 	}
@@ -2175,7 +2176,8 @@ async function scanV2Unlocked(user, data, requestId, historyRows = null) {
 			if (!matchedId) return { limited: false }
 			const nextDate = normalizeString(anomaly.date)
 			const nextNote = normalizeString(anomaly.detail)
-			const nextContext = normalizeContext(anomaly.context)
+			const nextContext = { ...normalizeContext(anomaly.context),
+				...(matchedRow.context?.confirmed_fill_loss ? { confirmed_fill_loss: matchedRow.context.confirmed_fill_loss } : {}) }
 			const changed =
 				normalizeString(matchedRow && matchedRow.date) !== nextDate ||
 				normalizeString(matchedRow && matchedRow.note) !== nextNote ||
@@ -2350,6 +2352,17 @@ async function scanV2Unlocked(user, data, requestId, historyRows = null) {
 			const verifiedStagedFps = reconcileTypeSet.has('continuous_fill')
 				? await findVerifiedStagedFillFingerprints(bottleNo, finalWitness.rows, continuousFps)
 				: new Set()
+			const verifiedConfirmedFps = new Set()
+			if (reconcileTypeSet.has('continuous_fill')) {
+				for (const row of [...resolvedStagedRows.values(), ...openRows]) {
+					if (!row.context?.confirmed_fill_loss) continue
+					const fp = getComparableAnomalyFingerprint(row)
+					if (continuousFps.has(fp) && await confirmedFillLoss.validApproval(db, row, finalWitness.rows)) {
+						verifiedStagedFps.add(fp)
+						verifiedConfirmedFps.add(fp)
+					}
+				}
+			}
 			if (reconcileTypeSet.has('continuous_fill')) {
 				for (const [fp, row] of resolvedStagedRows) {
 					if (!continuousFps.has(fp) || verifiedStagedFps.has(fp)) continue
@@ -2388,7 +2401,7 @@ async function scanV2Unlocked(user, data, requestId, historyRows = null) {
 						status: 'resolved',
 						updated_at: Date.now(),
 						resolved_by: null,
-						resolved_by_name: verifiedStagedFps.has(fp) ? 'system-staged-fill' : 'system-reconcile'
+						resolved_by_name: verifiedConfirmedFps.has(fp) ? confirmedFillLoss.MARKER : verifiedStagedFps.has(fp) ? 'system-staged-fill' : 'system-reconcile'
 					})
 					writeCount += 1
 					roundResolvedStale += 1
@@ -3453,6 +3466,11 @@ async function touchFillingOperationV1(data = {}) {
 	})
 }
 
+const confirmFillLossV1 = confirmedFillLoss.createConfirmation({ db,
+	readRows: (source, bottleNo) => readComplete(source.collection('crm_bottle_movements'), { bottle_no: bottleNo },
+		{ command: db.command, source: 'confirmed_fill_loss_history', maxRows: 5000 }),
+	withLease: withBottleScanLease })
+
 exports.main = async (event, context) => {
 	// The platform context, never user-supplied event fields, authorizes scheduled work.
 	if (context && context.SOURCE === 'timing') return refreshJobs.drain()
@@ -3485,6 +3503,7 @@ exports.main = async (event, context) => {
 	if (action === 'archiveV1') return archiveV1(user, data, requestId)
 	if (action === 'setArchiveCutoffV1') return setArchiveCutoffV1(user, data, requestId)
 	if (action === 'resolveV1') return resolveV1(user, data, requestId)
+	if (action === 'confirmFillLossV1') return confirmFillLossV1(user, data, requestId)
 
 	return { code: 400, msg: '未知 action' }
 }

@@ -82,6 +82,13 @@
         "uniCloud-alipay/cloudfunctions/crm-bottle-movement/bottleFlowRulesLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/bottleFlowRulesLocal.js"
       ]
+    },
+    {
+      "source": "uniCloud-alipay/cloudfunctions/common/confirmedFillLoss.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-filling/confirmedFillLossLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/confirmedFillLossLocal.js"
+      ]
     }
   ],
   "promotedSchemas": [

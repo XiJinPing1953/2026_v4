@@ -12,6 +12,7 @@ const collections = Object.fromEntries(['crm_users', 'crm_operation_logs', 'crm_
 	.map((name) => [name, []]))
 let beforeMovementGet = null
 const command = {
+	set: value => value,
 	gt: (value) => ({ op: 'gt', value }), lte: (value) => ({ op: 'lte', value }),
 	and: (...items) => ({ op: 'and', items: items.flat() }), or: (items) => ({ op: 'or', items })
 }
@@ -225,6 +226,81 @@ async function main() {
 	assert.equal(collections.crm_bottle_anomalies.some((row) => row.bottle_no === '2461' &&
 		row.anomaly_type === 'missing_fill' && row.status === 'open'), true)
 
-	console.log('跨轮续扫、分次补灌关闭与重扫复用、证据变化重开、291/2/246异常保留测试通过')
+	// Explicit user facts permit loss between fills/outbound, with atomic correction,
+	// preserved original scales, idempotency, and invalidation if sources change.
+	const confirmation = require('../uniCloud-alipay/cloudfunctions/common/confirmedFillLoss')
+	const database = { command, collection, async startTransaction() {
+		const backup = structuredClone(collections)
+		return { collection, async commit() {}, async rollback() {
+			for (const name of Object.keys(collections)) collections[name].splice(0, Infinity, ...(backup[name] || []))
+		} }
+	} }
+	const confirm = confirmation.createConfirmation({ db: database,
+		readRows: async (db, no) => (await db.collection('crm_bottle_movements').where({ bottle_no: no }).get()).data,
+		withLease: async (no, cursor, run) => run() })
+	const superuser = { ...actor, role: 'superadmin' }
+	for (const [no, gross, tare] of [['291', 349, 360], ['2', 124, 124]]) {
+		collections.crm_sale_records.push({ _id: `back-${no}`, date: no === '291' ? '2026-09-01' : '2026-06-17',
+			back_items: [{ bottle_no: no, gross, tare, net: gross - tare }] })
+	}
+	collections.crm_bottle_movements.push({ ...event('bad-start-291', '291', 'adjust', '2026-09-05', null),
+		type_order: 21, source_type: 'manual_fix', source_id: 'fill-291-b', loss_weight: -129, adjust_reason: 'filling_start_weight_loss' })
+	for (const [no, storage, outbound] of [['291', 0, 11], ['2', 14.5, 2]]) {
+		collections.crm_bottle_movements.push({ ...event(`first-loss-${no}`, no, 'adjust', no === '291' ? '2026-09-04' : '2026-06-19', null),
+			type_order: 21, source_type: 'manual_fix', source_id: `fill-${no}-a`, loss_weight: 1, adjust_reason: 'filling_start_weight_loss' })
+		const anomaly = collections.crm_bottle_anomalies.find(row => row.bottle_no === no && row.anomaly_type === 'continuous_fill')
+		const before = JSON.stringify(collections)
+		assert.equal((await confirm(actor, { id: anomaly._id }, 'test')).code, 403)
+		const preview = await confirm(superuser, { id: anomaly._id }, 'test')
+		assert.equal(preview.code, 0, preview.msg)
+		assert.equal(preview.data.storage_loss_kg, storage)
+		assert.equal(preview.data.outbound_loss_kg, outbound)
+		assert.equal(JSON.stringify(collections), before)
+		const input = { id: anomaly._id, execute: true, confirm: 'CONFIRM_FILL_LOSS',
+			expected_preview_hash: preview.data.preview_hash, storage_loss_kg: storage, outbound_loss_kg: outbound,
+			reason: '用户确认原称重及销售有效，差额为真实损耗' }
+		assert.equal((await confirm(superuser, { ...input, expected_preview_hash: 'stale' }, 'test')).code, 409)
+		assert.equal(JSON.stringify(collections), before)
+		assert.equal((await confirm(superuser, { ...input, rollback_test: true }, 'test')).data.rolled_back, true)
+		assert.equal(JSON.stringify(collections), before)
+		const applied = await confirm(superuser, input, 'test')
+		assert.equal(applied.data.applied, true, applied.msg)
+		const committed = JSON.stringify(collections)
+		assert.equal((await confirm(superuser, input, 'test')).data.already_applied, true)
+		assert.equal(JSON.stringify(collections), committed)
+		assert.equal((await confirm(superuser, { ...input, storage_loss_kg: 99 }, 'test')).code, 409)
+		await complete(no)
+		assert.equal(collections.crm_bottle_anomalies.find(row => row._id === input.id).status, 'resolved')
+		assert.equal(collections.crm_bottle_anomalies.filter(row => row.bottle_no === no && row.anomaly_type === 'continuous_fill').length, 1)
+		const adjust = collections.crm_bottle_movements.filter(row => row.source_id === `fill-${no}-b` && row.type === 'adjust')
+		assert.equal(adjust.length, 1)
+		assert.equal(adjust[0].loss_weight, storage)
+		// Editing source weights invalidates the approval and reopens the SAME row.
+		const out = collections.crm_sale_records.find(row => row._id === `out-${no}`)
+		out.out_items[0].gross += 1
+		await complete(no)
+		assert.equal(collections.crm_bottle_anomalies.find(row => row._id === input.id).status, 'open')
+		out.out_items[0].gross -= 1
+		await complete(no)
+		assert.equal(collections.crm_bottle_anomalies.find(row => row._id === input.id).status, 'resolved')
+	}
+	const movementFile = path.resolve(__dirname, '../uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js')
+	const movementVm = { ...sandbox, require: createRequire(movementFile), exports: {}, module: { exports: {} } }
+	vm.runInNewContext(fs.readFileSync(movementFile, 'utf8') + '\nmodule.exports.__test = {buildCycleRowsFromEvents};', movementVm, {filename:movementFile})
+	for (const [no, delta] of [['291',11],['2',2]]) {
+		const result = movementVm.module.exports.__test.buildCycleRowsFromEvents(collections.crm_bottle_movements.filter(row=>row.bottle_no===no))
+		assert.equal(result.cycleRows[0].delta_kg, delta, `${no} must not double count a manually classified start loss`)
+	}
+	const fillingFile = path.resolve(__dirname, '../uniCloud-alipay/cloudfunctions/crm-filling/index.js')
+	const fillingVm = { ...sandbox, require: createRequire(fillingFile), exports:{}, module:{exports:{}} }
+	vm.runInNewContext(fs.readFileSync(fillingFile, 'utf8') + '\nmodule.exports.__test = {findConfirmedStartLossBasis};', fillingVm, {filename:fillingFile})
+	for (const [no, expected] of [['291',478],['2',134.5]]) {
+		const fill = collections.crm_fillings.find(row=>row._id===`fill-${no}-b`)
+		assert.equal((await fillingVm.module.exports.__test.findConfirmedStartLossBasis(fill)).value, expected)
+		fill.weight_start += 1
+		await assert.rejects(()=>fillingVm.module.exports.__test.findConfirmedStartLossBasis(fill),/依据已变化/)
+		fill.weight_start -= 1
+	}
+	console.log('跨轮扫描、确认损耗、原值保护、回滚、重试幂等、重扫不重开与依据变化失效测试通过')
 }
 main().catch((error) => { console.error(error); process.exitCode = 1 })

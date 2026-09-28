@@ -2,6 +2,7 @@
 
 
 const flowRules = require('./bottleFlowRulesLocal')
+const confirmedFillLoss = require('./confirmedFillLossLocal')
 
 const crypto = require('crypto')
 const { createFillingOperations, operationKey, VERSION } = require('./fillingOperations')
@@ -2199,7 +2200,7 @@ function buildFillingStartLossAdjustDoc({ fillingDoc = {}, basis = null, lossWei
 		net_weight: null,
 		loss_weight: loss,
 		adjust_reason: FILLING_START_LOSS_ADJUST_REASON,
-		note: `灌装上秤差值${resultText}：最近回瓶重量${formatDerivedNumber(basis && basis.value) || '-'}kg - 瓶子上秤重量${formatDerivedNumber(weightStart) || '-'}kg = ${formatDerivedNumber(loss) || '0'}kg`,
+		note: `灌装上秤差值${resultText}：${basis?.source === 'confirmed_previous_fill_end' ? '人工确认上次灌完重量' : '最近回瓶重量'}${formatDerivedNumber(basis && basis.value) || '-'}kg - 瓶子上秤重量${formatDerivedNumber(weightStart) || '-'}kg = ${formatDerivedNumber(loss) || '0'}kg`,
 		context: {
 			source: 'filling_start_weight',
 			filling_id: fillingId,
@@ -2217,20 +2218,38 @@ function buildFillingStartLossAdjustDoc({ fillingDoc = {}, basis = null, lossWei
 	}
 }
 
+async function findConfirmedStartLossBasis(fillingDoc) {
+	const rows = await readComplete(db.collection('crm_bottle_anomalies'), { bottle_no: fillingDoc.bottle_no,
+		anomaly_type: 'continuous_fill' }, { command: dbCmd, source: 'confirmed_start_loss' })
+	const approvalRows = rows.filter(row => row.context?.confirmed_fill_loss?.facts?.next?.id === fillingDoc._id)
+	if (!approvalRows.length) return null
+	const history = await readComplete(movements, { bottle_no: fillingDoc.bottle_no }, { command: dbCmd, source: 'confirmed_start_loss_history' })
+	for (const row of approvalRows) {
+		const evidence = await confirmedFillLoss.validApproval(db, row, history)
+		if (evidence) return { value: evidence.previous.weight_end, source: 'confirmed_previous_fill_end',
+			ref: evidence.previous._id, date: evidence.previous.date }
+	}
+	throw new Error('人工确认的灌装损耗依据已变化，请复核后再同步')
+}
+
 async function replaceFillingStartLossAdjustmentForDoc(fillingDoc = {}, user = null) {
 	const fillingId = normalizeString(fillingDoc && fillingDoc._id)
 	if (!fillingId) return { status: 'skipped', reason: 'missing_filling_id' }
-	await removeFillingStartLossAdjustments(fillingId)
 	const recordType = normalizeRecordType(fillingDoc && fillingDoc.record_type, DEFAULT_RECORD_TYPE)
 	const bottleNo = normalizeBottleNo(fillingDoc && fillingDoc.bottle_no)
 	const date = normalizeFillingDate(fillingDoc && fillingDoc.date, fillingDoc && fillingDoc.created_at)
 	const weightStart = toNumber(fillingDoc && fillingDoc.weight_start, null)
+	// Validate an existing human decision before removing its adjustment; all
+	// unconfirmed source changes retain the established cleanup behavior.
+	const confirmedBasis = isInventoryLinkedRecordType(recordType) && bottleNo && date && weightStart > 0
+		? await findConfirmedStartLossBasis(fillingDoc) : null
+	await removeFillingStartLossAdjustments(fillingId)
 	if (!isInventoryLinkedRecordType(recordType)) return { status: 'skipped', reason: 'record_type_not_inventory_linked' }
 	if (!bottleNo || !date) return { status: 'skipped', reason: 'missing_bottle_or_date' }
 	if (!(typeof weightStart === 'number' && Number.isFinite(weightStart) && weightStart > 0)) {
 		return { status: 'skipped', reason: 'missing_weight_start' }
 	}
-	const basis = await findLatestBackBasisByBottleNo(bottleNo, date)
+	const basis = confirmedBasis || await findLatestBackBasisByBottleNo(bottleNo, date)
 	if (!basis) return { status: 'pending', reason: 'missing_back_basis', bottle_no: bottleNo }
 	const lossWeight = resolveStartLossWeightFromFillingDoc(fillingDoc, basis)
 	if (lossWeight == null) return { status: 'skipped', reason: 'invalid_weight' }
