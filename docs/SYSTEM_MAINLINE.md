@@ -9,7 +9,7 @@
 | 逐户核账 | K001至K007已核准；按清单继续 | [核账记录](../state/handoffs/2026-09-10-customer-accounting-audit.md)、[K001转换](../state/handoffs/2026-09-11-baotai-receipt-conversion.md)、[K002收尾](../state/handoffs/2026-09-12-rounding-and-deposit.md)、[K004](../state/handoffs/2026-09-13-k004-accounting-audit.md)、[K005](../state/handoffs/2026-09-13-k005-accounting-audit.md)、[K006](../state/handoffs/2026-09-13-k006-accounting-audit.md)、[K007](../state/handoffs/2026-09-13-k007-accounting-audit.md) |
 | 可复用受保护修正工具 | 最小两类操作已独立批准、发布并用于K006；云端同批重复执行与原值不变补验通过，不扩大到任意修账 | [工具契约](ACCOUNTING_CORRECTION.md)、[批次验收](../state/handoffs/2026-09-13-k006-accounting-audit.md) |
 | 抹零展示与押金独立资金 | 已完成；历史押金须依据确认后登记 | [押金验收](../state/handoffs/2026-09-12-customer-deposit.md) |
-| 灌装/PDA/导入闭环 | 工程候选已交付；隔离云与现场验收未完成，未合入main | [候选总验收](../state/handoffs/2026-09-09-mainline-entry-acceptance.md) |
+| 灌装/PDA/导入闭环 | 09-28已合入main；隔离云与现场验收未完成，未发布 | [候选总验收](../state/handoffs/2026-09-09-mainline-entry-acceptance.md) |
 | 上下文与协作契约 | 当前入口按需加载，历史与现行规则分离 | [RULES](RULES.md) |
 
 后续候选：销售持久写入、历史改单恢复、跨模块瓶状态竞争、催收覆盖范围、业务模块拆分及汇总提速。仅在明确安排对应任务后实施，不因核账或其他小任务自动扩展。
