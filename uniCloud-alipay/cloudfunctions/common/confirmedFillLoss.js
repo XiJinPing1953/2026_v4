@@ -10,7 +10,9 @@ const round = value => Math.round(value * 1000) / 1000
 const same = (a, b) => a != null && b != null && Number.isFinite(Number(a)) && Number.isFinite(Number(b)) && Math.abs(Number(a) - Number(b)) < 0.001
 const fail = message => { throw Object.assign(new Error(message), { code: 409 }) }
 const doc = async (db, collection, id) => {
-	const result = await db.collection(collection).doc(id).get()
+	let result
+	try { result = await db.collection(collection).doc(id).get() }
+	catch (error) { throw new Error(`${collection} read: ${error.message}`) }
 	if (Array.isArray(result?.data)) return result.data[0] || null
 	if (result?.data && typeof result.data === 'object') return result.data
 	if (result?.data === null) return null
@@ -34,10 +36,11 @@ async function evidence(db, anomaly, movementRows) {
 	if (cycle.map(row => row.type).join(',') !== 'back,fill,fill,out' ||
 		cycle[1].source_id !== context.last_fill?.source_id || cycle[2].source_id !== context.next_fill?.source_id ||
 		cycle.some(row => row.bottle_no !== no) || cycle[3].source_type !== 'sale') fail('周期事件已变更或存在额外流转，请重新核实')
-	const [previous, next, backSale, outSale] = await Promise.all([
-		doc(db, 'crm_fillings', cycle[1].source_id), doc(db, 'crm_fillings', cycle[2].source_id),
-		doc(db, 'crm_sale_records', cycle[0].source_id), doc(db, 'crm_sale_records', cycle[3].source_id)
-	])
+	// uniCloud transactions use one server-side session; keep its reads ordered.
+	const previous = await doc(db, 'crm_fillings', cycle[1].source_id)
+	const next = await doc(db, 'crm_fillings', cycle[2].source_id)
+	const backSale = await doc(db, 'crm_sale_records', cycle[0].source_id)
+	const outSale = await doc(db, 'crm_sale_records', cycle[3].source_id)
 	for (const [index, fill] of [[1, previous], [2, next]]) {
 		if (!fill || fill.bottle_no !== no || fill.record_type !== 'normal_fill' || fill.date !== cycle[index].date ||
 			!(fill.weight_start > 0 && fill.weight_end > fill.weight_start) ||
