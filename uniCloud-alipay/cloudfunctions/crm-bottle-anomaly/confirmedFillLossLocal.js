@@ -98,11 +98,15 @@ function createConfirmation({ db, readRows, withLease }) {
 		if (!anomaly) return { code: 404, msg: '异常不存在' }
 		return withLease(anomaly.bottle_no, null, async () => {
 			let transaction
+			let stage = 'start_transaction'
 			try {
 				transaction = data.execute ? await db.startTransaction() : null
 				const source = transaction || db
+				stage = 'read_anomaly'
 				const currentAnomaly = await doc(source, 'crm_bottle_anomalies', id)
+				stage = 'read_history'
 				const rows = await readRows(source, anomaly.bottle_no)
+				stage = 'read_evidence'
 				const current = await evidence(source, currentAnomaly, rows)
 				const previous = currentAnomaly.context?.confirmed_fill_loss
 				if (previous?.version === VERSION && previous.evidence_hash === current.hash && currentAnomaly.status === 'resolved') {
@@ -125,22 +129,27 @@ function createConfirmation({ db, readRows, withLease }) {
 					storage_loss_kg: current.storage_loss_kg, outbound_loss_kg: current.outbound_loss_kg,
 					reason: String(data.reason), approved_at: Date.now(), approved_by: user._id, request_id: requestId }
 				if (plan) {
+					stage = 'write_adjustment'
 					const target = source.collection(plan.collection)
 					if (plan.before) await target.doc(plan.id).update({ ...plan.patch, context: db.command.set(plan.patch.context) })
 					else await target.add({ _id: plan.id, ...plan.patch })
 				}
+				stage = 'write_anomaly'
 				await source.collection('crm_bottle_anomalies').doc(id).update({ status: 'resolved', updated_at: Date.now(),
 					resolved_by: user._id, resolved_by_name: MARKER,
 					context: db.command.set({ ...currentAnomaly.context, confirmed_fill_loss: approval }) })
+				stage = 'write_audit'
 				await source.collection('crm_operation_logs').add({ action: 'bottle_confirm_fill_loss', user_id: user._id,
 					username: user.username || '', role: user.role, created_at: Date.now(), request_id: requestId,
 					detail: { id, approval, before_anomaly: currentAnomaly, before_adjustment: plan?.before || null, adjustment_id: plan?.id || null } })
 				if (data.rollback_test === true) { await transaction.rollback(); return { code: 0, data: { ...result, rolled_back: true } } }
+				stage = 'commit'
 				await transaction.commit()
 				return { code: 0, data: { ...result, applied: true, approval } }
 			} catch (error) {
 				if (transaction) await transaction.rollback().catch(() => {})
-				return { code: error.code === 409 ? 409 : 500, msg: error.message }
+				console.error('[confirmed-fill-loss]', stage, error.code || error.errCode || '', error.message)
+				return { code: error.code === 409 ? 409 : 500, msg: `${stage}: ${error.message}` }
 			}
 		})
 	}
