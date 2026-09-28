@@ -486,4 +486,11 @@ onBeforeUnmount(() => { destroyed = true; scopeGeneration += 1; requestSerial +=
 .deposit-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 16rpx; }
 @media (max-width: 720px) { .deposit-grid, .deposit-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .deposit-form { padding: 20rpx; } }
 @media (max-width: 420px) { .deposit-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .deposit-grid { grid-template-columns:minmax(0,1fr); min-width:0; }
+}
+/* #endif */
 </style>

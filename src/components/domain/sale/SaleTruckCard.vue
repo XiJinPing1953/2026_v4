@@ -192,4 +192,11 @@ function update(key, value) {
 		grid-template-columns: 1fr;
 	}
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .truck-grid { grid-template-columns:minmax(0,1fr); min-width:0; }
+}
+/* #endif */
 </style>

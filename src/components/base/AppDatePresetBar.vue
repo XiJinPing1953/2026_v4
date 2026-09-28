@@ -72,4 +72,10 @@ function onPresetClick(value) {
 	color: var(--crm-text);
 	box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.08);
 }
+/* #ifdef H5 */
+@media (max-width:767px) {
+ .preset-bar { display:flex; flex-wrap:wrap; max-width:100%; box-sizing:border-box; border-radius:12px; }
+ .preset-bar__item { min-width:44px; min-height:44px; padding:10px 12px; box-sizing:border-box; font-size:14px; display:flex; align-items:center; justify-content:center; }
+}
+/* #endif */
 </style>

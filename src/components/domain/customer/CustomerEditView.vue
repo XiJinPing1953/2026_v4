@@ -489,4 +489,12 @@ function onCancel() {
 		grid-column: auto;
 	}
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .span-2 { grid-column:1 / -1; }
+ .edit-header-info, .form-grid { grid-template-columns:minmax(0,1fr); min-width:0; }
+}
+/* #endif */
 </style>

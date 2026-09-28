@@ -62,4 +62,13 @@ defineEmits(['update:modelValue'])
 	background: var(--crm-primary);
 	border-radius: 3rpx 3rpx 0 0;
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .tabs { min-width:0; max-width:100%; overflow-x:auto; gap:24px; -webkit-overflow-scrolling:touch; }
+ .tab-item { flex:0 0 auto; min-height:44px; box-sizing:border-box; justify-content:center; padding:12px 0; }
+ .tab-label { font-size:14px; white-space:nowrap; }
+}
+/* #endif */
 </style>

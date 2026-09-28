@@ -39,4 +39,13 @@ defineProps({
 .card__body {
 	flex: 1;
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .card, .card__body { min-width:0; max-width:100%; box-sizing:border-box; }
+ .card__header { padding:12px 0; }
+ .card__title { font-size:16px; overflow-wrap:anywhere; }
+}
+/* #endif */
 </style>

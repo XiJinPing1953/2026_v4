@@ -584,4 +584,11 @@ onBeforeUnmount(() => { clearTimeout(draftTimer); saveDraft() })
 .footer-button::after { border: 0; }
 .footer-button--secondary { color: #475569; background: #e2e8f0; }
 .footer-button--primary { color: #fff; background: #c2410c; }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .datetime-grid { grid-template-columns:minmax(0,1fr); min-width:0; }
+}
+/* #endif */
 </style>

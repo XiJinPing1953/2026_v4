@@ -314,4 +314,16 @@ function removeRow(index) {
 	font-weight: 700;
 	color: #0f172a;
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .row-actions { flex-wrap:wrap; min-width:0; max-width:100%; gap:8px; }
+}
+/* #endif */
+/* #ifdef H5 */
+@media (max-width:767px) {
+ .summary-pill { box-sizing:border-box; max-width:100%; flex-wrap:wrap; }
+}
+/* #endif */
 </style>

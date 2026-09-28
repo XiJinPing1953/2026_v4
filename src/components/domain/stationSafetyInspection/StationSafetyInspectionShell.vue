@@ -43,4 +43,16 @@ async function goBack() {
 .shell__subtitle { margin-top: 8rpx; font-size: 23rpx; line-height: 1.45; opacity: .88; }
 .shell__action { flex: none; }
 .shell__body { padding: 24rpx; }
+/* #ifdef H5 */
+@media (max-width:767px) {
+ .shell__top { flex-wrap:wrap; gap:12px; padding:16px 12px; }
+ .shell__back { flex:0 0 44px; height:44px; line-height:40px; font-size:32px; }
+ .shell__heading { min-width:0; overflow-wrap:anywhere; }
+ .shell__title { font-size:20px; }
+ .shell__subtitle { font-size:14px; }
+ .shell__action { max-width:100%; }
+ .shell__body { padding:12px; }
+ .shell :deep(button) { min-height:44px; box-sizing:border-box; }
+}
+/* #endif */
 </style>

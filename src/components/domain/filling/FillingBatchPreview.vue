@@ -78,4 +78,15 @@ function flowStatus(item) {
 	.mobile-label { display: block; font-size: 11px; color: #64748b; }
 	.detail-button { grid-column: 4; grid-row: 3; justify-self: end; }
 }
+
+/* #ifdef H5 */
+@media (max-width:767px) {
+ .preview-head { display:none; }
+ .preview-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .bottle-cell, .status-cell { grid-column:1 / -1; grid-row:auto; align-items:flex-start; }
+ .weight-cell:nth-child(n) { grid-column:auto; grid-row:auto; min-width:0; overflow-wrap:anywhere; display:flex; flex-direction:column; gap:4px; }
+ .mobile-label { display:block; font-size:12px; color:#64748b; }
+ .detail-button { grid-column:1 / -1; grid-row:auto; min-height:44px; justify-self:start; }
+}
+/* #endif */
 </style>

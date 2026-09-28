@@ -186,4 +186,7 @@ function goFilling(item) {
 		width: 100%;
 	}
 }
+/* #ifdef H5 */
+@media (max-width:767px) { .filters { grid-template-columns:minmax(0,1fr); } .actions-row { flex-wrap:wrap; } }
+/* #endif */
 </style>

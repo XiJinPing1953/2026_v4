@@ -695,4 +695,26 @@ function extractTareWeight(item = {}) {
 		flex-wrap: wrap;
 	}
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .section-actions { flex-wrap:wrap; min-width:0; max-width:100%; gap:8px; }
+}
+/* #endif */
+
+/* #ifdef H5 */
+@media (max-width:767px) {
+ .row-grid { grid-template-columns:minmax(0,1fr); }
+ .net-cell { grid-template-columns:minmax(0,1fr) 44px; }
+ .net-action { min-width:44px; min-height:44px; }
+ .section-head, .batch-actions { flex-wrap:wrap; gap:8px; }
+ .section-head { align-items:flex-start; }
+}
+/* #endif */
+/* #ifdef H5 */
+@media (max-width:767px) {
+ .summary-pill { box-sizing:border-box; max-width:100%; flex-wrap:wrap; }
+}
+/* #endif */
 </style>

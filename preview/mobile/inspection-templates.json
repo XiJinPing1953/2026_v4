@@ -1,0 +1,989 @@
+{
+  "home": {
+    "code": "home_safety_standard",
+    "version": 2,
+    "title": "入户随瓶安全巡检",
+    "items": [
+      {
+        "code": "storage_environment_leak",
+        "label": "气瓶存放环境内是否存在燃气泄漏",
+        "checks": [
+          {
+            "code": "leakage",
+            "label": "泄漏情况",
+            "options": [
+              {
+                "code": "no_leak",
+                "label": "无泄漏",
+                "is_abnormal": false
+              },
+              {
+                "code": "leak",
+                "label": "有泄漏",
+                "is_abnormal": true
+              }
+            ]
+          }
+        ],
+        "min_photos": 1,
+        "max_photos": 3
+      },
+      {
+        "code": "cylinder_appearance",
+        "label": "气瓶外观是否正常",
+        "checks": [
+          {
+            "code": "appearance",
+            "label": "外观情况",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ]
+          }
+        ],
+        "min_photos": 1,
+        "max_photos": 3
+      },
+      {
+        "code": "multiple_gas_sources",
+        "label": "是否存在不同气源同时存放或使用",
+        "description": "“多气源”是指同一场所同时存在两种及以上燃气种类或供气系统；多只同类液化气瓶不属于多气源。",
+        "checks": [
+          {
+            "code": "multiple_sources",
+            "label": "多气源情况",
+            "options": [
+              {
+                "code": "none",
+                "label": "无",
+                "is_abnormal": false
+              },
+              {
+                "code": "present",
+                "label": "有",
+                "is_abnormal": true
+              }
+            ]
+          }
+        ],
+        "min_photos": 1,
+        "max_photos": 3
+      },
+      {
+        "code": "appliance_connection_hose",
+        "label": "燃气器具连接管",
+        "checks": [
+          {
+            "code": "appearance_connection",
+            "label": "连接及外观",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ]
+          },
+          {
+            "code": "leakage",
+            "label": "泄漏情况",
+            "options": [
+              {
+                "code": "no_leak",
+                "label": "无泄漏",
+                "is_abnormal": false
+              },
+              {
+                "code": "leak",
+                "label": "有泄漏",
+                "is_abnormal": true
+              }
+            ]
+          }
+        ],
+        "min_photos": 1,
+        "max_photos": 3
+      },
+      {
+        "code": "valve_appearance_leak",
+        "label": "阀门",
+        "checks": [
+          {
+            "code": "appearance",
+            "label": "外观情况",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ]
+          },
+          {
+            "code": "leakage",
+            "label": "泄漏情况",
+            "options": [
+              {
+                "code": "no_leak",
+                "label": "无泄漏",
+                "is_abnormal": false
+              },
+              {
+                "code": "leak",
+                "label": "有泄漏",
+                "is_abnormal": true
+              }
+            ]
+          }
+        ],
+        "min_photos": 1,
+        "max_photos": 3
+      },
+      {
+        "code": "regulator_appearance_leak",
+        "label": "调压阀",
+        "checks": [
+          {
+            "code": "appearance",
+            "label": "外观情况",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ]
+          },
+          {
+            "code": "leakage",
+            "label": "泄漏情况",
+            "options": [
+              {
+                "code": "no_leak",
+                "label": "无泄漏",
+                "is_abnormal": false
+              },
+              {
+                "code": "leak",
+                "label": "有泄漏",
+                "is_abnormal": true
+              }
+            ]
+          }
+        ],
+        "min_photos": 1,
+        "max_photos": 3
+      },
+      {
+        "code": "gas_leak_alarm_power",
+        "label": "燃气泄漏报警器",
+        "checks": [
+          {
+            "code": "installed",
+            "label": "是否安装",
+            "options": [
+              {
+                "code": "yes",
+                "label": "是",
+                "is_abnormal": false
+              },
+              {
+                "code": "no",
+                "label": "否",
+                "is_abnormal": true
+              }
+            ]
+          },
+          {
+            "code": "powered",
+            "label": "是否通电",
+            "options": [
+              {
+                "code": "yes",
+                "label": "是",
+                "is_abnormal": false
+              },
+              {
+                "code": "no",
+                "label": "否",
+                "is_abnormal": true
+              }
+            ],
+            "visible_when": {
+              "check_code": "installed",
+              "option_code": "yes"
+            }
+          }
+        ],
+        "min_photos": 1,
+        "max_photos": 3
+      },
+      {
+        "code": "vaporizer_appearance",
+        "label": "气化器外观",
+        "checks": [
+          {
+            "code": "appearance",
+            "label": "外观情况",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ]
+          }
+        ],
+        "min_photos": 1,
+        "max_photos": 3
+      }
+    ]
+  },
+  "station": {
+    "code": "station_safety_standard",
+    "version": 2,
+    "title": "厂站内安全巡检",
+    "station": {
+      "id": "XTNY-001",
+      "name": "无极县新拓能源开发有限公司"
+    },
+    "areas": [
+      {
+        "code": "tank_area",
+        "label": "储罐区",
+        "items": [
+          {
+            "code": "tank_static_eliminator",
+            "label": "人体除静电装置是否完好、规范接地",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "tank_valves",
+            "label": "阀门位置、操作及泄漏情况是否正常",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "tank_safety_valve",
+            "label": "安全阀是否在有效状态，铅封和标识是否完好",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "tank_bolts",
+            "label": "紧固螺栓是否松动、缺失",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "tank_alarm",
+            "label": "可燃气体报警器是否通电且工作正常",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "tank_signage",
+            "label": "安全标志与设备标牌是否齐全、清晰、正常",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "tank_instruments",
+            "label": "液位计、压力表是否正常",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "tank_grounding",
+            "label": "设备接地、管道静电跨接是否完好",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "tank_housekeeping",
+            "label": "区域是否无杂物，通道是否畅通",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "tank_insulation_leak",
+            "label": "储罐和管道保温、外观及泄漏情况是否正常",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          }
+        ]
+      },
+      {
+        "code": "pump_area",
+        "label": "柱塞泵/潜液泵区",
+        "items": [
+          {
+            "code": "pump_static_eliminator",
+            "label": "除静电装置是否完好、规范接地",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "pump_bolts",
+            "label": "泵体及附属设备螺栓是否松动、缺失",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "pump_explosion_conduit",
+            "label": "防爆管是否完整，有无破裂",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "pump_grounding",
+            "label": "设备接地与静电跨接是否完好",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "pump_valves",
+            "label": "阀门开关状态及泄漏情况是否正常",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "pump_safety_valve",
+            "label": "安全阀是否在有效状态，标识是否完好",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "pump_signage",
+            "label": "安全标志与设备标牌是否齐全、正常",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "pump_pipeline_pressure",
+            "label": "运行时管道压力是否处于规定范围且无异常波动",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "pump_appearance_leak",
+            "label": "泵体和管道保温、外观及泄漏情况是否正常",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          }
+        ]
+      },
+      {
+        "code": "filling_area",
+        "label": "充装区",
+        "items": [
+          {
+            "code": "filling_static_eliminator",
+            "label": "除静电装置是否完好、规范接地",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "filling_explosion_emergency_light",
+            "label": "防爆应急灯",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "filling_hanging_scale",
+            "label": "吊秤及防脱钩是否完好、无变形",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "filling_tools",
+            "label": "现场工具是否齐全且符合防爆要求，无非防爆工具柜",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "filling_explosion_protection",
+            "label": "防爆管是否破裂，防爆设备螺栓是否松动",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "filling_scale_shell",
+            "label": "充装秤防爆壳螺丝是否松动、缺失",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "filling_alarm",
+            "label": "可燃气体报警器是否通电且工作正常",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "filling_signage",
+            "label": "安全标志与设备标牌是否齐全、正常",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "filling_housekeeping",
+            "label": "区域是否无杂物，充装及消防通道是否畅通",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "filling_extinguisher",
+            "label": "灭火器是否在有效状态，压力、铅封及巡检标签是否正常",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          }
+        ]
+      },
+      {
+        "code": "public_area",
+        "label": "全厂公共项",
+        "items": [
+          {
+            "code": "public_emergency_supplies",
+            "label": "应急物资及清单是否齐全，正压式空气呼吸器、手持可燃气体探测器等是否在位",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "public_control_room_electrical",
+            "label": "控制室配电箱、绝缘胶垫和出线口封堵是否正常",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "public_cylinder_zoning",
+            "label": "气瓶是否分区存放，空瓶、满瓶标签是否清晰",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "public_entry_management",
+            "label": "车辆、人员入厂登记、区域边界和规定着装是否符合要求",
+            "hazard_category": "安全管理",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "public_cylinder_transport",
+            "label": "是否禁止叉车运瓶，专用推车防倾倒、防碰撞措施是否完好",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "public_fire_records",
+            "label": "灭火器、消防栓等消防设施年检、巡检标签和台账频次是否符合要求",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          },
+          {
+            "code": "public_lightning_static_report",
+            "label": "防雷防静电检测报告、接地标识和检测频次是否符合要求",
+            "hazard_category": "厂站设施",
+            "options": [
+              {
+                "code": "normal",
+                "label": "正常",
+                "is_abnormal": false
+              },
+              {
+                "code": "abnormal",
+                "label": "异常",
+                "is_abnormal": true
+              }
+            ],
+            "min_photos": 1,
+            "max_photos": 3
+          }
+        ]
+      }
+    ]
+  }
+}

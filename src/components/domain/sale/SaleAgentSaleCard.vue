@@ -394,4 +394,17 @@ function removeRow(index) {
 		grid-template-columns: 1fr;
 	}
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .row-actions { flex-wrap:wrap; min-width:0; max-width:100%; gap:8px; }
+}
+/* #endif */
+
+/* #ifdef H5 */
+@media (max-width:767px) {
+ .row-grid { grid-template-columns:minmax(0,1fr); }
+}
+/* #endif */
 </style>

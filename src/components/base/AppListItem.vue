@@ -107,6 +107,8 @@ defineEmits(['click'])
 }
 
 .item__heading {
+	min-width:0;
+	overflow-wrap:anywhere;
 	display: flex;
 	flex-direction: column;
 	gap: 4rpx;
@@ -133,6 +135,8 @@ defineEmits(['click'])
 }
 
 .item__meta {
+	min-width:0;
+	overflow-wrap:anywhere;
 	margin-top: 8rpx;
 	display: flex;
 	flex-wrap: wrap;
@@ -161,4 +165,20 @@ defineEmits(['click'])
 .bg-purple { background: #7c3aed; }
 .bg-teal { background: #00a1e0; }
 .bg-emerald { background: #00b19d; }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .item { min-width:0; padding:12px; overflow:visible; }
+ .item__main { gap:10px; }
+ .item__icon-wrapper { width:32px; height:32px; }
+ .item__row { flex-direction:column; gap:8px; }
+ .item__heading { min-width:0; width:100%; }
+ .item__title { font-size:16px; overflow-wrap:anywhere; }
+ .item__subtitle { font-size:14px; overflow-wrap:anywhere; }
+ .item__right { align-items:flex-start; max-width:100%; }
+ .item__meta, .item__body, .item__footer { min-width:0; overflow-wrap:anywhere; }
+ .item__footer { flex-wrap:wrap; gap:8px; }
+}
+/* #endif */
 </style>

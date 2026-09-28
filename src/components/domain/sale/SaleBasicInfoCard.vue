@@ -957,4 +957,18 @@ function updatePopoverPlacement(fieldKey, count) {
 		grid-template-columns: 1fr;
 	}
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .span-2 { grid-column:1 / -1; }
+ .info-grid, .info-grid--sm, .unit-group { grid-template-columns:minmax(0,1fr); min-width:0; }
+}
+/* #endif */
+/* #ifdef H5 */
+@media (max-width:1024px) {
+ .choice-group, .info-grid--sm .choice-group { height:auto; flex-wrap:wrap; max-width:100%; }
+ .choice-pill { min-height:44px; min-width:44px; box-sizing:border-box; }
+}
+/* #endif */
 </style>

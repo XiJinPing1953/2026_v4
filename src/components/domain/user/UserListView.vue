@@ -643,4 +643,19 @@ defineExpose({
 		grid-template-columns: 1fr;
 	}
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .form-grid { grid-template-columns:minmax(0,1fr); min-width:0; }
+ .section-actions, .table-actions { flex-wrap:wrap; min-width:0; max-width:100%; gap:8px; }
+}
+/* #endif */
+
+/* #ifdef H5 */
+@media (max-width:767px) {
+ .permission-scroll { min-width:0; max-width:100%; }
+ .permission-scroll::before { content:"左右滑动查看完整权限"; font-size:12px; color:var(--crm-text-muted); }
+}
+/* #endif */
 </style>

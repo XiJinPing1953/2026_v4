@@ -399,4 +399,12 @@ function onCancel() {
 		grid-template-columns: 1fr;
 	}
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .edit-header-info, .entry-grid, .form-grid { grid-template-columns:minmax(0,1fr); min-width:0; }
+ .actions, .entry-actions { flex-wrap:wrap; min-width:0; max-width:100%; gap:8px; }
+}
+/* #endif */
 </style>

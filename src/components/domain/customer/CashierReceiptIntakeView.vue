@@ -1245,4 +1245,13 @@ onShow(() => {
 	.operation-card, .proof-card__header, .list-actions, .cursor-footer { flex-direction: column; align-items: stretch; }
 	.mini-amounts { align-items: flex-start; }
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .filter-customer, .intake-customer { grid-column:1 / -1; }
+ .intake-main-grid, .recent-filter-inline { grid-template-columns:minmax(0,1fr); min-width:0; }
+ .row-actions { flex-wrap:wrap; min-width:0; max-width:100%; gap:8px; }
+}
+/* #endif */
 </style>

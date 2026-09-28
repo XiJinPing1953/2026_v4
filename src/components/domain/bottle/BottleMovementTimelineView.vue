@@ -519,4 +519,12 @@ watch(
 		grid-template-columns: 1fr;
 	}
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .search-row { grid-template-columns:minmax(0,1fr); min-width:0; }
+ .summary-row { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; min-width:0; }
+}
+/* #endif */
 </style>

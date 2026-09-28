@@ -361,8 +361,8 @@ function resolveViewportSizeByWindow() {
 	const docWidth = Number(window?.document?.documentElement?.clientWidth || 0)
 	const docHeight = Number(window?.document?.documentElement?.clientHeight || 0)
 	return {
-		width: Math.round(Math.max(visualWidth, innerWidth, docWidth)),
-		height: Math.round(Math.max(visualHeight, innerHeight, docHeight))
+		width: Math.round(visualWidth || innerWidth || docWidth),
+		height: Math.round(visualHeight || innerHeight || docHeight)
 	}
 }
 
@@ -404,20 +404,20 @@ function initMetrics({ preservePosition = false } = {}) {
 		const h5Viewport = resolveViewportSizeByWindow()
 		const resolvedWidth = Number(h5Viewport.width || sys.windowWidth || 0)
 		const resolvedHeight = Number(h5Viewport.height || sys.windowHeight || 0)
-		metrics.windowWidth = Math.max(resolvedWidth, 390)
-		metrics.windowHeight = Math.max(resolvedHeight, 844)
+		metrics.windowWidth = resolvedWidth || 390
+		metrics.windowHeight = resolvedHeight || 844
 		metrics.triggerSize = Math.max(48, Math.round(uni.upx2px(96)))
 		metrics.triggerMargin = Math.max(12, Math.round(uni.upx2px(40)))
 		metrics.panelWidth = Math.min(metrics.windowWidth - 16, Math.max(320, Math.round(uni.upx2px(760))))
 		metrics.panelHeight = Math.min(metrics.windowHeight - 24, Math.max(420, Math.round(uni.upx2px(1300))))
 	} catch (err) {
 		const h5Viewport = resolveViewportSizeByWindow()
-		metrics.windowWidth = Math.max(h5Viewport.width || 0, 390)
-		metrics.windowHeight = Math.max(h5Viewport.height || 0, 844)
+		metrics.windowWidth = h5Viewport.width || 390
+		metrics.windowHeight = h5Viewport.height || 844
 		metrics.triggerSize = 48
 		metrics.triggerMargin = 20
-		metrics.panelWidth = 380
-		metrics.panelHeight = 620
+		metrics.panelWidth = Math.min(metrics.windowWidth - 16, 380)
+		metrics.panelHeight = Math.min(metrics.windowHeight - 24, 620)
 	}
 	if (preservePosition) {
 		clampTriggerPosition(currentTrigger.x, currentTrigger.y)
@@ -902,4 +902,12 @@ onBeforeUnmount(() => {
 		text-align: left;
 	}
 }
+/* #ifdef H5 */
+@media (max-width:767px) {
+ .bottle-query__close, .bottle-query__drag-handle { width:44px; height:44px; flex-shrink:0; }
+ .bottle-query__header { padding:6px 12px; flex-shrink:0; }
+ .bottle-query__search-row { padding:12px 12px 0; flex-shrink:0; }
+ .bottle-query__body { padding:12px; }
+}
+/* #endif */
 </style>

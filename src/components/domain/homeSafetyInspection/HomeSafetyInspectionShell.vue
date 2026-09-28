@@ -97,4 +97,16 @@ async function goBack() {
 .inspection-shell__body {
 	padding: 24rpx;
 }
+/* #ifdef H5 */
+@media (max-width:767px) {
+ .inspection-shell__top { flex-wrap:wrap; gap:12px; padding:16px 12px; }
+ .inspection-shell__back { flex:0 0 44px; height:44px; line-height:40px; font-size:32px; }
+ .inspection-shell__heading { min-width:0; overflow-wrap:anywhere; }
+ .inspection-shell__title { font-size:20px; }
+ .inspection-shell__subtitle { font-size:14px; }
+ .inspection-shell__action { max-width:100%; }
+ .inspection-shell__body { padding:12px; }
+ .inspection-shell :deep(button) { min-height:44px; box-sizing:border-box; }
+}
+/* #endif */
 </style>

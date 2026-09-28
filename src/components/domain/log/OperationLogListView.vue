@@ -736,4 +736,19 @@ defineExpose({
 		justify-content: center;
 	}
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .filter-grid { grid-template-columns:minmax(0,1fr); min-width:0; }
+ .summary-row { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; min-width:0; }
+}
+/* #endif */
+
+/* #ifdef H5 */
+@media (max-width:767px) {
+ .detail-panel { max-height:calc(100dvh - 24px); overflow-y:auto; }
+ .detail-close { min-height:44px; min-width:44px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; }
+}
+/* #endif */
 </style>

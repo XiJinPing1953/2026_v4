@@ -611,4 +611,12 @@ defineExpose({ refresh })
 	.stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.stat-item--wide { grid-column: span 2; }
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .stat-item--wide { grid-column:1 / -1; }
+ .date-grid { grid-template-columns:minmax(0,1fr); min-width:0; }
+}
+/* #endif */
 </style>

@@ -60,4 +60,13 @@ defineEmits(['search', 'reset'])
 .filter--compact .filter__fields {
 	grid-template-columns: 1fr;
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .filter { min-width:0; padding:12px; }
+ .filter__fields { grid-template-columns:minmax(0,1fr); }
+ .filter__actions { flex-wrap:wrap; }
+}
+/* #endif */
 </style>

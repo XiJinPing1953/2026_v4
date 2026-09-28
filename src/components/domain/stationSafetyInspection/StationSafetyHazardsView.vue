@@ -6,7 +6,12 @@
 		<view v-else-if="!hazardId" class="list-stack">
 			<view class="filter-card">
 				<input v-model="keyword" class="input" placeholder="搜索编号、区域、隐患或责任人" confirm-type="search" @confirm="loadList(true)" />
-					<scroll-view scroll-x class="status-scroll"><view class="status-row"><view v-for="option in statusOptions" :key="option.value" :class="['filter-chip', { 'filter-chip--active': status === option.value }]" @click="selectStatus(option.value)">{{ option.label }}</view></view></scroll-view>
+					<!-- #ifdef H5 -->
+<view class="status-scroll"><view class="status-row"><view v-for="option in statusOptions" :key="option.value" :class="['filter-chip', { 'filter-chip--active': status === option.value }]" @click="selectStatus(option.value)">{{ option.label }}</view></view></view>
+<!-- #endif -->
+<!-- #ifndef H5 -->
+<scroll-view scroll-x class="status-scroll"><view class="status-row"><view v-for="option in statusOptions" :key="option.value" :class="['filter-chip', { 'filter-chip--active': status === option.value }]" @click="selectStatus(option.value)">{{ option.label }}</view></view></scroll-view>
+<!-- #endif -->
 				<button class="search-button" type="button" @click="loadList(true)">查询</button>
 			</view>
 			<view v-if="!rows.length" class="state-card">当前条件下没有隐患记录</view>
@@ -209,4 +214,11 @@ defineExpose({ refresh: () => props.hazardId ? loadDetail() : loadList(true) })
 .photo-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10rpx; margin-top: 10rpx; }.photo { width: 100%; aspect-ratio: 1; border-radius: 12rpx; background: #e2e8f0; }.signature { width: 100%; height: 180rpx; margin-top: 10rpx; border: 1rpx solid #e2e8f0; border-radius: 12rpx; background: #fff; }.required { color: #dc2626; }
 	.verification-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; margin-top: 16rpx; }.verify-option { padding: 17rpx; text-align: center; color: #475569; border: 1rpx solid #cbd5e1; border-radius: 14rpx; }.verify-option--active { color: #047857; border-color: #10b981; background: #ecfdf5; }.verify-option--danger.verify-option--active { color: #b91c1c; border-color: #ef4444; background: #fef2f2; }
 	.admin-link { margin: 18rpx 0 0; width: 100%; min-height: 66rpx; color: #9a3412; border: 1rpx solid #fdba74; border-radius: 14rpx; background: #fff7ed; font-size: 22rpx; }.admin-link::after { border: 0; }.admin-card { border-color: #c7d2fe; background: #f8faff; }.admin-hint { display: block; margin-top: 8rpx; color: #64748b; font-size: 20rpx; line-height: 1.5; }
+/* #ifdef H5 */
+.status-scroll { overflow-x:auto; max-width:100%; }
+@media (max-width:767px) {
+ .filter-chip { min-height:44px; box-sizing:border-box; display:flex; align-items:center; }
+ .detail-grid, .verification-options { grid-template-columns:minmax(0,1fr); }
+}
+/* #endif */
 </style>

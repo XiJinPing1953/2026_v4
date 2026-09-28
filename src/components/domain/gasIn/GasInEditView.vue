@@ -555,4 +555,12 @@ onBeforeUnmount(() => {
 	border-radius: 10rpx;
 	display: inline-flex;
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .span-2 { grid-column:1 / -1; }
+ .form-grid, .basic-triplet { grid-template-columns:minmax(0,1fr); min-width:0; }
+}
+/* #endif */
 </style>

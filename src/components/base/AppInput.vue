@@ -138,4 +138,15 @@ function handleBlur(e) {
 	box-sizing: border-box;
 	line-height: 1.4;
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .field { min-width:0; max-width:100%; }
+ .field__label { font-size:14px; line-height:1.5; }
+ .field__control { min-height:44px; height:44px; padding:0 12px; box-sizing:border-box; min-width:0; }
+ .field__control .field__input { font-size:16px; }
+ .field__icon { flex-shrink:0; }
+}
+/* #endif */
 </style>

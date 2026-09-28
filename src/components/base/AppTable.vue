@@ -41,6 +41,7 @@
 					v-for="col in columns"
 					:key="col.key"
 					class="table__cell"
+					:data-label="col.label"
 					:style="{ textAlign: col.align || 'left' }"
 				>
 					<slot
@@ -161,4 +162,16 @@ function formatCell(row, col) {
 	font-weight: 700;
 	color: var(--crm-text);
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 1100px) {
+ .table, .table__body { min-width:0; }
+ .table__header, .table__actions { flex-wrap:wrap; }
+ .table__row { display:flex; flex-direction:column; min-width:0; gap:12px; padding:12px; }
+ .table__row--head { display:none; }
+ .table__cell { min-width:0; text-align:left !important; font-size:14px; overflow-wrap:anywhere; }
+ .table__cell::before { content:attr(data-label); display:block; margin-bottom:4px; color:var(--crm-text-muted); font-size:12px; }
+}
+/* #endif */
 </style>

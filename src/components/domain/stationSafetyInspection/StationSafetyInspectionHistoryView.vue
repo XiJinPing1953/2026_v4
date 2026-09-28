@@ -56,4 +56,11 @@ defineExpose({ refresh: () => load(true) })
 .search-button,.load-more { margin: 16rpx 0 0; width: 100%; min-height: 70rpx; color: #fff; border-radius: 14rpx; background: #c2410c; font-size: 24rpx; }.search-button::after,.load-more::after { border: 0; }
 .history-list { display: flex; flex-direction: column; gap: 16rpx; margin-top: 18rpx; }.history-card__head { display: flex; justify-content: space-between; gap: 16rpx; }.history-card__no { color: #243b53; font-size: 26rpx; font-weight: 900; }.status-pill { padding: 6rpx 14rpx; color: #047857; border-radius: 999rpx; background: #d1fae5; font-size: 20rpx; }.status-pill--danger { color: #b91c1c; background: #fee2e2; }
 .history-card__time { display: block; margin-top: 8rpx; color: #64748b; font-size: 22rpx; }.history-card__meta { display: flex; flex-wrap: wrap; gap: 14rpx; margin-top: 12rpx; color: #475569; font-size: 21rpx; }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .date-grid { grid-template-columns:minmax(0,1fr); min-width:0; }
+}
+/* #endif */
 </style>

@@ -108,11 +108,13 @@ onMounted(() => {
 }
 .header__top {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: 24rpx;
 	padding-bottom: 24rpx;
 }
 .header__icon-box {
+	flex-shrink: 0;
 	width: 80rpx;
 	height: 80rpx;
 	background: var(--crm-primary);
@@ -122,6 +124,7 @@ onMounted(() => {
 	justify-content: center;
 }
 .header__content {
+	min-width: 180px;
 	flex: 1;
 	display: flex;
 	flex-direction: column;
@@ -139,6 +142,8 @@ onMounted(() => {
 	line-height: 1.2;
 }
 .header__actions {
+	flex-wrap: wrap;
+	max-width: 100%;
 	display: flex;
 	gap: 16rpx;
 }
@@ -160,4 +165,21 @@ onMounted(() => {
 	padding: 0 24rpx;
 	gap: 24rpx;
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .page { min-width:0; padding-bottom:calc(88px + env(safe-area-inset-bottom)); }
+ .page__header { padding:16px 12px 0; }
+ .header__top { flex-wrap:wrap; gap:12px; padding-bottom:16px; }
+ .header__icon-box { flex:0 0 40px; height:40px; }
+ .header__content { min-width:0; flex:1 1 calc(100% - 52px); overflow-wrap:anywhere; }
+ .header__title { font-size:22px; line-height:1.35; }
+ .header__label { font-size:13px; line-height:1.5; letter-spacing:0; }
+ .header__actions { flex:1 0 100%; min-width:0; flex-wrap:wrap; gap:8px; }
+ .header__highlights { gap:12px; padding:16px 0; min-width:0; }
+ .page__body { min-width:0; }
+ .page__body--padded { padding:0 12px; gap:16px; }
+}
+/* #endif */
 </style>

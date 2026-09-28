@@ -121,4 +121,12 @@ function onPressEnd(event) {
 	opacity: 0.5;
 	cursor: not-allowed;
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .btn { min-height:44px; height:auto; max-width:100%; box-sizing:border-box; padding:10px 12px; font-size:14px; line-height:1.4; }
+ .btn__inner { min-width:0; justify-content:center; overflow-wrap:anywhere; }
+}
+/* #endif */
 </style>

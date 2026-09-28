@@ -32,3 +32,6 @@ outputs/k002-status-*/
 docs/tank_monitor_logs_*.csv
 docs/tank_monitor_logs_*.json
 outputs/inspection-due-shortcuts-*/crm-bottle-rollback.tar
+
+# Local browser inspection logs and snapshots.
+.playwright-cli/

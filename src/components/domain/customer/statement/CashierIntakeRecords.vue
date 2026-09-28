@@ -510,4 +510,11 @@ onBeforeUnmount(() => {
 	.cashier-intake-filters { grid-template-columns:minmax(0,1fr); }
 	.cashier-intake-actions, .cashier-intake-pager { justify-content:flex-start; }
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .cashier-intake-filters { grid-template-columns:minmax(0,1fr); min-width:0; }
+}
+/* #endif */
 </style>

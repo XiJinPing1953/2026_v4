@@ -1925,4 +1925,11 @@ onBeforeUnmount(() => {
 		border-radius: 20rpx 20rpx 0 0;
 	}
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .datetime-grid { grid-template-columns:minmax(0,1fr); min-width:0; }
+}
+/* #endif */
 </style>

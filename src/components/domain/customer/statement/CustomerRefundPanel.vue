@@ -107,4 +107,18 @@ watch(()=>props.customerId,async()=>{operation.value=null;reset();operation.valu
  .source { grid-template-columns:minmax(0,1fr) 130px; gap:12px; padding:12px; }
 }
 @media(max-width:400px) { .fields { grid-template-columns:1fr; } .source { grid-template-columns:1fr; } }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .reason-field { grid-column:1 / -1; }
+ .actions { flex-wrap:wrap; min-width:0; max-width:100%; gap:8px; }
+}
+/* #endif */
+
+/* #ifdef H5 */
+@media (max-width:767px) {
+ .fields, .source { grid-template-columns:minmax(0,1fr); }
+}
+/* #endif */
 </style>

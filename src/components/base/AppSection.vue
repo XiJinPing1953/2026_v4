@@ -46,4 +46,15 @@ defineProps({
 	gap: 8rpx;
 	align-items: center;
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .section { min-width:0; max-width:100%; box-sizing:border-box; }
+ .section__header { flex-wrap:wrap; gap:8px; padding:12px; }
+ .section__title { min-width:0; font-size:16px; overflow-wrap:anywhere; }
+ .section__actions { flex-wrap:wrap; min-width:0; max-width:100%; gap:8px; }
+ .section__body { min-width:0; padding:12px; }
+}
+/* #endif */
 </style>

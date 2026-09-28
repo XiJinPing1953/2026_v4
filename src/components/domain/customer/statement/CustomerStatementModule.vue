@@ -6542,4 +6542,36 @@ onBeforeUnmount(() => {
  .operation-section :deep(.section__header) { display:grid; grid-template-columns:minmax(0,1fr); }
  .operation-section :deep(.section__actions) { min-height:78px; align-items:flex-start; }
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .flow-grid__note { grid-column:1 / -1; }
+ .analysis-filter-grid, .bottle-compare-grid, .deposit-grid, .filter-grid, .flow-grid, .receipt-grid, .receipt-grid--four { grid-template-columns:minmax(0,1fr); min-width:0; }
+ .summary-row { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; min-width:0; }
+ .pager-row, .row-actions, .section-actions { flex-wrap:wrap; min-width:0; max-width:100%; gap:8px; }
+}
+/* #endif */
+
+/* #ifdef H5 */
+@media (max-width:767px) {
+ .statement-theme .analysis-filter-grid, .statement-theme .receipt-grid, .statement-theme .flow-grid, .statement-theme .filter-grid { grid-template-columns:minmax(0,1fr); }
+ .statement-theme :deep(.btn) { height:auto; min-height:44px; font-size:14px; padding:10px 12px; }
+ .statement-theme :deep(.field__control) { height:44px; min-height:44px; }
+ .statement-theme :deep(.field__input) { font-size:16px; }
+ .statement-theme :deep(.field__label) { font-size:14px; }
+ .statement-theme :deep(.header__content) { min-width:0; }
+ .overview-grid--identity, .overview-grid--finance, .overview-grid--supplement, .overview-pair { grid-template-columns:minmax(0,1fr); }
+ .allocation-decision-sticky__items { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .mini-amounts--receipt-compact { grid-template-columns:minmax(0,1fr); justify-items:start; }
+ .workspace-nav { position:static; }
+ .workspace-tabs { flex-wrap:nowrap; overflow-x:auto; }
+ .workspace-tab { flex:0 0 auto; min-height:44px; }
+ .statement-header-actions { display:flex; flex-wrap:wrap; }
+ .statement-header-actions :deep(.btn) { width:auto; }
+ .operation-section :deep(.section__actions) { min-height:0; }
+ .statement-theme :deep(.section__header) { padding:12px; }
+ .statement-theme :deep(.section__body) { padding:12px; }
+}
+/* #endif */
 </style>

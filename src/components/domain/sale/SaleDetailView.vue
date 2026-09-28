@@ -1361,4 +1361,23 @@ defineExpose({
 		grid-template-columns: 52rpx minmax(140rpx, 1fr);
 	}
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .span-2, .span-3 { grid-column:1 / -1; }
+ .info-grid, .info-grid--base { grid-template-columns:minmax(0,1fr); min-width:0; }
+ .summary-row { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; min-width:0; }
+}
+/* #endif */
+
+/* #ifdef H5 */
+@media (max-width:767px) {
+ .detail-table { overflow-x:auto; max-width:100%; }
+ .detail-table::before { content:'左右滑动查看完整明细'; display:block; color:var(--crm-text-muted); font-size:12px; padding:8px; }
+ .detail-table__head, .detail-table__row { min-width:520px; box-sizing:border-box; }
+ .detail-table--compact .detail-table__head, .detail-table--compact .detail-table__row { min-width:360px; }
+ .detail-table--simple .detail-table__head, .detail-table--simple .detail-table__row { min-width:280px; }
+}
+/* #endif */
 </style>

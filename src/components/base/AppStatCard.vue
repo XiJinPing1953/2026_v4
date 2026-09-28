@@ -1,5 +1,5 @@
 <template>
-	<view class="stat" @click="$emit('click')">
+	<view class="stat" :class="{ 'stat--wide': String(value).length > 8 || label.length > 8 }" @click="$emit('click')">
 		<view class="stat__meta">
 			<text class="stat__label">{{ label }}</text>
 			<view class="stat__meta-right">
@@ -157,4 +157,18 @@ const trendLabel = computed(() => {
 	align-items: center;
 	justify-content: center;
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .stat { min-width:0; padding:12px; }
+ .stat--wide { grid-column:1 / -1; }
+ .stat__meta, .stat__content { flex-wrap:wrap; gap:8px; }
+ .stat__meta { align-items:flex-start; }
+ .stat__label { font-size:13px; overflow-wrap:anywhere; }
+ .stat__value { line-height:1.2; overflow-wrap:anywhere; }
+ .stat__value-wrap { flex:1 1 0; }
+ .stat__icon { width:28px; height:28px; flex-shrink:0; }
+}
+/* #endif */
 </style>

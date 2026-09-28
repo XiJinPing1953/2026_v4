@@ -1392,4 +1392,13 @@ onBeforeUnmount(() => {
 		text-align: left;
 	}
 }
+
+/* H5 mobile layout; keep desktop and native layouts intact. */
+/* #ifdef H5 */
+@media (max-width: 767px) {
+ .filter-grid { grid-template-columns:minmax(0,1fr); min-width:0; }
+ .summary-row { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; min-width:0; }
+ .pager-row { flex-wrap:wrap; min-width:0; max-width:100%; gap:8px; }
+}
+/* #endif */
 </style>

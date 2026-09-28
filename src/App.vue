@@ -69,4 +69,12 @@ page {
 	background: var(--crm-bg);
 	color: var(--crm-text);
 }
+/* #ifdef H5 */
+@media (max-width:767px) {
+ page { --crm-font-xs:12px; --crm-font-sm:14px; --crm-font-md:16px; --crm-font-lg:18px; }
+ button { min-height:44px; }
+ input, textarea, .uni-input-input, .uni-textarea-textarea { font-size:16px; }
+ textarea { max-width:100%; box-sizing:border-box; }
+}
+/* #endif */
 </style>
