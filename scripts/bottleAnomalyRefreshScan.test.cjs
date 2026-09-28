@@ -231,7 +231,20 @@ async function main() {
 	const confirmation = require('../uniCloud-alipay/cloudfunctions/common/confirmedFillLoss')
 	const database = { command, collection, async startTransaction() {
 		const backup = structuredClone(collections)
-		return { collection, async commit() {}, async rollback() {
+		let activeRead = false
+		const transactionalCollection = name => {
+			const base = collection(name)
+			return { ...base, doc(id) {
+				const target = base.doc(id)
+				return { ...target, async get() {
+					if (activeRead) throw Error('Transaction does not allow concurrent reads')
+					activeRead = true
+					try { await Promise.resolve(); return await target.get() }
+					finally { activeRead = false }
+				} }
+			} }
+		}
+		return { collection: transactionalCollection, async commit() {}, async rollback() {
 			for (const name of Object.keys(collections)) collections[name].splice(0, Infinity, ...(backup[name] || []))
 		} }
 	} }
