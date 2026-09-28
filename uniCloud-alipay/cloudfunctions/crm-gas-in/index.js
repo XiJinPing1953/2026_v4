@@ -17,6 +17,7 @@ const sales = db.collection('crm_sale_records')
 const bottleMovements = db.collection('crm_bottle_movements')
 const currentInventoryCore = require('./currentInventory')
 const inventoryRead = require('./inventoryRead')
+const gasBusinessTime = require('./gasBusinessTime')
 let ensureActionAcl = null
 const tankTelemetryCore = require('./tankTelemetryLocal')
 try {
@@ -324,6 +325,14 @@ function isValidDateString(value) {
 	return Boolean(toYmdByParts(y, m, d))
 }
 
+function nextGasDate(value) {
+	const text = normalizeString(value)
+	if (!isValidDateString(text)) return ''
+	const [year, month, day] = text.split('-').map(Number)
+	const next = new Date(Date.UTC(year, month - 1, day + 1))
+	return `${next.getUTCFullYear()}-${pad2(next.getUTCMonth() + 1)}-${pad2(next.getUTCDate())}`
+}
+
 function normalizeEventDay(dateText, fallbackTs) {
 	const normalized = normalizeGasDate(dateText, fallbackTs)
 	if (normalized) return normalized
@@ -331,17 +340,7 @@ function normalizeEventDay(dateText, fallbackTs) {
 }
 
 function parseEventAt(dateText, fallbackTs) {
-	const text = normalizeString(dateText)
-	const m = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/)
-	if (m) {
-		const ts = Date.parse(
-			`${m[1]}-${m[2]}-${m[3]}T${pad2(m[4] || '00')}:${pad2(m[5] || '00')}:${pad2(m[6] || '00')}+08:00`
-		)
-		if (Number.isFinite(ts) && ts > 0) return ts
-	}
-	const parsed = Date.parse(text)
-	if (Number.isFinite(parsed) && parsed > 0) return parsed
-	return Number(fallbackTs) || Date.now()
+	return gasBusinessTime.parseShanghaiBusinessTime(dateText, fallbackTs)
 }
 
 function generateRequestId() {
@@ -376,7 +375,7 @@ function normalizeGasNumberField(value, digits = 3) {
 function normalizeGasInPatch(data = {}, { forUpdate = false } = {}) {
 	const patch = {}
 
-	if (!forUpdate || hasOwn(data, 'date')) patch.date = normalizeGasDate(data.date)
+	if (!forUpdate || hasOwn(data, 'date')) patch.date = gasBusinessTime.normalizeGasBusinessTime(data.date)
 	if (!forUpdate || hasOwn(data, 'product_name')) patch.product_name = normalizeString(data.product_name)
 	if (!forUpdate || hasOwn(data, 'plate_no')) patch.plate_no = normalizePlateNo(data.plate_no)
 	if (!forUpdate || hasOwn(data, 'tanker_no')) patch.tanker_no = normalizeTextCode(data.tanker_no)
@@ -402,6 +401,7 @@ function normalizeGasInPatch(data = {}, { forUpdate = false } = {}) {
 function finalizeGasInDoc(rawDoc = {}, manualFlags = {}) {
 	const doc = {
 		...rawDoc,
+		date: gasBusinessTime.normalizeGasBusinessTime(rawDoc.date),
 		product_name: normalizeString(rawDoc.product_name) || DEFAULT_PRODUCT_NAME,
 		plate_no: normalizePlateNo(rawDoc.plate_no),
 		tanker_no: normalizeTextCode(rawDoc.tanker_no),
@@ -451,7 +451,9 @@ function finalizeGasInDoc(rawDoc = {}, manualFlags = {}) {
 }
 
 function validateGasInDoc(doc = {}) {
-	if (!doc.date || !isValidDateString(doc.date)) return '入库日期必填且格式需为 YYYY-MM-DD'
+	if (!doc.date || !gasBusinessTime.isValidGasBusinessTimeString(doc.date)) {
+		return '入库业务时间必填且格式需为 YYYY-MM-DD-HH-mm'
+	}
 	if (!normalizeString(doc.product_name)) return '产品名称必填'
 	if (!doc.plate_no) return '车牌号必填'
 
@@ -512,6 +514,7 @@ function buildListWhereByFilter(data = {}) {
 	const dateEndRaw = normalizeString(data.dateEnd)
 	const dateStart = dateStartRaw ? normalizeGasDate(dateStartRaw) : ''
 	const dateEnd = dateEndRaw ? normalizeGasDate(dateEndRaw) : ''
+	const dateEndExclusive = dateEnd ? nextGasDate(dateEnd) : ''
 	if (dateStartRaw && !dateStart) return { ok: false, msg: '开始日期格式无效' }
 	if (dateEndRaw && !dateEnd) return { ok: false, msg: '结束日期格式无效' }
 
@@ -531,9 +534,9 @@ function buildListWhereByFilter(data = {}) {
 			])
 		)
 	}
-	if (dateStart && dateEnd) conditions.push({ date: dbCmd.and([dbCmd.gte(dateStart), dbCmd.lte(dateEnd)]) })
+	if (dateStart && dateEndExclusive) conditions.push({ date: dbCmd.and([dbCmd.gte(dateStart), dbCmd.lt(dateEndExclusive)]) })
 	else if (dateStart) conditions.push({ date: dbCmd.gte(dateStart) })
-	else if (dateEnd) conditions.push({ date: dbCmd.lte(dateEnd) })
+	else if (dateEndExclusive) conditions.push({ date: dbCmd.lt(dateEndExclusive) })
 
 	let where = {}
 	if (conditions.length === 1) where = conditions[0]
@@ -828,6 +831,7 @@ function normalizeGasInRow(row = {}) {
 	}
 	return {
 		...doc,
+		date: gasBusinessTime.normalizeGasBusinessTime(doc.date),
 		product_name: normalizeString(doc.product_name) || DEFAULT_PRODUCT_NAME,
 		plate_no: normalizePlateNo(doc.plate_no),
 		tanker_no: normalizeTextCode(doc.tanker_no),
@@ -1324,9 +1328,10 @@ function dedupeMovementDocs(rows = []) {
 
 async function buildRebuildMovementDocs({ dateStart = '', dateEnd = '', includeCycleAdjust = true } = {}) {
 	const whereByDate = {}
-	if (dateStart && dateEnd) whereByDate.date = dbCmd.and([dbCmd.gte(dateStart), dbCmd.lte(dateEnd)])
+	const dateEndExclusive = dateEnd ? nextGasDate(dateEnd) : ''
+	if (dateStart && dateEndExclusive) whereByDate.date = dbCmd.and([dbCmd.gte(dateStart), dbCmd.lt(dateEndExclusive)])
 	else if (dateStart) whereByDate.date = dbCmd.gte(dateStart)
-	else if (dateEnd) whereByDate.date = dbCmd.lte(dateEnd)
+	else if (dateEndExclusive) whereByDate.date = dbCmd.lt(dateEndExclusive)
 
 	const [gasInRes, fillingRes, saleRes] = await Promise.all([
 		scanRows({
@@ -1924,7 +1929,12 @@ async function createV1(user, data, requestId) {
 		user
 	})
 
-	await recordLog(user, 'gas_in_create_v1', { id: addRes.id, plate_no: saveDoc.plate_no }, requestId)
+	await recordLog(
+		user,
+		'gas_in_create_v1',
+		{ id: addRes.id, plate_no: saveDoc.plate_no, inbound_business_time: saveDoc.date },
+		requestId
+	)
 
 	return {
 		code: 0,
@@ -1947,7 +1957,9 @@ async function updateV1(user, data, requestId) {
 	const merged = {
 		...oldDoc,
 		...patch,
-		date: hasOwn(patch, 'date') ? patch.date : normalizeGasDate(oldDoc.date, oldDoc.created_at)
+		date: hasOwn(patch, 'date')
+			? patch.date
+			: gasBusinessTime.normalizeGasBusinessTime(oldDoc.date)
 	}
 	const manualFlags = {
 		net_weight_t: hasOwn(data, 'net_weight_t'),
@@ -1995,7 +2007,12 @@ async function updateV1(user, data, requestId) {
 		user
 	})
 
-	await recordLog(user, 'gas_in_update_v1', { id, plate_no: updateDoc.plate_no }, requestId)
+	await recordLog(
+		user,
+		'gas_in_update_v1',
+		{ id, plate_no: updateDoc.plate_no, inbound_business_time: updateDoc.date },
+		requestId
+	)
 
 	return {
 		code: 0,

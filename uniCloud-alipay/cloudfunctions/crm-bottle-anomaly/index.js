@@ -1,6 +1,9 @@
 'use strict'
 const crypto = require('crypto')
 const { createRefreshJobs } = require('./refreshJobs')
+const { readComplete } = require('./financialReadLocal')
+
+const flowRules = require('./bottleFlowRulesLocal')
 
 const db = uniCloud.database()
 
@@ -1003,16 +1006,7 @@ function buildDuplicateCleanupPlan(rows, limited = false) {
 }
 
 function compareBusinessOrder(a, b) {
-	const aDay = normalizeEventDay(a.event_day || a.date, a.event_at || a.created_at || Date.now())
-	const bDay = normalizeEventDay(b.event_day || b.date, b.event_at || b.created_at || Date.now())
-	if (aDay !== bDay) return aDay.localeCompare(bDay)
-	const aOrder = toNumber(a.type_order, movementTypeOrder(a.type))
-	const bOrder = toNumber(b.type_order, movementTypeOrder(b.type))
-	if (aOrder !== bOrder) return aOrder - bOrder
-	const aAt = toTimestamp(a.event_at, parseEventAt(a.date, a.created_at || Date.now()))
-	const bAt = toTimestamp(b.event_at, parseEventAt(b.date, b.created_at || Date.now()))
-	if (aAt !== bAt) return aAt - bAt
-	return toTimestamp(a.created_at, 0) - toTimestamp(b.created_at, 0)
+	return flowRules.compareEvents(a, b)
 }
 
 function normalizeStateEvent(input, bottleNoFallback = '') {
@@ -1024,6 +1018,7 @@ function normalizeStateEvent(input, bottleNoFallback = '') {
 	const bottleNo = normalizeBottleNo(input.bottle_no || bottleNoFallback)
 	if (!bottleNo) return null
 	return {
+		_id: normalizeString(input._id),
 		bottle_no: bottleNo,
 		date: normalizeString(input.date) || normalizeEventDay(input.event_day, eventAt),
 		event_day: normalizeEventDay(input.event_day || input.date, eventAt),
@@ -1115,20 +1110,11 @@ function normalizeAnalyzerState(input, bottleNo) {
 }
 
 function listEffectiveEvents(events) {
-	if (!Array.isArray(events)) return []
-	return events.filter((item) => {
-		const type = normalizeType(item && item.type)
-		return type === 'back' || type === 'fill' || type === 'out'
-	})
+	return flowRules.effectiveEvents(events)
 }
 
 function hasSameDayBackOutWithoutFill(events) {
-	const effectiveEvents = listEffectiveEvents(events)
-	if (!effectiveEvents.length) return false
-	const hasBack = effectiveEvents.some((item) => item.type === 'back')
-	const hasFill = effectiveEvents.some((item) => item.type === 'fill')
-	const hasOut = effectiveEvents.some((item) => item.type === 'out')
-	return hasBack && hasOut && !hasFill
+	return flowRules.hasSameDayBackOutWithoutFill(events)
 }
 
 function sortDayEventsByTypePriority(events, priorities) {
@@ -1175,16 +1161,7 @@ function shouldQueueSameDayBackOut(events, state) {
 }
 
 function buildDayBusinessOrder(events, state) {
-	const sorted = [...events].sort(compareBusinessOrder)
-	if (!hasSameDayBackOutWithoutFill(sorted)) return sorted
-	if (shouldQueueSameDayBackOut(sorted, state)) return sorted
-	if (state && state.last_back_event) {
-		return interleaveSameDayBackOutEvents(sorted, 'out')
-	}
-	if (state && state.last_out_event && state.last_out_event.type === 'out') {
-		return interleaveSameDayBackOutEvents(sorted, 'back')
-	}
-	return sorted
+	return flowRules.businessDayOrder(events, { pending: Boolean(state?.pending_same_day_back_out?.length), hasBack: Boolean(state?.last_back_event), lastWasOut: state?.last_out_event?.type === 'out' })
 }
 
 function buildPendingSameDayBackOutEntry(events) {
@@ -1422,7 +1399,7 @@ async function resolveOpenAnomaliesByFingerprint(anomaly, updateDoc) {
 	const targetIds = []
 
 	if (bottleNo && anomalyType && targetFingerprint) {
-		const openRes = await anomalies.where({ bottle_no: bottleNo, anomaly_type: anomalyType, status: 'open' }).limit(5000).get()
+		const openRes = await fetchCompleteCalculationRows(anomalies.where({ bottle_no: bottleNo, anomaly_type: anomalyType, status: 'open' }))
 		for (const row of openRes.data || []) {
 			const rowFingerprint = getComparableAnomalyFingerprint(row)
 			if (rowFingerprint !== targetFingerprint) continue
@@ -1544,33 +1521,11 @@ function buildMovementWhereAfterCursor(bottleNo, dbCursor) {
 }
 
 async function readMovementWitness(bottleNo, collectRows = false) {
-	const hash = crypto.createHash('sha256')
-	let after = ''
-	let total = 0
-	// Only keep small histories needed to verify a staged-fill cycle. Large histories
-	// still get a complete witness, but cannot be classified by partial evidence.
-	let rows = collectRows ? [] : null
-	while (true) {
-		const where = after ? db.command.and({ bottle_no: bottleNo }, { _id: db.command.gt(after) }) : { bottle_no: bottleNo }
-		const result = await movements.where(where).orderBy('_id', 'asc').limit(500).get()
-		if (!result || !Array.isArray(result.data)) throw new Error('流转历史读取不完整')
-		for (const row of result.data) {
-			hash.update(JSON.stringify([row._id, row.type, row.date, row.event_at, row.type_order,
-				row.created_at, row.source_type, row.source_id, row.net_weight, row.customer_name, row.event_day]))
-			hash.update('\n')
-		}
-		if (rows) {
-			if (rows.length + result.data.length <= 10000) rows.push(...result.data)
-			else rows = null
-		}
-		total += result.data.length
-		if (total > 100000) throw new Error('单瓶流转历史超出安全读取上限')
-		if (result.data.length < 500) break
-		const next = normalizeString(result.data[result.data.length - 1]._id)
-		if (!next || next <= after) throw new Error('流转历史分页未前进')
-		after = next
-	}
-	return { hash: hash.digest('hex'), total, rows }
+	const rows = await readComplete(movements, { bottle_no: bottleNo }, {
+		command: db.command, source: 'anomaly_history_witness'
+	})
+	return { hash: crypto.createHash('sha256').update(JSON.stringify(rows)).digest('hex'),
+		total: rows.length, rows: collectRows ? rows : null }
 }
 
 function sameScaleWeight(left, right) {
@@ -1775,7 +1730,7 @@ function detectTruckAnomaliesForSales(truckNo, saleRows, supplementRows) {
 async function fetchTruckSaleRowsByTruckNo(truckNo) {
 	const resolvedTruckNo = normalizeBottleNo(truckNo)
 	if (!resolvedTruckNo) return []
-	const res = await sales
+	const res = await fetchCompleteCalculationRows(sales
 		.where({ biz_mode: 'truck', truck_no: resolvedTruckNo })
 		.field({
 			_id: true,
@@ -1789,10 +1744,7 @@ async function fetchTruckSaleRowsByTruckNo(truckNo) {
 			created_at: true
 		})
 		.orderBy('date', 'asc')
-		.orderBy('created_at', 'asc')
-		.limit(5000)
-		.get()
-	if (!res || !Array.isArray(res.data) || res.data.length >= 5000) throw new Error('整车销售记录读取不完整')
+		.orderBy('created_at', 'asc'))
 	return (res.data || [])
 		.map((row) => normalizeTruckSaleDoc(row, resolvedTruckNo))
 		.filter(Boolean)
@@ -1801,7 +1753,7 @@ async function fetchTruckSaleRowsByTruckNo(truckNo) {
 async function resolveOpenBottleFlowAnomaliesByNo(identifier, maxWritesPerRound = 160) {
 	const targetNo = normalizeBottleNo(identifier)
 	if (!targetNo) return { resolved: 0, limited: false }
-	const openRes = await anomalies.where({ bottle_no: targetNo, status: 'open' }).limit(5000).get()
+	const openRes = await fetchCompleteCalculationRows(anomalies.where({ bottle_no: targetNo, status: 'open' }))
 	const openRows = Array.isArray(openRes.data) ? openRes.data : []
 	let resolved = 0
 	for (const row of openRows) {
@@ -1826,7 +1778,7 @@ async function resolveOpenBottleFlowAnomaliesByNo(identifier, maxWritesPerRound 
 async function fetchTruckSupplementRowsByTruckNo(truckNo) {
 	const resolvedTruckNo = normalizeBottleNo(truckNo)
 	if (!resolvedTruckNo) return []
-	const res = await fillings
+	const res = await fetchCompleteCalculationRows(fillings
 		.where({ bottle_no: resolvedTruckNo })
 		.field({
 			_id: true,
@@ -1837,10 +1789,7 @@ async function fetchTruckSupplementRowsByTruckNo(truckNo) {
 			created_at: true
 		})
 		.orderBy('date', 'asc')
-		.orderBy('created_at', 'asc')
-		.limit(5000)
-		.get()
-	if (!res || !Array.isArray(res.data) || res.data.length >= 5000) throw new Error('整车补给记录读取不完整')
+		.orderBy('created_at', 'asc'))
 	return (res.data || [])
 		.filter((row) => {
 			const rowBottleNo = normalizeBottleNo(row && row.bottle_no)
@@ -2101,7 +2050,12 @@ async function typesV1() {
 	return { code: 0, data: Object.values(ANOMALY_TYPES) }
 }
 
-async function scanV2Unlocked(user, data, requestId) {
+async function scanV2(user, data, requestId) {
+	return withBottleScanLease(normalizeBottleNo(data.bottle_no || data.bottleNo), data.cursor,
+		() => scanBottleWithWitness(user, data, requestId))
+}
+
+async function scanV2Unlocked(user, data, requestId, historyRows = null) {
 	const bottleNo = normalizeBottleNo(data.bottle_no || data.bottleNo)
 	if (!bottleNo) return { code: 400, msg: 'bottle_no 必填' }
 	if (looksLikeTruckNo(bottleNo)) {
@@ -2175,16 +2129,12 @@ async function scanV2Unlocked(user, data, requestId) {
 	const isEventExceeded = () => roundScannedEvents >= maxEventsPerRound
 	const isWriteExceeded = () => writeCount >= maxWritesPerRound
 
-	const openRes = await anomalies.where({ bottle_no: bottleNo, status: 'open' }).limit(5000).get()
-	if (!openRes || !Array.isArray(openRes.data)) throw new Error('待处理异常读取不完整')
+	const openRes = await fetchCompleteCalculationRows(anomalies.where({ bottle_no: bottleNo, status: 'open' }))
 	const openRows = openRes.data || []
 	if (openRows.length >= 5000) throw new Error('异常记录达到读取上限，无法安全核对')
 	const openFingerprintMap = buildOpenFingerprintMap(openRows)
 	const openFingerprintRowMap = buildOpenFingerprintRowMap(openRows)
-	const archivedRes = await anomalies.where({ bottle_no: bottleNo, status: 'resolved' }).limit(5000).get()
-	if (!archivedRes || !Array.isArray(archivedRes.data) || archivedRes.data.length >= 5000) {
-		throw new Error('已处理异常读取不完整')
-	}
+	const archivedRes = await fetchCompleteCalculationRows(anomalies.where({ bottle_no: bottleNo, status: 'resolved' }))
 	const archivedFingerprintMap = buildArchivedFingerprintMap(archivedRes.data || [])
 	const resolvedStagedRows = new Map()
 	for (const row of archivedRes.data) {
@@ -2193,13 +2143,8 @@ async function scanV2Unlocked(user, data, requestId) {
 		const fp = getComparableAnomalyFingerprint(row)
 		if (fp && !resolvedStagedRows.has(fp)) resolvedStagedRows.set(fp, row)
 	}
-	const resolvedMissingFillRes = await anomalies
-		.where({ bottle_no: bottleNo, anomaly_type: 'missing_fill', status: 'resolved' })
-		.limit(5000)
-		.get()
-	if (!resolvedMissingFillRes || !Array.isArray(resolvedMissingFillRes.data) || resolvedMissingFillRes.data.length >= 5000) {
-		throw new Error('已处理缺灌装记录读取不完整')
-	}
+	const resolvedMissingFillRes = await fetchCompleteCalculationRows(anomalies
+		.where({ bottle_no: bottleNo, anomaly_type: 'missing_fill', status: 'resolved' }))
 	const resolvedMissingFillFingerprintSet = buildResolvedMissingFillFingerprintSet(resolvedMissingFillRes.data || [])
 
 	const persistAnomaly = async (anomaly) => {
@@ -2338,7 +2283,7 @@ async function scanV2Unlocked(user, data, requestId) {
 		while (!scanDone && !stopByWriteLimit && !isTimeExceeded() && !isEventExceeded()) {
 			const queryLimit = Math.min(batchSize, Math.max(maxEventsPerRound - roundScannedEvents, 1))
 			const where = buildMovementWhereAfterCursor(bottleNo, dbCursor)
-			const res = await movements
+			const res = historyRows ? { data: historyRows.filter((row) => !dbCursor || compareScanPosition(row, dbCursor) > 0).slice(0, queryLimit) } : await movements
 				.where(where)
 				.orderBy('event_at', 'asc')
 				.orderBy('type_order', 'asc')
@@ -2424,11 +2369,9 @@ async function scanV2Unlocked(user, data, requestId) {
 					break
 				}
 				const detectedSet = ensureTypeSet(detectedFpsByTypeSet, anomalyType)
-				const openResByType = await anomalies
+				const openResByType = await fetchCompleteCalculationRows(anomalies
 					.where({ bottle_no: bottleNo, anomaly_type: anomalyType, status: 'open' })
-					.orderBy('created_at', 'asc')
-					.limit(5000)
-					.get()
+					.orderBy('created_at', 'asc'))
 				const openRowsByType = openResByType.data || []
 				if (!openResByType || !Array.isArray(openResByType.data)) throw new Error('待核异常读取不完整')
 				if (openRowsByType.length >= 5000) throw new Error('异常记录达到读取上限，无法安全关闭')
@@ -2450,14 +2393,9 @@ async function scanV2Unlocked(user, data, requestId) {
 					writeCount += 1
 					roundResolvedStale += 1
 				}
-				if (openRowsByType.length >= 5000) {
-					scanDone = false
-				}
 				if (!isTimeExceeded() && !isWriteExceeded()) {
-					const verifyRes = await anomalies
-						.where({ bottle_no: bottleNo, anomaly_type: anomalyType, status: 'open' })
-						.limit(5000)
-						.get()
+					const verifyRes = await fetchCompleteCalculationRows(anomalies
+						.where({ bottle_no: bottleNo, anomaly_type: anomalyType, status: 'open' }))
 					const verifyRows = verifyRes.data || []
 					if (!verifyRes || !Array.isArray(verifyRes.data)) throw new Error('异常复核读取不完整')
 					const staleRemaining = verifyRows.some((row) => {
@@ -2466,7 +2404,6 @@ async function scanV2Unlocked(user, data, requestId) {
 						return !detectedSet.has(fp) || verifiedStagedFps.has(fp)
 					})
 					if (staleRemaining) scanDone = false
-					if (verifyRows.length >= 5000) scanDone = false
 				} else {
 					scanDone = false
 				}
@@ -2518,46 +2455,6 @@ async function scanV2Unlocked(user, data, requestId) {
 	}
 }
 
-async function withBottleScanLease(bottleNo, cursor, handler) {
-	const lockId = `scan_${crypto.createHash('sha256').update(bottleNo).digest('hex').slice(0, 40)}`
-	const leaseId = crypto.randomBytes(16).toString('hex')
-	const leaseUntil = Date.now() + 120000
-	try {
-		await scanLocks.add({ _id: lockId, lease_id: leaseId, lease_until: leaseUntil })
-	} catch (error) {
-		const result = await scanLocks.where({ _id: lockId, lease_until: db.command.lte(Date.now()) })
-			.update({ lease_id: leaseId, lease_until: leaseUntil })
-		if (!result.updated) return { code: 0, data: { done: false, cursor: cursor || null,
-			waiting_for_lock: true, round_created: 0, round_resolved_stale: 0, round_scanned_events: 0 } }
-	}
-	try { return await handler() }
-	finally {
-		await scanLocks.where({ _id: lockId, lease_id: leaseId }).update({ lease_id: '', lease_until: 0 })
-	}
-}
-
-async function scanV2(user, data, requestId) {
-	const bottleNo = normalizeBottleNo(data.bottle_no || data.bottleNo)
-	if (!bottleNo) return { code: 400, msg: 'bottle_no 必填' }
-	return withBottleScanLease(bottleNo, data.cursor || null, async () => {
-		if (looksLikeTruckNo(bottleNo)) return scanV2Unlocked(user, data, requestId)
-		const witness = await readMovementWitness(bottleNo)
-		const prior = data.cursor && typeof data.cursor === 'object' ? data.cursor : null
-		const scanCursor = prior && Object.prototype.hasOwnProperty.call(prior, 'history_witness') ? prior.scan : data.cursor
-		const historyChanged = Boolean(prior && prior.history_witness && prior.history_witness !== witness.hash)
-		const result = await scanV2Unlocked(user, {
-			...data, cursor: historyChanged ? null : scanCursor, expected_witness: witness.hash
-		}, requestId)
-		if (result.code !== 0 || !result.data) return result
-		if (result.data.history_changed) return { ...result, data: { ...result.data,
-			cursor: { history_witness: '', scan: null } } }
-		if (!result.data.done) result.data.cursor = { history_witness: witness.hash, scan: result.data.cursor }
-		result.data.read_complete = Boolean(result.data.done)
-		result.data.history_total = witness.total
-		return result
-	})
-}
-
 async function scanTruckAnomaliesUnlocked(user, data, requestId) {
 	const truckNo = normalizeBottleNo(data.truck_no || data.truckNo)
 	if (!truckNo) return { code: 400, msg: 'truck_no 必填' }
@@ -2579,13 +2476,11 @@ async function scanTruckAnomaliesUnlocked(user, data, requestId) {
 	const shouldReconcile = reconcileAnomalies && reconcileTypes.length > 0
 	const archiveCutoffDay = await getArchiveCutoffDay()
 
-	const openRes = await anomalies.where({ bottle_no: truckNo, status: 'open' }).limit(5000).get()
-	if (!openRes || !Array.isArray(openRes.data) || openRes.data.length >= 5000) throw new Error('整车待处理异常读取不完整')
+	const openRes = await fetchCompleteCalculationRows(anomalies.where({ bottle_no: truckNo, status: 'open' }))
 	const openRows = openRes.data || []
 	const openFingerprintMap = buildOpenFingerprintMap(openRows)
 	const openFingerprintRowMap = buildOpenFingerprintRowMap(openRows)
-	const archivedRes = await anomalies.where({ bottle_no: truckNo, status: 'resolved' }).limit(5000).get()
-	if (!archivedRes || !Array.isArray(archivedRes.data) || archivedRes.data.length >= 5000) throw new Error('整车已处理异常读取不完整')
+	const archivedRes = await fetchCompleteCalculationRows(anomalies.where({ bottle_no: truckNo, status: 'resolved' }))
 	const archivedFingerprintMap = buildArchivedFingerprintMap(archivedRes.data || [])
 	const detectedFpsByTypeSet = toDetectedFpsSetMap(buildEmptyDetectedFpsByType())
 	const saleRows = await fetchTruckSaleRowsByTruckNo(truckNo)
@@ -2597,6 +2492,7 @@ async function scanTruckAnomaliesUnlocked(user, data, requestId) {
 	let roundResolvedStale = 0
 	let roundScannedEvents = saleRows.length + supplementRows.length
 	let writeCount = 0
+	let pendingWrites = false
 
 	const persistAnomaly = async (anomaly) => {
 		const type = normalizeString(anomaly && anomaly.type)
@@ -2621,7 +2517,7 @@ async function scanTruckAnomaliesUnlocked(user, data, requestId) {
 				normalizeString(matchedRow && matchedRow.note) !== nextNote ||
 				JSON.stringify(normalizeContext(matchedRow && matchedRow.context)) !== JSON.stringify(nextContext)
 			if (!changed) return false
-			if (writeCount >= maxWritesPerRound) return false
+			if (writeCount >= maxWritesPerRound) { pendingWrites = true; return false }
 			await anomalies.doc(matchedId).update({
 				date: nextDate,
 				note: nextNote,
@@ -2631,7 +2527,7 @@ async function scanTruckAnomaliesUnlocked(user, data, requestId) {
 			writeCount += 1
 			return true
 		}
-		if (writeCount >= maxWritesPerRound) return false
+		if (writeCount >= maxWritesPerRound) { pendingWrites = true; return false }
 		const now = Date.now()
 		await anomalies.add({
 			bottle_no: truckNo,
@@ -2667,11 +2563,11 @@ async function scanTruckAnomaliesUnlocked(user, data, requestId) {
 			const detectedSet = ensureTypeSet(detectedFpsByTypeSet, anomalyType)
 			const typeRows = openRows.filter((row) => normalizeAnomalyType(row && row.anomaly_type) === anomalyType)
 			for (const row of typeRows) {
-				if (writeCount >= maxWritesPerRound) break
 				const fp = getComparableAnomalyFingerprint(row)
 				if (!fp || detectedSet.has(fp)) continue
 				const id = normalizeString(row && row._id)
 				if (!id) continue
+				if (writeCount >= maxWritesPerRound) { pendingWrites = true; break }
 				await anomalies.doc(id).update({
 					status: 'resolved',
 					updated_at: Date.now(),
@@ -2686,9 +2582,9 @@ async function scanTruckAnomaliesUnlocked(user, data, requestId) {
 
 	const bottleFlowRows = openRows.filter((row) => BOTTLE_ANOMALY_TYPE_SET.has(normalizeAnomalyType(row && row.anomaly_type)))
 	for (const row of bottleFlowRows) {
-		if (writeCount >= maxWritesPerRound) break
 		const id = normalizeString(row && row._id)
 		if (!id) continue
+		if (writeCount >= maxWritesPerRound) { pendingWrites = true; break }
 		await anomalies.doc(id).update({
 			status: 'resolved',
 			updated_at: Date.now(),
@@ -2716,8 +2612,8 @@ async function scanTruckAnomaliesUnlocked(user, data, requestId) {
 	return {
 		code: 0,
 		data: {
-			done: writeCount < maxWritesPerRound,
-			cursor: writeCount >= maxWritesPerRound ? { rescan: true } : null,
+			done: !pendingWrites,
+			cursor: pendingWrites ? { truck_retry: true } : null,
 			round_created: roundCreated,
 			round_resolved_stale: roundResolvedStale,
 			round_scanned_events: roundScannedEvents
@@ -2831,6 +2727,9 @@ async function rebuildV2(user, data, requestId) {
 		roundScannedEvents += Number(payload.round_scanned_events || 0)
 		roundCreated += Number(payload.round_created || 0)
 		roundResolvedStale += Number(payload.round_resolved_stale || 0)
+		// A held scan lease is a pending result, not a successfully scanned truck.
+		// Keep the current truck in the rebuild cursor so the next round retries it.
+		if (payload.done !== true) break
 		roundTrucks += 1
 		truckAfter = currentTruckNo
 		currentTruckNo = ''
@@ -3446,6 +3345,114 @@ async function resolveV1(user, data, requestId) {
 	}
 }
 
+
+// Calculation reads must either cover all rows or fail explicitly; display pagination is separate.
+async function fetchCompleteCalculationRows(query) {
+	const rows = []
+	for (let skip = 0; skip <= 50000; skip += 500) {
+		const response = await query.skip(skip).limit(500).get()
+		if (!response || !Array.isArray(response.data)) throw new Error('核查数据读取不完整')
+		const page = response.data
+		rows.push(...page)
+		if (rows.length > 50000) throw Object.assign(new Error('核查数据超过完整读取上限，请缩小范围；本次未形成完整结论'), { code: 'BOTTLE_FLOW_HISTORY_INCOMPLETE' })
+		if (page.length < 500) return { data: rows }
+	}
+	throw Object.assign(new Error('核查数据未完整读取'), { code: 'BOTTLE_FLOW_HISTORY_INCOMPLETE' })
+}
+
+function compareScanPosition(left, right) {
+	for (const key of ['event_at', 'type_order', 'created_at', '_id']) {
+		if (left[key] < right[key]) return -1
+		if (left[key] > right[key]) return 1
+	}
+	return 0
+}
+
+async function scanBottleWithWitness(user, data, requestId) {
+	try { return await scanBottleWithWitnessRaw(user, data, requestId) }
+	catch (error) {
+		if (error.code !== 'FINANCIAL_READ_INCOMPLETE' || !['membership_changed', 'records_changed_during_read'].includes(error.details?.reason)) throw error
+		return { code: 0, data: { done: false, read_complete: false, history_changed: true,
+			cursor: { history_witness: '', scan: null }, rule_version: flowRules.RULE_VERSION } }
+	}
+}
+
+async function scanBottleWithWitnessRaw(user, data, requestId) {
+	const crypto = require('crypto')
+	const bottleNo = normalizeBottleNo(data.bottle_no || data.bottleNo)
+	const witness = () => readMovementWitness(bottleNo, true)
+	const before = await witness()
+	let stored = data.cursor || {}
+	if (typeof stored === 'string') { try { stored = JSON.parse(stored) } catch (_) { stored = {} } }
+	// Old cursors lack a witness and restart safely; all public callers treat cursors as opaque.
+	const cursor = stored && stored.history_witness === before.hash ? stored.scan : null
+	const history = before.rows.map((row) => buildMovementEvent(row, bottleNo)).sort(compareScanPosition)
+	const result = await scanV2Unlocked(user, { ...data, cursor, expected_witness: before.hash }, requestId, history)
+	if (result.code === 0) {
+		const after = await witness()
+		if (before.hash !== after.hash) result.data = { ...result.data, done: false, cursor: { history_witness: '', scan: null }, history_changed: true }
+		else if (!result.data.done) result.data.cursor = { history_witness: before.hash, scan: result.data.cursor }
+		result.data = { ...result.data, history_total: before.rows.length, read_complete: Boolean(result.data.done),
+			computed_at: Date.now(), rule_version: flowRules.RULE_VERSION }
+	}
+	return result
+}
+
+async function withBottleScanLease(bottleNo, cursor, handler) {
+	if (!bottleNo) return { code: 400, msg: '缺少核查瓶号' }
+	const crypto = require('crypto')
+	const lockId = `scan_${crypto.createHash('sha256').update(bottleNo).digest('hex').slice(0, 40)}`
+	const locks = db.collection('crm_bottle_scan_locks')
+	const lockToken = crypto.randomBytes(16).toString('hex')
+	const leaseUntil = Date.now() + 120000
+	try {
+		await locks.add({ _id: lockId, lease_id: lockToken, lease_until: leaseUntil })
+	} catch (error) {
+		const acquired = await locks.where({ _id: lockId, lease_until: db.command.lte(Date.now()) }).update({ lease_id: lockToken, lease_until: leaseUntil })
+		if (!acquired.updated) return { code: 0, data: { done: false, read_complete: false, waiting_for_lock: true, cursor: cursor || { waiting_for_lock: true } } }
+	}
+	try { return await handler() }
+	finally { await locks.where({ _id: lockId, lease_id: lockToken }).update({ lease_until: 0, lease_id: '' }) }
+}
+
+async function touchFillingOperationV1(data = {}) {
+	const crypto = require('crypto')
+	const operationId = normalizeString(data.operation_id)
+	const key = `fillop_${crypto.createHash('sha256').update(operationId).digest('hex').slice(0, 40)}`
+	const op = ((await db.collection('crm_filling_operations').doc(key).get()).data || [])[0]
+	const supplied = Buffer.from(String(data.worker_secret || ''))
+	const expected = Buffer.from(String(op && op.worker_secret || ''))
+	if (!op || !supplied.length || supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected) ||
+		op.status !== 'processing' || op.lease_id !== data.lease_id || Number(op.lease_until || 0) <= Date.now()) {
+		return { code: 403, msg: '无效的灌装处理凭据' }
+	}
+	const index = Number(data.target_index)
+	if (!Number.isInteger(index) || index !== Number(op.target_cursor) || op.row_cursor !== op.rows.length) return { code: 409, msg: '灌装处理位置已变化' }
+	const target = (op.targets || [])[index]
+	if (!target) return { code: 400, msg: '缺少已授权核查对象' }
+	for (const row of op.rows.filter((item) => item.bottle_no === target.bottle_no)) {
+		const current = ((await fillings.doc(row._id).get()).data || [])[0]
+		if (!current || current.source_version !== row.source_version || current.updated_at !== row.updated_at) return { code: 409, msg: '灌装源记录已变更，旧核查操作停止' }
+	}
+	return withBottleScanLease(target.bottle_no, op.scan_cursor, async () => {
+	// Target and cursor come only from the private operation, never from caller-supplied bottle numbers.
+	const actor = { _id: op.created_by, username: op.created_by_name, role: op.actor_role }
+	let result
+	if (target.kind === 'truck') {
+		result = await scanTruckAnomaliesUnlocked(actor, { truck_no: target.bottle_no, reconcile_anomalies: true,
+			reconcile_types: TRUCK_RECONCILE_TYPE_LIST, max_writes_per_round: 120 }, operationId)
+		if (result.code === 0 && !result.data.done) result.data.cursor = { truck_retry: true }
+	} else {
+		result = await scanBottleWithWitness(actor, { bottle_no: target.bottle_no, cursor: op.scan_cursor,
+			reconcile_anomalies: true, reconcile_types: BOTTLE_RECONCILE_TYPE_LIST,
+			batch_size: 200, max_events_per_round: 800, max_ms_per_round: 2200, max_writes_per_round: 120 }, operationId)
+	}
+	if (result.code === 0) result.data = { ...result.data, read_complete: Boolean(result.data.done),
+		computed_at: Date.now(), rule_version: flowRules.RULE_VERSION }
+	return result
+	})
+}
+
 exports.main = async (event, context) => {
 	// The platform context, never user-supplied event fields, authorizes scheduled work.
 	if (context && context.SOURCE === 'timing') return refreshJobs.drain()
@@ -3455,6 +3462,7 @@ exports.main = async (event, context) => {
 		normalizeString(event.request_id || event.requestId || context?.requestId || context?.request_id || '') ||
 		generateRequestId()
 
+	if (action === 'touchFillingOperationV1') return touchFillingOperationV1(data)
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
 	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, SUPERADMIN_ONLY_ACTIONS, {

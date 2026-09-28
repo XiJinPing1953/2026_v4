@@ -200,43 +200,5 @@
       "MgoIsUnique": false,
       "MgoIsSparse": false
     }
-  },
-  {
-    "IndexName": "idx_bottle_read_cursor",
-    "MgoKeySchema": {
-      "MgoIndexKeys": [
-        {
-          "Name": "bottle_no",
-          "Direction": "1",
-          "Type": "varchar"
-        },
-        {
-          "Name": "_id",
-          "Direction": "1",
-          "Type": "varchar"
-        }
-      ],
-      "MgoIsUnique": false,
-      "MgoIsSparse": false
-    }
-  },
-  {
-    "IndexName": "idx_customer_read_cursor",
-    "MgoKeySchema": {
-      "MgoIndexKeys": [
-        {
-          "Name": "customer_id",
-          "Direction": "1",
-          "Type": "varchar"
-        },
-        {
-          "Name": "_id",
-          "Direction": "1",
-          "Type": "varchar"
-        }
-      ],
-      "MgoIsUnique": false,
-      "MgoIsSparse": false
-    }
   }
 ]

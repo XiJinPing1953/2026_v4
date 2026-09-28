@@ -1,0 +1,102 @@
+[
+  {
+    "IndexName": "idx_date_created_at",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "date",
+          "Direction": "-1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_bottle_no",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "bottle_no",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_bottle_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "bottle_no",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "date",
+          "Direction": "-1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_record_type_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "record_type",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "date",
+          "Direction": "-1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_operator_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "operator",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "date",
+          "Direction": "-1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  }
+]
