@@ -10,82 +10,53 @@
       "output": "dist/build/web",
       "acceptance": "Collapsed processing details and hour-level filling entry; crm-filling and optional filling_time field deployed separately from main 7602031.",
       "deploymentScope": {
-        "functions": [],
-        "databaseFiles": [],
+        "functions": [
+          "crm-filling"
+        ],
+        "databaseFiles": [
+          "crm_fillings.schema.json"
+        ],
         "baseCommit": "f012bf636fbccafc1ca61db86197b5a71e4e5158",
         "sourceFiles": [
-          "src/components/domain/filling/FillingTimePicker.vue",
-          "src/components/domain/filling/FillingOperationPanel.vue",
+          "src/components/domain/filling/FillingEditView.vue",
           "src/components/domain/filling/FillingListView.vue",
-          "src/components/domain/filling/FillingEditView.vue"
+          "src/components/domain/filling/FillingOperationPanel.vue",
+          "src/components/domain/filling/FillingTimePicker.vue",
+          "uniCloud-alipay/cloudfunctions/common/confirmedFillLoss.js",
+          "uniCloud-alipay/cloudfunctions/common/gasInventoryPrecision.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/confirmedFillLossLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/gasInventoryPrecisionLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
+          "uniCloud-alipay/database/crm_fillings.schema.json",
+          "uniCloud-alipay/database/schema/crm_fillings.schema.json"
         ]
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.28-filling-gasin",
+      "version": "2026.09.29-filling-hour",
       "output": "release/cloud",
-      "acceptance": "Durable filling progress, complete movement/anomaly checks and gas-in business time; isolated Alipay acceptance required.",
+      "acceptance": "Collapsed processing details and hour-level filling entry; crm-filling and optional filling_time field deployed separately from main 7602031.",
       "deploymentScope": {
         "functions": [
-          "crm-filling",
-          "crm-bottle-anomaly",
-          "crm-bottle-movement",
-          "crm-gas-in"
+          "crm-filling"
         ],
         "databaseFiles": [
-          "crm_bottle_movements.index.json",
-          "crm_bottle_movements.schema.json",
-          "crm_filling_operations.index.json",
-          "crm_filling_operations.schema.json",
-          "crm_filling_slots.schema.json",
-          "crm_fillings.index.json",
-          "crm_fillings.schema.json",
-          "crm_gas_inventory_movements.index.json",
-          "crm_gas_inventory_movements.schema.json"
+          "crm_fillings.schema.json"
         ],
-        "baseCommit": "878322bfa32ca3ab9f6baff06eae7a4379f5057b",
+        "baseCommit": "f012bf636fbccafc1ca61db86197b5a71e4e5158",
         "sourceFiles": [
-          "src/components/domain/bottle/BottleAnomalyView.vue",
           "src/components/domain/filling/FillingEditView.vue",
           "src/components/domain/filling/FillingListView.vue",
           "src/components/domain/filling/FillingOperationPanel.vue",
-          "src/components/domain/gasIn/GasInEditView.vue",
-          "src/components/domain/gasIn/GasInListView.vue",
-          "src/components/domain/pda/PdaFillingCreateView.vue",
-          "src/composables/pda/usePdaFillingForm.js",
-          "src/pages/filling/list.vue",
-          "src/services/filling.js",
-          "src/services/fillingOperations.js",
-          "uniCloud-alipay/cloudfunctions/common/bottleFlowRules.js",
-          "uniCloud-alipay/cloudfunctions/common/fillingPayload.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/bottleFlowRulesLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/financialReadLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/bottleFlowRulesLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-filling/bottleFlowRulesLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/fillingOperations.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/fillingPayloadLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/flowWarningPaging.js",
+          "src/components/domain/filling/FillingTimePicker.vue",
+          "uniCloud-alipay/cloudfunctions/common/confirmedFillLoss.js",
+          "uniCloud-alipay/cloudfunctions/common/gasInventoryPrecision.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/confirmedFillLossLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/gasInventoryPrecisionLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/operatorRepairSupport.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/gasBusinessTime.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
-          "uniCloud-alipay/database/crm_bottle_movements.index.json",
-          "uniCloud-alipay/database/crm_bottle_movements.schema.json",
-          "uniCloud-alipay/database/crm_filling_operations.index.json",
-          "uniCloud-alipay/database/crm_filling_operations.schema.json",
-          "uniCloud-alipay/database/crm_filling_slots.schema.json",
-          "uniCloud-alipay/database/crm_fillings.index.json",
           "uniCloud-alipay/database/crm_fillings.schema.json",
-          "uniCloud-alipay/database/crm_gas_inventory_movements.index.json",
-          "uniCloud-alipay/database/crm_gas_inventory_movements.schema.json",
-          "uniCloud-alipay/database/schema/crm_bottle_movements.schema.json",
-          "uniCloud-alipay/database/schema/crm_fillings.schema.json",
-          "uniCloud-alipay/database/schema/crm_gas_inventory_movements.schema.json"
+          "uniCloud-alipay/database/schema/crm_fillings.schema.json"
         ]
       },
       "integrityScope": "deployment"
