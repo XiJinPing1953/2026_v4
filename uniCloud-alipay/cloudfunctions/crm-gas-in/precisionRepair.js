@@ -17,7 +17,21 @@ const close = (a, b) => typeof a === 'number' && typeof b === 'number' && Math.a
 
 async function preview(db, command, type, ids, build) {
 	// Serial reads also work with Alipay's transaction session.
-	const sources = rows(await db.collection(SOURCES[type]).where({ _id: command.in(ids) }).limit(100).get())
+	let sources
+	if (type === 'sale') {
+		// Production-generated sale IDs resolve through doc(id), but not string _id IN.
+		sources = []
+		for (const id of ids) {
+			const result = await db.collection(SOURCES[type]).doc(id).get()
+			const doc = Array.isArray(result?.data) ? result.data[0] : result?.data
+			if (doc) {
+				if (doc._id !== id) fail('销售源单标识不符')
+				sources.push(doc)
+			}
+		}
+	} else {
+		sources = rows(await db.collection(SOURCES[type]).where({ _id: command.in(ids) }).limit(100).get())
+	}
 	const movements = rows(await db.collection('crm_gas_inventory_movements')
 		.where({ source_type: type, source_id: command.in(ids) }).limit(100).get())
 	if (sources.length !== ids.length) fail(`源单读取不完整：${sources.length}/${ids.length}`)

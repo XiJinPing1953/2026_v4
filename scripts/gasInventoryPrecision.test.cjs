@@ -73,3 +73,23 @@ test('transaction failure cannot partially repair inventory', async () => {
 	assert.equal((await call({ execute: true, confirm: 'REPAIR_INVENTORY_PRECISION', expected_preview_hash: p.data.preview_hash })).code, 500)
 	assert.deepEqual(tables, original)
 })
+
+test('generated sale IDs use document reads and preserve sources through repair and replay', async () => {
+	const source = { _id: '6a7bbe70daf8f9c59c4db58a', date: '2026-09-28', out_items: [{ net: 65.5 }] }
+	const tables = { crm_users: [{ _id: 'u', token: 'test', role: 'superadmin' }], crm_sale_records: [source],
+		crm_gas_inventory_movements: [{ ...gas.buildSaleGasMovementCandidate(source, true), _id: 'm' }] }
+	const db = makeDb(tables, { mutate: true, transaction: true, get(name, rows, opts) {
+		if (name === 'crm_sale_records') return { data: typeof opts.where?._id === 'string' ? structuredClone(rows[0] || null) : [] }
+		return { data: structuredClone(rows) }
+	} })
+	const main = loadHandler('crm-gas-in', db)
+	const call = data => invoke(main, 'repairInventoryPrecisionV1', { source_type: 'sale', ids: [source._id], ...data })
+	const p = await call({})
+	assert.equal(p.code, 0); assert.equal(p.data.changed, 1)
+	const request = { execute: true, confirm: 'REPAIR_INVENTORY_PRECISION', expected_preview_hash: p.data.preview_hash }
+	assert.equal((await call({ ...request, rollback_test: true })).data.rolled_back, true)
+	assert.equal((await call(request)).data.applied, true)
+	assert.equal(tables.crm_gas_inventory_movements[0].asset_delta_t, -0.0655)
+	assert.deepEqual(tables.crm_sale_records, [source])
+	assert.equal((await call(request)).data.already_applied, true)
+})
