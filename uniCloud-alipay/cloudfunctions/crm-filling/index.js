@@ -276,6 +276,17 @@ function normalizeFillingDate(value, fallbackTs = null) {
 	return ''
 }
 
+// Keep the day key for existing filters/duplicate rules; preserve the entered hour separately.
+function readFillingTime(value, previous = '') {
+	const text = normalizeString(value)
+	if (/^\d{4}-\d{2}-\d{2}-/.test(text)) {
+		const match = text.match(/^(\d{4}-\d{2}-\d{2})-(\d{2})$/)
+		if (!match || !isValidDateString(match[1]) || Number(match[2]) > 23) return null
+		return text
+	}
+	return previous && previous.slice(0, 10) === normalizeFillingDate(text) ? previous : ''
+}
+
 function normalizeEventDay(dateText, fallbackTs) {
 	const normalized = normalizeFillingDate(dateText, fallbackTs)
 	if (normalized) return normalized
@@ -283,7 +294,8 @@ function normalizeEventDay(dateText, fallbackTs) {
 }
 
 function parseEventAt(dateText, fallbackTs) {
-	const text = normalizeString(dateText)
+	const raw = normalizeString(dateText)
+	const text = /^\d{4}-\d{2}-\d{2}-\d{2}$/.test(raw) ? `${raw.slice(0, 10)} ${raw.slice(11)}:00` : raw
 	const m = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/)
 	if (m) {
 		const y = m[1]
@@ -678,6 +690,7 @@ async function fetchFillingsRowsByWhere(where, { limit = FILLED_UNSOLD_SCAN_LIMI
 				_id: true,
 				bottle_no: true,
 				date: true,
+				filling_time: true,
 				record_type: true,
 				fill_weight: true,
 				operator: true,
@@ -833,6 +846,7 @@ async function fetchLatestMovementSnapshotByBottleNos(bottleNos = [], { cutoffDa
 					bottle_no: true,
 					type: true,
 					date: true,
+					filling_time: true,
 					event_day: true,
 					event_at: true,
 					type_order: true,
@@ -1004,6 +1018,7 @@ async function fetchFillingsByWhere(where, limit = BATCH_UPDATE_LIMIT) {
 				_id: true,
 				bottle_no: true,
 				date: true,
+				filling_time: true,
 				record_type: true,
 				fill_weight: true,
 				weight_start: true,
@@ -2188,7 +2203,7 @@ function buildFillingStartLossAdjustDoc({ fillingDoc = {}, basis = null, lossWei
 		type: 'adjust',
 		date,
 		event_day: normalizeEventDay(date, now),
-		event_at: parseEventAt(date, now),
+		event_at: parseEventAt(fillingDoc.filling_time || date, now),
 		type_order: 21,
 		source_type: 'manual_fix',
 		source_id: fillingId,
@@ -2332,6 +2347,7 @@ async function fetchStartLossSyncCandidateFillings(payload = {}) {
 	const field = {
 		_id: true,
 		date: true,
+		filling_time: true,
 		bottle_no: true,
 		record_type: true,
 		fill_weight: true,
@@ -2564,6 +2580,7 @@ async function fetchFillMovementsForOrphanCleanup(limit = ORPHAN_CLEANUP_SCAN_LI
 				bottle_no: true,
 				type: true,
 				date: true,
+				filling_time: true,
 				event_day: true,
 				source_type: true,
 				source_id: true,
@@ -2919,6 +2936,8 @@ async function cleanupNoSaleMovementsV1(user, data, requestId, token) {
 
 async function createV1(user, data, requestId, token) {
 	const date = normalizeFillingDate(data.date)
+	const fillingTime = readFillingTime(data.date)
+	if (fillingTime === null) return { code: 400, msg: '灌装时间格式需为 yyyy-mm-dd-hh，小时为 00～23' }
 	if (!date) return { code: 400, msg: '日期必填' }
 	const recordType = normalizeRecordType(data.record_type || data.recordType, DEFAULT_RECORD_TYPE)
 	if (!recordType) return { code: 400, msg: '作业类型无效' }
@@ -3011,6 +3030,7 @@ async function createV1(user, data, requestId, token) {
 
 	const doc = {
 		date,
+		filling_time: fillingTime,
 		bottle_no: bottleNo,
 		record_type: recordType,
 		operator: operatorName,
@@ -3036,7 +3056,7 @@ async function createV1(user, data, requestId, token) {
 		created_by_name: user?.username || ''
 	}
 	return submitPreparedFillings(user, data, [doc], {
-		date, regulatory_enqueue: true, regulatory_source_type: 'filling',
+		date, filling_time: fillingTime, regulatory_enqueue: true, regulatory_source_type: 'filling',
 		bottle_flow_warning_overridden: ignoreBottleFlowWarning && bottleFlowWarnings.length > 0,
 		bottle_flow_warning_count: bottleFlowWarnings.length
 	})
@@ -3052,7 +3072,10 @@ async function updateV1(user, data, requestId, token) {
 	const pendingEdit = await checkPendingFillingEdit(oldDoc)
 	if (pendingEdit) return pendingEdit
 
-	const date = normalizeFillingDate(data.date != null ? data.date : oldDoc.date, oldDoc.created_at)
+	const dateInput = data.date != null ? data.date : oldDoc.date
+	const fillingTime = readFillingTime(dateInput, oldDoc.filling_time || '')
+	if (fillingTime === null) return { code: 400, msg: '灌装时间格式需为 yyyy-mm-dd-hh，小时为 00～23' }
+	const date = normalizeFillingDate(dateInput, oldDoc.created_at)
 	if (!date) return { code: 400, msg: '日期必填' }
 	const recordType = normalizeRecordType(
 		data.record_type != null ? data.record_type : oldDoc.record_type,
@@ -3103,6 +3126,7 @@ async function updateV1(user, data, requestId, token) {
 	const now = Date.now()
 	const updateDoc = {
 		date,
+		filling_time: fillingTime,
 		bottle_no: bottleNo,
 		record_type: recordType,
 		operator: operatorName,
@@ -3115,7 +3139,7 @@ async function updateV1(user, data, requestId, token) {
 	await fillings.doc(id).update(updateDoc)
 
 	const movementEventDay = normalizeEventDay(date, now)
-	const movementEventAt = parseEventAt(date, now)
+	const movementEventAt = parseEventAt(fillingTime || date, now)
 	await movements.where({ source_id: id, type: 'fill' }).remove()
 	if (inventoryLinked && bottleNo) {
 		await movements.add({
@@ -3140,7 +3164,7 @@ async function updateV1(user, data, requestId, token) {
 	await replaceFillingStartLossAdjustmentForDoc({ ...oldDoc, ...updateDoc, _id: id }, user)
 	await replaceGasInventoryMovementForFilling({
 		sourceId: id,
-		date,
+		date: fillingTime || date,
 		bottleNo,
 		recordType,
 		fillWeight,
@@ -3424,6 +3448,8 @@ async function findExistingBottleNosByDate(date, bottleNos = []) {
 function parseBatchCreatePayload(data = {}) {
 	const preview = Boolean(data.preview)
 	const date = normalizeFillingDate(data.date)
+	const fillingTime = readFillingTime(data.date)
+	if (fillingTime === null) return { ok: false, msg: '灌装时间格式需为 yyyy-mm-dd-hh，小时为 00～23' }
 	const batchText = normalizeString(data.batch_text || data.batchText)
 	const remark = normalizeString(data.remark)
 	const recordType = normalizeRecordType(data.record_type || data.recordType, DEFAULT_RECORD_TYPE)
@@ -3452,6 +3478,7 @@ function parseBatchCreatePayload(data = {}) {
 		data: {
 			preview,
 			date,
+			filling_time: fillingTime,
 			record_type: recordType,
 			input_mode: inputMode,
 			requested_input_mode: requestedInputMode,
@@ -3553,6 +3580,7 @@ async function batchCreateV1(user, data, requestId, token) {
 			msg: 'ok',
 			data: {
 				date: payload.date,
+				filling_time: payload.filling_time,
 				target_total: toCreateRows.length,
 				invalid_total: invalidItems.length,
 				duplicate_total: parsedRows.duplicate_total,
@@ -3600,7 +3628,7 @@ async function batchCreateV1(user, data, requestId, token) {
 		const now = Date.now()
 		const remark = payload.input_mode === 'after_fill_total' ? buildStartScaleFillRemark(payload.remark, row) : payload.remark
 		return {
-			date: payload.date, bottle_no: row.bottle_no, record_type: payload.record_type,
+			date: payload.date, filling_time: payload.filling_time, bottle_no: row.bottle_no, record_type: payload.record_type,
 			operator: operatorName, operator_id: operatorId, fill_weight: row.fill_weight,
 			weight_start: row.weight_start == null ? null : row.weight_start,
 			weight_end: row.weight_end == null ? null : row.weight_end,
@@ -3609,7 +3637,7 @@ async function batchCreateV1(user, data, requestId, token) {
 		}
 	})
 	return submitPreparedFillings(user, data, docs, {
-		date: payload.date, total: parsedRows.non_empty_total,
+		date: payload.date, filling_time: payload.filling_time, total: parsedRows.non_empty_total,
 		failed: invalidItems.length + existingItems.length,
 		failed_items: [...invalidItems, ...existingItems].slice(0, 200),
 		bottle_flow_warning_overridden: ignoreBottleFlowWarning && bottleFlowWarnings.length > 0,
@@ -3661,6 +3689,7 @@ async function fetchOperatorRepairRows(ids = []) {
 			_id: true,
 			bottle_no: true,
 			date: true,
+			filling_time: true,
 			operator: true,
 			operator_id: true,
 			fill_weight: true,
@@ -3816,6 +3845,8 @@ function parseBatchUpdateDatePayload(data = {}) {
 	const preview = Boolean(data.preview)
 	const scopeMode = normalizeString(data.scope_mode || data.scopeMode).toLowerCase()
 	const newDate = normalizeFillingDate(data.new_date || data.newDate)
+	const fillingTime = readFillingTime(data.new_date || data.newDate)
+	if (fillingTime === null) return { ok: false, msg: '灌装时间格式需为 yyyy-mm-dd-hh，小时为 00～23' }
 	if (!['ids', 'filter'].includes(scopeMode)) {
 		return { ok: false, msg: '批量范围无效' }
 	}
@@ -3836,7 +3867,7 @@ function parseBatchUpdateDatePayload(data = {}) {
 				preview,
 				scope_mode: 'ids',
 				selector: { ids },
-				new_date: newDate
+				new_date: newDate, filling_time: fillingTime
 			}
 		}
 	}
@@ -3863,7 +3894,7 @@ function parseBatchUpdateDatePayload(data = {}) {
 			scope_mode: 'filter',
 			where: filterResult.where,
 			selector: filterResult.filters,
-			new_date: newDate
+			new_date: newDate, filling_time: fillingTime
 		}
 	}
 }
@@ -3890,6 +3921,7 @@ async function batchUpdateDateV1(user, data, requestId, token) {
 				_id: true,
 				bottle_no: true,
 				date: true,
+				filling_time: true,
 				record_type: true,
 				fill_weight: true,
 				weight_start: true,
@@ -3916,7 +3948,7 @@ async function batchUpdateDateV1(user, data, requestId, token) {
 			msg: 'ok',
 			data: {
 				scope_mode: payload.scope_mode,
-				new_date: payload.new_date,
+				new_date: payload.new_date, filling_time: payload.filling_time,
 				target_total: targetRows.length,
 				missing_total: missingIds.length,
 				missing_ids: missingIds.slice(0, 50),
@@ -3936,7 +3968,7 @@ async function batchUpdateDateV1(user, data, requestId, token) {
 	const touchedTruckNos = []
 	const now = Date.now()
 	const eventDay = normalizeEventDay(payload.new_date, now)
-	const eventAt = parseEventAt(payload.new_date, now)
+	const eventAt = parseEventAt(payload.filling_time || payload.new_date, now)
 
 	for (let i = 0; i < targetRows.length; i += 1) {
 		const row = targetRows[i]
@@ -3976,6 +4008,7 @@ async function batchUpdateDateV1(user, data, requestId, token) {
 			}
 			await fillings.doc(rowId).update({
 				date: payload.new_date,
+				filling_time: payload.filling_time,
 				updated_at: Date.now()
 			})
 			if (inventoryLinked) {
@@ -3987,10 +4020,10 @@ async function batchUpdateDateV1(user, data, requestId, token) {
 			} else {
 				await movements.where({ source_id: rowId, type: 'fill' }).remove()
 			}
-			await replaceFillingStartLossAdjustmentForDoc({ ...row, date: payload.new_date, _id: rowId }, user)
+			await replaceFillingStartLossAdjustmentForDoc({ ...row, date: payload.new_date, filling_time: payload.filling_time, _id: rowId }, user)
 			await updateGasInventoryMovementDateForFilling({
 				sourceId: rowId,
-				date: payload.new_date,
+				date: payload.filling_time || payload.new_date,
 				now
 			})
 			success += 1
@@ -4024,7 +4057,7 @@ async function batchUpdateDateV1(user, data, requestId, token) {
 				payload.scope_mode === 'ids'
 					? { ids_count: payload.selector.ids.length }
 					: (payload.selector || {}),
-			new_date: payload.new_date,
+			new_date: payload.new_date, filling_time: payload.filling_time,
 			total: targetRows.length + missingIds.length,
 			success,
 			failed: failedItems.length,
@@ -4040,7 +4073,7 @@ async function batchUpdateDateV1(user, data, requestId, token) {
 		msg: touchRes.warning ? `批量更新完成（${touchRes.warning}）` : '批量更新完成',
 		data: {
 			scope_mode: payload.scope_mode,
-			new_date: payload.new_date,
+			new_date: payload.new_date, filling_time: payload.filling_time,
 			total: targetRows.length + missingIds.length,
 			success,
 			failed: failedItems.length,
@@ -4302,13 +4335,13 @@ async function saveOperationFillingRow(row, op, user) {
 			else await slots.add({ _id: slotId, ...slotDoc })
 			await transaction.collection('crm_bottle_movements').add({
 				_id: `${row._id}_fill`, bottle_no: row.bottle_no, type: 'fill', date: row.date,
-				event_day: normalizeEventDay(row.date, row.created_at), event_at: parseEventAt(row.date, row.created_at),
+				event_day: normalizeEventDay(row.date, row.created_at), event_at: parseEventAt(row.filling_time || row.date, row.created_at),
 				type_order: 20, source_type: 'filling', source_id: row._id, source_version: row.source_version,
 				customer_id: null, customer_name: '', net_weight: row.fill_weight, loss_weight: null,
 				note: row.remark, created_at: row.created_at, created_by: user._id, created_by_name: user.username || ''
 			})
 		}
-		const inventory = buildFillingGasMovementPayload({ sourceId: row._id, date: row.date, bottleNo: row.bottle_no,
+		const inventory = buildFillingGasMovementPayload({ sourceId: row._id, date: row.filling_time || row.date, bottleNo: row.bottle_no,
 			recordType: row.record_type, fillWeight: row.fill_weight, remark: row.remark, now: row.created_at, user })
 		if (inventory) await transaction.collection('crm_gas_inventory_movements').add({ _id: `${row._id}_gas`, ...inventory, source_version: row.source_version })
 		await txFillings.add(row)
@@ -4336,7 +4369,7 @@ async function synchronizeOperationFillingRow(row, op, user) {
 		const warning = await enqueueRegBridge('enqueueEventV1', {
 			source_type: op.summary.regulatory_source_type || 'filling', source_id: row._id,
 			event_type: 'fill', bottle_nos: isInventoryLinkedRecordType(row.record_type) ? [row.bottle_no] : [],
-			event_at: parseEventAt(row.date, row.created_at), enqueue_snapshot: true
+			event_at: parseEventAt(row.filling_time || row.date, row.created_at), enqueue_snapshot: true
 		}, currentUser && currentUser.token, op.operation_id, user, 'filling_reg_enqueue_create_failed', isInventoryLinkedRecordType(row.record_type) ? 1 : 0)
 		if (warning) throw new Error(warning)
 	}

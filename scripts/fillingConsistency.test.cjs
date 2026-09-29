@@ -105,6 +105,7 @@ function makeApp({ scan, regulatory } = {}) {
 			snapshot: { found_total: 1, enqueued_total: 1, duplicate_total: 0, missing_total: 0 }
 		} } }
 		assert.equal(name, 'crm-bottle-anomaly')
+		if (data.action === 'touchV2') return { result: { code: 0, data: { done: true } } }
 		assert.equal(data.action, 'touchFillingOperationV1')
 		const op = db.data('crm_filling_operations').get(operationKey(data.data.operation_id))
 		assert.equal(data.data.worker_secret, op.worker_secret)
@@ -594,4 +595,55 @@ test('truck scan does not finish until capped anomaly creation and stale resolut
 	assert.equal(staleSecond.data.done, true)
 	assert.equal(staleSecond.data.round_resolved_stale, 1)
 	assert.equal([...db.data('crm_bottle_anomalies').values()].filter(row => row.status === 'open').length, 0)
+})
+
+
+test('hour-level single create preserves UTC+8 source, movement and inventory time; retries and day filters stay valid', async () => {
+	const app = makeApp()
+	const input = { operation_id: 'operation_hour_single', date: '2026-09-05-14', bottle_no: 'B1', fill_weight: 10, input_mode: 'net' }
+	assert.equal((await app.invoke('createV1', input)).code, 0)
+	const row = [...app.db.data('crm_fillings').values()][0]
+	assert.equal(row.date, '2026-09-05')
+	assert.equal(row.filling_time, input.date)
+	for (const table of ['crm_bottle_movements', 'crm_gas_inventory_movements']) {
+		assert.equal([...app.db.data(table).values()][0].event_at, Date.parse('2026-09-05T14:00:00+08:00'))
+	}
+	assert.equal((await app.invoke('getV1', { _id: row._id })).data.filling_time, input.date)
+	const listed = await app.invoke('listV1', { dateStart: '2026-09-05', dateEnd: '2026-09-05', include_summary: false })
+	assert.equal(listed.data.length, 1)
+	assert.equal(listed.data[0].filling_time, input.date)
+	assert.equal((await app.invoke('createV1', input)).code, 0)
+	assert.equal(app.db.data('crm_fillings').size, 1)
+	assert.equal((await app.invoke('createV1', { ...input, date: '2026-09-05-15' })).code, 409)
+	assert.equal((await app.invoke('createV1', { ...input, operation_id: 'operation_hour_duplicate', date: '2026-09-05-15' })).code, 409)
+})
+
+test('batch create and date edits retain selected hour; editing legacy date-only records does not invent an hour', async () => {
+	const app = makeApp()
+	const input = { ...payload('operation_hour_batch', 2), date: '2026-09-05-23' }
+	assert.equal((await app.invoke('batchCreateV1', { ...input, preview: true })).data.filling_time, input.date)
+	assert.equal((await app.invoke('batchCreateV1', input)).code, 0)
+	const rows = [...app.db.data('crm_fillings').values()]
+	assert.ok(rows.every(row => row.filling_time === input.date))
+	const edit = await app.invoke('updateV1', { _id: rows[0]._id, date: '2026-09-05-00', ignore_bottle_flow_warning: true })
+	assert.equal(edit.code, 0, edit.msg)
+	assert.equal(app.db.data('crm_fillings').get(rows[0]._id).filling_time, '2026-09-05-00')
+	const batchEdit = await app.invoke('batchUpdateDateV1', { scope_mode: 'ids', selector: { ids: rows.map(row => row._id) }, new_date: '2026-09-06-08' })
+	assert.equal(batchEdit.code, 0, batchEdit.msg)
+	assert.equal(batchEdit.data.success, 2)
+	assert.ok([...app.db.data('crm_fillings').values()].every(row => row.date === '2026-09-06' && row.filling_time === '2026-09-06-08'))
+	assert.ok([...app.db.data('crm_gas_inventory_movements').values()].every(row => row.event_day === '2026-09-06' && row.event_at === Date.parse('2026-09-06T08:00:00+08:00')))
+	const legacy = app.db.data('crm_fillings').get(rows[0]._id)
+	delete legacy.filling_time
+	assert.equal((await app.invoke('updateV1', { _id: legacy._id, remark: 'legacy edit', ignore_bottle_flow_warning: true })).code, 0)
+	assert.equal(app.db.data('crm_fillings').get(legacy._id).filling_time, '')
+})
+
+test('invalid hour/calendar inputs are rejected before source writes in single and batch entries', async () => {
+	const app = makeApp()
+	for (const date of ['2026-09-05-24', '2026-02-30-12', '2026-09-05-xx']) {
+		assert.equal((await app.invoke('createV1', { operation_id: `invalid_${date}`, date, bottle_no: 'B1', fill_weight: 10 })).code, 400)
+		assert.equal((await app.invoke('batchCreateV1', { ...payload(`invalid_batch_${date}`, 1), date })).code, 400)
+	}
+	assert.equal(app.db.data('crm_fillings').size, 0)
 })

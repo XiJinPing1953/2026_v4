@@ -139,6 +139,10 @@
     },
     "consistency_status": {
       "bsonType": "string"
+    },
+    "filling_time": {
+      "bsonType": "string",
+      "description": "已知灌装业务时间，UTC+8，yyyy-mm-dd-hh；历史仅日期记录为空或缺省"
     }
   },
   "permission": {

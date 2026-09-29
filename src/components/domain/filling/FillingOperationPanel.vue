@@ -2,18 +2,21 @@
 	<view v-if="items.length || error" class="operation-panel">
 		<view class="operation-heading">
 			<text>灌装处理状态</text>
-			<AppButton size="sm" kind="neutral" :loading="loading" @click="refresh">刷新状态</AppButton>
+			<AppButton size="sm" kind="neutral" @click="expanded = !expanded">{{ expanded ? '收起' : '展开' }}</AppButton>
 		</view>
-		<text v-if="error" class="operation-error">{{ error }}</text>
-		<view v-for="item in items" :key="item.operation_id" class="operation-row">
-			<text>{{ item.date || '灌装批次' }} · {{ label(item) }}</text>
-			<text>提交编号：{{ item.operation_id }}</text>
-			<text v-if="item.accepted_total != null">已确认保存 {{ item.saved_total }}/{{ item.accepted_total }} 条，流转已核查 {{ item.processed_total }}/{{ item.target_total }} 个</text>
-			<text v-if="item.failed">未纳入 {{ item.failed }} 条，请核对批量结果</text>
-			<text v-if="item.last_error" class="operation-error">{{ item.last_error }}</text>
-			<AppButton v-if="canRetry && item.status === 'failed'" size="sm" kind="neutral" :disabled="loading" @click="retry(item)">重试剩余处理</AppButton>
-			<AppButton v-if="item.accepted_total != null" size="sm" kind="neutral" @click="inspect(item)">查看源单状态</AppButton>
-			<text v-for="source in sourceDetails[item.operation_id] || []" :key="source._id">{{ source.bottle_no || '无瓶号' }} · {{ !source.saved ? '尚未保存' : !source.version_matches ? '源单版本已变更' : source.consistency_status === 'complete' ? '已保存并核查' : '已保存，后续处理中' }} · {{ source._id }}</text>
+		<view v-if="expanded">
+			<AppButton size="sm" kind="neutral" :loading="loading" @click="refresh">刷新状态</AppButton>
+			<text v-if="error" class="operation-error">{{ error }}</text>
+			<view v-for="item in items" :key="item.operation_id" class="operation-row">
+				<text>{{ item.filling_time || item.date || '灌装批次' }} · {{ label(item) }}</text>
+				<text>提交编号：{{ item.operation_id }}</text>
+				<text v-if="item.accepted_total != null">已确认保存 {{ item.saved_total }}/{{ item.accepted_total }} 条，流转已核查 {{ item.processed_total }}/{{ item.target_total }} 个</text>
+				<text v-if="item.failed">未纳入 {{ item.failed }} 条，请核对批量结果</text>
+				<text v-if="item.last_error" class="operation-error">{{ item.last_error }}</text>
+				<AppButton v-if="canRetry && item.status === 'failed'" size="sm" kind="neutral" :disabled="loading" @click="retry(item)">重试剩余处理</AppButton>
+				<AppButton v-if="item.accepted_total != null" size="sm" kind="neutral" @click="inspect(item)">查看源单状态</AppButton>
+				<text v-for="source in sourceDetails[item.operation_id] || []" :key="source._id">{{ source.bottle_no || '无瓶号' }} · {{ !source.saved ? '尚未保存' : !source.version_matches ? '源单版本已变更' : source.consistency_status === 'complete' ? '已保存并核查' : '已保存，后续处理中' }} · {{ source._id }}</text>
+			</view>
 		</view>
 	</view>
 </template>
@@ -24,6 +27,7 @@ import AppButton from '@/components/base/AppButton.vue'
 import { listFillingOperationsV1, retryFillingOperationV1, getFillingOperationV1 } from '@/services/fillingOperations'
 
 defineProps({ canRetry: { type: Boolean, default: false } })
+const expanded = ref(false)
 const items = ref([])
 const loading = ref(false)
 const error = ref('')

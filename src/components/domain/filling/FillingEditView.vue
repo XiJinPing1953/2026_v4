@@ -37,9 +37,7 @@
 				<AppSection title="灌装作业信息">
 					<view class="form-grid">
 						<view class="form-item span-2">
-							<picker class="picker-full" mode="date" :value="form.date" @change="onDateChange">
-								<AppInput :model-value="form.date" label="灌装日期" placeholder="请选择作业日期" disabled prefix-icon="calendar" size="sm" />
-							</picker>
+							<FillingTimePicker :model-value="form.date" label="灌装日期" @update:modelValue="value => onDateChange({ detail: { value } })" />
 							</view>
 							<view class="form-item">
 								<picker class="picker-full" mode="selector" :range="recordTypeOptions" range-key="label" @change="onRecordTypeChange">
@@ -82,6 +80,7 @@ import AppSection from '@/components/base/AppSection.vue'
 import AppCard from '@/components/base/AppCard.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
+import FillingTimePicker from './FillingTimePicker.vue'
 import { createFillingV1, getFillingV1, updateFillingV1 } from '@/services/filling'
 import { searchDeliveriesV1 } from '@/services/delivery'
 
@@ -105,7 +104,7 @@ function formatTodayUtc8() {
 	const y = date.getUTCFullYear()
 	const m = String(date.getUTCMonth() + 1).padStart(2, '0')
 	const d = String(date.getUTCDate()).padStart(2, '0')
-	return `${y}-${m}-${d}`
+	return `${y}-${m}-${d}-${String(date.getUTCHours()).padStart(2, '0')}`
 }
 
 function normalizeRecordType(value, fallback = 'normal_fill') {
@@ -367,7 +366,7 @@ watch(
 				return
 			}
 				const row = res.data || {}
-				form.date = String(row.date || '')
+				form.date = String(row.filling_time || row.date || '')
 				form.bottle_no = String(row.bottle_no || '')
 				form.record_type = normalizeRecordType(row.record_type)
 				form.operator = normalizeString(row.operator || row.created_by_name)
