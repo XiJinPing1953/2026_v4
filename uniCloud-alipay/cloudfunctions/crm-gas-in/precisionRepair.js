@@ -20,7 +20,8 @@ async function preview(db, command, type, ids, build) {
 	const sources = rows(await db.collection(SOURCES[type]).where({ _id: command.in(ids) }).limit(100).get())
 	const movements = rows(await db.collection('crm_gas_inventory_movements')
 		.where({ source_type: type, source_id: command.in(ids) }).limit(100).get())
-	if (sources.length !== ids.length || movements.length >= 100) fail('源单缺失或库存流水超限')
+	if (sources.length !== ids.length) fail(`源单读取不完整：${sources.length}/${ids.length}`)
+	if (movements.length >= 100) fail(`库存流水读取达到上限：${movements.length}`)
 	const changes = []
 	for (const source of sources.sort((a, b) => a._id.localeCompare(b._id))) {
 		if (String(source.date) < '2026-08-12' || String(source.date).slice(0, 10) > '2026-09-29') fail('超出本次精度修正账期')
