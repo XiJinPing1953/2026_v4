@@ -153,9 +153,7 @@
 							</view>
 
 							<view class="single-grid">
-								<picker class="picker-block" mode="date" :value="singleCreateForm.date" @change="onSingleCreateDateChange">
-									<AppInput :model-value="singleCreateForm.date" label="灌装日期" placeholder="请选择日期" disabled prefix-icon="calendar" size="sm" />
-								</picker>
+								<FillingTimePicker :model-value="singleCreateForm.date" label="灌装日期" @update:modelValue="value => onSingleCreateDateChange({ detail: { value } })" />
 								<picker class="picker-block" mode="selector" :range="recordTypeCreateOptions" range-key="label" @change="onSingleCreateRecordTypeChange">
 									<AppInput :model-value="singleCreateRecordTypeLabel" label="作业类型" placeholder="请选择作业类型" disabled prefix-icon="list" size="sm" />
 								</picker>
@@ -261,9 +259,7 @@
 								</view>
 
 								<view class="batch-grid">
-									<picker class="picker-block" mode="date" :value="batchCreateForm.date" @change="onBatchCreateDateChange">
-										<AppInput :model-value="batchCreateForm.date" label="灌装日期" placeholder="请选择日期" disabled prefix-icon="calendar" size="sm" />
-									</picker>
+									<FillingTimePicker :model-value="batchCreateForm.date" label="灌装日期" @update:modelValue="value => onBatchCreateDateChange({ detail: { value } })" />
 									<picker class="picker-block" mode="selector" :range="recordTypeCreateOptions" range-key="label" @change="onBatchCreateRecordTypeChange">
 										<AppInput :model-value="batchCreateRecordTypeLabel" label="作业类型" placeholder="请选择作业类型" disabled prefix-icon="list" size="sm" />
 									</picker>
@@ -347,9 +343,7 @@
 						<picker class="picker-block" mode="selector" :range="batchScopeOptions" range-key="label" @change="onBatchScopeChange">
 							<AppInput :model-value="batchScopeLabel" label="更新范围" disabled prefix-icon="list" size="sm" />
 						</picker>
-						<picker class="picker-block" mode="date" :value="batchForm.newDate" @change="onBatchDateChange">
-							<AppInput :model-value="batchForm.newDate" label="新灌装日期" placeholder="请选择日期" disabled prefix-icon="calendar" size="sm" />
-						</picker>
+						<FillingTimePicker :model-value="batchForm.newDate" label="新灌装日期" @update:modelValue="value => onBatchDateChange({ detail: { value } })" />
 						<AppInput :model-value="String(selectedCount)" label="已勾选数量" disabled prefix-icon="list" size="sm" />
 					</view>
 					<text class="batch-hint">按筛选全量模式会更新当前筛选命中的全部记录；勾选子集模式只更新已勾选记录。</text>
@@ -379,7 +373,7 @@
 						v-for="item in list"
 						:key="item._id"
 						:title="item.bottle_no"
-						:subtitle="item.date"
+						:subtitle="item.filling_time || item.date"
 						icon="bottle"
 						icon-class="bg-teal"
 					>
@@ -435,6 +429,7 @@ import AppList from '@/components/base/AppList.vue'
 import AppListItem from '@/components/base/AppListItem.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
+import FillingTimePicker from './FillingTimePicker.vue'
 import AppTag from '@/components/base/AppTag.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
 import AppDatePresetBar from '@/components/base/AppDatePresetBar.vue'
@@ -1036,7 +1031,7 @@ function formatTodayUtc8() {
 	const y = date.getUTCFullYear()
 	const m = String(date.getUTCMonth() + 1).padStart(2, '0')
 	const d = String(date.getUTCDate()).padStart(2, '0')
-	return `${y}-${m}-${d}`
+	return `${y}-${m}-${d}-${String(date.getUTCHours()).padStart(2, '0')}`
 }
 
 function normalizeUniqueIds(rawIds) {
@@ -1054,12 +1049,13 @@ function normalizeUniqueIds(rawIds) {
 
 function isValidDateString(value) {
 	const text = normalizeString(value)
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false
+	if (!/^\d{4}-\d{2}-\d{2}(?:-\d{2})?$/.test(text)) return false
 	const [year, month, day] = text.split('-').map((item) => Number(item))
 	if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false
 	if (month < 1 || month > 12) return false
 	const maxDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
-	return day >= 1 && day <= maxDay
+	const hour = text.split('-')[3]
+	return day >= 1 && day <= maxDay && (hour == null || Number(hour) <= 23)
 }
 
 function clearBatchResultState() {
@@ -2153,7 +2149,7 @@ async function onBatchCreateExecute() {
 			})
 			: await uni.showModal({
 				title: '确认批量新增',
-				content: `将新增 ${total} 条灌装记录（日期 ${previewData.date}，类型 ${batchCreateRecordTypeLabel.value}，操作人 ${batchCreateOperatorLabel.value}），确认执行吗？`,
+				content: `将新增 ${total} 条灌装记录（日期 ${previewData.filling_time || previewData.date}，类型 ${batchCreateRecordTypeLabel.value}，操作人 ${batchCreateOperatorLabel.value}），确认执行吗？`,
 				showCancel: true
 			})
 		if (!confirmRes.confirm) return
@@ -2383,7 +2379,7 @@ function formatExportNumber(value) {
 
 function buildFillingExportCsv(rows = []) {
 	const columns = [
-		{ label: '日期', get: (row) => normalizeString(row?.date) },
+		{ label: '日期', get: (row) => normalizeString(row?.filling_time || row?.date) },
 		{ label: '瓶号', get: (row) => normalizeString(row?.bottle_no) },
 		{ label: '净重(kg)', get: (row) => formatExportNumber(row?.fill_weight) },
 		{ label: '作业类型', get: (row) => getRecordTypeLabel(row?.record_type) },
@@ -2545,7 +2541,7 @@ async function onBatchExecute() {
 		}
 		const confirmRes = await uni.showModal({
 			title: '确认批量改日期',
-			content: `将把 ${total} 条灌装记录日期统一改为 ${previewData.new_date}，确认执行吗？`,
+			content: `将把 ${total} 条灌装记录日期统一改为 ${previewData.filling_time || previewData.new_date}，确认执行吗？`,
 			showCancel: true
 		})
 		if (!confirmRes.confirm) return
