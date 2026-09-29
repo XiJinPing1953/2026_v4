@@ -1,5 +1,5 @@
 <template>
-	<CustomerListView ref="listRef" :entry-mode="entryMode" />
+	<CustomerListView ref="listRef" :entry-mode="entryMode" :initial-keyword="initialKeyword" />
 </template>
 
 <script setup>
@@ -10,6 +10,7 @@ import CustomerListView from '@/components/domain/customer/CustomerListView.vue'
 
 const listRef = ref(null)
 const entryMode = ref('default')
+const initialKeyword = ref('')
 let firstShow = true
 
 function normalizeEntryMode(value) {
@@ -21,6 +22,7 @@ function normalizeEntryMode(value) {
 onLoad((options = {}) => {
 	const scene = options.scene || options.entryMode || options.entry_mode || ''
 	entryMode.value = normalizeEntryMode(scene)
+	initialKeyword.value = String(options.keyword || '').trim()
 })
 
 onShow(() => {
