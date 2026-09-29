@@ -1,6 +1,7 @@
 <template>
 	<AppPage :title="pageTitle" :subtitle="subtitle" icon="user">
 		<template #headerActions>
+			<AppButton v-if="isStatementEntryMode" size="sm" kind="neutral" icon="user" @click="onOpenProfiles">客户档案</AppButton>
 			<AppButton v-if="canCreateCustomer" size="sm" kind="primary" icon="plus" @click="onAdd">新增客户</AppButton>
 			<AppButton size="sm" kind="neutral" icon="document" :loading="exporting" :disabled="loading" @click="onExport">导出</AppButton>
 			<AppButton
@@ -353,7 +354,8 @@ import {
 } from '@/components/domain/customer/exportCustomerListWorkbook'
 
 const props = defineProps({
-	entryMode: { type: String, default: 'default' }
+	entryMode: { type: String, default: 'default' },
+	initialKeyword: { type: String, default: '' }
 })
 
 const list = ref([])
@@ -1090,6 +1092,11 @@ function onKeywordConfirm() {
 	onSearch(true)
 }
 
+function onOpenProfiles() {
+	const keyword = String(filters.keyword || '').trim()
+	uni.navigateTo({ url: `/pages/customer/list${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''}` })
+}
+
 function onAdd() {
 	uni.navigateTo({ url: '/pages/customer/edit' })
 }
@@ -1196,6 +1203,7 @@ function onNextPage() {
 }
 
 onMounted(() => {
+	filters.keyword = props.initialKeyword
 	onSearch()
 })
 
