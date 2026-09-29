@@ -106,23 +106,39 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.28-confirmed-filling-loss",
+      "version": "2026.09.29-gas-inventory-precision",
       "output": "release/cloud",
-      "acceptance": "Explicit source-bound user confirmation of staged filling/storage losses; atomic correction, unchanged scale/sale facts, repeat and rescan safe.",
+      "acceptance": "Preserve gram precision in inventory movements and aggregate only before display; source-bound transactional repair with backup, stale preview rejection and idempotent replay.",
       "deploymentScope": {
         "functions": [
-          "crm-bottle-anomaly",
-          "crm-filling"
+          "crm-filling",
+          "crm-gas-in",
+          "crm-sale"
         ],
         "databaseFiles": [],
-        "baseCommit": "bc5393e2fe0944eb55e9e88fadf282c2d673269d",
+        "baseCommit": "45ec065b0fa641e4d34067b15c32dc2b295a7fa9",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/common/confirmedFillLoss.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/confirmedFillLossLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/confirmedFillLossLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/index.js"
-        ]
+          "uniCloud-alipay/cloudfunctions/common/gasInventoryPrecision.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/gasInventoryPrecisionLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/gasInventoryPrecisionLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/gasInventoryPrecisionLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/precisionRepair.js"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     }

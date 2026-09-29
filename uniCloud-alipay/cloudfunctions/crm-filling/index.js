@@ -1,5 +1,7 @@
 'use strict'
 
+const { inventoryTon, kgToTon } = require('./gasInventoryPrecisionLocal')
+
 
 const flowRules = require('./bottleFlowRulesLocal')
 const confirmedFillLoss = require('./confirmedFillLossLocal')
@@ -110,11 +112,6 @@ function roundTon(value) {
 	return roundTo(value, 3)
 }
 
-function kgToTon(value) {
-	const num = Number(value)
-	if (!Number.isFinite(num)) return null
-	return roundTon(num / 1000)
-}
 
 async function getUserByToken(token) {
 	if (!token) return null
@@ -508,9 +505,9 @@ function buildFillingGasMovementPayload({ sourceId, date, bottleNo = '', recordT
 		source_type: 'filling',
 		source_id: normalizedSourceId,
 		movement_kind: resolveFillingGasMovementKind(normalizedRecordType, normalizedBottleNo),
-		asset_delta_t: roundTon(assetDelta),
-		station_delta_t: roundTon(stationDelta),
-		in_bottle_delta_t: roundTon(inBottleDelta),
+		asset_delta_t: inventoryTon(assetDelta),
+		station_delta_t: inventoryTon(stationDelta),
+		in_bottle_delta_t: inventoryTon(inBottleDelta),
 		note: normalizeString(remark),
 		meta: {
 			record_type: normalizedRecordType,

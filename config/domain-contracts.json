@@ -89,6 +89,14 @@
         "uniCloud-alipay/cloudfunctions/crm-filling/confirmedFillLossLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/confirmedFillLossLocal.js"
       ]
+    },
+    {
+      "source": "uniCloud-alipay/cloudfunctions/common/gasInventoryPrecision.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-filling/gasInventoryPrecisionLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-sale/gasInventoryPrecisionLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-gas-in/gasInventoryPrecisionLocal.js"
+      ]
     }
   ],
   "promotedSchemas": [

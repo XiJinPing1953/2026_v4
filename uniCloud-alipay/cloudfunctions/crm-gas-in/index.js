@@ -1,5 +1,7 @@
 'use strict'
 
+const { inventoryTon, kgToTon } = require('./gasInventoryPrecisionLocal')
+
 const db = uniCloud.database()
 const dbCmd = db.command
 
@@ -17,6 +19,7 @@ const sales = db.collection('crm_sale_records')
 const bottleMovements = db.collection('crm_bottle_movements')
 const currentInventoryCore = require('./currentInventory')
 const inventoryRead = require('./inventoryRead')
+const precisionRepair = require('./precisionRepair')
 const gasBusinessTime = require('./gasBusinessTime')
 let ensureActionAcl = null
 const tankTelemetryCore = require('./tankTelemetryLocal')
@@ -52,7 +55,7 @@ const PAGE_ACTION_RULES = {
 	listInventoryPeriodsV1: [{ pagePath: '/pages/gas-in/list', action: 'view' }],
 	syncCycleAdjustmentsV1: [{ pagePath: '/pages/gas-in/list', action: 'update' }]
 }
-const SUPERADMIN_ONLY_ACTIONS = ['rebuildInventoryV1', 'restoreInventoryV1']
+const SUPERADMIN_ONLY_ACTIONS = ['rebuildInventoryV1', 'restoreInventoryV1', 'repairInventoryPrecisionV1']
 
 async function getUserByToken(token) {
 	if (!token) return null
@@ -144,11 +147,6 @@ function roundMoney(value) {
 	return roundTo(value, 2)
 }
 
-function kgToTon(value) {
-	const num = Number(value)
-	if (!Number.isFinite(num)) return null
-	return roundTon(num / 1000)
-}
 
 function buildEmptyTankSummary(message = '等待现场网关上报') {
 	return {
@@ -361,7 +359,7 @@ function movementKey(sourceType, sourceId, movementKind) {
 function toMovementDelta(value) {
 	const num = Number(value)
 	if (!Number.isFinite(num)) return 0
-	return roundTon(num)
+	return inventoryTon(num)
 }
 
 function normalizeGasNumberField(value, digits = 3) {
@@ -691,22 +689,22 @@ function resolveInventoryContribution(row = {}) {
 	let vehicle = 0
 
 	if (movementKind === 'filling_truck_fill') {
-		vehicle = roundTon(-station)
+		vehicle = inventoryTon(-station)
 	} else if (movementKind === 'sale_truck') {
-		vehicle = roundTon(asset)
+		vehicle = inventoryTon(asset)
 	} else if (movementKind === 'gas_in') {
 		const directSaleWeight = toNumber(meta.direct_sale_weight_t, null)
-		vehicle = roundTon(Number.isFinite(directSaleWeight) ? directSaleWeight : Math.max(asset - station, 0))
+		vehicle = inventoryTon(Number.isFinite(directSaleWeight) ? directSaleWeight : Math.max(asset - station, 0))
 	} else if (movementKind === 'filling_normal_fill' && (inventoryScope === 'truck' || looksLikeTruckNo(bottleNo))) {
 		inBottle = 0
-		vehicle = roundTon(-station)
+		vehicle = inventoryTon(-station)
 	}
 
 	return {
-		asset: roundTon(asset),
-		station: roundTon(station),
-		inBottle: roundTon(inBottle),
-		vehicle: roundTon(vehicle)
+		asset: inventoryTon(asset),
+		station: inventoryTon(station),
+		inBottle: inventoryTon(inBottle),
+		vehicle: inventoryTon(vehicle)
 	}
 }
 
@@ -925,14 +923,14 @@ function sumNetKgFromSaleItems(rows = [], key = 'net') {
 	}, 0)
 }
 
-function buildFillingGasMovementCandidate(row = {}) {
+function buildFillingGasMovementCandidate(row = {}, legacyPrecision = false) {
 	const sourceId = normalizeString(row._id)
 	if (!sourceId) return null
 	const recordType = normalizeString(row.record_type).toLowerCase() || 'normal_fill'
 	const bottleNo = normalizeBottleNo(row.bottle_no)
 	const isTruckFill = recordType === 'normal_fill' && looksLikeTruckNo(bottleNo)
 	const fillWeightKg = toNumber(row.fill_weight, 0) || 0
-	const qT = kgToTon(fillWeightKg)
+	const qT = legacyPrecision ? roundTon(fillWeightKg / 1000) : kgToTon(fillWeightKg)
 	if (!(typeof qT === 'number' && Number.isFinite(qT) && qT !== 0)) return null
 
 	let deltas = null
@@ -971,7 +969,7 @@ function buildFillingGasMovementCandidate(row = {}) {
 	})
 }
 
-function buildSaleGasMovementCandidate(row = {}) {
+function buildSaleGasMovementCandidate(row = {}, legacyPrecision = false) {
 	const sourceId = normalizeString(row._id)
 	if (!sourceId) return null
 	const bizMode = normalizeString(row.biz_mode).toLowerCase() || 'bottle'
@@ -1015,7 +1013,7 @@ function buildSaleGasMovementCandidate(row = {}) {
 		movementKind = 'sale_bottle'
 	}
 
-	const qT = kgToTon(saleNetKg)
+	const qT = legacyPrecision ? roundTon(saleNetKg / 1000) : kgToTon(saleNetKg)
 	if (!(typeof qT === 'number' && Number.isFinite(qT) && qT !== 0)) return null
 
 	const createdAt = Number(row.created_at) || Date.now()
@@ -1190,9 +1188,9 @@ function buildCycleAdjustMovementDoc(candidate = {}, user) {
 		sourceType: 'cycle_adjust',
 		sourceId: normalizeString(candidate.source_id),
 		movementKind: 'cycle_adjust',
-		assetDeltaT: roundTon(sign * qT),
+		assetDeltaT: inventoryTon(sign * qT),
 		stationDeltaT: 0,
-		inBottleDeltaT: roundTon(sign * qT),
+		inBottleDeltaT: inventoryTon(sign * qT),
 		note: `闭环差值${isLoss ? '损耗' : '回冲'} ${Math.abs(deltaKg).toFixed(3)}kg`,
 		meta: {
 			source_out_id: normalizeString(candidate.source_out_id),
@@ -1290,10 +1288,10 @@ function summarizeMovementDocs(rows = []) {
 			}
 		}
 		summary.by_kind[kind].total += 1
-		summary.by_kind[kind].asset_total_t = roundTon(summary.by_kind[kind].asset_total_t + contribution.asset)
-		summary.by_kind[kind].station_total_t = roundTon(summary.by_kind[kind].station_total_t + contribution.station)
-		summary.by_kind[kind].in_bottle_total_t = roundTon(summary.by_kind[kind].in_bottle_total_t + contribution.inBottle)
-		summary.by_kind[kind].vehicle_total_t = roundTon(summary.by_kind[kind].vehicle_total_t + contribution.vehicle)
+		summary.by_kind[kind].asset_total_t = inventoryTon(summary.by_kind[kind].asset_total_t + contribution.asset)
+		summary.by_kind[kind].station_total_t = inventoryTon(summary.by_kind[kind].station_total_t + contribution.station)
+		summary.by_kind[kind].in_bottle_total_t = inventoryTon(summary.by_kind[kind].in_bottle_total_t + contribution.inBottle)
+		summary.by_kind[kind].vehicle_total_t = inventoryTon(summary.by_kind[kind].vehicle_total_t + contribution.vehicle)
 	}
 	summary.asset_total_t = roundTon(summary.asset_total_t)
 	summary.station_total_t = roundTon(summary.station_total_t)
@@ -2287,6 +2285,7 @@ exports.main = async (event, context) => {
 		if (action === 'updateV1') return updateV1(user, data, requestId)
 		if (action === 'removeV1') return removeV1(user, data, requestId)
 		if (action === 'syncCycleAdjustmentsV1') return syncCycleAdjustmentsV1(user, data, requestId)
+		if (action === 'repairInventoryPrecisionV1') return await precisionRepair.repair({ db, command: dbCmd, user, data, builders: { filling: buildFillingGasMovementCandidate, sale: buildSaleGasMovementCandidate } })
 		if (action === 'rebuildInventoryV1') return rebuildInventoryV1(user, data, requestId)
 		if (action === 'restoreInventoryV1') return restoreInventoryV1(user, data, requestId)
 

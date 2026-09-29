@@ -1,5 +1,7 @@
 'use strict'
 
+const { inventoryTon, kgToTon } = require('./gasInventoryPrecisionLocal')
+
 const saleAccounting = require('./saleAccountingLocal')
 const { readComplete, withFinancialEvidence, FinancialReadError } = require('./financialReadLocal')
 
@@ -495,11 +497,6 @@ function roundTon(value) {
 	return roundTo(value, 3)
 }
 
-function kgToTon(value) {
-	const num = Number(value)
-	if (!Number.isFinite(num)) return null
-	return roundTon(num / 1000)
-}
 
 function joinDelivery(delivery1, delivery2) {
 	const a = normalizeString(delivery1)
@@ -2242,9 +2239,9 @@ function buildSaleGasMovementPayload({ sourceId, saleDoc, bizMode, amounts, now 
 		source_type: 'sale',
 		source_id: normalizedSourceId,
 		movement_kind: movementKind,
-		asset_delta_t: roundTon(-qT),
+		asset_delta_t: inventoryTon(-qT),
 		station_delta_t: 0,
-		in_bottle_delta_t: normalizedBizMode === 'truck' ? 0 : roundTon(-qT),
+		in_bottle_delta_t: normalizedBizMode === 'truck' ? 0 : inventoryTon(-qT),
 		note: movementNote,
 		meta: {
 			biz_mode: normalizedBizMode,
