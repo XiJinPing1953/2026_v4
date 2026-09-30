@@ -1,6 +1,7 @@
 'use strict'
 
 const { inventoryTon, kgToTon } = require('./gasInventoryPrecisionLocal')
+const { resolveWeighingCorrection } = require('./weighingCorrection')
 
 
 const flowRules = require('./bottleFlowRulesLocal')
@@ -3069,6 +3070,8 @@ async function updateV1(user, data, requestId, token) {
 	const oldRes = await fillings.doc(id).get()
 	const oldDoc = (oldRes.data && oldRes.data[0]) || null
 	if (!oldDoc) return { code: 404, msg: '记录不存在' }
+	const weighingCorrection = resolveWeighingCorrection(data, oldDoc)
+	if (!weighingCorrection.ok) return weighingCorrection
 	const pendingEdit = await checkPendingFillingEdit(oldDoc)
 	if (pendingEdit) return pendingEdit
 
@@ -3100,7 +3103,9 @@ async function updateV1(user, data, requestId, token) {
 	const operatorId = normalizeIdString(
 		data.operator_id != null ? data.operator_id : (oldDoc.operator_id || oldDoc.created_by || user?._id)
 	) || null
-	const fillWeight = toNumber(data.fill_weight != null ? data.fill_weight : oldDoc.fill_weight, null)
+	const fillWeight = weighingCorrection.fields
+		? weighingCorrection.fields.fill_weight
+		: toNumber(data.fill_weight != null ? data.fill_weight : oldDoc.fill_weight, null)
 	if (!(typeof fillWeight === 'number' && fillWeight > 0)) {
 		return { code: 400, msg: '灌装重量必填且大于 0' }
 	}
@@ -3125,6 +3130,7 @@ async function updateV1(user, data, requestId, token) {
 
 	const now = Date.now()
 	const updateDoc = {
+		...(weighingCorrection.fields || {}),
 		date,
 		filling_time: fillingTime,
 		bottle_no: bottleNo,
@@ -3136,7 +3142,16 @@ async function updateV1(user, data, requestId, token) {
 		updated_at: now,
 		source_version: Number(oldDoc.source_version || 0) + 1
 	}
-	await fillings.doc(id).update(updateDoc)
+	if (weighingCorrection.fields) {
+		const res = await fillings.where({
+			_id: id,
+			source_version: oldDoc.source_version == null ? dbCmd.exists(false) : oldDoc.source_version,
+			updated_at: oldDoc.updated_at == null ? dbCmd.exists(false) : oldDoc.updated_at
+		}).update(updateDoc)
+		if (!Number(res.updated)) return { code: 409, msg: '原记录已变化，请重新核对' }
+	} else {
+		await fillings.doc(id).update(updateDoc)
+	}
 
 	const movementEventDay = normalizeEventDay(date, now)
 	const movementEventAt = parseEventAt(fillingTime || date, now)
@@ -3229,6 +3244,10 @@ async function updateV1(user, data, requestId, token) {
 		'filling_update_v1',
 		{
 			id,
+			...(weighingCorrection.fields ? { weighing_correction: {
+				before: { weight_start: oldDoc.weight_start, weight_end: oldDoc.weight_end, actual_net_weight: oldDoc.actual_net_weight, fill_weight: oldDoc.fill_weight, source_version: oldDoc.source_version },
+				after: { ...weighingCorrection.fields, source_version: updateDoc.source_version }
+			} } : {}),
 			bottle_no: bottleNo,
 			record_type: recordType,
 			operator: operatorName,

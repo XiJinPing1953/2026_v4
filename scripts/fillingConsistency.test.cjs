@@ -639,6 +639,44 @@ test('batch create and date edits retain selected hour; editing legacy date-only
 	assert.equal(app.db.data('crm_fillings').get(legacy._id).filling_time, '')
 })
 
+test('confirmed decimal correction synchronizes both weighings, net weight and inventory; stale retry cannot write', async () => {
+	const app = makeApp()
+	const row = { _id: 'decimal_source', date: '2026-09-05', bottle_no: 'B1', record_type: 'normal_fill',
+		weight_start: 121, weight_end: 1853, fill_weight: 1732, actual_net_weight: 1732, source_version: 1, updated_at: 1 }
+	app.db.data('crm_fillings').set(row._id, row)
+	app.db.data('crm_gas_inventory_movements').set('old_gas', { _id: 'old_gas', source_type: 'filling', source_id: row._id, station_delta_t: -1.732 })
+	const request = { _id: row._id, weight_end: 185.3, expected_source_version: 1, ignore_bottle_flow_warning: true }
+	const res = await app.invoke('updateV1', request)
+	assert.equal(res.code, 0, res.msg)
+	assert.equal(row.weight_start, 121)
+	assert.equal(row.weight_end, 185.3)
+	assert.equal(row.fill_weight, 64.3)
+	assert.equal(row.actual_net_weight, 64.3)
+	assert.equal(row.source_version, 2)
+	assert.equal([...app.db.data('crm_bottle_movements').values()].find(r => r.source_id === row._id).net_weight, 64.3)
+	const gas = [...app.db.data('crm_gas_inventory_movements').values()].filter(r => r.source_id === row._id)
+	assert.equal(gas.length, 1)
+	assert.equal(gas[0].station_delta_t, -0.0643)
+	assert.equal(gas[0].in_bottle_delta_t, 0.0643)
+	const before = JSON.stringify(row)
+	assert.equal((await app.invoke('updateV1', request)).code, 409)
+	assert.equal(JSON.stringify(row), before)
+})
+
+test('weighing corrections reject missing versions and contradictory net quantities before writes', async () => {
+	const app = makeApp()
+	const row = { _id: 'invalid_decimal', date: '2026-09-05', bottle_no: 'B1', record_type: 'normal_fill',
+		weight_start: 121, weight_end: 1853, fill_weight: 1732, actual_net_weight: 1732, source_version: 1, updated_at: 1 }
+	app.db.data('crm_fillings').set(row._id, row)
+	for (const data of [{ weight_end: 185.3 }, { weight_end: 185.3, expected_source_version: 1, fill_weight: 1732 },
+		{ weight_end: '', expected_source_version: 1 }, { weight_end: 120, expected_source_version: 1 }]) {
+		assert.equal((await app.invoke('updateV1', { _id: row._id, ...data })).code, 400)
+		assert.equal(row.weight_end, 1853)
+		assert.equal(row.source_version, 1)
+		assert.equal(app.db.data('crm_gas_inventory_movements').size, 0)
+	}
+})
+
 test('invalid hour/calendar inputs are rejected before source writes in single and batch entries', async () => {
 	const app = makeApp()
 	for (const date of ['2026-09-05-24', '2026-02-30-12', '2026-09-05-xx']) {
