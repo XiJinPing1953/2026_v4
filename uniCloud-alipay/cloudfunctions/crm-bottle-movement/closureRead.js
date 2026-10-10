@@ -147,22 +147,17 @@ function createClosureReader(db) {
 		}
 		const expected = await count(range(from, to), 'day')
 		if (expected > 25000) throw new FinancialReadError('tank_row_limit', { expected_rows: expected })
-		const windows = []
-		for (let time = from; time <= to; time += 3600000) windows.push([time, Math.min(to, time + 3599999)])
+		const offsets = Array.from({ length: Math.ceil(expected / 200) }, (_, index) => index * 200)
 		const rows = []
-		// Read immutable reception-time slices using the existing created_at index.
-		// Filter action locally; production has not verified the compound action/time index.
-		// An _id cursor across the whole telemetry collection causes production timeouts.
-		for (const batch of chunks(windows, 4)) {
-			const parts = await Promise.all(batch.map(async ([a, b]) => {
-				const where = range(a, b), expectedPart = await count(where, a), part = []
-				for (let offset = 0; offset < expectedPart; offset += 200) {
-					const page = await boundedRead(() => logs.where(where).orderBy('created_at', 'desc').skip(offset).limit(200)
-						.field({ _id: true, action: true, created_at: true, detail: true }).get(), `tank:page:${a}:${offset}`)
-					if (!Array.isArray(page.data) || page.data.length !== Math.min(200, expectedPart - offset)) throw new FinancialReadError('tank_page_incomplete', {})
-					part.push(...page.data)
-				}
-				return part
+		// Match the production log reader's fixed daily range and created_at index.
+		// Empty-hour counts and _id cursors over telemetry time out on Alipay.
+		// Reception time is immutable; count + unique IDs detect changes across pages.
+		for (const batch of chunks(offsets, 4)) {
+			const parts = await Promise.all(batch.map(async offset => {
+				const page = await boundedRead(() => logs.where(range(from, to)).orderBy('created_at', 'desc').skip(offset).limit(200)
+					.field({ _id: true, action: true, created_at: true, detail: true }).get(), `tank:page:${offset}`)
+				if (!Array.isArray(page.data) || page.data.length !== Math.min(200, expected - offset)) throw new FinancialReadError('tank_page_incomplete', {})
+				return page.data
 			}))
 			rows.push(...parts.flat())
 		}
@@ -182,7 +177,10 @@ function createClosureReader(db) {
 			reads.push({ name, where, count: rows.length })
 			return rows
 		}
-		const periodFillings = await read('crm_fillings', dateWhere(dateStart, dateEnd))
+		// Read the dated filling source once; the partial range + _id cursor has a
+		// poor production query plan even though the matching period is small.
+		const fillRows = await read('crm_fillings', dateWhere('', cutoffDay))
+		const periodFillings = fillRows.filter(row => dayOf(row.date) >= dateStart && dayOf(row.date) <= dateEnd)
 		const bottleNo = text(data.bottle_no)
 		const selected = periodFillings.filter(row => fillingKind(row) === 'ordinary' && (!bottleNo || text(row.bottle_no) === bottleNo))
 		const bottleNos = [...new Set(selected.map(row => text(row.bottle_no)).filter(Boolean))]
@@ -195,10 +193,7 @@ function createClosureReader(db) {
 			customer_id: true, delivery_customer_id: true, customer_name: true, delivery_customer_name: true,
 			created_at: true, updated_at: true
 		}) : []
-		const [fillRows, manualRows] = bottleNos.length ? await Promise.all([
-			read('crm_fillings', dateWhere('', cutoffDay)),
-			read('crm_bottle_movements', { source_type: command.in(['manual', 'manual_fix']) })
-		]) : [[], []]
+		const manualRows = bottleNos.length ? await read('crm_bottle_movements', { source_type: command.in(['manual', 'manual_fix']) }) : []
 		const allFillings = fillRows.filter(row => targets.has(text(row.bottle_no)))
 		const manual = manualRows.filter(row => targets.has(text(row.bottle_no)) && dayOf(row.event_day || row.date) <= cutoffDay)
 		// Live reads are not an atomic snapshot. Reject changes across the full multi-source read too.

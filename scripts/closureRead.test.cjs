@@ -93,7 +93,7 @@ test('complete reads cross 200-row pages for selected fills and historical sourc
 	assert.equal(result.data.summary.out_net_kg, 24190)
 	assert.equal(result.data.days[0].fill_count, 205)
 	assert.equal(result.data.scope.read_complete, true)
-	assert.ok(db.calls.filter(call => call.name === 'crm_fillings' && call.order && call.limit === 200).length >= 4)
+	assert.ok(db.calls.filter(call => call.name === 'crm_fillings' && call.order && call.limit === 200).length >= 2)
 	assert.ok(db.calls.filter(call => call.name === 'crm_sale_records' && call.order && call.limit === 200).length >= 4)
 	assert.deepEqual(result.data.cycles[0].evidence.map(row => row.event_day), ['2026-08-31', '2026-09-01', '2026-09-03'])
 })
