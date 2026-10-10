@@ -2,9 +2,11 @@
 
 const { readComplete, withFinancialEvidence } = require('./financialReadLocal')
 const flowRules = require('./bottleFlowRulesLocal')
+const { createClosureReader } = require('./closureRead')
 
 const db = uniCloud.database()
 const dbCmd = db.command
+const closureReader = createClosureReader(db)
 const {
 	fetchHiddenCustomerRows,
 	fetchHiddenCustomerIds,
@@ -20,11 +22,12 @@ const anomalies = db.collection('crm_bottle_anomalies')
 const customers = db.collection('crm_customers')
 const customerLossDailySummaries = db.collection('crm_customer_loss_daily')
 let ensureActionAcl = null
+let hasPagePermission = null
 try {
-	;({ ensureActionAcl } = require('../common/pageAcl'))
+	;({ ensureActionAcl, hasPagePermission } = require('../common/pageAcl'))
 } catch (err) {
 	console.warn('[crm-bottle-movement] fallback to local pageAcl helpers', err && err.message)
-	;({ ensureActionAcl } = require('./pageAclLocal'))
+	;({ ensureActionAcl, hasPagePermission } = require('./pageAclLocal'))
 }
 
 const CYCLE_SCAN_MAX_ROWS = 30000
@@ -34,6 +37,8 @@ const ANOMALY_RANK_PAGE_SIZE_DEFAULT = 20
 const ANOMALY_RANK_PAGE_SIZE_MAX = 200
 const FILLING_START_LOSS_ADJUST_REASON = 'filling_start_weight_loss'
 const PAGE_ACTION_RULES = {
+	fillingClosureV1: [{ pagePath: '/pages/gas-closure/index', action: 'view' }],
+	tankBeforeFillingV1: [{ pagePath: '/pages/gas-closure/index', action: 'view' }],
 	listV1: [
 		{ pagePath: '/pages/bottle/movement', action: 'view' },
 		{ pagePath: '/pages/pda/movement-query', action: 'view' }
@@ -2259,6 +2264,15 @@ const main = async (event, context) => {
 		cloudFunction: 'crm-bottle-movement'
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
+	if (action === 'fillingClosureV1' || action === 'tankBeforeFillingV1') {
+		const required = action === 'fillingClosureV1'
+			? ['/pages/filling/list', '/pages/sale/list']
+			: ['/pages/filling/list', '/pages/gas-in/list']
+		if (required.some(page => !hasPagePermission(user, page, 'view'))) {
+			return { code: 403, msg: '闭环核查需要相应灌装、销售或库存查看权限，请联系管理员核准' }
+		}
+		return closureReader[action](data)
+	}
 
 	if (action === 'listV1') return listV1(user, data, requestId)
 	if (action === 'getV1') return getV1(user, data)

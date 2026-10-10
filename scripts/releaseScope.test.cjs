@@ -128,6 +128,10 @@ test('real ACL scope rejects selected drift, ignores unselected drift locally, a
 	write('uniCloud-alipay/cloudfunctions/crm-other/pageAclRegistryLocal.js', 'unselected drift\n')
 	assert.doesNotThrow(() => run(['--functions=crm-target']))
 	assert.throws(() => run(), /Command failed/)
+	write('uniCloud-alipay/cloudfunctions/crm-target/pageAclRegistryLocal.js', 'selected drift\n')
+	assert.doesNotThrow(() => run(['--functions=crm-target', '--write']))
+	assert.doesNotThrow(() => run(['--functions=crm-target']))
+	assert.throws(() => run(), /Command failed/, 'scoped generation must preserve other packages')
 })
 
 test('production ACL compatibility pins historical canonical bytes without weakening the default check', (t) => {

@@ -266,6 +266,12 @@
 			}
 		},
 		{
+			"path": "pages/gas-closure/index",
+			"style": {
+				"navigationBarTitleText": "天然气闭环"
+			}
+		},
+		{
 			"path": "pages/gas-in/list",
 			"style": {
 				"navigationBarTitleText": "天然气库存"
