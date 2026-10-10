@@ -127,7 +127,7 @@ function createClosureReader(db) {
 	const dateWhere = (start, end) => ({ date: start ? command.gte(start).and(command.lt(`${end}~`)) : command.lt(`${end}~`) })
 	async function readTankLogs(from, to) {
 		const logs = collection('crm_operation_logs')
-		const range = (a, b) => ({ action: 'tank_gateway_ingest', created_at: command.gte(a).and(command.lte(b)) })
+		const range = (a, b) => ({ created_at: command.gte(a).and(command.lte(b)) })
 		const count = async where => {
 			const result = await logs.where(where).count(), total = result?.total
 			if (!['number', 'string'].includes(typeof total) || String(total).trim() === '' || !Number.isSafeInteger(Number(total)) || Number(total) < 0) throw new FinancialReadError('tank_count_unavailable', {})
@@ -138,15 +138,16 @@ function createClosureReader(db) {
 		const windows = []
 		for (let time = from; time <= to; time += 3600000) windows.push([time, Math.min(to, time + 3599999)])
 		const rows = []
-		// Read immutable reception-time slices using the existing action/created_at index.
+		// Read immutable reception-time slices using the existing created_at index.
+		// Filter action locally; production has not verified the compound action/time index.
 		// An _id cursor across the whole telemetry collection causes production timeouts.
 		for (const batch of chunks(windows, 4)) {
 			const parts = await Promise.all(batch.map(async ([a, b]) => {
 				const where = range(a, b), expectedPart = await count(where), part = []
-				for (let offset = 0; offset < expectedPart; offset += 500) {
-					const page = await logs.where(where).orderBy('created_at', 'asc').skip(offset).limit(500)
+				for (let offset = 0; offset < expectedPart; offset += 200) {
+					const page = await logs.where(where).orderBy('created_at', 'desc').skip(offset).limit(200)
 						.field({ _id: true, action: true, created_at: true, detail: true }).get()
-					if (!Array.isArray(page.data) || page.data.length !== Math.min(500, expectedPart - offset)) throw new FinancialReadError('tank_page_incomplete', {})
+					if (!Array.isArray(page.data) || page.data.length !== Math.min(200, expectedPart - offset)) throw new FinancialReadError('tank_page_incomplete', {})
 					part.push(...page.data)
 				}
 				return part
@@ -154,7 +155,7 @@ function createClosureReader(db) {
 			rows.push(...parts.flat())
 		}
 		if (rows.length !== expected || new Set(rows.map(row => row._id)).size !== expected || await count(range(from, to)) !== expected) throw new FinancialReadError('tank_membership_changed', {})
-		return rows
+		return rows.filter(row => row.action === 'tank_gateway_ingest')
 	}
 
 	async function fillingClosureV1(data = {}) {
@@ -174,7 +175,7 @@ function createClosureReader(db) {
 		const selected = periodFillings.filter(row => fillingKind(row) === 'ordinary' && (!bottleNo || text(row.bottle_no) === bottleNo))
 		const bottleNos = [...new Set(selected.map(row => text(row.bottle_no)).filter(Boolean))]
 		const hiddenRows = await read('crm_customers', { is_hidden: true }, { _id: true, name: true, short_name: true })
-		const allFillings = [], manual = []
+		const targets = new Set(bottleNos)
 		// Alipay's database does not reliably match nested array bottle_no with dot-path in.
 		// Read the complete dated sale source once; matching to the target bottles is in buildSourceEvents.
 		const sales = bottleNos.length ? await read('crm_sale_records', dateWhere('', cutoffDay), {
@@ -182,14 +183,12 @@ function createClosureReader(db) {
 			customer_id: true, delivery_customer_id: true, customer_name: true, delivery_customer_name: true,
 			created_at: true, updated_at: true
 		}) : []
-		for (const batch of chunks(bottleNos)) {
-			const [fillRows, manualRows] = await Promise.all([
-				read('crm_fillings', and({ bottle_no: command.in(batch) }, dateWhere('', cutoffDay))),
-				read('crm_bottle_movements', and({ bottle_no: command.in(batch), source_type: command.in(['manual', 'manual_fix']),
-					type: command.in(['back', 'fill', 'out']) }, { event_day: command.lte(cutoffDay) }))
-			])
-			allFillings.push(...fillRows); manual.push(...manualRows)
-		}
+		const [fillRows, manualRows] = bottleNos.length ? await Promise.all([
+			read('crm_fillings', dateWhere('', cutoffDay)),
+			read('crm_bottle_movements', { source_type: command.in(['manual', 'manual_fix']) })
+		]) : [[], []]
+		const allFillings = fillRows.filter(row => targets.has(text(row.bottle_no)))
+		const manual = manualRows.filter(row => targets.has(text(row.bottle_no)) && dayOf(row.event_day || row.date) <= cutoffDay)
 		// Live reads are not an atomic snapshot. Reject changes across the full multi-source read too.
 		for (const entry of reads) {
 			const [count, changes] = await Promise.all([
