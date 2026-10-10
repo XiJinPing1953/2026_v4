@@ -67,6 +67,10 @@
 							<AppIcon name="truck" size="24rpx" />
 							<text>天然气库存</text>
 						</view>
+						<view v-if="canView('/pages/gas-closure/index')" class="nav-item" @click="go('/pages/gas-closure/index')">
+							<AppIcon name="check-circle" size="24rpx" />
+							<text>天然气闭环</text>
+						</view>
 						<view v-if="canView('/pages/bottle/loss')" class="nav-item" @click="go('/pages/bottle/loss')">
 							<AppIcon name="chart" size="24rpx" />
 							<text>损耗统计</text>
@@ -351,6 +355,10 @@
 							<view v-if="canView('/pages/gas-in/list')" class="nav-grid-item" @click="go('/pages/gas-in/list')">
 								<view class="nav-icon bg-asset"><AppIcon name="truck" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">天然气库存</text>
+							</view>
+							<view v-if="canView('/pages/gas-closure/index')" class="nav-grid-item" @click="go('/pages/gas-closure/index')">
+								<view class="nav-icon bg-asset"><AppIcon name="check-circle" color="#fff" size="30rpx" /></view>
+								<text class="nav-text">天然气闭环</text>
 							</view>
 							<view v-if="canView('/pages/bottle/movement')" class="nav-grid-item" @click="go('/pages/bottle/movement')">
 								<view class="nav-icon bg-asset"><AppIcon name="search" color="#fff" size="30rpx" /></view>

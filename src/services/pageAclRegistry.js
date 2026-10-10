@@ -152,6 +152,7 @@ export const PAGE_REGISTRY = [
 	{ pagePath: '/pages/delivery/edit', label: '配送员录入', group: 'deliveries', supports: { view: true, create: true, update: true } },
 	{ pagePath: '/pages/filling/list', label: '灌装记录', group: 'filling', supports: { view: true, create: true, update: true, delete: true } },
 	{ pagePath: '/pages/filling/edit', label: '灌装录入', group: 'filling', supports: { view: true, update: true } },
+	{ pagePath: '/pages/gas-closure/index', label: '天然气闭环', group: 'filling', supports: { view: true } },
 	{ pagePath: '/pages/gas-in/list', label: '天然气库存', group: 'gas', supports: { view: true, create: true, update: true, delete: true } },
 	{ pagePath: '/pages/gas-in/edit', label: '天然气入库录入', group: 'gas', supports: { view: true, create: true, update: true } },
 	{ pagePath: '/pages/accounting/account-list', label: '科目表', group: 'accounting', supports: { view: true, create: true, update: true, delete: true } },
