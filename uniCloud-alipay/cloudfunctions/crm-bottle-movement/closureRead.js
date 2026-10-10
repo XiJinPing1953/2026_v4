@@ -140,12 +140,12 @@ function createClosureReader(db) {
 	async function readTankLogs(from, to) {
 		const logs = collection('crm_operation_logs')
 		const range = (a, b) => ({ created_at: command.and([command.gte(a), command.lte(b)]) })
-		const count = async where => {
-			const result = await boundedRead(() => logs.where(where).count(), 'tank:count'), total = result?.total
+		const count = async (where, label) => {
+			const result = await boundedRead(() => logs.where(where).count(), `tank:count:${label}`), total = result?.total
 			if (!['number', 'string'].includes(typeof total) || String(total).trim() === '' || !Number.isSafeInteger(Number(total)) || Number(total) < 0) throw new FinancialReadError('tank_count_unavailable', {})
 			return Number(total)
 		}
-		const expected = await count(range(from, to))
+		const expected = await count(range(from, to), 'day')
 		if (expected > 25000) throw new FinancialReadError('tank_row_limit', { expected_rows: expected })
 		const windows = []
 		for (let time = from; time <= to; time += 3600000) windows.push([time, Math.min(to, time + 3599999)])
@@ -155,7 +155,7 @@ function createClosureReader(db) {
 		// An _id cursor across the whole telemetry collection causes production timeouts.
 		for (const batch of chunks(windows, 4)) {
 			const parts = await Promise.all(batch.map(async ([a, b]) => {
-				const where = range(a, b), expectedPart = await count(where), part = []
+				const where = range(a, b), expectedPart = await count(where, a), part = []
 				for (let offset = 0; offset < expectedPart; offset += 200) {
 					const page = await boundedRead(() => logs.where(where).orderBy('created_at', 'desc').skip(offset).limit(200)
 						.field({ _id: true, action: true, created_at: true, detail: true }).get(), `tank:page:${a}:${offset}`)
@@ -166,7 +166,7 @@ function createClosureReader(db) {
 			}))
 			rows.push(...parts.flat())
 		}
-		if (rows.length !== expected || new Set(rows.map(row => row._id)).size !== expected || await count(range(from, to)) !== expected) throw new FinancialReadError('tank_membership_changed', {})
+		if (rows.length !== expected || new Set(rows.map(row => row._id)).size !== expected || await count(range(from, to), 'day-final') !== expected) throw new FinancialReadError('tank_membership_changed', {})
 		return rows.filter(row => row.action === 'tank_gateway_ingest')
 	}
 
@@ -203,10 +203,10 @@ function createClosureReader(db) {
 		const manual = manualRows.filter(row => targets.has(text(row.bottle_no)) && dayOf(row.event_day || row.date) <= cutoffDay)
 		// Live reads are not an atomic snapshot. Reject changes across the full multi-source read too.
 		for (const entry of reads) {
-			const [count, changes] = await Promise.all([
+			const [count, changes] = await boundedRead(() => Promise.all([
 				collection(entry.name).where(entry.where).count(),
 				collection(entry.name).where(and(entry.where, command.or([{ updated_at: command.gte(started) }, { created_at: command.gte(started) }]))).limit(1).get()
-			])
+			]), `closure:final:${entry.name}`)
 			const validCount = ['number', 'string'].includes(typeof count.total) && String(count.total).trim() !== '' && Number.isSafeInteger(Number(count.total)) && Number(count.total) >= 0
 			if (!validCount || Number(count.total) !== entry.count || !Array.isArray(changes.data) || changes.data.length) {
 				throw new FinancialReadError('closure_sources_changed', { source: entry.name })
