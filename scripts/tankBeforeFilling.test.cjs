@@ -61,6 +61,15 @@ test('incomplete query and a gap before the platform cannot establish the first 
 	assert.ok(hasIssue(result, 'gap_before_candidate'))
 })
 
+test('today is complete through a server observation time without requiring future logs', () => {
+	const asOf = start + 10 * minute
+	const result = run(makeLogs(falling), { coverage: { complete: true, from: start, to: asOf, asOf } })
+	assert.equal(result.status, 'candidate')
+	assert.equal(result.quantity_t, 21.42)
+	assert.ok(!hasIssue(result, 'query_incomplete'))
+	assert.equal(run(makeLogs(falling), { coverage: { complete: true, from: start, to: asOf - minute, asOf } }).quantity_t, null)
+})
+
 test('missing weight stays null while genuine indicated zero is preserved without zero calibration', () => {
 	const missing = run(makeLogs(falling, { weight: null }))
 	assert.equal(missing.quantity_t, null)

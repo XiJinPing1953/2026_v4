@@ -83,8 +83,9 @@ function analyzeTankBeforeFilling({ day, logs = [], fillingFacts = [], coverage 
 	if (gaps.length) issue('acquisition_gaps', '当日采集存在超过90秒的缺口，缺口内可能仍在作业。')
 	const queryFrom = timestamp(coverage.from)
 	const queryTo = timestamp(coverage.to)
-	const fullQuery = coverage.complete === true && queryFrom !== null && queryFrom <= dayStart && queryTo !== null && queryTo >= dayEnd
-	if (!fullQuery) issue('query_incomplete', '尚未确认整日范围和全部分页，不能认定当天首次灌装。')
+	const requiredTo = Math.min(dayEnd, timestamp(coverage.asOf) ?? dayEnd)
+	const fullQuery = coverage.complete === true && queryFrom !== null && queryFrom <= dayStart && queryTo !== null && queryTo >= requiredTo && requiredTo > dayStart
+	if (!fullQuery) issue('query_incomplete', '尚未完整读取当天零点至观察时刻的日志，不能认定当天首次灌装。')
 	const missingBeginning = points[0].time - dayStart > MAX_GAP
 	if (missingBeginning) issue('day_start_missing', '当天首段日志缺失，只能识别所见局部时段。')
 	const buckets = new Map()
