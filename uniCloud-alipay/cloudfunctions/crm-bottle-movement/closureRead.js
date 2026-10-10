@@ -11,6 +11,18 @@ const dayStart = day => Date.parse(`${day}T00:00:00+08:00`)
 const round = value => Math.round((value + Number.EPSILON) * 1000) / 1000
 const chunks = (rows, size = 80) => Array.from({ length: Math.ceil(rows.length / size) }, (_, i) => rows.slice(i * size, (i + 1) * size))
 
+async function boundedRead(work, source, timeoutMs = 12000) {
+	let timer
+	try {
+		return await Promise.race([work(), new Promise((_, reject) => {
+			timer = setTimeout(() => reject(new FinancialReadError('source_read_timeout', { source })), timeoutMs)
+		})])
+	} catch (error) {
+		if (error.code === 'FINANCIAL_READ_INCOMPLETE') throw error
+		throw new FinancialReadError('source_read_failed', { source })
+	} finally { clearTimeout(timer) }
+}
+
 function validDay(day) {
 	return /^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(dayStart(day)) && new Date(dayStart(day) + 28800000).toISOString().slice(0, 10) === day
 }
@@ -124,12 +136,12 @@ function createClosureReader(db) {
 	const command = db.command
 	const collection = name => db.collection(name)
 	const and = (...where) => command.and(where)
-	const dateWhere = (start, end) => ({ date: start ? command.gte(start).and(command.lt(`${end}~`)) : command.lt(`${end}~`) })
+	const dateWhere = (start, end) => ({ date: start ? command.and([command.gte(start), command.lt(`${end}~`)]) : command.lt(`${end}~`) })
 	async function readTankLogs(from, to) {
 		const logs = collection('crm_operation_logs')
-		const range = (a, b) => ({ created_at: command.gte(a).and(command.lte(b)) })
+		const range = (a, b) => ({ created_at: command.and([command.gte(a), command.lte(b)]) })
 		const count = async where => {
-			const result = await logs.where(where).count(), total = result?.total
+			const result = await boundedRead(() => logs.where(where).count(), 'tank:count'), total = result?.total
 			if (!['number', 'string'].includes(typeof total) || String(total).trim() === '' || !Number.isSafeInteger(Number(total)) || Number(total) < 0) throw new FinancialReadError('tank_count_unavailable', {})
 			return Number(total)
 		}
@@ -145,8 +157,8 @@ function createClosureReader(db) {
 			const parts = await Promise.all(batch.map(async ([a, b]) => {
 				const where = range(a, b), expectedPart = await count(where), part = []
 				for (let offset = 0; offset < expectedPart; offset += 200) {
-					const page = await logs.where(where).orderBy('created_at', 'desc').skip(offset).limit(200)
-						.field({ _id: true, action: true, created_at: true, detail: true }).get()
+					const page = await boundedRead(() => logs.where(where).orderBy('created_at', 'desc').skip(offset).limit(200)
+						.field({ _id: true, action: true, created_at: true, detail: true }).get(), `tank:page:${a}:${offset}`)
 					if (!Array.isArray(page.data) || page.data.length !== Math.min(200, expectedPart - offset)) throw new FinancialReadError('tank_page_incomplete', {})
 					part.push(...page.data)
 				}
@@ -166,7 +178,7 @@ function createClosureReader(db) {
 		}
 		const reads = []
 		async function read(name, where, field) {
-			const rows = await readComplete(collection(name), where, { command, source: `closure:${name}`, field })
+			const rows = await boundedRead(() => readComplete(collection(name), where, { command, source: `closure:${name}`, field }), `closure:${name}:${reads.length}`)
 			reads.push({ name, where, count: rows.length })
 			return rows
 		}
