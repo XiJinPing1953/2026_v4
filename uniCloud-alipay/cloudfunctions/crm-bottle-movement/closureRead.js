@@ -245,7 +245,7 @@ function createClosureReader(db) {
 			readTankLogs(from, to),
 			readComplete(collection('crm_fillings'), dateWhere(day, day), { command, source: 'closure:tank_fillings' })
 		])
-		const result = analyzeTankBeforeFilling({ day, logs, fillingFacts: fillings, coverage: { complete: true, from, to: to + 1 } })
+		const result = analyzeTankBeforeFilling({ day, logs, fillingFacts: fillings, coverage: { complete: true, from, to: to + 1, asOf: started } })
 		return { code: 0, data: { ...result, updated_at: Date.now(), source_basis: 'tank_gateway_ingest', calibrated: false } }
 	}
 	return { fillingClosureV1, tankBeforeFillingV1 }
