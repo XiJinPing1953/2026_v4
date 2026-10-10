@@ -38,6 +38,7 @@ function makeDb(tables, hooks = {}) {
 			where: where => query(name, { ...options, where }),
 			orderBy: (key, direction) => query(name, { ...options, order: [key, direction] }),
 			limit: limit => query(name, { ...options, limit }),
+			skip: skip => query(name, { ...options, skip }),
 			field: field => query(name, { ...options, field }),
 			count: async () => {
 				calls.push({ name, operation: 'count', ...options })
@@ -51,7 +52,7 @@ function makeDb(tables, hooks = {}) {
 					const [key, direction] = options.order
 					rows.sort((a, b) => (a[key] < b[key] ? -1 : a[key] > b[key] ? 1 : 0) * (direction === 'desc' ? -1 : 1))
 				}
-				rows = rows.slice(0, options.limit || 100)
+				rows = rows.slice(options.skip || 0, (options.skip || 0) + (options.limit || 100))
 				if (options.field) rows = rows.map(row => Object.fromEntries(Object.entries(row).filter(([key]) => options.field[key])))
 				return hooks.get ? hooks.get(name, structuredClone(rows), options) : { data: structuredClone(rows) }
 			}

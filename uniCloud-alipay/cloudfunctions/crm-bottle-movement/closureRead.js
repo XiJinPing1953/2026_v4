@@ -125,6 +125,37 @@ function createClosureReader(db) {
 	const collection = name => db.collection(name)
 	const and = (...where) => command.and(where)
 	const dateWhere = (start, end) => ({ date: start ? command.gte(start).and(command.lt(`${end}~`)) : command.lt(`${end}~`) })
+	async function readTankLogs(from, to) {
+		const logs = collection('crm_operation_logs')
+		const range = (a, b) => ({ action: 'tank_gateway_ingest', created_at: command.gte(a).and(command.lte(b)) })
+		const count = async where => {
+			const result = await logs.where(where).count(), total = result?.total
+			if (!['number', 'string'].includes(typeof total) || String(total).trim() === '' || !Number.isSafeInteger(Number(total)) || Number(total) < 0) throw new FinancialReadError('tank_count_unavailable', {})
+			return Number(total)
+		}
+		const expected = await count(range(from, to))
+		if (expected > 25000) throw new FinancialReadError('tank_row_limit', { expected_rows: expected })
+		const windows = []
+		for (let time = from; time <= to; time += 3600000) windows.push([time, Math.min(to, time + 3599999)])
+		const rows = []
+		// Read immutable reception-time slices using the existing action/created_at index.
+		// An _id cursor across the whole telemetry collection causes production timeouts.
+		for (const batch of chunks(windows, 4)) {
+			const parts = await Promise.all(batch.map(async ([a, b]) => {
+				const where = range(a, b), expectedPart = await count(where), part = []
+				for (let offset = 0; offset < expectedPart; offset += 500) {
+					const page = await logs.where(where).orderBy('created_at', 'asc').skip(offset).limit(500)
+						.field({ _id: true, action: true, created_at: true, detail: true }).get()
+					if (!Array.isArray(page.data) || page.data.length !== Math.min(500, expectedPart - offset)) throw new FinancialReadError('tank_page_incomplete', {})
+					part.push(...page.data)
+				}
+				return part
+			}))
+			rows.push(...parts.flat())
+		}
+		if (rows.length !== expected || new Set(rows.map(row => row._id)).size !== expected || await count(range(from, to)) !== expected) throw new FinancialReadError('tank_membership_changed', {})
+		return rows
+	}
 
 	async function fillingClosureV1(data = {}) {
 		const started = Date.now()
@@ -205,10 +236,7 @@ function createClosureReader(db) {
 		const started = Date.now(), from = dayStart(day), to = Math.min(from + 86400000 - 1, started - 1)
 		if (to < from) return { code: 400, msg: '不能查询未来的储罐日志' }
 		const [logs, fillings] = await Promise.all([
-			readComplete(collection('crm_operation_logs'), { action: 'tank_gateway_ingest', created_at: command.gte(from).and(command.lte(to)) }, {
-				command, source: 'closure:tank_day', maxRows: 25000, pageSize: 500,
-				field: { action: true, created_at: true, detail: true }
-			}),
+			readTankLogs(from, to),
 			readComplete(collection('crm_fillings'), dateWhere(day, day), { command, source: 'closure:tank_fillings' })
 		])
 		const result = analyzeTankBeforeFilling({ day, logs, fillingFacts: fillings, coverage: { complete: true, from, to: to + 1 } })
