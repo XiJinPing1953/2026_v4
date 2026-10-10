@@ -10,7 +10,7 @@ function makeDb(tables, hooks = {}) {
 	const calls = []
 	const condition = operations => ({ operations, and(other) { return condition([...operations, ...other.operations]) } })
 	const command = Object.fromEntries(['gt', 'gte', 'lt', 'lte', 'in'].map(op => [op, value => condition([[op, value]])]))
-	command.and = rows => ({ $and: rows })
+	command.and = rows => rows.every(row => row.operations) ? condition(rows.flatMap(row => row.operations)) : { $and: rows }
 	command.or = rows => ({ $or: rows })
 	function values(row, path) {
 		if (Array.isArray(row)) return row.flatMap(item => values(item, path))
