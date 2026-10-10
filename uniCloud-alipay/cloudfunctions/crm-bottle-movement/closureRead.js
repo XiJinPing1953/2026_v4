@@ -143,19 +143,21 @@ function createClosureReader(db) {
 		const selected = periodFillings.filter(row => fillingKind(row) === 'ordinary' && (!bottleNo || text(row.bottle_no) === bottleNo))
 		const bottleNos = [...new Set(selected.map(row => text(row.bottle_no)).filter(Boolean))]
 		const hiddenRows = await read('crm_customers', { is_hidden: true }, { _id: true, name: true, short_name: true })
-		const allFillings = [], salesById = new Map(), manual = []
+		const allFillings = [], manual = []
+		// Alipay's database does not reliably match nested array bottle_no with dot-path in.
+		// Read the complete dated sale source once; matching to the target bottles is in buildSourceEvents.
+		const sales = bottleNos.length ? await read('crm_sale_records', dateWhere('', cutoffDay), {
+			date: true, biz_mode: true, out_items: true, back_items: true, agent_sale_items: true,
+			customer_id: true, delivery_customer_id: true, customer_name: true, delivery_customer_name: true,
+			created_at: true, updated_at: true
+		}) : []
 		for (const batch of chunks(bottleNos)) {
-			const [fillRows, saleRows, manualRows] = await Promise.all([
+			const [fillRows, manualRows] = await Promise.all([
 				read('crm_fillings', and({ bottle_no: command.in(batch) }, dateWhere('', cutoffDay))),
-				read('crm_sale_records', and(dateWhere('', cutoffDay), command.or([
-					{ 'out_items.bottle_no': command.in(batch) }, { 'back_items.bottle_no': command.in(batch) },
-					{ 'agent_sale_items.bottle_no': command.in(batch) }
-				])), { date: true, biz_mode: true, out_items: true, back_items: true, agent_sale_items: true,
-					customer_id: true, delivery_customer_id: true, customer_name: true, delivery_customer_name: true, created_at: true, updated_at: true }),
 				read('crm_bottle_movements', and({ bottle_no: command.in(batch), source_type: command.in(['manual', 'manual_fix']),
 					type: command.in(['back', 'fill', 'out']) }, { event_day: command.lte(cutoffDay) }))
 			])
-			allFillings.push(...fillRows); saleRows.forEach(row => salesById.set(row._id, row)); manual.push(...manualRows)
+			allFillings.push(...fillRows); manual.push(...manualRows)
 		}
 		// Live reads are not an atomic snapshot. Reject changes across the full multi-source read too.
 		for (const entry of reads) {
@@ -168,7 +170,7 @@ function createClosureReader(db) {
 				throw new FinancialReadError('closure_sources_changed', { source: entry.name })
 			}
 		}
-		const source = buildSourceEvents({ fillings: allFillings, sales: [...salesById.values()], manual,
+		const source = buildSourceEvents({ fillings: allFillings, sales, manual,
 			hiddenIds: hiddenRows.map(row => row._id), hiddenNames: hiddenRows.flatMap(row => [row.name, row.short_name]), bottleNos })
 		const result = buildFillingClosure({ events: source.events, fillings: allFillings.filter(row => fillingKind(row) === 'ordinary'),
 			dateStart, dateEnd, cutoffDay, bottleNo, selectedFillingIds: selected.map(row => row._id) })
