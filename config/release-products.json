@@ -6,30 +6,17 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.10-gas-closure-v1",
+      "version": "2026.10.11-gas-closure-ui",
       "output": "dist/build/web",
-      "acceptance": "Read-only current-source filling cohorts, unique sale closure, daily pre-filling tank evidence, visible refresh and incomplete-data protection.",
+      "acceptance": "Aligned single title, bottle/tank workspaces, explicit metric scopes, compact responsive rows, visible pending reasons, and retained tank evidence during refresh.",
       "deploymentScope": {
-        "functions": [
-          "crm-bottle-movement"
-        ],
+        "functions": [],
         "databaseFiles": [],
-        "baseCommit": "ceba1e1d341ca3a4b42e1617de0a5f0e0467fdc2",
+        "baseCommit": "633d5acb781c643c659220a26c5c80f2bf4d6632",
         "sourceFiles": [
-          "src/components/domain/dashboard/DashboardHome.vue",
           "src/components/domain/gas/GasClosureView.vue",
           "src/composables/gas/useGasClosure.js",
-          "src/pages.json",
-          "src/pages/gas-closure/index.vue",
-          "src/services/gasClosure.js",
-          "src/services/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/closureRead.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/fillingClosure.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankBeforeFilling.js"
+          "src/pages.json"
         ]
       },
       "integrityScope": "deployment"
