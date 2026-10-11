@@ -1,0 +1,12 @@
+{
+  "upstream": "https://github.com/pbakaus/impeccable",
+  "commit": "c63b8dd7dd5a5f3c32eaabe1af76d0694f863ed2",
+  "version": "4.5.2",
+  "sourcePath": "plugin/skills/impeccable",
+  "engineVersion": "0.1.14",
+  "originalSkillSha256": "3984708c4fec7cf5227e405c9f7086e681949b9bef009569f101fa60b660a40d",
+  "installation": "project-local skill-only via Codex skill-installer",
+  "adaptation": "CRM review-only SKILL.md, reference/crm-review.md and agents/openai.yaml; upstream scripts and references unchanged",
+  "automaticHooks": "disabled; no provider manifest installed",
+  "license": "LICENSE"
+}

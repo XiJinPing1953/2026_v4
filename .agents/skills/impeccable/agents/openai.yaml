@@ -1,0 +1,4 @@
+interface:
+  display_name: "Impeccable · CRM 页面审查"
+  short_description: "审查当前CRM页面的布局、信息层级和可用性，只给问题与建议，保持业务口径不变"
+  default_prompt: "使用 $impeccable 审查当前 CRM 页面，只报告有证据的问题和改进建议，暂不改页面。"
