@@ -268,7 +268,8 @@
 		{
 			"path": "pages/gas-closure/index",
 			"style": {
-				"navigationBarTitleText": "天然气闭环"
+				"navigationBarTitleText": "天然气闭环",
+				"navigationStyle": "custom"
 			}
 		},
 		{
