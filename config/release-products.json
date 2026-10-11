@@ -6,48 +6,47 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.11-gas-closure-ui",
+      "version": "2026.10.11-truck-quantity-closure",
       "output": "dist/build/web",
-      "acceptance": "Aligned single title, bottle/tank workspaces, explicit metric scopes, compact responsive rows, visible pending reasons, and retained tank evidence during refresh. crm-bottle-movement is an unchanged dependency checked for integrity; deployment is web only.",
+      "acceptance": "Read-only per-truck weighing evidence, working-period filling and unique cylinder sales; ambiguous boundaries and cross-truck topups remain pending; visible refresh from complete current sources.",
       "deploymentScope": {
         "functions": [
           "crm-bottle-movement"
         ],
         "databaseFiles": [],
-        "baseCommit": "633d5acb781c643c659220a26c5c80f2bf4d6632",
+        "baseCommit": "626b27916a8bf5b4c2019b9c431d7868d22011d2",
         "sourceFiles": [
           "src/components/domain/gas/GasClosureView.vue",
-          "src/composables/gas/useGasClosure.js",
-          "src/pages.json"
+          "src/components/domain/gas/TruckQuantityPanel.vue",
+          "src/composables/gas/useTruckQuantityClosure.js",
+          "src/services/gasClosure.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/closureRead.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/truckQuantityClosure.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/truckQuantityFacts.json"
         ]
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.10-gas-closure-v1",
+      "version": "2026.10.11-truck-quantity-closure",
       "output": "release/cloud",
-      "acceptance": "Read-only current-source filling cohorts, unique sale closure, daily pre-filling tank evidence, visible refresh and incomplete-data protection.",
+      "acceptance": "Read-only per-truck weighing evidence, working-period filling and unique cylinder sales; ambiguous boundaries and cross-truck topups remain pending; visible refresh from complete current sources.",
       "deploymentScope": {
         "functions": [
           "crm-bottle-movement"
         ],
         "databaseFiles": [],
-        "baseCommit": "ceba1e1d341ca3a4b42e1617de0a5f0e0467fdc2",
+        "baseCommit": "626b27916a8bf5b4c2019b9c431d7868d22011d2",
         "sourceFiles": [
-          "src/components/domain/dashboard/DashboardHome.vue",
           "src/components/domain/gas/GasClosureView.vue",
-          "src/composables/gas/useGasClosure.js",
-          "src/pages.json",
-          "src/pages/gas-closure/index.vue",
+          "src/components/domain/gas/TruckQuantityPanel.vue",
+          "src/composables/gas/useTruckQuantityClosure.js",
           "src/services/gasClosure.js",
-          "src/services/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
           "uniCloud-alipay/cloudfunctions/crm-bottle-movement/closureRead.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/fillingClosure.js",
           "uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankBeforeFilling.js"
+          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/truckQuantityClosure.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/truckQuantityFacts.json"
         ]
       },
       "integrityScope": "deployment"
