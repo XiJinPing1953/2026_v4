@@ -124,7 +124,7 @@
   {
     "source_id": "6a8e563706a083c458bb7ca9",
     "expected": {
-      "date": "2026-08-24-00-00",
+      "date": "2026-08-24",
       "gross_weight_t": 45.24,
       "tare_weight_t": 24.04,
       "net_weight_t": 21.2,
@@ -137,7 +137,7 @@
   {
     "source_id": "6a83bee4b6fa125e7d370bf8",
     "expected": {
-      "date": "2026-08-17-00-00",
+      "date": "2026-08-17",
       "gross_weight_t": 45.26,
       "tare_weight_t": 24.15,
       "net_weight_t": 21.11,
@@ -150,7 +150,7 @@
   {
     "source_id": "6a7c1e9bd83fdbd7c383d967",
     "expected": {
-      "date": "2026-08-12-00-00",
+      "date": "2026-08-12",
       "gross_weight_t": 44.8,
       "tare_weight_t": 23.79,
       "net_weight_t": 21.01,
