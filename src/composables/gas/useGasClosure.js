@@ -48,7 +48,13 @@ export function useGasClosure(options = {}) {
 	const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 
 	function invalidateTank() {
-		for (const day of Object.keys(tankResults)) delete tankResults[day]
+		// Keep the last successful evidence visible while its replacement is read.
+		// The enclosing revision invalidates outstanding requests, so reset their
+		// loading flags without allowing their responses to replace retained data.
+		for (const entry of Object.values(tankResults)) {
+			entry.loading = false
+			entry.stale = Boolean(entry.data)
+		}
 	}
 	async function refresh({ background = false } = {}) {
 		if (disposed || !visible || (background && loading.value)) return
@@ -68,6 +74,10 @@ export function useGasClosure(options = {}) {
 			receivedAt.value = Date.now()
 			stale.value = false
 			if (!cycles.value.some(row => row.id === expandedCycle.value)) expandedCycle.value = ''
+			for (const day of Object.keys(tankResults)) {
+				if (!days.value.some(row => row.day === day)) delete tankResults[day]
+			}
+			if (expandedDay.value && !days.value.some(row => row.day === expandedDay.value)) expandedDay.value = ''
 			// A day is fetched only after the user has explicitly opened it.
 			if (expandedDay.value && days.value.some(row => row.day === expandedDay.value)) loadTank(expandedDay.value)
 		} catch (err) {
@@ -100,13 +110,19 @@ export function useGasClosure(options = {}) {
 	async function loadTank(day) {
 		if (!visible || disposed || tankResults[day]?.loading) return
 		const requestRevision = revision
-		const entry = reactive({ loading: true, data: null, error: '' })
+		const previous = tankResults[day]
+		const entry = reactive({
+			loading: true, data: previous?.data || null, error: '',
+			stale: Boolean(previous?.data), updatedAt: previous?.updatedAt ?? null
+		})
 		tankResults[day] = entry
 		try {
 			const response = await fetchTank(day)
 			if (requestRevision !== revision || !visible || disposed || tankResults[day] !== entry) return
 			if (response?.code !== 0 || !response.data) throw new Error(response?.msg || '灌装前余量读取未完成')
 			entry.data = response.data
+			entry.updatedAt = Date.now()
+			entry.stale = false
 		} catch (err) {
 			if (requestRevision === revision && visible && !disposed && tankResults[day] === entry) entry.error = err?.message || '读取失败，请重试'
 		} finally {
@@ -115,7 +131,8 @@ export function useGasClosure(options = {}) {
 	}
 	function toggleDay(day) {
 		expandedDay.value = expandedDay.value === day ? '' : day
-		if (expandedDay.value && !tankResults[day]) return loadTank(day)
+		const entry = tankResults[day]
+		if (expandedDay.value && (!entry?.data || entry.stale || entry.error)) return loadTank(day)
 	}
 	function setVisible(value) {
 		visible = Boolean(value)
@@ -124,6 +141,7 @@ export function useGasClosure(options = {}) {
 		if (!visible) {
 			revision += 1
 			loading.value = false
+			invalidateTank()
 			return
 		}
 		refresh()
