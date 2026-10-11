@@ -8,9 +8,11 @@
     "web": {
       "version": "2026.10.11-gas-closure-ui",
       "output": "dist/build/web",
-      "acceptance": "Aligned single title, bottle/tank workspaces, explicit metric scopes, compact responsive rows, visible pending reasons, and retained tank evidence during refresh.",
+      "acceptance": "Aligned single title, bottle/tank workspaces, explicit metric scopes, compact responsive rows, visible pending reasons, and retained tank evidence during refresh. crm-bottle-movement is an unchanged dependency checked for integrity; deployment is web only.",
       "deploymentScope": {
-        "functions": [],
+        "functions": [
+          "crm-bottle-movement"
+        ],
         "databaseFiles": [],
         "baseCommit": "633d5acb781c643c659220a26c5c80f2bf4d6632",
         "sourceFiles": [
