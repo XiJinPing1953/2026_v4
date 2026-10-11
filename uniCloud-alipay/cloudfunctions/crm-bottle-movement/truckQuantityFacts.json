@@ -1,0 +1,163 @@
+[
+  {
+    "source_id": "6ac9807abcbb3676e9a5f6f9",
+    "expected": {
+      "date": "2026-10-10-17-30",
+      "gross_weight_t": 45.15,
+      "tare_weight_t": 24.08,
+      "net_weight_t": 21.07,
+      "station_weight_t": 21.07,
+      "direct_sale_weight_t": 0
+    },
+    "clear_before": "not_cleared",
+    "note": "用户现场：10-09 17:30首磅45.15吨，10-10 07:25抽压结束随后二磅24.08吨（第二次过磅精确分钟未记）。两磅之间包括夜间无灌装/车辆加气；本车卸前未清罐，含上车余液。源单仍记10-10 17:30，仅分析使用现场日期。",
+    "effective_day": "2026-10-09",
+    "transfer_start": "2026-10-09T17:30:00+08:00",
+    "transfer_end": "2026-10-10T07:25:00+08:00",
+    "no_out_start": "2026-10-09T17:30:00+08:00",
+    "no_out_end": "2026-10-10T07:25:00+08:00",
+    "no_out_basis": "confirmed",
+    "gross_weight_t": 45.15,
+    "tare_weight_t": 24.08,
+    "station_weight_t": 21.07
+  },
+  {
+    "source_id": "6ac70df393add94b3785756d",
+    "expected": {
+      "date": "2026-10-04-08-52",
+      "gross_weight_t": 45.7,
+      "tare_weight_t": 24.61,
+      "net_weight_t": 21.09,
+      "station_weight_t": 21.09,
+      "direct_sale_weight_t": 0
+    },
+    "clear_before": "unpumpable",
+    "note": "用户核准现场首磅45.70、末磅24.62吨，源单末磅24.61暂未修正；08:05—13:05无出罐是用户暂准假设，仍待核实。平压期间已确认有少量卸液。",
+    "effective_day": "2026-10-04",
+    "transfer_start": "2026-10-04T08:05:00+08:00",
+    "transfer_end": "2026-10-04T13:05:00+08:00",
+    "no_out_start": "2026-10-04T08:05:00+08:00",
+    "no_out_end": "2026-10-04T13:05:00+08:00",
+    "no_out_basis": "assumed",
+    "gross_weight_t": 45.7,
+    "tare_weight_t": 24.62,
+    "station_weight_t": 21.08
+  },
+  {
+    "source_id": "6abaff4dcf074f0d50d1cafc",
+    "expected": {
+      "date": "2026-09-28-09-06",
+      "gross_weight_t": 45.07,
+      "tare_weight_t": 24.01,
+      "net_weight_t": 21.06,
+      "station_weight_t": 21.06,
+      "direct_sale_weight_t": 0
+    },
+    "clear_before": "unpumpable",
+    "note": "用户2026-10-10确认：本次最新车之前各车卸前均已灌不出；不代表物理余液为零。"
+  },
+  {
+    "source_id": "6abb259efd629e492ff4a093",
+    "expected": {
+      "date": "2026-09-22-11-04",
+      "gross_weight_t": 45.42,
+      "tare_weight_t": 23.73,
+      "net_weight_t": 21.69,
+      "station_weight_t": 21.69,
+      "direct_sale_weight_t": 0
+    },
+    "clear_before": "unpumpable",
+    "note": "用户2026-10-10确认：本次最新车之前各车卸前均已灌不出；不代表物理余液为零。"
+  },
+  {
+    "source_id": "6aaba36c887f467189285072",
+    "expected": {
+      "date": "2026-09-16-00-00",
+      "gross_weight_t": 45.05,
+      "tare_weight_t": 25,
+      "net_weight_t": 20.05,
+      "station_weight_t": 20.05,
+      "direct_sale_weight_t": 0
+    },
+    "clear_before": "unpumpable",
+    "note": "用户2026-10-10确认：本次最新车之前各车卸前均已灌不出；不代表物理余液为零。"
+  },
+  {
+    "source_id": "6aa36a7b0bd04a161fd9ec39",
+    "expected": {
+      "date": "2026-09-10-00-00",
+      "gross_weight_t": 45.98,
+      "tare_weight_t": 25.37,
+      "net_weight_t": 20.61,
+      "station_weight_t": 20.61,
+      "direct_sale_weight_t": 0
+    },
+    "clear_before": "unpumpable",
+    "note": "用户2026-10-10确认：本次最新车之前各车卸前均已灌不出；不代表物理余液为零。"
+  },
+  {
+    "source_id": "6a9bdabfd83fdbd7c3bb5360",
+    "expected": {
+      "date": "2026-09-04-14-40",
+      "gross_weight_t": 44.82,
+      "tare_weight_t": 23.78,
+      "net_weight_t": 21.04,
+      "station_weight_t": 21.04,
+      "direct_sale_weight_t": 0
+    },
+    "clear_before": "unpumpable",
+    "note": "用户2026-10-10确认：本次最新车之前各车卸前均已灌不出；不代表物理余液为零。"
+  },
+  {
+    "source_id": "6a96769acf074f0d50730694",
+    "expected": {
+      "date": "2026-08-30-09-58",
+      "gross_weight_t": 44.85,
+      "tare_weight_t": 23.94,
+      "net_weight_t": 20.91,
+      "station_weight_t": 13.84,
+      "direct_sale_weight_t": 7.07
+    },
+    "clear_before": "unpumpable",
+    "note": "用户2026-10-10确认：本次最新车之前各车卸前均已灌不出；不代表物理余液为零。"
+  },
+  {
+    "source_id": "6a8e563706a083c458bb7ca9",
+    "expected": {
+      "date": "2026-08-24-00-00",
+      "gross_weight_t": 45.24,
+      "tare_weight_t": 24.04,
+      "net_weight_t": 21.2,
+      "station_weight_t": 21.2,
+      "direct_sale_weight_t": 0
+    },
+    "clear_before": "unpumpable",
+    "note": "用户2026-10-10确认：本次最新车之前各车卸前均已灌不出；不代表物理余液为零。"
+  },
+  {
+    "source_id": "6a83bee4b6fa125e7d370bf8",
+    "expected": {
+      "date": "2026-08-17-00-00",
+      "gross_weight_t": 45.26,
+      "tare_weight_t": 24.15,
+      "net_weight_t": 21.11,
+      "station_weight_t": 21.11,
+      "direct_sale_weight_t": 0
+    },
+    "clear_before": "unpumpable",
+    "note": "用户2026-10-10确认：本次最新车之前各车卸前均已灌不出；不代表物理余液为零。"
+  },
+  {
+    "source_id": "6a7c1e9bd83fdbd7c383d967",
+    "expected": {
+      "date": "2026-08-12-00-00",
+      "gross_weight_t": 44.8,
+      "tare_weight_t": 23.79,
+      "net_weight_t": 21.01,
+      "station_weight_t": 21.01,
+      "direct_sale_weight_t": 0
+    },
+    "clear_before": "unpumpable",
+    "note": "用户2026-10-10确认：本次最新车之前各车卸前均已灌不出；不代表物理余液为零。"
+  }
+]

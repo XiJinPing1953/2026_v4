@@ -232,3 +232,53 @@ test('invalid dates and a future tank day are rejected before source queries', a
 	assert.equal((await reader.tankBeforeFillingV1({ day: '2099-01-01' })).code, 400)
 	assert.equal(db.calls.length, 0)
 })
+
+test('truck closure reads all sources before selected-period display and counts two bottles from one sale separately', async () => {
+	const tables = fixture(205)
+	tables.crm_gas_inventory_periods = [{ _id: 'period', status: 'active', cutoff_day: '2026-09-01', activated_at: 1 }]
+	tables.crm_gas_in = [{ _id: 'truck-1', date: '2026-09-01-00-00', plate_no: '车1', gross_weight_t: 45, tare_weight_t: 24, net_weight_t: 21, station_weight_t: 21, direct_sale_weight_t: 0, updated_at: 1 }]
+	for (const fill of tables.crm_fillings) fill.date = '2026-09-02'
+	const outRows = tables.crm_sale_records.filter(row => row.out_items)
+	tables.crm_sale_records = [...tables.crm_sale_records.filter(row => row.back_items), { ...outRows[0], _id: 'one-multiple-bottle-sale', out_items: outRows.flatMap(row => row.out_items) }]
+	const db = makeDb(tables), reader = createClosureReader(db)
+	const result = await reader.truckQuantityClosureV1({ dateStart: '', dateEnd: '2026-09-04', cutoffDay: '2026-09-04' })
+	assert.equal(result.code, 0)
+	assert.equal(result.data.scope.date_start, '2026-09-01')
+	assert.equal(result.data.scope.inventory_period.cutoff_day, '2026-09-01')
+	assert.equal(result.data.scope.read_complete, true)
+	assert.equal(result.data.batches[0].filling.total.kg, 20500)
+	assert.equal(result.data.batches[0].sales.closed.kg, 24190)
+	assert.equal(result.data.batches[0].sales.closed.count, 205)
+	assert.equal(result.data.shared_cycles.length, 0)
+	assert.ok(db.calls.filter(call => call.name === 'crm_fillings' && call.order && call.limit === 200).length >= 2)
+	// A saved correction is reread, never frozen in a previous truck summary.
+	tables.crm_fillings[0].fill_weight = 101; tables.crm_fillings[0].weight_end = 221
+	const corrected = await reader.truckQuantityClosureV1({ dateStart: '', dateEnd: '2026-09-04', cutoffDay: '2026-09-04' })
+	assert.equal(corrected.data.batches[0].filling.total.kg, 20501)
+})
+
+test('truck closure never invents a default period or return complete totals after inbound changed during read', async () => {
+	const noPeriod = await createClosureReader(makeDb(fixture())).truckQuantityClosureV1({ dateEnd: '2026-09-04', cutoffDay: '2026-09-04' })
+	assert.equal(noPeriod.code, 400)
+	const tables = fixture()
+	tables.crm_gas_in = [{ _id: 'truck', date: '2026-08-31', station_weight_t: 21, updated_at: 1 }]
+	let mutated = false
+	const db = makeDb(tables, { get(name, rows, query) {
+		if (name === 'crm_sale_records' && query.order && !mutated) { tables.crm_gas_in[0].updated_at = Date.now() + 1000; mutated = true }
+		return { data: rows }
+	} })
+	await assert.rejects(() => createClosureReader(db).truckQuantityClosureV1({ dateStart: '2026-08-31', dateEnd: '2026-09-04', cutoffDay: '2026-09-04' }), error => error.code === 'FINANCIAL_READ_INCOMPLETE')
+})
+
+test('truck sales retain hidden-source boundary and source viewing permissions', async () => {
+	const tables = fixture()
+	tables.crm_gas_in = [{ _id: 'truck', date: '2026-08-31', station_weight_t: 21 }]
+	tables.crm_customers = [{ _id: 'visible', name: '隐藏客户', is_hidden: true }]
+	const result = await createClosureReader(makeDb(tables)).truckQuantityClosureV1({ dateStart: '2026-08-31', dateEnd: '2026-09-04', cutoffDay: '2026-09-04' })
+	assert.equal(result.code, 0)
+	assert.equal(result.data.summary.sales.closed.kg, 0)
+	assert.ok(result.data.scope.warnings.length)
+	assert.doesNotMatch(JSON.stringify(result.data), /隐藏客户|sale-0000/)
+	const source = require('fs').readFileSync('uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js', 'utf8')
+	assert.match(source, /action === 'truckQuantityClosureV1'\s*\? \['\/pages\/filling\/list', '\/pages\/sale\/list', '\/pages\/gas-in\/list'\]/)
+})
