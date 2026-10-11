@@ -4,15 +4,17 @@
 			<view class="closure-header">
 				<view class="heading-group">
 					<button class="back-button" aria-label="返回上一页" @click="goBack">← 返回</button>
-					<view><text class="page-title" role="heading" aria-level="1">天然气闭环</text><text class="hint">按首次灌装归组，追踪补灌与出瓶</text></view>
+					<view><text class="page-title" role="heading" aria-level="1">天然气闭环</text><text class="hint">核对每车卸入、灌装与出瓶数量</text></view>
 				</view>
-				<AppButton kind="neutral" size="sm" :loading="loading" @click="refresh()">刷新数据</AppButton>
+				<AppButton v-if="activeView !== 'trucks'" kind="neutral" size="sm" :loading="loading" @click="refresh()">刷新数据</AppButton>
 			</view>
 			<view class="workspace-tabs" aria-label="闭环工作区">
+				<button class="workspace-tab" :class="{ 'is-active': activeView === 'trucks' }" :aria-pressed="activeView === 'trucks'" @click="activeView = 'trucks'">逐车数量</button>
 				<button class="workspace-tab" :class="{ 'is-active': activeView === 'cycles' }" :aria-pressed="activeView === 'cycles'" @click="activeView = 'cycles'">逐瓶闭环</button>
 				<button class="workspace-tab" :class="{ 'is-active': activeView === 'tank' }" :aria-pressed="activeView === 'tank'" @click="activeView = 'tank'">每日灌前余量</button>
 			</view>
-
+			<TruckQuantityPanel v-if="activeView === 'trucks'" :visible="props.visible" />
+			<template v-else>
 			<AppSection>
 				<view class="filter-grid">
 					<picker mode="date" :value="filters.dateStart" @change="filters.dateStart = $event.detail.value"><AppInput :model-value="filters.dateStart" label="首次灌装开始日" readonly size="sm" /></picker>
@@ -138,6 +140,7 @@
 					</view>
 				</view>
 			</AppSection>
+			</template>
 		</view>
 	</AppPage>
 </template>
@@ -148,10 +151,11 @@ import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
+import TruckQuantityPanel from './TruckQuantityPanel.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { useGasClosure } from '@/composables/gas/useGasClosure'
 
-const activeView = ref('cycles')
+const activeView = ref('trucks')
 const showScope = ref(false)
 function goBack() {
 	if (getCurrentPages().length > 1) uni.navigateBack()
@@ -214,8 +218,8 @@ function evidenceUrl(row) {
 }
 function openEvidence(row) { const url = evidenceUrl(row); if (url) uni.navigateTo({ url }) }
 let mounted = false
-function updateVisibility() { if (mounted) setVisible(props.visible && (typeof document === 'undefined' || document.visibilityState !== 'hidden')) }
-watch(() => props.visible, updateVisibility)
+function updateVisibility() { if (mounted) setVisible(props.visible && activeView.value !== 'trucks' && (typeof document === 'undefined' || document.visibilityState !== 'hidden')) }
+watch(() => [props.visible, activeView.value], updateVisibility)
 onMounted(() => {
 	mounted = true
 	if (typeof document !== 'undefined') document.addEventListener('visibilitychange', updateVisibility)

@@ -39,6 +39,7 @@ const FILLING_START_LOSS_ADJUST_REASON = 'filling_start_weight_loss'
 const PAGE_ACTION_RULES = {
 	fillingClosureV1: [{ pagePath: '/pages/gas-closure/index', action: 'view' }],
 	tankBeforeFillingV1: [{ pagePath: '/pages/gas-closure/index', action: 'view' }],
+	truckQuantityClosureV1: [{ pagePath: '/pages/gas-closure/index', action: 'view' }],
 	listV1: [
 		{ pagePath: '/pages/bottle/movement', action: 'view' },
 		{ pagePath: '/pages/pda/movement-query', action: 'view' }
@@ -2264,8 +2265,10 @@ const main = async (event, context) => {
 		cloudFunction: 'crm-bottle-movement'
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
-	if (action === 'fillingClosureV1' || action === 'tankBeforeFillingV1') {
-		const required = action === 'fillingClosureV1'
+	if (['fillingClosureV1', 'tankBeforeFillingV1', 'truckQuantityClosureV1'].includes(action)) {
+		const required = action === 'truckQuantityClosureV1'
+			? ['/pages/filling/list', '/pages/sale/list', '/pages/gas-in/list']
+			: action === 'fillingClosureV1'
 			? ['/pages/filling/list', '/pages/sale/list']
 			: ['/pages/filling/list', '/pages/gas-in/list']
 		if (required.some(page => !hasPagePermission(user, page, 'view'))) {

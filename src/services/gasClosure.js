@@ -17,3 +17,10 @@ export function getTankBeforeFillingV1(day) {
 		data: { day }
 	})
 }
+
+export function getTruckQuantityClosureV1(params = {}) {
+	return callCloud('crm-bottle-movement', {
+		action: 'truckQuantityClosureV1', timeout: 65000,
+		data: { dateStart: params.dateStart || '', dateEnd: params.dateEnd, cutoffDay: params.cutoffDay }
+	})
+}

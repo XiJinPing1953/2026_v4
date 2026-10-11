@@ -3,6 +3,8 @@
 const { readComplete, FinancialReadError } = require('./financialReadLocal')
 const { buildFillingClosure } = require('./fillingClosure')
 const { analyzeTankBeforeFilling } = require('./tankBeforeFilling')
+const { buildTruckQuantityClosure } = require('./truckQuantityClosure')
+const truckQuantityFacts = require('./truckQuantityFacts.json')
 
 const text = value => String(value == null ? '' : value).trim()
 const number = value => value == null || text(value) === '' || !Number.isFinite(Number(value)) ? null : Number(value)
@@ -165,18 +167,36 @@ function createClosureReader(db) {
 		return rows.filter(row => row.action === 'tank_gateway_ingest')
 	}
 
-	async function fillingClosureV1(data = {}) {
-		const started = Date.now()
-		const dateStart = text(data.dateStart), dateEnd = text(data.dateEnd), cutoffDay = text(data.cutoffDay)
-		if (![dateStart, dateEnd, cutoffDay].every(validDay) || dateStart > dateEnd || cutoffDay < dateEnd || dayStart(dateEnd) - dayStart(dateStart) > 366 * 86400000) {
-			return { code: 400, msg: '请选择有效灌装期间（最多一年），观察截止日不能早于期间结束' }
-		}
+	function sourceSession(started) {
 		const reads = []
 		async function read(name, where, field) {
 			const rows = await boundedRead(() => readComplete(collection(name), where, { command, source: `closure:${name}`, field }), `closure:${name}:${reads.length}`)
 			reads.push({ name, where, count: rows.length })
 			return rows
 		}
+		async function verify() {
+			// Live reads are not an atomic snapshot. Reject changes across the full multi-source read too.
+			for (const entry of reads) {
+				const [count, changes] = await boundedRead(() => Promise.all([
+					collection(entry.name).where(entry.where).count(),
+					collection(entry.name).where(and(entry.where, command.or([{ updated_at: command.gte(started) }, { created_at: command.gte(started) }]))).limit(1).get()
+				]), `closure:final:${entry.name}`)
+				const validCount = ['number', 'string'].includes(typeof count.total) && String(count.total).trim() !== '' && Number.isSafeInteger(Number(count.total)) && Number(count.total) >= 0
+				if (!validCount || Number(count.total) !== entry.count || !Array.isArray(changes.data) || changes.data.length) {
+					throw new FinancialReadError('closure_sources_changed', { source: entry.name })
+				}
+			}
+		}
+		return { read, verify }
+	}
+
+	async function fillingClosureV1(data = {}) {
+		const started = Date.now()
+		const dateStart = text(data.dateStart), dateEnd = text(data.dateEnd), cutoffDay = text(data.cutoffDay)
+		if (![dateStart, dateEnd, cutoffDay].every(validDay) || dateStart > dateEnd || cutoffDay < dateEnd || dayStart(dateEnd) - dayStart(dateStart) > 366 * 86400000) {
+			return { code: 400, msg: '请选择有效灌装期间（最多一年），观察截止日不能早于期间结束' }
+		}
+		const session = sourceSession(started), { read } = session
 		// Read the dated filling source once; the partial range + _id cursor has a
 		// poor production query plan even though the matching period is small.
 		const fillRows = await read('crm_fillings', dateWhere('', cutoffDay))
@@ -196,17 +216,7 @@ function createClosureReader(db) {
 		const manualRows = bottleNos.length ? await read('crm_bottle_movements', { source_type: command.in(['manual', 'manual_fix']) }) : []
 		const allFillings = fillRows.filter(row => targets.has(text(row.bottle_no)))
 		const manual = manualRows.filter(row => targets.has(text(row.bottle_no)) && dayOf(row.event_day || row.date) <= cutoffDay)
-		// Live reads are not an atomic snapshot. Reject changes across the full multi-source read too.
-		for (const entry of reads) {
-			const [count, changes] = await boundedRead(() => Promise.all([
-				collection(entry.name).where(entry.where).count(),
-				collection(entry.name).where(and(entry.where, command.or([{ updated_at: command.gte(started) }, { created_at: command.gte(started) }]))).limit(1).get()
-			]), `closure:final:${entry.name}`)
-			const validCount = ['number', 'string'].includes(typeof count.total) && String(count.total).trim() !== '' && Number.isSafeInteger(Number(count.total)) && Number(count.total) >= 0
-			if (!validCount || Number(count.total) !== entry.count || !Array.isArray(changes.data) || changes.data.length) {
-				throw new FinancialReadError('closure_sources_changed', { source: entry.name })
-			}
-		}
+		await session.verify()
 		const source = buildSourceEvents({ fillings: allFillings, sales, manual,
 			hiddenIds: hiddenRows.map(row => row._id), hiddenNames: hiddenRows.flatMap(row => [row.name, row.short_name]), bottleNos })
 		const result = buildFillingClosure({ events: source.events, fillings: allFillings.filter(row => fillingKind(row) === 'ordinary'),
@@ -236,6 +246,54 @@ function createClosureReader(db) {
 		} }
 	}
 
+	async function truckQuantityClosureV1(data = {}) {
+		const started = Date.now()
+		let dateStart = text(data.dateStart)
+		const dateEnd = text(data.dateEnd), cutoffDay = text(data.cutoffDay)
+		if ((dateStart && !validDay(dateStart)) || ![dateEnd, cutoffDay].every(validDay) ||
+			(dateStart && dateStart > dateEnd) || cutoffDay < dateEnd) {
+			return { code: 400, msg: '请选择有效进液日期和观察截止日，截止日不能早于进液结束日' }
+		}
+		const session = sourceSession(started), { read } = session
+		const periods = await read('crm_gas_inventory_periods', { status: 'active' }, { cutoff_day: true, opening_tank_t: true, activated_at: true, updated_at: true })
+		const period = periods.sort((a, b) => (b.activated_at || 0) - (a.activated_at || 0))[0]
+		if (!dateStart) {
+			if (!validDay(period?.cutoff_day)) return { code: 400, msg: '未取得当前账期起点，请明确选择进液开始日' }
+			dateStart = period.cutoff_day
+		}
+		if (dateStart > dateEnd) return { code: 400, msg: '进液开始日不能晚于结束日' }
+		// All inbound sources are needed: a source date may differ from confirmed
+		// field timing. Filtering the DB first could silently discard that truck.
+		const [gasIns, fillRows, hiddenRows] = await Promise.all([
+			read('crm_gas_in', {}, { date: true, plate_no: true, tanker_no: true, gross_weight_t: true,
+				tare_weight_t: true, net_weight_t: true, station_weight_t: true, direct_sale_weight_t: true,
+				created_at: true, updated_at: true }),
+			read('crm_fillings', {}, { date: true, filling_time: true, bottle_no: true, record_type: true,
+				fill_weight: true, weight_start: true, weight_end: true, tare: true, created_at: true, updated_at: true }),
+			read('crm_customers', { is_hidden: true }, { _id: true, name: true, short_name: true })
+		])
+		const observedFillings = fillRows.filter(row => !validDay(dayOf(row.date)) || dayOf(row.date) <= cutoffDay)
+		const bottleNos = [...new Set(observedFillings.filter(row => fillingKind(row) === 'ordinary').map(row => text(row.bottle_no)).filter(Boolean))]
+		const [sales, manualRows] = bottleNos.length ? await Promise.all([
+			read('crm_sale_records', dateWhere('', cutoffDay), { date: true, biz_mode: true,
+				out_items: true, back_items: true, agent_sale_items: true, customer_id: true,
+				delivery_customer_id: true, customer_name: true, delivery_customer_name: true, created_at: true, updated_at: true }),
+			read('crm_bottle_movements', { source_type: command.in(['manual', 'manual_fix']) })
+		]) : [[], []]
+		await session.verify()
+		const source = buildSourceEvents({ fillings: observedFillings, sales,
+			manual: manualRows.filter(row => dayOf(row.event_day || row.date) <= cutoffDay),
+			hiddenIds: hiddenRows.map(row => row._id), hiddenNames: hiddenRows.flatMap(row => [row.name, row.short_name]), bottleNos })
+		const closure = buildFillingClosure({ events: source.events,
+			fillings: observedFillings.filter(row => fillingKind(row) === 'ordinary'), cutoffDay })
+		const result = buildTruckQuantityClosure({ gasIns, fillings: observedFillings,
+			cycles: closure.cycles, facts: truckQuantityFacts, dateStart, dateEnd, cutoffDay })
+		return { code: 0, data: { ...result, updated_at: Date.now(), read_started_at: started,
+			scope: { ...result.scope, inventory_period: period ? { cutoff_day: period.cutoff_day, opening_tank_t: period.opening_tank_t } : null, read_complete: true, read_only: true, source_basis: 'live_sources', snapshot_consistent: false,
+				warnings: [...(result.scope?.warnings || []), ...(source.restricted ? ['存在受限销售来源，相关周期保持待核，不能视为全厂出售量已核清'] : [])] }
+		} }
+	}
+
 	async function tankBeforeFillingV1(data = {}) {
 		const day = text(data.day || data.dateStart)
 		if (!validDay(day)) return { code: 400, msg: '请选择有效日期' }
@@ -248,7 +306,7 @@ function createClosureReader(db) {
 		const result = analyzeTankBeforeFilling({ day, logs, fillingFacts: fillings, coverage: { complete: true, from, to: to + 1, asOf: started } })
 		return { code: 0, data: { ...result, updated_at: Date.now(), source_basis: 'tank_gateway_ingest', calibrated: false } }
 	}
-	return { fillingClosureV1, tankBeforeFillingV1 }
+	return { fillingClosureV1, tankBeforeFillingV1, truckQuantityClosureV1 }
 }
 
 module.exports = { createClosureReader, buildSourceEvents, dailyFillings, fillingKind, validDay }
