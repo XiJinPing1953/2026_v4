@@ -6,24 +6,17 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.11-truck-quantity-closure",
+      "version": "2026.10.12-cashier-wechat-default",
       "output": "dist/build/web",
-      "acceptance": "Read-only per-truck weighing evidence, working-period filling and unique cylinder sales; ambiguous boundaries and cross-truck topups remain pending; visible refresh from complete current sources.",
+      "acceptance": "Cashier new receipt and form reset default to WeChat; existing receipt channels and frozen operations retain their original values. Web-only deployment; no cloud or database upload.",
       "deploymentScope": {
         "functions": [
           "crm-bottle-movement"
         ],
         "databaseFiles": [],
-        "baseCommit": "626b27916a8bf5b4c2019b9c431d7868d22011d2",
+        "baseCommit": "378843bc1129e6c256c27026b44e0fe674fa3153",
         "sourceFiles": [
-          "src/components/domain/gas/GasClosureView.vue",
-          "src/components/domain/gas/TruckQuantityPanel.vue",
-          "src/composables/gas/useTruckQuantityClosure.js",
-          "src/services/gasClosure.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/closureRead.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/truckQuantityClosure.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/truckQuantityFacts.json"
+          "src/components/domain/customer/CashierReceiptIntakeView.vue"
         ]
       },
       "integrityScope": "deployment"
