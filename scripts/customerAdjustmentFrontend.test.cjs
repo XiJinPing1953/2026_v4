@@ -17,7 +17,7 @@ function deferred() { let resolve, reject; const promise = new Promise((a, b) =>
 async function harness(overrides = {}) {
 	const scope = vue.effectScope(), storage = overrides.storage || new Map(), writes = [], previews = [], queries = [], events = []
 	const customerId = vue.ref('c1'), kind = vue.ref(overrides.kind || 'rounding_reversal'), canWrite = vue.ref(overrides.canWrite !== false)
-	const storageApi = {
+	const storageApi = overrides.storageApi || {
 		setStorageSync: (key, value) => { if (overrides.storageFailure) throw Error('storage full'); storage.set(key, copy(value)) },
 		getStorageSync: key => storage.get(key)
 	}
@@ -54,6 +54,71 @@ test('optional before/after balances preserve all server numbers without reconst
 	assert.equal(rows[2].after, 134)
 	assert.equal(context.adjustmentPreviewBalances({ effects: preview.effects }).length, 0)
 	assert.equal(context.adjustmentPreviewBalances({ balances: { ...preview.balances, after: { receivable_balance: 222, prepay_balance: 88, net_balance: undefined } } }).length, 0)
+})
+
+test('production uni compiler injects explicit storage APIs and compiled adapter loads sources without a global uni object', async () => {
+	const path = require('node:path'), acorn = require('acorn'), { parse, compileScript } = require('@vue/compiler-sfc')
+	const previous = { UNI_INPUT_DIR: process.env.UNI_INPUT_DIR, UNI_PLATFORM: process.env.UNI_PLATFORM }
+	try {
+		process.env.UNI_INPUT_DIR = path.resolve('src'); process.env.UNI_PLATFORM = 'h5'
+		const { uniInjectPlugin } = require('@dcloudio/uni-h5-vite/dist/plugins/inject')
+		const plugin = uniInjectPlugin()
+		plugin.configResolved({ root: process.cwd(), build: { cssCodeSplit: true } })
+		const file = path.resolve('src/components/domain/customer/statement/CustomerAdjustmentPanel.vue')
+		const compiled = compileScript(parse(fs.readFileSync(file, 'utf8'), { filename: file }).descriptor, { id: 'adjustment-storage-regression' }).content
+		const parseJs = code => acorn.parse(code, { ecmaVersion: 'latest', sourceType: 'module' })
+		const transformed = plugin.transform.call({ parse: parseJs }, compiled, file + '?vue&type=script&setup=true&lang.js').code
+		const ast = parseJs(transformed)
+		const imports = ast.body.filter(node => node.type === 'ImportDeclaration' && node.source.value === '@dcloudio/uni-h5').flatMap(node => node.specifiers)
+		for (const api of ['getStorageSync', 'setStorageSync']) assert.ok(imports.some(specifier => specifier.imported?.name === api), `${api} must be imported by the actual H5 compiler`)
+		let storageNode
+		function visit(node) {
+			if (!node || typeof node !== 'object') return
+			if (node.type === 'Property' && node.key?.name === 'storage') storageNode = node.value
+			for (const value of Object.values(node)) if (Array.isArray(value)) value.forEach(visit); else if (value && typeof value === 'object') visit(value)
+		}
+		visit(ast)
+		assert.equal(storageNode?.type, 'ObjectExpression')
+		const stored = new Map(), calls = []
+		const runtime = vm.createContext({}) // Deliberately no global `uni`.
+		for (const specifier of imports) {
+			if (specifier.imported.name === 'getStorageSync') runtime[specifier.local.name] = key => { calls.push(['get', key]); return stored.get(key) }
+			if (specifier.imported.name === 'setStorageSync') runtime[specifier.local.name] = (key, value) => { calls.push(['set', key]); stored.set(key, copy(value)) }
+		}
+		vm.runInContext(`globalThis.adapter = (${transformed.slice(storageNode.start, storageNode.end)})`, runtime)
+		let sourceReads = 0
+		const h = await harness({ storageApi: runtime.adapter, sources: async () => { sourceReads += 1; return success(statement()) } })
+		assert.equal(sourceReads, 1)
+		assert.equal(h.panel.ready.value, true)
+		assert.equal(h.panel.loadIssue.value, '')
+		fill(h.panel); await h.panel.prepare(); await h.panel.submit()
+		assert.equal(h.writes.length, 1)
+		assert.equal(h.events.length, 1)
+		assert.ok(calls.some(([action]) => action === 'get'))
+		assert.ok(calls.some(([action]) => action === 'set'))
+		h.stop()
+	} finally {
+		for (const [key, value] of Object.entries(previous)) if (value === undefined) delete process.env[key]; else process.env[key] = value
+	}
+})
+
+test('rounding reversal evidence is optional; reason remains required and writeoff evidence remains required', async () => {
+	const rounding = await harness()
+	fill(rounding.panel, { evidence: '' })
+	await rounding.panel.prepare()
+	assert.equal(rounding.panel.canConfirm.value, true)
+	assert.equal(rounding.previews[0].evidence, '')
+	rounding.panel.form.note = ''
+	await rounding.panel.prepare()
+	assert.equal(rounding.panel.canConfirm.value, false)
+	assert.match(rounding.panel.issue.value, /调整原因/)
+	rounding.stop()
+	const writeoff = await harness({ kind: 'prepay_writeoff' })
+	fill(writeoff.panel, { evidence: '', confirm_no_refund_or_offset: true })
+	await writeoff.panel.prepare()
+	assert.equal(writeoff.previews.length, 0)
+	assert.match(writeoff.panel.issue.value, /确认依据/)
+	writeoff.stop()
 })
 
 test('preview uses server effects unchanged and any amount/date/source/version edit invalidates confirmation', async () => {

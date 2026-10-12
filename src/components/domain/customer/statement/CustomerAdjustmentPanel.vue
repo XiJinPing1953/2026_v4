@@ -30,7 +30,7 @@
 				<picker v-if="!voidTarget" class="adjustment-picker" mode="date" :value="form.biz_date" :disabled="locked" @change="form.biz_date = $event.detail.value"><AppInput :model-value="form.biz_date" label="业务日期" placeholder="请选择日期" readonly prefix-icon="calendar" /></picker>
 				<AppInput v-else :model-value="voidTarget.biz_date || voidTarget.date || '—'" label="原业务日期" readonly />
 				<AppInput v-model="form.note" :label="voidTarget ? '作废原因' : '调整原因'" placeholder="请说明本次处理原因" :disabled="locked" />
-				<AppInput v-model="form.evidence" class="evidence-field" :label="voidTarget ? '确认依据（选填）' : '确认依据'" placeholder="客户确认、凭据编号或核准说明" :disabled="locked" />
+				<AppInput v-model="form.evidence" class="evidence-field" :label="voidTarget || kind === 'rounding_reversal' ? '确认依据（选填）' : '确认依据（必填）'" placeholder="客户确认、凭据编号或核准说明" :disabled="locked" />
 			</view>
 			<checkbox-group v-if="kind === 'prepay_writeoff' && !voidTarget" @change="form.confirm_no_refund_or_offset = $event.detail.value.includes('confirmed')">
 				<label class="confirmation"><checkbox value="confirmed" :checked="form.confirm_no_refund_or_offset" :disabled="locked" /><text>已确认：本次金额不再退款，也不再抵扣以后货款。</text></label>
@@ -93,7 +93,9 @@ const emit = defineEmits(['changed'])
 const canWrite = computed(() => ['superadmin', 'admin', 'finance'].includes(getRoleTemplate()) && canPageAction('/pages/customer/statement', 'update'))
 const title = computed(() => CUSTOMER_ADJUSTMENT_KINDS[props.kind])
 const { form, sources, adjustments, pendingSources, scale, selectedSource, loading, busy, issue, loadIssue, preview, operation, voidTarget, unresolved, locked, ready, canPreview, canConfirm, load, reset, prepare, submit, retry, queryOperation, beginVoid } = useCustomerAdjustment({
-	customerId: toRef(props, 'customerId'), kind: toRef(props, 'kind'), canWrite, storage: uni, actorId: getUser()?._id || getUser()?.id || 'current',
+	customerId: toRef(props, 'customerId'), kind: toRef(props, 'kind'), canWrite,
+	storage: { getStorageSync: key => uni.getStorageSync(key), setStorageSync: (key, value) => uni.setStorageSync(key, value) },
+	actorId: getUser()?._id || getUser()?.id || 'current',
 	api: { sources: getCustomerAdjustmentSourcesV1, preview: previewCustomerAdjustmentV1, post: postCustomerAdjustmentV1, query: getCustomerAdjustmentOperationV1, void: voidCustomerAdjustmentV1 },
 	onChanged: () => emit('changed')
 })

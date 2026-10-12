@@ -95,7 +95,7 @@ export function useCustomerAdjustment({ customerId, kind, canWrite, api, storage
 		if (!source) throw new Error('请选择已核实的来源。')
 		if (amount == null) throw new Error(`请输入大于零、最多 ${scale.value} 位小数的金额。`)
 		if (amount > source.available) throw new Error('本次金额超过来源可用金额，请核对或刷新来源。')
-		if (!base.evidence) throw new Error('请填写确认依据。')
+		if (kind.value === 'prepay_writeoff' && !base.evidence) throw new Error('请填写确认依据。')
 		if (kind.value === 'prepay_writeoff' && !form.confirm_no_refund_or_offset) throw new Error('请先确认此金额不再退款，也不再抵扣以后货款。')
 		return { ...base, source_key: source.source_key, source_version: source.version, amount, confirm_no_refund_or_offset: form.confirm_no_refund_or_offset }
 	}
