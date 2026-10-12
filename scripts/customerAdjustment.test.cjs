@@ -41,7 +41,7 @@ function harness(hooks = {}) {
 	}
 	const db = makeDb(state, { mutate: true, transaction: true, txDocumentObject: true, ...hooks })
 	const service = createAdjustmentService({ db, command: db.command, readComplete, moneyScale: row => row.default_price_unit === 'm3' ? 3 : 2,
-		saleSnapshot, flowSnapshot: debtSnapshot, debtSnapshot, balancePatch, resolveCustomer: hooks.resolveCustomer })
+		saleSnapshot, flowSnapshot: debtSnapshot, debtSnapshot, balancePatch, resolveCustomer: hooks.resolveCustomer, resolveSalesScope: hooks.resolveSalesScope })
 	const run = (action, data = {}, actor = user) => service.run(action, { customer_id: cid, ...data }, actor)
 	return { state, db, run }
 }
@@ -321,7 +321,7 @@ test('release flag cannot repurpose a post or a writeoff void into another alloc
 	await assert.rejects(h.run('previewCustomerAdjustmentV1', { void_id: result.adjustment_id, source_version: history.version, note: '作废', release_dependent_allocations: true }), /仅抹零冲回/)
 })
 
-test('real handler can explicitly void a reversal paid from the same protected cash receipt without releasing its original allocations', async () => {
+function realHandlerFixture() {
 	const tables = tablesFor(saleDoc({ settlement_mode: 'sale', price_unit: 'kg', out_items: [{ net: 100 }], unit_price: 1,
 		should_receive: 100, amount_received: 95, receipt_rounding_amount: 5, date: '2026-09-01' }))
 	Object.assign(tables.crm_customers[0], { default_price_unit: 'kg' })
@@ -336,6 +336,11 @@ test('real handler can explicitly void a reversal paid from the same protected c
 		const result = await invoke(handler, action, { customer_id: cid, ...data }); assert.equal(result.code, 0, result.msg)
 		return result.data
 	}
+	return { tables, originals, handler, call }
+}
+
+test('real handler can explicitly void a reversal paid from the same protected cash receipt without releasing its original allocations', async () => {
+	const { tables, originals, handler, call } = realHandlerFixture()
 	const list = await call('getCustomerAdjustmentSourcesV1', { kind: 'rounding_reversal' }), source = list.sources[0]
 	const preview = await call('previewCustomerAdjustmentV1', { kind: 'rounding_reversal', source_key: source.source_key,
 		source_version: source.version, amount: 4, biz_date: '2026-10-12', note: '真实入口合成冲回' })
@@ -354,4 +359,37 @@ test('real handler can explicitly void a reversal paid from the same protected c
 	assert.deepEqual([tables.crm_customer_receipts[0].allocated_amount, tables.crm_customer_receipts[0].unallocated_amount,
 		tables.crm_customer_receipts[0].rounding_allocated_amount, tables.crm_sale_records[0].receipt_rounding_amount], [95, 10, 5, 5])
 	assert.deepEqual([tables.crm_customers[0].receivable_balance, tables.crm_customers[0].prepay_balance, tables.crm_customers[0].net_balance], [0, 10, -10])
+})
+
+test('real handler excludes hidden delivery-customer sales from sources, preview, persisted balances and statement totals', async () => {
+	const { tables, call } = realHandlerFixture()
+	tables.crm_customers.push({ _id: 'hidden-delivery', name: '隐藏子客户', is_hidden: true })
+	tables.crm_sale_records.push({ ...structuredClone(tables.crm_sale_records[0]), _id: 'hidden-sale', delivery_customer_id: 'hidden-delivery',
+		out_items: [{ net: 1000 }], should_receive: 1000, amount_received: 0, rounding_amount: 10, receipt_rounding_amount: 0 })
+	const statementInput = { summary_only: true, date_from: '2026-01-01', date_to: '2026-12-31' }
+	const before = await call('getCustomerStatementV1', statementInput)
+	assert.deepEqual([before.summary.receivable_balance, before.summary.prepay_balance], [0, 10])
+	const rounding = await call('getCustomerAdjustmentSourcesV1', { kind: 'rounding_reversal' })
+	assert.equal(rounding.sources.some(row => row.target_id === 'hidden-sale'), false)
+	const list = await call('getCustomerAdjustmentSourcesV1', { kind: 'prepay_writeoff' }), source = list.sources[0]
+	const preview = await call('previewCustomerAdjustmentV1', { kind: 'prepay_writeoff', source_key: source.source_key,
+		source_version: source.version, amount: 10, biz_date: '2026-10-12', note: '双方确认清账', evidence: '合成凭据', confirm_no_refund_or_offset: true })
+	assert.equal(preview.balances.before.receivable_balance, 0)
+	const saved = await call('postCustomerAdjustmentV1', { ...preview.value, plan_hash: preview.plan_hash, operation_id: 'hidden-writeoff-0001' })
+	const after = await call('getCustomerStatementV1', statementInput)
+	for (const value of [preview.balances.after, saved.balances, tables.crm_customers[0], after.summary]) {
+		assert.deepEqual([value.receivable_balance, value.prepay_balance, value.net_balance], [0, 0, 0])
+	}
+	assert.equal(tables.crm_sale_records.find(row => row._id === 'hidden-sale').amount_received, 0)
+})
+
+test('a visibility-scope version change during the transaction aborts even when visible sale rows stay the same', async () => {
+	let version = 'visible-list-1'
+	const h = harness({ resolveSalesScope: async customerId => ({ where: { customer_id: customerId }, version }) })
+	const data = await input(h, 'prepay_writeoff', 'receipt-credit', 7), preview = await h.run('previewCustomerAdjustmentV1', data)
+	const begin = h.db.startTransaction.bind(h.db)
+	h.db.startTransaction = async () => { version = 'visible-list-2'; return begin() }
+	const before = structuredClone(h.state)
+	await assert.rejects(h.run('postCustomerAdjustmentV1', { ...data, plan_hash: preview.plan_hash, operation_id: 'hidden-scope-0001' }), /范围已变化/)
+	assert.deepEqual(h.state, before)
 })

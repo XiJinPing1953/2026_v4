@@ -10188,6 +10188,12 @@ const main = async (event, context) => {
 		try {
 			const service = customerAdjustment.createAdjustmentService({ db, command: dbCmd, readComplete,
 				resolveCustomer: getCustomerById, moneyScale: resolveCustomerMoneyScale, saleSnapshot: computeSaleSnapshot,
+				resolveSalesScope: async customerId => {
+					const hiddenRows = await readComplete(customers, { is_hidden: true }, { command: dbCmd, field: { _id: true }, source: 'customer_adjustment.hidden_customers' })
+					const hiddenIds = hiddenRows.map(row => normalizeId(row._id)).sort()
+					const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, hiddenIds, ['customer_id', 'delivery_customer_id'])
+					return { where: hiddenWhere ? dbCmd.and([{ customer_id: customerId }, hiddenWhere]) : { customer_id: customerId }, version: depositModel.digest(hiddenIds) }
+				},
 				flowSnapshot: computeFlowSettlementSnapshot, debtSnapshot: computeOpeningDebtSnapshot, balancePatch: buildAdjustmentBalancePatch })
 			return { code: 0, data: await service.run(action, data, user) }
 		} catch (error) { return { code: error.code || 500, msg: error.message || '调整未完成，请查询原操作号', data: error.details || {} } }

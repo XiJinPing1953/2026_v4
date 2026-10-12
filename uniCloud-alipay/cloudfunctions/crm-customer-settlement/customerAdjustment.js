@@ -15,7 +15,7 @@ const sorted = rows => [...rows].sort((a, b) => text(a._id).localeCompare(text(b
 const clone = value => JSON.parse(JSON.stringify(value))
 const operationKey = (cid, id) => digest(['customer-adjustment-operation', cid, id]).slice(0, 24)
 
-function createAdjustmentService({ db, command, readComplete, moneyScale, saleSnapshot, flowSnapshot, debtSnapshot, balancePatch, resolveCustomer }) {
+function createAdjustmentService({ db, command, readComplete, moneyScale, saleSnapshot, flowSnapshot, debtSnapshot, balancePatch, resolveCustomer, resolveSalesScope }) {
 	const complete = (table, where) => readComplete(db.collection(table), where, { command, source: `customer_adjustment.${table}` })
 	const get = async (store, id) => document(await store.doc(id).get())
 	const fixed = async (store, id) => document(await store.where({ _id: id }).limit(1).get())
@@ -40,8 +40,12 @@ function createAdjustmentService({ db, command, readComplete, moneyScale, saleSn
 	}
 	async function scope(cid) {
 		const customer = await customerDoc(cid)
-		const result = { customer }
-		await Promise.all(Object.entries(TABLES).map(async ([key, table]) => { result[key] = sorted(await complete(table, { customer_id: cid })) }))
+		const salesScope = resolveSalesScope ? await resolveSalesScope(cid) : { where: { customer_id: cid }, version: 'customer_only' }
+		if (!salesScope?.where || !text(salesScope.version)) fail('销售可见范围读取不完整，未执行调整')
+		const result = { customer, sales_scope_version: salesScope.version }
+		await Promise.all(Object.entries(TABLES).map(async ([key, table]) => {
+			result[key] = sorted(await complete(table, key === 'sales' ? salesScope.where : { customer_id: cid }))
+		}))
 		return result
 	}
 	function targets(s) {
