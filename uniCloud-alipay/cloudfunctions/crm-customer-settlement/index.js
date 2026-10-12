@@ -546,6 +546,11 @@ async function getDocsByIds(collection, ids = []) {
 			const id = normalizeId(doc && doc._id)
 			if (id) map.set(id, doc)
 		}
+		// Alipay automatic IDs can be omitted by an `_id in` query.
+		for (const id of idChunk.filter((value) => !map.has(value))) {
+			const doc = transactionDocument(await collection.doc(id).get())
+			if (doc && normalizeId(doc._id) === id) map.set(id, doc)
+		}
 	}
 	return map
 }
@@ -3624,29 +3629,60 @@ async function executeCashierReceiptAllocationMutation({
 	}
 }
 
+function receiptAdjustmentIntegrityError(message) {
+	throw Object.assign(new Error(message), { code: 'RECEIPT_ADJUSTMENT_INTEGRITY' })
+}
+
+function requireReceiptAdjustmentAmount(value, label, positive = false) {
+	if ((typeof value !== 'number' && typeof value !== 'string') || value === '' ||
+		!Number.isFinite(Number(value)) || Number(value) < 0 || (positive && !(Number(value) > 0))) {
+		receiptAdjustmentIntegrityError(`${label}缺失或无效，未执行调整`)
+	}
+	return Number(value)
+}
+
 async function rollbackReceiptAllocations({ customerId, receiptId, allocationRows = null }) {
 	const rows = Array.isArray(allocationRows)
 		? allocationRows
 		: await listReceiptAllocationRows(receiptId, customerId)
 	let rollbackTotal = 0
 	const grouped = buildReceiptRollbackTargetGroups(rows)
-	let skipped = grouped.skipped
+	if (grouped.skipped) receiptAdjustmentIntegrityError('原分配存在无效目标或金额，未执行调整')
+	for (const row of rows) {
+		if (normalizeId(row.customer_id) !== customerId || normalizeId(row.receipt_id) !== receiptId ||
+			(row.target_type && normalizeReceivableTargetType(row.target_type) !== row.target_type) ||
+			(row.allocate_kind && !normalizeAllocateKind(row.allocate_kind, ''))) {
+			receiptAdjustmentIntegrityError('原分配归属或类型无效，未执行调整')
+		}
+		requireReceiptAdjustmentAmount(row.allocate_amount, '原分配金额', true)
+	}
 	const saleGroups = grouped.groups.filter((item) => item.target_type === 'sale')
 	const flowGroups = grouped.groups.filter((item) => item.target_type === 'flow_settlement')
 	const debtGroups = grouped.groups.filter((item) => item.target_type === 'opening_debt' || item.target_type === 'other_fee' || item.target_type === 'balance_adjustment')
 	const saleMap = await getDocsByIds(sales, saleGroups.map((item) => item.target_id))
 	const flowMap = await getDocsByIds(flowSettlements, flowGroups.map((item) => item.target_id))
 	const debtMap = await getDocsByIds(openingDebts, debtGroups.map((item) => item.target_id))
+	// Validate the entire rollback before changing even the first target or deleting rows.
+	for (const group of grouped.groups) {
+		const type = group.target_type
+		const doc = (type === 'sale' ? saleMap : type === 'flow_settlement' ? flowMap : debtMap).get(group.target_id)
+		if (!doc || normalizeId(doc.customer_id) !== customerId || (type !== 'sale' && normalizeString(doc.status) !== 'posted')) {
+			receiptAdjustmentIntegrityError('原分配目标不存在、归属或状态已变化，未执行调整')
+		}
+		const received = requireReceiptAdjustmentAmount(doc.amount_received, '原分配目标已收金额')
+		const rounding = requireReceiptAdjustmentAmount(doc.receipt_rounding_amount ?? 0, '原分配目标抹零金额')
+		const scale = type === 'sale' ? 2 : type === 'flow_settlement' ? 3 : resolveOpeningDebtMoneyScale(doc, 2)
+		if (fixByScale(group.receipt_amount_raw - received, scale) > 0 ||
+			fixByScale(group.rounding_amount_raw - rounding, scale) > 0) {
+			receiptAdjustmentIntegrityError('原分配目标已收或抹零金额不足以完整回退，未执行调整')
+		}
+	}
 
 	for (const group of grouped.groups) {
 		const targetType = normalizeReceivableTargetType(group.target_type)
 		const targetId = normalizeId(group.target_id)
 		if (targetType === 'flow_settlement') {
 			const flowDoc = flowMap.get(targetId) || null
-			if (!flowDoc || normalizeId(flowDoc.customer_id) !== customerId) {
-				skipped += group.row_count
-				continue
-			}
 			const snapshot = computeFlowSettlementSnapshot(flowDoc)
 			const receiptAmount = fix3(group.receipt_amount_raw)
 			const roundingAmount = fix3(group.rounding_amount_raw)
@@ -3654,21 +3690,18 @@ async function rollbackReceiptAllocations({ customerId, receiptId, allocationRow
 			const nextReceiptRounding = fix3(Math.max(snapshot.receipt_rounding_amount - roundingAmount, 0))
 			const nextPaidTotal = fix3(nextAmountReceived + nextReceiptRounding)
 			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive, nextPaidTotal, 3)
-			await flowSettlements.doc(targetId).update({
+			const updated = await flowSettlements.doc(targetId).update({
 				amount_received: nextAmountReceived,
 				receipt_rounding_amount: nextReceiptRounding,
 				payment_status: nextStatus,
 				updated_at: Date.now()
 			})
+			if (!updated || updated.updated !== 1) receiptAdjustmentIntegrityError('原分配目标回退未完成，已停止删除和重分配')
 			rollbackTotal = fix3(rollbackTotal + receiptAmount + roundingAmount)
 			continue
 		}
 		if (targetType === 'opening_debt' || targetType === 'other_fee' || targetType === 'balance_adjustment') {
 			const debtDoc = debtMap.get(targetId) || null
-			if (!debtDoc || normalizeId(debtDoc.customer_id) !== customerId || normalizeString(debtDoc.status) !== 'posted') {
-				skipped += group.row_count
-				continue
-			}
 			const moneyScale = resolveOpeningDebtMoneyScale(debtDoc, 2)
 			const fixMoney = (value) => fixByScale(value, moneyScale)
 			const snapshot = computeOpeningDebtSnapshot(debtDoc, moneyScale)
@@ -3678,22 +3711,19 @@ async function rollbackReceiptAllocations({ customerId, receiptId, allocationRow
 			const nextReceiptRounding = fixMoney(Math.max(snapshot.receipt_rounding_amount - roundingAmount, 0))
 			const nextPaidTotal = fixMoney(nextAmountReceived + nextReceiptRounding)
 			const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal, moneyScale)
-			await openingDebts.doc(targetId).update({
+			const updated = await openingDebts.doc(targetId).update({
 				amount_received: nextAmountReceived,
 				receipt_rounding_amount: nextReceiptRounding,
 				outstanding: fixMoney(Math.max(snapshot.should_receive_effective - nextPaidTotal, 0)),
 				payment_status: nextStatus,
 				updated_at: Date.now()
 			})
+			if (!updated || updated.updated !== 1) receiptAdjustmentIntegrityError('原分配目标回退未完成，已停止删除和重分配')
 			rollbackTotal = fix3(rollbackTotal + receiptAmount + roundingAmount)
 			continue
 		}
 
 		const saleDoc = saleMap.get(targetId) || null
-		if (!saleDoc || normalizeId(saleDoc.customer_id) !== customerId) {
-			skipped += group.row_count
-			continue
-		}
 		const snapshot = computeSaleSnapshot(saleDoc)
 		const receiptAmount = fix2(group.receipt_amount_raw)
 		const roundingAmount = fix2(group.rounding_amount_raw)
@@ -3701,12 +3731,13 @@ async function rollbackReceiptAllocations({ customerId, receiptId, allocationRow
 		const nextReceiptRounding = fix2(Math.max(snapshot.receipt_rounding_amount - roundingAmount, 0))
 		const nextPaidTotal = fix2(nextAmountReceived + nextReceiptRounding)
 		const nextStatus = resolvePaymentStatusByAmount(snapshot.should_receive_effective, nextPaidTotal)
-		await sales.doc(targetId).update({
+		const updated = await sales.doc(targetId).update({
 			amount_received: nextAmountReceived,
 			receipt_rounding_amount: nextReceiptRounding,
 			payment_status: nextStatus,
 			updated_at: Date.now()
 		})
+		if (!updated || updated.updated !== 1) receiptAdjustmentIntegrityError('原分配目标回退未完成，已停止删除和重分配')
 		rollbackTotal = fix3(rollbackTotal + receiptAmount + roundingAmount)
 	}
 
@@ -3714,8 +3745,39 @@ async function rollbackReceiptAllocations({ customerId, receiptId, allocationRow
 	return {
 		rows: rows.length,
 		rollback_total: rollbackTotal,
-		skipped
+		skipped: 0
 	}
+}
+
+function requireReceiptAdjustmentSnapshot(snapshot, moneyScale) {
+	const receipt = snapshot && snapshot.receipt
+	const requiredFields = ['customer_name', 'biz_date', 'payment_method', 'entry_kind', 'allocation_mode',
+		'allocation_start_date', 'allocation_end_date', 'allocation_targets', 'note', 'source_type', 'source_id']
+	if (!receipt || !Array.isArray(snapshot.allocation_rows) ||
+		requiredFields.some((field) => !Object.prototype.hasOwnProperty.call(receipt, field)) ||
+		!normalizeDate(receipt.biz_date) || !Array.isArray(receipt.allocation_targets)) {
+		receiptAdjustmentIntegrityError('原收款快照不完整，不能取消调整；请先核对原单据')
+	}
+	for (const field of ['amount', 'rounding_amount', 'allocated_amount', 'rounding_allocated_amount', 'unallocated_amount']) {
+		requireReceiptAdjustmentAmount(receipt[field], `原收款快照 ${field}`)
+	}
+	let received = 0
+	let rounding = 0
+	for (const row of snapshot.allocation_rows) {
+		if (!normalizeId(row && row.target_id) || normalizeReceivableTargetType(row.target_type) !== row.target_type ||
+			!['receipt', 'rounding'].includes(row.allocate_kind)) receiptAdjustmentIntegrityError('原分配快照不完整，不能取消调整')
+		const amount = requireReceiptAdjustmentAmount(row.allocate_amount, '原分配快照金额', true)
+		if (row.allocate_kind === 'rounding') rounding += amount
+		else received += amount
+	}
+	if (!(Number(receipt.amount) > 0 || Number(receipt.rounding_amount) > 0) ||
+		fixByScale(received - Number(receipt.allocated_amount), moneyScale) !== 0 ||
+		fixByScale(rounding - Number(receipt.rounding_allocated_amount), moneyScale) !== 0 ||
+		fixByScale(Number(receipt.allocated_amount) + Number(receipt.unallocated_amount) - Number(receipt.amount), moneyScale) !== 0 ||
+		fixByScale(Number(receipt.rounding_allocated_amount) - Number(receipt.rounding_amount), moneyScale) > 0) {
+		receiptAdjustmentIntegrityError('原收款快照金额与分配明细不一致，不能取消调整')
+	}
+	return snapshot
 }
 
 function buildReceiptAdjustmentSnapshot(receiptDoc = {}, allocationRows = [], moneyScale = 2) {
@@ -4037,54 +4099,82 @@ async function cancelReceiptAdjustmentV1(user, data, requestId) {
 			return { code: error.code || 409, msg: error.message || '放弃整单调整失败，请重新查询', data: { ...(error.details || {}) } }
 		}
 	}
+	const snapshot = requireReceiptAdjustmentSnapshot(pending.snapshot, moneyScale)
 	if (pendingRollbackStrategy === 'deferred') {
 		const currentRows = await listReceiptAllocationRows(receiptId, customerId)
-		if (currentRows.length > 0) {
-			await receipts.doc(receiptId).update({
-				receipt_adjustment_status: '',
-				receipt_adjustment_id: '',
-				receipt_adjustment_rollback_strategy: '',
-				receipt_adjustment_snapshot: null,
-				receipt_adjustment_finished_at: Date.now(),
-				updated_at: Date.now(),
-				updated_by: normalizeId(user && user._id) || null,
-				updated_by_name: normalizeString(user && user.username)
+		const currentSnapshot = buildReceiptAdjustmentSnapshot(receiptDoc, currentRows, moneyScale)
+		if (depositModel.digest(currentSnapshot.receipt) !== depositModel.digest(snapshot.receipt) ||
+			depositModel.digest(receiptAdjustmentAllocationRows(currentSnapshot)) !== depositModel.digest(receiptAdjustmentAllocationRows(snapshot))) {
+			receiptAdjustmentIntegrityError('进入调整后收款或分配已变化，不能直接放弃；请刷新核对')
+		}
+		await receipts.doc(receiptId).update({
+			receipt_adjustment_status: '',
+			receipt_adjustment_id: '',
+			receipt_adjustment_rollback_strategy: '',
+			receipt_adjustment_snapshot: null,
+			receipt_adjustment_finished_at: Date.now(),
+			updated_at: Date.now(),
+			updated_by: normalizeId(user && user._id) || null,
+			updated_by_name: normalizeString(user && user.username)
+		})
+		if (pending.storage === 'collection') {
+			await receiptAdjustments.doc(normalizeId(pending._id)).update({
+				status: 'cancelled',
+				cancelled_at: Date.now(),
+				cancelled_by: normalizeId(user && user._id) || null,
+				cancelled_by_name: normalizeString(user && user.username),
+				request_id: requestId
 			})
-			if (pending.storage === 'collection') {
-				await receiptAdjustments.doc(normalizeId(pending._id)).update({
-					status: 'cancelled',
-					cancelled_at: Date.now(),
-					cancelled_by: normalizeId(user && user._id) || null,
-					cancelled_by_name: normalizeString(user && user.username),
-					request_id: requestId
-				})
-			}
-			await recordLog(
-				user,
-				'customer_receipt_adjustment_cancel_v1',
-				{
-					customer_id: customerId,
-					receipt_id: receiptId,
-					adjustment_id: normalizeId(pending._id),
-					rollback_strategy: 'deferred',
-					restored_rows: 0
-				},
-				requestId
-			)
-			return {
-				code: 0,
-				msg: '已放弃调整，原分配保持不变',
-				data: {
-					receipt_id: receiptId,
-					customer_id: customerId,
-					adjustment_id: normalizeId(pending._id),
-					restored_total: 0
-				}
+		}
+		await recordLog(
+			user,
+			'customer_receipt_adjustment_cancel_v1',
+			{
+				customer_id: customerId,
+				receipt_id: receiptId,
+				adjustment_id: normalizeId(pending._id),
+				rollback_strategy: 'deferred',
+				restored_rows: 0
+			},
+			requestId
+		)
+		return {
+			code: 0,
+			msg: '已放弃调整，原分配保持不变',
+			data: {
+				receipt_id: receiptId,
+				customer_id: customerId,
+				adjustment_id: normalizeId(pending._id),
+				restored_total: 0
 			}
 		}
 	}
-	const currentRollback = await rollbackReceiptAllocations({ customerId, receiptId })
-	const snapshot = pending.snapshot || {}
+	const currentRows = await listReceiptAllocationRows(receiptId, customerId)
+	const restoreGroups = buildReceiptRollbackTargetGroups(snapshot.allocation_rows).groups
+	const currentGroups = new Map(buildReceiptRollbackTargetGroups(currentRows).groups.map((group) => [`${group.target_type}:${group.target_id}`, group]))
+	const restoreMaps = {
+		sales: await getDocsByIds(sales, restoreGroups.filter((group) => group.target_type === 'sale').map((group) => group.target_id)),
+		flows: await getDocsByIds(flowSettlements, restoreGroups.filter((group) => group.target_type === 'flow_settlement').map((group) => group.target_id)),
+		debts: await getDocsByIds(openingDebts, restoreGroups.filter((group) => !['sale', 'flow_settlement'].includes(group.target_type)).map((group) => group.target_id))
+	}
+	for (const group of restoreGroups) {
+		const type = group.target_type
+		const doc = targetMapDocument(restoreMaps, type, group.target_id)
+		if (!doc || normalizeId(doc.customer_id) !== customerId || (type !== 'sale' && normalizeString(doc.status) !== 'posted')) {
+			receiptAdjustmentIntegrityError('原快照分配目标不存在、归属或状态已变化，不能恢复')
+		}
+		requireReceiptAdjustmentAmount(doc.amount_received, '原快照分配目标已收金额')
+		requireReceiptAdjustmentAmount(doc.receipt_rounding_amount ?? 0, '原快照分配目标抹零金额')
+		const scale = type === 'flow_settlement' ? 3 : type === 'sale' ? 2 : resolveOpeningDebtMoneyScale(doc, moneyScale)
+		const target = type === 'sale' ? computeSaleSnapshot(doc) : type === 'flow_settlement' ? computeFlowSettlementSnapshot(doc) : computeOpeningDebtSnapshot(doc, scale)
+		const released = currentGroups.get(`${type}:${group.target_id}`)
+		const available = (type === 'flow_settlement' ? target.should_receive : target.should_receive_effective) - target.amount_received - target.receipt_rounding_amount +
+			(released ? released.receipt_amount_raw + released.rounding_amount_raw : 0)
+		if (fixByScale(group.receipt_amount_raw + group.rounding_amount_raw - available, scale) > 0) {
+			receiptAdjustmentIntegrityError('原快照分配目标可收金额不足，不能完整恢复')
+		}
+	}
+	const currentRollback = await rollbackReceiptAllocations({ customerId, receiptId, allocationRows: currentRows })
 	const receiptSnapshot = snapshot.receipt || {}
 	const allocationRows = Array.isArray(snapshot.allocation_rows) ? snapshot.allocation_rows : []
 	const restorePlan = {
@@ -10191,7 +10281,7 @@ const statementPeriodHandler = async (event, context) => {
 		}
 		return result
 	} catch (error) {
-		if (['FINANCIAL_READ_INCOMPLETE', 'FINANCIAL_CLASSIFICATION_REQUIRED'].includes(error.code)) {
+		if (['FINANCIAL_READ_INCOMPLETE', 'FINANCIAL_CLASSIFICATION_REQUIRED', 'RECEIPT_ADJUSTMENT_INTEGRITY'].includes(error.code)) {
 			return { code: 409, msg: error.message, error_code: error.code, data: { financial_evidence: { ...error.details, complete: false } } }
 		}
 		throw error

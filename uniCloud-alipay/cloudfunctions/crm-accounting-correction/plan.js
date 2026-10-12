@@ -1,7 +1,7 @@
 'use strict'
 const { digest } = require('./snapshot')
 const { computeSaleAmountsForDoc } = require('./saleAccountingLocal')
-const VERSION = 'accounting-correction/2026-09-13.1'
+const VERSION = 'accounting-correction/2026-10-12.1'
 const assert = (ok, message) => { if (!ok) throw Error(message) }
 const active = row => !row.status || row.status === 'posted'
 const target = row => row.target_id || row.sale_id
@@ -54,6 +54,13 @@ function buildPlan(before, request, actor, now) {
     writes.push({ table: 'crm_customer_allocations', id, before: null, after })
   }
   const allocations = t.crm_customer_allocations.filter(active)
+  if (request.corrections.some(change => change.type === 'restore_haisheng_offset_20261012')) {
+    const summary = require('./haishengOffsetRepair')({ t, request, allocations, patch, add, fen, assert, computeSaleAmountsForDoc })
+    const plan = { run_id: runId, customer_id: customerId, rule_version: VERSION, source_snapshot_hash: before.snapshot_hash,
+      request_hash: digest(request), evidence, summary: { ...summary, writes: writes.length }, writes }
+    plan.plan_hash = digest(plan)
+    return plan
+  }
   const cashReceipt = receipt => {
     assert(receipt && receipt.customer_id === customerId && receipt.status === 'posted' && fen(receipt.amount) > 0, '原收款无效')
     assert(['customer_statement', 'cashier_intake', 'legacy_received_confirmation', 'manual'].includes(receipt.source_type) && receipt.entry_kind === 'prepay', '不支持期初、冲抵、退款或押金来源')
