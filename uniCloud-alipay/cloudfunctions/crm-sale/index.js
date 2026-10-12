@@ -1,4 +1,5 @@
 'use strict'
+const { assertCustomerAdjustmentSourceMutable } = require('./customerAdjustmentGuardLocal')
 
 const { inventoryTon, kgToTon } = require('./gasInventoryPrecisionLocal')
 
@@ -4663,6 +4664,8 @@ async function updateV2(user, data, requestId, token) {
 	const existing = (existingRes.data && existingRes.data[0]) || null
 	if (!existing) return { code: 404, msg: '记录不存在' }
 	if (saleMentionsHiddenCustomer(existing, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
+	try { await assertCustomerAdjustmentSourceMutable({ db, command: dbCmd, readComplete, customerId: existing.customer_id, targetType: 'sale', targetId: recordId }) }
+	catch (error) { return { code: error.code || 409, msg: error.message } }
 	saleAccounting.resolveSettlementMode(existing)
 
 	const base = payload.base || {}
@@ -5107,6 +5110,8 @@ async function updateSettlementV1(user, data, requestId, token) {
 	const existing = (existingRes.data && existingRes.data[0]) || null
 	if (!existing) return { code: 404, msg: '记录不存在' }
 	if (saleMentionsHiddenCustomer(existing, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
+	try { await assertCustomerAdjustmentSourceMutable({ db, command: dbCmd, readComplete, customerId: existing.customer_id, targetType: 'sale', targetId: recordId }) }
+	catch (error) { return { code: error.code || 409, msg: error.message } }
 	saleAccounting.resolveSettlementMode(existing)
 
 	const payload = data && typeof data.settlement === 'object' ? data.settlement : {}
@@ -5253,6 +5258,8 @@ async function removeV2(user, data, requestId, token) {
 
 	// Settlement release checks the whole customer ledger. Reject before deleting
 	// any source, voucher or movement if that later step cannot classify it.
+	try { await assertCustomerAdjustmentSourceMutable({ db, command: dbCmd, readComplete, customerId: saleDoc.customer_id, targetType: 'sale', targetId: recordId }) }
+	catch (error) { return { code: error.code || 409, msg: error.message } }
 	saleAccounting.resolveSettlementMode(saleDoc)
 	const customerSalesBeforeRemove = await readComplete(sales, { customer_id: normalizeString(saleDoc.customer_id) }, {
 		command: dbCmd, source: 'sale_remove_preflight'

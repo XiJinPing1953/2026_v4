@@ -1,7 +1,7 @@
 <template>
 	<AppPage title="报表汇总" :subtitle="subtitle" icon="chart">
 		<template #headerActions>
-			<AppButton size="sm" kind="neutral" :disabled="loading" @click="onSearch">刷新</AppButton>
+			<AppButton size="sm" kind="neutral" :disabled="loading || incomeLoading" @click="onSearch">刷新</AppButton>
 		</template>
 
 		<template #highlights>
@@ -25,6 +25,44 @@
 				<view class="filter-grid">
 					<AppInput v-model="filters.period" label="账期" placeholder="YYYY-MM" size="sm" />
 				</view>
+			</AppSection>
+
+			<AppSection v-if="canViewIncome" title="多收款结清收益">
+				<text class="section-hint">本功能结清收益，并非公司全部营业外收入</text>
+				<view v-if="incomeError" class="income-error" role="alert">{{ incomeError }}</view>
+				<view v-else-if="incomeLoading" class="income-state">正在查询结清收益…</view>
+				<view v-else-if="settlementIncome" class="income-results">
+					<view class="income-summary">
+						<text>{{ settlementIncome.date_from }} 至 {{ settlementIncome.date_to }}</text>
+						<text class="income-amount">{{ incomeMoney(settlementIncome.total_amount, settlementIncome.money_scale) }} 元</text>
+						<text class="section-hint">{{ settlementIncome.customer_count }} 个客户 · {{ settlementIncome.count }} 笔</text>
+					</view>
+					<AppList :empty="settlementIncome.customers.length === 0" empty-title="该期间无本功能结清收益">
+						<AppListItem v-for="customer in settlementIncome.customers" :key="customer.customer_id" :title="customer.customer_name">
+							<template #right>
+								<text class="income-amount">{{ incomeMoney(customer.amount, customer.money_scale) }} 元</text>
+							</template>
+							<template #meta>
+								<AppButton kind="ghost" size="sm" @click="toggleIncomeCustomer(customer.customer_id)">
+									{{ expandedIncomeCustomers[customer.customer_id] ? '收起' : '展开' }} {{ customer.count }} 笔结清单
+								</AppButton>
+							</template>
+							<view v-if="expandedIncomeCustomers[customer.customer_id]" class="income-detail-list">
+								<view v-for="item in customer.items" :key="item._id" class="income-detail">
+									<view class="income-detail-heading">
+										<text>{{ item.biz_date }}</text>
+										<text>{{ incomeMoney(item.amount, item.money_scale) }} 元</text>
+									</view>
+									<text class="meta-text">来源：{{ incomeSource(item.adjustment_source) }}</text>
+									<text v-if="item.adjustment_evidence" class="meta-text">结清依据：{{ item.adjustment_evidence }}</text>
+									<text v-if="item.note" class="meta-text">说明：{{ item.note }}</text>
+									<text class="meta-text">结清单：{{ item._id }}<template v-if="item.created_by_name"> · {{ item.created_by_name }}</template></text>
+								</view>
+							</view>
+						</AppListItem>
+					</AppList>
+				</view>
+				<view v-else class="income-state">填写账期后查询。</view>
 			</AppSection>
 
 			<AppSection title="试算平衡">
@@ -64,9 +102,16 @@ import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
 import { useQuery } from '@/composables/useQuery'
-import { getReportSummaryV1 } from '@/services/report'
+import { getReportSummaryV1, getSettlementIncomeV1 } from '@/services/report'
+import { getRoleTemplate } from '@/services/auth'
 
 const rows = ref([])
+const canViewIncome = computed(() => ['finance', 'admin', 'superadmin'].includes(getRoleTemplate()))
+const incomeLoading = ref(false)
+const incomeError = ref('')
+const settlementIncome = ref(null)
+const expandedIncomeCustomers = ref({})
+let searchSequence = 0
 const totals = reactive({
 	asset: 0,
 	liability: 0,
@@ -86,8 +131,8 @@ const subtitle = computed(() => {
 })
 
 const { loading, run: fetchSummary } = useQuery(
-	async () => {
-		const res = await getReportSummaryV1({ period: filters.period })
+	async (period) => {
+		const res = await getReportSummaryV1({ period })
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '查询失败', icon: 'none' })
 			return null
@@ -98,18 +143,29 @@ const { loading, run: fetchSummary } = useQuery(
 		immediate: false,
 		initialData: null,
 		cacheTTL: 8000,
-		throttleMs: 300,
-		cacheKey: () => `report:summary:${filters.period}`
+		cacheKey: (period) => `report:summary:${period}`
 	}
 )
 
 async function onSearch() {
-	if (!String(filters.period || '').trim()) {
-		uni.showToast({ title: '请先填写账期', icon: 'none' })
+	const period = String(filters.period || '').trim()
+	if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
+		uni.showToast({ title: '请填写有效账期（YYYY-MM）', icon: 'none' })
 		return
 	}
-	const data = await fetchSummary()
-	if (!data) return
+	const sequence = ++searchSequence
+	const dateTo = new Date(`${period}-01T00:00:00Z`)
+	dateTo.setUTCMonth(dateTo.getUTCMonth() + 1)
+	dateTo.setUTCDate(0)
+	await Promise.allSettled([
+		loadSummary(period, sequence),
+		canViewIncome.value ? loadIncome({ date_from: `${period}-01`, date_to: dateTo.toISOString().slice(0, 10) }, sequence) : Promise.resolve()
+	])
+}
+
+async function loadSummary(period, sequence) {
+	const data = await fetchSummary(period, { force: true })
+	if (!data || sequence !== searchSequence) return
 	rows.value = Array.isArray(data.trial_balance) ? data.trial_balance : []
 	const nextTotals = data.totals || {}
 	totals.asset = nextTotals.asset || 0
@@ -120,7 +176,44 @@ async function onSearch() {
 	totals.cost = nextTotals.cost || 0
 }
 
+async function loadIncome(range, sequence) {
+	incomeLoading.value = true
+	incomeError.value = ''
+	settlementIncome.value = null
+	expandedIncomeCustomers.value = {}
+	try {
+		const res = await getSettlementIncomeV1(range)
+		if (sequence !== searchSequence) return
+		if (res?.code !== 0 || res?.data?.read_complete !== true || !Array.isArray(res?.data?.customers) || !Number.isFinite(res?.data?.total_amount)) {
+			throw new Error(res?.msg || '结清收益读取未完成，请重试')
+		}
+		settlementIncome.value = res.data
+	} catch (error) {
+		if (sequence === searchSequence) incomeError.value = error?.message || '结清收益查询失败，请重试'
+	} finally {
+		if (sequence === searchSequence) incomeLoading.value = false
+	}
+}
+
+function incomeMoney(value, scale) {
+	return Number(value).toFixed(Number(scale) === 3 ? 3 : 2)
+}
+
+function incomeSource(source = {}) {
+	const kind = source.entry_kind === 'prepay' || source.source_type === 'opening_prepay' ? '预付款' : '收款'
+	return [source.label || source.source_label || kind, source.date || source.biz_date, source.receipt_no || source.receipt_id || source.source_id || source.id].filter(Boolean).join(' · ')
+}
+
+function toggleIncomeCustomer(customerId) {
+	expandedIncomeCustomers.value = { ...expandedIncomeCustomers.value, [customerId]: !expandedIncomeCustomers.value[customerId] }
+}
+
 function onReset() {
+	searchSequence += 1
+	incomeLoading.value = false
+	incomeError.value = ''
+	settlementIncome.value = null
+	expandedIncomeCustomers.value = {}
 	filters.period = ''
 	rows.value = []
 	totals.asset = 0
@@ -187,6 +280,14 @@ function onReset() {
 	font-size: 22rpx;
 	color: var(--crm-text-muted);
 }
+
+.income-state, .income-error { padding: 20rpx 0; font-size: 26rpx; color: var(--crm-text-muted); }
+.income-error { color: var(--crm-danger, #b42318); }
+.income-results, .income-detail-list, .income-detail { display: flex; flex-direction: column; gap: 16rpx; }
+.income-summary, .income-detail-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12rpx; }
+.income-summary { padding: 24rpx 0; }
+.income-amount { font-weight: 600; font-variant-numeric: tabular-nums; }
+.income-detail { border-top: 1rpx solid var(--crm-border); padding-top: 16rpx; overflow-wrap: anywhere; }
 
 @media (max-width: 680px) {
 	.summary-row {

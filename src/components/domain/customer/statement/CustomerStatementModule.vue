@@ -84,7 +84,7 @@
 				</view>
 				<view class="overview-grid overview-grid--finance">
 					<view class="overview-item">
-						<text class="overview-label">{{ periodIsYear ? '本年营收' : '期间营收' }}</text>
+						<view class="overview-label-line"><text class="overview-label">{{ periodIsYear ? '本年营收' : '期间营收' }}</text><AppButton class="revenue-detail-button" size="sm" kind="ghost" :disabled="!periodReport" @click="revenueDetailOpen = true">明细</AppButton></view>
 						<text class="overview-value">{{ periodMoney('business_revenue') }}</text>
 						<text class="overview-meta">不含历史转入</text>
 					</view>
@@ -97,7 +97,7 @@
 						<text class="overview-label">{{ periodIsYear ? '本年实际收款' : '期间实际收款' }}</text>
 						<text class="overview-value">{{ periodMoney('cash_received') }}</text>
 						<text class="overview-meta">其中收回历史欠款 {{ periodMoney('historical_debt_collected') }}</text>
-						<text class="overview-meta">{{ periodIsYear ? '本年抹零汇总' : '期间抹零汇总' }} {{ periodMoney('rounding_total') }} · 不计实际收款</text>
+						<text class="overview-meta">{{ periodIsYear ? '本年' : '期间' }}{{ hasAdjustmentSummary ? '净抹零' : '抹零汇总' }} {{ netRoundingText }} · 不计实际收款</text>
 						<text v-if="periodReport?.settlement_fee_total > 0" class="overview-meta">收款手续费 {{ periodMoney('settlement_fee_total') }} · 不计到账或抹零</text>
 						<text class="overview-meta">按收款日期</text>
 					</view>
@@ -675,6 +675,7 @@
 					@open-deposit="onOpenDepositFromIntake"
 				/>
 				<CustomerRefundPanel v-else-if="activeOperationTab === 'refund'" :customer-id="recordId" @changed="refreshAll" />
+				<CustomerAdjustmentPanel v-else-if="['rounding_reversal', 'prepay_writeoff'].includes(activeOperationTab)" :customer-id="recordId" :kind="activeOperationTab" @changed="refreshAll" />
 				<CustomerDepositPanel
 					v-else-if="activeOperationTab === 'deposit'"
 					:customer-id="recordId"
@@ -998,7 +999,9 @@
 				</template>
 				<view class="quick-date-strip">
 					<AppDatePresetBar v-model="rowsDatePreset" :items="rowsDatePresetItems" :disabled="rowsLoading || rowSummaryLoading" @update:modelValue="onRowsDatePresetChange" />
+					<picker class="ledger-type-filter" :range="ledgerTypeOptions" range-key="label" :value="ledgerTypeIndex" :disabled="rowsLoading || rowSummaryLoading" @change="onLedgerTypeChange"><AppButton size="sm" kind="neutral" :disabled="rowsLoading || rowSummaryLoading">{{ ledgerTypeOptions[ledgerTypeIndex].label }} ▾</AppButton></picker>
 				</view>
+				<view v-if="rowFilters.rowType" class="ledger-period-summary"><text>{{ rowFilters.dateFrom || '起始' }} ~ {{ rowFilters.dateTo || '至今' }} · {{ ledgerTypeOptions[ledgerTypeIndex].label }}</text><text v-if="ledgerPeriodSubtotal !== null">期间小计 ¥{{ formatMoney(ledgerPeriodSubtotal) }}</text><text v-else>期间小计待核</text><text class="section-hint">完整期间 · 非当前页合计</text></view>
 
 				<StatementRecordTable :rows="statementRows" :columns="ledgerColumns" :row-key="ledgerRecordKey" :loading="rowsLoading" empty-title="暂无流水" label="账务流水">
                         <template #type="{ row }"><view class="record-document"><text class="record-type">{{ ledgerColumns[1].value(row) }}</text><text class="record-reference" selectable>记录 ID：{{ row.row_id || '—' }}</text></view></template>
@@ -1028,6 +1031,7 @@
 							</view>
 
 							<text v-if="statementRowDetail(row)" class="row-detail">{{ statementRowDetail(row) }}</text>
+							<view v-if="isAdjustmentRow(row)" class="adjustment-source-detail"><text>来源：{{ adjustmentSourceLabel(row) }}</text><text class="record-reference" selectable>来源单据：{{ adjustmentSourceId(row) }}</text><text>原因：{{ row.note || '—' }}</text><text>依据：{{ adjustmentEvidenceText(row.meta?.adjustment_evidence ?? row.meta?.evidence) }}</text><text v-if="row.meta?.adjustment_operation_id || row.meta?.operation_id" class="record-reference" selectable>操作号：{{ row.meta.adjustment_operation_id || row.meta.operation_id }}</text><text class="section-hint">本次实际收付款不变</text></view>
 						</template>
 				</StatementRecordTable>
 				<view v-if="rowsPager.total > 0" class="pager-row">
@@ -1037,11 +1041,19 @@
 			</AppSection>
 			</view>
 		</view>
+		<AppModal v-model="revenueDetailOpen" :title="periodIsYear ? '本年营收明细' : '期间营收明细'">
+			<view class="revenue-details">
+				<text class="section-hint">{{ rowFilters.dateFrom || '起始' }} ~ {{ rowFilters.dateTo || '至今' }}</text>
+				<view class="revenue-detail-row"><view><text class="revenue-detail-label">气款营收</text><text class="section-hint">沿用现有业务营收口径，不含历史转入</text></view><text class="revenue-detail-value">{{ periodMoney('business_revenue') }}</text><AppButton size="sm" kind="ghost" @click="openRevenueSales">查看销售</AppButton></view>
+				<view class="revenue-detail-row"><view><text class="revenue-detail-label">多收款结清收益</text><text class="section-hint">单独列示，不计气款营收或本次实收</text></view><text class="revenue-detail-value">{{ periodMoney('settlement_writeoff_income') }}</text><AppButton size="sm" kind="ghost" :disabled="!hasAdjustmentSummary" @click="openAdjustmentLedger('prepay_writeoff')">查看流水</AppButton></view>
+				<text v-if="!hasAdjustmentSummary" class="section-hint">当前汇总版本尚未提供结清收益，请刷新后查看。</text>
+			</view>
+		</AppModal>
 	</AppPage>
 </template>
 
 <script setup>
-import { normalizeCustomerPeriodSummary, outstandingPeriodIssues, periodReviewLabel, describePeriodSummaryIssue } from '@/services/mappers/customerPeriodSummary.js'
+import { normalizeCustomerPeriodSummary, customerNetRounding, outstandingPeriodIssues, periodReviewLabel, describePeriodSummaryIssue } from '@/services/mappers/customerPeriodSummary.js'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
@@ -1056,6 +1068,8 @@ import AppList from '@/components/base/AppList.vue'
 import AppListItem from '@/components/base/AppListItem.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
 import AppDatePresetBar from '@/components/base/AppDatePresetBar.vue'
+import AppModal from '@/components/base/AppModal.vue'
+import CustomerAdjustmentPanel from '@/components/domain/customer/statement/CustomerAdjustmentPanel.vue'
 import CustomerRefundPanel from '@/components/domain/customer/statement/CustomerRefundPanel.vue'
 import CustomerDepositPanel from '@/components/domain/customer/statement/CustomerDepositPanel.vue'
 import CashierIntakeRecords from '@/components/domain/customer/statement/CashierIntakeRecords.vue'
@@ -1190,7 +1204,9 @@ const operationTabs = [
 	{ label: '冲抵池录入', value: 'offset_entry' },
 	{ label: '历史欠款登记', value: 'opening_debt' },
 	{ label: '其他费用', value: 'other_fee' },
-	{ label: '收款单', value: 'receipt_list' }
+	{ label: '收款单', value: 'receipt_list' },
+	{ label: '抹零冲回', value: 'rounding_reversal' },
+	{ label: '多收款结清', value: 'prepay_writeoff' }
 ]
 const QUICK_ROUNDING_SMALL_LIMIT = 20
 const analysis = reactive({
@@ -1306,7 +1322,21 @@ const analysisDatePreset = ref('custom')
 
 const rowFilters = reactive({
 	dateFrom: '',
-	dateTo: ''
+	dateTo: '',
+	rowType: ''
+})
+const revenueDetailOpen = ref(false)
+const ledgerTypeOptions = [{ label: '全部流水', value: '' }, { label: '抹零冲回', value: 'rounding_reversal' }, { label: '多收款结清', value: 'prepay_writeoff' }]
+const ledgerTypeIndex = computed(() => Math.max(0, ledgerTypeOptions.findIndex(item => item.value === rowFilters.rowType)))
+const hasAdjustmentSummary = computed(() => periodReport.value?.rule_version === 'customer-period-summary/2026-10-12.1')
+const netRoundingText = computed(() => {
+	const value = customerNetRounding(periodReport.value)
+	return value === null ? '待核' : `¥${formatMoney(value)}`
+})
+const ledgerPeriodSubtotal = computed(() => {
+	const key = rowFilters.rowType === 'rounding_reversal' ? 'rounding_reversal_total' : rowFilters.rowType === 'prepay_writeoff' ? 'settlement_writeoff_income' : ''
+	const amount = periodReport.value?.[key]
+	return typeof amount === 'number' && Number.isFinite(amount) ? amount : null
 })
 const rowsDatePreset = ref('custom')
 const rowsDatePresetItems = [
@@ -1416,6 +1446,7 @@ const periodScopeText = computed(() => `口径：${normalizeDate(rowFilters.date
 const periodIsYear = computed(() => normalizeDate(rowFilters.dateFrom) === `${new Date().getFullYear()}-01-01` && normalizeDate(rowFilters.dateTo) === todayYmd())
 function periodMoney(key) {
 	const value = periodReport.value?.[key]
+	if (['rounding_reversal_total', 'rounding_net_total', 'settlement_writeoff_income'].includes(key) && !(typeof value === 'number' && Number.isFinite(value))) return '待核'
 	return typeof value === 'number' && Number.isFinite(value) ? `¥${formatMoney(value)}` : (periodReviewLabel(periodReport.value) || (periodReport.value ? '待核' : '未完成'))
 }
 
@@ -1985,9 +2016,9 @@ const salesColumns = [
 ]
 const ledgerColumns = [
 	{ key: 'date', label: '日期', value: row => row.biz_date || '-' },
-	{ key: 'type', label: '单据', value: row => row.row_type === 'receipt' ? receiptDocumentLabel(row) : ({sale:'销售单',allocation:'收款分配',flow_settlement:'流量结算',opening_debt:'历史欠款',balance_adjustment:'非现金余额调整',other_fee:'其他费用'}[row.row_type] || '其他') },
+	{ key: 'type', label: '单据', value: row => row.row_type === 'receipt' ? receiptDocumentLabel(row) : ({sale:'销售单',allocation:'收款分配',flow_settlement:'流量结算',opening_debt:'历史欠款',balance_adjustment:'非现金余额调整',other_fee:'其他费用',rounding_reversal:'抹零冲回',prepay_writeoff:'多收款结清'}[row.row_type] || '其他') },
 	{ key: 'amount', label: '发生金额', value: row => `¥${formatMoney(row.amount)}` },
-	{ key: 'outstanding', label: '未收', value: row => ['sale', 'flow_settlement', 'opening_debt', 'other_fee', 'balance_adjustment'].includes(row.row_type) ? `¥${formatMoney(row.outstanding)}` : '—' },
+	{ key: 'outstanding', label: '未收', value: row => ['sale', 'flow_settlement', 'opening_debt', 'other_fee', 'balance_adjustment', 'rounding_reversal'].includes(row.row_type) ? `¥${formatMoney(row.outstanding)}` : '—' },
 	{ key: 'rounding', label: '收款抹零', value: row => row.row_type === 'receipt' ? `¥${formatMoney(row.rounding_allocated_amount || 0)}` : (row.receipt_rounding_amount > 0 ? `¥${formatMoney(row.receipt_rounding_amount)}` : '—') },
 	{ key: 'status', label: '状态', value: row => statementRowStatus(row) }
 ]
@@ -3793,7 +3824,7 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0, includeRows 
 			customerId: recordId.value,
 			summaryDateFrom: summaryScopeParams.summaryDateFrom,
 			summaryDateTo: summaryScopeParams.summaryDateTo,
-			summaryOnly, includeRows,
+			summaryOnly, includeRows: includeRows && !rowFilters.rowType,
 			...(includeRows ? { page: rowsPager.page, pageSize: rowsPager.pageSize } : {})
 		})
 		if (summaryRequestSeq !== statementSummaryRequestSeq || (summaryOnly && !isLatestRowsSearchRequest(requestSeq))) return
@@ -3805,12 +3836,12 @@ async function loadStatement({ summaryOnly = false, requestSeq = 0, includeRows 
 		customer.value = data.customer || customer.value || {}
 		applyStatementSummary(data)
 		if (includeRows) {
-			if (Array.isArray(data.statement_rows) && data.rows_paging) {
+			if (!rowFilters.rowType && Array.isArray(data.statement_rows) && data.rows_paging) {
 				statementRows.value = data.statement_rows
 				Object.assign(rowsPager, data.rows_paging)
 			} else {
 				// A rolling cloud deployment may temporarily return a legacy instance.
-				await loadRows()
+				await loadRows({ requestSeq: requestSeq || nextRowsSearchRequestSeq() })
 				if (summaryRequestSeq !== statementSummaryRequestSeq) return
 			}
 		}
@@ -3890,12 +3921,14 @@ async function loadAnalysis() {
 
 async function loadRows({ requestSeq = nextRowsSearchRequestSeq() } = {}) {
 	if (!recordId.value) return
+	const rowType = rowFilters.rowType
 	rowsLoading.value = true
 	try {
 		const res = await listCustomerStatementRowsV1({
 			customerId: recordId.value,
 			dateFrom: rowFilters.dateFrom,
 			dateTo: rowFilters.dateTo,
+			rowType,
 			page: rowsPager.page,
 			pageSize: rowsPager.pageSize
 		})
@@ -3904,7 +3937,14 @@ async function loadRows({ requestSeq = nextRowsSearchRequestSeq() } = {}) {
 			uni.showToast({ title: res?.msg || '流水加载失败', icon: 'none' })
 			return
 		}
-		statementRows.value = Array.isArray(res.data) ? res.data : []
+		const nextRows = Array.isArray(res.data) ? res.data : []
+		if (rowType && (!hasAdjustmentSummary.value || nextRows.some(row => row.row_type !== rowType))) {
+			statementRows.value = []
+			Object.assign(rowsPager, { total: 0, hasMore: false })
+			uni.showToast({ title: '类型筛选尚未完成，请刷新后重试', icon: 'none' })
+			return
+		}
+		statementRows.value = nextRows
 		const paging = res.paging || {}
 		rowsPager.page = Number(paging.page || rowsPager.page || 1)
 		rowsPager.pageSize = Number(paging.pageSize || rowsPager.pageSize || 10)
@@ -4752,6 +4792,7 @@ function onAllocationInput(key, value) {
 }
 
 function statementRowTitle(row) {
+	if (isAdjustmentRow(row)) return row.row_type === 'rounding_reversal' ? '抹零冲回' : '多收款结清'
 	if (row?.row_type === 'receipt') return `${receiptDocumentLabel(row)} ${row?.receipt_id || row?.row_id || ''}`
 	if (row?.row_type === 'allocation') {
 		const targetTitle = normalizeString(row?.meta?.target_title)
@@ -4766,6 +4807,7 @@ function statementRowTitle(row) {
 }
 
 function statementRowStatus(row) {
+	if (isAdjustmentRow(row)) return row.status === 'void' || row.meta?.status === 'void' ? '已作废' : row.row_type === 'prepay_writeoff' ? '已结清' : paymentStatusText(row?.meta?.payment_status || row?.payment_status)
 	if (row?.row_type === 'receipt') return isDepositTransferReceipt(row) ? '押金转入' : (isOpeningPrepayReceipt(row) ? '期初转入' : '收款')
 	if (row?.row_type === 'allocation') return '分配'
 	if (row?.row_type === 'flow_settlement') return paymentStatusText(row?.meta?.payment_status)
@@ -4775,6 +4817,7 @@ function statementRowStatus(row) {
 }
 
 function statementRowStatusKind(row) {
+	if (isAdjustmentRow(row)) return row.status === 'void' || row.meta?.status === 'void' ? 'warning' : 'info'
 	if (row?.row_type === 'receipt') return 'success'
 	if (row?.row_type === 'allocation') return 'warning'
 	if (row?.row_type === 'flow_settlement') return paymentStatusKind(row?.meta?.payment_status)
@@ -4784,6 +4827,7 @@ function statementRowStatusKind(row) {
 }
 
 function statementRowDetail(row) {
+	if (isAdjustmentRow(row)) return row.row_type === 'rounding_reversal' ? `恢复应收 ¥${formatMoney(row.amount)}` : `多收款结清收益 ¥${formatMoney(row.amount)}`
 	if (row?.row_type === 'receipt') {
 		const parts = []
 		const roundingAllocated = toNumber(row?.rounding_allocated_amount, 0)
@@ -4831,6 +4875,32 @@ function statementRowDetail(row) {
 		return normalizeString(row?.note)
 	}
 	return normalizeString(row?.note)
+}
+
+function isAdjustmentRow(row) { return ['rounding_reversal', 'prepay_writeoff'].includes(row?.row_type) }
+function adjustmentSourceLabel(row) { const source = row?.meta?.adjustment_source; return source?.label || source?.type || '原始来源' }
+function adjustmentSourceId(row) { const source = row?.meta?.adjustment_source; return source?.id || source?.source_key || '—' }
+function adjustmentEvidenceText(value) { return typeof value === 'string' ? value || '—' : value?.note || value?.reference || '—' }
+
+async function onLedgerTypeChange(event) {
+	if (rowsLoading.value || rowSummaryLoading.value) return
+	rowFilters.rowType = ledgerTypeOptions[Number(event?.detail?.value)]?.value || ''
+	statementRows.value = []
+	await searchRows(true)
+}
+async function openAdjustmentLedger(type) {
+	if (rowsLoading.value || rowSummaryLoading.value) return
+	revenueDetailOpen.value = false
+	rowFilters.rowType = type
+	statementRows.value = []
+	await onWorkspaceChange('ledger', true)
+	await searchRows(true)
+}
+async function openRevenueSales() {
+	revenueDetailOpen.value = false
+	salesDetailMode.value = 'all'
+	salesPage.value = 1
+	await onWorkspaceChange('sales', true)
 }
 
 function onRowsDateFromChange(e) {
@@ -5414,6 +5484,8 @@ watch(
 		recentOpeningDebts.value = []
 		recentOtherFees.value = []
 		statementRows.value = []
+		rowFilters.rowType = ''
+		revenueDetailOpen.value = false
 		rowsPager.page = 1
 		rowsPager.total = 0
 		salesPage.value = 1
@@ -5512,6 +5584,18 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.overview-label-line { display:flex; align-items:center; justify-content:space-between; gap:8px; height:18px; }
+.statement-theme .overview-label-line :deep(.revenue-detail-button.btn) { height:18px; min-height:18px; padding:0; margin:0; font-size:12px; line-height:18px; border:0; background:transparent; }
+.revenue-details { display:flex; flex-direction:column; gap:18px; }
+.revenue-detail-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:12px; align-items:center; padding:4px 0 18px; border-bottom:1px solid var(--crm-border); }
+.revenue-detail-row > view { display:flex; flex-direction:column; gap:6px; }
+.revenue-detail-label { font-size:14px; color:var(--crm-text); font-weight:600; }
+.revenue-detail-value { font-size:16px; font-variant-numeric:tabular-nums; }
+.revenue-detail-row :deep(.btn) { font-size:12px; padding:0 8px; height:32px; min-height:32px; }
+.ledger-type-filter { margin-left:auto; }
+.ledger-period-summary { display:flex; flex-wrap:wrap; gap:8px 20px; padding:10px 12px; margin-bottom:12px; background:#f5f8fc; border-radius:6px; font-size:13px; }
+.adjustment-source-detail { display:flex; flex-direction:column; gap:6px; margin-top:12px; font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+@media(max-width:600px) { .revenue-detail-row { grid-template-columns:minmax(0,1fr) auto; } .revenue-detail-row :deep(.btn) { grid-column:1 / -1; justify-self:start; min-height:44px; } .ledger-type-filter { margin-left:0; } }
 .workspace-panels { display:flex; flex-direction:column; gap:16rpx; min-height:calc(100vh - 140px); overflow-anchor:none; }
 .workspace-nav { position:sticky; top:44px; z-index:20; background:#fff; border:1px solid #e7ecf2; border-radius:10px; box-shadow:0 3px 12px rgba(20,40,70,.04); }
 .workspace-context { display:flex; flex-wrap:wrap; align-items:center; gap:6px 24px; padding:10px 16px; border-bottom:1px solid #edf0f4; font-size:12px; color:#64748b; }

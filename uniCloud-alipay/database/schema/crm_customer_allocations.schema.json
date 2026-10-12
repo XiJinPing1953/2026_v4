@@ -42,7 +42,9 @@
     "request_id": { "bsonType": "string" },
     "created_at": { "bsonType": "number" },
     "created_by": { "bsonType": ["string", "null"] },
-    "created_by_name": { "bsonType": "string" }
+    "created_by_name": { "bsonType": "string" },
+    "status": {"bsonType": "string", "enum": ["posted", "void"]},
+    "updated_at": {"bsonType": "number"}
   },
   "permission": {
     "read": false,

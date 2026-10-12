@@ -20,12 +20,7 @@ const GROUP_DEFAULTS = {
 		userAdmin: { view: true, create: true, update: true, delete: true },
 		pda: { view: true, create: true, update: true, delete: false },
 		pdaAdmin: { view: true, create: false, update: true, delete: false },
-		homeSafetyInspection: { view: true, create: true, update: true, delete: false },
-		homeSafetyInspectionExport: { view: true, create: false, update: false, delete: false },
-		safetyInspectionHub: { view: true, create: false, update: false, delete: false },
-		stationSafetyInspection: { view: true, create: true, update: true, delete: false },
-		stationSafetyHazard: { view: true, create: false, update: true, delete: false },
-		stationSafetyInspectionExport: { view: true, create: false, update: false, delete: false }
+		homeSafetyInspection: { view: true, create: true, update: true, delete: false }
 	},
 	admin: {
 		dashboard: { view: true, create: false, update: false, delete: false },
@@ -43,8 +38,7 @@ const GROUP_DEFAULTS = {
 		userAdmin: { view: false, create: false, update: false, delete: false },
 		pda: { view: true, create: true, update: true, delete: false },
 		pdaAdmin: { view: true, create: false, update: true, delete: false },
-		homeSafetyInspection: { view: false, create: false, update: false, delete: false },
-		homeSafetyInspectionExport: { view: false, create: false, update: false, delete: false }
+		homeSafetyInspection: { view: false, create: false, update: false, delete: false }
 	},
 	finance: {
 		dashboard: { view: true, create: false, update: false, delete: false },
@@ -62,8 +56,7 @@ const GROUP_DEFAULTS = {
 		userAdmin: { view: false, create: false, update: false, delete: false },
 		pda: { view: false, create: false, update: false, delete: false },
 		pdaAdmin: { view: false, create: false, update: false, delete: false },
-		homeSafetyInspection: { view: false, create: false, update: false, delete: false },
-		homeSafetyInspectionExport: { view: false, create: false, update: false, delete: false }
+		homeSafetyInspection: { view: false, create: false, update: false, delete: false }
 	},
 	user: {
 		dashboard: { view: true, create: false, update: false, delete: false },
@@ -81,8 +74,7 @@ const GROUP_DEFAULTS = {
 		userAdmin: { view: false, create: false, update: false, delete: false },
 		pda: { view: false, create: false, update: false, delete: false },
 		pdaAdmin: { view: false, create: false, update: false, delete: false },
-		homeSafetyInspection: { view: false, create: false, update: false, delete: false },
-		homeSafetyInspectionExport: { view: false, create: false, update: false, delete: false }
+		homeSafetyInspection: { view: false, create: false, update: false, delete: false }
 	},
 	pda_operator: {
 		dashboard: { view: false, create: false, update: false, delete: false },
@@ -100,8 +92,7 @@ const GROUP_DEFAULTS = {
 		userAdmin: { view: false, create: false, update: false, delete: false },
 		pda: { view: true, create: true, update: true, delete: false },
 		pdaAdmin: { view: false, create: false, update: false, delete: false },
-		homeSafetyInspection: { view: false, create: false, update: false, delete: false },
-		homeSafetyInspectionExport: { view: false, create: false, update: false, delete: false }
+		homeSafetyInspection: { view: false, create: false, update: false, delete: false }
 	},
 	safety_inspector: {
 		dashboard: { view: false, create: false, update: false, delete: false },
@@ -120,12 +111,7 @@ const GROUP_DEFAULTS = {
 		userAdmin: { view: false, create: false, update: false, delete: false },
 		pda: { view: false, create: false, update: false, delete: false },
 		pdaAdmin: { view: false, create: false, update: false, delete: false },
-		homeSafetyInspection: { view: true, create: true, update: false, delete: false },
-		homeSafetyInspectionExport: { view: false, create: false, update: false, delete: false },
-		safetyInspectionHub: { view: true, create: false, update: false, delete: false },
-		stationSafetyInspection: { view: true, create: true, update: false, delete: false },
-		stationSafetyHazard: { view: true, create: false, update: true, delete: false },
-		stationSafetyInspectionExport: { view: false, create: false, update: false, delete: false }
+		homeSafetyInspection: { view: true, create: true, update: false, delete: false }
 	}
 }
 
@@ -142,7 +128,6 @@ const PAGE_REGISTRY = [
 	{ pagePath: '/pages/cashier/receipt-intake', label: '出纳收款登记', group: 'customers', supports: { view: true, create: true, update: true, delete: true } },
 	{ pagePath: '/pages/bottle/anomaly', label: '流转异常', group: 'bottles', supports: { view: true, update: true } },
 	{ pagePath: '/pages/bottle/list', label: '瓶档列表', group: 'bottles', supports: { view: true, create: true, update: true, delete: true } },
-	{ pagePath: '/pages/bottle/inspection', label: '钢瓶检验登记', group: 'bottles', supports: { view: true, update: true } },
 	{ pagePath: '/pages/bottle/edit', label: '瓶档录入', group: 'bottles', supports: { view: true, create: true, update: true } },
 	{ pagePath: '/pages/bottle/movement', label: '流转记录', group: 'bottles', supports: { view: true } },
 	{ pagePath: '/pages/bottle/timeline', label: '单瓶时间线', group: 'bottles', supports: { view: true } },
@@ -170,18 +155,10 @@ const PAGE_REGISTRY = [
 	{ pagePath: '/pages/collection/task-detail', label: '追款详情', group: 'collection', supports: { view: true, update: true } },
 	{ pagePath: '/pages/log/list', label: '操作日志', group: 'logs', supports: { view: true } },
 	{ pagePath: '/pages/user/list', label: '用户管理', group: 'userAdmin', supports: { view: true, create: true, update: true, delete: true } },
-	{ pagePath: '/pages/safety-inspection/home', label: '安全巡检工作台', group: 'safetyInspectionHub', supports: { view: true } },
 	{ pagePath: '/pages/home-safety-inspection/home', label: '入户随瓶安全巡检', group: 'homeSafetyInspection', supports: { view: true } },
 	{ pagePath: '/pages/home-safety-inspection/form', label: '填写入户巡检单', group: 'homeSafetyInspection', supports: { view: true, create: true, update: true } },
 	{ pagePath: '/pages/home-safety-inspection/history', label: '客户巡检历史', group: 'homeSafetyInspection', supports: { view: true } },
 	{ pagePath: '/pages/home-safety-inspection/detail', label: '巡检单详情', group: 'homeSafetyInspection', supports: { view: true, update: true } },
-	{ pagePath: '/pages/home-safety-inspection/export', label: '巡检记录导出', group: 'homeSafetyInspectionExport', supports: { view: true } },
-	{ pagePath: '/pages/station-safety-inspection/home', label: '厂站安全巡检', group: 'stationSafetyInspection', supports: { view: true } },
-	{ pagePath: '/pages/station-safety-inspection/form', label: '填写厂站巡检单', group: 'stationSafetyInspection', supports: { view: true, create: true, update: true } },
-	{ pagePath: '/pages/station-safety-inspection/history', label: '厂站巡检历史', group: 'stationSafetyInspection', supports: { view: true } },
-	{ pagePath: '/pages/station-safety-inspection/detail', label: '厂站巡检详情', group: 'stationSafetyInspection', supports: { view: true, update: true } },
-	{ pagePath: '/pages/station-safety-inspection/hazards', label: '厂站隐患整改', group: 'stationSafetyHazard', supports: { view: true, update: true } },
-	{ pagePath: '/pages/station-safety-inspection/export', label: '厂站巡检导出', group: 'stationSafetyInspectionExport', supports: { view: true } },
 	{ pagePath: '/pages/pda/home', label: 'PDA 工作台', group: 'pda', supports: { view: true } },
 	{ pagePath: '/pages/pda/bottle-query', label: 'PDA 钢瓶查询', group: 'pda', supports: { view: true } },
 	{ pagePath: '/pages/pda/movement-query', label: 'PDA 流转查询', group: 'pda', supports: { view: true } },

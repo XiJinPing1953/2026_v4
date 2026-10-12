@@ -3,7 +3,7 @@
 const { readComplete, FinancialReadError } = require('./financialReadLocal')
 const { isOpeningPrepayReceipt, isDepositTransferReceipt, isSettlementFeeReceipt, isNonCashPrepayReceipt } = require('./receiptSource')
 const { K023, isConfirmedOpeningPrepay, isConfirmedPrepayWriteoff } = require('./confirmedPrepayWriteoff')
-const VERSION = 'customer-period-summary/2026-09-23.4'
+const VERSION = 'customer-period-summary/2026-10-12.1'
 const id = value => String(value || '').trim()
 const date = value => /^\d{4}-\d{2}-\d{2}$/.test(id(value)) ? id(value) : ''
 const active = row => !row.status || row.status === 'posted'
@@ -128,14 +128,19 @@ function calculatePeriodSummary(input, rules) {
 	let historicalReceivable = 0
 	let balanceAdjustment = 0
 	let prepayWriteoff = 0
+	let roundingReversal = 0
+	let settlementIncome = 0
 	for (const item of targets) {
 		const { row, type, bizDate, snapshot } = item
 		const amount = ['opening_debt', 'other_fee', 'balance_adjustment'].includes(type) ? snapshot.should_receive_effective : snapshot.should_receive
 		if (inRange(bizDate)) {
-			if (type === 'balance_adjustment' && isConfirmedPrepayWriteoff(row)) prepayWriteoff = sum([prepayWriteoff, amount])
+			if (type === 'balance_adjustment' && row.adjustment_kind === 'prepay_writeoff') {
+				prepayWriteoff = sum([prepayWriteoff, amount]); settlementIncome = sum([settlementIncome, amount])
+			} else if (type === 'balance_adjustment' && isConfirmedPrepayWriteoff(row)) prepayWriteoff = sum([prepayWriteoff, amount])
 			else if (type === 'balance_adjustment') balanceAdjustment = sum([balanceAdjustment, amount])
 			else if (type === 'opening_debt') historicalReceivable = sum([historicalReceivable, amount])
 			else businessRevenue = sum([businessRevenue, amount])
+			if (type === 'balance_adjustment' && row.adjustment_kind === 'rounding_reversal') roundingReversal = sum([roundingReversal, amount])
 		} else if (!bizDate && amount) issue(type, row, 'business_date_missing', amount)
 		if (row._id === K023.adjustment_id && !isConfirmedPrepayWriteoff(row)) issue(type, row, 'confirmed_writeoff_source_changed', amount)
 		const received = sum([snapshot.amount_received || 0])
@@ -194,6 +199,9 @@ function calculatePeriodSummary(input, rules) {
 		business_revenue: businessComplete ? businessRevenue : null,
 		noncash_balance_adjustment: businessComplete ? balanceAdjustment : null,
 		prepay_writeoff_total: businessComplete ? prepayWriteoff : null,
+		rounding_reversal_total: businessComplete ? roundingReversal : null,
+		rounding_net_total: businessComplete && rounding.rounding_complete ? sum([rounding.rounding_total, -roundingReversal]) : null,
+		settlement_writeoff_income: businessComplete ? settlementIncome : null,
 		historical_receivable: businessComplete ? historicalReceivable : null,
 		receivable_total: businessComplete ? sum([businessRevenue, historicalReceivable, balanceAdjustment]) : null,
 		...Object.fromEntries(Object.entries(knownCash).map(([key, value]) => [key, cashComplete ? value : null])),

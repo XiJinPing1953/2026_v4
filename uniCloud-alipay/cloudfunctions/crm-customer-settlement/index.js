@@ -6,6 +6,8 @@ const saleAccounting = require('./saleAccountingLocal')
 const { readComplete, withFinancialEvidence, FinancialReadError } = require('./financialReadLocal')
 const offsetCreditRefund = require('./offsetCreditRefund')
 const customerRefund = require('./customerRefund')
+const customerAdjustment = require('./customerAdjustment')
+const { isCustomerAdjustment, assertCustomerAdjustmentSourceMutable } = require('./customerAdjustmentGuardLocal')
 
 const statementReads = require('./statementReadContext')
 const cashierIntake = require('./cashierIntake')
@@ -55,6 +57,11 @@ const CASHIER_TARGET_PREVIEW_LIMIT = 3
 const AUTO_PREPAY_ALLOCATION_SOURCE_TYPES = ['sale_auto_prepay', 'flow_auto_prepay']
 const AUTO_PREPAY_REPAIR_CONFIRM_TEXT = 'ROLLBACK_AUTO_PREPAY_ALLOCATIONS'
 const PAGE_ACTION_RULES = {
+	getCustomerAdjustmentSourcesV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
+	previewCustomerAdjustmentV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	postCustomerAdjustmentV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	getCustomerAdjustmentOperationV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
+	voidCustomerAdjustmentV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	previewReceiptIntakeV2: [{ pagePath: '/pages/cashier/receipt-intake', action: 'view' }],
 	saveReceiptIntakeV2: [{ pagePath: '/pages/cashier/receipt-intake', action: 'view' }],
 	voidReceiptIntakeV2: [{ pagePath: '/pages/cashier/receipt-intake', action: 'delete' }],
@@ -3513,6 +3520,19 @@ function buildCashierCustomerBalancePatch(customer, targetMaps, receiptDocs, pro
 		receipt_allocation_revision: requestId,
 		updated_at: now
 	}
+}
+
+// Both adjustments preserve the existing gas revenue and original cash caches.
+function buildAdjustmentBalancePatch(scope, { operationId, now }) {
+	const scale = resolveCustomerMoneyScale(scope.customer)
+	const prepay = depositTransactionLocal.prepayPatch(scope.receipts.filter(row => row.status === 'posted'))
+	const receivable = sumMoneyByScale([
+		...scope.sales.map(row => computeSaleSnapshot(row).outstanding),
+		...scope.flows.filter(row => row.status === 'posted').map(row => computeFlowSettlementSnapshot(row).outstanding),
+		...scope.debts.filter(row => row.status === 'posted').map(row => computeOpeningDebtSnapshot(row, resolveOpeningDebtMoneyScale(row, scale)).outstanding)
+	], scale)
+	return { ...prepay, receivable_balance: receivable, net_balance: fixByScale(receivable - prepay.prepay_balance, scale),
+		receipt_allocation_revision: operationId, updated_at: now }
 }
 
 function targetTableName(targetType) {
@@ -7359,7 +7379,7 @@ async function exportCustomerStatementV1(user, data) {
 	const rangeReceipts = await listCustomerReceipts(customerId, { dateFrom, dateTo })
 	const dateSeries = buildDateSeries(dateFrom, dateTo)
 	const amountFields = ['amount', 'receipt', 'cash_received', 'refund', 'settlement_fee', 'opening_prepay', 'deposit_transfer',
-		'rounding', 'legacy_received', 'legacy_refund', 'opening_debt', 'offset_credit', 'balance_adjustment']
+		'rounding', 'rounding_reversal', 'rounding_net', 'settlement_writeoff_income', 'legacy_received', 'legacy_refund', 'opening_debt', 'offset_credit', 'balance_adjustment']
 	const totals = Object.fromEntries(amountFields.map(field => [field, 0]))
 	totals.weight_kg = 0
 	const dayMap = new Map(dateSeries.map(date => [date, {
@@ -7383,6 +7403,9 @@ async function exportCustomerStatementV1(user, data) {
 		} else if (type === 'balance_adjustment') {
 			addAmount(day, 'balance_adjustment', event.debit - event.credit)
 			day.notes.add('非现金余额调整；不计营收或实际收款')
+		} else if (type === 'rounding_reversal' || type === 'prepay_writeoff') {
+			addAmount(day, type === 'rounding_reversal' ? 'rounding_reversal' : 'settlement_writeoff_income', event.debit - event.credit)
+			day.notes.add(`${event.summary}；来源 ${event.adjustment_source?.source_key || '-'}；${event.adjustment_note || ''}；不计气款营收或再次到账`)
 		} else if (type === 'receipt') {
 			addAmount(day, 'cash_received', event.credit)
 			addAmount(day, 'receipt', event.credit)
@@ -7453,6 +7476,7 @@ async function exportCustomerStatementV1(user, data) {
 		const day = dayMap.get(date)
 		// Carry forward only on days without ledger events, including empty periods.
 		if (day.balance !== undefined) runningBalance = day.balance
+		day.rounding_net = sumMoneyByScale([day.rounding, -day.rounding_reversal], moneyScale)
 		amountFields.forEach(field => { totals[field] = sumMoneyByScale([totals[field], day[field]], moneyScale) })
 		totals.weight_kg = fix2(totals.weight_kg + day.weight_kg)
 		return {
@@ -7553,7 +7577,8 @@ function pushAccountingMovement(rows, item = {}, moneyScale = 2) {
 		debit: split.debit,
 		credit: split.credit,
 		source_type: normalizeString(item.source_type),
-		source_id: normalizeId(item.source_id)
+		source_id: normalizeId(item.source_id),
+		...(item.adjustment_source ? { adjustment_source: item.adjustment_source, adjustment_note: item.adjustment_note, adjustment_evidence: item.adjustment_evidence } : {})
 	})
 }
 
@@ -7864,10 +7889,11 @@ async function listCustomerAccountingMovements(customer, { dateFrom = '', dateTo
 			biz_date: date,
 			created_at: doc && doc.created_at,
 			row_order: entryType === 'other_fee' ? 31 : 30,
-			summary: isConfirmedPrepayWriteoff(doc) ? `${shortAccountingDateText(date)}期初预付款清账` : `${shortAccountingDateText(date)}${openingDebtEntryLabelByType(entryType)}`,
+			summary: isCustomerAdjustment(doc) ? `${shortAccountingDateText(date)}${doc.adjustment_kind === 'rounding_reversal' ? '抹零冲回' : '多收款结清'}` : isConfirmedPrepayWriteoff(doc) ? `${shortAccountingDateText(date)}期初预付款清账` : `${shortAccountingDateText(date)}${openingDebtEntryLabelByType(entryType)}`,
 			amount: snapshot.should_receive_effective,
-			normal_balance: isConfirmedPrepayWriteoff(doc) ? 'contra_credit' : 'debit',
-			source_type: entryType,
+			normal_balance: isConfirmedPrepayWriteoff(doc) || isCustomerAdjustment(doc) ? 'contra_credit' : 'debit',
+			source_type: isCustomerAdjustment(doc) ? doc.adjustment_kind : entryType,
+			adjustment_source: doc.adjustment_source, adjustment_note: doc.note, adjustment_evidence: doc.adjustment_evidence,
 			source_id: targetId
 		}, moneyScale)
 		pushAccountingTargetReceivedFallback(rows, {
@@ -9748,7 +9774,7 @@ async function listCustomerStatementRowsV1(user, data, requestId = '') {
 		const snapshot = computeOpeningDebtSnapshot(doc, moneyScale)
 		const entryType = resolveOpeningDebtEntryType(doc)
 		return {
-			row_type: entryType,
+			row_type: isCustomerAdjustment(doc) ? doc.adjustment_kind : entryType,
 			row_id: normalizeId(doc._id),
 			biz_date: normalizeString(doc.biz_date),
 			created_at: toNumber(doc.created_at, 0),
@@ -9764,13 +9790,17 @@ async function listCustomerStatementRowsV1(user, data, requestId = '') {
 			meta: {
 				payment_status: snapshot.payment_status,
 				entry_type: entryType,
+				adjustment_kind: doc.adjustment_kind, adjustment_source: doc.adjustment_source,
+				adjustment_evidence: doc.adjustment_evidence, adjustment_operation_id: doc.adjustment_operation_id,
+				created_by_name: doc.created_by_name,
 				rounding_amount: snapshot.rounding_amount,
 				should_receive_effective: snapshot.should_receive_effective
 			}
 		}
 	})
 
-	const rows = [...saleRows, ...flowRows, ...openingDebtRows, ...receiptRows, ...allocRows].sort((a, b) => {
+	const rows = [...saleRows, ...flowRows, ...openingDebtRows, ...receiptRows, ...allocRows]
+		.filter(row => !normalizeString(data.row_type) || row.row_type === normalizeString(data.row_type)).sort((a, b) => {
 		if (a.biz_date !== b.biz_date) return a.biz_date < b.biz_date ? 1 : -1
 		if (a.created_at !== b.created_at) return a.created_at < b.created_at ? 1 : -1
 		return a.row_id < b.row_id ? 1 : -1
@@ -10112,6 +10142,33 @@ async function getLegacyM3EvidenceV1(user, data) {
 		source_projection: 'raw_documents', flow_scope: 'all_dates_all_statuses_for_customer' } }
 }
 
+async function guardLegacyAdjustmentMutation(action, data) {
+	const receiptActions = ['beginReceiptAdjustmentV1','cancelReceiptAdjustmentV1','updateReceiptV1','removeReceiptV1','releaseReceiptAllocationsV2','updateReceiptIntakeV1','removeReceiptIntakeV1','voidReceiptIntakeV2','removeOffsetCreditAllocationV1']
+	const targetActions = /^(update|remove)(FlowSettlement|OpeningDebtEntry|OtherFeeEntry)V1$/.test(action) || action === 'releaseSaleSettlementOnRemoveV1'
+	const rebuild = ['repairReceiptAllocationV1','repairAutoPrepayAllocationsV1','repairOffsetCreditsV1'].includes(action)
+	if (!receiptActions.includes(action) && !targetActions && !rebuild) return
+	const receiptId = receiptActions.includes(action) ? normalizeId(data.receipt_id || data.receiptId || data._id || data.id) : ''
+	let targetType = /FlowSettlement/.test(action) ? 'flow_settlement' : /OtherFee/.test(action) ? 'other_fee' : /OpeningDebt/.test(action) ? 'opening_debt' : 'sale'
+	const targetId = targetActions ? normalizeId(data.flow_settlement_id || data.flowSettlementId || data.opening_debt_id || data.openingDebtId || data.other_fee_id || data.otherFeeId || data.sale_id || data.saleId || data._id || data.id) : ''
+	let customerId = normalizeId(data.customer_id || data.customerId)
+	if (receiptId || targetId) {
+		const found = await db.collection(receiptId ? 'crm_customer_receipts' : targetTableName(targetType)).doc(receiptId || targetId).get()
+		const row = Array.isArray(found.data) ? found.data[0] : found.data
+		if (row) { customerId = normalizeId(row.customer_id); if (targetType === 'opening_debt' || targetType === 'other_fee') targetType = resolveOpeningDebtEntryType(row) }
+	}
+	if (action === 'repairAutoPrepayAllocationsV1') {
+		const linked = await readComplete(openingDebts, { source_type: 'balance_adjustment', status: 'posted' }, { command: dbCmd, source: 'adjustment_global_rebuild_guard' })
+		if (linked.some(isCustomerAdjustment)) throw Object.assign(new Error('已有账务调整，不能执行旧全库分配重建；请按关联来源核查'), { code: 409 })
+	}
+	if (!customerId) return
+	if (rebuild) {
+		const rows = await readComplete(openingDebts, { customer_id: customerId }, { command: dbCmd, source: 'adjustment_rebuild_guard' })
+		if (rows.some(row => row.status === 'posted' && isCustomerAdjustment(row))) throw Object.assign(new Error('客户已有账务调整，不能使用旧重建流程；请先核对关联记录'), { code: 409 })
+		return
+	}
+	await assertCustomerAdjustmentSourceMutable({ db, command: dbCmd, readComplete, customerId, receiptId, targetType, targetId })
+}
+
 const main = async (event, context) => {
 	void context
 	const { action, data = {}, token } = event || {}
@@ -10127,6 +10184,17 @@ const main = async (event, context) => {
 		cloudFunction: 'crm-customer-settlement'
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
+	if (['getCustomerAdjustmentSourcesV1','previewCustomerAdjustmentV1','postCustomerAdjustmentV1','getCustomerAdjustmentOperationV1','voidCustomerAdjustmentV1'].includes(action)) {
+		try {
+			const service = customerAdjustment.createAdjustmentService({ db, command: dbCmd, readComplete,
+				resolveCustomer: getCustomerById, moneyScale: resolveCustomerMoneyScale, saleSnapshot: computeSaleSnapshot,
+				flowSnapshot: computeFlowSettlementSnapshot, debtSnapshot: computeOpeningDebtSnapshot, balancePatch: buildAdjustmentBalancePatch })
+			return { code: 0, data: await service.run(action, data, user) }
+		} catch (error) { return { code: error.code || 500, msg: error.message || '调整未完成，请查询原操作号', data: error.details || {} } }
+	}
+	// Legacy whole-document rewrites must not erase adjustment source evidence.
+	try { await guardLegacyAdjustmentMutation(action, data) }
+	catch (error) { return { code: error.code || 409, msg: error.message, data: error.details || {} } }
 	if (['previewReceiptIntakeV2','saveReceiptIntakeV2','voidReceiptIntakeV2','getReceiptIntakeOperationV2','listReceiptIntakeV2','getReceiptIntakeDetailV2'].includes(action)) {
 		try {
 			const service = cashierIntake.createService({db,readComplete,moneyScale:resolveCustomerMoneyScale,

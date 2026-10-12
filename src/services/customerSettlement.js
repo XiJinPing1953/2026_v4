@@ -1,5 +1,14 @@
 import { callCloud } from '@/services/api'
 
+function customerAdjustmentAction(action, params = {}) {
+	return callCloud('crm-customer-settlement', { action, data: { ...params, customer_id: params.customerId || params.customer_id || '' }, timeout: 30000 })
+}
+export const getCustomerAdjustmentSourcesV1 = params => customerAdjustmentAction('getCustomerAdjustmentSourcesV1', params)
+export const previewCustomerAdjustmentV1 = params => customerAdjustmentAction('previewCustomerAdjustmentV1', params)
+export const postCustomerAdjustmentV1 = params => customerAdjustmentAction('postCustomerAdjustmentV1', params)
+export const getCustomerAdjustmentOperationV1 = params => customerAdjustmentAction('getCustomerAdjustmentOperationV1', params)
+export const voidCustomerAdjustmentV1 = params => customerAdjustmentAction('voidCustomerAdjustmentV1', params)
+
 export async function previewAllocationV1(params = {}) {
 	return callCloud('crm-customer-settlement', {
 		action: 'previewAllocationV1',
@@ -448,6 +457,7 @@ export async function listCustomerStatementRowsV1(params = {}) {
 			customer_id: params.customerId || params.customer_id || '',
 			date_from: params.dateFrom || params.date_from || '',
 			date_to: params.dateTo || params.date_to || '',
+			row_type: params.rowType || params.row_type || '',
 			page: params.page || 1,
 			pageSize: params.pageSize || 50
 		},

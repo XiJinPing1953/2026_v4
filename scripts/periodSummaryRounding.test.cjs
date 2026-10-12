@@ -205,8 +205,8 @@ test('page mapper and both exported summary sheets preserve 0.021, pending and o
 	assert.equal(context.rows({ ...p, rule_version: 'customer-period-summary/2026-09-08.2', rounding_total: undefined }).find(row => row.key === 'rounding_total').value, null)
 	for (const build of context.builders) {
 		const xml = build({ period_summary: { ...p, rounding_total: .021 } })
-		assert.match(xml, /期间抹零汇总（不计实际收款）/); assert.match(xml, /0\.021/)
-		assert.match(build({ period_summary: { ...p, rounding_total: null, rounding_complete: false } }), /期间抹零汇总（不计实际收款）<\/Data><\/Cell><Cell><Data ss:Type="String">待核/)
+		assert.match(xml, /期间原减免（不计实际收款）/); assert.match(xml, /0\.021/)
+		assert.match(build({ period_summary: { ...p, rounding_total: null, rounding_complete: false } }), /期间原减免（不计实际收款）<\/Data><\/Cell><Cell><Data ss:Type="String">待核/)
 		assert.match(build({}), /期间抹零汇总（不计实际收款）<\/Data><\/Cell><Cell><Data ss:Type="String">未完成/)
 	}
 })

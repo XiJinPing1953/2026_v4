@@ -91,3 +91,24 @@ test('cashier fixture paginates compact rows and recovers a committed timeout by
  const idempotentPreview=await callCloud('crm-customer-settlement',{action:'previewReceiptIntakeV2',data:input})
  assert.equal(idempotentPreview.data.committed,true);assert.equal(idempotentPreview.data.result.idempotent,true)
 })
+
+test('adjustment fixture supports server previews, fixed-id recovery, filtered rows and void history', async()=>{
+ resetFixtures()
+ const before=await statement()
+ const source=(await invoke('getCustomerAdjustmentSourcesV1',{kind:'prepay_writeoff'})).data.sources[0]
+ const input={customer_id:'demo-kg',kind:'prepay_writeoff',source_key:source.source_key,source_version:source.version,amount:10,biz_date:'2026-10-12',note:'本地模拟确认',evidence:'模拟凭据',confirm_no_refund_or_offset:true,operation_id:'local-adjustment-operation'}
+ const p=(await invoke('previewCustomerAdjustmentV1',input)).data
+ assert.equal((await statement()).period_summary.settlement_writeoff_income,before.period_summary.settlement_writeoff_income)
+ const result=await invoke('postCustomerAdjustmentV1',{...p.value,plan_hash:p.plan_hash})
+ assert.equal(result.data.status,'saved')
+ assert.equal((await invoke('getCustomerAdjustmentOperationV1',{operation_id:input.operation_id})).data.adjustment_id,result.data.adjustment_id)
+ assert.equal((await statement()).summary.amount_received_total,before.summary.amount_received_total)
+ const rows=await invoke('listCustomerStatementRowsV1',{row_type:'prepay_writeoff',pageSize:1})
+ assert.equal(rows.data.length,1);assert.equal(rows.paging.total,2);assert.equal(rows.data[0].row_type,'prepay_writeoff')
+ const history=(await invoke('getCustomerAdjustmentSourcesV1',{kind:'prepay_writeoff'})).data.adjustments
+ const row=history.find(row=>row.id===result.data.adjustment_id)
+ const v=(await invoke('previewCustomerAdjustmentV1',{customer_id:'demo-kg',kind:row.kind,void_id:row.id,source_version:row.version,note:'撤销模拟登记',evidence:'',operation_id:'local-adjustment-void'})).data
+ assert.equal((await invoke('voidCustomerAdjustmentV1',{...v.value,plan_hash:v.plan_hash})).data.status,'voided')
+ assert.equal((await statement()).period_summary.settlement_writeoff_income,before.period_summary.settlement_writeoff_income)
+ resetFixtures()
+})

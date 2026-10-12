@@ -6,126 +6,147 @@
   },
   "products": {
     "web": {
-      "version": "2026.09.28-development-integration",
+      "version": "2026.10.12-customer-adjustments",
       "output": "dist/build/web",
-      "acceptance": "Merged development branches; durable filling, PDA completion and import recovery, preserving current accounting, mobile layout and anomaly refresh. Production deployment requires cloud acceptance.",
-      "deploymentScope": {
-        "functions": [
-          "crm-bottle-anomaly",
-          "crm-bottle-movement",
-          "crm-filling",
-          "crm-gas-in",
-          "crm-haonuo-reconciliation",
-          "crm-ledger-reconciliation",
-          "crm-pda-filling"
-        ],
-        "databaseFiles": [
-          "crm_bottle_anomaly_settings.schema.json",
-          "crm_bottle_movements.index.json",
-          "crm_bottle_movements.schema.json",
-          "crm_bottle_scan_locks.schema.json",
-          "crm_filling_operations.index.json",
-          "crm_filling_operations.schema.json",
-          "crm_filling_slots.schema.json",
-          "crm_fillings.index.json",
-          "crm_fillings.schema.json",
-          "crm_gas_in.schema.json",
-          "crm_gas_inventory_movements.index.json",
-          "crm_gas_inventory_movements.schema.json",
-          "crm_home_safety_inspections.schema.json",
-          "crm_pda_filling_tasks.index.json",
-          "crm_pda_filling_tasks.schema.json",
-          "crm_sale_records.schema.json"
-        ],
-        "baseCommit": "878322bfa32ca3ab9f6baff06eae7a4379f5057b",
-        "sourceFiles": [
-          "src/components/domain/bottle/BottleAnomalyView.vue",
-          "src/components/domain/filling/FillingEditView.vue",
-          "src/components/domain/filling/FillingListView.vue",
-          "src/components/domain/filling/FillingOperationPanel.vue",
-          "src/components/domain/gasIn/GasInEditView.vue",
-          "src/components/domain/gasIn/GasInListView.vue",
-          "src/components/domain/pda/PdaFillingBoardView.vue",
-          "src/components/domain/pda/PdaFillingCompleteView.vue",
-          "src/components/domain/pda/PdaFillingCreateView.vue",
-          "src/components/domain/pda/PdaFillingStationView.vue",
-          "src/components/domain/pda/PdaFillingTaskCreateView.vue",
-          "src/composables/pda/usePdaFillingForm.js",
-          "src/pages/filling/list.vue",
-          "src/services/filling.js",
-          "src/services/fillingOperations.js",
-          "src/services/pda/fillingTask.js",
-          "uniCloud-alipay/cloudfunctions/common/bottleFlowRules.js",
-          "uniCloud-alipay/cloudfunctions/common/fillingPayload.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/bottleFlowRulesLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/financialReadLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/bottleFlowRulesLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-filling/bottleFlowRulesLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/fillingOperations.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/fillingPayloadLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/flowWarningPaging.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/operatorRepairSupport.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/gasBusinessTime.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-haonuo-reconciliation/financialReadLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-ledger-reconciliation/financialReadLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-pda-filling/completionProtocol.js",
-          "uniCloud-alipay/cloudfunctions/crm-pda-filling/fillingPayloadLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-pda-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-pda-filling/package.json",
-          "uniCloud-alipay/database/crm_bottle_anomaly_settings.schema.json",
-          "uniCloud-alipay/database/crm_bottle_movements.index.json",
-          "uniCloud-alipay/database/crm_bottle_movements.schema.json",
-          "uniCloud-alipay/database/crm_bottle_scan_locks.schema.json",
-          "uniCloud-alipay/database/crm_filling_operations.index.json",
-          "uniCloud-alipay/database/crm_filling_operations.schema.json",
-          "uniCloud-alipay/database/crm_filling_slots.schema.json",
-          "uniCloud-alipay/database/crm_fillings.index.json",
-          "uniCloud-alipay/database/crm_fillings.schema.json",
-          "uniCloud-alipay/database/crm_gas_in.schema.json",
-          "uniCloud-alipay/database/crm_gas_inventory_movements.index.json",
-          "uniCloud-alipay/database/crm_gas_inventory_movements.schema.json",
-          "uniCloud-alipay/database/crm_pda_filling_tasks.index.json",
-          "uniCloud-alipay/database/crm_pda_filling_tasks.schema.json",
-          "uniCloud-alipay/database/crm_sale_records.schema.json",
-          "uniCloud-alipay/database/schema/crm_bottle_anomaly_settings.schema.json",
-          "uniCloud-alipay/database/schema/crm_bottle_movements.schema.json",
-          "uniCloud-alipay/database/schema/crm_fillings.schema.json",
-          "uniCloud-alipay/database/schema/crm_gas_in.schema.json",
-          "uniCloud-alipay/database/schema/crm_gas_inventory_movements.schema.json",
-          "uniCloud-alipay/database/schema/crm_home_safety_inspections.schema.json",
-          "uniCloud-alipay/database/schema/crm_pda_filling_tasks.schema.json",
-          "uniCloud-alipay/database/schema/crm_sale_records.schema.json"
-        ]
-      },
-      "integrityScope": "deployment"
-    },
-    "cloud": {
-      "version": "2026.10.12-haisheng-offset-repair",
-      "output": "release/cloud",
-      "acceptance": "Receipt adjustment rollback must preserve old targets on invalid references; cancelled deferred adjustments preserve money and source. Fixed Haisheng repair requires source-bound backup, rollback rehearsal, idempotency and matching statement exports.",
+      "acceptance": "Partial rounding reversal and selected overpayment settlement preserve original cash, keep gas revenue separate, share statement/export calculations and reject stale, duplicate or dependent mutations.",
       "deploymentScope": {
         "functions": [
           "crm-customer-settlement",
-          "crm-accounting-correction"
+          "crm-sale",
+          "crm-report"
         ],
-        "databaseFiles": [],
-        "baseCommit": "939eb5ccbb6559ef44511534ae5cce68860a5a21",
+        "databaseFiles": [
+          "crm_customer_opening_debts.schema.json",
+          "crm_customer_allocations.schema.json"
+        ],
+        "baseCommit": "69d5651428138f6c4efcf4e7436f5915f7c7d0ed",
         "sourceFiles": [
+          "src/components/base/AppModal.vue",
+          "src/components/domain/accounting/ReportSummaryView.vue",
+          "src/components/domain/customer/statement/CustomerAdjustmentPanel.vue",
+          "src/components/domain/customer/statement/CustomerStatementModule.vue",
+          "src/components/domain/customer/statement/exportWorkbook.js",
+          "src/composables/useCustomerAdjustment.js",
+          "src/services/customerSettlement.js",
+          "src/services/mappers/customerPeriodSummary.js",
+          "src/services/report.js",
+          "uniCloud-alipay/cloudfunctions/common/customerAdjustmentGuard.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerAdjustment.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerAdjustmentGuardLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/plan.js",
-          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/haishengOffsetRepair.js"
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/periodSummary.js",
+          "uniCloud-alipay/cloudfunctions/crm-report/financialReadLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-report/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-report/pageAclLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-report/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-report/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-report/settlementIncome.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/customerAdjustmentGuardLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+          "uniCloud-alipay/database/crm_customer_allocations.schema.json",
+          "uniCloud-alipay/database/crm_customer_opening_debts.schema.json",
+          "uniCloud-alipay/database/schema/crm_customer_allocations.schema.json",
+          "uniCloud-alipay/database/schema/crm_customer_opening_debts.schema.json"
         ],
         "aclCanonicalRevisions": {
           "crm-customer-settlement": {
             "registry": {
               "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
               "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+            }
+          },
+          "crm-sale": {
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            },
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            }
+          },
+          "crm-report": {
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            },
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            }
+          }
+        }
+      },
+      "integrityScope": "deployment"
+    },
+    "cloud": {
+      "version": "2026.10.12-customer-adjustments",
+      "output": "release/cloud",
+      "acceptance": "Partial rounding reversal and selected overpayment settlement preserve original cash, keep gas revenue separate, share statement/export calculations and reject stale, duplicate or dependent mutations.",
+      "deploymentScope": {
+        "functions": [
+          "crm-customer-settlement",
+          "crm-sale",
+          "crm-report"
+        ],
+        "databaseFiles": [
+          "crm_customer_opening_debts.schema.json",
+          "crm_customer_allocations.schema.json"
+        ],
+        "baseCommit": "69d5651428138f6c4efcf4e7436f5915f7c7d0ed",
+        "sourceFiles": [
+          "src/components/base/AppModal.vue",
+          "src/components/domain/accounting/ReportSummaryView.vue",
+          "src/components/domain/customer/statement/CustomerAdjustmentPanel.vue",
+          "src/components/domain/customer/statement/CustomerStatementModule.vue",
+          "src/components/domain/customer/statement/exportWorkbook.js",
+          "src/composables/useCustomerAdjustment.js",
+          "src/services/customerSettlement.js",
+          "src/services/mappers/customerPeriodSummary.js",
+          "src/services/report.js",
+          "uniCloud-alipay/cloudfunctions/common/customerAdjustmentGuard.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerAdjustment.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerAdjustmentGuardLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/periodSummary.js",
+          "uniCloud-alipay/cloudfunctions/crm-report/financialReadLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-report/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-report/pageAclLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-report/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-report/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-report/settlementIncome.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/customerAdjustmentGuardLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+          "uniCloud-alipay/database/crm_customer_allocations.schema.json",
+          "uniCloud-alipay/database/crm_customer_opening_debts.schema.json",
+          "uniCloud-alipay/database/schema/crm_customer_allocations.schema.json",
+          "uniCloud-alipay/database/schema/crm_customer_opening_debts.schema.json"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-customer-settlement": {
+            "registry": {
+              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
+              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+            }
+          },
+          "crm-sale": {
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            },
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            }
+          },
+          "crm-report": {
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            },
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
             }
           }
         }

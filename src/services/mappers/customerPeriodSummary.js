@@ -1,16 +1,25 @@
 const fields = ['business_revenue', 'historical_receivable', 'receivable_total', 'cash_received', 'historical_debt_collected', 'refund_total', 'net_cash_received']
 
 export function normalizeCustomerPeriodSummary(value, expected = {}) {
-	if (!value || value.read_complete !== true || !['customer-period-summary/2026-09-08.1', 'customer-period-summary/2026-09-08.2', 'customer-period-summary/2026-09-12.3', 'customer-period-summary/2026-09-23.4'].includes(value.rule_version)) return null
+	if (!value || value.read_complete !== true || !['customer-period-summary/2026-09-08.1', 'customer-period-summary/2026-09-08.2', 'customer-period-summary/2026-09-12.3', 'customer-period-summary/2026-09-23.4', 'customer-period-summary/2026-10-12.1'].includes(value.rule_version)) return null
 	if (expected.dateFrom != null && value.date_from !== expected.dateFrom) return null
 	if (expected.dateTo != null && value.date_to !== expected.dateTo) return null
 	if (![2, 3].includes(value.money_scale)) return null
 	if (fields.some(key => value[key] !== null && (typeof value[key] !== 'number' || !Number.isFinite(value[key])))) return null
-	if (['customer-period-summary/2026-09-12.3', 'customer-period-summary/2026-09-23.4'].includes(value.rule_version) &&
+	if (['customer-period-summary/2026-09-12.3', 'customer-period-summary/2026-09-23.4', 'customer-period-summary/2026-10-12.1'].includes(value.rule_version) &&
 		(value.rounding_total !== null && (typeof value.rounding_total !== 'number' || !Number.isFinite(value.rounding_total)))) return null
-	if (value.rule_version === 'customer-period-summary/2026-09-23.4' &&
+	if (['customer-period-summary/2026-09-23.4', 'customer-period-summary/2026-10-12.1'].includes(value.rule_version) &&
 		(value.prepay_writeoff_total !== null && (typeof value.prepay_writeoff_total !== 'number' || !Number.isFinite(value.prepay_writeoff_total)))) return null
+	if (value.rule_version === 'customer-period-summary/2026-10-12.1' &&
+		['rounding_reversal_total', 'rounding_net_total', 'settlement_writeoff_income'].some(key => value[key] !== null && (typeof value[key] !== 'number' || !Number.isFinite(value[key])))) return null
 	return value
+}
+
+export function customerNetRounding(value) {
+	const summary = normalizeCustomerPeriodSummary(value)
+	if (!summary) return null
+	const amount = summary.rule_version === 'customer-period-summary/2026-10-12.1' ? summary.rounding_net_total : summary.rounding_total
+	return typeof amount === 'number' && Number.isFinite(amount) ? amount : null
 }
 
 export function customerPeriodSummaryRows(value) {
@@ -22,7 +31,12 @@ export function customerPeriodSummaryRows(value) {
 		...(summary?.prepay_writeoff_total ? [['prepay_writeoff_total', '期初预付款清账（不计应收或现金）']] : []),
 		['receivable_total', '所选期间应收合计（含历史款项）'],
 		['cash_received', '期间实际收款'],
-		['rounding_total', '期间抹零汇总（不计实际收款）'],
+		['rounding_total', summary?.rule_version === 'customer-period-summary/2026-10-12.1' ? '期间原减免（不计实际收款）' : '期间抹零汇总（不计实际收款）'],
+		...(summary?.rule_version === 'customer-period-summary/2026-10-12.1' ? [
+			['rounding_reversal_total', '期间抹零冲回'],
+			['rounding_net_total', '期间净抹零'],
+			['settlement_writeoff_income', '期间多收款结清收益（不计实际收款）']
+		] : []),
 		...(summary?.settlement_fee_total > 0 ? [['settlement_fee_total', '期间收款手续费（非到账、非抹零）']] : []),
 		['historical_debt_collected', '其中收回历史欠款'],
 		['refund_total', '期间退款'],

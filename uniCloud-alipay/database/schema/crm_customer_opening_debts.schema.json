@@ -45,7 +45,15 @@
     "void_reason": { "bsonType": ["string", "null"] },
     "void_at": { "bsonType": ["number", "null"] },
     "void_by": { "bsonType": ["string", "null"] },
-    "void_by_name": { "bsonType": ["string", "null"] }
+    "void_by_name": { "bsonType": ["string", "null"] },
+    "adjustment_operation_id": {"bsonType": "string"},
+    "adjustment_rule_version": {"bsonType": "string"},
+    "adjustment_allocation_id": {"bsonType": "string"},
+    "adjustment_void_operation_id": {"bsonType": "string"},
+    "adjustment_kind": {"bsonType": "string", "enum": ["rounding_reversal", "prepay_writeoff"]},
+    "adjustment_source": {"bsonType": "object", "properties": {"source_key": {"bsonType": "string"}, "type": {"bsonType": "string"}, "id": {"bsonType": "string"}, "target_type": {"bsonType": "string"}, "target_id": {"bsonType": "string"}, "receipt_id": {"bsonType": "string"}, "date": {"bsonType": "string"}, "label": {"bsonType": "string"}}, "additionalProperties": false},
+    "adjustment_evidence": {"bsonType": ["string", "object"]},
+    "void_evidence": {"bsonType": ["string", "object"]}
   },
   "permission": {
     "read": false,

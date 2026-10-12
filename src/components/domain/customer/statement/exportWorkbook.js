@@ -183,7 +183,9 @@ export function buildStatementSheetRows(payload = {}) {
 		['legacy_received', '历史已收差额（元，日期待核）'],
 		['legacy_refund', '历史退款差额（元，日期待核）'],
 		['opening_prepay', '期初预付款转入（元，非收款）'],
-		['rounding', '抹零（元，非收款）'],
+		['rounding', '原抹零（元，非收款）'],
+		...(payload.totals?.rounding_reversal ? [['rounding_reversal', '抹零冲回（元）'], ['rounding_net', '净抹零（元）']] : []),
+		...(payload.totals?.settlement_writeoff_income ? [['settlement_writeoff_income', '多收款结清收益（元，非到账）']] : []),
 		...(payload.totals?.balance_adjustment ? [['balance_adjustment', '非现金余额调整（元）']] : []),
 		['balance', '结余（元，正欠款/负预付款）']
 	]

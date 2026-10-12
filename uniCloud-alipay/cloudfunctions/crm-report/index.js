@@ -6,6 +6,8 @@ const logs = db.collection('crm_operation_logs')
 const accounts = db.collection('crm_accounts')
 const entries = db.collection('crm_voucher_entries')
 const reports = db.collection('crm_reports')
+const { withFinancialEvidence } = require('./financialReadLocal')
+const { settlementIncomeV1 } = require('./settlementIncome')
 let ensureActionAcl = null
 try {
 	;({ ensureActionAcl } = require('../common/pageAcl'))
@@ -14,7 +16,8 @@ try {
 	;({ ensureActionAcl } = require('./pageAclLocal'))
 }
 const PAGE_ACTION_RULES = {
-	summaryV1: [{ pagePath: '/pages/accounting/report-summary', action: 'view' }]
+	summaryV1: [{ pagePath: '/pages/accounting/report-summary', action: 'view' }],
+	settlementIncomeV1: [{ pagePath: '/pages/accounting/report-summary', action: 'view' }]
 }
 
 async function getUserByToken(token) {
@@ -130,7 +133,7 @@ async function summaryV1(user, data, requestId) {
 	return { code: 0, data: payload }
 }
 
-exports.main = async (event, context) => {
+exports.main = withFinancialEvidence(async (event, context) => {
 	void context
 	const { action, data = {}, token } = event
 	const requestId =
@@ -139,14 +142,19 @@ exports.main = async (event, context) => {
 
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
+	const isSettlementIncome = action === 'settlementIncomeV1'
+	if (isSettlementIncome && !['finance', 'admin', 'superadmin'].includes(String(user.role_template || user.role).trim().toLowerCase())) {
+		return { code: 403, msg: '仅财务或管理员可查询结清收益' }
+	}
 	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, [], {
-		recordLog,
+		recordLog: isSettlementIncome ? undefined : recordLog,
 		requestId,
 		cloudFunction: 'crm-report'
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
 	if (action === 'summaryV1') return summaryV1(user, data, requestId)
+	if (isSettlementIncome) return settlementIncomeV1(db, data)
 
 	return { code: 400, msg: '未知 action' }
-}
+}, 'settlement-income/2026-10-12.1')
