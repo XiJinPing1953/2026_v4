@@ -106,36 +106,26 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.09.29-gas-inventory-precision",
+      "version": "2026.10.12-haisheng-offset-repair",
       "output": "release/cloud",
-      "acceptance": "Preserve gram precision in inventory movements and aggregate only before display; source-bound transactional repair with backup, stale preview rejection and idempotent replay.",
+      "acceptance": "Receipt adjustment rollback must preserve old targets on invalid references; cancelled deferred adjustments preserve money and source. Fixed Haisheng repair requires source-bound backup, rollback rehearsal, idempotency and matching statement exports.",
       "deploymentScope": {
         "functions": [
-          "crm-filling",
-          "crm-gas-in",
-          "crm-sale"
+          "crm-customer-settlement",
+          "crm-accounting-correction"
         ],
         "databaseFiles": [],
-        "baseCommit": "45ec065b0fa641e4d34067b15c32dc2b295a7fa9",
+        "baseCommit": "939eb5ccbb6559ef44511534ae5cce68860a5a21",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/common/gasInventoryPrecision.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/gasInventoryPrecisionLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/gasInventoryPrecisionLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/gasInventoryPrecisionLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/precisionRepair.js"
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/plan.js",
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/haishengOffsetRepair.js"
         ],
         "aclCanonicalRevisions": {
-          "crm-sale": {
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            },
+          "crm-customer-settlement": {
             "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
+              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
             }
           }
         }
