@@ -70,7 +70,7 @@
 							<AppInput :model-value="kindOptions[kindIndex]?.label || '气款'" label="资金类型" readonly size="sm" :disabled="fieldsLocked" />
 						</picker>
 						<picker class="picker-block" mode="selector" :range="paymentMethodOptions" range-key="label" :value="paymentMethodIndex" :disabled="fieldsLocked" @change="onPaymentMethodChange">
-							<AppInput :model-value="paymentMethodOptions[paymentMethodIndex]?.label || '现金'" label="收款渠道" readonly size="sm" :disabled="fieldsLocked" />
+							<AppInput :model-value="paymentMethodOptions[paymentMethodIndex]?.label || '微信'" label="收款渠道" readonly size="sm" :disabled="fieldsLocked" />
 						</picker>
 						<AppInput v-model="form.amount" :label="`到账总额（${form.kind === 'deposit' ? 2 : selectedIntakeMoneyScale}位小数）`" :type="moneyInputType" inputmode="decimal" placeholder="按到账凭证填写" size="sm" :disabled="fieldsLocked" />
 						<AppInput v-if="form.kind === 'mixed'" v-model="form.gasAmount" :label="`其中气款（${selectedIntakeMoneyScale}位小数）`" :type="moneyInputType" inputmode="decimal" placeholder="请输入正数" size="sm" :disabled="fieldsLocked" />
@@ -255,7 +255,7 @@ let detailRequestSerial = 0
 let rowActionSerial = 0
 const customerSearchSerial = { intake: 0, filter: 0 }
 
-const form = reactive({ kind: 'gas', amount: '', gasAmount: '', depositAmount: '', purpose: 'unspecified', bizDate: todayYmd(), paymentMethod: 'cash', note: '', reason: '' })
+const form = reactive({ kind: 'gas', amount: '', gasAmount: '', depositAmount: '', purpose: 'unspecified', bizDate: todayYmd(), paymentMethod: 'wechat', note: '', reason: '' })
 const listFilter = reactive({ dateFrom: '', dateTo: '', kind: '', purpose: '', includeVoid: false })
 const pager = reactive({ page: 1, pageSize: 20, total: 0, hasMore: false, cursor: '', nextCursor: null, snapshot: null, cursorStack: [] })
 
@@ -469,7 +469,7 @@ function applyFrozenDraft(draft = {}) {
 }
 
 function resetAmountsAndProofs() {
-	Object.assign(form, { kind: 'gas', amount: '', gasAmount: '', depositAmount: '', purpose: 'unspecified', bizDate: todayYmd(), paymentMethod: 'cash', note: '', reason: '' })
+	Object.assign(form, { kind: 'gas', amount: '', gasAmount: '', depositAmount: '', purpose: 'unspecified', bizDate: todayYmd(), paymentMethod: 'wechat', note: '', reason: '' })
 	proofImages.value = []
 	editingIntakeId.value = ''
 	editingVersion.value = 0
@@ -616,7 +616,7 @@ function clearIntakeCustomer() {
 
 function onBizDateChange(event) { if (!fieldsLocked.value) form.bizDate = normalizeCashierText(event?.detail?.value) || todayYmd() }
 function onKindChange(event) { if (!fieldsLocked.value) { form.kind = kindOptions[Number(event?.detail?.value)]?.value || 'gas'; if (form.kind === 'deposit') form.purpose = 'unspecified' } }
-function onPaymentMethodChange(event) { if (!fieldsLocked.value) form.paymentMethod = paymentMethodOptions[Number(event?.detail?.value)]?.value || 'cash' }
+function onPaymentMethodChange(event) { if (!fieldsLocked.value) form.paymentMethod = paymentMethodOptions[Number(event?.detail?.value)]?.value || 'wechat' }
 function onPurposeChange(event) { if (!fieldsLocked.value && form.kind !== 'deposit') form.purpose = purposeOptions[Number(event?.detail?.value)]?.value || 'unspecified' }
 function onKindFilterChange(event) { listFilter.kind = kindFilterOptions[Number(event?.detail?.value)]?.value || '' }
 function onPurposeFilterChange(event) { listFilter.purpose = purposeFilterOptions[Number(event?.detail?.value)]?.value || '' }
