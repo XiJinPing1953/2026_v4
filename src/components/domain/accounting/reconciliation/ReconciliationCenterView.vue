@@ -6,7 +6,7 @@
 			<view v-if="issue" class="notice" role="alert">{{ issue }}</view>
 			<AppSection v-if="showImport || !context?.batches?.length" title="导入应收统计表">
 				<text class="hint">选择好会计完整导出的报表，确认账套及已经入账的截止日。本版核对同年年初至截止日；新业务不会被当成已与好会计核清。</text>
-				<view class="import-fields"><AppInput v-model="importForm.company" label="好会计账套名称" placeholder="与报表上的公司名称一致" :disabled="blocked" /><picker mode="date" :value="importForm.cutoff" :disabled="blocked" @change="importForm.cutoff = $event.detail.value"><AppInput label="好会计入账截止日" :model-value="importForm.cutoff" placeholder="请选择确认的截止日" readonly /></picker></view>
+				<view class="import-fields"><AppInput v-model="importForm.company" label="好会计账套名称" placeholder="与报表上的公司名称一致" :disabled="blocked" /><picker mode="date" :value="importForm.cutoff" :disabled="blocked" @change="importForm.cutoff = $event.detail.value"><AppInput class="picker-trigger" label="好会计入账截止日" :model-value="importForm.cutoff" placeholder="请选择确认的截止日" readonly /></picker></view>
 				<view class="actions"><AppButton size="sm" kind="neutral" :disabled="blocked" @click="chooseSummary">{{ summaryFile ? '更换文件' : '选择 .xls / .xlsx' }}</AppButton><text class="file-name">{{ summaryFile?.name || '原始文件将随本批保留，单文件不超过 2 MB。' }}</text><AppButton size="sm" :disabled="blocked || !summaryFile" @click="startImport">导入并开始核查</AppButton></view>
 			</AppSection>
 			<view class="workspace">
@@ -28,7 +28,7 @@
 						<view v-if="totalThisRun" class="progress" role="status" aria-live="polite"><text>{{ running ? '正在核查' : '本轮已处理' }} {{ checkedThisRun }} / {{ totalThisRun }}<template v-if="currentCustomer"> · {{ currentCustomer }}</template></text><view class="progress-track"><view class="progress-fill" :style="{ width: Math.round(checkedThisRun / totalThisRun * 100) + '%' }" /></view><text v-if="Object.keys(failures).length" class="warning">{{ Object.keys(failures).length }} 户请求未完成，保留待核，可继续重试。</text></view>
 					</AppSection>
 					<AppSection v-if="batch" title="客户核查与差异待办">
-						<view class="filters"><AppInput v-model="search" label="客户" placeholder="搜索客户名称" size="sm" /><picker :range="statusFilters" range-key="label" :value="statusFilterIndex" @change="statusFilter = statusFilters[Number($event.detail.value)].value"><AppInput label="核查状态" :model-value="statusFilters[statusFilterIndex].label" readonly size="sm" /></picker><picker :range="issueFilters" range-key="label" :value="issueFilterIndex" @change="issueFilter = issueFilters[Number($event.detail.value)].value"><AppInput label="问题类型" :model-value="issueFilters[issueFilterIndex].label" readonly size="sm" /></picker></view>
+						<view class="filters"><AppInput v-model="search" label="客户" placeholder="搜索客户名称" size="sm" /><picker :range="statusFilters" range-key="label" :value="statusFilterIndex" @change="statusFilter = statusFilters[Number($event.detail.value)].value"><AppInput class="picker-trigger" label="核查状态" :model-value="statusFilters[statusFilterIndex].label" readonly size="sm" /></picker><picker :range="issueFilters" range-key="label" :value="issueFilterIndex" @change="issueFilter = issueFilters[Number($event.detail.value)].value"><AppInput class="picker-trigger" label="问题类型" :model-value="issueFilters[issueFilterIndex].label" readonly size="sm" /></picker></view>
 						<text class="hint">显示 {{ filteredCustomers.length }} / {{ customers.length }} 户 · 处理后仍需复核，备注不会自动关闭差异。</text>
 						<view v-for="customer in filteredCustomers" :key="customer._id" class="customer-row">
 							<view class="customer-main"><view class="customer-title"><text>{{ customer.name }}</text><AppTag v-if="customer.is_hidden" kind="soft">隐藏</AppTag><AppTag v-if="customer.is_active === false" kind="soft">停用</AppTag></view><text class="hint">{{ mappingText(customer._id) }}</text><text :class="!resultByCustomer[customer._id] ? 'hint' : rowHasIssue(customer._id) ? 'warning' : 'level'">{{ failures[customer._id] ? '核查请求未完成' : level(resultByCustomer[customer._id]) }}</text><text v-if="resultByCustomer[customer._id]?.review?.kind === 'accounting_followup'" class="hint">好会计待处理 · 重新导入后验证</text></view>
@@ -148,6 +148,7 @@ onMounted(async () => { if (!canRead.value) return; await loadContext(); if (con
 </script>
 
 <style scoped>
+.picker-trigger { pointer-events:none; }
 .center-shell,.work-column,.customer-detail { display:flex; flex-direction:column; gap:18px; min-width:0; }
 .workspace { display:grid; grid-template-columns:260px minmax(0,1fr); align-items:start; gap:18px; }
 .import-fields,.filters { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:16px 0; }

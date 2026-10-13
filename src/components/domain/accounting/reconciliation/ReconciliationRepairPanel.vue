@@ -3,15 +3,15 @@
 		<text class="hint">仅用于已核实的同笔收款。先查看逐项变化，再确认修正。</text>
 		<text v-if="loading" class="hint">正在读取原收款和销售单…</text>
 		<view class="fields">
-			<picker :range="types" range-key="label" :value="typeIndex" :disabled="locked" @change="form.type = types[Number($event.detail.value)].value"><AppInput label="修正类型" :model-value="types[typeIndex].label" readonly /></picker>
-			<picker :range="receiptOptions" range-key="label" :disabled="locked" :value="receiptIndex" @change="selectReceipt"><AppInput label="原收款" :model-value="receiptOptions[receiptIndex]?.label" readonly /></picker>
-			<picker mode="date" :value="form.biz_date" :disabled="locked" @change="form.biz_date = $event.detail.value"><AppInput label="确认的收款日期" :model-value="form.biz_date" readonly placeholder="请选择日期" /></picker>
+			<picker :range="types" range-key="label" :value="typeIndex" :disabled="locked" @change="form.type = types[Number($event.detail.value)].value"><AppInput class="picker-trigger" label="修正类型" :model-value="types[typeIndex].label" readonly /></picker>
+			<picker :range="receiptOptions" range-key="label" :disabled="locked" :value="receiptIndex" @change="selectReceipt"><AppInput class="picker-trigger" label="原收款" :model-value="receiptOptions[receiptIndex]?.label" readonly /></picker>
+			<picker mode="date" :value="form.biz_date" :disabled="locked" @change="form.biz_date = $event.detail.value"><AppInput class="picker-trigger" label="确认的收款日期" :model-value="form.biz_date" readonly placeholder="请选择日期" /></picker>
 			<AppInput v-model="form.basis" label="核实依据" placeholder="到账凭据、双方确认记录等" :disabled="locked" />
 			<template v-if="form.type === 'complete_receipt_backing'">
 				<AppInput v-model="form.confirmed_total_amount" label="确认的同笔到账总额（元）" inputmode="decimal" :disabled="locked" />
 				<text class="hint">将销售单中的旧实收补齐到这笔已存在的收款；不能据此登记一笔新的到账。</text>
 				<view v-for="(target, index) in form.targets" :key="index" class="target">
-					<picker :range="saleOptions" range-key="label" :disabled="locked" :value="saleIndex(target.sale_id)" @change="target.sale_id = saleOptions[Number($event.detail.value)].id"><AppInput :label="'销售单 ' + (index + 1)" :model-value="saleOptions[saleIndex(target.sale_id)].label" readonly /></picker>
+					<picker :range="saleOptions" range-key="label" :disabled="locked" :value="saleIndex(target.sale_id)" @change="target.sale_id = saleOptions[Number($event.detail.value)].id"><AppInput class="picker-trigger" :label="'销售单 ' + (index + 1)" :model-value="saleOptions[saleIndex(target.sale_id)].label" readonly /></picker>
 					<AppInput v-model="target.cash_amount" label="补齐收款依据金额（元）" inputmode="decimal" :disabled="locked" />
 					<AppInput v-model="target.move_sale_rounding" label="同时重分类的原销售抹零（元）" inputmode="decimal" placeholder="0.00" :disabled="locked" />
 					<AppButton size="sm" kind="ghost" :disabled="locked" @click="form.targets.splice(index, 1)">移除此销售单</AppButton>
@@ -71,6 +71,7 @@ function display(value) { return value == null ? '—' : typeof value === 'objec
 function tableName(table) { return ({ crm_customer_receipts: '收款', crm_sale_records: '销售', crm_customer_allocations: '分配', crm_customers: '客户版本' })[table] || table }
 </script>
 <style scoped>
+.picker-trigger { pointer-events:none; }
 .repair-panel,.fields,.target,.preview,.write { display:flex; flex-direction:column; gap:14px; min-width:0; }
 .hint,.reference { color:var(--crm-text-muted); font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
 .title { font-weight:600; }
