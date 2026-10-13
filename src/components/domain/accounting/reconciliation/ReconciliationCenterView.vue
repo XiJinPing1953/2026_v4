@@ -97,7 +97,7 @@ const statusFilterIndex = computed(() => Math.max(0, statusFilters.findIndex(ite
 const issueFilters = computed(() => [{ value: 'all', label: '全部问题类型' }, ...[...new Set(Object.values(resultByCustomer.value).flatMap(result => result.issues || []).map(problem => problem.type))].filter(Boolean).sort().map(type => ({ value: type, label: problemLabel(type) }))])
 const issueFilterIndex = computed(() => Math.max(0, issueFilters.value.findIndex(item => item.value === issueFilter.value)))
 const mapping = id => (detail.value?.mappings?.items || []).find(item => item.crm_customer_id === id)
-const rowHasIssue = id => !!failures.value[id] || !!resultByCustomer.value[id]?.stale || resultByCustomer.value[id]?.issues?.some(problem => problem.blocking !== false) || resultByCustomer.value[id]?.summary_match === false
+const rowHasIssue = id => !!failures.value[id] || !!resultByCustomer.value[id]?.stale || resultByCustomer.value[id]?.issues?.some(problem => problem.blocking !== false && problem.severity !== 'info') || resultByCustomer.value[id]?.summary_match === false
 const differenceCount = computed(() => customers.value.filter(customer => rowHasIssue(customer._id)).length)
 const matchedCount = computed(() => customers.value.filter(customer => resultByCustomer.value[customer._id]?.summary_match === true && !resultByCustomer.value[customer._id]?.stale).length)
 const filteredCustomers = computed(() => customers.value.filter(customer => {
@@ -116,7 +116,7 @@ const unmappedAccounts = computed(() => { const codes = new Set((detail.value?.m
 const selectedResult = computed(() => resultByCustomer.value[selectedCustomer.value?._id] || null)
 const selectedMapping = computed(() => mapping(selectedCustomer.value?._id))
 const selectedDetailSources = computed(() => (detail.value?.detail_sources || []).filter(source => selectedMapping.value?.accountant_codes.includes(source.accountant_code)))
-const canApprove = computed(() => selectedResult.value?.summary_match === true && !selectedResult.value?.stale && !selectedResult.value?.issues?.some(problem => problem.blocking !== false))
+const canApprove = computed(() => selectedResult.value?.summary_match === true && selectedResult.value?.internal?.complete === true && selectedResult.value?.detail_match !== false && !selectedResult.value?.stale && !selectedResult.value?.issues?.some(problem => problem.blocking !== false && problem.severity !== 'info'))
 const availableAccounts = computed(() => (detail.value?.accounts || []).map(account => {
 	const owner = (detail.value?.mappings?.items || []).find(item => item.crm_customer_id !== selectedCustomer.value?._id && item.accountant_codes.includes(account.code))
 	return { ...account, owner: owner ? (customers.value.find(customer => customer._id === owner.crm_customer_id)?.name || owner.crm_customer_id) : '' }

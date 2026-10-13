@@ -54,6 +54,12 @@ test('mapping saves the expected version and verifies its affected customer befo
 	await h.state.saveMapping({ customer_id: 'b', accountant_codes: ['112201'], expected_version: 3, basis: '确认客户科目' })
 	assert.equal(submitted.expected_version, 3); assert.equal(submitted.company, '账套甲'); assert.deepEqual(h.calls.map(row => row.customer_id), ['b']); h.stop()
 })
+test('unlinking a confirmed mapping sends an explicit empty account set with evidence and expected version', async () => {
+	let submitted
+	const h = await center({ saveMapping: async data => { submitted = copy(data); return success({ version: 4, items: [] }) } })
+	await h.state.saveMapping({ customer_id: 'a', accountant_codes: [], expected_version: 3, basis: '原科目对应有误，解除后重新确认' })
+	assert.deepEqual(submitted.accountant_codes, []); assert.equal(submitted.expected_version, 3); assert.ok(submitted.basis); assert.deepEqual(h.calls.map(row => row.customer_id), ['a']); h.stop()
+})
 test('display never invents missing control amounts or promotes stale/blocked results to approval', () => {
 	assert.equal(centerModule.reconciliationMoney(undefined), '待核')
 	assert.equal(centerModule.reconciliationMoney(23900000), '23900.00')

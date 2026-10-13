@@ -17,7 +17,7 @@ export function reconciliationCustomers(customers) {
 export function reconciliationLevel(result) {
 	if (!result) return '尚未核查'
 	if (result.stale) return '历史核查 · 待复核'
-	if (result.issues?.some(problem => problem.blocking !== false)) return result.summary_match ? '汇总一致 · 仍有待核事项' : '存在差异或资料待核'
+	if (result.issues?.some(problem => problem.blocking !== false && problem.severity !== 'info')) return result.summary_match ? '汇总一致 · 仍有待核事项' : '存在差异或资料待核'
 	if (result.review?.kind === 'manual_approval' && result.review?.valid === true) return '人工核准'
 	if (result.detail_match === true) return '明细一致'
 	if (result.summary_match === true) return '汇总一致 · 明细待核'
