@@ -41,10 +41,9 @@
   },
   "indexes": [
     {
-      "name": "company_created",
+      "name": "company_lookup",
       "key": {
-        "company": 1,
-        "created_at": -1
+        "company": 1
       },
       "unique": false
     }
