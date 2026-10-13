@@ -162,6 +162,7 @@ export const PAGE_REGISTRY = [
 	{ pagePath: '/pages/accounting/ledger-general', label: '总账', group: 'accounting', supports: { view: true } },
 	{ pagePath: '/pages/accounting/ledger-sub', label: '明细账', group: 'accounting', supports: { view: true } },
 	{ pagePath: '/pages/accounting/trial-balance', label: '试算平衡', group: 'accounting', supports: { view: true } },
+	{ pagePath: '/pages/accounting/reconciliation-center', label: '对账中心', group: 'accounting', supports: { view: true, update: true } },
 	{ pagePath: '/pages/accounting/report-summary', label: '报表汇总', group: 'accounting', supports: { view: true } },
 	{ pagePath: '/pages/accounting/period-list', label: '账期管理', group: 'accounting', supports: { view: true, create: true, update: true, delete: true } },
 	{ pagePath: '/pages/accounting/receivable-detail', label: '往来明细', group: 'accounting', supports: { view: true } },

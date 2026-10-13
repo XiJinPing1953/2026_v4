@@ -6,150 +6,126 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.12-customer-adjustments",
+      "version": "2026.10.13-reconciliation-center",
       "output": "dist/build/web",
-      "acceptance": "Partial rounding reversal and selected overpayment settlement preserve original cash, keep gas revenue separate, share statement/export calculations and reject stale, duplicate or dependent mutations.",
+      "acceptance": "Imported accounting files, customer mappings, complete CRM checks and difference review share version-bound evidence. Cache-only automatic refresh and confirmed typed repairs preserve operation identity and verify exact writes without claiming whole-customer clearance.",
       "deploymentScope": {
         "functions": [
+          "crm-reconciliation",
           "crm-customer-settlement",
-          "crm-sale",
-          "crm-report"
+          "crm-accounting-correction"
         ],
         "databaseFiles": [
-          "crm_customer_opening_debts.schema.json",
-          "crm_customer_allocations.schema.json"
+          "crm_reconciliation_batches.index.json",
+          "crm_reconciliation_batches.schema.json",
+          "crm_reconciliation_mappings.index.json",
+          "crm_reconciliation_mappings.schema.json",
+          "crm_reconciliation_results.index.json",
+          "crm_reconciliation_results.schema.json",
+          "crm_reconciliation_sources.index.json",
+          "crm_reconciliation_sources.schema.json"
         ],
-        "baseCommit": "69d5651428138f6c4efcf4e7436f5915f7c7d0ed",
+        "baseCommit": "33680e33b32486ae5d6734f4c1950eb51d85f13f",
         "sourceFiles": [
-          "src/components/base/AppModal.vue",
-          "src/components/domain/accounting/ReportSummaryView.vue",
-          "src/components/domain/customer/statement/CustomerAdjustmentPanel.vue",
-          "src/components/domain/customer/statement/CustomerStatementModule.vue",
-          "src/components/domain/customer/statement/exportWorkbook.js",
-          "src/composables/useCustomerAdjustment.js",
-          "src/services/customerSettlement.js",
-          "src/services/mappers/customerPeriodSummary.js",
-          "src/services/report.js",
-          "uniCloud-alipay/cloudfunctions/common/customerAdjustmentGuard.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerAdjustment.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerAdjustmentGuardLocal.js",
+          "src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue",
+          "src/components/domain/accounting/reconciliation/ReconciliationRepairPanel.vue",
+          "src/components/domain/dashboard/DashboardHome.vue",
+          "src/composables/useReconciliationCenter.js",
+          "src/composables/useReconciliationRepair.js",
+          "src/pages.json",
+          "src/pages/accounting/reconciliation-center.vue",
+          "src/services/api/reconciliation.js",
+          "src/services/pageAclRegistry.js",
+          "src/services/reconciliationFiles.js",
+          "uniCloud-alipay/cloudfunctions/common/customerReconciliation.js",
+          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/plan.js",
           "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/periodSummary.js",
-          "uniCloud-alipay/cloudfunctions/crm-report/financialReadLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-report/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-report/pageAclLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-report/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-report/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-report/settlementIncome.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/customerAdjustmentGuardLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/database/crm_customer_allocations.schema.json",
-          "uniCloud-alipay/database/crm_customer_opening_debts.schema.json",
-          "uniCloud-alipay/database/schema/crm_customer_allocations.schema.json",
-          "uniCloud-alipay/database/schema/crm_customer_opening_debts.schema.json"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-customer-settlement": {
-            "registry": {
-              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
-              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
-            }
-          },
-          "crm-sale": {
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            },
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            }
-          },
-          "crm-report": {
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            },
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            }
-          }
-        }
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/reconciliationAudit.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/customerReconciliationLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/financialReadLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/package.json",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/pageAclLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/service.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/source.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/vendor/LICENSE",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/vendor/README.md",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/vendor/xlsx.js",
+          "uniCloud-alipay/database/crm_reconciliation_batches.index.json",
+          "uniCloud-alipay/database/crm_reconciliation_batches.schema.json",
+          "uniCloud-alipay/database/crm_reconciliation_mappings.index.json",
+          "uniCloud-alipay/database/crm_reconciliation_mappings.schema.json",
+          "uniCloud-alipay/database/crm_reconciliation_results.index.json",
+          "uniCloud-alipay/database/crm_reconciliation_results.schema.json",
+          "uniCloud-alipay/database/crm_reconciliation_sources.index.json",
+          "uniCloud-alipay/database/crm_reconciliation_sources.schema.json"
+        ]
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.12-customer-adjustments",
+      "version": "2026.10.13-reconciliation-center",
       "output": "release/cloud",
-      "acceptance": "Partial rounding reversal and selected overpayment settlement preserve original cash, keep gas revenue separate, share statement/export calculations and reject stale, duplicate or dependent mutations.",
+      "acceptance": "Imported accounting files, customer mappings, complete CRM checks and difference review share version-bound evidence. Cache-only automatic refresh and confirmed typed repairs preserve operation identity and verify exact writes without claiming whole-customer clearance.",
       "deploymentScope": {
         "functions": [
+          "crm-reconciliation",
           "crm-customer-settlement",
-          "crm-sale",
-          "crm-report"
+          "crm-accounting-correction"
         ],
         "databaseFiles": [
-          "crm_customer_opening_debts.schema.json",
-          "crm_customer_allocations.schema.json"
+          "crm_reconciliation_batches.index.json",
+          "crm_reconciliation_batches.schema.json",
+          "crm_reconciliation_mappings.index.json",
+          "crm_reconciliation_mappings.schema.json",
+          "crm_reconciliation_results.index.json",
+          "crm_reconciliation_results.schema.json",
+          "crm_reconciliation_sources.index.json",
+          "crm_reconciliation_sources.schema.json"
         ],
-        "baseCommit": "69d5651428138f6c4efcf4e7436f5915f7c7d0ed",
+        "baseCommit": "33680e33b32486ae5d6734f4c1950eb51d85f13f",
         "sourceFiles": [
-          "src/components/base/AppModal.vue",
-          "src/components/domain/accounting/ReportSummaryView.vue",
-          "src/components/domain/customer/statement/CustomerAdjustmentPanel.vue",
-          "src/components/domain/customer/statement/CustomerStatementModule.vue",
-          "src/components/domain/customer/statement/exportWorkbook.js",
-          "src/composables/useCustomerAdjustment.js",
-          "src/services/customerSettlement.js",
-          "src/services/mappers/customerPeriodSummary.js",
-          "src/services/report.js",
-          "uniCloud-alipay/cloudfunctions/common/customerAdjustmentGuard.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerAdjustment.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerAdjustmentGuardLocal.js",
+          "src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue",
+          "src/components/domain/accounting/reconciliation/ReconciliationRepairPanel.vue",
+          "src/components/domain/dashboard/DashboardHome.vue",
+          "src/composables/useReconciliationCenter.js",
+          "src/composables/useReconciliationRepair.js",
+          "src/pages.json",
+          "src/pages/accounting/reconciliation-center.vue",
+          "src/services/api/reconciliation.js",
+          "src/services/pageAclRegistry.js",
+          "src/services/reconciliationFiles.js",
+          "uniCloud-alipay/cloudfunctions/common/customerReconciliation.js",
+          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/plan.js",
           "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/periodSummary.js",
-          "uniCloud-alipay/cloudfunctions/crm-report/financialReadLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-report/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-report/pageAclLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-report/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-report/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-report/settlementIncome.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/customerAdjustmentGuardLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/database/crm_customer_allocations.schema.json",
-          "uniCloud-alipay/database/crm_customer_opening_debts.schema.json",
-          "uniCloud-alipay/database/schema/crm_customer_allocations.schema.json",
-          "uniCloud-alipay/database/schema/crm_customer_opening_debts.schema.json"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-customer-settlement": {
-            "registry": {
-              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
-              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
-            }
-          },
-          "crm-sale": {
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            },
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            }
-          },
-          "crm-report": {
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            },
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            }
-          }
-        }
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/reconciliationAudit.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/customerReconciliationLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/financialReadLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/package.json",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/pageAclLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/service.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/source.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/vendor/LICENSE",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/vendor/README.md",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/vendor/xlsx.js",
+          "uniCloud-alipay/database/crm_reconciliation_batches.index.json",
+          "uniCloud-alipay/database/crm_reconciliation_batches.schema.json",
+          "uniCloud-alipay/database/crm_reconciliation_mappings.index.json",
+          "uniCloud-alipay/database/crm_reconciliation_mappings.schema.json",
+          "uniCloud-alipay/database/crm_reconciliation_results.index.json",
+          "uniCloud-alipay/database/crm_reconciliation_results.schema.json",
+          "uniCloud-alipay/database/crm_reconciliation_sources.index.json",
+          "uniCloud-alipay/database/crm_reconciliation_sources.schema.json"
+        ]
       },
       "integrityScope": "deployment"
     }

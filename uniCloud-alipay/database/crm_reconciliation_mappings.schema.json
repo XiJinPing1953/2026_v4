@@ -1,0 +1,32 @@
+{
+  "bsonType": "object",
+  "required": [
+    "company",
+    "version",
+    "items"
+  ],
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "company": {
+      "bsonType": "string"
+    },
+    "version": {
+      "bsonType": "int"
+    },
+    "items": {
+      "bsonType": "array"
+    },
+    "updated_at": {
+      "bsonType": "long"
+    }
+  },
+  "indexes": []
+}

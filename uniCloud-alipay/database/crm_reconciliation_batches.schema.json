@@ -1,0 +1,52 @@
+{
+  "bsonType": "object",
+  "required": [
+    "company",
+    "cutoff",
+    "source",
+    "accounting"
+  ],
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "company": {
+      "bsonType": "string"
+    },
+    "cutoff": {
+      "bsonType": "string"
+    },
+    "created_at": {
+      "bsonType": "long"
+    },
+    "source": {
+      "bsonType": "object"
+    },
+    "accounting": {
+      "bsonType": "object"
+    },
+    "customer_inventory": {
+      "bsonType": "array"
+    },
+    "details_revision": {
+      "bsonType": "int",
+      "minimum": 0
+    }
+  },
+  "indexes": [
+    {
+      "name": "company_created",
+      "key": {
+        "company": 1,
+        "created_at": -1
+      },
+      "unique": false
+    }
+  ]
+}

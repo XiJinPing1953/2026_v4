@@ -417,6 +417,10 @@
 								<view class="nav-icon bg-finance"><AppIcon name="list" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">操作日志</text>
 							</view>
+							<view v-if="canView('/pages/accounting/reconciliation-center')" class="nav-grid-item" @click="go('/pages/accounting/reconciliation-center')">
+								<view class="nav-icon bg-finance"><AppIcon name="search" color="#fff" size="30rpx" /></view>
+								<text class="nav-text">对账中心</text>
+							</view>
 						</view>
 					</AppSection>
 				</view>

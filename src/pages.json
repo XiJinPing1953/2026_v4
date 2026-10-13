@@ -327,6 +327,10 @@
 			}
 		},
 		{
+			"path": "pages/accounting/reconciliation-center",
+			"style": { "navigationBarTitleText": "对账中心" }
+		},
+		{
 			"path": "pages/accounting/report-summary",
 			"style": {
 				"navigationBarTitleText": "报表汇总"

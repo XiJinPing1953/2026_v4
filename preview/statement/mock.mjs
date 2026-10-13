@@ -93,8 +93,10 @@ function cashierAction(action,d){
  if(action==='getReceiptIntakeOperationV2'){const operation=cashierOperations.get(d.operation_id);return ok(operation?.result?{found:true,result:operation.result}:{found:false})}
  return null
 }
+import { reconciliationPreview } from '../reconciliation/mock.mjs'
 export async function callCloud(name,{action,data:d={}}={}){
  console.info('[statement-preview]',name,action)
+ if(name==='crm-reconciliation')return reconciliationPreview(action,d)
  if(name==='crm-customer'&&action==='listV1'){
   const keyword=String(d.keyword||'').trim().toLowerCase(),customers=demoCustomerIds.map(id=>fixture(id).customer).filter(customer=>!keyword||[customer.name,customer.phone,...customer.matched_delivery_sites.map(site=>site.name)].some(value=>String(value||'').toLowerCase().includes(keyword)))
   return ok(customers,{paging:{page:1,pageSize:Number(d.pageSize)||20,total:customers.length,hasMore:false}})

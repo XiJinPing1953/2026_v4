@@ -1,7 +1,7 @@
 'use strict'
 const { digest } = require('./snapshot')
 const { computeSaleAmountsForDoc } = require('./saleAccountingLocal')
-const VERSION = 'accounting-correction/2026-10-12.1'
+const VERSION = 'accounting-correction/2026-10-13.1'
 const assert = (ok, message) => { if (!ok) throw Error(message) }
 const active = row => !row.status || row.status === 'posted'
 const target = row => row.target_id || row.sale_id
@@ -28,7 +28,8 @@ function buildPlan(before, request, actor, now) {
   const t = before.tables, customerId = request.customer_id, evidence = request.evidence
   assert(before.complete === true && before.customer_id === customerId && before.snapshot_hash === snapshotHash(t), '原值不完整或客户不符')
   assert(request.expected_snapshot_hash === before.snapshot_hash, '备份后原值变化')
-  assert(evidence?.confirmed_by_user === true && /^[a-f0-9]{64}$/.test(evidence.approval_sha256 || '') && /^[a-f0-9]{40}$/.test(evidence.source_commit || ''), '缺少业务确认及源码依据')
+  assert(evidence?.confirmed_by_user === true && /^[a-f0-9]{64}$/.test(evidence.approval_sha256 || '') &&
+    (/^[a-f0-9]{40}$/.test(evidence.source_commit || '') || /^[a-f0-9]{64}$/.test(evidence.source_sha256 || '')), '缺少业务确认及源码依据')
   assert(actor?._id && Number.isSafeInteger(now) && now > 0, '执行人或时间无效')
   const customer = t.crm_customers[0]
   assert(t.crm_customers.length === 1 && customer._id === customerId && customer.default_price_unit !== 'm3', '本版仅支持独立两位金额客户')

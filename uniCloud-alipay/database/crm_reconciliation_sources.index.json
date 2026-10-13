@@ -1,0 +1,21 @@
+[
+  {
+    "IndexName": "batch_kind",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "batch_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "kind",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  }
+]

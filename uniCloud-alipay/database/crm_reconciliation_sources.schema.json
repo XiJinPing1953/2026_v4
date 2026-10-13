@@ -1,0 +1,54 @@
+{
+  "bsonType": "object",
+  "required": [
+    "batch_id",
+    "kind",
+    "sha256",
+    "base64"
+  ],
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "batch_id": {
+      "bsonType": "string"
+    },
+    "company": {
+      "bsonType": "string"
+    },
+    "kind": {
+      "bsonType": "string"
+    },
+    "accountant_code": {
+      "bsonType": "string"
+    },
+    "sha256": {
+      "bsonType": "string"
+    },
+    "base64": {
+      "bsonType": "string"
+    },
+    "parsed": {
+      "bsonType": "object"
+    },
+    "created_at": {
+      "bsonType": "long"
+    }
+  },
+  "indexes": [
+    {
+      "name": "batch_kind",
+      "key": {
+        "batch_id": 1,
+        "kind": 1
+      },
+      "unique": false
+    }
+  ]
+}

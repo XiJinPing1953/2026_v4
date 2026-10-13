@@ -57,6 +57,9 @@ const CASHIER_TARGET_PREVIEW_LIMIT = 3
 const AUTO_PREPAY_ALLOCATION_SOURCE_TYPES = ['sale_auto_prepay', 'flow_auto_prepay']
 const AUTO_PREPAY_REPAIR_CONFIRM_TEXT = 'ROLLBACK_AUTO_PREPAY_ALLOCATIONS'
 const PAGE_ACTION_RULES = {
+	inspectReconciliationCustomerV1: [{ pagePath: '/pages/accounting/reconciliation-center', action: 'view' }],
+	refreshReconciliationCacheV1: [{ pagePath: '/pages/accounting/reconciliation-center', action: 'update' }],
+	getReconciliationCacheOperationV1: [{ pagePath: '/pages/accounting/reconciliation-center', action: 'view' }],
 	getCustomerAdjustmentSourcesV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	previewCustomerAdjustmentV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	postCustomerAdjustmentV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
@@ -10184,6 +10187,20 @@ const main = async (event, context) => {
 		cloudFunction: 'crm-customer-settlement'
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
+	if (['inspectReconciliationCustomerV1', 'refreshReconciliationCacheV1', 'getReconciliationCacheOperationV1'].includes(action)) {
+		try {
+			const service = require('./reconciliationAudit').createAuditService({ db, command: dbCmd, readComplete,
+				moneyScale: resolveCustomerMoneyScale, saleSnapshot: computeSaleSnapshot, flowSnapshot: computeFlowSettlementSnapshot,
+				debtSnapshot: computeOpeningDebtSnapshot, computeBalances: scope => buildAdjustmentBalancePatch(scope, { operationId: 'audit-preview', now: 0 }),
+				resolveSalesScope: async customerId => {
+					const hiddenIds = (await readComplete(customers, { is_hidden: true }, { command: dbCmd, field: { _id: true }, source: 'reconciliation.hidden_customers' })).map(row => normalizeId(row._id)).sort()
+					const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, hiddenIds, ['customer_id', 'delivery_customer_id'])
+					return { where: hiddenWhere ? dbCmd.and([{ customer_id: customerId }, hiddenWhere]) : { customer_id: customerId }, version: depositModel.digest(hiddenIds) }
+				}
+			})
+			return { code: 0, data: await service.run(action, data, user) }
+		} catch (error) { return { code: error.code || 409, msg: error.message, data: error.details || {} } }
+	}
 	if (['getCustomerAdjustmentSourcesV1','previewCustomerAdjustmentV1','postCustomerAdjustmentV1','getCustomerAdjustmentOperationV1','voidCustomerAdjustmentV1'].includes(action)) {
 		try {
 			const service = customerAdjustment.createAdjustmentService({ db, command: dbCmd, readComplete,

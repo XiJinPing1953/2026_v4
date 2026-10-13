@@ -1,0 +1,21 @@
+[
+  {
+    "IndexName": "batch_customer",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "batch_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "customer_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  }
+]

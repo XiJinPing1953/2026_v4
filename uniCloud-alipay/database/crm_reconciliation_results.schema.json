@@ -1,0 +1,56 @@
+{
+  "bsonType": "object",
+  "required": [
+    "batch_id",
+    "customer_id",
+    "result_hash"
+  ],
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "batch_id": {
+      "bsonType": "string"
+    },
+    "customer_id": {
+      "bsonType": "string"
+    },
+    "company": {
+      "bsonType": "string"
+    },
+    "result_hash": {
+      "bsonType": "string"
+    },
+    "source_hash": {
+      "bsonType": "string"
+    },
+    "checked_at": {
+      "bsonType": "long"
+    },
+    "review": {
+      "bsonType": "object"
+    },
+    "internal": {
+      "bsonType": "object"
+    },
+    "issues": {
+      "bsonType": "array"
+    }
+  },
+  "indexes": [
+    {
+      "name": "batch_customer",
+      "key": {
+        "batch_id": 1,
+        "customer_id": 1
+      },
+      "unique": false
+    }
+  ]
+}

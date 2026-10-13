@@ -34,7 +34,8 @@
         "uniCloud-alipay/cloudfunctions/crm-bottle-movement/financialReadLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-filling/financialReadLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/financialReadLocal.js",
-        "uniCloud-alipay/cloudfunctions/crm-report/financialReadLocal.js"
+        "uniCloud-alipay/cloudfunctions/crm-report/financialReadLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-reconciliation/financialReadLocal.js"
       ]
     },
     {
@@ -104,6 +105,12 @@
       "targets": [
         "uniCloud-alipay/cloudfunctions/crm-sale/customerAdjustmentGuardLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerAdjustmentGuardLocal.js"
+      ]
+    },
+    {
+      "source": "uniCloud-alipay/cloudfunctions/common/customerReconciliation.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-reconciliation/customerReconciliationLocal.js"
       ]
     }
   ],
