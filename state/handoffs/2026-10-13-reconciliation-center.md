@@ -9,5 +9,13 @@
 - 已修关键集成问题：实时读取时间不进入稳定结果哈希；复用旧批次仍绑定新操作号；原文件科目编码不能被调用者覆盖；好会计待办不能在复查后变为有效核准；无缓存公式不能按零解析；操作验证与整户结果分离并保留历史验证。
 - 证据边界：完整分页、反向关联及双读检测不是跨集合原子快照。重开批次先待复核；隐藏、合并或归属/证据不明保持待核。当前为交互式文件导入流程，没有好会计接口写入、无人值守巡检、自动取数或自动凭证。
 - 历史边界：本轮未修改真实客户历史账务。云海2元优惠保留；付佳23900/22942.50/2.50/960是合成验收数据，实际旧费用分类未随功能修正。海圣既有修复不在本轮重做。
-- 发布状态：待主任务核实源码提交、生产云函数/schema、H5产物与实际回读；此记录只确认以上本地实现和测试，不宣称已部署。尚未记录本轮真实云端写入/回滚或正式页面验收。
-- 继续入口：[使用流程](../../docs/CUSTOMER_RECONCILIATION.md)、[修正协议](../../docs/ACCOUNTING_CORRECTION.md)、[账务决定](../domains/accounting.md)。后续发布与验收补充本记录，STATE仅保留状态和链接。
+- 最终工程验证：`npm run test:reconciliation`共83项，82通过、1项因历史K006样本缺失跳过；`npm run test:accounting-release`144项通过，合计226通过、1跳过。新页面16项测试已包含在专项中，不重复计数。另有原预览21项回归通过。绑定支付宝空间的干净H5构建、云端发布清单完整性及上下文检查通过。
+- 浏览器本地验收：Chrome在1440×900、390×844、320×720下核查列表、四项控制数、映射及待办弹窗，未见横向溢出或控件遮挡；逐户检查、好会计待办不消除差异、映射后复核、关闭弹窗恢复阅读位置通过。文件选择器可打开，但自动选本地文件被浏览器扩展权限限制，未完成浏览器导入全流程；真实xls/xlsx解析已由后端测试单独覆盖。
+- 已发布：实现提交`a116305`、界面及核准修正`04b1590`、批次索引修正`604ae9c`已在main。正式环境为支付宝`env-00jxuffegf2n`。云端源码`604ae9c7d4f8170e6bef2026896c0e8871097ed4`，发布`crm-reconciliation`、`crm-customer-settlement`、`crm-accounting-correction`及四个新集合schema；下载回读43个函数文件与4个schema一致。没有初始化数据库或修改历史业务记录。
+- 物理索引已在控制台单独补建并读回：batches的`company_lookup(company)`、sources的`batch_kind(batch_id,kind)`、results的`batch_customer(batch_id,customer_id)`，均varchar升序、非唯一、非稀疏、不启用TTL；四集合原`_id_`保留，mappings不新增索引。CLI schema上传不代表物理索引已建，独立证据为`physical-indexes-qa.json`。
+- H5已发布：干净源码`04b1590f8e22660977e729aa00158b13692a936a`、构建`1791875895457-d728c176`、入口`/assets/index-9SRrhsIF.js`；190文件上传完成，189项版本/产物资源回读通过。云托管对12份CSS增加CRLF前缀，逐文件原文及交付哈希已绑定本次版本，仅接受该精确差异；差异清单哈希`8d998c7cfcc03dbda359faf04d1304884b4edaa23e7f6754397e48c6749fe1fc`。后续`604ae9c`只改批次索引/schema，未改变H5运行源码。
+- 正式只读接口验收：未登录请求被拒绝，context完整返回140客户；云海、付佳内部检查的原始读取均完整，仍分别有32和10条规则待核事项，自动缓存刷新资格均为false。这些是待核线索，不是已核实的32/10笔错账，也不改变云海已确认2元优惠。未执行生产导入、映射、缓存刷新、修复提交或真实云事务回滚测试。
+- 正式浏览器验收：已确认正式域名加载新入口；CRM会话过期后跳登录页，已请求用户重新登录，导入字段、批次列表及首页入口的正式页面验收待补。不得将静态回读或后端只读通过写成完整业务验收。
+- 证据目录：`outputs/trust-audit/2026-10-13-reconciliation-center/`（本地受控、不提交原始客户资料）。主要为`reconciliation-tests.log`、`accounting-release-tests.log`、`frontend-visual-qa.json`、`cloud-release-candidate.json`、`cloud-readback.json`、`physical-indexes-qa.json`、`web-readback-final.json`、`production-read-smoke.json`、`production-ui-qa.json`；首次严格CSS回读失败另存，未覆盖失败记录。
+- 恢复边界：前版H5为`1791795291683-2c9e0e49`（源码`0c1c56c`），部署前两个既有函数副本保存于证据目录`cloud-before/`，且与改动前主线一致。需回退时恢复旧页面及两个既有函数即可隐藏新流程；保留新集合、索引和审计记录，不能通过删库或倒改原单回退。已发生的业务修复仍按原操作号及各操作条件作废流程独立处理。
+- 继续入口：[使用流程](../../docs/CUSTOMER_RECONCILIATION.md)、[修正协议](../../docs/ACCOUNTING_CORRECTION.md)、[账务决定](../domains/accounting.md)。下一步补完正式页面只读验收；实际导入及历史问题处理按财务确认的账套、截止日、映射和证据执行，不随功能发布自动清账。后台巡检及好会计自动取数不在本版。
