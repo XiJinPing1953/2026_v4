@@ -20,3 +20,18 @@
 - 证据目录：`outputs/trust-audit/2026-10-13-reconciliation-center/`（本地受控、不提交原始客户资料）。主要为`reconciliation-tests.log`、`accounting-release-tests.log`、`frontend-visual-qa.json`、`cloud-release-candidate.json`、`cloud-readback.json`、`physical-indexes-qa.json`、`web-readback-picker-fix.json`、`production-read-smoke.json`、`production-ui-qa-picker-fix.json`；旧版本、首次严格CSS回读失败、登录阻塞及发现点击问题的记录分别保留，未覆盖失败记录。
 - 恢复边界：前版H5为`1791795291683-2c9e0e49`（源码`0c1c56c`），部署前两个既有函数副本保存于证据目录`cloud-before/`，且与改动前主线一致。需回退时恢复旧页面及两个既有函数即可隐藏新流程；保留新集合、索引和审计记录，不能通过删库或倒改原单回退。已发生的业务修复仍按原操作号及各操作条件作废流程独立处理。
 - 继续入口：[使用流程](../../docs/CUSTOMER_RECONCILIATION.md)、[修正协议](../../docs/ACCOUNTING_CORRECTION.md)、[账务决定](../domains/accounting.md)。功能发布及正式页面只读验收已完成；实际导入及历史问题处理按财务确认的账套、截止日、映射和证据执行，不随功能发布自动清账。后台巡检及好会计自动取数不在本版。
+
+## 2026-10-14 首次真实流程测试：核查链路仍有阻断
+
+用户要求实际操作查找堵点。本轮没有修代码或再次发布。昨天的发布回读、入口及只读接口验收有效，但不能代表完整导入—核查—修复链路已经可用；本轮发现下述实际阻断，优先于此前发布完成表述。
+
+- 输入：沿用已确认截止2026-09-23的原始统计表，SHA-256 `3f318f4a271514a8f8427898e64bb7179ef681a6f1148ca0577533d4ca9c69e0`，182个好会计科目；付佳明细154条、科目`112202150216`，两表账套、期间和四控制数在真实解析函数中均通过。仅从已有确认文件恢复付佳映射；未自行确认其他客户对应关系。
+- 页面实操：账套及日期可正常回填。自动化文件上传受Chrome扩展file URL权限限制；原生窗口选中精确文件后Open仍禁用，已停止重复尝试。此项记为测试环境未打通，不将其当作产品导入失败，也不宣称浏览器导入全流程通过。
+- 正式接口已通过：原始统计表导入348ms，同号重复导入858ms且复用同一批次；付佳已确认映射保存141ms；明细导入521ms、重复导入162ms且复用来源；原始文件下载321ms，字节哈希一致。创建批次`39bba13d4c969379205fcc1d`（截至9/23），保存付佳对应、明细及一次未完成核查结果。未提交财务修复、未刷新缓存、未改变原单及金额。
+- **实际阻断：云函数间调用10秒超时。** `checkCustomerV1`耗时10953ms，外层code=0，但首次内部自检超时，未拿到CRM账簿；`repairSourcesV1`耗时11081ms、code=409，同为`HttpClientRequestTimeoutError: Request timeout for 10000 ms`。`crm-reconciliation/index.js`嵌套callFunction未显式配置timeout；外层函数60秒与客户端60000ms不等于嵌套调用预算。核查和修复来源查询均需修复并真实复验，不能只增大页面等待。
+- **失败提示误导。** 超时被包装为无period的错误账簿，计算模块仍验证期间及明细，额外生成`PERIOD_INVALID`和`DETAIL_SCOPE_INVALID`。本批报表期间正确，这两项不是会计资料错误；应首先标明CRM读取失败，跳过依赖缺失账簿的期间/明细判断。
+- **恢复队列遗漏失败户。** 该失败结果仍有result_hash且stale=false；前端只按这两个条件及issues数组判断请求完成，清除failures，pending只看无结果/stale。因此读取超时会退出继续待查队列。需区分“读取失败可重试”与“已完整检查但有业务差异”，不能把所有internal.complete=false都当网络错误。
+- **首批流程待优化。** 首次导入自动开始逐户重核查，尚无客户对应时也执行两次内部完整读取和一次账簿导出；检查中映射按钮被禁用，只能先暂停。此次仅实测付佳，未运行全135主户，不推算全批耗时。既有CLI确认映射不会自动导入新中心，需显式承接已有确认依据。
+- **另外两个代码边界问题。** 自定义仅view、无update的财务账号仍看到启用的写入按钮，提交才被后端403拒绝（默认角色正常，未修改真实账号复现）；自指`settlement_customer_id === _id`主户在UI/服务层获准、纯计算却排除，内存反例已复现。正式140客户中没有自指主户，后者目前是兼容缺陷，不是此次付佳阻断原因。
+- 证据：`outputs/trust-audit/2026-10-14-reconciliation-workflow/`内的`import-ui-blocker.json`、`api-workflow-report.json`及逐步原始响应。接口脚本有明确动作白名单，check显式`auto_refresh:false`，没有修复prepare/execute或核准调用。API登录沿用现有测试账号且会替换单一有效会话，原网页需重新登录；无凭据写入报告。
+- 下一步：先修嵌套调用、失败分类与恢复队列，再调整首批对应/核查顺序及按钮权限。复用本批原始来源、操作号和已确认映射继续验收，不另导一批掩盖失败；生产财务写入仍单独按真实方案确认。
