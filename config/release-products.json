@@ -24,19 +24,21 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.14-reconciliation-readable",
+      "version": "2026.10.14-reconciliation-repair",
       "output": "release/cloud",
-      "acceptance": "Reconciliation hints show dated source facts, monetary units, evidence limits and next actions in plain language. Technical details are collapsed. Source facts come from the same audit read; original financial records and audit decisions are unchanged.",
+      "acceptance": "Validate sale return-credit provenance and conservation; atomically reclassify confirmed excess payment from a fee to settlement income with protected snapshot, rollback rehearsal and idempotent execution. Cash receipt facts remain unchanged.",
       "deploymentScope": {
         "functions": [
-          "crm-customer-settlement"
+          "crm-customer-settlement",
+          "crm-accounting-correction"
         ],
         "databaseFiles": [],
-        "baseCommit": "133606dbe538f9a1ad18941ef5ac5aa99b3b1fcb",
+        "baseCommit": "81c3a36ce4aa6b116c1170b1f26152dce377dad1",
         "sourceFiles": [
-          "src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue",
-          "src/services/mappers/reconciliationIssue.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/reconciliationAudit.js"
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/reconciliationAudit.js",
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/plan.js",
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/snapshot.js",
+          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/overpaymentSettlementRepair.js"
         ]
       },
       "integrityScope": "deployment"

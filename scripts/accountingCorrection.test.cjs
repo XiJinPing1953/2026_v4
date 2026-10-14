@@ -14,7 +14,7 @@ function fixture() {
     crm_customer_allocations: [{ _id: 'e'.repeat(24), customer_id: cid, receipt_id: rid, target_type: 'opening_debt', target_id: oid,
       sale_id: oid, sale_date: '2026-01-01', biz_date: '2026-01-05', allocate_amount: 80 }],
     crm_customer_opening_debts: [{ _id: oid, customer_id: cid, amount: 80, amount_received: 80, biz_date: '2026-01-01' }] }
-  for (const k of ['crm_customer_flow_settlements', 'crm_customer_receipt_adjustments', 'crm_customer_deposit_accounts', 'crm_customer_deposit_entries', 'crm_collection_tasks', 'crm_collection_followups', 'crm_vouchers']) tables[k] = []
+  for (const k of ['crm_customer_flow_settlements', 'crm_customer_receipt_adjustments', 'crm_customer_deposit_accounts', 'crm_customer_deposit_entries', 'crm_collection_tasks', 'crm_collection_followups', 'crm_vouchers', 'crm_cashier_intakes']) tables[k] = []
   const before = { customer_id: cid, complete: true, tables, snapshot_hash: p.snapshotHash(tables) }
   const request = { customer_id: cid, operation_id: 'sample-receipt-v1', expected_snapshot_hash: before.snapshot_hash,
     evidence: { confirmed_by_user: true, approval_sha256: '1'.repeat(64), source_commit: '2'.repeat(40) },

@@ -1,7 +1,7 @@
 'use strict'
 const crypto = require('crypto')
 const { readComplete } = require('./financialReadLocal')
-const TABLES = ['crm_sale_records','crm_customer_receipts','crm_customer_allocations','crm_customer_flow_settlements','crm_customer_opening_debts','crm_customer_receipt_adjustments','crm_customer_deposit_accounts','crm_customer_deposit_entries','crm_collection_tasks','crm_collection_followups']
+const TABLES = ['crm_sale_records','crm_customer_receipts','crm_customer_allocations','crm_customer_flow_settlements','crm_customer_opening_debts','crm_customer_receipt_adjustments','crm_customer_deposit_accounts','crm_customer_deposit_entries','crm_collection_tasks','crm_collection_followups','crm_cashier_intakes']
 const optional = new Set(['crm_customer_receipt_adjustments','crm_collection_tasks','crm_collection_followups'])
 const first = r => Array.isArray(r?.data) ? r.data[0] : r?.data
 const canonical = v => Array.isArray(v) ? v.map(canonical) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])) : v
@@ -19,7 +19,7 @@ async function snapshot(db, CUSTOMER_ID) {
   tables[name]=await readComplete(db.collection(name),{customer_id:CUSTOMER_ID},{command:db.command,source:name,maxRows:10000})
  }
  const sales=tables.crm_sale_records.map(x=>x._id),receipts=tables.crm_customer_receipts.map(x=>x._id),targets=[...sales,...tables.crm_customer_opening_debts.map(x=>x._id)]
- for(const [name,field,ids] of [['crm_customer_receipts','source_id',sales],['crm_customer_allocations','receipt_id',receipts],['crm_customer_allocations','target_id',targets],['crm_customer_allocations','sale_id',sales]]) {
+ for(const [name,field,ids] of [['crm_customer_receipts','source_id',sales],['crm_customer_allocations','receipt_id',receipts],['crm_customer_allocations','target_id',targets],['crm_customer_allocations','sale_id',sales],['crm_cashier_intakes','receipt_id',receipts]]) {
   for(let i=0;i<ids.length;i+=50){const rows=await readComplete(db.collection(name),{[field]:db.command.in(ids.slice(i,i+50))},{command:db.command,source:name+'_reverse',maxRows:10000});if(rows.some(x=>x.customer_id!==CUSTOMER_ID||!tables[name].some(y=>y._id===x._id)))throw Error('范围外反向关联')}
  }
  const voucherMap=new Map();let hasVouchers=true

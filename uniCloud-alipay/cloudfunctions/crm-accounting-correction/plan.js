@@ -1,7 +1,7 @@
 'use strict'
 const { digest } = require('./snapshot')
 const { computeSaleAmountsForDoc } = require('./saleAccountingLocal')
-const VERSION = 'accounting-correction/2026-10-13.1'
+const VERSION = 'accounting-correction/2026-10-14.1'
 const assert = (ok, message) => { if (!ok) throw Error(message) }
 const active = row => !row.status || row.status === 'posted'
 const target = row => row.target_id || row.sale_id
@@ -46,15 +46,26 @@ function buildPlan(before, request, actor, now) {
     const update = { ...changes, updated_at: now, accounting_reconciliation: audit }
     writes.push({ table, id: row._id, before: row, patch: update, after: { ...row, ...update } })
   }
-  const add = (key, fields) => {
+  const add = (key, fields, table = 'crm_customer_allocations') => {
+    assert(['crm_customer_allocations', 'crm_customer_opening_debts'].includes(table) && Array.isArray(t[table]), '新增记录类型无效')
+    assert(!Object.prototype.hasOwnProperty.call(fields, '_id'), '新增编号由操作号固定生成')
     const id = digest(runId + ':' + key).slice(0, 24)
-    assert(!t.crm_customer_allocations.some(a => a._id === id) && !touched.has('crm_customer_allocations/' + id), '分配编号已存在')
-    touched.add('crm_customer_allocations/' + id)
+    assert(!t[table].some(a => a._id === id) && !touched.has(table + '/' + id), '确定编号已存在')
+    touched.add(table + '/' + id)
     const after = { _id: id, customer_id: customerId, customer_name: customer.name, created_at: now, updated_at: now,
       created_by: actor._id, created_by_name: actor.username || '', request_id: runId, status: 'posted', accounting_reconciliation: audit, ...fields }
-    writes.push({ table: 'crm_customer_allocations', id, before: null, after })
+    writes.push({ table, id, before: null, after })
+    return id
   }
   const allocations = t.crm_customer_allocations.filter(active)
+  if (request.corrections.some(change => change.type === 'reclassify_overpayment_settlement')) {
+    const summary = require('./overpaymentSettlementRepair')({ t, request, allocations, patch, add, fen, assert, computeSaleAmountsForDoc, actor, now })
+    patch('crm_customers', customer, {})
+    const plan = { run_id: runId, customer_id: customerId, rule_version: VERSION, source_snapshot_hash: before.snapshot_hash,
+      request_hash: digest(request), evidence, summary: { ...summary, writes: writes.length }, writes }
+    plan.plan_hash = digest(plan)
+    return plan
+  }
   if (request.corrections.some(change => change.type === 'restore_haisheng_offset_20261012')) {
     const summary = require('./haishengOffsetRepair')({ t, request, allocations, patch, add, fen, assert, computeSaleAmountsForDoc })
     const plan = { run_id: runId, customer_id: customerId, rule_version: VERSION, source_snapshot_hash: before.snapshot_hash,

@@ -4,7 +4,7 @@
 // summary fields. Receipt availability and target paid amounts remain facts.
 const { digest } = require('./depositModel')
 const { isOffsetCreditReceipt, isDepositTransferReceipt, isSettlementFeeReceipt } = require('./receiptSource')
-const VERSION = 'reconciliation-audit/2026-10-13.1'
+const VERSION = 'reconciliation-audit/2026-10-14.1'
 const TABLES = { sales: 'crm_sale_records', flows: 'crm_customer_flow_settlements', debts: 'crm_customer_opening_debts',
   receipts: 'crm_customer_receipts', allocations: 'crm_customer_allocations', intakes: 'crm_cashier_intakes' }
 const CACHE_FIELDS = ['receivable_balance', 'prepay_balance', 'prepay_manual_balance', 'receipt_unallocated_balance', 'offset_credit_balance', 'net_balance']
@@ -19,6 +19,11 @@ const debtType = row => row.source_type === 'balance_adjustment' ? 'balance_adju
 const dateValid = x => /^\d{4}-\d{2}-\d{2}$/.test(text(x)) && Number.isFinite(Date.parse(x)) && new Date(x + 'T00:00:00Z').toISOString().slice(0, 10) === x
 const operationKey = (cid, operation) => digest(['reconciliation-cache', cid, operation]).slice(0, 24)
 const cacheValues = row => Object.fromEntries(CACHE_FIELDS.map(k => [k, row?.[k] ?? null]))
+const saleOffsetSource = row => ['sale_offset_credit', 'sale_offset_credit_repair'].includes(text(row?.source_type))
+// Match the established enabled values, but keep unrecognized legacy flags
+// pending instead of treating a guessed default as financial evidence.
+const offsetEnabled = row => row.offset_enabled == null || row.offset_enabled === '' || row.offset_enabled === true ||
+  row.offset_enabled === 1 || ['true', '1', 'yes', 'y', 'on'].includes(text(row.offset_enabled).toLowerCase())
 const factAmount = value => ['string', 'number'].includes(typeof value) && text(value) !== '' && Number.isFinite(Number(value))
   ? Number(value) : null
 // Display facts are yuan values from the same read, never integer minor units.
@@ -87,7 +92,10 @@ function createAuditService({ db, command, readComplete, resolveCustomer, moneyS
       ...receiptIds.map(receipt_id => ({ receipt_id })),
       ...targetIds.flatMap(id => [{ target_id: id }, { sale_id: id }, { flow_settlement_id: id }])
     ])
-    s.reverse_receipts = await unionRead(TABLES.receipts, receiptIds.map(source_id => ({ source_id })))
+    s.reverse_receipts = await unionRead(TABLES.receipts, [
+      ...[...receiptIds, ...s.sales.map(r => r._id)].map(source_id => ({ source_id })),
+      ...receiptIds.map(offset_source_receipt_id => ({ offset_source_receipt_id }))
+    ])
     // refund_sources is an array; inspect actual links, rather than depending on
     // provider-specific dotted-array filtering that could silently omit one.
     const refundRows = await read(TABLES.receipts, { source_type: 'customer_cash_refund' })
@@ -176,7 +184,8 @@ function createAuditService({ db, command, readComplete, resolveCustomer, moneyS
         else if (mode === 'agent_sale') quantityKnown = Array.isArray(row.agent_sale_items) && row.agent_sale_items.every(r => numeric(r.fill_weight))
         else if (unit === 'm3') quantityKnown = numeric(row.flow_volume_m3) || ['flow_index_curr', 'flow_index_prev'].every(k => numeric(row[k]))
         else quantityKnown = (Array.isArray(row.out_items) || Array.isArray(row.back_items)) &&
-          [row.out_items, row.back_items].filter(r => r != null).every(rows => Array.isArray(rows) && (unit === 'bottle' || rows.every(r => numeric(r.net))))
+          [row.out_items, row.back_items].filter(r => r != null).every(rows => Array.isArray(rows) &&
+            (unit === 'bottle' || rows.every(r => numeric(r.net) && Number(r.net) >= 0)))
         if (!quantityKnown) issue('evidence_missing', 'sale_quantity_missing', '销售计价依据缺失或无效，不能按零数量核对', type, row)
       }
       if ((type === 'flow_settlement' && row.should_receive == null) || (type !== 'sale' && type !== 'flow_settlement' && row.amount == null))
@@ -188,16 +197,19 @@ function createAuditService({ db, command, readComplete, resolveCustomer, moneyS
       const cash = units(row.amount_received, type, row, 'amount_received')
       const rounding = units(row.receipt_rounding_amount, type, row, 'receipt_rounding_amount', true)
       const own = units(row.rounding_amount ?? item.value.rounding_amount, type, row, 'rounding_amount', true)
-      const effective = units(item.value.should_receive_effective ?? item.value.should_receive, type, row, 'effective_should_receive')
       const gross = item.value.should_receive ?? item.value.amount ?? row.amount
-      if (own !== null && gross != null && own > Math.round(Number(gross) * divisor))
+      const effective = units(item.value.should_receive_effective ?? item.value.should_receive, type, row, 'effective_should_receive', false,
+        type === 'sale' && Number(gross) < 0 && own === 0)
+      item.returnCredit = type === 'sale' && effective !== null && effective < 0 && Number(gross) < 0 &&
+        cash === 0 && rounding === 0 && own === 0 ? -effective : null
+      if (own !== null && gross != null && own > Math.max(0, Math.round(Number(gross) * divisor)))
         issue('amount_difference', 'source_rounding_exceeded', '原单自身减免超过原应收金额', type, row)
       const linked = allocations.filter(r => targetKey(r) === `${type}:${row._id}`)
       const allocated = sum(linked.filter(r => (r.allocate_kind || 'receipt') === 'receipt'), 'allocation')
       compare(cash, allocated, cash > allocated ? 'embedded_receipt_without_backing' : 'target_receipt_mismatch',
         cash > allocated ? '原单内嵌已收缺少同笔正式分配依据，不能判定现金已核清' : '原单已收与正式分配不一致', type, row)
       compare(rounding, sum(linked.filter(r => r.allocate_kind === 'rounding'), 'allocation'), 'target_rounding_mismatch', '原单收款抹零与分配依据不一致', type, row)
-      if (effective !== null && cash !== null && rounding !== null && cash + rounding > effective)
+      if (effective !== null && cash !== null && rounding !== null && cash + rounding > Math.max(0, effective))
         issue('amount_difference', 'target_overallocated', '原单收款与抹零超过应收', type, row)
       if (own !== null && own > 0 && row.source_type === 'balance_adjustment')
         issue('classification_difference', 'adjustment_own_rounding', '余额调整单包含额外抹零，须核对来源', type, row)
@@ -218,15 +230,36 @@ function createAuditService({ db, command, readComplete, resolveCustomer, moneyS
         allocationKeys.set(duplicateKey, row._id)
       }
     }
+    const offsetGroups = new Map()
+    for (const row of receipts.values()) if (saleOffsetSource(row)) {
+      const key = text(row.source_id), group = offsetGroups.get(key) || []
+      group.push(row); offsetGroups.set(key, group)
+      const source = targets.get(`sale:${key}`)
+      if (!source || source.returnCredit === null || !offsetEnabled(source.row))
+        issue('evidence_missing', 'offset_source_requires_review', '退气抵款缺少可核实的原退气单，或原单不是已启用抵款的纯退气业务', 'receipt', row)
+      else if (row.biz_date !== source.row.date)
+        issue('date_difference', 'offset_source_date_mismatch', '退气抵款日期与原退气单日期不一致', 'receipt', row,
+          { source_date: source.row.date, receipt_date: row.biz_date })
+    }
+    for (const item of targets.values()) if (item.returnCredit !== null) {
+      if (!offsetEnabled(item.row))
+        issue('evidence_missing', 'negative_sale_requires_review', '退气单未明确启用抵款，须核实退款或抵款依据', 'sale', item.row)
+      else compare(sum(offsetGroups.get(item.row._id) || [], 'receipt', 'amount'), item.returnCredit,
+        'offset_source_amount_mismatch', '原退气金额与生成的有效抵款额度合计不一致', 'sale', item.row)
+    }
     const refunds = new Map(), duplicateReceipts = new Map()
     for (const row of receipts.values()) {
       if (!dateValid(row.biz_date)) issue('evidence_missing', 'receipt_date_missing', '实际收款或余额来源日期不完整', 'receipt', row)
       if (row.receipt_adjustment_status === 'pending') issue('evidence_missing', 'pending_receipt_adjustment', '收款正在调整中', 'receipt', row)
-      if (row.source_type === 'customer_cash_refund') {
+      if (row.source_type === 'customer_cash_refund' || row.source_type === 'offset_credit_cash_refund') {
         const amount = units(row.amount, 'refund', row, 'amount', false, true)
         if (amount !== null && amount >= 0) issue('amount_difference', 'invalid_cash_refund', '实际退款必须是负数现金事件', 'refund', row)
-        if (row.refund_source_status !== 'linked') issue('evidence_missing', 'refund_source_pending', '已退款但余额来源待核，不能自动刷新', 'refund', row)
-        const links = Array.isArray(row.refund_sources) ? row.refund_sources : []
+        const offsetRefund = row.source_type === 'offset_credit_cash_refund'
+        if (!offsetRefund && row.refund_source_status !== 'linked') issue('evidence_missing', 'refund_source_pending', '已退款但余额来源待核，不能自动刷新', 'refund', row)
+        if (offsetRefund && (!row.source_id || row.source_id !== row.offset_source_receipt_id || !saleOffsetSource(receipts.get(row.source_id))))
+          issue('evidence_missing', 'offset_refund_source_missing', '退气退款缺少一致的正式抵款来源关联', 'refund', row)
+        const links = offsetRefund ? (amount !== null ? [{ id: row.source_id, amount: -amount / divisor }] : [])
+          : Array.isArray(row.refund_sources) ? row.refund_sources : []
         compare(amount === null ? null : -amount, sum(links, 'refund_source', 'amount'), 'refund_link_mismatch', '退款金额与来源分摊不一致', 'refund', row)
         if (new Set(links.map(l => l.id)).size !== links.length) issue('suspected_duplicate', 'duplicate_refund_source', '一笔退款重复引用同一来源', 'refund', row)
         for (const link of links) {
@@ -240,12 +273,13 @@ function createAuditService({ db, command, readComplete, resolveCustomer, moneyS
         continue
       }
       if (Number(row.amount) < 0) { issue('evidence_missing', 'legacy_refund_requires_review', '旧退款路径须核实反向关联后处理', 'receipt', row); continue }
-      if (isOffsetCreditReceipt(row) || isDepositTransferReceipt(row) || isSettlementFeeReceipt(row))
+      if (isOffsetCreditReceipt(row) && !saleOffsetSource(row) || isDepositTransferReceipt(row) || isSettlementFeeReceipt(row))
         issue('evidence_missing', 'noncash_source_requires_review', '冲抵、押金转款或手续费来源须核对独立来源账，暂不自动刷新', 'receipt', row)
       const own = allocations.filter(r => r.receipt_id === row._id)
       const amount = units(row.amount, 'receipt', row, 'amount'), allocated = units(row.allocated_amount, 'receipt', row, 'allocated_amount')
       const available = units(row.unallocated_amount, 'receipt', row, 'unallocated_amount')
       const refunded = units(row.cash_refunded_amount, 'receipt', row, 'cash_refunded_amount', true)
+      const offsetRefunded = units(row.offset_cash_refunded_amount, 'receipt', row, 'offset_cash_refunded_amount', true)
       const rounding = units(row.rounding_amount, 'receipt', row, 'rounding_amount', true)
       const roundingAllocated = units(row.rounding_allocated_amount, 'receipt', row, 'rounding_allocated_amount', true)
       compare(allocated, sum(own.filter(r => (r.allocate_kind || 'receipt') === 'receipt'), 'allocation'), 'receipt_allocation_mismatch', '收款已分配额与分配流水不一致', 'receipt', row)
@@ -253,6 +287,12 @@ function createAuditService({ db, command, readComplete, resolveCustomer, moneyS
       compare(rounding, roundingAllocated, 'receipt_rounding_unallocated', '收款抹零尚未完整对应原单', 'receipt', row)
       if (![amount, allocated, available, refunded].includes(null) && !isOffsetCreditReceipt(row))
         compare(amount, allocated + available + refunded, 'receipt_not_conserved', '原到账金额不等于已分配、可用及已退款之和', 'receipt', row)
+      if (isOffsetCreditReceipt(row)) {
+        compare(refunded, 0, 'offset_cash_refund_field_mismatch', '退气抵款使用了现金收款的退款字段，须核实分类', 'receipt', row)
+        if (![amount, allocated, roundingAllocated, available, offsetRefunded].includes(null))
+          compare(amount, allocated + roundingAllocated + available + offsetRefunded, 'offset_receipt_not_conserved',
+            '退气抵款总额不等于已分配、抹零分配、可用及已退款之和', 'receipt', row)
+      } else compare(offsetRefunded, 0, 'cash_offset_refund_field_mismatch', '现金收款使用了退气抵款的退款字段，须核实分类', 'receipt', row)
       const unique = row.intake_id ? `intake:${row.intake_id}` : row.source_id && row.source_type ? `source:${row.source_type}:${row.source_id}` : ''
       if (unique) {
         if (duplicateReceipts.has(unique)) issue('suspected_duplicate', 'duplicate_receipt_source', '同一来源关联多笔有效收款，须确认是否重复到账', 'receipt', row, { other_id: duplicateReceipts.get(unique) })
@@ -265,8 +305,9 @@ function createAuditService({ db, command, readComplete, resolveCustomer, moneyS
           issue('classification_difference', 'cashier_intake_mismatch', '到账登记与气款收款事实不一致', 'receipt', row)
       }
     }
-    for (const row of receipts.values()) if (Number(row.amount) >= 0 && !isOffsetCreditReceipt(row))
-      compare(units(row.cash_refunded_amount, 'receipt', row, 'cash_refunded_amount', true), refunds.get(row._id) || 0,
+    for (const row of receipts.values()) if (Number(row.amount) >= 0)
+      compare(units(row[isOffsetCreditReceipt(row) ? 'offset_cash_refunded_amount' : 'cash_refunded_amount'], 'receipt', row,
+        isOffsetCreditReceipt(row) ? 'offset_cash_refunded_amount' : 'cash_refunded_amount', true), refunds.get(row._id) || 0,
         'refund_backing_mismatch', '来源已退款金额缺少相符的实际退款事件', 'receipt', row)
     for (const row of s.intakes.filter(r => r.status === 'posted')) {
       const gas = units(row.gas_amount, 'cashier_intake', row, 'gas_amount'), deposit = units(row.deposit_amount, 'cashier_intake', row, 'deposit_amount')

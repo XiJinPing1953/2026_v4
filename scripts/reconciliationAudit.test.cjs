@@ -302,7 +302,7 @@ test('timeout after successful commit recovers original operation and verifies i
   assert.equal(h.state.crm_operation_logs.length, 1)
 })
 
-test('source facts retain signed authoritative yuan and existing negative-sale issue decisions without changing originals', async () => {
+test('negative return principal is valid; missing generated credit is a source issue with signed authoritative facts', async () => {
   const h = harness()
   h.state.crm_users = [{ _id: actor._id, token: 'test', role: 'superadmin' }]
   Object.assign(h.state.crm_sale_records[0], { biz_mode: 'bottle', out_items: [], back_items: [{ net: 8 }],
@@ -315,7 +315,7 @@ test('source facts retain signed authoritative yuan and existing negative-sale i
   assert.equal(audit.read_complete, true)
   assert.equal(audit.complete, false)
   assert.equal(audit.cache.eligible, false)
-  assert.deepEqual(Array.from(audit.issues, row => row.code), ['invalid_amount', 'source_rounding_exceeded'])
+  assert.deepEqual(Array.from(audit.issues, row => row.code), ['offset_source_amount_mismatch'])
   for (const problem of audit.issues) {
     assert.equal(problem.blocking, true)
     assert.equal(problem.source_facts.biz_date, '2026-08-18')
@@ -326,10 +326,118 @@ test('source facts retain signed authoritative yuan and existing negative-sale i
     assert.equal(problem.source_facts.amounts.rounding_amount, 0)
     assert.equal(problem.source_facts.amounts.amount_received, 0)
   }
-  assert.equal(audit.issues[0].source_facts.validation_failure, 'negative')
-  assert.equal(audit.issues[0].source_facts.field, 'effective_should_receive')
   assert.deepEqual(h.state, original)
   assert.equal(h.db.writes.length, 0)
+})
+
+function returnCreditHarness() {
+  const h = harness()
+  h.state.crm_sale_records.push({ _id: 'return-sale', customer_id: cid, date: '2026-09-20', biz_mode: 'bottle', price_unit: 'kg',
+    out_items: [], back_items: [{ net: 8 }], unit_price: 7.5, rounding_amount: 0, receipt_rounding_amount: 0,
+    amount_received: 0, offset_enabled: true })
+  h.state.crm_customer_receipts.push({ _id: 'return-credit', customer_id: cid, status: 'posted', source_type: 'sale_offset_credit',
+    source_id: 'return-sale', entry_kind: 'offset_credit', biz_date: '2026-09-20', amount: 60, allocated_amount: 0,
+    unallocated_amount: 60, rounding_amount: 0, rounding_allocated_amount: 0 })
+  return h
+}
+
+test('real handler verifies pure returns, source credit, partial allocation and remaining balance without financial writes', async () => {
+  const h = returnCreditHarness()
+  h.state.crm_users = [{ _id: actor._id, token: 'test', role: 'superadmin' }]
+  h.state.crm_customer_opening_debts.push({ _id: 'target-debt', customer_id: cid, status: 'posted', biz_date: '2026-09-21',
+    amount: 100, amount_received: 40 })
+  Object.assign(h.state.crm_customer_receipts[1], { allocated_amount: 40, unallocated_amount: 20 })
+  h.state.crm_customer_allocations.push({ _id: 'offset-allocation', customer_id: cid, receipt_id: 'return-credit',
+    target_type: 'opening_debt', target_id: 'target-debt', allocate_amount: 40, allocate_kind: 'receipt', status: 'posted' })
+  const original = structuredClone(h.state), result = await invoke(loadHandler('crm-customer-settlement', h.db),
+    'inspectReconciliationCustomerV1', { customer_id: cid })
+  assert.equal(result.code, 0, result.msg)
+  assert.equal(result.data.complete, true, JSON.stringify(result.data.issues))
+  assert.equal(result.data.cache.expected.offset_credit_balance, 20)
+  assert.equal(result.data.cache.expected.receivable_balance, 60)
+  assert.deepEqual(h.state, original)
+  assert.equal(h.db.writes.length, 0)
+})
+
+test('return credit checks original identity, date, status, cumulative amount and explicit offset eligibility', async () => {
+  for (const [mutate, code] of [
+    [h => { h.state.crm_customer_receipts[1].source_id = 'missing-sale' }, 'offset_source_requires_review'],
+    [h => { h.state.crm_customer_receipts[1].biz_date = '2026-09-21' }, 'offset_source_date_mismatch'],
+    [h => { h.state.crm_sale_records[1].status = 'void' }, 'offset_source_requires_review'],
+    [h => { h.state.crm_sale_records[1].offset_enabled = false }, 'negative_sale_requires_review'],
+    [h => { h.state.crm_sale_records[1].offset_enabled = 'unrecognized' }, 'negative_sale_requires_review'],
+    [h => { h.state.crm_sale_records[1].back_items = []; h.state.crm_sale_records[1].out_items = [{ net: -8 }] }, 'sale_quantity_missing'],
+    [h => { h.state.crm_customer_receipts[1].amount = 61; h.state.crm_customer_receipts[1].unallocated_amount = 61 }, 'offset_source_amount_mismatch'],
+    [h => { h.state.crm_sale_records[1].back_items = []; h.state.crm_sale_records[1].out_items = [{ net: 8 }] }, 'offset_source_requires_review']
+  ]) {
+    const h = returnCreditHarness(); mutate(h)
+    const audit = await inspect(h)
+    assert.equal(audit.complete, false)
+    assert.ok(audit.issues.some(i => i.code === code), code + ': ' + JSON.stringify(audit.issues))
+    assert.equal(audit.cache.eligible, false)
+    assert.equal(h.db.writes.length, 0)
+  }
+  const h = returnCreditHarness(), receipt = h.state.crm_customer_receipts[1]
+  Object.assign(receipt, { amount: 40, unallocated_amount: 40 })
+  h.state.crm_customer_receipts.push({ ...receipt, _id: 'repair-credit', source_type: 'sale_offset_credit_repair', amount: 20, unallocated_amount: 20 })
+  assert.equal((await inspect(h)).complete, true)
+  h.state.crm_customer_receipts[2].amount = 21; h.state.crm_customer_receipts[2].unallocated_amount = 21
+  assert.ok((await inspect(h)).issues.some(i => i.code === 'offset_source_amount_mismatch'))
+})
+
+test('zero discount on a negative return is valid, while real discount and positive payment on that return remain blocked', async () => {
+  for (const [field, code] of [['rounding_amount', 'source_rounding_exceeded'], ['amount_received', 'target_overallocated'],
+    ['receipt_rounding_amount', 'target_overallocated']]) {
+    const h = returnCreditHarness(); h.state.crm_sale_records[1][field] = 1
+    const audit = await inspect(h)
+    assert.ok(audit.issues.some(i => i.code === code), JSON.stringify(audit.issues))
+    assert.equal(audit.complete, false)
+  }
+})
+
+test('offset source conservation and actual allocations are independently checked', async () => {
+  for (const [mutate, code] of [
+    [h => { h.state.crm_customer_receipts[1].unallocated_amount = 59 }, 'offset_receipt_not_conserved'],
+    [h => { Object.assign(h.state.crm_customer_receipts[1], { allocated_amount: 1, unallocated_amount: 59 }) }, 'receipt_allocation_mismatch'],
+    [h => { Object.assign(h.state.crm_customer_receipts[1], { offset_cash_refunded_amount: 1, unallocated_amount: 59 }) }, 'refund_backing_mismatch'],
+    [h => { h.state.crm_customer_receipts[1].cash_refunded_amount = 1 }, 'offset_cash_refund_field_mismatch'],
+    [h => { h.state.crm_customer_receipts[0].offset_cash_refunded_amount = 1 }, 'cash_offset_refund_field_mismatch']
+  ]) {
+    const h = returnCreditHarness(); mutate(h)
+    const audit = await inspect(h)
+    assert.ok(audit.issues.some(i => i.code === code), code)
+    assert.equal(audit.complete, false)
+  }
+})
+
+test('offset refunds require matching formal refunds and support both established refund paths', async () => {
+  for (const oldPath of [false, true]) {
+    const h = returnCreditHarness()
+    Object.assign(h.state.crm_customer_receipts[1], { unallocated_amount: 20, offset_cash_refunded_amount: 40 })
+    const refund = { _id: 'offset-refund', customer_id: cid, status: 'posted', biz_date: '2026-09-21', amount: -40,
+      allocated_amount: 0, unallocated_amount: 0, rounding_amount: 0, rounding_allocated_amount: 0,
+      ...(oldPath ? { source_type: 'offset_credit_cash_refund', source_id: 'return-credit', offset_source_receipt_id: 'return-credit' }
+        : { source_type: 'customer_cash_refund', refund_source_status: 'linked', refund_sources: [{ id: 'return-credit', amount: 40 }] }) }
+    h.state.crm_customer_receipts.push(refund)
+    assert.equal((await inspect(h)).complete, true)
+    refund.amount = -39
+    assert.equal((await inspect(h)).complete, false)
+    if (oldPath) {
+      refund.amount = -40; refund.offset_source_receipt_id = 'different-credit'
+      assert.ok((await inspect(h)).issues.some(i => i.code === 'offset_refund_source_missing'))
+    }
+  }
+})
+
+test('foreign credit referencing the local return is discovered by reverse read; unknown noncash categories stay pending', async () => {
+  const h = returnCreditHarness()
+  h.state.crm_customer_receipts.push({ ...h.state.crm_customer_receipts[1], _id: 'foreign-credit', customer_id: 'another-customer' })
+  assert.ok((await inspect(h)).issues.some(i => i.code === 'cross_customer_reference' && i.source_id === 'foreign-credit'))
+  for (const source_type of ['sale_offset_credit_unknown', 'deposit_transfer', 'settlement_fee']) {
+    const other = harness()
+    Object.assign(other.state.crm_customer_receipts[0], { source_type })
+    assert.ok((await inspect(other)).issues.some(i => i.code === 'noncash_source_requires_review'), source_type)
+  }
 })
 
 test('source amount diagnostics distinguish missing, invalid, precision, negative and range without fabricating zero', async () => {
