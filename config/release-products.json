@@ -6,40 +6,37 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.14-reconciliation-picker",
+      "version": "2026.10.14-reconciliation-readable",
       "output": "dist/build/web",
-      "acceptance": "Imported accounting files, customer mappings, complete CRM checks and difference review share version-bound evidence. Cache-only automatic refresh and confirmed typed repairs preserve operation identity and verify exact writes without claiming whole-customer clearance.",
+      "acceptance": "Reconciliation hints show dated source facts, monetary units, evidence limits and next actions in plain language. Technical details are collapsed. Source facts come from the same audit read; original financial records and audit decisions are unchanged.",
       "deploymentScope": {
         "functions": [
-          "crm-reconciliation"
+          "crm-customer-settlement"
         ],
         "databaseFiles": [],
-        "baseCommit": "ecd8fe3188af8211e2ce78f91166aee5403a5e1a",
+        "baseCommit": "133606dbe538f9a1ad18941ef5ac5aa99b3b1fcb",
         "sourceFiles": [
-          "src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue"
+          "src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue",
+          "src/services/mappers/reconciliationIssue.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/reconciliationAudit.js"
         ]
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.14-reconciliation-retry",
+      "version": "2026.10.14-reconciliation-readable",
       "output": "release/cloud",
-      "acceptance": "Imported accounting files, customer mappings, complete CRM checks and difference review share version-bound evidence. Cache-only automatic refresh and confirmed typed repairs preserve operation identity and verify exact writes without claiming whole-customer clearance.",
+      "acceptance": "Reconciliation hints show dated source facts, monetary units, evidence limits and next actions in plain language. Technical details are collapsed. Source facts come from the same audit read; original financial records and audit decisions are unchanged.",
       "deploymentScope": {
         "functions": [
-          "crm-reconciliation"
+          "crm-customer-settlement"
         ],
         "databaseFiles": [],
-        "baseCommit": "07fa3e3a6a97320ec90e1a36dc20626bb05eefb1",
+        "baseCommit": "133606dbe538f9a1ad18941ef5ac5aa99b3b1fcb",
         "sourceFiles": [
           "src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue",
-          "src/composables/useReconciliationCenter.js",
-          "src/services/api/reconciliation.js",
-          "uniCloud-alipay/cloudfunctions/common/customerReconciliation.js",
-          "uniCloud-alipay/cloudfunctions/crm-reconciliation/customerReconciliationLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-reconciliation/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-reconciliation/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-reconciliation/service.js"
+          "src/services/mappers/reconciliationIssue.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/reconciliationAudit.js"
         ]
       },
       "integrityScope": "deployment"

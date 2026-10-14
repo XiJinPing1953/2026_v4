@@ -378,6 +378,30 @@ test('完整读取但业务待核不是可重试读取失败', async () => {
   assert.equal(result.stale, false)
 })
 
+test('来源事实经过问题类型归一、保存和重新打开仍保留元值及未知值', async () => {
+  const f = fixture(), data = await f.ready(true)
+  const facts = { biz_date: '2026-09-18', source_type: 'sale', entry_kind: '',
+    amounts: { should_receive: -60, effective_should_receive: -60, rounding_amount: 0, amount_received: null },
+    field: 'effective_should_receive', validation_failure: 'negative' }
+  f.state.internalComplete = false
+  f.state.internalIssues = [{ code: 'invalid_amount', type: 'evidence_missing', blocking: true,
+    message: '金额缺失、为负或超出允许精度，须核对原单', source_type: 'sale', source_id: SALE,
+    details: { field: 'effective_should_receive' }, source_facts: facts }]
+  const financialBefore = digest(Object.fromEntries(Object.entries(f.tables).filter(([key]) => !Object.values(COL).includes(key))))
+  const result = await f.run('checkCustomerV1', { ...data, auto_refresh: false })
+  const issue = result.issues.find(item => item.code === 'invalid_amount')
+  assert.equal(issue.type, 'evidence')
+  assert.equal(issue.blocking, true)
+  assert.deepEqual(issue.source_facts, facts)
+  assert.deepEqual(result.internal.issues[0].source_facts, facts)
+  assert.deepEqual(f.tables[COL.results][0].issues.find(item => item.code === 'invalid_amount').source_facts, facts)
+  const reopened = await f.run('getBatchV1', { batch_id: data.batch_id })
+  assert.deepEqual(reopened.results[0].issues.find(item => item.code === 'invalid_amount').source_facts, facts)
+  assert.equal(result.internal.complete, false)
+  assert.equal(f.state.refreshCount, 0)
+  assert.equal(digest(Object.fromEntries(Object.entries(f.tables).filter(([key]) => !Object.values(COL).includes(key)))), financialBefore)
+})
+
 test('嵌套调用显式超时共享请求总预算，预算不足不再发下游请求', async () => {
   const { createInvoker } = require('../uniCloud-alipay/cloudfunctions/crm-reconciliation/index')
   let clock = 0

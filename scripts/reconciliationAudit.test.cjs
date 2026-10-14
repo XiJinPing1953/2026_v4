@@ -12,7 +12,7 @@ const actor = { _id: 'finance-test', username: '合成会计', role: 'finance' }
 const cid = 'customer-test'
 const saleSnapshot = row => {
   const { amounts } = saleAccounting.computeSaleAmountsForDoc(row)
-  return { should_receive_effective: amounts.effective_should_receive, rounding_amount: amounts.rounding_amount,
+  return { should_receive: amounts.should_receive, should_receive_effective: amounts.effective_should_receive, rounding_amount: amounts.rounding_amount,
     outstanding: Math.max(0, amounts.effective_should_receive - row.amount_received - (row.receipt_rounding_amount || 0)) }
 }
 const debtSnapshot = row => ({ should_receive_effective: row.amount - (row.rounding_amount || 0), rounding_amount: row.rounding_amount || 0,
@@ -300,4 +300,109 @@ test('timeout after successful commit recovers original operation and verifies i
   assert.equal(result.status, 'refreshed')
   assert.equal(result.idempotent, true)
   assert.equal(h.state.crm_operation_logs.length, 1)
+})
+
+test('source facts retain signed authoritative yuan and existing negative-sale issue decisions without changing originals', async () => {
+  const h = harness()
+  h.state.crm_users = [{ _id: actor._id, token: 'test', role: 'superadmin' }]
+  Object.assign(h.state.crm_sale_records[0], { biz_mode: 'bottle', out_items: [], back_items: [{ net: 8 }],
+    unit_price: 7.5, should_receive: 9999, rounding_amount: 0, amount_received: 0, source_number: 'SALE-TEST-8' })
+  h.state.crm_customer_receipts = []; h.state.crm_customer_allocations = []
+  const original = structuredClone(h.state), result = await invoke(loadHandler('crm-customer-settlement', h.db),
+    'inspectReconciliationCustomerV1', { customer_id: cid })
+  assert.equal(result.code, 0, result.msg)
+  const audit = result.data
+  assert.equal(audit.read_complete, true)
+  assert.equal(audit.complete, false)
+  assert.equal(audit.cache.eligible, false)
+  assert.deepEqual(Array.from(audit.issues, row => row.code), ['invalid_amount', 'source_rounding_exceeded'])
+  for (const problem of audit.issues) {
+    assert.equal(problem.blocking, true)
+    assert.equal(problem.source_facts.biz_date, '2026-08-18')
+    assert.equal(problem.source_facts.source_type, 'sale')
+    assert.equal(problem.source_facts.source_number, 'SALE-TEST-8')
+    assert.equal(problem.source_facts.amounts.should_receive, -60)
+    assert.equal(problem.source_facts.amounts.effective_should_receive, -60)
+    assert.equal(problem.source_facts.amounts.rounding_amount, 0)
+    assert.equal(problem.source_facts.amounts.amount_received, 0)
+  }
+  assert.equal(audit.issues[0].source_facts.validation_failure, 'negative')
+  assert.equal(audit.issues[0].source_facts.field, 'effective_should_receive')
+  assert.deepEqual(h.state, original)
+  assert.equal(h.db.writes.length, 0)
+})
+
+test('source amount diagnostics distinguish missing, invalid, precision, negative and range without fabricating zero', async () => {
+  for (const [value, failure, displayed] of [[undefined, 'missing', null], [null, 'missing', null], ['', 'missing', null],
+    ['bad', 'invalid', null], [true, 'invalid', null], [Infinity, 'invalid', null],
+    [0.001, 'precision', 0.001], [-0.5, 'negative', -0.5], [Number.MAX_VALUE, 'out_of_range', Number.MAX_VALUE]]) {
+    const h = harness()
+    h.state.crm_sale_records[0].amount_received = value
+    const audit = await inspect(h), problem = audit.issues.find(row => row.code === 'invalid_amount' && row.details.field === 'amount_received')
+    assert.ok(problem, failure)
+    assert.equal(problem.source_facts.validation_failure, failure)
+    assert.equal(problem.source_facts.field, 'amount_received')
+    assert.equal(problem.source_facts.amounts.amount_received, displayed)
+    assert.equal(problem.blocking, true)
+    assert.equal(audit.complete, false)
+    assert.equal(audit.cache.eligible, false)
+    assert.equal(h.db.writes.length, 0)
+  }
+})
+
+test('missing sale calculation inputs expose unknown principal instead of adapter fallback zero', async () => {
+  const h = harness()
+  delete h.state.crm_sale_records[0].unit_price
+  Object.assign(h.state.crm_sale_records[0], { amount_received: 0, rounding_amount: 0 })
+  h.state.crm_customer_receipts = []; h.state.crm_customer_allocations = []
+  const audit = await inspect(h), problem = audit.issues.find(row => row.code === 'sale_price_missing')
+  assert.equal(problem.source_facts.amounts.should_receive, null)
+  assert.equal(problem.source_facts.amounts.effective_should_receive, null)
+  assert.equal(problem.source_facts.amounts.amount_received, 0)
+  assert.equal(audit.complete, false)
+})
+
+test('source facts distinguish principal before and after discount and do not accept an invalid calendar date', async () => {
+  const h = harness()
+  Object.assign(h.state.crm_sale_records[0], { date: '2026-02-30', should_receive: 9999 })
+  const audit = await inspect(h), problem = audit.issues.find(row => row.code === 'source_date_missing')
+  assert.equal(problem.source_facts.biz_date, null)
+  assert.equal(problem.source_facts.amounts.should_receive, 22942.5)
+  assert.equal(problem.source_facts.amounts.rounding_amount, 2.5)
+  assert.equal(problem.source_facts.amounts.effective_should_receive, 22940)
+  assert.equal(problem.source_facts.amounts.amount_received, 22940)
+})
+
+test('sale without an authoritative snapshot does not display a legacy saved principal as authoritative', async () => {
+  const h = harness()
+  Object.assign(h.state.crm_sale_records[0], { status: 'pending', should_receive: 9999 })
+  const audit = await inspect(h), problem = audit.issues.find(row => row.code === 'sale_status_requires_review')
+  assert.equal(problem.source_facts.status, 'pending')
+  assert.equal(problem.source_facts.amounts.should_receive, null)
+  assert.equal(problem.source_facts.amounts.effective_should_receive, null)
+  assert.equal(problem.source_facts.amounts.rounding_amount, 2.5)
+  assert.equal(audit.complete, false)
+})
+
+test('receipt status facts and flow amounts use the same source read and retain three-decimal yuan', async () => {
+  const h = harness(), receipt = h.state.crm_customer_receipts[0]
+  h.state.crm_users = [{ _id: actor._id, token: 'test', role: 'superadmin' }]
+  h.state.crm_customers[0].default_price_unit = 'm3'
+  Object.assign(receipt, { source_type: 'cashier_intake', entry_kind: 'prepay', receipt_adjustment_status: 'pending' })
+  h.state.crm_customer_flow_settlements.push({ _id: 'flow-test', customer_id: cid, status: 'posted',
+    biz_date: '2026-09-01', should_receive: 123.456, amount_received: 1.234 })
+  const result = await invoke(loadHandler('crm-customer-settlement', h.db), 'inspectReconciliationCustomerV1', { customer_id: cid })
+  assert.equal(result.code, 0, result.msg)
+  const pending = result.data.issues.find(row => row.code === 'pending_receipt_adjustment')
+  assert.equal(pending.source_facts.amounts.amount, 23900)
+  assert.equal(pending.source_facts.amounts.unallocated_amount, 960)
+  assert.equal(pending.source_facts.status, 'posted')
+  assert.equal(pending.source_facts.receipt_adjustment_status, 'pending')
+  assert.equal(pending.source_facts.source_type, 'cashier_intake')
+  assert.equal(pending.source_facts.entry_kind, 'prepay')
+  const flow = result.data.issues.find(row => row.source_type === 'flow_settlement')
+  assert.equal(flow.source_facts.amounts.should_receive, 123.456)
+  assert.equal(flow.source_facts.amounts.effective_should_receive, 123.456)
+  assert.equal(flow.source_facts.amounts.amount_received, 1.234)
+  assert.equal(h.db.writes.length, 0)
 })

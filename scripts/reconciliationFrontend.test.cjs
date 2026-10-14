@@ -7,6 +7,7 @@ function moduleContext(file) {
 }
 const centerModule = moduleContext('src/composables/useReconciliationCenter.js')
 const repairModule = moduleContext('src/composables/useReconciliationRepair.js')
+const issueModule = moduleContext('src/services/mappers/reconciliationIssue.js')
 const success = data => ({ code: 0, data }), copy = value => JSON.parse(JSON.stringify(value))
 const wait = () => new Promise(resolve => setImmediate(resolve))
 function deferred() { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b }); return { promise, resolve, reject } }
@@ -251,4 +252,68 @@ test('a rejected receipt for another operation cannot unlock an unknown write', 
 	const h = await repair({ api: { prepareRepair: async () => { throw Error('timeout') }, repairStatus: async () => success({ operation_id: 'other', status: 'rejected' }) } })
 	fillRepair(h.state); await h.state.prepare(); const previous = h.state.operation.value.operation_id; await h.state.query()
 	assert.equal(h.state.operation.value.operation_id, previous); assert.equal(h.state.unresolved.value, true); assert.match(h.state.issue.value, /不一致/); h.stop()
+})
+
+test('issue presentation keeps signed yuan facts and describes negative receivables without declaring an accounting error', () => {
+	const problem = { type: 'evidence', code: 'invalid_amount', source_type: 'sale', source_id: 'private-id', details: { field: 'effective_should_receive' },
+		source_facts: { biz_date: '2026-06-12', source_type: 'sale', amounts: { should_receive: -18.125, rounding_amount: 0, effective_should_receive: -18.125 }, validation_failure: 'negative' } }
+	const before = copy(problem), shown = issueModule.presentReconciliationIssue(problem)
+	assert.equal(shown.records[0].date, '2026-06-12'); assert.equal(shown.records[0].business, '销售单')
+	assert.match(shown.records[0].amount, /减免前应收 ¥-18\.125/); assert.match(shown.records[0].amount, /原单减免 ¥0\.00/)
+	assert.match(shown.finding, /减免后应收为负数/); assert.match(shown.missing, /可能来自退气抵款/); assert.match(shown.missing, /不能仅据此认定/)
+	assert.doesNotMatch(JSON.stringify({ ...shown, diagnostic: undefined }), /private-id|effective_should_receive/)
+	assert.match(shown.diagnostic, /private-id/); assert.deepEqual(problem, before)
+})
+test('legacy issues do not invent dates or amounts, and invalid precision is displayed without rounding it into validity', () => {
+	const old = issueModule.presentReconciliationIssue({ code: 'invalid_amount', source_type: 'sale', source_id: 'legacy', details: { field: 'effective_should_receive' } })
+	assert.equal(old.records[0].date, '原单日期未提供'); assert.match(old.records[0].amount, /原单金额未提供/); assert.doesNotMatch(old.records[0].amount, /0\.00/)
+	const unknown = issueModule.presentReconciliationIssue({ code: 'invalid_amount', source_type: 'receipt', source_id: 'r', source_facts: { amounts: { amount: null, unallocated_amount: 0 }, validation_failure: 'precision' } })
+	assert.match(unknown.records[0].amount, /原单金额未提供/); assert.match(unknown.records[0].amount, /可用余额 ¥0\.00/)
+	const precise = issueModule.presentReconciliationIssue({ code: 'invalid_amount', source_type: 'receipt', source_id: 'r', source_facts: { amounts: { amount: 1.23456 }, validation_failure: 'precision' } })
+	assert.match(precise.records[0].amount, /¥1\.23456/)
+})
+test('flow settlement uses authoritative receivable facts even when the raw source type differs', () => {
+	const shown = issueModule.presentReconciliationIssue({ code: 'source_rounding_exceeded', source_type: 'flow_settlement', source_id: 'flow',
+		source_facts: { biz_date: '2026-06-12', source_type: 'imported_flow', amounts: { should_receive: 123.456, rounding_amount: 0, effective_should_receive: 123.456 } } })
+	assert.equal(shown.records[0].business, '流量结算'); assert.match(shown.records[0].amount, /减免前应收 ¥123\.456/)
+	assert.match(shown.records[0].amount, /减免后应收 ¥123\.456/); assert.doesNotMatch(shown.records[0].amount, /原单金额未提供/)
+})
+test('ledger candidates format milli separately from yuan and never label a negative credit as cash received', () => {
+	const shown = issueModule.presentReconciliationIssue({ type: 'classification', code: 'NONCASH_CLASSIFICATION_CANDIDATE',
+		crm: { date: '2026-05-18', source_type: 'receipt_rounding', debit_milli: 0, credit_milli: 3000 },
+		accounting: [{ date: '2026-05-18', debit_milli: 0, credit_milli: -647000, voucher: '记-018', summary: '原始凭证摘要' }] })
+	assert.equal(shown.category, '分类待核'); assert.equal(shown.records[0].business, '收款抹零')
+	assert.equal(shown.records[0].amount, '贷方 ¥3.00'); assert.equal(shown.records[1].amount, '贷方 ¥-647.00')
+	assert.equal(shown.records[1].reference, '凭证 记-018'); assert.equal(shown.records[1].summary, '原始凭证摘要')
+	assert.match(shown.missing, /不能直接当作到账/); assert.doesNotMatch(shown.records[1].amount, /到账|实收/)
+})
+test('multiple date candidates remain separate and unmatched accounting means only the imported batch', () => {
+	const candidates = issueModule.presentReconciliationIssue({ type: 'date', code: 'POSSIBLE_DATE_DIFFERENCE',
+		crm: { date: '2026-05-01', source_type: 'sale', debit_milli: 650000, credit_milli: 0 },
+		accounting: ['2026-05-02', '2026-05-03'].map(date => ({ date, debit_milli: 650000, credit_milli: 0 })) })
+	assert.equal(candidates.records.length, 3); assert.equal(candidates.category, '日期待核'); assert.match(candidates.missing, /可能属于不同业务/)
+	const unmatched = issueModule.presentReconciliationIssue({ type: 'unposted', code: 'ACCOUNTING_ENTRY_NOT_MATCHED' })
+	assert.equal(unmatched.category, '未找到对应'); assert.match(unmatched.finding, /本批好会计资料/); assert.match(unmatched.missing, /不等于现在仍未入账/)
+})
+test('summary differences use returned values while source comparisons retain yuan units', () => {
+	const summary = issueModule.presentReconciliationIssue({ code: 'CONTROL_TOTAL_DIFFERENCE', crm: { opening_milli: 0, debit_milli: 10000, credit_milli: 5000, closing_milli: 5000 },
+		accounting: { opening_milli: 0, debit_milli: 8000, credit_milli: 3000, closing_milli: 5000 }, difference: { opening_milli: 0, debit_milli: 2000, credit_milli: 2000, closing_milli: 0 } })
+	assert.equal(summary.comparisons.length, 2); assert.match(summary.comparisons[0], /CRM ¥10\.00；好会计 ¥8\.00；差额 ¥2\.00/)
+	const source = issueModule.presentReconciliationIssue({ code: 'target_receipt_mismatch', details: { actual: 10, expected: 8, difference: 2 } })
+	assert.match(source.comparisons[0], /原记录 ¥10\.00；核对依据 ¥8\.00；差额 ¥2\.00/)
+})
+test('pending marks and unknown issues remain evidence questions; known suggested actions use business language', () => {
+	const pending = issueModule.presentReconciliationIssue({ code: 'pending_receipt_adjustment', source_type: 'receipt', source_facts: { source_type: 'cashier_intake', biz_date: '2026-05-18', amounts: { amount: 650 }, receipt_adjustment_status: 'pending' } })
+	assert.equal(pending.records[0].business, '到账登记'); assert.match(pending.finding, /标记/); assert.match(pending.missing, /不能证明调整仍在进行/)
+	const unknown = issueModule.presentReconciliationIssue({ type: 'new_internal_type', code: 'NEW_UNKNOWN_CHECK', message: 'unknown backend_name', suggested_action: 'verify_original_record' })
+	assert.equal(unknown.category, '检查提示'); assert.match(unknown.finding, /尚不能据此认定/); assert.match(unknown.handling, /不能仅凭同日同额删除/)
+	assert.doesNotMatch(JSON.stringify({ ...unknown, diagnostic: undefined }), /NEW_UNKNOWN_CHECK|backend_name/); assert.match(unknown.diagnostic, /backend_name/)
+})
+test('customer checks keep technical identifiers and raw payloads collapsed until explicitly expanded', () => {
+	const source = fs.readFileSync('src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue', 'utf8')
+	assert.match(source, /expandedDiagnostics = ref\(\{\}\), resultDiagnosticOpen = ref\(false\)/)
+	assert.match(source, /v-if="expandedDiagnostics\[index\]"[^>]*>\{\{ problem\.diagnostic \}\}/)
+	assert.match(source, /v-if="resultDiagnosticOpen"[^>]*>结果编号/)
+	assert.doesNotMatch(source, /evidenceText\(problem\)|\{\{ problem\.message \}\}/)
+	assert.match(source, /条检查提示，不代表/)
 })

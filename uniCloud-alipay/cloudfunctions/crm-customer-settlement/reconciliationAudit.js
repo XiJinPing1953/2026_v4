@@ -9,6 +9,7 @@ const TABLES = { sales: 'crm_sale_records', flows: 'crm_customer_flow_settlement
   receipts: 'crm_customer_receipts', allocations: 'crm_customer_allocations', intakes: 'crm_cashier_intakes' }
 const CACHE_FIELDS = ['receivable_balance', 'prepay_balance', 'prepay_manual_balance', 'receipt_unallocated_balance', 'offset_credit_balance', 'net_balance']
 const text = x => String(x ?? '').trim()
+const hasOwn = (row, key) => Object.prototype.hasOwnProperty.call(row, key)
 const sorted = rows => [...rows].sort((a, b) => text(a._id).localeCompare(text(b._id)))
 const active = row => row && (!row.status || row.status === 'posted')
 const first = result => Array.isArray(result?.data) ? result.data[0] || null : result?.data || null
@@ -18,6 +19,27 @@ const debtType = row => row.source_type === 'balance_adjustment' ? 'balance_adju
 const dateValid = x => /^\d{4}-\d{2}-\d{2}$/.test(text(x)) && Number.isFinite(Date.parse(x)) && new Date(x + 'T00:00:00Z').toISOString().slice(0, 10) === x
 const operationKey = (cid, operation) => digest(['reconciliation-cache', cid, operation]).slice(0, 24)
 const cacheValues = row => Object.fromEntries(CACHE_FIELDS.map(k => [k, row?.[k] ?? null]))
+const factAmount = value => ['string', 'number'].includes(typeof value) && text(value) !== '' && Number.isFinite(Number(value))
+  ? Number(value) : null
+// Display facts are yuan values from the same read, never integer minor units.
+// should_receive means the authoritative amount BEFORE the source's own discount;
+// effective_should_receive means the amount AFTER it. Both may be negative.
+function sourceFacts(row = {}, sourceType = '', snapshot, unavailable = {}) {
+  const amounts = {}
+  for (const key of ['amount', 'should_receive', 'rounding_amount', 'amount_received', 'receipt_rounding_amount', 'unallocated_amount'])
+    if (hasOwn(row, key)) amounts[key] = factAmount(row[key])
+  if (snapshot || unavailable.gross) {
+    amounts.should_receive = unavailable.gross ? null : factAmount(snapshot?.should_receive ?? snapshot?.amount)
+    amounts.effective_should_receive = unavailable.gross || unavailable.effective ? null
+      : factAmount(snapshot?.should_receive_effective ?? snapshot?.should_receive)
+    if (!hasOwn(row, 'rounding_amount')) amounts.rounding_amount = factAmount(snapshot?.rounding_amount)
+  }
+  const bizDate = sourceType === 'sale' ? row.date : row.biz_date
+  const result = { biz_date: dateValid(bizDate) ? bizDate : null, source_type: text(row.source_type) || sourceType,
+    entry_kind: text(row.entry_kind), amounts }
+  for (const key of ['source_number', 'status', 'receipt_adjustment_status']) if (text(row[key])) result[key] = text(row[key])
+  return result
+}
 function customerSource(row) {
   return Object.fromEntries(Object.entries(row).filter(([k]) => !CACHE_FIELDS.includes(k) &&
     !['updated_at', 'reconciliation_cache_operation_id', 'reconciliation_cache_checked_at'].includes(k)))
@@ -86,14 +108,22 @@ function createAuditService({ db, command, readComplete, resolveCustomer, moneyS
   }
   function check(s) {
     const issues = [], cid = s.customer._id, scale = Number(moneyScale(s.customer)) === 3 ? 3 : 2, divisor = 10 ** scale
-    const issue = (type, code, message, sourceType, row, details = {}) => issues.push({ type, code, message, source_type: sourceType,
-      source_id: text(row?._id), blocking: true, details })
+    const issueSources = new Map()
+    const issue = (type, code, message, sourceType, row, details = {}, diagnostic = {}) => {
+      const problem = { type, code, message, source_type: sourceType, source_id: text(row?._id), blocking: true, details }
+      issues.push(problem); issueSources.set(problem, { row, sourceType, diagnostic })
+    }
     const units = (value, sourceType, row, field, optional = false, signed = false) => {
       if (optional && value == null) return 0
       const n = Number(value), result = Math.round(n * divisor)
       if (!['string', 'number'].includes(typeof value) || text(value) === '' || !Number.isFinite(n) ||
           !Number.isSafeInteger(result) || Math.abs(n * divisor - result) > 0.00001 || (!signed && result < 0)) {
-        issue('evidence_missing', 'invalid_amount', '金额缺失、为负或超出允许精度，须核对原单', sourceType, row, { field }); return null
+        const validationFailure = value == null || typeof value === 'string' && text(value) === '' ? 'missing'
+          : !['string', 'number'].includes(typeof value) || !Number.isFinite(n) ? 'invalid'
+            : !Number.isSafeInteger(result) ? 'out_of_range'
+              : Math.abs(n * divisor - result) > 0.00001 ? 'precision' : 'negative'
+        issue('evidence_missing', 'invalid_amount', '金额缺失、为负或超出允许精度，须核对原单', sourceType, row, { field },
+          { field, validation_failure: validationFailure }); return null
       }
       return result
     }
@@ -119,7 +149,7 @@ function createAuditService({ db, command, readComplete, resolveCustomer, moneyS
       issue('evidence_missing', 'cross_customer_reference', '存在跨客户反向关联，须核实资金归属', 'reference', row)
 
     const receipts = new Map(s.receipts.filter(r => r.status === 'posted').map(r => [r._id, r]))
-    const allocations = s.allocations.filter(active), targets = new Map(), seen = new Map()
+    const allocations = s.allocations.filter(active), targets = new Map(), sourceSnapshots = new Map(), seen = new Map()
     for (const [name, rows] of Object.entries(TABLES).map(([key]) => [key, s[key]])) {
       for (const row of rows) {
         if (!row._id || seen.has(`${name}:${row._id}`)) issue('suspected_duplicate', 'duplicate_source_id', '来源编号重复或缺失', name, row)
@@ -153,6 +183,7 @@ function createAuditService({ db, command, readComplete, resolveCustomer, moneyS
         issue('evidence_missing', 'source_amount_missing', '原单应收金额缺失，不能按零元核对', type, row)
       try { item.value = item.snapshot(row) }
       catch (error) { issue('evidence_missing', 'source_classification_required', '原单金额或销售归属尚未核实', type, row, { reason: error.message }); continue }
+      sourceSnapshots.set(row, item.value)
       targets.set(`${type}:${row._id}`, item)
       const cash = units(row.amount_received, type, row, 'amount_received')
       const rounding = units(row.receipt_rounding_amount, type, row, 'receipt_rounding_amount', true)
@@ -277,6 +308,31 @@ function createAuditService({ db, command, readComplete, resolveCustomer, moneyS
             linked[0].receipt_id !== source.receipt_id || linked[0].source_type !== 'prepay_writeoff' || Number(linked[0].allocate_amount) !== Number(row.amount))
           issue('classification_difference', 'writeoff_source_mismatch', '多收款结清与指定原收款分配不一致', 'balance_adjustment', row)
       }
+    }
+    // Enrich only after all original checks; these fields cannot affect their
+    // codes, blocking decisions, completeness, source hash or cache eligibility.
+    const unavailable = new Map()
+    for (const problem of issues) {
+      const { row } = issueSources.get(problem), current = unavailable.get(row) || {}
+      if (['sale_price_missing', 'sale_quantity_missing', 'source_classification_required', 'source_amount_missing'].includes(problem.code)) current.gross = true
+      if (problem.code === 'invalid_amount' && problem.details.field === 'rounding_amount') current.effective = true
+      unavailable.set(row, current)
+    }
+    for (const problem of issues) {
+      const { row, sourceType, diagnostic } = issueSources.get(problem)
+      const factType = ({ sales: 'sale', flows: 'flow_settlement', debts: debtType(row), receipts: 'receipt',
+        intakes: 'cashier_intake', allocations: 'allocation' })[sourceType] || sourceType
+      const snapshot = sourceSnapshots.get(row), missing = { ...unavailable.get(row) }
+      // Flow/debt adapters retain historical numeric fallbacks. Do not present
+      // a computed zero when their original principal is nonnumeric or absent.
+      if (snapshot && factType !== 'sale' && factAmount(factType === 'flow_settlement' ? row.should_receive : row.amount) === null) missing.gross = true
+      // Inactive or unclassified sales have no authoritative snapshot in this
+      // audit; a legacy persisted should_receive must not become display truth.
+      if (factType === 'sale' && !snapshot) missing.gross = true
+      problem.source_facts = { ...sourceFacts(row, factType, snapshot, missing), ...diagnostic }
+      if (diagnostic.field && !hasOwn(problem.source_facts.amounts, diagnostic.field) &&
+          ['amount', 'should_receive', 'rounding_amount', 'effective_should_receive', 'amount_received', 'receipt_rounding_amount', 'unallocated_amount'].includes(diagnostic.field))
+        problem.source_facts.amounts[diagnostic.field] = null
     }
     return { issues, scale }
   }
