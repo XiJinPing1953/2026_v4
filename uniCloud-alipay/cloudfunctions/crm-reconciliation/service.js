@@ -2,7 +2,7 @@
 const crypto = require('crypto')
 const { decodeSource, MAX_BYTES } = require('./source')
 const core = require('./customerReconciliationLocal')
-const VERSION = 'reconciliation-center/2026-10-14.1'
+const VERSION = 'reconciliation-center/2026-10-14.2'
 const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object'
   ? Object.fromEntries(Object.keys(value).sort().filter(key => value[key] !== undefined).map(key => [key, canonical(value[key])])) : value
 const digest = value => crypto.createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex')
@@ -60,6 +60,32 @@ function createService({ db, readComplete, invoke, parseSource = decodeSource, n
     return [...byCode.values()]
   }
   const resultId = (batchId, customerId) => digest([batchId, customerId]).slice(0, 24)
+  const reviewInputsHash = (batch, mappings, details, customerId, sourceHash) => {
+    const ownMap = mappings.items.find(item => item.crm_customer_id === customerId)
+    return digest({ rule: VERSION, customer_id: customerId, source_hash: sourceHash,
+      batch_id: batch._id, company: batch.company, date_from: batch.date_from, cutoff: batch.cutoff,
+      source: batch.source, accounting: batch.accounting, mapping_version: mappings.version, mapping: mappings.items,
+      details_revision: batch.details_revision || 0, details: details.filter(row => ownMap?.accountant_codes.includes(row.accountant_code))
+        .map(row => ({ id: row._id, sha256: row.sha256, accountant_code: row.accountant_code, parsed: row.parsed })) })
+  }
+  async function requireSavedReviewResult(data) {
+    const batch = await loadBatch(data.batch_id), customer = await requireCustomer(data.customer_id)
+    const result = await get('results', resultId(batch._id, customer._id))
+    fail(result && result.batch_id === batch._id && result.customer_id === customer._id && result.company === batch.company,
+      '尚无本客户的有效核查结果，请先重新核查')
+    fail(result.read_complete === true && result.check_status === 'completed' && result.stale !== true && result.rule_version === VERSION,
+      '核查结果尚未完整或规则已变化，请先重新核查')
+    fail(result.result_hash === data.expected_result_hash && /^[a-f0-9]{64}$/.test(result.source_hash || ''),
+      '核查结果已变化，请查看最新结果后重新操作')
+    const mappings = await mapping(batch.company), details = latestDetails(await loadDetails(batch))
+    fail(result.review_inputs_hash && result.review_inputs_hash === reviewInputsHash(batch, mappings, details, customer._id, result.source_hash),
+      '对账来源、期间、对应关系或明细已变化，或旧结果缺少来源绑定，请重新核查')
+    const original = batch.source?.source_id && await get('sources', batch.source.source_id)
+    fail(original && original.batch_id === batch._id && original.kind === 'summary' && original.sha256 === batch.source.sha256 &&
+      digest(original.parsed) === digest(batch.accounting), '汇总原始资料与核查批次不一致，请重新核查')
+    const ownMap = mappings.items.find(item => item.crm_customer_id === customer._id)
+    return { result, batch, mappings, sources: [original, ...details.filter(row => ownMap?.accountant_codes.includes(row.accountant_code))] }
+  }
   const repairId = (customerId, operationId) => 'reconcile_repair_' + digest([id(customerId), operation(operationId)]).slice(0, 24)
   async function repairState(data) {
     const saved = await get('logs', repairId(data.customer_id, data.operation_id))
@@ -125,6 +151,7 @@ function createService({ db, readComplete, invoke, parseSource = decodeSource, n
     const result = { _id: keyId, batch_id: batch._id, company: batch.company, customer_id: customer._id, customer_name: customer.name,
       ...compared, source_hash: internal.source_hash || '', result_hash: resultHash, checked_at: now(), rule_version: VERSION,
       mapping_version: mappings.version, details_revision: batch.details_revision || 0, detail_hash: digest(ownDetails.map(row => row.sha256)), stale: Boolean(readFailure),
+      review_inputs_hash: reviewInputsHash(batch, mappings, detailFiles, customer._id, internal.source_hash || ''),
       check_status: readFailure ? 'read_failed' : 'completed', read_complete: !readFailure, retryable: readFailure?.retryable || false,
       read_failure: readFailure, read_stages: readStages,
       internal: { ...internal, sources: undefined }, cache_refresh: cacheRefresh,
@@ -264,16 +291,27 @@ function createService({ db, readComplete, invoke, parseSource = decodeSource, n
     if (action === 'checkCustomerV1') return checkCustomer(data, user)
     if (action === 'reviewCustomerV1') {
       fail(['manual_approval', 'accounting_followup'].includes(data.kind) && text(data.basis), '请填写核准或好会计处理依据', 400)
-      const result = await requireFresh(data, user)
+      // The saved comparison already spans two complete CRM checks. Reuse it
+      // only while all imported inputs and one fresh, internally double-read
+      // source fingerprint still agree; avoid rebuilding the same ledger here.
+      const { result, batch, mappings, sources } = await requireSavedReviewResult(data)
       if (data.kind === 'manual_approval') fail(result.summary_match && result.detail_match !== false && result.internal?.complete && !(result.issues || []).some(blocking), '仍有待核差异，不能标为人工核准')
-      const review = { kind: data.kind, basis: text(data.basis), by: user._id, at: now(), result_hash: result.result_hash, evidence_level: result.evidence_level, valid: data.kind === 'manual_approval' }
       const fresh = await invoke('crm-customer-settlement', 'inspectReconciliationCustomerV1', { customer_id: result.customer_id })
-      fail(fresh.source_hash && fresh.source_hash === result.source_hash, '核准前原始账务已变化，请重新核查')
+      fail(fresh.read_complete === true && fresh.source_hash === result.source_hash && fresh.version === result.internal?.version,
+        '核准前原始账务或检查规则已变化，或来源读取未完成，请重新核查')
+      if (data.kind === 'manual_approval') fail(fresh.complete === true && !(fresh.issues || []).some(blocking), '仍有待核差异，不能标为人工核准')
+      const review = { kind: data.kind, basis: text(data.basis), by: user._id, at: now(), result_hash: result.result_hash, evidence_level: result.evidence_level, valid: data.kind === 'manual_approval' }
       await transact(async tx => {
-        const current = first(await tx.collection(COL.results).doc(result._id).get()); fail(current?.result_hash === result.result_hash, '核查结果已变化')
-        const currentMap = first(await tx.collection(COL.mappings).doc(digest(result.company).slice(0, 24)).get())
+        const current = first(await tx.collection(COL.results).doc(result._id).get())
+        fail(current && digest(current) === digest(result), '核查结果或处理记录已变化，请刷新')
+        const currentMap = first(await tx.collection(COL.mappings).doc(mappings._id).get())
         const currentBatch = first(await tx.collection(COL.batches).doc(result.batch_id).get())
-        fail((currentMap?.version || 0) === result.mapping_version && (currentBatch?.details_revision || 0) === result.details_revision, '对应关系或明细版本已变化，请重新核查')
+        fail(currentMap && digest(currentMap) === digest(mappings) && currentBatch && digest(currentBatch) === digest(batch),
+          '对应关系、汇总资料或明细版本已变化，请重新核查')
+        for (const source of sources) {
+          const currentSource = first(await tx.collection(COL.sources).doc(source._id).get())
+          fail(currentSource && digest(currentSource) === digest(source), '原始资料已变化，请重新核查')
+        }
         await tx.collection(COL.results).doc(result._id).update({ review })
         await tx.collection(COL.logs).add({ _id: 'reconcile_review_' + digest([result._id, review]).slice(0, 24), action: 'reconciliation_review', customer_id: result.customer_id, batch_id: result.batch_id, user_id: user._id, created_at: review.at, detail: { previous: current.review || null, review } })
       }); return review

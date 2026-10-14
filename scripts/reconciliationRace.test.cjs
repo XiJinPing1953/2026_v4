@@ -26,7 +26,7 @@ async function fixture() {
   const service = createService({ db, readComplete, now: () => ++clock,
     parseSource: input => ({ name: input.name, sha256: digest(input), base64: 'synthetic', bytes: 9, parsed: structuredClone(input.parsed) }),
     invoke: async (_name, action) => {
-      if (action === 'inspectReconciliationCustomerV1') return { complete: true, source_hash: digest('fixed-financial-sources'), issues: [], cache: { stale: false } }
+      if (action === 'inspectReconciliationCustomerV1') return { read_complete: true, complete: true, source_hash: digest('fixed-financial-sources'), issues: [], cache: { stale: false } }
       if (action === 'exportCustomerAccountingLedgerV1') return structuredClone(ledger)
       throw Error(`Unexpected invocation: ${action}`)
     } })
@@ -64,11 +64,11 @@ test('late detail import advances batch version and prevents persisting an obsol
 test('mapping changed after fresh comparison blocks manual approval of the previous subject mapping', async () => {
   const f = await fixture(), checked = await f.run('checkCustomerV1', f.data)
   assert.equal(checked.detail_match, true)
-  // reviewCustomer first saves requireFresh's comparison, then starts approval.
-  f.beforeTransaction(2, () => f.run('saveMappingV1', { company: COMPANY, customer_id: CID,
+  // Review reuses the saved comparison and has only its final save transaction.
+  f.beforeTransaction(1, () => f.run('saveMappingV1', { company: COMPANY, customer_id: CID,
     accountant_codes: ['112202'], basis: '另一名会计确认了新的对应关系', expected_version: 1 }))
   await assert.rejects(f.run('reviewCustomerV1', { ...f.data, kind: 'manual_approval', basis: '核准原对应',
-    expected_result_hash: checked.result_hash }), /对应关系或明细版本已变化/)
+    expected_result_hash: checked.result_hash }), /对应关系.*明细版本已变化/)
   assert.equal(f.tables[COL.mappings][0].version, 2)
   assert.deepEqual(f.tables[COL.mappings][0].items[0].accountant_codes, ['112202'])
   assert.equal(f.tables[COL.results][0].review, null)

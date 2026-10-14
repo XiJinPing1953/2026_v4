@@ -38,7 +38,7 @@ function fixture(options = {}) {
   // Match Alipay's missing transaction-document behavior and commit conflicts.
   const db = depositDb(tables, { start: current => state.onTransaction?.(current), txWrite: (_operation, name, value) => state.failTransactionWrite?.(name, value) })
   const correction = loadHandler('crm-accounting-correction', db)
-  const inspect = customerId => ({ complete: state.internalComplete !== false, source_hash: digest({ receipts: tables.crm_customer_receipts.filter(r => r.customer_id === customerId), sales: tables.crm_sale_records.filter(r => r.customer_id === customerId), revision: state.sourcesRevision }),
+  const inspect = customerId => ({ read_complete: state.readComplete !== false, complete: state.internalComplete !== false, source_hash: digest({ receipts: tables.crm_customer_receipts.filter(r => r.customer_id === customerId), sales: tables.crm_sale_records.filter(r => r.customer_id === customerId), revision: state.sourcesRevision }),
     issues: clone(state.internalIssues), cache: { stale: state.stale, before: { receivable_balance: 2 }, expected: { receivable_balance: 0 } } })
   const ledger = customerId => ({ customer: { _id: customerId }, period: { date_from: '2026-01-01', date_to: '2026-09-23' },
     opening_balance: 0, closing_balance: 0, totals: { debit: 100, credit: 100 },
@@ -151,6 +151,74 @@ test('好会计处理记录不会关闭差异，重复核查也不会变成人�
   const checked = await f.run('checkCustomerV1', data)
   assert.equal(checked.review.valid, false)
   assert.equal(checked.detail_match, false)
+})
+
+test('处理记录复用保存结果，仅一次完整inspect且不重新导出流水或改财务原单', async () => {
+  const f = fixture(), data = await f.ready(true), result = await f.run('checkCustomerV1', data)
+  const counts = f.counts(), original = digest(Object.fromEntries(Object.entries(f.tables).filter(([key]) => !Object.values(COL).includes(key))))
+  const saved = await f.run('reviewCustomerV1', { ...data, expected_result_hash: result.result_hash,
+    kind: 'accounting_followup', basis: '仅记录会计待办，尚未重新导入验证' })
+  assert.deepEqual(f.counts(), { inspectCount: counts.inspectCount + 1, exportCount: counts.exportCount })
+  assert.equal(saved.valid, false)
+  assert.equal(f.tables[COL.logs].filter(row => row.action === 'reconciliation_review').length, 1)
+  assert.equal(digest(Object.fromEntries(Object.entries(f.tables).filter(([key]) => !Object.values(COL).includes(key)))), original)
+})
+
+test('旧结果或汇总、期间、映射、明细变化不能借保存的结果核准', async () => {
+  for (const mutate of [
+    f => { delete f.tables[COL.results][0].review_inputs_hash },
+    f => { f.tables[COL.results][0].rule_version = 'older-rule' },
+    f => { f.tables[COL.results][0].result_hash = '0'.repeat(64) },
+    f => { f.tables[COL.results][0].read_complete = false },
+    f => { f.tables[COL.batches][0].source.sha256 = 'changed' },
+    f => { f.tables[COL.batches][0].cutoff = '2026-09-24' },
+    f => { f.tables[COL.batches][0].accounting.rows[0].name = 'changed' },
+    f => { f.tables[COL.mappings][0].items[0].accountant_codes = ['112202'] },
+    f => { f.tables[COL.mappings][0].version++ },
+    f => { f.tables[COL.batches][0].details_revision++ },
+    f => { f.tables[COL.sources].find(row => row.kind === 'detail').sha256 = 'changed' },
+    f => { f.tables[COL.sources].find(row => row.kind === 'detail').parsed.rows[0].debit_milli++ },
+    f => { f.tables[COL.sources].find(row => row.kind === 'summary').parsed.rows[0].name = 'changed' }
+  ]) {
+    const f = fixture(), data = await f.ready(true), checked = await f.run('checkCustomerV1', data)
+    const counts = f.counts(); mutate(f)
+    await assert.rejects(() => f.run('reviewCustomerV1', { ...data, expected_result_hash: checked.result_hash,
+      kind: 'manual_approval', basis: '不得核准已经变化的资料' }), /重新核查|已变化/)
+    assert.deepEqual(f.counts(), counts, '输入变更应在昂贵CRM重读之前拒绝')
+    assert.equal(f.tables[COL.results][0].review, null)
+    assert.equal(f.tables[COL.logs].filter(row => row.action === 'reconciliation_review').length, 0)
+  }
+})
+
+test('单次完整来源核验发现原单变化或读取未完成时停止保存', async () => {
+  for (const mutate of [f => { f.tables.crm_customer_receipts[0].amount++ },
+    f => { f.state.readComplete = false }, f => { f.state.internalComplete = false; f.state.internalIssues = [{ code: 'new_issue' }] }]) {
+    const f = fixture(), data = await f.ready(true), checked = await f.run('checkCustomerV1', data)
+    f.state.onInvoke = (_name, action) => { if (action === 'inspectReconciliationCustomerV1') mutate(f) }
+    await assert.rejects(() => f.run('reviewCustomerV1', { ...data, expected_result_hash: checked.result_hash,
+      kind: 'manual_approval', basis: '仅核准未变化的完整来源' }), /已变化|读取未完成|待核差异/)
+    assert.equal(f.tables[COL.results][0].review, null)
+    assert.equal(f.tables[COL.logs].filter(row => row.action === 'reconciliation_review').length, 0)
+  }
+})
+
+test('来源核验之后的结果、映射或原始资料并发变化在事务中拒绝', async () => {
+  for (const mutate of [
+    tables => { tables[COL.results][0].result_hash = '0'.repeat(64) },
+    tables => { tables[COL.results][0].review = { basis: '其他会计已处理' } },
+    tables => { tables[COL.mappings][0].items[0].basis = '另一版映射依据' },
+    tables => { tables[COL.batches][0].source.sha256 = 'changed' },
+    tables => { tables[COL.batches][0].details_revision++ },
+    tables => { tables[COL.sources].find(row => row.kind === 'summary').base64 = 'changed' },
+    tables => { tables[COL.sources].find(row => row.kind === 'detail').parsed.rows[0].debit_milli++ }
+  ]) {
+    const f = fixture(), data = await f.ready(true), checked = await f.run('checkCustomerV1', data)
+    f.state.onTransaction = mutate
+    await assert.rejects(() => f.run('reviewCustomerV1', { ...data, expected_result_hash: checked.result_hash,
+      kind: 'accounting_followup', basis: '不得覆盖并发更改' }), /已变化/)
+    assert.notEqual(f.tables[COL.results][0].review?.basis, '不得覆盖并发更改')
+    assert.equal(f.tables[COL.logs].filter(row => row.action === 'reconciliation_review').length, 0)
+  }
 })
 
 test('上传科目与原文件编码冲突、账套或期间不符均拒绝', async () => {

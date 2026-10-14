@@ -24,21 +24,17 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.14-reconciliation-repair",
+      "version": "2026.10.14-reconciliation-review",
       "output": "release/cloud",
-      "acceptance": "Validate sale return-credit provenance and conservation; atomically reclassify confirmed excess payment from a fee to settlement income with protected snapshot, rollback rehearsal and idempotent execution. Cash receipt facts remain unchanged.",
+      "acceptance": "Save reconciliation follow-up against a complete saved result with one full current-source validation and transactional source, mapping and result guards. Never alter financial records or accounting software.",
       "deploymentScope": {
         "functions": [
-          "crm-customer-settlement",
-          "crm-accounting-correction"
+          "crm-reconciliation"
         ],
         "databaseFiles": [],
-        "baseCommit": "81c3a36ce4aa6b116c1170b1f26152dce377dad1",
+        "baseCommit": "aa9b60c79a0633980349c227cedb6044b9f41c2d",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/reconciliationAudit.js",
-          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/plan.js",
-          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/snapshot.js",
-          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/overpaymentSettlementRepair.js"
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/service.js"
         ]
       },
       "integrityScope": "deployment"
