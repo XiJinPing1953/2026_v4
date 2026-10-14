@@ -27,7 +27,10 @@ exports.main = async (event = {}) => {
     const user = first(await db.collection('crm_users').where({ token: event.token }).limit(1).get())
     if (!user) return { code: 401, msg: '登录已过期' }
     if (!['finance', 'admin', 'superadmin'].includes(user.role) || !hasPagePermission(user, '/pages/accounting/reconciliation-center', READS.has(event.action) ? 'view' : 'update')) return { code: 403, msg: '需要对账中心财务权限' }
-    const invoke = createInvoker(event, options => uniCloud.callFunction(options), startedAt)
+    // Alipay's server wrapper drops callFunction.timeout. Its SDK reads timeout
+    // from init options instead. A fresh current-space instance avoids changing
+    // the shared database client or another invocation's deadline.
+    const invoke = createInvoker(event, options => uniCloud.init({ provider: 'alipay', timeout: options.timeout }).callFunction(options), startedAt)
     return { code: 0, data: await createService({ db, readComplete, invoke }).run(event.action, event.data || {}, user) }
   } catch (error) { return { code: [400, 401, 403, 404, 409].includes(error.code) ? error.code : 409, msg: error.message || '对账未完成', data: error.details || {} } }
 }

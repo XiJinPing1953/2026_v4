@@ -408,3 +408,25 @@ test('下游超时即使包装409也保持同号待确认，不伪装业务拒�
   f.state.onInvoke = null
   assert.equal((await f.run('prepareRepairV1', request)).status, 'prepared')
 })
+
+test('支付宝服务端把超时设置在当前空间实例上，不依赖被SDK丢弃的调用参数', async () => {
+  const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm'), { createRequire } = require('node:module')
+  const filename = path.resolve('uniCloud-alipay/cloudfunctions/crm-reconciliation/index.js'), localRequire = createRequire(filename)
+  const f = fixture(), instances = [], calls = []
+  const cloud = {
+    database: () => f.db,
+    callFunction: () => { throw Error('未设置实例超时的旧路径不应调用') },
+    init(options) {
+      instances.push(options)
+      return { async callFunction({ name, data }) { calls.push({ name, data }); return { result: { code: 0, data: { received: true } } } } }
+    }
+  }
+  const scope = { exports: {}, Date, uniCloud: cloud,
+    require: name => name === './service' ? { createService: ({ invoke }) => ({ run: () => invoke('crm-customer-settlement','inspectReconciliationCustomerV1',{customer_id:CID}) }) } : localRequire(name) }
+  vm.runInNewContext(fs.readFileSync(filename,'utf8'),scope,{filename})
+  const response = await scope.exports.main({action:'checkCustomerV1',token:'test',data:{}})
+  assert.equal(response.code,0); assert.equal(response.data.received,true)
+  assert.equal(instances.length,1); assert.equal(instances[0].provider,'alipay'); assert.equal(instances[0].timeout,60000)
+  assert.equal(instances[0].spaceId,undefined)
+  assert.equal(calls[0].data.token,'test')
+})
