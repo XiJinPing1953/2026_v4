@@ -412,3 +412,32 @@ test('read-only detail has no explain mutation entry and explained history stays
 	const writable = await renderCenter(h, { selected: true, writable: true })
 	assert.match(writable, />确认已解释</); assert.match(writable, /待处理提示 2 条/); h.stop()
 })
+test('production H5 storage adapter persists and restores an explanation with an empty global uni object', async () => {
+	const path = require('node:path'), { parse, compileScript } = require('@vue/compiler-sfc'), { parseAst } = require('rollup/parseAst')
+	const file = 'src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue'
+	const script = compileScript(parse(fs.readFileSync(file, 'utf8')).descriptor, { id: 'h5-storage-check' }).content
+	const priorInputDir = process.env.UNI_INPUT_DIR
+	let compiled
+	try {
+		process.env.UNI_INPUT_DIR = path.resolve('src')
+		const plugin = require('@dcloudio/uni-h5-vite/dist/plugins/inject').uniInjectPlugin()
+		plugin.configResolved({ command: 'build' })
+		compiled = plugin.transform.call({ parse: parseAst }, script, path.resolve(file)).code
+	} finally { if (priorInputDir === undefined) delete process.env.UNI_INPUT_DIR; else process.env.UNI_INPUT_DIR = priorInputDir }
+	assert.match(compiled, /import \{ getStorageSync as \$inject_uni_getStorageSync \} from '@dcloudio\/uni-h5'/)
+	assert.match(compiled, /import \{ setStorageSync as \$inject_uni_setStorageSync \} from '@dcloudio\/uni-h5'/)
+	let storageNode
+	function visit(node) {
+		if (!node || typeof node !== 'object') return
+		if (node.type === 'CallExpression' && node.callee?.name === 'useReconciliationCenter') storageNode = node.arguments[0].properties.find(property => property.key.name === 'storage').value
+		Object.values(node).forEach(value => { if (Array.isArray(value)) value.forEach(visit); else if (value && typeof value === 'object') visit(value) })
+	}
+	visit(parseAst(compiled)); assert.equal(storageNode?.type, 'ObjectExpression')
+	const persisted = new Map(), requests = [], runtime = vm.createContext({ uni: {},
+		$inject_uni_getStorageSync: key => persisted.get(key), $inject_uni_setStorageSync: (key, value) => persisted.set(key, copy(value)) })
+	const storage = vm.runInContext(`(${compiled.slice(storageNode.start, storageNode.end)})`, runtime)
+	const failed = await resolutionCenter({ resolveIssue: async input => { requests.push(copy(input)); throw Error('timeout') } }, { storage })
+	await failed.state.resolveIssue(explanationInput()); assert.ok(persisted.get('crm_reconciliation_issue:test-user')?.input.operation_id); failed.stop()
+	const resumed = await resolutionCenter({ resolveIssue: async input => { requests.push(copy(input)); return success(resolvedResult(input)) } }, { storage })
+	assert.equal(await resumed.state.resolveIssue(), true); assert.deepEqual(requests[0], requests[1]); assert.equal(persisted.get('crm_reconciliation_issue:test-user'), null); resumed.stop()
+})

@@ -6,7 +6,7 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.14-reconciliation-issue-explanations",
+      "version": "2026.10.14-reconciliation-issue-storage",
       "output": "dist/build/web",
       "acceptance": "Explain accepted date differences or merge related clues into an active classification issue, preserving evidence and history. Count only active clues; invalidate explanations after source changes. Keep financial records and raw comparison/approval facts unchanged.",
       "deploymentScope": {
@@ -14,14 +14,9 @@
           "crm-reconciliation"
         ],
         "databaseFiles": [],
-        "baseCommit": "64dfbfba392ac19f2e388a3b615b1c2abe7a24b3",
+        "baseCommit": "05713b9eee751ff5b3d4b208c8b6c35a254fc9a8",
         "sourceFiles": [
-          "src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue",
-          "src/composables/useReconciliationCenter.js",
-          "src/services/api/reconciliation.js",
-          "src/services/mappers/reconciliationIssue.js",
-          "uniCloud-alipay/cloudfunctions/crm-reconciliation/service.js",
-          "uniCloud-alipay/cloudfunctions/crm-reconciliation/issueResolution.js"
+          "src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue"
         ]
       },
       "integrityScope": "deployment"

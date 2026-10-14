@@ -135,7 +135,12 @@ import { presentReconciliationIssue, reconciliationIssueType as problemLabel, re
 const canRead = computed(() => ['finance', 'admin', 'superadmin'].includes(getRoleTemplate()) && canPageAction('/pages/accounting/reconciliation-center', 'view'))
 const canWrite = computed(() => canRead.value && canPageAction('/pages/accounting/reconciliation-center', 'update'))
 const canRepairLegacy = computed(() => getRoleTemplate() === 'superadmin')
-const { context, detail, batch, customers, pending, retryableFailureCount, blockedReadCount, resultByCustomer, resolutionOperation, autoRefresh, busy, issue, running, stopping, currentCustomer, checkedThisRun, totalThisRun, failures, loadContext, openBatch, runChecks, pause, importBatch, saveMapping, importDetail, reviewCustomer, resolveIssue, request } = useReconciliationCenter({ api: reconciliationApi, canWrite: () => canWrite.value, storage: uni, actorId: getUser()?._id || getUser()?.id || 'current' })
+const { context, detail, batch, customers, pending, retryableFailureCount, blockedReadCount, resultByCustomer, resolutionOperation, autoRefresh, busy, issue, running, stopping, currentCustomer, checkedThisRun, totalThisRun, failures, loadContext, openBatch, runChecks, pause, importBatch, saveMapping, importDetail, reviewCustomer, resolveIssue, request } = useReconciliationCenter({
+	api: reconciliationApi, canWrite: () => canWrite.value,
+	// H5 production tree-shaking resolves explicit API calls; the global uni object has no storage methods.
+	storage: { getStorageSync: key => uni.getStorageSync(key), setStorageSync: (key, value) => uni.setStorageSync(key, value) },
+	actorId: getUser()?._id || getUser()?.id || 'current'
+})
 const blocked = computed(() => busy.value || running.value)
 const writeBlocked = computed(() => blocked.value || !canWrite.value || !!resolutionOperation.value)
 const showImport = ref(false), summaryFile = ref(null), importForm = reactive({ company: '', cutoff: '' })
