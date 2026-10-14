@@ -24,7 +24,12 @@ function depositDb(tables, hooks = {}, transactional = false) {
         const rows = (await q.get()).data
         for (const row of rows) {
           const doc = tables[name].find(item => item._id === row._id)
-          Object.assign(doc, clone(patch)); writes.push({ table: name, id: doc._id, data: clone(doc) })
+          const values = clone(patch)
+          if (hooks.alipayNullObjectUpdates) for (const [field, value] of Object.entries(values)) {
+            if (value?.__testDbCommand === 'set') values[field] = value.value
+            else if (doc[field] === null && value && typeof value === 'object' && !Array.isArray(value)) delete values[field]
+          }
+          Object.assign(doc, values); writes.push({ table: name, id: doc._id, data: clone(doc) })
         }
         return { updated: rows.length }
       }
@@ -33,6 +38,7 @@ function depositDb(tables, hooks = {}, transactional = false) {
     } })
   }
   const result = { ...reader, writes, collection: name => wrap(name, reader.collection(name)) }
+  if (hooks.alipayNullObjectUpdates) result.command.set = value => ({ __testDbCommand: 'set', value: clone(value) })
   if (!transactional) result.startTransaction = async () => {
     if (hooks.start) await hooks.start(tables)
     const before = clone(tables), copy = clone(tables), tx = depositDb(copy, hooks, true)

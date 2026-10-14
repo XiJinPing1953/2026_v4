@@ -312,9 +312,21 @@ function createService({ db, readComplete, invoke, parseSource = decodeSource, n
           const currentSource = first(await tx.collection(COL.sources).doc(source._id).get())
           fail(currentSource && digest(currentSource) === digest(source), '原始资料已变化，请重新核查')
         }
-        await tx.collection(COL.results).doc(result._id).update({ review })
+        // A plain object update expands nested fields; the existing review is
+        // null on first save. Explicit replacement is required on Alipay.
+        const updated = await tx.collection(COL.results).doc(result._id).update({ review: db.command.set(review) })
+        fail(updated?.updated === 1, '处理记录未更新到预期结果，本次未保存')
+        const written = first(await tx.collection(COL.results).doc(result._id).get())
+        fail(written?.result_hash === result.result_hash && digest(written.review) === digest(review),
+          '处理记录写入后校验不一致，本次未保存')
         await tx.collection(COL.logs).add({ _id: 'reconcile_review_' + digest([result._id, review]).slice(0, 24), action: 'reconciliation_review', customer_id: result.customer_id, batch_id: result.batch_id, user_id: user._id, created_at: review.at, detail: { previous: current.review || null, review } })
-      }); return review
+      })
+      const saved = await get('results', result._id)
+      if (saved?.result_hash !== result.result_hash || digest(saved.review) !== digest(review)) {
+        throw Object.assign(Error('处理记录已提交，但回读尚未确认，请刷新原结果核实，勿重复保存'),
+          { code: 409, details: { committed: true, result_id: result._id, result_hash: result.result_hash } })
+      }
+      return saved.review
     }
     if (['repairSourcesV1', 'prepareRepairV1', 'executeRepairV1', 'repairStatusV1'].includes(action)) {
       fail(user.role === 'superadmin', '原始收款修正沿用超级管理员权限', 403)

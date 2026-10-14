@@ -24,15 +24,15 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.14-reconciliation-review",
+      "version": "2026.10.14-reconciliation-review-save",
       "output": "release/cloud",
-      "acceptance": "Save reconciliation follow-up against a complete saved result with one full current-source validation and transactional source, mapping and result guards. Never alter financial records or accounting software.",
+      "acceptance": "Persist reconciliation reviews with explicit Alipay object replacement; require exact transaction and committed readback before reporting success. Source fingerprint and single full current-source validation remain; financial records are untouched.",
       "deploymentScope": {
         "functions": [
           "crm-reconciliation"
         ],
         "databaseFiles": [],
-        "baseCommit": "aa9b60c79a0633980349c227cedb6044b9f41c2d",
+        "baseCommit": "1e4431d024bc503b5500d6ac50b894f3be4e1ceb",
         "sourceFiles": [
           "uniCloud-alipay/cloudfunctions/crm-reconciliation/service.js"
         ]

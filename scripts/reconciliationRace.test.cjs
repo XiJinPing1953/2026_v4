@@ -10,7 +10,7 @@ const CID = 'a'.repeat(24), COMPANY = '并发核查合成账套'
 async function fixture() {
   let clock = 10
   const tables = { crm_customers: [{ _id: CID, name: '合成客户' }], crm_operation_logs: [] }
-  const db = depositDb(tables), actor = { _id: 'synthetic-finance', role: 'finance' }
+  const db = depositDb(tables, { alipayNullObjectUpdates: true }), actor = { _id: 'synthetic-finance', role: 'finance' }
   const controls = { opening_milli: 0, debit_milli: 100000, credit_milli: 100000, closing_milli: 0 }
   const summary = { company: COMPANY, month: '2026-09', count: 2,
     rows: ['112201', '112202'].map(code => ({ code, name: '合成客户', ...controls })),

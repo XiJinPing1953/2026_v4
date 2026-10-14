@@ -36,7 +36,8 @@ function fixture(options = {}) {
   const state = { onInvoke: null, stale: false, refreshCount: 0, ledgerOverride: null, throwAfterCommit: false, correctionCalls: [], sourcesRevision: 0,
     onTransaction: null, failTransactionWrite: null, internalIssues: [] }
   // Match Alipay's missing transaction-document behavior and commit conflicts.
-  const db = depositDb(tables, { start: current => state.onTransaction?.(current), txWrite: (_operation, name, value) => state.failTransactionWrite?.(name, value) })
+  const db = depositDb(tables, { alipayNullObjectUpdates: true, start: current => state.onTransaction?.(current),
+    txWrite: (_operation, name, value) => state.failTransactionWrite?.(name, value), afterCommit: current => state.onAfterCommit?.(current) })
   const correction = loadHandler('crm-accounting-correction', db)
   const inspect = customerId => ({ read_complete: state.readComplete !== false, complete: state.internalComplete !== false, source_hash: digest({ receipts: tables.crm_customer_receipts.filter(r => r.customer_id === customerId), sales: tables.crm_sale_records.filter(r => r.customer_id === customerId), revision: state.sourcesRevision }),
     issues: clone(state.internalIssues), cache: { stale: state.stale, before: { receivable_balance: 2 }, expected: { receivable_balance: 0 } } })
@@ -162,6 +163,51 @@ test('处理记录复用保存结果，仅一次完整inspect且不重新导出�
   assert.equal(saved.valid, false)
   assert.equal(f.tables[COL.logs].filter(row => row.action === 'reconciliation_review').length, 1)
   assert.equal(digest(Object.fromEntries(Object.entries(f.tables).filter(([key]) => !Object.values(COL).includes(key)))), original)
+})
+
+test('本地模拟null字段的普通对象更新未生效，显式set保存后重查和重开均保留待办', async () => {
+  const f = fixture(), data = await f.ready(true), result = await f.run('checkCustomerV1', data)
+  await f.db.collection(COL.results).doc(result._id).update({ review: { kind: 'accounting_followup', basis: '普通对象更新模拟' } })
+  assert.equal(f.tables[COL.results][0].review, null, '模拟器复现null容器不能靠子字段更新建立对象')
+  const saved = await f.run('reviewCustomerV1', { ...data, expected_result_hash: result.result_hash,
+    kind: 'accounting_followup', basis: '明确替换对象并回读确认' })
+  assert.deepEqual(f.tables[COL.results][0].review, saved)
+  const checked = await f.run('checkCustomerV1', data)
+  assert.equal(checked.review.kind, 'accounting_followup')
+  assert.equal(checked.review.basis, saved.basis)
+  const reopened = await f.run('getBatchV1', { batch_id: data.batch_id })
+  assert.equal(reopened.results[0].review.kind, 'accounting_followup')
+  assert.equal(reopened.results[0].review.basis, saved.basis)
+})
+
+test('更新计数未命中或事务内回读丢失review时回滚，不返回成功或留下处理日志', async () => {
+  for (const fault of ['count', 'readback']) {
+    const f = fixture(), data = await f.ready(true), result = await f.run('checkCustomerV1', data)
+    if (fault === 'readback') f.db.command.set = value => clone(value) // Simulate ineffective replacement, even though update reports one matched row.
+    else {
+      const start = f.db.startTransaction
+      f.db.startTransaction = async () => {
+        const tx = await start(), collection = tx.collection
+        tx.collection = name => {
+          const store = collection(name)
+          return name !== COL.results ? store : { ...store, doc: id => ({ ...store.doc(id), update: async () => ({ updated: 0 }) }) }
+        }
+        return tx
+      }
+    }
+    await assert.rejects(() => f.run('reviewCustomerV1', { ...data, expected_result_hash: result.result_hash,
+      kind: 'accounting_followup', basis: '不能仅凭请求成功就清空输入' }), /本次未保存/)
+    assert.equal(f.tables[COL.results][0].review, null)
+    assert.equal(f.tables[COL.logs].filter(row => row.action === 'reconciliation_review').length, 0)
+  }
+})
+
+test('提交后回读不一致明确报告已提交待确认，不能冒充保存成功', async () => {
+  const f = fixture(), data = await f.ready(true), result = await f.run('checkCustomerV1', data)
+  f.state.onAfterCommit = tables => { tables[COL.results][0].review = null }
+  await assert.rejects(() => f.run('reviewCustomerV1', { ...data, expected_result_hash: result.result_hash,
+    kind: 'accounting_followup', basis: '提交后仍须确认结果' }), error => /已提交.*回读尚未确认/.test(error.message) && error.details?.committed === true)
+  assert.equal(f.tables[COL.logs].filter(row => row.action === 'reconciliation_review').length, 1)
 })
 
 test('旧结果或汇总、期间、映射、明细变化不能借保存的结果核准', async () => {
