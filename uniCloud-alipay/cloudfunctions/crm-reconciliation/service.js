@@ -2,7 +2,7 @@
 const crypto = require('crypto')
 const { decodeSource, MAX_BYTES } = require('./source')
 const core = require('./customerReconciliationLocal')
-const VERSION = 'reconciliation-center/2026-10-13.1'
+const VERSION = 'reconciliation-center/2026-10-14.1'
 const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object'
   ? Object.fromEntries(Object.keys(value).sort().filter(key => value[key] !== undefined).map(key => [key, canonical(value[key])])) : value
 const digest = value => crypto.createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex')
@@ -76,23 +76,40 @@ function createService({ db, readComplete, invoke, parseSource = decodeSource, n
     const customers = await inventory(), mappings = await persistedMapping(batch.company), detailFiles = latestDetails(await loadDetails(batch))
     const ownMap = mappings.items.find(item => item.crm_customer_id === customer._id)
     const ownDetails = detailFiles.filter(row => ownMap?.accountant_codes.includes(row.accountant_code))
-    let internal, ledger, cacheRefresh = null
+    let internal, ledger, cacheRefresh = null, readFailure = null, stage = 'inspect_before'
+    const readStages = []
+    const readStage = async (label, name, action, args) => {
+      stage = label
+      const started = now()
+      try {
+        const result = await invoke(name, action, args)
+        if (action === 'inspectReconciliationCustomerV1') {
+          fail(result?.read_complete !== false && result?.source_hash, result?.issues?.find(row => row.code === 'read_incomplete')?.message || 'CRM原单读取未完成，请重新核查')
+        }
+        readStages.push({ stage: label, elapsed_ms: now() - started, complete: true })
+        return result
+      } catch (error) {
+        readStages.push({ stage: label, elapsed_ms: now() - started, complete: false })
+        throw error
+      }
+    }
     try {
-      internal = await invoke('crm-customer-settlement', 'inspectReconciliationCustomerV1', { customer_id: customer._id })
-      ledger = await invoke('crm-customer-settlement', 'exportCustomerAccountingLedgerV1', { customer_id: customer._id, date_from: batch.date_from, date_to: batch.cutoff })
-      const after = await invoke('crm-customer-settlement', 'inspectReconciliationCustomerV1', { customer_id: customer._id })
+      internal = await readStage('inspect_before', 'crm-customer-settlement', 'inspectReconciliationCustomerV1', { customer_id: customer._id })
+      ledger = await readStage('ledger', 'crm-customer-settlement', 'exportCustomerAccountingLedgerV1', { customer_id: customer._id, date_from: batch.date_from, date_to: batch.cutoff })
+      const after = await readStage('inspect_after', 'crm-customer-settlement', 'inspectReconciliationCustomerV1', { customer_id: customer._id })
       fail(internal.source_hash && internal.source_hash === after.source_hash, '读取期间原单发生变化，请重新核查')
       internal = after
       if (data.auto_refresh === true && internal.complete === true && !(internal.issues || []).some(blocking) && internal.cache?.stale) {
-        cacheRefresh = await invoke('crm-customer-settlement', 'refreshReconciliationCacheV1', { customer_id: customer._id,
+        cacheRefresh = await readStage('cache_refresh', 'crm-customer-settlement', 'refreshReconciliationCacheV1', { customer_id: customer._id,
           expected_source_hash: internal.source_hash, operation_id: 'recon_' + digest([customer._id, internal.source_hash, internal.cache.before, internal.cache.expected]).slice(0, 40) })
-        const refreshed = await invoke('crm-customer-settlement', 'inspectReconciliationCustomerV1', { customer_id: customer._id })
+        const refreshed = await readStage('inspect_refreshed', 'crm-customer-settlement', 'inspectReconciliationCustomerV1', { customer_id: customer._id })
         fail(refreshed.source_hash === internal.source_hash, '刷新期间原始账务变化，须重新核查')
         internal = refreshed
         fail(cacheRefresh.verified === true && !internal.cache?.stale, '缓存刷新结果尚未验证，请按原操作号复查')
       }
     } catch (error) {
-      internal = { ...internal, complete: false, issues: [...(internal?.issues || []), errorIssue(error.message)] }
+      readFailure = { stage, message: error.message, retryable: ![401, 403].includes(error.code) }
+      internal = { ...internal, read_complete: false, complete: false, issues: [...(internal?.issues || []), errorIssue(error.message)] }
       if (!ledger) ledger = { error: error.message }
     }
     fail((await mapping(batch.company)).version === mappings.version, '读取期间客户对应关系变化，请重新核查')
@@ -107,7 +124,9 @@ function createService({ db, readComplete, invoke, parseSource = decodeSource, n
     const keyId = resultId(batch._id, customer._id), previous = await get('results', keyId)
     const result = { _id: keyId, batch_id: batch._id, company: batch.company, customer_id: customer._id, customer_name: customer.name,
       ...compared, source_hash: internal.source_hash || '', result_hash: resultHash, checked_at: now(), rule_version: VERSION,
-      mapping_version: mappings.version, details_revision: batch.details_revision || 0, detail_hash: digest(ownDetails.map(row => row.sha256)), stale: false,
+      mapping_version: mappings.version, details_revision: batch.details_revision || 0, detail_hash: digest(ownDetails.map(row => row.sha256)), stale: Boolean(readFailure),
+      check_status: readFailure ? 'read_failed' : 'completed', read_complete: !readFailure, retryable: readFailure?.retryable || false,
+      read_failure: readFailure, read_stages: readStages,
       internal: { ...internal, sources: undefined }, cache_refresh: cacheRefresh,
       review: previous?.review ? { ...previous.review, valid: previous.review.kind === 'manual_approval' && previous.review.result_hash === resultHash && internal.complete === true } : null }
     const persistable = JSON.parse(JSON.stringify(result))
@@ -133,6 +152,7 @@ function createService({ db, readComplete, invoke, parseSource = decodeSource, n
   }
   async function requireFresh(data, user) {
     const result = await checkCustomer({ batch_id: data.batch_id, customer_id: data.customer_id, auto_refresh: false }, user)
+    fail(result.read_complete === true, 'CRM读取尚未完成，请重新核查后操作')
     fail(result.result_hash === data.expected_result_hash, '账务或对账资料已变化，请查看最新核查结果后重新预览')
     return result
   }
@@ -282,7 +302,7 @@ function createService({ db, readComplete, invoke, parseSource = decodeSource, n
         fail(prepared.request_hash === requestHash, '操作号冲突')
         try { await invoke('crm-accounting-correction', 'prepareV1', prepared.request) }
         catch (error) {
-          if ([400, 403, 409].includes(error.code) && (await repairState(data)).status === 'not_prepared') {
+          if (!error.transport_error && !error.before_dispatch && [400, 403, 409].includes(error.code) && (await repairState(data)).status === 'not_prepared') {
             await collection('logs').doc(keyId).update({ preparation_status: 'rejected', rejection_reason: error.message })
           }
           throw error

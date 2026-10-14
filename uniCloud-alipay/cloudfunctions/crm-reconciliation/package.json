@@ -2,5 +2,5 @@
   "name": "crm-reconciliation",
   "version": "1.0.0",
   "main": "index.js",
-  "cloudfunction-config": { "timeout": 60, "memorySize": 512 }
+  "cloudfunction-config": { "timeout": 180, "memorySize": 512 }
 }

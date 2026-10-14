@@ -12,6 +12,10 @@ const money = value => {
 const yuan = milli => Number((milli / 1000).toFixed(3))
 const sum = (list, key) => list.reduce((total, row) => total + (row[key] || 0), 0)
 const CONTROL_KEYS = ['opening_milli', 'debit_milli', 'credit_milli', 'closing_milli']
+const independent = customer => !customer.settlement_customer_id || customer.settlement_customer_id === customer._id
+const ledgerComplete = ledger => Boolean(ledger && !ledger.error && ledger.period_summary?.complete === true)
+const ledgerControlsPresent = ledger => [ledger?.opening_balance, ledger?.closing_balance, ledger?.totals?.debit, ledger?.totals?.credit]
+  .every(value => value != null && value !== '')
 const validDate = value => /^20\d\d-\d\d-\d\d$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) &&
   new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value
 function validatePeriod(dateFrom, cutoff, accountingMonth) {
@@ -58,7 +62,7 @@ function validateCustomerInventory(customers, expectedTotal) {
     ids.add(c._id)
   }
   for (const c of customers) if (c.settlement_customer_id && !ids.has(c.settlement_customer_id)) throw Error(`结算主户缺失: ${c._id}`)
-  return customers.filter(c => !c.settlement_customer_id)
+  return customers.filter(independent)
 }
 
 function compare({ accounting, customers, expectedCustomerCount, ledgers, mapping = [] }) {
@@ -69,7 +73,7 @@ function compare({ accounting, customers, expectedCustomerCount, ledgers, mappin
   for (const item of mapping) {
     if (!item?.crm_customer_id || !Array.isArray(item.accountant_codes) || !item.accountant_codes.length) throw Error('已确认科目映射格式不完整')
     const customer = customerById.get(item.crm_customer_id)
-    if (!customer || customer.settlement_customer_id || approved.has(item.crm_customer_id)) throw Error(`映射客户不是独立结算户或重复: ${item.crm_customer_id}`)
+    if (!customer || !independent(customer) || approved.has(item.crm_customer_id)) throw Error(`映射客户不是独立结算户或重复: ${item.crm_customer_id}`)
     for (const code of item.accountant_codes) {
       if (usedCodes.has(code)) throw Error(`会计科目重复分配: ${code}`)
       usedCodes.add(code)
@@ -79,27 +83,29 @@ function compare({ accounting, customers, expectedCustomerCount, ledgers, mappin
   const result = settlementCustomers.map(customer => {
     const codes = approved.get(customer._id) || []
     const ledger = ledgers[customer._id]
+    const usableControls = ledgerComplete(ledger) && ledgerControlsPresent(ledger)
     const related = codes.map(code => subjects.get(code)).filter(Boolean)
     const issues = []
     if (!codes.length) issues.push('会计科目尚未确认')
     if (related.length !== codes.length) issues.push('已确认会计科目不在本次导出')
     if (!ledger || ledger.error) issues.push(`CRM会计导出读取失败${ledger?.error ? ': ' + ledger.error : ''}`)
     if (ledger && !ledger.error && ledger.period_summary?.complete !== true) issues.push('CRM期间汇总待核或取数不完整')
-    if (ledger && !ledger.error && (money(ledger.opening_balance) + money(ledger.totals?.debit) - money(ledger.totals?.credit) !== money(ledger.closing_balance))) issues.push('CRM账簿借贷与余额不平')
+    if (ledgerComplete(ledger) && !ledgerControlsPresent(ledger)) issues.push('CRM控制数缺失；未知金额不能按零比较')
+    if (usableControls && (money(ledger.opening_balance) + money(ledger.totals?.debit) - money(ledger.totals?.credit) !== money(ledger.closing_balance))) issues.push('CRM账簿借贷与余额不平')
     const accountTotals = related.length === codes.length && codes.length ? {
       opening_milli: sum(related, 'opening_milli'), debit_milli: sum(related, 'debit_milli'), credit_milli: sum(related, 'credit_milli'), closing_milli: sum(related, 'closing_milli')
     } : null
-    const crmTotals = ledger && !ledger.error ? {
+    const crmTotals = usableControls ? {
       opening_milli: money(ledger.opening_balance), debit_milli: money(ledger.totals?.debit), credit_milli: money(ledger.totals?.credit), closing_milli: money(ledger.closing_balance)
     } : null
     const difference = accountTotals && crmTotals ? Object.fromEntries(['opening_milli', 'debit_milli', 'credit_milli', 'closing_milli'].map(key => [key, crmTotals[key] - accountTotals[key]])) : null
     if (difference && Object.values(difference).some(Boolean)) issues.push('借贷或余额存在差异')
     const status = !codes.length ? '科目待确认' : issues.length ? '异常待核' : '数字对平·待人工核准'
-    const aliases = customers.filter(c => c.settlement_customer_id === customer._id).map(c => c.name)
+    const aliases = customers.filter(c => c._id !== customer._id && c.settlement_customer_id === customer._id).map(c => c.name)
     const candidates = !codes.length ? accounting.rows.filter(row => [customer.name, ...aliases].some(name => normalizeName(name) === normalizeName(row.name))) : []
     return { customer_id: customer._id, customer_name: customer.name, is_active: customer.is_active !== false, is_hidden: customer.is_hidden === true,
       aliases, accountant_codes: codes, suggested_codes: candidates.map(row => row.code), status, issues, accounting: accountTotals, crm: crmTotals, difference,
-      evidence_complete: Boolean(ledger && !ledger.error && ledger.period_summary?.complete === true) }
+      evidence_complete: usableControls }
   })
   const unmatchedSubjects = accounting.rows.filter(row => !usedCodes.has(row.code)).map(row => ({ code: row.code, name: row.name,
     suggested_customer_ids: result.filter(c => c.suggested_codes.includes(row.code)).map(c => c.customer_id),
@@ -253,6 +259,9 @@ function classifyDetails(detailComparison) {
 
 function compareCustomer({ accounting, customer, customers = [], ledger, mapping = [], details, internal }) {
   const issues = []
+  // A failed source reread invalidates even a previously returned ledger.
+  const sourceReadable = internal?.read_complete !== false
+  const ledgerReady = sourceReadable && ledgerComplete(ledger)
   const list = customers.length ? customers : [customer]
   if (!customer?._id || !list.some(row => row?._id === customer._id)) throw Error('缺少CRM结算客户')
   const allMappings = Array.isArray(mapping) ? mapping : [mapping]
@@ -260,19 +269,20 @@ function compareCustomer({ accounting, customer, customers = [], ledger, mapping
   let comparison
   try {
     comparison = compare({ accounting, customers: list, expectedCustomerCount: list.length,
-      ledgers: { [customer._id]: ledger }, mapping: allMappings.filter(row => list.some(c => c._id === row.crm_customer_id)) }).customers.find(row => row.customer_id === customer._id)
+      ledgers: { [customer._id]: sourceReadable ? ledger : undefined }, mapping: allMappings.filter(row => list.some(c => c._id === row.crm_customer_id)) }).customers.find(row => row.customer_id === customer._id)
   } catch (error) {
     issues.push(issue('mapping', 'MAPPING_INVALID', error.message))
   }
   if (!comparison) return { summary_match: false, detail_match: null, evidence_level: 'incomplete', issues, comparison: null, detail_comparison: null, classification_verified: false }
   if (!mapped?.accountant_codes?.length) issues.push(issue('mapping', 'MAPPING_REQUIRED', '请确认CRM结算客户与好会计科目的对应关系；同名仅为候选'))
   else if (!comparison.accounting) issues.push(issue('mapping', 'MAPPED_SUBJECT_MISSING', '已确认会计科目不在本次导出中'))
-  let complete = ledger?.period_summary?.complete === true && !ledger?.error
-  if (ledger && [ledger.opening_balance, ledger.closing_balance, ledger.totals?.debit, ledger.totals?.credit].some(value => value == null || value === '')) {
+  let complete = ledgerReady
+  if (ledgerReady && !ledgerControlsPresent(ledger)) {
     complete = false
     issues.push(issue('evidence', 'CRM_CONTROLS_MISSING', 'CRM控制数缺失；未知金额不能按零比较'))
   }
-  if (!complete) issues.push(issue('evidence', 'CRM_READ_INCOMPLETE', ledger?.error ? `CRM账簿读取失败：${ledger.error}` : 'CRM期间汇总待核或读取不完整', { source: ledger?.period_summary?.unresolved_sources || [] }))
+  if (!complete) issues.push(issue('evidence', 'CRM_READ_INCOMPLETE', ledger?.error ? `CRM账簿读取失败：${ledger.error}`
+    : !sourceReadable ? 'CRM来源读取未完整完成，已有账簿暂不可用于比较' : 'CRM期间汇总待核或读取不完整', { source: ledger?.period_summary?.unresolved_sources || [] }))
   if (comparison.crm && comparison.crm.opening_milli + comparison.crm.debit_milli - comparison.crm.credit_milli !== comparison.crm.closing_milli) {
     complete = false
     issues.push(issue('evidence', 'CRM_CONTROLS_UNBALANCED', 'CRM账簿借贷与余额不平'))
@@ -283,15 +293,18 @@ function compareCustomer({ accounting, customer, customers = [], ledger, mapping
     if ((internal.issues || []).some(row => row?.blocking !== false && row?.severity !== 'info' && row?.severity !== 'warning')) complete = false
   }
   const period = dateOfLedger(ledger)
-  try { validatePeriod(period.dateFrom, period.cutoff, accounting.month) } catch (error) {
-    complete = false; issues.push(issue('evidence', 'PERIOD_INVALID', error.message))
+  let periodValid = false
+  if (ledgerReady) {
+    try { validatePeriod(period.dateFrom, period.cutoff, accounting.month); periodValid = true } catch (error) {
+      complete = false; issues.push(issue('evidence', 'PERIOD_INVALID', error.message))
+    }
   }
   if (comparison.difference && Object.values(comparison.difference).some(Boolean)) issues.push(issue('amount', 'CONTROL_TOTAL_DIFFERENCE', '期初、发生、收回或期末存在差异；余额相同不能代替四项核对', {
     crm: comparison.crm, accounting: comparison.accounting, difference: comparison.difference, suggested_action: 'import_accounting_details'
   }))
   const summaryMatch = Boolean(complete && comparison.accounting && comparison.difference && !Object.values(comparison.difference).some(Boolean))
   let detailMatch = null, detailComparison = null, detailValidated = false, detailInvalid = false
-  if (Array.isArray(details) && details.length) {
+  if (ledgerReady && ledgerControlsPresent(ledger) && periodValid && Array.isArray(details) && details.length) {
     try {
       validateAccountingDetails({ accounting, details, codes: mapped?.accountant_codes, ...period })
       if (!Array.isArray(ledger?.rows)) throw Error('CRM逐笔明细缺失')
@@ -310,7 +323,7 @@ function compareCustomer({ accounting, customer, customers = [], ledger, mapping
     evidence_level: complete && comparison.accounting && !detailInvalid ? (detailValidated ? 'detail' : 'summary') : 'incomplete',
     issues, comparison, detail_comparison: detailComparison, classification_verified: false,
     // This is an existing backend projection, not a new cash calculation.
-    period_summary: ledger?.period_summary || null,
+    period_summary: sourceReadable && !ledger?.error ? ledger?.period_summary || null : null,
     interpretation: '逐笔一致仅表示日期和借贷金额对应；摘要文字不能证明现金、退款、抹零或结清性质。' }
 }
 

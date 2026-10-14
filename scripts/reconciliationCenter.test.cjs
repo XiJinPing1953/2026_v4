@@ -329,3 +329,82 @@ test('首次结果并发创建只提交一条，失败方重查复用结果和�
   await f.run('checkCustomerV1', data)
   assert.equal(f.tables[COL.logs].filter(row => row.action === 'reconciliation_check').length, 1)
 })
+
+for (const failedStage of ['inspect_before', 'ledger', 'inspect_after']) test(`读取阶段${failedStage}超时不冒充完成，保留重试且同批恢复`, async () => {
+  const f = fixture(), data = await f.ready(true)
+  const financialBefore = digest(Object.fromEntries(Object.entries(f.tables).filter(([key]) => !Object.values(COL).includes(key))))
+  const approved = await f.run('checkCustomerV1', { ...data, auto_refresh: false })
+  await f.run('reviewCustomerV1', { ...data, kind: 'manual_approval', basis: '测试凭据完整', expected_result_hash: approved.result_hash })
+  let inspectCount = 0
+  f.state.onInvoke = async (_name, action) => {
+    if (action === 'inspectReconciliationCustomerV1') inspectCount++
+    if ((failedStage === 'inspect_before' && inspectCount === 1) ||
+        (failedStage === 'ledger' && action === 'exportCustomerAccountingLedgerV1') ||
+        (failedStage === 'inspect_after' && inspectCount === 2)) throw Error('HttpClientRequestTimeoutError: Request timeout for 60000 ms')
+  }
+  const failed = await f.run('checkCustomerV1', { ...data, auto_refresh: false })
+  assert.equal(failed.check_status, 'read_failed')
+  assert.equal(failed.read_complete, false)
+  assert.equal(failed.retryable, true)
+  assert.equal(failed.stale, true)
+  assert.equal(failed.read_failure.stage, failedStage)
+  assert.equal(failed.internal.read_complete, false)
+  assert.equal(failed.summary_match, false)
+  assert.equal(failed.detail_match, null)
+  assert.equal(failed.comparison.crm, null)
+  assert.equal(failed.review.valid, false)
+  assert.equal(failed.issues.some(row => ['PERIOD_INVALID', 'DETAIL_SCOPE_INVALID'].includes(row.code)), false)
+  assert.equal(f.state.refreshCount, 0)
+  f.state.onInvoke = null
+  const recovered = await f.run('checkCustomerV1', { ...data, auto_refresh: false })
+  assert.equal(recovered._id, failed._id)
+  assert.equal(recovered.read_complete, true)
+  assert.equal(recovered.check_status, 'completed')
+  assert.equal(recovered.stale, false)
+  assert.equal(recovered.detail_match, true)
+  assert.equal(f.tables[COL.results].length, 1)
+  assert.equal(digest(Object.fromEntries(Object.entries(f.tables).filter(([key]) => !Object.values(COL).includes(key)))), financialBefore)
+})
+
+test('完整读取但业务待核不是可重试读取失败', async () => {
+  const f = fixture(), data = await f.ready(true)
+  f.state.internalComplete = false
+  f.state.internalIssues = [{ code: 'embedded_receipt_without_backing', type: 'evidence_missing', blocking: true, message: '同笔依据待核' }]
+  const result = await f.run('checkCustomerV1', { ...data, auto_refresh: false })
+  assert.equal(result.internal.complete, false)
+  assert.equal(result.read_complete, true)
+  assert.equal(result.check_status, 'completed')
+  assert.equal(result.retryable, false)
+  assert.equal(result.stale, false)
+})
+
+test('嵌套调用显式超时共享请求总预算，预算不足不再发下游请求', async () => {
+  const { createInvoker } = require('../uniCloud-alipay/cloudfunctions/crm-reconciliation/index')
+  let clock = 0
+  const calls = []
+  const invoke = createInvoker({ token: 'test', request_id: 'request' }, async options => {
+    calls.push(options); return { result: { code: 0, data: { complete: true } } }
+  }, 0, () => clock)
+  await invoke('crm-customer-settlement', 'inspectReconciliationCustomerV1', { customer_id: CID })
+  assert.equal(calls[0].timeout, 60000)
+  clock = 150000
+  await invoke('crm-accounting-correction', 'inspectV1', { customer_id: CID })
+  assert.equal(calls[1].timeout, 20000)
+  clock = 169100
+  await assert.rejects(() => invoke('crm-accounting-correction', 'executeV1', {}), /时间不足/)
+  assert.equal(calls.length, 2)
+  assert.equal(calls[0].data.token, 'test')
+})
+
+test('下游超时即使包装409也保持同号待确认，不伪装业务拒绝', async () => {
+  const { createInvoker } = require('../uniCloud-alipay/cloudfunctions/crm-reconciliation/index')
+  const transport = createInvoker({}, async () => ({ result: { code: 409, msg: 'Request timeout for 60000 ms' } }), Date.now())
+  const f = fixture(), data = await f.ready(), result = await f.run('checkCustomerV1', data)
+  const request = { ...data, operation_id: 'prepare-timeout-409', expected_result_hash: result.result_hash,
+    basis: '测试回单日期', correction: { type: 'correct_receipt_date', receipt_id: RID, biz_date: '2026-09-19' } }
+  f.state.onInvoke = async (name, action) => { if (action === 'prepareV1') await transport(name, action, {}) }
+  await assert.rejects(() => f.run('prepareRepairV1', request), /timeout/)
+  assert.equal((await f.run('repairStatusV1', request)).status, 'not_prepared')
+  f.state.onInvoke = null
+  assert.equal((await f.run('prepareRepairV1', request)).status, 'prepared')
+})

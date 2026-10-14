@@ -13,10 +13,10 @@ function deferred() { let resolve, reject; const promise = new Promise((a, b) =>
 const customers = [{ _id: 'a', name: '甲', is_hidden: true }, { _id: 'b', name: '乙', is_active: false }, { _id: 'alias', name: '别名', settlement_customer_id: 'a' }]
 const result = (id, patch = {}) => ({ customer_id: id, customer_name: id, result_hash: `result-${id}`, source_hash: `source-${id}`, issues: [], summary_match: true, detail_match: false, ...patch })
 const batch = (id = 'batch') => ({ batch: { _id: id, company: '账套甲', cutoff: '2026-09-30' }, customers, accounts: [], mappings: { version: 3, items: [] }, results: [], detail_sources: [] })
-async function center(overrides = {}) {
+async function center(overrides = {}, options = {}) {
 	const calls = [], scope = vue.effectScope()
 	const api = { context: async () => success({ customers, batches: [batch().batch] }), getBatch: async ({ batch_id }) => success(batch(batch_id)), checkCustomer: async data => { calls.push(copy(data)); return success(result(data.customer_id)) }, ...overrides }
-	const state = scope.run(() => centerModule.useReconciliationCenter({ api }))
+	const state = scope.run(() => centerModule.useReconciliationCenter({ api, ...options }))
 	await state.openBatch('batch')
 	return { state, calls, stop: () => scope.stop() }
 }
@@ -41,6 +41,96 @@ test('one failed or incomplete customer remains pending while other customers fi
 	const h = await center({ checkCustomer: async data => data.customer_id === 'a' && fail ? success({ customer_id: 'a', issues: [] }) : success(result(data.customer_id)) })
 	await h.state.runChecks(); assert.equal(h.state.resultByCustomer.value.a, undefined); assert.match(h.state.failures.value.a, /不完整/); assert.equal(h.state.resultByCustomer.value.b.customer_id, 'b')
 	fail = false; await h.state.runChecks(); assert.equal(Object.keys(h.state.failures.value).length, 0); assert.equal(h.state.pending.value.length, 0); h.stop()
+})
+test('a persisted read failure stays retryable while a complete read with business issues is not rerun', async () => {
+	let failed = true; const calls = []
+	const h = await center({ checkCustomer: async data => {
+		calls.push(data.customer_id)
+		return success(result(data.customer_id, failed && data.customer_id === 'a'
+			? { check_status: 'read_failed', read_complete: false, retryable: true, stale: true, issues: [{ code: 'read_incomplete', type: 'evidence' }] }
+			: { check_status: 'completed', read_complete: true, internal: { complete: false, read_complete: true }, summary_match: false, issues: [{ type: 'evidence', code: 'missing_backing' }] }))
+	} })
+	await h.state.runChecks()
+	assert.deepEqual(copy(h.state.pending.value).map(row => row._id), ['a']); assert.equal(h.state.retryableFailureCount.value, 1)
+	assert.equal(h.state.resultByCustomer.value.b.internal.complete, false)
+	assert.equal(centerModule.reconciliationLevel(h.state.resultByCustomer.value.a), '读取失败 · 可继续重试')
+	failed = false; await h.state.runChecks(); assert.deepEqual(calls, ['a', 'b', 'a'])
+	assert.equal(h.state.pending.value.length, 0); assert.equal(h.state.retryableFailureCount.value, 0); h.stop()
+})
+test('historical read failures require explicit incomplete-read evidence, never business completeness or missing evidence alone', async () => {
+	const legacy = result('a', { source_hash: undefined, internal: { issues: [{ code: 'read_incomplete' }] } })
+	assert.equal(centerModule.reconciliationReadFailed(legacy), true)
+	assert.equal(centerModule.reconciliationReadFailed(result('a', { internal: { read_complete: false } })), true)
+	assert.equal(centerModule.reconciliationReadFailed(result('a', { source_hash: undefined, issues: [{ type: 'read_incomplete' }] })), true)
+	assert.equal(centerModule.reconciliationReadFailed(result('a', { source_hash: undefined, internal: { complete: false }, issues: [{ type: 'evidence', code: 'missing_backing' }] })), false)
+	assert.equal(centerModule.reconciliationReadFailed(result('a', { issues: [{ code: 'read_incomplete' }] })), false)
+	const h = await center({ getBatch: async () => success({ ...batch(), results: [legacy, result('b')] }) })
+	assert.deepEqual(copy(h.state.pending.value).map(row => row._id), ['a']); await h.state.runChecks()
+	assert.deepEqual(h.calls.map(row => row.customer_id), ['a']); h.stop()
+})
+test('nonretryable read failures stay visible but only explicit recheck retries them', async () => {
+	const denied = result('a', { check_status: 'read_failed', read_complete: false, retryable: false, stale: true, read_failure: { stage: 'ledger', message: '无读取权限' } })
+	const h = await center({ getBatch: async () => success({ ...batch(), results: [denied, result('b')] }) })
+	assert.equal(h.state.pending.value.length, 0); assert.equal(h.state.blockedReadCount.value, 1)
+	assert.equal(centerModule.reconciliationLevel(denied), '读取失败 · 需处理后重查')
+	await h.state.runChecks(); assert.equal(h.calls.length, 0)
+	await h.state.runChecks({ ids: ['a'] }); assert.deepEqual(h.calls.map(row => row.customer_id), ['a']); assert.equal(h.state.blockedReadCount.value, 0); h.stop()
+})
+test('a transport failure after a prior successful result remains in the continue queue', async () => {
+	let failed = true
+	const h = await center({ getBatch: async () => success({ ...batch(), results: [result('a'), result('b')] }), checkCustomer: async data => { if (failed) throw Error('timeout'); return success(result(data.customer_id)) } })
+	await h.state.runChecks({ ids: ['a'] }); assert.deepEqual(copy(h.state.pending.value).map(row => row._id), ['a']); assert.equal(h.state.retryableFailureCount.value, 1)
+	failed = false; await h.state.runChecks(); assert.equal(h.state.pending.value.length, 0); h.stop()
+})
+test('first import opens its batch without starting checks, so mapping can be confirmed first', async () => {
+	const h = await center({ importBatch: async () => success({ batch: { _id: 'imported' } }) })
+	assert.equal(await h.state.importBatch({ company: '账套甲' }), true)
+	assert.equal(h.state.batch.value._id, 'imported'); assert.equal(h.calls.length, 0); assert.equal(h.state.pending.value.length, 2); assert.equal(h.state.running.value, false)
+	await h.state.runChecks(); assert.deepEqual(h.calls.map(row => row.customer_id), ['a', 'b']); h.stop()
+})
+test('checks only read by default and pass an explicit boolean when cache refresh is enabled', async () => {
+	const h = await center()
+	assert.equal(h.state.autoRefresh.value, false)
+	await h.state.runChecks({ ids: ['a'] }); assert.equal(h.calls[0].auto_refresh, false)
+	h.state.autoRefresh.value = true; await h.state.runChecks({ ids: ['b'] }); assert.equal(h.calls[1].auto_refresh, true)
+	h.state.autoRefresh.value = false; await h.state.runChecks({ ids: ['a'] }); assert.equal(h.calls[2].auto_refresh, false); h.stop()
+})
+test('view-only permission permits reads but blocks import, mapping, check, detail and review dispatch', async () => {
+	let writes = 0
+	const deniedWrite = async () => { writes += 1; throw Error('should not dispatch') }
+	const h = await center({ importBatch: deniedWrite, saveMapping: deniedWrite, checkCustomer: deniedWrite, importDetail: deniedWrite, reviewCustomer: deniedWrite }, { canWrite: () => false })
+	await h.state.loadContext(); assert.equal(h.state.context.value.customers.length, 3); assert.equal(h.state.batch.value._id, 'batch')
+	await h.state.importBatch({}); await h.state.saveMapping({}); await h.state.importDetail({}); await h.state.reviewCustomer({}); await h.state.checkOne('a'); await h.state.runChecks()
+	assert.equal(writes, 0); assert.equal(h.state.running.value, false); assert.match(h.state.issue.value, /修改权限/); h.stop()
+})
+test('the rendered view-only page disables check/import/cache controls and leaves batch reads enabled', async () => {
+	const h = await center({}, { canWrite: () => false }); await h.state.loadContext(); h.state.context.value.batches = []
+	const { parse, compileScript } = require('@vue/compiler-sfc')
+	const file = 'src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue'
+	const source = compileScript(parse(fs.readFileSync(file, 'utf8')).descriptor, { id: 'readonly-check', inlineTemplate: true }).content
+		.replace(/^import \{([^}]+)\} from ["']vue["']/gm, (_, names) => `const {${names.replace(/\bas\b/g, ':')}} = Vue`)
+		.replace(/^import .*$/gm, '').replace('export default', 'globalThis.Component =')
+	const components = Object.fromEntries(['AppPage', 'AppSection', 'AppButton', 'AppInput', 'AppTag', 'AppModal', 'CustomerAdjustmentPanel', 'ReconciliationRepairPanel'].map(name => [name, {
+		inheritAttrs: false, setup(_, { attrs, slots }) { return () => vue.h(name === 'AppButton' ? 'button' : 'section', attrs, Object.values(slots).flatMap(slot => slot())) }
+	}]))
+	const context = vm.createContext({ Vue: { ...vue, onMounted: () => {} }, ...components,
+		getRoleTemplate: () => 'finance', canPageAction: (_, action) => action === 'view', reconciliationApi: {},
+		useReconciliationCenter: () => h.state, reconciliationMoney: centerModule.reconciliationMoney,
+		money: centerModule.reconciliationMoney, level: centerModule.reconciliationLevel, readFailed: centerModule.reconciliationReadFailed,
+		RECONCILIATION_ISSUE_TYPES: vm.runInContext('RECONCILIATION_ISSUE_TYPES', centerModule),
+		pickReconciliationWorkbook: () => {}, downloadReconciliationSource: () => {}
+	})
+	vm.runInContext(source, context)
+	const app = vue.createSSRApp(context.Component)
+	for (const name of ['picker', 'checkbox', 'checkbox-group']) app.component(name, { inheritAttrs: false, setup(_, { attrs, slots }) { return () => vue.h(name, attrs, slots.default?.()) } })
+	const html = await require('@vue/server-renderer').renderToString(app)
+	for (const label of ['导入好会计报表', '选择 .xls / .xlsx', '导入报表', '继续未完成核查', '重新核查本批全部客户']) {
+		const button = [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].find(([, , text]) => text.includes(label))
+		assert.ok(button, label); assert.match(button[1], /\bdisabled\b/, label)
+	}
+	assert.match(html, /<checkbox\b[^>]*value="auto_refresh"[^>]*disabled/)
+	const refresh = [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].find(([, , text]) => text.includes('刷新批次'))
+	assert.ok(refresh); assert.doesNotMatch(refresh[1], /\bdisabled\b/); h.stop()
 })
 test('late responses cannot contaminate another batch or continue its old queue', async () => {
 	const first = deferred(), calls = []

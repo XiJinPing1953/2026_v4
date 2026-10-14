@@ -121,6 +121,88 @@ test('不完整读取、缺控制数或内部异常不能获得核对通过', ()
   }
 })
 
+test('账簿缺失、读取失败及不完整结果只保留待核原因，不派生期间或明细差异', () => {
+  for (const ledger of [undefined, null, { error: '云端读取超时' },
+    { period_summary: { complete: false, unresolved_sources: ['缺收款凭据'] }, totals: { debit: '不可用' } }]) {
+    const input = fixture({ details: true })
+    input.ledger = ledger
+    const result = compareCustomer(input)
+    assert.equal(result.summary_match, false)
+    assert.equal(result.detail_match, null)
+    assert.equal(result.evidence_level, 'incomplete')
+    assert.equal(result.comparison.crm, null)
+    assert.equal(result.comparison.difference, null)
+    assert.equal(result.detail_comparison, null)
+    assert.ok(result.issues.some(row => row.code === 'CRM_READ_INCOMPLETE'))
+    assert.equal(result.issues.some(row => ['PERIOD_INVALID', 'DETAIL_SCOPE_INVALID', 'CRM_CONTROLS_MISSING', 'CONTROL_TOTAL_DIFFERENCE'].includes(row.code)), false)
+    if (ledger?.error) assert.match(result.issues.find(row => row.code === 'CRM_READ_INCOMPLETE').message, /云端读取超时/)
+    if (ledger?.period_summary) assert.deepEqual(result.issues.find(row => row.code === 'CRM_READ_INCOMPLETE').source, ['缺收款凭据'])
+  }
+})
+
+test('二次来源读取失败使已返回账簿失效；业务凭据待核不冒充读取失败', () => {
+  const input = fixture({ details: true, crmRows: [crmRow('2026-08-18', 100, 100)], accountRows: [accountRow('2026-08-18', 100, 100)] })
+  input.internal = { complete: false, read_complete: false, issues: [{ type: 'evidence', code: 'REREAD_FAILED', message: '二次源单读取超时' }] }
+  const failed = compareCustomer(input)
+  assert.equal(failed.summary_match, false)
+  assert.equal(failed.detail_match, null)
+  assert.equal(failed.evidence_level, 'incomplete')
+  assert.equal(failed.comparison.crm, null)
+  assert.equal(failed.comparison.difference, null)
+  assert.equal(failed.detail_comparison, null)
+  assert.equal(failed.period_summary, null)
+  assert.ok(failed.issues.some(row => row.code === 'REREAD_FAILED'))
+  assert.ok(failed.issues.some(row => row.code === 'CRM_READ_INCOMPLETE'))
+  assert.equal(failed.issues.some(row => ['PERIOD_INVALID', 'DETAIL_SCOPE_INVALID'].includes(row.code)), false)
+
+  input.internal = { complete: false, read_complete: true, issues: [{ type: 'evidence', code: 'RECEIPT_EVIDENCE_MISSING', message: '缺到账凭据' }] }
+  const unresolved = compareCustomer(input)
+  assert.equal(unresolved.summary_match, false)
+  assert.equal(unresolved.evidence_level, 'incomplete')
+  assert.ok(unresolved.comparison.crm)
+  assert.ok(unresolved.detail_comparison)
+  assert.ok(unresolved.issues.some(row => row.code === 'RECEIPT_EVIDENCE_MISSING'))
+  assert.equal(unresolved.issues.some(row => row.code === 'CRM_READ_INCOMPLETE'), false)
+})
+
+test('完整账簿的真实期间错误仍阻断；缺控制数不补零制造差额', () => {
+  const input = fixture({ details: true, crmRows: [crmRow('2026-08-18', 100, 100)], accountRows: [accountRow('2026-08-18', 100, 100)] })
+  input.ledger.period.date_to = '2026-08-23'
+  const wrongPeriod = compareCustomer(input)
+  assert.equal(wrongPeriod.summary_match, false)
+  assert.equal(wrongPeriod.evidence_level, 'incomplete')
+  assert.ok(wrongPeriod.issues.some(row => row.code === 'PERIOD_INVALID'))
+  assert.equal(wrongPeriod.detail_match, null)
+  assert.equal(wrongPeriod.issues.some(row => row.code === 'DETAIL_SCOPE_INVALID'), false)
+
+  input.ledger.period.date_to = '2026-09-23'
+  delete input.ledger.totals.credit
+  const missingControl = compareCustomer(input)
+  assert.equal(missingControl.summary_match, false)
+  assert.equal(missingControl.detail_match, null)
+  assert.equal(missingControl.comparison.crm, null)
+  assert.equal(missingControl.comparison.difference, null)
+  assert.ok(missingControl.issues.some(row => row.code === 'CRM_CONTROLS_MISSING'))
+  assert.equal(missingControl.issues.some(row => ['CONTROL_TOTAL_DIFFERENCE', 'CRM_CONTROLS_UNBALANCED', 'DETAIL_SCOPE_INVALID'].includes(row.code)), false)
+})
+
+test('自指结算主户只核查一次，可确认映射且不把自身列为别名', () => {
+  const input = fixture()
+  input.customer.settlement_customer_id = input.customer._id
+  input.customers = [input.customer, { _id: 'alias', name: '真实别名', settlement_customer_id: input.customer._id, is_hidden: true }]
+  const before = structuredClone(input)
+  assert.deepEqual(core.validateCustomerInventory(input.customers, 2), [input.customer])
+  const result = compareCustomer(input)
+  assert.equal(result.summary_match, true)
+  assert.deepEqual(result.comparison.aliases, ['真实别名'])
+  assert.equal(result.issues.some(row => row.code === 'MAPPING_INVALID'), false)
+  const batch = core.compare({ accounting: input.accounting, customers: input.customers, expectedCustomerCount: 2,
+    ledgers: { [input.customer._id]: input.ledger }, mapping: [input.mapping] })
+  assert.equal(batch.settlement_customer_count, 1)
+  assert.equal(batch.matched_count, 1)
+  assert.deepEqual(input, before)
+})
+
 test('同名只能候选，已确认一主多科目可复用且不漏隐藏别名', () => {
   const input = fixture()
   input.mapping = []

@@ -1,6 +1,6 @@
 import { callCloud } from './callCloud'
 
-const invoke = (action, data = {}) => callCloud('crm-reconciliation', { action, data, timeout: 60000 })
+const invoke = (action, data = {}) => callCloud('crm-reconciliation', { action, data, timeout: 180000 })
 
 export const reconciliationApi = {
 	context: data => invoke('contextV1', data),
