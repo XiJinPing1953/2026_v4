@@ -6,7 +6,7 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.14-reconciliation-retry",
+      "version": "2026.10.14-reconciliation-picker",
       "output": "dist/build/web",
       "acceptance": "Imported accounting files, customer mappings, complete CRM checks and difference review share version-bound evidence. Cache-only automatic refresh and confirmed typed repairs preserve operation identity and verify exact writes without claiming whole-customer clearance.",
       "deploymentScope": {
@@ -14,16 +14,9 @@
           "crm-reconciliation"
         ],
         "databaseFiles": [],
-        "baseCommit": "07fa3e3a6a97320ec90e1a36dc20626bb05eefb1",
+        "baseCommit": "ecd8fe3188af8211e2ce78f91166aee5403a5e1a",
         "sourceFiles": [
-          "src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue",
-          "src/composables/useReconciliationCenter.js",
-          "src/services/api/reconciliation.js",
-          "uniCloud-alipay/cloudfunctions/common/customerReconciliation.js",
-          "uniCloud-alipay/cloudfunctions/crm-reconciliation/customerReconciliationLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-reconciliation/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-reconciliation/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-reconciliation/service.js"
+          "src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue"
         ]
       },
       "integrityScope": "deployment"

@@ -209,6 +209,22 @@ test('new page preserves homepage and registered Vue templates compile', () => {
 		const parsed = parse(fs.readFileSync(file, 'utf8'), { filename: file }); assert.deepEqual(parsed.errors, []); compileScript(parsed.descriptor, { id: file }); assert.deepEqual(compileTemplate({ source: parsed.descriptor.template.content, filename: file, id: file }).errors, [])
 	}
 })
+test('teleported H5 picker layer survives scoped CSS compilation and is limited to an open customer modal', () => {
+	const { parse, compileStyle } = require('@vue/compiler-sfc'), postcss = require('postcss')
+	const file = 'src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue'
+	const parsed = parse(fs.readFileSync(file, 'utf8'), { filename: file }).descriptor
+	const rules = []
+	for (const style of parsed.styles) {
+		const compiled = compileStyle({ source: style.content, filename: file, id: 'data-v-layer-test', scoped: !!style.scoped })
+		assert.deepEqual(compiled.errors, [])
+		postcss.parse(compiled.code).walkRules(rule => { if (rule.selector.includes('.uni-picker-container')) rules.push(rule) })
+	}
+	assert.equal(rules.length, 1)
+	assert.equal(rules[0].selector, 'uni-app:has(.customer-modal.app-modal-backdrop) > .uni-picker-container')
+	const pickerLayer = Number(rules[0].nodes.find(node => node.prop === 'z-index')?.value)
+	const modalLayer = Number(fs.readFileSync('src/components/base/AppModal.vue', 'utf8').match(/\.app-modal-backdrop\s*\{[^}]*z-index:\s*(\d+)/)[1])
+	assert.ok(pickerLayer > modalLayer, 'the root picker must receive clicks above the modal backdrop')
+})
 test('committed financial repair stays locked until writeback verification completes, and resumes with same identity', async () => {
 	let verified = false; const ids = []
 	const h = await repair({ api: { executeRepair: async data => { ids.push(data.operation_id); return success({ operation_id: data.operation_id, status: 'committed', verification: verified ? { complete: true } : null }) } } })

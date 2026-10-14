@@ -157,6 +157,8 @@ onMounted(async () => { if (!canRead.value) return; await loadContext(); if (con
 </script>
 
 <style scoped>
+/* H5 moves picker popups under uni-app, outside the scoped modal subtree. */
+:global(uni-app:has(.customer-modal.app-modal-backdrop) > .uni-picker-container) { z-index:1101; }
 .picker-trigger { pointer-events:none; }
 .center-shell,.work-column,.customer-detail { display:flex; flex-direction:column; gap:18px; min-width:0; }
 .workspace { display:grid; grid-template-columns:260px minmax(0,1fr); align-items:start; gap:18px; }
