@@ -25,38 +25,51 @@ export function reconciliationNeedsCheck(result) {
 	if (reconciliationReadFailed(result)) return result.retryable !== false
 	return !result || !!result.stale
 }
+export function reconciliationActiveIssues(result) {
+	const original = Array.isArray(result?.issues) ? result.issues : []
+	if (result?.stale || reconciliationReadFailed(result)) return original
+	return Array.isArray(result?.active_issues) ? result.active_issues : original
+}
+export function reconciliationPendingIssueCount(result) { return reconciliationActiveIssues(result).length }
+export function reconciliationHasIssueType(result, type) { return reconciliationActiveIssues(result).some(problem => problem.type === type) }
+export function reconciliationCanApprove(result) {
+	return !!result && !result.stale && !reconciliationReadFailed(result) && result.summary_match === true && result.internal?.complete === true &&
+		result.detail_match !== false && !result.issues?.some(problem => problem.blocking !== false && problem.severity !== 'info')
+}
 export function reconciliationLevel(result) {
 	if (!result) return '尚未核查'
 	if (reconciliationReadFailed(result)) return result.retryable === false ? '读取失败 · 需处理后重查' : '读取失败 · 可继续重试'
 	if (result.stale) return '历史核查 · 待复核'
-	if (result.issues?.some(problem => problem.blocking !== false && problem.severity !== 'info')) return result.summary_match ? '汇总一致 · 仍有待核事项' : '存在差异或资料待核'
-	if (result.review?.kind === 'manual_approval' && result.review?.valid === true) return '人工核准'
+	if (reconciliationActiveIssues(result).some(problem => problem.blocking !== false && problem.severity !== 'info')) return result.summary_match ? '汇总一致 · 仍有待核事项' : '存在差异或资料待核'
+	if (result.review?.kind === 'manual_approval' && result.review?.valid === true && !result.issues?.some(problem => problem.blocking !== false && problem.severity !== 'info')) return '人工核准'
 	if (result.detail_match === true) return '明细一致'
 	if (result.summary_match === true) return '汇总一致 · 明细待核'
-	return '存在差异或资料待核'
+	return result.explained_issues?.some(problem => problem.resolution?.valid === true) ? '检查提示已解释 · 汇总尚未一致' : '存在差异或资料待核'
 }
 
 // A single queue avoids saturating cloud reads. Completed results live on the server.
 // Read failures remain queued; a completed read with business issues does not.
-export function useReconciliationCenter({ api, canWrite = () => true }) {
+export function useReconciliationCenter({ api, canWrite = () => true, storage, actorId = 'current' }) {
 	const context = ref(null), detail = ref(null), busy = ref(false), issue = ref('')
 	const autoRefresh = ref(false)
 	const running = ref(false), stopping = ref(false), currentCustomer = ref(''), checkedThisRun = ref(0), totalThisRun = ref(0)
 	const failures = ref({}), resultByCustomer = ref({})
+	const resolutionOperation = ref(null), resolutionStorageKey = `crm_reconciliation_issue:${actorId}`
+	try { const saved = storage?.getStorageSync(resolutionStorageKey); if (saved?.input?.operation_id && saved.input.customer_id && saved.input.batch_id) resolutionOperation.value = saved } catch { /* No write is attempted until the request can be saved. */ }
 	let generation = 0, disposed = false, activeQueue = 0
 	const customers = computed(() => reconciliationCustomers(detail.value?.customers || []))
 	const pending = computed(() => customers.value.filter(customer => failures.value[customer._id] || reconciliationNeedsCheck(resultByCustomer.value[customer._id])))
 	const retryableFailureCount = computed(() => customers.value.filter(customer => failures.value[customer._id] || reconciliationReadFailed(resultByCustomer.value[customer._id]) && resultByCustomer.value[customer._id].retryable !== false).length)
 	const blockedReadCount = computed(() => customers.value.filter(customer => !failures.value[customer._id] && reconciliationReadFailed(resultByCustomer.value[customer._id]) && resultByCustomer.value[customer._id].retryable === false).length)
 	const batch = computed(() => detail.value?.batch || null)
-	function allowWrite() {
-		if (canWrite()) return true
-		issue.value = '当前账号可查看资料，操作需要对账中心修改权限。'
-		return false
+	function allowWrite(resolving = false) {
+		if (!canWrite()) { issue.value = '当前账号可查看资料，操作需要对账中心修改权限。'; return false }
+		if (!resolving && resolutionOperation.value) { issue.value = '上次解释的保存结果尚待确认，请先按原操作重试。'; return false }
+		return true
 	}
 	async function request(name, data) {
 		const response = await api[name](data)
-		if (response?.code !== 0 || response.data == null) throw new Error(response?.msg || '请求未完成，请重试。')
+		if (response?.code !== 0 || response.data == null) throw Object.assign(new Error(response?.msg || '请求未完成，请重试。'), { details: response?.details || response?.data })
 		return response.data
 	}
 	async function loadContext(company) {
@@ -157,6 +170,43 @@ export function useReconciliationCenter({ api, canWrite = () => true }) {
 		} catch (error) { if (scope === generation && !disposed) issue.value = error.message; return false }
 		finally { if (scope === generation && !disposed) busy.value = false }
 	}
+	function persistResolution(value) {
+		try { storage.setStorageSync(resolutionStorageKey, value ? JSON.parse(JSON.stringify(value)) : null); return true }
+		catch { issue.value = value ? '本机无法保存解释操作号，暂不能提交；请检查存储后重试。' : '解释已返回确认结果，但本机操作号未能清理，请按原操作重试。'; return false }
+	}
+	async function resolveIssue(data) {
+		if (busy.value || running.value || !allowWrite(true)) return false
+		let pending = resolutionOperation.value
+		if (pending && data) { issue.value = '上次解释尚待确认，请按原操作重试，不能另起提交。'; return false }
+		if (!pending) {
+			const result = resultByCustomer.value[data?.customer_id]
+			const original = reconciliationActiveIssues(result).find(problem => problem.issue_key === data?.issue_key)
+			if (!batch.value || !result || result.stale || reconciliationReadFailed(result) || result.result_hash !== data?.expected_result_hash || !original?.eligible_resolution_kinds?.includes(data.kind)) { issue.value = '核查结果或可解释范围已变化，请先重新核查。'; return false }
+			if (!data.basis?.trim()) { issue.value = '请填写解释依据。'; return false }
+			if (data.kind === 'merged_into_issue' && !original.merge_targets?.some(target => target.issue_key === data.target_issue_key && reconciliationActiveIssues(result).some(problem => problem.issue_key === target.issue_key))) { issue.value = '请选择本次核查中仍待处理的分类事项。'; return false }
+			const input = { batch_id: batch.value._id, customer_id: data.customer_id, expected_result_hash: data.expected_result_hash,
+				operation_id: `reconcile-explain-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`, issue_key: data.issue_key, kind: data.kind,
+				basis: data.basis.trim(), ...(data.kind === 'merged_into_issue' ? { target_issue_key: data.target_issue_key } : {}) }
+			pending = { input, status: 'pending' }
+			if (!persistResolution(pending)) return false
+			resolutionOperation.value = pending
+		}
+		const scope = generation, input = pending.input
+		busy.value = true; issue.value = ''
+		try {
+			const result = await request('resolveIssue', { ...input })
+			const receipts = [...(result.issue_resolutions || []), ...(result.explained_issues || []).map(problem => problem.resolution)]
+			if (result.customer_id !== input.customer_id || result.batch_id !== input.batch_id || !result.result_hash || !Array.isArray(result.issues) || !Array.isArray(result.active_issues) || !Array.isArray(result.explained_issues) || !receipts.some(receipt => receipt?.operation_id === input.operation_id)) throw new Error('解释回执未完整返回，请按原操作重试确认。')
+			if (scope === generation && !disposed && batch.value?._id === input.batch_id) resultByCustomer.value = { ...resultByCustomer.value, [input.customer_id]: result }
+			if (!persistResolution(null)) return false
+			resolutionOperation.value = null
+			return true
+		} catch (error) {
+			if (error.details?.resolution_rejected === true && error.details.operation_id === input.operation_id && persistResolution(null)) resolutionOperation.value = null
+			if (!disposed) issue.value = resolutionOperation.value ? `${error.message} 保存结果尚待确认，请按原操作重试；表单保持锁定。` : error.message
+			return false
+		} finally { if (!disposed) busy.value = false }
+	}
 	onBeforeUnmount(() => { disposed = true; generation += 1; activeQueue += 1; stopping.value = true })
-	return { context, detail, batch, customers, pending, retryableFailureCount, blockedReadCount, resultByCustomer, autoRefresh, busy, issue, running, stopping, currentCustomer, checkedThisRun, totalThisRun, failures, loadContext, openBatch, checkOne, runChecks, pause, importBatch, saveMapping, importDetail, reviewCustomer, request }
+	return { context, detail, batch, customers, pending, retryableFailureCount, blockedReadCount, resultByCustomer, resolutionOperation, autoRefresh, busy, issue, running, stopping, currentCustomer, checkedThisRun, totalThisRun, failures, loadContext, openBatch, checkOne, runChecks, pause, importBatch, saveMapping, importDetail, reviewCustomer, resolveIssue, request }
 }

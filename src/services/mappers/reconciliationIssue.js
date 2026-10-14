@@ -47,6 +47,18 @@ const EXPLANATIONS = {
 }
 
 export function reconciliationIssueType(type) { return TYPE_LABELS[type] || '检查提示' }
+export function reconciliationResolutionLabel(kind) {
+	return ({ accepted_date_difference: '已接受日期差', merged_into_issue: '已并入其他事项' })[kind] || '历史解释'
+}
+export function reconciliationResolutionStatus(resolution, stale = false) {
+	if (resolution?.status === 'invalidated') return '解释已失效 · 重新待核'
+	if (stale || resolution?.status === 'needs_recheck' || resolution?.valid !== true) return '历史解释 · 待复核'
+	return '解释有效'
+}
+export function reconciliationIssueSummary(problem) {
+	const shown = presentReconciliationIssue(problem), record = shown.records[0]
+	return record ? `${record.date} · ${record.business} · ${record.amount}` : shown.finding
+}
 const finite = value => typeof value === 'number' && Number.isFinite(value)
 function yuan(value) {
 	if (!finite(value)) return '金额未提供'

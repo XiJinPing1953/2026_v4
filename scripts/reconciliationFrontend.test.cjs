@@ -15,11 +15,12 @@ const customers = [{ _id: 'a', name: '甲', is_hidden: true }, { _id: 'b', name:
 const result = (id, patch = {}) => ({ customer_id: id, customer_name: id, result_hash: `result-${id}`, source_hash: `source-${id}`, issues: [], summary_match: true, detail_match: false, ...patch })
 const batch = (id = 'batch') => ({ batch: { _id: id, company: '账套甲', cutoff: '2026-09-30' }, customers, accounts: [], mappings: { version: 3, items: [] }, results: [], detail_sources: [] })
 async function center(overrides = {}, options = {}) {
-	const calls = [], scope = vue.effectScope()
+	const calls = [], scope = vue.effectScope(), memory = new Map()
+	const storage = options.storage || { getStorageSync: key => memory.get(key), setStorageSync: (key, value) => memory.set(key, copy(value)) }
 	const api = { context: async () => success({ customers, batches: [batch().batch] }), getBatch: async ({ batch_id }) => success(batch(batch_id)), checkCustomer: async data => { calls.push(copy(data)); return success(result(data.customer_id)) }, ...overrides }
-	const state = scope.run(() => centerModule.useReconciliationCenter({ api, ...options }))
+	const state = scope.run(() => centerModule.useReconciliationCenter({ api, storage, actorId: 'test-user', ...options }))
 	await state.openBatch('batch')
-	return { state, calls, stop: () => scope.stop() }
+	return { state, calls, storage, stop: () => scope.stop() }
 }
 test('all settlement customers are checked sequentially including hidden/inactive; aliases do not double count', async () => {
 	const first = deferred(), calls = []
@@ -104,27 +105,34 @@ test('view-only permission permits reads but blocks import, mapping, check, deta
 	await h.state.importBatch({}); await h.state.saveMapping({}); await h.state.importDetail({}); await h.state.reviewCustomer({}); await h.state.checkOne('a'); await h.state.runChecks()
 	assert.equal(writes, 0); assert.equal(h.state.running.value, false); assert.match(h.state.issue.value, /修改权限/); h.stop()
 })
-test('the rendered view-only page disables check/import/cache controls and leaves batch reads enabled', async () => {
-	const h = await center({}, { canWrite: () => false }); await h.state.loadContext(); h.state.context.value.batches = []
+async function renderCenter(h, { writable = false, selected = false } = {}) {
 	const { parse, compileScript } = require('@vue/compiler-sfc')
 	const file = 'src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue'
-	const source = compileScript(parse(fs.readFileSync(file, 'utf8')).descriptor, { id: 'readonly-check', inlineTemplate: true }).content
+	let template = fs.readFileSync(file, 'utf8')
+	if (selected) template = template.replace('selectedCustomer = ref(null)', "selectedCustomer = ref({ _id: 'a', name: '甲' })").replace('customerOpen = ref(false)', 'customerOpen = ref(true)')
+	const source = compileScript(parse(template).descriptor, { id: 'readonly-check', inlineTemplate: true }).content
 		.replace(/^import \{([^}]+)\} from ["']vue["']/gm, (_, names) => `const {${names.replace(/\bas\b/g, ':')}} = Vue`)
 		.replace(/^import .*$/gm, '').replace('export default', 'globalThis.Component =')
 	const components = Object.fromEntries(['AppPage', 'AppSection', 'AppButton', 'AppInput', 'AppTag', 'AppModal', 'CustomerAdjustmentPanel', 'ReconciliationRepairPanel'].map(name => [name, {
 		inheritAttrs: false, setup(_, { attrs, slots }) { return () => vue.h(name === 'AppButton' ? 'button' : 'section', attrs, Object.values(slots).flatMap(slot => slot())) }
 	}]))
 	const context = vm.createContext({ Vue: { ...vue, onMounted: () => {} }, ...components,
-		getRoleTemplate: () => 'finance', canPageAction: (_, action) => action === 'view', reconciliationApi: {},
+		getRoleTemplate: () => 'finance', getUser: () => ({ _id: 'test-user' }), uni: {}, canPageAction: (_, action) => action === 'view' || writable, reconciliationApi: {},
 		useReconciliationCenter: () => h.state, reconciliationMoney: centerModule.reconciliationMoney,
 		money: centerModule.reconciliationMoney, level: centerModule.reconciliationLevel, readFailed: centerModule.reconciliationReadFailed,
+		activeIssues: centerModule.reconciliationActiveIssues, pendingIssueCount: centerModule.reconciliationPendingIssueCount, hasIssueType: centerModule.reconciliationHasIssueType, reconciliationCanApprove: centerModule.reconciliationCanApprove,
+		presentReconciliationIssue: issueModule.presentReconciliationIssue, problemLabel: issueModule.reconciliationIssueType, resolutionLabel: issueModule.reconciliationResolutionLabel, resolutionStatus: issueModule.reconciliationResolutionStatus, issueSummary: issueModule.reconciliationIssueSummary,
 		RECONCILIATION_ISSUE_TYPES: vm.runInContext('RECONCILIATION_ISSUE_TYPES', centerModule),
 		pickReconciliationWorkbook: () => {}, downloadReconciliationSource: () => {}
 	})
 	vm.runInContext(source, context)
 	const app = vue.createSSRApp(context.Component)
 	for (const name of ['picker', 'checkbox', 'checkbox-group']) app.component(name, { inheritAttrs: false, setup(_, { attrs, slots }) { return () => vue.h(name, attrs, slots.default?.()) } })
-	const html = await require('@vue/server-renderer').renderToString(app)
+	return require('@vue/server-renderer').renderToString(app)
+}
+test('the rendered view-only page disables check/import/cache controls and leaves batch reads enabled', async () => {
+	const h = await center({}, { canWrite: () => false }); await h.state.loadContext(); h.state.context.value.batches = []
+	const html = await renderCenter(h)
 	for (const label of ['导入好会计报表', '选择 .xls / .xlsx', '导入报表', '继续未完成核查', '重新核查本批全部客户']) {
 		const button = [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].find(([, , text]) => text.includes(label))
 		assert.ok(button, label); assert.match(button[1], /\bdisabled\b/, label)
@@ -316,4 +324,91 @@ test('customer checks keep technical identifiers and raw payloads collapsed unti
 	assert.match(source, /v-if="resultDiagnosticOpen"[^>]*>结果编号/)
 	assert.doesNotMatch(source, /evidenceText\(problem\)|\{\{ problem\.message \}\}/)
 	assert.match(source, /条检查提示，不代表/)
+})
+
+const dateProblem = { issue_key: 'date-key', type: 'date', code: 'POSSIBLE_DATE_DIFFERENCE', eligible_resolution_kinds: ['accepted_date_difference'], merge_targets: [] }
+const classificationProblem = { issue_key: 'classification-key', type: 'classification', code: 'NONCASH_CLASSIFICATION_CANDIDATE', eligible_resolution_kinds: [], merge_targets: [] }
+const unmatchedProblem = { issue_key: 'unmatched-key', type: 'unposted', code: 'ACCOUNTING_ENTRY_NOT_MATCHED', eligible_resolution_kinds: ['merged_into_issue'], merge_targets: [{ issue_key: classificationProblem.issue_key, code: classificationProblem.code }] }
+const unresolvedResult = () => result('a', { batch_id: 'batch', issues: [dateProblem, unmatchedProblem, classificationProblem], active_issues: [dateProblem, unmatchedProblem, classificationProblem], explained_issues: [], pending_issue_count: 3, internal: { complete: true } })
+const explanationInput = () => ({ customer_id: 'a', expected_result_hash: 'result-a', issue_key: dateProblem.issue_key, kind: 'accepted_date_difference', basis: '原单和凭证已核对，接受日期不同' })
+function resolvedResult(input, patch = {}) {
+	const source = unresolvedResult(), original = source.issues.find(problem => problem.issue_key === input.issue_key)
+	const resolution = { ...copy(input), valid: true, status: 'applied', at: 1, target_issue: input.target_issue_key ? classificationProblem : null }
+	return { ...source, active_issues: source.issues.filter(problem => problem.issue_key !== input.issue_key), pending_issue_count: 2,
+		explained_issues: [{ ...original, resolution }], ...patch }
+}
+const resolutionCenter = (api = {}, options = {}) => center({ getBatch: async () => success({ ...batch(), results: [unresolvedResult()] }), ...api }, options)
+
+test('only active issues count and filter; old results fall back to original issues and stale explanations re-enter review', () => {
+	const explained = resolvedResult({ ...explanationInput(), operation_id: 'op' })
+	assert.equal(centerModule.reconciliationPendingIssueCount(explained), 2)
+	assert.equal(centerModule.reconciliationHasIssueType(explained, 'date'), false); assert.equal(centerModule.reconciliationHasIssueType(explained, 'classification'), true)
+	assert.equal(centerModule.reconciliationPendingIssueCount({ issues: [dateProblem] }), 1)
+	assert.equal(centerModule.reconciliationPendingIssueCount({ ...explained, stale: true }), 3)
+	assert.equal(centerModule.reconciliationHasIssueType({ ...explained, stale: true }, 'date'), true)
+	assert.match(issueModule.reconciliationResolutionStatus(explained.explained_issues[0].resolution, true), /待复核/)
+	assert.match(issueModule.reconciliationResolutionStatus({ valid: false, status: 'invalidated' }), /已失效/)
+	const checkedAgain = { ...explained, stale: false }
+	assert.equal(centerModule.reconciliationPendingIssueCount(checkedAgain), 2)
+	assert.equal(issueModule.reconciliationResolutionStatus(checkedAgain.explained_issues[0].resolution), '解释有效')
+})
+test('accepting explanations cannot promote detail matching or relax the original manual approval gate', () => {
+	const explained = { ...unresolvedResult(), active_issues: [], pending_issue_count: 0, explained_issues: [{ ...dateProblem, resolution: { valid: true, status: 'applied' } }] }
+	assert.equal(centerModule.reconciliationPendingIssueCount(explained), 0)
+	assert.equal(centerModule.reconciliationCanApprove(explained), false); assert.equal(explained.detail_match, false)
+	assert.equal(centerModule.reconciliationLevel(explained), '汇总一致 · 明细待核')
+	assert.notEqual(centerModule.reconciliationLevel({ ...explained, review: { kind: 'manual_approval', valid: true } }), '人工核准')
+})
+test('explanation saves its operation first and consumes the returned result without a full customer check', async () => {
+	let request, persisted
+	const h = await resolutionCenter({ resolveIssue: async input => { request = copy(input); persisted = h.storage.getStorageSync('crm_reconciliation_issue:test-user'); return success(resolvedResult(input)) } })
+	assert.equal(await h.state.resolveIssue(explanationInput()), true)
+	assert.equal(persisted.input.operation_id, request.operation_id); assert.equal(request.batch_id, 'batch')
+	assert.equal(h.state.resultByCustomer.value.a.active_issues.length, 2); assert.equal(h.state.resultByCustomer.value.a.explained_issues[0].resolution.basis, explanationInput().basis)
+	assert.equal(h.calls.length, 0); assert.equal(h.state.resolutionOperation.value, null); assert.equal(h.storage.getStorageSync('crm_reconciliation_issue:test-user'), null); h.stop()
+})
+test('unknown explanation outcome freezes a durable request and retry after reopening uses the exact same operation', async () => {
+	const inputs = []
+	const h = await resolutionCenter({ resolveIssue: async input => { inputs.push(copy(input)); throw Error('timeout') } })
+	await h.state.resolveIssue(explanationInput()); assert.ok(h.state.resolutionOperation.value)
+	await h.state.resolveIssue({ ...explanationInput(), basis: '不得进入第二笔的新依据' }); await h.state.runChecks(); assert.equal(inputs.length, 1); assert.equal(h.calls.length, 0)
+	const storage = h.storage; h.stop()
+	const reopened = await resolutionCenter({ resolveIssue: async input => { inputs.push(copy(input)); return success(resolvedResult(input)) } }, { storage })
+	assert.equal(await reopened.state.resolveIssue(), true); assert.deepEqual(inputs[0], inputs[1]); assert.equal(reopened.state.resolutionOperation.value, null); reopened.stop()
+})
+test('only a definite no-write rejection unlocks the explanation; unconfirmed receipts and concurrency preserve its identity', async () => {
+	const first = deferred(), inputs = []
+	let mode = 'pending'
+	const h = await resolutionCenter({ resolveIssue: async input => { inputs.push(copy(input)); if (mode === 'pending') return first.promise; if (mode === 'reject') return { code: 409, msg: '来源已变化', data: { resolution_rejected: true, operation_id: input.operation_id } }; return success(resolvedResult(input)) } })
+	const run = h.state.resolveIssue(explanationInput()); await wait(); await h.state.resolveIssue(explanationInput()); assert.equal(inputs.length, 1)
+	first.resolve(success({ ...unresolvedResult(), explained_issues: [] })); await run
+	const id = h.state.resolutionOperation.value.input.operation_id; assert.match(h.state.issue.value, /尚待确认/)
+	mode = 'reject'; await h.state.resolveIssue(); assert.equal(inputs[1].operation_id, id); assert.equal(h.state.resolutionOperation.value, null)
+	mode = 'success'; await h.state.resolveIssue(explanationInput()); assert.notEqual(inputs[2].operation_id, id); h.stop()
+})
+test('merge uses only an advertised current target, keeps the classification reminder, and rejects view-only or unsaved requests', async () => {
+	let writes = 0
+	const api = { resolveIssue: async input => { writes += 1; return success(resolvedResult(input)) } }
+	const h = await resolutionCenter(api)
+	const input = { ...explanationInput(), issue_key: unmatchedProblem.issue_key, kind: 'merged_into_issue', target_issue_key: 'unrelated' }
+	assert.equal(await h.state.resolveIssue(input), false); assert.equal(writes, 0)
+	input.target_issue_key = classificationProblem.issue_key; assert.equal(await h.state.resolveIssue(input), true)
+	assert.equal(centerModule.reconciliationHasIssueType(h.state.resultByCustomer.value.a, 'classification'), true)
+	assert.equal(centerModule.reconciliationHasIssueType(h.state.resultByCustomer.value.a, 'unposted'), false); h.stop()
+	const denied = await resolutionCenter(api, { canWrite: () => false }); await denied.state.resolveIssue(explanationInput()); assert.equal(writes, 1); denied.stop()
+	const unsaved = await resolutionCenter(api, { storage: { getStorageSync: () => null, setStorageSync: () => { throw Error('full') } } }); await unsaved.state.resolveIssue(explanationInput()); assert.equal(writes, 1); assert.match(unsaved.state.issue.value, /无法保存/); unsaved.stop()
+})
+test('a confirmed historical resolution can finish its retry while source changes correctly remain active', async () => {
+	const h = await resolutionCenter({ resolveIssue: async input => success(resolvedResult(input, { stale: true, active_issues: unresolvedResult().issues,
+		explained_issues: [{ ...dateProblem, resolution: { operation_id: input.operation_id, valid: false, status: 'needs_recheck', basis: input.basis } }] })) })
+	assert.equal(await h.state.resolveIssue(explanationInput()), true); assert.equal(h.state.resolutionOperation.value, null)
+	assert.equal(centerModule.reconciliationPendingIssueCount(h.state.resultByCustomer.value.a), 3); assert.match(centerModule.reconciliationLevel(h.state.resultByCustomer.value.a), /待复核/); h.stop()
+})
+test('read-only detail has no explain mutation entry and explained history stays collapsed', async () => {
+	const h = await resolutionCenter({}, { canWrite: () => false }); await h.state.loadContext()
+	h.state.resultByCustomer.value.a = resolvedResult({ ...explanationInput(), operation_id: 'saved-op' })
+	const readonly = await renderCenter(h, { selected: true })
+	assert.doesNotMatch(readonly, />确认已解释</); assert.match(readonly, /展开已解释事项/); assert.doesNotMatch(readonly, /依据：原单和凭证已核对/)
+	const writable = await renderCenter(h, { selected: true, writable: true })
+	assert.match(writable, />确认已解释</); assert.match(writable, /待处理提示 2 条/); h.stop()
 })

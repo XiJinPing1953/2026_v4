@@ -10,6 +10,7 @@ export const reconciliationApi = {
 	checkCustomer: data => invoke('checkCustomerV1', data),
 	importDetail: data => invoke('importDetailV1', data),
 	reviewCustomer: data => invoke('reviewCustomerV1', data),
+	resolveIssue: data => invoke('resolveIssueV1', data),
 	downloadSource: data => invoke('downloadSourceV1', data),
 	repairSources: data => invoke('repairSourcesV1', data),
 	prepareRepair: data => invoke('prepareRepairV1', data),

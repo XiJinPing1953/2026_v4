@@ -6,35 +6,43 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.14-reconciliation-readable",
+      "version": "2026.10.14-reconciliation-issue-explanations",
       "output": "dist/build/web",
-      "acceptance": "Reconciliation hints show dated source facts, monetary units, evidence limits and next actions in plain language. Technical details are collapsed. Source facts come from the same audit read; original financial records and audit decisions are unchanged.",
-      "deploymentScope": {
-        "functions": [
-          "crm-customer-settlement"
-        ],
-        "databaseFiles": [],
-        "baseCommit": "133606dbe538f9a1ad18941ef5ac5aa99b3b1fcb",
-        "sourceFiles": [
-          "src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue",
-          "src/services/mappers/reconciliationIssue.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/reconciliationAudit.js"
-        ]
-      },
-      "integrityScope": "deployment"
-    },
-    "cloud": {
-      "version": "2026.10.14-reconciliation-review-save",
-      "output": "release/cloud",
-      "acceptance": "Persist reconciliation reviews with explicit Alipay object replacement; require exact transaction and committed readback before reporting success. Source fingerprint and single full current-source validation remain; financial records are untouched.",
+      "acceptance": "Explain accepted date differences or merge related clues into an active classification issue, preserving evidence and history. Count only active clues; invalidate explanations after source changes. Keep financial records and raw comparison/approval facts unchanged.",
       "deploymentScope": {
         "functions": [
           "crm-reconciliation"
         ],
         "databaseFiles": [],
-        "baseCommit": "1e4431d024bc503b5500d6ac50b894f3be4e1ceb",
+        "baseCommit": "64dfbfba392ac19f2e388a3b615b1c2abe7a24b3",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/crm-reconciliation/service.js"
+          "src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue",
+          "src/composables/useReconciliationCenter.js",
+          "src/services/api/reconciliation.js",
+          "src/services/mappers/reconciliationIssue.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/service.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/issueResolution.js"
+        ]
+      },
+      "integrityScope": "deployment"
+    },
+    "cloud": {
+      "version": "2026.10.14-reconciliation-issue-explanations",
+      "output": "release/cloud",
+      "acceptance": "Explain accepted date differences or merge related clues into an active classification issue, preserving evidence and history. Count only active clues; invalidate explanations after source changes. Keep financial records and raw comparison/approval facts unchanged.",
+      "deploymentScope": {
+        "functions": [
+          "crm-reconciliation"
+        ],
+        "databaseFiles": [],
+        "baseCommit": "64dfbfba392ac19f2e388a3b615b1c2abe7a24b3",
+        "sourceFiles": [
+          "src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue",
+          "src/composables/useReconciliationCenter.js",
+          "src/services/api/reconciliation.js",
+          "src/services/mappers/reconciliationIssue.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/service.js",
+          "uniCloud-alipay/cloudfunctions/crm-reconciliation/issueResolution.js"
         ]
       },
       "integrityScope": "deployment"

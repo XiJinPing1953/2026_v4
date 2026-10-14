@@ -39,7 +39,7 @@ function fixture(options = {}) {
   const db = depositDb(tables, { alipayNullObjectUpdates: true, start: current => state.onTransaction?.(current),
     txWrite: (_operation, name, value) => state.failTransactionWrite?.(name, value), afterCommit: current => state.onAfterCommit?.(current) })
   const correction = loadHandler('crm-accounting-correction', db)
-  const inspect = customerId => ({ read_complete: state.readComplete !== false, complete: state.internalComplete !== false, source_hash: digest({ receipts: tables.crm_customer_receipts.filter(r => r.customer_id === customerId), sales: tables.crm_sale_records.filter(r => r.customer_id === customerId), revision: state.sourcesRevision }),
+  const inspect = customerId => ({ version: state.auditVersion || 'synthetic-audit/v1', read_complete: state.readComplete !== false, complete: state.internalComplete !== false, source_hash: digest({ receipts: tables.crm_customer_receipts.filter(r => r.customer_id === customerId), sales: tables.crm_sale_records.filter(r => r.customer_id === customerId), revision: state.sourcesRevision }),
     issues: clone(state.internalIssues), cache: { stale: state.stale, before: { receivable_balance: 2 }, expected: { receivable_balance: 0 } } })
   const ledger = customerId => ({ customer: { _id: customerId }, period: { date_from: '2026-01-01', date_to: '2026-09-23' },
     opening_balance: 0, closing_balance: 0, totals: { debit: 100, credit: 100 },
@@ -567,4 +567,242 @@ test('支付宝服务端把超时设置在当前空间实例上，不依赖被SD
   assert.equal(instances.length,1); assert.equal(instances[0].provider,'alipay'); assert.equal(instances[0].timeout,60000)
   assert.equal(instances[0].spaceId,undefined)
   assert.equal(calls[0].data.token,'test')
+})
+
+async function issueFixture() {
+  const f = fixture({ receiptDate: '2026-09-19' }), accounting = summary()
+  accounting.rows[0] = row('112201', '测试客户', 100, 85)
+  accounting.controls = { opening_milli: 0, debit_milli: 200000, credit_milli: 185000, closing_milli: 15000 }
+  const { batch } = await f.importBatch({ source: { ...source(), parsed: accounting } })
+  await f.saveMapping()
+  const details = detail()
+  Object.assign(details, { credit_milli: 85000, closing_milli: 15000 })
+  details.rows.push({ date: '2026-09-18', debit_milli: 0, credit_milli: -15000, source_row: 8, voucher: '记-008' })
+  await f.run('importDetailV1', { batch_id: batch._id, accountant_code: '112201', source: { ...source('detail'), parsed: details } })
+  const ledger = f.ledger(CID)
+  ledger.rows.push({ row_type: 'movement', biz_date: '2026-09-18', source_type: 'prepay_writeoff', source_id: 'settlement',
+    debit: 0, credit: -20, adjustment_source: { receipt_id: RID, id: RID, date: '2026-09-18' } },
+  { row_type: 'movement', biz_date: '2026-09-18', source_type: 'receipt_rounding', source_id: RID, debit: 0, credit: 5 },
+  { row_type: 'movement', biz_date: '2026-09-22', source_type: 'sale', source_id: 'unposted-sale', debit: 8, credit: 0 })
+  Object.assign(ledger, { totals: { debit: 108, credit: 85 }, closing_balance: 23 })
+  f.state.ledgerOverride = ledger
+  const data = { batch_id: batch._id, customer_id: CID }, checked = await f.run('checkCustomerV1', data)
+  const issue = code => checked.issues.find(row => row.code === code)
+  const dateRequest = { ...data, expected_result_hash: checked.result_hash, operation_id: 'explain-date-one',
+    issue_key: issue('POSSIBLE_DATE_DIFFERENCE').issue_key, kind: 'accepted_date_difference', basis: '已核对原回单，同一笔业务日期差接受保留' }
+  const mergeRequest = { ...data, expected_result_hash: checked.result_hash, operation_id: 'explain-merge-one',
+    issue_key: checked.issues.find(row => row.crm?.source_type === 'receipt_rounding').issue_key,
+    target_issue_key: issue('NONCASH_CLASSIFICATION_CANDIDATE').issue_key, kind: 'merged_into_issue', basis: '同一收款的优惠与结清在对方合并列示，保留分类事项继续处理' }
+  return { ...f, data, checked, dateRequest, mergeRequest }
+}
+
+test('逐条说明只扣两项，保留分类、汇总及缺记待办；不修改核对结论或财务原单', async () => {
+  const f = await issueFixture(), counts = f.counts()
+  const original = digest(Object.fromEntries(Object.entries(f.tables).filter(([key]) => !Object.values(COL).includes(key))))
+  assert.equal(f.checked.issues.length, 5)
+  assert.equal(f.checked.pending_issue_count, 5)
+  const one = await f.run('resolveIssueV1', f.dateRequest)
+  assert.equal(one.pending_issue_count, 4); assert.equal(one.explained_issue_count, 1)
+  const two = await f.run('resolveIssueV1', f.mergeRequest)
+  assert.equal(two.pending_issue_count, 3); assert.equal(two.explained_issue_count, 2); assert.equal(two.issues.length, 5)
+  assert.deepEqual(two.active_issues.map(row => row.code).sort(), ['ACCOUNTING_ENTRY_NOT_MATCHED', 'CONTROL_TOTAL_DIFFERENCE', 'NONCASH_CLASSIFICATION_CANDIDATE'].sort())
+  assert.equal(two.summary_match, false); assert.equal(two.detail_match, false); assert.equal(two.classification_verified, false)
+  assert.deepEqual(f.counts(), { inspectCount: counts.inspectCount + 2, exportCount: counts.exportCount })
+  assert.equal(digest(Object.fromEntries(Object.entries(f.tables).filter(([key]) => !Object.values(COL).includes(key)))), original)
+  for (const item of two.explained_issues) {
+    assert.equal(item.resolution.valid, true); assert.equal(item.resolution.status, 'applied')
+    assert.equal(item.resolution.by, actor._id); assert.ok(item.resolution.at); assert.ok(item.resolution.basis)
+    assert.equal(item.resolution.original_issue.issue_key, item.issue_key)
+    assert.equal(item.resolution.review_inputs_hash, two.review_inputs_hash)
+  }
+  assert.equal(two.explained_issues.find(row => row.resolution.kind === 'merged_into_issue').resolution.target_issue.issue_key, f.mergeRequest.target_issue_key)
+  await f.run('reviewCustomerV1', { ...f.data, expected_result_hash: two.result_hash, kind: 'accounting_followup', basis: '分类待办继续保留' })
+  assert.equal((await f.run('checkCustomerV1', f.data)).review.kind, 'accounting_followup')
+})
+
+test('解释固定操作号重复及并发提交只记一次；同号不同依据拒绝', async () => {
+  const f = await issueFixture()
+  const concurrent = await Promise.all([f.run('resolveIssueV1', f.dateRequest), f.run('resolveIssueV1', f.dateRequest)])
+  assert.equal(concurrent.length, 2)
+  const replay = await f.run('resolveIssueV1', f.dateRequest)
+  assert.equal(replay.pending_issue_count, 4); assert.equal(replay.issue_resolutions.length, 1)
+  assert.equal(f.tables[COL.logs].filter(row => row.action === 'reconciliation_issue_resolution').length, 1)
+  await assert.rejects(() => f.run('resolveIssueV1', { ...f.dateRequest, basis: '换了依据' }), /操作号/)
+  await assert.rejects(() => f.run('resolveIssueV1', { ...f.dateRequest, operation_id: 'another-date-id' }), /已说明/)
+})
+
+test('重开只待复核、同来源重查恢复扣数；真实变化持久失效且来源改回不复活', async () => {
+  const f = await issueFixture()
+  await f.run('resolveIssueV1', f.dateRequest); await f.run('resolveIssueV1', f.mergeRequest)
+  const reopened = (await f.run('getBatchV1', { batch_id: f.data.batch_id })).results[0]
+  assert.equal(reopened.stale, true); assert.equal(reopened.pending_issue_count, 5); assert.equal(reopened.explained_issue_count, 0)
+  assert.ok(reopened.explained_issues.every(row => row.resolution.status === 'needs_recheck'))
+  assert.ok(f.tables[COL.results][0].issue_resolutions.every(row => row.valid))
+  const same = await f.run('checkCustomerV1', f.data)
+  assert.equal(same.pending_issue_count, 3); assert.equal(same.explained_issue_count, 2)
+  f.state.sourcesRevision++
+  const changed = await f.run('checkCustomerV1', f.data)
+  assert.equal(changed.pending_issue_count, 5); assert.equal(changed.explained_issue_count, 0)
+  assert.ok(changed.issue_resolutions.every(row => row.status === 'invalidated' && row.invalidated_at))
+  f.state.sourcesRevision--
+  const reverted = await f.run('checkCustomerV1', f.data)
+  assert.equal(reverted.result_hash, same.result_hash); assert.equal(reverted.pending_issue_count, 5)
+  assert.ok(reverted.issue_resolutions.every(row => row.valid === false))
+  const replay = await f.run('resolveIssueV1', f.dateRequest)
+  assert.equal(replay.explained_issue_count, 0)
+})
+
+test('解释提交拒绝来源、规则、资料及缺读变化，明确未写标记；内部异常不能被说明吞掉', async () => {
+  for (const mutate of [
+    f => { f.state.sourcesRevision++ },
+    f => { f.state.readComplete = false },
+    f => { f.state.auditVersion = 'changed-audit' },
+    f => { f.tables[COL.batches][0].source.sha256 = 'changed' },
+    f => { f.tables[COL.mappings][0].version++ },
+    f => { f.tables[COL.sources].find(row => row.kind === 'detail').sha256 = 'changed' },
+    f => { f.tables[COL.results][0].rule_version = 'old-rule' },
+    f => { f.tables[COL.sources].find(row => row.kind === 'summary').parsed.rows[0].closing_milli++ }
+  ]) {
+    const f = await issueFixture(); mutate(f)
+    await assert.rejects(() => f.run('resolveIssueV1', f.dateRequest), error => error.details?.resolution_rejected === true)
+    assert.equal(f.tables[COL.results][0].issue_resolutions.length, 0)
+    assert.equal(f.tables[COL.logs].filter(row => row.action === 'reconciliation_issue_resolution').length, 0)
+  }
+  const f = await issueFixture()
+  f.state.internalIssues = [{ code: 'allocation_invalid', type: 'evidence', blocking: true, message: '分配不守恒' }]
+  f.state.internalComplete = false
+  const checked = await f.run('checkCustomerV1', f.data), internal = checked.issues.find(row => row.code === 'allocation_invalid')
+  assert.deepEqual(internal.eligible_resolution_kinds, [])
+  await assert.rejects(() => f.run('resolveIssueV1', { ...f.dateRequest, expected_result_hash: checked.result_hash, issue_key: internal.issue_key }), /不支持/)
+})
+
+test('合并只认结构化关联，不凭同日同额吞掉缺记、汇总或目标；目标变化使解释失效', async () => {
+  const f = await issueFixture(), missing = f.checked.issues.find(row => row.crm?.source_id === 'unposted-sale')
+  assert.deepEqual(missing.merge_targets, [])
+  for (const patch of [
+    { issue_key: missing.issue_key },
+    { target_issue_key: f.dateRequest.issue_key },
+    { target_issue_key: f.mergeRequest.issue_key },
+    { issue_key: f.checked.issues.find(row => row.code === 'CONTROL_TOTAL_DIFFERENCE').issue_key }
+  ]) await assert.rejects(() => f.run('resolveIssueV1', { ...f.mergeRequest, ...patch }), /不支持|分类事项/)
+  await f.run('resolveIssueV1', f.mergeRequest)
+  f.state.ledgerOverride.rows.find(row => row.source_type === 'prepay_writeoff').adjustment_source = { receipt_id: 'unrelated' }
+  f.state.sourcesRevision++
+  const changed = await f.run('checkCustomerV1', f.data)
+  assert.equal(changed.explained_issue_count, 0)
+  assert.equal(changed.issue_resolutions[0].status, 'invalidated')
+  assert.deepEqual(changed.issues.find(row => row.crm?.source_type === 'receipt_rounding').merge_targets, [])
+})
+
+test('解释事务前并发结果、映射、原件及明细版本变化均拒绝覆盖', async () => {
+  for (const mutate of [
+    tables => { tables[COL.results][0].review = { basis: '另一会计刚保存' } },
+    tables => { tables[COL.mappings][0].version++ },
+    tables => { tables[COL.sources].find(row => row.kind === 'summary').base64 = 'other-original' },
+    tables => { tables[COL.batches][0].details_revision++ }
+  ]) {
+    const f = await issueFixture()
+    f.state.onTransaction = tables => { f.state.onTransaction = null; mutate(tables) }
+    await assert.rejects(() => f.run('resolveIssueV1', f.dateRequest), /变化/)
+    assert.equal(f.tables[COL.results][0].issue_resolutions.length, 0)
+    assert.equal(f.tables[COL.logs].filter(row => row.action === 'reconciliation_issue_resolution').length, 0)
+  }
+})
+
+test('解释用显式set兼容旧null历史字段；审计失败回滚，提交后未回读不可冒充成功', async () => {
+  const f = await issueFixture()
+  f.tables[COL.results][0].issue_resolutions = null
+  const set = f.db.command.set, replacements = []
+  f.db.command.set = value => { replacements.push(clone(value)); return set(value) }
+  f.state.failTransactionWrite = name => { if (name === COL.logs) throw Error('模拟审计写入失败') }
+  await assert.rejects(() => f.run('resolveIssueV1', f.dateRequest), /审计写入失败/)
+  assert.equal(f.tables[COL.results][0].issue_resolutions, null)
+  assert.equal(replacements[0][0].operation_id, f.dateRequest.operation_id)
+  f.state.failTransactionWrite = null
+  f.state.onAfterCommit = tables => { tables[COL.results][0].issue_resolutions = [] }
+  await assert.rejects(() => f.run('resolveIssueV1', f.dateRequest), error => error.details?.committed === true && !error.details.resolution_rejected)
+  assert.equal(f.tables[COL.logs].filter(row => row.action === 'reconciliation_issue_resolution').length, 1)
+})
+
+test('全部日期线索已解释也不冒充逐笔一致或放宽人工核准', async () => {
+  const f = fixture({ receiptDate: '2026-09-19' }), data = await f.ready(true), checked = await f.run('checkCustomerV1', data)
+  const resolved = await f.run('resolveIssueV1', { ...data, expected_result_hash: checked.result_hash, operation_id: 'only-date-issue',
+    kind: 'accepted_date_difference', basis: '回单证实同笔，日期差保留', issue_key: checked.issues[0].issue_key })
+  assert.equal(resolved.pending_issue_count, 0); assert.equal(resolved.explained_issue_count, 1)
+  assert.equal(resolved.detail_match, false); assert.equal(resolved.classification_verified, false)
+  await assert.rejects(() => f.run('reviewCustomerV1', { ...data, expected_result_hash: resolved.result_hash,
+    kind: 'manual_approval', basis: '不能因提示扣除就核准' }), /待核差异/)
+})
+
+test('resolveIssue真实总入口沿用财务更新权限，未登录、普通员工及只读财务不可提交', async () => {
+  const f = fixture(), main = loadHandler('crm-reconciliation', f.db)
+  assert.equal((await main({ action: 'resolveIssueV1', data: {} })).code, 401)
+  for (const user of [
+    { ...actor, role: 'user' },
+    { ...actor, role: 'finance', page_permissions: { '/pages/accounting/reconciliation-center': ['view'] } }
+  ]) {
+    f.tables.crm_users[0] = user
+    assert.equal((await invokeHandler(main, 'resolveIssueV1', {})).code, 403)
+  }
+  f.tables.crm_users[0] = { ...actor, role: 'finance' }
+  assert.equal((await invokeHandler(main, 'resolveIssueV1', {})).code, 400, '有更新权限后进入业务入参校验')
+})
+
+test('原操作查询网络失败不宣称未写，保留固定号；重试可恢复已提交结果', async () => {
+  const f = await issueFixture()
+  await f.run('resolveIssueV1', f.dateRequest)
+  const collection = f.db.collection
+  f.db.collection = name => {
+    const store = collection(name)
+    return name !== COL.logs ? store : { ...store, where: () => ({ limit: () => ({ get: async () => { throw Error('模拟操作日志读取超时') } }) }) }
+  }
+  await assert.rejects(() => f.run('resolveIssueV1', f.dateRequest), error => error.details?.commit_pending === true && !error.details.resolution_rejected)
+  f.db.collection = collection
+  const resumed = await f.run('resolveIssueV1', f.dateRequest)
+  assert.equal(resumed.explained_issue_count, 1)
+  assert.equal(f.tables[COL.logs].filter(row => row.action === 'reconciliation_issue_resolution').length, 1)
+})
+
+test('原号重试看到确切来源、规则或原件变化即持久失效，改回也不恢复；缺读仅待复核', async () => {
+  const temporary = await issueFixture()
+  await temporary.run('resolveIssueV1', temporary.dateRequest)
+  temporary.state.readComplete = false
+  const pending = await temporary.run('resolveIssueV1', temporary.dateRequest)
+  assert.equal(pending.issue_resolutions[0].status, 'needs_recheck')
+  assert.equal(temporary.tables[COL.results][0].issue_resolutions[0].valid, true)
+  temporary.state.readComplete = true
+  assert.equal((await temporary.run('resolveIssueV1', temporary.dateRequest)).explained_issue_count, 1)
+  for (const mutate of [
+    f => { f.state.sourcesRevision++; return () => { f.state.sourcesRevision-- } },
+    f => { f.state.auditVersion = 'changed'; return () => { f.state.auditVersion = null } },
+    f => { f.tables[COL.mappings][0].version++; return () => { f.tables[COL.mappings][0].version-- } },
+    f => {
+      const row = f.tables[COL.sources].find(row => row.kind === 'summary').parsed.rows[0]
+      row.closing_milli++; return () => { row.closing_milli-- }
+    }
+  ]) {
+    const f = await issueFixture()
+    await f.run('resolveIssueV1', f.dateRequest)
+    const restore = mutate(f), changed = await f.run('resolveIssueV1', f.dateRequest)
+    assert.equal(changed.explained_issue_count, 0)
+    assert.equal(changed.issue_resolutions[0].status, 'invalidated')
+    assert.equal(f.tables[COL.results][0].issue_resolutions[0].valid, false)
+    restore()
+    const reverted = await f.run('resolveIssueV1', f.dateRequest)
+    assert.equal(reverted.explained_issue_count, 0)
+    assert.equal(reverted.issue_resolutions[0].status, 'invalidated')
+    assert.equal(f.tables[COL.logs].filter(row => row.action === 'reconciliation_issue_resolution').length, 1)
+    assert.equal(f.tables[COL.logs].filter(row => row.action === 'reconciliation_issue_invalidation').length, 1)
+  }
+})
+
+test('原号重试的永久失效也须事务成功；中断时不伪装仅待复核，可按同号完成', async () => {
+  const f = await issueFixture()
+  await f.run('resolveIssueV1', f.dateRequest)
+  f.state.sourcesRevision++
+  f.state.failTransactionWrite = (name, value) => { if (value.action === 'reconciliation_issue_invalidation') throw Error('失效审计中断') }
+  await assert.rejects(() => f.run('resolveIssueV1', f.dateRequest), error => /失效审计中断/.test(error.message) && error.details?.committed === true && !error.details.resolution_rejected)
+  assert.equal(f.tables[COL.results][0].issue_resolutions[0].valid, true)
+  f.state.failTransactionWrite = null
+  assert.equal((await f.run('resolveIssueV1', f.dateRequest)).issue_resolutions[0].status, 'invalidated')
 })

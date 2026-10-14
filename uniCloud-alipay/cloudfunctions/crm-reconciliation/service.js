@@ -2,7 +2,8 @@
 const crypto = require('crypto')
 const { decodeSource, MAX_BYTES } = require('./source')
 const core = require('./customerReconciliationLocal')
-const VERSION = 'reconciliation-center/2026-10-14.2'
+const { createIssueResolution } = require('./issueResolution')
+const VERSION = 'reconciliation-center/2026-10-14.3'
 const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object'
   ? Object.fromEntries(Object.keys(value).sort().filter(key => value[key] !== undefined).map(key => [key, canonical(value[key])])) : value
 const digest = value => crypto.createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex')
@@ -19,6 +20,7 @@ const fields = ({ _id, ...rest }) => rest
 const blocking = issue => issue.blocking !== false && issue.severity !== 'info'
 const normalizeIssue = issue => ({ ...issue, type: ({ evidence_missing: 'evidence', amount_difference: 'amount',
   classification_difference: 'classification', suspected_duplicate: 'duplicate', cache_stale: 'evidence' })[issue.type] || issue.type })
+const issueResolution = createIssueResolution({ digest, version: VERSION })
 
 function createService({ db, readComplete, invoke, parseSource = decodeSource, now = Date.now }) {
   const collection = key => db.collection(COL[key])
@@ -73,15 +75,18 @@ function createService({ db, readComplete, invoke, parseSource = decodeSource, n
     const result = await get('results', resultId(batch._id, customer._id))
     fail(result && result.batch_id === batch._id && result.customer_id === customer._id && result.company === batch.company,
       '尚无本客户的有效核查结果，请先重新核查')
-    fail(result.read_complete === true && result.check_status === 'completed' && result.stale !== true && result.rule_version === VERSION,
+    const unchanged = (condition, message) => { if (!condition) throw Object.assign(Error(message), { code: 409, evidence_changed: true }) }
+    unchanged(result.rule_version === VERSION, '检查规则已变化，请先重新核查')
+    fail(result.read_complete === true && result.check_status === 'completed' && result.stale !== true,
       '核查结果尚未完整或规则已变化，请先重新核查')
     fail(result.result_hash === data.expected_result_hash && /^[a-f0-9]{64}$/.test(result.source_hash || ''),
       '核查结果已变化，请查看最新结果后重新操作')
     const mappings = await mapping(batch.company), details = latestDetails(await loadDetails(batch))
-    fail(result.review_inputs_hash && result.review_inputs_hash === reviewInputsHash(batch, mappings, details, customer._id, result.source_hash),
+    fail(result.review_inputs_hash, '旧结果缺少来源绑定，请重新核查')
+    unchanged(result.review_inputs_hash === reviewInputsHash(batch, mappings, details, customer._id, result.source_hash),
       '对账来源、期间、对应关系或明细已变化，或旧结果缺少来源绑定，请重新核查')
     const original = batch.source?.source_id && await get('sources', batch.source.source_id)
-    fail(original && original.batch_id === batch._id && original.kind === 'summary' && original.sha256 === batch.source.sha256 &&
+    unchanged(original && original.batch_id === batch._id && original.kind === 'summary' && original.sha256 === batch.source.sha256 &&
       digest(original.parsed) === digest(batch.accounting), '汇总原始资料与核查批次不一致，请重新核查')
     const ownMap = mappings.items.find(item => item.crm_customer_id === customer._id)
     return { result, batch, mappings, sources: [original, ...details.filter(row => ownMap?.accountant_codes.includes(row.accountant_code))] }
@@ -144,7 +149,7 @@ function createService({ db, readComplete, invoke, parseSource = decodeSource, n
     try { compared = core.compareCustomer({ accounting: batch.accounting, customer, customers, ledger, mapping: mappings.items,
       details: ownDetails.map(row => ({ ...row.parsed, account_code: row.accountant_code })), internal }) }
     catch (error) { compared = { summary_match: false, detail_match: null, evidence_level: 'incomplete', issues: [errorIssue(error.message)], comparison: null } }
-    compared.issues = (compared.issues || []).map(normalizeIssue)
+    compared.issues = issueResolution.keyed((compared.issues || []).map(normalizeIssue))
     const resultHash = digest({ rule: VERSION, source_hash: internal.source_hash || null, mapping: ownMap || null,
       accounting: batch.source.sha256, details: ownDetails.map(row => row.sha256), compared: { ...compared, period_summary: undefined } })
     const keyId = resultId(batch._id, customer._id), previous = await get('results', keyId)
@@ -156,6 +161,7 @@ function createService({ db, readComplete, invoke, parseSource = decodeSource, n
       read_failure: readFailure, read_stages: readStages,
       internal: { ...internal, sources: undefined }, cache_refresh: cacheRefresh,
       review: previous?.review ? { ...previous.review, valid: previous.review.kind === 'manual_approval' && previous.review.result_hash === resultHash && internal.complete === true } : null }
+    result.issue_resolutions = issueResolution.carry(previous?.issue_resolutions, result, result.checked_at)
     const persistable = JSON.parse(JSON.stringify(result))
     const logId = 'reconcile_result_' + digest([keyId, resultHash]).slice(0, 24)
     const previousLog = !previous || previous.result_hash !== resultHash ? await get('logs', logId) : null
@@ -168,20 +174,135 @@ function createService({ db, readComplete, invoke, parseSource = decodeSource, n
       fail((latestMap?.version || 0) === mappings.version, '客户对应关系已变化')
       const latestBatch = first(await tx.collection(COL.batches).doc(batch._id).get())
       fail((latestBatch?.details_revision || 0) === (batch.details_revision || 0), '明细资料版本已变化，请重新核查')
-      if (current) await tx.collection(COL.results).doc(keyId).update(fields(persistable))
+      if (current) {
+        const updated = await tx.collection(COL.results).doc(keyId).update({ ...fields(persistable), issue_resolutions: db.command.set(persistable.issue_resolutions) })
+        fail(updated?.updated === 1, '核查结果未更新，请重新核查')
+        const written = first(await tx.collection(COL.results).doc(keyId).get())
+        fail(digest(written?.issue_resolutions) === digest(persistable.issue_resolutions), '事项说明复核状态未保存，请重新核查')
+      }
       else await tx.collection(COL.results).add(persistable)
       if (!current || current.result_hash !== resultHash) {
         if (!previousLog) await tx.collection(COL.logs).add({ _id: logId, action: 'reconciliation_check',
           customer_id: customer._id, batch_id: batch._id, user_id: user._id, created_at: now(), detail: { previous_result_hash: current?.result_hash || '', result: persistable, ledger } })
       }
     })
-    return persistable
+    return issueResolution.present(persistable)
   }
   async function requireFresh(data, user) {
     const result = await checkCustomer({ batch_id: data.batch_id, customer_id: data.customer_id, auto_refresh: false }, user)
     fail(result.read_complete === true, 'CRM读取尚未完成，请重新核查后操作')
     fail(result.result_hash === data.expected_result_hash, '账务或对账资料已变化，请查看最新核查结果后重新预览')
     return result
+  }
+  async function resolveIssue(data, user) {
+    let commitAttempted = false, committed = false, lookupAttempted = false, lookupComplete = false, invalidationFailed = false, logId, requestHash
+    try {
+      const request = { batch_id: id(data.batch_id), customer_id: id(data.customer_id), operation_id: operation(data.operation_id),
+        expected_result_hash: text(data.expected_result_hash, 64), issue_key: text(data.issue_key, 80), kind: data.kind,
+        basis: text(data.basis), target_issue_key: text(data.target_issue_key, 80) }
+      fail(['accepted_date_difference', 'merged_into_issue'].includes(request.kind) && request.basis && /^issue_[a-f0-9]{32}$/.test(request.issue_key), '请选择可说明事项并填写核实依据', 400)
+      fail(request.kind === 'merged_into_issue' ? /^issue_[a-f0-9]{32}$/.test(request.target_issue_key) : !request.target_issue_key,
+        '合并事项必须选择关联目标，日期差说明不能指定合并目标', 400)
+      logId = 'reconcile_issue_' + digest([request.customer_id, request.operation_id]).slice(0, 24)
+      requestHash = digest(request)
+      lookupAttempted = true
+      const previous = await get('logs', logId)
+      lookupComplete = true
+      fail(!previous || previous.request_hash === requestHash, '该操作号已用于其他事项说明')
+      const freshSource = async result => {
+        const fresh = await invoke('crm-customer-settlement', 'inspectReconciliationCustomerV1', { customer_id: result.customer_id })
+        fail(fresh.read_complete === true && /^[a-f0-9]{64}$/.test(fresh.source_hash || ''), '来源读取未完成，请重新核查')
+        if (fresh.source_hash !== result.source_hash || fresh.version !== result.internal?.version) {
+          throw Object.assign(Error('原始账务或检查规则已变化，请重新核查'), { code: 409, evidence_changed: true })
+        }
+      }
+      if (previous) {
+        committed = true
+        const saved = await get('results', previous.result_id)
+        fail(saved && (saved.issue_resolutions || []).some(row => row.operation_id === request.operation_id), '原操作已提交但结果尚未确认，请刷新原结果核实')
+        let observed = saved
+        try {
+          const current = await requireSavedReviewResult({ ...request, expected_result_hash: saved.result_hash })
+          observed = current.result
+          await freshSource(current.result)
+          return issueResolution.present(current.result)
+        } catch (error) {
+          if (!error.evidence_changed) return issueResolution.present(observed, true)
+          // Unlike an incomplete read, a confirmed change must survive retries
+          // and a later reversion of the source. Only explanation metadata moves.
+          const resolutions = (observed.issue_resolutions || []).map(row => row.valid !== true ? row : { ...row,
+            valid: false, status: 'invalidated', invalidated_at: now(), invalidated_reason: error.message })
+          if (digest(resolutions) === digest(observed.issue_resolutions || [])) return issueResolution.present(observed, true)
+          invalidationFailed = true
+          await transact(async tx => {
+            const current = first(await tx.collection(COL.results).doc(observed._id).get())
+            fail(current && digest(current) === digest(observed), '解释失效前结果已变化，请用原操作号重试')
+            const updated = await tx.collection(COL.results).doc(observed._id).update({ issue_resolutions: db.command.set(resolutions) })
+            fail(updated?.updated === 1, '解释失效状态尚未保存，请用原操作号重试')
+            const written = first(await tx.collection(COL.results).doc(observed._id).get())
+            fail(digest(written?.issue_resolutions) === digest(resolutions), '解释失效状态回读不一致，请用原操作号重试')
+            await tx.collection(COL.logs).add({ _id: 'reconcile_issue_invalid_' + digest([observed._id, resolutions]).slice(0, 24),
+              action: 'reconciliation_issue_invalidation', result_id: observed._id, customer_id: observed.customer_id,
+              batch_id: observed.batch_id, user_id: user._id, created_at: now(), detail: { reason: error.message, resolutions } })
+          })
+          const invalidated = await get('results', observed._id)
+          fail(invalidated && digest(invalidated.issue_resolutions) === digest(resolutions), '解释失效已提交，但回读尚未确认，请用原操作号重试')
+          invalidationFailed = false
+          return issueResolution.present(invalidated, true)
+        }
+      }
+      const context = await requireSavedReviewResult(request), { result, batch, mappings, sources } = context
+      await freshSource(result)
+      const projection = issueResolution.present(result), issue = projection.active_issues.find(row => row.issue_key === request.issue_key)
+      fail(issue?.eligible_resolution_kinds.includes(request.kind), '该事项不支持此说明方式，或已说明；请查看最新核查结果')
+      const target = request.kind === 'merged_into_issue' ? projection.active_issues.find(row => row.issue_key === request.target_issue_key) : null
+      fail(request.kind !== 'merged_into_issue' || target && issue.merge_targets.some(row => row.issue_key === target.issue_key), '只能并入仍待核且有原单日期或凭证关联的分类事项')
+      const originalIssue = result.issues.find(row => row.issue_key === issue.issue_key)
+      const resolution = { operation_id: request.operation_id, issue_key: request.issue_key, kind: request.kind, basis: request.basis,
+        by: user._id, at: now(), target_issue_key: request.target_issue_key, target_issue: target ? result.issues.find(row => row.issue_key === target.issue_key) : null,
+        original_issue: originalIssue, valid: true, status: 'applied', result_hash: result.result_hash, source_hash: result.source_hash,
+        review_inputs_hash: result.review_inputs_hash, rule_version: VERSION }
+      const resolutions = [...(result.issue_resolutions || []), resolution], tx = await db.startTransaction()
+      try {
+        const current = first(await tx.collection(COL.results).doc(result._id).get())
+        fail(current && digest(current) === digest(result), '核查结果或事项说明已变化，请刷新')
+        const currentMap = first(await tx.collection(COL.mappings).doc(mappings._id).get())
+        const currentBatch = first(await tx.collection(COL.batches).doc(batch._id).get())
+        fail(currentMap && digest(currentMap) === digest(mappings) && currentBatch && digest(currentBatch) === digest(batch),
+          '对应关系、汇总资料或明细版本已变化，请重新核查')
+        for (const source of sources) {
+          const currentSource = first(await tx.collection(COL.sources).doc(source._id).get())
+          fail(currentSource && digest(currentSource) === digest(source), '原始资料已变化，请重新核查')
+        }
+        const updated = await tx.collection(COL.results).doc(result._id).update({ issue_resolutions: db.command.set(resolutions) })
+        fail(updated?.updated === 1, '事项说明未更新到预期结果，本次未保存')
+        const written = first(await tx.collection(COL.results).doc(result._id).get())
+        fail(written?.result_hash === result.result_hash && digest(written.issue_resolutions) === digest(resolutions), '事项说明写入后校验不一致，本次未保存')
+        await tx.collection(COL.logs).add({ _id: logId, action: 'reconciliation_issue_resolution', request_hash: requestHash,
+          result_id: result._id, customer_id: result.customer_id, batch_id: result.batch_id, operation_id: request.operation_id,
+          user_id: user._id, created_at: resolution.at, detail: { resolution } })
+        commitAttempted = true
+        await tx.commit()
+        committed = true
+      } catch (error) { await tx.rollback().catch(() => {}); throw error }
+      const saved = await get('results', result._id)
+      fail(saved?.result_hash === result.result_hash && digest(saved.issue_resolutions) === digest(resolutions), '事项说明已提交，但回读尚未确认，请用原操作号重试核实')
+      return issueResolution.present(saved)
+    } catch (error) {
+      // A concurrent duplicate or an uncertain commit may already have saved
+      // this exact operation. Never create another log or apply it a second time.
+      if (!invalidationFailed && logId && requestHash) {
+        const savedLog = await get('logs', logId).catch(() => null)
+        if (savedLog?.request_hash === requestHash) {
+          committed = true
+          const saved = await get('results', savedLog.result_id).catch(() => null)
+          if (saved && (saved.issue_resolutions || []).some(row => row.operation_id === data.operation_id)) return issueResolution.present(saved, true)
+        }
+      }
+      error.details = { ...error.details, operation_id: data.operation_id,
+        ...(committed ? { committed: true } : commitAttempted || lookupAttempted && !lookupComplete ? { commit_pending: true } : { resolution_rejected: true }) }
+      throw error
+    }
   }
   async function run(action, data, user) {
     if (action === 'contextV1') {
@@ -232,7 +353,7 @@ function createService({ db, readComplete, invoke, parseSource = decodeSource, n
     }
     if (action === 'getBatchV1') {
       const batch = await loadBatch(data.batch_id), mappings = await mapping(batch.company), sources = latestDetails(await loadDetails(batch))
-      const results = (await all('results', { batch_id: batch._id })).map(row => ({ ...row,
+      const results = (await all('results', { batch_id: batch._id })).map(row => issueResolution.present({ ...row,
         // Saved evidence is a historical observation. A reopened screen must
         // recheck raw sources before presenting a current approval.
         stale: true, review: row.review ? { ...row.review, valid: false } : null }))
@@ -289,6 +410,7 @@ function createService({ db, readComplete, invoke, parseSource = decodeSource, n
       return sourceMeta(saved)
     }
     if (action === 'checkCustomerV1') return checkCustomer(data, user)
+    if (action === 'resolveIssueV1') return resolveIssue(data, user)
     if (action === 'reviewCustomerV1') {
       fail(['manual_approval', 'accounting_followup'].includes(data.kind) && text(data.basis), '请填写核准或好会计处理依据', 400)
       // The saved comparison already spans two complete CRM checks. Reuse it

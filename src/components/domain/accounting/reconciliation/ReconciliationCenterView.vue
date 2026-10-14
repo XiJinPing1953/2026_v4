@@ -4,6 +4,7 @@
 		<view v-if="!canRead" class="notice">对账中心仅供财务、管理员和超级管理员使用。</view>
 		<view v-else class="center-shell">
 			<view v-if="issue" class="notice" role="alert">{{ issue }}</view>
+			<view v-if="resolutionOperation" class="notice">上次解释的保存结果尚待确认，其他修改暂时锁定。<AppButton size="sm" kind="neutral" :disabled="blocked || !canWrite" @click="retryExplanation">按原操作重试</AppButton></view>
 			<text v-if="!canWrite" class="hint">当前账号可查看资料，操作需要对账中心修改权限。</text>
 			<AppSection v-if="showImport || !context?.batches?.length" title="导入应收统计表">
 				<text class="hint">选择好会计完整导出的报表，确认账套及已经入账的截止日。本版核对同年年初至截止日。导入后先确认客户对应，再开始核查。</text>
@@ -35,7 +36,7 @@
 						<text class="hint">显示 {{ filteredCustomers.length }} / {{ customers.length }} 户 · 处理后仍需复核，备注不会自动关闭差异。</text>
 						<view v-for="customer in filteredCustomers" :key="customer._id" class="customer-row">
 							<view class="customer-main"><view class="customer-title"><text>{{ customer.name }}</text><AppTag v-if="customer.is_hidden" kind="soft">隐藏</AppTag><AppTag v-if="customer.is_active === false" kind="soft">停用</AppTag></view><text class="hint">{{ mappingText(customer._id) }}</text><text :class="rowHasIssue(customer._id) ? 'warning' : !resultByCustomer[customer._id] ? 'hint' : 'level'">{{ failures[customer._id] ? '读取未完成 · 可继续重试' : level(resultByCustomer[customer._id]) }}</text><text v-if="resultByCustomer[customer._id]?.review?.kind === 'accounting_followup'" class="hint">好会计待处理 · 重新导入后验证</text></view>
-							<view class="row-actions"><text v-if="resultByCustomer[customer._id]?.comparison?.difference" class="amount">期末差额 ¥{{ money(resultByCustomer[customer._id].comparison.difference.closing_milli) }}</text><AppButton size="sm" kind="neutral" :disabled="busy" @click="openCustomer(customer)">查看与处理</AppButton></view>
+							<view class="row-actions"><text v-if="resultByCustomer[customer._id]" class="amount">待处理提示 {{ pendingIssueCount(resultByCustomer[customer._id]) }} 条</text><text v-if="resultByCustomer[customer._id]?.comparison?.difference" class="amount">期末差额 ¥{{ money(resultByCustomer[customer._id].comparison.difference.closing_milli) }}</text><AppButton size="sm" kind="neutral" :disabled="busy" @click="openCustomer(customer)">查看与处理</AppButton></view>
 						</view>
 						<text v-if="!filteredCustomers.length" class="empty">没有符合当前筛选的客户。</text>
 					</AppSection>
@@ -50,6 +51,7 @@
 		<AppModal v-model="customerOpen" :title="selectedCustomer?.name || '客户核查'" class="customer-modal">
 			<view v-if="selectedCustomer" class="customer-detail">
 				<view v-if="issue" class="notice" role="alert">{{ issue }}</view>
+				<view v-if="resolutionOperation" class="notice">解释保存尚待确认，表单保持锁定。<AppButton size="sm" kind="neutral" :disabled="blocked || !canWrite" @click="retryExplanation">按原操作重试</AppButton></view>
 				<text class="hint">资料截至 {{ batch?.cutoff }} · {{ level(selectedResult) }}</text>
 				<text v-if="failures[selectedCustomer._id]" class="notice">{{ failures[selectedCustomer._id] }}</text>
 				<text v-if="readFailed(selectedResult)" class="notice">{{ selectedResult.read_failure?.message || '原始资料读取未完成，本次不能判断账务是否一致。' }}</text>
@@ -64,8 +66,8 @@
 					<text class="section-title">检查提示与依据</text>
 					<text v-if="!selectedResult" class="hint">本户尚未核查，不能判断是否一致。</text>
 					<text v-else-if="readFailed(selectedResult)" class="hint">资料未读全，以下仅展示已返回的依据。</text>
-					<text v-else-if="!selectedProblems.length" class="hint">当前规则未发现待核差异。{{ selectedResult.detail_match ? '明细已比对。' : '尚未完成逐笔明细核对。' }}</text>
-					<text v-if="selectedProblems.length" class="hint">共 {{ selectedProblems.length }} 条检查提示，不代表 {{ selectedProblems.length }} 笔错账。同一原单可能触发多条规则；对应候选仍需凭据确认。</text>
+					<text v-else-if="!selectedProblems.length" class="hint">当前无待处理检查提示。{{ selectedResult.detail_match ? '明细已比对。' : '尚未完成逐笔明细核对。' }}解释记录不改变原核对等级。</text>
+					<text v-if="selectedProblems.length" class="hint">待处理 {{ selectedProblems.length }} 条检查提示，不代表 {{ selectedProblems.length }} 笔错账。同一原单可能触发多条规则；对应候选仍需凭据确认。</text>
 					<view v-for="(problem, index) in selectedProblems" :key="index" class="problem">
 						<AppTag kind="warning">{{ problem.category }}</AppTag>
 						<view v-for="(record, recordIndex) in problem.records" :key="recordIndex" class="problem-record">
@@ -78,9 +80,30 @@
 						<text><text class="problem-caption">查到了什么：</text>{{ problem.finding }}</text>
 						<text><text class="problem-caption">还需核对：</text>{{ problem.missing }}</text>
 						<text><text class="problem-caption">先处理哪边：</text>{{ problem.handling }}</text>
+						<AppButton v-if="canWrite && problem.raw.eligible_resolution_kinds?.length" size="sm" kind="neutral" :disabled="writeBlocked || !currentResult(selectedCustomer._id)" @click="beginExplanation(problem.raw)">确认已解释</AppButton>
+						<view v-if="explanationForm.issue_key && explanationForm.issue_key === problem.raw.issue_key" class="explanation-form">
+							<picker :range="explanationKindOptions" range-key="label" :value="explanationKindIndex" :disabled="writeBlocked" @change="changeExplanationKind($event.detail.value)"><AppInput class="picker-trigger" label="解释方式" :model-value="resolutionLabel(explanationForm.kind)" readonly /></picker>
+							<picker v-if="explanationForm.kind === 'merged_into_issue'" :range="explanationTargetOptions" range-key="label" :value="explanationTargetIndex" :disabled="writeBlocked" @change="explanationForm.target_issue_key = explanationTargetOptions[Number($event.detail.value)]?.value || ''"><AppInput class="picker-trigger" label="并入的分类事项" :model-value="explanationTargetOptions.find(item => item.value === explanationForm.target_issue_key)?.label || '请选择当前待处理的分类事项'" readonly /></picker>
+							<AppInput v-model="explanationForm.basis" label="解释依据" placeholder="填写已核对的原单、凭证及接受或合并原因" :disabled="writeBlocked" />
+							<text class="hint">仅记录解释，不修改原单日期、金额或核对等级。并入后，目标分类事项仍需处理。</text>
+							<view class="actions"><AppButton size="sm" :disabled="writeBlocked || !explanationForm.basis.trim() || explanationForm.kind === 'merged_into_issue' && !explanationForm.target_issue_key" @click="saveExplanation">保存解释</AppButton><AppButton size="sm" kind="ghost" :disabled="blocked || !!resolutionOperation" @click="explanationForm.issue_key = ''">取消</AppButton></view>
+						</view>
 						<AppButton size="sm" kind="ghost" :aria-expanded="!!expandedDiagnostics[index]" @click="expandedDiagnostics[index] = !expandedDiagnostics[index]">{{ expandedDiagnostics[index] ? '收起技术详情' : '技术详情' }}</AppButton>
 						<text v-if="expandedDiagnostics[index]" class="evidence" selectable>{{ problem.diagnostic }}</text>
 					</view>
+				</view>
+				<view v-if="explainedProblems.length" class="sub-panel">
+					<AppButton size="sm" kind="ghost" :aria-expanded="explainedOpen" @click="explainedOpen = !explainedOpen">{{ explainedOpen ? '收起' : '展开' }}已解释事项 · {{ validExplanationCount }} 条有效 / {{ explainedProblems.length }} 条历史</AppButton>
+					<template v-if="explainedOpen">
+						<text class="hint">来源或资料变化后重新待核，原解释依据保留。已解释不等于明细一致或人工核准。</text>
+						<view v-for="(problem, index) in explainedProblems" :key="problem.raw.resolution?.operation_id || index" class="problem">
+							<text class="problem-record-title">{{ resolutionLabel(problem.raw.resolution?.kind) }} · {{ resolutionStatus(problem.raw.resolution, selectedResult?.stale) }}</text>
+							<view v-for="(record, recordIndex) in problem.records" :key="recordIndex" class="problem-record"><text>{{ record.side }} · {{ record.date }} · {{ record.business }}</text><text class="problem-amount">{{ record.amount }}</text><text v-if="record.reference" class="hint">{{ record.reference }}</text><text v-if="record.summary" class="hint">原始摘要：{{ record.summary }}</text></view>
+							<text>依据：{{ problem.raw.resolution?.basis || '历史记录未提供' }}</text><text class="hint">记录时间：{{ timeText(problem.raw.resolution?.at) }}</text>
+							<text v-if="problem.raw.resolution?.target_issue">并入事项：{{ issueSummary(problem.raw.resolution.target_issue) }}</text>
+							<AppButton size="sm" kind="ghost" @click="expandedDiagnostics['explained:' + index] = !expandedDiagnostics['explained:' + index]">{{ expandedDiagnostics['explained:' + index] ? '收起技术详情' : '技术详情' }}</AppButton><text v-if="expandedDiagnostics['explained:' + index]" class="evidence" selectable>{{ problem.diagnostic }}</text>
+						</view>
+					</template>
 				</view>
 				<view v-if="selectedResult?.cache_refresh" class="hint">汇总缓存：{{ cacheStatus(selectedResult.cache_refresh) }}</view>
 				<view class="sub-panel"><text class="section-title">好会计明细账</text><text class="hint">逐个导入已对应科目的完整明细账。与本批相同期间，用于定位逐笔差异。</text><view v-for="code in selectedMapping?.accountant_codes || []" :key="code" class="account-row"><text>{{ accountName(code) }}</text><AppButton size="sm" kind="neutral" :disabled="writeBlocked" @click="uploadDetail(code)">导入明细账</AppButton></view><text v-if="!selectedMapping?.accountant_codes?.length" class="hint">先确认客户对应，才能导入该客户明细。</text><view v-for="source in selectedDetailSources" :key="source._id || source.source_id" class="account-row"><text class="file-name">{{ source.name || source.source?.name }}</text><AppButton size="sm" kind="ghost" :disabled="blocked" @click="download(source.source_id || source._id || source.source?.source_id)">下载原始明细</AppButton></view></view>
@@ -102,38 +125,40 @@ import AppTag from '@/components/base/AppTag.vue'
 import AppModal from '@/components/base/AppModal.vue'
 import CustomerAdjustmentPanel from '@/components/domain/customer/statement/CustomerAdjustmentPanel.vue'
 import ReconciliationRepairPanel from './ReconciliationRepairPanel.vue'
-import { getRoleTemplate } from '@/services/auth'
+import { getRoleTemplate, getUser } from '@/services/auth'
 import { canPageAction } from '@/services/pageAcl'
 import { reconciliationApi } from '@/services/api/reconciliation'
 import { pickReconciliationWorkbook, downloadReconciliationSource } from '@/services/reconciliationFiles'
-import { useReconciliationCenter, reconciliationMoney as money, reconciliationLevel as level, reconciliationReadFailed as readFailed } from '@/composables/useReconciliationCenter'
-import { presentReconciliationIssue, reconciliationIssueType as problemLabel } from '@/services/mappers/reconciliationIssue'
+import { useReconciliationCenter, reconciliationMoney as money, reconciliationLevel as level, reconciliationReadFailed as readFailed, reconciliationActiveIssues as activeIssues, reconciliationPendingIssueCount as pendingIssueCount, reconciliationHasIssueType as hasIssueType, reconciliationCanApprove } from '@/composables/useReconciliationCenter'
+import { presentReconciliationIssue, reconciliationIssueType as problemLabel, reconciliationResolutionLabel as resolutionLabel, reconciliationResolutionStatus as resolutionStatus, reconciliationIssueSummary as issueSummary } from '@/services/mappers/reconciliationIssue'
 
 const canRead = computed(() => ['finance', 'admin', 'superadmin'].includes(getRoleTemplate()) && canPageAction('/pages/accounting/reconciliation-center', 'view'))
 const canWrite = computed(() => canRead.value && canPageAction('/pages/accounting/reconciliation-center', 'update'))
 const canRepairLegacy = computed(() => getRoleTemplate() === 'superadmin')
-const { context, detail, batch, customers, pending, retryableFailureCount, blockedReadCount, resultByCustomer, autoRefresh, busy, issue, running, stopping, currentCustomer, checkedThisRun, totalThisRun, failures, loadContext, openBatch, runChecks, pause, importBatch, saveMapping, importDetail, reviewCustomer, request } = useReconciliationCenter({ api: reconciliationApi, canWrite: () => canWrite.value })
+const { context, detail, batch, customers, pending, retryableFailureCount, blockedReadCount, resultByCustomer, resolutionOperation, autoRefresh, busy, issue, running, stopping, currentCustomer, checkedThisRun, totalThisRun, failures, loadContext, openBatch, runChecks, pause, importBatch, saveMapping, importDetail, reviewCustomer, resolveIssue, request } = useReconciliationCenter({ api: reconciliationApi, canWrite: () => canWrite.value, storage: uni, actorId: getUser()?._id || getUser()?.id || 'current' })
 const blocked = computed(() => busy.value || running.value)
-const writeBlocked = computed(() => blocked.value || !canWrite.value)
+const writeBlocked = computed(() => blocked.value || !canWrite.value || !!resolutionOperation.value)
 const showImport = ref(false), summaryFile = ref(null), importForm = reactive({ company: '', cutoff: '' })
 const search = ref(''), statusFilter = ref('all'), issueFilter = ref('all'), showUnmapped = ref(false)
 const customerOpen = ref(false), selectedCustomer = ref(null), editMapping = ref(false), accountSearch = ref(''), mappingCodes = ref([]), mappingBasis = ref(''), reviewBasis = ref(''), repairKind = ref('')
 const expandedDiagnostics = ref({}), resultDiagnosticOpen = ref(false)
+const explainedOpen = ref(false), explanationForm = reactive({ issue_key: '', kind: '', basis: '', target_issue_key: '' })
 let importIdentity = null
 const controls = [{ key: 'opening_milli', label: '期初' }, { key: 'debit_milli', label: '发生' }, { key: 'credit_milli', label: '收回' }, { key: 'closing_milli', label: '期末' }]
 const statusFilters = [{ value: 'all', label: '全部客户' }, { value: 'pending', label: '尚未完成 / 待复核' }, { value: 'read_failed', label: '读取失败' }, { value: 'difference', label: '有差异或待核' }, { value: 'summary', label: '汇总一致' }, { value: 'detail', label: '明细一致' }, { value: 'approved', label: '人工核准' }, { value: 'followup', label: '好会计待办' }]
 const statusFilterIndex = computed(() => Math.max(0, statusFilters.findIndex(item => item.value === statusFilter.value)))
-const issueFilters = computed(() => [{ value: 'all', label: '全部问题类型' }, ...[...new Set(Object.values(resultByCustomer.value).flatMap(result => result.issues || []).map(problem => problem.type))].filter(Boolean).sort().map(type => ({ value: type, label: problemLabel(type) }))])
+const issueFilters = computed(() => [{ value: 'all', label: '全部问题类型' }, ...[...new Set(Object.values(resultByCustomer.value).flatMap(activeIssues).map(problem => problem.type))].filter(Boolean).sort().map(type => ({ value: type, label: problemLabel(type) }))])
+watch(issueFilters, options => { if (!options.some(option => option.value === issueFilter.value)) issueFilter.value = 'all' })
 const issueFilterIndex = computed(() => Math.max(0, issueFilters.value.findIndex(item => item.value === issueFilter.value)))
 const mapping = id => (detail.value?.mappings?.items || []).find(item => item.crm_customer_id === id)
-const rowHasIssue = id => !!failures.value[id] || readFailed(resultByCustomer.value[id]) || !!resultByCustomer.value[id]?.stale || resultByCustomer.value[id]?.issues?.some(problem => problem.blocking !== false && problem.severity !== 'info') || resultByCustomer.value[id]?.summary_match === false
+const rowHasIssue = id => !!failures.value[id] || readFailed(resultByCustomer.value[id]) || !!resultByCustomer.value[id]?.stale || activeIssues(resultByCustomer.value[id]).some(problem => problem.blocking !== false && problem.severity !== 'info')
 const differenceCount = computed(() => customers.value.filter(customer => rowHasIssue(customer._id)).length)
 const currentResult = id => !!resultByCustomer.value[id] && !resultByCustomer.value[id].stale && !readFailed(resultByCustomer.value[id]) && !failures.value[id]
 const matchedCount = computed(() => customers.value.filter(customer => resultByCustomer.value[customer._id]?.summary_match === true && currentResult(customer._id)).length)
 const filteredCustomers = computed(() => customers.value.filter(customer => {
 	const result = resultByCustomer.value[customer._id]
 	if (search.value.trim() && !customer.name?.includes(search.value.trim())) return false
-	if (issueFilter.value !== 'all' && !result?.issues?.some(problem => problem.type === issueFilter.value)) return false
+	if (issueFilter.value !== 'all' && !hasIssueType(result, issueFilter.value)) return false
 	if (statusFilter.value === 'pending') return pending.value.some(item => item._id === customer._id)
 	if (statusFilter.value === 'read_failed') return readFailed(result) || failures.value[customer._id]
 	if (statusFilter.value === 'difference') return rowHasIssue(customer._id)
@@ -145,11 +170,19 @@ const filteredCustomers = computed(() => customers.value.filter(customer => {
 }))
 const unmappedAccounts = computed(() => { const codes = new Set((detail.value?.mappings?.items || []).flatMap(item => item.accountant_codes)); return (detail.value?.accounts || []).filter(account => !codes.has(account.code)) })
 const selectedResult = computed(() => resultByCustomer.value[selectedCustomer.value?._id] || null)
-const selectedProblems = computed(() => (selectedResult.value?.issues || []).map(presentReconciliationIssue))
-watch(selectedResult, () => { expandedDiagnostics.value = {}; resultDiagnosticOpen.value = false })
+const showProblem = raw => ({ ...presentReconciliationIssue(raw), raw })
+const selectedProblems = computed(() => activeIssues(selectedResult.value).map(showProblem))
+const explainedProblems = computed(() => (selectedResult.value?.explained_issues || []).map(showProblem))
+const validExplanationCount = computed(() => selectedResult.value?.stale ? 0 : explainedProblems.value.filter(problem => problem.raw.resolution?.valid === true && problem.raw.resolution?.status === 'applied').length)
+const explanationIssue = computed(() => activeIssues(selectedResult.value).find(problem => problem.issue_key === explanationForm.issue_key))
+const explanationKindOptions = computed(() => (explanationIssue.value?.eligible_resolution_kinds || []).map(value => ({ value, label: resolutionLabel(value) })))
+const explanationKindIndex = computed(() => Math.max(0, explanationKindOptions.value.findIndex(item => item.value === explanationForm.kind)))
+const explanationTargetOptions = computed(() => [{ value: '', label: '请选择当前待处理的分类事项' }, ...(explanationIssue.value?.merge_targets || []).filter(target => activeIssues(selectedResult.value).some(problem => problem.issue_key === target.issue_key)).map(target => ({ value: target.issue_key, label: issueSummary(selectedResult.value.issues.find(problem => problem.issue_key === target.issue_key) || target) }))])
+const explanationTargetIndex = computed(() => Math.max(0, explanationTargetOptions.value.findIndex(item => item.value === explanationForm.target_issue_key)))
+watch(selectedResult, () => { expandedDiagnostics.value = {}; resultDiagnosticOpen.value = false; explainedOpen.value = false; if (!resolutionOperation.value) explanationForm.issue_key = '' })
 const selectedMapping = computed(() => mapping(selectedCustomer.value?._id))
 const selectedDetailSources = computed(() => (detail.value?.detail_sources || []).filter(source => selectedMapping.value?.accountant_codes.includes(source.accountant_code)))
-const canApprove = computed(() => selectedResult.value?.summary_match === true && selectedResult.value?.internal?.complete === true && selectedResult.value?.detail_match !== false && currentResult(selectedCustomer.value?._id) && !selectedResult.value?.issues?.some(problem => problem.blocking !== false && problem.severity !== 'info'))
+const canApprove = computed(() => reconciliationCanApprove(selectedResult.value) && currentResult(selectedCustomer.value?._id))
 const availableAccounts = computed(() => (detail.value?.accounts || []).map(account => {
 	const owner = (detail.value?.mappings?.items || []).find(item => item.crm_customer_id !== selectedCustomer.value?._id && item.accountant_codes.includes(account.code))
 	return { ...account, owner: owner ? (customers.value.find(customer => customer._id === owner.crm_customer_id)?.name || owner.crm_customer_id) : '' }
@@ -170,7 +203,11 @@ async function startImport() {
 	const success = await importBatch({ operation_id: importIdentity.id, company: importForm.company.trim(), cutoff: importForm.cutoff, source: { name: summaryFile.value.name, base64: summaryFile.value.base64 } })
 	if (success) { showImport.value = false; summaryFile.value = null; importIdentity = null }
 }
-function openCustomer(customer) { selectedCustomer.value = customer; expandedDiagnostics.value = {}; resultDiagnosticOpen.value = false; editMapping.value = !mapping(customer._id); mappingCodes.value = [...(mapping(customer._id)?.accountant_codes || [])]; mappingBasis.value = mapping(customer._id)?.basis || ''; accountSearch.value = ''; reviewBasis.value = ''; repairKind.value = ''; customerOpen.value = true }
+function openCustomer(customer) { selectedCustomer.value = customer; expandedDiagnostics.value = {}; resultDiagnosticOpen.value = false; explainedOpen.value = false; explanationForm.issue_key = ''; const saved = resolutionOperation.value?.input; if (saved?.batch_id === batch.value?._id && saved.customer_id === customer._id) Object.assign(explanationForm, { issue_key: saved.issue_key, kind: saved.kind, basis: saved.basis, target_issue_key: saved.target_issue_key || '' }); editMapping.value = !mapping(customer._id); mappingCodes.value = [...(mapping(customer._id)?.accountant_codes || [])]; mappingBasis.value = mapping(customer._id)?.basis || ''; accountSearch.value = ''; reviewBasis.value = ''; repairKind.value = ''; customerOpen.value = true }
+function beginExplanation(problem) { if (writeBlocked.value) return; Object.assign(explanationForm, { issue_key: problem.issue_key, kind: problem.eligible_resolution_kinds[0], basis: '', target_issue_key: '' }); repairKind.value = '' }
+function changeExplanationKind(index) { explanationForm.kind = explanationKindOptions.value[Number(index)]?.value || ''; explanationForm.target_issue_key = '' }
+async function saveExplanation() { if (writeBlocked.value) return; if (await resolveIssue({ customer_id: selectedCustomer.value._id, expected_result_hash: selectedResult.value.result_hash, ...explanationForm })) explanationForm.issue_key = '' }
+async function retryExplanation() { if (await resolveIssue()) explanationForm.issue_key = '' }
 async function confirmMapping(unlink = false) { const id = selectedCustomer.value._id; if (await saveMapping({ customer_id: id, accountant_codes: unlink === true ? [] : [...mappingCodes.value], basis: mappingBasis.value.trim(), expected_version: detail.value.mappings.version })) { editMapping.value = false; mappingCodes.value = [...(mapping(id)?.accountant_codes || [])] } }
 async function recheckSelected() { if (selectedCustomer.value) await runChecks({ ids: [selectedCustomer.value._id] }) }
 async function uploadDetail(code) { if (writeBlocked.value) return; try { const file = await pickReconciliationWorkbook(); if (file) await importDetail({ accountant_code: code, source: { name: file.name, base64: file.base64 } }) } catch (error) { issue.value = error.message } }
@@ -211,6 +248,7 @@ onMounted(async () => { if (!canRead.value) return; await loadContext(); if (con
 .customer-modal :deep(.app-modal) { width:860px; }.sub-panel { display:flex; flex-direction:column; gap:12px; padding-top:18px; border-top:1px solid var(--crm-border); min-width:0; }
 .comparison-header,.comparison-row { display:grid; grid-template-columns:.65fr repeat(3,minmax(0,1fr)); gap:10px; font-size:13px; line-height:1.6; font-variant-numeric:tabular-nums; }.comparison-header { color:var(--crm-text-muted); }.comparison-row>*,.comparison-header>* { overflow-wrap:anywhere; }.comparison-row>:not(:first-child),.comparison-header>:not(:first-child) { text-align:right; }
 .mapping-list { display:flex; flex-direction:column; max-height:260px; overflow:auto; gap:10px; }.mapping-option { display:flex; align-items:flex-start; gap:8px; font-size:14px; line-height:1.7; overflow-wrap:anywhere; }.mapping-option checkbox { flex:none; }
+.explanation-form { display:flex; flex-direction:column; gap:12px; width:100%; min-width:0; padding-top:10px; border-top:1px solid var(--crm-border); }
 .problem { display:flex; align-items:flex-start; flex-direction:column; gap:10px; padding:14px; background:#f8fafc; border-radius:8px; font-size:14px; line-height:1.65; min-width:0; overflow-wrap:anywhere; }.problem-record { display:flex; flex-direction:column; gap:4px; width:100%; min-width:0; }.problem-record + .problem-record { padding-top:8px; border-top:1px solid var(--crm-border-weak); }.problem-record-title,.problem-caption { font-weight:600; }.problem-amount { font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }.result-reference { display:flex; align-items:flex-start; flex-direction:column; gap:8px; min-width:0; }.evidence { max-width:100%; white-space:pre-wrap; font-size:12px; color:var(--crm-text-muted); overflow-wrap:anywhere; }
 @media(max-width:1000px) { .workspace { grid-template-columns:220px minmax(0,1fr); }.filters { grid-template-columns:1fr 1fr; }.filters>:first-child { grid-column:1/-1; } }
 @media(max-width:700px) { .workspace { display:flex; flex-direction:column; }.batch-column,.work-column { width:100%; }.batch-column :deep(.section__body) { display:flex; flex-wrap:wrap; gap:12px; }.batch-card { flex:1 1 200px; border:1px solid var(--crm-border); padding:12px!important; border-radius:7px; }.batch-card:last-child { border:1px solid var(--crm-border); }.import-fields,.filters { grid-template-columns:1fr; }.counts { grid-template-columns:repeat(2,minmax(0,1fr)); }.customer-row { align-items:flex-start; }.row-actions { max-width:45%; }.comparison-header,.comparison-row { gap:6px; font-size:12px; }.actions :deep(.btn) { max-width:100%; min-height:44px; height:auto; padding:10px 12px; line-height:1.5; }.actions :deep(.btn__inner) { white-space:normal; }.customer-detail { gap:14px; } }
