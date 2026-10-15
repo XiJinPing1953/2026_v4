@@ -1,6 +1,6 @@
 # 储罐连续液位换算发布交接
 
-用户授权：按批准计划同步实现、发布 CRM 与 Windows；最后明确员工监控屏保持原文案，只替换数据。2026-10-15 已完成云端与 H5 正式发布、登录后实际页面核验；Windows 包及现场状态分别记录如下，不用网页发布代替现场验收。
+用户授权：按批准计划同步实现、发布 CRM 与 Windows；最后明确员工监控屏保持原文案，只替换数据。2026-10-15 已完成云端与 H5 正式发布、登录后实际页面核验；随后用户提供 TeamViewer 现场入口，实际管理窗口、外接员工屏及云端新公式读数已核对。声音与报警操作的现场测试仍单列。
 
 ## 实现与计算依据
 
@@ -30,14 +30,15 @@
 - 安装包已生成：`release/tank-gateway/新拓储罐网关 Setup 1.0.2.exe`，112,462,432 字节；SHA-256 `b54cc7204ce771661e24f465f7ef89d078961ec9a76011bc375b67a692cf6694`。同目录保留 blockmap 和本地分发 `latest.yml`，没有发布自动更新服务。
 - 使用 electron-builder 24.13.3、既有 Electron 31.7.7 Windows x64 运行时和官方 NSIS 构建。隔离工作区写权限等待未实际执行构建，随后在项目内可写目录复制已提交运行源码打包；第一次沙箱 GitHub DNS 失败，获准联网后构建退出码 0。没有修改运行源码、重新编译原生依赖或编辑既有 EXE 资源元数据，应用 package 版本及安装器版本为 1.0.2。
 - 从最终安装器中提取 `resources/app.asar`，与构建输出 SHA-256 完全一致（`48af83432c0b1070a693fcab8ea5724bf26cce265ba0e345e38f7894c15a8c23`）；11 个运行文件与 `5d8b1e5` 同字节，内含新模型且与云端规范源码一致。员工屏 HTML/CSS 未改；Windows x64 keytar 原生模块与旧包一致，仍沿用既有 ASAR 结构，实际系统凭据访问留待现场验证。
-- 用户本轮确认没有现场远程入口，要求先交付安装包。当前未确认实际安装及外接员工屏，不能标记“CRM 与现场监控屏同步上线完成”；继续条件是现场安装新版后，以同次 PLC 采样核对管理窗口、员工屏、CRM 的液位/压力/三位小数重量及采样时间，并现场验证既有报警和声音行为。
+- 交包时用户确认没有远程入口，随后打开 TeamViewer 并授权查看。实际 `DESKTOP-FNAFC6U` 管理窗口与员工屏均已运行新显示，持续采样并上报成功；员工屏仍使用原文案。12:33:21 两窗为14.63 kPa、0.61 MPa、7.340吨，管理窗原值14.36/7.13；正式 dashboard 后续回读的 `sampled_at=1792038801926` 对应12:33:21.926，原值、修正值、完整重量7.340037551及有效模型全部一致。现场同步显示已核对；没有远程改配置、控制工艺或操作报警。
+- 用户现场样本：10-15 12:24:35，差压14.626 kPa、压力0.61 MPa。该分钟11条云日志已完整覆盖；12:24:15—55的7条均为原液位14.37、压力0.61、PLC重量7.14，最近云端写日志时间12:24:35.487。修正后14.64、7.345吨与12:24:17/22/29两窗观察一致；修正液位比现场高0.014 kPa，按同一曲线折算约7.514 kg，仅是读数换算差，不能计为实际损耗。历史日志的 `created_at` 不等于独立同步的现场采样时间，不宣称严格同秒校准；本次未调整公式。
 
 ## 证据与回退
 
-证据根目录：`outputs/trust-audit/2026-10-15-tank-release/`，其中 `tests.tap`、`frozen-replay.json`、`cloud-readback.json`、`web-readback.json`、`web-css-delivery-policy.json`、`public-domain-readback.json`、`ui-readback.json`、`windows-artifacts.json`、`windows-build.json`、`windows-package-check.json`、`windows-build.log` 保存验证摘要与清单。
+证据根目录：`outputs/trust-audit/2026-10-15-tank-release/`，其中 `tests.tap`、`frozen-replay.json`、`cloud-readback.json`、`web-readback.json`、`web-css-delivery-policy.json`、`public-domain-readback.json`、`ui-readback.json`、`windows-artifacts.json`、`windows-build.json`、`windows-package-check.json`、`windows-build.log`、`monitor-cloud-readback.json` 保存验证摘要与清单。现场期间使用分段5秒截图查看，未安装录像或额外后台采集程序，不能视为无间断屏幕录像。
 
 - 云端回退：`tank-backup-20261015/uniCloud-alipay/cloudfunctions/` 四个原生产函数。
 - H5 回退：`web-before-current/`，版本 `1791970732276-33dd2ea0`。`web-before/` 是早期误取的旧候选，不能作为本次现网回退包；正确备份已与发布前正式域名核对。
 - Windows 回退：`windows-before/新拓储罐网关 Setup 1.0.1.exe` 与原 `latest.yml`；根 `release/tank-gateway/` 保留旧安装包。
 
-真实手机、Windows 实机和报警声音本轮尚未现场验收；成本分摊、混罐批次和历史数量待核不因本次模型发布自动关闭。
+Windows 实际采样、两窗显示及云端已核；真实手机、报警声音/确认操作及凭据重启恢复本轮尚未现场测试。成本分摊、混罐批次和历史数量待核不因本次模型发布自动关闭。
