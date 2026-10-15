@@ -37,7 +37,27 @@
           "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
           "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-tank-gateway/tankTelemetry.js"
-        ]
+        ],
+        "aclCanonicalRevisions": {
+          "crm-bottle-movement": {
+            "registry": {
+              "commit": "57dfd8dbfccfe01f68ed106af9661047f4d2e2ec",
+              "sha256": "d726e8977410952bd92570496bcd8226772e7b0eb6126e99a6a2c741355e6b7e"
+            }
+          },
+          "crm-gas-in": {
+            "registry": {
+              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
+              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+            }
+          },
+          "crm-dashboard": {
+            "registry": {
+              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
+              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     },
@@ -73,7 +93,27 @@
           "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
           "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-tank-gateway/tankTelemetry.js"
-        ]
+        ],
+        "aclCanonicalRevisions": {
+          "crm-bottle-movement": {
+            "registry": {
+              "commit": "57dfd8dbfccfe01f68ed106af9661047f4d2e2ec",
+              "sha256": "d726e8977410952bd92570496bcd8226772e7b0eb6126e99a6a2c741355e6b7e"
+            }
+          },
+          "crm-gas-in": {
+            "registry": {
+              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
+              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+            }
+          },
+          "crm-dashboard": {
+            "registry": {
+              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
+              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     },
@@ -109,7 +149,27 @@
           "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
           "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-tank-gateway/tankTelemetry.js"
-        ]
+        ],
+        "aclCanonicalRevisions": {
+          "crm-bottle-movement": {
+            "registry": {
+              "commit": "57dfd8dbfccfe01f68ed106af9661047f4d2e2ec",
+              "sha256": "d726e8977410952bd92570496bcd8226772e7b0eb6126e99a6a2c741355e6b7e"
+            }
+          },
+          "crm-gas-in": {
+            "registry": {
+              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
+              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+            }
+          },
+          "crm-dashboard": {
+            "registry": {
+              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
+              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     }
