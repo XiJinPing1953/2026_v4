@@ -1,5 +1,7 @@
 'use strict'
 
+const { deriveTankEstimate } = require('./tankTelemetryLocal')
+
 const DEFAULT_CUTOFF_DAY = '2026-08-12'
 const DEFAULT_CUTOFF_AT = 1786464000000
 const DEFAULT_OPENING_TANK_T = 0
@@ -239,7 +241,12 @@ function resolveTankReading({ tank = {}, tankConfig = {}, now = Date.now() } = {
 	let tankT = null
 	let weightSource = 'unavailable'
 	let isFallback = false
-	if (directWeight != null) {
+	const mainTank = !source.tank_id || source.tank_id === 'main'
+	const estimate = deriveTankEstimate(source)
+	if (mainTank) {
+		tankT = estimate.estimated_weight_t
+		weightSource = tankT == null ? 'unavailable' : 'continuous_level_estimate'
+	} else if (directWeight != null) {
 		if (directWeight >= 0) {
 			tankT = roundTon(directWeight)
 			weightSource = 'plc_weight'
@@ -254,6 +261,8 @@ function resolveTankReading({ tank = {}, tankConfig = {}, now = Date.now() } = {
 	const available = status === 'online' && tankT != null
 
 	return {
+		...estimate,
+		plc_weight_t: directWeight,
 		tank_t: tankT,
 		available,
 		status,
@@ -294,7 +303,7 @@ function buildCurrentInventory({
 	const totalT = tankReading.available ? roundTon((tankReading.tank_t || 0) + filledUnsoldT) : null
 	const diffT = tankReading.available && ledgerValue != null ? roundTon((tankReading.tank_t || 0) - ledgerValue) : null
 
-	let message = '现场库存可用'
+	let message = '储罐连续液位估算；瓶装库存按流转记录计算'
 	if (tankReading.status === 'stale') message = '储罐数据超过60秒未更新，总库存暂不可用'
 	else if (tankReading.status === 'error') message = '储罐采集异常，总库存暂不可用'
 	else if (tankReading.status === 'empty') message = '等待储罐网关上报，总库存暂不可用'
@@ -313,6 +322,10 @@ function buildCurrentInventory({
 			sampled_at: tankReading.sampled_at,
 			weight_source: tankReading.weight_source,
 			is_fallback: tankReading.is_fallback,
+			corrected_level_kpa: tankReading.corrected_level_kpa,
+			plc_weight_t: tankReading.plc_weight_t,
+			estimate_version: tankReading.estimate_version,
+			estimate_status: tankReading.estimate_status,
 			message
 		},
 		ledger: {

@@ -1,5 +1,7 @@
 'use strict'
 
+const { deriveTankEstimate } = require('./tankTelemetryLocal')
+
 const MINUTE = 60000
 const MAX_GAP = 90000
 const POLICY = Object.freeze({ stable_minutes: 5, stable_span_kpa: 0.05, drop_kpa: 0.1, descending_minutes: 3 })
@@ -34,13 +36,14 @@ function iso(value) { return value == null ? null : new Date(value).toISOString(
 function analyzeTankBeforeFilling({ day, logs = [], fillingFacts = [], coverage = {} } = {}) {
 	const result = {
 		day, status: 'pending', quantity_t: null, level_kpa: null, pressure_mpa: null,
+		...deriveTankEstimate(), plc_weight_t: null,
 		observed_at: null, start_window: null, candidates: [], issues: [],
 		method: 'minute_median_stable_platform_v1', parameters: { ...POLICY }
 	}
 	const issue = (code, message) => {
 		if (!result.issues.some(item => item.code === code)) result.issues.push({ code, message })
 	}
-	issue('uncalibrated_indication', '余量为日志中的仪表重量，未经绝对量校准；不作拟合或账期零点替换。')
+	issue('uncalibrated_indication', '灌前余量按修正液位连续估算，未经绝对量校准；不替换账期零点。')
 	issue('operation_unconfirmed', '连续下降仅为疑似出罐；平压、放散、车辆加气及灌装不能仅凭液位区分。')
 	issue('server_receive_time', '时段依据服务器接收时间，不能作为实际开阀时间。')
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(day || '')) {
@@ -127,9 +130,11 @@ function analyzeTankBeforeFilling({ day, logs = [], fillingFacts = [], coverage 
 			if (values.length && span(values) > 0.03) candidateIssues.push('platform_pressure_unstable')
 			if (pressures.length && span(pressures) > 0.05) candidateIssues.push('pressure_changed')
 			if (bridge.some(row => row.level > baseline + POLICY.drop_kpa)) candidateIssues.push('rise_before_decline')
-			const quantity = median(plateau.map(row => row.weight))
+			const estimate = deriveTankEstimate({ level_kpa: baseline, tank_id: points[0].source.split('/').at(-1) || 'main' })
+			const quantity = estimate.estimated_weight_t
 			if (quantity === null) candidateIssues.push('quantity_missing')
 			const candidate = {
+				...estimate, plc_weight_t: median(plateau.map(row => row.weight)),
 				quantity_t: quantity, level_kpa: baseline, pressure_mpa: median(plateau.map(row => row.pressure)),
 				observed_at: iso(endPoint.time), platform_window: { from: iso(plateau[0].time), to: iso(endPoint.time) },
 				start_window: { from: iso(from), to: iso(to) },
@@ -155,6 +160,8 @@ function analyzeTankBeforeFilling({ day, logs = [], fillingFacts = [], coverage 
 	if (precedingGap) issue('gap_before_candidate', '候选之前存在采集缺口，不能排除更早作业。')
 	if (!fullQuery || missingBeginning || precedingGap || !Array.isArray(fillingFacts) || !fillingFacts.length) return result
 	Object.assign(result, { status: 'candidate', quantity_t: selected.quantity_t, level_kpa: selected.level_kpa,
+		corrected_level_kpa: selected.corrected_level_kpa, estimated_weight_t: selected.estimated_weight_t,
+		estimate_version: selected.estimate_version, estimate_status: selected.estimate_status, plc_weight_t: selected.plc_weight_t,
 		pressure_mpa: selected.pressure_mpa, observed_at: selected.observed_at, start_window: selected.start_window })
 	if (selected.issues.length) issue('candidate_conditions_unverified', '候选平台含缺失量或压力/液位变化，须结合现场作业核实。')
 	return result

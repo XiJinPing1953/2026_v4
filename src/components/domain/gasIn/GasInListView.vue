@@ -16,8 +16,8 @@
 						<text class="highlight-group__hint">账期自 {{ currentPeriod.cutoff_day }} 起 · {{ tankSampledAtText }}</text>
 					</view>
 					<view class="summary-row summary-row--inventory">
-						<AppStatCard class="summary-card" label="现场总库存" :value="formatOptionalTonText(currentPhysical.total_t)" hint="吨" icon="bottle" />
-						<AppStatCard class="summary-card" label="储罐剩余" :value="formatOptionalTonText(currentPhysical.tank_t)" hint="吨" icon="check-circle" />
+						<AppStatCard class="summary-card" label="现场总库存（含估算）" :value="formatOptionalTonText(currentPhysical.total_t)" hint="吨" icon="bottle" />
+						<AppStatCard class="summary-card" label="估算储罐重量" :value="formatOptionalTonText(currentPhysical.tank_t)" hint="吨" icon="check-circle" />
 						<AppStatCard class="summary-card" label="已灌未售" :value="formatOptionalTonText(currentPhysical.filled_unsold_t)" hint="吨" icon="list" />
 						<AppStatCard class="summary-card" label="已灌未售瓶数" :value="currentPhysical.filled_unsold_count ?? '--'" hint="只" icon="list" />
 						<AppStatCard class="summary-card" label="待核对瓶数" :value="currentQuality.unresolved_bottle_count ?? '--'" hint="只" icon="alert" />
@@ -60,18 +60,19 @@
 							</view>
 							<view class="tank-message">
 								<text class="tank-message__title">{{ currentPhysical.message }}</text>
-								<text class="tank-message__body">{{ tankWeightSourceText }}。账面差异只用于发现漏单，不会覆盖现场值。</text>
+								<text class="tank-message__body">{{ tankWeightSourceText }}。差异供核对收支与测量影响，不会覆盖账面记录。</text>
+								<text class="tank-message__body">{{ tankRawText }} · 仪表比例 {{ tankLevelPercentText }}</text>
 							</view>
 						</view>
 						<view class="summary-row summary-row--tank">
 							<AppStatCard class="summary-card" label="账面储罐" :value="formatOptionalTonText(currentLedger.tank_t)" hint="吨" icon="chart" />
-							<AppStatCard class="summary-card" label="现场储罐" :value="formatOptionalTonText(currentPhysical.tank_t)" hint="吨" icon="check-circle" />
-							<AppStatCard class="summary-card" label="现场与账面差异" :value="formatOptionalSignedTonText(currentLedger.diff_t)" hint="吨" icon="alert" />
-							<AppStatCard class="summary-card" label="储罐液位" :value="tankLevelDisplayText" :hint="tankLevelUnit" icon="list" />
+							<AppStatCard class="summary-card" label="估算储罐重量" :value="formatOptionalTonText(currentPhysical.tank_t)" hint="吨" icon="check-circle" />
+							<AppStatCard class="summary-card" label="估算与账面差异" :value="formatOptionalSignedTonText(currentLedger.diff_t)" hint="吨" icon="alert" />
+							<AppStatCard class="summary-card" label="修正液位" :value="tankLevelDisplayText" hint="kPa" icon="list" />
 							<AppStatCard class="summary-card" label="储罐压力" :value="tankPressureText" hint="MPa" icon="chart" />
 						</view>
 					</view>
-					<view v-if="canMaintainGasInventory" class="tank-config-row">
+					<view v-if="canMaintainGasInventory && currentPhysical.weight_source === 'level_estimate'" class="tank-config-row">
 						<AppInput v-model="tankConfigDraft" class="tank-config-input" label="备用满罐吨数" placeholder="仅PLC重量缺失时使用" prefix-icon="bottle" type="number" size="sm" />
 						<AppButton size="sm" kind="primary" :loading="savingTankConfig" :disabled="loading || savingTankConfig" @click="onSaveTankConfig">保存配置</AppButton>
 					</view>
@@ -229,9 +230,13 @@ function buildEmptyTankTelemetry() {
 	return {
 		level_m: null,
 		level_kpa: null,
+		corrected_level_kpa: null,
 		level_percent: null,
 		pressure_mpa: null,
 		lng_weight_t: null,
+		estimated_weight_t: null,
+		estimate_version: '',
+		estimate_status: 'unavailable',
 		status: 'empty',
 		sampled_at: null,
 		updated_at: null,
@@ -350,13 +355,13 @@ function formatTonText(value) {
 function formatOptionalTonText(value) {
 	const num = toNullableNumber(value)
 	if (num == null) return '--'
-	return formatWithThousands(num, 3)
+	return num.toLocaleString('zh-CN', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
 }
 
 function formatOptionalSignedTonText(value) {
 	const num = toNullableNumber(value)
 	if (num == null) return '--'
-	const text = formatWithThousands(Math.abs(num), 3)
+	const text = Math.abs(num).toLocaleString('zh-CN', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
 	if (num > 0) return `+${text}`
 	if (num < 0) return `-${text}`
 	return text
@@ -440,21 +445,16 @@ const currentLedger = computed(() => {
 const currentQuality = computed(() => currentInventory.value.quality || buildEmptyCurrentInventory().quality)
 
 const tankLevelPercent = computed(() => {
-	const num = Number(tankTelemetry.value.level_percent)
-	if (!Number.isFinite(num)) return null
+	const num = toNullableNumber(tankTelemetry.value.level_percent)
+	if (num == null) return null
 	return Math.min(Math.max(num, 0), 100)
 })
 
 const tankLevelFillHeight = computed(() => `${tankLevelPercent.value == null ? 0 : tankLevelPercent.value}%`)
 const tankLevelPercentText = computed(() => formatRawPercentText(tankLevelPercent.value))
-const tankLevelText = computed(() => formatOptionalValueText(tankTelemetry.value.level_m, 2))
-const tankLevelKpaText = computed(() => formatOptionalValueText(tankTelemetry.value.level_kpa, 2))
-const tankLevelDisplayText = computed(() => {
-	if (toNullableNumber(tankTelemetry.value.level_kpa) != null) return tankLevelKpaText.value
-	return tankLevelText.value
-})
-const tankLevelUnit = computed(() => (toNullableNumber(tankTelemetry.value.level_kpa) != null ? 'kPa' : '米'))
+const tankLevelDisplayText = computed(() => formatOptionalValueText(tankTelemetry.value.corrected_level_kpa ?? currentPhysical.value.corrected_level_kpa, 2))
 const tankPressureText = computed(() => formatOptionalValueText(tankTelemetry.value.pressure_mpa, 2))
+const tankRawText = computed(() => `PLC原值：液位 ${formatOptionalValueText(tankTelemetry.value.level_kpa, 2)} kPa · 重量 ${formatOptionalTonText(tankTelemetry.value.lng_weight_t)} 吨`)
 
 const tankStatusLabel = computed(() => {
 	const status = normalizeString(currentPhysical.value.status || tankTelemetry.value.status)
@@ -467,7 +467,7 @@ const tankStatusLabel = computed(() => {
 const tankStatusClass = computed(() => `tank-status--${normalizeString(currentPhysical.value.status || tankTelemetry.value.status) || 'empty'}`)
 
 const physicalStatusLabel = computed(() => {
-	if (currentPhysical.value.available) return currentPhysical.value.is_fallback ? '备用估算' : '可用'
+	if (currentPhysical.value.available) return currentPhysical.value.weight_source === 'continuous_level_estimate' ? '连续估算' : (currentPhysical.value.is_fallback ? '备用估算' : '可用')
 	if (currentPhysical.value.status === 'stale') return '数据延迟'
 	if (currentPhysical.value.status === 'error') return '采集异常'
 	return '暂不可用'
@@ -479,6 +479,7 @@ const tankSampledAtText = computed(() => {
 })
 
 const tankWeightSourceText = computed(() => {
+	if (currentPhysical.value.weight_source === 'continuous_level_estimate') return '储罐采用液位加0.27 kPa后的连续换算'
 	if (currentPhysical.value.weight_source === 'plc_weight') return '储罐采用 PLC 直接重量'
 	if (currentPhysical.value.weight_source === 'level_estimate') return '储罐采用液位比例备用估算'
 	return '当前没有可用的储罐重量来源'

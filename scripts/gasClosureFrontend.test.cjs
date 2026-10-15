@@ -162,3 +162,43 @@ test('service actions and evidence links remain read-only and use existing sourc
 	assert.match(view, /归属于更早首灌批次，未计入上方汇总/)
 	assert.match(view, /day\.unknown_count > 0/)
 })
+
+test('tank views display corrected values while preserving raw PLC references and missing values', () => {
+	const dashboard = fs.readFileSync('src/components/domain/dashboard/DashboardHome.vue', 'utf8')
+	const sandbox = { tankTelemetry: {}, normalizeTankStatus: value => value || 'empty' }
+	const formatter = dashboard.match(/function formatTankValue\([^]*?\n\}/)[0]
+	const apply = dashboard.match(/function applyTankTelemetry\([^]*?\n\}/)[0]
+	vm.runInNewContext(`${formatter}\n${apply}\nthis.format = formatTankValue; this.apply = applyTankTelemetry;`, sandbox)
+	sandbox.apply({ level_kpa: 21.97, corrected_level_kpa: 22.24, lng_weight_t: 11.28, estimated_weight_t: 11.429699851, estimate_version: 'main-continuous-2026-10-14-v1', estimate_status: 'available' })
+	assert.equal(sandbox.tankTelemetry.correctedLevelKpa, 22.24)
+	assert.equal(sandbox.tankTelemetry.estimatedWeightT, 11.429699851)
+	assert.equal(sandbox.tankTelemetry.levelKpa, 21.97)
+	assert.equal(sandbox.tankTelemetry.lngWeightT, 11.28)
+	assert.equal(sandbox.format(sandbox.tankTelemetry.estimatedWeightT, '吨', 3), '11.430 吨')
+	sandbox.apply({ level_kpa: null, estimated_weight_t: null })
+	assert.equal(sandbox.tankTelemetry.levelKpa, null)
+	assert.equal(sandbox.tankTelemetry.correctedLevelKpa, null)
+	assert.equal(sandbox.tankTelemetry.estimatedWeightT, null)
+	assert.equal(sandbox.format(null, '吨', 3), '-- 吨')
+	assert.equal(sandbox.format(0, '吨', 3), '0.000 吨')
+	assert.equal((dashboard.match(/估算储罐重量/g) || []).length, 2, 'both dashboard layouts use the new weight')
+	assert.equal((dashboard.match(/\{\{ tankRawText \}\}/g) || []).length, 2)
+	assert.match(dashboard, /formatTankValue\(tankTelemetry\.correctedLevelKpa, 'kPa'\)/)
+	assert.match(dashboard, /formatTankValue\(tankTelemetry\.estimatedWeightT, '吨', 3\)/)
+
+	const inventory = fs.readFileSync('src/components/domain/gasIn/GasInListView.vue', 'utf8')
+	assert.match(inventory, /weight_source === 'continuous_level_estimate'/)
+	assert.match(inventory, /canMaintainGasInventory && currentPhysical\.weight_source === 'level_estimate'/, 'old full-tank settings do not affect the new formula')
+	assert.match(inventory, /tankTelemetry\.value\.corrected_level_kpa \?\? currentPhysical\.value\.corrected_level_kpa/)
+	assert.match(inventory, /PLC原值/)
+
+	const closure = fs.readFileSync('src/components/domain/gas/GasClosureView.vue', 'utf8')
+	vm.runInNewContext(closure.match(/function ton\([^]*?\n\}/)[0] + '\nthis.ton = ton;', sandbox)
+	assert.equal(sandbox.ton(11.429699851), '11.430')
+	assert.equal(sandbox.ton(0), '0.000')
+	assert.equal(sandbox.ton(null), '—')
+	assert.match(closure, /data\.corrected_level_kpa/)
+	assert.match(closure, /candidate\.corrected_level_kpa/)
+	assert.match(closure, /data\.plc_weight_t/)
+	assert.match(closure, /candidate\.plc_weight_t/)
+})

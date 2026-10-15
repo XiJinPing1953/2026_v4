@@ -171,6 +171,11 @@ function normalizeTankStatus(value) {
 function normalizeTankSummary(row = {}) {
 	const source = row && typeof row === 'object' ? row : {}
 	return {
+		tank_id: normalizeString(source.tank_id) || 'main',
+		corrected_level_kpa: nullableNumber(source.corrected_level_kpa),
+		estimated_weight_t: nullableNumber(source.estimated_weight_t),
+		estimate_version: normalizeString(source.estimate_version),
+		estimate_status: normalizeString(source.estimate_status),
 		level_m: nullableNumber(source.level_m),
 		level_kpa: nullableNumber(source.level_kpa),
 		level_percent: nullableNumber(source.level_percent),
@@ -246,8 +251,10 @@ function buildTankEstimate(inventory = {}, tank = {}, config = {}) {
 	if (reading.status === 'stale') message = '现场数据延迟，最后读数仅供查看'
 	else if (reading.status === 'error') message = '现场采集异常，暂停使用储罐重量'
 	else if (reading.status === 'empty') message = '等待现场网关上报'
+	else if (reading.weight_source === 'continuous_level_estimate') message = '液位加0.27 kPa后按连续容积表换算储罐重量'
 	else if (reading.weight_source === 'plc_weight') message = '使用 PLC 直接上报的储罐重量'
 	else if (reading.weight_source === 'level_estimate') message = 'PLC重量缺失，使用液位比例备用估算'
+	else if (reading.estimate_status && reading.estimate_status !== 'valid') message = '液位缺失、无效或超出换算范围，储罐估算暂不可用'
 	else if (!configured) message = 'PLC重量缺失，且未配置备用满罐吨数'
 	else message = '暂无有效储罐重量'
 	return {
@@ -259,6 +266,10 @@ function buildTankEstimate(inventory = {}, tank = {}, config = {}) {
 		available,
 		weight_source: reading.weight_source,
 		is_fallback: reading.is_fallback,
+		corrected_level_kpa: reading.corrected_level_kpa,
+		plc_weight_t: reading.plc_weight_t,
+		estimate_version: reading.estimate_version,
+		estimate_status: reading.estimate_status,
 		message
 	}
 }

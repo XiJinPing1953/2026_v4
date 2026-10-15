@@ -52,6 +52,8 @@ const els = {
 	levelKpa: document.getElementById('levelKpa'),
 	pressureMpa: document.getElementById('pressureMpa'),
 	weightT: document.getElementById('weightT'),
+	rawLevelKpa: document.getElementById('rawLevelKpa'),
+	rawWeightT: document.getElementById('rawWeightT'),
 	levelPercent: document.getElementById('levelPercent'),
 	levelAlarmCurrent: document.getElementById('levelAlarmCurrent'),
 	pressureAlarmCurrent: document.getElementById('pressureAlarmCurrent'),
@@ -134,6 +136,7 @@ function fillConfigForm(config = {}) {
 }
 
 function formatNumber(value, digits = 2) {
+	if (value == null || value === '') return '--'
 	const num = Number(value)
 	return Number.isFinite(num) ? num.toFixed(digits) : '--'
 }
@@ -151,23 +154,28 @@ function renderTelemetry(telemetry) {
 		els.levelKpa.textContent = '-- kPa'
 		els.pressureMpa.textContent = '-- MPa'
 		els.weightT.textContent = '-- t'
+		els.rawLevelKpa.textContent = 'PLC原液位 -- kPa'
+		els.rawWeightT.textContent = 'PLC原重量 -- t'
 		els.levelPercent.textContent = '--%'
 		els.tankFill.style.height = '0%'
 		els.sampledAt.textContent = '--'
 		return
 	}
-	const percent = Math.min(Math.max(Number(telemetry.level_percent || 0), 0), 100)
+	const rawPercent = telemetry.level_percent == null || telemetry.level_percent === '' ? NaN : Number(telemetry.level_percent)
+	const percent = Number.isFinite(rawPercent) ? Math.min(Math.max(rawPercent, 0), 100) : null
 	const levelCorrection = Number(latestConfig.levelCorrectionKpa || 0)
 	const pressureCorrection = Number(latestConfig.pressureCorrectionMpa || 0)
-	const currentLevelKpa = Number(telemetry.level_kpa) + (Number.isFinite(levelCorrection) ? levelCorrection : 0)
-	const currentPressureMpa = Number(telemetry.pressure_mpa) + (Number.isFinite(pressureCorrection) ? pressureCorrection : 0)
+	const currentLevelKpa = formatNumber(telemetry.level_kpa) === '--' ? null : Number(telemetry.level_kpa) + (Number.isFinite(levelCorrection) ? levelCorrection : 0)
+	const currentPressureMpa = formatNumber(telemetry.pressure_mpa) === '--' ? null : Number(telemetry.pressure_mpa) + (Number.isFinite(pressureCorrection) ? pressureCorrection : 0)
 	els.levelAlarmCurrent.textContent = `${formatNumber(currentLevelKpa)} kPa`
 	els.pressureAlarmCurrent.textContent = `${formatNumber(currentPressureMpa)} MPa`
-	els.levelKpa.textContent = `${formatNumber(telemetry.level_kpa)} kPa`
+	els.levelKpa.textContent = `${formatNumber(telemetry.corrected_level_kpa)} kPa`
 	els.pressureMpa.textContent = `${formatNumber(telemetry.pressure_mpa)} MPa`
-	els.weightT.textContent = `${formatNumber(telemetry.lng_weight_t)} t`
+	els.weightT.textContent = `${formatNumber(telemetry.estimated_weight_t, 3)} t`
+	els.rawLevelKpa.textContent = `PLC原液位 ${formatNumber(telemetry.level_kpa)} kPa`
+	els.rawWeightT.textContent = `PLC原重量 ${formatNumber(telemetry.lng_weight_t)} t`
 	els.levelPercent.textContent = `${formatNumber(percent)}%`
-	els.tankFill.style.height = `${percent}%`
+	els.tankFill.style.height = `${percent == null ? 0 : percent}%`
 	els.sampledAt.textContent = formatTime(telemetry.sampled_at)
 }
 

@@ -61,7 +61,11 @@
     {
       "source": "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js",
       "targets": [
-        "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js"
+        "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-dashboard/tankTelemetry.js",
+        "uniCloud-alipay/cloudfunctions/crm-tank-gateway/tankTelemetry.js",
+        "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankTelemetryLocal.js",
+        "apps/tank-gateway/tankTelemetryLocal.cjs"
       ]
     },
     {

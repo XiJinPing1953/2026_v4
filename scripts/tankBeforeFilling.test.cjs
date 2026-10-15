@@ -17,6 +17,7 @@ function makeLogs(levels, { offset = 0, weight = 21.42, pressure = 0.25 } = {}) 
 	})))
 }
 
+const estimatedPlatform = 21.788447204520335
 const falling = [41.28, 41.28, 41.28, 41.28, 41.28, 40.98, 40.8, 40.6, 40.5]
 function run(logs, extra = {}) { return analyzeTankBeforeFilling({ day, logs, fillingFacts: facts, coverage, ...extra }) }
 function hasIssue(result, code) { return result.issues.some(issue => issue.code === code) }
@@ -26,7 +27,7 @@ test('stable platform becomes a qualified candidate, never a confirmed valve-ope
 	const before = JSON.stringify(logs)
 	const result = run(logs)
 	assert.equal(result.status, 'candidate')
-	assert.equal(result.quantity_t, 21.42)
+	assert.equal(result.quantity_t, estimatedPlatform)
 	assert.equal(result.level_kpa, 41.28)
 	assert.equal(result.candidates.length, 1)
 	assert.deepEqual(result.candidates[0].started_at_support, [new Date(facts[0].started_at).toISOString()])
@@ -38,7 +39,7 @@ test('stable platform becomes a qualified candidate, never a confirmed valve-ope
 test('isolated telemetry spike cannot become a start or move the platform median', () => {
 	const logs = makeLogs(falling)
 	logs[20].detail = { ...logs[20].detail, level_kpa: 9.37, lng_weight_t: 4.54, pressure_mpa: 0.26 }
-	assert.equal(run(logs).quantity_t, 21.42)
+	assert.equal(run(logs).quantity_t, estimatedPlatform)
 	assert.equal(run(logs).level_kpa, 41.28)
 	const stationary = makeLogs(Array(10).fill(41.28))
 	stationary[70].detail.level_kpa = 9.37
@@ -49,7 +50,7 @@ test('a local afternoon window preserves a local candidate but not daily startin
 	const result = run(makeLogs(falling, { offset: 16 * 60 }))
 	assert.equal(result.status, 'pending')
 	assert.equal(result.quantity_t, null)
-	assert.equal(result.candidates[0].quantity_t, 21.42)
+	assert.equal(result.candidates[0].quantity_t, estimatedPlatform)
 	assert.ok(hasIssue(result, 'day_start_missing'))
 })
 
@@ -65,16 +66,21 @@ test('today is complete through a server observation time without requiring futu
 	const asOf = start + 10 * minute
 	const result = run(makeLogs(falling), { coverage: { complete: true, from: start, to: asOf, asOf } })
 	assert.equal(result.status, 'candidate')
-	assert.equal(result.quantity_t, 21.42)
+	assert.equal(result.quantity_t, estimatedPlatform)
 	assert.ok(!hasIssue(result, 'query_incomplete'))
 	assert.equal(run(makeLogs(falling), { coverage: { complete: true, from: start, to: asOf - minute, asOf } }).quantity_t, null)
 })
 
-test('missing weight stays null while genuine indicated zero is preserved without zero calibration', () => {
+test('estimated quantity uses level even if PLC weight is missing or zero', () => {
 	const missing = run(makeLogs(falling, { weight: null }))
-	assert.equal(missing.quantity_t, null)
-	assert.ok(missing.candidates[0].issues.includes('quantity_missing'))
-	assert.equal(run(makeLogs(falling, { weight: 0 })).quantity_t, 0)
+	assert.equal(missing.quantity_t, estimatedPlatform)
+	assert.equal(missing.plc_weight_t, null)
+	assert.ok(!missing.candidates[0].issues.includes('quantity_missing'))
+	const zeroWeight = run(makeLogs(falling, { weight: 0 }))
+	assert.equal(zeroWeight.quantity_t, estimatedPlatform)
+	assert.equal(zeroWeight.plc_weight_t, 0)
+	assert.ok(Math.abs(zeroWeight.corrected_level_kpa - 41.55) < 1e-10)
+	assert.equal(zeroWeight.estimate_status, 'valid')
 })
 
 test('started_at alone and source created_at do not supply a missing physical start', () => {

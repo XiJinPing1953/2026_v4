@@ -110,7 +110,7 @@
 
 			<AppSection v-else title="每天灌装前的大罐余量">
 				<text class="hint">按首次灌装日期范围列出全站作业，不受瓶号和闭环状态筛选影响。</text>
-				<view class="notice">仪表余量仅作参考，尚未校准。液位下降识别的是疑似启动时段，需现场核准。</view>
+				<view class="notice">灌前余量按修正液位连续换算，尚未完成绝对量校准。液位下降识别的是疑似启动时段，需现场核准。</view>
 				<view v-if="!days.length && !loading" class="empty">当前日期范围暂无灌装日</view>
 				<view v-for="day in days" :key="day.day" class="day-row">
 					<button class="day-head" :aria-expanded="expandedDay === day.day" @click="toggleDay(day.day)">
@@ -122,14 +122,17 @@
 						<view v-if="tankResults[day.day]?.error" class="notice notice--error" role="alert">{{ tankResults[day.day].error }}{{ tankResults[day.day]?.data ? '。下方为上次结果，已过期。' : '' }} <AppButton kind="ghost" size="sm" @click="loadTank(day.day)">重试</AppButton></view>
 						<text v-else-if="tankResults[day.day]?.stale && tankResults[day.day]?.data && !tankResults[day.day]?.loading" class="notice">下方为上次结果，等待更新，请勿据此作最终核对。</text>
 						<template v-if="tankResults[day.day]?.data">
+							<text class="hint">灌前估算余量</text>
 							<view class="tank-reading"><text class="tank-quantity">{{ ton(tankResults[day.day].data.quantity_t) }} <text class="hint">吨</text></text><text class="status-badge status-badge--pending">{{ tankResults[day.day].data.status === 'candidate' ? '候选余量 · 待现场核准' : '待核' }}</text></view>
-							<text class="hint">液位 {{ kg(tankResults[day.day].data.level_kpa) }} kPa · 压力 {{ kg(tankResults[day.day].data.pressure_mpa) }} MPa · 记录时刻 {{ formatTime(tankResults[day.day].data.observed_at) }}</text>
+							<text class="hint">修正液位 {{ kg(tankResults[day.day].data.corrected_level_kpa) }} kPa · 压力 {{ kg(tankResults[day.day].data.pressure_mpa) }} MPa · 记录时刻 {{ formatTime(tankResults[day.day].data.observed_at) }}</text>
+							<text class="hint">PLC原值：液位 {{ kg(tankResults[day.day].data.level_kpa) }} kPa · 重量 {{ ton(tankResults[day.day].data.plc_weight_t) }} 吨</text>
 							<text v-if="tankResults[day.day].data.start_window" class="hint">疑似启动时段 {{ windowText(tankResults[day.day].data.start_window) }}</text>
 							<view v-for="(issue, index) in tankResults[day.day].data.issues || []" :key="index" class="notice">{{ issueText(issue) }}</view>
 							<view v-if="tankResults[day.day].data.candidates?.length" class="platforms">
 								<text class="detail-title">局部平台参考</text>
 								<view v-for="(candidate, index) in tankResults[day.day].data.candidates" :key="index" class="platform-row">
-									<text class="hint">{{ formatTime(candidate.observed_at) }} · {{ ton(candidate.quantity_t) }} 吨 · 液位 {{ kg(candidate.level_kpa) }} kPa · 压力 {{ kg(candidate.pressure_mpa) }} MPa</text>
+									<text class="hint">{{ formatTime(candidate.observed_at) }} · 估算余量 {{ ton(candidate.quantity_t) }} 吨 · 修正液位 {{ kg(candidate.corrected_level_kpa) }} kPa · 压力 {{ kg(candidate.pressure_mpa) }} MPa</text>
+									<text class="hint">PLC原值：液位 {{ kg(candidate.level_kpa) }} kPa · 重量 {{ ton(candidate.plc_weight_t) }} 吨</text>
 									<text v-if="candidate.start_window" class="hint">疑似启动 {{ windowText(candidate.start_window) }}</text>
 									<text v-for="(issue, issueIndex) in candidate.issues || []" :key="issueIndex" class="hint">{{ tankIssueText(issue) }}</text>
 								</view>
@@ -184,7 +187,10 @@ function kg(value) {
 	if (value == null || value === '' || !Number.isFinite(Number(value))) return '—'
 	return Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 3 })
 }
-function ton(value) { return kg(value) }
+function ton(value) {
+	if (value == null || value === '' || !Number.isFinite(Number(value))) return '—'
+	return Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+}
 function formatTime(value) {
 	if (value == null || value === '') return '—'
 	const date = new Date(value)
@@ -199,7 +205,7 @@ function windowText(value) {
 function statusLabel(value) { return { closed: '已核闭环', unsold: '尚未出瓶', pending: '待核' }[value] || '待核' }
 function issueText(value) { return typeof value === 'string' ? value : value?.message || value?.label || value?.code || '依据待核' }
 function tankIssueText(value) {
-	return { platform_pressure_unstable: '平台压力仍有波动', pressure_changed: '下降期间压力有变化', rise_before_decline: '下降之前出现液位上升', quantity_missing: '平台重量缺少有效记录' }[value] || issueText(value)
+	return { platform_pressure_unstable: '平台压力仍有波动', pressure_changed: '下降期间压力有变化', rise_before_decline: '下降之前出现液位上升', quantity_missing: '平台液位无法换算有效重量' }[value] || issueText(value)
 }
 function evidenceLabel(row) { return row.label || `${row.date || row.event_day || ''} · ${{ fill: '灌装', back: '回瓶', out: '出瓶', boundary: '历史边界' }[row.type] || '流转依据'}` }
 function evidenceDetail(row) {

@@ -1,5 +1,46 @@
 'use strict'
 
+const TANK_ESTIMATE_VERSION = 'main-continuous-2026-10-14-v1'
+const TANK_LEVEL_OFFSET_KPA = 0.27
+const TANK_LEVEL_SCALE = 101.14122757539592
+const TANK_REFERENCE_DENSITY = 0.4459
+// Manufacturer volume coordinates; the disputed 300 mm row is deliberately omitted.
+// These are empirical model coordinates, not a certified mm/kPa conversion.
+const TANK_VOLUME_TABLE = Object.freeze([
+	[0, 0], [100, 0.1234], [307.67, 2.5131], [500, 4.802], [700, 7.1821],
+	[900, 9.5623], [1100, 11.9425], [1300, 14.3227], [1500, 16.7028],
+	[1700, 19.083], [1900, 21.4632], [2100, 23.8542], [2300, 26.2356],
+	[2500, 28.6097], [2700, 30.9839], [2900, 33.364], [3100, 35.744],
+	[3300, 38.1244], [3500, 40.504], [3700, 42.8847], [3900, 45.2649],
+	[4100, 47.6451], [4300, 50.0253], [4500, 52.4054], [4633.97, 54],
+	[4700, 54.7856], [4900, 57.1658]
+].map(row => Object.freeze(row)))
+
+function deriveTankEstimate(telemetry = {}) {
+	telemetry = telemetry && typeof telemetry === 'object' ? telemetry : {}
+	const result = { corrected_level_kpa: null, estimated_weight_t: null,
+		estimate_version: TANK_ESTIMATE_VERSION, estimate_status: 'missing_level' }
+	if (normalizeTankId(telemetry.tank_id ?? telemetry.tankId) !== 'main') {
+		return { ...result, estimate_status: 'unsupported_tank' }
+	}
+	const raw = telemetry.level_kpa ?? telemetry.levelKpa
+	if (raw == null || raw === '') return result
+	const level = typeof raw === 'boolean' ? NaN : Number(raw)
+	if (!Number.isFinite(level) || level < 0) return { ...result, estimate_status: 'invalid_level' }
+	const corrected = level + TANK_LEVEL_OFFSET_KPA
+	const height = TANK_LEVEL_SCALE * corrected
+	if (height > TANK_VOLUME_TABLE.at(-1)[0]) return { ...result, estimate_status: 'out_of_range' }
+	for (let index = 1; index < TANK_VOLUME_TABLE.length; index += 1) {
+		const [leftHeight, leftVolume] = TANK_VOLUME_TABLE[index - 1]
+		const [rightHeight, rightVolume] = TANK_VOLUME_TABLE[index]
+		if (height > rightHeight) continue
+		const volume = leftVolume + (height - leftHeight) * (rightVolume - leftVolume) / (rightHeight - leftHeight)
+		return { ...result, corrected_level_kpa: corrected,
+			estimated_weight_t: TANK_REFERENCE_DENSITY * volume, estimate_status: 'valid' }
+	}
+	return { ...result, estimate_status: 'out_of_range' }
+}
+
 function normalizeString(value) {
 	if (value == null) return ''
 	return String(value).trim()
@@ -69,6 +110,7 @@ function validateRawS7Addresses(raw) {
 function buildTankSummary(row, now = Date.now()) {
 	if (!row) {
 		return {
+			...deriveTankEstimate(),
 			level_kpa: null,
 			level_m: null,
 			level_percent: null,
@@ -95,6 +137,8 @@ function buildTankSummary(row, now = Date.now()) {
 					? '等待现场网关上报'
 					: ''
 	return {
+		...deriveTankEstimate(row),
+		tank_id: normalizeTankId(row.tank_id),
 		level_kpa: nullableNumber(row.level_kpa),
 		level_m: nullableNumber(row.level_m),
 		level_percent: nullableNumber(row.level_percent),
@@ -194,6 +238,7 @@ async function getTankTelemetrySummary(tankTelemetryCollection, tankId = 'main')
 	} catch (err) {
 		console.error('[tank-telemetry] getTankTelemetrySummary failed', err)
 		return {
+			...deriveTankEstimate(),
 			level_kpa: null,
 			level_m: null,
 			level_percent: null,
@@ -208,6 +253,11 @@ async function getTankTelemetrySummary(tankTelemetryCollection, tankId = 'main')
 }
 
 module.exports = {
+	TANK_ESTIMATE_VERSION,
+	TANK_LEVEL_OFFSET_KPA,
+	TANK_LEVEL_SCALE,
+	TANK_VOLUME_TABLE,
+	deriveTankEstimate,
 	normalizeString,
 	fix2,
 	clampNumber,

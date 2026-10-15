@@ -6,38 +6,109 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.14-reconciliation-issue-storage",
+      "version": "2026.10.15-tank-continuous",
       "output": "dist/build/web",
-      "acceptance": "Explain accepted date differences or merge related clues into an active classification issue, preserving evidence and history. Count only active clues; invalidate explanations after source changes. Keep financial records and raw comparison/approval facts unchanged.",
+      "acceptance": "Use the fixed continuous tank estimate after adding 0.27 kPa once. Preserve raw telemetry, alarms and business quantities. CRM and both Windows views agree; employee monitor wording stays unchanged.",
       "deploymentScope": {
         "functions": [
-          "crm-reconciliation"
+          "crm-dashboard",
+          "crm-gas-in",
+          "crm-bottle-movement",
+          "crm-tank-gateway"
         ],
         "databaseFiles": [],
-        "baseCommit": "05713b9eee751ff5b3d4b208c8b6c35a254fc9a8",
+        "baseCommit": "74d248356ede19caabc98d78ba327b4c22206c63",
         "sourceFiles": [
-          "src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue"
+          "apps/tank-gateway/README.md",
+          "apps/tank-gateway/main.cjs",
+          "apps/tank-gateway/renderer/display.js",
+          "apps/tank-gateway/renderer/index.html",
+          "apps/tank-gateway/renderer/renderer.js",
+          "apps/tank-gateway/renderer/styles.css",
+          "apps/tank-gateway/tankTelemetryLocal.cjs",
+          "src/components/domain/dashboard/DashboardHome.vue",
+          "src/components/domain/gas/GasClosureView.vue",
+          "src/components/domain/gasIn/GasInListView.vue",
+          "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankBeforeFilling.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankTelemetryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankTelemetry.js",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/currentInventory.js",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-tank-gateway/tankTelemetry.js"
         ]
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.14-reconciliation-issue-explanations",
+      "version": "2026.10.15-tank-continuous",
       "output": "release/cloud",
-      "acceptance": "Explain accepted date differences or merge related clues into an active classification issue, preserving evidence and history. Count only active clues; invalidate explanations after source changes. Keep financial records and raw comparison/approval facts unchanged.",
+      "acceptance": "Use the fixed continuous tank estimate after adding 0.27 kPa once. Preserve raw telemetry, alarms and business quantities. CRM and both Windows views agree; employee monitor wording stays unchanged.",
       "deploymentScope": {
         "functions": [
-          "crm-reconciliation"
+          "crm-dashboard",
+          "crm-gas-in",
+          "crm-bottle-movement",
+          "crm-tank-gateway"
         ],
         "databaseFiles": [],
-        "baseCommit": "64dfbfba392ac19f2e388a3b615b1c2abe7a24b3",
+        "baseCommit": "74d248356ede19caabc98d78ba327b4c22206c63",
         "sourceFiles": [
-          "src/components/domain/accounting/reconciliation/ReconciliationCenterView.vue",
-          "src/composables/useReconciliationCenter.js",
-          "src/services/api/reconciliation.js",
-          "src/services/mappers/reconciliationIssue.js",
-          "uniCloud-alipay/cloudfunctions/crm-reconciliation/service.js",
-          "uniCloud-alipay/cloudfunctions/crm-reconciliation/issueResolution.js"
+          "apps/tank-gateway/README.md",
+          "apps/tank-gateway/main.cjs",
+          "apps/tank-gateway/renderer/display.js",
+          "apps/tank-gateway/renderer/index.html",
+          "apps/tank-gateway/renderer/renderer.js",
+          "apps/tank-gateway/renderer/styles.css",
+          "apps/tank-gateway/tankTelemetryLocal.cjs",
+          "src/components/domain/dashboard/DashboardHome.vue",
+          "src/components/domain/gas/GasClosureView.vue",
+          "src/components/domain/gasIn/GasInListView.vue",
+          "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankBeforeFilling.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankTelemetryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankTelemetry.js",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/currentInventory.js",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-tank-gateway/tankTelemetry.js"
+        ]
+      },
+      "integrityScope": "deployment"
+    },
+    "tank-gateway": {
+      "version": "1.0.2",
+      "output": "release/tank-gateway",
+      "acceptance": "Use the fixed continuous tank estimate after adding 0.27 kPa once. Preserve raw telemetry, alarms and business quantities. CRM and both Windows views agree; employee monitor wording stays unchanged. Actual Windows installation and employee-screen verification are recorded separately.",
+      "deploymentScope": {
+        "functions": [
+          "crm-dashboard",
+          "crm-gas-in",
+          "crm-bottle-movement",
+          "crm-tank-gateway"
+        ],
+        "databaseFiles": [],
+        "baseCommit": "74d248356ede19caabc98d78ba327b4c22206c63",
+        "sourceFiles": [
+          "apps/tank-gateway/README.md",
+          "apps/tank-gateway/main.cjs",
+          "apps/tank-gateway/renderer/display.js",
+          "apps/tank-gateway/renderer/index.html",
+          "apps/tank-gateway/renderer/renderer.js",
+          "apps/tank-gateway/renderer/styles.css",
+          "apps/tank-gateway/tankTelemetryLocal.cjs",
+          "src/components/domain/dashboard/DashboardHome.vue",
+          "src/components/domain/gas/GasClosureView.vue",
+          "src/components/domain/gasIn/GasInListView.vue",
+          "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankBeforeFilling.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankTelemetryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankTelemetry.js",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/currentInventory.js",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-tank-gateway/tankTelemetry.js"
         ]
       },
       "integrityScope": "deployment"

@@ -27,6 +27,7 @@ let alarmGain = null
 let alarmFrequency = null
 
 function formatNumber(value, digits = 2) {
+	if (value == null || value === '') return '--'
 	const num = Number(value)
 	return Number.isFinite(num) ? num.toFixed(digits) : '--'
 }
@@ -143,12 +144,13 @@ function renderState(state = {}) {
 
 	const telemetry = state.lastTelemetry
 	if (telemetry) {
-		const percent = Math.min(Math.max(Number(telemetry.level_percent || 0), 0), 100)
-		els.tankFill.style.height = `${percent}%`
+		const rawPercent = telemetry.level_percent == null || telemetry.level_percent === '' ? NaN : Number(telemetry.level_percent)
+		const percent = Number.isFinite(rawPercent) ? Math.min(Math.max(rawPercent, 0), 100) : null
+		els.tankFill.style.height = `${percent == null ? 0 : percent}%`
 		els.levelPercent.textContent = `${formatNumber(percent)}%`
-		els.levelKpa.textContent = `${formatNumber(telemetry.level_kpa)} kPa`
+		els.levelKpa.textContent = `${formatNumber(telemetry.corrected_level_kpa)} kPa`
 		els.pressureMpa.textContent = `${formatNumber(telemetry.pressure_mpa)} MPa`
-		els.weightT.textContent = `${formatNumber(telemetry.lng_weight_t)} t`
+		els.weightT.textContent = `${formatNumber(telemetry.estimated_weight_t, 3)} t`
 		els.sampledAt.textContent = formatTime(telemetry.sampled_at)
 		const age = Math.max(Date.now() - Number(telemetry.sampled_at || Date.now()), 0)
 		els.ageText.textContent = age > 60000 ? '数据延迟' : `约 ${Math.round(age / 1000)} 秒前`

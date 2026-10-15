@@ -19,6 +19,7 @@ const {
 	buildAlarmCandidates,
 	buildAlarmRuntime
 } = require('./alarm.cjs')
+const { deriveTankEstimate } = require('./tankTelemetryLocal.cjs')
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
@@ -342,8 +343,9 @@ async function probeOnce(configInput = null) {
 	emitState({ status: 'probing', message: '正在读取 PLC' })
 	const telemetry = await readTankTelemetry(config)
 	const alarms = buildAlarmCandidates({ telemetry, config })
-	emitState({ status: 'ready', message: alarms.length ? `探测成功，发现 ${alarms.length} 项超限` : '探测成功', lastTelemetry: telemetry, alarms: [] })
-	return telemetry
+	const displayTelemetry = { ...telemetry, ...deriveTankEstimate(telemetry) }
+	emitState({ status: 'ready', message: alarms.length ? `探测成功，发现 ${alarms.length} 项超限` : '探测成功', lastTelemetry: displayTelemetry, alarms: [] })
+	return displayTelemetry
 }
 
 async function runCycle() {
@@ -359,7 +361,7 @@ async function runCycle() {
 		emitState({
 			status: 'online',
 			message: '上报成功',
-			lastTelemetry: telemetry,
+			lastTelemetry: { ...telemetry, ...deriveTankEstimate(telemetry) },
 			lastUploadAt: Date.now()
 		})
 	} catch (err) {

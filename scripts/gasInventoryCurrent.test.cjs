@@ -54,13 +54,15 @@ function testPreCutoffBottleFlowIsArchived() {
 	assert.equal(snapshot.candidate_bottle_count, 1)
 }
 
-function testPlcWeightPriority() {
-	const tank = { status: 'online', lng_weight_t: 18.4, level_percent: 72, sampled_at: 100000 }
+function testContinuousLevelPriority() {
+	const tank = { status: 'online', level_kpa: 21.97, lng_weight_t: 18.4, level_percent: 72, sampled_at: 100000 }
 	const first = resolveTankReading({ tank, tankConfig: { full_tank_weight_t: 10 }, now: 105000 })
 	const second = resolveTankReading({ tank, tankConfig: { full_tank_weight_t: 60 }, now: 105000 })
-	assert.equal(first.tank_t, 18.4)
-	assert.equal(second.tank_t, 18.4)
-	assert.equal(first.weight_source, 'plc_weight')
+	assert.equal(first.tank_t, 11.429700474771153)
+	assert.equal(second.tank_t, 11.429700474771153)
+	assert.equal(first.weight_source, 'continuous_level_estimate')
+	assert.equal(first.plc_weight_t, 18.4)
+	assert.equal(first.corrected_level_kpa, 22.24)
 	assert.equal(first.is_fallback, false)
 }
 
@@ -78,7 +80,7 @@ function testLedgerCutoff() {
 
 function testFallbackAndStale() {
 	const fallback = resolveTankReading({
-		tank: { status: 'online', level_percent: 50, sampled_at: 100000 },
+		tank: { tank_id: 'secondary', status: 'online', level_percent: 50, sampled_at: 100000 },
 		tankConfig: { full_tank_weight_t: 30 },
 		now: 105000
 	})
@@ -91,17 +93,18 @@ function testFallbackAndStale() {
 		now: 105000
 	})
 	assert.equal(invalidDirect.tank_t, null)
-	assert.equal(invalidDirect.weight_source, 'invalid_plc_weight')
+	assert.equal(invalidDirect.weight_source, 'unavailable')
+	assert.equal(invalidDirect.estimate_status, 'missing_level')
 	assert.equal(invalidDirect.is_fallback, false)
 
 	const current = buildCurrentInventory({
-		tank: { status: 'online', lng_weight_t: 18.4, sampled_at: 100000 },
+		tank: { status: 'online', level_kpa: 21.97, lng_weight_t: 18.4, sampled_at: 100000 },
 		filledUnsold: { filled_unsold_t: 0.5, filled_unsold_count: 5 },
 		ledgerTankT: 18.2,
 		now: 161001
 	})
 	assert.equal(current.physical.status, 'stale')
-	assert.equal(current.physical.tank_t, 18.4)
+	assert.equal(current.physical.tank_t, 11.429700474771153)
 	assert.equal(current.physical.total_t, null)
 	assert.equal(current.physical.available, false)
 	assert.equal(current.ledger.diff_t, null)
@@ -109,17 +112,17 @@ function testFallbackAndStale() {
 
 function testFillConservationAndSaleReduction() {
 	const before = buildCurrentInventory({
-		tank: { status: 'online', lng_weight_t: 10, sampled_at: 100000 },
+		tank: { tank_id: 'secondary', status: 'online', lng_weight_t: 10, sampled_at: 100000 },
 		filledUnsold: { filled_unsold_t: 0, filled_unsold_count: 0 },
 		now: 105000
 	})
 	const afterFill = buildCurrentInventory({
-		tank: { status: 'online', lng_weight_t: 9.9, sampled_at: 100000 },
+		tank: { tank_id: 'secondary', status: 'online', lng_weight_t: 9.9, sampled_at: 100000 },
 		filledUnsold: { filled_unsold_t: 0.1, filled_unsold_count: 1 },
 		now: 105000
 	})
 	const afterSale = buildCurrentInventory({
-		tank: { status: 'online', lng_weight_t: 9.9, sampled_at: 100000 },
+		tank: { tank_id: 'secondary', status: 'online', lng_weight_t: 9.9, sampled_at: 100000 },
 		filledUnsold: { filled_unsold_t: 0, filled_unsold_count: 0 },
 		now: 105000
 	})
@@ -131,7 +134,7 @@ function testFillConservationAndSaleReduction() {
 testPeriodCutoff()
 testFilledUnsoldState()
 testPreCutoffBottleFlowIsArchived()
-testPlcWeightPriority()
+testContinuousLevelPriority()
 testLedgerCutoff()
 testFallbackAndStale()
 testFillConservationAndSaleReduction()

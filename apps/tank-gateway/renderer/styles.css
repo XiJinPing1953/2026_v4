@@ -350,6 +350,13 @@ input:focus {
 	line-height: 1.15;
 }
 
+.readings small {
+	color: #50616c;
+	display: block;
+	font-size: 11px;
+	margin-top: 5px;
+}
+
 .log-panel {
 	grid-column: 1 / -1;
 }
