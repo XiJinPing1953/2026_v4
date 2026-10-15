@@ -5,6 +5,7 @@
 ## 源码与范围
 
 - 基线 `106a57d`；隔离工作区 `codex/mobile-scale-sale`。原主目录的无关修改、原始资料及删除状态未纳入本次修改。
+- 实现提交 `f99feeb` 已快进合入本地 `main`；合并前后核对原有 41 项未提交状态，内容/删除状态全部保留，原有 STATE 修改已恢复。主目录已安装锁定的扫码依赖。没有推送远程或发布生产。
 - 入口沿用 `/pages/pda/sale-create` 和原权限，用户可见名称为“手机称重销售”。不会自动授予普通账号权限。
 - `MobileQrScanner.vue`、`cameraScan.js`：本地 `qr-scanner@1.4.2`、明确按钮开镜头、后摄优先、扫描会话与稳定行 ID、迟到结果丢弃、退出释放资源。
 - `usePdaSaleForm.js`、`mobileSaleDraft.js`：账号隔离草稿、写后核对与存储失败提示；同草稿固定操作号及旧页面覆盖保护；提交冻结、查询恢复、价格/瓶档/存瓶差异确认。已保存结果不因查询失败丢失单号。
@@ -18,7 +19,7 @@
 - 相关回归 43 项通过：`frontendTrust`/`accountingFrontend`/`bottleSuggestions` 10 项，`pdaFillingCompletionFrontend` 9 项，`financeTrust`/`gasInventoryPrecision`/`customerAdjustmentIntegration` 24 项（均为 `scripts/*.test.cjs`）。保留原桌面销售、账务和灌装前端兼容路径。
 - 本地浏览器预览使用已有 `STATEMENT_PREVIEW=1 MOBILE_PREVIEW=1` 隔离插件；调用模拟数据且 CSP 限制外部连接，不访问生产云业务数据。模拟 BLE 只能证明前端事件链路，不能证明吊秤或手机兼容。
 - `npm run build:h5`、`npm run build:mp-alipay`、云文件语法及 `git diff --check` 通过。扫码库改为同包内含 worker 的发行文件，修复 uni-app 对依赖动态分包生成裸路径的问题；`node scripts/checkMobileSaleBundle.cjs` 检查实际 H5 产物中本地软件 worker 与非法导入路径。
-- Chrome 隔离预览已完成关闭原生 `BarcodeDetector` 后的真实软件解码（本地生成二维码的视频流）、模拟拒绝相机权限、模拟蓝牙连接、手动选 101 号瓶、通知稳定后毛重120/皮重100/净重20回填、刷新恢复、存瓶预览与模拟销售保存，并确认保存后表单冻结。390/320 px 无横向溢出；截图位于本地 `output/playwright/mobile-sale-saved-{390,320}.png`，不包含真实客户或云单据。
+- Chrome 隔离预览已完成关闭原生 `BarcodeDetector` 后的真实软件解码（本地生成二维码的视频流）、模拟拒绝相机权限、模拟蓝牙连接、手动选 101 号瓶、通知稳定后毛重120/皮重100/净重20回填、刷新恢复、存瓶预览与模拟销售保存，并确认保存后表单冻结。390/320 px 无横向溢出，最终流程无页面脚本异常；截图位于独立工作区本地 `output/playwright/mobile-sale-saved-{390,320}.png`，不包含真实客户或云单据。
 - 可复用浏览器脚本：`preview/mobile/sale-smoke.cjs`（Playwright CLI `run-code --filename`）；必须先在独立端口启动 `STATEMENT_PREVIEW=1 MOBILE_PREVIEW=1 npm run dev:h5 -- --host 127.0.0.1 --port 5194`。脚本检查隔离预览标识，使用独立浏览器会话并清空该本地模拟站点存储，不能用于生产页面。
 
 ## 仍需验收与发布门槛
