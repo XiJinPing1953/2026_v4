@@ -1,4 +1,5 @@
 import { normalizeText } from './shared'
+import { canViewPage } from '../pageAcl'
 
 export const PDA_HOME_PATH = '/pages/pda/home'
 export const HOME_SAFETY_INSPECTION_HOME_PATH = '/pages/home-safety-inspection/home'
@@ -73,7 +74,7 @@ export function resolveLoginRedirectForRuntime(redirectUrl, userLike) {
 	if (isSafetyInspectorRole(userLike)) {
 		return isSafetyInspectionPagePath(normalizedUrl) ? normalizedUrl : ''
 	}
-	if (isPdaPagePath(normalizedUrl) && !isPdaAppMode() && !isPdaOperatorRole(userLike)) return ''
+	if (isPdaPagePath(normalizedUrl) && !canViewPage(normalizeAppPagePath(normalizedUrl), userLike)) return ''
 	return normalizedUrl
 }
 

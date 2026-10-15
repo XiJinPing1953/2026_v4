@@ -136,7 +136,7 @@
 		{
 			"path": "pages/pda/sale-create",
 			"style": {
-				"navigationBarTitleText": "PDA 销售录入"
+				"navigationBarTitleText": "手机称重销售"
 			}
 		},
 		{

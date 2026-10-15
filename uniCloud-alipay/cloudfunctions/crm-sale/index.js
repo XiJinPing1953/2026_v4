@@ -8,6 +8,8 @@ const { readComplete, withFinancialEvidence, FinancialReadError } = require('./f
 
 const db = uniCloud.database()
 const dbCmd = db.command
+const { createService: createMobileSaleService, processingGuard: mobileSaleProcessingGuard } = require('./mobileSaleCreate')
+const mobileSaleService = createMobileSaleService({ db, createSale: createV2 })
 const {
 	fetchHiddenCustomerIds,
 	docIsHiddenCustomer
@@ -43,6 +45,8 @@ const APPLY_OFFSET_CREDIT_PAGE = '/pages/sale/apply-offset-credit'
 const AGENT_SALE_BACKFILL_ROLES = new Set(['superadmin'])
 const AGENT_SALE_BACKFILL_CONFIRM_TEXT = 'BACKFILL_AGENT_SALE_BOTTLE_MOVEMENTS'
 const PAGE_ACTION_RULES = {
+	createMobileV1: [{ pagePath: '/pages/pda/sale-create', action: 'create' }],
+	getMobileCreateResultV1: [{ pagePath: '/pages/pda/sale-create', action: 'view' }],
 	listV2: [{ pagePath: '/pages/sale/list', action: 'view' }],
 	getV2: [{ pagePath: '/pages/sale/detail', action: 'view' }],
 	createV2: [
@@ -2815,10 +2819,10 @@ async function resyncSaleVoucherById(user, saleId, requestId) {
 	return { code: 0, data: { sale_id: id } }
 }
 
-async function createV2(user, payload, requestId, token) {
+async function createV2(user, payload, requestId, token, options = {}) {
 	const base = payload.base || {}
-	const outRows = normalizeBottleRows(payload.outRows || [])
-	const backRows = normalizeBottleRows(payload.backRows || [])
+	const outRows = options.mobile ? payload.outRows : normalizeBottleRows(payload.outRows || [])
+	const backRows = options.mobile ? payload.backRows : normalizeBottleRows(payload.backRows || [])
 	let depositRows = normalizeDepositRows(payload.depositRows || [])
 	let agentRows = normalizeAgentRows(payload.agentSaleRows || [])
 	const ignoreBottleFlowWarning = toBoolean(payload.ignore_bottle_flow_warning ?? payload.ignoreBottleFlowWarning, false)
@@ -2901,7 +2905,7 @@ async function createV2(user, payload, requestId, token) {
 		return buildBottleFlowWarningResponse(bottleFlowWarnings)
 	}
 
-	if (bizMode === 'bottle') {
+	if (bizMode === 'bottle' && !options.mobile) {
 		const ensureRes = await ensureBottlesExist({
 			customerId: deliveryCustomer._id,
 			customerName: deliveryCustomer.name,
@@ -3031,7 +3035,7 @@ async function createV2(user, payload, requestId, token) {
 		doc.flow_theory_ratio = null
 	}
 
-	const res = await sales.add(doc)
+	const res = options.insertSource ? await options.insertSource(doc) : await sales.add(doc)
 	const saleDoc = { ...doc, _id: res.id }
 	await appendSaleMovementRecords(user, saleDoc, {
 		bizMode,
@@ -4249,6 +4253,8 @@ async function quickReceiveV1(user, data, requestId, token) {
 	const res = await sales.doc(recordId).get()
 	const doc = (res.data && res.data[0]) || null
 	if (!doc) return { code: 404, msg: '记录不存在' }
+	const mobileGuard = mobileSaleProcessingGuard(doc)
+	if (mobileGuard) return mobileGuard
 	if (saleMentionsHiddenCustomer(doc, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
 	if (saleAccounting.resolveSettlementMode(doc) === 'customer_flow') {
 		return { code: 400, msg: '该销售单按客户对账页流量结算，不支持直接登记回款' }
@@ -4663,6 +4669,8 @@ async function updateV2(user, data, requestId, token) {
 	const existingRes = await sales.doc(recordId).get()
 	const existing = (existingRes.data && existingRes.data[0]) || null
 	if (!existing) return { code: 404, msg: '记录不存在' }
+	const mobileGuard = mobileSaleProcessingGuard(existing)
+	if (mobileGuard) return mobileGuard
 	if (saleMentionsHiddenCustomer(existing, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
 	try { await assertCustomerAdjustmentSourceMutable({ db, command: dbCmd, readComplete, customerId: existing.customer_id, targetType: 'sale', targetId: recordId }) }
 	catch (error) { return { code: error.code || 409, msg: error.message } }
@@ -5109,6 +5117,8 @@ async function updateSettlementV1(user, data, requestId, token) {
 	const existingRes = await sales.doc(recordId).get()
 	const existing = (existingRes.data && existingRes.data[0]) || null
 	if (!existing) return { code: 404, msg: '记录不存在' }
+	const mobileGuard = mobileSaleProcessingGuard(existing)
+	if (mobileGuard) return mobileGuard
 	if (saleMentionsHiddenCustomer(existing, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
 	try { await assertCustomerAdjustmentSourceMutable({ db, command: dbCmd, readComplete, customerId: existing.customer_id, targetType: 'sale', targetId: recordId }) }
 	catch (error) { return { code: error.code || 409, msg: error.message } }
@@ -5253,6 +5263,8 @@ async function removeV2(user, data, requestId, token) {
 	const saleRes = await sales.doc(recordId).get()
 	const saleDoc = (saleRes.data && saleRes.data[0]) || null
 	if (!saleDoc) return { code: 404, msg: '记录不存在' }
+	const mobileGuard = mobileSaleProcessingGuard(saleDoc)
+	if (mobileGuard) return mobileGuard
 	const hiddenCustomerIds = await fetchHiddenCustomerIds(customers)
 	if (saleMentionsHiddenCustomer(saleDoc, hiddenCustomerIds)) return { code: 404, msg: '记录不存在' }
 
@@ -5532,6 +5544,8 @@ const main = async (event, context) => {
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
+	if (action === 'createMobileV1') return mobileSaleService.create(user, data, requestId, token)
+	if (action === 'getMobileCreateResultV1') return mobileSaleService.getResult(user, data)
 	if (action === 'createV2') return createV2(user, data, requestId, token)
 	if (action === 'updateV2') return updateV2(user, data, requestId, token)
 	if (action === 'updateSettlementV1') return updateSettlementV1(user, data, requestId, token)

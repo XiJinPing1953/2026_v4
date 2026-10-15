@@ -306,6 +306,10 @@
 
 					<AppSection class="dashboard-card" title="业务管理">
 						<view class="nav-grid">
+							<view v-if="canView('/pages/pda/sale-create') && canAction('/pages/pda/sale-create', 'create')" class="nav-grid-item" @click="go('/pages/pda/sale-create')">
+								<view class="nav-icon bg-sales"><AppIcon name="plus" color="#fff" size="30rpx" /></view>
+								<text class="nav-text">手机称重销售</text>
+							</view>
 							<view v-if="canAction('/pages/sale/edit', 'create')" class="nav-grid-item" @click="go('/pages/sale/edit')">
 								<view class="nav-icon bg-sales"><AppIcon name="plus" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">新增销售</text>

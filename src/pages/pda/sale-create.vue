@@ -18,6 +18,8 @@ const initialCustomerName = ref('')
 const initialOutBottleNo = ref('')
 const viewRef = ref(null)
 let activateTimer = null
+let activationVersion = 0
+let pageVisible = false
 
 onLoad((options) => {
 	initialCustomerId.value = String(options?.customer_id || '')
@@ -26,16 +28,22 @@ onLoad((options) => {
 })
 
 function activateSession() {
+	pageVisible = true
+	const version = ++activationVersion
 	if (activateTimer) clearTimeout(activateTimer)
 	nextTick(() => {
+		if (!pageVisible || version !== activationVersion) return
 		activateTimer = setTimeout(() => {
 			activateTimer = null
+			if (!pageVisible || version !== activationVersion) return
 			viewRef.value?.activateBarcodeSession?.()
 		}, 180)
 	})
 }
 
 async function deactivateSession(reason) {
+	pageVisible = false
+	activationVersion += 1
 	if (activateTimer) {
 		clearTimeout(activateTimer)
 		activateTimer = null

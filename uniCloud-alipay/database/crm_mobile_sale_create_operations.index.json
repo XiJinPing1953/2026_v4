@@ -1,0 +1,21 @@
+[
+  {
+    "IndexName": "idx_processing_created",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "processing_state",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  }
+]

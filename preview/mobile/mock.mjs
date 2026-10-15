@@ -2,6 +2,8 @@
 import { callCloud as statementCall } from '../statement/mock.mjs'
 import inspectionTemplates from './inspection-templates.json'
 import { PAGE_REGISTRY } from '../../src/services/pageAclRegistry.js'
+import { phoneSaleFixture } from './sale.mjs'
+if (typeof window !== 'undefined') window.__crmMobilePreview = true
 const longName = '手机布局测试客户（长名称）新拓能源配送服务有限公司'
 const stamp = Date.UTC(2026,8,28)
 const base = { _id:'mobile-demo', name:longName, customer_id:'demo-kg', customer_name:longName, contact:'测试联系人', phone:'13800000000', address:'测试地址：工业园区东门第二配送站', is_active:true, created_at:stamp, updated_at:stamp, date:'2026-09-28', remark:'仅供本地布局验收，包含较长备注与编号 ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890。' }
@@ -25,6 +27,7 @@ export async function callCloud(name, options={}) {
   window.__mobilePreviewCalls ||= []
   window.__mobilePreviewCalls.push({name,action})
   const state=new URLSearchParams(window.location.search).get('fixture')
+  if(state==='phone-sale') return phoneSaleFixture(name, action, data)
   if(state==='loading') await new Promise(resolve=>setTimeout(resolve,10000))
   if(state==='error') return {code:503,msg:'模拟读取失败，请重试'}
   if(state==='empty' && /^(list|search)/.test(action)) return ok([],{summary:{total:0,active:0,inactive:0,priced:0},paging:{page:1,pageSize:20,total:0,hasMore:false}})

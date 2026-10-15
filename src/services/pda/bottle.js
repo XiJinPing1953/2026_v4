@@ -74,10 +74,10 @@ export async function getPdaBottleById(id) {
 	}
 }
 
-export async function findPdaBottleByNo(bottleNo) {
+export async function findPdaBottleByNo(bottleNo, options = {}) {
 	const normalized = normalizeBottleNo(bottleNo)
 	if (!normalized) return { code: 400, msg: '瓶号必填', data: null }
-	const cached = readCache(bottleNoCache, normalized)
+	const cached = options.fresh ? null : readCache(bottleNoCache, normalized)
 	if (cached) return { code: 0, msg: '', data: cached }
 	const res = await resolveBottleNoV1({ bottle_no: normalized })
 	if (res?.code !== 0) return { code: res?.code ?? -1, msg: res?.msg || '钢瓶查询失败', data: null }

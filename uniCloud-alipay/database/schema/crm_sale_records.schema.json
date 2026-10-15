@@ -67,6 +67,25 @@
         "properties": {
           "bottle_no": { "bsonType": "string" },
           "bottle_id": { "bsonType": ["string", "null"] },
+          "weight_source": { "bsonType": "string" },
+          "weight_sampled_at": { "bsonType": "number" },
+          "scale_session_id": { "bsonType": "string" },
+          "scale_device_id": { "bsonType": "string" },
+          "scale_stable_seq": { "bsonType": "number" },
+          "scan_location": {
+            "bsonType": ["object", "null"],
+            "properties": {
+              "status": { "bsonType": "string" },
+              "coordinate_type": { "bsonType": "string" },
+              "captured_at": { "bsonType": "number" },
+              "source": { "bsonType": "string" },
+              "latitude": { "bsonType": "number" },
+              "longitude": { "bsonType": "number" },
+              "accuracy": { "bsonType": ["number", "null"] },
+              "error_code": { "bsonType": "string" },
+              "error_message": { "bsonType": "string" }
+            }
+          },
           "gross": { "bsonType": ["number", "null"] },
           "tare": { "bsonType": ["number", "null"] },
           "net": { "bsonType": ["number", "null"] },
@@ -81,6 +100,25 @@
         "properties": {
           "bottle_no": { "bsonType": "string" },
           "bottle_id": { "bsonType": ["string", "null"] },
+          "weight_source": { "bsonType": "string" },
+          "weight_sampled_at": { "bsonType": "number" },
+          "scale_session_id": { "bsonType": "string" },
+          "scale_device_id": { "bsonType": "string" },
+          "scale_stable_seq": { "bsonType": "number" },
+          "scan_location": {
+            "bsonType": ["object", "null"],
+            "properties": {
+              "status": { "bsonType": "string" },
+              "coordinate_type": { "bsonType": "string" },
+              "captured_at": { "bsonType": "number" },
+              "source": { "bsonType": "string" },
+              "latitude": { "bsonType": "number" },
+              "longitude": { "bsonType": "number" },
+              "accuracy": { "bsonType": ["number", "null"] },
+              "error_code": { "bsonType": "string" },
+              "error_message": { "bsonType": "string" }
+            }
+          },
           "gross": { "bsonType": ["number", "null"] },
           "tare": { "bsonType": ["number", "null"] },
           "net": { "bsonType": ["number", "null"] }
@@ -131,7 +169,9 @@
     "created_at": { "bsonType": "number" },
     "created_by": { "bsonType": ["string", "null"] },
     "updated_at": { "bsonType": ["number", "null"] },
-    "source": { "bsonType": "string" }
+    "source": { "bsonType": "string" },
+    "mobile_create_operation_key": { "bsonType": "string" },
+    "mobile_create_state": { "bsonType": "string", "enum": ["processing", "completed", "pending_review"] }
   },
   "permission": {
     "read": false,

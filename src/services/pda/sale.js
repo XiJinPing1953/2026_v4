@@ -1,4 +1,7 @@
 import { createSaleV2, getCustomerDepositV1 } from '@/services/sale'
+import { callCloud } from '@/services/api'
+import { normalizeSaleDraft } from '@/services/models/sale'
+import { createMobileSaleId } from './mobileSaleDraft'
 import { resolvePdaCustomerPricing } from './customer'
 import { normalizePdaScanLocation } from './location'
 import { buildDepositPreviewRows, normalizeBottleNo, normalizeText, todayDate, toNumber } from './shared'
@@ -13,6 +16,7 @@ function formatPdaSaleWeight(value) {
 
 export function createPdaOutItem() {
 	return {
+		rowId: createMobileSaleId('row'),
 		bottleNo: '',
 		bottleId: '',
 		gross: '',
@@ -28,6 +32,7 @@ export function createPdaOutItem() {
 
 export function createPdaBackItem() {
 	return {
+		rowId: createMobileSaleId('row'),
 		bottleNo: '',
 		bottleId: '',
 		gross: '',
@@ -121,6 +126,7 @@ function normalizeDepositRows(rows = []) {
 export function syncPdaBackRow(row = {}) {
 	const next = {
 		...row,
+		rowId: row.rowId || createMobileSaleId('row'),
 		bottleNo: normalizeBottleNo(row.bottleNo || row.bottle_no),
 		bottleId: normalizeText(row.bottleId || row.bottle_id),
 		gross: normalizeText(row.gross ?? row.gross_weight),
@@ -150,6 +156,7 @@ export function applyBottleToSaleRow(row = {}, bottle = {}, options = {}) {
 	const shouldClearMeasuredWeight = bottleChanged
 	const next = {
 		...row,
+		rowId: row.rowId || createMobileSaleId('row'),
 		bottleNo: nextBottleNo,
 		bottleId: normalizeText(bottle?._id || row.bottleId || row.bottle_id),
 		gross: shouldClearMeasuredWeight ? '' : normalizeText(row.gross ?? row.gross_weight),
@@ -255,6 +262,17 @@ export function validatePdaBottleSaleForm(form = {}, customer = null) {
 	if (!pricing.ok) return { ok: false, msg: pricing.msg }
 
 	const outRows = (form.outItems || []).filter((row) => normalizeBottleNo(row?.bottleNo || row?.bottle_no))
+	for (const rows of [outRows, form.backItems || []]) {
+		const seen = new Set()
+		for (const row of rows) {
+			const no = normalizeBottleNo(row.bottleNo)
+			if (!no) continue
+			if (seen.has(no)) return { ok: false, msg: `同一方向不能重复填写钢瓶 ${no}` }
+			seen.add(no)
+			if (!row.bottleId) return { ok: false, msg: `请先查档确认钢瓶 ${no}` }
+			if (Math.abs(Number(row.gross) - Number(row.tare) - Number(row.net)) > 0.001) return { ok: false, msg: `钢瓶 ${no} 的毛重、皮重和净重不一致，请重新称重` }
+		}
+	}
 	const invalidOut = outRows.find((row) => !normalizeOutRow(row))
 	if (invalidOut) return { ok: false, msg: '出瓶行需填写有效瓶号，并完成毛重、皮重、净重称重闭环' }
 	const outItems = outRows.map(normalizeOutRow).filter(Boolean)
@@ -287,4 +305,36 @@ export async function submitPdaBottleSale(form = {}, options = {}) {
 		...res,
 		depositPreview: depositRes.data
 	}
+}
+
+export function buildMobileSalePayload(form, options = {}) {
+	const draft = buildPdaSaleDraft(form)
+	const payload = normalizeSaleDraft({
+		...draft.form, ...draft.settlement,
+		delivery1: form.delivery1, delivery2: form.delivery2, carNo: form.vehicleNo,
+		outItems: draft.outItems, backItems: draft.backItems, depositRows: draft.depositRows,
+		agentSaleRows: []
+	})
+	for (const [key, rows] of [['outRows', form.outItems], ['backRows', form.backItems]]) {
+		payload[key] = payload[key].map((row) => {
+			const source = rows.find((item) => normalizeBottleNo(item.bottleNo) === row.bottle_no)
+			return {
+				...row,
+				weight_source: source?.weightSource || '',
+				weight_sampled_at: source?.weightSampledAt || null,
+				scale_session_id: source?.scaleSessionId || '',
+				scale_stable_seq: Number(source?.scaleStableSeq || 0)
+			}
+		})
+	}
+	if (options.confirmedWarnings) payload.ignore_bottle_flow_warning = true
+	return payload
+}
+
+export function createMobileSale(operationId, payload) {
+	return callCloud('crm-sale', { action: 'createMobileV1', data: { operation_id: operationId, payload }, timeout: 120000 })
+}
+
+export function getMobileSaleCreateResult(operationId) {
+	return callCloud('crm-sale', { action: 'getMobileCreateResultV1', data: { operation_id: operationId } })
 }
