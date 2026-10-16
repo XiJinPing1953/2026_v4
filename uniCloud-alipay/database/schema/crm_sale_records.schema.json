@@ -17,79 +17,205 @@
     "source"
   ],
   "properties": {
-    "_id": { "bsonType": "string" },
-
-    "date": { "bsonType": "string" },
-    "customer_id": { "bsonType": "string" },
-    "customer_name": { "bsonType": "string" },
-    "delivery_customer_id": { "bsonType": ["string", "null"] },
-    "delivery_customer_name": { "bsonType": "string" },
-
-    "delivery_man": { "bsonType": "string" },
-    "vehicle_id": { "bsonType": "string" },
-    "car_no": { "bsonType": "string" },
-
-    "biz_mode": { "bsonType": "string" },
-    "price_unit": { "bsonType": "string" },
-    "settlement_mode": { "bsonType": ["string", "null"] },
-    "accounting_classification_basis": { "bsonType": ["string", "null"] },
-    "accounting_classified_at": { "bsonType": ["number", "null"] },
-    "accounting_classified_by": { "bsonType": ["string", "null"] },
-    "accounting_rule_version": { "bsonType": ["string", "null"] },
-    "unit_price": { "bsonType": ["number", "null"] },
-
-    "remark": { "bsonType": "string" },
-    "ticket_image": { "bsonType": ["string", "null"] },
+    "_id": {
+      "bsonType": "string"
+    },
+    "date": {
+      "bsonType": "string"
+    },
+    "customer_id": {
+      "bsonType": "string"
+    },
+    "customer_name": {
+      "bsonType": "string"
+    },
+    "delivery_customer_id": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "delivery_customer_name": {
+      "bsonType": "string"
+    },
+    "delivery_man": {
+      "bsonType": "string"
+    },
+    "vehicle_id": {
+      "bsonType": "string"
+    },
+    "car_no": {
+      "bsonType": "string"
+    },
+    "biz_mode": {
+      "bsonType": "string"
+    },
+    "price_unit": {
+      "bsonType": "string"
+    },
+    "settlement_mode": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "unit_price": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "remark": {
+      "bsonType": "string"
+    },
+    "ticket_image": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
     "ticket_images": {
       "bsonType": "array",
-      "items": { "bsonType": "string" }
+      "items": {
+        "bsonType": "string"
+      }
     },
-    "remark_normalized": { "bsonType": "string" },
+    "remark_normalized": {
+      "bsonType": "string"
+    },
     "remark_tags": {
       "bsonType": "array",
-      "items": { "bsonType": "string" }
+      "items": {
+        "bsonType": "string"
+      }
     },
-    "system_note": { "bsonType": "string" },
-    "has_remark": { "bsonType": "bool" },
-
-    "payment_status": { "bsonType": "string" },
-    "amount_received": { "bsonType": ["number", "null"] },
-    "receipt_rounding_amount": { "bsonType": ["number", "null"] },
-    "rounding_amount": { "bsonType": ["number", "null"] },
-    "offset_enabled": { "bsonType": ["bool", "null"] },
-    "payment_note": { "bsonType": "string" },
-    "payment_method": { "bsonType": "string" },
-
+    "system_note": {
+      "bsonType": "string"
+    },
+    "has_remark": {
+      "bsonType": "bool"
+    },
+    "payment_status": {
+      "bsonType": "string"
+    },
+    "amount_received": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "receipt_rounding_amount": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "rounding_amount": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "offset_enabled": {
+      "bsonType": [
+        "bool",
+        "null"
+      ]
+    },
+    "payment_note": {
+      "bsonType": "string"
+    },
+    "payment_method": {
+      "bsonType": "string"
+    },
     "out_items": {
       "bsonType": "array",
       "items": {
         "bsonType": "object",
         "properties": {
-          "bottle_no": { "bsonType": "string" },
-          "bottle_id": { "bsonType": ["string", "null"] },
-          "weight_source": { "bsonType": "string" },
-          "weight_sampled_at": { "bsonType": "number" },
-          "scale_session_id": { "bsonType": "string" },
-          "scale_device_id": { "bsonType": "string" },
-          "scale_stable_seq": { "bsonType": "number" },
-          "scan_location": {
-            "bsonType": ["object", "null"],
-            "properties": {
-              "status": { "bsonType": "string" },
-              "coordinate_type": { "bsonType": "string" },
-              "captured_at": { "bsonType": "number" },
-              "source": { "bsonType": "string" },
-              "latitude": { "bsonType": "number" },
-              "longitude": { "bsonType": "number" },
-              "accuracy": { "bsonType": ["number", "null"] },
-              "error_code": { "bsonType": "string" },
-              "error_message": { "bsonType": "string" }
-            }
+          "bottle_no": {
+            "bsonType": "string"
           },
-          "gross": { "bsonType": ["number", "null"] },
-          "tare": { "bsonType": ["number", "null"] },
-          "net": { "bsonType": ["number", "null"] },
-          "address": { "bsonType": "string" }
+          "bottle_id": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "gross": {
+            "bsonType": [
+              "number",
+              "null"
+            ]
+          },
+          "tare": {
+            "bsonType": [
+              "number",
+              "null"
+            ]
+          },
+          "net": {
+            "bsonType": [
+              "number",
+              "null"
+            ]
+          },
+          "address": {
+            "bsonType": "string"
+          },
+          "weight_source": {
+            "bsonType": "string"
+          },
+          "weight_sampled_at": {
+            "bsonType": "number"
+          },
+          "scale_session_id": {
+            "bsonType": "string"
+          },
+          "scale_device_id": {
+            "bsonType": "string"
+          },
+          "scale_stable_seq": {
+            "bsonType": "number"
+          },
+          "scan_location": {
+            "bsonType": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "status": {
+                "bsonType": "string"
+              },
+              "coordinate_type": {
+                "bsonType": "string"
+              },
+              "captured_at": {
+                "bsonType": "number"
+              },
+              "source": {
+                "bsonType": "string"
+              },
+              "latitude": {
+                "bsonType": "number"
+              },
+              "longitude": {
+                "bsonType": "number"
+              },
+              "accuracy": {
+                "bsonType": [
+                  "number",
+                  "null"
+                ]
+              },
+              "error_code": {
+                "bsonType": "string"
+              },
+              "error_message": {
+                "bsonType": "string"
+              }
+            }
+          }
         }
       }
     },
@@ -98,80 +224,245 @@
       "items": {
         "bsonType": "object",
         "properties": {
-          "bottle_no": { "bsonType": "string" },
-          "bottle_id": { "bsonType": ["string", "null"] },
-          "weight_source": { "bsonType": "string" },
-          "weight_sampled_at": { "bsonType": "number" },
-          "scale_session_id": { "bsonType": "string" },
-          "scale_device_id": { "bsonType": "string" },
-          "scale_stable_seq": { "bsonType": "number" },
-          "scan_location": {
-            "bsonType": ["object", "null"],
-            "properties": {
-              "status": { "bsonType": "string" },
-              "coordinate_type": { "bsonType": "string" },
-              "captured_at": { "bsonType": "number" },
-              "source": { "bsonType": "string" },
-              "latitude": { "bsonType": "number" },
-              "longitude": { "bsonType": "number" },
-              "accuracy": { "bsonType": ["number", "null"] },
-              "error_code": { "bsonType": "string" },
-              "error_message": { "bsonType": "string" }
-            }
+          "bottle_no": {
+            "bsonType": "string"
           },
-          "gross": { "bsonType": ["number", "null"] },
-          "tare": { "bsonType": ["number", "null"] },
-          "net": { "bsonType": ["number", "null"] }
+          "bottle_id": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "gross": {
+            "bsonType": [
+              "number",
+              "null"
+            ]
+          },
+          "tare": {
+            "bsonType": [
+              "number",
+              "null"
+            ]
+          },
+          "net": {
+            "bsonType": [
+              "number",
+              "null"
+            ]
+          },
+          "weight_source": {
+            "bsonType": "string"
+          },
+          "weight_sampled_at": {
+            "bsonType": "number"
+          },
+          "scale_session_id": {
+            "bsonType": "string"
+          },
+          "scale_device_id": {
+            "bsonType": "string"
+          },
+          "scale_stable_seq": {
+            "bsonType": "number"
+          },
+          "scan_location": {
+            "bsonType": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "status": {
+                "bsonType": "string"
+              },
+              "coordinate_type": {
+                "bsonType": "string"
+              },
+              "captured_at": {
+                "bsonType": "number"
+              },
+              "source": {
+                "bsonType": "string"
+              },
+              "latitude": {
+                "bsonType": "number"
+              },
+              "longitude": {
+                "bsonType": "number"
+              },
+              "accuracy": {
+                "bsonType": [
+                  "number",
+                  "null"
+                ]
+              },
+              "error_code": {
+                "bsonType": "string"
+              },
+              "error_message": {
+                "bsonType": "string"
+              }
+            }
+          }
         }
       }
     },
-
     "deposit_rows": {
       "bsonType": "array",
       "items": {
         "bsonType": "object",
         "properties": {
-          "bottle_no": { "bsonType": "string" },
-          "bottle_id": { "bsonType": ["string", "null"] }
+          "bottle_no": {
+            "bsonType": "string"
+          },
+          "bottle_id": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          }
         }
       }
     },
-
     "agent_sale_items": {
       "bsonType": "array",
       "items": {
         "bsonType": "object",
         "properties": {
-          "bottle_no": { "bsonType": "string" },
-          "bottle_id": { "bsonType": ["string", "null"] },
-          "fill_weight": { "bsonType": ["number", "null"] },
-          "address": { "bsonType": "string" },
-          "filling_record_id": { "bsonType": ["string", "null"] }
+          "bottle_no": {
+            "bsonType": "string"
+          },
+          "bottle_id": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "fill_weight": {
+            "bsonType": [
+              "number",
+              "null"
+            ]
+          },
+          "address": {
+            "bsonType": "string"
+          },
+          "filling_record_id": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          }
         }
       }
     },
-
-    "truck_no": { "bsonType": ["string", "null"] },
-    "truck_out_gross": { "bsonType": ["number", "null"] },
-    "truck_back_gross": { "bsonType": ["number", "null"] },
-    "truck_gross_diff": { "bsonType": ["number", "null"] },
-    "truck_settle_tare": { "bsonType": ["number", "null"] },
-    "truck_settle_gross": { "bsonType": ["number", "null"] },
-    "truck_net_diff_kg": { "bsonType": ["number", "null"] },
-    "truck_loss_kg": { "bsonType": ["number", "null"] },
-    "truck_sale_net": { "bsonType": ["number", "null"] },
-
-    "flow_index_prev": { "bsonType": ["number", "null"] },
-    "flow_index_curr": { "bsonType": ["number", "null"] },
-    "flow_volume_m3": { "bsonType": ["number", "null"] },
-    "flow_theory_ratio": { "bsonType": ["number", "null"] },
-
-    "created_at": { "bsonType": "number" },
-    "created_by": { "bsonType": ["string", "null"] },
-    "updated_at": { "bsonType": ["number", "null"] },
-    "source": { "bsonType": "string" },
-    "mobile_create_operation_key": { "bsonType": "string" },
-    "mobile_create_state": { "bsonType": "string", "enum": ["processing", "completed", "pending_review"] }
+    "truck_no": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "truck_out_gross": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "truck_back_gross": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "truck_gross_diff": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "truck_settle_tare": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "truck_settle_gross": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "truck_net_diff_kg": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "truck_loss_kg": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "truck_sale_net": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "flow_index_prev": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "flow_index_curr": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "flow_volume_m3": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "flow_theory_ratio": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "created_at": {
+      "bsonType": "number"
+    },
+    "created_by": {
+      "bsonType": [
+        "string",
+        "null"
+      ]
+    },
+    "updated_at": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "source": {
+      "bsonType": "string"
+    },
+    "mobile_create_operation_key": {
+      "bsonType": "string"
+    },
+    "mobile_create_state": {
+      "bsonType": "string",
+      "enum": [
+        "processing",
+        "completed",
+        "pending_review"
+      ]
+    }
   },
   "permission": {
     "read": false,
@@ -180,14 +471,61 @@
     "delete": false
   },
   "indexes": [
-    { "key": { "customer_id": 1, "_id": 1 }, "name": "idx_customer_read_cursor" },
-    { "key": { "date": -1, "created_at": -1 }, "name": "idx_date_created_at" },
-    { "key": { "customer_id": 1, "date": -1 }, "name": "idx_customer_date" },
-    { "key": { "delivery_customer_id": 1, "date": -1 }, "name": "idx_delivery_customer_date" },
-    { "key": { "truck_no": 1, "date": -1 }, "name": "idx_truck_date" },
-    { "key": { "price_unit": 1, "date": -1 }, "name": "idx_price_unit_date" },
-    { "key": { "biz_mode": 1, "date": -1 }, "name": "idx_biz_mode_date" },
-    { "key": { "has_remark": 1, "date": -1 }, "name": "idx_has_remark_date" },
-    { "key": { "remark_tags": 1, "date": -1 }, "name": "idx_remark_tags_date" }
+    {
+      "key": {
+        "date": -1,
+        "created_at": -1
+      },
+      "name": "idx_date_created_at"
+    },
+    {
+      "key": {
+        "customer_id": 1,
+        "date": -1
+      },
+      "name": "idx_customer_date"
+    },
+    {
+      "key": {
+        "delivery_customer_id": 1,
+        "date": -1
+      },
+      "name": "idx_delivery_customer_date"
+    },
+    {
+      "key": {
+        "truck_no": 1,
+        "date": -1
+      },
+      "name": "idx_truck_date"
+    },
+    {
+      "key": {
+        "price_unit": 1,
+        "date": -1
+      },
+      "name": "idx_price_unit_date"
+    },
+    {
+      "key": {
+        "biz_mode": 1,
+        "date": -1
+      },
+      "name": "idx_biz_mode_date"
+    },
+    {
+      "key": {
+        "has_remark": 1,
+        "date": -1
+      },
+      "name": "idx_has_remark_date"
+    },
+    {
+      "key": {
+        "remark_tags": 1,
+        "date": -1
+      },
+      "name": "idx_remark_tags_date"
+    }
   ]
 }

@@ -6,56 +6,100 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.16-safety-unified",
+      "version": "2026.10.16-mobile-sale",
       "output": "dist/build/web",
-      "acceptance": "36 source items and seven-category workflow share facts. No work, not applicable and pending remain separate. Source owner may save observations before enablement; daily confirmation still requires configured business role and enabled date. Roles and enable date remain blank; all signatures pending.",
+      "acceptance": "User authorized publication before device acceptance. Scoped account, camera scanning, registered bottles, fresh stable BLE samples, drafts and fixed-operation idempotent create. Isolated cloud transactions and minimum-account downstream authorization must pass. Android/iPhone and NVK field acceptance remains pending after publication.",
       "deploymentScope": {
         "functions": [
-          "crm-station-safety-inspection",
-          "crm-safety-management"
+          "crm-sale",
+          "crm-filling",
+          "crm-bottle-anomaly",
+          "crm-customer-settlement"
         ],
         "databaseFiles": [
-          "crm_safety_supplements.schema.json"
+          "crm_mobile_sale_create_operations.schema.json",
+          "crm_mobile_sale_create_operations.index.json",
+          "crm_sale_records.schema.json"
         ],
-        "baseCommit": "f5462d0508f4de695d29298db4b1482c4fa17031",
-        "sourceFiles": [
-          "src/components/domain/safetyManagement/SafetyInspectionWorkflowEditor.vue",
-          "src/components/domain/safetyManagement/SafetyIssueEditor.vue",
-          "src/components/domain/safetyManagement/SafetyManagementDailyView.vue",
-          "src/components/domain/safetyManagement/SafetyManagementPrintView.vue",
-          "src/components/domain/safetyManagement/WorkflowCheckFields.vue",
-          "src/components/domain/safetyManagement/WorkflowChoice.vue",
-          "src/components/domain/safetyManagement/helpers.js",
-          "src/components/domain/safetyManagement/inspectionWorkflow.js",
-          "src/components/domain/stationSafetyInspection/StationSafetyInspectionDetailView.vue",
-          "src/components/domain/stationSafetyInspection/StationSafetyInspectionFormView.vue",
-          "src/pages/station-safety-inspection/form.vue",
-          "src/services/safetyManagement.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/API_CONTRACT.md",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/SCHEMA_CONTRACT.md",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/inspectionPolicyLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/policy.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/service.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/workbook.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/workflow.js",
-          "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/inspectionPolicy.js",
-          "uniCloud-alipay/database/crm_safety_supplements.schema.json",
-          "uniCloud-alipay/database/schema/crm_safety_supplements.schema.json"
-        ]
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          },
+          "crm-filling": {
+            "registry": {
+              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
+              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+            }
+          },
+          "crm-customer-settlement": {
+            "registry": {
+              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
+              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
+            }
+          },
+          "crm-bottle-anomaly": {
+            "registry": {
+              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
+              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.16-mobile-sale-account",
+      "version": "2026.10.16-mobile-sale",
       "output": "release/cloud",
-      "acceptance": "Create one explicitly scoped mobile sale account with registered editable delivery and vehicle defaults. Existing users remain unchanged. Verify authentication, required lookup permissions and denied management access. This scope does not publish mobile H5 or sale submission services.",
+      "acceptance": "User authorized publication before device acceptance. Scoped account, camera scanning, registered bottles, fresh stable BLE samples, drafts and fixed-operation idempotent create. Isolated cloud transactions and minimum-account downstream authorization must pass. Android/iPhone and NVK field acceptance remains pending after publication.",
       "deploymentScope": {
         "functions": [
-          "crm-user"
+          "crm-sale",
+          "crm-filling",
+          "crm-bottle-anomaly",
+          "crm-customer-settlement"
         ],
         "databaseFiles": [
-          "crm_users.schema.json"
-        ]
+          "crm_mobile_sale_create_operations.schema.json",
+          "crm_mobile_sale_create_operations.index.json",
+          "crm_sale_records.schema.json"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          },
+          "crm-filling": {
+            "registry": {
+              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
+              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+            }
+          },
+          "crm-customer-settlement": {
+            "registry": {
+              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
+              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
+            }
+          },
+          "crm-bottle-anomaly": {
+            "registry": {
+              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
+              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     },
