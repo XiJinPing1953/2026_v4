@@ -14,6 +14,30 @@
 			}
 		},
 		{
+			"path": "pages/safety-management/home",
+			"style": { "navigationBarTitleText": "企业安全管理" }
+		},
+		{
+			"path": "pages/safety-management/daily",
+			"style": { "navigationBarTitleText": "每日安全生产检查" }
+		},
+		{
+			"path": "pages/safety-management/weekly",
+			"style": { "navigationBarTitleText": "每周安全生产排查" }
+		},
+		{
+			"path": "pages/safety-management/monthly",
+			"style": { "navigationBarTitleText": "每月安全生产调度" }
+		},
+		{
+			"path": "pages/safety-management/settings",
+			"style": { "navigationBarTitleText": "安全管理岗位配置" }
+		},
+		{
+			"path": "pages/safety-management/print",
+			"style": { "navigationBarTitleText": "台账打印预览" }
+		},
+		{
 			"path": "pages/safety-inspection/home",
 			"style": {
 				"navigationBarTitleText": "安全巡检工作台"

@@ -1,0 +1,1716 @@
+{
+  "config": {
+    "station_id": "XTNY-001",
+    "station_name": "无极县新拓能源开发有限公司",
+    "enabled_from": "2026-10-15",
+    "roles": {
+      "safety_officer": [
+        "preview-user"
+      ],
+      "safety_director": [
+        "preview-user"
+      ],
+      "principal": [
+        "preview-user"
+      ]
+    },
+    "special_equipment": [],
+    "revision": 1
+  },
+  "categories": [
+    {
+      "id": "1",
+      "name": "高风险作业"
+    },
+    {
+      "id": "2",
+      "name": "设备设施"
+    },
+    {
+      "id": "3",
+      "name": "作业行为"
+    },
+    {
+      "id": "4",
+      "name": "作业环境"
+    },
+    {
+      "id": "5",
+      "name": "消防设施"
+    },
+    {
+      "id": "6",
+      "name": "安全标志"
+    },
+    {
+      "id": "7",
+      "name": "其他"
+    }
+  ],
+  "supplement_definitions": [
+    {
+      "code": "S01",
+      "category_code": "1",
+      "label": "特殊作业",
+      "standard": "当天是否开展动火、有限空间、高处、吊装、临时用电等作业；开展时核对地点、审批、监护和措施",
+      "allowed_results": [
+        "normal",
+        "abnormal",
+        "not_conducted"
+      ]
+    },
+    {
+      "code": "S02",
+      "category_code": "2",
+      "label": "设备运行及支撑",
+      "standard": "容器、泵、管道的异常振动、异响、摩擦以及支座、基础、支吊架；引用已有外观和螺栓检查",
+      "allowed_results": [
+        "normal",
+        "abnormal"
+      ]
+    },
+    {
+      "code": "S03",
+      "category_code": "2",
+      "label": "安全附件与仪表有效状态",
+      "standard": "核对适用附件及仪表检验校验有效状态和规定标识，引用证书或报告",
+      "allowed_results": [
+        "normal",
+        "abnormal",
+        "not_applicable"
+      ]
+    },
+    {
+      "code": "S04",
+      "category_code": "3",
+      "label": "岗位资格和班前交底",
+      "standard": "核对在岗作业、检查人员资格、岗位安排及班前教育、交底，引用人员记录",
+      "allowed_results": [
+        "normal",
+        "abnormal",
+        "not_conducted"
+      ]
+    },
+    {
+      "code": "S05",
+      "category_code": "3",
+      "label": "劳保及作业纪律",
+      "standard": "核对劳动防护用品正确佩戴使用及违章指挥、违章操作、违反劳动纪律",
+      "allowed_results": [
+        "normal",
+        "abnormal"
+      ]
+    },
+    {
+      "code": "S06",
+      "category_code": "3",
+      "label": "充装过程和追溯",
+      "standard": "充装前中后检查、适用计量复检、不合格或超量处置、许可范围及追溯；引用实际充装记录",
+      "allowed_results": [
+        "normal",
+        "abnormal",
+        "not_conducted"
+      ]
+    },
+    {
+      "code": "S07",
+      "category_code": "4",
+      "label": "作业环境补充",
+      "standard": "核对普通照明、通风、物料堆放和适用环境条件；不设通用温湿度限值",
+      "allowed_results": [
+        "normal",
+        "abnormal"
+      ]
+    },
+    {
+      "code": "S08",
+      "category_code": "5",
+      "label": "消防栓及配套器材",
+      "standard": "核对现场状态、取用条件、缺损等明显异常；不要求每日放水或动作试验",
+      "allowed_results": [
+        "normal",
+        "abnormal",
+        "not_applicable"
+      ]
+    },
+    {
+      "code": "S09",
+      "category_code": "6",
+      "label": "气瓶及变化标志",
+      "standard": "核对充装合格标签、气瓶警示标签和新增或变化标志，引用充装收发资料",
+      "allowed_results": [
+        "normal",
+        "abnormal",
+        "not_conducted"
+      ]
+    },
+    {
+      "code": "S10",
+      "category_code": "7",
+      "label": "应急物资状态",
+      "standard": "核对外观、配套和有效状态；引用原全厂公共项照片，定期记录保留相应周期",
+      "allowed_results": [
+        "normal",
+        "abnormal"
+      ]
+    },
+    {
+      "code": "S11",
+      "category_code": "7",
+      "label": "内部报告和投诉",
+      "standard": "确认当日内部报告、投诉举报等安全问题，存在时登记或关联已有隐患",
+      "allowed_results": [
+        "normal",
+        "abnormal"
+      ]
+    },
+    {
+      "code": "S12",
+      "category_code": "7",
+      "label": "未关闭隐患临时管控",
+      "standard": "核对未关闭隐患的临时管控是否落实以及恶化或变化，引用原隐患编号",
+      "allowed_results": [
+        "normal",
+        "abnormal",
+        "not_applicable"
+      ]
+    },
+    {
+      "code": "S13a",
+      "category_code": "2",
+      "label": "装卸软管和连接",
+      "standard": "有装卸作业时核对软管及连接状态，引用实际装卸记录",
+      "allowed_results": [
+        "normal",
+        "abnormal",
+        "not_conducted"
+      ]
+    },
+    {
+      "code": "S13b",
+      "category_code": "3",
+      "label": "装卸人员与过程",
+      "standard": "有装卸作业时核对人员、作业前后检查及过程控制",
+      "allowed_results": [
+        "normal",
+        "abnormal",
+        "not_conducted"
+      ]
+    },
+    {
+      "code": "S13c",
+      "category_code": "4",
+      "label": "装卸天气与工况",
+      "standard": "有装卸作业时核对天气和异常工况",
+      "allowed_results": [
+        "normal",
+        "abnormal",
+        "not_conducted"
+      ]
+    },
+    {
+      "code": "S14",
+      "category_code": "2",
+      "label": "专用设施适用检查",
+      "standard": "仅核对实际存在且已明确适用的膨胀补偿、爆破片、阻火器、非金属衬里等设施",
+      "allowed_results": [
+        "normal",
+        "abnormal",
+        "not_applicable"
+      ]
+    }
+  ],
+  "permissions": {
+    "view": true,
+    "configure": true,
+    "daily": true,
+    "weekly": true,
+    "monthly": true,
+    "export": true
+  },
+  "users": [
+    {
+      "_id": "preview-user",
+      "name": "模拟安全员",
+      "username": "local-only"
+    }
+  ],
+  "daily": {
+    "record": null,
+    "supplement": {
+      "_id": "preview-supplement",
+      "revision": 0,
+      "items": [
+        {
+          "code": "S01",
+          "category_code": "1",
+          "label": "特殊作业",
+          "standard": "当天是否开展动火、有限空间、高处、吊装、临时用电等作业；开展时核对地点、审批、监护和措施",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        },
+        {
+          "code": "S02",
+          "category_code": "2",
+          "label": "设备运行及支撑",
+          "standard": "容器、泵、管道的异常振动、异响、摩擦以及支座、基础、支吊架；引用已有外观和螺栓检查",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        },
+        {
+          "code": "S03",
+          "category_code": "2",
+          "label": "安全附件与仪表有效状态",
+          "standard": "核对适用附件及仪表检验校验有效状态和规定标识，引用证书或报告",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        },
+        {
+          "code": "S04",
+          "category_code": "3",
+          "label": "岗位资格和班前交底",
+          "standard": "核对在岗作业、检查人员资格、岗位安排及班前教育、交底，引用人员记录",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        },
+        {
+          "code": "S05",
+          "category_code": "3",
+          "label": "劳保及作业纪律",
+          "standard": "核对劳动防护用品正确佩戴使用及违章指挥、违章操作、违反劳动纪律",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        },
+        {
+          "code": "S06",
+          "category_code": "3",
+          "label": "充装过程和追溯",
+          "standard": "充装前中后检查、适用计量复检、不合格或超量处置、许可范围及追溯；引用实际充装记录",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        },
+        {
+          "code": "S07",
+          "category_code": "4",
+          "label": "作业环境补充",
+          "standard": "核对普通照明、通风、物料堆放和适用环境条件；不设通用温湿度限值",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        },
+        {
+          "code": "S08",
+          "category_code": "5",
+          "label": "消防栓及配套器材",
+          "standard": "核对现场状态、取用条件、缺损等明显异常；不要求每日放水或动作试验",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        },
+        {
+          "code": "S09",
+          "category_code": "6",
+          "label": "气瓶及变化标志",
+          "standard": "核对充装合格标签、气瓶警示标签和新增或变化标志，引用充装收发资料",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        },
+        {
+          "code": "S10",
+          "category_code": "7",
+          "label": "应急物资状态",
+          "standard": "核对外观、配套和有效状态；引用原全厂公共项照片，定期记录保留相应周期",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        },
+        {
+          "code": "S11",
+          "category_code": "7",
+          "label": "内部报告和投诉",
+          "standard": "确认当日内部报告、投诉举报等安全问题，存在时登记或关联已有隐患",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        },
+        {
+          "code": "S12",
+          "category_code": "7",
+          "label": "未关闭隐患临时管控",
+          "standard": "核对未关闭隐患的临时管控是否落实以及恶化或变化，引用原隐患编号",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        },
+        {
+          "code": "S13a",
+          "category_code": "2",
+          "label": "装卸软管和连接",
+          "standard": "有装卸作业时核对软管及连接状态，引用实际装卸记录",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        },
+        {
+          "code": "S13b",
+          "category_code": "3",
+          "label": "装卸人员与过程",
+          "standard": "有装卸作业时核对人员、作业前后检查及过程控制",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        },
+        {
+          "code": "S13c",
+          "category_code": "4",
+          "label": "装卸天气与工况",
+          "standard": "有装卸作业时核对天气和异常工况",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        },
+        {
+          "code": "S14",
+          "category_code": "2",
+          "label": "专用设施适用检查",
+          "standard": "仅核对实际存在且已明确适用的膨胀补偿、爆破片、阻火器、非金属衬里等设施",
+          "result_code": "",
+          "note": "",
+          "reason": "",
+          "evidence": [],
+          "hazard_ids": [],
+          "details": {}
+        }
+      ]
+    },
+    "snapshot": {
+      "station_id": "XTNY-001",
+      "station_name": "无极县新拓能源开发有限公司",
+      "date": "2026-10-15",
+      "classification_version": 1,
+      "categories": [
+        {
+          "id": "1",
+          "name": "高风险作业",
+          "checks": [
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "filling_hanging_scale",
+              "area": "充装区",
+              "label": "吊秤及防脱钩是否完好、无变形",
+              "standard": "吊秤及防脱钩是否完好、无变形",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S01",
+              "label": "特殊作业",
+              "standard": "当天是否开展动火、有限空间、高处、吊装、临时用电等作业；开展时核对地点、审批、监护和措施",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            }
+          ],
+          "issues": []
+        },
+        {
+          "id": "2",
+          "name": "设备设施",
+          "checks": [
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "tank_static_eliminator",
+              "area": "储罐区",
+              "label": "人体除静电装置是否完好、规范接地",
+              "standard": "人体除静电装置是否完好、规范接地",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [
+                {
+                  "type": "file",
+                  "value": "cloud://preview/evidence-one.jpg"
+                },
+                {
+                  "type": "file",
+                  "value": "cloud://preview/evidence-two.jpg"
+                }
+              ],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "tank_valves",
+              "area": "储罐区",
+              "label": "阀门位置、操作及泄漏情况是否正常",
+              "standard": "阀门位置、操作及泄漏情况是否正常",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "tank_safety_valve",
+              "area": "储罐区",
+              "label": "安全阀是否在有效状态，铅封和标识是否完好",
+              "standard": "安全阀是否在有效状态，铅封和标识是否完好",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [
+                "6"
+              ],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "tank_bolts",
+              "area": "储罐区",
+              "label": "紧固螺栓是否松动、缺失",
+              "standard": "紧固螺栓是否松动、缺失",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "tank_alarm",
+              "area": "储罐区",
+              "label": "可燃气体报警器是否通电且工作正常",
+              "standard": "可燃气体报警器是否通电且工作正常",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "tank_instruments",
+              "area": "储罐区",
+              "label": "液位计、压力表是否正常",
+              "standard": "液位计、压力表是否正常",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "tank_grounding",
+              "area": "储罐区",
+              "label": "设备接地、管道静电跨接是否完好",
+              "standard": "设备接地、管道静电跨接是否完好",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "tank_insulation_leak",
+              "area": "储罐区",
+              "label": "储罐和管道保温、外观及泄漏情况是否正常",
+              "standard": "储罐和管道保温、外观及泄漏情况是否正常",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "pump_static_eliminator",
+              "area": "柱塞泵/潜液泵区",
+              "label": "除静电装置是否完好、规范接地",
+              "standard": "除静电装置是否完好、规范接地",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "pump_bolts",
+              "area": "柱塞泵/潜液泵区",
+              "label": "泵体及附属设备螺栓是否松动、缺失",
+              "standard": "泵体及附属设备螺栓是否松动、缺失",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "pump_explosion_conduit",
+              "area": "柱塞泵/潜液泵区",
+              "label": "防爆管是否完整，有无破裂",
+              "standard": "防爆管是否完整，有无破裂",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "pump_grounding",
+              "area": "柱塞泵/潜液泵区",
+              "label": "设备接地与静电跨接是否完好",
+              "standard": "设备接地与静电跨接是否完好",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "pump_valves",
+              "area": "柱塞泵/潜液泵区",
+              "label": "阀门开关状态及泄漏情况是否正常",
+              "standard": "阀门开关状态及泄漏情况是否正常",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "pump_safety_valve",
+              "area": "柱塞泵/潜液泵区",
+              "label": "安全阀是否在有效状态，标识是否完好",
+              "standard": "安全阀是否在有效状态，标识是否完好",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [
+                "6"
+              ],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "pump_pipeline_pressure",
+              "area": "柱塞泵/潜液泵区",
+              "label": "运行时管道压力是否处于规定范围且无异常波动",
+              "standard": "运行时管道压力是否处于规定范围且无异常波动",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "pump_appearance_leak",
+              "area": "柱塞泵/潜液泵区",
+              "label": "泵体和管道保温、外观及泄漏情况是否正常",
+              "standard": "泵体和管道保温、外观及泄漏情况是否正常",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "filling_static_eliminator",
+              "area": "充装区",
+              "label": "除静电装置是否完好、规范接地",
+              "standard": "除静电装置是否完好、规范接地",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "filling_tools",
+              "area": "充装区",
+              "label": "现场工具是否齐全且符合防爆要求，无非防爆工具柜",
+              "standard": "现场工具是否齐全且符合防爆要求，无非防爆工具柜",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "filling_explosion_protection",
+              "area": "充装区",
+              "label": "防爆管是否破裂，防爆设备螺栓是否松动",
+              "standard": "防爆管是否破裂，防爆设备螺栓是否松动",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "filling_scale_shell",
+              "area": "充装区",
+              "label": "充装秤防爆壳螺丝是否松动、缺失",
+              "standard": "充装秤防爆壳螺丝是否松动、缺失",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "filling_alarm",
+              "area": "充装区",
+              "label": "可燃气体报警器是否通电且工作正常",
+              "standard": "可燃气体报警器是否通电且工作正常",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "public_control_room_electrical",
+              "area": "全厂公共项",
+              "label": "控制室配电箱、绝缘胶垫和出线口封堵是否正常",
+              "standard": "控制室配电箱、绝缘胶垫和出线口封堵是否正常",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "public_lightning_static_report",
+              "area": "全厂公共项",
+              "label": "防雷防静电检测报告、接地标识和检测频次是否符合要求",
+              "standard": "防雷防静电检测报告、接地标识和检测频次是否符合要求",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [
+                "6"
+              ],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S02",
+              "label": "设备运行及支撑",
+              "standard": "容器、泵、管道的异常振动、异响、摩擦以及支座、基础、支吊架；引用已有外观和螺栓检查",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S03",
+              "label": "安全附件与仪表有效状态",
+              "standard": "核对适用附件及仪表检验校验有效状态和规定标识，引用证书或报告",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S13a",
+              "label": "装卸软管和连接",
+              "standard": "有装卸作业时核对软管及连接状态，引用实际装卸记录",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S14",
+              "label": "专用设施适用检查",
+              "standard": "仅核对实际存在且已明确适用的膨胀补偿、爆破片、阻火器、非金属衬里等设施",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            }
+          ],
+          "issues": []
+        },
+        {
+          "id": "3",
+          "name": "作业行为",
+          "checks": [
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "public_entry_management",
+              "area": "全厂公共项",
+              "label": "车辆、人员入厂登记、区域边界和规定着装是否符合要求",
+              "standard": "车辆、人员入厂登记、区域边界和规定着装是否符合要求",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [
+                "4"
+              ],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "public_cylinder_transport",
+              "area": "全厂公共项",
+              "label": "是否禁止叉车运瓶，专用推车防倾倒、防碰撞措施是否完好",
+              "standard": "是否禁止叉车运瓶，专用推车防倾倒、防碰撞措施是否完好",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [
+                "2"
+              ],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S04",
+              "label": "岗位资格和班前交底",
+              "standard": "核对在岗作业、检查人员资格、岗位安排及班前教育、交底，引用人员记录",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S05",
+              "label": "劳保及作业纪律",
+              "standard": "核对劳动防护用品正确佩戴使用及违章指挥、违章操作、违反劳动纪律",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S06",
+              "label": "充装过程和追溯",
+              "standard": "充装前中后检查、适用计量复检、不合格或超量处置、许可范围及追溯；引用实际充装记录",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S13b",
+              "label": "装卸人员与过程",
+              "standard": "有装卸作业时核对人员、作业前后检查及过程控制",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            }
+          ],
+          "issues": []
+        },
+        {
+          "id": "4",
+          "name": "作业环境",
+          "checks": [
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "tank_housekeeping",
+              "area": "储罐区",
+              "label": "区域是否无杂物，通道是否畅通",
+              "standard": "区域是否无杂物，通道是否畅通",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "filling_housekeeping",
+              "area": "充装区",
+              "label": "区域是否无杂物，充装及消防通道是否畅通",
+              "standard": "区域是否无杂物，充装及消防通道是否畅通",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [
+                "5"
+              ],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "public_cylinder_zoning",
+              "area": "全厂公共项",
+              "label": "气瓶是否分区存放，空瓶、满瓶标签是否清晰",
+              "standard": "气瓶是否分区存放，空瓶、满瓶标签是否清晰",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [
+                "6"
+              ],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S07",
+              "label": "作业环境补充",
+              "standard": "核对普通照明、通风、物料堆放和适用环境条件；不设通用温湿度限值",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S13c",
+              "label": "装卸天气与工况",
+              "standard": "有装卸作业时核对天气和异常工况",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            }
+          ],
+          "issues": []
+        },
+        {
+          "id": "5",
+          "name": "消防设施",
+          "checks": [
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "filling_explosion_emergency_light",
+              "area": "充装区",
+              "label": "防爆应急灯",
+              "standard": "防爆应急灯",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [
+                "2"
+              ],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "filling_extinguisher",
+              "area": "充装区",
+              "label": "灭火器是否在有效状态，压力、铅封及巡检标签是否正常",
+              "standard": "灭火器是否在有效状态，压力、铅封及巡检标签是否正常",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "public_fire_records",
+              "area": "全厂公共项",
+              "label": "灭火器、消防栓等消防设施年检、巡检标签和台账频次是否符合要求",
+              "standard": "灭火器、消防栓等消防设施年检、巡检标签和台账频次是否符合要求",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S08",
+              "label": "消防栓及配套器材",
+              "standard": "核对现场状态、取用条件、缺损等明显异常；不要求每日放水或动作试验",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            }
+          ],
+          "issues": []
+        },
+        {
+          "id": "6",
+          "name": "安全标志",
+          "checks": [
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "tank_signage",
+              "area": "储罐区",
+              "label": "安全标志与设备标牌是否齐全、清晰、正常",
+              "standard": "安全标志与设备标牌是否齐全、清晰、正常",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "pump_signage",
+              "area": "柱塞泵/潜液泵区",
+              "label": "安全标志与设备标牌是否齐全、正常",
+              "standard": "安全标志与设备标牌是否齐全、正常",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "filling_signage",
+              "area": "充装区",
+              "label": "安全标志与设备标牌是否齐全、正常",
+              "standard": "安全标志与设备标牌是否齐全、正常",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S09",
+              "label": "气瓶及变化标志",
+              "standard": "核对充装合格标签、气瓶警示标签和新增或变化标志，引用充装收发资料",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            }
+          ],
+          "issues": []
+        },
+        {
+          "id": "7",
+          "name": "其他",
+          "checks": [
+            {
+              "source_type": "station_inspection",
+              "source_id": "preview-inspection",
+              "source_revision": 1,
+              "item_code": "public_emergency_supplies",
+              "area": "全厂公共项",
+              "label": "应急物资及清单是否齐全，正压式空气呼吸器、手持可燃气体探测器等是否在位",
+              "standard": "应急物资及清单是否齐全，正压式空气呼吸器、手持可燃气体探测器等是否在位",
+              "result_code": "normal",
+              "note": "",
+              "evidence": [],
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S10",
+              "label": "应急物资状态",
+              "standard": "核对外观、配套和有效状态；引用原全厂公共项照片，定期记录保留相应周期",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S11",
+              "label": "内部报告和投诉",
+              "standard": "确认当日内部报告、投诉举报等安全问题，存在时登记或关联已有隐患",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            },
+            {
+              "source_type": "supplement",
+              "source_id": "preview-supplement",
+              "source_revision": 0,
+              "item_code": "S12",
+              "label": "未关闭隐患临时管控",
+              "standard": "核对未关闭隐患的临时管控是否落实以及恶化或变化，引用原隐患编号",
+              "result_code": "",
+              "note": "",
+              "reason": "",
+              "evidence": [],
+              "details": {},
+              "related_categories": [],
+              "hazard_ids": []
+            }
+          ],
+          "issues": []
+        }
+      ],
+      "inspections": [
+        {
+          "_id": "preview-inspection",
+          "inspection_no": "LOCAL-20261015-0001",
+          "station_id": "XTNY-001",
+          "station_name_snapshot": "无极县新拓能源开发有限公司",
+          "template_code": "station_safety_standard",
+          "template_version": 3,
+          "revision": 1,
+          "inspection_date": "2026-10-15",
+          "inspection_at": 1792027800000,
+          "started_at": 1792026000000,
+          "ended_at": 1792027800000,
+          "submitted_at": 1792027801000,
+          "weather": "晴（本地示例）",
+          "inspector_name": "模拟安全员",
+          "items": [
+            {
+              "area_code": "tank_area",
+              "area_label_snapshot": "储罐区",
+              "item_code": "tank_static_eliminator",
+              "item_label_snapshot": "人体除静电装置是否完好、规范接地",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [
+                "cloud://preview/evidence-one.jpg",
+                "cloud://preview/evidence-two.jpg"
+              ],
+              "photo_urls": []
+            },
+            {
+              "area_code": "tank_area",
+              "area_label_snapshot": "储罐区",
+              "item_code": "tank_valves",
+              "item_label_snapshot": "阀门位置、操作及泄漏情况是否正常",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "tank_area",
+              "area_label_snapshot": "储罐区",
+              "item_code": "tank_safety_valve",
+              "item_label_snapshot": "安全阀是否在有效状态，铅封和标识是否完好",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "tank_area",
+              "area_label_snapshot": "储罐区",
+              "item_code": "tank_bolts",
+              "item_label_snapshot": "紧固螺栓是否松动、缺失",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "tank_area",
+              "area_label_snapshot": "储罐区",
+              "item_code": "tank_alarm",
+              "item_label_snapshot": "可燃气体报警器是否通电且工作正常",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "tank_area",
+              "area_label_snapshot": "储罐区",
+              "item_code": "tank_signage",
+              "item_label_snapshot": "安全标志与设备标牌是否齐全、清晰、正常",
+              "category_code": "6",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "tank_area",
+              "area_label_snapshot": "储罐区",
+              "item_code": "tank_instruments",
+              "item_label_snapshot": "液位计、压力表是否正常",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "tank_area",
+              "area_label_snapshot": "储罐区",
+              "item_code": "tank_grounding",
+              "item_label_snapshot": "设备接地、管道静电跨接是否完好",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "tank_area",
+              "area_label_snapshot": "储罐区",
+              "item_code": "tank_housekeeping",
+              "item_label_snapshot": "区域是否无杂物，通道是否畅通",
+              "category_code": "4",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "tank_area",
+              "area_label_snapshot": "储罐区",
+              "item_code": "tank_insulation_leak",
+              "item_label_snapshot": "储罐和管道保温、外观及泄漏情况是否正常",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "pump_area",
+              "area_label_snapshot": "柱塞泵/潜液泵区",
+              "item_code": "pump_static_eliminator",
+              "item_label_snapshot": "除静电装置是否完好、规范接地",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "pump_area",
+              "area_label_snapshot": "柱塞泵/潜液泵区",
+              "item_code": "pump_bolts",
+              "item_label_snapshot": "泵体及附属设备螺栓是否松动、缺失",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "pump_area",
+              "area_label_snapshot": "柱塞泵/潜液泵区",
+              "item_code": "pump_explosion_conduit",
+              "item_label_snapshot": "防爆管是否完整，有无破裂",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "pump_area",
+              "area_label_snapshot": "柱塞泵/潜液泵区",
+              "item_code": "pump_grounding",
+              "item_label_snapshot": "设备接地与静电跨接是否完好",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "pump_area",
+              "area_label_snapshot": "柱塞泵/潜液泵区",
+              "item_code": "pump_valves",
+              "item_label_snapshot": "阀门开关状态及泄漏情况是否正常",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "pump_area",
+              "area_label_snapshot": "柱塞泵/潜液泵区",
+              "item_code": "pump_safety_valve",
+              "item_label_snapshot": "安全阀是否在有效状态，标识是否完好",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "pump_area",
+              "area_label_snapshot": "柱塞泵/潜液泵区",
+              "item_code": "pump_signage",
+              "item_label_snapshot": "安全标志与设备标牌是否齐全、正常",
+              "category_code": "6",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "pump_area",
+              "area_label_snapshot": "柱塞泵/潜液泵区",
+              "item_code": "pump_pipeline_pressure",
+              "item_label_snapshot": "运行时管道压力是否处于规定范围且无异常波动",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "pump_area",
+              "area_label_snapshot": "柱塞泵/潜液泵区",
+              "item_code": "pump_appearance_leak",
+              "item_label_snapshot": "泵体和管道保温、外观及泄漏情况是否正常",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "filling_area",
+              "area_label_snapshot": "充装区",
+              "item_code": "filling_static_eliminator",
+              "item_label_snapshot": "除静电装置是否完好、规范接地",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "filling_area",
+              "area_label_snapshot": "充装区",
+              "item_code": "filling_explosion_emergency_light",
+              "item_label_snapshot": "防爆应急灯",
+              "category_code": "5",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "filling_area",
+              "area_label_snapshot": "充装区",
+              "item_code": "filling_hanging_scale",
+              "item_label_snapshot": "吊秤及防脱钩是否完好、无变形",
+              "category_code": "1",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "filling_area",
+              "area_label_snapshot": "充装区",
+              "item_code": "filling_tools",
+              "item_label_snapshot": "现场工具是否齐全且符合防爆要求，无非防爆工具柜",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "filling_area",
+              "area_label_snapshot": "充装区",
+              "item_code": "filling_explosion_protection",
+              "item_label_snapshot": "防爆管是否破裂，防爆设备螺栓是否松动",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "filling_area",
+              "area_label_snapshot": "充装区",
+              "item_code": "filling_scale_shell",
+              "item_label_snapshot": "充装秤防爆壳螺丝是否松动、缺失",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "filling_area",
+              "area_label_snapshot": "充装区",
+              "item_code": "filling_alarm",
+              "item_label_snapshot": "可燃气体报警器是否通电且工作正常",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "filling_area",
+              "area_label_snapshot": "充装区",
+              "item_code": "filling_signage",
+              "item_label_snapshot": "安全标志与设备标牌是否齐全、正常",
+              "category_code": "6",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "filling_area",
+              "area_label_snapshot": "充装区",
+              "item_code": "filling_housekeeping",
+              "item_label_snapshot": "区域是否无杂物，充装及消防通道是否畅通",
+              "category_code": "4",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "filling_area",
+              "area_label_snapshot": "充装区",
+              "item_code": "filling_extinguisher",
+              "item_label_snapshot": "灭火器是否在有效状态，压力、铅封及巡检标签是否正常",
+              "category_code": "5",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "public_area",
+              "area_label_snapshot": "全厂公共项",
+              "item_code": "public_emergency_supplies",
+              "item_label_snapshot": "应急物资及清单是否齐全，正压式空气呼吸器、手持可燃气体探测器等是否在位",
+              "category_code": "7",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "public_area",
+              "area_label_snapshot": "全厂公共项",
+              "item_code": "public_control_room_electrical",
+              "item_label_snapshot": "控制室配电箱、绝缘胶垫和出线口封堵是否正常",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "public_area",
+              "area_label_snapshot": "全厂公共项",
+              "item_code": "public_cylinder_zoning",
+              "item_label_snapshot": "气瓶是否分区存放，空瓶、满瓶标签是否清晰",
+              "category_code": "4",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "public_area",
+              "area_label_snapshot": "全厂公共项",
+              "item_code": "public_entry_management",
+              "item_label_snapshot": "车辆、人员入厂登记、区域边界和规定着装是否符合要求",
+              "category_code": "3",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "public_area",
+              "area_label_snapshot": "全厂公共项",
+              "item_code": "public_cylinder_transport",
+              "item_label_snapshot": "是否禁止叉车运瓶，专用推车防倾倒、防碰撞措施是否完好",
+              "category_code": "3",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "public_area",
+              "area_label_snapshot": "全厂公共项",
+              "item_code": "public_fire_records",
+              "item_label_snapshot": "灭火器、消防栓等消防设施年检、巡检标签和台账频次是否符合要求",
+              "category_code": "5",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            },
+            {
+              "area_code": "public_area",
+              "area_label_snapshot": "全厂公共项",
+              "item_code": "public_lightning_static_report",
+              "item_label_snapshot": "防雷防静电检测报告、接地标识和检测频次是否符合要求",
+              "category_code": "2",
+              "result_code": "normal",
+              "is_abnormal": false,
+              "photo_file_ids": [],
+              "photo_urls": []
+            }
+          ]
+        }
+      ],
+      "supplement_history": [],
+      "issues": [],
+      "historical_pending": [],
+      "observations": [],
+      "missing": [
+        "S01 特殊作业待检查",
+        "S02 设备运行及支撑待检查",
+        "S03 安全附件与仪表有效状态待检查",
+        "S04 岗位资格和班前交底待检查",
+        "S05 劳保及作业纪律待检查",
+        "S06 充装过程和追溯待检查",
+        "S07 作业环境补充待检查",
+        "S08 消防栓及配套器材待检查",
+        "S09 气瓶及变化标志待检查",
+        "S10 应急物资状态待检查",
+        "S11 内部报告和投诉待检查",
+        "S12 未关闭隐患临时管控待检查",
+        "S13a 装卸软管和连接待检查",
+        "S13b 装卸人员与过程待检查",
+        "S13c 装卸天气与工况待检查",
+        "S14 专用设施适用检查待检查"
+      ],
+      "complete": false,
+      "source_fingerprint": "c0d3832a60072111a190fa62340f3ab1224f887f859442868e3ed9823268cecf",
+      "summary": {
+        "inspection_count": 1,
+        "issue_count": 0,
+        "abnormal_check_count": 0,
+        "historical_pending_count": 0,
+        "zero_report_allowed": false
+      }
+    },
+    "stale": false
+  }
+}

@@ -22,6 +22,12 @@
 					<text class="module-card__description">储罐区、泵区、充装区和全厂公共项，共36项并跟踪隐患整改。</text>
 					<text class="module-card__action">进入厂站巡检 →</text>
 				</view>
+				<view v-if="canManageSafety" class="module-card module-card--management" @click="open('/pages/safety-management/home')">
+					<text class="module-card__tag">企业管理台账</text>
+					<text class="module-card__title">日管控 · 周排查 · 月调度</text>
+					<text class="module-card__description">引用厂站巡检与隐患事实，完成补充检查、日表核对和周月管理记录。</text>
+					<text class="module-card__action">进入安全管理 →</text>
+				</view>
 			</view>
 		</view>
 	</AppPage>
@@ -33,8 +39,10 @@ import AppPage from '@/components/base/AppPage.vue'
 import { clearAuth, getUser } from '@/services/auth'
 import { normalizeRoleTemplate } from '@/services/pageAclRegistry'
 import { goLogin } from '@/services/navigation'
+import { canViewPage } from '@/services/pageAcl'
 
 const user = ref(getUser() || {})
+const canManageSafety = computed(() => canViewPage('/pages/safety-management/home'))
 const displayName = computed(() => user.value.nickname || user.value.username || '巡检员')
 const roleLabel = computed(() => normalizeRoleTemplate(user.value.role_template || user.value.role) === 'superadmin' ? '超级管理员' : '安全巡检员')
 function open(url) { uni.navigateTo({ url }) }
@@ -54,6 +62,7 @@ function logout() { clearAuth(); goLogin() }
 .module-card { display: flex; flex-direction: column; min-height: 260rpx; padding: 30rpx; color: #fff; border-radius: 28rpx; box-shadow: 0 18rpx 38rpx rgba(15,23,42,.14); }
 .module-card--home { background: linear-gradient(135deg,#0f766e,#115e59); }
 .module-card--station { background: linear-gradient(135deg,#c2410c,#9a3412); }
+.module-card--management { background: linear-gradient(135deg,#155e75,#164e63); }
 .module-card__tag { align-self: flex-start; padding: 7rpx 14rpx; border-radius: 999rpx; background: rgba(255,255,255,.18); font-size: 20rpx; }
 .module-card__title { margin-top: 18rpx; font-size: 33rpx; font-weight: 900; }
 .module-card__description { margin-top: 12rpx; font-size: 23rpx; line-height: 1.6; opacity: .9; }

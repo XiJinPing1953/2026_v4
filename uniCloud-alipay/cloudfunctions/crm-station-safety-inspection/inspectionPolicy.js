@@ -79,7 +79,7 @@ const TEMPLATE_V1 = Object.freeze({
 	])
 })
 
-const TEMPLATE = Object.freeze({
+const TEMPLATE_V2 = Object.freeze({
 	...TEMPLATE_V1,
 	version: 2,
 	areas: Object.freeze(
@@ -113,7 +113,41 @@ const TEMPLATE = Object.freeze({
 	)
 })
 
-const TEMPLATES = Object.freeze([TEMPLATE, TEMPLATE_V1])
+const CLASSIFICATION_VERSION = 1
+const CATEGORIES = Object.freeze([
+	{ code: '1', label: '高风险作业' }, { code: '2', label: '设备设施' },
+	{ code: '3', label: '作业行为' }, { code: '4', label: '作业环境' },
+	{ code: '5', label: '消防设施' }, { code: '6', label: '安全标志' }, { code: '7', label: '其他' }
+])
+const CATEGORY_ITEMS = Object.freeze({
+	1: ['filling_hanging_scale'],
+	2: ['tank_static_eliminator', 'tank_valves', 'tank_safety_valve', 'tank_bolts', 'tank_alarm', 'tank_instruments', 'tank_grounding', 'tank_insulation_leak', 'pump_static_eliminator', 'pump_bolts', 'pump_explosion_conduit', 'pump_grounding', 'pump_valves', 'pump_safety_valve', 'pump_pipeline_pressure', 'pump_appearance_leak', 'filling_static_eliminator', 'filling_tools', 'filling_explosion_protection', 'filling_scale_shell', 'filling_alarm', 'public_control_room_electrical', 'public_lightning_static_report'],
+	3: ['public_entry_management', 'public_cylinder_transport'],
+	4: ['tank_housekeeping', 'filling_housekeeping', 'public_cylinder_zoning'],
+	5: ['filling_explosion_emergency_light', 'filling_extinguisher', 'public_fire_records'],
+	6: ['tank_signage', 'pump_signage', 'filling_signage'],
+	7: ['public_emergency_supplies']
+})
+const ITEM_CATEGORIES = Object.freeze(Object.fromEntries(Object.entries(CATEGORY_ITEMS).flatMap(([category, codes]) => codes.map((code) => [code, category]))))
+const TEMPLATE = Object.freeze({
+	...TEMPLATE_V2,
+	version: 3,
+	classification_version: CLASSIFICATION_VERSION,
+	categories: CATEGORIES,
+	areas: Object.freeze(TEMPLATE_V2.areas.map((entry) => area(entry.code, entry.label, entry.items.map((definition) => {
+		const category = CATEGORIES.find((value) => value.code === ITEM_CATEGORIES[definition.code])
+		return Object.freeze({
+			...definition,
+			category_code: category.code,
+			category_label: category.label,
+			options: definition.code === 'pump_pipeline_pressure'
+				? Object.freeze([...RESULT_OPTIONS, { code: 'not_running', label: '未运行', is_abnormal: false }])
+				: RESULT_OPTIONS
+		})
+	}))))
+})
+
+const TEMPLATES = Object.freeze([TEMPLATE, TEMPLATE_V2, TEMPLATE_V1])
 
 function normalizeString(value) {
 	return value == null ? '' : String(value).trim()
@@ -142,6 +176,31 @@ function isValidDateText(value) {
 	const timestamp = Date.parse(`${text}T00:00:00+08:00`)
 	if (!Number.isFinite(timestamp)) return false
 	return new Date(timestamp + 8 * 60 * 60 * 1000).toISOString().slice(0, 10) === text
+}
+
+function normalizeIncidentFacts(raw = {}, now = Date.now()) {
+	const validTime = (value) => Number.isFinite(Number(value)) && Number(value) > 0 && Number(value) <= now + 60000
+	let report = null
+	let onSite = null
+	if (raw.report) {
+		const value = raw.report
+		if (!validTime(value.reported_at) || !normalizeString(value.reported_to) || !normalizeString(value.method)) {
+			return { ok: false, msg: '上报记录须填写实际时间、上报对象和上报方式' }
+		}
+		report = { reported_at: Number(value.reported_at), reported_to: normalizeString(value.reported_to), method: normalizeString(value.method), temporary_measure: normalizeString(value.temporary_measure), requirements: normalizeString(value.requirements) }
+		if ([report.reported_to, report.method].some((value) => value.length > 100) || [report.temporary_measure, report.requirements].some((value) => value.length > 1000)) return { ok: false, msg: '上报记录内容超长' }
+	}
+	if (raw.on_site_rectification) {
+		const value = raw.on_site_rectification
+		const photos = normalizePhotoIds(value.photo_file_ids, 3)
+		if (!validTime(value.completed_at) || !normalizeString(value.note) || !validTime(value.rechecked_at) || Number(value.rechecked_at) < Number(value.completed_at) || !normalizeString(value.recheck_note)) {
+			return { ok: false, msg: '当场整改须记录实际措施、完成时间及不早于完成时间的复查时间和结论' }
+		}
+		if (!Array.isArray(value.photo_file_ids) || photos.length !== value.photo_file_ids.length || photos.length < 1 || photos.length > 3) return { ok: false, msg: '当场整改需1–3张有效整改照片' }
+		onSite = { completed_at: Number(value.completed_at), note: normalizeString(value.note), photo_file_ids: photos, rechecked_at: Number(value.rechecked_at), recheck_note: normalizeString(value.recheck_note) }
+		if (onSite.note.length > 1000 || onSite.recheck_note.length > 1000) return { ok: false, msg: '当场整改记录最多1000字' }
+	}
+	return { ok: true, data: { report, on_site_rectification: onSite } }
 }
 
 function templateItems(template = TEMPLATE) {
@@ -178,8 +237,12 @@ function normalizeInspectionItems(value, template = TEMPLATE) {
 		const rawItem = rawByCode.get(templateItem.code)
 		if (!rawItem) return { ok: false, msg: `缺少“${templateItem.label}”检查结果` }
 		const resultCode = normalizeString(rawItem.result_code ?? rawItem.resultCode)
-		const option = RESULT_OPTIONS.find((entry) => entry.code === resultCode)
+		const option = templateItem.options.find((entry) => entry.code === resultCode)
 		if (!option) return { ok: false, msg: `请选择“${templateItem.label}”的正常或异常结果` }
+		const notRunningReason = normalizeString(rawItem.not_running_reason)
+		if (resultCode === 'not_running' && (!notRunningReason || notRunningReason.length > 500)) {
+			return { ok: false, msg: '未运行须填写原因（最多500字），不能以未运行替代设备完好检查' }
+		}
 
 		const rawPhotos = rawItem.photo_file_ids ?? rawItem.photos
 		const rawPhotoCount = Array.isArray(rawPhotos) ? rawPhotos.length : 0
@@ -223,6 +286,10 @@ function normalizeInspectionItems(value, template = TEMPLATE) {
 		photoFileIds.forEach((fileId) => usedMediaFileIds.add(fileId))
 		if (abnormal) usedMediaFileIds.add(responsibleSignatureFileId)
 
+		const facts = normalizeIncidentFacts(abnormal ? rawItem : {})
+		if (!facts.ok) return facts
+		if (facts.data.on_site_rectification?.photo_file_ids.some((id) => usedMediaFileIds.has(id))) return { ok: false, msg: '当场整改照片不能重复使用巡检或签名照片' }
+		facts.data.on_site_rectification?.photo_file_ids.forEach((id) => usedMediaFileIds.add(id))
 		normalized.push({
 			area_code: areaEntry.code,
 			area_label_snapshot: areaEntry.label,
@@ -238,8 +305,18 @@ function normalizeInspectionItems(value, template = TEMPLATE) {
 			planned_measure: abnormal ? plannedMeasure : '',
 			planned_complete_date: abnormal ? plannedCompleteDate : '',
 			responsible_signature_file_id: abnormal ? responsibleSignatureFileId : '',
-			photo_file_ids: photoFileIds
+			photo_file_ids: photoFileIds,
+			...(template.classification_version ? {
+				classification_version: template.classification_version,
+				category_code: templateItem.category_code,
+				category_label_snapshot: templateItem.category_label,
+				not_running_reason: resultCode === 'not_running' ? notRunningReason : '',
+				linked_hazard_id: abnormal ? normalizeString(rawItem.linked_hazard_id) : '',
+				recurrence_of: abnormal ? normalizeString(rawItem.recurrence_of) : '',
+				...facts.data
+			} : {})
 		})
+		if (abnormal && rawItem.linked_hazard_id && rawItem.recurrence_of) return { ok: false, msg: '同一问题不能同时选择未关闭隐患复见和已关闭隐患复发' }
 	}
 	return { ok: true, data: normalized }
 }
@@ -258,9 +335,22 @@ function normalizeEditablePayload(data = {}, options = {}) {
 	if (inspectorName.length > 50) return { ok: false, msg: '巡检员姓名最多 50 字' }
 	const remark = normalizeString(data.remark)
 	if (remark.length > 1000) return { ok: false, msg: '巡检备注最多 1000 字' }
+	let actual = {}
+	const hasActualMetadata = [data.started_at, data.ended_at, data.weather].some((value) => value != null && normalizeString(value) !== '')
+	if (template.classification_version || hasActualMetadata) {
+		const startedAt = Number(data.started_at)
+		const endedAt = Number(data.ended_at)
+		const weather = normalizeString(data.weather)
+		if (!Number.isFinite(startedAt) || startedAt <= 0 || !Number.isFinite(endedAt) || endedAt < startedAt || endedAt > Number(options.now || Date.now()) + 60000) {
+			return { ok: false, msg: '请填写真实有效的巡查开始、结束时间，结束不能早于开始或晚于当前时间' }
+		}
+		if (!weather || weather.length > 100) return { ok: false, msg: '请填写天气（最多100字）' }
+		actual = { started_at: startedAt, ended_at: endedAt, weather, ...(template.classification_version ? { classification_version: template.classification_version } : {}) }
+	}
 	return {
 		ok: true,
 		data: {
+				...actual,
 			station_id: STATION.id,
 			station_name_snapshot: STATION.name,
 			template_code: template.code,
@@ -282,6 +372,9 @@ function normalizeClientSubmissionId(value) {
 module.exports = {
 	STATION,
 	TEMPLATE,
+	CLASSIFICATION_VERSION,
+	CATEGORIES,
+	ITEM_CATEGORIES,
 	RESULT_OPTIONS,
 	getTemplate,
 	templateItems,
@@ -290,6 +383,7 @@ module.exports = {
 	normalizePhotoIds,
 	isValidDateText,
 	normalizeInspectionItems,
+	normalizeIncidentFacts,
 	normalizeEditablePayload,
 	normalizeClientSubmissionId
 }

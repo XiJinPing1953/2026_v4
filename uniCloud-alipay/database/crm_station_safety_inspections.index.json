@@ -1,0 +1,87 @@
+[
+  {
+    "IndexName": "uniq_client_submission_id",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "client_submission_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": true,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "uniq_inspection_no",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "inspection_no",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": true,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_station_inspection_at",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "station_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "inspection_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_result_inspection_at",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "overall_result",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "inspection_at",
+          "Direction": "-1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_station_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "station_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "inspection_date",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  }
+]

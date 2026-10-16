@@ -16,7 +16,7 @@
 			<text v-else-if="!latest.length" class="empty-text">暂无厂站巡检记录</text>
 			<view v-for="row in latest" :key="row._id" class="latest-row" @click="openDetail(row)">
 				<view><text class="latest-row__no">{{ row.inspection_no }}</text><text class="latest-row__meta">{{ formatDateTime(row.inspection_at) }} · {{ row.inspector_name }}</text></view>
-				<text :class="['result-pill', { 'result-pill--danger': row.overall_result === 'abnormal' }]">{{ row.overall_result === 'abnormal' ? `${row.abnormal_count}项异常` : '正常' }}</text>
+				<text :class="['result-pill', { 'result-pill--danger': row.overall_result === 'abnormal' }]">{{ row.overall_result === 'abnormal' ? `${row.abnormal_count}项异常` : '未记录异常' }}</text>
 			</view>
 		</view>
 	</StationSafetyInspectionShell>

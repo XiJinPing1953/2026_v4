@@ -27,18 +27,42 @@
     "updated_at"
   ],
   "properties": {
-    "_id": { "bsonType": "string" },
-    "client_submission_id": { "bsonType": "string" },
-    "inspection_no": { "bsonType": "string" },
-    "inspection_number_date": { "bsonType": "string" },
-    "inspection_sequence": { "bsonType": "int" },
-    "station_id": { "bsonType": "string" },
-    "station_name_snapshot": { "bsonType": "string" },
-    "inspection_at": { "bsonType": "number" },
-    "inspection_date": { "bsonType": "string" },
-    "template_code": { "bsonType": "string" },
-    "template_version": { "bsonType": "int" },
-    "template_title_snapshot": { "bsonType": "string" },
+    "_id": {
+      "bsonType": "string"
+    },
+    "client_submission_id": {
+      "bsonType": "string"
+    },
+    "inspection_no": {
+      "bsonType": "string"
+    },
+    "inspection_number_date": {
+      "bsonType": "string"
+    },
+    "inspection_sequence": {
+      "bsonType": "int"
+    },
+    "station_id": {
+      "bsonType": "string"
+    },
+    "station_name_snapshot": {
+      "bsonType": "string"
+    },
+    "inspection_at": {
+      "bsonType": "number"
+    },
+    "inspection_date": {
+      "bsonType": "string"
+    },
+    "template_code": {
+      "bsonType": "string"
+    },
+    "template_version": {
+      "bsonType": "int"
+    },
+    "template_title_snapshot": {
+      "bsonType": "string"
+    },
     "items": {
       "bsonType": "array",
       "items": {
@@ -62,46 +86,228 @@
           "photo_file_ids"
         ],
         "properties": {
-          "area_code": { "bsonType": "string" },
-          "area_label_snapshot": { "bsonType": "string" },
-          "item_code": { "bsonType": "string" },
-          "item_label_snapshot": { "bsonType": "string" },
-          "hazard_category_snapshot": { "bsonType": "string" },
-          "result_code": { "bsonType": "string", "enum": ["normal", "abnormal"] },
-          "result_label_snapshot": { "bsonType": "string" },
-          "is_abnormal": { "bsonType": "bool" },
-          "issue_note": { "bsonType": "string" },
-          "hazard_level": { "bsonType": "string" },
-          "responsible_name": { "bsonType": "string" },
-          "planned_measure": { "bsonType": "string" },
-          "planned_complete_date": { "bsonType": "string" },
-          "responsible_signature_file_id": { "bsonType": "string" },
-          "photo_file_ids": { "bsonType": "array", "items": { "bsonType": "string" } }
+          "area_code": {
+            "bsonType": "string"
+          },
+          "area_label_snapshot": {
+            "bsonType": "string"
+          },
+          "item_code": {
+            "bsonType": "string"
+          },
+          "item_label_snapshot": {
+            "bsonType": "string"
+          },
+          "hazard_category_snapshot": {
+            "bsonType": "string"
+          },
+          "result_code": {
+            "bsonType": "string",
+            "enum": [
+              "normal",
+              "abnormal",
+              "not_running"
+            ]
+          },
+          "result_label_snapshot": {
+            "bsonType": "string"
+          },
+          "is_abnormal": {
+            "bsonType": "bool"
+          },
+          "issue_note": {
+            "bsonType": "string"
+          },
+          "hazard_level": {
+            "bsonType": "string"
+          },
+          "responsible_name": {
+            "bsonType": "string"
+          },
+          "planned_measure": {
+            "bsonType": "string"
+          },
+          "planned_complete_date": {
+            "bsonType": "string"
+          },
+          "responsible_signature_file_id": {
+            "bsonType": "string"
+          },
+          "photo_file_ids": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "category_code": {
+            "bsonType": "string"
+          },
+          "category_label_snapshot": {
+            "bsonType": "string"
+          },
+          "not_running_reason": {
+            "bsonType": "string"
+          },
+          "linked_hazard_id": {
+            "bsonType": "string"
+          },
+          "recurrence_of": {
+            "bsonType": "string"
+          },
+          "classification_version": {
+            "bsonType": "int"
+          },
+          "related_categories": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "report": {
+            "bsonType": [
+              "object",
+              "null"
+            ]
+          },
+          "on_site_rectification": {
+            "bsonType": [
+              "object",
+              "null"
+            ]
+          }
         }
       }
     },
-    "overall_result": { "bsonType": "string", "enum": ["normal", "abnormal"] },
-    "inspector_name": { "bsonType": "string" },
-    "inspector_user_id": { "bsonType": "string" },
-    "inspector_username_snapshot": { "bsonType": "string" },
-    "abnormal_count": { "bsonType": "int" },
-    "photo_count": { "bsonType": "int" },
-    "remark": { "bsonType": "string" },
-    "status": { "bsonType": "string", "enum": ["submitted"] },
-    "source": { "bsonType": "string", "enum": ["h5"] },
-    "created_at": { "bsonType": "number" },
-    "created_by": { "bsonType": "string" },
-    "created_by_name": { "bsonType": "string" },
-    "updated_at": { "bsonType": "number" },
-    "last_edited_at": { "bsonType": ["number", "null"] },
-    "last_edited_by": { "bsonType": "string" },
-    "last_edited_by_name": { "bsonType": "string" }
+    "overall_result": {
+      "bsonType": "string",
+      "enum": [
+        "normal",
+        "abnormal"
+      ]
+    },
+    "inspector_name": {
+      "bsonType": "string"
+    },
+    "inspector_user_id": {
+      "bsonType": "string"
+    },
+    "inspector_username_snapshot": {
+      "bsonType": "string"
+    },
+    "abnormal_count": {
+      "bsonType": "int"
+    },
+    "photo_count": {
+      "bsonType": "int"
+    },
+    "remark": {
+      "bsonType": "string"
+    },
+    "status": {
+      "bsonType": "string",
+      "enum": [
+        "submitted"
+      ]
+    },
+    "source": {
+      "bsonType": "string",
+      "enum": [
+        "h5"
+      ]
+    },
+    "created_at": {
+      "bsonType": "number"
+    },
+    "created_by": {
+      "bsonType": "string"
+    },
+    "created_by_name": {
+      "bsonType": "string"
+    },
+    "updated_at": {
+      "bsonType": "number"
+    },
+    "last_edited_at": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "last_edited_by": {
+      "bsonType": "string"
+    },
+    "last_edited_by_name": {
+      "bsonType": "string"
+    },
+    "started_at": {
+      "bsonType": "number"
+    },
+    "ended_at": {
+      "bsonType": "number"
+    },
+    "submitted_at": {
+      "bsonType": "number"
+    },
+    "weather": {
+      "bsonType": "string"
+    },
+    "revision_reason": {
+      "bsonType": "string"
+    },
+    "revision": {
+      "bsonType": "int"
+    },
+    "classification_version": {
+      "bsonType": "int"
+    },
+    "source_revisions": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "object"
+      }
+    }
   },
-  "permission": { "read": false, "create": false, "update": false, "delete": false },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
   "indexes": [
-    { "key": { "client_submission_id": 1 }, "name": "uniq_client_submission_id", "unique": true },
-    { "key": { "inspection_no": 1 }, "name": "uniq_inspection_no", "unique": true },
-    { "key": { "station_id": 1, "inspection_at": -1 }, "name": "idx_station_inspection_at" },
-    { "key": { "overall_result": 1, "inspection_at": -1 }, "name": "idx_result_inspection_at" }
+    {
+      "key": {
+        "client_submission_id": 1
+      },
+      "name": "uniq_client_submission_id",
+      "unique": true
+    },
+    {
+      "key": {
+        "inspection_no": 1
+      },
+      "name": "uniq_inspection_no",
+      "unique": true
+    },
+    {
+      "key": {
+        "station_id": 1,
+        "inspection_at": -1
+      },
+      "name": "idx_station_inspection_at"
+    },
+    {
+      "key": {
+        "overall_result": 1,
+        "inspection_at": -1
+      },
+      "name": "idx_result_inspection_at"
+    },
+    {
+      "key": {
+        "station_id": 1,
+        "inspection_date": 1
+      },
+      "name": "idx_station_date"
+    }
   ]
 }

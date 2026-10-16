@@ -1,0 +1,61 @@
+{
+  "bsonType": "object",
+  "description": "crm_safety_revisions",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "record_id",
+    "station_id",
+    "revision",
+    "snapshot",
+    "replaced_at",
+    "replaced_by",
+    "revision_reason"
+  ],
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "kind": {
+      "bsonType": "string"
+    },
+    "record_id": {
+      "bsonType": "string"
+    },
+    "station_id": {
+      "bsonType": "string"
+    },
+    "replaced_by": {
+      "bsonType": "string"
+    },
+    "revision_reason": {
+      "bsonType": "string"
+    },
+    "revision": {
+      "bsonType": "int"
+    },
+    "snapshot": {
+      "bsonType": "object"
+    },
+    "replaced_at": {
+      "bsonType": "number"
+    }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    {
+      "key": {
+        "kind": 1,
+        "record_id": 1,
+        "revision": 1
+      },
+      "name": "uniq_record_revision",
+      "unique": true
+    }
+  ]
+}

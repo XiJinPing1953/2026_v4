@@ -14,7 +14,7 @@
 		<view v-else-if="!rows.length" class="state-card">当前条件下没有巡检记录</view>
 		<view v-else class="history-list">
 			<view v-for="row in rows" :key="row._id" class="history-card" @click="openDetail(row)">
-				<view class="history-card__head"><text class="history-card__no">{{ row.inspection_no }}</text><text :class="['status-pill', { 'status-pill--danger': row.overall_result === 'abnormal' }]">{{ row.overall_result === 'abnormal' ? '异常' : '正常' }}</text></view>
+				<view class="history-card__head"><text class="history-card__no">{{ row.inspection_no }}</text><text :class="['status-pill', { 'status-pill--danger': row.overall_result === 'abnormal' }]">{{ row.overall_result === 'abnormal' ? '异常' : '未记录异常' }}</text></view>
 				<text class="history-card__time">{{ formatDateTime(row.inspection_at) }}</text>
 				<view class="history-card__meta"><text>巡检员：{{ row.inspector_name }}</text><text>照片：{{ row.photo_count }} 张</text><text>隐患：{{ row.abnormal_count }} 项</text></view>
 			</view>
@@ -28,7 +28,7 @@ import { ref, onMounted } from 'vue'
 import StationSafetyInspectionShell from './StationSafetyInspectionShell.vue'
 import { listStationSafetyInspectionsV1 } from '@/services/stationSafetyInspection'
 
-const resultOptions = [{ label: '全部', value: '' }, { label: '正常', value: 'normal' }, { label: '异常', value: 'abnormal' }]
+const resultOptions = [{ label: '全部', value: '' }, { label: '未记录异常', value: 'normal' }, { label: '异常', value: 'abnormal' }]
 const rows = ref([]); const loading = ref(false); const page = ref(1); const paging = ref({ hasMore: false, total: 0 }); const startDate = ref(''); const endDate = ref(''); const result = ref('')
 function formatDateTime(value) { const date = new Date(Number(value || 0)); return Number.isFinite(date.getTime()) ? `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}` : '-' }
 function openDetail(row) { uni.navigateTo({ url: `/pages/station-safety-inspection/detail?id=${encodeURIComponent(row._id)}` }) }

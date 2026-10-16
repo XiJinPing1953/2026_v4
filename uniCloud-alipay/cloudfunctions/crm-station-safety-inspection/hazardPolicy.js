@@ -63,8 +63,45 @@ function buildHazardSnapshot(inspection, item) {
 		responsible_signature_file_id: item.responsible_signature_file_id || '',
 		planned_measure: item.planned_measure || '',
 		planned_complete_date: item.planned_complete_date || '',
-		inspection_photo_file_ids: Array.isArray(item.photo_file_ids) ? item.photo_file_ids : []
+		inspection_photo_file_ids: Array.isArray(item.photo_file_ids) ? item.photo_file_ids : [],
+		classification_version: Number(inspection.classification_version || 0),
+		category_code: item.category_code || '',
+		category_label_snapshot: item.category_label_snapshot || ''
 	}
+}
+
+function buildHazardObservation(inspection, item, user, now = Date.now()) {
+	const revision = Number(inspection.revision || 1)
+	return {
+		observation_key: `station_inspection:${inspection._id}:${item.item_code}:${revision}`,
+		source_type: 'station_inspection', source_id: inspection._id, source_revision: revision,
+		inspection_no: inspection.inspection_no || '', item_code: item.item_code,
+		observed_at: Number(inspection.ended_at || inspection.inspection_at),
+		inspection_date: inspection.inspection_date || '',
+		issue_note: item.issue_note || '', result_code: item.result_code,
+		photo_file_ids: item.photo_file_ids || [], category_code: item.category_code || '',
+		report: item.report || null, on_site_rectification: item.on_site_rectification || null,
+		correction_reason: inspection.revision_reason || '',
+		recorded_at: now, recorded_by: normalizeString(user?._id), recorded_by_name: normalizeString(user?.nickname || user?.username)
+	}
+}
+
+function buildSourceRevision(current, reason, user, now = Date.now()) {
+	const snapshot = { ...current }
+	delete snapshot.source_revisions
+	return {
+		revision: Number(current.revision || 1), reason: normalizeString(reason),
+		revised_at: now, revised_by: normalizeString(user?._id), revised_by_name: normalizeString(user?.nickname || user?.username),
+		snapshot
+	}
+}
+
+function validateHazardLink(hazard, inspection, recurrence = false) {
+	if (!hazard || hazard.station_id !== inspection.station_id) return { ok: false, msg: '关联隐患不存在或不属于当前厂站' }
+	if (recurrence ? hazard.status !== 'closed' : !['pending_rectification', 'pending_verification'].includes(hazard.status)) {
+		return { ok: false, msg: recurrence ? '复发须关联已关闭隐患' : '复见须关联尚未关闭的隐患' }
+	}
+	return { ok: true }
 }
 
 function isHazardOverdue(hazard = {}, today = '') {
@@ -76,9 +113,7 @@ function isHazardOverdue(hazard = {}, today = '') {
 function resolveHazardSyncTransition(currentStatus, remainsAbnormal) {
 	const status = normalizeString(currentStatus)
 	if (!remainsAbnormal) {
-		return status === 'cancelled'
-			? { action: 'none', status: 'cancelled', reset_closure: false }
-			: { action: 'cancel', status: 'cancelled', reset_closure: false }
+		return { action: 'preserve', status, reset_closure: false }
 	}
 	if (status === 'cancelled') return { action: 'reopen', status: 'pending_rectification', reset_closure: true }
 	return {
@@ -93,6 +128,9 @@ module.exports = {
 	normalizeRectificationPayload,
 	normalizeVerificationPayload,
 	buildHazardSnapshot,
+	buildHazardObservation,
+	buildSourceRevision,
+	validateHazardLink,
 	isHazardOverdue,
 	resolveHazardSyncTransition
 }

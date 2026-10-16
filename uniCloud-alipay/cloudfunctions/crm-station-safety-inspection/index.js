@@ -16,14 +16,17 @@ const {
 	normalizeString,
 	isValidDateText,
 	normalizeEditablePayload,
+	normalizeIncidentFacts,
 	normalizeClientSubmissionId
 } = require('./inspectionPolicy')
 const {
 	normalizeRectificationPayload,
 	normalizeVerificationPayload,
 	buildHazardSnapshot,
-	isHazardOverdue,
-	resolveHazardSyncTransition
+	buildHazardObservation,
+	buildSourceRevision,
+	validateHazardLink,
+	isHazardOverdue
 } = require('./hazardPolicy')
 const { allocateInspectionNumber } = require('./inspectionNumber')
 
@@ -51,7 +54,8 @@ const PAGE_ACTION_RULES = {
 	getHazardV1: [{ pagePath: HAZARDS_PATH, action: 'view' }],
 	submitRectificationV1: [{ pagePath: HAZARDS_PATH, action: 'update' }],
 	verifyHazardV1: [{ pagePath: HAZARDS_PATH, action: 'update' }],
-	updateHazardOutcomeV1: [{ pagePath: HAZARDS_PATH, action: 'update' }]
+	updateHazardOutcomeV1: [{ pagePath: HAZARDS_PATH, action: 'update' }],
+	recordHazardFactsV1: [{ pagePath: HAZARDS_PATH, action: 'update' }]
 }
 
 const SUPERADMIN_ONLY_ACTIONS = ['updateV1', 'verifyHazardV1', 'updateHazardOutcomeV1']
@@ -122,6 +126,8 @@ function inspectionSummary(row = {}) {
 		abnormal_count: Number(row.abnormal_count || 0),
 		photo_count: Number(row.photo_count || 0),
 		remark: row.remark || '',
+		started_at: Number(row.started_at || 0), ended_at: Number(row.ended_at || 0),
+		weather: row.weather || '', revision: Number(row.revision || 1),
 		updated_at: Number(row.updated_at || 0)
 	}
 }
@@ -144,6 +150,8 @@ function hazardSummary(row = {}) {
 		is_overdue: isHazardOverdue(row, shanghaiDate()),
 		rectified_at: Number(row.rectified_at || 0),
 		verified_at: Number(row.verified_at || 0),
+		category_code: row.category_code || '', recurrence_of: row.recurrence_of || '',
+		observation_count: (row.observations || []).length,
 		updated_at: Number(row.updated_at || 0)
 	}
 }
@@ -155,7 +163,8 @@ function comparableSubmission(source = {}) {
 		items: Array.isArray(source.items) ? source.items : [],
 		overall_result: source.overall_result || '',
 		inspector_name: source.inspector_name || '',
-		remark: source.remark || ''
+		remark: source.remark || '',
+		...(Number(source.template_version) >= 3 ? { started_at: source.started_at, ended_at: source.ended_at, weather: source.weather } : {})
 	}
 }
 
@@ -176,6 +185,8 @@ async function getTemplateV1(data = {}) {
 			title: template.title,
 			station: template.station,
 			areas: template.areas,
+			classification_version: template.classification_version || 0,
+			categories: template.categories || [],
 			item_count: template.areas.reduce((sum, area) => sum + area.items.length, 0),
 			is_current: template === TEMPLATE,
 			server_now: Date.now()
@@ -226,221 +237,250 @@ async function getInspection(id) {
 async function getV1(user, data = {}) {
 	const inspection = await getInspection(data._id || data.id)
 	if (!inspection) return { code: 404, msg: '厂站巡检单不存在' }
+	const references = [inspection, ...(inspection.source_revisions || []).map((entry) => entry.snapshot || {})]
+	const linkedIds = Array.from(new Set(references.flatMap((entry) => (entry.items || []).map((item) => item.linked_hazard_id).filter(Boolean))))
+	const related = await hazards.where(linkedIds.length ? dbCmd.or([{ inspection_id: inspection._id }, { _id: dbCmd.in(linkedIds) }]) : { inspection_id: inspection._id }).limit(100).get()
 	return {
 		code: 0,
 		data: {
 			...inspection,
+			related_hazards: (related.data || []).map(hazardSummary),
 			can_update: isSuperAdmin(user)
 		}
 	}
 }
 
-async function syncHazardsForInspection(inspection, user, now = Date.now()) {
-	const existingRes = await hazards.where({ inspection_id: inspection._id }).limit(100).get()
-	const existingByCode = new Map((existingRes.data || []).map((row) => [row.item_code, row]))
-	const activeCodes = new Set()
-	const items = Array.isArray(inspection.items) ? inspection.items : []
-	for (let index = 0; index < items.length; index += 1) {
-		const item = items[index]
-		if (!item.is_abnormal) continue
-		activeCodes.add(item.item_code)
-		const snapshot = buildHazardSnapshot(inspection, item)
-		const existing = existingByCode.get(item.item_code)
-		if (existing) {
-			const transition = resolveHazardSyncTransition(existing.status, true)
-			const reopening = transition.action === 'reopen'
-			await hazards.doc(existing._id).update({
-				...snapshot,
-				status: transition.status,
-				...(reopening
-					? {
-							status: 'pending_rectification',
-							rectification_note: '',
-							rectification_photo_file_ids: [],
-							rectified_at: null,
-							rectified_by: '',
-							rectified_by_name: '',
-							verification_result: '',
-							verification_note: '',
-							verification_photo_file_ids: [],
-							verified_at: null,
-							verified_by: '',
-							verified_by_name: '',
-							cancelled_at: null,
-							cancelled_by: '',
-							cancelled_by_name: ''
-						}
-					: {}),
-				updated_at: now
-			})
-			continue
-		}
-		const hazardDoc = {
-			...snapshot,
-			hazard_no: `${inspection.inspection_no}-${String(index + 1).padStart(2, '0')}`,
-			status: 'pending_rectification',
-			rectification_note: '',
-			rectification_photo_file_ids: [],
-			rectified_at: null,
-			rectified_by: '',
-			rectified_by_name: '',
-			verification_result: '',
-			verification_note: '',
-			verification_photo_file_ids: [],
-			verified_at: null,
-			verified_by: '',
-			verified_by_name: '',
-			cancelled_at: null,
-			cancelled_by: '',
-			cancelled_by_name: '',
-			created_at: now,
-			created_by: normalizeString(user?._id),
-			created_by_name: normalizeString(user?.username),
-			updated_at: now
-		}
-		try {
-			await hazards.add(hazardDoc)
-		} catch (error) {
-			if (!isDuplicateKeyError(error)) throw error
-			const retryRes = await hazards
-				.where({ inspection_id: inspection._id, item_code: item.item_code })
-				.limit(1)
-				.get()
-			const retry = (retryRes.data || [])[0]
-			if (!retry) throw error
-			await hazards.doc(retry._id).update({ ...snapshot, status: 'pending_rectification', updated_at: now })
-		}
-	}
+async function transactionDoc(collection, id) {
+	const result = await collection.doc(id).get()
+	const data = result?.data
+	const row = Array.isArray(data) ? (data.length === 1 ? data[0] : null) : data
+	return row && typeof row === 'object' && row._id === id ? row : null
+}
 
-	for (const existing of existingByCode.values()) {
-		if (activeCodes.has(existing.item_code)) continue
-		const transition = resolveHazardSyncTransition(existing.status, false)
-		if (transition.action === 'none') continue
-		await hazards.doc(existing._id).update({
-			status: transition.status,
-			cancelled_at: now,
-			cancelled_by: normalizeString(user?._id),
-			cancelled_by_name: normalizeString(user?.nickname || user?.username),
-			updated_at: now
+function conflict(message) { return Object.assign(new Error(message), { code: 409 }) }
+
+async function ordinaryDoc(collection, id) {
+	if (!id) return null
+	// Alipay may throw for a missing doc. A normal fixed-ID query proves absence
+	// without treating an unrelated database error as an empty result.
+	const result = await collection.where({ _id: id }).limit(1).get()
+	return Array.isArray(result.data) ? result.data[0] || null : null
+}
+
+async function prepareHazardScope(inspectionId, items, previousItems = []) {
+	const ownedIds = []
+	if (inspectionId) {
+		const query = hazards.where({ inspection_id: inspectionId })
+		const before = Number((await query.count()).total)
+		if (!Number.isSafeInteger(before) || before < 0) throw new Error('原隐患范围读取不完整')
+		for (let offset = 0; offset < before; offset += 100) {
+			const result = await hazards.where({ inspection_id: inspectionId }).orderBy('_id', 'asc').skip(offset).limit(100).get()
+			if (!Array.isArray(result.data)) throw new Error('原隐患范围读取不完整')
+			ownedIds.push(...result.data.map((row) => row._id))
+		}
+		const after = Number((await hazards.where({ inspection_id: inspectionId }).count()).total)
+		if (before !== after || ownedIds.length !== before || new Set(ownedIds).size !== before || ownedIds.some((id) => !id)) throw conflict('原隐患范围已变化，请重试')
+	}
+	const referenceIds = [...new Set([...items, ...previousItems].flatMap((item) => [item.linked_hazard_id, item.recurrence_of]).filter(Boolean))]
+	for (let offset = 0; offset < referenceIds.length; offset += 100) {
+		const ids = referenceIds.slice(offset, offset + 100)
+		const result = await hazards.where({ _id: dbCmd.in(ids) }).limit(100).get()
+		if (!Array.isArray(result.data) || ids.some((id) => !result.data.some((row) => row._id === id))) throw conflict('关联隐患不存在或已变化，请重新选择')
+	}
+	return { ownedIds, referenceIds }
+}
+
+async function appendObservation(collection, hazard, observation, user, now) {
+	if ((hazard.observations || []).some((entry) => entry.observation_key === observation.observation_key)) return
+	const patch = { observations: dbCmd.push([observation]), updated_at: now }
+	const isNewObservation = Number(observation.source_revision || 1) === 1
+	if (isNewObservation && observation.report && Number(observation.report.reported_at) >= Number(hazard.report?.reported_at || 0) && JSON.stringify(observation.report) !== JSON.stringify(hazard.report)) patch.report = observation.report
+	const onsite = observation.on_site_rectification
+	if (isNewObservation && onsite && hazard.status !== 'closed' && Number(onsite.completed_at) >= Math.max(Number(hazard.on_site_rectification?.completed_at || 0), Number(hazard.rectified_at || 0)) && JSON.stringify(onsite) !== JSON.stringify(hazard.on_site_rectification)) {
+		Object.assign(patch, {
+			on_site_rectification: onsite, status: 'pending_verification', rectification_note: onsite.note,
+			rectification_photo_file_ids: onsite.photo_file_ids, rectified_at: onsite.completed_at,
+			rectified_by: normalizeString(user?._id), rectified_by_name: normalizeString(user?.nickname || user?.username)
 		})
 	}
+	// Standalone fact registration may exist only on the current hazard. Preserve
+	// that complete version before a later observation updates its displayed facts.
+	const revisionEntry = patch.report || patch.on_site_rectification ? buildSourceRevision(hazard, '新观察补充实际上报或当场整改事实', user, now) : null
+	if (revisionEntry) {
+		patch.revision = Number(hazard.revision || 1) + 1
+		patch.source_revisions = dbCmd.push([revisionEntry])
+	}
+	await collection.doc(hazard._id).update(patch)
+	Object.assign(hazard, { ...patch, observations: [...(hazard.observations || []), observation], ...(revisionEntry ? { source_revisions: [...(hazard.source_revisions || []), revisionEntry] } : {}) })
+}
+
+function historicalItems(record) {
+	return [record, ...(record?.source_revisions || []).slice().reverse().map((entry) => entry.snapshot)].flatMap((entry) => entry?.items || [])
+}
+
+async function syncHazardsForInspection(inspection, user, now, transaction, scope, previous = null) {
+	const collection = transaction.collection('crm_station_safety_hazards')
+	const documents = new Map()
+	for (const id of new Set([...scope.ownedIds, ...scope.referenceIds])) {
+		const row = await transactionDoc(collection, id)
+		if (!row) throw conflict('关联隐患已变化，请重新加载')
+		documents.set(id, row)
+	}
+	const existingByCode = new Map()
+	for (const id of scope.ownedIds) {
+		const row = documents.get(id)
+		if (row.inspection_id !== inspection._id || existingByCode.has(row.item_code)) throw conflict('原隐患归属不一致，请先核对')
+		existingByCode.set(row.item_code, row)
+	}
+	for (let index = 0; index < inspection.items.length; index += 1) {
+		const item = inspection.items[index]
+		const existing = existingByCode.get(item.item_code)
+		const observation = buildHazardObservation(inspection, item, user, now)
+		const previousItem = historicalItems(previous).find((entry) => entry.item_code === item.item_code && entry.linked_hazard_id)
+		if (previousItem?.linked_hazard_id && !item.is_abnormal) {
+			const linked = documents.get(previousItem.linked_hazard_id)
+			if (!linked || linked.station_id !== inspection.station_id) throw conflict('原关联隐患归属已变化，请先核对')
+			await appendObservation(collection, linked, observation, user, now)
+			continue
+		}
+		if (previousItem?.linked_hazard_id && previousItem.linked_hazard_id !== item.linked_hazard_id) throw conflict('已关联隐患不能通过原单修改改挂其他隐患；请保留原关联并说明更正')
+		if (item.is_abnormal && item.linked_hazard_id) {
+			if (existing && existing._id !== item.linked_hazard_id) throw conflict('此项目已有独立隐患，不能通过修订改挂另一隐患；原问题须保留')
+			const linked = documents.get(item.linked_hazard_id)
+			const valid = previousItem?.linked_hazard_id === item.linked_hazard_id
+				? { ok: Boolean(linked && linked.station_id === inspection.station_id), msg: '原关联隐患归属已变化，请先核对' }
+				: validateHazardLink(linked, inspection)
+			if (!valid.ok) throw conflict(valid.msg)
+			await appendObservation(collection, linked, observation, user, now)
+			continue
+		}
+		if (existing) {
+			if (item.is_abnormal && normalizeString(item.recurrence_of) !== normalizeString(existing.recurrence_of)) throw conflict('已登记隐患的复发来源不能通过原巡检修订更换')
+			// A correction is evidence, not rectification or cancellation of the original hazard.
+			await appendObservation(collection, existing, observation, user, now)
+			if (item.is_abnormal && existing.status === 'cancelled') await collection.doc(existing._id).update({ status: 'pending_rectification', updated_at: now })
+			continue
+		}
+		if (!item.is_abnormal) continue
+		if (item.recurrence_of) {
+			const previous = documents.get(item.recurrence_of)
+			const valid = validateHazardLink(previous, inspection, true)
+			if (!valid.ok) throw conflict(valid.msg)
+		}
+		const onsite = item.on_site_rectification
+		await collection.add({
+			...buildHazardSnapshot(inspection, item),
+			hazard_no: `${inspection.inspection_no}-${String(index + 1).padStart(2, '0')}`,
+			source_type: 'station_inspection', source_id: inspection._id, source_item_code: item.item_code,
+			first_discovered_at: inspection.ended_at || inspection.inspection_at, first_discovered_date: inspection.inspection_date,
+			recurrence_of: item.recurrence_of || '', observations: [observation], report: item.report || null,
+			on_site_rectification: onsite || null,
+			status: onsite ? 'pending_verification' : 'pending_rectification',
+			rectification_note: onsite?.note || '', rectification_photo_file_ids: onsite?.photo_file_ids || [],
+			rectified_at: onsite?.completed_at || null,
+			rectified_by: onsite ? normalizeString(user?._id) : '',
+			rectified_by_name: onsite ? normalizeString(user?.nickname || user?.username) : '',
+			verification_result: '', verification_note: '', verification_photo_file_ids: [],
+			verified_at: null, verified_by: '', verified_by_name: '',
+			cancelled_at: null, cancelled_by: '', cancelled_by_name: '',
+			revision: 1, source_revisions: [],
+			created_at: now, created_by: normalizeString(user?._id), created_by_name: normalizeString(user?.username), updated_at: now
+		})
+	}
+}
+
+function savedResponse(row, duplicate = false) {
+	return { code: 0, msg: '厂站巡检单已保存', data: { _id: row._id, inspection_no: row.inspection_no, inspection_date: row.inspection_date, revision: Number(row.revision || 1), duplicate } }
 }
 
 async function submitV1(user, data = {}, requestId = '') {
 	const clientSubmissionId = normalizeClientSubmissionId(data.client_submission_id ?? data.clientSubmissionId)
 	if (!clientSubmissionId) return { code: 400, msg: '提交标识无效，请刷新页面后重试' }
 	const inspectorName = normalizeString(user?.nickname || user?.username)
-	const normalized = normalizeEditablePayload(data, {
-		template: TEMPLATE,
-		defaultInspectorName: inspectorName
-	})
+	const now = Date.now()
+	const normalized = normalizeEditablePayload({ ...data, inspector_name: inspectorName }, { template: TEMPLATE, defaultInspectorName: inspectorName, now })
 	if (!normalized.ok) return { code: 400, msg: normalized.msg }
-
 	const existingRes = await inspections.where({ client_submission_id: clientSubmissionId }).limit(1).get()
 	const existing = (existingRes.data || [])[0]
 	if (existing) {
-		if (JSON.stringify(comparableSubmission(existing)) !== JSON.stringify(comparableSubmission(normalized.data))) {
-			return { code: 409, msg: '该提交标识已生成其他巡检单，请打开原单核对', data: { existing_id: existing._id } }
-		}
-		return { code: 0, msg: '巡检单已提交', data: { _id: existing._id, inspection_no: existing.inspection_no, duplicate: true } }
+		if (JSON.stringify(comparableSubmission(existing)) !== JSON.stringify(comparableSubmission(normalized.data))) return { code: 409, msg: '该提交标识已生成其他巡检单，请打开原单核对', data: { existing_id: existing._id } }
+		return savedResponse(existing, true)
 	}
-
-	const now = Date.now()
-	const inspectionDate = shanghaiDate(now)
+	const hazardScope = await prepareHazardScope('', normalized.data.items)
+	const inspectionDate = shanghaiDate(normalized.data.ended_at)
 	const numberFields = await allocateInspectionNumber({ counters, dbCmd, dateKey: inspectionDate, now })
-	const abnormalCount = normalized.data.items.filter((entry) => entry.is_abnormal).length
-	const photoCount = normalized.data.items.reduce((sum, entry) => sum + entry.photo_file_ids.length, 0)
 	const doc = {
-		client_submission_id: clientSubmissionId,
-		...normalized.data,
-		inspection_at: now,
-		inspection_date: inspectionDate,
-		...numberFields,
-		inspector_name: inspectorName,
-		inspector_user_id: normalizeString(user?._id),
-		inspector_username_snapshot: normalizeString(user?.username),
-		abnormal_count: abnormalCount,
-		photo_count: photoCount,
-		status: 'submitted',
-		source: 'h5',
-		created_at: now,
-		created_by: normalizeString(user?._id),
-		created_by_name: normalizeString(user?.username),
-		updated_at: now,
-		last_edited_at: null,
-		last_edited_by: '',
-		last_edited_by_name: ''
+		client_submission_id: clientSubmissionId, ...normalized.data, ...numberFields,
+		inspection_at: normalized.data.ended_at, inspection_date: inspectionDate, submitted_at: now,
+		inspector_name: inspectorName, inspector_user_id: normalizeString(user?._id), inspector_username_snapshot: normalizeString(user?.username),
+		abnormal_count: normalized.data.items.filter((entry) => entry.is_abnormal).length,
+		photo_count: normalized.data.items.reduce((sum, entry) => sum + entry.photo_file_ids.length, 0),
+		revision: 1, source_revisions: [], revision_reason: '', status: 'submitted', source: 'h5',
+		created_at: now, created_by: normalizeString(user?._id), created_by_name: normalizeString(user?.username), updated_at: now,
+		last_edited_at: null, last_edited_by: '', last_edited_by_name: ''
 	}
-	let inspectionId = ''
+	const transaction = await db.startTransaction()
+	let saved
 	try {
-		const addRes = await inspections.add(doc)
-		inspectionId = addRes.id
-		const saved = { _id: inspectionId, ...doc }
-		await syncHazardsForInspection(saved, user, now)
-		await recordLog(user, 'station_safety_inspection_submit_v1', {
-			id: inspectionId,
-			inspection_no: doc.inspection_no,
-			overall_result: doc.overall_result,
-			abnormal_count: abnormalCount,
-			photo_count: photoCount
-		}, requestId)
-		return { code: 0, msg: '厂站巡检单提交成功', data: { _id: inspectionId, inspection_no: doc.inspection_no, duplicate: false } }
+		const txInspections = transaction.collection('crm_station_safety_inspections')
+		const result = await txInspections.add(doc)
+		saved = { _id: result.id, ...doc }
+		await syncHazardsForInspection(saved, user, now, transaction, hazardScope)
+		await transaction.commit()
 	} catch (error) {
-		if (inspectionId) {
-			try {
-				await hazards.where({ inspection_id: inspectionId }).remove()
-				await inspections.doc(inspectionId).remove()
-			} catch (_) {
-				// Best-effort compensation; unique submission id keeps retries safe.
-			}
-		}
+		try { await transaction.rollback() } catch (_) {}
 		if (isDuplicateKeyError(error)) {
-			const retryRes = await inspections.where({ client_submission_id: clientSubmissionId }).limit(1).get()
-			const retry = (retryRes.data || [])[0]
-			if (retry) return { code: 0, msg: '巡检单已提交', data: { _id: retry._id, inspection_no: retry.inspection_no, duplicate: true } }
+			const result = await inspections.where({ client_submission_id: clientSubmissionId }).limit(1).get()
+			const row = (result.data || [])[0]
+			if (row && JSON.stringify(comparableSubmission(row)) === JSON.stringify(comparableSubmission(normalized.data))) return savedResponse(row, true)
 		}
-		console.error('[crm-station-safety-inspection] submitV1 failed', error)
-		return { code: 500, msg: '厂站巡检单提交失败' }
+		return { code: error.code === 409 ? 409 : 500, msg: error.code === 409 ? error.message : '巡检保存未完成，请重试；原提交标识会防止重复' }
 	}
+	await recordLog(user, 'station_safety_inspection_submit_v1', { id: saved._id, inspection_no: saved.inspection_no, abnormal_count: saved.abnormal_count }, requestId)
+	return savedResponse(saved)
 }
 
 async function updateV1(user, data = {}, requestId = '') {
 	const inspectionId = normalizeString(data._id || data.id)
+	const reason = normalizeString(data.revision_reason)
 	if (!inspectionId) return { code: 400, msg: '缺少巡检单 ID' }
-	const current = await getInspection(inspectionId)
-	if (!current) return { code: 404, msg: '厂站巡检单不存在' }
-	const template = getTemplate(current.template_code, current.template_version)
-	if (!template) return { code: 409, msg: '巡检模板无法识别，该记录仅支持查看' }
-	const normalized = normalizeEditablePayload(data, {
-		template,
-		defaultInspectorName: current.inspector_name || user?.nickname || user?.username
-	})
-	if (!normalized.ok) return { code: 400, msg: normalized.msg }
-	const requestedAt = Number(data.inspection_at ?? data.inspectionAt)
-	const inspectionAt = Number.isFinite(requestedAt) && requestedAt > 0 ? requestedAt : current.inspection_at
-	const now = Date.now()
-	const abnormalCount = normalized.data.items.filter((entry) => entry.is_abnormal).length
-	const photoCount = normalized.data.items.reduce((sum, entry) => sum + entry.photo_file_ids.length, 0)
-	const patch = {
-		...normalized.data,
-		inspection_at: inspectionAt,
-		inspection_date: shanghaiDate(inspectionAt),
-		abnormal_count: abnormalCount,
-		photo_count: photoCount,
-		last_edited_at: now,
-		last_edited_by: normalizeString(user?._id),
-		last_edited_by_name: normalizeString(user?.nickname || user?.username),
-		updated_at: now
+	if (!reason || reason.length > 1000) return { code: 400, msg: '修改须填写原因（最多1000字），原记录会保留' }
+	const initial = await ordinaryDoc(inspections, inspectionId)
+	if (!initial) return { code: 404, msg: '厂站巡检单不存在' }
+	const hazardScope = await prepareHazardScope(inspectionId, Array.isArray(data.items) ? data.items : [], historicalItems(initial))
+	const transaction = await db.startTransaction()
+	let saved
+	try {
+		const collection = transaction.collection('crm_station_safety_inspections')
+		const current = await transactionDoc(collection, inspectionId)
+		if (!current) throw conflict('厂站巡检单不存在')
+		if (Number(data.expected_revision) !== Number(current.revision || 1)) throw conflict('记录已变化，请重新加载后修改')
+		const template = getTemplate(current.template_code, current.template_version)
+		if (!template) throw conflict('历史模板无法识别，仅支持查看')
+		const normalized = normalizeEditablePayload(data, { template, defaultInspectorName: current.inspector_name })
+		if (!normalized.ok) throw conflict(normalized.msg)
+		const now = Date.now()
+		if (!template.classification_version && normalized.data.ended_at && shanghaiDate(normalized.data.ended_at) !== current.inspection_date) throw conflict('历史巡检补录结束时间须属于原业务日期，不能通过补证移日')
+		const inspectionAt = normalized.data.ended_at || Number(data.inspection_at || current.inspection_at)
+		if (!Number.isFinite(inspectionAt) || inspectionAt <= 0 || inspectionAt > now + 60000) throw conflict('巡检时间无效')
+		const patch = {
+			...normalized.data, inspection_at: inspectionAt, inspection_date: shanghaiDate(inspectionAt),
+			abnormal_count: normalized.data.items.filter((item) => item.is_abnormal).length,
+			photo_count: normalized.data.items.reduce((sum, item) => sum + item.photo_file_ids.length, 0),
+			revision: Number(current.revision || 1) + 1, revision_reason: reason,
+			source_revisions: [...(current.source_revisions || []), buildSourceRevision(current, reason, user, now)],
+			last_edited_at: now, last_edited_by: normalizeString(user?._id), last_edited_by_name: normalizeString(user?.nickname || user?.username), updated_at: now
+		}
+		await collection.doc(inspectionId).update(patch)
+		saved = { ...current, ...patch }
+		await syncHazardsForInspection(saved, user, now, transaction, hazardScope, current)
+		await transaction.commit()
+	} catch (error) {
+		try { await transaction.rollback() } catch (_) {}
+		return { code: error.code === 409 ? 409 : 500, msg: error.message || '修改失败，请重试' }
 	}
-	await inspections.doc(inspectionId).update(patch)
-	await syncHazardsForInspection({ ...current, ...patch }, user, now)
-	await recordLog(user, 'station_safety_inspection_update_v1', {
-		id: inspectionId,
-		inspection_no: current.inspection_no,
-		overall_result: patch.overall_result,
-		abnormal_count: abnormalCount
-	}, requestId)
-	return { code: 0, msg: '巡检单已修改', data: { _id: inspectionId } }
+	await recordLog(user, 'station_safety_inspection_update_v1', { id: inspectionId, revision: saved.revision, reason }, requestId)
+	return savedResponse(saved)
 }
 
 function hazardWhere(data = {}) {
@@ -497,7 +537,8 @@ async function getHazardV1(user, data = {}) {
 			...hazard,
 			is_overdue: isHazardOverdue(hazard, shanghaiDate()),
 			can_verify: isSuperAdmin(user),
-			can_admin_edit: isSuperAdmin(user)
+			can_admin_edit: isSuperAdmin(user),
+			revision: Number(hazard.revision || 1)
 		}
 	}
 }
@@ -521,18 +562,28 @@ function containsExistingMedia(fileIds, hazard, excludedField = '') {
 	return (Array.isArray(fileIds) ? fileIds : []).some((fileId) => existing.has(normalizeString(fileId)))
 }
 
+async function saveHazardRevision(hazard, patch, reason, user) {
+	const revisionWhere = hazard.revision == null ? { revision: dbCmd.exists(false) } : { revision: hazard.revision }
+	const result = await hazards.where({ _id: hazard._id, ...revisionWhere, updated_at: hazard.updated_at }).update({
+		...patch, revision: Number(hazard.revision || 1) + 1,
+		source_revisions: dbCmd.push([buildSourceRevision(hazard, reason, user)])
+	})
+	return Number(result.updated || 0) === 1
+}
+
 async function submitRectificationV1(user, data = {}, requestId = '') {
 	const hazardId = normalizeString(data._id || data.id || data.hazard_id || data.hazardId)
 	const hazard = await getHazard(hazardId)
 	if (!hazard) return { code: 404, msg: '隐患不存在' }
 	if (hazard.status !== 'pending_rectification') return { code: 409, msg: '当前隐患不在待整改状态' }
+	if (data.expected_revision != null && Number(data.expected_revision) !== Number(hazard.revision || 1)) return { code: 409, msg: '隐患记录已变化，请重新加载' }
 	const normalized = normalizeRectificationPayload(data)
 	if (!normalized.ok) return { code: 400, msg: normalized.msg }
 	if (containsExistingMedia(normalized.data.rectification_photo_file_ids, hazard, 'rectification_photo_file_ids')) {
 		return { code: 400, msg: '整改照片不能重复使用巡检、签名或验证阶段的媒体文件' }
 	}
 	const now = Date.now()
-	await hazards.doc(hazardId).update({
+	const saved = await saveHazardRevision(hazard, {
 		...normalized.data,
 		status: 'pending_verification',
 		rectified_at: now,
@@ -545,7 +596,8 @@ async function submitRectificationV1(user, data = {}, requestId = '') {
 		verified_by: '',
 		verified_by_name: '',
 		updated_at: now
-	})
+	}, '提交整改结果', user)
+	if (!saved) return { code: 409, msg: '隐患记录已变化，请重新加载' }
 	await recordLog(user, 'station_safety_hazard_rectify_v1', { id: hazardId, hazard_no: hazard.hazard_no }, requestId)
 	return { code: 0, msg: '整改结果已提交，等待验证' }
 }
@@ -555,19 +607,21 @@ async function verifyHazardV1(user, data = {}, requestId = '') {
 	const hazard = await getHazard(hazardId)
 	if (!hazard) return { code: 404, msg: '隐患不存在' }
 	if (hazard.status !== 'pending_verification') return { code: 409, msg: '当前隐患不在待验证状态' }
+	if (data.expected_revision != null && Number(data.expected_revision) !== Number(hazard.revision || 1)) return { code: 409, msg: '隐患记录已变化，请重新加载' }
 	const normalized = normalizeVerificationPayload(data)
 	if (!normalized.ok) return { code: 400, msg: normalized.msg }
 	if (containsExistingMedia(normalized.data.verification_photo_file_ids, hazard, 'verification_photo_file_ids')) {
 		return { code: 400, msg: '验证照片不能重复使用巡检、签名或整改阶段的媒体文件' }
 	}
 	const now = Date.now()
-	await hazards.doc(hazardId).update({
+	const saved = await saveHazardRevision(hazard, {
 		...normalized.data,
 		verified_at: now,
 		verified_by: normalizeString(user?._id),
 		verified_by_name: normalizeString(user?.nickname || user?.username),
 		updated_at: now
-	})
+	}, normalized.data.status === 'closed' ? '验证通过销号' : '验证退回整改', user)
+	if (!saved) return { code: 409, msg: '隐患记录已变化，请重新加载' }
 	await recordLog(user, 'station_safety_hazard_verify_v1', {
 		id: hazardId,
 		hazard_no: hazard.hazard_no,
@@ -580,6 +634,9 @@ async function updateHazardOutcomeV1(user, data = {}, requestId = '') {
 	const hazardId = normalizeString(data._id || data.id || data.hazard_id || data.hazardId)
 	const hazard = await getHazard(hazardId)
 	if (!hazard) return { code: 404, msg: '隐患不存在' }
+	const reason = normalizeString(data.revision_reason)
+	if (!reason || reason.length > 1000) return { code: 400, msg: '修订闭环内容须填写原因（最多1000字）' }
+	if (Number(data.expected_revision) !== Number(hazard.revision || 1)) return { code: 409, msg: '隐患记录已变化，请重新加载' }
 	if (hazard.status === 'cancelled') return { code: 409, msg: '已取消隐患请先通过原巡检单重新标记为异常' }
 	if (!Number(hazard.rectified_at || 0)) return { code: 409, msg: '该隐患尚未提交整改结果，暂无可修订的闭环内容' }
 
@@ -597,7 +654,11 @@ async function updateHazardOutcomeV1(user, data = {}, requestId = '') {
 		}
 		Object.assign(patch, verification.data)
 	}
-	await hazards.doc(hazardId).update(patch)
+	patch.revision = Number(hazard.revision || 1) + 1
+	patch.source_revisions = dbCmd.push([buildSourceRevision(hazard, reason, user)])
+	const revisionWhere = hazard.revision == null ? { revision: dbCmd.exists(false) } : { revision: hazard.revision }
+	const changed = await hazards.where({ _id: hazardId, ...revisionWhere, updated_at: hazard.updated_at }).update(patch)
+	if (!Number(changed.updated)) return { code: 409, msg: '隐患记录已变化，请重新加载' }
 	await recordLog(user, 'station_safety_hazard_admin_update_v1', {
 		id: hazardId,
 		hazard_no: hazard.hazard_no,
@@ -606,6 +667,42 @@ async function updateHazardOutcomeV1(user, data = {}, requestId = '') {
 		verified_at: hazard.verified_at
 	}, requestId)
 	return { code: 0, msg: '隐患闭环内容已修改' }
+}
+
+async function recordHazardFactsV1(user, data = {}, requestId = '') {
+	const id = normalizeString(data._id)
+	const normalized = normalizeIncidentFacts(data)
+	if (!normalized.ok) return { code: 400, msg: normalized.msg }
+	if (!normalized.data.report && !normalized.data.on_site_rectification) return { code: 400, msg: '请填写实际上报或当场整改记录' }
+	if (!await ordinaryDoc(hazards, id)) return { code: 404, msg: '隐患不存在' }
+	const transaction = await db.startTransaction()
+	try {
+		const collection = transaction.collection('crm_station_safety_hazards')
+		const current = await transactionDoc(collection, id)
+		if (!current) throw conflict('隐患不存在')
+		if (Number(current.revision || 1) !== Number(data.expected_revision)) {
+			const sameReport = !normalized.data.report || JSON.stringify(current.report) === JSON.stringify(normalized.data.report)
+			const sameOnsite = !normalized.data.on_site_rectification || JSON.stringify(current.on_site_rectification) === JSON.stringify(normalized.data.on_site_rectification)
+			if (sameReport && sameOnsite) { await transaction.rollback(); return { code: 0, msg: '实际处置记录已保存', data: { duplicate: true } } }
+			throw conflict('隐患记录已变化，请重新加载')
+		}
+		const now = Date.now()
+		const patch = { revision: Number(current.revision || 1) + 1, source_revisions: dbCmd.push([buildSourceRevision(current, '补充实际上报或当场整改记录', user, now)]), updated_at: now }
+		if (normalized.data.report) patch.report = normalized.data.report
+		if (normalized.data.on_site_rectification) {
+			if (current.status !== 'pending_rectification') throw conflict('当场整改仅能补充到待整改隐患；现有整改与复查记录请按修订流程处理')
+			const onsite = normalized.data.on_site_rectification
+			if (containsExistingMedia(onsite.photo_file_ids, current)) throw conflict('当场整改照片不能复用原巡检、签名或验证照片')
+			Object.assign(patch, { on_site_rectification: onsite, status: 'pending_verification', rectification_note: onsite.note, rectification_photo_file_ids: onsite.photo_file_ids, rectified_at: onsite.completed_at, rectified_by: normalizeString(user?._id), rectified_by_name: normalizeString(user?.nickname || user?.username) })
+		}
+		await collection.doc(id).update(patch)
+		await transaction.commit()
+		await recordLog(user, 'station_safety_hazard_facts_v1', { id, revision: patch.revision }, requestId)
+		return { code: 0, msg: '实际处置记录已保存' }
+	} catch (error) {
+		try { await transaction.rollback() } catch (_) {}
+		return { code: error.code === 409 ? 409 : 500, msg: error.message || '处置记录保存失败' }
+	}
 }
 
 exports.main = async (event, context) => {
@@ -624,16 +721,17 @@ exports.main = async (event, context) => {
 		if (action === 'getTemplateV1') return getTemplateV1(data)
 		if (action === 'listV1') return listV1(user, data)
 		if (action === 'getV1') return getV1(user, data)
-		if (action === 'submitV1') return submitV1(user, data, requestId)
-		if (action === 'updateV1') return updateV1(user, data, requestId)
+		if (action === 'submitV1') return await submitV1(user, data, requestId)
+		if (action === 'updateV1') return await updateV1(user, data, requestId)
 		if (action === 'listHazardsV1') return listHazardsV1(user, data)
 		if (action === 'getHazardV1') return getHazardV1(user, data)
 		if (action === 'submitRectificationV1') return submitRectificationV1(user, data, requestId)
 		if (action === 'verifyHazardV1') return verifyHazardV1(user, data, requestId)
 		if (action === 'updateHazardOutcomeV1') return updateHazardOutcomeV1(user, data, requestId)
+		if (action === 'recordHazardFactsV1') return await recordHazardFactsV1(user, data, requestId)
 		return { code: 400, msg: '未知 action' }
 	} catch (error) {
 		console.error('[crm-station-safety-inspection] main failed', action, error)
-		return { code: 500, msg: error?.message || '厂站安全巡检服务异常' }
+		return { code: error?.code === 409 ? 409 : 500, msg: error?.message || '厂站安全巡检服务异常' }
 	}
 }

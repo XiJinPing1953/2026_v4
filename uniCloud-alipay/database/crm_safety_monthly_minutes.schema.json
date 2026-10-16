@@ -1,0 +1,118 @@
+{
+  "bsonType": "object",
+  "description": "crm_safety_monthly_minutes",
+  "additionalProperties": false,
+  "required": [
+    "station_id",
+    "revision",
+    "signature_status",
+    "created_at",
+    "created_by",
+    "updated_at",
+    "updated_by",
+    "period",
+    "period_key",
+    "content",
+    "statistics",
+    "source_fingerprint"
+  ],
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "station_id": {
+      "bsonType": "string"
+    },
+    "station_name": {
+      "bsonType": "string"
+    },
+    "revision_reason": {
+      "bsonType": "string"
+    },
+    "request_fingerprint": {
+      "bsonType": "string"
+    },
+    "created_by": {
+      "bsonType": "string"
+    },
+    "updated_by": {
+      "bsonType": "string"
+    },
+    "updated_by_name": {
+      "bsonType": "string"
+    },
+    "revision": {
+      "bsonType": "int"
+    },
+    "signature_status": {
+      "bsonType": "string",
+      "enum": [
+        "pending_signature"
+      ]
+    },
+    "created_at": {
+      "bsonType": "number"
+    },
+    "updated_at": {
+      "bsonType": "number"
+    },
+    "period": {
+      "bsonType": "object"
+    },
+    "period_key": {
+      "bsonType": "string"
+    },
+    "content": {
+      "bsonType": "object"
+    },
+    "content_status": {
+      "bsonType": "string"
+    },
+    "missing": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "string"
+      }
+    },
+    "statistics": {
+      "bsonType": "object"
+    },
+    "source_fingerprint": {
+      "bsonType": "string"
+    },
+    "previous_record_id": {
+      "bsonType": "string"
+    },
+    "previous_revision": {
+      "bsonType": "int"
+    },
+    "previous_decisions": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "object"
+      }
+    },
+    "source_refs": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "object"
+      }
+    }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    {
+      "key": {
+        "station_id": 1,
+        "period_key": 1
+      },
+      "name": "uniq_station_period",
+      "unique": true
+    }
+  ]
+}

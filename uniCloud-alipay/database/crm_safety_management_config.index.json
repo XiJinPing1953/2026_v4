@@ -1,0 +1,16 @@
+[
+  {
+    "IndexName": "uniq_station",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "station_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": true,
+      "MgoIsSparse": false
+    }
+  }
+]

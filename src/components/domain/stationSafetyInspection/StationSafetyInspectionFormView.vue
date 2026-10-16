@@ -1,7 +1,7 @@
 <template>
 	<StationSafetyInspectionShell
 		:title="editMode ? '超级管理员修改巡检单' : '填写厂站巡检单'"
-		:subtitle="editMode ? '修改后不保留旧版本，但会记录操作日志' : '四个分区共36项，每项必须拍照'"
+			:subtitle="editMode ? '填写修改原因，保留原记录与全部问题' : '完成现场巡检后继续补充当日日管控'"
 		:before-back="handleBack"
 		back
 	>
@@ -11,11 +11,26 @@
 			<button class="minor-button" type="button" @click="load">重新加载</button>
 		</view>
 		<view v-else class="form-stack">
+				<view v-if="submitted" class="review-card">
+					<text>巡检单已保存。{{ dailyNavigationError || '请继续填写当日日管控。' }}</text>
+					<button class="minor-button" type="button" @click="openSavedDaily">继续日管控</button>
+					<button class="minor-button" type="button" @click="openSavedRecord">查看已保存巡检单</button>
+				</view>
 			<view class="overview-card">
 				<view>
 					<text class="overview-card__label">固定厂站</text>
 					<text class="overview-card__value">{{ template.station.name }}</text>
 					<text class="overview-card__meta">{{ template.station.id }} · {{ totalItems }} 项检查</text>
+				</view>
+				<view v-if="isCurrentTemplate || editMode" class="review-card">
+					<text class="area-heading__title">{{ isCurrentTemplate ? '实际巡查时间与天气' : '补录实际巡查时间与天气（可选）' }}</text>
+					<text v-if="!isCurrentTemplate" class="area-heading__hint">仅依据真实凭据完整补录开始、结束及天气，结束须属于原业务日期；没有凭据可留空，原缺项仍保留待核。</text>
+					<view class="datetime-grid">
+						<view class="field"><text class="field__label">开始日期</text><picker mode="date" :value="startedDate" @change="startedDate = $event.detail.value"><view class="picker-value">{{ startedDate || '请选择' }}</view></picker></view>
+						<view class="field"><text class="field__label">开始时间</text><picker mode="time" :value="startedTime" @change="startedTime = $event.detail.value"><view class="picker-value">{{ startedTime || '请选择实际时间' }}</view></picker></view>
+					</view>
+					<button v-if="!editMode && !startedTime" class="minor-button" type="button" @click="markStart">现在开始现场巡查</button>
+					<label class="field"><text class="field__label">天气</text><input v-model="weather" class="input" maxlength="100" placeholder="填写现场实际天气" /></label>
 				</view>
 				<view :class="['progress-badge', { 'progress-badge--done': completedItems === totalItems }]">
 					{{ completedItems }}/{{ totalItems }}
@@ -61,10 +76,13 @@
 							{{ itemMessage(item) ? '待完成' : '已完成' }}
 						</text>
 					</view>
+						<text v-if="item.category_label" class="area-heading__hint">日管控第{{ item.category_code }}类 · {{ item.category_label }}</text>
 					<view class="result-options">
 						<view :class="['result-option', { 'result-option--active': item.result_code === 'normal' }]" @click="selectResult(item, 'normal')">正常</view>
 						<view :class="['result-option', 'result-option--danger', { 'result-option--active': item.result_code === 'abnormal' }]" @click="selectResult(item, 'abnormal')">异常</view>
+							<view v-if="item.allow_not_running" :class="['result-option', { 'result-option--active': item.result_code === 'not_running' }]" @click="selectResult(item, 'not_running')">未运行</view>
 					</view>
+						<label v-if="item.result_code === 'not_running'" class="field"><text class="field__label">未运行原因</text><textarea v-model="item.not_running_reason" class="textarea" maxlength="500" placeholder="说明未运行情况；仍需检查其他设备状态并拍照" /></label>
 
 					<view class="field">
 						<text class="field__label">现场照片 <text class="required">*</text></text>
@@ -78,6 +96,16 @@
 
 					<view v-if="item.result_code === 'abnormal'" class="hazard-fields">
 						<view class="hazard-fields__title">隐患整改信息</view>
+							<view v-if="isCurrentTemplate" class="field">
+								<text class="field__label">问题关联</text>
+								<picker :range="hazardReferenceOptions" range-key="label" :value="referenceIndex(item)" @change="setReferenceMode(item, $event.detail.value)"><view class="picker-value">{{ hazardReferenceOptions[referenceIndex(item)].label }}</view></picker>
+								<template v-if="item.hazard_reference_mode !== 'new'">
+									<input v-model="item.hazard_search" class="input" placeholder="按隐患编号、问题或区域搜索" />
+									<button class="minor-button" type="button" :disabled="item.reference_loading" @click="searchReferenceHazards(item)">查询可关联隐患</button>
+									<picker v-if="item.hazard_candidates.length" :range="item.hazard_candidates" range-key="display_label" @change="chooseReferenceHazard(item, $event.detail.value)"><view class="picker-value">{{ item.hazard_reference_label || '选择实际对应的隐患' }}</view></picker>
+									<text class="area-heading__hint">{{ item.hazard_reference_label || '只关联同一个问题；关键词相同不代表同一隐患。' }}</text>
+								</template>
+							</view>
 						<label class="field">
 							<text class="field__label">隐患描述 <text class="required">*</text></text>
 							<textarea v-model="item.issue_note" class="textarea" maxlength="500" placeholder="请描述异常位置、现象及现场情况" />
@@ -125,29 +153,35 @@
 				<view class="review-card">
 					<view :class="['overall-result', { 'overall-result--danger': abnormalCount }]">
 						<text>整单结果</text>
-						<text>{{ abnormalCount ? `有异常（${abnormalCount}项）` : '正常' }}</text>
+						<text>{{ abnormalCount ? `有异常（${abnormalCount}项）` : '本次未记录异常' }}</text>
 					</view>
 					<view v-for="(area, areaIndex) in areas" :key="`review-${area.code}`" class="review-area">
 						<text class="review-area__title">{{ area.label }}</text>
 						<view v-for="item in area.items" :key="item.item_code" :class="['review-row', { 'review-row--danger': item.result_code === 'abnormal' }]">
 							<text class="review-row__label">{{ item.item_label }}</text>
-							<text class="review-row__result">{{ item.result_code === 'abnormal' ? '异常' : item.result_code === 'normal' ? '正常' : '未填' }}</text>
+								<text class="review-row__result">{{ item.result_code === 'abnormal' ? '异常' : item.result_code === 'normal' ? '正常' : item.result_code === 'not_running' ? '未运行' : '未填' }}</text>
 							<text class="review-row__meta">{{ uploadedPhotoCount(item) }} 张照片</text>
 							<button v-if="itemMessage(item)" class="review-row__edit" type="button" @click="jumpTo(areaIndex)">去补充</button>
 						</view>
 					</view>
 				</view>
 				<view class="review-card">
-					<view v-if="editMode" class="datetime-grid">
+						<view v-if="isCurrentTemplate || editMode" class="datetime-grid">
+							<view class="field"><text class="field__label">结束日期</text><picker mode="date" :value="endedDate" @change="endedDate = $event.detail.value"><view class="picker-value">{{ endedDate || '请选择' }}</view></picker></view>
+							<view class="field"><text class="field__label">结束时间</text><picker mode="time" :value="endedTime" @change="endedTime = $event.detail.value"><view class="picker-value">{{ endedTime || '请选择实际时间' }}</view></picker></view>
+						</view>
+						<button v-if="isCurrentTemplate && !editMode" class="minor-button" type="button" @click="markEnd">现场巡查现已结束</button>
+						<view v-if="editMode && !isCurrentTemplate" class="datetime-grid">
 						<view class="field"><text class="field__label">巡检日期</text><picker mode="date" :value="inspectionDate" @change="inspectionDate = $event.detail.value"><view class="picker-value">{{ inspectionDate }}</view></picker></view>
 						<view class="field"><text class="field__label">巡检时间</text><picker mode="time" :value="inspectionTime" @change="inspectionTime = $event.detail.value"><view class="picker-value">{{ inspectionTime }}</view></picker></view>
 					</view>
 					<label class="field"><text class="field__label">巡检员</text><input v-model="inspectorName" class="input" :disabled="!editMode" maxlength="50" /></label>
 					<label class="field"><text class="field__label">备注</text><textarea v-model="remark" class="textarea" maxlength="1000" placeholder="选填" /></label>
+						<label v-if="editMode" class="field"><text class="field__label">修改原因</text><textarea v-model="revisionReason" class="textarea" maxlength="1000" placeholder="必填。原记录和原隐患保留，修改正常不会自动销号。" /></label>
 				</view>
 			</view>
 
-			<view class="footer-actions">
+				<view v-if="!submitted" class="footer-actions">
 				<button class="footer-button footer-button--secondary" :disabled="saving" type="button" @click="previous">{{ currentStep === 0 ? '返回' : '上一步' }}</button>
 				<button class="footer-button footer-button--primary" :disabled="saving" type="button" @click="next">{{ primaryText }}</button>
 			</view>
@@ -165,6 +199,8 @@ import { getUser } from '@/services/auth'
 import {
 	getStationSafetyInspectionV1,
 	getStationSafetyTemplateV1,
+	listStationSafetyHazardsV1,
+	getStationSafetyHazardV1,
 	submitStationSafetyInspectionV1,
 	updateStationSafetyInspectionV1
 } from '@/services/stationSafetyInspection'
@@ -183,6 +219,11 @@ const remark = ref('')
 const clientSubmissionId = ref('')
 const inspectionDate = ref('')
 const inspectionTime = ref('')
+const startedDate = ref(''); const startedTime = ref(''); const endedDate = ref(''); const endedTime = ref(''); const weather = ref('')
+const revisionReason = ref(''); const sourceRevision = ref(1)
+const savedId = ref(''); const savedDate = ref(''); const dailyNavigationError = ref('')
+const isCurrentTemplate = computed(() => Number(template.value.template_version) >= 3)
+const hazardReferenceOptions = [{ value: 'new', label: '首次发现新问题' }, { value: 'linked', label: '未关闭隐患再次发现' }, { value: 'recurrence', label: '已关闭隐患再次发生' }]
 const dirty = ref(false)
 const submitted = ref(false)
 const signatureRefs = new Map()
@@ -200,9 +241,43 @@ const primaryText = computed(() => saving.value ? '正在保存…' : currentSte
 const draftKey = computed(() => `station-safety-draft-v1:${getUser()?._id || 'anonymous'}:${props.inspectionId || 'new'}`)
 
 function pad(value) { return String(value).padStart(2, '0') }
-function formatDate(date) { return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` }
-function formatTime(date) { return `${pad(date.getHours())}:${pad(date.getMinutes())}` }
+function formatDate(date) { return new Date(date.getTime() + 8 * 3600000).toISOString().slice(0, 10) }
+function formatTime(date) { return new Date(date.getTime() + 8 * 3600000).toISOString().slice(11, 16) }
 function generateId() { return `station_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}` }
+function markStart() { const now = new Date(); startedDate.value = formatDate(now); startedTime.value = formatTime(now) }
+function markEnd() { const now = new Date(); endedDate.value = formatDate(now); endedTime.value = formatTime(now) }
+function actualTimestamp(date, time) { return date && time ? Date.parse(`${date}T${time}:00+08:00`) : NaN }
+function referenceIndex(item) { return Math.max(0, hazardReferenceOptions.findIndex((option) => option.value === item.hazard_reference_mode)) }
+function setReferenceMode(item, index) {
+	item.hazard_reference_mode = hazardReferenceOptions[Number(index)]?.value || 'new'
+	item.linked_hazard_id = ''; item.recurrence_of = ''; item.hazard_reference_label = ''; item.hazard_candidates = []
+}
+async function searchReferenceHazards(item) {
+	item.reference_loading = true
+	try {
+		const result = await listStationSafetyHazardsV1({ status: item.hazard_reference_mode === 'recurrence' ? 'closed' : 'open', keyword: item.hazard_search, page: 1, pageSize: 50 })
+		if (result?.code !== 0) throw new Error(result?.msg || '查询失败')
+		item.hazard_candidates = (result.data || []).map((row) => ({ ...row, display_label: `${row.hazard_no} · ${row.issue_note}` }))
+		if (!item.hazard_candidates.length) uni.showToast({ title: '没有符合条件的隐患', icon: 'none' })
+		else if (result.paging?.hasMore) uni.showToast({ title: '结果较多，请按编号缩小搜索范围', icon: 'none' })
+	} catch (error) { uni.showToast({ title: error?.message || '查询失败', icon: 'none' }) }
+	finally { item.reference_loading = false }
+}
+async function chooseReferenceHazard(item, index) {
+	const selected = item.hazard_candidates[Number(index)]
+	if (!selected) return
+	try {
+		const result = await getStationSafetyHazardV1(selected._id)
+		if (result?.code !== 0) throw new Error(result?.msg || '隐患加载失败')
+		const row = result.data
+		item.linked_hazard_id = item.hazard_reference_mode === 'linked' ? row._id : ''
+		item.recurrence_of = item.hazard_reference_mode === 'recurrence' ? row._id : ''
+		item.hazard_reference_label = `${row.hazard_no} · ${row.issue_note}`
+		if (!item.responsible_name) item.responsible_name = row.responsible_name || ''
+		if (!item.planned_measure) item.planned_measure = row.planned_measure || ''
+		if (!item.planned_complete_date && item.hazard_reference_mode === 'linked') item.planned_complete_date = row.planned_complete_date || ''
+	} catch (error) { uni.showToast({ title: error?.message || '隐患加载失败', icon: 'none' }) }
+}
 
 function makeAreas(templateData) {
 	return (templateData.areas || []).map((area) => ({
@@ -211,6 +286,10 @@ function makeAreas(templateData) {
 		items: (area.items || []).map((item) => ({
 			item_code: item.code,
 			item_label: item.label,
+				category_code: item.category_code || '', category_label: item.category_label || '',
+				allow_not_running: (item.options || []).some((entry) => entry.code === 'not_running'),
+				not_running_reason: '', linked_hazard_id: '', recurrence_of: '', report: null, on_site_rectification: null,
+				hazard_reference_mode: 'new', hazard_search: '', hazard_candidates: [], hazard_reference_label: '', reference_loading: false,
 			result_code: '',
 			issue_note: '',
 			hazard_level: 'general',
@@ -232,7 +311,10 @@ function itemMessage(item) {
 	if (!item.result_code) return '请选择检查结果'
 	if (!(item.photos || []).length) return '至少需要 1 张现场照片'
 	if (hasPendingUploads(item) || uploadedPhotoCount(item) !== item.photos.length) return '照片尚未全部上传成功'
+	if (item.result_code === 'not_running' && !String(item.not_running_reason || '').trim()) return '请填写未运行原因'
 	if (item.result_code === 'abnormal') {
+		if (item.hazard_reference_mode === 'linked' && !item.linked_hazard_id) return '请选择实际对应的未关闭隐患'
+		if (item.hazard_reference_mode === 'recurrence' && !item.recurrence_of) return '请选择实际对应的已关闭隐患'
 		if (!String(item.issue_note || '').trim()) return '请填写隐患描述'
 		if (!['general', 'major'].includes(item.hazard_level)) return '请选择隐患等级'
 		if (!String(item.responsible_name || '').trim()) return '请填写整改责任人'
@@ -249,7 +331,7 @@ function markDirty() { dirty.value = true }
 
 function selectResult(item, result) {
 	item.result_code = result
-	if (result === 'normal') {
+	if (result !== 'abnormal') {
 		item.issue_note = ''
 		item.hazard_level = 'general'
 		item.responsible_name = ''
@@ -257,6 +339,7 @@ function selectResult(item, result) {
 		item.planned_complete_date = ''
 		item.responsible_signature_file_id = ''
 		item.signature_preview_url = ''
+		item.report = null; item.on_site_rectification = null
 	}
 	markDirty()
 }
@@ -322,9 +405,17 @@ function hydrateRecord(record) {
 		...area,
 		items: area.items.map((item) => {
 			const stored = storedByCode.get(item.item_code) || {}
+			const previousReference = (record.source_revisions || []).slice().reverse().flatMap((entry) => entry.snapshot?.items || []).find((entry) => entry.item_code === item.item_code && (entry.linked_hazard_id || entry.recurrence_of)) || {}
+			const linkedId = stored.linked_hazard_id || previousReference.linked_hazard_id || ''
+			const recurrenceId = stored.recurrence_of || previousReference.recurrence_of || ''
 			return {
 				...item,
 				result_code: stored.result_code || '',
+				not_running_reason: stored.not_running_reason || '',
+				linked_hazard_id: linkedId, recurrence_of: recurrenceId,
+				hazard_reference_mode: linkedId ? 'linked' : recurrenceId ? 'recurrence' : 'new',
+				hazard_reference_label: linkedId || recurrenceId,
+				report: stored.report || null, on_site_rectification: stored.on_site_rectification || null,
 				issue_note: stored.issue_note || '',
 				hazard_level: stored.hazard_level || 'general',
 				responsible_name: stored.responsible_name || '',
@@ -340,6 +431,12 @@ function hydrateRecord(record) {
 	const date = new Date(Number(record.inspection_at || Date.now()))
 	inspectionDate.value = formatDate(date)
 	inspectionTime.value = formatTime(date)
+	sourceRevision.value = Number(record.revision || 1)
+	weather.value = record.weather || ''
+	if (record.started_at) { startedDate.value = formatDate(new Date(record.started_at)); startedTime.value = formatTime(new Date(record.started_at)) }
+	else if (!isCurrentTemplate.value) { startedDate.value = ''; startedTime.value = '' }
+	if (record.ended_at) { endedDate.value = formatDate(new Date(record.ended_at)); endedTime.value = formatTime(new Date(record.ended_at)) }
+	else if (!isCurrentTemplate.value) { endedDate.value = ''; endedTime.value = '' }
 }
 
 async function resolvePreviews() {
@@ -368,6 +465,8 @@ function restoreDraft() {
 		}
 		clientSubmissionId.value = draft.client_submission_id || clientSubmissionId.value
 		remark.value = draft.remark || ''
+		startedDate.value = draft.started_date || startedDate.value; startedTime.value = draft.started_time || ''
+		endedDate.value = draft.ended_date || endedDate.value; endedTime.value = draft.ended_time || ''; weather.value = draft.weather || ''
 		currentStep.value = Math.min(Math.max(Number(draft.current_step || 0), 0), reviewStep.value)
 		return true
 	} catch (_) { return false }
@@ -381,10 +480,14 @@ function saveDraft() {
 			template_version: template.value.template_version,
 			client_submission_id: clientSubmissionId.value,
 			remark: remark.value,
+			started_date: startedDate.value, started_time: startedTime.value, ended_date: endedDate.value, ended_time: endedTime.value, weather: weather.value,
 			current_step: currentStep.value,
 			items: flatItems.value.map((item) => ({
 				item_code: item.item_code,
 				result_code: item.result_code,
+				not_running_reason: item.not_running_reason, linked_hazard_id: item.linked_hazard_id, recurrence_of: item.recurrence_of,
+				hazard_reference_mode: item.hazard_reference_mode, hazard_reference_label: item.hazard_reference_label,
+				report: item.report, on_site_rectification: item.on_site_rectification,
 				issue_note: item.issue_note,
 				hazard_level: item.hazard_level,
 				responsible_name: item.responsible_name,
@@ -413,6 +516,7 @@ async function load() {
 		clientSubmissionId.value = generateId()
 		const now = new Date()
 		inspectionDate.value = formatDate(now); inspectionTime.value = formatTime(now)
+		startedDate.value = formatDate(now); endedDate.value = formatDate(now)
 		if (recordRes) hydrateRecord(recordRes.data)
 		else if (restoreDraft()) uni.showToast({ title: '已恢复未提交草稿', icon: 'none' })
 		await resolvePreviews()
@@ -439,6 +543,9 @@ function buildItemPayload(item) {
 	return {
 		item_code: item.item_code,
 		result_code: item.result_code,
+		not_running_reason: item.not_running_reason,
+		linked_hazard_id: item.linked_hazard_id, recurrence_of: item.recurrence_of,
+		report: item.report, on_site_rectification: item.on_site_rectification,
 		issue_note: item.issue_note,
 		hazard_level: item.hazard_level,
 		responsible_name: item.responsible_name,
@@ -455,13 +562,22 @@ function inspectionTimestamp() {
 }
 
 async function submit() {
+	if (submitted.value) return openSavedDaily()
 	const invalid = firstInvalid()
 	if (invalid) { currentStep.value = invalid.areaIndex; return uni.showToast({ title: invalid.message, icon: 'none' }) }
 	if (!String(inspectorName.value || '').trim()) return uni.showToast({ title: '巡检员姓名不能为空', icon: 'none' })
+	if (editMode.value && !revisionReason.value.trim()) return uni.showToast({ title: '请填写修改原因', icon: 'none' })
+	const includeActualMetadata = isCurrentTemplate.value || Boolean(startedDate.value || startedTime.value || endedDate.value || endedTime.value || weather.value.trim())
+	if (includeActualMetadata) {
+		const start = actualTimestamp(startedDate.value, startedTime.value); const end = actualTimestamp(endedDate.value, endedTime.value)
+		if (!Number.isFinite(start) || !Number.isFinite(end) || end < start || end > Date.now() + 60000) return uni.showToast({ title: '请核对实际开始和结束时间', icon: 'none' })
+		if (!weather.value.trim()) return uni.showToast({ title: '请填写实际天气', icon: 'none' })
+	}
 	saving.value = true
 	try {
 		const payload = {
-			...(editMode.value ? { _id: props.inspectionId, inspection_at: inspectionTimestamp() } : { client_submission_id: clientSubmissionId.value }),
+			...(editMode.value ? { _id: props.inspectionId, inspection_at: inspectionTimestamp(), expected_revision: sourceRevision.value, revision_reason: revisionReason.value } : { client_submission_id: clientSubmissionId.value }),
+			...(includeActualMetadata ? { started_at: actualTimestamp(startedDate.value, startedTime.value), ended_at: actualTimestamp(endedDate.value, endedTime.value), weather: weather.value } : {}),
 			template_code: template.value.template_code,
 			template_version: template.value.template_version,
 			inspector_name: inspectorName.value,
@@ -471,12 +587,20 @@ async function submit() {
 		const res = editMode.value ? await updateStationSafetyInspectionV1(payload) : await submitStationSafetyInspectionV1(payload)
 		if (res?.code !== 0) throw new Error(res?.msg || '保存失败')
 		submitted.value = true; dirty.value = false
+		savedId.value = res.data?._id || props.inspectionId; savedDate.value = res.data?.inspection_date || endedDate.value || inspectionDate.value
 		if (!editMode.value) uni.removeStorageSync(draftKey.value)
 		uni.showToast({ title: editMode.value ? '修改已保存' : '巡检单已提交', icon: 'success' })
-		setTimeout(() => uni.redirectTo({ url: `/pages/station-safety-inspection/detail?id=${encodeURIComponent(res.data?._id || props.inspectionId)}` }), 500)
+		if (editMode.value) openSavedRecord()
+		else openSavedDaily()
 	} catch (error) { uni.showToast({ title: error?.message || '保存失败', icon: 'none' }) }
 	finally { saving.value = false }
 }
+
+function openSavedDaily() {
+	dailyNavigationError.value = ''
+	uni.redirectTo({ url: `/pages/safety-management/daily?date=${encodeURIComponent(savedDate.value)}`, fail: () => { dailyNavigationError.value = '日管控入口暂时未打开，可重试；已保存的巡检单不受影响。' } })
+}
+function openSavedRecord() { uni.navigateTo({ url: `/pages/station-safety-inspection/detail?id=${encodeURIComponent(savedId.value)}` }) }
 
 async function next() {
 	if (saving.value) return
@@ -502,7 +626,7 @@ async function handleBack() {
 	})
 }
 
-watch([areas, remark, currentStep], () => {
+watch([areas, remark, currentStep, startedDate, startedTime, endedDate, endedTime, weather, revisionReason], () => {
 	if (loading.value) return
 	markDirty()
 	clearTimeout(draftTimer)

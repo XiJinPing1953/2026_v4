@@ -32,9 +32,27 @@
 				<view class="text-block"><text class="detail-label">计划整改措施</text><text class="detail-value">{{ hazard.planned_measure }}</text></view>
 				<view class="text-block"><text class="detail-label">计划完成日期</text><text :class="['detail-value', { overdue: hazard.is_overdue }]">{{ hazard.planned_complete_date }}{{ hazard.is_overdue ? '（已逾期）' : '' }}</text></view>
 					<text class="detail-label">巡检现场照片</text><view class="photo-grid"><image v-for="id in hazard.inspection_photo_file_ids" :key="id" class="photo" :src="mediaMap[id] || id" mode="aspectFill" @click="preview(hazard.inspection_photo_file_ids, id)" /></view>
-					<text class="detail-label">责任人签名</text><image class="signature" :src="mediaMap[hazard.responsible_signature_file_id] || hazard.responsible_signature_file_id" mode="aspectFit" />
-					<button v-if="hazard.can_admin_edit" class="admin-link" type="button" @click="editInspection">修改原始巡检及隐患信息</button>
+					<text class="detail-label">责任人签名</text><image v-if="hazard.responsible_signature_file_id" class="signature" :src="mediaMap[hazard.responsible_signature_file_id] || hazard.responsible_signature_file_id" mode="aspectFit" /><text v-else class="detail-source">待签认</text>
+					<button v-if="hazard.can_admin_edit && (!hazard.source_type || hazard.source_type === 'station_inspection')" class="admin-link" type="button" @click="editInspection">修改原始巡检及隐患信息</button>
 			</view>
+			<view class="detail-card">
+				<text class="card-title">实际上报记录</text>
+				<view v-if="hazard.report"><text class="paragraph">{{ formatDateTime(hazard.report.reported_at) }} · {{ hazard.report.reported_to }} · {{ hazard.report.method }}</text><text v-if="hazard.report.temporary_measure" class="paragraph">临时措施：{{ hazard.report.temporary_measure }}</text><text v-if="hazard.report.requirements" class="paragraph">整改要求：{{ hazard.report.requirements }}</text></view>
+				<text v-else class="detail-source">尚未登记实际上报；保存巡检单不等于已上报。</text>
+				<button class="admin-link" type="button" @click="showReportForm = !showReportForm">{{ showReportForm ? '收起' : '登记实际上报' }}</button>
+				<view v-if="showReportForm">
+					<view class="detail-grid"><picker mode="date" :value="reportDate" @change="reportDate = $event.detail.value"><view class="input">{{ reportDate || '上报日期' }}</view></picker><picker mode="time" :value="reportTime" @change="reportTime = $event.detail.value"><view class="input">{{ reportTime || '上报时间' }}</view></picker></view>
+					<input v-model="reportedTo" class="input" maxlength="100" placeholder="实际上报对象" /><input v-model="reportMethod" class="input" maxlength="100" placeholder="实际上报方式，如书面报告" />
+					<textarea v-model="temporaryMeasure" class="textarea" maxlength="1000" placeholder="已采取的临时管控措施" /><textarea v-model="reportRequirements" class="textarea" maxlength="1000" placeholder="整改要求" />
+					<button class="primary-button" :disabled="saving" type="button" @click="saveReport">保存实际上报记录</button>
+				</view>
+			</view>
+			<view v-if="hazard.observations?.length" class="detail-card">
+				<text class="card-title">检查与来源修订记录（{{ hazard.observations.length }}）</text>
+				<view v-for="observation in hazard.observations" :key="observation.observation_key" class="text-block"><text class="detail-source">{{ formatDateTime(observation.observed_at) }} · {{ observation.inspection_no || observation.source_id }} · {{ observation.recorded_by_name }}</text><text class="paragraph">{{ observation.issue_note || observation.result_code }}{{ observation.correction_reason ? `；来源修订：${observation.correction_reason}` : '' }}</text></view>
+				<text v-if="hazard.recurrence_of" class="paragraph">本问题为已关闭隐患的复发，原隐患保留。</text>
+			</view>
+			<view v-if="hazard.on_site_rectification" class="detail-card"><text class="card-title">当场整改事实</text><text class="paragraph">{{ hazard.on_site_rectification.note }}</text><text class="detail-source">完成：{{ formatDateTime(hazard.on_site_rectification.completed_at) }} · 复查：{{ formatDateTime(hazard.on_site_rectification.rechecked_at) }}</text><text class="paragraph">{{ hazard.on_site_rectification.recheck_note }}</text></view>
 
 			<view v-if="hazard.rectification_note" class="detail-card">
 				<text class="card-title">已提交整改结果</text><text class="paragraph">{{ hazard.rectification_note }}</text>
@@ -49,7 +67,8 @@
 
 				<view v-if="hazard.can_admin_edit && hazard.rectified_at && hazard.status !== 'cancelled'" class="detail-card admin-card">
 					<text class="card-title">超级管理员修订闭环内容</text>
-					<text class="admin-hint">修改不保留旧版本，修改人和时间会写入操作日志。</text>
+					<text class="admin-hint">保留原闭环版本、修订原因、修改人和时间。</text>
+					<textarea v-model="adminRevisionReason" class="textarea" maxlength="1000" placeholder="修订原因（必填）" />
 					<textarea v-model="adminRectificationNote" class="textarea" maxlength="1000" placeholder="实际整改措施" />
 					<text class="field-label">整改照片 <text class="required">*</text></text>
 					<StationSafetyPhotoField :model-value="adminRectificationPhotos" :max="3" @update:model-value="updateAdminRectificationPhotos" @retry="retryUpload('admin-rectification', $event)" />
@@ -67,6 +86,12 @@
 				<textarea v-model="rectificationNote" class="textarea" maxlength="1000" placeholder="请填写实际整改措施和复查情况" />
 				<text class="field-label">整改后照片 <text class="required">*</text></text>
 				<StationSafetyPhotoField :model-value="rectificationPhotos" :max="3" @update:model-value="updateRectificationPhotos" @retry="retryUpload('rectification', $event)" />
+				<view class="text-block"><text>属于发现时当场整改</text><switch :checked="isOnSite" @change="isOnSite = $event.detail.value" /></view>
+				<view v-if="isOnSite">
+					<text class="field-label">实际整改完成日期、时间</text><view class="detail-grid"><picker mode="date" :value="onsiteDate" @change="onsiteDate = $event.detail.value"><view class="input">{{ onsiteDate || '完成日期' }}</view></picker><picker mode="time" :value="onsiteTime" @change="onsiteTime = $event.detail.value"><view class="input">{{ onsiteTime || '完成时间' }}</view></picker></view>
+					<text class="field-label">实际复查日期、时间</text><view class="detail-grid"><picker mode="date" :value="recheckDate" @change="recheckDate = $event.detail.value"><view class="input">{{ recheckDate || '复查日期' }}</view></picker><picker mode="time" :value="recheckTime" @change="recheckTime = $event.detail.value"><view class="input">{{ recheckTime || '复查时间' }}</view></picker></view>
+					<textarea v-model="recheckNote" class="textarea" maxlength="1000" placeholder="实际复查结论；保存后仍需原验证流程销号" />
+				</view>
 				<button class="primary-button" :disabled="saving" type="button" @click="submitRectification">{{ saving ? '正在提交…' : '提交整改，等待验证' }}</button>
 			</view>
 
@@ -86,7 +111,7 @@
 import { onMounted, ref } from 'vue'
 import StationSafetyInspectionShell from './StationSafetyInspectionShell.vue'
 import StationSafetyPhotoField from './StationSafetyPhotoField.vue'
-import { getStationSafetyHazardV1, listStationSafetyHazardsV1, submitStationSafetyRectificationV1, updateStationSafetyHazardOutcomeV1, verifyStationSafetyHazardV1 } from '@/services/stationSafetyInspection'
+import { getStationSafetyHazardV1, listStationSafetyHazardsV1, submitStationSafetyRectificationV1, updateStationSafetyHazardOutcomeV1, verifyStationSafetyHazardV1, recordStationSafetyHazardFactsV1 } from '@/services/stationSafetyInspection'
 import { resolveInspectionFileUrls, uploadStationSafetyImage } from '@/services/stationSafetyInspectionMedia'
 
 const props = defineProps({ hazardId: { type: String, default: '' } })
@@ -94,9 +119,23 @@ const statusOptions = [{ label: '待闭环', value: 'open' }, { label: '待整�
 const loading = ref(false); const loadingMore = ref(false); const error = ref(''); const rows = ref([]); const page = ref(1); const paging = ref({ hasMore: false, total: 0 }); const keyword = ref(''); const status = ref('open'); const hazard = ref(null); const mediaMap = ref({}); const saving = ref(false)
 const rectificationNote = ref(''); const rectificationPhotos = ref([]); const verificationResult = ref('passed'); const verificationNote = ref(''); const verificationPhotos = ref([])
 const adminRectificationNote = ref(''); const adminRectificationPhotos = ref([]); const adminVerificationResult = ref('passed'); const adminVerificationNote = ref(''); const adminVerificationPhotos = ref([])
+const adminRevisionReason = ref(''); const showReportForm = ref(false); const reportDate = ref(''); const reportTime = ref(''); const reportedTo = ref(''); const reportMethod = ref(''); const temporaryMeasure = ref(''); const reportRequirements = ref('')
+const isOnSite = ref(false); const onsiteDate = ref(''); const onsiteTime = ref(''); const recheckDate = ref(''); const recheckTime = ref(''); const recheckNote = ref('')
+function factTime(date, time) { return date && time ? Date.parse(`${date}T${time}:00+08:00`) : NaN }
+async function saveReport() {
+	const reportedAt = factTime(reportDate.value, reportTime.value)
+	if (!Number.isFinite(reportedAt) || !reportedTo.value.trim() || !reportMethod.value.trim()) return uni.showToast({ title: '请填写实际上报时间、对象和方式', icon: 'none' })
+	saving.value = true
+	try {
+		const res = await recordStationSafetyHazardFactsV1(props.hazardId, { expected_revision: hazard.value.revision || 1, report: { reported_at: reportedAt, reported_to: reportedTo.value, method: reportMethod.value, temporary_measure: temporaryMeasure.value, requirements: reportRequirements.value } })
+		if (res?.code !== 0) throw new Error(res?.msg || '保存失败')
+		showReportForm.value = false; await loadDetail(); uni.showToast({ title: '实际上报已保存', icon: 'success' })
+	} catch (error) { uni.showToast({ title: error?.message || '保存失败', icon: 'none' }) }
+	finally { saving.value = false }
+}
 
 function statusText(value) { return ({ pending_rectification: '待整改', pending_verification: '待验证', closed: '已关闭', cancelled: '已取消' })[value] || value || '-' }
-function formatDateTime(value) { const date = new Date(Number(value || 0)); return Number.isFinite(date.getTime()) && Number(value) ? `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}` : '-' }
+function formatDateTime(value) { const timestamp = Number(value); return timestamp > 0 && Number.isFinite(timestamp) ? new Date(timestamp + 8 * 3600000).toISOString().slice(0, 16).replace('T', ' ') : '-' }
 function openHazard(row) { uni.navigateTo({ url: `/pages/station-safety-inspection/hazards?id=${encodeURIComponent(row._id)}` }) }
 function selectStatus(value) { status.value = value; loadList(true) }
 function preview(ids, current) { const urls = (ids || []).map((id) => mediaMap.value[id] || id); if (urls.length) uni.previewImage({ urls, current: mediaMap.value[current] || current }) }
@@ -160,7 +199,13 @@ async function submitRectification() {
 	if (!rectificationNote.value.trim()) return uni.showToast({ title: '请填写实际整改措施', icon: 'none' })
 	if (!uploadsReady(rectificationPhotos, true)) return uni.showToast({ title: '请上传至少 1 张整改后照片', icon: 'none' })
 	saving.value = true
-	try { const res = await submitStationSafetyRectificationV1(props.hazardId, { rectification_note: rectificationNote.value, rectification_photo_file_ids: uploadedIds(rectificationPhotos) }); if (res?.code !== 0) throw new Error(res?.msg); uni.showToast({ title: '整改已提交', icon: 'success' }); await loadDetail() }
+	try {
+		const res = isOnSite.value
+			? await recordStationSafetyHazardFactsV1(props.hazardId, { expected_revision: hazard.value.revision || 1, on_site_rectification: { note: rectificationNote.value, photo_file_ids: uploadedIds(rectificationPhotos), completed_at: factTime(onsiteDate.value, onsiteTime.value), rechecked_at: factTime(recheckDate.value, recheckTime.value), recheck_note: recheckNote.value } })
+			: await submitStationSafetyRectificationV1(props.hazardId, { expected_revision: hazard.value.revision || 1, rectification_note: rectificationNote.value, rectification_photo_file_ids: uploadedIds(rectificationPhotos) })
+		if (res?.code !== 0) throw new Error(res?.msg)
+		uni.showToast({ title: '整改已提交，待验证', icon: 'success' }); await loadDetail()
+	}
 	catch (err) { uni.showToast({ title: err?.message || '提交失败', icon: 'none' }) }
 	finally { saving.value = false }
 }
@@ -169,12 +214,13 @@ async function verify() {
 	if (!verificationNote.value.trim()) return uni.showToast({ title: '请填写验证结论', icon: 'none' })
 	if (!uploadsReady(verificationPhotos, false)) return uni.showToast({ title: '验证照片尚未上传完成', icon: 'none' })
 	saving.value = true
-	try { const res = await verifyStationSafetyHazardV1(props.hazardId, { verification_result: verificationResult.value, verification_note: verificationNote.value, verification_photo_file_ids: uploadedIds(verificationPhotos) }); if (res?.code !== 0) throw new Error(res?.msg); uni.showToast({ title: verificationResult.value === 'passed' ? '已验证关闭' : '已退回整改', icon: 'success' }); await loadDetail() }
+	try { const res = await verifyStationSafetyHazardV1(props.hazardId, { expected_revision: hazard.value.revision || 1, verification_result: verificationResult.value, verification_note: verificationNote.value, verification_photo_file_ids: uploadedIds(verificationPhotos) }); if (res?.code !== 0) throw new Error(res?.msg); uni.showToast({ title: verificationResult.value === 'passed' ? '已验证关闭' : '已退回整改', icon: 'success' }); await loadDetail() }
 	catch (err) { uni.showToast({ title: err?.message || '验证失败', icon: 'none' }) }
 	finally { saving.value = false }
 }
 
 async function saveAdminOutcome() {
+	if (!adminRevisionReason.value.trim()) return uni.showToast({ title: '请填写修订原因', icon: 'none' })
 	if (!adminRectificationNote.value.trim()) return uni.showToast({ title: '请填写实际整改措施', icon: 'none' })
 	if (!uploadsReady(adminRectificationPhotos, true)) return uni.showToast({ title: '整改照片需为1–3张且全部上传成功', icon: 'none' })
 	if (hazard.value?.verified_at && !adminVerificationNote.value.trim()) return uni.showToast({ title: '请填写验证结论', icon: 'none' })
@@ -182,6 +228,7 @@ async function saveAdminOutcome() {
 	saving.value = true
 	try {
 		const payload = {
+			expected_revision: hazard.value.revision || 1, revision_reason: adminRevisionReason.value,
 			rectification_note: adminRectificationNote.value,
 			rectification_photo_file_ids: uploadedIds(adminRectificationPhotos),
 			...(hazard.value?.verified_at ? {

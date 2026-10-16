@@ -1,0 +1,40 @@
+[
+  {
+    "IndexName": "uniq_station_submission",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "station_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "client_submission_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": true,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_station_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "station_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "date",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  }
+]
