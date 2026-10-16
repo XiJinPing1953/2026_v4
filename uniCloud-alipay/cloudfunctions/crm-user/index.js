@@ -126,6 +126,35 @@ function ensureSuperAdminUser(user) {
 	return { code: 403, msg: '仅超级管理员可操作' }
 }
 
+async function resolveMobileSaleDefaults(data) {
+	if (!Object.prototype.hasOwnProperty.call(data, 'mobile_sale_defaults')) return { ok: true, patch: {} }
+	const input = data.mobile_sale_defaults
+	if (input === null) return { ok: true, patch: { mobile_sale_defaults: {} } }
+	if (!input || typeof input !== 'object' || Array.isArray(input)) {
+		return { code: 400, msg: '手机销售默认信息格式无效' }
+	}
+	const value = {}
+	for (const [idKey, labelKey, collection, nameKey, label] of [
+		['delivery1_id', 'delivery1', 'crm_delivery_men', 'name', '配送员1'],
+		['delivery2_id', 'delivery2', 'crm_delivery_men', 'name', '配送员2'],
+		['vehicle_id', 'vehicle_no', 'crm_vehicles', 'plate_no', '车辆']
+	]) {
+		if (input[idKey] != null && typeof input[idKey] !== 'string') return { code: 400, msg: `${label} ID 格式无效` }
+		const id = normalizeString(input[idKey])
+		value[idKey] = id
+		value[labelKey] = ''
+		if (!id) continue
+		const res = await db.collection(collection).doc(id).get()
+		const record = (res.data || [])[0]
+		if (!record) return { code: 400, msg: `默认${label}档案不存在` }
+		if (record.is_active !== true) return { code: 400, msg: `默认${label}档案未启用` }
+		const name = normalizeString(record[nameKey])
+		if (!name) return { code: 400, msg: `默认${label}档案信息不完整` }
+		value[labelKey] = name
+	}
+	return { ok: true, patch: { mobile_sale_defaults: value } }
+}
+
 function buildUserDoc({ username, nickname, passwordHash, roleTemplate }) {
 	const role = normalizeRoleTemplate(roleTemplate)
 	const now = Date.now()
@@ -188,12 +217,18 @@ async function createV1(user, data, requestId) {
 	if (nickname.length > 20) return { code: 400, msg: '昵称最多20个字' }
 	const exists = await users.where({ username }).limit(1).get()
 	if ((exists.data || []).length) return { code: 400, msg: '账号已存在' }
+	const defaults = await resolveMobileSaleDefaults(data)
+	if (!defaults.ok) return defaults
 	const doc = buildUserDoc({
 		username,
 		nickname,
 		passwordHash: await hashPassword(password),
 		roleTemplate
 	})
+	if (Object.prototype.hasOwnProperty.call(data, 'page_permissions')) {
+		doc.page_permissions = normalizePagePermissions(data.page_permissions, roleTemplate)
+	}
+	Object.assign(doc, defaults.patch)
 	const res = await users.add(doc)
 	await recordLog(user, 'user_manage_create_v1', { id: res.id, username, nickname, role_template: roleTemplate }, requestId)
 	return { code: 0, msg: '创建成功', data: { _id: res.id } }
@@ -272,12 +307,15 @@ async function savePermissionsV1(user, data, requestId) {
 	const targetRes = await users.doc(userId).get()
 	const target = (targetRes.data || [])[0]
 	if (!target) return { code: 404, msg: '用户不存在' }
+	const defaults = await resolveMobileSaleDefaults(data)
+	if (!defaults.ok) return defaults
 	if (normalizeString(target.username) === SUPERADMIN_USERNAME) {
 		const roleTemplate = 'superadmin'
 		await users.doc(userId).update({
 			role: roleTemplate,
 			role_template: roleTemplate,
 			page_permissions: buildRoleTemplatePermissions(roleTemplate),
+			...defaults.patch,
 			updated_at: Date.now()
 		})
 		await recordLog(user, 'user_manage_save_permissions_v1', { target: userId, role_template: roleTemplate, locked: true }, requestId)
@@ -294,6 +332,7 @@ async function savePermissionsV1(user, data, requestId) {
 		role_template: roleTemplate,
 		page_permissions: pagePermissions,
 		...(hasNicknameField ? { nickname } : {}),
+		...defaults.patch,
 		updated_at: Date.now()
 	})
 	await recordLog(

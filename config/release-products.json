@@ -53,49 +53,16 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.16-tank-display",
+      "version": "2026.10.16-mobile-sale-account",
       "output": "release/cloud",
-      "acceptance": "EMA30 applies only to current tank display. Preserve raw telemetry, operation logs, alarms, fixed weight formula and business quantities. CRM and Windows use the same display snapshot; employee wording stays unchanged. Windows onsite installation and employee-screen acceptance are recorded separately.",
+      "acceptance": "Create one explicitly scoped mobile sale account with registered editable delivery and vehicle defaults. Existing users remain unchanged. Verify authentication, required lookup permissions and denied management access. This scope does not publish mobile H5 or sale submission services.",
       "deploymentScope": {
         "functions": [
-          "crm-dashboard",
-          "crm-tank-gateway"
+          "crm-user"
         ],
         "databaseFiles": [
-          "crm_tank_telemetry.schema.json"
-        ],
-        "baseCommit": "61626b93670572c915cc369954c9e117beb25fae",
-        "sourceFiles": [
-          "apps/tank-gateway/README.md",
-          "apps/tank-gateway/main.cjs",
-          "apps/tank-gateway/renderer/display.js",
-          "apps/tank-gateway/renderer/renderer.js",
-          "apps/tank-gateway/tankDisplayFilter.js",
-          "apps/tank-gateway/tankTelemetryLocal.cjs",
-          "src/components/domain/dashboard/DashboardHome.vue",
-          "src/services/mappers/tankDisplay.js",
-          "uniCloud-alipay/cloudfunctions/common/tankDisplayFilter.js",
-          "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankDisplayFilter.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankTelemetryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankDisplayFilter.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankTelemetry.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/tankDisplayFilter.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-tank-gateway/tankDisplayFilter.js",
-          "uniCloud-alipay/cloudfunctions/crm-tank-gateway/tankTelemetry.js",
-          "uniCloud-alipay/database/crm_tank_telemetry.schema.json"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-dashboard": {
-            "registry": {
-              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
-              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
-            }
-          }
-        }
+          "crm_users.schema.json"
+        ]
       },
       "integrityScope": "deployment"
     },
