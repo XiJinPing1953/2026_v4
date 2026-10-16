@@ -3,7 +3,7 @@
 // Permanent creation receipt, deliberately not a side-effect retry queue.
 const crypto = require('crypto')
 const { newToken, tokenHash } = require('./mobileSaleEffectsLocal')
-const OPERATIONS = 'crm_mobile_sale_create_operations', SALES = 'crm_sale_records'
+const OPERATIONS = 'crm_mobile_sale_operations', SALES = 'crm_sale_records'
 const SOURCE = 'mobile-sale-v1'
 const text = value => String(value == null ? '' : value).trim()
 const first = res => Array.isArray(res?.data) ? res.data[0] || null : res?.data || null

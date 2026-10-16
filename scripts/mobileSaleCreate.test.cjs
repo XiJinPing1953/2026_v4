@@ -367,7 +367,7 @@ test('existing desktop createV2 remains compatible and has no mobile receipt or 
 })
 test('schema declares captured fields, both mirrored schemas match, operation index matches canonical schema',()=>{
   const dir=path.join(ROOT,'uniCloud-alipay/database')
-  for(const name of ['crm_sale_records','crm_mobile_sale_create_operations']) {
+  for(const name of ['crm_sale_records','crm_mobile_sale_operations']) {
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir,name+'.schema.json'))),JSON.parse(fs.readFileSync(path.join(dir,'schema',name+'.schema.json'))))
   }
   const schema=JSON.parse(fs.readFileSync(path.join(dir,'crm_sale_records.schema.json')))
