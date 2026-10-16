@@ -126,8 +126,8 @@ function buildDailySnapshot({ station_id = STATION.id, date, inspections = [], h
 }
 function checkDailyConfirmation(snapshot, zeroReport) { if (!snapshot.complete) fail(`日表尚未完成：${snapshot.missing.join('；')}`); if (zeroReport && !snapshot.summary.zero_report_allowed) fail('发现问题、复见未关闭问题或检查不完整时不能确认零报告'); return true }
 function recordStatus(snapshot, record, enabled) { if (!enabled) return 'not_enabled'; if (!snapshot.inspections.length) return 'no_inspection'; if (record && record.source_fingerprint !== snapshot.source_fingerprint) return 'recheck_required'; if (!record || !snapshot.complete) return 'incomplete'; return 'pending_signature' }
-function aggregateStatistics({ period, config, daily, hazards }) {
-  const today = shanghaiDate(); const end = period.end_date < today ? period.end_date : today
+function aggregateStatistics({ period, config, daily, hazards, now = Date.now() }) {
+  const today = shanghaiDate(now); const end = period.end_date < today ? period.end_date : today
   const dueDates = period.start_date > end ? [] : daysBetween(period.start_date, end).filter(date => config?.enabled_from && date >= config.enabled_from)
   const dailyByDate = new Map(daily.map(row => [row.date, row]))
   const asOfDate = period.end_date < today ? period.end_date : today

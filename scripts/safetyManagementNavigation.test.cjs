@@ -52,5 +52,5 @@ test('普通用户与 PDA 操作员的默认入口、PDA 页面权限限制不�
 	assert.equal(context.resolveHomePath({ role: 'pda_operator' }), '/pages/pda/home')
 	assert.equal(context.shouldRedirectToPreferredHome('/pages/safety-management/daily', { role: 'user' }), false)
 	assert.equal(context.resolveLoginRedirectForRuntime('/pages/pda/home', { role: 'user' }), '')
-	assert.equal(context.resolveLoginRedirectForRuntime('/pages/pda/home?task=1', { role: 'user', allowedPages: ['/pages/pda/home'] }), '/pages/pda/home?task=1')
+	assert.equal(context.resolveLoginRedirectForRuntime('/pages/pda/home?task=1', { role: 'pda_operator', allowedPages: ['/pages/pda/home'] }), '/pages/pda/home?task=1')
 })
