@@ -129,7 +129,7 @@ const CATEGORY_ITEMS = Object.freeze({
 	7: ['public_emergency_supplies']
 })
 const ITEM_CATEGORIES = Object.freeze(Object.fromEntries(Object.entries(CATEGORY_ITEMS).flatMap(([category, codes]) => codes.map((code) => [code, category]))))
-const TEMPLATE = Object.freeze({
+const TEMPLATE_V3 = Object.freeze({
 	...TEMPLATE_V2,
 	version: 3,
 	classification_version: CLASSIFICATION_VERSION,
@@ -147,7 +147,42 @@ const TEMPLATE = Object.freeze({
 	}))))
 })
 
-const TEMPLATES = Object.freeze([TEMPLATE, TEMPLATE_V2, TEMPLATE_V1])
+// Coverage belongs to the v4 check scope. A historical v1-v3 result cannot
+// establish that the additional physical checks were actually performed.
+const SUPPLEMENT_COVERAGE = Object.freeze({
+	S02: ['tank_bolts', 'tank_insulation_leak', 'pump_bolts', 'pump_appearance_leak'],
+	S05: ['public_entry_management', 'public_cylinder_transport'],
+	S07: ['tank_housekeeping', 'filling_housekeeping', 'public_cylinder_zoning'],
+	S08: ['public_fire_records'],
+	S10: ['public_emergency_supplies']
+})
+const V4_LABELS = Object.freeze({
+	tank_signage: '储罐区安全标志与设备标牌是否齐全清晰，新增或变化部位是否设置相应标志',
+	pump_signage: '泵区安全标志与设备标牌是否齐全清晰，新增或变化部位是否设置相应标志',
+	filling_signage: '充装区安全标志与设备标牌是否齐全清晰，新增或变化部位是否设置相应标志',
+	tank_bolts: '紧固螺栓是否齐全牢固，支座、基础、支吊架是否无明显异常',
+	tank_insulation_leak: '储罐和管道保温、外观及泄漏情况是否正常，运行时是否无异常振动、异响、摩擦（未运行仍检查静态设施）',
+	pump_bolts: '泵体及附属设备螺栓是否齐全牢固，支座、基础、支吊架是否无明显异常',
+	pump_appearance_leak: '泵体和管道保温、外观及泄漏情况是否正常，运行时是否无异常振动、异响、摩擦（未运行仍检查静态设施）',
+	tank_housekeeping: '储罐区是否无杂物、通道畅通，普通照明、通风及物料堆放是否正常',
+	filling_housekeeping: '充装区是否无杂物、充装及消防通道畅通，普通照明、通风及物料堆放是否正常',
+	public_cylinder_zoning: '气瓶是否分区存放、空满瓶标签清晰，全厂其他区域（含泵区、公共区域）的普通照明、通风及物料堆放是否正常',
+	public_entry_management: '车辆、人员入厂登记、区域边界和规定着装是否符合要求，劳保用品是否正确佩戴使用，是否无违章指挥、违章操作、违反劳动纪律',
+	public_cylinder_transport: '是否禁止叉车运瓶，专用推车防倾倒、防碰撞措施是否完好，运输作业劳保使用和操作是否符合要求',
+	public_fire_records: '灭火器、消防栓等年检、巡检标签和台账频次是否符合要求，消防栓及配套器材是否齐全完好、取用方便、无明显缺损（不要求每日放水试验）',
+	public_emergency_supplies: '应急物资及清单是否齐全，空气呼吸器、手持可燃气体探测器等是否在位，外观、配套及适用有效状态是否正常'
+})
+const TEMPLATE = Object.freeze({
+	...TEMPLATE_V3,
+	version: 4,
+	areas: Object.freeze(TEMPLATE_V3.areas.map((entry) => area(entry.code, entry.label, entry.items.map((definition) => Object.freeze({
+		...definition,
+		label: V4_LABELS[definition.code] || definition.label,
+		supplement_coverage: Object.freeze(Object.entries(SUPPLEMENT_COVERAGE).filter(([, codes]) => codes.includes(definition.code)).map(([code]) => code))
+	})))))
+})
+
+const TEMPLATES = Object.freeze([TEMPLATE, TEMPLATE_V3, TEMPLATE_V2, TEMPLATE_V1])
 
 function normalizeString(value) {
 	return value == null ? '' : String(value).trim()
@@ -372,6 +407,7 @@ function normalizeClientSubmissionId(value) {
 module.exports = {
 	STATION,
 	TEMPLATE,
+	SUPPLEMENT_COVERAGE,
 	CLASSIFICATION_VERSION,
 	CATEGORIES,
 	ITEM_CATEGORIES,

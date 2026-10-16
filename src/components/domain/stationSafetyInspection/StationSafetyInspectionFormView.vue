@@ -1,7 +1,7 @@
 <template>
 	<StationSafetyInspectionShell
-		:title="editMode ? '超级管理员修改巡检单' : '填写厂站巡检单'"
-			:subtitle="editMode ? '填写修改原因，保留原记录与全部问题' : '完成现场巡检后继续补充当日日管控'"
+		:title="workflowMode ? '巡检 · 七类核对' : editMode ? '超级管理员修改巡检单' : '填写厂站巡检单'"
+			:subtitle="workflowMode ? '原巡检已保存，继续核对本次作业与适用检查' : editMode ? '填写修改原因，保留原记录与全部问题' : '四区36项现场检查 → 七类核对 → 每日检查表'"
 		:before-back="handleBack"
 		back
 	>
@@ -10,6 +10,7 @@
 			<text>{{ loadError }}</text>
 			<button class="minor-button" type="button" @click="load">重新加载</button>
 		</view>
+		<view v-else-if="workflowMode" class="form-stack"><SafetyInspectionWorkflowEditor ref="workflowEditor" :inspection-id="savedId || workflowId" @dirty="workflowDirty=$event" /><button class="minor-button" @click="openSavedRecord">查看已保存36项巡检</button></view>
 		<view v-else class="form-stack">
 				<view v-if="submitted" class="review-card">
 					<text>巡检单已保存。{{ dailyNavigationError || '请继续填写当日日管控。' }}</text>
@@ -195,6 +196,7 @@ import { onBackPress } from '@dcloudio/uni-app'
 import StationSafetyInspectionShell from './StationSafetyInspectionShell.vue'
 import StationSafetyPhotoField from './StationSafetyPhotoField.vue'
 import StationSafetySignaturePad from './StationSafetySignaturePad.vue'
+import SafetyInspectionWorkflowEditor from '../safetyManagement/SafetyInspectionWorkflowEditor.vue'
 import { getUser } from '@/services/auth'
 import {
 	getStationSafetyInspectionV1,
@@ -206,7 +208,9 @@ import {
 } from '@/services/stationSafetyInspection'
 import { resolveInspectionFileUrls, uploadStationSafetyImage } from '@/services/stationSafetyInspectionMedia'
 
-const props = defineProps({ inspectionId: { type: String, default: '' } })
+const props = defineProps({ inspectionId: { type: String, default: '' }, workflowId: { type: String, default: '' } })
+const workflowMode = computed(() => Boolean(props.workflowId || submitted.value))
+const workflowDirty = ref(false), workflowEditor = ref(null)
 const editMode = computed(() => Boolean(props.inspectionId))
 const loading = ref(true)
 const loadError = ref('')
@@ -237,7 +241,7 @@ const reviewStep = computed(() => areas.value.length)
 const flatItems = computed(() => areas.value.flatMap((area) => area.items))
 const completedItems = computed(() => flatItems.value.filter((item) => !itemMessage(item)).length)
 const abnormalCount = computed(() => flatItems.value.filter((item) => item.result_code === 'abnormal').length)
-const primaryText = computed(() => saving.value ? '正在保存…' : currentStep.value === reviewStep.value ? (editMode.value ? '保存修改' : '确认提交') : '下一步')
+const primaryText = computed(() => saving.value ? '正在保存…' : currentStep.value === reviewStep.value ? (editMode.value ? '保存修改' : '保存36项，继续七类核对') : '下一步')
 const draftKey = computed(() => `station-safety-draft-v1:${getUser()?._id || 'anonymous'}:${props.inspectionId || 'new'}`)
 
 function pad(value) { return String(value).padStart(2, '0') }
@@ -503,6 +507,7 @@ function saveDraft() {
 }
 
 async function load() {
+	if (props.workflowId) { savedId.value=props.workflowId; loading.value=false; return }
 	loading.value = true; loadError.value = ''
 	try {
 		const recordRes = editMode.value ? await getStationSafetyInspectionV1(props.inspectionId) : null
@@ -590,8 +595,7 @@ async function submit() {
 		savedId.value = res.data?._id || props.inspectionId; savedDate.value = res.data?.inspection_date || endedDate.value || inspectionDate.value
 		if (!editMode.value) uni.removeStorageSync(draftKey.value)
 		uni.showToast({ title: editMode.value ? '修改已保存' : '巡检单已提交', icon: 'success' })
-		if (editMode.value) openSavedRecord()
-		else openSavedDaily()
+		uni.pageScrollTo({ scrollTop: 0, duration: 0 })
 	} catch (error) { uni.showToast({ title: error?.message || '保存失败', icon: 'none' }) }
 	finally { saving.value = false }
 }
@@ -600,7 +604,7 @@ function openSavedDaily() {
 	dailyNavigationError.value = ''
 	uni.redirectTo({ url: `/pages/safety-management/daily?date=${encodeURIComponent(savedDate.value)}`, fail: () => { dailyNavigationError.value = '日管控入口暂时未打开，可重试；已保存的巡检单不受影响。' } })
 }
-function openSavedRecord() { uni.navigateTo({ url: `/pages/station-safety-inspection/detail?id=${encodeURIComponent(savedId.value)}` }) }
+function openSavedRecord() { uni.navigateTo({ url: `/pages/station-safety-inspection/detail?id=${encodeURIComponent(savedId.value || props.workflowId)}` }) }
 
 async function next() {
 	if (saving.value) return
@@ -614,6 +618,9 @@ async function next() {
 }
 
 async function handleBack() {
+	if (workflowMode.value && workflowDirty.value) {
+		return new Promise(resolve => uni.showModal({ title: '七类核对尚未保存', content: '原36项已保存；此处未保存的编辑退出后不会保留。请先暂存，或确认退出。', success: result => { allowNextBack=Boolean(result.confirm); resolve(Boolean(result.confirm)) }, fail: () => resolve(false) }))
+	}
 	if (!dirty.value || submitted.value) { allowNextBack = true; return true }
 	if (!editMode.value) saveDraft()
 	return new Promise((resolve) => {
