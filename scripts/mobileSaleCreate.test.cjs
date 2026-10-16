@@ -5,6 +5,8 @@ const { createRequire } = require('node:module')
 const ROOT = process.env.MOBILE_SALE_TEST_ROOT || path.resolve(__dirname, '..')
 const { makeDb } = require(path.join(ROOT, 'scripts/lib/accountingTestHarness.cjs'))
 const M = require(path.join(ROOT, 'uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js'))
+const Effects = require(path.join(ROOT, 'uniCloud-alipay/cloudfunctions/common/mobileSaleEffects.js'))
+const { hasPagePermission } = require(path.join(ROOT, 'uniCloud-alipay/cloudfunctions/common/pageAcl.js'))
 const clone = value => structuredClone(value)
 function database(tables, hooks = {}) {
   const writes = [], calls = []; let serial = 0, commits = 0
@@ -98,6 +100,101 @@ function harness(hooks = {}) {
     input:(operation='mobile-test-0001')=>({operation_id:operation,payload:payload()})}
 }
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return{promise,resolve}}
+
+function loadDownstream(name, db) {
+  const filename=path.join(ROOT,`uniCloud-alipay/cloudfunctions/${name}/index.js`)
+  const context={exports:{},require:createRequire(filename),uniCloud:{database:()=>db},
+    console:{log(){},warn(){},error(){}},Date,Math,Set,Map,Buffer,process,setTimeout,clearTimeout}
+  vm.runInNewContext(fs.readFileSync(filename,'utf8'),context,{filename})
+  return event=>context.exports.main(event,{})
+}
+
+function effectHarness(hooks = {}) {
+  const capability={operation_key:'a'.repeat(24),token:Effects.newToken()}
+  const user={_id:'operator',role:'pda_operator',page_permissions:{'/pages/pda/sale-create':{view:true,create:true}}}
+  const sale={_id:capability.operation_key,created_by:user._id,mobile_create_operation_key:capability.operation_key,mobile_create_state:'processing',
+    source:M.SOURCE,biz_mode:'bottle',price_unit:'kg',settlement_mode:'sale',amount_received:0,apply_offset_credit:false,offset_enabled:false,
+    customer_id:'customer',out_items:[{bottle_no:'B1'}],back_items:[{bottle_no:'B2'}],deposit_rows:[{bottle_no:'B3'}]}
+  const operation={_id:capability.operation_key,sale_id:sale._id,created_by:user._id,processing_state:'processing',side_effect_token_hash:Effects.tokenHash(capability.token),side_effect_claims:[]}
+  const tables={[M.OPERATIONS]:[operation],crm_sale_records:[sale]}
+  const db=database(tables,hooks)
+  const args={db:db.db,user,hasPagePermission,capability,cloudFunction:'crm-customer-settlement',action:'autoApplyPrepayToSaleV1',data:{sale_id:sale._id,exclude_offset_credit:true}}
+  return {...db,tables,user,sale,operation,capability,args,authorize:()=>Effects.authorizeMobileSaleEffect(args)}
+}
+
+test('server capability grants only exact saved-source steps once and is never returned or stored in plaintext',async()=>{
+  const h=harness(),res=await h.invoke('createMobileV1',h.input())
+  const calls=h.calls.filter(call=>call.data.mobile_sale_capability)
+  assert.deepEqual(calls.map(call=>call.data.action).sort(),['autoApplyPrepayToSaleV1','touchV2'])
+  assert.equal(h.calls.some(call=>call.data.action==='repairOffsetCreditsV1'),false)
+  const capability=calls[0].data.mobile_sale_capability
+  assert.match(capability.token,/^[a-f0-9]{64}$/)
+  assert.equal(h.tables[M.OPERATIONS][0].side_effect_token_hash,Effects.tokenHash(capability.token))
+  assert.equal(JSON.stringify(h.tables).includes(capability.token),false)
+  assert.equal(JSON.stringify(res).includes(capability.token),false)
+  const one=effectHarness()
+  assert.equal((await one.authorize()).ok,true)
+  assert.deepEqual(one.tables[M.OPERATIONS][0].side_effect_claims,['crm-customer-settlement:autoApplyPrepayToSaleV1'])
+  assert.equal((await one.authorize()).code,403)
+})
+
+test('capability rejects forged credentials, owner/source/state changes, broader scope and historical repair',async()=>{
+  for(const mutate of [h=>h.args.capability=null,h=>h.args.capability={...h.capability,token:'b'.repeat(64)},
+    h=>h.user._id='other',h=>h.user.page_permissions['/pages/pda/sale-create'].create=false,
+    h=>h.operation.processing_state='completed',h=>h.sale.mobile_create_state='pending_review',h=>h.sale.created_by='other',
+    h=>h.sale.mobile_create_operation_key='b'.repeat(24),h=>h.sale.source='manual-v4',h=>h.sale.amount_received=1,
+    h=>h.args.data.sale_id='other',h=>h.args.data.exclude_offset_credit=false,h=>h.args.data.customer_id='other',
+    h=>{h.args.action='repairOffsetCreditsV1';h.args.data={customer_id:'customer',date_from:'2026-10-01',date_to:'2026-10-16',execute:true,auto_apply:false}},
+    h=>{h.args.cloudFunction='crm-filling';h.args.action='syncStartLossAdjustmentsV1';h.args.data={bottle_nos:['B1']}},
+    h=>{h.args.cloudFunction='crm-filling';h.args.action='syncStartLossAdjustmentsV1';h.args.data={bottle_nos:['B2'],filling_ids:['other']}}]) {
+    const h=effectHarness();mutate(h)
+    const result=await h.authorize()
+    assert.equal(result.code,403,JSON.stringify(result));assert.equal(h.writes.length,0)
+  }
+  const h=effectHarness();h.args.cloudFunction='crm-filling';h.args.action='syncStartLossAdjustmentsV1';h.args.data={bottle_nos:['B2']}
+  assert.equal((await h.authorize()).ok,true)
+  h.args.cloudFunction='crm-bottle-anomaly';h.args.action='touchV2';h.args.data={bottle_nos:['B1','B2','B3'],truck_nos:[],batch_size:120,max_events_per_round:800,max_ms_per_round:2200,max_writes_per_round:120}
+  assert.equal((await h.authorize()).ok,true)
+})
+
+test('concurrent claims and a lost claim response never execute a downstream step twice',async()=>{
+  const h=effectHarness(),results=await Promise.all([h.authorize(),h.authorize()])
+  assert.equal(results.filter(result=>result.ok).length,1)
+  assert.equal(h.writes.length,1)
+  const lost=effectHarness({afterCommit:async()=>{throw Error('claim response lost')}})
+  assert.equal((await lost.authorize()).code,503)
+  assert.equal(lost.tables[M.OPERATIONS][0].side_effect_claims.length,1)
+  assert.equal((await lost.authorize()).code,403)
+  assert.equal(lost.writes.length,1)
+})
+
+test('minimal account traverses real downstream ACLs without gaining direct financial, anomaly or filling access',async()=>{
+  let h
+  const handlers=new Map(),results=[]
+  h=harness({cloud:async request=>{
+    if(request.name==='crm-reg-bridge')return {result:{code:0}}
+    if(!handlers.has(request.name))handlers.set(request.name,loadDownstream(request.name,h.db))
+    const result=await handlers.get(request.name)(request.data)
+    results.push({name:request.name,result})
+    return {result}
+  }})
+  h.tables.crm_bottles.push({_id:'bottle-2',bottle_no:'B2',tare_weight:2,is_active:true,status:'at_customer',current_customer_id:'customer-1'})
+  const input=h.input();input.payload.backRows=[{bottle_no:'B2',bottle_id:'bottle-2',gross:4,tare:2,net:2}]
+  input.payload.ignore_bottle_flow_warning=true
+  const response=await h.invoke('createMobileV1',input)
+  assert.equal(response.data.source_saved,true,JSON.stringify(response))
+  assert.equal(results.length,3,JSON.stringify(results))
+  for(const entry of results)assert.equal(entry.result.code,0,JSON.stringify(entry))
+  assert.equal(h.tables[M.OPERATIONS][0].side_effect_claims.length,3)
+  for(const request of h.calls.filter(call=>call.data.mobile_sale_capability)) {
+    const {mobile_sale_capability,...event}=request.data
+    assert.equal((await handlers.get(request.name)(event)).code,403)
+    assert.equal((await handlers.get(request.name)({...event,mobile_sale_capability:{...mobile_sale_capability,token:'b'.repeat(64)}})).code,403)
+    assert.equal((await handlers.get(request.name)(request.data)).code,403)
+  }
+  const settlement=handlers.get('crm-customer-settlement')
+  assert.equal((await settlement({token:'operator',action:'repairOffsetCreditsV1',data:{customer_id:'customer-1',execute:true,date_from:'2026-10-01',date_to:'2026-10-16'}})).code,403)
+})
 
 test('actual mobile handler saves sale and receipt, reuses accounting and preserves capture evidence',async()=>{
   const h=harness(),input=h.input(),res=await h.invoke('createMobileV1',input)
@@ -201,6 +298,8 @@ test('existing desktop createV2 remains compatible and has no mobile receipt or 
   const res=await h.invoke('createV2',p,'admin');assert.equal(res.code,0,JSON.stringify(res))
   assert.equal(h.tables.crm_sale_records[0].mobile_create_operation_key,undefined);assert.equal(h.tables[M.OPERATIONS].length,0)
   assert.equal(h.tables.crm_bottles.some(b=>b.bottle_no==='NEW-DESKTOP'),true)
+  assert.equal(h.calls.some(call=>call.data.action==='repairOffsetCreditsV1'),true)
+  assert.equal(h.calls.some(call=>call.data.mobile_sale_capability),false)
 })
 test('schema declares captured fields, both mirrored schemas match, operation index matches canonical schema',()=>{
   const dir=path.join(ROOT,'uniCloud-alipay/database')

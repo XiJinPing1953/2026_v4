@@ -2,6 +2,7 @@
 
 // Permanent creation receipt, deliberately not a side-effect retry queue.
 const crypto = require('crypto')
+const { newToken, tokenHash } = require('./mobileSaleEffectsLocal')
 const OPERATIONS = 'crm_mobile_sale_create_operations', SALES = 'crm_sale_records'
 const SOURCE = 'mobile-sale-v1'
 const text = value => String(value == null ? '' : value).trim()
@@ -142,7 +143,7 @@ function createService({ db, createSale }) {
     }
   }
   async function create(user, data, requestId, token) {
-    let id = text(data.operation_id), operation = null, saved = false, uncertain = true
+    let id = text(data.operation_id), operation = null, saved = false, uncertain = true, capability = null
     try {
       id = operationId(id)
       const key = keyFor(user, id), existing = await one(OPERATIONS, key)
@@ -156,18 +157,21 @@ function createService({ db, createSale }) {
       if (existing) return await existingResult(existing, user, fingerprint)
       uncertain = false
       await assertBottles(payload)
-      const result = await createSale(user, payload, requestId, token, { mobile: true, insertSource: async doc => {
+      const result = await createSale(user, payload, requestId, token, { mobile: true, getSideEffectCapability: () => capability, insertSource: async doc => {
         if (typeof db.startTransaction !== 'function') fail('当前数据库不支持事务，销售尚未保存', 503, 'MOBILE_SALE_TRANSACTION_UNAVAILABLE')
         const now = Date.now(), tx = await db.startTransaction()
         
+        const effectToken = newToken()
         operation = { _id: key, operation_id: id, payload_digest: fingerprint, sale_id: key, created_by: text(user._id),
-          processing_state: 'processing', warnings: [], created_at: now, updated_at: now }
+          processing_state: 'processing', warnings: [], created_at: now, updated_at: now,
+          side_effect_token_hash: tokenHash(effectToken), side_effect_claims: [] }
         Object.assign(doc, { _id: key, mobile_create_operation_key: key, mobile_create_state: 'processing' })
         try {
           await tx.collection(OPERATIONS).add(operation)
           await tx.collection(SALES).add(doc)
           await tx.commit()
           saved = true
+          capability = { operation_key: key, token: effectToken }
           return { id: key }
         } catch (error) {
           try { await tx.rollback() } catch (_) { /* committed or unreachable */ }

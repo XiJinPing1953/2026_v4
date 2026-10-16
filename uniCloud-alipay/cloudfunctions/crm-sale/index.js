@@ -2584,7 +2584,7 @@ async function syncSaleVoucher(user, saleDoc, amounts, requestId) {
 	await recordLog(user, 'sale_voucher_sync_v1', { sale_id: saleDoc._id, voucher_id: voucherId }, requestId)
 }
 
-async function triggerAnomalyTouchV2(user, token, bottleNosOrPayload, requestId) {
+async function triggerAnomalyTouchV2(user, token, bottleNosOrPayload, requestId, mobileCapability = null) {
 	const payload =
 		Array.isArray(bottleNosOrPayload) || bottleNosOrPayload == null
 			? { bottleNos: bottleNosOrPayload || [], truckNos: [] }
@@ -2611,6 +2611,7 @@ async function triggerAnomalyTouchV2(user, token, bottleNosOrPayload, requestId)
 			data: {
 				action: 'touchV2',
 				token,
+				...(mobileCapability ? { mobile_sale_capability: mobileCapability } : {}),
 				request_id: requestId,
 				data: {
 					bottle_nos: normalizedBottleNos,
@@ -2648,7 +2649,7 @@ async function triggerAnomalyTouchV2(user, token, bottleNosOrPayload, requestId)
 	}
 }
 
-async function syncFillingStartLossAdjustments(user, token, bottleNos = [], requestId, logAction = 'sale_filling_start_loss_sync_failed') {
+async function syncFillingStartLossAdjustments(user, token, bottleNos = [], requestId, logAction = 'sale_filling_start_loss_sync_failed', mobileCapability = null) {
 	const normalizedBottleNos = Array.from(
 		new Set(
 			(bottleNos || [])
@@ -2663,6 +2664,7 @@ async function syncFillingStartLossAdjustments(user, token, bottleNos = [], requ
 			data: {
 				action: 'syncStartLossAdjustmentsV1',
 				token,
+				...(mobileCapability ? { mobile_sale_capability: mobileCapability } : {}),
 				request_id: requestId,
 				data: {
 					bottle_nos: normalizedBottleNos
@@ -2749,13 +2751,14 @@ async function enqueueRegBridge(action, data, token, requestId, user, logAction 
 	}
 }
 
-async function callCustomerSettlement(action, data, token, requestId) {
+async function callCustomerSettlement(action, data, token, requestId, mobileCapability = null) {
 	try {
 		const res = await uniCloud.callFunction({
 			name: 'crm-customer-settlement',
 			data: {
 				action,
 				token,
+				...(mobileCapability ? { mobile_sale_capability: mobileCapability } : {}),
 				request_id: requestId,
 				data: data || {}
 			}
@@ -3037,6 +3040,7 @@ async function createV2(user, payload, requestId, token, options = {}) {
 
 	const res = options.insertSource ? await options.insertSource(doc) : await sales.add(doc)
 	const saleDoc = { ...doc, _id: res.id }
+	const mobileCapability = options.getSideEffectCapability?.() || null
 	await appendSaleMovementRecords(user, saleDoc, {
 		bizMode,
 		outRows,
@@ -3072,7 +3076,8 @@ async function createV2(user, payload, requestId, token, options = {}) {
 		token,
 		collectSaleBackBottleNosFromDoc(saleDoc),
 		requestId,
-		'sale_filling_start_loss_sync_create_failed'
+		'sale_filling_start_loss_sync_create_failed',
+		mobileCapability
 	)
 	if (startLossSyncRes.warning) sideWarnings.push(startLossSyncRes.warning)
 	try {
@@ -3094,7 +3099,9 @@ async function createV2(user, payload, requestId, token, options = {}) {
 		if (isMissingCollectionError(err)) sideWarnings.push('凭证未同步（缺集合）')
 		else throw err
 	}
-	if (settlementMode !== 'customer_flow') {
+	// A new mobile sale has no receipts and explicitly disables overpayment credits.
+	// Do not use its narrow creation permission to repair unrelated historical sales.
+	if (settlementMode !== 'customer_flow' && !options.mobile) {
 		const offsetSyncResults = await syncOffsetCreditsByDates(
 			customer._id,
 			[monthStartOf(date, ''), date],
@@ -3114,7 +3121,8 @@ async function createV2(user, payload, requestId, token, options = {}) {
 				exclude_offset_credit: !applyOffsetCredit
 			},
 			token,
-			requestId
+			requestId,
+			mobileCapability
 		)
 		if (prepayApplyRes.code !== 0) {
 			const applyMsg = normalizeString(prepayApplyRes.msg) || '客户预付款抵扣未同步'
@@ -3136,7 +3144,8 @@ async function createV2(user, payload, requestId, token, options = {}) {
 			bottleNos: touchedBottleNos,
 			truckNos: collectSaleTruckNosFromDoc(saleDoc)
 		},
-		requestId
+		requestId,
+		mobileCapability
 	)
 	const regWarning = await enqueueRegBridge(
 		'enqueueEventV1',

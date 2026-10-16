@@ -22,6 +22,22 @@
     "payload_digest": {
       "bsonType": "string"
     },
+    "side_effect_token_hash": {
+      "bsonType": "string",
+      "description": "SHA-256 of an internal server-only capability; raw token is never persisted or returned"
+    },
+    "side_effect_claims": {
+      "bsonType": "array",
+      "description": "At-most-once downstream steps; claimed before execution, never automatically replayed",
+      "items": {
+        "bsonType": "string",
+        "enum": [
+          "crm-filling:syncStartLossAdjustmentsV1",
+          "crm-customer-settlement:autoApplyPrepayToSaleV1",
+          "crm-bottle-anomaly:touchV2"
+        ]
+      }
+    },
     "sale_id": {
       "bsonType": "string"
     },

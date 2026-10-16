@@ -1,4 +1,5 @@
 'use strict'
+const { authorizeMobileSaleEffect } = require('./mobileSaleEffectsLocal')
 
 const { inventoryTon, kgToTon } = require('./gasInventoryPrecisionLocal')
 const { resolveWeighingCorrection } = require('./weighingCorrection')
@@ -25,11 +26,12 @@ const bottles = db.collection('crm_bottles')
 const sales = db.collection('crm_sale_records')
 const gasInventoryMovements = db.collection('crm_gas_inventory_movements')
 let ensureActionAcl = null
+let hasPagePermission = null
 try {
-	;({ ensureActionAcl } = require('../common/pageAcl'))
+	;({ ensureActionAcl, hasPagePermission } = require('../common/pageAcl'))
 } catch (err) {
 	console.warn('[crm-filling] fallback to local pageAcl helpers', err && err.message)
-	;({ ensureActionAcl } = require('./pageAclLocal'))
+	;({ ensureActionAcl, hasPagePermission } = require('./pageAclLocal'))
 }
 const BATCH_UPDATE_LIMIT = 2000
 const BATCH_PREVIEW_DETAIL_LIMIT = 50
@@ -4435,7 +4437,11 @@ async function dispatch(event, context) {
 
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
-	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, SUPERADMIN_ONLY_ACTIONS, {
+	const mobileAuthorization = event?.mobile_sale_capability ? await authorizeMobileSaleEffect({
+		db, user, hasPagePermission, cloudFunction: 'crm-filling', action, data, capability: event.mobile_sale_capability
+	}) : null
+	if (mobileAuthorization && !mobileAuthorization.ok) return { code: mobileAuthorization.code, msg: mobileAuthorization.msg }
+	const acl = mobileAuthorization || await ensureActionAcl(user, action, PAGE_ACTION_RULES, SUPERADMIN_ONLY_ACTIONS, {
 		recordLog,
 		requestId,
 		cloudFunction: 'crm-filling'

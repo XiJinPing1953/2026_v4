@@ -1,4 +1,5 @@
 'use strict'
+const { authorizeMobileSaleEffect } = require('./mobileSaleEffectsLocal')
 const { isSettlementFeeReceipt, isOpeningPrepayReceipt, isDepositTransferReceipt, isNonCashPrepayReceipt, isOffsetCreditReceipt, isCashReceipt } = require('./receiptSource')
 const { isConfirmedOpeningPrepay, isConfirmedPrepayWriteoff } = require('./confirmedPrepayWriteoff')
 
@@ -8696,8 +8697,8 @@ async function autoApplyPrepayToFlowSettlementV1(user, data, requestId) {
 	}
 }
 
-async function autoApplyPrepayToSaleV1(user, data, requestId) {
-	const auth = await ensureWritePermission(user, 'autoApplyPrepayToSaleV1', requestId)
+async function autoApplyPrepayToSaleV1(user, data, requestId, mobileAuthorization = null) {
+	const auth = mobileAuthorization || await ensureWritePermission(user, 'autoApplyPrepayToSaleV1', requestId)
 	if (!auth.ok) return { code: auth.code, msg: auth.msg }
 
 	const saleId = normalizeId(data.sale_id || data.saleId || data._id || data.id)
@@ -10181,7 +10182,11 @@ const main = async (event, context) => {
 
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
-	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, SUPERADMIN_ONLY_ACTIONS, {
+	const mobileAuthorization = event?.mobile_sale_capability ? await authorizeMobileSaleEffect({
+		db, user, hasPagePermission, cloudFunction: 'crm-customer-settlement', action, data, capability: event.mobile_sale_capability
+	}) : null
+	if (mobileAuthorization && !mobileAuthorization.ok) return { code: mobileAuthorization.code, msg: mobileAuthorization.msg }
+	const acl = mobileAuthorization || await ensureActionAcl(user, action, PAGE_ACTION_RULES, SUPERADMIN_ONLY_ACTIONS, {
 		recordLog,
 		requestId,
 		cloudFunction: 'crm-customer-settlement'
@@ -10310,7 +10315,7 @@ const main = async (event, context) => {
 	if (action === 'repairReceiptAllocationV1') return repairReceiptAllocationV1(user, data, requestId)
 	if (action === 'repairAutoPrepayAllocationsV1') return repairAutoPrepayAllocationsV1(user, data, requestId)
 	if (action === 'repairOffsetCreditsV1') return repairOffsetCreditsV1(user, data, requestId)
-	if (action === 'autoApplyPrepayToSaleV1') return autoApplyPrepayToSaleV1(user, data, requestId)
+	if (action === 'autoApplyPrepayToSaleV1') return autoApplyPrepayToSaleV1(user, data, requestId, mobileAuthorization)
 	if (action === 'autoApplyPrepayToFlowSettlementV1') return autoApplyPrepayToFlowSettlementV1(user, data, requestId)
 	if (action === 'previewFlowSettlementV1') return previewFlowSettlementV1(user, data)
 	if (action === 'createFlowSettlementV1') return createFlowSettlementV1(user, data, requestId)

@@ -1,4 +1,5 @@
 'use strict'
+const { authorizeMobileSaleEffect } = require('./mobileSaleEffectsLocal')
 const crypto = require('crypto')
 const { createRefreshJobs } = require('./refreshJobs')
 const { readComplete } = require('./financialReadLocal')
@@ -18,11 +19,12 @@ const bottles = db.collection('crm_bottles')
 const sales = db.collection('crm_sale_records')
 const scanLocks = db.collection('crm_bottle_scan_locks')
 let ensureActionAcl = null
+let hasPagePermission = null
 try {
-	;({ ensureActionAcl } = require('../common/pageAcl'))
+	;({ ensureActionAcl, hasPagePermission } = require('../common/pageAcl'))
 } catch (err) {
 	console.warn('[crm-bottle-anomaly] fallback to local pageAcl helpers', err && err.message)
-	;({ ensureActionAcl } = require('./pageAclLocal'))
+	;({ ensureActionAcl, hasPagePermission } = require('./pageAclLocal'))
 }
 
 const ANOMALY_TYPES = {
@@ -3483,7 +3485,11 @@ exports.main = async (event, context) => {
 	if (action === 'touchFillingOperationV1') return touchFillingOperationV1(data)
 	const user = await getUserByToken(token)
 	if (!user) return { code: 401, msg: '未登录或登录已过期' }
-	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, SUPERADMIN_ONLY_ACTIONS, {
+	const mobileAuthorization = event.mobile_sale_capability ? await authorizeMobileSaleEffect({
+		db, user, hasPagePermission, cloudFunction: 'crm-bottle-anomaly', action, data, capability: event.mobile_sale_capability
+	}) : null
+	if (mobileAuthorization && !mobileAuthorization.ok) return { code: mobileAuthorization.code, msg: mobileAuthorization.msg }
+	const acl = mobileAuthorization || await ensureActionAcl(user, action, PAGE_ACTION_RULES, SUPERADMIN_ONLY_ACTIONS, {
 		recordLog,
 		requestId,
 		cloudFunction: 'crm-bottle-anomaly'
