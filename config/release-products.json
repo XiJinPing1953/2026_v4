@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.16-mobile-return-net",
+      "version": "2026.10.16-mobile-qr-return-only",
       "output": "dist/build/web",
-      "acceptance": "Align mobile return-bottle signed net weights with ordinary web sales: negative and zero net preserved through weighing, preview, drafts, server validation and shared accounting. Preserve positive outbound net, three-weight consistency, registered bottles and operation idempotency. H5 and crm-sale only; no schema or historical-record changes. 0.5 kg scale division remains. Camera repair remains deferred.",
+      "acceptance": "Support return-only mobile sales using ordinary web signed-return accounting. Repair camera QR decoding for the existing printed labels while preserving local processing, lifecycle and target-session guards. Verify selected-row weighing and retain 0.5 kg division, registered-bottle validation and idempotency. H5 and crm-sale only; no schema or historical-record changes. OPPO and iPhone field acceptance remains separate.",
       "deploymentScope": {
         "functions": [
           "crm-sale"
@@ -30,9 +30,9 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.16-mobile-return-net",
+      "version": "2026.10.16-mobile-qr-return-only",
       "output": "release/cloud",
-      "acceptance": "Align mobile return-bottle signed net weights with ordinary web sales: negative and zero net preserved through weighing, preview, drafts, server validation and shared accounting. Preserve positive outbound net, three-weight consistency, registered bottles and operation idempotency. H5 and crm-sale only; no schema or historical-record changes. 0.5 kg scale division remains. Camera repair remains deferred.",
+      "acceptance": "Support return-only mobile sales using ordinary web signed-return accounting. Repair camera QR decoding for the existing printed labels while preserving local processing, lifecycle and target-session guards. Verify selected-row weighing and retain 0.5 kg division, registered-bottle validation and idempotency. H5 and crm-sale only; no schema or historical-record changes. OPPO and iPhone field acceptance remains separate.",
       "deploymentScope": {
         "functions": [
           "crm-sale"

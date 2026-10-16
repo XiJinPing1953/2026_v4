@@ -75,7 +75,7 @@ function normalizePayload(raw = {}) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(`${date}T00:00:00Z`)) || new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date) fail('销售日期无效')
   if (!text(base.customerId)) fail('客户必选')
   const outRows = rows(raw.outRows, '出瓶'), backRows = rows(raw.backRows || [], '回瓶')
-  if (!outRows.length) fail('至少需要一行已称重出瓶')
+  if (!outRows.length && !backRows.length) fail('至少需要一行已称重出瓶或回瓶')
   if (!Array.isArray(raw.depositRows || []) || (raw.depositRows || []).length > 1000) fail('存瓶明细无效')
   const depositRows = (raw.depositRows || []).map(row => ({ bottle_no: text(row.bottle_no ?? row.bottleNo).toUpperCase().replace(/\s+/g, ''), bottle_id: text(row.bottle_id ?? row.bottleId) || null }))
   if (depositRows.some(row => !row.bottle_no) || new Set(depositRows.map(row => row.bottle_no)).size !== depositRows.length) fail('存瓶明细瓶号为空或重复')

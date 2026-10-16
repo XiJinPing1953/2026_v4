@@ -171,7 +171,7 @@ async function saleHarness(overrides = {}) {
 		formatWeight: String, formatMoney: String, formatDateTime: String, canPageAction: () => true,
 		uni: { getStorageSync: () => '', showToast: options => events.push(options.title), showModal: options => options.success({ confirm: true }) }
 	})
-	scope.run(() => vm.runInContext(`${saleScript}\nglobalThis.panel = { form, currentStep, cameraOpen, cameraTarget, scaleSnapshot, pendingScaleApplyTarget, scaleErrorText, scaleStatusText, barcodeHint, startCamera, closeCamera, onCameraResult, onFocusHeaderTarget, onScanCustomer, onScanBottle, onSelectBottleSuggestion, onRemoveOutItem, onAddOutItem, deactivateBarcodeSession, markPendingScaleApply, tryApplyPendingScaleWeight, cancelPendingMeasurement, onSubmit, enterBottleStep, backPreviewRows, getMeasureButtonText, confirmReweigh, onBottleValueInput };`, context))
+	scope.run(() => vm.runInContext(`${saleScript}\nglobalThis.panel = { form, currentStep, cameraOpen, cameraTarget, scaleSnapshot, pendingScaleApplyTarget, scaleErrorText, scaleStatusText, barcodeHint, startCamera, closeCamera, onCameraResult, onFocusHeaderTarget, onScanCustomer, onScanBottle, onSelectBottleSuggestion, onRemoveOutItem, onAddOutItem, deactivateBarcodeSession, markPendingScaleApply, tryApplyPendingScaleWeight, cancelPendingMeasurement, onSubmit, enterBottleStep, backPreviewRows, getMeasureButtonText, confirmReweigh, onBottleValueInput, onMeasureBottle, pendingScaleTargetText };`, context))
 	return { panel: context.panel, state, events, writes, requests, emitSnapshot: snapshot => snapshotListener(snapshot), stop: () => scope.stop() }
 }
 
@@ -396,4 +396,48 @@ test('return preview includes negative and zero net; selected completed returns 
 		assert.equal(h.panel.form.value.backItems[i].net, String(i === 0 ? -0.5 : 0))
 	}
 	assert.notEqual(h.panel.getMeasureButtonText(rows[2], 'back'), '重新称重')
+})
+
+
+test('clicking a bottle measurement binds only that row and refuses switching targets until cancelled', async t => {
+	const calls = []
+	const h = await saleHarness({ reactive: true, applyWeight(...args) { calls.push(args); return { code: 0 } } }); t.after(h.stop)
+	h.panel.form.value.outItems[0].bottleNo = '113'
+	h.panel.form.value.outItems[1].bottleNo = '96'
+	h.panel.form.value.backItems = [{ rowId: 'back-1', bottleNo: '113' }]
+	await h.panel.onMeasureBottle('out', 1)
+	const first = h.panel.pendingScaleApplyTarget.value
+	assert.equal(first.rowId, 'row-2')
+	assert.equal(h.panel.pendingScaleTargetText.value, '出瓶 2（96）')
+	await h.panel.onMeasureBottle('back', 0)
+	assert.equal(h.panel.pendingScaleApplyTarget.value.rowId, 'row-2')
+	h.emitSnapshot(readySnapshot(h.panel))
+	await vue.nextTick()
+	assert.equal(calls.length, 1)
+	assert.equal(calls[0][0], 'out')
+	assert.equal(calls[0][1], 1)
+	assert.equal(calls[0][3].sessionId, first.sessionId)
+	await h.panel.onMeasureBottle('back', 0)
+	assert.equal(h.panel.pendingScaleTargetText.value, '回瓶 1（113）')
+	h.emitSnapshot(readySnapshot(h.panel, { session_id: first.sessionId }))
+	await vue.nextTick()
+	assert.equal(calls.length, 1, 'a previous target session cannot fill the new target')
+})
+
+
+test('decoded QR lookup failures are visible and cancelled lookups cannot overwrite a newer hint', async () => {
+	for (const cancel of [false, true]) {
+		const lookup = deferred()
+		const h = await saleHarness({ resolveBottle: () => lookup.promise })
+		await h.panel.onScanBottle('out', 0)
+		const pending = h.panel.onCameraResult('BT1|113|124')
+		assert.equal(h.panel.cameraOpen.value, false)
+		assert.match(h.panel.barcodeHint.value, /已识别.*查询档案/)
+		if (cancel) { h.panel.closeCamera(); h.panel.barcodeHint.value = 'new target' }
+		lookup.reject(new Error('network failure'))
+		await pending
+		if (cancel) assert.equal(h.panel.barcodeHint.value, 'new target')
+		else assert.match(h.panel.barcodeHint.value, /已识别.*查档失败/)
+		assert.equal(h.panel.pendingScaleApplyTarget.value, null)
+	}
 })

@@ -179,11 +179,13 @@ test('minimal account traverses real downstream ACLs without gaining direct fina
     return {result}
   }})
   h.tables.crm_bottles.push({_id:'bottle-2',bottle_no:'B2',tare_weight:2,is_active:true,status:'at_customer',current_customer_id:'customer-1'})
-  const input=h.input();input.payload.backRows=[{bottle_no:'B2',bottle_id:'bottle-2',gross:4,tare:2,net:2}]
+  const input=h.input();input.payload.outRows=[];input.payload.depositRows=[]
+  input.payload.backRows=[{bottle_no:'B2',bottle_id:'bottle-2',gross:2.5,tare:2,net:0.5}]
   input.payload.ignore_bottle_flow_warning=true
   const response=await h.invoke('createMobileV1',input)
   assert.equal(response.data.source_saved,true,JSON.stringify(response))
   assert.equal(response.data.processing_state,'completed',JSON.stringify(response))
+  assert.equal((await h.invoke('getV2',{_id:response.data.sale_id},'admin')).data.should_receive,-2.5)
   assert.equal(results.length,3,JSON.stringify(results))
   for(const entry of results)assert.equal(entry.result.code,0,JSON.stringify(entry))
   assert.equal(h.tables[M.OPERATIONS][0].side_effect_claims.length,3)
@@ -273,11 +275,18 @@ test('actual mobile handler saves sale and receipt, reuses accounting and preser
   const before=h.writes.length,again=await h.invoke('createMobileV1',input)
   assert.equal(again.data.idempotent,true);assert.equal(again.data.sale_id,sale._id);assert.equal(h.writes.length,before)
 })
-test('zero and negative return net weights match desktop accounting and retain same-operation idempotency',async()=>{
-  for(const [net,expectedAmount] of [[0,52.5],[-0.5,55]]) {
+test('signed and return-only weights match desktop accounting and retain same-operation idempotency',async()=>{
+  for(const [outNet,net,expectedAmount] of [[10.5,0,52.5],[10.5,-0.5,55],[0,-0.5,2.5],[0,0,0],[0,0.5,-2.5]]) {
     const mobile=harness(),desktop=harness(),input=mobile.input()
     for(const h of [mobile,desktop]) h.tables.crm_bottles.push({_id:'bottle-2',bottle_no:'B2',tare_weight:2,is_active:true,status:'at_customer',current_customer_id:'customer-1'})
+    if(!outNet) { input.payload.outRows=[];input.payload.depositRows=[] }
     input.payload.backRows=[{bottle_no:'B2',bottle_id:'bottle-2',gross:2+net,tare:2,net}]
+    if(!outNet) {
+      const warning=await mobile.invoke('createMobileV1',input),ordinaryWarning=await desktop.invoke('createV2',clone(input.payload),'admin')
+      assert.equal(warning.code,409);assert.equal(warning.data.confirmable,true);assert.equal(warning.data.source_saved,false)
+      assert.equal(ordinaryWarning.code,409);assert.deepEqual(clone(warning.data.warning_items),clone(ordinaryWarning.data.warning_items))
+      assert.equal(mobile.writes.length,0);assert.equal(desktop.writes.length,0)
+    }
     input.payload.ignore_bottle_flow_warning=true
     const created=await mobile.invoke('createMobileV1',input)
     assert.equal(created.data.processing_state,'completed',JSON.stringify(created))
@@ -285,6 +294,11 @@ test('zero and negative return net weights match desktop accounting and retain s
     assert.equal(ordinary.code,0,JSON.stringify(ordinary))
     const sale=mobile.tables.crm_sale_records[0],desktopSale=desktop.tables.crm_sale_records[0]
     assert.equal(sale.back_items[0].net,net)
+    assert.equal(sale.out_items.length,outNet?1:0)
+    assert.equal(sale.payment_status,'unpaid');assert.equal(sale.payment_method,'on_account');assert.equal(sale.amount_received,0)
+    assert.equal(mobile.tables.crm_bottle_movements.length,outNet?2:1)
+    assert.equal(mobile.tables.crm_bottle_movements.filter(row=>row.type==='back').length,1)
+    assert.equal(mobile.tables.crm_bottle_movements.find(row=>row.type==='back').net_weight,net)
     const detail=(await mobile.invoke('getV2',{_id:sale._id},'admin')).data
     const desktopDetail=(await desktop.invoke('getV2',{_id:desktopSale._id},'admin')).data
     for(const key of ['out_net_total','back_net_total','total_net_weight','out_amount','back_amount','should_receive','effective_should_receive']) assert.equal(detail[key],desktopDetail[key],key)
@@ -318,6 +332,7 @@ test('same operation and altered payload is conflict; existing result precedes m
 })
 test('strict mobile payload rejects invalid weight, duplicates, unsupported mode and unbound bottle before all writes',async()=>{
   for(const mutate of [p=>p.outRows[0].net=10.4,p=>p.outRows[0].gross=NaN,p=>p.outRows[0].tare=2.01,
+    p=>p.outRows=[],
     p=>Object.assign(p.outRows[0],{gross:2,tare:2,net:0}),p=>Object.assign(p.outRows[0],{gross:1.5,tare:2,net:-0.5}),
     p=>p.outRows.push(clone(p.outRows[0])),p=>p.base.priceUnit='m3',p=>p.base.amountReceived=10,
     p=>p.outRows[0].bottle_id='missing',p=>p.outRows[0].bottle_no='wrong',p=>p.outRows[0].bottle_id='',p=>p.depositRows=[{bottle_no:'missing'}]]) {

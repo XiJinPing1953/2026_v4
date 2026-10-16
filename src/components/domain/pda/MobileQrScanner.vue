@@ -5,8 +5,8 @@
 			<AppButton kind="neutral" size="sm" @click="close">关闭</AppButton>
 		</view>
 		<view :id="hostId" class="mobile-scanner__video" />
-		<text class="mobile-scanner__hint">{{ error || '将二维码放在画面中央，识别后自动返回。' }}</text>
-		<AppButton v-if="error" kind="neutral" @click="start">重新打开摄像头</AppButton>
+		<text class="mobile-scanner__hint" aria-live="polite">{{ error || scanHint }}</text>
+		<AppButton v-if="error || canRetry" kind="neutral" @click="start">重新打开摄像头</AppButton>
 	</view>
 </template>
 
@@ -18,12 +18,17 @@ import { createCameraScannerLifecycle } from '@/services/pda/cameraScan'
 // This distribution bundles its worker. uni-app otherwise emits bare "..-node_modules"
 // dynamic import paths which fail in the production browser (including software decoding).
 import QrScanner from 'qr-scanner/qr-scanner.legacy.min.js'
+// Static import: this public factory embeds the software worker in a Blob;
+// it does not depend on a production-time dynamic import or an external CDN.
+import { createWorker } from 'qr-scanner/qr-scanner-worker.min.js'
 // #endif
 
 const props = defineProps({ open: Boolean, label: { type: String, default: '二维码' } })
 const emit = defineEmits(['result', 'close'])
 const hostId = `sale-camera-${Math.random().toString(36).slice(2)}`
 const error = ref('')
+const scanHint = ref('正在打开摄像头…')
+const canRetry = ref(false)
 let renderGeneration = 0
 const camera = createCameraScannerLifecycle({
 	loadScanner: async () => {
@@ -31,6 +36,22 @@ const camera = createCameraScannerLifecycle({
 		return QrScanner
 		// #endif
 		throw new Error('Camera scanning requires H5')
+	},
+	createSoftwareEngine: () => {
+		// #ifdef H5
+		return createWorker()
+		// #endif
+		throw new Error('Camera scanning requires H5')
+	},
+	onStatus: (status) => {
+		canRetry.value = ['searching', 'decoder-error', 'software-error'].includes(status)
+		scanHint.value = ({
+			starting: '正在打开摄像头…',
+			scanning: '将二维码完整放入画面，保持清晰，识别后自动返回。',
+			searching: '尚未识别。请对准二维码，调整距离并避开反光；也可关闭后手工搜索。',
+			'decoder-error': '浏览器识别暂不可用，正在尝试兼容识别；可重开摄像头。',
+			'software-error': '兼容识别暂不可用，请重开摄像头；也可关闭后手工搜索。'
+		})[status] || ''
 	},
 	onResult: (rawText) => emit('result', rawText),
 	onError: (err) => {
@@ -53,7 +74,7 @@ async function start() {
 	const video = document.createElement('video')
 	video.setAttribute('playsinline', '')
 	video.muted = true
-	video.style.cssText = 'display:block;width:100%;height:100%;object-fit:cover'
+	video.style.cssText = 'display:block;width:100%;height:100%;object-fit:contain'
 	host.appendChild(video)
 	await camera.open(video)
 }

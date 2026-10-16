@@ -864,7 +864,15 @@ async function onCameraResult(rawText) {
 	const target = cameraTarget.value
 	if (!cameraSession.accept(target)) return
 	cameraOpen.value = false
-	await onBarcodeScanned({ rawText, targetMeta: target, scanToken: target })
+	const payload = { rawText, targetMeta: target, scanToken: target }
+	barcodeHint.value = '二维码已识别，正在查询档案。'
+	try {
+		await onBarcodeScanned(payload)
+	} catch (error) {
+		if (!isScanCurrent(payload)) return
+		barcodeHint.value = '二维码已识别，但查档失败，请检查网络后重新扫码。'
+		showToast(barcodeHint.value)
+	}
 }
 
 function isScanCurrent(payload) {

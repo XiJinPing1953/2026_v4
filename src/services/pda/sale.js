@@ -274,13 +274,13 @@ export function validatePdaBottleSaleForm(form = {}, customer = null) {
 	const invalidOut = outRows.find((row) => !normalizeOutRow(row))
 	if (invalidOut) return { ok: false, msg: '出瓶行需填写有效瓶号，并完成毛重、皮重、净重称重闭环' }
 	const outItems = outRows.map(normalizeOutRow).filter(Boolean)
-	if (!outItems.length) return { ok: false, msg: '至少填写一行已完成称重的出瓶' }
 
 	const backItems = (form.backItems || []).filter((row) => normalizeBottleNo(row?.bottleNo || row?.bottle_no))
 	const invalidBack = backItems.find((row) => !normalizeBackRow(row))
 	if (invalidBack) {
 		return { ok: false, msg: '回瓶行需填写有效瓶号，并完成毛重、皮重、净重称重闭环' }
 	}
+	if (!outItems.length && !backItems.length) return { ok: false, msg: '至少填写一行已完成称重的出瓶或回瓶' }
 
 	return { ok: true, unitPrice: pricing.unitPrice }
 }

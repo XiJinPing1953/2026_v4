@@ -374,6 +374,26 @@ test('a blank return net is not a measured zero and inconsistent signed values a
 	assert.equal(sale.validatePdaBottleSaleForm(h.form.form.value, customerDoc).ok, false)
 })
 
+test('return-only sales submit with the blank default outgoing row omitted and retain signed return net', async t => {
+	for (const net of [-0.5, 0, 0.5]) {
+		const h = harness(t); h.fill()
+		h.form.form.value.outItems = [sale.createPdaOutItem()]
+		h.form.form.value.backItems = [{ ...sale.createPdaBackItem(), bottleNo: '101', bottleId: 'b1', gross: String(100 + net), tare: '100', net: String(net), weightSource: 'web_ble' }]
+		assert.equal(sale.validatePdaBottleSaleForm(h.form.form.value, customerDoc).ok, true)
+		assert.equal((await h.form.submit()).code, 0)
+		assert.equal(h.requests.length, 1)
+		assert.deepEqual(h.requests[0].payload.outRows, [])
+		assert.equal(h.requests[0].payload.backRows[0].net, net)
+	}
+	const empty = harness(t); empty.fill()
+	empty.form.form.value.outItems = [sale.createPdaOutItem()]
+	empty.form.form.value.backItems = [sale.createPdaBackItem()]
+	assert.equal((await empty.form.submit()).code, 400)
+	assert.equal(empty.requests.length, 0)
+	empty.form.form.value.backItems[0].bottleNo = '101'
+	assert.equal(sale.validatePdaBottleSaleForm(empty.form.form.value, customerDoc).ok, false, 'an unweighed return is not a valid sale')
+})
+
 test('mobile payload keeps scan and BLE evidence and rejects duplicate bottle before normalization', t => {
 	const h = harness(t); h.fill()
 	const row = h.form.form.value.outItems[0]
