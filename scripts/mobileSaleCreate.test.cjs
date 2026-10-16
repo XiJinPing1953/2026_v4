@@ -183,6 +183,7 @@ test('minimal account traverses real downstream ACLs without gaining direct fina
   input.payload.ignore_bottle_flow_warning=true
   const response=await h.invoke('createMobileV1',input)
   assert.equal(response.data.source_saved,true,JSON.stringify(response))
+  assert.equal(response.data.processing_state,'completed',JSON.stringify(response))
   assert.equal(results.length,3,JSON.stringify(results))
   for(const entry of results)assert.equal(entry.result.code,0,JSON.stringify(entry))
   assert.equal(h.tables[M.OPERATIONS][0].side_effect_claims.length,3)
@@ -194,6 +195,69 @@ test('minimal account traverses real downstream ACLs without gaining direct fina
   }
   const settlement=handlers.get('crm-customer-settlement')
   assert.equal((await settlement({token:'operator',action:'repairOffsetCreditsV1',data:{customer_id:'customer-1',execute:true,date_from:'2026-10-01',date_to:'2026-10-16'}})).code,403)
+})
+
+function queuedRefreshHarness(initialState = 'pending') {
+  const {jobKey}=require(path.join(ROOT,'uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/refreshJobs.js'))
+  const crypto=require('node:crypto')
+  let h
+  h=harness({cloud:async request=>{
+    if(request.name!=='crm-bottle-anomaly')return {result:{code:0,data:{applied_amount:0}}}
+    const event=request.data,bottleNos=event.data.bottle_nos.slice().sort()
+    const targets=bottleNos.map(no=>({kind:'bottle',no}))
+    const id=jobKey('operator-1',event.request_id,targets)
+    ;(h.tables.crm_anomaly_refresh_jobs ||= []).push({_id:id,created_by:'operator-1',request_id:event.request_id,
+      targets,targets_hash:crypto.createHash('sha256').update(JSON.stringify(targets)).digest('hex'),
+      bottle_nos:bottleNos,truck_nos:[],target_index:0,status:initialState})
+    return {result:{code:0,data:{job_id:id,status:initialState,done:false}}}
+  }})
+  return h
+}
+test('accepted refresh remains processing then query settles both rows without replaying effects',async()=>{
+  const h=queuedRefreshHarness(),input=h.input(),created=await h.invoke('createMobileV1',input)
+  assert.equal(created.data.processing_state,'processing',JSON.stringify(created))
+  const op=h.tables[M.OPERATIONS][0],job=h.tables.crm_anomaly_refresh_jobs[0]
+  assert.equal(op.anomaly_refresh_job_id,job._id);assert.equal(op.anomaly_refresh_state,'pending')
+  assert.equal(job.request_id,`mobile-sale-${op._id}`);assert.equal(op.warnings.length,0)
+  assert.equal(h.tables.crm_sale_records[0].mobile_create_state,'processing')
+  const calls=h.calls.length,before=h.writes.length
+  assert.equal((await h.invoke('getMobileCreateResultV1',{operation_id:input.operation_id})).data.processing_state,'processing')
+  assert.equal(h.writes.length,before)
+  job.status='complete';job.target_index=job.targets.length
+  const results=await Promise.all([h.invoke('getMobileCreateResultV1',{operation_id:input.operation_id}),h.invoke('getMobileCreateResultV1',{operation_id:input.operation_id})])
+  for(const result of results)assert.equal(result.data.processing_state,'completed',JSON.stringify(result))
+  assert.equal(h.tables[M.OPERATIONS][0].processing_state,'completed')
+  assert.equal(h.tables[M.OPERATIONS][0].anomaly_refresh_state,'complete')
+  assert.equal(h.tables.crm_sale_records[0].mobile_create_state,'completed')
+  assert.equal(h.calls.length,calls)
+  assert.ok(h.writes.slice(before).every(row=>[M.OPERATIONS,'crm_sale_records'].includes(row.name)))
+  const settled=h.writes.length
+  assert.equal((await h.invoke('createMobileV1',input)).data.processing_state,'completed')
+  assert.equal(h.writes.length,settled);assert.equal(h.calls.length,calls)
+})
+test('failed, missing, mismatched and incomplete refresh facts enter review without completing another sale',async()=>{
+  const failed=queuedRefreshHarness('failed'),failedResult=await failed.invoke('createMobileV1',failed.input())
+  assert.equal(failedResult.data.processing_state,'pending_review')
+  assert.equal(failedResult.data.anomaly_refresh_job_id,failed.tables.crm_anomaly_refresh_jobs[0]._id)
+  assert.equal(failedResult.data.anomaly_refresh_state,'failed')
+  for(const mutate of [h=>{h.tables.crm_anomaly_refresh_jobs[0].status='failed'},
+    h=>{h.tables.crm_anomaly_refresh_jobs=[]},h=>{h.tables.crm_anomaly_refresh_jobs[0].created_by='other'},
+    h=>{h.tables.crm_anomaly_refresh_jobs[0].request_id='another-sale'},
+    h=>{h.tables.crm_anomaly_refresh_jobs[0].targets[0].no='B2'},
+    h=>{const job=h.tables.crm_anomaly_refresh_jobs[0];job.targets[0].kind='truck';job.targets_hash=require('node:crypto').createHash('sha256').update(JSON.stringify(job.targets)).digest('hex')},
+    h=>{h.tables.crm_anomaly_refresh_jobs[0].targets_hash='wrong'},
+    h=>{h.tables.crm_anomaly_refresh_jobs[0].target_index=0}]) {
+    const h=queuedRefreshHarness(),input=h.input();await h.invoke('createMobileV1',input)
+    const job=h.tables.crm_anomaly_refresh_jobs[0];job.status='complete';job.target_index=job.targets.length
+    mutate(h)
+    const calls=h.calls.length,before=h.writes.length
+    const result=await h.invoke('getMobileCreateResultV1',{operation_id:input.operation_id})
+    assert.equal(result.data.processing_state,'pending_review',JSON.stringify(result));assert.ok(result.data.warnings.length)
+    assert.equal(h.tables[M.OPERATIONS][0].processing_state,'pending_review')
+    assert.equal(h.tables.crm_sale_records[0].mobile_create_state,'pending_review')
+    assert.equal(h.calls.length,calls)
+    assert.ok(h.writes.slice(before).every(row=>[M.OPERATIONS,'crm_sale_records'].includes(row.name)))
+  }
 })
 
 test('actual mobile handler saves sale and receipt, reuses accounting and preserves capture evidence',async()=>{

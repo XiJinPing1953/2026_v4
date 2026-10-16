@@ -2625,7 +2625,11 @@ async function triggerAnomalyTouchV2(user, token, bottleNosOrPayload, requestId,
 		})
 		const result = res && res.result ? res.result : {}
 		if (result.code === 0) {
-			if (!result.data?.job_id || result.data?.status === 'failed') return { ok: false, warning: '异常刷新任务未成功排队' }
+			if (!result.data?.job_id) return { ok: false, warning: '异常刷新任务未成功排队' }
+			if (mobileCapability) return { ok: result.data.status !== 'failed', warning: result.data.status === 'failed' ? '异常刷新失败，请管理员核查' : '', job: {
+				id: result.data.job_id, state: result.data.done === true ? 'complete' : result.data.status
+			} }
+			if (result.data.status === 'failed') return { ok: false, warning: '异常刷新任务未成功排队' }
 			if (result.data.done === false) return { ok: true, warning: '异常刷新已排队，后台继续处理' }
 			return { ok: true, warning: '' }
 		}
@@ -3144,7 +3148,7 @@ async function createV2(user, payload, requestId, token, options = {}) {
 			bottleNos: touchedBottleNos,
 			truckNos: collectSaleTruckNosFromDoc(saleDoc)
 		},
-		requestId,
+		mobileCapability ? `mobile-sale-${mobileCapability.operation_key}` : requestId,
 		mobileCapability
 	)
 	const regWarning = await enqueueRegBridge(
@@ -3190,6 +3194,7 @@ async function createV2(user, payload, requestId, token, options = {}) {
 		data: {
 			_id: res.id,
 			warning: warningText,
+			...(options.mobile && touchRes.job ? { anomaly_refresh_job: touchRes.job } : {}),
 			bottle_flow_warning_overridden: ignoreBottleFlowWarning && bottleFlowWarnings.length > 0,
 			bottle_flow_warning_count: bottleFlowWarnings.length,
 			bottle_status_deposit_reconciled_total: bottleDepositReconcileRes.updated_total
