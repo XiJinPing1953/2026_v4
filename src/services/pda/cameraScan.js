@@ -85,9 +85,10 @@ export function createCameraScannerLifecycle({ loadScanner, createSoftwareEngine
 				// BarcodeDetector can return no result indefinitely without throwing the
 				// errors that trigger qr-scanner's own fallback. Retry those frames with
 				// the explicitly bundled worker through the public scanImage API.
+				const isDecodeMiss = (error) => error === Scanner.NO_QR_CODE_FOUND || error === `Scanner error: ${Scanner.NO_QR_CODE_FOUND}`
 				const decodeMiss = async (error) => {
 					if (!isCurrent()) return
-					if (error !== Scanner.NO_QR_CODE_FOUND) onStatus('decoder-error')
+					if (!isDecodeMiss(error)) onStatus('decoder-error')
 					if (!createSoftwareEngine || softwareBusy || now() - lastSoftwareAttempt < 1000) return
 					lastSoftwareAttempt = now()
 					softwareBusy = true
@@ -96,7 +97,7 @@ export function createCameraScannerLifecycle({ loadScanner, createSoftwareEngine
 						const result = await Scanner.scanImage(video, { qrEngine: softwareEngine, scanRegion: getCameraScanRegion(video), returnDetailedScanResult: true })
 						accept(result)
 					} catch (fallbackError) {
-						if (isCurrent() && fallbackError !== Scanner.NO_QR_CODE_FOUND) onStatus('software-error')
+						if (isCurrent() && !isDecodeMiss(fallbackError)) onStatus('software-error')
 					} finally {
 						softwareBusy = false
 					}

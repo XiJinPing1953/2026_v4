@@ -57,6 +57,7 @@ test('software attempts never overlap; an empty result remains retryable and nor
 	const first = deferred()
 	let attempt = 0
 	const h = await harness({ scanImage: () => ++attempt === 1 ? first.promise : Promise.reject('No QR code found') })
+	await h.instance.options.onDecodeError('Scanner error: No QR code found')
 	h.advance(1000)
 	const pending = h.miss()
 	h.advance(1000)
