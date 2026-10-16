@@ -3,7 +3,7 @@
 // A capability is generated inside the winning create request, never returned to clients.
 // Each fixed downstream step is claimed once before execution; failures require review.
 const crypto = require('crypto')
-const OPERATIONS = 'crm_mobile_sale_create_operations'
+const OPERATIONS = 'crm_mobile_sale_operations'
 const SALES = 'crm_sale_records'
 const text = value => String(value == null ? '' : value).trim()
 const first = result => Array.isArray(result?.data) ? result.data[0] : result?.data

@@ -11,7 +11,7 @@
 - `usePdaSaleForm.js`、`mobileSaleDraft.js`：账号隔离草稿、写后核对与存储失败提示；同草稿固定操作号及旧页面覆盖保护；提交冻结、查询恢复、价格/瓶档/存瓶差异确认。已保存结果不因查询失败丢失单号。
 - `bleScaleCore.js` 保留原拆帧、单位、0.1 kg 与稳定算法；`webBleScale.js` 用户手势选择设备并订阅 FFE0/FFE1，共享核心保留原生使用方。每瓶新会话，断线/后台/三秒超时失效；重连重新取得 GATT 对象。
 - `crm-sale/mobileSaleCreate.js` 复用 `createV2` 的计算和后置处理。创建者+操作号派生固定 ID，源单和永久凭据同事务创建；只有首次胜出的请求执行后置处理。插入异常但读不到赢家仍返回未知，不能据此换号重建。处理中或待核单均拦普通改/收款/删。
-- 数据库仅新增 `crm_mobile_sale_create_operations` schema/index 及销售可选来源、采集证据字段；根目录 schema 为上传入口，旧 schema 副本一致。
+- 数据库仅新增 `crm_mobile_sale_operations` schema/index 及销售可选来源、采集证据字段；根目录 schema 为上传入口，旧 schema 副本一致。
 
 ## 当前验证
 
