@@ -3,6 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
+const vue = require('vue')
 
 const moduleSource = fs.readFileSync(path.join(__dirname, '../src/services/pda/cameraScan.js'), 'utf8')
 const load = () => import(`data:text/javascript;base64,${Buffer.from(moduleSource).toString('base64')}`)
@@ -112,10 +113,18 @@ test('permission denial destroys camera and exposes failure once; retry can scan
 const saleViewSource = fs.readFileSync(path.join(__dirname, '../src/components/domain/pda/PdaSaleCreateView.vue'), 'utf8')
 const saleScript = saleViewSource.split('<script setup>')[1].split('</script>')[0].replace(/^import[\s\S]*?\bfrom\s+['"][^'"]+['"]\s*\n/gm, '')
 const valueRef = value => ({ value })
+const usableWeightSource = fs.readFileSync(path.join(__dirname, '../src/composables/pda/usePdaSaleForm.js'), 'utf8')
+	.replace(/^import[\s\S]*?\bfrom\s+['"][^'"]+['"]\s*\n/gm, '').replace(/export\s+(?=function)/g, '')
+const { resolveUsableBleScaleWeight } = vm.runInNewContext(`${usableWeightSource}\n;({resolveUsableBleScaleWeight})`, {
+	Date, Number,
+	toNumber(value, fallback = null) { if (value === '' || value == null) return fallback; const number = Number(value); return Number.isFinite(number) ? number : fallback }
+})
 
 async function saleHarness(overrides = {}) {
 	const camera = await load()
 	const events = [], writes = [], requests = []
+	const valueRef = overrides.reactive ? vue.ref : value => ({ value })
+	const scope = vue.effectScope()
 	let snapshotListener, sequence = 0
 	const scale = {
 		onSnapshot(fn) { snapshotListener = fn; return () => {} },
@@ -134,7 +143,8 @@ async function saleHarness(overrides = {}) {
 		hydrateSelectedCustomer() {}, searchCustomers: async () => ({ code: 0, data: [] }), setCustomerKeyword() {}, clearSelectedCustomer() {},
 		addOutItem() { form.value.outItems.push({ rowId: 'new-row', bottleNo: '' }) }, addBackItem() {},
 		removeOutItem(index) { form.value.outItems.splice(index, 1) }, removeBackItem() {}, normalizeOutBottle() {}, normalizeBackBottle() {},
-		resolveBottle: async () => ({ code: 0 }), applyScaleWeightToRow() { events.push('apply-weight'); return { code: 0 } }, clearScaleWeightFromRow() {},
+		resolveBottle: async () => ({ code: 0 }),
+		applyScaleWeightToRow(...args) { events.push('apply-weight'); return overrides.applyWeight ? overrides.applyWeight(...args) : { code: 0 } }, clearScaleWeightFromRow() {},
 		refreshDepositRows: async () => ({ code: 0 }), restoreDraft() {}, discardDraft() {}, startNewSale() {}, querySubmission() {}, applyRevalidationChanges() {},
 		persistDraft() { events.push('persist') }, invalidateAsyncWork() { events.push('invalidate') },
 		submit: overrides.submit || (async (options) => { requests.push(options); return { code: 0 } })
@@ -142,14 +152,15 @@ async function saleHarness(overrides = {}) {
 	const suggestions = () => ({ items: valueRef([]), loading: valueRef(false), visible: valueRef(false), handleInput() {}, handleFocus() {}, handleBlur() {}, handleSelect: value => value, clear() {} })
 	const context = vm.createContext({
 		...camera, Date, Math, Promise, Number, String, Map, Boolean, Array, JSON,
-		ref: valueRef, computed: getter => ({ get value() { return getter() } }), watch() {}, onBeforeUnmount() {}, onMounted() {},
+		ref: valueRef, computed: overrides.reactive ? vue.computed : getter => ({ get value() { return getter() } }),
+		watch: overrides.reactive ? vue.watch : () => {}, onBeforeUnmount() {}, onMounted() {},
 		defineProps: () => ({}), defineExpose() {}, usePdaSaleForm: () => state, usePdaSuggestions: suggestions,
 		getPdaBleScaleCapabilities: () => ({ transport: 'web', supported: overrides.bleSupported !== false }),
 		getMobileCaptureCapabilities: () => ({ secure: true, camera: true, bluetooth: true }),
 		createEmptyPdaBleScaleSnapshot: () => ({ is_connected: overrides.connected !== false, stable_seq: 0, session_id: 'initial' }),
 		createPdaBleScaleSession: () => scale, ensurePdaBleRuntimePermission: async () => ({ code: 0 }),
 		PDA_BLE_SCALE_DISPLAY_DECIMALS: 1, PDA_BLE_SCALE_DIVISION_STEP_KG: 0.5,
-		resolveUsableBleScaleWeight: value => ({ hasCurrentStableWeight: value.is_stable, hasFreshCachedStableWeight: false }),
+		resolveUsableBleScaleWeight: overrides.reactive ? resolveUsableBleScaleWeight : value => ({ hasCurrentStableWeight: value.is_stable, hasFreshCachedStableWeight: false }),
 		PDA_CAPTURE_TARGETS: { SALE_CUSTOMER: 'customer', SALE_DELIVERY_1: 'd1', SALE_DELIVERY_2: 'd2', SALE_VEHICLE_NO: 'vehicle', saleOutBottleNo: i => `out-${i}`, saleBackBottleNo: i => `back-${i}` },
 		resolvePdaBottleByQrCode: overrides.resolveBottle || (async text => ({ code: 0, data: { bottle_no: text, tare_weight: 40 } })),
 		resolvePdaCustomerByQrCode: overrides.resolveCustomer || (async () => ({ code: 0, data: { _id: 'next-customer', name: '新客户' } })),
@@ -160,8 +171,8 @@ async function saleHarness(overrides = {}) {
 		formatWeight: String, formatMoney: String, formatDateTime: String, canPageAction: () => true,
 		uni: { getStorageSync: () => '', showToast: options => events.push(options.title), showModal: options => options.success({ confirm: true }) }
 	})
-	vm.runInContext(`${saleScript}\nglobalThis.panel = { form, currentStep, cameraOpen, cameraTarget, scaleSnapshot, pendingScaleApplyTarget, startCamera, closeCamera, onCameraResult, onFocusHeaderTarget, onScanCustomer, onScanBottle, onSelectBottleSuggestion, onRemoveOutItem, onAddOutItem, deactivateBarcodeSession, markPendingScaleApply, tryApplyPendingScaleWeight, onSubmit, enterBottleStep };`, context)
-	return { panel: context.panel, state, events, writes, requests }
+	scope.run(() => vm.runInContext(`${saleScript}\nglobalThis.panel = { form, currentStep, cameraOpen, cameraTarget, scaleSnapshot, pendingScaleApplyTarget, scaleErrorText, scaleStatusText, barcodeHint, startCamera, closeCamera, onCameraResult, onFocusHeaderTarget, onScanCustomer, onScanBottle, onSelectBottleSuggestion, onRemoveOutItem, onAddOutItem, deactivateBarcodeSession, markPendingScaleApply, tryApplyPendingScaleWeight, cancelPendingMeasurement, onSubmit, enterBottleStep };`, context))
+	return { panel: context.panel, state, events, writes, requests, emitSnapshot: snapshot => snapshotListener(snapshot), stop: () => scope.stop() }
 }
 
 test('focusing customer only changes target; explicit scan button opens camera', async () => {
@@ -262,4 +273,111 @@ test('bottle capture requires connection; manual selection begins its own measur
 	assert.deepEqual(writes, ['B001'])
 	assert.equal(panel.pendingScaleApplyTarget.value.rowId, 'row-1')
 	assert.equal(panel.pendingScaleApplyTarget.value.sessionId, 'session-1')
+})
+
+function readySnapshot(panel, patch = {}) {
+	const target = panel.pendingScaleApplyTarget.value
+	return { is_connected: true, is_online: true, is_stable: true, stable_seq: 1,
+		session_id: target?.sessionId, measurement_started_at: target?.createdAt,
+		weight_kg: 150, sampled_at: Date.now(), ...patch }
+}
+
+async function weighingHarness(t, overrides = {}) {
+	const h = await saleHarness({ reactive: true, ...overrides })
+	t.after(h.stop)
+	h.panel.onSelectBottleSuggestion('out', 0, { bottle_no: '113', tare_weight: 124 })
+	await vue.nextTick()
+	return h
+}
+
+test('auto fill uses the final notification snapshot and retries when readiness returns without a new stable sequence', async t => {
+	const h = await weighingHarness(t)
+	const stable = readySnapshot(h.panel)
+	h.emitSnapshot(stable)
+	h.emitSnapshot({ ...stable, is_stable: false, weight_kg: 151 })
+	await vue.nextTick()
+	assert.equal(h.events.filter(value => value === 'apply-weight').length, 0, 'intermediate stable frame must not be adopted')
+	assert.ok(h.panel.pendingScaleApplyTarget.value)
+	h.emitSnapshot({ ...stable, sampled_at: Date.now() })
+	await vue.nextTick()
+	assert.equal(h.events.filter(value => value === 'apply-weight').length, 1)
+	assert.equal(h.panel.pendingScaleApplyTarget.value, null)
+	h.emitSnapshot({ ...stable, sampled_at: Date.now() })
+	await vue.nextTick()
+	assert.equal(h.events.filter(value => value === 'apply-weight').length, 1, 'completed target must not be rewritten')
+})
+
+test('a stale or future stable sample never fills; a fresh sample with the same sequence can fill', async t => {
+	const h = await weighingHarness(t)
+	const stable = readySnapshot(h.panel)
+	for (const sampled_at of [Date.now() - 3001, Date.now() + 1000]) {
+		h.emitSnapshot({ ...stable, sampled_at })
+		await vue.nextTick()
+		assert.equal(h.events.includes('apply-weight'), false)
+	}
+	h.emitSnapshot({ ...stable, sampled_at: Date.now() })
+	await vue.nextTick()
+	assert.equal(h.events.filter(value => value === 'apply-weight').length, 1)
+})
+
+test('auto fill failure exposes the specific reason once and a later usable sample can retry successfully', async t => {
+	let accepted = false
+	const reason = '毛重减空瓶重后净重需大于 0，请核对瓶档和称重'
+	const h = await weighingHarness(t, { applyWeight: () => accepted ? { code: 0, data: { netWeight: 26 } } : { code: 400, msg: reason } })
+	const stable = readySnapshot(h.panel, { weight_kg: 100 })
+	for (let i = 0; i < 3; i++) {
+		h.emitSnapshot({ ...stable, sampled_at: Date.now() })
+		await vue.nextTick()
+	}
+	assert.match(h.panel.scaleErrorText.value, /113.*净重需大于 0/)
+	assert.equal(h.panel.scaleStatusText.value, '回填未完成')
+	assert.equal(h.events.filter(value => value.includes(reason)).length, 1, 'same error must not toast on every sample')
+	assert.ok(h.panel.pendingScaleApplyTarget.value)
+	accepted = true
+	h.emitSnapshot({ ...stable, weight_kg: 150, sampled_at: Date.now() })
+	await vue.nextTick()
+	assert.equal(h.panel.pendingScaleApplyTarget.value, null)
+	assert.equal(h.panel.scaleErrorText.value, '')
+	assert.match(h.panel.barcodeHint.value, /已完成称重回填/)
+})
+
+test('a thrown auto fill error remains visible and cancel clears it without changing another bottle', async t => {
+	const h = await weighingHarness(t, { applyWeight() { throw new Error('回填异常') } })
+	h.emitSnapshot(readySnapshot(h.panel))
+	await vue.nextTick()
+	assert.match(h.panel.scaleErrorText.value, /回填异常/)
+	h.panel.cancelPendingMeasurement()
+	await vue.nextTick()
+	assert.equal(h.panel.scaleErrorText.value, '')
+	assert.equal(h.panel.pendingScaleApplyTarget.value, null)
+	assert.equal(h.panel.form.value.outItems[1].bottleNo, '')
+})
+
+test('pending auto fill still rejects old sessions, disconnected snapshots, changed rows and hidden pages', async t => {
+	for (const change of ['session', 'disconnect', 'row', 'hidden']) {
+		const h = await weighingHarness(t)
+		const stable = readySnapshot(h.panel)
+		if (change === 'session') stable.session_id = 'old-session'
+		if (change === 'disconnect') stable.is_connected = false
+		if (change === 'row') h.panel.form.value.outItems.splice(0, 1)
+		if (change === 'hidden') await h.panel.deactivateBarcodeSession('hidden')
+		h.emitSnapshot(stable)
+		await vue.nextTick()
+		assert.equal(h.events.includes('apply-weight'), false, change)
+		assert.equal(h.panel.pendingScaleApplyTarget.value, null, change)
+	}
+})
+
+test('an already weighed result is preserved and never retried or forced by subsequent snapshots', async t => {
+	const calls = []
+	const h = await weighingHarness(t, { applyWeight(...args) { calls.push(args); return { code: 208, msg: '该瓶已完成称重，如需覆盖请点击重新称重' } } })
+	const stable = readySnapshot(h.panel)
+	h.emitSnapshot(stable)
+	await vue.nextTick()
+	assert.equal(h.panel.pendingScaleApplyTarget.value, null)
+	assert.match(h.panel.barcodeHint.value, /该瓶已完成称重/)
+	h.emitSnapshot({ ...stable, sampled_at: Date.now() })
+	await vue.nextTick()
+	assert.equal(calls.length, 1)
+	assert.equal(calls[0][3].force, undefined)
 })

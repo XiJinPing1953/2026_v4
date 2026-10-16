@@ -492,6 +492,7 @@ const scaleApplyingKey = ref('')
 const scalePermissionReady = ref(false)
 const boundScaleDevice = ref(loadBoundScaleDevice())
 const pendingScaleApplyTarget = ref(null)
+const scaleApplyError = ref('')
 const recentBottleScanMap = new Map()
 const scaleSession = createPdaBleScaleSession({
 	deviceId: boundScaleDevice.value?.deviceId || '',
@@ -632,6 +633,7 @@ const scaleStatusKind = computed(() => {
 
 const scaleStatusText = computed(() => {
 	if (!scaleSnapshot.value.is_connected) return '未连接'
+	if (pendingScaleApplyTarget.value && scaleApplyError.value) return '回填未完成'
 	if (scaleCanApplyWeight.value) return '可回填'
 	if (scaleSnapshot.value.is_online) return '称重中，请保持稳定'
 	if (scaleErrorCode.value && !['waiting_data', 'waiting_stable'].includes(scaleErrorCode.value)) return '通信异常'
@@ -645,6 +647,7 @@ const scaleConnectionText = computed(() => {
 
 const scaleDataStatusText = computed(() => {
 	if (!scaleSnapshot.value.is_connected) return '离线'
+	if (pendingScaleApplyTarget.value && scaleApplyError.value) return '回填未完成'
 	if (scaleCanApplyWeight.value) return '可回填'
 	if (scaleSnapshot.value.is_online) return '称重中'
 	if (scaleErrorCode.value && !['waiting_data', 'waiting_stable'].includes(scaleErrorCode.value)) return '通信异常'
@@ -657,6 +660,7 @@ const scaleLastUpdatedText = computed(() => {
 })
 
 const scaleErrorText = computed(() => {
+	if (scaleApplyError.value) return scaleApplyError.value
 	const message = normalizeText(scaleSnapshot.value.error_message)
 	if (!message) return ''
 	if (scaleCanApplyWeight.value) return ''
@@ -1176,13 +1180,14 @@ function markPendingScaleApply(type = 'out', index = 0, bottleNo = '') {
 	if (submissionLocked.value || !pageActive) return
 	const normalizedNo = normalizeBottleNo(bottleNo)
 	if (!normalizedNo) {
-		pendingScaleApplyTarget.value = null
+		clearPendingScaleApply()
 		return
 	}
 	if (!scaleSnapshot.value.is_connected) {
 		barcodeHint.value = '瓶号已填写；请连接吊秤后点击本瓶称重。'
 		return
 	}
+	scaleApplyError.value = ''
 	const sessionId = scaleSession.beginMeasurement()
 	pendingScaleApplyTarget.value = {
 		type: type === 'back' ? 'back' : 'out',
@@ -1201,6 +1206,15 @@ function clearPendingScaleApply(type = '', index = null) {
 	if (type && pending.type !== type) return
 	if (index != null && Number(pending.index) !== Number(index)) return
 	pendingScaleApplyTarget.value = null
+	scaleApplyError.value = ''
+}
+
+function reportScaleApplyError(message, options = {}) {
+	const text = normalizeText(message) || '称重回填失败，请核对本瓶档案和秤值后重试'
+	const changed = scaleApplyError.value !== text
+	scaleApplyError.value = text
+	barcodeHint.value = text
+	if (changed && options.toast !== false) showToast(text)
 }
 
 function tryApplyPendingScaleWeight(options = {}) {
@@ -1213,28 +1227,37 @@ function tryApplyPendingScaleWeight(options = {}) {
 	if (Number(scaleSnapshot.value.stable_seq || 0) <= Number(pending.stableSeqAtCreate || 0)) {
 		return { code: 202, msg: '等待本次称重稳定' }
 	}
-	if (!scaleCanApplyWeight.value) return { code: 202, msg: '等待稳定秤值' }
+	// Re-evaluate freshness at the actual write attempt, not a cached computed time.
+	if (!resolveUsableBleScaleWeight(scaleSnapshot.value).hasCurrentStableWeight) return { code: 202, msg: '等待稳定秤值' }
 	const index = findScanTargetIndex(pending.type === 'back' ? form.value.backItems : form.value.outItems, pending)
 	const row = index < 0 ? null : getBottleRow(pending.type, index)
 	const rowBottleNo = normalizeBottleNo(row?.bottleNo || row?.bottle_no)
 	if (!row || rowBottleNo !== pending.bottleNo) {
-		pendingScaleApplyTarget.value = null
+		clearPendingScaleApply()
 		return { code: 409, msg: '待回填行已变化' }
 	}
-	const res = applyScaleWeightToRow(pending.type, index, scaleSnapshot.value, { sessionId: pending.sessionId })
+	let res
+	try {
+		res = applyScaleWeightToRow(pending.type, index, scaleSnapshot.value, { sessionId: pending.sessionId })
+	} catch (error) {
+		res = { code: 500, msg: `称重回填失败：${error?.message || '请重试'}` }
+	}
 	if (res?.code === 208) {
-		pendingScaleApplyTarget.value = null
+		clearPendingScaleApply()
+		barcodeHint.value = res.msg || '该瓶已完成称重'
 		if (options.toast !== false) showToast(res.msg || '该瓶已完成称重')
 		return res
 	}
 	if (res?.code === 0) {
 		const targetText = pendingScaleTargetText.value
-		pendingScaleApplyTarget.value = null
+		clearPendingScaleApply()
 		if (options.toast !== false) {
 			const netWeight = Number(res?.data?.netWeight || 0)
 			showToast(`已自动回填净重 ${netWeight.toFixed(PDA_BLE_SCALE_DISPLAY_DECIMALS)}kg`)
 		}
 		barcodeHint.value = `${targetText} 已完成称重回填。`
+	} else {
+		reportScaleApplyError(`${pendingScaleTargetText.value}：${res?.msg || '称重回填失败，请重试'}`, options)
 	}
 	return res
 }
@@ -1412,7 +1435,7 @@ async function onRebindScaleDevice() {
 
 async function onDisconnectScale(options = {}) {
 	scaleApplyingKey.value = ''
-	pendingScaleApplyTarget.value = null
+	clearPendingScaleApply()
 	const res = await scaleSession.disconnect({
 		error_code: 'manual_disconnected',
 		error_message: '吊秤已手动断开'
@@ -1514,7 +1537,9 @@ watch(
 )
 
 watch(
-	() => Number(scaleSnapshot.value.stable_seq || 0),
+	// Use the final snapshot of a notification batch. Readiness/freshness can change
+	// without a new stable sequence, so sequence-only watching can miss recovery.
+	[scaleSnapshot, pendingScaleApplyTarget],
 	() => {
 		if (currentStep.value !== 2) return
 		void tryApplyPendingScaleWeight({ toast: true })

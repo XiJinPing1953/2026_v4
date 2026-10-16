@@ -5,7 +5,7 @@ export const PDA_BLE_SCALE_DATA_BITS = 8
 export const PDA_BLE_SCALE_STOP_BITS = 1
 export const PDA_BLE_SCALE_PARITY = 'none'
 export const PDA_BLE_SCALE_FRAME_MODE = 'nvk_uart'
-export const PDA_BLE_SCALE_DIVISION_STEP_KG = 0.1
+export const PDA_BLE_SCALE_DIVISION_STEP_KG = 0.5
 export const PDA_BLE_SCALE_DISPLAY_DECIMALS = 1
 
 const DEFAULT_DEVICE_NAME_PREFIX = 'NVK'
@@ -777,13 +777,16 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 		const beforeOk = frameParseOkCount
 		consumeScaleChunk(decodeArrayBuffer(res?.value), sampledAt)
 		if (frameParseOkCount === beforeOk) {
+			// BLE may split a frame or its CR/LF across notifications. A fragment is
+			// not a new weight: retain the last complete sample without refreshing it.
+			// Real weight changes, read timeout and disconnect still invalidate it.
 			emit(
-				withDiagnostics({
+				withDiagnostics(frameParseOkCount > 0 ? {} : {
 					is_connected: true,
-					is_online: frameParseOkCount > 0,
+					is_online: false,
 					is_stable: false,
-					error_code: frameParseOkCount > 0 ? 'waiting_stable' : 'no_valid_frame',
-					error_message: frameParseOkCount > 0 ? '称重中，请保持稳定' : '收到吊秤数据但未解析出重量'
+					error_code: 'no_valid_frame',
+					error_message: '收到吊秤数据但未解析出重量'
 				})
 			)
 		}

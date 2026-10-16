@@ -31,6 +31,7 @@ function compileH5UniApis(source, file) {
 }
 const state = load('src/services/pda/mobileSaleDraft.js', ['createMobileSaleDraftStore', 'createMobileSaleId', 'cloneMobileSale', 'mobileSaleReceipt', 'canReleaseMobileSubmission'])
 const shared = load('src/services/pda/shared.js', ['normalizeText', 'normalizeBottleNo', 'toNumber', 'todayDate', 'buildDepositPreviewRows'])
+const scale = load('src/services/pda/bleScaleCore.js', ['PDA_BLE_SCALE_DISPLAY_DECIMALS', 'PDA_BLE_SCALE_DIVISION_STEP_KG', 'quantizeBleScaleWeightKg'], shared)
 const customer = load('src/services/pda/customer.js', ['resolvePdaCustomerPricing'], shared)
 const location = load('src/services/pda/location.js', ['normalizePdaScanLocation'], shared)
 const settlement = load('src/services/models/settlement.js', ['normalizePaymentMethod', 'normalizePaymentStatus', 'normalizeSettlementMode'])
@@ -58,8 +59,7 @@ function harness(t, options = {}) {
 		$inject_uni_getStorageSync: storageApis.getStorageSync,
 		$inject_uni_setStorageSync: storageApis.setStorageSync,
 		$inject_uni_removeStorageSync: storageApis.removeStorageSync,
-		PDA_BLE_SCALE_DISPLAY_DECIMALS: 1, PDA_BLE_SCALE_DIVISION_STEP_KG: 0.1,
-		quantizeBleScaleWeightKg: weight => Math.round(weight * 10) / 10,
+		...scale,
 		getPdaCustomerById: async () => { reads++; return { code: 0, data: options.customer || customerDoc } },
 		findPdaBottleByNo: options.findBottle || (async (_, opts) => { assert.equal(opts?.fresh, true); return { code: 0, data: options.bottle || bottleDoc } }),
 		previewPdaDepositRows: async () => ({ code: 0, data: { depositRows: [{ bottle_no: '101' }], raw: '', baseCount: 0 } }),
@@ -317,6 +317,24 @@ test('late bottle lookup after deleting row or hiding page cannot write into rep
 	h.form.removeOutItem(0)
 	finish({ code: 0, data: bottleDoc }); await pending
 	assert.equal(h.form.form.value.outItems[0].bottleNo, '')
+})
+
+test('a fresh stable sample fills half-kilogram gross, preserves archive tare and persists the completed row', t => {
+	const h = harness(t)
+	h.form.applySelectedCustomer(customerDoc)
+	h.form.form.value.outItems = [{ ...sale.createPdaOutItem(), bottleNo: '113', bottleId: 'b113', tare: '124.1', tareSource: 'bottle_profile' }]
+	const now = Date.now()
+	const sample = { weight_kg: 170.4, is_connected: true, is_online: true, is_stable: true, sampled_at: now, measurement_started_at: now - 1500, session_id: 'b113', stable_seq: 1, transport: 'web' }
+	assert.equal(h.form.applyScaleWeightToRow('out', 0, sample, { sessionId: 'b113' }).code, 0)
+	const row = h.form.form.value.outItems[0]
+	assert.equal(row.gross, '170.5')
+	assert.equal(row.tare, '124.1', 'archive tare is not rounded to the scale division')
+	assert.equal(row.net, '46.4')
+	assert.equal(h.form.applyScaleWeightToRow('out', 0, { ...sample, weight_kg: 180 }).code, 208)
+	const reopened = harness(t, { storage: h.storage })
+	assert.equal(reopened.form.restoreDraft(), true)
+	assert.equal(reopened.form.form.value.outItems[0].gross, '170.5')
+	assert.equal(reopened.form.form.value.outItems[0].net, '46.4')
 })
 
 test('disconnected cached weight, stale or future samples and mismatched sessions are refused', t => {

@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.16-mobile-sale",
+      "version": "2026.10.16-mobile-scale-fix",
       "output": "dist/build/web",
-      "acceptance": "User authorized publication before device acceptance. Scoped account, camera scanning, registered bottles, fresh stable BLE samples, drafts and fixed-operation idempotent create. Isolated cloud transactions and minimum-account downstream authorization must pass. Android/iPhone and NVK field acceptance remains pending after publication.",
+      "acceptance": "H5-only weighing repair: 0.5 kg scale division, fragmented BLE notifications retain the last complete sample without extending freshness, and current bottle auto-fill retries on usable snapshots. Preserve per-bottle sessions, three-second expiry and completed rows. Existing cloud dependencies below remain unchanged; no functions or schemas are uploaded. Camera repair is deferred. OPPO Find N / Chrome / NVK field recheck remains pending after publication.",
       "deploymentScope": {
         "functions": [
           "crm-sale",

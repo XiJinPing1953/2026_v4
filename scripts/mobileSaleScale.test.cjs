@@ -109,13 +109,15 @@ function fixture(options = {}) {
 	return { context, time, env, device, session, stats, clickConnect, send, stable, characteristic: () => characteristic }
 }
 
-test('head and fixed UART frames retain kg conversion and 0.1 kg quantization', () => {
+test('head and fixed UART frames retain raw kg conversion; sales quantize to 0.5 kg', () => {
 	const { context } = load()
 	assert.equal(context.parsePdaBleScaleLine('ST,NT,+ 25.4kg').weightKg, 25.4)
 	assert.equal(context.parsePdaBleScaleLine('UT,NT,+25400.0g').weightKg, 25.4)
 	assert.equal(context.parsePdaBleScaleLine('+   25.4 kg\r\n').weightKg, 25.4)
 	assert.equal(context.parsePdaBleScaleLine('bad frame'), null)
 	assert.equal(context.quantizeBleScaleWeightKg(25.46), 25.5)
+	assert.equal(context.quantizeBleScaleWeightKg(25.24), 25)
+	assert.equal(context.quantizeBleScaleWeightKg(25.26), 25.5)
 })
 
 test('capability detection uses HTTPS, available API and permissions policy, not user agent', () => {
@@ -145,11 +147,71 @@ test('notifications parse split packets and DataView offsets without adjacent bu
 	f.session.beginMeasurement()
 	f.send('ST,NT,+2', 3)
 	f.send('5.4kg\r\n', 5)
-	assert.equal(f.session.getSnapshot().weight_kg, 25.4)
+	assert.equal(f.session.getSnapshot().weight_kg, 25.5)
 	assert.equal(f.session.getSnapshot().frame_parse_ok_count, 1)
 	f.send('+   24.0 kg\r\n+   25.0 kg\r\n', 2)
 	assert.equal(f.session.getSnapshot().weight_kg, 25)
 	assert.equal(f.session.getSnapshot().frame_parse_ok_count, 3)
+	await f.session.stop()
+})
+
+test('fragmented weights and separate CR/LF do not flicker after stabilization; a new weight does invalidate', async () => {
+	const f = fixture()
+	await f.clickConnect()
+	f.session.beginMeasurement()
+	const states = []
+	f.session.onSnapshot(value => states.push(value))
+	for (let i = 0; i < 6; i++) {
+		if (i) await f.time.advance(300)
+		f.send('+  170.')
+		f.send('0 kg\r')
+		f.send('\n')
+	}
+	const stable = f.session.getSnapshot()
+	assert.equal(stable.is_stable, true)
+	assert.equal(stable.weight_kg, 170)
+	assert.equal(stable.frame_parse_ok_count, 6)
+	const firstStable = states.findIndex(value => value.is_stable)
+	assert.ok(firstStable >= 0)
+	assert.ok(states.slice(firstStable).every(value => value.is_stable), 'packet fragments must not report a weight change')
+	f.send('+  170.')
+	assert.equal(f.session.getSnapshot().is_stable, true)
+	assert.equal(f.session.getSnapshot().sampled_at, stable.sampled_at)
+	f.send('5 kg\r\n')
+	assert.equal(f.session.getSnapshot().weight_kg, 170.5)
+	assert.equal(f.session.getSnapshot().is_stable, false)
+	await f.session.stop()
+})
+
+test('fragments cannot refresh a stable weight or extend its three-second validity', async () => {
+	const f = fixture()
+	await f.clickConnect()
+	const id = f.session.beginMeasurement()
+	await f.stable(170)
+	const sampledAt = f.session.getSnapshot().sampled_at
+	for (let i = 0; i < 5; i++) { await f.time.advance(500); f.send('\n') }
+	assert.equal(f.session.getSnapshot().sampled_at, sampledAt)
+	await f.time.advance(1000)
+	assert.equal(f.session.getSnapshot().is_stable, false)
+	assert.equal(f.session.getSnapshot().weight_kg, null)
+	assert.notEqual(f.session.getSnapshot().session_id, id)
+	await f.session.stop()
+})
+
+test('0.5 kg buckets stabilize small raw fluctuations but a half-kilogram step restarts the window', async () => {
+	const f = fixture()
+	await f.clickConnect()
+	f.session.beginMeasurement()
+	for (const weight of [170, 170.1, 169.9, 170.2, 170]) {
+		f.send(`UT,NT,+${weight.toFixed(1)}kg\r\n`)
+		await f.time.advance(300)
+	}
+	assert.equal(f.session.getSnapshot().weight_kg, 170)
+	assert.equal(f.session.getSnapshot().is_stable, true)
+	f.send('UT,NT,+170.5kg\r\n')
+	assert.equal(f.session.getSnapshot().is_stable, false)
+	await f.stable(170.5)
+	assert.equal(f.session.getSnapshot().is_stable, true)
 	await f.session.stop()
 })
 
