@@ -55,3 +55,21 @@ test('Excel retains special-work details and every repeat observation report, on
   const observations = weekly.getWorksheet('观察记录'); const evidence = observations.getColumn(7).values.join(''); const reports = observations.getColumn(8).values.join(''); const onsite = observations.getColumn(9).values.join('')
   for (const index of [1, 2]) { assert.ok(reports.includes(`上报对象-${index}`)); assert.ok(onsite.includes(`实际措施-${index}`)); assert.ok(evidence.includes(`工单-${index}`)); assert.ok(evidence.includes(`https://example.test/report/${index}`)) }
 })
+
+test('统一巡检导出区分项目与条次，复用组不伪装新增正常，保留具体待办及核查时刻', async () => {
+  const input = payload()
+  const category = input.document.snapshot.categories[1]
+  category.coverage = { inspection_item_count: 23, inspection_record_count: 46, supplement_group_count: 4, covered_group_count: 1, result_counts: { normal: 47, not_conducted: 1, not_applicable: 1, pending: 1 }, pending: [{ item_code: 'S03', label: '仪表证书', messages: ['压力表证书待核验'] }] }
+  category.checks.push({ source_type: 'inspection_workflow', source_id: 'round-2', item_code: 'S13a', label: '装卸软管和连接', result_code: 'not_conducted', observed_at: P.atDate('2026-10-15') + 10 * 3600000, detail_text: '装卸：无；截至本次核查未开展', evidence: [], details: {} })
+  category.checks.push({ source_type: 'inspection_coverage', source_id: 'round-2', item_code: 'S02', label: '设备运行及支撑', result_code: 'normal', covered_by_inspection: true, detail_text: '引用本次四项设备检查', evidence: [] })
+  const workbook = await createWorkbook(input)
+  const main = workbook.getWorksheet('主表').getColumn(2).values.join('')
+  assert.ok(main.includes('原巡检 23 项（46 条记录）'))
+  assert.ok(main.includes('压力表证书待核验'))
+  const result = workbook.getWorksheet('逐项检查').getColumn(4).values.join('')
+  assert.ok(result.includes('截至核查时未开展'))
+  assert.ok(result.includes('已引用原巡检：已检查正常'))
+  const details = workbook.getWorksheet('逐项检查').getColumn(10).values.join('')
+  assert.ok(details.includes('核查截至：2026-10-15 10:00:00'))
+  assert.ok(details.includes('装卸：无；截至本次核查未开展'))
+})

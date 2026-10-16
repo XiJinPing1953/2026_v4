@@ -41,7 +41,7 @@ function completeItems() {
 test('厂站巡检当前模板固定为四组 36 项并保留历史版本', () => {
 	assert.equal(STATION.id, 'XTNY-001')
 	assert.equal(STATION.name, '无极县新拓能源开发有限公司')
-	assert.equal(TEMPLATE.version, 3)
+	assert.equal(TEMPLATE.version, 4)
 	assert.deepEqual(TEMPLATE.areas.map((area) => area.items.length), [10, 9, 10, 7])
 	assert.deepEqual(TEMPLATE.areas.map((area) => area.code), ['tank_area', 'pump_area', 'filling_area', 'public_area'])
 	assert.deepEqual(TEMPLATE.areas.map((area) => area.items.map((entry) => entry.code)), [
@@ -57,6 +57,10 @@ test('厂站巡检当前模板固定为四组 36 项并保留历史版本', () =
 	assert.equal(templateItems(getTemplate(TEMPLATE.code, 1)).length, 37)
 	assert.equal(templateItems(getTemplate(TEMPLATE.code, 2)).length, 36)
 	assert.equal(getTemplate(TEMPLATE.code, 2).classification_version, undefined)
+	assert.equal(getTemplate(TEMPLATE.code, 3).version, 3)
+	assert.equal(templateItems(getTemplate(TEMPLATE.code, 3)).find(({ item }) => item.code === 'tank_bolts').item.label, '紧固螺栓是否松动、缺失')
+	assert.equal(templateItems(getTemplate(TEMPLATE.code, 3)).some(({ item }) => item.supplement_coverage?.length), false)
+	assert.deepEqual(templateItems(TEMPLATE).filter(({ item }) => item.supplement_coverage.includes('S02')).map(({ item }) => item.code), ['tank_bolts', 'tank_insulation_leak', 'pump_bolts', 'pump_appearance_leak'])
 	assert.deepEqual(CATEGORIES.map((category) => Object.values(ITEM_CATEGORIES).filter((value) => value === category.code).length), [1, 23, 2, 3, 3, 3, 1])
 	assert.equal(ITEM_CATEGORIES.filling_hanging_scale, '1')
 	assert.equal(templateItems(TEMPLATE).find(({ item }) => item.code === 'tank_valves').item.hazard_category, '厂站设施')
@@ -209,7 +213,7 @@ test('未运行只适用于v3泵运行压力，必须保留原因和现场照片
 
 test('实际时间和天气必填，历史v2不补造时间天气', () => {
 	const now = Date.now()
-	const payload = { template_code: TEMPLATE.code, template_version: 3, inspector_name: '甲', items: completeItems(), started_at: now - 2000, ended_at: now - 1000, weather: '多云' }
+	const payload = { template_code: TEMPLATE.code, template_version: TEMPLATE.version, inspector_name: '甲', items: completeItems(), started_at: now - 2000, ended_at: now - 1000, weather: '多云' }
 	assert.equal(normalizeEditablePayload(payload, { now }).ok, true)
 	for (const patch of [{ started_at: undefined }, { ended_at: now - 3000 }, { ended_at: now + 120000 }, { weather: '' }]) assert.equal(normalizeEditablePayload({ ...payload, ...patch }, { now }).ok, false)
 	const legacy = normalizeEditablePayload({ template_code: TEMPLATE.code, template_version: 2, inspector_name: '甲', items: completeItems() }, { template: getTemplate(TEMPLATE.code, 2) })

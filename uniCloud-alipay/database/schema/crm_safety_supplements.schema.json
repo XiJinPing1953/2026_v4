@@ -67,6 +67,13 @@
     },
     "content_status": {
       "bsonType": "string"
+    },
+    "workflow_observations": {
+      "bsonType": "array",
+      "description": "绑定各次原巡检及其修订版本的情况确认；不得覆盖其他巡检事实",
+      "items": {
+        "bsonType": "object"
+      }
     }
   },
   "permission": {

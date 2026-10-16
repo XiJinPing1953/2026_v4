@@ -247,3 +247,125 @@ test('content checked count is independent of calendar enablement but excludes c
   const stale = (await h.call('getMonthlyV1', { month: '2026-10' }, 'admin')).data.statistics
   assert.equal(stale.inspected_days, 1); assert.equal(stale.checked_days, 0)
 })
+
+const W = require('../uniCloud-alipay/cloudfunctions/crm-safety-management/workflow')
+function unifiedHarness() {
+  const record = inspection('2026-10-15', 'owned_visit', { inspector_user_id: 'inspector', created_by: 'inspector' })
+  return createHarness({ seed: { crm_safety_management_config: [], crm_station_safety_inspections: [record], crm_users: [makeUser('admin'), makeUser('inspector', ['/pages/station-safety-inspection/form']), makeUser('outsider', ['/pages/station-safety-inspection/form'])] } })
+}
+function quietWorkflow(h) {
+  return { version: 1, observed_at: h.now(), special_work: W.SPECIAL_WORK_TYPES.map(row => ({ type: row.code, conducted: 'no', events: [] })), activities: { filling: 'no', unloading: 'no', receiving: 'no', reports: 'no' }, checks: [{ code: 'S04', result_code: 'normal', details: { personnel: '实际巡检员', qualification: '已核对岗位资格记录', briefing: '已核对本班交底记录' }, evidence: [{ type: 'record', value: '当班交底001' }], hazard_ids: [], note: '' }], certificate_scope_confirmed: true, certificate_checks: [{ id: 'all_actual_certificates', equipment: '实际适用附件仪表清单', reference_no: '设备档案清单001', valid_until: '2027-01-01', verification: 'unchanged', result_code: 'normal', note: '已逐项核对完整清单', evidence: [{ type: 'record', value: '证书清单001' }], hazard_ids: [] }], controls: [], facilities: W.FACILITY_TYPES.map(row => ({ code: row.code, present: row.code === 'other' ? '' : 'no', result_code: '', note: '', evidence: [], hazard_ids: [] })) }
+}
+async function saveWorkflow(h, workflow = quietWorkflow(h), changes = {}) { return h.call('saveInspectionWorkflowV1', { inspection_id: 'owned_visit', expected_revision: 0, source_revision: 1, workflow, ...changes }, 'inspector') }
+
+test('unified workflow saves real owner facts before enablement without granting daily role, and retries do not revise', async () => {
+  const h = unifiedHarness(); const draft = await h.call('getInspectionWorkflowV1', { inspection_id: 'owned_visit' }, 'inspector')
+  assert.equal(draft.code, 0, draft.msg); assert.equal(draft.data.permissions.write, true); assert.equal(draft.data.permissions.daily, false)
+  assert.equal(draft.data.coverage.filter(row => row.status === 'covered').length, 5); assert.equal(draft.data.complete, false)
+  const saved = await saveWorkflow(h); assert.equal(saved.code, 0, saved.msg); assert.equal(saved.data.complete, true, saved.data.missing?.join(';'))
+  assert.equal(saved.data.items.find(row => row.code === 'S01').result_code, 'not_conducted'); assert.equal(saved.data.items.find(row => row.code === 'S14').result_code, 'not_applicable')
+  const retry = await saveWorkflow(h); assert.equal(retry.code, 0, retry.msg); assert.equal(retry.data.supplement_revision, 1)
+  assert.equal(h.database.rows('crm_safety_management_config').length, 0)
+  assert.equal((await h.call('confirmDailyV1', { date: h.date }, 'inspector')).code, 403)
+  assert.equal((await h.call('saveInspectionWorkflowV1', { inspection_id: 'owned_visit', expected_revision: 1, source_revision: 1, revision_reason: '代填', workflow: quietWorkflow(h) }, 'outsider')).code, 403)
+  assert.equal((await h.call('saveInspectionWorkflowV1', { inspection_id: 'owned_visit', expected_revision: 1, source_revision: 1, revision_reason: '管理员代填', workflow: quietWorkflow(h) }, 'admin')).code, 403)
+})
+
+test('v4 coverage requires all designated checks and cannot upgrade old records or inflate normal counts', async () => {
+  const h = unifiedHarness(); await saveWorkflow(h)
+  const daily = (await h.call('getDailyV1', { date: h.date }, 'admin')).data.snapshot
+  assert.equal(daily.complete, true); const equipment = daily.categories[1].coverage
+  assert.equal(equipment.inspection_item_count, 23); assert.equal(equipment.covered_group_count, 1); assert.equal(equipment.result_counts.normal, 24); assert.equal(equipment.result_counts.not_conducted, 1); assert.equal(equipment.result_counts.not_applicable, 1)
+  const record = h.database.rows('crm_station_safety_inspections')[0]
+  const older = { ...record, template_version: 3 }; assert.equal(W.derivedCoverage(older, []).filter(row => row.status === 'covered').length, 0)
+  const broken = { ...record, items: record.items.filter(row => row.item_code !== 'tank_bolts') }
+  assert.equal(W.derivedCoverage(broken, []).find(row => row.code === 'S02').status, 'pending')
+})
+
+test('special work is per-type explicit, supports overlapping cross-day work and requires actual event controls', async () => {
+  const h = unifiedHarness(); const workflow = quietWorkflow(h)
+  workflow.special_work[0] = { type: 'hot_work', conducted: 'yes', events: [{ id: 'hot_event1', location: '检修区', started_at: P.atDate(h.date) - 3600000, ended_at: h.now() - 1000, approval: '作业票001', monitor: '实际监护人', measures: '按实际作业票落实措施', result_code: 'normal' }] }
+  const saved = await saveWorkflow(h, workflow); assert.equal(saved.code, 0, saved.msg); assert.equal(saved.data.complete, true, saved.data.missing.join(';'))
+  assert.match(saved.data.items.find(row => row.code === 'S01').detail_text, /北京时间/)
+  workflow.special_work[0].events[0].approval = ''
+  const draft = await saveWorkflow(h, workflow, { expected_revision: 1, revision_reason: '补录待核对' }); assert.equal(draft.code, 0); assert.equal(draft.data.complete, false); assert.ok(draft.data.missing.some(row => row.includes('审批依据')))
+  const absent = quietWorkflow(h); assert.equal((await saveWorkflow(h, absent, { expected_revision: 2, revision_reason: '错误取消已开展作业' })).code, 409)
+})
+
+test('certificates need explicit whole-scope verification, valid unexpired references and changed evidence', async () => {
+  const h = unifiedHarness(); const workflow = quietWorkflow(h); workflow.certificate_scope_confirmed = false
+  let result = await saveWorkflow(h, workflow); assert.equal(result.code, 0); assert.ok(result.data.missing.some(row => row.includes('完整覆盖')))
+  workflow.certificate_scope_confirmed = true; workflow.certificate_checks[0].valid_until = '2026-10-14'
+  result = await saveWorkflow(h, workflow, { expected_revision: 1, revision_reason: '确认资料实际到期' }); assert.equal(result.code, 0); assert.equal(result.data.items.find(row => row.code === 'S03').result_code, '')
+  workflow.certificate_checks = []; result = await saveWorkflow(h, workflow, { expected_revision: 2, revision_reason: '清单尚未录入' }); assert.equal(result.code, 0); assert.ok(result.data.missing.some(row => row.includes('尚无已核验依据')))
+})
+
+test('one unloading decision drives three categories, and an abnormal or unresolved subcheck cannot be normal', async () => {
+  const h = unifiedHarness(); const workflow = quietWorkflow(h); workflow.activities.unloading = 'yes'
+  workflow.checks.push({ code: 'S13a', result_code: 'normal', details: { hose: '发现问题：破损', connections: '符合' } }, { code: 'S13b', result_code: 'normal', details: { personnel: '符合', before_after: '符合', process: '符合' } }, { code: 'S13c', result_code: 'normal', details: { weather: '晴', conditions: '待核实' } })
+  const result = await saveWorkflow(h, workflow); assert.equal(result.code, 0, result.msg); assert.equal(result.data.items.find(row => row.code === 'S13a').result_code, ''); assert.equal(result.data.items.find(row => row.code === 'S13c').result_code, ''); assert.equal(result.data.items.find(row => row.code === 'S13b').result_code, 'normal')
+})
+
+test('later inspection requires its own confirmation; same-day yes cannot be overwritten and stale source version is rejected', async () => {
+  const h = unifiedHarness(); const first = quietWorkflow(h); first.activities.receiving = 'yes'; first.checks.push({ code: 'S09', result_code: 'normal', details: { labels: '标签符合' } })
+  assert.equal((await saveWorkflow(h, first)).code, 0)
+  const second = inspection(h.date, 'second_owned', { inspector_user_id: 'inspector', created_by: 'inspector', ended_at: h.now() + 1000 }); h.tick(2000)
+  h.database.replace('crm_station_safety_inspections', [...h.database.rows('crm_station_safety_inspections'), second])
+  const daily = (await h.call('getDailyV1', { date: h.date }, 'admin')).data.snapshot; assert.equal(daily.complete, false); assert.equal(daily.categories[1].coverage.inspection_item_count, 23); assert.equal(daily.categories[1].coverage.inspection_record_count, 46)
+  const suggested = await h.call('getInspectionWorkflowV1', { inspection_id: second._id }, 'inspector'); assert.equal(suggested.code, 0); assert.equal(suggested.data.reference_suggestions.same_day_workflow.activities.receiving, 'yes')
+  const rejected = await saveWorkflow(h, quietWorkflow(h), { inspection_id: second._id, expected_revision: 1, revision_reason: '第二次检查' }); assert.equal(rejected.code, 409)
+  const wrongVersion = await saveWorkflow(h, first, { expected_revision: 1, source_revision: 0, revision_reason: '旧版请求' }); assert.equal(wrongVersion.code, 409)
+})
+
+test('owner registers supplemental hazards before enablement, preserves fact attribution and must verify open controls', async () => {
+  const h = unifiedHarness(); await saveWorkflow(h); h.tick(2000)
+  const registered = await h.call('registerInspectionIssueV1', { ...issueInput(h, 'owner_issue_binding', { source_item_code: 'S11', category_code: '7', issue_note: '收到现场安全问题报告' }), inspection_id: 'owned_visit' }, 'inspector')
+  assert.equal(registered.code, 0, registered.msg); const hazard = h.database.rows('crm_station_safety_hazards')[0]
+  assert.equal(hazard.observations[0].inspection_id, 'owned_visit'); assert.equal(hazard.created_by, 'inspector')
+  const pending = (await h.call('getDailyV1', { date: h.date }, 'admin')).data.snapshot; assert.ok(pending.missing.some(row => row.includes('隐患有新增或状态变化'))); assert.equal(pending.summary.zero_report_allowed, false)
+  const workflow = quietWorkflow(h); workflow.activities.reports = 'yes'; workflow.checks.push({ code: 'S11', result_code: 'abnormal', note: '收到现场安全问题报告', hazard_ids: [hazard._id], details: { source: '现场报告', received_at: '2026-10-15 15:00', content: '收到现场安全问题报告' } }); workflow.controls = [{ hazard_id: hazard._id, implemented: 'yes', changed: 'no' }]
+  const saved = await saveWorkflow(h, workflow, { expected_revision: 1, revision_reason: '记录实际报告并核查管控' }); assert.equal(saved.code, 0, saved.msg); assert.equal(saved.data.complete, true, saved.data.missing.join(';'))
+  assert.equal(h.database.rows('crm_station_safety_hazards').length, 1)
+  const retry = await h.call('registerInspectionIssueV1', { ...issueInput(h, 'owner_issue_binding', { source_item_code: 'S11', category_code: '7', issue_note: '收到现场安全问题报告' }), inspection_id: 'owned_visit' }, 'inspector'); assert.equal(retry.code, 0); assert.equal(retry.data.duplicate, true)
+})
+
+test('configured facilities cannot be marked absent and old versions never silently receive expanded coverage', async () => {
+  const h = unifiedHarness(); const record = h.database.rows('crm_station_safety_inspections')[0]; const workflow = W.normalizeWorkflow(quietWorkflow(h), record, h.now())
+  const result = W.deriveWorkflow({ inspection: record, observation: { source_revision: 1, workflow }, config: { special_equipment: ['阻火器'] } }); assert.ok(result.missing.some(row => row.includes('已配置专用设施阻火器')))
+  const changed = W.deriveWorkflow({ inspection: { ...record, revision: 2 }, observation: { source_revision: 1, workflow } }); assert.ok(changed.missing.some(row => row.includes('原巡检已更正')))
+})
+
+test('same-day exact abnormal reference reuses its original observation, but changed facts require a fresh observation', async () => {
+  const h = unifiedHarness()
+  const registered = await h.call('registerInspectionIssueV1', { ...issueInput(h, 'reference_original_issue', { source_item_code: 'S11', category_code: '7' }), inspection_id: 'owned_visit' }, 'inspector')
+  assert.equal(registered.code, 0, registered.msg)
+  const first = quietWorkflow(h); first.activities.reports = 'yes'; first.checks.push({ code: 'S11', result_code: 'abnormal', note: '实际现场安全报告', hazard_ids: [registered.data.hazard_id], details: { source: '现场', received_at: '2026-10-15 15:00', content: '实际现场安全报告' } }); first.controls = [{ hazard_id: registered.data.hazard_id, implemented: 'yes', changed: 'no' }]
+  const saved = await saveWorkflow(h, first); assert.equal(saved.code, 0); assert.equal(saved.data.complete, true, saved.data.missing.join(';'))
+  const second = inspection(h.date, 'second_owned', { inspector_user_id: 'inspector', created_by: 'inspector', ended_at: h.now() + 1000 }); h.tick(2000); h.database.replace('crm_station_safety_inspections', [...h.database.rows('crm_station_safety_inspections'), second])
+  const bundle = (await h.call('getInspectionWorkflowV1', { inspection_id: second._id }, 'inspector')).data
+  const next = quietWorkflow(h); next.activities.reports = 'yes'; next.checks.push(bundle.reference_suggestions.same_day_workflow.checks.find(row => row.code === 'S11')); next.controls = first.controls; next.reference_sources = [bundle.reference_suggestions.same_day_source]
+  const copied = await saveWorkflow(h, next, { inspection_id: second._id, expected_revision: 1, revision_reason: '引用同日已发生报告并复核临时措施' }); assert.equal(copied.code, 0, copied.msg); assert.equal(copied.data.complete, true, copied.data.missing.join(';')); assert.equal(h.database.rows('crm_station_safety_hazards')[0].observations.length, 1)
+  next.checks.find(row => row.code === 'S11').note = '本次发现情况进一步变化'
+  const changed = await saveWorkflow(h, next, { inspection_id: second._id, expected_revision: 2, revision_reason: '实际情况变化待登记' }); assert.equal(changed.code, 0, changed.msg); assert.ok(changed.data.missing.some(row => row.includes('本次实际观察依据')))
+})
+
+test('existing daily editor cannot erase workflow observations and conflicting concurrent updates preserve current facts', async () => {
+  const h = unifiedHarness(); await saveWorkflow(h)
+  h.database.replace('crm_users', [...h.database.rows('crm_users'), makeUser('officer')]); h.database.replace('crm_safety_management_config', [h.config])
+  const preserved = await h.call('saveSupplementV1', { date: h.date, expected_revision: 1, revision_reason: '旧入口补充说明', items: [{ code: 'S02', result_code: 'normal', note: '旧入口说明' }] }, 'officer'); assert.equal(preserved.code, 0, preserved.msg); assert.equal(preserved.data.workflow_observations.length, 1)
+  const stale = await saveWorkflow(h, quietWorkflow(h), { expected_revision: 1, revision_reason: '过期保存' }); assert.equal(stale.code, 409)
+  assert.equal(h.database.rows('crm_safety_supplements')[0].revision, 2); assert.equal(h.database.rows('crm_safety_revisions').length, 1)
+})
+
+test('reference suggestions never fall back to older normal inventory after newer missing certificates or unknown facilities', async () => {
+  const h = unifiedHarness(); assert.equal((await saveWorkflow(h)).code, 0)
+  h.tick(2000); const second = inspection(h.date, 'latest_changed', { inspector_user_id: 'inspector', created_by: 'inspector', ended_at: h.now() - 1000 })
+  h.database.replace('crm_station_safety_inspections', [...h.database.rows('crm_station_safety_inspections'), second])
+  const changed = quietWorkflow(h); changed.certificate_checks[0].verification = 'missing'; changed.facilities[0].present = 'unknown'
+  assert.equal((await saveWorkflow(h, changed, { inspection_id: second._id, expected_revision: 1, revision_reason: '按新资料记录缺项和适用性待核' })).code, 0)
+  h.tick(2000); const third = inspection(h.date, 'next_visit', { inspector_user_id: 'inspector', created_by: 'inspector', ended_at: h.now() - 1000 })
+  h.database.replace('crm_station_safety_inspections', [...h.database.rows('crm_station_safety_inspections'), third])
+  const result = await h.call('getInspectionWorkflowV1', { inspection_id: third._id }, 'inspector'); assert.equal(result.code, 0, result.msg)
+  assert.deepEqual(result.data.reference_suggestions.certificate_checks, []); assert.deepEqual(result.data.reference_suggestions.facilities, [])
+  assert.match(result.data.reference_suggestions.certificate_notice, /最近一次/); assert.match(result.data.reference_suggestions.facility_notice, /最近一次/)
+})

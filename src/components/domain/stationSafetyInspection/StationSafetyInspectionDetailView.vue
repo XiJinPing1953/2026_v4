@@ -10,7 +10,7 @@
 				<text v-if="record.remark" class="remark">备注：{{ record.remark }}</text>
 				<text v-if="record.started_at" class="remark">实际时段：{{ formatDateTime(record.started_at) }} 至 {{ formatDateTime(record.ended_at) }} · 天气：{{ record.weather }}</text>
 				<text v-if="record.submitted_at" class="remark">提交时间：{{ formatDateTime(record.submitted_at) }} · 记录版本 {{ record.revision || 1 }}</text>
-				<button v-if="record.template_version >= 3" class="history-button" type="button" @click="openDaily">继续当日日管控</button>
+				<button class="history-button" type="button" @click="openWorkflow">继续本次七类核对</button><button class="history-button" type="button" @click="openDaily">查看当日检查表</button>
 			</view>
 			<view v-if="record.related_hazards?.length" class="detail-card">
 				<text class="area-title">已发生的隐患</text><text class="remark">原检查修订为正常不会自动取消或销号。实际整改仍以隐患记录为准。</text>
@@ -66,6 +66,7 @@ const groupedItems = computed(() => {
 })
 function formatDateTime(value) { const timestamp = Number(value); return timestamp > 0 && Number.isFinite(timestamp) ? new Date(timestamp + 8 * 3600000).toISOString().slice(0, 16).replace('T', ' ') : '-' }
 function edit() { uni.navigateTo({ url: `/pages/station-safety-inspection/form?id=${encodeURIComponent(props.inspectionId)}` }) }
+function openWorkflow() { uni.navigateTo({ url: `/pages/station-safety-inspection/form?workflow_id=${encodeURIComponent(props.inspectionId)}` }) }
 function openDaily() { uni.navigateTo({ url: `/pages/safety-management/daily?date=${encodeURIComponent(record.value.inspection_date)}` }) }
 function openHazard(id) { uni.navigateTo({ url: `/pages/station-safety-inspection/hazards?id=${encodeURIComponent(id)}` }) }
 function hazardStatus(value) { return ({ pending_rectification: '待整改', pending_verification: '待验证', closed: '已关闭', cancelled: '历史取消' })[value] || value }

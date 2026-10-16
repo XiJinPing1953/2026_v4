@@ -1,5 +1,6 @@
 'use strict'
 const P = require('./policy')
+const W = require('./workflow')
 const { readOne, readAll, inTransaction, saveRevision } = require('./store')
 const COLLECTIONS = Object.freeze({ config: 'crm_safety_management_config', supplement: 'crm_safety_supplements', daily: 'crm_safety_daily_records', weekly: 'crm_safety_weekly_reports', monthly: 'crm_safety_monthly_minutes' })
 const INSPECTIONS = 'crm_station_safety_inspections'
@@ -7,7 +8,11 @@ const HAZARDS = 'crm_station_safety_hazards'
 const EVENT_COLLECTION = 'crm_safety_issue_events'
 const PATH = '/pages/safety-management/'
 const actionRule = (page, action) => ({ pagePath: `${PATH}${page}`, action })
+const WORKFLOW_RULES = [{ pagePath: '/pages/station-safety-inspection/form', action: 'create' }, actionRule('daily', 'update')]
 const PAGE_ACTION_RULES = {
+  getInspectionWorkflowV1: [...WORKFLOW_RULES, actionRule('daily', 'view')],
+  saveInspectionWorkflowV1: WORKFLOW_RULES,
+  registerInspectionIssueV1: WORKFLOW_RULES,
   getConfigV1: ['home', 'daily', 'weekly', 'monthly', 'settings'].map(page => actionRule(page, 'view')),
   listAssignableUsersV1: [actionRule('settings', 'view')],
   saveConfigV1: [actionRule('settings', 'update')],
@@ -82,14 +87,61 @@ function createService({ database, acl, cloud = null, clock = () => Date.now() }
     await validateLinkedHazards(station, result.content.hazard_ids)
     return saveRevision(database, { collection: COLLECTIONS[kind], kind, id: P.identity(kind, station, kind === 'weekly' ? bundle.period.start_date : data.month), expected_revision: data.expected_revision, revision_reason: P.text(data.revision_reason, 2000), actor: user, now: clock(), payload: { station_id: station, station_name: config.station_name, period: bundle.period, period_key: kind === 'weekly' ? bundle.period.start_date : data.month, ...result, statistics: bundle.statistics, source_fingerprint: bundle.source_fingerprint, previous_record_id: bundle.previous?._id || '', previous_revision: bundle.previous?.revision || 0, previous_decisions: kind === 'monthly' ? bundle.previous?.content?.decisions || [] : [], source_refs: bundle.statistics.daily.filter(row => row.record_id).map(row => ({ date: row.date, record_id: row.record_id, revision: row.revision })) } })
   }
-  async function registerIssue(user, data, config) {
+  async function inspectionAccess(user, inspectionId, config, write = false) {
+    const inspection = await readOne(database, INSPECTIONS, P.text(inspectionId, 200))
+    if (!inspection || inspection.station_id !== P.STATION.id) P.fail('原巡检记录不存在或不属于本厂站', 404)
+    const owner = inspection.inspector_user_id === user._id || !inspection.inspector_user_id && inspection.created_by === user._id
+    const form = await acl.ensureActionAcl(user, 'workflowOwner', { workflowOwner: [WORKFLOW_RULES[0]] }, [], { cloudFunction: 'crm-safety-management' })
+    const daily = await acl.ensureActionAcl(user, 'workflowOfficer', { workflowOfficer: [actionRule('daily', 'update')] }, [], { cloudFunction: 'crm-safety-management' })
+    const officer = permissions(user, config).daily && daily.ok
+    const writable = Boolean(owner && form.ok || officer && config.enabled_from && inspection.inspection_date >= config.enabled_from)
+    if (write && !writable) P.fail('仅原巡检本人且有巡检创建权限，或已启用的安全员岗位可填写本次检查事实；不能借此代替日表核对', 403)
+    if (!write && !writable) { const view = await acl.ensureActionAcl(user, 'workflowView', { workflowView: [actionRule('daily', 'view')] }, [], { cloudFunction: 'crm-safety-management' }); if (!view.ok) P.fail('无权读取他人的巡检补充事实', 403) }
+    if (inspection.inspection_date > P.shanghaiDate(clock())) P.fail('不能填写未来巡检事实')
+    return { inspection, writable }
+  }
+  async function workflowBundle(user, inspectionId, config) {
+    const { inspection, writable } = await inspectionAccess(user, inspectionId, config)
+    const [supplement, hazards, priorRecords] = await Promise.all([readOne(database, COLLECTIONS.supplement, P.identity('supplement', inspection.station_id, inspection.inspection_date)), readAll(database, HAZARDS, { station_id: inspection.station_id }), readAll(database, COLLECTIONS.supplement, { station_id: inspection.station_id })])
+    const observation = supplement?.workflow_observations?.find(row => row.inspection_id === inspection._id) || null
+    const result = W.deriveWorkflow({ inspection, observation, hazards, config, reference_observations: supplement?.workflow_observations || [] })
+    const previous = priorRecords.filter(row => row.date <= inspection.inspection_date).flatMap(row => row.workflow_observations || []).filter(row => row.inspection_id !== inspection._id && row.workflow?.observed_at <= Number(result.workflow.observed_at)).sort((a, b) => b.workflow.observed_at - a.workflow.observed_at)
+    const latestReference = previous[0] || null
+    // A newer missing/changed inventory invalidates suggestions; never fall back to an older normal one.
+    const suggestions = latestReference?.workflow.certificate_scope_confirmed && latestReference.workflow.certificate_checks?.length && latestReference.workflow.certificate_checks.every(check => check.result_code === 'normal' && check.verification && check.verification !== 'missing' && check.reference_no && P.validDate(check.valid_until) && check.valid_until >= P.shanghaiDate(latestReference.workflow.observed_at) && check.evidence?.length) ? latestReference : null
+    const facilitySuggestion = latestReference && W.FACILITY_TYPES.filter(type => type.code !== 'other').every(type => ['yes', 'no'].includes(latestReference.workflow?.facilities?.find(check => check.code === type.code)?.present)) ? latestReference : null
+    const sameDay = previous.find(row => P.shanghaiDate(row.workflow.observed_at) === inspection.inspection_date)
+    const shownInspection = { ...inspection, items: (inspection.items || []).map(row => ({ ...row, category_code: row.category_code || P.ITEM_CATEGORY[row.item_code] || '7' })) }
+    return { inspection: shownInspection, ...result, supplement_revision: supplement?.revision || 0, definitions: W.definitions(), reference_suggestions: { certificate_notice: latestReference && !suggestions ? '最近一次证书清单存在缺项、变化或待核情况，请按最新资料重新核对，未回退较早正常清单' : '', facility_notice: latestReference && !facilitySuggestion ? '最近一次专用设施适用清单尚未核定，请重新核对，未回退较早清单' : '', legacy_items: supplement?.items || [], certificate_checks: (suggestions?.workflow.certificate_checks || []).map(row => ({ ...row, verified_by: suggestions.observed_by_name, verified_at: suggestions.workflow.observed_at, source_inspection_id: suggestions.inspection_id, source_revision: suggestions.source_revision })), facilities: (facilitySuggestion?.workflow.facilities || []).map(row => ({ ...row, verified_by: facilitySuggestion.observed_by_name, verified_at: facilitySuggestion.workflow.observed_at, source_inspection_id: facilitySuggestion.inspection_id, source_revision: facilitySuggestion.source_revision })), same_day_workflow: sameDay?.workflow || null, same_day_source: sameDay ? { inspection_id: sameDay.inspection_id, source_revision: sameDay.source_revision, observed_at: sameDay.workflow.observed_at, observed_by_name: sameDay.observed_by_name, workflow_fingerprint: P.fingerprint(sameDay.workflow) } : null, source_inspection_id: suggestions?.inspection_id || '', verified_by: suggestions?.observed_by_name || '', verified_at: suggestions?.workflow.observed_at || 0, source_revision: suggestions?.source_revision || 0 }, permissions: { write: writable, daily: permissions(user, config).daily }, observation }
+  }
+  async function saveInspectionWorkflow(user, data, config) {
+    const { inspection } = await inspectionAccess(user, data.inspection_id, config, true)
+    if (Number(data.source_revision) !== Number(inspection.revision || 1)) P.fail('原巡检已更正，请刷新本次检查内容后再保存', 409)
+    const workflow = W.normalizeWorkflow(data.workflow, inspection, clock())
+    const id = P.identity('supplement', inspection.station_id, inspection.inspection_date)
+    const current = await readOne(database, COLLECTIONS.supplement, id)
+    const observations = current?.workflow_observations || []
+    const previous = observations.find(row => row.inspection_id === inspection._id)
+    for (const ref of workflow.reference_sources) {
+      const source = observations.find(row => row.inspection_id === ref.inspection_id)
+      const original = await readOne(database, INSPECTIONS, ref.inspection_id)
+      if (ref.inspection_id === inspection._id || ref.observed_at > workflow.observed_at || !source || !original || original.station_id !== inspection.station_id || source.source_revision !== Number(original.revision || 1) || ref.source_revision !== source.source_revision || ref.observed_at !== source.workflow.observed_at || ref.workflow_fingerprint !== P.fingerprint(source.workflow)) P.fail('引用的同日检查资料已变化，请刷新来源后重新引用', 409)
+    }
+    W.preventErasure(previous?.workflow, workflow, observations.filter(row => row.inspection_id !== inspection._id).map(row => row.workflow))
+    await validateLinkedHazards(inspection.station_id, W.allHazardIds(workflow))
+    const next = { inspection_id: inspection._id, source_revision: Number(inspection.revision || 1), workflow, observed_by: user._id, observed_by_name: user.nickname || user.username || '' }
+    await saveRevision(database, { collection: COLLECTIONS.supplement, kind: 'supplement', id, expected_revision: data.expected_revision, revision_reason: P.text(data.revision_reason, 2000), actor: user, now: clock(), payload: { station_id: inspection.station_id, date: inspection.inspection_date, classification_version: P.CLASSIFICATION_VERSION, items: current?.items || [], workflow_observations: observations.filter(row => row.inspection_id !== inspection._id).concat(next).sort((a, b) => a.workflow.observed_at - b.workflow.observed_at || a.inspection_id.localeCompare(b.inspection_id)), content_status: 'draft' } })
+    return workflowBundle(user, inspection._id, config)
+  }
+  async function registerIssue(user, data, config, sourceInspection = null) {
     const station = stationOf(data); const now = clock(); const input = P.normalizeIssue(data, now)
-    requireRole(user, config, input.source_type === 'weekly' ? 'weekly' : 'daily'); requireEnabled(config, input.date)
+    if (!sourceInspection) { requireRole(user, config, input.source_type === 'weekly' ? 'weekly' : 'daily'); requireEnabled(config, input.date) }
+    else if (input.source_type !== 'supplement' || input.date !== sourceInspection.inspection_date) P.fail('巡检工作流隐患必须属于本次巡检日期和补充项目')
     // An OR page rule is insufficient for this mixed-source action: check the selected write surface too.
-    const sourceAcl = await acl.ensureActionAcl(user, 'writeIssue', { writeIssue: [actionRule(input.source_type === 'weekly' ? 'weekly' : 'daily', 'update')] }, [], { cloudFunction: 'crm-safety-management' })
+    const sourceAcl = sourceInspection ? { ok: true } : await acl.ensureActionAcl(user, 'writeIssue', { writeIssue: [actionRule(input.source_type === 'weekly' ? 'weekly' : 'daily', 'update')] }, [], { cloudFunction: 'crm-safety-management' })
     if (!sourceAcl.ok) P.fail(sourceAcl.msg || '无权登记该来源的隐患', 403)
     const eventId = P.identity('issue', station, input.client_submission_id)
-    const requestFingerprint = P.fingerprint({ ...input, discovered_at: data.discovered_at ? input.discovered_at : 'server_time', actor_id: user._id })
+    const requestFingerprint = P.fingerprint({ ...input, discovered_at: data.discovered_at ? input.discovered_at : 'server_time', actor_id: user._id, inspection_id: sourceInspection?._id || '' })
     const prior = await readOne(database, EVENT_COLLECTION, eventId)
     if (prior) { if (prior.request_fingerprint !== requestFingerprint) P.fail('同一提交标识对应不同内容，请刷新核对', 409); return { hazard_id: prior.hazard_id, observation_id: eventId, duplicate: true } }
     const sourcePeriod = input.source_type === 'weekly' ? input.source_period_start || P.periodForWeek(input.date).start_date : input.date
@@ -110,7 +162,7 @@ function createService({ database, acl, cloud = null, clock = () => Date.now() }
       let current = input.existing_hazard_id ? await readOne(transaction, HAZARDS, input.existing_hazard_id, true) : null
       if (input.existing_hazard_id && (!current || current.station_id !== station || !P.OPEN_STATUSES.includes(current.status))) P.fail('只能明确关联本厂站尚未关闭的隐患；已关闭问题再次发生请登记复发新隐患')
       if (input.recurrence_of) { const previous = await readOne(transaction, HAZARDS, input.recurrence_of, true); if (!previous || previous.station_id !== station || previous.status !== 'closed') P.fail('复发关联须为本厂站已关闭隐患') }
-      const observation = { observation_key: eventId, source_type: input.source_type, source_id: sourceId, source_revision: sourceRecord?.revision || 0, item_code: input.source_item_code, observed_at: input.discovered_at, observed_date: input.date, issue_note: input.issue_note, photo_file_ids: P.fileReferences(input.evidence), evidence: input.evidence, category_code: input.category_code, report: input.report, on_site_rectification: input.on_site_rectification, temporary_controls: input.temporary_controls, observed_by: user._id, observed_by_name: user.nickname || user.username || '' }
+      const observation = { observation_key: eventId, source_type: input.source_type, source_id: sourceId, source_revision: sourceRecord?.revision || 0, item_code: input.source_item_code, observed_at: input.discovered_at, observed_date: input.date, issue_note: input.issue_note, photo_file_ids: P.fileReferences(input.evidence), evidence: input.evidence, category_code: input.category_code, report: input.report, on_site_rectification: input.on_site_rectification, temporary_controls: input.temporary_controls, observed_by: user._id, observed_by_name: user.nickname || user.username || '', ...(sourceInspection ? { inspection_id: sourceInspection._id, inspection_revision: Number(sourceInspection.revision || 1) } : {}) }
       const hazardId = current?._id || P.identity('sm_hazard', station, input.client_submission_id)
       if (current) {
         const patch = { observations: database.command.push([observation]), updated_at: now }
@@ -167,6 +219,9 @@ function createService({ database, acl, cloud = null, clock = () => Date.now() }
     return result
   }
   const handlers = {
+    async getInspectionWorkflowV1(user, data, config) { return workflowBundle(user, data.inspection_id, config) },
+    saveInspectionWorkflowV1: saveInspectionWorkflow,
+    async registerInspectionIssueV1(user, data, config) { const { inspection } = await inspectionAccess(user, data.inspection_id, config, true); return registerIssue(user, { ...data, date: inspection.inspection_date, source_type: 'supplement', source_id: P.identity('supplement', inspection.station_id, inspection.inspection_date) }, config, inspection) },
     async getConfigV1(user, data, config) { return { config, categories: P.CATEGORIES, supplement_definitions: P.SUPPLEMENT_DEFINITIONS, permissions: permissions(user, config), users: acl.isSuperAdmin(user) ? await usersList() : [] } },
     async listAssignableUsersV1(user) { if (!acl.isSuperAdmin(user)) P.fail('仅管理员可查看岗位配置账号', 403); return usersList() },
     async saveConfigV1(user, data) {
@@ -187,7 +242,7 @@ function createService({ database, acl, cloud = null, clock = () => Date.now() }
       requireRole(user, config, 'daily'); const date = P.requireDate(data.date); requireEnabled(config, date); const station = stationOf(data); const id = P.identity('supplement', station, date)
       const current = await readOne(database, COLLECTIONS.supplement, id); const items = P.mergeSupplement(current?.items, data.items)
       await validateLinkedHazards(station, items.flatMap(item => item.hazard_ids))
-      return saveRevision(database, { collection: COLLECTIONS.supplement, kind: 'supplement', id, expected_revision: data.expected_revision, revision_reason: P.text(data.revision_reason, 2000), actor: user, now: clock(), payload: { station_id: station, date, classification_version: P.CLASSIFICATION_VERSION, items, content_status: 'draft' } })
+      return saveRevision(database, { collection: COLLECTIONS.supplement, kind: 'supplement', id, expected_revision: data.expected_revision, revision_reason: P.text(data.revision_reason, 2000), actor: user, now: clock(), payload: { station_id: station, date, classification_version: P.CLASSIFICATION_VERSION, items, ...(current?.workflow_observations ? { workflow_observations: current.workflow_observations } : {}), content_status: 'draft' } })
     },
     async confirmDailyV1(user, data, config) {
       requireRole(user, config, 'daily'); const station = stationOf(data); const date = P.requireDate(data.date); requireEnabled(config, date)
