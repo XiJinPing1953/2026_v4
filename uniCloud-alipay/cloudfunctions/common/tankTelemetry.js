@@ -1,5 +1,7 @@
 'use strict'
 
+const { DISPLAY_FILTER_VERSION } = require('./tankDisplayFilter')
+
 const TANK_ESTIMATE_VERSION = 'main-continuous-2026-10-14-v1'
 const TANK_LEVEL_OFFSET_KPA = 0.27
 const TANK_LEVEL_SCALE = 101.14122757539592
@@ -138,6 +140,7 @@ function buildTankSummary(row, now = Date.now()) {
 					: ''
 	return {
 		...deriveTankEstimate(row),
+		display: normalizeTankDisplay(row.display, row, now),
 		tank_id: normalizeTankId(row.tank_id),
 		level_kpa: nullableNumber(row.level_kpa),
 		level_m: nullableNumber(row.level_m),
@@ -149,6 +152,34 @@ function buildTankSummary(row, now = Date.now()) {
 		updated_at: updatedAt,
 		message: status === 'stale' ? fallbackMessage : normalizeString(row.message) || fallbackMessage
 	}
+}
+
+// Display-only snapshot from the authenticated gateway. Recompute its mass on
+// the server; the original level/PLC mass and all inventory calculations stay raw.
+function normalizeTankDisplay(input, telemetry, now = Date.now()) {
+	if (input == null) return null // Legacy gateways retain their existing display.
+	const unavailable = { filter_version: DISPLAY_FILTER_VERSION, status: 'invalid',
+		level_kpa: null, corrected_level_kpa: null, estimated_weight_t: null,
+		estimate_version: TANK_ESTIMATE_VERSION, estimate_status: 'unavailable',
+		sampled_at: null, source_sampled_at: nullableNumber(telemetry.sampled_at),
+		pending_since: null, message: '显示处理数据不可用' }
+	if (!input || typeof input !== 'object' || Array.isArray(input) || input.filter_version !== DISPLAY_FILTER_VERSION) return unavailable
+	const scalar = value => typeof value === 'number' || (typeof value === 'string' && value.trim() !== '') ? nullableNumber(value) : null
+	const level = scalar(input.level_kpa)
+	const sampledAt = scalar(input.sampled_at)
+	const sourceSampledAt = scalar(input.source_sampled_at)
+	const rawSampledAt = nullableNumber(telemetry.sampled_at)
+	if (!['live', 'pending', 'reset', 'stale'].includes(input.status) || level == null ||
+		!sampledAt || !sourceSampledAt || sourceSampledAt !== rawSampledAt ||
+		sampledAt > sourceSampledAt || sourceSampledAt - sampledAt > 60000) return unavailable
+	const estimate = deriveTankEstimate({ tank_id: telemetry.tank_id, level_kpa: level })
+	if (estimate.estimate_status !== 'valid') return unavailable
+	const stale = now - sampledAt > 60000
+	return { ...estimate, level_kpa: level, sampled_at: sampledAt,
+		source_sampled_at: sourceSampledAt, filter_version: DISPLAY_FILTER_VERSION,
+		status: stale ? 'stale' : input.status,
+		pending_since: input.status === 'pending' ? scalar(input.pending_since) : null,
+		message: stale ? '显示数据超过60秒未更新' : input.status === 'pending' ? '液位突变确认中，暂用已确认读数' : '' }
 }
 
 function buildTankTelemetryDoc(data = {}, now = Date.now()) {
@@ -206,7 +237,8 @@ function buildTankTelemetryDoc(data = {}, now = Date.now()) {
 			raw,
 			message: normalizeString(data.message),
 			sampled_at: sampledAt,
-			updated_at: now
+			updated_at: now,
+			display: normalizeTankDisplay(data.display, { tank_id: tankId, sampled_at: sampledAt }, now)
 		}
 	}
 }
@@ -258,6 +290,7 @@ module.exports = {
 	TANK_LEVEL_SCALE,
 	TANK_VOLUME_TABLE,
 	deriveTankEstimate,
+	normalizeTankDisplay,
 	normalizeString,
 	fix2,
 	clampNumber,

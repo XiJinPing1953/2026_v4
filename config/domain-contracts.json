@@ -122,6 +122,16 @@
       "targets": [
         "uniCloud-alipay/cloudfunctions/crm-safety-management/inspectionPolicyLocal.js"
       ]
+    },
+    {
+      "source": "uniCloud-alipay/cloudfunctions/common/tankDisplayFilter.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-gas-in/tankDisplayFilter.js",
+        "uniCloud-alipay/cloudfunctions/crm-dashboard/tankDisplayFilter.js",
+        "uniCloud-alipay/cloudfunctions/crm-tank-gateway/tankDisplayFilter.js",
+        "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankDisplayFilter.js",
+        "apps/tank-gateway/tankDisplayFilter.js"
+      ]
     }
   ],
   "promotedSchemas": [

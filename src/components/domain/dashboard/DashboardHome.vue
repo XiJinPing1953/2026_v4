@@ -561,6 +561,7 @@ import AppMiniBars from '@/components/base/AppMiniBars.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { useQuery } from '@/composables/useQuery'
 import { getDashboardSummaryV1 } from '@/services/dashboard'
+import { mapTankDisplay } from '@/services/mappers/tankDisplay'
 import { listSalesV2 } from '@/services/sale'
 import { clearAuth, getUser } from '@/services/auth'
 import { goLogin } from '@/services/navigation'
@@ -916,7 +917,7 @@ function normalizeDailyReportRows(rawRows) {
 }
 
 function applyTankTelemetry(raw) {
-	const tank = raw && typeof raw === 'object' ? raw : {}
+	const tank = mapTankDisplay(raw && typeof raw === 'object' ? raw : {})
 	const toNullableNumber = (value) => {
 		if (value == null || value === '') return null
 		const num = Number(value)

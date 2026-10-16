@@ -6,7 +6,7 @@ directories:
   output: release/tank-gateway
 extraMetadata:
   main: apps/tank-gateway/main.cjs
-  version: 1.0.2
+  version: 1.0.3
 files:
   - apps/tank-gateway/**/*
   - scripts/tankTelemetryCore.cjs

@@ -20,6 +20,7 @@ const {
 	buildAlarmRuntime
 } = require('./alarm.cjs')
 const { deriveTankEstimate } = require('./tankTelemetryLocal.cjs')
+const { createTankDisplayFilter } = require('./tankDisplayFilter.js')
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
@@ -46,6 +47,11 @@ let loopTimer = null
 let cycleRunning = false
 let alarmRuntime = {}
 let alarmAcknowledgedCodes = new Set()
+const displayFilter = createTankDisplayFilter({
+	isValidLevel: (level) => deriveTankEstimate({ tank_id: 'main', level_kpa: level }).estimate_status === 'valid'
+})
+let displayGeneration = 0
+let telemetryReadQueue = Promise.resolve()
 let state = {
 	running: false,
 	status: 'idle',
@@ -182,10 +188,71 @@ function loadConfig() {
 }
 
 function saveConfig(config) {
-	currentConfig = normalizeAppConfig(config)
+	const nextConfig = normalizeAppConfig(config)
+	if (currentConfig && telemetrySourceKey(currentConfig) !== telemetrySourceKey(nextConfig)) {
+		resetDisplayFilter()
+		emitState({ status: 'idle', message: '采集设置已变化，等待新读数', lastTelemetry: unavailableDisplayTelemetry(state.lastTelemetry) })
+	}
+	currentConfig = nextConfig
 	ensureConfigDir()
 	fs.writeFileSync(getConfigPath(), JSON.stringify(currentConfig, null, 2))
 	return currentConfig
+}
+
+function telemetrySourceKey(config) {
+	return JSON.stringify(['host', 'port', 'rack', 'slot', 'levelAddress', 'pressureAddress', 'weightAddress', 'tankId', 'gatewayId'].map((key) => config[key]))
+}
+
+function resetDisplayFilter() {
+	displayFilter.reset()
+	displayGeneration += 1
+}
+
+function unavailableDisplayTelemetry(telemetry) {
+	if (!telemetry) return null
+	return {
+		...telemetry,
+		...deriveTankEstimate({ tank_id: telemetry.tank_id, level_kpa: null }),
+		display_sampled_at: null,
+		display_source_sampled_at: null,
+		display_filter_status: 'invalid',
+		display_pending_since: null
+	}
+}
+
+// A probe and the continuous loop must advance the same display state in read order.
+function readTelemetryForDisplay(config) {
+	const generation = displayGeneration
+	const read = telemetryReadQueue.then(async () => {
+		if (generation !== displayGeneration) return null
+		const telemetry = await readTankTelemetry(config)
+		if (generation !== displayGeneration) return null
+		const filtered = displayFilter.push(telemetry)
+		const estimate = deriveTankEstimate({ tank_id: telemetry.tank_id, level_kpa: filtered.status === 'invalid' ? null : filtered.level_kpa })
+		const display = { ...filtered, ...estimate }
+		return {
+			telemetry,
+			display,
+			generation,
+			displayTelemetry: {
+				...telemetry,
+				...estimate,
+				display_sampled_at: filtered.status === 'invalid' ? null : filtered.sampled_at,
+				display_source_sampled_at: filtered.source_sampled_at,
+				display_filter_status: filtered.status,
+				display_filter_version: filtered.filter_version,
+				display_pending_since: filtered.pending_since
+			}
+		}
+	})
+	telemetryReadQueue = read.catch(() => {})
+	return read
+}
+
+function displayMessage(message, display) {
+	if (display.status === 'pending') return `${message}；液位变化确认中`
+	if (display.status === 'invalid') return `${message}；液位数据不可用`
+	return message
 }
 
 function credentialBackend() {
@@ -340,36 +407,60 @@ async function ensureLoggedIn() {
 
 async function probeOnce(configInput = null) {
 	const config = configInput ? saveConfig(configInput) : currentConfig || loadConfig()
+	const generation = displayGeneration
 	emitState({ status: 'probing', message: '正在读取 PLC' })
-	const telemetry = await readTankTelemetry(config)
-	const alarms = buildAlarmCandidates({ telemetry, config })
-	const displayTelemetry = { ...telemetry, ...deriveTankEstimate(telemetry) }
-	emitState({ status: 'ready', message: alarms.length ? `探测成功，发现 ${alarms.length} 项超限` : '探测成功', lastTelemetry: displayTelemetry, alarms: [] })
-	return displayTelemetry
+	try {
+		const result = await readTelemetryForDisplay(config)
+		if (!result) return state.lastTelemetry
+		const alarms = buildAlarmCandidates({ telemetry: result.telemetry, config })
+		emitState({
+			status: 'ready',
+			message: displayMessage(alarms.length ? `探测成功，发现 ${alarms.length} 项超限` : '探测成功', result.display),
+			lastTelemetry: result.displayTelemetry,
+			alarms: []
+		})
+		return result.displayTelemetry
+	} catch (err) {
+		if (generation !== displayGeneration) return state.lastTelemetry
+		resetDisplayFilter()
+		emitState({ status: 'error', message: err && err.message ? err.message : String(err), lastErrorAt: Date.now(), lastTelemetry: unavailableDisplayTelemetry(state.lastTelemetry) })
+		throw err
+	}
 }
 
 async function runCycle() {
 	if (!isRunning || cycleRunning) return
 	cycleRunning = true
+	const generation = displayGeneration
 	let telemetry = null
+	let result = null
 	try {
 		const config = currentConfig || loadConfig()
-		const token = await ensureLoggedIn()
-		telemetry = await readTankTelemetry(config)
+		result = await readTelemetryForDisplay(config)
+		if (!result || !isRunning) return
+		telemetry = result.telemetry
 		updateAlarms({ telemetry })
-		await callGateway('ingestV1', telemetry, token)
+		emitState({ lastTelemetry: result.displayTelemetry })
+		const token = await ensureLoggedIn()
+		if (!isRunning || result.generation !== displayGeneration) return
+		await callGateway('ingestV1', { ...telemetry, display: result.display }, token)
+		if (!isRunning || result.generation !== displayGeneration) return
 		emitState({
 			status: 'online',
-			message: '上报成功',
-			lastTelemetry: { ...telemetry, ...deriveTankEstimate(telemetry) },
+			message: displayMessage('上报成功', result.display),
 			lastUploadAt: Date.now()
 		})
 	} catch (err) {
-		if (!telemetry) updateAlarms({ readError: err && err.message ? err.message : String(err) })
+		if (!isRunning || generation !== displayGeneration) return
+		if (!telemetry) {
+			resetDisplayFilter()
+			updateAlarms({ readError: err && err.message ? err.message : String(err) })
+		}
 		emitState({
 			status: 'error',
 			message: err && err.message ? err.message : String(err),
-			lastErrorAt: Date.now()
+			lastErrorAt: Date.now(),
+			...(!telemetry ? { lastTelemetry: unavailableDisplayTelemetry(state.lastTelemetry) } : {})
 		})
 	} finally {
 		cycleRunning = false
@@ -391,6 +482,7 @@ function startGateway(configInput = null) {
 
 function stopGateway() {
 	isRunning = false
+	resetDisplayFilter()
 	alarmRuntime = {}
 	alarmAcknowledgedCodes = new Set()
 	if (loopTimer) clearTimeout(loopTimer)
