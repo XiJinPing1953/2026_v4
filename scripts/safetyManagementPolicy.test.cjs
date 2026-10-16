@@ -221,3 +221,29 @@ test('abnormal supplement cannot reuse a closed historical ID as fresh evidence;
   const saved = await h.call('saveSupplementV1', { date: h.date, expected_revision: 1, revision_reason: '将复发问题明确登记为新隐患', items: [{ code: 'S02', result_code: 'abnormal', note: '今天再次异常', hazard_ids: [recurrence.data.hazard_id] }, { code: 'S12', result_code: 'normal', hazard_ids: [recurrence.data.hazard_id] }] }); assert.equal(saved.code, 0, saved.msg)
   daily = (await h.call('getDailyV1', { date: h.date })).data.snapshot; assert.equal(daily.complete, true)
 })
+
+
+test('actual inspection days survive an unset or mid-period enable date without creating missed obligations', async () => {
+  const h = createHarness({ seed: { crm_safety_management_config: [], crm_station_safety_inspections: [inspection('2026-10-13', 'earlier'), inspection('2026-10-15', 'today_a'), inspection('2026-10-15', 'today_b'), inspection('2026-10-16', 'future')] } })
+  const result = await h.call('getWeeklyV1', { date: h.date }, 'admin')
+  assert.equal(result.code, 0, result.msg)
+  const stats = result.data.statistics
+  assert.equal(stats.expected_days, 0); assert.equal(stats.inspected_days, 2); assert.equal(stats.checked_days, 0)
+  assert.deepEqual(stats.missing_days, []); assert.deepEqual(stats.incomplete_days, [])
+  const enabled = P.aggregateStatistics({ period: stats.period, config: { enabled_from: '2026-10-14' }, daily: stats.daily, hazards: [], now: h.now() })
+  assert.equal(enabled.expected_days, 2); assert.equal(enabled.inspected_days, 2); assert.deepEqual(enabled.missing_days, ['2026-10-14'])
+})
+
+test('content checked count is independent of calendar enablement but excludes changed source records', async () => {
+  const h = createHarness(); await saveCompleteSupplement(h)
+  const daily = (await h.call('getDailyV1', { date: h.date })).data
+  assert.equal((await h.call('confirmDailyV1', { date: h.date, expected_revision: 0, source_fingerprint: daily.snapshot.source_fingerprint, zero_report: true })).code, 0)
+  // Hold the source revision stable to isolate calendar enablement from source validity.
+  h.database.replace('crm_safety_management_config', h.database.rows('crm_safety_management_config').map(row => ({ ...row, enabled_from: '2026-10-16' })))
+  const checked = (await h.call('getMonthlyV1', { month: '2026-10' }, 'admin')).data.statistics
+  assert.equal(checked.expected_days, 0); assert.equal(checked.inspected_days, 1); assert.equal(checked.checked_days, 1)
+  assert.equal(checked.daily.find(row => row.date === h.date).status, 'not_enabled')
+  h.database.replace('crm_station_safety_inspections', [...h.database.rows('crm_station_safety_inspections'), inspection(h.date, 'changed')])
+  const stale = (await h.call('getMonthlyV1', { month: '2026-10' }, 'admin')).data.statistics
+  assert.equal(stale.inspected_days, 1); assert.equal(stale.checked_days, 0)
+})

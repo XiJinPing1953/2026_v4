@@ -50,7 +50,7 @@ function createService({ database, acl, cloud = null, clock = () => Date.now() }
       const record = recordByDate.get(date) || null
       const snapshot = P.buildDailySnapshot({ station_id: station, date, inspections: grouped.get(date) || [], hazards, supplement: supplementByDate.get(date) || null, supplement_history: supplementRevisions.filter(row => row.snapshot?.date === date), config })
       const enabled = Boolean(config.enabled_from && date >= config.enabled_from && date <= today)
-      return { date, status: P.recordStatus(snapshot, record, enabled), inspection_count: snapshot.summary.inspection_count, issue_count: snapshot.summary.issue_count, signature_status: 'pending_signature', revision: record?.revision || 0, record_id: record?._id || '', source_fingerprint: snapshot.source_fingerprint }
+      return { date, status: P.recordStatus(snapshot, record, enabled), content_checked: P.recordStatus(snapshot, record, true) === 'pending_signature', inspection_count: snapshot.summary.inspection_count, issue_count: snapshot.summary.issue_count, signature_status: 'pending_signature', revision: record?.revision || 0, record_id: record?._id || '', source_fingerprint: snapshot.source_fingerprint }
     })
     return { days, hazards }
   }
