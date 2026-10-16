@@ -1,0 +1,28 @@
+'use strict'
+const test=require('node:test')
+const assert=require('node:assert/strict')
+
+test('isolated preview uses v4 sources and real service while leaving roles and enable date empty',async()=>{
+  const {createPreviewSession}=await import('../preview/safety/server.mjs')
+  const first=createPreviewSession(),second=createPreviewSession()
+  const read=session=>session.call('crm-safety-management',{action:'getInspectionWorkflowV1',data:{inspection_id:'preview-inspection'}})
+  const initial=await read(first)
+  assert.equal(initial.code,0,initial.msg)
+  assert.equal(initial.data.inspection.template_version,4)
+  assert.equal(initial.data.inspection.items.length,36)
+  assert.deepEqual(initial.data.coverage.filter(row=>row.status==='covered').map(row=>row.code),['S02','S05','S07','S08','S10'])
+  assert.deepEqual(initial.data.permissions,{write:true,daily:false})
+  assert.equal(first.fixture.config.enabled_from,'')
+  assert.ok(Object.values(first.fixture.config.roles).every(ids=>ids.length===0))
+  initial.data.workflow.special_work[0].conducted='no'
+  const saved=await first.call('crm-safety-management',{action:'saveInspectionWorkflowV1',data:{inspection_id:'preview-inspection',source_revision:initial.data.source_revision,expected_revision:initial.data.supplement_revision,workflow:initial.data.workflow}})
+  assert.equal(saved.code,0,saved.msg)
+  const resumed=await read(first)
+  assert.equal(resumed.data.supplement_revision,1)
+  assert.deepEqual(resumed.data.workflow,saved.data.workflow)
+  assert.equal(resumed.data.workflow.special_work[0].conducted,'no')
+  assert.equal((await read(second)).data.supplement_revision,0,'separate preview pages must not share writes')
+  const confirm=await first.call('crm-safety-management',{action:'confirmDailyV1',data:{date:first.fixture.date,zero_report:false}})
+  assert.equal(confirm.code,403,'unconfigured business role must not confirm daily record')
+  assert.equal(first.database.rows('crm_safety_daily_records').length,0)
+})
