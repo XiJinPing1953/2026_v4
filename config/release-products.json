@@ -46,41 +46,15 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.16-safety-unified",
+      "version": "2026.10.16-mobile-sale-account",
       "output": "release/cloud",
-      "acceptance": "36 source items and seven-category workflow share facts. No work, not applicable and pending remain separate. Source owner may save observations before enablement; daily confirmation still requires configured business role and enabled date. Roles and enable date remain blank; all signatures pending.",
+      "acceptance": "Create one explicitly scoped mobile sale account with registered editable delivery and vehicle defaults. Existing users remain unchanged. Verify authentication, required lookup permissions and denied management access. This scope does not publish mobile H5 or sale submission services.",
       "deploymentScope": {
         "functions": [
-          "crm-station-safety-inspection",
-          "crm-safety-management"
+          "crm-user"
         ],
         "databaseFiles": [
-          "crm_safety_supplements.schema.json"
-        ],
-        "baseCommit": "f5462d0508f4de695d29298db4b1482c4fa17031",
-        "sourceFiles": [
-          "src/components/domain/safetyManagement/SafetyInspectionWorkflowEditor.vue",
-          "src/components/domain/safetyManagement/SafetyIssueEditor.vue",
-          "src/components/domain/safetyManagement/SafetyManagementDailyView.vue",
-          "src/components/domain/safetyManagement/SafetyManagementPrintView.vue",
-          "src/components/domain/safetyManagement/WorkflowCheckFields.vue",
-          "src/components/domain/safetyManagement/WorkflowChoice.vue",
-          "src/components/domain/safetyManagement/helpers.js",
-          "src/components/domain/safetyManagement/inspectionWorkflow.js",
-          "src/components/domain/stationSafetyInspection/StationSafetyInspectionDetailView.vue",
-          "src/components/domain/stationSafetyInspection/StationSafetyInspectionFormView.vue",
-          "src/pages/station-safety-inspection/form.vue",
-          "src/services/safetyManagement.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/API_CONTRACT.md",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/SCHEMA_CONTRACT.md",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/inspectionPolicyLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/policy.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/service.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/workbook.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/workflow.js",
-          "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/inspectionPolicy.js",
-          "uniCloud-alipay/database/crm_safety_supplements.schema.json",
-          "uniCloud-alipay/database/schema/crm_safety_supplements.schema.json"
+          "crm_users.schema.json"
         ]
       },
       "integrityScope": "deployment"

@@ -1,26 +1,39 @@
 {
   "bsonType": "object",
-  "description": "CRM users (auth)",
-  "additionalProperties": true,
-  "properties": {
-    "_id": { "bsonType": "string" },
-    "username": { "bsonType": "string" },
-    "password_hash": { "bsonType": "string" },
-    "role": { "bsonType": "string" },
-    "role_template": { "bsonType": "string" },
-    "page_permissions": { "bsonType": "object" },
-    "token": { "bsonType": "string" },
-    "token_updated_at": { "bsonType": "number" },
-    "created_at": { "bsonType": "number" },
-    "updated_at": { "bsonType": "number" }
-  },
+  "required": [],
   "permission": {
     "read": false,
     "create": false,
     "update": false,
     "delete": false
   },
-  "indexes": [
-    { "key": { "username": 1 }, "name": "idx_username", "unique": true }
-  ]
+  "properties": {
+    "_id": {
+      "description": "ID，系统自动生成"
+    },
+    "mobile_sale_defaults": {
+      "bsonType": "object",
+      "description": "本账号新建手机称重销售的可修改默认配送员和车辆；已存草稿优先",
+      "properties": {
+        "delivery1_id": {
+          "bsonType": "string"
+        },
+        "delivery1": {
+          "bsonType": "string"
+        },
+        "delivery2_id": {
+          "bsonType": "string"
+        },
+        "delivery2": {
+          "bsonType": "string"
+        },
+        "vehicle_id": {
+          "bsonType": "string"
+        },
+        "vehicle_no": {
+          "bsonType": "string"
+        }
+      }
+    }
+  }
 }
