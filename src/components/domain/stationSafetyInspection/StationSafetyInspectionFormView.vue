@@ -24,13 +24,12 @@
 					<text class="overview-card__meta">{{ template.station.id }} · {{ totalItems }} 项检查</text>
 				</view>
 				<view v-if="isCurrentTemplate || editMode" class="review-card">
-					<text class="area-heading__title">{{ isCurrentTemplate ? '实际巡查时间与天气' : '补录实际巡查时间与天气（可选）' }}</text>
-					<text v-if="!isCurrentTemplate" class="area-heading__hint">仅依据真实凭据完整补录开始、结束及天气，结束须属于原业务日期；没有凭据可留空，原缺项仍保留待核。</text>
+					<text class="area-heading__title">巡检时间与天气（北京时间）</text>
 					<view class="datetime-grid">
-						<view class="field"><text class="field__label">开始日期</text><picker mode="date" :value="startedDate" @change="startedDate = $event.detail.value"><view class="picker-value">{{ startedDate || '请选择' }}</view></picker></view>
-						<view class="field"><text class="field__label">开始时间</text><picker mode="time" :value="startedTime" @change="startedTime = $event.detail.value"><view class="picker-value">{{ startedTime || '请选择实际时间' }}</view></picker></view>
+						<view class="field"><text class="field__label">开始日期</text><view class="picker-value">{{ startedDate || '原记录未填写' }}</view></view>
+						<view class="field"><text class="field__label">开始时间</text><view class="picker-value">{{ startedTime || '原记录未填写' }}</view></view>
 					</view>
-					<button v-if="!editMode && !startedTime" class="minor-button" type="button" @click="markStart">现在开始现场巡查</button>
+					<text class="area-heading__hint">{{ editMode ? '保留原巡检时间，修改内容不会重新计时。' : '打开新巡检时自动开始计时，提交时自动记录结束时间，无需填写。' }}</text>
 					<label class="field"><text class="field__label">天气</text><input v-model="weather" class="input" maxlength="100" placeholder="填写现场实际天气" /></label>
 				</view>
 				<view :class="['progress-badge', { 'progress-badge--done': completedItems === totalItems }]">
@@ -167,14 +166,9 @@
 					</view>
 				</view>
 				<view class="review-card">
-						<view v-if="isCurrentTemplate || editMode" class="datetime-grid">
-							<view class="field"><text class="field__label">结束日期</text><picker mode="date" :value="endedDate" @change="endedDate = $event.detail.value"><view class="picker-value">{{ endedDate || '请选择' }}</view></picker></view>
-							<view class="field"><text class="field__label">结束时间</text><picker mode="time" :value="endedTime" @change="endedTime = $event.detail.value"><view class="picker-value">{{ endedTime || '请选择实际时间' }}</view></picker></view>
-						</view>
-						<button v-if="isCurrentTemplate && !editMode" class="minor-button" type="button" @click="markEnd">现场巡查现已结束</button>
-						<view v-if="editMode && !isCurrentTemplate" class="datetime-grid">
-						<view class="field"><text class="field__label">巡检日期</text><picker mode="date" :value="inspectionDate" @change="inspectionDate = $event.detail.value"><view class="picker-value">{{ inspectionDate }}</view></picker></view>
-						<view class="field"><text class="field__label">巡检时间</text><picker mode="time" :value="inspectionTime" @change="inspectionTime = $event.detail.value"><view class="picker-value">{{ inspectionTime }}</view></picker></view>
+					<view v-if="isCurrentTemplate || editMode" class="datetime-grid">
+						<view class="field"><text class="field__label">结束日期</text><view class="picker-value">{{ endedDate || (editMode ? '原记录未填写' : today) }}</view></view>
+						<view class="field"><text class="field__label">结束时间</text><view class="picker-value">{{ endedTime || (editMode ? '原记录未填写' : '提交时自动记录') }}</view></view>
 					</view>
 					<label class="field"><text class="field__label">巡检员</text><input v-model="inspectorName" class="input" :disabled="!editMode" maxlength="50" /></label>
 					<label class="field"><text class="field__label">备注</text><textarea v-model="remark" class="textarea" maxlength="1000" placeholder="选填" /></label>
@@ -223,6 +217,8 @@ const remark = ref('')
 const clientSubmissionId = ref('')
 const inspectionDate = ref('')
 const inspectionTime = ref('')
+const pageOpenedAt = Date.now()
+const automaticStartedAt = ref(pageOpenedAt), automaticEndedAt = ref(0)
 const startedDate = ref(''); const startedTime = ref(''); const endedDate = ref(''); const endedTime = ref(''); const weather = ref('')
 const revisionReason = ref(''); const sourceRevision = ref(1)
 const savedId = ref(''); const savedDate = ref(''); const dailyNavigationError = ref('')
@@ -235,7 +231,7 @@ const uploadTasks = new Map()
 let draftTimer = null
 let allowNextBack = false
 
-const today = formatDate(new Date())
+const today = formatDate(new Date(pageOpenedAt))
 const totalItems = computed(() => areas.value.reduce((sum, area) => sum + area.items.length, 0))
 const reviewStep = computed(() => areas.value.length)
 const flatItems = computed(() => areas.value.flatMap((area) => area.items))
@@ -248,9 +244,12 @@ function pad(value) { return String(value).padStart(2, '0') }
 function formatDate(date) { return new Date(date.getTime() + 8 * 3600000).toISOString().slice(0, 10) }
 function formatTime(date) { return new Date(date.getTime() + 8 * 3600000).toISOString().slice(11, 16) }
 function generateId() { return `station_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}` }
-function markStart() { const now = new Date(); startedDate.value = formatDate(now); startedTime.value = formatTime(now) }
-function markEnd() { const now = new Date(); endedDate.value = formatDate(now); endedTime.value = formatTime(now) }
-function actualTimestamp(date, time) { return date && time ? Date.parse(`${date}T${time}:00+08:00`) : NaN }
+function showAutomaticTimes() {
+	startedDate.value = automaticStartedAt.value ? formatDate(new Date(automaticStartedAt.value)) : ''
+	startedTime.value = automaticStartedAt.value ? formatTime(new Date(automaticStartedAt.value)) : ''
+	endedDate.value = formatDate(new Date(automaticEndedAt.value || Date.now()))
+	endedTime.value = automaticEndedAt.value ? formatTime(new Date(automaticEndedAt.value)) : ''
+}
 function referenceIndex(item) { return Math.max(0, hazardReferenceOptions.findIndex((option) => option.value === item.hazard_reference_mode)) }
 function setReferenceMode(item, index) {
 	item.hazard_reference_mode = hazardReferenceOptions[Number(index)]?.value || 'new'
@@ -437,10 +436,10 @@ function hydrateRecord(record) {
 	inspectionTime.value = formatTime(date)
 	sourceRevision.value = Number(record.revision || 1)
 	weather.value = record.weather || ''
-	if (record.started_at) { startedDate.value = formatDate(new Date(record.started_at)); startedTime.value = formatTime(new Date(record.started_at)) }
-	else if (!isCurrentTemplate.value) { startedDate.value = ''; startedTime.value = '' }
-	if (record.ended_at) { endedDate.value = formatDate(new Date(record.ended_at)); endedTime.value = formatTime(new Date(record.ended_at)) }
-	else if (!isCurrentTemplate.value) { endedDate.value = ''; endedTime.value = '' }
+	automaticStartedAt.value = Number(record.started_at || 0)
+	automaticEndedAt.value = Number(record.ended_at || 0)
+	showAutomaticTimes()
+	if (!automaticEndedAt.value) endedDate.value = ''
 }
 
 async function resolvePreviews() {
@@ -469,8 +468,9 @@ function restoreDraft() {
 		}
 		clientSubmissionId.value = draft.client_submission_id || clientSubmissionId.value
 		remark.value = draft.remark || ''
-		startedDate.value = draft.started_date || startedDate.value; startedTime.value = draft.started_time || ''
-		endedDate.value = draft.ended_date || endedDate.value; endedTime.value = draft.ended_time || ''; weather.value = draft.weather || ''
+		automaticStartedAt.value = Number(draft.automatic_started_at) || Date.parse(`${draft.started_date}T${draft.started_time}:00+08:00`) || pageOpenedAt
+		automaticEndedAt.value = Number(draft.automatic_ended_at) || Date.parse(`${draft.ended_date}T${draft.ended_time}:00+08:00`) || 0
+		showAutomaticTimes(); weather.value = draft.weather || ''
 		currentStep.value = Math.min(Math.max(Number(draft.current_step || 0), 0), reviewStep.value)
 		return true
 	} catch (_) { return false }
@@ -484,7 +484,7 @@ function saveDraft() {
 			template_version: template.value.template_version,
 			client_submission_id: clientSubmissionId.value,
 			remark: remark.value,
-			started_date: startedDate.value, started_time: startedTime.value, ended_date: endedDate.value, ended_time: endedTime.value, weather: weather.value,
+			automatic_started_at: automaticStartedAt.value, automatic_ended_at: automaticEndedAt.value, weather: weather.value,
 			current_step: currentStep.value,
 			items: flatItems.value.map((item) => ({
 				item_code: item.item_code,
@@ -521,7 +521,7 @@ async function load() {
 		clientSubmissionId.value = generateId()
 		const now = new Date()
 		inspectionDate.value = formatDate(now); inspectionTime.value = formatTime(now)
-		startedDate.value = formatDate(now); endedDate.value = formatDate(now)
+		showAutomaticTimes()
 		if (recordRes) hydrateRecord(recordRes.data)
 		else if (restoreDraft()) uni.showToast({ title: '已恢复未提交草稿', icon: 'none' })
 		await resolvePreviews()
@@ -572,17 +572,19 @@ async function submit() {
 	if (invalid) { currentStep.value = invalid.areaIndex; return uni.showToast({ title: invalid.message, icon: 'none' }) }
 	if (!String(inspectorName.value || '').trim()) return uni.showToast({ title: '巡检员姓名不能为空', icon: 'none' })
 	if (editMode.value && !revisionReason.value.trim()) return uni.showToast({ title: '请填写修改原因', icon: 'none' })
-	const includeActualMetadata = isCurrentTemplate.value || Boolean(startedDate.value || startedTime.value || endedDate.value || endedTime.value || weather.value.trim())
+	const includeActualMetadata = isCurrentTemplate.value || Boolean(automaticStartedAt.value && automaticEndedAt.value)
 	if (includeActualMetadata) {
-		const start = actualTimestamp(startedDate.value, startedTime.value); const end = actualTimestamp(endedDate.value, endedTime.value)
-		if (!Number.isFinite(start) || !Number.isFinite(end) || end < start || end > Date.now() + 60000) return uni.showToast({ title: '请核对实际开始和结束时间', icon: 'none' })
+		const start = automaticStartedAt.value; const end = automaticEndedAt.value || (!editMode.value ? Date.now() : 0)
+		if (!start || !end || !Number.isFinite(start) || !Number.isFinite(end) || end < start || end > Date.now() + 60000) return uni.showToast({ title: '自动记录的时间异常，请检查设备系统时间', icon: 'none' })
 		if (!weather.value.trim()) return uni.showToast({ title: '请填写实际天气', icon: 'none' })
 	}
 	saving.value = true
+	// Freeze the first valid submission time so a lost response can be retried idempotently.
+	if (!editMode.value && !automaticEndedAt.value) { automaticEndedAt.value = Date.now(); showAutomaticTimes(); saveDraft() }
 	try {
 		const payload = {
 			...(editMode.value ? { _id: props.inspectionId, inspection_at: inspectionTimestamp(), expected_revision: sourceRevision.value, revision_reason: revisionReason.value } : { client_submission_id: clientSubmissionId.value }),
-			...(includeActualMetadata ? { started_at: actualTimestamp(startedDate.value, startedTime.value), ended_at: actualTimestamp(endedDate.value, endedTime.value), weather: weather.value } : {}),
+			...(includeActualMetadata ? { started_at: automaticStartedAt.value, ended_at: automaticEndedAt.value, weather: weather.value } : {}),
 			template_code: template.value.template_code,
 			template_version: template.value.template_version,
 			inspector_name: inspectorName.value,
