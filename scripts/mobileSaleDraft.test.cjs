@@ -25,7 +25,7 @@ const bottleDoc = { _id: 'b1', bottle_no: '101', tare_weight: 100, is_active: tr
 
 function harness(t, options = {}) {
 	const storage = options.storage || new Map()
-	let owner = 'u1'
+	let owner = options.owner || 'u1'
 	const requests = []
 	let reads = 0
 	const uni = {
@@ -36,7 +36,7 @@ function harness(t, options = {}) {
 	const module = load('src/composables/pda/usePdaSaleForm.js', ['usePdaSaleForm', 'resolveUsableBleScaleWeight'], {
 		...state, ...shared, ...customer, ...location, ...sale,
 		ref: vue.ref, computed: vue.computed, watch: vue.watch, onBeforeUnmount: () => {},
-		getUser: () => ({ _id: owner }), uni, navigator: { onLine: true },
+		getUser: () => ({ _id: owner, mobile_sale_defaults: options.defaults }), uni, navigator: { onLine: true },
 		PDA_BLE_SCALE_DISPLAY_DECIMALS: 1, PDA_BLE_SCALE_DIVISION_STEP_KG: 0.1,
 		quantizeBleScaleWeightKg: weight => Math.round(weight * 10) / 10,
 		getPdaCustomerById: async () => { reads++; return { code: 0, data: options.customer || customerDoc } },
@@ -49,7 +49,7 @@ function harness(t, options = {}) {
 		getMobileSaleCreateResult: options.query || (async () => ({ code: 404, error_code: 'MOBILE_SALE_OPERATION_NOT_FOUND' }))
 	})
 	const scope = vue.effectScope()
-	const form = scope.run(() => module.usePdaSaleForm())
+	const form = scope.run(() => module.usePdaSaleForm(options.initialValues))
 	t.after(() => scope.stop())
 	function fill() {
 		form.applySelectedCustomer(customerDoc)
@@ -59,6 +59,78 @@ function harness(t, options = {}) {
 	}
 	return { form, storage, requests, fill, module, setOwner: value => { owner = value }, reads: () => reads }
 }
+
+test('account defaults seed a fresh sale, remain editable, and explicit initial values take precedence', t => {
+	const defaults = { delivery1: ' 配送甲 ', delivery2: '配送乙', vehicle_no: ' 测A12345 ' }
+	const h = harness(t, { defaults })
+	assert.equal(h.form.form.value.delivery1, '配送甲')
+	assert.equal(h.form.form.value.delivery2, '配送乙')
+	assert.equal(h.form.form.value.vehicleNo, '测A12345')
+	h.form.form.value.delivery1 = '临时配送员'
+	h.form.form.value.vehicleNo = '测B67890'
+	h.form.applySelectedCustomer(customerDoc)
+	assert.equal(h.form.form.value.delivery1, '临时配送员')
+	assert.equal(h.form.form.value.vehicleNo, '测B67890')
+	const explicit = harness(t, { defaults, initialValues: { delivery1: '', vehicleNo: '测C11111' } })
+	assert.equal(explicit.form.form.value.delivery1, '')
+	assert.equal(explicit.form.form.value.delivery2, '配送乙')
+	assert.equal(explicit.form.form.value.vehicleNo, '测C11111')
+})
+
+test('draft restore keeps edited delivery and vehicle; discard and next sale use current account defaults', t => {
+	const defaults = { delivery1: '配送甲', delivery2: '配送乙', vehicle_no: '测A12345' }
+	const first = harness(t, { defaults })
+	first.form.form.value.delivery1 = '临时配送员'
+	first.form.form.value.delivery2 = ''
+	first.form.form.value.vehicleNo = '测B67890'
+	const restored = harness(t, { storage: first.storage, defaults })
+	assert.equal(restored.form.restoreDraft(), true)
+	assert.equal(restored.form.form.value.delivery1, '临时配送员')
+	assert.equal(restored.form.form.value.delivery2, '')
+	assert.equal(restored.form.form.value.vehicleNo, '测B67890')
+	assert.equal(restored.form.startNewSale(), true)
+	assert.equal(restored.form.form.value.delivery1, '配送甲')
+	assert.equal(restored.form.form.value.delivery2, '配送乙')
+	assert.equal(restored.form.form.value.vehicleNo, '测A12345')
+	const discard = harness(t, { storage: restored.storage, defaults: { delivery1: '新默认' } })
+	assert.equal(discard.form.discardDraft(), true)
+	assert.equal(discard.form.form.value.delivery1, '新默认')
+	assert.equal(discard.form.form.value.vehicleNo, '')
+})
+
+test('defaults and existing drafts never cross accounts; accounts without defaults retain empty fields', t => {
+	const first = harness(t, { defaults: { delivery1: '配送甲', vehicle_no: '测A12345' } })
+	first.form.form.value.remark = '属于 u1'
+	const second = harness(t, { storage: first.storage, owner: 'u2', defaults: { delivery1: '配送乙', vehicle_no: '测B67890' } })
+	assert.equal(second.form.draftStatus.value.available, false)
+	assert.equal(second.form.form.value.delivery1, '配送乙')
+	assert.equal(second.form.form.value.vehicleNo, '测B67890')
+	assert.equal(second.form.form.value.remark, '')
+	const plain = harness(t, { storage: first.storage, owner: 'u3' })
+	assert.equal(plain.form.form.value.delivery1, '')
+	assert.equal(plain.form.form.value.delivery2, '')
+	assert.equal(plain.form.form.value.vehicleNo, '')
+	first.setOwner('u2')
+	assert.equal(first.form.startNewSale(), false)
+})
+
+test('customer selection fills ID and price; a changed keyword or explicit clear removes both', t => {
+	const h = harness(t)
+	h.form.applySelectedCustomer(customerDoc)
+	assert.equal(h.form.form.value.customerId, 'c1')
+	assert.equal(h.form.form.value.customerName, '测试客户')
+	assert.equal(h.form.form.value.unitPrice, '8')
+	h.form.setCustomerKeyword('另一个客户')
+	assert.equal(h.form.form.value.customerId, '')
+	assert.equal(h.form.form.value.customerName, '')
+	assert.equal(h.form.form.value.unitPrice, '')
+	assert.equal(h.form.selectedCustomer.value, null)
+	h.form.applySelectedCustomer(customerDoc)
+	h.form.clearSelectedCustomer()
+	assert.equal(h.form.form.value.customerId, '')
+	assert.equal(h.form.form.value.unitPrice, '')
+	assert.equal(h.form.customerKeyword.value, '')
+})
 
 test('quota failure prevents network create and exposes unsaved draft', async t => {
 	const h = harness(t, { storageFails: true }); h.fill()

@@ -1,15 +1,18 @@
 // Served only by the development preview plugin; never imported by production.
-const customer = { _id: 'phone-demo-customer', name: '手机称重模拟客户', is_active: true, default_price_unit: 'kg', default_unit_price: 8 }
+const customer = { _id: 'phone-demo-customer', name: '手机称重模拟客户', contact: '模拟联系人甲', phone: '13800000001', is_active: true, default_price_unit: 'kg', default_unit_price: 8 }
+const customers = [customer, { ...customer, _id: 'phone-demo-customer-2', name: '手机称重模拟客户二', contact: '模拟联系人乙', phone: '13800000002', default_unit_price: 9.5 }]
 const bottle = { _id: 'phone-demo-bottle', bottle_no: '101', tare_weight: 100, is_active: true, status: 'in' }
 const operations = new Map()
 const ok = data => ({ code: 0, msg: '本地模拟：未写入云端', data })
 
 export function phoneSaleFixture(name, action, data) {
 	if (name === 'crm-customer') {
-		if (action === 'listV1') return ok([customer])
-		if (action === 'getV1') return ok(customer)
+		if (action === 'listV1') return ok(customers.filter(item => [item.name, item.contact, item.phone].some(value => value.includes(data.keyword || ''))))
+		if (action === 'getV1') return ok(customers.find(item => item._id === data.id) || customer)
 		if (action === 'resolveQrCodeV1') return ok({ customer })
 	}
+	if (name === 'crm-delivery' && action === 'listV1') return ok([])
+	if (name === 'crm-vehicle' && action === 'listV1') return ok([])
 	if (name === 'crm-bottle') {
 		if (action === 'searchV1') return ok([bottle])
 		if (action === 'resolveBottleNoV1' || action === 'resolvePdaQrCodeV1') return ok({ bottle })

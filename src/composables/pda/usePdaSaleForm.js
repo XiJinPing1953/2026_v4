@@ -49,10 +49,18 @@ export function resolveUsableBleScaleWeight(scaleSnapshot = {}, now = Date.now()
 }
 
 export function usePdaSaleForm(initialValues = {}) {
-	const form = ref({
-		...createPdaBottleSaleForm(),
-		...initialValues
-	})
+	// Account defaults seed new sales only; restored drafts and user edits keep their values.
+	function createNewForm(values = {}) {
+		const defaults = getUser()?.mobile_sale_defaults || {}
+		return {
+			...createPdaBottleSaleForm(),
+			delivery1: normalizeText(defaults.delivery1),
+			delivery2: normalizeText(defaults.delivery2),
+			vehicleNo: normalizeText(defaults.vehicle_no),
+			...values
+		}
+	}
+	const form = ref(createNewForm(initialValues))
 	if (!Array.isArray(form.value.outItems) || !form.value.outItems.length) form.value.outItems = [createPdaOutItem()]
 	if (!Array.isArray(form.value.backItems)) form.value.backItems = []
 	if (!Array.isArray(form.value.depositRows)) form.value.depositRows = []
@@ -136,7 +144,7 @@ export function usePdaSaleForm(initialValues = {}) {
 		invalidateAsyncWork()
 		replacingDraft = true
 		draftId = createMobileSaleId()
-		form.value = createPdaBottleSaleForm()
+		form.value = createNewForm()
 		selectedCustomer.value = null
 		customerKeyword.value = ''
 		frozenSubmission.value = null
