@@ -24,6 +24,24 @@
     "level_reference_percent": { "bsonType": ["number", "null"] },
     "full_level_m": { "bsonType": ["number", "null"], "description": "Legacy full level in meters" },
     "raw": { "bsonType": "object" },
+    "display": {
+      "bsonType": ["object", "null"],
+      "description": "Optional display-only filtered snapshot; original telemetry and inventory quantities remain unchanged",
+      "additionalProperties": false,
+      "properties": {
+        "filter_version": { "bsonType": "string" },
+        "status": { "bsonType": "string", "enum": ["live", "pending", "reset", "stale", "invalid"] },
+        "level_kpa": { "bsonType": ["number", "null"] },
+        "corrected_level_kpa": { "bsonType": ["number", "null"] },
+        "estimated_weight_t": { "bsonType": ["number", "null"] },
+        "estimate_version": { "bsonType": "string" },
+        "estimate_status": { "bsonType": "string" },
+        "sampled_at": { "bsonType": ["number", "null"] },
+        "source_sampled_at": { "bsonType": ["number", "null"] },
+        "pending_since": { "bsonType": ["number", "null"] },
+        "message": { "bsonType": "string" }
+      }
+    },
     "message": { "bsonType": "string" },
     "sampled_at": { "bsonType": "number" },
     "created_at": { "bsonType": "number" },

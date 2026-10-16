@@ -41,11 +41,18 @@ function formatTime(value) {
 function refreshFreshness() {
 	const telemetry = latestState.lastTelemetry
 	if (!telemetry) return
-	const sampledAt = Number(telemetry.sampled_at)
-	if (!Number.isFinite(sampledAt) || sampledAt <= 0) return
+	const sampledAt = Number(telemetry.display_sampled_at)
+	if (!Number.isFinite(sampledAt) || sampledAt <= 0) {
+		els.ageText.textContent = '暂无数据'
+		if (latestState.status === 'online' || latestState.status === 'ready') {
+			els.connectionStatus.textContent = '异常'
+			els.connectionStatus.className = 'status-badge status-badge--error'
+		}
+		return
+	}
 	const age = Math.max(Date.now() - sampledAt, 0)
 	els.ageText.textContent = age > 60000 ? '数据延迟' : `约 ${Math.round(age / 1000)} 秒前`
-	if (latestState.running && latestState.status === 'online' && age > 60000) {
+	if ((latestState.status === 'online' || latestState.status === 'ready') && age > 60000) {
 		els.connectionStatus.textContent = '数据延迟'
 		els.connectionStatus.className = 'status-badge status-badge--busy'
 	}
@@ -148,12 +155,11 @@ function renderState(state = {}) {
 		const percent = Number.isFinite(rawPercent) ? Math.min(Math.max(rawPercent, 0), 100) : null
 		els.tankFill.style.height = `${percent == null ? 0 : percent}%`
 		els.levelPercent.textContent = `${formatNumber(percent)}%`
-		els.levelKpa.textContent = `${formatNumber(telemetry.corrected_level_kpa)} kPa`
+		const estimateAvailable = telemetry.display_filter_status !== 'invalid'
+		els.levelKpa.textContent = `${formatNumber(estimateAvailable ? telemetry.corrected_level_kpa : null)} kPa`
 		els.pressureMpa.textContent = `${formatNumber(telemetry.pressure_mpa)} MPa`
-		els.weightT.textContent = `${formatNumber(telemetry.estimated_weight_t, 3)} t`
-		els.sampledAt.textContent = formatTime(telemetry.sampled_at)
-		const age = Math.max(Date.now() - Number(telemetry.sampled_at || Date.now()), 0)
-		els.ageText.textContent = age > 60000 ? '数据延迟' : `约 ${Math.round(age / 1000)} 秒前`
+		els.weightT.textContent = `${formatNumber(estimateAvailable ? telemetry.estimated_weight_t : null, 3)} t`
+		els.sampledAt.textContent = formatTime(telemetry.display_sampled_at)
 	} else {
 		els.tankFill.style.height = '0%'
 		els.levelPercent.textContent = '--%'
@@ -163,6 +169,10 @@ function renderState(state = {}) {
 		els.sampledAt.textContent = '--'
 		els.ageText.textContent = '暂无数据'
 	}
+	if (telemetry && telemetry.display_filter_status === 'pending' && !els.footerMessage.textContent.includes('确认中')) {
+		els.footerMessage.textContent += '；液位变化确认中'
+	}
+	refreshFreshness()
 
 	const alarms = Array.isArray(state.alarms) ? state.alarms : []
 	const unacknowledgedAlarms = alarms.filter((item) => !item.acknowledged)
