@@ -4,7 +4,9 @@
   "main": "index.js",
   "dependencies": {
     "exceljs": "4.4.0",
-    "sharp": "0.33.5"
+    "sharp": "0.33.5",
+    "@img/sharp-linux-x64": "0.33.5",
+    "@img/sharp-libvips-linux-x64": "1.0.4"
   },
   "cloudfunction-config": {
     "timeout": 600,
