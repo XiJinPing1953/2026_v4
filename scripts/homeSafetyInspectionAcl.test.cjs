@@ -41,7 +41,7 @@ const revisionSchemaPath = path.join(
 	'uniCloud-alipay/database/crm_home_safety_revisions.schema.json'
 )
 
-test('安全巡检员仅拥有两类巡检及整改页面权限', () => {
+test('安全巡检员仅拥有巡检、整改及安全管理页面权限', () => {
 	const permissions = registry.buildRoleTemplatePermissions('safety_inspector')
 	const allowed = Object.entries(permissions)
 		.filter(([, actions]) => actions.view || actions.create || actions.update || actions.delete)
@@ -50,7 +50,8 @@ test('安全巡检员仅拥有两类巡检及整改页面权限', () => {
 	assert.ok(allowed.every((pagePath) =>
 		pagePath === '/pages/safety-inspection/home' ||
 		pagePath.startsWith('/pages/home-safety-inspection/') ||
-		pagePath.startsWith('/pages/station-safety-inspection/')
+		pagePath.startsWith('/pages/station-safety-inspection/') ||
+		pagePath.startsWith('/pages/safety-management/')
 	))
 	assert.equal(permissions['/pages/home-safety-inspection/form'].create, true)
 	assert.equal(permissions['/pages/home-safety-inspection/form'].update, false)

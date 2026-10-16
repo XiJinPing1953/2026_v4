@@ -35,53 +35,285 @@
     "updated_at"
   ],
   "properties": {
-    "_id": { "bsonType": "string" },
-    "hazard_no": { "bsonType": "string" },
-    "inspection_id": { "bsonType": "string" },
-    "inspection_no": { "bsonType": "string" },
-    "station_id": { "bsonType": "string" },
-    "station_name_snapshot": { "bsonType": "string" },
-    "inspection_at": { "bsonType": "number" },
-    "inspection_date": { "bsonType": "string" },
-    "inspector_name_snapshot": { "bsonType": "string" },
-    "area_code": { "bsonType": "string" },
-    "area_label_snapshot": { "bsonType": "string" },
-    "item_code": { "bsonType": "string" },
-    "item_label_snapshot": { "bsonType": "string" },
-    "hazard_category": { "bsonType": "string", "enum": ["厂站设施", "安全管理"] },
-    "issue_note": { "bsonType": "string" },
-    "hazard_level": { "bsonType": "string", "enum": ["general", "major"] },
-    "responsible_name": { "bsonType": "string" },
-    "responsible_signature_file_id": { "bsonType": "string" },
-    "planned_measure": { "bsonType": "string" },
-    "planned_complete_date": { "bsonType": "string" },
-    "inspection_photo_file_ids": { "bsonType": "array", "items": { "bsonType": "string" } },
-    "status": { "bsonType": "string", "enum": ["pending_rectification", "pending_verification", "closed", "cancelled"] },
-    "rectification_note": { "bsonType": "string" },
-    "rectification_photo_file_ids": { "bsonType": "array", "items": { "bsonType": "string" } },
-    "rectified_at": { "bsonType": ["number", "null"] },
-    "rectified_by": { "bsonType": "string" },
-    "rectified_by_name": { "bsonType": "string" },
-    "verification_result": { "bsonType": "string" },
-    "verification_note": { "bsonType": "string" },
-    "verification_photo_file_ids": { "bsonType": "array", "items": { "bsonType": "string" } },
-    "verified_at": { "bsonType": ["number", "null"] },
-    "verified_by": { "bsonType": "string" },
-    "verified_by_name": { "bsonType": "string" },
-    "cancelled_at": { "bsonType": ["number", "null"] },
-    "cancelled_by": { "bsonType": "string" },
-    "cancelled_by_name": { "bsonType": "string" },
-    "created_at": { "bsonType": "number" },
-    "created_by": { "bsonType": "string" },
-    "created_by_name": { "bsonType": "string" },
-    "updated_at": { "bsonType": "number" }
+    "_id": {
+      "bsonType": "string"
+    },
+    "hazard_no": {
+      "bsonType": "string"
+    },
+    "inspection_id": {
+      "bsonType": "string"
+    },
+    "inspection_no": {
+      "bsonType": "string"
+    },
+    "station_id": {
+      "bsonType": "string"
+    },
+    "station_name_snapshot": {
+      "bsonType": "string"
+    },
+    "inspection_at": {
+      "bsonType": "number"
+    },
+    "inspection_date": {
+      "bsonType": "string"
+    },
+    "inspector_name_snapshot": {
+      "bsonType": "string"
+    },
+    "area_code": {
+      "bsonType": "string"
+    },
+    "area_label_snapshot": {
+      "bsonType": "string"
+    },
+    "item_code": {
+      "bsonType": "string"
+    },
+    "item_label_snapshot": {
+      "bsonType": "string"
+    },
+    "hazard_category": {
+      "bsonType": "string",
+      "enum": [
+        "厂站设施",
+        "安全管理"
+      ]
+    },
+    "issue_note": {
+      "bsonType": "string"
+    },
+    "hazard_level": {
+      "bsonType": "string",
+      "enum": [
+        "general",
+        "major"
+      ]
+    },
+    "responsible_name": {
+      "bsonType": "string"
+    },
+    "responsible_signature_file_id": {
+      "bsonType": "string"
+    },
+    "planned_measure": {
+      "bsonType": "string"
+    },
+    "planned_complete_date": {
+      "bsonType": "string"
+    },
+    "inspection_photo_file_ids": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "string"
+      }
+    },
+    "status": {
+      "bsonType": "string",
+      "enum": [
+        "pending_rectification",
+        "pending_verification",
+        "closed",
+        "cancelled"
+      ]
+    },
+    "rectification_note": {
+      "bsonType": "string"
+    },
+    "rectification_photo_file_ids": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "string"
+      }
+    },
+    "rectified_at": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "rectified_by": {
+      "bsonType": "string"
+    },
+    "rectified_by_name": {
+      "bsonType": "string"
+    },
+    "verification_result": {
+      "bsonType": "string"
+    },
+    "verification_note": {
+      "bsonType": "string"
+    },
+    "verification_photo_file_ids": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "string"
+      }
+    },
+    "verified_at": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "verified_by": {
+      "bsonType": "string"
+    },
+    "verified_by_name": {
+      "bsonType": "string"
+    },
+    "cancelled_at": {
+      "bsonType": [
+        "number",
+        "null"
+      ]
+    },
+    "cancelled_by": {
+      "bsonType": "string"
+    },
+    "cancelled_by_name": {
+      "bsonType": "string"
+    },
+    "created_at": {
+      "bsonType": "number"
+    },
+    "created_by": {
+      "bsonType": "string"
+    },
+    "created_by_name": {
+      "bsonType": "string"
+    },
+    "updated_at": {
+      "bsonType": "number"
+    },
+    "source_type": {
+      "bsonType": "string"
+    },
+    "source_id": {
+      "bsonType": "string"
+    },
+    "source_item_code": {
+      "bsonType": "string"
+    },
+    "category_code": {
+      "bsonType": "string"
+    },
+    "category_label_snapshot": {
+      "bsonType": "string"
+    },
+    "recurrence_of": {
+      "bsonType": "string"
+    },
+    "temporary_controls": {
+      "bsonType": "string"
+    },
+    "client_submission_id": {
+      "bsonType": "string"
+    },
+    "revision_reason": {
+      "bsonType": "string"
+    },
+    "classification_version": {
+      "bsonType": "int"
+    },
+    "revision": {
+      "bsonType": "int"
+    },
+    "first_discovered_at": {
+      "bsonType": "number"
+    },
+    "discovered_at": {
+      "bsonType": "number"
+    },
+    "first_discovered_date": {
+      "bsonType": "string"
+    },
+    "observations": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "object"
+      }
+    },
+    "source_revisions": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "object"
+      }
+    },
+    "report": {
+      "bsonType": [
+        "object",
+        "null"
+      ]
+    },
+    "on_site_rectification": {
+      "bsonType": [
+        "object",
+        "null"
+      ]
+    },
+    "onsite_rectification": {
+      "bsonType": [
+        "object",
+        "null"
+      ]
+    },
+    "evidence": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "object"
+      }
+    }
   },
-  "permission": { "read": false, "create": false, "update": false, "delete": false },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
   "indexes": [
-    { "key": { "inspection_id": 1, "item_code": 1 }, "name": "uniq_inspection_item", "unique": true },
-    { "key": { "hazard_no": 1 }, "name": "uniq_hazard_no", "unique": true },
-    { "key": { "status": 1, "planned_complete_date": 1 }, "name": "idx_status_due" },
-    { "key": { "hazard_level": 1, "updated_at": -1 }, "name": "idx_level_updated" },
-    { "key": { "inspection_date": -1 }, "name": "idx_inspection_date" }
+    {
+      "key": {
+        "inspection_id": 1,
+        "item_code": 1
+      },
+      "name": "uniq_inspection_item",
+      "unique": true
+    },
+    {
+      "key": {
+        "hazard_no": 1
+      },
+      "name": "uniq_hazard_no",
+      "unique": true
+    },
+    {
+      "key": {
+        "status": 1,
+        "planned_complete_date": 1
+      },
+      "name": "idx_status_due"
+    },
+    {
+      "key": {
+        "hazard_level": 1,
+        "updated_at": -1
+      },
+      "name": "idx_level_updated"
+    },
+    {
+      "key": {
+        "inspection_date": -1
+      },
+      "name": "idx_inspection_date"
+    },
+    {
+      "key": {
+        "station_id": 1,
+        "inspection_date": 1
+      },
+      "name": "idx_station_discovery_date"
+    }
   ]
 }

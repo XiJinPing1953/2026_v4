@@ -10,6 +10,7 @@
 | PDA | [pda](domains/pda.md) | 扫码、称重回填、原生基座与真机验收 |
 | 网关 | [gateways](domains/gateways.md) | 储罐、充装许可、秤、RFID、各自发布 |
 | 导入/清理 | [data-operations](domains/data-operations.md) | 预览、范围、回退、执行后核对 |
+| 安全管理 | [safety-management](domains/safety-management.md) | 厂站36项、补充检查、日周月台账、隐患与待签认 |
 | 展示/上传 | [presentation](domains/presentation.md) | 首页、导出、自动补全、上传状态 |
 
 - [工程约束](../docs/RULES.md)、[会计入口](../docs/ACCOUNTING.md)、[可靠性证据与指标](../docs/SYSTEM_RELIABILITY.md)。

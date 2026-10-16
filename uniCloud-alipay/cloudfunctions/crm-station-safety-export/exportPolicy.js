@@ -65,6 +65,7 @@ function collectInspectionMediaFileIds(inspection = {}) {
 	for (const item of Array.isArray(inspection.items) ? inspection.items : []) {
 		values.push(...validCloudFileIds(item?.photo_file_ids))
 		values.push(...validCloudFileIds([item?.responsible_signature_file_id]))
+		values.push(...validCloudFileIds(item?.on_site_rectification?.photo_file_ids))
 	}
 	return Array.from(new Set(values))
 }
@@ -74,6 +75,7 @@ function collectHazardMediaFileIds(hazard = {}) {
 		...validCloudFileIds(hazard.inspection_photo_file_ids),
 		...validCloudFileIds(hazard.rectification_photo_file_ids),
 		...validCloudFileIds(hazard.verification_photo_file_ids),
+		...validCloudFileIds(hazard.on_site_rectification?.photo_file_ids),
 		...validCloudFileIds([hazard.responsible_signature_file_id])
 	]))
 }

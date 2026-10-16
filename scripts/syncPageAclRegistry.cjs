@@ -58,6 +58,7 @@ const forceSyncedCloudFunctions = new Set([
 	'crm-home-safety-export',
 	'crm-station-safety-inspection',
 	'crm-station-safety-export',
+	'crm-safety-management',
 	'crm-pda-scale'
 ])
 

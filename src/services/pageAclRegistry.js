@@ -23,7 +23,9 @@ const GROUP_DEFAULTS = {
 		safetyInspectionHub: { view: true, create: false, update: false, delete: false },
 		stationSafetyInspection: { view: true, create: true, update: true, delete: false },
 		stationSafetyHazard: { view: true, create: false, update: true, delete: false },
-		stationSafetyInspectionExport: { view: true, create: false, update: false, delete: false }
+		stationSafetyInspectionExport: { view: true, create: false, update: false, delete: false },
+		safetyManagement: { view: true, create: true, update: true, delete: false },
+		safetyManagementSettings: { view: true, create: false, update: true, delete: false }
 	},
 	admin: {
 		dashboard: { view: true, create: false, update: false, delete: false },
@@ -123,7 +125,9 @@ const GROUP_DEFAULTS = {
 		safetyInspectionHub: { view: true, create: false, update: false, delete: false },
 		stationSafetyInspection: { view: true, create: true, update: false, delete: false },
 		stationSafetyHazard: { view: true, create: false, update: true, delete: false },
-		stationSafetyInspectionExport: { view: false, create: false, update: false, delete: false }
+		stationSafetyInspectionExport: { view: false, create: false, update: false, delete: false },
+		safetyManagement: { view: true, create: true, update: true, delete: false },
+		safetyManagementSettings: { view: true, create: false, update: false, delete: false }
 	}
 }
 
@@ -170,6 +174,12 @@ export const PAGE_REGISTRY = [
 	{ pagePath: '/pages/collection/task-detail', label: '追款详情', group: 'collection', supports: { view: true, update: true } },
 	{ pagePath: '/pages/log/list', label: '操作日志', group: 'logs', supports: { view: true } },
 	{ pagePath: '/pages/user/list', label: '用户管理', group: 'userAdmin', supports: { view: true, create: true, update: true, delete: true } },
+	{ pagePath: '/pages/safety-management/home', label: '企业安全管理', group: 'safetyManagement', supports: { view: true } },
+	{ pagePath: '/pages/safety-management/daily', label: '每日安全生产检查', group: 'safetyManagement', supports: { view: true, create: true, update: true } },
+	{ pagePath: '/pages/safety-management/weekly', label: '每周安全生产排查', group: 'safetyManagement', supports: { view: true, create: true, update: true } },
+	{ pagePath: '/pages/safety-management/monthly', label: '每月安全生产调度', group: 'safetyManagement', supports: { view: true, create: true, update: true } },
+	{ pagePath: '/pages/safety-management/settings', label: '安全管理岗位配置', group: 'safetyManagementSettings', supports: { view: true, update: true } },
+	{ pagePath: '/pages/safety-management/print', label: '安全管理台账打印', group: 'safetyManagement', supports: { view: true } },
 	{ pagePath: '/pages/safety-inspection/home', label: '安全巡检工作台', group: 'safetyInspectionHub', supports: { view: true } },
 	{ pagePath: '/pages/home-safety-inspection/home', label: '入户随瓶安全巡检', group: 'homeSafetyInspection', supports: { view: true } },
 	{ pagePath: '/pages/home-safety-inspection/form', label: '填写入户巡检单', group: 'homeSafetyInspection', supports: { view: true, create: true, update: true } },

@@ -8,6 +8,15 @@ export const STATION_SAFETY_INSPECTION_HOME_PATH = '/pages/station-safety-inspec
 export const DEFAULT_HOME_PATH = '/pages/index/index'
 export const LOGIN_PATH = '/pages/login/login'
 
+const SAFETY_MANAGEMENT_PAGE_PATHS = new Set([
+	'/pages/safety-management/home',
+	'/pages/safety-management/daily',
+	'/pages/safety-management/weekly',
+	'/pages/safety-management/monthly',
+	'/pages/safety-management/settings',
+	'/pages/safety-management/print'
+])
+
 export function normalizeAppPagePath(value) {
 	const text = normalizeText(value)
 	if (!text) return ''
@@ -58,7 +67,8 @@ export function isSafetyInspectionPagePath(pagePath) {
 		normalized === SAFETY_INSPECTION_HOME_PATH ||
 		isHomeSafetyInspectionPagePath(normalized) ||
 		normalized === STATION_SAFETY_INSPECTION_HOME_PATH ||
-		normalized.startsWith('/pages/station-safety-inspection/')
+		normalized.startsWith('/pages/station-safety-inspection/') ||
+		SAFETY_MANAGEMENT_PAGE_PATHS.has(normalized)
 	)
 }
 

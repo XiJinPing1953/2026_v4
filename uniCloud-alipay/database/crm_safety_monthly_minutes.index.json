@@ -1,0 +1,21 @@
+[
+  {
+    "IndexName": "uniq_station_period",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "station_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "period_key",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": true,
+      "MgoIsSparse": false
+    }
+  }
+]

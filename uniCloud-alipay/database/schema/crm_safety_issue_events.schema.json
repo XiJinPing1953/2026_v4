@@ -1,0 +1,75 @@
+{
+  "bsonType": "object",
+  "description": "crm_safety_issue_events",
+  "additionalProperties": false,
+  "required": [
+    "station_id",
+    "date",
+    "client_submission_id",
+    "source_type",
+    "source_id",
+    "hazard_id",
+    "request_fingerprint",
+    "observation",
+    "created_at",
+    "created_by"
+  ],
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "station_id": {
+      "bsonType": "string"
+    },
+    "date": {
+      "bsonType": "string"
+    },
+    "client_submission_id": {
+      "bsonType": "string"
+    },
+    "source_type": {
+      "bsonType": "string"
+    },
+    "source_id": {
+      "bsonType": "string"
+    },
+    "hazard_id": {
+      "bsonType": "string"
+    },
+    "request_fingerprint": {
+      "bsonType": "string"
+    },
+    "created_by": {
+      "bsonType": "string"
+    },
+    "observation": {
+      "bsonType": "object"
+    },
+    "created_at": {
+      "bsonType": "number"
+    }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    {
+      "key": {
+        "station_id": 1,
+        "client_submission_id": 1
+      },
+      "name": "uniq_station_submission",
+      "unique": true
+    },
+    {
+      "key": {
+        "station_id": 1,
+        "date": 1
+      },
+      "name": "idx_station_date"
+    }
+  ]
+}

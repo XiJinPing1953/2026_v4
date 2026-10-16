@@ -1,0 +1,105 @@
+{
+  "bsonType": "object",
+  "description": "crm_safety_management_config",
+  "additionalProperties": false,
+  "required": [
+    "station_id",
+    "revision",
+    "signature_status",
+    "created_at",
+    "created_by",
+    "updated_at",
+    "updated_by",
+    "enabled_from",
+    "roles"
+  ],
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "station_id": {
+      "bsonType": "string"
+    },
+    "station_name": {
+      "bsonType": "string"
+    },
+    "revision_reason": {
+      "bsonType": "string"
+    },
+    "request_fingerprint": {
+      "bsonType": "string"
+    },
+    "created_by": {
+      "bsonType": "string"
+    },
+    "updated_by": {
+      "bsonType": "string"
+    },
+    "updated_by_name": {
+      "bsonType": "string"
+    },
+    "revision": {
+      "bsonType": "int"
+    },
+    "signature_status": {
+      "bsonType": "string",
+      "enum": [
+        "pending_signature"
+      ]
+    },
+    "created_at": {
+      "bsonType": "number"
+    },
+    "updated_at": {
+      "bsonType": "number"
+    },
+    "enabled_from": {
+      "bsonType": "string"
+    },
+    "roles": {
+      "bsonType": "object",
+      "additionalProperties": false,
+      "properties": {
+        "safety_officer": {
+          "bsonType": "array",
+          "items": {
+            "bsonType": "string"
+          }
+        },
+        "safety_director": {
+          "bsonType": "array",
+          "items": {
+            "bsonType": "string"
+          }
+        },
+        "principal": {
+          "bsonType": "array",
+          "items": {
+            "bsonType": "string"
+          }
+        }
+      }
+    },
+    "special_equipment": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "string"
+      }
+    }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    {
+      "key": {
+        "station_id": 1
+      },
+      "name": "uniq_station",
+      "unique": true
+    }
+  ]
+}

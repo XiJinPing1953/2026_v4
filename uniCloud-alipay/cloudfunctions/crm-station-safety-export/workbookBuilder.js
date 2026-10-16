@@ -88,8 +88,8 @@ function setupSheet(worksheet, columns, headers) {
 
 function addInspectionSheet(workbook, inspections, mediaByFileId) {
 	const worksheet = workbook.addWorksheet('巡检明细', { pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1 } })
-	const headers = ['厂站', '巡检编号', '巡检时间', '巡检员', '区域', '检查项', '结果', '异常说明', '隐患等级', '整改责任人', '计划完成日期', '现场照片1', '现场照片2', '现场照片3']
-	setupSheet(worksheet, [30, 20, 20, 16, 18, 36, 10, 34, 12, 16, 16, 17, 17, 17], headers)
+	const headers = ['厂站', '巡检编号', '巡检时间', '巡检员', '区域', '检查项', '结果', '异常说明', '隐患等级', '整改责任人', '计划完成日期', '现场照片1', '现场照片2', '现场照片3', '日管控分类', '实际开始', '实际结束', '天气', '未运行原因', '记录版本']
+	setupSheet(worksheet, [30, 20, 20, 16, 18, 36, 10, 34, 12, 16, 16, 17, 17, 17, 18, 20, 20, 16, 34, 12], headers)
 	let rowNumber = 2
 	let missingFileCount = 0
 	for (const inspection of inspections) {
@@ -101,13 +101,15 @@ function addInspectionSheet(workbook, inspections, mediaByFileId) {
 				text(inspection.inspector_name),
 				text(item.area_label_snapshot),
 				text(item.item_label_snapshot),
-				item.is_abnormal ? '异常' : '正常',
+				item.result_code === 'not_running' ? '未运行' : item.is_abnormal ? '异常' : '正常',
 				text(item.issue_note) || '-',
 				item.is_abnormal ? hazardLevel(item.hazard_level) : '-',
 				text(item.responsible_name) || '-',
 				text(item.planned_complete_date) || '-'
 			]
 			values.forEach((value, index) => { worksheet.getCell(rowNumber, index + 1).value = value })
+			const additionalValues = [text(item.category_label_snapshot) || '历史未分类', inspection.started_at ? formatDateTime(inspection.started_at) : '历史未记录', inspection.ended_at ? formatDateTime(inspection.ended_at) : '历史未记录', text(inspection.weather) || '历史未记录', text(item.not_running_reason) || '-', Number(inspection.revision || 1)]
+			additionalValues.forEach((value, index) => { worksheet.getCell(rowNumber, index + 15).value = value })
 			worksheet.getRow(rowNumber).height = 76
 			applyTableStyle(worksheet, rowNumber, headers.length)
 			if (item.is_abnormal) {
@@ -119,14 +121,14 @@ function addInspectionSheet(workbook, inspections, mediaByFileId) {
 			rowNumber += 1
 		}
 	}
-	worksheet.pageSetup.printArea = `A1:N${Math.max(rowNumber - 1, 1)}`
+	worksheet.pageSetup.printArea = `A1:T${Math.max(rowNumber - 1, 1)}`
 	return missingFileCount
 }
 
 function addHazardSheet(workbook, hazards, mediaByFileId) {
 	const worksheet = workbook.addWorksheet('隐患整改台账', { pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1 } })
-	const headers = ['序号', '隐患类别', '隐患具体描述', '隐患等级', '排查发现日期', '整改责任人', '整改措施', '计划完成时间', '整改状态', '整改完成时间', '验证人', '备注', '现场照片', '整改照片', '验证照片']
-	setupSheet(worksheet, [8, 14, 36, 12, 16, 16, 34, 16, 14, 18, 16, 38, 26, 26, 26], headers)
+	const headers = ['序号', '隐患类别', '隐患具体描述', '隐患等级', '排查发现日期', '整改责任人', '整改措施', '计划完成时间', '整改状态', '整改完成时间', '验证人', '备注', '现场照片', '整改照片', '验证照片', '实际上报时间', '上报对象及方式', '临时管控及要求', '当场整改及复查', '发现与复见次数', '复发来源']
+	setupSheet(worksheet, [8, 14, 36, 12, 16, 16, 34, 16, 14, 18, 16, 38, 26, 26, 26, 20, 30, 40, 40, 14, 25], headers)
 	let missingFileCount = 0
 	hazards.forEach((hazard, index) => {
 		const rowNumber = index + 2
@@ -151,13 +153,22 @@ function addHazardSheet(workbook, hazards, mediaByFileId) {
 			noteParts
 		]
 		values.forEach((value, columnIndex) => { worksheet.getCell(rowNumber, columnIndex + 1).value = value })
+		const additionalValues = [
+			hazard.report?.reported_at ? formatDateTime(hazard.report.reported_at) : '未登记实际上报',
+			hazard.report ? `${text(hazard.report.reported_to)} / ${text(hazard.report.method)}` : '-',
+			hazard.report ? [text(hazard.report.temporary_measure), text(hazard.report.requirements)].filter(Boolean).join('\n') : '-',
+			hazard.on_site_rectification ? `${formatDateTime(hazard.on_site_rectification.completed_at)} ${text(hazard.on_site_rectification.note)}\n复查：${formatDateTime(hazard.on_site_rectification.rechecked_at)} ${text(hazard.on_site_rectification.recheck_note)}` : '-',
+			(hazard.observations || []).filter((entry) => Number(entry.source_revision || 1) === 1 && entry.result_code !== 'normal' && entry.result_code !== 'not_running').length || 1,
+			text(hazard.recurrence_of) || '-'
+		]
+		additionalValues.forEach((value, index) => { worksheet.getCell(rowNumber, index + 16).value = value })
 		worksheet.getRow(rowNumber).height = 70
 		applyTableStyle(worksheet, rowNumber, headers.length)
 		missingFileCount += addPhotoGroupInCell(workbook, worksheet, mediaByFileId, hazard.inspection_photo_file_ids, rowNumber, 13)
 		missingFileCount += addPhotoGroupInCell(workbook, worksheet, mediaByFileId, hazard.rectification_photo_file_ids, rowNumber, 14)
 		missingFileCount += addPhotoGroupInCell(workbook, worksheet, mediaByFileId, hazard.verification_photo_file_ids, rowNumber, 15)
 	})
-	worksheet.pageSetup.printArea = `A1:O${Math.max(hazards.length + 1, 1)}`
+	worksheet.pageSetup.printArea = `A1:U${Math.max(hazards.length + 1, 1)}`
 	return missingFileCount
 }
 

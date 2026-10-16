@@ -116,6 +116,12 @@
       "targets": [
         "uniCloud-alipay/cloudfunctions/crm-reconciliation/customerReconciliationLocal.js"
       ]
+    },
+    {
+      "source": "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/inspectionPolicy.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-safety-management/inspectionPolicyLocal.js"
+      ]
     }
   ],
   "promotedSchemas": [
@@ -129,7 +135,16 @@
     "crm_customer_flow_settlements",
     "crm_customer_opening_debts",
     "crm_bottle_anomalies",
-    "crm_operation_logs"
+    "crm_operation_logs",
+    "crm_station_safety_inspections",
+    "crm_station_safety_hazards",
+    "crm_safety_weekly_reports",
+    "crm_safety_management_config",
+    "crm_safety_daily_records",
+    "crm_safety_supplements",
+    "crm_safety_issue_events",
+    "crm_safety_revisions",
+    "crm_safety_monthly_minutes"
   ],
   "schemaPolicy": "For an existing root/schema duplicate, database/<name>.schema.json is authoritative; database/schema/<name>.schema.json is a generated compatibility copy. Schemas present only under schema/ retain their existing location."
 }

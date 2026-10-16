@@ -95,3 +95,20 @@ test('厂站集合均禁用客户端直连且导出任务有24小时失效字段
 	}
 	assert.equal(policy.EXPORT_RETENTION_MS, 24 * 60 * 60 * 1000)
 })
+
+test('导出未运行不显示正常，真实时段天气及处置事实可见', async () => {
+	const time = Date.parse('2026-10-15T09:00:00+08:00')
+	const inspection = { station_name_snapshot: '新拓', inspection_no: 'CZ20261015-001', inspection_at: time, started_at: time - 3600000, ended_at: time, weather: '晴', revision: 1, items: [{ item_label_snapshot: '运行压力', result_code: 'not_running', category_label_snapshot: '设备设施', not_running_reason: '泵未启动', photo_file_ids: [] }] }
+	const result = await builder.buildStationSafetyWorkbookBuffer({ inspections: [inspection], hazards: [{ issue_note: '接地线松动', hazard_level: 'general', status: 'pending_verification', report: { reported_at: time, reported_to: '总监', method: '书面', temporary_measure: '隔离' }, on_site_rectification: { completed_at: time + 1000, note: '已固定', rechecked_at: time + 2000, recheck_note: '连接牢固' }, observations: [{ source_revision: 1, result_code: 'abnormal' }, { source_revision: 2, result_code: 'normal' }] }] })
+	const ExcelJS = require(path.join(exportRoot, 'node_modules/exceljs'))
+	const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(result.buffer)
+	const sheet = workbook.getWorksheet('巡检明细')
+	assert.equal(sheet.getCell('G2').value, '未运行')
+	assert.equal(sheet.getCell('O2').value, '设备设施')
+	assert.equal(sheet.getCell('R2').value, '晴')
+	assert.equal(sheet.getCell('S2').value, '泵未启动')
+	const hazards = workbook.getWorksheet('隐患整改台账')
+	assert.equal(hazards.getCell('Q2').value, '总监 / 书面')
+	assert.match(hazards.getCell('S2').value, /连接牢固/)
+	assert.equal(hazards.getCell('T2').value, 1)
+})

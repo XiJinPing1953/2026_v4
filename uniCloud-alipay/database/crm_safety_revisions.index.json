@@ -1,0 +1,26 @@
+[
+  {
+    "IndexName": "uniq_record_revision",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "kind",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "record_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "revision",
+          "Direction": "1",
+          "Type": "int"
+        }
+      ],
+      "MgoIsUnique": true,
+      "MgoIsSparse": false
+    }
+  }
+]

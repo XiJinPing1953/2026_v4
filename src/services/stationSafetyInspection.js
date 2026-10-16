@@ -49,3 +49,7 @@ export function verifyStationSafetyHazardV1(id, data) {
 export function updateStationSafetyHazardOutcomeV1(id, data) {
 	return call('updateHazardOutcomeV1', { _id: id, ...data })
 }
+
+export function recordStationSafetyHazardFactsV1(id, data) {
+	return call('recordHazardFactsV1', { _id: id, ...data })
+}
