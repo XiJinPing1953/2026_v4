@@ -38,6 +38,14 @@
         ]
       }
     },
+    "anomaly_refresh_job_id": {
+      "bsonType": "string",
+      "description": "Accepted anomaly refresh job; querying it may settle status but never replay effects"
+    },
+    "anomaly_refresh_state": {
+      "bsonType": "string",
+      "enum": ["pending", "processing", "complete", "failed"]
+    },
     "sale_id": {
       "bsonType": "string"
     },

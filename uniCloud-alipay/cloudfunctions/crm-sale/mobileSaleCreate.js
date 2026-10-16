@@ -99,10 +99,70 @@ function processingGuard(doc) {
 }
 function createService({ db, createSale }) {
   const one = async (table, id) => first(await db.collection(table).where({ _id: id }).limit(1).get())
+  async function writeState(operation, state, warnings, extra = {}) {
+    let tx
+    const patch = { ...extra, processing_state: state, warnings: [...new Set(warnings)], updated_at: Date.now() }
+    try {
+      tx = await db.startTransaction()
+      const opUpdate = await tx.collection(OPERATIONS).where({ _id: operation._id, created_by: operation.created_by,
+        payload_digest: operation.payload_digest, processing_state: 'processing',
+        ...(operation.anomaly_refresh_job_id ? { anomaly_refresh_job_id: operation.anomaly_refresh_job_id } : {})
+      }).update(patch)
+      const source = first(await tx.collection(SALES).where({ _id: operation.sale_id, created_by: operation.created_by,
+        mobile_create_operation_key: operation._id, mobile_create_state: 'processing' }).limit(1).get())
+      if (!source) throw new Error('手机销售源单处理状态已变化，请核查原操作')
+      if (Number(opUpdate.updated) !== 1) throw new Error('手机销售处理状态已变化，请核查原操作')
+      // Queued work keeps the already-verified source in processing. Avoid relying on
+      // whether the database counts an unchanged UPDATE as matched or modified.
+      if (state !== 'processing') {
+        const saleUpdate = await tx.collection(SALES).where({ _id: operation.sale_id, created_by: operation.created_by,
+          mobile_create_operation_key: operation._id, mobile_create_state: 'processing' }).update({ mobile_create_state: state, updated_at: patch.updated_at })
+        if (Number(saleUpdate.updated) !== 1) throw new Error('手机销售处理状态已变化，请核查原操作')
+      }
+      await tx.commit()
+      return { ...operation, ...patch }
+    } catch (error) {
+      if (tx) { try { await tx.rollback() } catch (_) { /* committed or uncertain: only re-read status */ } }
+      throw error
+    }
+  }
+  async function reconcileRefresh(operation, source) {
+    // The job reference is recorded only after the winning create finished all synchronous work.
+    // This query may settle that receipt, but never invokes or replays any business step.
+    try {
+      const job = await one('crm_anomaly_refresh_jobs', operation.anomaly_refresh_job_id)
+      const expectedNos = [...new Set([...(source.out_items || []), ...(source.back_items || []), ...(source.deposit_rows || [])]
+        .map(row => text(row.bottle_no).toUpperCase().replace(/\s+/g, '')).filter(Boolean))].sort()
+      const targets = Array.isArray(job?.targets) ? job.targets.map(row => ({ kind: row.kind, no: row.no })) : []
+      const actualNos = targets.map(row => row.no).sort()
+      const validScope = job && job.created_by === operation.created_by && job.request_id === `mobile-sale-${operation._id}`
+        && targets.every(row => row.kind === 'bottle' && typeof row.no === 'string')
+        && JSON.stringify(actualNos) === JSON.stringify(expectedNos)
+        && job.targets_hash === crypto.createHash('sha256').update(JSON.stringify(targets)).digest('hex')
+      let warning = !job ? '关联异常刷新任务已不存在，请管理员核查'
+        : !validScope ? '关联异常刷新任务与本销售单不一致，请管理员核查'
+          : job.status === 'failed' ? `异常刷新失败，请管理员核查${text(job.last_error) ? `：${text(job.last_error)}` : ''}`
+            : !['pending', 'processing', 'complete'].includes(job.status) ? '异常刷新任务状态无效，请管理员核查'
+              : job.status === 'complete' && job.target_index !== targets.length ? '异常刷新完成凭据不完整，请管理员核查' : ''
+      if (!warning && job.status !== 'complete') return operation
+      return await writeState(operation, warning ? 'pending_review' : 'completed',
+        [...(operation.warnings || []), ...(warning ? [warning] : [])],
+        validScope && ['pending', 'processing', 'complete', 'failed'].includes(job.status) ? { anomaly_refresh_state: job.status } : {})
+    } catch (_) {
+      // A concurrent query may already have settled both rows. No write retry is needed.
+      const current = await one(OPERATIONS, operation._id)
+      if (current?.payload_digest === operation.payload_digest && current.created_by === operation.created_by
+        && current.anomaly_refresh_job_id === operation.anomaly_refresh_job_id && current.processing_state !== 'processing') return current
+      return { ...operation, warnings: [...(operation.warnings || []), '异常刷新结果暂未核实，请稍后查询原操作'] }
+    }
+  }
   async function existingResult(operation, user, fingerprint, idempotent = true) {
     if (operation.created_by !== text(user._id)) fail('无权查询该手机销售操作', 403, 'MOBILE_SALE_FORBIDDEN')
     if (fingerprint && fingerprint !== operation.payload_digest) fail('该操作号已用于不同内容，请查询原结果', 409, 'MOBILE_SALE_OPERATION_CONFLICT')
     const source = await one(SALES, operation.sale_id)
+    if (operation.processing_state === 'processing' && operation.anomaly_refresh_job_id
+      && source?.mobile_create_operation_key === operation._id && source.created_by === operation.created_by
+      && source.mobile_create_state === 'processing') operation = await reconcileRefresh(operation, source)
     let state = operation.processing_state
     const warnings = [...(operation.warnings || [])]
     if (!source) { state = 'pending_review'; warnings.push('原销售单已不存在，操作凭据保留，禁止重新创建') }
@@ -110,9 +170,11 @@ function createService({ db, createSale }) {
       state = 'pending_review'; warnings.push('原销售单与创建凭据不一致，请管理员核查')
     }
     if (state === 'processing') warnings.push('销售单已保存，关联处理尚未确认完成，请勿重复录入')
-    return { code: 0, msg: state === 'completed' ? '销售单已保存' : '销售单已保存，关联处理待核', data: {
+    return { code: 0, msg: state === 'completed' ? '销售单已保存' : state === 'processing' ? '销售单已保存，关联处理中' : '销售单已保存，关联处理待核', data: {
       operation_id: operation.operation_id, sale_id: operation.sale_id, _id: operation.sale_id, source_saved: true,
-      source_exists: Boolean(source), processing_state: state, warnings: [...new Set(warnings)], idempotent
+      source_exists: Boolean(source), processing_state: state, warnings: [...new Set(warnings)], idempotent,
+      ...(operation.anomaly_refresh_job_id ? { anomaly_refresh_job_id: operation.anomaly_refresh_job_id,
+        anomaly_refresh_state: operation.anomaly_refresh_state } : {})
     } }
   }
   async function assertBottles(payload) {
@@ -187,7 +249,7 @@ function createService({ db, createSale }) {
       if (!saved) return { ...result, data: { ...result.data, operation_id: id, source_saved: false } }
       const warnings = warningsFrom(result)
       if (result?.code !== 0) warnings.push(text(result?.msg) || '关联处理未完成')
-      return await finish(operation, user, warnings)
+      return await finish(operation, user, warnings, result?.data?.anomaly_refresh_job)
     } catch (error) {
       if (error.mobileResult) return error.mobileResult
       if (saved) return await finish(operation, user, [text(error.message) || '关联处理未完成'])
@@ -198,19 +260,17 @@ function createService({ db, createSale }) {
         data: { operation_id: id, source_saved: false } }
     }
   }
-  async function finish(operation, user, warnings) {
-    const state = warnings.length ? 'pending_review' : 'completed'
-    const patch = { processing_state: state, warnings: [...new Set(warnings)], updated_at: Date.now() }
-    let tx
+  async function finish(operation, user, warnings, job = null) {
+    const validJob = job && text(job.id) && ['pending', 'processing', 'complete', 'failed'].includes(job.state)
+    if (job && !validJob) warnings.push('异常刷新回执状态无效，请管理员核查')
+    if (validJob && job.state === 'failed') warnings.push('异常刷新失败，请管理员核查')
+    const state = warnings.length ? 'pending_review' : validJob && job.state !== 'complete' ? 'processing' : 'completed'
     try {
-      tx = await db.startTransaction()
-      const opUpdate = await tx.collection(OPERATIONS).where({ _id: operation._id, payload_digest: operation.payload_digest, processing_state: 'processing' }).update(patch)
-      const saleUpdate = await tx.collection(SALES).where({ _id: operation.sale_id, mobile_create_operation_key: operation._id, mobile_create_state: 'processing' }).update({ mobile_create_state: state })
-      if (Number(opUpdate.updated) !== 1 || Number(saleUpdate.updated) !== 1) throw new Error('手机销售处理状态已变化，请核查原操作')
-      await tx.commit()
-      return await existingResult({ ...operation, ...patch }, user, null, false)
+      const updated = await writeState(operation, state, warnings, validJob ? {
+        anomaly_refresh_job_id: text(job.id), anomaly_refresh_state: job.state
+      } : {})
+      return await existingResult(updated, user, null, false)
     } catch (error) {
-      if (tx) { try { await tx.rollback() } catch (_) { /* retain conservative saved status */ } }
       return { code: 0, msg: '销售单已保存，关联处理结果待核', data: { operation_id: operation.operation_id, sale_id: operation.sale_id, _id: operation.sale_id,
         source_saved: true, source_exists: true, processing_state: 'pending_review', idempotent: false,
         warnings: [...new Set([...warnings, '处理回执未完整确认，请查询原操作，勿重复录入'])] } }
