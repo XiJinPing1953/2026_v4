@@ -58,7 +58,7 @@ function createService({ database, acl, cloud = null, clock = () => Date.now() }
     const period = kind === 'weekly' ? P.periodForWeek(P.requireDate(input.date)) : P.periodForMonth(input.month)
     const key = kind === 'weekly' ? period.start_date : input.month
     const { days, hazards } = await dailyRows(station, period.start_date, period.end_date, config)
-    const statistics = P.aggregateStatistics({ period, config, daily: days, hazards })
+    const statistics = P.aggregateStatistics({ period, config, daily: days, hazards, now: clock() })
     let weekly_reports = []
     if (kind === 'monthly') weekly_reports = (await readAll(database, COLLECTIONS.weekly, { station_id: station })).filter(row => row.period.end_date >= period.start_date && row.period.start_date <= period.end_date)
     if (kind === 'monthly') statistics.weekly_reports = weekly_reports
