@@ -714,9 +714,9 @@ const backPreviewRows = computed(() =>
 			bottleNo: normalizeBottleNo(row?.bottleNo || row?.bottle_no),
 			gross: Number(row?.gross ?? row?.gross_weight ?? row?.grossMeasured ?? row?.gross_measured),
 			tare: Number(row?.tare ?? row?.tare_weight),
-			net: Number(row?.net)
+			net: toWeightNumber(row?.net ?? row?.net_weight)
 		}))
-		.filter((row) => row.bottleNo && Number.isFinite(row.net) && row.net > 0)
+		.filter((row) => row.bottleNo && Number.isFinite(row.net))
 )
 
 const headerSummary = computed(() => {
@@ -1108,7 +1108,7 @@ async function onScannedBottle(targetMeta, payload) {
 	const row = applyBottleSelection(type, index, bottleRes.data)
 	const bottleNo = normalizeBottleNo(row?.bottleNo || bottleRes.data.bottle_no)
 	captureBottleScanLocation(type, row?.rowId, bottleNo, payload.scanToken)
-	if (isRowScaleWeighed(row)) {
+	if (isRowScaleWeighed(row, type)) {
 		clearPendingScaleApply(type, index)
 		barcodeHint.value = `已回填 ${targetMeta.label || '钢瓶'}，该瓶已有称重结果，不重复称重。`
 		showToast(`已回填 ${bottleNo || '钢瓶'}，已称重`)
@@ -1158,21 +1158,23 @@ function getBottleRow(type, index) {
 }
 
 function toWeightNumber(value) {
+	if (value == null || value === '') return null
 	const num = Number(value)
 	return Number.isFinite(num) ? num : null
 }
 
-function isRowScaleWeighed(row = {}) {
+function isRowScaleWeighed(row = {}, type = 'out') {
+	const tare = toWeightNumber(row?.tare ?? row?.tare_weight)
+	const net = toWeightNumber(row?.net ?? row?.net_weight)
 	return (
 		['ble_scale', 'web_ble'].includes(normalizeText(row?.weightSource ?? row?.weight_source)) &&
 		toWeightNumber(row?.gross ?? row?.gross_weight ?? row?.grossMeasured ?? row?.gross_measured) > 0 &&
-		toWeightNumber(row?.tare ?? row?.tare_weight) >= 0 &&
-		toWeightNumber(row?.net ?? row?.net_weight) > 0
+		tare != null && tare >= 0 && net != null && (type === 'back' || net > 0)
 	)
 }
 
 function getMeasureButtonText(row = {}, type = 'out') {
-	if (isRowScaleWeighed(row)) return '重新称重'
+	if (isRowScaleWeighed(row, type)) return '重新称重'
 	return type === 'back' ? '等待称重毛/净重' : '等待称重净重'
 }
 
@@ -1444,8 +1446,8 @@ async function onDisconnectScale(options = {}) {
 	return res
 }
 
-function confirmReweigh(row = {}) {
-	if (!isRowScaleWeighed(row)) return Promise.resolve(true)
+function confirmReweigh(row = {}, type = 'out') {
+	if (!isRowScaleWeighed(row, type)) return Promise.resolve(true)
 	return new Promise((resolve) => {
 		uni.showModal({
 			title: '重新称重',
@@ -1468,9 +1470,9 @@ async function onMeasureBottle(type, index) {
 		showToast('请先扫码或选择瓶号')
 		return
 	}
-	const forceReweigh = isRowScaleWeighed(row)
+	const forceReweigh = isRowScaleWeighed(row, type)
 	if (forceReweigh) {
-		const confirmed = await confirmReweigh(row)
+		const confirmed = await confirmReweigh(row, type)
 		if (!confirmed) return
 		clearScaleWeightFromRow(type, index)
 	}
@@ -1676,7 +1678,7 @@ function onSelectBottleSuggestion(type, index, bottle) {
 	closeCamera()
 	const row = applyBottleSelection(type, index, bottle)
 	const bottleNo = normalizeBottleNo(row?.bottleNo || bottle?.bottle_no)
-	if (isRowScaleWeighed(row)) clearPendingScaleApply(type, index)
+	if (isRowScaleWeighed(row, type)) clearPendingScaleApply(type, index)
 	else if (bottleNo) markPendingScaleApply(type, index, bottleNo)
 	barcodeHint.value = `已选择${type === 'back' ? '回瓶' : '出瓶'} ${Number(index) + 1} 瓶号。`
 }
@@ -1703,7 +1705,7 @@ async function onResolveBottle(type, index) {
 	else {
 		const row = getBottleRow(type, index)
 		const bottleNo = normalizeBottleNo(row?.bottleNo || row?.bottle_no)
-		if (isRowScaleWeighed(row)) clearPendingScaleApply(type, index)
+		if (isRowScaleWeighed(row, type)) clearPendingScaleApply(type, index)
 		else if (bottleNo) markPendingScaleApply(type, index, bottleNo)
 	}
 }

@@ -19,10 +19,10 @@ function operationId(value) {
   return id
 }
 const keyFor = (user, id) => digest(['mobile-sale-v1', text(user._id), id]).slice(0, 24)
-function number(value, label, { zero = false, tenths = false } = {}) {
+function number(value, label, { zero = false, signed = false, tenths = false } = {}) {
   if (value === '' || value == null || typeof value === 'boolean') fail(`${label}无效`)
   const n = Number(value)
-  if (!Number.isFinite(n) || (zero ? n < 0 : n <= 0) || (tenths && Math.abs(n * 10 - Math.round(n * 10)) > 1e-7)) fail(`${label}无效`)
+  if (!Number.isFinite(n) || (!signed && (zero ? n < 0 : n <= 0)) || (tenths && Math.abs(n * 10 - Math.round(n * 10)) > 1e-7)) fail(`${label}无效`)
   return tenths ? Math.round(n * 10) / 10 : n
 }
 function scanLocation(raw) {
@@ -47,7 +47,7 @@ function rows(raw, direction) {
     if (seen.has(bottleNo)) fail(`${direction}瓶号 ${bottleNo} 重复`)
     seen.add(bottleNo)
     const gross = number(row.gross, '毛重', { tenths: true }), tare = number(row.tare, '皮重', { zero: true, tenths: true })
-    const net = number(row.net, '净重', { tenths: true })
+    const net = number(row.net, '净重', { signed: direction === '回瓶', tenths: true })
     if (Math.round(gross * 10) - Math.round(tare * 10) !== Math.round(net * 10)) fail(`${direction}瓶号 ${bottleNo} 毛重减皮重必须等于净重`)
     const result = { bottle_no: bottleNo, bottle_id: bottleId, gross, tare, net }
     const location = scanLocation(row.scan_location ?? row.scanLocation)

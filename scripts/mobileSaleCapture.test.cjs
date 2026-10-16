@@ -171,7 +171,7 @@ async function saleHarness(overrides = {}) {
 		formatWeight: String, formatMoney: String, formatDateTime: String, canPageAction: () => true,
 		uni: { getStorageSync: () => '', showToast: options => events.push(options.title), showModal: options => options.success({ confirm: true }) }
 	})
-	scope.run(() => vm.runInContext(`${saleScript}\nglobalThis.panel = { form, currentStep, cameraOpen, cameraTarget, scaleSnapshot, pendingScaleApplyTarget, scaleErrorText, scaleStatusText, barcodeHint, startCamera, closeCamera, onCameraResult, onFocusHeaderTarget, onScanCustomer, onScanBottle, onSelectBottleSuggestion, onRemoveOutItem, onAddOutItem, deactivateBarcodeSession, markPendingScaleApply, tryApplyPendingScaleWeight, cancelPendingMeasurement, onSubmit, enterBottleStep };`, context))
+	scope.run(() => vm.runInContext(`${saleScript}\nglobalThis.panel = { form, currentStep, cameraOpen, cameraTarget, scaleSnapshot, pendingScaleApplyTarget, scaleErrorText, scaleStatusText, barcodeHint, startCamera, closeCamera, onCameraResult, onFocusHeaderTarget, onScanCustomer, onScanBottle, onSelectBottleSuggestion, onRemoveOutItem, onAddOutItem, deactivateBarcodeSession, markPendingScaleApply, tryApplyPendingScaleWeight, cancelPendingMeasurement, onSubmit, enterBottleStep, backPreviewRows, getMeasureButtonText, confirmReweigh };`, context))
 	return { panel: context.panel, state, events, writes, requests, emitSnapshot: snapshot => snapshotListener(snapshot), stop: () => scope.stop() }
 }
 
@@ -380,4 +380,18 @@ test('an already weighed result is preserved and never retried or forced by subs
 	await vue.nextTick()
 	assert.equal(calls.length, 1)
 	assert.equal(calls[0][3].force, undefined)
+})
+
+test('return preview includes negative and zero net; selected completed returns remain protected', async t => {
+	const h = await saleHarness({ reactive: true }); t.after(h.stop)
+	const rows = [-0.5, 0, ''].map((net, index) => ({ rowId: `back-${index}`, bottleNo: String(113 + index), gross: net === '' ? '' : String(124 + net), tare: '124', net: String(net), weightSource: 'web_ble' }))
+	h.panel.form.value.backItems = rows
+	assert.deepEqual(Array.from(h.panel.backPreviewRows.value, row => row.net), [-0.5, 0])
+	for (let i = 0; i < 2; i++) {
+		const row = h.panel.form.value.backItems[i]
+		assert.equal(h.panel.getMeasureButtonText(row, 'back'), '重新称重')
+		h.panel.onSelectBottleSuggestion('back', i, { bottle_no: row.bottleNo, tare_weight: 124 })
+		assert.equal(h.panel.pendingScaleApplyTarget.value, null, 'reselecting a completed return cannot start automatic overwrite')
+	}
+	assert.notEqual(h.panel.getMeasureButtonText(rows[2], 'back'), '重新称重')
 })

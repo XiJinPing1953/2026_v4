@@ -346,6 +346,34 @@ test('disconnected cached weight, stale or future samples and mismatched session
 	assert.equal(h.form.applyScaleWeightToRow('out', 0, valid, { sessionId: 'old' }).code, 409)
 })
 
+test('negative and zero return net survive weighing, validation, payload, draft restore and duplicate protection', t => {
+	for (const gross of [123.5, 124]) {
+		const h = harness(t); h.fill()
+		h.form.form.value.backItems = [{ ...sale.createPdaBackItem(), bottleNo: '113', bottleId: 'b113', tare: '124', tareSource: 'bottle_profile' }]
+		const now = Date.now()
+		const sample = { weight_kg: gross, is_connected: true, is_online: true, is_stable: true, sampled_at: now, measurement_started_at: now - 1500, session_id: 'back-113', stable_seq: 1, transport: 'web' }
+		assert.equal(h.form.applyScaleWeightToRow('back', 0, sample).code, 0)
+		assert.equal(h.form.form.value.backItems[0].net, (gross - 124).toFixed(1))
+		assert.equal(sale.validatePdaBottleSaleForm(h.form.form.value, customerDoc).ok, true)
+		assert.equal(sale.buildMobileSalePayload(h.form.form.value).backRows[0].net, gross - 124)
+		assert.equal(h.form.applyScaleWeightToRow('back', 0, { ...sample, weight_kg: 150 }).code, 208)
+		const restored = harness(t, { storage: h.storage })
+		assert.equal(restored.form.restoreDraft(), true)
+		assert.equal(restored.form.form.value.backItems[0].net, (gross - 124).toFixed(1))
+		assert.equal(restored.form.applyScaleWeightToRow('back', 0, sample).code, 208)
+		h.form.form.value.outItems[0] = { ...sale.createPdaOutItem(), bottleNo: '113', bottleId: 'b113', tare: '124' }
+		assert.equal(h.form.applyScaleWeightToRow('out', 0, sample).code, 400, 'nonpositive out net is still refused')
+	}
+})
+
+test('a blank return net is not a measured zero and inconsistent signed values are refused', t => {
+	const h = harness(t); h.fill()
+	h.form.form.value.backItems = [{ ...sale.createPdaBackItem(), bottleNo: '113', bottleId: 'b113', gross: '124', tare: '124', net: '' }]
+	assert.equal(sale.validatePdaBottleSaleForm(h.form.form.value, customerDoc).ok, false)
+	h.form.form.value.backItems[0].net = '-0.5'
+	assert.equal(sale.validatePdaBottleSaleForm(h.form.form.value, customerDoc).ok, false)
+})
+
 test('mobile payload keeps scan and BLE evidence and rejects duplicate bottle before normalization', t => {
 	const h = harness(t); h.fill()
 	const row = h.form.form.value.outItems[0]

@@ -99,11 +99,8 @@ function normalizeBackRow(row = {}) {
 	if (!bottleNo) return null
 	const gross = toNumber(row.gross ?? row.gross_weight, null)
 	const tare = toNumber(row.tare ?? row.tare_weight, null)
-	let net = toNumber(row.net ?? row.net_weight, null)
-	if (!(net > 0) && gross != null && tare != null) {
-		net = toNumber(formatPdaSaleWeight(Math.max(gross - tare, 0)), 0)
-	}
-	if (!(gross > 0) || !(tare >= 0) || !(net > 0)) return null
+	const net = toNumber(row.net ?? row.net_weight, null)
+	if (!(gross > 0) || tare == null || !(tare >= 0) || net == null) return null
 	const normalized = {
 		bottleNo,
 		bottleId: normalizeText(row.bottleId || row.bottle_id),
@@ -141,7 +138,7 @@ export function syncPdaBackRow(row = {}) {
 	const gross = toNumber(next.gross, null)
 	const tare = toNumber(next.tare, null)
 	if (gross != null && tare != null) {
-		next.net = formatPdaSaleWeight(Math.max(gross - tare, 0))
+		next.net = formatPdaSaleWeight(gross - tare)
 	}
 	return next
 }
@@ -270,6 +267,7 @@ export function validatePdaBottleSaleForm(form = {}, customer = null) {
 			if (seen.has(no)) return { ok: false, msg: `同一方向不能重复填写钢瓶 ${no}` }
 			seen.add(no)
 			if (!row.bottleId) return { ok: false, msg: `请先查档确认钢瓶 ${no}` }
+			if ([row.gross, row.tare, row.net].some((value) => toNumber(value, null) == null)) return { ok: false, msg: `钢瓶 ${no} 尚未完成毛重、皮重、净重称重` }
 			if (Math.abs(Number(row.gross) - Number(row.tare) - Number(row.net)) > 0.001) return { ok: false, msg: `钢瓶 ${no} 的毛重、皮重和净重不一致，请重新称重` }
 		}
 	}

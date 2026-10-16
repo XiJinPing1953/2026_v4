@@ -6,21 +6,14 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.16-mobile-scale-fix",
+      "version": "2026.10.16-mobile-return-net",
       "output": "dist/build/web",
-      "acceptance": "H5-only weighing repair: 0.5 kg scale division, fragmented BLE notifications retain the last complete sample without extending freshness, and current bottle auto-fill retries on usable snapshots. Preserve per-bottle sessions, three-second expiry and completed rows. Existing cloud dependencies below remain unchanged; no functions or schemas are uploaded. Camera repair is deferred. OPPO Find N / Chrome / NVK field recheck remains pending after publication.",
+      "acceptance": "Align mobile return-bottle signed net weights with ordinary web sales: negative and zero net preserved through weighing, preview, drafts, server validation and shared accounting. Preserve positive outbound net, three-weight consistency, registered bottles and operation idempotency. H5 and crm-sale only; no schema or historical-record changes. 0.5 kg scale division remains. Camera repair remains deferred.",
       "deploymentScope": {
         "functions": [
-          "crm-sale",
-          "crm-filling",
-          "crm-bottle-anomaly",
-          "crm-customer-settlement"
+          "crm-sale"
         ],
-        "databaseFiles": [
-          "crm_mobile_sale_operations.schema.json",
-          "crm_mobile_sale_operations.index.json",
-          "crm_sale_records.schema.json"
-        ],
+        "databaseFiles": [],
         "aclCanonicalRevisions": {
           "crm-sale": {
             "helper": {
@@ -30,24 +23,6 @@
             "registry": {
               "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
               "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            }
-          },
-          "crm-filling": {
-            "registry": {
-              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
-              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
-            }
-          },
-          "crm-customer-settlement": {
-            "registry": {
-              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
-              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
-            }
-          },
-          "crm-bottle-anomaly": {
-            "registry": {
-              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
-              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
             }
           }
         }
@@ -55,21 +30,14 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.16-mobile-sale",
+      "version": "2026.10.16-mobile-return-net",
       "output": "release/cloud",
-      "acceptance": "User authorized publication before device acceptance. Scoped account, camera scanning, registered bottles, fresh stable BLE samples, drafts and fixed-operation idempotent create. Isolated cloud transactions and minimum-account downstream authorization must pass. Android/iPhone and NVK field acceptance remains pending after publication.",
+      "acceptance": "Align mobile return-bottle signed net weights with ordinary web sales: negative and zero net preserved through weighing, preview, drafts, server validation and shared accounting. Preserve positive outbound net, three-weight consistency, registered bottles and operation idempotency. H5 and crm-sale only; no schema or historical-record changes. 0.5 kg scale division remains. Camera repair remains deferred.",
       "deploymentScope": {
         "functions": [
-          "crm-sale",
-          "crm-filling",
-          "crm-bottle-anomaly",
-          "crm-customer-settlement"
+          "crm-sale"
         ],
-        "databaseFiles": [
-          "crm_mobile_sale_operations.schema.json",
-          "crm_mobile_sale_operations.index.json",
-          "crm_sale_records.schema.json"
-        ],
+        "databaseFiles": [],
         "aclCanonicalRevisions": {
           "crm-sale": {
             "helper": {
@@ -79,24 +47,6 @@
             "registry": {
               "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
               "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            }
-          },
-          "crm-filling": {
-            "registry": {
-              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
-              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
-            }
-          },
-          "crm-customer-settlement": {
-            "registry": {
-              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
-              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
-            }
-          },
-          "crm-bottle-anomaly": {
-            "registry": {
-              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
-              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
             }
           }
         }

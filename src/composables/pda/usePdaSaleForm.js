@@ -21,12 +21,13 @@ import { canReleaseMobileSubmission, cloneMobileSale, createMobileSaleDraftStore
 
 const SCALE_SAMPLE_MAX_AGE_MS = 3000
 
-function hasBleScaleMeasuredWeight(row = {}) {
+function hasBleScaleMeasuredWeight(row = {}, type = 'out') {
+	const tare = toNumber(row.tare ?? row.tare_weight, null)
+	const net = toNumber(row.net ?? row.net_weight, null)
 	return (
 		['ble_scale', 'web_ble'].includes(normalizeText(row.weightSource ?? row.weight_source)) &&
 		toNumber(row.gross ?? row.gross_weight ?? row.grossMeasured ?? row.gross_measured, null) > 0 &&
-		toNumber(row.tare ?? row.tare_weight, null) >= 0 &&
-		toNumber(row.net ?? row.net_weight, null) > 0
+		tare != null && tare >= 0 && net != null && (type === 'back' || net > 0)
 	)
 }
 
@@ -383,7 +384,7 @@ export function usePdaSaleForm(initialValues = {}) {
 		const list = type === 'back' ? form.value.backItems : form.value.outItems
 		const row = list[index]
 		if (!row) return { code: 404, msg: '行不存在', data: null }
-		if (hasBleScaleMeasuredWeight(row) && options.force !== true) {
+		if (hasBleScaleMeasuredWeight(row, type) && options.force !== true) {
 			return {
 				code: 208,
 				msg: '该瓶已完成称重，如需覆盖请点击重新称重',
@@ -411,8 +412,8 @@ export function usePdaSaleForm(initialValues = {}) {
 			return { code: 400, msg: '该瓶未维护空瓶重，请先扫码或查瓶补齐瓶档', data: null }
 		}
 		const netWeight = Number((grossMeasured - tareWeight).toFixed(PDA_BLE_SCALE_DISPLAY_DECIMALS))
-		if (!(netWeight > 0)) {
-			return { code: 400, msg: '毛重减空瓶重后净重需大于 0，请核对瓶档和称重', data: null }
+		if (type !== 'back' && !(netWeight > 0)) {
+			return { code: 400, msg: '出瓶毛重减空瓶重后净重需大于 0，请核对瓶档和称重', data: null }
 		}
 
 		const nextCommon = {
