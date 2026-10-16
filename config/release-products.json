@@ -6,96 +6,82 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.16-tank-display",
+      "version": "2026.10.16-safety-unified",
       "output": "dist/build/web",
-      "acceptance": "EMA30 applies only to current tank display. Preserve raw telemetry, operation logs, alarms, fixed weight formula and business quantities. CRM and Windows use the same display snapshot; employee wording stays unchanged. Windows onsite installation and employee-screen acceptance are recorded separately.",
+      "acceptance": "36 source items and seven-category workflow share facts. No work, not applicable and pending remain separate. Source owner may save observations before enablement; daily confirmation still requires configured business role and enabled date. Roles and enable date remain blank; all signatures pending.",
       "deploymentScope": {
         "functions": [
-          "crm-dashboard",
-          "crm-tank-gateway"
+          "crm-station-safety-inspection",
+          "crm-safety-management"
         ],
         "databaseFiles": [
-          "crm_tank_telemetry.schema.json"
+          "crm_safety_supplements.schema.json"
         ],
-        "baseCommit": "61626b93670572c915cc369954c9e117beb25fae",
+        "baseCommit": "f5462d0508f4de695d29298db4b1482c4fa17031",
         "sourceFiles": [
-          "apps/tank-gateway/README.md",
-          "apps/tank-gateway/main.cjs",
-          "apps/tank-gateway/renderer/display.js",
-          "apps/tank-gateway/renderer/renderer.js",
-          "apps/tank-gateway/tankDisplayFilter.js",
-          "apps/tank-gateway/tankTelemetryLocal.cjs",
-          "src/components/domain/dashboard/DashboardHome.vue",
-          "src/services/mappers/tankDisplay.js",
-          "uniCloud-alipay/cloudfunctions/common/tankDisplayFilter.js",
-          "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankDisplayFilter.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankTelemetryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankDisplayFilter.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankTelemetry.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/tankDisplayFilter.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-tank-gateway/tankDisplayFilter.js",
-          "uniCloud-alipay/cloudfunctions/crm-tank-gateway/tankTelemetry.js",
-          "uniCloud-alipay/database/crm_tank_telemetry.schema.json"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-dashboard": {
-            "registry": {
-              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
-              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
-            }
-          }
-        }
+          "src/components/domain/safetyManagement/SafetyInspectionWorkflowEditor.vue",
+          "src/components/domain/safetyManagement/SafetyIssueEditor.vue",
+          "src/components/domain/safetyManagement/SafetyManagementDailyView.vue",
+          "src/components/domain/safetyManagement/SafetyManagementPrintView.vue",
+          "src/components/domain/safetyManagement/WorkflowCheckFields.vue",
+          "src/components/domain/safetyManagement/WorkflowChoice.vue",
+          "src/components/domain/safetyManagement/helpers.js",
+          "src/components/domain/safetyManagement/inspectionWorkflow.js",
+          "src/components/domain/stationSafetyInspection/StationSafetyInspectionDetailView.vue",
+          "src/components/domain/stationSafetyInspection/StationSafetyInspectionFormView.vue",
+          "src/pages/station-safety-inspection/form.vue",
+          "src/services/safetyManagement.js",
+          "uniCloud-alipay/cloudfunctions/crm-safety-management/API_CONTRACT.md",
+          "uniCloud-alipay/cloudfunctions/crm-safety-management/SCHEMA_CONTRACT.md",
+          "uniCloud-alipay/cloudfunctions/crm-safety-management/inspectionPolicyLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-safety-management/policy.js",
+          "uniCloud-alipay/cloudfunctions/crm-safety-management/service.js",
+          "uniCloud-alipay/cloudfunctions/crm-safety-management/workbook.js",
+          "uniCloud-alipay/cloudfunctions/crm-safety-management/workflow.js",
+          "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/inspectionPolicy.js",
+          "uniCloud-alipay/database/crm_safety_supplements.schema.json",
+          "uniCloud-alipay/database/schema/crm_safety_supplements.schema.json"
+        ]
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.16-tank-display",
+      "version": "2026.10.16-safety-unified",
       "output": "release/cloud",
-      "acceptance": "EMA30 applies only to current tank display. Preserve raw telemetry, operation logs, alarms, fixed weight formula and business quantities. CRM and Windows use the same display snapshot; employee wording stays unchanged. Windows onsite installation and employee-screen acceptance are recorded separately.",
+      "acceptance": "36 source items and seven-category workflow share facts. No work, not applicable and pending remain separate. Source owner may save observations before enablement; daily confirmation still requires configured business role and enabled date. Roles and enable date remain blank; all signatures pending.",
       "deploymentScope": {
         "functions": [
-          "crm-dashboard",
-          "crm-tank-gateway"
+          "crm-station-safety-inspection",
+          "crm-safety-management"
         ],
         "databaseFiles": [
-          "crm_tank_telemetry.schema.json"
+          "crm_safety_supplements.schema.json"
         ],
-        "baseCommit": "61626b93670572c915cc369954c9e117beb25fae",
+        "baseCommit": "f5462d0508f4de695d29298db4b1482c4fa17031",
         "sourceFiles": [
-          "apps/tank-gateway/README.md",
-          "apps/tank-gateway/main.cjs",
-          "apps/tank-gateway/renderer/display.js",
-          "apps/tank-gateway/renderer/renderer.js",
-          "apps/tank-gateway/tankDisplayFilter.js",
-          "apps/tank-gateway/tankTelemetryLocal.cjs",
-          "src/components/domain/dashboard/DashboardHome.vue",
-          "src/services/mappers/tankDisplay.js",
-          "uniCloud-alipay/cloudfunctions/common/tankDisplayFilter.js",
-          "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankDisplayFilter.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankTelemetryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankDisplayFilter.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankTelemetry.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/tankDisplayFilter.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-tank-gateway/tankDisplayFilter.js",
-          "uniCloud-alipay/cloudfunctions/crm-tank-gateway/tankTelemetry.js",
-          "uniCloud-alipay/database/crm_tank_telemetry.schema.json"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-dashboard": {
-            "registry": {
-              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
-              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
-            }
-          }
-        }
+          "src/components/domain/safetyManagement/SafetyInspectionWorkflowEditor.vue",
+          "src/components/domain/safetyManagement/SafetyIssueEditor.vue",
+          "src/components/domain/safetyManagement/SafetyManagementDailyView.vue",
+          "src/components/domain/safetyManagement/SafetyManagementPrintView.vue",
+          "src/components/domain/safetyManagement/WorkflowCheckFields.vue",
+          "src/components/domain/safetyManagement/WorkflowChoice.vue",
+          "src/components/domain/safetyManagement/helpers.js",
+          "src/components/domain/safetyManagement/inspectionWorkflow.js",
+          "src/components/domain/stationSafetyInspection/StationSafetyInspectionDetailView.vue",
+          "src/components/domain/stationSafetyInspection/StationSafetyInspectionFormView.vue",
+          "src/pages/station-safety-inspection/form.vue",
+          "src/services/safetyManagement.js",
+          "uniCloud-alipay/cloudfunctions/crm-safety-management/API_CONTRACT.md",
+          "uniCloud-alipay/cloudfunctions/crm-safety-management/SCHEMA_CONTRACT.md",
+          "uniCloud-alipay/cloudfunctions/crm-safety-management/inspectionPolicyLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-safety-management/policy.js",
+          "uniCloud-alipay/cloudfunctions/crm-safety-management/service.js",
+          "uniCloud-alipay/cloudfunctions/crm-safety-management/workbook.js",
+          "uniCloud-alipay/cloudfunctions/crm-safety-management/workflow.js",
+          "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/inspectionPolicy.js",
+          "uniCloud-alipay/database/crm_safety_supplements.schema.json",
+          "uniCloud-alipay/database/schema/crm_safety_supplements.schema.json"
+        ]
       },
       "integrityScope": "deployment"
     },
