@@ -1647,6 +1647,9 @@ function onBottleValueInput(type, index, value) {
 	if (submissionLocked.value || pendingScaleApplyTarget.value || !scaleSnapshot.value.is_connected) return
 	const row = getBottleRow(type, index)
 	if (!row) return
+	// Selecting a suggestion emits its value before select; the same bottle must
+	// retain its measured weights so select can enforce the reweigh protection.
+	if (normalizeBottleNo(value) === normalizeBottleNo(row.bottleNo)) return
 	row.bottleNo = value
 	onBottleInput(type, index)
 }

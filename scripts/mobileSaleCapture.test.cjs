@@ -171,7 +171,7 @@ async function saleHarness(overrides = {}) {
 		formatWeight: String, formatMoney: String, formatDateTime: String, canPageAction: () => true,
 		uni: { getStorageSync: () => '', showToast: options => events.push(options.title), showModal: options => options.success({ confirm: true }) }
 	})
-	scope.run(() => vm.runInContext(`${saleScript}\nglobalThis.panel = { form, currentStep, cameraOpen, cameraTarget, scaleSnapshot, pendingScaleApplyTarget, scaleErrorText, scaleStatusText, barcodeHint, startCamera, closeCamera, onCameraResult, onFocusHeaderTarget, onScanCustomer, onScanBottle, onSelectBottleSuggestion, onRemoveOutItem, onAddOutItem, deactivateBarcodeSession, markPendingScaleApply, tryApplyPendingScaleWeight, cancelPendingMeasurement, onSubmit, enterBottleStep, backPreviewRows, getMeasureButtonText, confirmReweigh };`, context))
+	scope.run(() => vm.runInContext(`${saleScript}\nglobalThis.panel = { form, currentStep, cameraOpen, cameraTarget, scaleSnapshot, pendingScaleApplyTarget, scaleErrorText, scaleStatusText, barcodeHint, startCamera, closeCamera, onCameraResult, onFocusHeaderTarget, onScanCustomer, onScanBottle, onSelectBottleSuggestion, onRemoveOutItem, onAddOutItem, deactivateBarcodeSession, markPendingScaleApply, tryApplyPendingScaleWeight, cancelPendingMeasurement, onSubmit, enterBottleStep, backPreviewRows, getMeasureButtonText, confirmReweigh, onBottleValueInput };`, context))
 	return { panel: context.panel, state, events, writes, requests, emitSnapshot: snapshot => snapshotListener(snapshot), stop: () => scope.stop() }
 }
 
@@ -390,8 +390,10 @@ test('return preview includes negative and zero net; selected completed returns 
 	for (let i = 0; i < 2; i++) {
 		const row = h.panel.form.value.backItems[i]
 		assert.equal(h.panel.getMeasureButtonText(row, 'back'), '重新称重')
+		h.panel.onBottleValueInput('back', i, row.bottleNo)
 		h.panel.onSelectBottleSuggestion('back', i, { bottle_no: row.bottleNo, tare_weight: 124 })
 		assert.equal(h.panel.pendingScaleApplyTarget.value, null, 'reselecting a completed return cannot start automatic overwrite')
+		assert.equal(h.panel.form.value.backItems[i].net, String(i === 0 ? -0.5 : 0))
 	}
 	assert.notEqual(h.panel.getMeasureButtonText(rows[2], 'back'), '重新称重')
 })
