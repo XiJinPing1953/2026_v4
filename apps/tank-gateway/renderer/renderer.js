@@ -169,14 +169,15 @@ function renderTelemetry(telemetry) {
 	const currentPressureMpa = formatNumber(telemetry.pressure_mpa) === '--' ? null : Number(telemetry.pressure_mpa) + (Number.isFinite(pressureCorrection) ? pressureCorrection : 0)
 	els.levelAlarmCurrent.textContent = `${formatNumber(currentLevelKpa)} kPa`
 	els.pressureAlarmCurrent.textContent = `${formatNumber(currentPressureMpa)} MPa`
-	els.levelKpa.textContent = `${formatNumber(telemetry.corrected_level_kpa)} kPa`
+	const estimateAvailable = telemetry.display_filter_status !== 'invalid'
+	els.levelKpa.textContent = `${formatNumber(estimateAvailable ? telemetry.corrected_level_kpa : null)} kPa`
 	els.pressureMpa.textContent = `${formatNumber(telemetry.pressure_mpa)} MPa`
-	els.weightT.textContent = `${formatNumber(telemetry.estimated_weight_t, 3)} t`
+	els.weightT.textContent = `${formatNumber(estimateAvailable ? telemetry.estimated_weight_t : null, 3)} t`
 	els.rawLevelKpa.textContent = `PLC原液位 ${formatNumber(telemetry.level_kpa)} kPa`
 	els.rawWeightT.textContent = `PLC原重量 ${formatNumber(telemetry.lng_weight_t)} t`
 	els.levelPercent.textContent = `${formatNumber(percent)}%`
 	els.tankFill.style.height = `${percent == null ? 0 : percent}%`
-	els.sampledAt.textContent = formatTime(telemetry.sampled_at)
+	els.sampledAt.textContent = formatTime(telemetry.display_sampled_at)
 }
 
 function renderState(state = {}) {
@@ -200,6 +201,18 @@ function renderState(state = {}) {
 	els.credentialBackend.textContent = state.credentialBackend || '-'
 	els.passwordSaved.textContent = state.passwordSaved ? '已保存' : '未保存'
 	renderTelemetry(state.lastTelemetry)
+	refreshFreshness()
+}
+
+function refreshFreshness() {
+	const telemetry = latestState.lastTelemetry
+	if (!telemetry) return
+	const sampledAt = Number(telemetry.display_sampled_at)
+	if (latestState.status === 'online' || latestState.status === 'ready') {
+		if (!Number.isFinite(sampledAt) || sampledAt <= 0) els.statusText.textContent = '液位数据不可用'
+		else if (Date.now() - sampledAt > 60000) els.statusText.textContent = '数据延迟'
+		else if (telemetry.display_filter_status === 'pending' && !els.statusText.textContent.includes('确认中')) els.statusText.textContent += '｜液位变化确认中'
+	}
 }
 
 async function runAction(label, fn) {
@@ -215,6 +228,8 @@ async function runAction(label, fn) {
 		setBusy(false)
 	}
 }
+
+setInterval(refreshFreshness, 1000)
 
 els.form.addEventListener('submit', async (event) => {
 	event.preventDefault()
