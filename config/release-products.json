@@ -17,8 +17,8 @@
           "crm-customer-settlement"
         ],
         "databaseFiles": [
-          "crm_mobile_sale_create_operations.schema.json",
-          "crm_mobile_sale_create_operations.index.json",
+          "crm_mobile_sale_operations.schema.json",
+          "crm_mobile_sale_operations.index.json",
           "crm_sale_records.schema.json"
         ],
         "aclCanonicalRevisions": {
@@ -66,8 +66,8 @@
           "crm-customer-settlement"
         ],
         "databaseFiles": [
-          "crm_mobile_sale_create_operations.schema.json",
-          "crm_mobile_sale_create_operations.index.json",
+          "crm_mobile_sale_operations.schema.json",
+          "crm_mobile_sale_operations.index.json",
           "crm_sale_records.schema.json"
         ],
         "aclCanonicalRevisions": {
