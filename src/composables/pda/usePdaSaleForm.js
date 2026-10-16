@@ -76,7 +76,12 @@ export function usePdaSaleForm(initialValues = {}) {
 	const frozenSubmission = ref(null)
 	const currentOwner = () => normalizeText(getUser()?._id || getUser()?.id)
 	const ownerId = currentOwner()
-	const store = createMobileSaleDraftStore(ownerId, uni, currentOwner)
+	// H5 tree shaking resolves direct uni API calls; the runtime uni object may omit them.
+	const store = createMobileSaleDraftStore(ownerId, {
+		getStorageSync: key => uni.getStorageSync(key),
+		setStorageSync: (key, value) => uni.setStorageSync(key, value),
+		removeStorageSync: key => uni.removeStorageSync(key)
+	}, currentOwner)
 	let draftId = createMobileSaleId()
 	let unreadableDraft = false
 	const draftStatus = ref({ available: false, restored: false, state: 'ready', message: '' })

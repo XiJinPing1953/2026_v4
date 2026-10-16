@@ -11,6 +11,8 @@ import {
 } from '@/services/pda/entry'
 import { restoreScannerProfile } from '@/services/pda/capture'
 
+let authBootstrapPromise = null
+
 export default {
   async onLaunch() {
     console.log('App Launch')
@@ -28,20 +30,18 @@ export default {
   },
   methods: {
     async bootstrapAuth() {
-      const cachedUser = getUser()
-      const cachedPages = getCurrentPages()
-      const cachedCurrent = cachedPages[cachedPages.length - 1]
-      const cachedCurrentPath = cachedCurrent?.route || ''
-      if (cachedUser && shouldRedirectToPreferredHome(cachedCurrentPath, cachedUser)) {
-        uni.reLaunch({ url: resolveHomePath(cachedUser) })
-        return
-      }
+      if (authBootstrapPromise) return authBootstrapPromise
+      authBootstrapPromise = this.checkAuthAndRedirect().finally(() => { authBootstrapPromise = null })
+      return authBootstrapPromise
+    },
+    async checkAuthAndRedirect() {
       const result = await syncCurrentUser({ force: true })
       if (result?.code === 401) {
-        goLogin({ captureCurrent: true })
+        await goLogin({ captureCurrent: true })
         return
       }
       const user = result?.user || getUser()
+      if (!user) return
       const pages = getCurrentPages()
       const current = pages[pages.length - 1]
       const currentPath = current?.route || ''
@@ -50,12 +50,12 @@ export default {
         const runtimeRedirect = resolveLoginRedirectForRuntime(pendingRedirect, user)
         const redirectPath = normalizeAppPagePath(runtimeRedirect)
         if (runtimeRedirect && redirectPath && user && canViewPage(redirectPath, user)) {
-          uni.reLaunch({ url: runtimeRedirect })
+          await uni.reLaunch({ url: runtimeRedirect })
           return
         }
       }
       if (shouldRedirectToPreferredHome(currentPath, user)) {
-        uni.reLaunch({ url: resolveHomePath(user) })
+        await uni.reLaunch({ url: resolveHomePath(user) })
       }
     }
   }

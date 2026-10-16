@@ -5,12 +5,29 @@ const fs = require('node:fs')
 const vm = require('node:vm')
 const vue = require('vue')
 
-function load(file, names, globals = {}) {
-	const source = fs.readFileSync(file, 'utf8')
+function load(file, names, globals = {}, transform = source => source) {
+	const source = transform(fs.readFileSync(file, 'utf8'), file)
 		.replace(/^import[\s\S]*?\bfrom\s+['"][^'"]+['"]\s*\n/gm, '')
 		.replace(/export\s+(?=(?:async\s+)?function|const |let |class )/g, '')
 		.replace(/export\s*\{[^}]*\}\s*;?/g, '')
 	return vm.runInNewContext(`${source}\n;({${names.join(',')}})`, { Date, Math, console, ...globals })
+}
+
+function compileH5UniApis(source, file) {
+	const previousInput = process.env.UNI_INPUT_DIR
+	process.env.UNI_INPUT_DIR = require('node:path').resolve('src')
+	try {
+		// Exercise the installed production compiler rather than giving the runtime uni
+		// object methods that tree-shaken H5 builds do not actually expose.
+		const { uniInjectPlugin } = require('@dcloudio/uni-h5-vite/dist/plugins/inject.js')
+		const { parseAst } = require('rollup/parseAst')
+		const plugin = uniInjectPlugin()
+		plugin.configResolved({ command: 'build', build: { sourcemap: false } })
+		return plugin.transform.call({ parse: parseAst }, source, file)?.code || source
+	} finally {
+		if (previousInput === undefined) delete process.env.UNI_INPUT_DIR
+		else process.env.UNI_INPUT_DIR = previousInput
+	}
 }
 const state = load('src/services/pda/mobileSaleDraft.js', ['createMobileSaleDraftStore', 'createMobileSaleId', 'cloneMobileSale', 'mobileSaleReceipt', 'canReleaseMobileSubmission'])
 const shared = load('src/services/pda/shared.js', ['normalizeText', 'normalizeBottleNo', 'toNumber', 'todayDate', 'buildDepositPreviewRows'])
@@ -28,7 +45,7 @@ function harness(t, options = {}) {
 	let owner = options.owner || 'u1'
 	const requests = []
 	let reads = 0
-	const uni = {
+	const storageApis = {
 		getStorageSync: key => storage.get(key),
 		setStorageSync: (key, value) => { if (options.storageFails) throw new Error('quota'); storage.set(key, value) },
 		removeStorageSync: key => storage.delete(key)
@@ -36,7 +53,11 @@ function harness(t, options = {}) {
 	const module = load('src/composables/pda/usePdaSaleForm.js', ['usePdaSaleForm', 'resolveUsableBleScaleWeight'], {
 		...state, ...shared, ...customer, ...location, ...sale,
 		ref: vue.ref, computed: vue.computed, watch: vue.watch, onBeforeUnmount: () => {},
-		getUser: () => ({ _id: owner, mobile_sale_defaults: options.defaults }), uni, navigator: { onLine: true },
+		getUser: () => ({ _id: owner, mobile_sale_defaults: options.defaults }),
+		uni: options.h5TreeShaking ? {} : storageApis, navigator: { onLine: true },
+		$inject_uni_getStorageSync: storageApis.getStorageSync,
+		$inject_uni_setStorageSync: storageApis.setStorageSync,
+		$inject_uni_removeStorageSync: storageApis.removeStorageSync,
 		PDA_BLE_SCALE_DISPLAY_DECIMALS: 1, PDA_BLE_SCALE_DIVISION_STEP_KG: 0.1,
 		quantizeBleScaleWeightKg: weight => Math.round(weight * 10) / 10,
 		getPdaCustomerById: async () => { reads++; return { code: 0, data: options.customer || customerDoc } },
@@ -47,7 +68,7 @@ function harness(t, options = {}) {
 			return options.send ? options.send(id, payload, requests.length) : { code: 0, data: { operation_id: id, sale_id: 's1', source_saved: true, processing_state: 'completed', warnings: [] } }
 		},
 		getMobileSaleCreateResult: options.query || (async () => ({ code: 404, error_code: 'MOBILE_SALE_OPERATION_NOT_FOUND' }))
-	})
+	}, options.h5TreeShaking ? compileH5UniApis : undefined)
 	const scope = vue.effectScope()
 	const form = scope.run(() => module.usePdaSaleForm(options.initialValues))
 	t.after(() => scope.stop())
@@ -59,6 +80,31 @@ function harness(t, options = {}) {
 	}
 	return { form, storage, requests, fill, module, setOwner: value => { owner = value }, reads: () => reads }
 }
+
+test('production H5 API transform supports saving, restoring and clearing with an empty runtime uni object', t => {
+	const first = harness(t, { h5TreeShaking: true })
+	assert.equal(first.form.submissionLocked.value, false)
+	assert.equal(first.form.draftStatus.value.state, 'ready')
+	first.fill()
+	assert.equal(first.form.persistDraft(), true)
+	assert.equal(first.form.draftStatus.value.state, 'saved')
+	const restored = harness(t, { h5TreeShaking: true, storage: first.storage })
+	assert.equal(restored.form.draftStatus.value.available, true)
+	assert.equal(restored.form.restoreDraft(), true)
+	assert.equal(restored.form.form.value.customerId, 'c1')
+	assert.equal(restored.form.form.value.outItems[0].gross, '120.0')
+	assert.equal(restored.form.startNewSale(), true)
+	assert.equal(restored.storage.size, 0)
+	assert.equal(restored.form.submissionLocked.value, false)
+})
+
+test('production H5 storage adapter still blocks submission when the browser cannot save', async t => {
+	const h = harness(t, { h5TreeShaking: true, storageFails: true })
+	h.fill()
+	assert.equal((await h.form.submit()).code, 507)
+	assert.equal(h.requests.length, 0)
+	assert.equal(h.form.draftStatus.value.state, 'error')
+})
 
 test('account defaults seed a fresh sale, remain editable, and explicit initial values take precedence', t => {
 	const defaults = { delivery1: ' 配送甲 ', delivery2: '配送乙', vehicle_no: ' 测A12345 ' }

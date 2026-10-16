@@ -36,8 +36,8 @@ export function getCurrentPageUrl() {
 }
 
 export function setPendingLoginRedirect(url = '') {
-	const normalized = normalizePageUrl(url.split('?')[0]) ? normalizeText(url) : ''
-	if (!normalized || normalized === LOGIN_PATH) {
+	const normalized = normalizePageUrl(normalizeText(url))
+	if (!normalized || normalized.split(/[?#]/)[0] === LOGIN_PATH) {
 		uni.removeStorageSync(PENDING_LOGIN_REDIRECT_KEY)
 		return ''
 	}
@@ -57,10 +57,15 @@ export function consumePendingLoginRedirect() {
 
 export function goLogin(options = {}) {
 	const explicitRedirect = normalizeText(options.redirectUrl)
-	const fallbackRedirect = options.captureCurrent !== false ? getCurrentPageUrl() : ''
-	const redirectUrl = explicitRedirect || fallbackRedirect
-	setPendingLoginRedirect(redirectUrl)
-	uni.reLaunch({
+	const currentUrl = getCurrentPageUrl()
+	const currentPath = currentUrl.split(/[?#]/)[0]
+	if (explicitRedirect) setPendingLoginRedirect(explicitRedirect)
+	else if (options.captureCurrent === false) setPendingLoginRedirect('')
+	else if (currentUrl && currentPath !== LOGIN_PATH) setPendingLoginRedirect(currentUrl)
+	// App startup and a page guard can both arrive here. A late call from the
+	// login page (or an empty page stack) must retain the original destination.
+	if (currentPath === LOGIN_PATH) return
+	return uni.reLaunch({
 		url: LOGIN_PATH
 	})
 }
