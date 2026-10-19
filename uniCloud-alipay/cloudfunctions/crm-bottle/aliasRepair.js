@@ -23,9 +23,11 @@ const specs = {
   crm_reg_outbox: ['bottle_no', 'payload.bottle_no'],
   crm_reg_bottle_current: ['bottle_no']
 }
-async function readAll(db, table, where) {
-  const q = db.collection(table).where(where), total = Number((await q.count()).total)
-  if (!Number.isInteger(total) || total > 3000) throw Error('读取范围超限: ' + table)
+async function readAll(db, table, where, field) {
+  let q = db.collection(table).where(where)
+  if (field) q = q.field(field)
+  const total = Number((await q.count()).total)
+  if (!Number.isInteger(total) || total > 20000) throw Error('读取范围超限: ' + table)
   const rows = []
   while (rows.length < total) {
     const chunk = (await q.orderBy('_id', 'asc').skip(rows.length).limit(200).get()).data || []
@@ -40,11 +42,20 @@ async function snapshot(db) {
   tables.crm_bottles = await readAll(db, 'crm_bottles', { bottle_no: db.command.in(names) })
   const ids = tables.crm_bottles.map(x => x._id)
   for (const [table, fields] of Object.entries(specs)) {
-    if (table === 'crm_bottles') continue
+    if (['crm_bottles', 'crm_sale_records'].includes(table)) continue
     const where = db.command.or(fields.map(field => ({ [field]: db.command.in(/(?:bottle_id|entity_id)$/.test(field) ? ids : names) })))
     try { tables[table] = await readAll(db, table, where) }
     catch (e) { if (String(e.message).trim() !== 'not found collection') throw e; tables[table] = []; absent.push(table) }
   }
+  // Alipay nested array predicates do not reliably return sale rows. Scan the complete
+  // identity projection and fetch exact original documents, including reverse movement links.
+  const saleIds = new Set(tables.crm_bottle_movements.filter(x => x.source_type === 'sale').map(x => x.source_id))
+  const tokens = new Set([...names, ...ids])
+  const contains = v => Array.isArray(v) ? v.some(contains) : v && typeof v === 'object' ? Object.values(v).some(contains) : tokens.has(v)
+  const rows = await readAll(db, 'crm_sale_records', {}, Object.fromEntries(['_id', ...saleArrays].map(k => [k, true])))
+  for (const row of rows) if (contains(row)) saleIds.add(row._id)
+  tables.crm_sale_records = saleIds.size ? await readAll(db, 'crm_sale_records', { _id: db.command.in([...saleIds]) }) : []
+  if (tables.crm_sale_records.length !== saleIds.size) throw Error('流转源销售单缺失')
   return { tables, absent, hash: digest({ tables, absent }) }
 }
 function replaceRefs(value, noMap, idMap, key = '') {
@@ -76,7 +87,12 @@ function plan(before, helpers) {
     writes.push({ table: 'crm_bottles', id: keep._id, before: keep, after })
     summaries.push({ from: short, to: padded, kept_id: keep._id, removed_id: drop._id, movement_count: moves.length, status: after.status, pending: state.skip_reason || '' })
   }
-  if (tables.crm_reg_outbox.length || tables.crm_reg_bottle_current.length) conflicts.push({ field: 'regulator_records', message: '监管记录需另行核对' })
+  if (tables.crm_reg_outbox.some(x => noMap[x.bottle_no] && ['pending', 'retrying'].includes(x.status))) conflicts.push({ field: 'regulator_queue', message: '短号存在未发送监管任务，需先处理' })
+  // Sent payloads remain immutable historical evidence; remove only obsolete current projections.
+  for (const row of tables.crm_reg_bottle_current) if (noMap[row.bottle_no]) {
+    if (!tables.crm_reg_bottle_current.some(x => x.station_id === row.station_id && x.bottle_no === noMap[row.bottle_no])) throw Error('补零监管当前档案缺失')
+    writes.push({ table: 'crm_reg_bottle_current', id: row._id, before: row, after: null })
+  }
   for (const [table, rows] of Object.entries(tables)) {
     if (['crm_bottles', 'crm_reg_outbox', 'crm_reg_bottle_current'].includes(table)) continue
     for (const row of rows) {
