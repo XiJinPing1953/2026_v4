@@ -11,6 +11,7 @@ function publicStatus(op) {
 	const targets = op.targets || []
 	return {
 		...op.summary, operation_id: op.operation_id, status: op.status,
+		...(op.status === 'failed' && op.rejected_before_save === true && !saved ? { rejected: true } : {}),
 		accepted_total: (op.rows || []).length, success: saved, saved_total: saved,
 		pending_save_total: Math.max((op.rows || []).length - saved, 0),
 		processed_total: Number(op.target_cursor || 0), target_total: targets.length,
@@ -104,6 +105,7 @@ function createFillingOperations({ db, saveRow, synchronizeRow, scanTarget, now 
 			if (!error.lostLease) {
 				const attempts = Number(op.attempts || 0) + 1
 				await checkpoint({ status: attempts >= 5 || error.permanent ? 'failed' : 'pending', attempts,
+					...(error.reweighRejectedBeforeSave ? { rejected_before_save: true } : {}),
 					last_error: String(error.message || error).slice(0, 600),
 					next_retry_at: now() + Math.min(60000 * 2 ** (attempts - 1), 900000), lease_id: '', lease_until: 0 })
 			}
@@ -128,9 +130,13 @@ function createFillingOperations({ db, saveRow, synchronizeRow, scanTarget, now 
 			const byId = new Map(found.map((row) => [row._id, row]))
 			for (const row of expected) {
 				const source = byId.get(row._id)
-				sourceRecords.push({ _id: row._id, bottle_no: row.bottle_no, saved: Boolean(source),
+				const matches = Boolean(source && source.operation_id === op.operation_id && source.source_version === row.source_version && source.updated_at === row.updated_at)
+				// For a correction, an existing *old* source is not proof this operation committed.
+				const saved = op.summary?.operation_kind === 'reweigh_correct'
+					? matches || Number(op.saved_cursor || 0) > offset + expected.indexOf(row) : Boolean(source)
+				sourceRecords.push({ _id: row._id, bottle_no: row.bottle_no, saved,
 					source_version: source ? source.source_version : null,
-					version_matches: Boolean(source && source.operation_id === op.operation_id && source.source_version === row.source_version && source.updated_at === row.updated_at),
+					version_matches: matches,
 					consistency_status: source ? source.consistency_status || '' : 'not_saved' })
 			}
 		}
@@ -142,6 +148,7 @@ function createFillingOperations({ db, saveRow, synchronizeRow, scanTarget, now 
 		const found = await status(user, data)
 		if (found.code !== 0) return found
 		const op = await get(data.operation_id)
+		if (op.rejected_before_save === true) return response(op)
 		await operations.where({ _id: op._id, lease_until: db.command.lte(now()), status: db.command.neq('complete') }).update({ status: 'pending', attempts: 0, next_retry_at: 0, updated_at: now() })
 		return response(await run(op.operation_id, { maxMs: 6000 }))
 	}

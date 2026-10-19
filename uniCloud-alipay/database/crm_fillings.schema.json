@@ -35,6 +35,42 @@
     "fill_weight": {
       "bsonType": "number"
     },
+    "entry_source": {
+      "bsonType": "string",
+      "description": "pda_reweigh标识按有效回瓶依据核算的复秤源单"
+    },
+    "reweigh": {
+      "bsonType": "object",
+      "additionalProperties": false,
+      "required": ["tare_weight", "gross_weight", "net_weight", "basis", "label", "capture_method", "measured_at"],
+      "properties": {
+        "tare_weight": { "bsonType": "number" },
+        "gross_weight": { "bsonType": "number" },
+        "net_weight": { "bsonType": "number" },
+        "basis": { "bsonType": "object", "description": "仅供内部核算：回瓶源单、原始重量、业务时间与版本" },
+        "label": {
+          "bsonType": "object",
+          "additionalProperties": false,
+          "required": ["company", "bottle_no", "tare_weight", "gross_weight", "net_weight"],
+          "properties": {
+            "company": { "bsonType": "string" },
+            "bottle_no": { "bsonType": "string" },
+            "tare_weight": { "bsonType": "number" },
+            "gross_weight": { "bsonType": "number" },
+            "net_weight": { "bsonType": "number" }
+          },
+          "description": "后续打印与二维码唯一数据源；不包含回瓶依据或灌装量"
+        },
+        "capture_method": { "bsonType": "string", "enum": ["ble", "manual"] },
+        "capture": { "bsonType": ["object", "null"] },
+        "original_ble_capture": { "bsonType": ["object", "null"] },
+        "measured_at": { "bsonType": "number" },
+        "reason": { "bsonType": "string" },
+        "corrected_by": { "bsonType": ["string", "null"] },
+        "corrected_by_name": { "bsonType": "string" },
+        "corrected_at": { "bsonType": ["number", "null"] }
+      }
+    },
     "weight_start": {
       "bsonType": [
         "number",

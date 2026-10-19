@@ -2,14 +2,14 @@
 	<view class="fill-preview">
 		<text class="preview-title">待新增明细 · {{ items.length }} / {{ total }} 条 · 异常优先</text>
 		<view class="preview-head">
-			<text>行 / 瓶号</text><text>上秤 kg</text><text>灌完 kg</text><text>净重 kg</text><text>上秤差 kg</text><text>核查状态</text><text>来源</text>
+			<text>行 / 瓶号</text><text>上秤 kg</text><text>灌完 kg</text><text>{{ weightLabel }} kg</text><text>上秤差 kg</text><text>核查状态</text><text>来源</text>
 		</view>
 		<view v-for="item in items" :key="`${item.line_no}-${item.bottle_no}`" class="preview-entry">
 			<view class="preview-row" :class="{ 'has-warning': item.warning_reason }">
 				<view class="bottle-cell"><text class="line-number">{{ item.line_no }} 行</text><text class="bottle-number">{{ item.bottle_no }}</text></view>
 				<view class="weight-cell"><text class="mobile-label">上秤</text><text>{{ weight(item.weight_start) }}</text></view>
 				<view class="weight-cell"><text class="mobile-label">灌完</text><text>{{ weight(item.weight_end) }}</text></view>
-				<view class="weight-cell"><text class="mobile-label">净重</text><text>{{ weight(item.fill_weight) }}</text></view>
+				<view class="weight-cell"><text class="mobile-label">{{ weightLabel }}</text><text>{{ weight(item.fill_weight) }}</text></view>
 				<view class="weight-cell"><text class="mobile-label">上秤差</text><text>{{ weight(item.start_loss_weight) }}</text></view>
 				<view class="status-cell">
 					<text :class="item.warning_reason ? 'warning-text' : 'normal-text'">{{ flowStatus(item) }}</text>
@@ -30,7 +30,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-const props = defineProps({ items: { type: Array, default: () => [] }, total: { type: Number, default: 0 }, flowChecked: { type: Boolean, default: false } })
+const props = defineProps({ items: { type: Array, default: () => [] }, total: { type: Number, default: 0 }, flowChecked: { type: Boolean, default: false }, weightLabel: { type: String, default: '净重' } })
 const expanded = ref({})
 watch(() => props.items, () => { expanded.value = {} })
 function toggle(line) { expanded.value = { ...expanded.value, [line]: !expanded.value[line] } }

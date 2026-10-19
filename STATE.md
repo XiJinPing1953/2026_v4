@@ -137,7 +137,7 @@
 
 ## 未完成与继续条件
 
-- 灌装/PDA/导入候选已按09-28用户要求合入main，尚未发布。隔离支付宝云事务/调度、监管隔离及PDA现场验收仍需实际证据；不重复派发已完成的工程实现。[候选验收](state/handoffs/2026-09-09-mainline-entry-acceptance.md)。
+- 2026-10-19 PDA复秤已实现，正做隔离云验收和发布；用户已授权核查通过直接发布、随后指导真机查看。打印暂跳过，标签/二维码仅含企业名、瓶号及皮毛净重。原PDA工位候选现场验收仍未完成；本轮状态与证据见[复秤交接](state/handoffs/2026-10-19-pda-reweigh.md)。
 - 部分历史内嵌收款仍缺到账依据，按客户逐项核实；通用规则通过不等于全部客户账务已核清。[账务领域](state/domains/accounting.md)。
 - 全仓schema存在入户巡检双份差异，单批范围检查不代表全仓一致；不夹带修正。销售持久写入等后续范围见[里程碑](docs/SYSTEM_MAINLINE.md)。
 - 聚力特、浩诺已确认结果与历史截止范围见[汇总交接](state/handoffs/2026-09-08-customer-period-summary.md)、[浩诺重建](state/handoffs/2026-09-08-haonuo-rebuild.md)。不强迫后续当前余额等于历史截止余额。

@@ -2,7 +2,7 @@
 	<AppPage :title="pageTitle" :subtitle="pageSubtitle" icon="bottle">
 		<template #headerActions>
 			<AppButton size="sm" kind="neutral" :disabled="submitting" @click="onCancel">取消</AppButton>
-			<AppButton size="sm" kind="primary" :loading="submitting" icon="check-circle" @click="onSubmit">
+			<AppButton size="sm" kind="primary" :loading="submitting" :disabled="isLoadingDetail || correctionBusy || correctionFrozen || !canUpdate" icon="check-circle" @click="onSubmit">
 				{{ submitText }}
 			</AppButton>
 		</template>
@@ -27,26 +27,53 @@
 							<text class="pill-value">{{ operatorLabel }}</text>
 						</view>
 						<view class="info-pill">
-							<text class="pill-label">灌装净重</text>
+							<text class="pill-label">{{ fillWeightLabel }}</text>
 							<text class="pill-value">{{ weightSummary }}</text>
 						</view>
 				</view>
 			</AppCard>
 
 			<view class="form-body">
-				<AppSection title="灌装作业信息">
+				<AppSection v-if="isReweigh" title="PDA复秤重量">
+                    <view class="form-grid">
+                        <AppInput :model-value="showWeight(record.reweigh.tare_weight)" label="皮重（kg）" readonly size="sm" />
+                        <AppInput :model-value="showWeight(record.reweigh.gross_weight)" label="毛重（kg）" readonly size="sm" />
+                        <AppInput :model-value="showWeight(record.reweigh.net_weight)" label="净重（kg）" readonly size="sm" />
+                        <AppInput :model-value="showWeight(record.fill_weight)" label="本次灌装量（kg）" readonly size="sm" />
+                        <text class="correction-hint span-2">回瓶依据：{{ record.reweigh.basis?.date || '—' }} · 毛重 {{ showWeight(record.reweigh.basis?.gross_weight) }} kg</text>
+                        <text class="correction-hint span-2">回瓶依据仅供系统核算与查询，不进入标签或二维码。本阶段暂不打印。</text>
+                    </view>
+                </AppSection>
+                <AppSection v-if="isReweigh && canCorrect" title="人工更正重量">
+                    <view class="form-grid">
+                        <AppInput v-model="correctionForm.gross_weight" label="更正毛重（kg）" inputmode="decimal" :readonly="correctionFrozen || correctionBusy" size="sm" />
+                        <AppInput v-model="correctionForm.reason" label="更正原因（必填）" placeholder="说明更正原因" :readonly="correctionFrozen || correctionBusy" size="sm" />
+                        <text class="correction-hint span-2">系统根据档案皮重与已核对回瓶依据核算更正后的净重和本次灌装量。原始蓝牙称重证据保留。</text>
+                        <text v-if="correctionStatus" class="correction-hint span-2">{{ correctionStatus }}</text>
+                        <text v-if="correctionError" class="correction-error span-2">{{ correctionError }}</text>
+                        <text v-if="correctionPayload" class="correction-hint span-2">提交编号：{{ correctionPayload.operation_id }}</text>
+                        <view class="correction-actions span-2">
+                            <AppButton v-if="!correctionFrozen" size="sm" kind="primary" :loading="correctionBusy" :disabled="submitting || isLoadingDetail" @click="submitCorrection">核对并更正</AppButton>
+                            <AppButton v-if="correctionFrozen" size="sm" kind="neutral" :loading="correctionBusy" @click="refreshCorrection">查询状态</AppButton>
+                            <AppButton v-if="correctionFrozen" size="sm" kind="primary" :loading="correctionBusy" @click="recoverCorrection">按原提交重试</AppButton>
+                        </view>
+                    </view>
+                </AppSection>
+                <AppSection title="灌装作业信息">
 					<view class="form-grid">
 						<view class="form-item span-2">
-							<FillingTimePicker :model-value="form.date" label="灌装日期" @update:modelValue="value => onDateChange({ detail: { value } })" />
+							<AppInput v-if="isReweigh" :model-value="form.date" label="灌装日期" readonly size="sm" />
+							<FillingTimePicker v-else :model-value="form.date" label="灌装日期" @update:modelValue="value => onDateChange({ detail: { value } })" />
 							</view>
 							<view class="form-item">
-								<picker class="picker-full" mode="selector" :range="recordTypeOptions" range-key="label" @change="onRecordTypeChange">
+								<picker class="picker-full" :disabled="isReweigh" mode="selector" :range="recordTypeOptions" range-key="label" @change="onRecordTypeChange">
 									<AppInput :model-value="recordTypeLabel" label="作业类型" placeholder="请选择作业类型" disabled prefix-icon="list" size="sm" />
 								</picker>
 							</view>
 							<view class="form-item">
 								<AppInput
 									v-model="form.bottle_no"
+									:readonly="isReweigh"
 									:label="bottleInputLabel"
 									:placeholder="bottleInputPlaceholder"
 									prefix-icon="bottle"
@@ -54,10 +81,10 @@
 								/>
 							</view>
 						<view class="form-item">
-							<AppInput v-model="form.fill_weight" label="灌装净重" placeholder="0.00" size="sm" />
+							<AppInput v-model="form.fill_weight" :label="fillWeightLabel" :readonly="isReweigh" placeholder="0.00" size="sm" />
 						</view>
 							<view class="form-item">
-								<picker class="picker-full" mode="selector" :range="operatorOptions" range-key="label" @change="onOperatorChange">
+								<picker class="picker-full" :disabled="isReweigh" mode="selector" :range="operatorOptions" range-key="label" @change="onOperatorChange">
 									<AppInput :model-value="operatorLabel" label="操作人" placeholder="请选择操作人" disabled prefix-icon="user" size="sm" />
 								</picker>
 							</view>
@@ -83,6 +110,8 @@ import AppInput from '@/components/base/AppInput.vue'
 import FillingTimePicker from './FillingTimePicker.vue'
 import { createFillingV1, getFillingV1, updateFillingV1 } from '@/services/filling'
 import { searchDeliveriesV1 } from '@/services/delivery'
+import { useAuthGuard } from '@/composables/useAuthGuard'
+import { useReweighCorrection } from '@/composables/useReweighCorrection'
 
 const RECORD_TYPE_OPTIONS = [
 	{ label: '常规灌装', value: 'normal_fill' },
@@ -133,6 +162,18 @@ function normalizeId(value) {
 	return normalizeString(value)
 }
 
+const record = ref(null)
+const { canPageAction } = useAuthGuard()
+const canUpdate = computed(() => isEditMode.value
+    ? canPageAction('/pages/filling/edit', 'update') || canPageAction('/pages/filling/list', 'update')
+    : canPageAction('/pages/filling/list', 'create'))
+const canCorrect = computed(() => canPageAction('/pages/filling/edit', 'update'))
+const isReweigh = computed(() => record.value?.entry_source === 'pda_reweigh')
+const fillWeightLabel = computed(() => normalizeRecordType(form.record_type) === 'normal_fill' ? '本次灌装量' : '净重')
+const showWeight = (value) => value != null && Number.isFinite(Number(value)) ? Number(value).toFixed(1) : '—'
+const { form: correctionForm, frozen: correctionPayload, busy: correctionBusy, error: correctionError,
+    isFrozen: correctionFrozen, statusText: correctionStatus, submit: submitCorrection, refresh: refreshCorrection,
+    recover: recoverCorrection } = useReweighCorrection({ record, canUpdate: canCorrect, onComplete: () => loadDetail(recordId.value) })
 const submitting = ref(false)
 const isLoadingDetail = ref(false)
 const operatorOptions = ref([])
@@ -151,7 +192,7 @@ const form = reactive({
 const isEditMode = computed(() => Boolean(String(recordId.value || '').trim()))
 const pageTitle = computed(() => (isEditMode.value ? '灌装作业编辑' : '灌装作业录入'))
 const pageSubtitle = computed(() => (isEditMode.value ? 'FILLING EDIT' : 'FILLING RECORD'))
-const submitText = computed(() => (isEditMode.value ? '保存修改' : '保存灌装记录'))
+const submitText = computed(() => (isReweigh.value ? '保存备注' : isEditMode.value ? '保存修改' : '保存灌装记录'))
 
 const recordTypeOptions = computed(() => RECORD_TYPE_OPTIONS)
 const dateSummary = computed(() => String(form.date || '').trim() || '未选择')
@@ -280,7 +321,18 @@ async function loadOperatorOptions() {
 }
 
 async function onSubmit() {
-	if (submitting.value || isLoadingDetail.value) return
+	if (submitting.value || isLoadingDetail.value || correctionBusy.value || correctionFrozen.value || !canUpdate.value) return
+	if (isReweigh.value) {
+		submitting.value = true
+		try {
+			const result = await updateFillingV1({ _id: recordId.value, remark: String(form.remark || '').trim() })
+			if (result?.code !== 0) throw new Error(result?.msg || '保存备注失败')
+			await loadDetail(recordId.value)
+			uni.showToast({ title: '备注已保存', icon: 'success' })
+		} catch (err) { uni.showToast({ title: err.message || '保存失败', icon: 'none' }) }
+		finally { submitting.value = false }
+		return
+	}
 	if (!String(form.date || '').trim()) {
 		uni.showToast({ title: '日期必填', icon: 'none' })
 		return
@@ -353,33 +405,27 @@ function onCancel() {
 	uni.navigateBack({ delta: 1 })
 }
 
-watch(
-	recordId,
-	async (id) => {
-		const normalized = String(id || '').trim()
-		if (!normalized) return
-		isLoadingDetail.value = true
-		try {
-			const res = await getFillingV1({ _id: normalized })
-			if (res?.code !== 0) {
-				uni.showToast({ title: res?.msg || '加载失败', icon: 'none' })
-				return
-			}
-				const row = res.data || {}
-				form.date = String(row.filling_time || row.date || '')
-				form.bottle_no = String(row.bottle_no || '')
-				form.record_type = normalizeRecordType(row.record_type)
-				form.operator = normalizeString(row.operator || row.created_by_name)
-				form.operator_id = normalizeId(row.operator_id || row.created_by)
-				form.fill_weight = String(row.fill_weight ?? '')
-				form.remark = String(row.remark || '')
-				ensureOperatorOptionByCurrent()
-			} finally {
-				isLoadingDetail.value = false
-			}
-		},
-		{ immediate: true }
-)
+async function loadDetail(id) {
+    const normalized = String(id || '').trim()
+    if (!normalized) return
+    isLoadingDetail.value = true
+    try {
+        const res = await getFillingV1({ _id: normalized })
+        if (res?.code !== 0) throw new Error(res?.msg || '加载失败')
+        const row = res.data || {}
+        form.date = String(row.filling_time || row.date || '')
+        form.bottle_no = String(row.bottle_no || '')
+        form.record_type = normalizeRecordType(row.record_type)
+        form.operator = normalizeString(row.operator || row.created_by_name)
+        form.operator_id = normalizeId(row.operator_id || row.created_by)
+        form.fill_weight = String(row.fill_weight ?? '')
+        form.remark = String(row.remark || '')
+        record.value = row
+        ensureOperatorOptionByCurrent()
+    } catch (err) { uni.showToast({ title: err.message || '加载失败', icon: 'none' }) }
+    finally { isLoadingDetail.value = false }
+}
+watch(recordId, loadDetail, { immediate: true })
 
 onMounted(() => {
 	loadOperatorOptions()
@@ -387,6 +433,9 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.correction-hint { font-size: 24rpx; color: var(--crm-text-muted); line-height: 1.6; overflow-wrap: anywhere; }
+.correction-error { font-size: 24rpx; color: #b45309; line-height: 1.6; }
+.correction-actions { display: flex; flex-wrap: wrap; gap: 12rpx; }
 .edit-container {
 	padding-bottom: 48rpx;
 	display: flex;

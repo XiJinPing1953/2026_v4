@@ -3,6 +3,7 @@ const { authorizeMobileSaleEffect } = require('./mobileSaleEffectsLocal')
 
 const { inventoryTon, kgToTon } = require('./gasInventoryPrecisionLocal')
 const { resolveWeighingCorrection } = require('./weighingCorrection')
+const { createReweighService } = require('./reweighService')
 
 
 const flowRules = require('./bottleFlowRulesLocal')
@@ -60,6 +61,9 @@ const BOTTLE_FLOW_WARNING_KIND = 'bottle_flow_mismatch'
 const FILLING_START_LOSS_ADJUST_REASON = 'filling_start_weight_loss'
 const START_LOSS_SYNC_LIMIT = 2000
 const PAGE_ACTION_RULES = {
+	previewReweighV1: [{ pagePath: '/pages/pda/reweigh', action: 'view' }, { pagePath: '/pages/filling/edit', action: 'view' }],
+	createReweighV1: [{ pagePath: '/pages/pda/reweigh', action: 'create' }],
+	correctReweighV1: [{ pagePath: '/pages/pda/reweigh', action: 'update' }, { pagePath: '/pages/filling/edit', action: 'update' }],
 	capabilitiesV1: [{ pagePath: '/pages/filling/list', action: 'create' }, { pagePath: '/pages/pda/filling-create', action: 'create' }],
 	getOperationV1: [{ pagePath: '/pages/filling/list', action: 'view' }, { pagePath: '/pages/pda/filling-create', action: 'view' }],
 	listOperationsV1: [{ pagePath: '/pages/filling/list', action: 'view' }, { pagePath: '/pages/pda/filling-create', action: 'view' }],
@@ -103,6 +107,14 @@ const SUPERADMIN_ONLY_ACTIONS = [
 	'cleanupNoSaleMovementsV1',
 	'normalizeDatesV1'
 ]
+// Reweigh has its own action permissions; it does not grant general filling edits.
+for (const action of ['capabilitiesV1', 'getOperationV1', 'listOperationsV1', 'retryOperationV1', 'getV1']) {
+	PAGE_ACTION_RULES[action].push({ pagePath: '/pages/pda/reweigh', action: action === 'retryOperationV1' ? 'update' : 'view' })
+}
+PAGE_ACTION_RULES.capabilitiesV1.push({ pagePath: '/pages/filling/edit', action: 'update' })
+PAGE_ACTION_RULES.getOperationV1.push({ pagePath: '/pages/filling/edit', action: 'view' })
+PAGE_ACTION_RULES.retryOperationV1.push({ pagePath: '/pages/filling/edit', action: 'update' })
+PAGE_ACTION_RULES.retryOperationV1.push({ pagePath: '/pages/pda/reweigh', action: 'create' })
 
 function roundTo(value, digits = 3) {
 	const num = Number(value)
@@ -696,6 +708,8 @@ async function fetchFillingsRowsByWhere(where, { limit = FILLED_UNSOLD_SCAN_LIMI
 				filling_time: true,
 				record_type: true,
 				fill_weight: true,
+				entry_source: true,
+				reweigh: true,
 				operator: true,
 				operator_id: true,
 				created_by_name: true,
@@ -1018,6 +1032,7 @@ async function fetchFillingsByWhere(where, limit = BATCH_UPDATE_LIMIT) {
 			.skip(skip)
 			.limit(pageSize)
 			.field({
+				entry_source: true,
 				_id: true,
 				bottle_no: true,
 				date: true,
@@ -3072,6 +3087,20 @@ async function updateV1(user, data, requestId, token) {
 	const oldRes = await fillings.doc(id).get()
 	const oldDoc = (oldRes.data && oldRes.data[0]) || null
 	if (!oldDoc) return { code: 404, msg: '记录不存在' }
+	if (oldDoc.entry_source === 'pda_reweigh') {
+		const identity = { bottle_no: oldDoc.bottle_no, record_type: oldDoc.record_type,
+			fill_weight: oldDoc.fill_weight, date: oldDoc.filling_time || oldDoc.date,
+			operator: oldDoc.operator, operator_id: oldDoc.operator_id }
+		if (Object.entries(identity).some(([key, value]) => data[key] != null && String(data[key]) !== String(value)) ||
+			['weight_start', 'weight_end', 'actual_net_weight', 'reweigh'].some(key => Object.prototype.hasOwnProperty.call(data, key))) {
+			return { code: 409, msg: '复秤单的重量请通过复秤或人工更正入口修改；瓶号、作业时间和操作人保留原记录' }
+		}
+		const pending = await checkPendingFillingEdit(oldDoc)
+		if (pending) return pending
+		const changed = await fillings.where({ _id: id, source_version: oldDoc.source_version, updated_at: oldDoc.updated_at })
+			.update({ remark: normalizeString(data.remark != null ? data.remark : oldDoc.remark), updated_at: Date.now(), source_version: Number(oldDoc.source_version) + 1 })
+		return Number(changed.updated) ? { code: 0, msg: '备注已更新', data: {} } : { code: 409, msg: '原记录已变化，请刷新后重试' }
+	}
 	const weighingCorrection = resolveWeighingCorrection(data, oldDoc)
 	if (!weighingCorrection.ok) return weighingCorrection
 	const pendingEdit = await checkPendingFillingEdit(oldDoc)
@@ -3707,6 +3736,7 @@ async function fetchOperatorRepairRows(ids = []) {
 	const res = await fillings
 		.where({ _id: dbCmd.in(ids) })
 		.field({
+			entry_source: true,
 			_id: true,
 			bottle_no: true,
 			date: true,
@@ -3733,6 +3763,7 @@ async function batchUpdateOperatorV1(user, data, requestId) {
 	if (!parsed.ok) return { code: 400, msg: parsed.msg }
 	const payload = parsed.data
 	const beforeRows = await fetchOperatorRepairRows(payload.ids)
+	if (beforeRows.some(row => row.entry_source === 'pda_reweigh')) return { code: 409, msg: '复秤单保留原录入员，不能批量更改' }
 	const inspection = inspectOperatorRepairRows(beforeRows, payload)
 
 	if (payload.preview) {
@@ -3780,7 +3811,8 @@ async function batchUpdateOperatorV1(user, data, requestId) {
 		.where({
 			_id: dbCmd.in(payload.ids),
 			date: payload.expected_date,
-			operator: payload.expected_operator
+			operator: payload.expected_operator,
+			entry_source: dbCmd.neq('pda_reweigh')
 		})
 		.update({
 			operator: payload.operator,
@@ -3939,6 +3971,7 @@ async function batchUpdateDateV1(user, data, requestId, token) {
 		const res = await fillings
 			.where({ _id: dbCmd.in(ids) })
 			.field({
+				entry_source: true,
 				_id: true,
 				bottle_no: true,
 				date: true,
@@ -4016,6 +4049,7 @@ async function batchUpdateDateV1(user, data, requestId, token) {
 		try {
 			const pendingEdit = await checkPendingFillingEditById(rowId)
 			if (pendingEdit) throw new Error(pendingEdit.msg)
+			if (row.entry_source === 'pda_reweigh') throw new Error('复秤单保留原灌装时间，不能批量调整日期')
 			if (inventoryLinked && bottleNo) {
 				const hasDuplicate = await hasDuplicateFillingByDateBottle(payload.new_date, bottleNo, rowId)
 				if (hasDuplicate) {
@@ -4298,6 +4332,7 @@ async function checkPendingFillingEdit(doc) {
 
 async function checkPendingFillingEditById(id) {
 	const doc = ((await fillings.doc(id).get()).data || [])[0]
+	if (doc?.entry_source === 'pda_reweigh') return { code: 409, msg: '复秤单保留原业务时间和录入员，不能批量修改' }
 	return checkPendingFillingEdit(doc)
 }
 
@@ -4320,6 +4355,7 @@ async function saveOperationFillingRow(row, op, user) {
 	// Frozen operations are persisted first; a crash before this transaction is recoverable.
 	const transaction = await db.startTransaction()
 	const started = Date.now()
+	let commitAttempted = false
 	// Transaction doc.get differs from ordinary queries in the uniCloud SDK.
 	const txDoc = async (query) => {
 		const result = await query.get()
@@ -4328,6 +4364,38 @@ async function saveOperationFillingRow(row, op, user) {
 	try {
 		const txFillings = transaction.collection('crm_fillings')
 		const previous = await txDoc(txFillings.doc(row._id))
+		if (op.summary?.operation_kind === 'reweigh_correct') {
+			if (previous && previous.operation_id === op.operation_id && previous.source_version === row.source_version && previous.updated_at === row.updated_at) {
+				await transaction.rollback(); return
+			}
+			const before = row._reweigh_before
+			if (!previous || !before || previous.entry_source !== 'pda_reweigh' || previous.consistency_status !== 'complete' ||
+				previous.source_version !== before.source_version || previous.updated_at !== before.updated_at) {
+				throw Object.assign(new Error('原复秤单已变化或被删除，旧更正操作不能覆盖'), { permanent: true })
+			}
+			await reweighService.validateSources(row, transaction)
+			const { _id, _reweigh_before, _reweigh_guard, ...doc } = row
+			// The transaction read above and the commit conflict check protect this version.
+			const changed = await txFillings.doc(_id)
+				.update({ ...doc, reweigh: dbCmd.set(doc.reweigh) })
+			if (!Number(changed.updated)) throw Object.assign(new Error('原复秤单版本冲突'), { permanent: true })
+			const movement = transaction.collection('crm_bottle_movements')
+			const fillId = `${row._id}_fill`
+			const oldFill = await txDoc(movement.doc(fillId))
+			if (!oldFill || oldFill.source_id !== row._id) throw Object.assign(new Error('原灌装流转依据缺失，请先核查'), { permanent: true })
+			await movement.doc(fillId).update({ net_weight: row.fill_weight, source_version: row.source_version, updated_at: row.updated_at })
+			const inventory = buildFillingGasMovementPayload({ sourceId: row._id, date: row.filling_time || row.date,
+				bottleNo: row.bottle_no, recordType: row.record_type, fillWeight: row.fill_weight, remark: row.remark, now: row.updated_at, user })
+			const gas = transaction.collection('crm_gas_inventory_movements')
+			const gasId = `${row._id}_gas`
+			const oldGas = await txDoc(gas.doc(gasId))
+			if (!inventory || !oldGas || oldGas.source_id !== row._id) throw Object.assign(new Error('原灌装库存依据缺失，请先核查'), { permanent: true })
+			await gas.doc(gasId).update({ ...inventory, source_version: row.source_version })
+			if (Date.now() - started >= 8000) throw new Error('复秤更正事务接近时限，回滚后重试')
+			commitAttempted = true
+			await transaction.commit()
+			return { transaction_ms: Date.now() - started }
+		}
 		if (previous) {
 			if (previous.operation_id !== op.operation_id || Number(previous.source_version) !== row.source_version || previous.updated_at !== row.updated_at) {
 				throw Object.assign(new Error('源记录已变更，旧操作不会覆盖新版本'), { permanent: true })
@@ -4335,6 +4403,7 @@ async function saveOperationFillingRow(row, op, user) {
 			await transaction.rollback()
 			return
 		}
+		if (row.entry_source === 'pda_reweigh') await reweighService.validateSources(row, transaction)
 		if (Number(op.saved_cursor || 0) > Number(op.row_cursor || 0)) throw Object.assign(new Error('已保存源记录被删除，旧操作不会重建'), { permanent: true })
 		const inventoryLinked = isInventoryLinkedRecordType(row.record_type)
 		if (inventoryLinked && row.bottle_no) {
@@ -4365,13 +4434,17 @@ async function saveOperationFillingRow(row, op, user) {
 		const inventory = buildFillingGasMovementPayload({ sourceId: row._id, date: row.filling_time || row.date, bottleNo: row.bottle_no,
 			recordType: row.record_type, fillWeight: row.fill_weight, remark: row.remark, now: row.created_at, user })
 		if (inventory) await transaction.collection('crm_gas_inventory_movements').add({ _id: `${row._id}_gas`, ...inventory, source_version: row.source_version })
-		await txFillings.add(row)
+		const { _reweigh_before, _reweigh_guard, ...sourceRow } = row
+		await txFillings.add(sourceRow)
 		// Leave headroom for commit; never race an uncancelled write against a JS timer.
 		if (Date.now() - started >= 8000) throw new Error('源单事务接近时限，回滚后自动重试')
+		commitAttempted = true
 		await transaction.commit()
 		return { transaction_ms: Date.now() - started }
 	} catch (error) {
-		await transaction.rollback().catch(() => {})
+		let rolledBack = false
+		await transaction.rollback().then(() => { rolledBack = true }).catch(() => {})
+		if (row.entry_source === 'pda_reweigh' && error.permanent && rolledBack && !commitAttempted && !Number(op.saved_cursor || 0)) error.reweighRejectedBeforeSave = true
 		throw error
 	}
 }
@@ -4381,6 +4454,8 @@ async function synchronizeOperationFillingRow(row, op, user) {
 	if (!current || current.source_version !== row.source_version || current.updated_at !== row.updated_at) {
 		throw Object.assign(new Error('源记录版本不匹配，旧操作已停止'), { permanent: true })
 	}
+	// External facts were checked inside the source transaction. After commit, resume
+	// its frozen effects even if later sale/payment facts change; only source version gates replay.
 	if (isInventoryLinkedRecordType(row.record_type) && row.bottle_no) {
 		await replaceFillingStartLossAdjustmentForDoc(current, user)
 		await syncBottleCurrentStatusByBottleNos([row.bottle_no])
@@ -4426,6 +4501,8 @@ async function scanOperationTarget(target, cursor, op) {
 
 const fillingOperations = createFillingOperations({ db,
 	saveRow: saveOperationFillingRow, synchronizeRow: synchronizeOperationFillingRow, scanTarget: scanOperationTarget })
+const reweighService = createReweighService({ db, operations: fillingOperations,
+	submitCreate: submitPreparedFillings, stableId: stableFillingId, now: () => Date.now() })
 
 async function dispatch(event, context) {
 	// Only the platform context can authorize a timer; never trust event.type/source.
@@ -4448,10 +4525,25 @@ async function dispatch(event, context) {
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
-	if (action === 'capabilitiesV1') return { code: 0, data: { rule_version: VERSION, durable_operations: true, source_status_query: true, source_payload_hash: true } }
+	if (action === 'capabilitiesV1') return { code: 0, data: { rule_version: VERSION, durable_operations: true, source_status_query: true, source_payload_hash: true, reweigh_durable: true } }
+	if (action === 'previewReweighV1') return reweighService.preview(data)
+	if (action === 'createReweighV1') return reweighService.submit(user, data, 'create')
+	if (action === 'correctReweighV1') {
+		const requiredPage = data.capture_method === 'manual' ? '/pages/filling/edit' : '/pages/pda/reweigh'
+		if (!hasPagePermission(user, requiredPage, 'update')) return { code: 403, msg: '无权执行该方式的重量更正', data: { rejected: true } }
+		return reweighService.submit(user, data, 'correct')
+	}
 	if (action === 'getOperationV1') return fillingOperations.status(user, data)
 	if (action === 'listOperationsV1') return fillingOperations.list(user)
-	if (action === 'retryOperationV1') return fillingOperations.retry(user, data)
+	if (action === 'retryOperationV1') {
+		const op = await fillingOperations.get(data.operation_id)
+		if (op?.summary?.operation_kind?.startsWith('reweigh_')) {
+			const create = op.summary.operation_kind === 'reweigh_create'
+			const page = !create && op.rows?.[0]?.reweigh?.capture_method === 'manual' ? '/pages/filling/edit' : '/pages/pda/reweigh'
+			if (!hasPagePermission(user, page, create ? 'create' : 'update')) return { code: 403, msg: '无权恢复该复秤操作' }
+		}
+		return fillingOperations.retry(user, data)
+	}
 	if ((action === 'batchCreateV1' && !data.preview) || action === 'createV1') {
 		const prior = await fillingOperations.existing(user, data)
 		if (prior) return prior

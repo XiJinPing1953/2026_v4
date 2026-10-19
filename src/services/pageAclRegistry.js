@@ -200,6 +200,7 @@ export const PAGE_REGISTRY = [
 	{ pagePath: '/pages/pda/filling-station', label: 'PDA 灌装工位', group: 'pda', supports: { view: true, create: true, update: true } },
 	{ pagePath: '/pages/pda/filling-create', label: 'PDA 扫瓶创建任务', group: 'pda', supports: { view: true, create: true } },
 	{ pagePath: '/pages/pda/filling-complete', label: 'PDA 灌装完成确认', group: 'pda', supports: { view: true, update: true } },
+	{ pagePath: '/pages/pda/reweigh', label: 'PDA 复秤', group: 'pda', supports: { view: true, create: true, update: true } },
 	{ pagePath: '/pages/pda/sale-create', label: 'PDA 销售录入', group: 'pda', supports: { view: true, create: true } }
 ]
 

@@ -25,7 +25,9 @@ const GROUP_DEFAULTS = {
 		safetyInspectionHub: { view: true, create: false, update: false, delete: false },
 		stationSafetyInspection: { view: true, create: true, update: true, delete: false },
 		stationSafetyHazard: { view: true, create: false, update: true, delete: false },
-		stationSafetyInspectionExport: { view: true, create: false, update: false, delete: false }
+		stationSafetyInspectionExport: { view: true, create: false, update: false, delete: false },
+		safetyManagement: { view: true, create: true, update: true, delete: false },
+		safetyManagementSettings: { view: true, create: false, update: true, delete: false }
 	},
 	admin: {
 		dashboard: { view: true, create: false, update: false, delete: false },
@@ -125,7 +127,9 @@ const GROUP_DEFAULTS = {
 		safetyInspectionHub: { view: true, create: false, update: false, delete: false },
 		stationSafetyInspection: { view: true, create: true, update: false, delete: false },
 		stationSafetyHazard: { view: true, create: false, update: true, delete: false },
-		stationSafetyInspectionExport: { view: false, create: false, update: false, delete: false }
+		stationSafetyInspectionExport: { view: false, create: false, update: false, delete: false },
+		safetyManagement: { view: true, create: true, update: true, delete: false },
+		safetyManagementSettings: { view: true, create: false, update: false, delete: false }
 	}
 }
 
@@ -153,6 +157,7 @@ const PAGE_REGISTRY = [
 	{ pagePath: '/pages/delivery/list', label: '配送员列表', group: 'deliveries', supports: { view: true, create: true, update: true, delete: true } },
 	{ pagePath: '/pages/delivery/edit', label: '配送员录入', group: 'deliveries', supports: { view: true, create: true, update: true } },
 	{ pagePath: '/pages/filling/list', label: '灌装记录', group: 'filling', supports: { view: true, create: true, update: true, delete: true } },
+	{ pagePath: '/pages/gas-closure/index', label: '天然气闭环', group: 'filling', supports: { view: true, create: false, update: false, delete: false } },
 	{ pagePath: '/pages/filling/edit', label: '灌装录入', group: 'filling', supports: { view: true, update: true } },
 	{ pagePath: '/pages/gas-in/list', label: '天然气库存', group: 'gas', supports: { view: true, create: true, update: true, delete: true } },
 	{ pagePath: '/pages/gas-in/edit', label: '天然气入库录入', group: 'gas', supports: { view: true, create: true, update: true } },
@@ -163,6 +168,7 @@ const PAGE_REGISTRY = [
 	{ pagePath: '/pages/accounting/ledger-general', label: '总账', group: 'accounting', supports: { view: true } },
 	{ pagePath: '/pages/accounting/ledger-sub', label: '明细账', group: 'accounting', supports: { view: true } },
 	{ pagePath: '/pages/accounting/trial-balance', label: '试算平衡', group: 'accounting', supports: { view: true } },
+	{ pagePath: '/pages/accounting/reconciliation-center', label: '对账中心', group: 'accounting', supports: { view: true, update: true } },
 	{ pagePath: '/pages/accounting/report-summary', label: '报表汇总', group: 'accounting', supports: { view: true } },
 	{ pagePath: '/pages/accounting/period-list', label: '账期管理', group: 'accounting', supports: { view: true, create: true, update: true, delete: true } },
 	{ pagePath: '/pages/accounting/receivable-detail', label: '往来明细', group: 'accounting', supports: { view: true } },
@@ -170,6 +176,12 @@ const PAGE_REGISTRY = [
 	{ pagePath: '/pages/collection/task-detail', label: '追款详情', group: 'collection', supports: { view: true, update: true } },
 	{ pagePath: '/pages/log/list', label: '操作日志', group: 'logs', supports: { view: true } },
 	{ pagePath: '/pages/user/list', label: '用户管理', group: 'userAdmin', supports: { view: true, create: true, update: true, delete: true } },
+	{ pagePath: '/pages/safety-management/home', label: '企业安全管理', group: 'safetyManagement', supports: { view: true } },
+	{ pagePath: '/pages/safety-management/daily', label: '每日安全生产检查', group: 'safetyManagement', supports: { view: true, create: true, update: true } },
+	{ pagePath: '/pages/safety-management/weekly', label: '每周安全生产排查', group: 'safetyManagement', supports: { view: true, create: true, update: true } },
+	{ pagePath: '/pages/safety-management/monthly', label: '每月安全生产调度', group: 'safetyManagement', supports: { view: true, create: true, update: true } },
+	{ pagePath: '/pages/safety-management/settings', label: '安全管理岗位配置', group: 'safetyManagementSettings', supports: { view: true, update: true } },
+	{ pagePath: '/pages/safety-management/print', label: '安全管理台账打印', group: 'safetyManagement', supports: { view: true } },
 	{ pagePath: '/pages/safety-inspection/home', label: '安全巡检工作台', group: 'safetyInspectionHub', supports: { view: true } },
 	{ pagePath: '/pages/home-safety-inspection/home', label: '入户随瓶安全巡检', group: 'homeSafetyInspection', supports: { view: true } },
 	{ pagePath: '/pages/home-safety-inspection/form', label: '填写入户巡检单', group: 'homeSafetyInspection', supports: { view: true, create: true, update: true } },
@@ -190,6 +202,7 @@ const PAGE_REGISTRY = [
 	{ pagePath: '/pages/pda/filling-station', label: 'PDA 灌装工位', group: 'pda', supports: { view: true, create: true, update: true } },
 	{ pagePath: '/pages/pda/filling-create', label: 'PDA 扫瓶创建任务', group: 'pda', supports: { view: true, create: true } },
 	{ pagePath: '/pages/pda/filling-complete', label: 'PDA 灌装完成确认', group: 'pda', supports: { view: true, update: true } },
+	{ pagePath: '/pages/pda/reweigh', label: 'PDA 复秤', group: 'pda', supports: { view: true, create: true, update: true } },
 	{ pagePath: '/pages/pda/sale-create', label: 'PDA 销售录入', group: 'pda', supports: { view: true, create: true } }
 ]
 

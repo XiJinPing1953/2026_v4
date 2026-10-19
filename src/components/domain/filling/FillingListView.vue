@@ -19,7 +19,7 @@
 				/>
 				<AppStatCard
 					class="summary-card"
-					label="常规灌装净重"
+					label="本次灌装量合计"
 					:value="normalFillWeightText"
 					:hint="normalFillCountHint"
 					icon="plus"
@@ -223,7 +223,7 @@
 											<text class="resolve-value">{{ formatDerivedBasisRef(singleCreateResolveResult) }}</text>
 										</view>
 										<view class="resolve-line">
-											<text class="resolve-label">推导净重</text>
+											<text class="resolve-label">{{ getFillWeightLabel(singleCreateForm.record_type) }}</text>
 											<text class="resolve-value">{{ formatWeightValue(singleCreateResolveResult.derived_fill_weight) }}kg</text>
 										</view>
 									</view>
@@ -307,6 +307,7 @@
 								:items="batchCreatePreviewCreateItems"
 								:total="Number(batchCreatePreviewResult.target_total || 0)"
 								:flow-checked="batchCreateForm.record_type !== 'truck_out_no_sale'"
+								:weight-label="getFillWeightLabel(batchCreateForm.record_type)"
 							/>
 							<view v-if="batchCreatePreviewExistingItems.length" class="batch-detail-block">
 								<text class="batch-detail-title">已存在冲突（前 {{ batchCreatePreviewExistingItems.length }} 条）</text>
@@ -379,6 +380,7 @@
 					>
 						<template #right>
 							<view class="weight-box">
+								<text class="weight-label">{{ getFillWeightLabel(item.record_type) }}</text>
 								<text class="weight-value">{{ item.fill_weight }}</text>
 								<text class="weight-unit">kg</text>
 							</view>
@@ -386,6 +388,8 @@
 							<template #meta>
 								<view class="meta-tags">
 									<AppTag kind="soft">{{ getRecordTypeLabel(item.record_type) }}</AppTag>
+									<AppTag v-if="item.entry_source === 'pda_reweigh'" kind="soft">PDA复秤</AppTag>
+									<text v-if="item.entry_source === 'pda_reweigh' && item.reweigh" class="meta-text">皮重 {{ formatWeightValue(item.reweigh.tare_weight) }} · 毛重 {{ formatWeightValue(item.reweigh.gross_weight) }} · 净重 {{ formatWeightValue(item.reweigh.net_weight) }} kg</text>
 									<AppTag v-if="item.consistency_status && item.consistency_status !== 'complete'" kind="warning">保存及流转核查处理中</AppTag>
 									<AppTag v-if="item.operator" kind="soft">操作人: {{ item.operator }}</AppTag>
 									<text v-if="item.remark" class="meta-text">{{ item.remark }}</text>
@@ -687,7 +691,7 @@ const singleCreateBottleHint = computed(() =>
 				: '可不填瓶号。'
 )
 const singleCreateWeightLabel = computed(() =>
-	singleCreateInputMode.value === 'after_fill_total' ? '灌后总重(kg)' : '灌装净重(kg)'
+	singleCreateInputMode.value === 'after_fill_total' ? '灌后总重(kg)' : `${getFillWeightLabel(singleCreateForm.record_type)}(kg)`
 )
 const singleCreateWeightPlaceholder = computed(() =>
 	singleCreateInputMode.value === 'after_fill_total' ? '请输入灌后总重' : '请输入大于0的数值'
@@ -2377,11 +2381,15 @@ function formatExportNumber(value) {
 	return num.toFixed(6).replace(/\.?0+$/, '')
 }
 
+function getFillWeightLabel(type) {
+	return normalizeRecordType(type, 'normal_fill') === 'normal_fill' ? '本次灌装量' : '净重'
+}
+
 function buildFillingExportCsv(rows = []) {
 	const columns = [
 		{ label: '日期', get: (row) => normalizeString(row?.filling_time || row?.date) },
 		{ label: '瓶号', get: (row) => normalizeString(row?.bottle_no) },
-		{ label: '净重(kg)', get: (row) => formatExportNumber(row?.fill_weight) },
+		{ label: rows.every((row) => normalizeRecordType(row.record_type, 'normal_fill') === 'normal_fill') ? '本次灌装量(kg)' : rows.some((row) => normalizeRecordType(row.record_type, 'normal_fill') === 'normal_fill') ? '本次灌装量/代理及车辆净重(kg)' : '净重(kg)', get: (row) => formatExportNumber(row?.fill_weight) },
 		{ label: '作业类型', get: (row) => getRecordTypeLabel(row?.record_type) },
 		{ label: '操作人', get: (row) => normalizeString(row?.operator || row?.created_by_name) },
 		{ label: '备注', get: (row) => normalizeString(row?.remark) }
@@ -2394,7 +2402,7 @@ function buildFillingExportCsv(rows = []) {
 function buildFilledUnsoldExportCsv(rows = []) {
 	const columns = [
 		{ label: '瓶号', get: (row) => normalizeString(row?.bottle_no) },
-		{ label: '灌装净重(kg)', get: (row) => formatExportNumber(row?.fill_weight) }
+		{ label: '本次灌装量(kg)', get: (row) => formatExportNumber(row?.fill_weight) }
 	]
 	const header = columns.map((col) => toCsvCell(col.label)).join(',')
 	const body = rows.map((row) => columns.map((col) => toCsvCell(col.get(row))).join(','))
@@ -3054,8 +3062,12 @@ defineExpose({
 	gap: 12rpx;
 }
 
+.weight-label { width: 100%; font-size: 22rpx; color: var(--crm-text-muted); text-align: right; }
+
 .weight-box {
 	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
 	align-items: baseline;
 	gap: 4rpx;
 }
