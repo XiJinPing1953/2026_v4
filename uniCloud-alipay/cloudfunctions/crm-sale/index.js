@@ -8,7 +8,7 @@ const { readComplete, withFinancialEvidence, FinancialReadError } = require('./f
 
 const db = uniCloud.database()
 const dbCmd = db.command
-const { createService: createMobileSaleService, processingGuard: mobileSaleProcessingGuard } = require('./mobileSaleCreate')
+const { createService: createMobileSaleService } = require('./mobileSaleCreate')
 const mobileSaleService = createMobileSaleService({ db, createSale: createV2 })
 const {
 	fetchHiddenCustomerIds,
@@ -4167,6 +4167,7 @@ async function getV2(user, data) {
 		code: 0,
 		data: {
 			...applyRemarkMetaToDoc(doc),
+			mobile_create_review: await mobileSaleService.review(doc),
 			accounting,
 			out_net_total: amounts.out_net_total,
 			back_net_total: amounts.back_net_total,
@@ -4267,9 +4268,9 @@ async function quickReceiveV1(user, data, requestId, token) {
 	const res = await sales.doc(recordId).get()
 	const doc = (res.data && res.data[0]) || null
 	if (!doc) return { code: 404, msg: '记录不存在' }
-	const mobileGuard = mobileSaleProcessingGuard(doc)
-	if (mobileGuard) return mobileGuard
 	if (saleMentionsHiddenCustomer(doc, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
+	const mobileGuard = await mobileSaleService.guardMutation(doc)
+	if (mobileGuard) return mobileGuard
 	if (saleAccounting.resolveSettlementMode(doc) === 'customer_flow') {
 		return { code: 400, msg: '该销售单按客户对账页流量结算，不支持直接登记回款' }
 	}
@@ -4683,9 +4684,9 @@ async function updateV2(user, data, requestId, token) {
 	const existingRes = await sales.doc(recordId).get()
 	const existing = (existingRes.data && existingRes.data[0]) || null
 	if (!existing) return { code: 404, msg: '记录不存在' }
-	const mobileGuard = mobileSaleProcessingGuard(existing)
-	if (mobileGuard) return mobileGuard
 	if (saleMentionsHiddenCustomer(existing, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
+	const mobileGuard = await mobileSaleService.guardMutation(existing)
+	if (mobileGuard) return mobileGuard
 	try { await assertCustomerAdjustmentSourceMutable({ db, command: dbCmd, readComplete, customerId: existing.customer_id, targetType: 'sale', targetId: recordId }) }
 	catch (error) { return { code: error.code || 409, msg: error.message } }
 	saleAccounting.resolveSettlementMode(existing)
@@ -5131,9 +5132,9 @@ async function updateSettlementV1(user, data, requestId, token) {
 	const existingRes = await sales.doc(recordId).get()
 	const existing = (existingRes.data && existingRes.data[0]) || null
 	if (!existing) return { code: 404, msg: '记录不存在' }
-	const mobileGuard = mobileSaleProcessingGuard(existing)
-	if (mobileGuard) return mobileGuard
 	if (saleMentionsHiddenCustomer(existing, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
+	const mobileGuard = await mobileSaleService.guardMutation(existing)
+	if (mobileGuard) return mobileGuard
 	try { await assertCustomerAdjustmentSourceMutable({ db, command: dbCmd, readComplete, customerId: existing.customer_id, targetType: 'sale', targetId: recordId }) }
 	catch (error) { return { code: error.code || 409, msg: error.message } }
 	saleAccounting.resolveSettlementMode(existing)
@@ -5277,10 +5278,10 @@ async function removeV2(user, data, requestId, token) {
 	const saleRes = await sales.doc(recordId).get()
 	const saleDoc = (saleRes.data && saleRes.data[0]) || null
 	if (!saleDoc) return { code: 404, msg: '记录不存在' }
-	const mobileGuard = mobileSaleProcessingGuard(saleDoc)
-	if (mobileGuard) return mobileGuard
 	const hiddenCustomerIds = await fetchHiddenCustomerIds(customers)
 	if (saleMentionsHiddenCustomer(saleDoc, hiddenCustomerIds)) return { code: 404, msg: '记录不存在' }
+	const mobileGuard = await mobileSaleService.guardMutation(saleDoc)
+	if (mobileGuard) return mobileGuard
 
 	// Settlement release checks the whole customer ledger. Reject before deleting
 	// any source, voucher or movement if that later step cannot classify it.

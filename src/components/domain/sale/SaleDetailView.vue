@@ -19,6 +19,16 @@
 		</template>
 
 		<view class="detail-container">
+			<AppSection v-if="detail.mobile_create_review" title="手机销售处理状态">
+				<view class="info-grid">
+					<view class="info-item span-3"><text class="info-value">{{ mobileCreateStatusText }}</text></view>
+					<view v-for="warning in detail.mobile_create_review.warnings" :key="warning" class="info-item span-3"><text class="info-value">{{ warning }}</text></view>
+					<view class="info-item span-3"><text class="info-label">{{ detail.mobile_create_review.mutation_blocked ? '原请求仍在执行，请稍后刷新再修改。' : '可按现有权限编辑、结算或删除；原创建告警保留，不自动重试关联处理。' }}</text></view>
+					<view class="info-item span-3"><text class="info-label">核对本页出回瓶及金额，通过“客户对账”核对收款和余额；瓶流转异常在钢瓶档案中查看。</text></view>
+					<view class="info-item span-3"><text class="info-label">销售单号：{{ detail._id }}</text></view>
+				</view>
+				<AppButton size="sm" kind="neutral" @click="refreshDetail(true)">刷新处理状态</AppButton>
+			</AppSection>
 			<AppSection v-if="accountingUnresolved" title="结算归属待核">
 				<text>此历史销售单未明确结算归属。请核对对应流量结算后再处理账务；应收和欠款暂不计算。原始销售与流转资料仍可查看。</text>
 			</AppSection>
@@ -347,6 +357,7 @@ const canViewStatement = computed(() => canViewPage('/pages/customer/statement')
 
 const recordId = toRef(props, 'recordId')
 const detail = ref({})
+const mobileCreateStatusText = computed(() => ({ completed: '已保存，创建关联处理完成', processing: '已保存，关联处理中', pending_review: '已保存，关联处理待核' }[detail.value.mobile_create_review?.processing_state] || '已保存，处理状态待确认'))
 const accountingUnresolved = computed(() => detail.value?.accounting?.status === 'unresolved')
 const removing = ref(false)
 const ticketImageLoading = ref(false)

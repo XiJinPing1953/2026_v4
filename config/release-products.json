@@ -6,26 +6,37 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.16-safety-auto-time",
+      "version": "2026.10.19-mobile-sale-review",
       "output": "dist/build/web",
-      "acceptance": "H5 only: opening a new station inspection records start time, first valid submission records end time, and dates default to Beijing today. Read-only times, resume/retry idempotency, and historical timestamps preserved. Cloud functions listed for dependency verification only; no backend/schema deployment or business-record changes.",
+      "acceptance": "Allow ordinary authorized edits/deletion of pending-review mobile sales; retain bounded active-create concurrency guard and permanent idempotency receipts. Expose creation warnings in sale details without replaying financial side effects. H5 and crm-sale only; no schema or historical business-content changes.",
       "deploymentScope": {
         "functions": [
-          "crm-station-safety-inspection",
-          "crm-safety-management"
+          "crm-sale"
         ],
         "databaseFiles": [],
-        "baseCommit": "b6266d83be6b3ee09a184ef584e84227ed0728e5",
+        "baseCommit": "5902dec",
         "sourceFiles": [
-          "src/components/domain/stationSafetyInspection/StationSafetyInspectionFormView.vue"
-        ]
+          "src/components/domain/sale/SaleDetailView.vue"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.16-mobile-qr-return-only",
+      "version": "2026.10.19-mobile-sale-review",
       "output": "release/cloud",
-      "acceptance": "Support return-only mobile sales using ordinary web signed-return accounting. Repair camera QR decoding for the existing printed labels while preserving local processing, lifecycle and target-session guards. Verify selected-row weighing and retain 0.5 kg division, registered-bottle validation and idempotency. H5 and crm-sale only; no schema or historical-record changes. OPPO and iPhone field acceptance remains separate.",
+      "acceptance": "Allow ordinary authorized edits/deletion of pending-review mobile sales; retain bounded active-create concurrency guard and permanent idempotency receipts. Expose creation warnings in sale details without replaying financial side effects. H5 and crm-sale only; no schema or historical business-content changes.",
       "deploymentScope": {
         "functions": [
           "crm-sale"

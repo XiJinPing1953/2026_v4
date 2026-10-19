@@ -433,14 +433,44 @@ test('same-key insert collision with winner not yet visible stays unknown and ne
   const queried=await h.invoke('getMobileCreateResultV1',{operation_id:'mobile-test-0001'})
   assert.equal(queried.code,404);assert.equal(queried.data.source_saved,null)
 })
-test('pending-review source cannot use ordinary edit or delete as an implicit side-effect retry',async()=>{
-  const h=harness({write:async name=>{if(name==='crm_bottle_movements')throw Error('failed movement')}})
-  const result=await h.invoke('createMobileV1',h.input()),before=h.writes.length
+test('pending-review sale allows authorized ordinary mutation and preserves original receipt on retry',async()=>{
   for(const action of ['updateV2','updateSettlementV1','quickReceiveV1','removeV2']) {
-    const blocked=await h.invoke(action,{recordId:result.data.sale_id,payload:payload(),amountReceived:1},'admin')
-    assert.equal(blocked.error_code,'MOBILE_SALE_PROCESSING');assert.equal(blocked.data.processing_state,'pending_review')
+    let failOnce=true
+    const h=harness({write:async name=>{if(name==='crm_bottle_movements'&&failOnce){failOnce=false;throw Error('failed movement')}}})
+    const input=h.input(), result=await h.invoke('createMobileV1',input)
+    assert.equal(result.data.processing_state,'pending_review')
+    const detail=await h.invoke('getV2',{_id:result.data.sale_id},'admin')
+    assert.equal(detail.data.mobile_create_review.mutation_blocked,false)
+    assert.match(detail.data.mobile_create_review.warnings.join(' '),/failed movement/)
+    assert.equal(JSON.stringify(detail).includes('side_effect_token_hash'),false)
+    const mutation=await h.invoke(action,{recordId:result.data.sale_id,payload:payload(),amountReceived:1},'admin')
+    assert.notEqual(mutation.error_code,'MOBILE_SALE_PROCESSING',JSON.stringify(mutation))
+    if(['updateV2','removeV2'].includes(action)) assert.equal(mutation.code,0,JSON.stringify(mutation))
+    const before=h.writes.length, replay=await h.invoke('createMobileV1',input)
+    assert.equal(replay.data.processing_state,'pending_review');assert.equal(h.writes.length,before)
+    assert.equal(h.tables[M.OPERATIONS].length,1)
   }
-  assert.equal(h.writes.length,before)
+})
+test('expired interrupted create unlocks, closes old capability, and never recreates after deletion',async()=>{
+  const h=harness({afterCommit:async(journal,count)=>{if(count===1)throw Error('commit response lost')}}),input=h.input()
+  const result=await h.invoke('createMobileV1',input),source=h.tables.crm_sale_records[0]
+  source.created_at=Date.now()-8*60*1000
+  h.tables[M.OPERATIONS][0].created_at=source.created_at
+  const detail=await h.invoke('getV2',{_id:source._id},'admin')
+  assert.equal(detail.data.mobile_create_review.processing_state,'pending_review')
+  assert.match(detail.data.mobile_create_review.warnings.join(' '),/执行时限/)
+  const removed=await h.invoke('removeV2',{recordId:result.data.sale_id},'admin')
+  assert.equal(removed.code,0,JSON.stringify(removed))
+  assert.equal(h.tables[M.OPERATIONS][0].processing_state,'pending_review')
+  const before=h.writes.length,replay=await h.invoke('createMobileV1',input)
+  assert.equal(replay.data.source_exists,false);assert.equal(h.writes.length,before)
+})
+test('ordinary sale permissions remain required to review or modify a mobile sale',async()=>{
+  const h=harness(),result=await h.invoke('createMobileV1',h.input())
+  for(const action of ['getV2','updateV2','removeV2']) {
+    const response=await h.invoke(action,{_id:result.data.sale_id,recordId:result.data.sale_id,payload:payload()})
+    assert.equal(response.code,403,JSON.stringify(response))
+  }
 })
 test('receipt lookup outage before processing preserves unknown; no frozen request can be replaced',async()=>{
   const h=harness({read:async name=>{if(name===M.OPERATIONS)throw Error('lookup unavailable')}})

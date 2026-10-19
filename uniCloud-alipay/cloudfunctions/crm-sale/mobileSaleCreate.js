@@ -90,12 +90,17 @@ function warningsFrom(result) {
   return [...new Set([...(Array.isArray(result?.data?.warnings) ? result.data.warnings : []),
     ...text(result?.data?.warning).split('；')].map(text).filter(Boolean))]
 }
-function processingGuard(doc) {
-  if (doc?.mobile_create_operation_key && ['processing', 'pending_review'].includes(doc.mobile_create_state)) return {
-    code: 409, error_code: 'MOBILE_SALE_PROCESSING', msg: '手机销售已保存，关联处理尚未确认完成，请先核查原操作，勿修改或删除',
-    data: { sale_id: doc._id, source_saved: true, processing_state: doc.mobile_create_state }
-  }
-  return null
+// Alipay non-timer invocations stop after 180 s. Allow another full invocation
+// for an already-started downstream call, plus one minute of margin.
+const ACTIVE_CREATE_MS = 7 * 60 * 1000
+function processingGuard(doc, now = Date.now()) {
+  if (!doc?.mobile_create_operation_key || doc.mobile_create_state !== 'processing') return null
+  const started = Number(doc.created_at)
+  const remaining = Number.isFinite(started) && started > 0 ? Math.max(0, ACTIVE_CREATE_MS - (now - started)) : 0
+  if (!remaining) return null
+  return { code: 409, error_code: 'MOBILE_SALE_PROCESSING',
+    msg: '手机销售正在保存关联内容，请稍后重试；可在销售单详情查看处理状态',
+    data: { sale_id: doc._id, source_saved: true, processing_state: 'processing', retry_after_seconds: Math.ceil(remaining / 1000) } }
 }
 function createService({ db, createSale }) {
   const one = async (table, id) => first(await db.collection(table).where({ _id: id }).limit(1).get())
@@ -176,6 +181,48 @@ function createService({ db, createSale }) {
       ...(operation.anomaly_refresh_job_id ? { anomaly_refresh_job_id: operation.anomaly_refresh_job_id,
         anomaly_refresh_state: operation.anomaly_refresh_state } : {})
     } }
+  }
+  // Called only after the ordinary sale action ACL and hidden-customer checks.
+  // Expose an explicit public DTO: never return the receipt's capability token/hash.
+  async function review(source) {
+    if (!source?.mobile_create_operation_key) return null
+    let operation
+    try {
+      operation = await one(OPERATIONS, source.mobile_create_operation_key)
+      if (!operation || operation.sale_id !== source._id || operation.created_by !== source.created_by) {
+        return { processing_state: 'pending_review', warnings: ['创建凭据缺失或与销售单不一致，请核对本单账务和瓶流转'], mutation_blocked: Boolean(processingGuard(source)) }
+      }
+      if (operation.processing_state === 'processing' && operation.anomaly_refresh_job_id && source.mobile_create_state === 'processing') {
+        operation = await reconcileRefresh(operation, source)
+      }
+      const state = operation.processing_state
+      const blocked = state === 'processing' && Boolean(processingGuard(source))
+      const warnings = [...(operation.warnings || [])]
+      if (state === 'processing' && !blocked) warnings.push('原创建请求已超过执行时限，结果未完整确认；可按普通销售单修改或删除，请核对账务和瓶流转')
+      return { operation_id: operation.operation_id, processing_state: state === 'processing' && !blocked ? 'pending_review' : state,
+        warnings: [...new Set(warnings)], mutation_blocked: blocked,
+        anomaly_refresh_state: operation.anomaly_refresh_state || '' }
+    } catch (_) {
+      return { processing_state: 'pending_review', warnings: ['处理凭据暂时读取失败，请刷新详情重试'], mutation_blocked: Boolean(processingGuard(source)) }
+    }
+  }
+  async function guardMutation(source) {
+    if (!source?.mobile_create_operation_key || source.mobile_create_state !== 'processing') return null
+    const status = await review(source)
+    if (status.mutation_blocked) return processingGuard(source)
+    // A verified terminal receipt has already closed its capabilities. An expired
+    // orphan must also be closed before an ordinary edit; never replay old steps.
+    const operation = await one(OPERATIONS, source.mobile_create_operation_key)
+    if (operation?.sale_id === source._id && operation.created_by === source.created_by) {
+      if (operation.processing_state === 'processing') {
+        try { await writeState(operation, 'pending_review', status.warnings) }
+        catch (_) { return { code: 409, msg: '销售处理状态已变化，请刷新后重试', error_code: 'MOBILE_SALE_STATE_CHANGED' } }
+      }
+    } else {
+      await db.collection(SALES).where({ _id: source._id, mobile_create_operation_key: source.mobile_create_operation_key,
+        mobile_create_state: 'processing', created_at: source.created_at }).update({ mobile_create_state: 'pending_review' })
+    }
+    return null
   }
   async function assertBottles(payload) {
     const checked = new Map()
@@ -276,6 +323,6 @@ function createService({ db, createSale }) {
         warnings: [...new Set([...warnings, '处理回执未完整确认，请查询原操作，勿重复录入'])] } }
     }
   }
-  return { create, getResult }
+  return { create, getResult, review, guardMutation }
 }
 module.exports = { createService, processingGuard, normalizePayload, keyFor, OPERATIONS, SOURCE }
