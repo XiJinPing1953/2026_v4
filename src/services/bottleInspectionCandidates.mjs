@@ -1,11 +1,29 @@
-const collator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' })
+// Older Android custom bases have no Intl in their JavaScript service engine.
+const collator = typeof Intl !== 'undefined' && typeof Intl.Collator === 'function'
+ ? new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' })
+ : null
 const text = value => String(value ?? '').trim().toUpperCase()
+function compareNaturalText(left, right) {
+ const a = left.match(/\d+|\D+/g) || [], b = right.match(/\d+|\D+/g) || []
+ for (let i = 0; i < Math.min(a.length, b.length); i++) {
+  if (a[i] === b[i]) continue
+  if (/^\d+$/.test(a[i]) && /^\d+$/.test(b[i])) {
+   const x = a[i].replace(/^0+/, '') || '0', y = b[i].replace(/^0+/, '') || '0'
+   const difference = x.length - y.length || x.localeCompare(y)
+   if (difference) return difference
+  } else {
+   const difference = a[i].localeCompare(b[i])
+   if (difference) return difference
+  }
+ }
+ return a.length - b.length
+}
 export function compareInspectionBottles(a, b) {
  const left = text(a.bottle_no), right = text(b.bottle_no)
  if (!left !== !right) return left ? -1 : 1
  const ln = /^\d+$/.test(left), rn = /^\d+$/.test(right)
  if (ln !== rn) return ln ? -1 : 1
- return collator.compare(left, right) || left.localeCompare(right) || String(a._id).localeCompare(String(b._id))
+ return (collator ? collator.compare(left, right) : compareNaturalText(left, right)) || left.localeCompare(right) || String(a._id).localeCompare(String(b._id))
 }
 
 // Sort the complete filtered result before slicing pages; never present a partial load as complete.

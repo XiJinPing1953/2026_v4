@@ -19,6 +19,20 @@ test('numeric bottles precede prefixes, with stable leading-zero and duplicate-n
  assert.deepEqual(rows.sort(compareInspectionBottles).map(r=>r.bottle_no),['002','2','10','N2','N10',''])
  assert.ok(compareInspectionBottles({_id:'a',bottle_no:'N2'},{_id:'b',bottle_no:'N2'})<0)
 })
+test('imports and preserves natural bottle ordering without Intl on older PDA engines', async()=>{
+ const original = globalThis.Intl
+ let compareInspectionBottles
+ try {
+  globalThis.Intl = undefined
+  ;({compareInspectionBottles} = await import('../src/services/bottleInspectionCandidates.mjs?without-intl'))
+ } finally {
+  globalThis.Intl = original
+ }
+ const numbers = ['N10','10','N2','2','002','','N9007199254740993','N9007199254740992','N02A10','N2A2']
+ const rows = numbers.map((bottle_no,i)=>({_id:String(i),bottle_no}))
+ assert.deepEqual(rows.sort(compareInspectionBottles).map(r=>r.bottle_no),['002','2','10','N2','N2A2','N02A10','N10','N9007199254740992','N9007199254740993',''])
+ assert.ok(compareInspectionBottles({_id:'a',bottle_no:'N2'},{_id:'b',bottle_no:'N2'})<0)
+})
 test('rejects duplicate and incomplete pages instead of silently changing selection scope',async()=>{
  const {loadInspectionCandidates} = await load()
  await assert.rejects(loadInspectionCandidates(async()=>({code:0,data:[{_id:'a'},{_id:'a'}],total:2}),{}),/重复/)
