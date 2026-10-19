@@ -1932,7 +1932,8 @@ async function batchUpdateInspectionV2(user, data, requestId) {
 	const targetBottles = transaction ? transaction.collection('crm_bottles') : bottles
 	const failedItems = []
 	let success = 0
-	const chunkSize = 20
+	// The cloud transaction session must serialize its writes.
+	const chunkSize = transaction ? 1 : 20
 	for (let i = 0; i < targetRows.length; i += chunkSize) {
 		const chunk = targetRows.slice(i, i + chunkSize)
 		const jobs = chunk.map((doc) => {
