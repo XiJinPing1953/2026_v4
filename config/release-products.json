@@ -14,9 +14,11 @@
           "crm-sale"
         ],
         "databaseFiles": [],
-        "baseCommit": "5902dec",
+        "baseCommit": "5902decf14bf46a529f20635dec96ccfe3af8a0b",
         "sourceFiles": [
-          "src/components/domain/sale/SaleDetailView.vue"
+          "src/components/domain/sale/SaleDetailView.vue",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js"
         ],
         "aclCanonicalRevisions": {
           "crm-sale": {
