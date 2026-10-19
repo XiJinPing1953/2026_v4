@@ -36,7 +36,7 @@
 				</view>
 				<view class="module-heading">
 					<text class="module-heading__title">本次检验项目</text>
-					<text class="module-heading__hint">至少勾选一项；下次日期按每只瓶档已有周期自动计算</text>
+					<text class="module-heading__hint">至少勾选一项；未设周期时按瓶检3年、表检半年、阀检1年计算</text>
 				</view>
 				<checkbox-group class="module-grid" @change="onModuleChange">
 					<label v-for="module in moduleOptions" :key="module.key" class="module-card">
@@ -160,7 +160,7 @@
 				<view v-if="previewResult" class="result-card" :class="{ 'result-card--danger': previewResult.invalid_total > 0 }">
 					<text class="result-title">{{ previewResult.invalid_total > 0 ? '预检未通过' : '预检通过' }}</text>
 					<text class="result-line">目标 {{ previewResult.target_total }} 瓶 · 更新 {{ formatModuleLabels(previewResult.modules) }}</text>
-					<text v-if="previewResult.invalid_total > 0" class="result-line">有 {{ previewResult.invalid_total }} 瓶缺少所选项目的有效检测周期，本批未写入。</text>
+					<text v-if="previewResult.invalid_total > 0" class="result-line">有 {{ previewResult.invalid_total }} 瓶档案不存在或所选项目周期无效，本批未写入。</text>
 					<text v-for="item in previewResult.invalid_items" :key="`${item._id}-${item.bottle_no}`" class="result-line result-line--danger">
 						{{ item.bottle_no || item._id }}：{{ (item.missing_modules || []).join('、') }}
 					</text>
@@ -199,6 +199,7 @@ import AppTag from '@/components/base/AppTag.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { batchUpdateInspectionV2, searchBottlesV1 } from '@/services/bottle'
 import { loadInspectionCandidates } from '@/services/bottleInspectionCandidates.mjs'
+import DEFAULT_INSPECTION_CYCLES from '../../../../uniCloud-alipay/cloudfunctions/crm-bottle/inspectionCycles.json'
 
 const BATCH_LIMIT = 2000
 const CHECK_CYCLE_MONTHS = [6, 12, 24, 36]
@@ -460,8 +461,11 @@ function formatModuleDate(item, moduleKey) {
 }
 
 function formatModuleCycle(item, moduleKey) {
-	const cycle = Number(item?.[getModuleFields(moduleKey).cycle])
-	return CHECK_CYCLE_MONTHS.includes(cycle) ? `${cycle}个月` : '周期缺失'
+	const field = getModuleFields(moduleKey).cycle
+	const value = item?.[field]
+	const useDefault = normalizeString(value) === ''
+	const cycle = Number(useDefault ? DEFAULT_INSPECTION_CYCLES[field] : value)
+	return CHECK_CYCLE_MONTHS.includes(cycle) ? `${cycle}个月${useDefault ? '（默认）' : ''}` : '周期无效'
 }
 
 function formatModuleLabels(modules) {

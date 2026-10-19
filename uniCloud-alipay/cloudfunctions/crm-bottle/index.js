@@ -25,6 +25,7 @@ const bottleImportBackups = db.collection('crm_bottles_import_backups')
 
 const STATUS = ['unknown', 'in_station', 'at_customer', 'scrapped', 'lost']
 const CHECK_CYCLE_MONTHS = [6, 12, 24, 36]
+const DEFAULT_INSPECTION_CYCLES = require('./inspectionCycles.json')
 const INSPECTION_DUE_MODULES = ['bottle', 'gauge', 'valve']
 const INSPECTION_DUE_STATES = ['overdue', 'due_60d', 'overdue_or_due_60d']
 const BATCH_INSPECTION_LIMIT = 2000
@@ -1798,7 +1799,7 @@ function buildInspectionV2InvalidItems(rows, modules, missingIds = []) {
 		const missingModules = []
 		for (let j = 0; j < modules.length; j += 1) {
 			const meta = INSPECTION_V2_MODULES[modules[j]]
-			const cycle = Number(row[meta.cycleField])
+			const cycle = inspectionCycleMonths(row, meta)
 			if (!CHECK_CYCLE_MONTHS.includes(cycle)) missingModules.push(meta.label)
 		}
 		if (missingModules.length) {
@@ -1810,6 +1811,11 @@ function buildInspectionV2InvalidItems(rows, modules, missingIds = []) {
 		}
 	}
 	return invalidItems
+}
+
+function inspectionCycleMonths(row, meta) {
+	const value = row[meta.cycleField]
+	return normalizeString(value) === '' ? DEFAULT_INSPECTION_CYCLES[meta.cycleField] : Number(value)
 }
 
 async function loadBatchInspectionV2Targets(payload) {
@@ -1902,7 +1908,7 @@ async function batchUpdateInspectionV2(user, data, requestId) {
 	}
 
 	if (!previewData.can_execute) {
-		return { code: 409, msg: invalidItems.length ? '存在缺少检测周期的钢瓶，整批未更新' : '没有可更新的钢瓶', data: previewData }
+		return { code: 409, msg: invalidItems.length ? '存在档案不存在或检测周期无效的钢瓶，整批未更新' : '没有可更新的钢瓶', data: previewData }
 	}
 
 	const failedItems = []
@@ -1914,7 +1920,8 @@ async function batchUpdateInspectionV2(user, data, requestId) {
 			const patch = { updated_at: Date.now() }
 			for (let j = 0; j < payload.modules.length; j += 1) {
 				const meta = INSPECTION_V2_MODULES[payload.modules[j]]
-				const cycle = Number(doc[meta.cycleField])
+				const cycle = inspectionCycleMonths(doc, meta)
+				if (normalizeString(doc[meta.cycleField]) === '') patch[meta.cycleField] = cycle
 				patch[meta.checkField] = payload.inspection_date
 				patch[meta.nextField] = addMonthsDate(payload.inspection_date, cycle)
 			}

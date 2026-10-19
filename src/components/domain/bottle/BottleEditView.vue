@@ -188,6 +188,7 @@ import AppCard from '@/components/base/AppCard.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import { createBottleV1, getBottleV1, updateBottleV1 } from '@/services/bottle'
+import DEFAULT_INSPECTION_CYCLES from '../../../../uniCloud-alipay/cloudfunctions/crm-bottle/inspectionCycles.json'
 
 const props = defineProps({
 	recordId: { type: String, default: '' }
@@ -236,18 +237,18 @@ const form = reactive({
 	current_customer_name: '',
 	bottle_check_date: '',
 	bottle_next_check_date: '',
-	bottle_check_cycle_months: 12,
+	bottle_check_cycle_months: DEFAULT_INSPECTION_CYCLES.bottle_check_cycle_months,
 	pressure_gauge_no: '',
 	pressure_gauge_manufacturer: '',
 	pressure_gauge_range_min: '',
 	pressure_gauge_range_max: '',
 	pressure_gauge_check_date: '',
 	pressure_gauge_next_check_date: '',
-	pressure_gauge_cycle_months: 12,
+	pressure_gauge_cycle_months: DEFAULT_INSPECTION_CYCLES.pressure_gauge_cycle_months,
 	safety_valve_count: 2,
 	safety_valve_check_date: '',
 	safety_valve_next_check_date: '',
-	safety_valve_cycle_months: 12,
+	safety_valve_cycle_months: DEFAULT_INSPECTION_CYCLES.safety_valve_cycle_months,
 	remark: '',
 	is_active: true
 })
@@ -435,18 +436,18 @@ async function loadRecord(id) {
 	form.current_customer_name = doc.current_customer_name || ''
 	form.bottle_check_date = doc.bottle_check_date || ''
 	form.bottle_next_check_date = doc.bottle_next_check_date || ''
-	form.bottle_check_cycle_months = normalizeCycle(doc.bottle_check_cycle_months, 12)
+	form.bottle_check_cycle_months = normalizeCycle(doc.bottle_check_cycle_months, DEFAULT_INSPECTION_CYCLES.bottle_check_cycle_months)
 	form.pressure_gauge_no = doc.pressure_gauge_no || ''
 	form.pressure_gauge_manufacturer = doc.pressure_gauge_manufacturer || ''
 	form.pressure_gauge_range_min = toDisplayNumber(doc.pressure_gauge_range_min)
 	form.pressure_gauge_range_max = toDisplayNumber(doc.pressure_gauge_range_max)
 	form.pressure_gauge_check_date = doc.pressure_gauge_check_date || ''
 	form.pressure_gauge_next_check_date = doc.pressure_gauge_next_check_date || ''
-	form.pressure_gauge_cycle_months = normalizeCycle(doc.pressure_gauge_cycle_months, 12)
+	form.pressure_gauge_cycle_months = normalizeCycle(doc.pressure_gauge_cycle_months, DEFAULT_INSPECTION_CYCLES.pressure_gauge_cycle_months)
 	form.safety_valve_count = 2
 	form.safety_valve_check_date = doc.safety_valve_check_date || ''
 	form.safety_valve_next_check_date = doc.safety_valve_next_check_date || ''
-	form.safety_valve_cycle_months = normalizeCycle(doc.safety_valve_cycle_months, 12)
+	form.safety_valve_cycle_months = normalizeCycle(doc.safety_valve_cycle_months, DEFAULT_INSPECTION_CYCLES.safety_valve_cycle_months)
 	form.remark = doc.remark || ''
 	form.is_active = doc.is_active !== false
 }

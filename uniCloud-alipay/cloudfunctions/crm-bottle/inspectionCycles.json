@@ -1,0 +1,5 @@
+{
+  "bottle_check_cycle_months": 36,
+  "pressure_gauge_cycle_months": 6,
+  "safety_valve_cycle_months": 12
+}
