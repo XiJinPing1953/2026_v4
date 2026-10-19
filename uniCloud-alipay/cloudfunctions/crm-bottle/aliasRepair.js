@@ -54,7 +54,8 @@ async function snapshot(db) {
   const contains = v => Array.isArray(v) ? v.some(contains) : v && typeof v === 'object' ? Object.values(v).some(contains) : tokens.has(v)
   const rows = await readAll(db, 'crm_sale_records', {}, Object.fromEntries(['_id', ...saleArrays].map(k => [k, true])))
   for (const row of rows) if (contains(row)) saleIds.add(row._id)
-  tables.crm_sale_records = saleIds.size ? await readAll(db, 'crm_sale_records', { _id: db.command.in([...saleIds]) }) : []
+  tables.crm_sale_records = []
+  for (const id of [...saleIds].sort()) { const row = first(await db.collection('crm_sale_records').doc(id).get()); if (row) tables.crm_sale_records.push(row) }
   if (tables.crm_sale_records.length !== saleIds.size) throw Error('流转源销售单缺失')
   return { tables, absent, hash: digest({ tables, absent }) }
 }
