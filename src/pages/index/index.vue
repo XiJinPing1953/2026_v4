@@ -6,6 +6,7 @@
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import DashboardHome from '@/components/domain/dashboard/DashboardHome.vue'
+import { reLaunchOnce } from '@/services/navigation'
 import { getUser } from '@/services/auth'
 import { DEFAULT_HOME_PATH, isPdaAppMode, resolveHomePath } from '@/services/pda/entry'
 
@@ -20,7 +21,7 @@ onShow(() => {
 	const shouldRedirect = targetPath !== DEFAULT_HOME_PATH
 	redirecting.value = isPdaAppMode() || shouldRedirect
 	if (shouldRedirect) {
-		uni.reLaunch({ url: targetPath })
+		reLaunchOnce(targetPath).catch(error => { console.error('首页跳转失败', error) })
 	}
 })
 </script>

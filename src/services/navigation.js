@@ -55,6 +55,24 @@ export function consumePendingLoginRedirect() {
 	return redirect
 }
 
+let relaunchPending = null
+
+// App 启动、默认首页和登录页可能同时请求同一路由；共用完成回执。
+export function reLaunchOnce(url) {
+	const target = normalizePageUrl(url)
+	if (relaunchPending) {
+		if (relaunchPending.url === target) return relaunchPending.promise
+		return relaunchPending.promise.then(() => reLaunchOnce(target))
+	}
+	if (getCurrentPageUrl() === target) return Promise.resolve()
+	const state = { url: target }
+	state.promise = Promise.resolve().then(() => uni.reLaunch({ url: target })).finally(() => {
+		if (relaunchPending === state) relaunchPending = null
+	})
+	relaunchPending = state
+	return state.promise
+}
+
 export function goLogin(options = {}) {
 	const explicitRedirect = normalizeText(options.redirectUrl)
 	const currentUrl = getCurrentPageUrl()
@@ -65,9 +83,7 @@ export function goLogin(options = {}) {
 	// App startup and a page guard can both arrive here. A late call from the
 	// login page (or an empty page stack) must retain the original destination.
 	if (currentPath === LOGIN_PATH) return
-	return uni.reLaunch({
-		url: LOGIN_PATH
-	})
+	return reLaunchOnce(LOGIN_PATH)
 }
 
 export function handle401(message) {

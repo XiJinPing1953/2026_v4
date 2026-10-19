@@ -60,6 +60,7 @@ import { callCloud } from '@/services/api'
 import { setToken, setUser } from '@/services/auth'
 import { canViewPage } from '@/services/pageAcl'
 import { consumePendingLoginRedirect, setPendingLoginRedirect } from '@/services/navigation'
+import { reLaunchOnce } from '@/services/navigation'
 import { normalizeAppPagePath, resolveHomePath, resolveLoginRedirectForRuntime } from '@/services/pda/entry'
 
 const username = ref('')
@@ -101,7 +102,7 @@ async function onLogin() {
 		if (result.code !== 0) return
 		setToken(result.token || '')
 		setUser(result.user || null)
-		uni.reLaunch({ url: resolveRedirectPathAfterLogin(result.user || null) })
+		await reLaunchOnce(resolveRedirectPathAfterLogin(result.user || null))
 	} catch (e) {
 		console.error('login error', e)
 		uni.showToast({ title: '登录失败', icon: 'none' })

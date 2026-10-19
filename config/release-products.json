@@ -6,21 +6,21 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.19-pda-query-fix",
+      "version": "2026.10.19-pda-launch-fix",
       "output": "dist/build/web",
-      "acceptance": "PDA exact archive lookup and paged fallback; crm-bottle read-only resolution authorized for bottle-query page. No schema/data changes.",
+      "acceptance": "Frontend-only shared startup reLaunch guard. No cloud or schema changes. Manual PDA validation.",
       "deploymentScope": {
         "functions": [
           "crm-bottle"
         ],
         "databaseFiles": [],
-        "baseCommit": "a4f915fcf07faecf017049858bfdc839f88f2dfd",
+        "baseCommit": "5364227d174f613e63e72b409e248fc7feff4ba1",
         "sourceFiles": [
-          "src/components/domain/pda/PdaBottleQueryView.vue",
-          "src/services/pda/bottle.js",
-          "src/composables/pda/usePdaQueryScan.js",
-          "src/manifest.json",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js"
+          "src/App.vue",
+          "src/services/navigation.js",
+          "src/pages/index/index.vue",
+          "src/pages/login/login.vue",
+          "src/manifest.json"
         ]
       },
       "integrityScope": "deployment"
@@ -93,21 +93,21 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.6",
+      "version": "1.0.7",
       "output": "release/pda",
-      "acceptance": "PDA exact archive lookup and paged fallback; crm-bottle read-only resolution authorized for bottle-query page. No schema/data changes.",
+      "acceptance": "Frontend-only shared startup reLaunch guard. No cloud or schema changes. Manual PDA validation.",
       "deploymentScope": {
         "functions": [
           "crm-bottle"
         ],
         "databaseFiles": [],
-        "baseCommit": "a4f915fcf07faecf017049858bfdc839f88f2dfd",
+        "baseCommit": "5364227d174f613e63e72b409e248fc7feff4ba1",
         "sourceFiles": [
-          "src/components/domain/pda/PdaBottleQueryView.vue",
-          "src/services/pda/bottle.js",
-          "src/composables/pda/usePdaQueryScan.js",
-          "src/manifest.json",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js"
+          "src/App.vue",
+          "src/services/navigation.js",
+          "src/pages/index/index.vue",
+          "src/pages/login/login.vue",
+          "src/manifest.json"
         ]
       },
       "integrityScope": "deployment"

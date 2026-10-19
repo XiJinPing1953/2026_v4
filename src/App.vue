@@ -1,7 +1,7 @@
 <script>
 import { getUser, syncCurrentUser } from '@/services/auth'
 import { ensureLatestH5Bundle } from '@/services/h5VersionGuard'
-import { consumePendingLoginRedirect, goLogin } from '@/services/navigation'
+import { consumePendingLoginRedirect, goLogin, reLaunchOnce } from '@/services/navigation'
 import { canViewPage } from '@/services/pageAcl'
 import {
   normalizeAppPagePath,
@@ -50,12 +50,12 @@ export default {
         const runtimeRedirect = resolveLoginRedirectForRuntime(pendingRedirect, user)
         const redirectPath = normalizeAppPagePath(runtimeRedirect)
         if (runtimeRedirect && redirectPath && user && canViewPage(redirectPath, user)) {
-          await uni.reLaunch({ url: runtimeRedirect })
+          await reLaunchOnce(runtimeRedirect)
           return
         }
       }
       if (shouldRedirectToPreferredHome(currentPath, user)) {
-        await uni.reLaunch({ url: resolveHomePath(user) })
+        await reLaunchOnce(resolveHomePath(user))
       }
     }
   }
