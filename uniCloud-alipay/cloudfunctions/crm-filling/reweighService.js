@@ -3,6 +3,7 @@
 const { fingerprint } = require('./fillingPayloadLocal')
 const { calculateReweighWeights } = require('./reweighRules')
 const { resolveMeasuredReweighContext, bottleKey } = require('./returnReweighRules')
+const { touchBottleSources } = require('./bottleSourceGuardLocal')
 
 const text = value => value == null ? '' : String(value).trim()
 const bottleNo = value => text(value).toUpperCase().replace(/\s+/g, '')
@@ -165,6 +166,7 @@ function createReweighService({ db, operations, submitCreate, stableId, now = Da
 		// A shared per-bottle transaction write serializes return replacement and filling.
 		// A stale return preview cannot replace a basis after its filling commits.
 		await database.collection('crm_return_reweigh_state').doc(head._id).update({ consumed_filling_id: row._id })
+		await touchBottleSources(database, command, [row.bottle_no], now())
 	}
 	return { preview, submit, validateSources, readInputs }
 }

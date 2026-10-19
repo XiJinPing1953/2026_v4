@@ -2,6 +2,7 @@
 
 const { fingerprint } = require('./fillingPayloadLocal')
 const { bottleKey, outgoingFacts, manualFacts, returnWeights, canRecordReturn } = require('./returnReweighRules')
+const { touchBottleSources } = require('./bottleSourceGuardLocal')
 const text = value => String(value == null ? '' : value).trim()
 const normalize = value => text(value).toUpperCase().replace(/\s+/g, '')
 const validId = value => /^[A-Za-z0-9_-]{12,128}$/.test(text(value))
@@ -105,6 +106,7 @@ function createReturnReweighService({ db, readInputs, now = Date.now }) {
 			if (result.code !== 0) { await tx.rollback(); return result }
 			if (!data.context_hash || data.context_hash !== result.data.context_hash) { await tx.rollback(); return rejected('瓶档或本轮记录已变化，请重新预览确认') }
 			if (!(result.data.gross_weight > 0)) { await tx.rollback(); return rejected('请先完成稳定称重', 400) }
+			await touchBottleSources(tx, db.command, [result.data.bottle.bottle_no], now())
 			const { inputs, round } = result, time = now(), no = result.data.bottle.bottle_no
 			const ids = [...(round.bottle_ids || [])]
 			if (!ids.includes(inputs.bottle._id)) ids.push(inputs.bottle._id)

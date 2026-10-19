@@ -451,6 +451,34 @@ test('pending-review sale allows authorized ordinary mutation and preserves orig
     assert.equal(h.tables[M.OPERATIONS].length,1)
   }
 })
+test('first edit of an expired interrupted create accepts own receipt closure but rejects concurrent business changes',async()=>{
+  for(const concurrent of [false,true]) {
+    let armed=false,changed=false
+    const h=harness({afterCommit:async(journal,count)=>{if(count===1)throw Error('commit response lost')},
+      read:async name=>{
+        if(armed&&concurrent&&!changed&&name==='crm_customers'&&h.tables.crm_sale_records[0]?.mobile_create_state==='pending_review') {
+          changed=true;h.tables.crm_sale_records[0].remark='concurrent business change'
+        }
+      }})
+    await h.invoke('createMobileV1',h.input())
+    const source=h.tables.crm_sale_records[0]
+    source.created_at=Date.now()-8*60*1000
+    h.tables[M.OPERATIONS][0].created_at=source.created_at
+    const p=payload();p.base.remark='first edit';armed=true
+    const edit=h.invoke('updateV2',{recordId:source._id,payload:p},'admin')
+    let result
+    if(concurrent) await assert.rejects(edit,/销售单已变化/)
+    else result=await edit
+    assert.equal(h.tables.crm_sale_records[0].mobile_create_state,'pending_review')
+    if(concurrent) {
+      assert.equal(changed,true)
+      assert.equal(h.tables.crm_sale_records[0].remark,'concurrent business change')
+    } else {
+      assert.equal(result.code,0,JSON.stringify(result))
+      assert.equal(h.tables.crm_sale_records[0].remark,'first edit')
+    }
+  }
+})
 test('expired interrupted create unlocks, closes old capability, and never recreates after deletion',async()=>{
   const h=harness({afterCommit:async(journal,count)=>{if(count===1)throw Error('commit response lost')}}),input=h.input()
   const result=await h.invoke('createMobileV1',input),source=h.tables.crm_sale_records[0]

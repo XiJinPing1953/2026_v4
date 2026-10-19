@@ -3,6 +3,7 @@
 // Permanent creation receipt, deliberately not a side-effect retry queue.
 const crypto = require('crypto')
 const { newToken, tokenHash } = require('./mobileSaleEffectsLocal')
+const { guardSaleSource } = require('./saleSourceWrite')
 const OPERATIONS = 'crm_mobile_sale_operations', SALES = 'crm_sale_records'
 const SOURCE = 'mobile-sale-v1'
 const text = value => String(value == null ? '' : value).trim()
@@ -276,6 +277,7 @@ function createService({ db, createSale }) {
           side_effect_token_hash: tokenHash(effectToken), side_effect_claims: [] }
         Object.assign(doc, { _id: key, mobile_create_operation_key: key, mobile_create_state: 'processing' })
         try {
+          await guardSaleSource(tx, db.command, null, doc)
           await tx.collection(OPERATIONS).add(operation)
           await tx.collection(SALES).add(doc)
           await tx.commit()

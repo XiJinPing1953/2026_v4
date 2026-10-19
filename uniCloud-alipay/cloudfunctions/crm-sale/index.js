@@ -1,5 +1,6 @@
 'use strict'
 const { assertCustomerAdjustmentSourceMutable } = require('./customerAdjustmentGuardLocal')
+const { writeSaleSource } = require('./saleSourceWrite')
 
 const { inventoryTon, kgToTon } = require('./gasInventoryPrecisionLocal')
 
@@ -3042,7 +3043,8 @@ async function createV2(user, payload, requestId, token, options = {}) {
 		doc.flow_theory_ratio = null
 	}
 
-	const res = options.insertSource ? await options.insertSource(doc) : await sales.add(doc)
+	const res = options.insertSource ? await options.insertSource(doc)
+		: await writeSaleSource(db, null, doc, tx => tx.collection('crm_sale_records').add(doc))
 	const saleDoc = { ...doc, _id: res.id }
 	const mobileCapability = options.getSideEffectCapability?.() || null
 	await appendSaleMovementRecords(user, saleDoc, {
@@ -4929,7 +4931,7 @@ async function updateV2(user, data, requestId, token) {
 		updateDoc.flow_theory_ratio = null
 	}
 
-	await sales.doc(recordId).update(updateDoc)
+	await writeSaleSource(db, existing, { ...existing, ...updateDoc }, tx => tx.collection('crm_sale_records').doc(recordId).update(updateDoc))
 	await movements
 		.where({ source_type: 'sale', source_id: recordId })
 		.remove()

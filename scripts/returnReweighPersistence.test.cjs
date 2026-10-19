@@ -146,6 +146,26 @@ test('editing an old departure is insufficient evidence to reopen a consumed cyc
 	assert.match(result.msg, /已用于灌装/)
 })
 
+test('shifting or reordering historical departure rows cannot reopen a consumed cycle, including legacy snapshots', async () => {
+	for (const legacy of [false, true]) {
+		const app = fixture()
+		const sale = { _id: 'old_same_day', date: '2026-09-06', out_items: [{ bottle_no: 'B2', gross: 140 }, { bottle_no: 'B1', gross: 170 }] }
+		app.db.data('crm_sale_records').set(sale._id, sale)
+		await start(app); const saved = await save(app)
+		if (legacy) app.db.data('crm_return_reweighs').get(saved.result.data._id).outgoing_facts[0].key = 'old_same_day:out_items:1'
+		await fill(app)
+		sale.out_items.shift()
+		const blocked = await app.invoke('previewReturnReweighV1', { round_id: roundId, bottle_no: 'B1', gross_weight: 110 })
+		assert.equal(blocked.code, 409)
+		assert.match(blocked.msg, /已用于灌装/)
+		// The retained bottle is still the same physical departure, so unrelated
+		// row movement also must not invalidate its legitimate correction preview.
+		assert.equal((await app.invoke('previewReweighV1', { bottle_no: 'B1', gross_weight: 175 })).code, 0)
+		assert.equal(rows(app, 'crm_return_reweighs').length, 1)
+		assert.equal(rows(app, 'crm_fillings').length, 1)
+	}
+})
+
 test('stale bottle, return head and round previews reject without changing measurement or count', async () => {
 	for (const variant of ['tare', 'head', 'round']) {
 		const app = fixture(); await start(app)

@@ -6,7 +6,7 @@ const path = require('node:path')
 const { createRequire } = require('node:module')
 const { operationKey } = require('../../uniCloud-alipay/cloudfunctions/crm-filling/fillingOperations')
 
-function makeDatabase({ nextId } = {}) {
+function makeDatabase({ nextId, serializeTransactions = true } = {}) {
 	const tables = new Map()
 	let seq = 0
 	const allocateId = nextId || (() => `r${++seq}`)
@@ -73,7 +73,7 @@ function makeDatabase({ nextId } = {}) {
 			const previous = db._tx || Promise.resolve()
 			let unlock
 			db._tx = new Promise((resolve) => { unlock = resolve })
-			await previous
+			if (serializeTransactions) await previous
 			const snapshot = new Map(clone([...tables].map(([name, rows]) => [name, [...rows]])).map(([name, rows]) => [name, new Map(rows)]))
 			const isolated = makeDatabase({ nextId: allocateId })
 			for (const [name, rows] of snapshot) for (const [id, row] of rows) isolated.data(name).set(id, clone(row))
@@ -109,8 +109,8 @@ function makeDatabase({ nextId } = {}) {
 	return db
 }
 
-function makeApp({ scan, regulatory } = {}) {
-	const db = makeDatabase()
+function makeApp({ scan, regulatory, serializeTransactions = true } = {}) {
+	const db = makeDatabase({ serializeTransactions })
 	let time = Date.parse('2026-09-06T00:00:00Z')
 	const DateMock = class extends Date { static now() { return time } }
 	const user = { _id: 'owner', username: 'tester', role: 'superadmin', token: 'good' }

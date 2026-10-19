@@ -2,6 +2,13 @@
   "version": 1,
   "copies": [
     {
+      "source": "uniCloud-alipay/cloudfunctions/common/bottleSourceGuard.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-filling/bottleSourceGuardLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-sale/bottleSourceGuardLocal.js"
+      ]
+    },
+    {
       "source": "uniCloud-alipay/cloudfunctions/common/mobileSaleEffects.js",
       "targets": [
         "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleEffectsLocal.js",
