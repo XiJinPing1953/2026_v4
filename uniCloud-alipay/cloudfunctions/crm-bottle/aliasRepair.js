@@ -59,7 +59,7 @@ function plan(before, helpers) {
   for (const [short, padded] of PAIRS) {
     const a = tables.crm_bottles.filter(x => x.bottle_no === short), b = tables.crm_bottles.filter(x => x.bottle_no === padded)
     if (a.length !== 1 || b.length !== 1) throw Error('档案数不符: ' + short)
-    const keep = a[0], drop = b[0]
+    const keep = b[0], drop = a[0]
     if (!tables.crm_bottle_movements.some(x => x.bottle_no === short)) throw Error('短号无流转，需要重新确定保留对象: ' + short)
     if (['lost', 'scrapped'].includes(keep.status) || ['lost', 'scrapped'].includes(drop.status)) throw Error('特殊状态不得合并: ' + short)
     for (const field of helpers.mergeFields) {
