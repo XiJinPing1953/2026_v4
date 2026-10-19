@@ -302,10 +302,7 @@ function addMonths(dateText, months) {
 	const targetMonth = ((totalMonth % 12) + 12) % 12
 	const maxDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate()
 	const safeDay = Math.min(day, maxDay)
-	const y = String(targetYear).padStart(4, '0')
-	const m = String(targetMonth + 1).padStart(2, '0')
-	const d = String(safeDay).padStart(2, '0')
-	return `${y}-${m}-${d}`
+	return new Date(Date.UTC(targetYear, targetMonth, safeDay - 1)).toISOString().slice(0, 10)
 }
 
 function isCycleValid(value) {

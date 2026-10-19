@@ -29,7 +29,7 @@ test('78 legacy bottles pass read-only preview; execution fills only selected ga
 	for (const row of rows) {
 		assert.equal(row.pressure_gauge_cycle_months, 6)
 		assert.equal(row.pressure_gauge_check_date, '2026-10-19')
-		assert.equal(row.pressure_gauge_next_check_date, '2027-04-19')
+		assert.equal(row.pressure_gauge_next_check_date, '2027-04-18')
 		assert.equal(row.bottle_check_date, '2024-01-25')
 		assert.equal(row.safety_valve_next_check_date, '2026-10-24')
 		assert.equal(row.bottle_check_cycle_months, undefined)
@@ -42,9 +42,9 @@ test('filter scope uses 36/6/12 months and clamps leap day; explicit valid cycle
 	const result = await invoke(handler, 'batchUpdateInspectionV2', { inspection_date: '2024-02-29', modules: ['bottle', 'gauge', 'valve'], scope_mode: 'filter', selector: { is_active: true } })
 	assert.equal(result.code, 0, result.msg)
 	assert.equal(result.data.success, 2)
-	assert.deepEqual([rows[0].bottle_next_check_date, rows[0].pressure_gauge_next_check_date, rows[0].safety_valve_next_check_date], ['2027-02-28', '2024-08-29', '2025-02-28'])
+	assert.deepEqual([rows[0].bottle_next_check_date, rows[0].pressure_gauge_next_check_date, rows[0].safety_valve_next_check_date], ['2027-02-27', '2024-08-28', '2025-02-27'])
 	for (const [field, value] of Object.entries(defaults)) assert.equal(rows[0][field], value)
-	assert.deepEqual([rows[1].bottle_next_check_date, rows[1].pressure_gauge_next_check_date, rows[1].safety_valve_next_check_date], ['2026-02-28', '2025-02-28', '2024-08-29'])
+	assert.deepEqual([rows[1].bottle_next_check_date, rows[1].pressure_gauge_next_check_date, rows[1].safety_valve_next_check_date], ['2026-02-27', '2025-02-27', '2024-08-28'])
 	assert.equal(rows[1].pressure_gauge_cycle_months, '12')
 })
 
@@ -75,4 +75,17 @@ test('new and legacy edit forms share defaults without changing stored dates; in
 	const inspection = component('BottleInspectionView')
 	for (const [module, months] of [['bottle', 36], ['gauge', 6], ['valve', 12]]) assert.equal(vm.runInContext(`formatModuleCycle({}, '${module}')`, inspection), `${months}个月（默认）`)
 	assert.equal(vm.runInContext("formatModuleCycle({ pressure_gauge_cycle_months: 12 }, 'gauge')", inspection), '12个月')
+})
+
+// User example and both automatic date entry points must agree.
+test('inspection validity ends one day before the cycle anniversary', async () => {
+ const rows = [{ _id: 'example', bottle_no: 'example' }]
+ const { handler } = setup(rows)
+ const result = await invoke(handler, 'batchUpdateInspectionV2', { ...request(['example'], ['bottle', 'gauge', 'valve']), inspection_date: '2026-04-18' })
+ assert.equal(result.code, 0, result.msg)
+ assert.deepEqual([rows[0].bottle_next_check_date, rows[0].pressure_gauge_next_check_date, rows[0].safety_valve_next_check_date], ['2029-04-17', '2026-10-17', '2027-04-17'])
+ const edit = component('BottleEditView')
+ for (const [months, wanted] of [[6, '2026-10-17'], [12, '2027-04-17'], [36, '2029-04-17']]) assert.equal(vm.runInContext(`addMonths('2026-04-18', ${months})`, edit), wanted)
+ assert.equal(vm.runInContext("addMonths('2026-04-01', 6)", edit), '2026-09-30')
+ assert.equal(vm.runInContext("addMonths('2024-08-31', 6)", edit), '2025-02-27')
 })

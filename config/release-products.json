@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.19-inspection-cycles",
+      "version": "2026.10.19-inspection-inclusive-date",
       "output": "dist/build/web",
-      "acceptance": "Use agreed 36/6/12 month defaults for missing bottle/gauge/valve cycles in registration and edit forms. Persist defaults only for selected modules on explicit registration. Preserve existing valid cycles, historical dates, production ACL and invalid-cycle rejection. H5 and crm-bottle only; no schema or bulk data migration.",
+      "acceptance": "Automatic inspection next date is check date plus cycle months minus one day, with month-end clamping before subtraction. Preserve stored historical dates, explicit date overrides, agreed missing-cycle defaults, completed alias merge and production ACL.",
       "deploymentScope": {
         "functions": [
           "crm-bottle"
@@ -22,22 +22,18 @@
             }
           }
         },
-        "baseCommit": "f77c53ed81e4d2b88d8048185602e16d1c2cd39a",
+        "baseCommit": "fcf9031",
         "sourceFiles": [
           "src/components/domain/bottle/BottleEditView.vue",
-          "src/components/domain/bottle/BottleInspectionView.vue",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/inspectionCycles.json",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistryLocal.js"
+          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js"
         ]
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.19-inspection-cycles",
+      "version": "2026.10.19-inspection-inclusive-date",
       "output": "release/cloud",
-      "acceptance": "Use agreed 36/6/12 month defaults for missing bottle/gauge/valve cycles in registration and edit forms. Persist defaults only for selected modules on explicit registration. Preserve existing valid cycles, historical dates, production ACL and invalid-cycle rejection. H5 and crm-bottle only; no schema or bulk data migration.",
+      "acceptance": "Automatic inspection next date is check date plus cycle months minus one day, with month-end clamping before subtraction. Preserve stored historical dates, explicit date overrides, agreed missing-cycle defaults, completed alias merge and production ACL.",
       "deploymentScope": {
         "functions": [
           "crm-bottle"
