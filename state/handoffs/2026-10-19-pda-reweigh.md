@@ -43,3 +43,11 @@
 用户在手动云端调试时要求先解决`fallback to local pageAcl helpers`。根因是`crm-auth`先加载部署包之外的`../common/pageAcl`，必然缺失后才加载包内模块。源码`4fc2507ee224b78490293f563a8effb898d150dd`改为直接加载同步生成的`./pageAclLocal`，权限规则未变。独立部署包测试通过：无加载警告、有效token正常、无效token401、PDA显式禁用保留、敏感字段剔除；3个权限副本一致。
 
 仅`crm-auth`已发布到正式支付宝空间`env-00jxuffegf2n`，5文件回读与候选一致；线上旧包已备份。未改H5、PDA资源或数据库结构，未操作设备；这项修复不能证明白屏解决。证据为上述目录内`auth-acl-fix/`的`before-proof.json`、`candidate-manifest/release-manifest.json`、`cloud-proof.json`及平台回执。
+
+## HBuilderX本地巡检依赖安装（2026-10-19）
+
+用户随后截图为`crm-safety-management`、`crm-station-safety-export`的`EBADPLATFORM`，与认证警告分开。两函数显式Linux Sharp依赖源自`f9d060c`修复真实云端缺库，不能为消除Mac提示直接删去。恢复被HBuilderX失败安装删除的原锁文件，在当前PDA工作区使用HBuilderX内置Node18/npm10执行一次`ci --force --include=optional --no-audit --no-fund`，同时保留平台库；未改依赖版本、包配置或发布云函数。Sharp平台选择依据见[官方说明](https://sharp.pixelplumbing.com/install/#cross-platform)。
+
+按HBuilderX实际检查方式（`NODE_SKIP_PLATFORM_CHECK=1 npm ls`）两函数均退出0；实际darwin-x64/Node18.20.0加载Sharp0.33.5、libvips8.15.3，PNG转JPEG均通过，Linux原生库保留。证据`local-dependencies.json`。后续新工作区若重现同样问题，可按此限定范围准备本地依赖，不给全局npm配置force。
+
+既有导出测试本轮4/5通过，其中图片嵌入通过；另1项旧测试以`Date.now()`设置销号时间，当前已跨出2026-10-15所在周，历史待办断言失败，不计通过，未顺带改业务或测试。PDA白屏仍由用户手动联调，未操作设备。
