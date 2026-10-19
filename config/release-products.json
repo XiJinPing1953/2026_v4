@@ -8,11 +8,10 @@
     "web": {
       "version": "2026.10.19-pda-query-fix",
       "output": "dist/build/web",
-      "acceptance": "Frontend-only PDA archive query: exact bottle first, scanned archive ID lookup, paged fuzzy results and status filtering. No cloud/schema changes; device validation manual.",
+      "acceptance": "PDA exact archive lookup and paged fallback; crm-bottle read-only resolution authorized for bottle-query page. No schema/data changes.",
       "deploymentScope": {
         "functions": [
-          "crm-sale",
-          "crm-filling"
+          "crm-bottle"
         ],
         "databaseFiles": [],
         "baseCommit": "a4f915fcf07faecf017049858bfdc839f88f2dfd",
@@ -40,25 +39,18 @@
     "cloud": {
       "version": "2026.10.19-pda-compact-ui",
       "output": "release/cloud",
-      "acceptance": "Frontend-only PDA simplification: merged bottle/movement query and hardware scan; native-only sale entry hiding with Chrome sales preserved; local per-account distinct-cylinder filling reweigh rounds surviving restart; compact layout. Cloud functions and schemas unchanged. Device operation remains manual.",
+      "acceptance": "PDA exact archive lookup and paged fallback; crm-bottle read-only resolution authorized for bottle-query page. No schema/data changes.",
       "deploymentScope": {
         "functions": [
-          "crm-sale",
-          "crm-filling"
+          "crm-bottle"
         ],
         "databaseFiles": [],
-        "baseCommit": "853d72d2463f32fddd0651c6c2f3aa51e9dd7278",
+        "baseCommit": "a4f915fcf07faecf017049858bfdc839f88f2dfd",
         "sourceFiles": [
           "src/components/domain/pda/PdaBottleQueryView.vue",
-          "src/components/domain/pda/PdaHomeView.vue",
-          "src/components/domain/pda/PdaMovementQueryView.vue",
-          "src/components/domain/pda/PdaReweighView.vue",
+          "src/services/pda/bottle.js",
           "src/composables/pda/usePdaQueryScan.js",
-          "src/composables/pda/usePdaReweigh.js",
-          "src/manifest.json",
-          "src/pages.json",
-          "src/pages/pda/bottle-query.vue",
-          "src/pages/pda/movement-query.vue"
+          "src/manifest.json"
         ],
         "aclCanonicalRevisions": {
           "crm-sale": {
@@ -125,11 +117,10 @@
     "pda": {
       "version": "1.0.6",
       "output": "release/pda",
-      "acceptance": "Frontend-only PDA archive query: exact bottle first, scanned archive ID lookup, paged fuzzy results and status filtering. No cloud/schema changes; device validation manual.",
+      "acceptance": "PDA exact archive lookup and paged fallback; crm-bottle read-only resolution authorized for bottle-query page. No schema/data changes.",
       "deploymentScope": {
         "functions": [
-          "crm-sale",
-          "crm-filling"
+          "crm-bottle"
         ],
         "databaseFiles": [],
         "baseCommit": "a4f915fcf07faecf017049858bfdc839f88f2dfd",

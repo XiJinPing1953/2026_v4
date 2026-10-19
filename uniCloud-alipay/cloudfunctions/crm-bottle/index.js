@@ -80,12 +80,14 @@ const PAGE_ACTION_RULES = {
 		{ pagePath: '/pages/pda/bottle-query', action: 'view' }
 	],
 	resolveQrCodeV1: [
+		{ pagePath: '/pages/pda/bottle-query', action: 'view' },
 		{ pagePath: '/pages/pda/return-reweigh', action: 'view' },
 		{ pagePath: '/pages/pda/reweigh', action: 'view' },
 		{ pagePath: '/pages/pda/filling-create', action: 'view' },
 		{ pagePath: '/pages/pda/sale-create', action: 'view' }
 	],
 	resolveBottleNoV1: [
+		{ pagePath: '/pages/pda/bottle-query', action: 'view' },
 		{ pagePath: '/pages/pda/return-reweigh', action: 'view' },
 		{ pagePath: '/pages/pda/reweigh', action: 'view' },
 		{ pagePath: '/pages/pda/filling-create', action: 'view' },
