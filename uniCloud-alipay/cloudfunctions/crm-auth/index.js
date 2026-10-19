@@ -2,20 +2,13 @@
 
 const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
-let authAclHelpers = null
-try {
-	authAclHelpers = require('../common/pageAcl')
-} catch (err) {
-	console.warn('[crm-auth] fallback to local pageAcl helpers', err && err.message)
-	authAclHelpers = require('./pageAclLocal')
-}
 const {
 	normalizeRoleTemplate,
 	buildRoleTemplatePermissions,
 	normalizePagePermissions,
 	sanitizeUser,
 	isSuperAdmin
-} = authAclHelpers
+} = require('./pageAclLocal')
 const db = uniCloud.database()
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')

@@ -38,6 +38,7 @@
           "src/services/pda/reweighDraft.js",
           "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
           "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-auth/index.js",
           "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
           "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistry.js",
@@ -57,52 +58,17 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.19-pda-reweigh",
+      "version": "2026.10.19-auth-packaged-acl",
       "output": "release/cloud",
-      "acceptance": "Native PDA reweigh using the existing NVK BLE scale. Atomically create a filling or replace a unique unshipped module-created filling with version checks, audit and recoverable operations. Filling amount = gross minus current-cycle return gross; label net = gross minus archive tare. Web manual corrections require a reason. Future label and QR contain only 新拓能源, bottle number, tare, gross and net; printing is skipped. Native device acceptance is separate.",
+      "acceptance": "Load the synchronized ACL helper directly from the independently deployed auth package. Preserve token validation and explicit page permission denies without an expected missing-parent-module warning.",
       "deploymentScope": {
         "functions": [
-          "crm-filling",
-          "crm-bottle",
-          "crm-user",
           "crm-auth"
         ],
-        "databaseFiles": [
-          "crm_fillings.schema.json"
-        ],
-        "baseCommit": "84ef685d12c61b98ad2f42993cf2cb2434334c73",
+        "databaseFiles": [],
+        "baseCommit": "989fc1fa8a7cd228f9c85f32ab65ebd62ee49047",
         "sourceFiles": [
-          "src/components/domain/filling/FillingBatchPreview.vue",
-          "src/components/domain/filling/FillingEditView.vue",
-          "src/components/domain/filling/FillingListView.vue",
-          "src/components/domain/pda/PdaHomeView.vue",
-          "src/components/domain/pda/PdaReweighView.vue",
-          "src/composables/pda/usePdaReweigh.js",
-          "src/composables/useReweighCorrection.js",
-          "src/manifest.json",
-          "src/pages.json",
-          "src/pages/pda/reweigh.vue",
-          "src/services/api/reweigh.js",
-          "src/services/bottleInspectionCandidates.mjs",
-          "src/services/fillingOperations.js",
-          "src/services/pageAclRegistry.js",
-          "src/services/pda/reweighDraft.js",
-          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/fillingOperations.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/reweighRules.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/reweighService.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js",
-          "uniCloud-alipay/database/crm_fillings.schema.json",
-          "uniCloud-alipay/database/schema/crm_fillings.schema.json"
+          "uniCloud-alipay/cloudfunctions/crm-auth/index.js"
         ]
       },
       "integrityScope": "deployment"
@@ -186,6 +152,7 @@
           "src/services/pageAclRegistry.js",
           "src/services/pda/reweighDraft.js",
           "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-auth/index.js",
           "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
           "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
