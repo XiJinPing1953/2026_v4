@@ -1,5 +1,5 @@
 <template>
-	<AppPage title="流转查询" subtitle="只读查询" icon="list" hideBottleQuery>
+	<view class="movement-query-panel">
 		<AppSection title="筛选">
 			<view class="filters">
 				<AppInput v-model="filters.bottleNo" label="瓶号" placeholder="请输入瓶号" @confirm="runSearch" />
@@ -58,25 +58,28 @@
 				</AppListItem>
 			</AppList>
 		</AppSection>
-	</AppPage>
+	</view>
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppList from '@/components/base/AppList.vue'
 import AppListItem from '@/components/base/AppListItem.vue'
-import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppTag from '@/components/base/AppTag.vue'
 import { listBottleMovementsV1 } from '@/services/bottleMovement'
 import { formatDateTime, normalizeBottleNo, normalizeText } from '@/services/pda/shared'
 
 const props = defineProps({
-	initialBottleNo: { type: String, default: '' }
+	initialBottleNo: { type: String, default: '' },
+	embedded: { type: Boolean, default: false }
 })
 
+const emit = defineEmits(['bottle'])
+let queryVersion = 0
+onBeforeUnmount(() => { queryVersion += 1 })
 const filters = reactive({
 	bottleNo: '',
 	typeIndex: 0,
@@ -119,7 +122,9 @@ watch(
 )
 
 async function runSearch() {
+	const version = ++queryVersion
 	loading.value = true
+	list.value = []
 	try {
 		const res = await listBottleMovementsV1({
 			bottleNo: normalizeBottleNo(filters.bottleNo),
@@ -130,18 +135,23 @@ async function runSearch() {
 			page: 1,
 			pageSize: 20
 		})
+		if (version !== queryVersion) return
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '查询失败', icon: 'none' })
 			return
 		}
 		list.value = Array.isArray(res?.data) ? res.data : []
 		paging.value = res?.paging || paging.value
+	} catch (error) {
+		if (version === queryVersion) uni.showToast({ title: error.message || '查询失败', icon: 'none' })
 	} finally {
-		loading.value = false
+		if (version === queryVersion) loading.value = false
 	}
 }
 
 function resetSearch() {
+	queryVersion += 1
+	loading.value = false
 	filters.bottleNo = ''
 	filters.typeIndex = 0
 	filters.sourceIndex = 0
@@ -181,6 +191,7 @@ function displayDate(item) {
 
 function goBottle(item) {
 	const bottleNo = normalizeBottleNo(item?.bottle_no)
+	if (props.embedded) return emit('bottle', bottleNo)
 	uni.navigateTo({
 		url: bottleNo ? `/pages/pda/bottle-query?keyword=${encodeURIComponent(bottleNo)}` : '/pages/pda/bottle-query'
 	})
@@ -188,14 +199,15 @@ function goBottle(item) {
 </script>
 
 <style scoped>
+.movement-query-panel { display: flex; flex-direction: column; gap: 14rpx; min-width: 0; }
 .filters {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 20rpx;
+	gap: 12rpx;
 }
 
 .actions-row {
-	margin-top: 24rpx;
+	margin-top: 16rpx;
 	display: flex;
 	gap: 16rpx;
 	justify-content: flex-end;
@@ -224,12 +236,5 @@ function goBottle(item) {
 	gap: 12rpx;
 }
 
-@media (max-width: 680px) {
-	.filters {
-		grid-template-columns: 1fr;
-	}
-}
-/* #ifdef H5 */
-@media (max-width:767px) { .filters { grid-template-columns:minmax(0,1fr); } .actions-row { flex-wrap:wrap; } }
-/* #endif */
+
 </style>

@@ -1,5 +1,12 @@
 <template>
-	<AppPage title="钢瓶查询" subtitle="只读查询" icon="bottle" hideBottleQuery>
+	<AppPage title="钢瓶查询" icon="bottle" hideBottleQuery>
+		<view class="query-tabs">
+			<AppButton :kind="tab === 'bottle' ? 'primary' : 'neutral'" @click="tab = 'bottle'">钢瓶档案</AppButton>
+			<AppButton v-if="canMovement" :kind="tab === 'movement' ? 'primary' : 'neutral'" @click="openMovement(filters.keyword)">流转记录</AppButton>
+		</view>
+		<text v-if="isNative" class="section-hint">{{ scannerReady ? '按扫描键查询钢瓶' : '可输入瓶号查询，扫描头未就绪' }}</text>
+		<PdaMovementQueryView v-if="tab === 'movement' && canMovement" :key="movementVersion" embedded :initial-bottle-no="movementBottle" @bottle="showBottle" />
+		<template v-else>
 		<AppSection title="筛选">
 			<view class="filters">
 				<AppInput v-model="filters.keyword" label="瓶号 / 关键词" placeholder="请输入瓶号" @confirm="runSearch" />
@@ -36,18 +43,18 @@
 					</template>
 					<template #footer>
 						<view class="item-actions">
-							<AppButton size="sm" kind="neutral" @click="goMovement(item)">流转记录</AppButton>
-							<AppButton size="sm" kind="outline" @click="goFilling(item)">灌装带入</AppButton>
+							<AppButton v-if="canMovement" size="sm" kind="neutral" @click="openMovement(item.bottle_no)">流转记录</AppButton>
 						</view>
 					</template>
 				</AppListItem>
 			</AppList>
 		</AppSection>
+		</template>
 	</AppPage>
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppList from '@/components/base/AppList.vue'
@@ -55,8 +62,13 @@ import AppListItem from '@/components/base/AppListItem.vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppTag from '@/components/base/AppTag.vue'
-import { buildPdaFillingCreateUrl, buildPdaMovementQueryUrl, listPdaBottles } from '@/services/pda/bottle'
+import { listPdaBottles } from '@/services/pda/bottle'
 import { formatWeight, normalizeText } from '@/services/pda/shared'
+
+import PdaMovementQueryView from './PdaMovementQueryView.vue'
+import { canViewPage } from '@/services/pageAcl'
+import { isPdaAppMode } from '@/services/pda/entry'
+import { usePdaQueryScan } from '@/composables/pda/usePdaQueryScan'
 
 const props = defineProps({
 	initialKeyword: { type: String, default: '' }
@@ -69,6 +81,20 @@ const filters = reactive({
 const loading = ref(false)
 const list = ref([])
 const paging = ref({ page: 1, pageSize: 20, total: 0, hasMore: false })
+
+const tab = ref('bottle')
+const movementBottle = ref('')
+const movementVersion = ref(0)
+const canMovement = canViewPage('/pages/pda/movement-query')
+const isNative = isPdaAppMode()
+let queryVersion = 0
+function invalidateQuery() { queryVersion += 1; loading.value = false; list.value = []; movementVersion.value += 1; tab.value = 'bottle' }
+const { scannerReady, activate, deactivate: stopScanner, invalidate: invalidateScan } = usePdaQueryScan({ onStart: invalidateQuery, onBottle: showBottle })
+function deactivate() { invalidateQuery(); return stopScanner() }
+defineExpose({ activate, deactivate })
+onBeforeUnmount(() => { queryVersion += 1 })
+function showBottle(bottleNo) { tab.value = 'bottle'; filters.keyword = bottleNo; filters.statusIndex = 0; runSearch() }
+function openMovement(bottleNo) { invalidateScan(); queryVersion += 1; movementBottle.value = bottleNo || ''; movementVersion.value += 1; tab.value = 'movement' }
 
 const statusOptions = [
 	{ label: '全部流向', value: '' },
@@ -93,7 +119,10 @@ watch(
 )
 
 async function runSearch() {
+	invalidateScan()
+	const version = ++queryVersion
 	loading.value = true
+	list.value = []
 	try {
 		const res = await listPdaBottles({
 			keyword: filters.keyword,
@@ -101,18 +130,23 @@ async function runSearch() {
 			page: 1,
 			pageSize: 20
 		})
+		if (version !== queryVersion) return
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '查询失败', icon: 'none' })
 			return
 		}
 		list.value = res.data || []
 		paging.value = res.paging || paging.value
+	} catch (error) {
+		if (version === queryVersion) uni.showToast({ title: error.message || '查询失败', icon: 'none' })
 	} finally {
-		loading.value = false
+		if (version === queryVersion) loading.value = false
 	}
 }
 
 function resetSearch() {
+	invalidateScan()
+	invalidateQuery()
 	filters.keyword = ''
 	filters.statusIndex = 0
 	list.value = []
@@ -124,20 +158,13 @@ function onStatusChange(event) {
 	filters.statusIndex = Number.isFinite(index) ? index : 0
 }
 
-function goMovement(item) {
-	uni.navigateTo({ url: buildPdaMovementQueryUrl(item?.bottle_no) })
-}
-
-function goFilling(item) {
-	uni.navigateTo({ url: buildPdaFillingCreateUrl(item?.bottle_no) })
-}
 </script>
 
 <style scoped>
 .filters {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 20rpx;
+	gap: 12rpx;
 }
 
 .picker-block {
@@ -145,7 +172,7 @@ function goFilling(item) {
 }
 
 .actions-row {
-	margin-top: 24rpx;
+	margin-top: 16rpx;
 	display: flex;
 	gap: 16rpx;
 	justify-content: flex-end;
@@ -173,20 +200,5 @@ function goFilling(item) {
 	gap: 12rpx;
 }
 
-@media (max-width: 680px) {
-	.filters {
-		grid-template-columns: 1fr;
-	}
-
-	.actions-row {
-		justify-content: stretch;
-	}
-
-	.item-actions {
-		width: 100%;
-	}
-}
-/* #ifdef H5 */
-@media (max-width:767px) { .filters { grid-template-columns:minmax(0,1fr); } .actions-row { flex-wrap:wrap; } }
-/* #endif */
+.query-tabs { display: flex; gap: 12rpx; margin-bottom: 12rpx; }
 </style>

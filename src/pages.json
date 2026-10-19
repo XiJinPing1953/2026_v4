@@ -112,19 +112,19 @@
 		{
 			"path": "pages/pda/home",
 			"style": {
-				"navigationBarTitleText": "PDA 工作台"
+				"navigationBarTitleText": "新拓能源"
 			}
 		},
 		{
 			"path": "pages/pda/bottle-query",
 			"style": {
-				"navigationBarTitleText": "PDA 钢瓶查询"
+				"navigationBarTitleText": "钢瓶查询"
 			}
 		},
 		{
 			"path": "pages/pda/movement-query",
 			"style": {
-				"navigationBarTitleText": "PDA 流转查询"
+				"navigationBarTitleText": "钢瓶查询"
 			}
 		},
 		{
@@ -160,13 +160,13 @@
 		{
 			"path": "pages/pda/return-reweigh",
 			"style": {
-				"navigationBarTitleText": "PDA 回瓶复秤"
+				"navigationBarTitleText": "回瓶复秤"
 			}
 		},
 		{
 			"path": "pages/pda/reweigh",
 			"style": {
-				"navigationBarTitleText": "PDA 复秤"
+				"navigationBarTitleText": "罐装复秤"
 			}
 		},
 		{

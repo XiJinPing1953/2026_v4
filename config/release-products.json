@@ -6,28 +6,27 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.19-reweigh-review-fixes",
+      "version": "2026.10.19-pda-compact-ui",
       "output": "dist/build/web",
-      "acceptance": "Reviewed reweigh fixes: stable departure identity with legacy compatibility; account-bound submissions and recovery cleanup; shared transaction conflict protection between sale source writes and both reweigh operations. Deploy crm-sale and crm-filling together. PDA device operation and acceptance remain manual.",
+      "acceptance": "Frontend-only PDA simplification: merged bottle/movement query and hardware scan; native-only sale entry hiding with Chrome sales preserved; local per-account distinct-cylinder filling reweigh rounds surviving restart; compact layout. Cloud functions and schemas unchanged. Device operation remains manual.",
       "deploymentScope": {
         "functions": [
           "crm-sale",
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "00c2b2ca52188b97c48d5844d888fd5bd3857f85",
+        "baseCommit": "853d72d2463f32fddd0651c6c2f3aa51e9dd7278",
         "sourceFiles": [
+          "src/components/domain/pda/PdaBottleQueryView.vue",
+          "src/components/domain/pda/PdaHomeView.vue",
+          "src/components/domain/pda/PdaMovementQueryView.vue",
+          "src/components/domain/pda/PdaReweighView.vue",
+          "src/composables/pda/usePdaQueryScan.js",
+          "src/composables/pda/usePdaReweigh.js",
           "src/manifest.json",
-          "src/services/fillingOperations.js",
-          "uniCloud-alipay/cloudfunctions/common/bottleSourceGuard.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/bottleSourceGuardLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/reweighService.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/bottleSourceGuardLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/saleSourceWrite.js"
+          "src/pages.json",
+          "src/pages/pda/bottle-query.vue",
+          "src/pages/pda/movement-query.vue"
         ],
         "aclCanonicalRevisions": {
           "crm-sale": {
@@ -45,28 +44,27 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.19-reweigh-review-fixes",
+      "version": "2026.10.19-pda-compact-ui",
       "output": "release/cloud",
-      "acceptance": "Reviewed reweigh fixes: stable departure identity with legacy compatibility; account-bound submissions and recovery cleanup; shared transaction conflict protection between sale source writes and both reweigh operations. Deploy crm-sale and crm-filling together. PDA device operation and acceptance remain manual.",
+      "acceptance": "Frontend-only PDA simplification: merged bottle/movement query and hardware scan; native-only sale entry hiding with Chrome sales preserved; local per-account distinct-cylinder filling reweigh rounds surviving restart; compact layout. Cloud functions and schemas unchanged. Device operation remains manual.",
       "deploymentScope": {
         "functions": [
           "crm-sale",
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "00c2b2ca52188b97c48d5844d888fd5bd3857f85",
+        "baseCommit": "853d72d2463f32fddd0651c6c2f3aa51e9dd7278",
         "sourceFiles": [
+          "src/components/domain/pda/PdaBottleQueryView.vue",
+          "src/components/domain/pda/PdaHomeView.vue",
+          "src/components/domain/pda/PdaMovementQueryView.vue",
+          "src/components/domain/pda/PdaReweighView.vue",
+          "src/composables/pda/usePdaQueryScan.js",
+          "src/composables/pda/usePdaReweigh.js",
           "src/manifest.json",
-          "src/services/fillingOperations.js",
-          "uniCloud-alipay/cloudfunctions/common/bottleSourceGuard.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/bottleSourceGuardLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/reweighService.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/bottleSourceGuardLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/saleSourceWrite.js"
+          "src/pages.json",
+          "src/pages/pda/bottle-query.vue",
+          "src/pages/pda/movement-query.vue"
         ],
         "aclCanonicalRevisions": {
           "crm-sale": {
@@ -131,28 +129,27 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.4-105",
+      "version": "1.0.5-106",
       "output": "release/pda",
-      "acceptance": "Reviewed reweigh fixes: stable departure identity with legacy compatibility; account-bound submissions and recovery cleanup; shared transaction conflict protection between sale source writes and both reweigh operations. Deploy crm-sale and crm-filling together. PDA device operation and acceptance remain manual.",
+      "acceptance": "Frontend-only PDA simplification: merged bottle/movement query and hardware scan; native-only sale entry hiding with Chrome sales preserved; local per-account distinct-cylinder filling reweigh rounds surviving restart; compact layout. Cloud functions and schemas unchanged. Device operation remains manual.",
       "deploymentScope": {
         "functions": [
           "crm-sale",
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "00c2b2ca52188b97c48d5844d888fd5bd3857f85",
+        "baseCommit": "853d72d2463f32fddd0651c6c2f3aa51e9dd7278",
         "sourceFiles": [
+          "src/components/domain/pda/PdaBottleQueryView.vue",
+          "src/components/domain/pda/PdaHomeView.vue",
+          "src/components/domain/pda/PdaMovementQueryView.vue",
+          "src/components/domain/pda/PdaReweighView.vue",
+          "src/composables/pda/usePdaQueryScan.js",
+          "src/composables/pda/usePdaReweigh.js",
           "src/manifest.json",
-          "src/services/fillingOperations.js",
-          "uniCloud-alipay/cloudfunctions/common/bottleSourceGuard.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/bottleSourceGuardLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/reweighService.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/bottleSourceGuardLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/saleSourceWrite.js"
+          "src/pages.json",
+          "src/pages/pda/bottle-query.vue",
+          "src/pages/pda/movement-query.vue"
         ],
         "aclCanonicalRevisions": {
           "crm-sale": {

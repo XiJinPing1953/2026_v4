@@ -321,3 +321,50 @@ test('return new round confirms completed count and does not alter existing fill
 	assert.equal(h.form.history.value.length, 1)
 	assert.equal(filling.storage.get('crm_pda_reweigh_v1:u1'), fillingSaved)
 })
+
+test('local filling round counts confirmed distinct bottles beyond history retention and survives restart', async t => {
+	const h = harness(t)
+	for (let i = 0; i < 12; i++) {
+		await h.measure(String(100 + i)); assert.equal(h.form.round.value.bottle_count, i)
+		await h.form.submit(); assert.equal(h.form.round.value.bottle_count, i + 1)
+		await h.form.nextBottle()
+	}
+	assert.equal(h.form.history.value.length, 10)
+	await h.form.deactivate()
+	const restored = harness(t, { storage: h.storage }); await restored.measure('100')
+	await restored.form.submit()
+	assert.equal(restored.form.round.value.bottle_count, 12)
+	assert.equal(restored.roundRequests.length, 0)
+})
+
+test('local filling round ignores unknown acknowledgement and counts original recovery exactly once', async t => {
+	let id
+	const h = harness(t, { send: payload => { id = payload.operation_id; throw Error('offline') },
+		query: async () => ({ code: 0, data: { operation_id: id, complete: true, saved_total: 1, _id: 'f1' } }) })
+	await h.measure(); await h.form.submit()
+	assert.equal(h.form.round.value.bottle_count, 0)
+	assert.equal(await h.form.startRound(), false)
+	await h.form.query(); await h.form.query()
+	assert.equal(h.form.round.value.bottle_count, 1)
+	const before = copy(h.form.round.value)
+	h.setOwner('other')
+	assert.equal(await h.form.startRound(), false)
+	assert.deepEqual(copy(h.form.round.value), before)
+})
+
+test('new local filling round clears only its count after confirmation and retains it on storage failure', async t => {
+	const options = { modalResults: [false, true, true] }, h = harness(t, options)
+	await h.measure(); await h.form.submit()
+	const first = copy(h.form.round.value)
+	assert.equal(await h.form.startRound(), false)
+	assert.deepEqual(copy(h.form.round.value), first)
+	options.storageFails = true
+	assert.equal(await h.form.startRound(), false)
+	assert.deepEqual(copy(h.form.round.value), first)
+	options.storageFails = false
+	assert.equal(await h.form.startRound(), true)
+	assert.equal(h.form.round.value.bottle_count, 0)
+	assert.notEqual(h.form.round.value._id, first._id)
+	assert.equal(h.requests.length, 1)
+	assert.equal(h.roundRequests.length, 0)
+})

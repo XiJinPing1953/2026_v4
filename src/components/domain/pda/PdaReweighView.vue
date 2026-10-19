@@ -1,5 +1,5 @@
 <template>
-	<AppPage :title="isReturn ? '回瓶复秤' : '复秤'" :subtitle="isReturn ? '蓝牙吊秤 · 回瓶称重' : '蓝牙吊秤 · 逐瓶核算'" icon="bottle" hideBottleQuery>
+	<AppPage class="reweigh-page" :title="isReturn ? '回瓶复秤' : '罐装复秤'" :subtitle="isReturn ? '蓝牙吊秤 · 回瓶称重' : '蓝牙吊秤 · 逐瓶核算'" icon="bottle" hideBottleQuery>
 		<AppSection v-if="!nativeSupported" title="请使用原生 PDA">
 			<text class="hint">本模块使用 PDA 扫描头和 NVK 蓝牙吊秤，请在 PDA 应用中打开。</text>
 		</AppSection>
@@ -9,15 +9,16 @@
 			<text v-if="error" class="notice notice--error">{{ error }}</text>
 			<text class="notice" role="status">{{ message }}</text>
 
-			<AppSection v-if="isReturn" title="本轮回瓶复秤统计">
-				<text class="result-value">{{ roundReady && round ? round.bottle_count : '—' }} <text class="unit">瓶</text></text>
-				<text class="hint">{{ round ? '本轮按不同瓶号统计，重复复秤不增加瓶数。' : '尚未开始本轮回瓶复秤。' }}</text>
-				<text v-if="round" class="hint">开始时间：{{ roundTime }}</text>
+			<AppSection :title="isReturn ? '本轮回瓶复秤统计' : '本轮罐装复秤统计'">
+				<view class="round-summary"><text class="result-value">{{ roundReady && round ? round.bottle_count : '—' }} <text class="unit">瓶</text></text>
+
 				<text v-if="pendingRound" class="notice">开始结果待确认，请重试原请求；确认前暂停扫码称重。</text>
 				<view class="actions">
 					<AppButton size="sm" :disabled="busy || !canCreate || Boolean(current.bottleNo && !current.receipt?.complete)" @click="onStartRound">{{ pendingRound ? '重试开始本轮' : round ? '开始新一轮' : '开始本轮' }}</AppButton>
-					<AppButton size="sm" kind="neutral" :disabled="busy" @click="refreshRound">刷新统计</AppButton>
+					<AppButton v-if="isReturn" size="sm" kind="neutral" :disabled="busy" @click="refreshRound">刷新统计</AppButton>
 				</view>
+				</view>
+				<text class="hint">{{ isReturn ? '同瓶重称不重复计数' : '仅本机本账号 · 同瓶重称不重复计数' }}{{ round ? ' · ' + roundTime : '' }}</text>
 			</AppSection>
 
 			<AppSection title="吊秤">
@@ -25,7 +26,7 @@
 					<text class="live-weight">{{ weight(snapshot.weight_kg) }} <text class="unit">kg</text></text>
 					<AppTag :kind="snapshot.is_stable && snapshot.is_online ? 'success' : 'soft'">{{ scaleStatus }}</AppTag>
 				</view>
-				<text class="hint">毛重分度 0.5 kg；每瓶重新采集稳定重量。{{ scannerReady ? '扫描头已就绪。' : '扫描头未就绪，可搜索瓶号。' }}</text>
+				<text class="hint">0.5 kg 分度 · {{ scannerReady ? '可按扫描键选瓶' : '扫描头未就绪，请搜索瓶号' }}</text>
 				<view class="actions">
 					<AppButton size="sm" :loading="busy" :disabled="busy" @click="connect(false)">{{ snapshot.is_connected ? '重连吊秤' : '连接吊秤' }}</AppButton>
 					<AppButton size="sm" kind="neutral" :disabled="busy" @click="connect(true)">更换吊秤</AppButton>
@@ -33,7 +34,7 @@
 				</view>
 			</AppSection>
 
-			<AppSection title="本瓶复秤">
+			<AppSection v-if="!current.frozen" title="本瓶复秤">
 				<PdaBottleSuggestField
 					:model-value="current.bottleNo || bottleKeyword" label="瓶号" placeholder="按 PDA 扫码键，或输入瓶号"
 					:disabled="locked || busy || Boolean(current.bottleNo) || !snapshot.is_connected || !canCreate || !readyForBottle"
@@ -73,7 +74,8 @@
 					<text class="difference">{{ reweighChangeText(current.preview) }}</text>
 					<AppInput :model-value="current.reason" label="更正原因" :disabled="locked || busy" @update:modelValue="value => setText('reason', value)" />
 				</view>
-				<AppInput v-if="current.bottleNo" :model-value="current.remark" label="备注（可选）" :disabled="locked || busy" @update:modelValue="value => setText('remark', value)" />
+				<AppButton v-if="current.bottleNo && !showRemark && !current.remark" size="sm" kind="ghost" @click="showRemark = true">添加备注</AppButton>
+				<AppInput v-if="current.bottleNo && (showRemark || current.remark)" :model-value="current.remark" label="备注（可选）" :disabled="locked || busy" @update:modelValue="value => setText('remark', value)" />
 				<view class="actions">
 					<AppButton v-if="!current.frozen" :loading="busy" :disabled="busy || !current.capture || !canCreate || locked || !readyForBottle" @click="submit">{{ isReturn ? '保存回瓶复秤' : current.preview?.mode === 'correct' ? '确认更正原灌装记录' : '保存灌装记录' }}</AppButton>
 					<AppButton v-if="current.bottleNo && !current.frozen" kind="ghost" :disabled="busy" @click="onNext">放弃本瓶草稿</AppButton>
@@ -83,8 +85,10 @@
 
 			<AppSection v-if="current.frozen" :title="receiptTitle(current.receipt)">
 				<text class="hint">{{ current.receipt?.message || '提交内容已锁定，请查询原操作的保存结果。' }}</text>
-				<text v-if="current.receipt?.fillingId" class="identifier">{{ isReturn ? '回瓶复秤记录' : '灌装单' }}：{{ current.receipt.fillingId }}</text>
-				<text class="identifier">操作编号：{{ current.operationId }}</text>
+				<view class="result-secondary"><text>{{ current.bottleNo }} 号瓶</text><text>毛重 {{ weight(current.grossWeight) }} kg</text><text>净重 {{ weight(current.preview?.net_weight) }} kg</text></view>
+				<AppButton size="sm" kind="ghost" @click="showReceiptDetails = !showReceiptDetails">{{ showReceiptDetails ? '收起凭据' : '查看凭据' }}</AppButton>
+				<text v-if="showReceiptDetails && current.receipt?.fillingId" class="identifier">{{ isReturn ? '回瓶复秤记录' : '灌装单' }}：{{ current.receipt.fillingId }}</text>
+				<text v-if="showReceiptDetails" class="identifier">操作编号：{{ current.operationId }}</text>
 				<view class="actions">
 					<AppButton size="sm" kind="neutral" :disabled="busy" @click="query()">查询保存结果</AppButton>
 					<AppButton v-if="!current.receipt?.complete" size="sm" kind="neutral" :disabled="busy" @click="query(current.operationId, true)">重试原操作</AppButton>
@@ -94,6 +98,8 @@
 			</AppSection>
 
 			<AppSection v-if="history.length" title="本机已保存记录">
+				<template #actions><AppButton size="sm" kind="ghost" @click="showHistory = !showHistory">{{ showHistory ? '收起' : '展开' }}（{{ history.length }}）</AppButton></template>
+				<view v-if="showHistory">
 				<view v-for="item in history.slice().reverse()" :key="item.operationId" class="history-row">
 					<text>{{ item.bottleNo }} 号瓶 · {{ isReturn ? '回瓶毛重' : '本次灌装量' }} {{ weight(isReturn ? item.grossWeight : item.preview?.fill_weight) }} kg</text>
 					<text :class="['hint', !item.receipt?.complete ? 'pending' : '']">{{ receiptTitle(item.receipt) }}</text>
@@ -103,6 +109,7 @@
 						<AppButton size="sm" kind="neutral" :disabled="busy" @click="query(item.operationId)">查询状态</AppButton>
 						<AppButton size="sm" kind="neutral" :disabled="busy" @click="query(item.operationId, true)">重试后续处理</AppButton>
 					</view>
+				</view>
 				</view>
 			</AppSection>
 		</template>
@@ -130,34 +137,45 @@ const roundTime = computed(() => {
 	return new Date(timestamp + 8 * 60 * 60 * 1000).toISOString().slice(0, 16).replace('T', ' ')
 })
 const bottleKeyword = ref('')
+const showRemark = ref(false), showReceiptDetails = ref(false), showHistory = ref(false)
 const weight = value => value == null || value === '' || !Number.isFinite(Number(value)) ? '—' : Number(value).toFixed(1)
 const scaleStatus = computed(() => !snapshot.value.is_connected ? '未连接' : !snapshot.value.is_online ? '等待秤值' : snapshot.value.is_stable ? '稳定' : '动态中')
 const receiptTitle = receipt => receipt?.complete ? '已保存，处理完成' : receipt?.saved ? '已保存，后续处理待完成' : '保存结果待确认'
 function onBottleSelected(bottle) { return selectBottle(bottle?.bottle_no || bottleKeyword.value) }
 function onSelectKeyword() { return selectBottle(bottleKeyword.value) }
-async function onNext() { if (await nextBottle()) bottleKeyword.value = '' }
+async function onNext() { if (await nextBottle()) { bottleKeyword.value = ''; showRemark.value = false; showReceiptDetails.value = false } }
 async function onStartRound() { if (await startRound()) bottleKeyword.value = '' }
 defineExpose({ activate, deactivate })
 </script>
 
 <style scoped>
-.notice { display: block; padding: 16rpx 20rpx; margin-bottom: 18rpx; border-radius: var(--crm-radius-sm); background: #eff6ff; color: #1e40af; font-size: 25rpx; line-height: 1.6; }
+.notice { display: block; padding: 12rpx 16rpx; margin-bottom: 0; border-radius: var(--crm-radius-sm); background: #eff6ff; color: #1e40af; font-size: 25rpx; line-height: 1.6; }
 .notice--error { background: #fff7ed; color: #9a3412; }
 .scale-strip, .actions, .result-secondary { display: flex; flex-wrap: wrap; align-items: center; gap: 16rpx; }
+.round-summary { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; flex-wrap: wrap; }
+.round-summary .actions { margin: 0; }
 .scale-strip { justify-content: space-between; margin-bottom: 12rpx; }
 .live-weight { font-size: 48rpx; font-weight: 700; }
 .unit { font-size: 26rpx; font-weight: 400; }
 .hint { display: block; color: var(--crm-text-muted); font-size: 24rpx; line-height: 1.6; }
-.actions { margin: 20rpx 0; }
-.facts { display: flex; flex-direction: column; align-items: flex-start; gap: 12rpx; padding: 20rpx 0; font-size: 27rpx; }
-.result { margin: 20rpx 0; padding: 24rpx; border: 2rpx solid #93c5fd; border-radius: var(--crm-radius-sm); background: #eff6ff; }
+.actions { margin: 12rpx 0; }
+.facts { display: flex; flex-direction: column; align-items: flex-start; gap: 8rpx; padding: 12rpx 0; font-size: 27rpx; }
+.result { margin: 12rpx 0; padding: 16rpx; border: 2rpx solid #93c5fd; border-radius: var(--crm-radius-sm); background: #eff6ff; }
 .result-label { display: block; font-size: 28rpx; font-weight: 600; }
-.result-value { display: block; margin: 8rpx 0; font-size: 60rpx; font-weight: 800; color: #1e40af; }
-.result-secondary { margin: 24rpx 0 6rpx; font-size: 26rpx; }
+.result-value { display: block; margin: 8rpx 0; font-size: 48rpx; font-weight: 800; color: #1e40af; }
+.result-secondary { margin: 12rpx 0 6rpx; font-size: 26rpx; }
 .correction { margin: 20rpx 0; padding: 20rpx; background: #fff7ed; border-radius: var(--crm-radius-sm); }
 .difference { display: block; white-space: pre-line; font-size: 25rpx; line-height: 1.8; padding: 14rpx 0; }
 .identifier { display: block; overflow-wrap: anywhere; font-size: 23rpx; color: var(--crm-text-muted); margin-top: 12rpx; }
 .history-row { padding: 20rpx 0; border-bottom: 1rpx solid var(--crm-border); font-size: 27rpx; }
 .history-row:last-child { border-bottom: 0; }
 .pending { color: #9a3412; }
+/* Compact only this PDA workflow; leave shared and Chrome sales pages unchanged. */
+.reweigh-page :deep(.page__body--padded) { gap: 14rpx; padding: 0 18rpx; }
+.reweigh-page :deep(.page__header) { padding: 16rpx 20rpx 0; margin-bottom: 14rpx; }
+.reweigh-page :deep(.header__top) { gap: 16rpx; padding-bottom: 16rpx; }
+.reweigh-page :deep(.header__icon-box) { width: 56rpx; height: 56rpx; }
+.reweigh-page :deep(.header__content) { min-width: 0; }
+.reweigh-page :deep(.section__header) { padding: 12rpx 18rpx; }
+.reweigh-page :deep(.section__body) { padding: 16rpx 18rpx; }
 </style>
