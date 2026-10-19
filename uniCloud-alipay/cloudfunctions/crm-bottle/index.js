@@ -93,6 +93,7 @@ const PAGE_ACTION_RULES = {
 	backfillRegFieldsV1: [{ pagePath: '/pages/bottle/list', action: 'update' }]
 }
 const SUPERADMIN_ONLY_ACTIONS = [
+	'repairXAliasesV1',
 	'backfillBottleSortKeysV1',
 	'auditUniqueFieldsV1',
 	'rebuildCurrentStatusV1',
@@ -3109,6 +3110,10 @@ exports.main = async (event, context) => {
 	})
 	if (!acl.ok) return { code: acl.code, msg: acl.msg }
 
+	if (action === 'repairXAliasesV1') {
+		try { return await require('./aliasRepair').repair({ db, data, user, helpers: { mergeFields: DUPLICATE_MERGE_FIELDS, merge: buildCanonicalMergePatch, sort: buildBottleNoSortMeta, state: buildExpectedBottleState } }) }
+		catch (e) { return { code: 409, msg: e.message } }
+	}
 	if (action === 'listV1') return listV1(user, data)
 	if (action === 'getV1') return getV1(user, data)
 	if (action === 'resolveQrCodeV1') return resolveQrCodeV1(user, data)
