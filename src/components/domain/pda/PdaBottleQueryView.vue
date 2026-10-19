@@ -96,7 +96,7 @@ function deactivate() { invalidateQuery(); return stopScanner() }
 defineExpose({ activate, deactivate })
 onBeforeUnmount(() => { queryVersion += 1 })
 function showBottle(bottleNo, id) { tab.value = 'bottle'; filters.keyword = bottleNo; filters.statusIndex = 0; runSearch({ id }) }
-function openMovement(bottleNo) { invalidateScan(); queryVersion += 1; movementBottle.value = bottleNo || ''; movementVersion.value += 1; tab.value = 'movement' }
+function openMovement(bottleNo) { invalidateScan(); queryVersion += 1; loading.value = false; movementBottle.value = bottleNo || ''; movementVersion.value += 1; tab.value = 'movement' }
 
 const statusOptions = [
 	{ label: '全部流向', value: '' },

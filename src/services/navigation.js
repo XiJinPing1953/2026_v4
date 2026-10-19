@@ -62,7 +62,7 @@ export function reLaunchOnce(url) {
 	const target = normalizePageUrl(url)
 	if (relaunchPending) {
 		if (relaunchPending.url === target) return relaunchPending.promise
-		return relaunchPending.promise.then(() => reLaunchOnce(target))
+		return relaunchPending.promise.then(() => reLaunchOnce(target), () => reLaunchOnce(target))
 	}
 	if (getCurrentPageUrl() === target) return Promise.resolve()
 	const state = { url: target }

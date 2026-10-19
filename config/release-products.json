@@ -6,20 +6,19 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.19-pda-launch-fix",
+      "version": "2026.10.19-pda-review-fixes",
       "output": "dist/build/web",
-      "acceptance": "Frontend-only shared startup reLaunch guard. No cloud or schema changes. Manual PDA validation.",
+      "acceptance": "Three review fixes: queued navigation survives preceding failure, serialized scanner lifecycle, cancelled archive loading cleanup. Frontend only; manual PDA validation.",
       "deploymentScope": {
         "functions": [
           "crm-bottle"
         ],
         "databaseFiles": [],
-        "baseCommit": "5364227d174f613e63e72b409e248fc7feff4ba1",
+        "baseCommit": "42fa8490eb003a069f472376119afec8ad2052b7",
         "sourceFiles": [
-          "src/App.vue",
           "src/services/navigation.js",
-          "src/pages/index/index.vue",
-          "src/pages/login/login.vue",
+          "src/composables/pda/usePdaQueryScan.js",
+          "src/components/domain/pda/PdaBottleQueryView.vue",
           "src/manifest.json"
         ]
       },
@@ -93,20 +92,19 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.7",
+      "version": "1.0.8",
       "output": "release/pda",
-      "acceptance": "Frontend-only shared startup reLaunch guard. No cloud or schema changes. Manual PDA validation.",
+      "acceptance": "Three review fixes: queued navigation survives preceding failure, serialized scanner lifecycle, cancelled archive loading cleanup. Frontend only; manual PDA validation.",
       "deploymentScope": {
         "functions": [
           "crm-bottle"
         ],
         "databaseFiles": [],
-        "baseCommit": "5364227d174f613e63e72b409e248fc7feff4ba1",
+        "baseCommit": "42fa8490eb003a069f472376119afec8ad2052b7",
         "sourceFiles": [
-          "src/App.vue",
           "src/services/navigation.js",
-          "src/pages/index/index.vue",
-          "src/pages/login/login.vue",
+          "src/composables/pda/usePdaQueryScan.js",
+          "src/components/domain/pda/PdaBottleQueryView.vue",
           "src/manifest.json"
         ]
       },

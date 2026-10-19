@@ -34,3 +34,18 @@ test('手动查询或切换页签取消等待中的扫码结果', async () => {
 	h.model.invalidate(); h.pending[0].resolve({ code: 0, data: { bottle_no: '1' } }); await scan
 	assert.deepEqual(h.bottles, [])
 })
+test('隐藏重进等待旧初始化和释放完成，新扫码会话不被旧任务关闭', async () => {
+ const entrants = []; let session = null
+ const { usePdaQueryScan } = vm.runInNewContext(source + '\n;({ usePdaQueryScan })', {
+  ref: value => ({ value }), onBeforeUnmount() {}, isPdaAppMode: () => true, uni: { showToast() {} },
+  enterBarcodeSession: options => new Promise(resolve => entrants.push(() => { session = options; resolve({ code: 0 }) })),
+  leaveBarcodeSession: async () => { session = null }, resolvePdaBottleByQrCode: async () => ({ code: 404 })
+ })
+ const model = usePdaQueryScan({ onStart() {}, onBottle() {} })
+ const first = model.activate(); await Promise.resolve()
+ const stop = model.deactivate(), second = model.activate(); await Promise.resolve()
+ assert.equal(entrants.length, 1)
+ entrants[0](); await first; await stop; await Promise.resolve()
+ assert.equal(entrants.length, 2); entrants[1](); await second
+ assert.ok(session); assert.equal(model.scannerReady.value, true)
+})

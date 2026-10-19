@@ -24,28 +24,31 @@ export function usePdaQueryScan({ onStart, onBottle }) {
 		}
 	}
 	function invalidate() { version += 1 }
-	async function activate() {
+	function activate() {
 		const current = ++lifecycle
-		await stopping
-		if (current !== lifecycle) return
-		active = true
-		if (!isPdaAppMode()) return
-		try {
-			const result = await enterBarcodeSession({ page, onResult: scan, activeTarget: { page, target: 'query.bottleNo', label: '钢瓶查询', scope: 'query', field: 'bottleNo' } })
-			if (!active || current !== lifecycle) { await leaveBarcodeSession({ page }); return }
-			scannerReady.value = result?.code === 0
-		} catch (error) {
-			if (active) uni.showToast({ title: error.message || '扫描头初始化失败', icon: 'none' })
-		}
+		stopping = stopping.then(async () => {
+			if (current !== lifecycle) return
+			active = true
+			if (!isPdaAppMode()) return
+			try {
+				const result = await enterBarcodeSession({ page, onResult: scan, activeTarget: { page, target: 'query.bottleNo', label: '钢瓶查询', scope: 'query', field: 'bottleNo' } })
+				if (active && current === lifecycle) scannerReady.value = result?.code === 0
+			} catch (error) {
+				if (active && current === lifecycle) uni.showToast({ title: error.message || '扫描头初始化失败', icon: 'none' })
+			}
+		})
+		return stopping
 	}
-	async function deactivate() {
+	function deactivate() {
 		active = false
 		lifecycle += 1
 		invalidate()
 		scannerReady.value = false
-		stopping = Promise.allSettled([stopping, leaveBarcodeSession({ page, reason: 'page-hidden' })])
-		await stopping
+		// 等待旧初始化完成后释放，再允许下一次初始化占用同一 page 会话。
+		stopping = stopping.then(() => leaveBarcodeSession({ page, reason: 'page-hidden' })).catch(() => {})
+		return stopping
 	}
+
 	onBeforeUnmount(deactivate)
 	return { scannerReady, activate, deactivate, invalidate }
 }
