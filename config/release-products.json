@@ -19,20 +19,9 @@
           "src/components/domain/pda/PdaBottleQueryView.vue",
           "src/services/pda/bottle.js",
           "src/composables/pda/usePdaQueryScan.js",
-          "src/manifest.json"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-sale": {
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            },
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            }
-          }
-        }
+          "src/manifest.json",
+          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js"
+        ]
       },
       "integrityScope": "deployment"
     },
@@ -50,20 +39,9 @@
           "src/components/domain/pda/PdaBottleQueryView.vue",
           "src/services/pda/bottle.js",
           "src/composables/pda/usePdaQueryScan.js",
-          "src/manifest.json"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-sale": {
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            },
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            }
-          }
-        }
+          "src/manifest.json",
+          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js"
+        ]
       },
       "integrityScope": "deployment"
     },
@@ -128,20 +106,9 @@
           "src/components/domain/pda/PdaBottleQueryView.vue",
           "src/services/pda/bottle.js",
           "src/composables/pda/usePdaQueryScan.js",
-          "src/manifest.json"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-sale": {
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            },
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            }
-          }
-        }
+          "src/manifest.json",
+          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js"
+        ]
       },
       "integrityScope": "deployment"
     }
