@@ -43,3 +43,11 @@
 H5 `1792417443253-e6972268`、入口 `/assets/index-C1YkG6MY.js`：218资源及正式域名 version/index/入口回读通过。PDA原生资源1.0.4（105）从同一干净提交构建，原 `codex/pda-reweigh` 工作区已快进至发布源码，11个发布源码文件逐一匹配；原有未跟踪的 auth 锁文件哈希未变。未安装、重启或运行真机，用户在原项目手动运行并选择连接云端云函数；真实吊秤、扫码和现场保存仍由用户验收。
 
 证据与可回退备份：`outputs/trust-audit/2026-10-19-reweigh-fix-release/` 中的 `candidate-manifest/`、`before-proof.json`、`cloud-proof.json`、`runtime-proof.json`、`web-proof.json`、`public-proof.json`、`pda-sync-proof.json`、`web-before/`、`review-fix-before-20261019/`、`pda-1.0.4-105/`。本次三个临时HBuilderX项目已关闭，仅保留main和PDA项目，备份文件保留。
+
+## 2026-10-19 PDA八项界面精简发布
+
+八项修改已合入 main `a4f915fcf07faecf017049858bfdc839f88f2dfd`。按用户确认，本轮罐装复秤统计仅当前 PDA / 当前账号持久保存，按已确认保存的不同瓶号计数，重复复秤不重复增加；新轮次只重置本机统计（领域规则 P-07）。Chrome手机称重销售保留。
+
+27项定向测试、H5及原生资源构建通过；360px模拟页面核查首页两列账号、查询与复秤布局无横向溢出。支付宝空间 `env-00jxuffegf2n` 前端发布 `1792419228291-934f9571`，219项网页资源和正式域名入口回读一致，本次未部署云函数或数据库。旧前端完整备份。PDA1.0.5（106）源码已快进同步原工作区，14个变更文件逐字节匹配，原有auth锁文件保持原哈希；未操作真机。临时发布项目已关闭，HBuilderX只保留两个原项目。
+
+证据：`outputs/trust-audit/2026-10-19-pda-compact-ui/` 的测试、四张窄屏截图、发布清单、web-proof/public-proof、pda-sync-proof、web-before及pda-1.0.5-106资源。下一步由用户在原PDA项目重新运行，验收硬件扫码、吊秤与统计重启保持。
