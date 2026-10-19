@@ -1,0 +1,16 @@
+{
+  "bsonType": "object",
+  "description": "回瓶复秤每瓶当前依据及每操作员当前轮次，事务串行保护；仅后端访问",
+  "required": ["kind", "updated_at"],
+  "permission": {"read": false, "create": false, "update": false, "delete": false},
+  "properties": {
+    "_id": {"bsonType": "string"},
+    "kind": {"bsonType": "string", "enum": ["bottle", "owner"]},
+    "owner_id": {"bsonType": "string"},
+    "round_id": {"bsonType": "string"},
+    "bottle_no": {"bsonType": "string"},
+    "record_id": {"bsonType": "string"},
+    "consumed_filling_id": {"bsonType": "string"},
+    "updated_at": {"bsonType": "number"}
+  }
+}

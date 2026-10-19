@@ -141,7 +141,10 @@ function makeApp({ scan, regulatory } = {}) {
 	const servicePath = path.resolve('uniCloud-alipay/cloudfunctions/crm-filling/reweighService.js')
 	const serviceModule = { exports: {} }
 	if (fs.existsSync(servicePath)) vm.runInNewContext(fs.readFileSync(servicePath, 'utf8'), { module: serviceModule, exports: serviceModule.exports, require: localRequire, Date: DateMock, Buffer })
-	const requireFn = (name) => name === './fillingOperations' ? helperModule.exports : name === './reweighService' ? serviceModule.exports : localRequire(name)
+	const returnPath = path.resolve('uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js')
+	const returnModule = { exports: {} }
+	if (fs.existsSync(returnPath)) vm.runInNewContext(fs.readFileSync(returnPath, 'utf8'), { module: returnModule, exports: returnModule.exports, require: localRequire, Date: DateMock, Buffer })
+	const requireFn = (name) => name === './fillingOperations' ? helperModule.exports : name === './reweighService' ? serviceModule.exports : name === './returnReweighService' ? returnModule.exports : localRequire(name)
 	vm.runInNewContext(fs.readFileSync(fnPath, 'utf8'), { exports, require: requireFn, uniCloud: cloud, console, Date: DateMock, process, setTimeout, clearTimeout, Buffer })
 	const invoke = (action, data = {}, token = 'good', context = { SOURCE: 'client' }) => exports.main({ action, data, token }, context)
 	return { db, invoke, user, scanned, now: () => time, advance: (n) => { time += n }, operation: (id) => db.data('crm_filling_operations').get(operationKey(id)) }

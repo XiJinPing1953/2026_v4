@@ -31,6 +31,7 @@
 				<text class="scope-item">查询钢瓶档案、流转记录、客户摘要</text>
 				<text class="scope-item">按灌装工位扫码创建任务并回传灌装记录</text>
 				<text v-if="isNative" class="scope-item">复秤：连接 NVK 吊秤，逐瓶核算本次灌装量并保存；暂不打印标签</text>
+				<text v-if="isNative" class="scope-item">回瓶复秤：保存回瓶称重依据，统计本轮已复秤瓶数</text>
 						<text class="scope-item">手机称重销售：网页调用摄像头扫码，连接 BLE 吊秤录入瓶装 kg 销售</text>
 						<text class="scope-item">销售保留客户、配送员、车辆与瓶号搜索；灌装继续使用现场设备</text>
 				<text class="scope-item">灌装任务支持 C606+ 称重仪表取值和目标写入；首版不做收款结算</text>
@@ -60,6 +61,7 @@ const actions = [
 	{ title: '客户查询', desc: '看余额、存瓶和默认单价', url: '/pages/pda/customer-query' },
 	{ title: '灌装看板', desc: '按工位扫码创建任务、写入目标并确认完成', url: '/pages/pda/filling-board' },
 	{ title: '复秤', desc: '吊秤称重，结合上次回瓶核算本次灌装量', url: '/pages/pda/reweigh', nativeOnly: true, createRequired: true },
+	{ title: '回瓶复秤', desc: '保存回瓶称重依据，统计本轮已复秤瓶数', url: '/pages/pda/return-reweigh', nativeOnly: true, createRequired: true },
 	{ title: '手机称重销售', desc: '摄像头扫码、吊秤称重、提交瓶装 kg 销售', url: '/pages/pda/sale-create' }
 ].filter((item) => (!item.nativeOnly || isNative) && canViewPage(item.url) && (!(item.createRequired || item.url === '/pages/pda/sale-create') || canPageAction(item.url, 'create')))
 

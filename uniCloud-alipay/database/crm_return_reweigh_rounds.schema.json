@@ -1,0 +1,13 @@
+{
+  "bsonType": "object",
+  "description": "操作员回瓶复秤作业轮次，最多1000个不同瓶档，重复复秤不增加瓶数",
+  "required": ["created_by", "created_at", "updated_at", "bottle_ids"],
+  "permission": {"read": false, "create": false, "update": false, "delete": false},
+  "properties": {
+    "_id": {"bsonType": "string"},
+    "created_by": {"bsonType": "string"},
+    "created_at": {"bsonType": "number"},
+    "updated_at": {"bsonType": "number"},
+    "bottle_ids": {"bsonType": "array", "items": {"bsonType": "string"}}
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "bsonType": "object",
+  "description": "PDA回瓶复秤不可变测量记录，操作编号幂等；不产生销售或账务流水",
+  "required": ["operation_id", "input_hash", "round_id", "bottle_no", "gross_weight", "tare_weight", "net_weight", "created_at", "created_by", "capture"],
+  "permission": {"read": false, "create": false, "update": false, "delete": false},
+  "properties": {
+    "_id": {"bsonType": "string"},
+    "operation_id": {"bsonType": "string"},
+    "input_hash": {"bsonType": "string"},
+    "round_id": {"bsonType": "string"},
+    "bottle_id": {"bsonType": "string"},
+    "bottle_no": {"bsonType": "string"},
+    "date": {"bsonType": "string"},
+    "gross_weight": {"bsonType": "number"},
+    "tare_weight": {"bsonType": "number"},
+    "net_weight": {"bsonType": "number", "description": "毛重减档案皮重，保留有符号值，允许零和负数"},
+    "created_at": {"bsonType": "number"},
+    "created_by": {"bsonType": "string"},
+    "created_by_name": {"bsonType": "string"},
+    "previous_record_id": {"bsonType": "string"},
+    "remark": {"bsonType": "string"},
+    "capture": {"bsonType": "object"},
+    "outgoing_facts": {"bsonType": "array"},
+    "manual_facts": {"bsonType": "array"},
+    "baseline_filling_ids": {"bsonType": "array"}
+  }
+}

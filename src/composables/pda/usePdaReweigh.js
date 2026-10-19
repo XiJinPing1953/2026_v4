@@ -2,6 +2,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { getUser } from '@/services/auth'
 import { canPageAction } from '@/services/pageAcl'
 import { previewReweighV1, createReweighV1, correctReweighV1, getReweighOperationV1, retryReweighOperationV1 } from '@/services/api/reweigh'
+import { getReturnReweighRoundV1, startReturnReweighRoundV1, previewReturnReweighV1, saveReturnReweighV1, getReturnReweighV1 } from '@/services/api/reweigh'
 import { createPdaBleScaleSession, createEmptyPdaBleScaleSnapshot, ensurePdaBleRuntimePermission, getPdaBleScaleCapabilities, quantizeBleScaleWeightKg } from '@/services/pda/bleScale'
 import { resolvePdaBottleByQrCode } from '@/services/pda/bottle'
 import { enterBarcodeSession, leaveBarcodeSession } from '@/services/pda/capture'
@@ -28,12 +29,19 @@ function emptyDraft() {
 	return { operationId: createReweighId(), bottleNo: '', date: '', preview: null, previousBasis: null, grossWeight: null, capture: null, frozen: null, receipt: null, reason: '现场复秤', remark: '' }
 }
 
-export function usePdaReweigh() {
+export function usePdaReweigh({ mode = 'filling' } = {}) {
+	const isReturn = mode === 'return'
+	const page = isReturn ? 'pda-return-reweigh' : 'pda-reweigh'
+	const pagePath = isReturn ? '/pages/pda/return-reweigh' : '/pages/pda/reweigh'
+	const previewRequest = isReturn ? previewReturnReweighV1 : previewReweighV1
 	const ownerId = String(getUser()?._id || '')
 	const ownerMatches = () => ownerId && String(getUser()?._id || '') === ownerId
 	const capabilities = getPdaBleScaleCapabilities()
 	const nativeSupported = capabilities.transport === 'native' && capabilities.supported
 	const current = ref(emptyDraft())
+	const round = ref(null)
+	const pendingRound = ref(null)
+	const roundReady = ref(!isReturn)
 	const history = ref([])
 	const message = ref('请连接 NVK 吊秤，再按 PDA 扫码键选择钢瓶。')
 	const error = ref('')
@@ -54,21 +62,25 @@ export function usePdaReweigh() {
 	const store = createReweighDraftStore(ownerId, {
 		getStorageSync: key => uni.getStorageSync(key),
 		setStorageSync: (key, value) => uni.setStorageSync(key, value)
-	}, () => String(getUser()?._id || ''))
+	}, () => String(getUser()?._id || ''), mode)
 	try {
 		const saved = store.load()
-		if (saved) { current.value = saved.current; history.value = saved.history; message.value = '已恢复本账号复秤草稿。已采集重量保留，未完成称重需重新连接吊秤。' }
+		if (saved) {
+			current.value = saved.current; history.value = saved.history
+			round.value = saved.metadata?.round || null; pendingRound.value = saved.metadata?.pendingRound || null
+			message.value = '已恢复本账号复秤草稿。已采集重量保留，未完成称重需重新连接吊秤。'
+		}
 	} catch (cause) { unreadable = true; storageError.value = cause.message }
-	const locked = computed(() => unreadable || !ownerMatches() || Boolean(current.value.frozen))
-	const canCreate = computed(() => canPageAction('/pages/pda/reweigh', 'create'))
+	const locked = computed(() => unreadable || !ownerMatches() || Boolean(current.value.frozen) || Boolean(pendingRound.value))
+	const canCreate = computed(() => canPageAction(pagePath, 'create'))
 	const canNext = computed(() => !busy.value && current.value.receipt?.saved === true)
 	function fail(text) { error.value = text; return false }
 	function persist() {
 		if (unreadable) return false
-		try { store.save(current.value, history.value); storageError.value = ''; return true }
+		try { store.save(current.value, history.value, isReturn ? { round: round.value, pendingRound: pendingRound.value } : null); storageError.value = ''; return true }
 		catch (cause) { storageError.value = cause.message; return false }
 	}
-	function editable() { return nativeSupported && active.value && canCreate.value && !locked.value && !busy.value }
+	function editable() { return nativeSupported && active.value && canCreate.value && !locked.value && !busy.value && (!isReturn || (roundReady.value && round.value?._id)) }
 	function sameWork(version) { return active.value && ownerMatches() && epoch === version }
 	function confirm(title, content) {
 		return new Promise(resolve => uni.showModal({ title, content, confirmText: '确认', cancelText: '取消', success: result => resolve(Boolean(result.confirm)), fail: () => resolve(false) }))
@@ -79,6 +91,7 @@ export function usePdaReweigh() {
 	}
 	function previewArgs(grossWeight = current.value.grossWeight) {
 		const draft = current.value
+		if (isReturn) return { bottle_no: draft.bottleNo, round_id: draft.roundId || round.value?._id, ...(grossWeight != null ? { gross_weight: grossWeight } : {}) }
 		return { bottle_no: draft.bottleNo, ...(draft.date ? { date: draft.date } : {}), ...(draft.preview?.filling?._id ? { filling_id: draft.preview.filling._id } : {}), ...(grossWeight != null ? { gross_weight: grossWeight } : {}) }
 	}
 	async function selectBottle(bottleNo, fillingId = '') {
@@ -90,10 +103,10 @@ export function usePdaReweigh() {
 		busy.value = true; error.value = ''
 		const version = ++epoch
 		try {
-			const result = await previewReweighV1({ bottle_no: normalized, ...(fillingId ? { filling_id: fillingId } : {}) })
+			const result = await previewRequest({ bottle_no: normalized, ...(isReturn ? { round_id: round.value._id } : fillingId ? { filling_id: fillingId } : {}) })
 			if (!sameWork(version)) return false
-			if (result?.code !== 0) return fail(result?.msg || '无法核算此瓶，请核对回瓶记录')
-			current.value = { ...current.value, bottleNo: result.data.bottle.bottle_no, date: result.data.date, preview: result.data }
+			if (result?.code !== 0) return fail(result?.msg || (isReturn ? '无法读取此瓶回瓶复秤信息' : '无法核算此瓶，请核对回瓶记录'))
+			current.value = { ...current.value, bottleNo: result.data.bottle.bottle_no, date: result.data.date, preview: result.data, ...(isReturn ? { roundId: round.value._id } : {}) }
 			if (!persist()) return false
 		} catch (cause) { if (sameWork(version)) fail(cause.message || '瓶档读取失败'); return false }
 		finally { busy.value = false }
@@ -135,12 +148,12 @@ export function usePdaReweigh() {
 		busy.value = true
 		const version = ++epoch
 		try {
-			const result = await previewReweighV1(previewArgs())
+			const result = await previewRequest(previewArgs())
 			if (!sameWork(version)) return
 			if (result?.code !== 0) return fail(result?.msg || '重量已采集，核算失败，请重新核算')
 			const previousBasis = current.value.previousBasis || (result.data.context_hash !== current.value.preview?.context_hash ? current.value.preview : null)
 			current.value = { ...current.value, preview: result.data, previousBasis }; persist()
-			message.value = '稳定重量已采集，请核对标签净重与本次灌装量后保存。'
+			message.value = isReturn ? '稳定重量已采集，请核对回瓶毛重、皮重与净重后保存。' : '稳定重量已采集，请核对标签净重与本次灌装量后保存。'
 		} catch (cause) { if (sameWork(version)) fail(cause.message || '重量已采集，核算失败，保存时将重新核算') }
 		finally { busy.value = false }
 	}
@@ -181,6 +194,10 @@ export function usePdaReweigh() {
 		const receipt = reweighReceipt(response, operationId, target?.receipt)
 		// A direct pre-write rejection may omit its ID. Queries must explicitly identify the original operation.
 		const matched = response?.data?.operation_id === operationId || (directResponse && !response?.data?.operation_id)
+		if (isReturn && matched && receipt.saved) {
+			if (!response.msg) receipt.message = '回瓶复秤已保存，可作为灌装复秤的回瓶依据'
+			if (response.data?.round?._id === round.value?._id) round.value = response.data.round
+		}
 		if (response?.data?.rejected === true && matched && !receipt.saved) {
 			receipt.rejected = true
 			receipt.status = 'rejected'
@@ -199,7 +216,7 @@ export function usePdaReweigh() {
 		if (!frozen || !ownerMatches() || !active.value || !canCreate.value) return false
 		if (!persist()) return false
 		try {
-			const response = await (frozen.mode === 'correct' ? correctReweighV1 : createReweighV1)(cloneReweigh(frozen.payload))
+			const response = await (isReturn ? saveReturnReweighV1 : frozen.mode === 'correct' ? correctReweighV1 : createReweighV1)(cloneReweigh(frozen.payload))
 			const receipt = applyReceipt(response, frozen.payload.operation_id, current.value, true)
 			if (receipt.rejected) return false
 			if (response?.code !== 0) fail(response.msg || '结果待确认，请查询原操作')
@@ -211,21 +228,25 @@ export function usePdaReweigh() {
 		busy.value = true; error.value = ''
 		const version = epoch
 		try {
-			const response = await previewReweighV1(previewArgs())
+			const response = await previewRequest(previewArgs())
 			if (!sameWork(version)) return false
 			if (response?.code !== 0) return fail(response?.msg || '提交前核算失败')
 			const preview = response.data
 			const old = current.value.previousBasis || current.value.preview
 			if (preview.context_hash !== old?.context_hash) {
-				const text = `档案或回瓶依据已有变化，请核对后确认。\n皮重：${weightText(old?.bottle?.tare_weight)} → ${weightText(preview.bottle.tare_weight)}\n回瓶毛重：${weightText(old?.basis?.gross_weight)} → ${weightText(preview.basis.gross_weight)}\n标签净重：${weightText(old?.net_weight)} → ${weightText(preview.net_weight)}\n本次灌装量：${weightText(old?.fill_weight)} → ${weightText(preview.fill_weight)}`
+				const text = isReturn
+					? `档案或原回瓶复秤记录已有变化，请核对后确认。\n皮重：${weightText(old?.bottle?.tare_weight)} → ${weightText(preview.bottle.tare_weight)}\n净重：${weightText(old?.net_weight)} → ${weightText(preview.net_weight)}`
+					: `档案或回瓶依据已有变化，请核对后确认。\n皮重：${weightText(old?.bottle?.tare_weight)} → ${weightText(preview.bottle.tare_weight)}\n回瓶毛重：${weightText(old?.basis?.gross_weight)} → ${weightText(preview.basis.gross_weight)}\n标签净重：${weightText(old?.net_weight)} → ${weightText(preview.net_weight)}\n本次灌装量：${weightText(old?.fill_weight)} → ${weightText(preview.fill_weight)}`
 				if (!await confirm('核算依据变化', text) || !sameWork(version)) return false
 			}
+			if (isReturn && preview.previous && (!await confirm('确认再次回瓶复秤', `此瓶已有回瓶复秤记录。\n毛重：${weightText(preview.previous.gross_weight)} → ${weightText(preview.gross_weight)}\n净重：${weightText(preview.previous.net_weight)} → ${weightText(preview.net_weight)}\n保存后使用本次称重作为回瓶依据，原称重保留。相同瓶号本轮只统计一次。`) || !sameWork(version))) return false
 			if (preview.mode === 'correct') {
 				if (!String(current.value.reason || '').trim()) return fail('请填写更正原因')
 				if (!await confirm('确认更正原灌装记录', `${reweighChangeText(preview)}\n原因：${current.value.reason}\n确认后更新原记录，不新增灌装。`) || !sameWork(version)) return false
 			}
 			const payload = { operation_id: current.value.operationId, bottle_no: current.value.bottleNo, date: preview.date, gross_weight: current.value.grossWeight, context_hash: preview.context_hash,
 				capture_method: 'ble', capture: cloneReweigh(current.value.capture), remark: current.value.remark,
+				...(isReturn ? { round_id: current.value.roundId } : {}),
 				...(preview.mode === 'correct' ? { filling_id: preview.filling._id, expected_source_version: preview.filling.source_version, reason: current.value.reason } : {}) }
 			current.value = { ...current.value, preview, previousBasis: null, frozen: { mode: preview.mode, payload } }
 			return await sendFrozen()
@@ -239,12 +260,12 @@ export function usePdaReweigh() {
 		busy.value = true; error.value = ''
 		try {
 			if (!persist()) return false
-			const response = await getReweighOperationV1(operationId)
+			const response = await (isReturn ? getReturnReweighV1 : getReweighOperationV1)(operationId)
 			const receipt = applyReceipt(response, operationId, target)
 			if (receipt.rejected) return false
 			if (retry && response?.code === 404 && current.value.operationId === operationId && !target.receipt?.saved) return await sendFrozen()
 			if (retry && response?.code === 0 && response.data?.operation_id === operationId && !response.data?.complete && active.value && ownerMatches()) {
-				const retried = await retryReweighOperationV1(operationId)
+				const retried = await (isReturn ? saveReturnReweighV1(cloneReweigh(target.frozen.payload)) : retryReweighOperationV1(operationId))
 				const retryReceipt = applyReceipt(retried, operationId, current.value.operationId === operationId ? current.value : history.value.find(item => item.operationId === operationId))
 				if (retryReceipt.rejected) return false
 			}
@@ -266,8 +287,52 @@ export function usePdaReweigh() {
 		history.value = history.value.filter(item => !item.receipt?.complete).concat(complete)
 		current.value = emptyDraft()
 		if (!persist()) { current.value = old; history.value = previousHistory; return false }
-		epoch += 1; pendingSession.value = ''; error.value = ''; message.value = '请扫描下一瓶；同一瓶再次扫描时将核查是否允许更正。'
+		epoch += 1; pendingSession.value = ''; error.value = ''; message.value = isReturn ? '请扫描下一瓶；同一瓶再次复秤，本轮瓶数不重复增加。' : '请扫描下一瓶；同一瓶再次扫描时将核查是否允许更正。'
 		return true
+	}
+	async function refreshRound() {
+		if (!isReturn || busy.value || !active.value || !ownerMatches() || unreadable) return false
+		busy.value = true; roundReady.value = false; error.value = ''
+		const version = epoch
+		try {
+			const response = await getReturnReweighRoundV1()
+			if (!sameWork(version)) return false
+			if (response?.code !== 0) return fail(response?.msg || '本轮统计读取失败，请重试')
+			round.value = response.data?.round || null
+			roundReady.value = true
+			if (!round.value && !pendingRound.value) message.value = '请先开始本轮回瓶复秤，再连接吊秤、扫码称重。'
+			return persist()
+		} catch (cause) { if (sameWork(version)) fail(cause.message || '本轮统计读取失败，请重试'); return false }
+		finally { busy.value = false }
+	}
+	async function startRound() {
+		if (!isReturn || !nativeSupported || busy.value || !active.value || !ownerMatches() || unreadable || !canCreate.value) return false
+		if (current.value.frozen && !current.value.receipt?.complete) return fail('请先确认本瓶保存完成，再开始新一轮')
+		if (current.value.bottleNo && !current.value.receipt?.complete) return fail('请先保存或放弃本瓶草稿，再开始新一轮')
+		if (history.value.some(item => item.frozen && !item.receipt?.complete)) return fail('请先查询并完成本机未完成的保存记录')
+		const version = epoch
+		if (!pendingRound.value) {
+			if (!roundReady.value) return fail('请先刷新本轮统计')
+			if (round.value && (!await confirm('开始新一轮回瓶复秤', `本轮已复秤 ${Number(round.value.bottle_count || 0)} 瓶。开始新一轮后计数从 0 开始，已保存的回瓶复秤记录继续保留。`) || !sameWork(version) || busy.value)) return false
+			pendingRound.value = { round_id: createReweighId(), expected_round_id: round.value?._id || '' }
+		}
+		if (!persist()) return false
+		busy.value = true; error.value = ''
+		try {
+			const response = await startReturnReweighRoundV1(cloneReweigh(pendingRound.value))
+			if (!sameWork(version)) return false
+			if (response?.code !== 0) {
+				if (response?.data?.rejected === true) { pendingRound.value = null; roundReady.value = false; persist() }
+				return fail(response?.msg || '本轮开始结果待确认，请重试原请求')
+			}
+			if (response.data?.round?._id !== pendingRound.value.round_id) return fail('本轮回执不匹配，请重试原请求')
+			round.value = response.data.round; pendingRound.value = null; roundReady.value = true
+			if (current.value.frozen) history.value = [...history.value, cloneReweigh(current.value)].slice(-10)
+			current.value = emptyDraft(); pendingSession.value = ''; epoch += 1
+			message.value = '本轮已开始，请连接吊秤并扫描回瓶。'
+			return persist()
+		} catch (cause) { if (sameWork(version)) fail(`${cause.message || '网络中断'}；本轮开始结果待确认，请重试原请求`); return false }
+		finally { busy.value = false }
 	}
 	async function activate() {
 		const version = ++lifecycleVersion
@@ -275,9 +340,11 @@ export function usePdaReweigh() {
 		if (version !== lifecycleVersion) return false
 		active.value = true
 		if (!nativeSupported) return fail('复秤仅支持原生 PDA，请使用安装了扫描头插件的 PDA 应用')
+		if (isReturn) { roundReady.value = false; await refreshRound() }
+		if (!active.value || version !== lifecycleVersion || !ownerMatches()) return false
 		try {
-			const result = await enterBarcodeSession({ page: 'pda-reweigh', onResult: scan, activeTarget: { page: 'pda-reweigh', target: 'reweigh.bottleNo', label: '复秤瓶号', scope: 'reweigh', field: 'bottleNo' } })
-			if (!active.value || version !== lifecycleVersion || !ownerMatches()) { await leaveBarcodeSession({ page: 'pda-reweigh' }); return false }
+			const result = await enterBarcodeSession({ page, onResult: scan, activeTarget: { page, target: 'reweigh.bottleNo', label: isReturn ? '回瓶复秤瓶号' : '复秤瓶号', scope: 'reweigh', field: 'bottleNo' } })
+			if (!active.value || version !== lifecycleVersion || !ownerMatches()) { await leaveBarcodeSession({ page }); return false }
 			scannerReady.value = result?.code === 0
 			if (!scannerReady.value) fail(result?.msg || '扫描头初始化失败，可输入瓶号选择')
 		} catch (cause) { fail(cause.message || '扫描头初始化失败') }
@@ -285,10 +352,10 @@ export function usePdaReweigh() {
 	async function deactivate() {
 		active.value = false; epoch += 1; lifecycleVersion += 1; pendingSession.value = ''; scannerReady.value = false
 		persist()
-		stopping = Promise.allSettled([stopping, scale.stop(), leaveBarcodeSession({ page: 'pda-reweigh', reason: 'page-hidden' })])
+		stopping = Promise.allSettled([stopping, scale.stop(), leaveBarcodeSession({ page, reason: 'page-hidden' })])
 		await stopping
 	}
 	onBeforeUnmount(() => { unsubscribe(); void deactivate() })
-	return { current, history, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext,
+	return { current, history, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
 		selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText }
 }

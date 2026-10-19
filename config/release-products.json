@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.19-pda-reweigh",
+      "version": "2026.10.19-pda-return-reweigh",
       "output": "dist/build/web",
-      "acceptance": "Native PDA reweigh using the existing NVK BLE scale. Atomically create a filling or replace a unique unshipped module-created filling with version checks, audit and recoverable operations. Filling amount = gross minus current-cycle return gross; label net = gross minus archive tare. Web manual corrections require a reason. Future label and QR contain only 新拓能源, bottle number, tare, gross and net; printing is skipped. Native device acceptance is separate.",
+      "acceptance": "PDA return reweigh without printing. Persist immutable BLE measurements, operator rounds and distinct-cylinder counts atomically. Filling reweigh uses the latest unconsumed measured return basis; preserve existing same-day filling limit and sales accounting. Unknown results recover by original operation ID. Native device validation remains manual.",
       "deploymentScope": {
         "functions": [
           "crm-filling",
@@ -17,58 +17,86 @@
           "crm-auth"
         ],
         "databaseFiles": [
-          "crm_fillings.schema.json"
+          "crm_return_reweighs.schema.json",
+          "crm_return_reweigh_state.schema.json",
+          "crm_return_reweigh_rounds.schema.json"
         ],
-        "baseCommit": "84ef685d12c61b98ad2f42993cf2cb2434334c73",
+        "baseCommit": "94779590fe131cc4473dcb90d1a5bb12c7f0490e",
         "sourceFiles": [
-          "src/components/domain/filling/FillingBatchPreview.vue",
-          "src/components/domain/filling/FillingEditView.vue",
-          "src/components/domain/filling/FillingListView.vue",
           "src/components/domain/pda/PdaHomeView.vue",
           "src/components/domain/pda/PdaReweighView.vue",
           "src/composables/pda/usePdaReweigh.js",
-          "src/composables/useReweighCorrection.js",
           "src/manifest.json",
           "src/pages.json",
-          "src/pages/pda/reweigh.vue",
+          "src/pages/pda/return-reweigh.vue",
           "src/services/api/reweigh.js",
-          "src/services/bottleInspectionCandidates.mjs",
-          "src/services/fillingOperations.js",
           "src/services/pageAclRegistry.js",
           "src/services/pda/reweighDraft.js",
           "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
           "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/index.js",
           "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
           "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistry.js",
           "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/fillingOperations.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistry.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/reweighRules.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/reweighService.js",
           "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
           "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js",
-          "uniCloud-alipay/database/crm_fillings.schema.json",
-          "uniCloud-alipay/database/schema/crm_fillings.schema.json"
+          "uniCloud-alipay/database/crm_return_reweigh_rounds.schema.json",
+          "uniCloud-alipay/database/crm_return_reweigh_state.schema.json",
+          "uniCloud-alipay/database/crm_return_reweighs.schema.json"
         ]
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.19-auth-packaged-acl",
+      "version": "2026.10.19-pda-return-reweigh",
       "output": "release/cloud",
-      "acceptance": "Load the synchronized ACL helper directly from the independently deployed auth package. Preserve token validation and explicit page permission denies without an expected missing-parent-module warning.",
+      "acceptance": "PDA return reweigh without printing. Persist immutable BLE measurements, operator rounds and distinct-cylinder counts atomically. Filling reweigh uses the latest unconsumed measured return basis; preserve existing same-day filling limit and sales accounting. Unknown results recover by original operation ID. Native device validation remains manual.",
       "deploymentScope": {
         "functions": [
+          "crm-filling",
+          "crm-bottle",
+          "crm-user",
           "crm-auth"
         ],
-        "databaseFiles": [],
-        "baseCommit": "989fc1fa8a7cd228f9c85f32ab65ebd62ee49047",
+        "databaseFiles": [
+          "crm_return_reweighs.schema.json",
+          "crm_return_reweigh_state.schema.json",
+          "crm_return_reweigh_rounds.schema.json"
+        ],
+        "baseCommit": "94779590fe131cc4473dcb90d1a5bb12c7f0490e",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/crm-auth/index.js"
+          "src/components/domain/pda/PdaHomeView.vue",
+          "src/components/domain/pda/PdaReweighView.vue",
+          "src/composables/pda/usePdaReweigh.js",
+          "src/manifest.json",
+          "src/pages.json",
+          "src/pages/pda/return-reweigh.vue",
+          "src/services/api/reweigh.js",
+          "src/services/pageAclRegistry.js",
+          "src/services/pda/reweighDraft.js",
+          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/reweighService.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js",
+          "uniCloud-alipay/database/crm_return_reweigh_rounds.schema.json",
+          "uniCloud-alipay/database/crm_return_reweigh_state.schema.json",
+          "uniCloud-alipay/database/crm_return_reweighs.schema.json"
         ]
       },
       "integrityScope": "deployment"
@@ -121,9 +149,9 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.2-103",
+      "version": "1.0.3-104",
       "output": "release/pda",
-      "acceptance": "Native PDA reweigh using the existing NVK BLE scale. Atomically create a filling or replace a unique unshipped module-created filling with version checks, audit and recoverable operations. Filling amount = gross minus current-cycle return gross; label net = gross minus archive tare. Web manual corrections require a reason. Future label and QR contain only 新拓能源, bottle number, tare, gross and net; printing is skipped. Native device acceptance is separate.",
+      "acceptance": "PDA return reweigh without printing. Persist immutable BLE measurements, operator rounds and distinct-cylinder counts atomically. Filling reweigh uses the latest unconsumed measured return basis; preserve existing same-day filling limit and sales accounting. Unknown results recover by original operation ID. Native device validation remains manual.",
       "deploymentScope": {
         "functions": [
           "crm-filling",
@@ -132,42 +160,38 @@
           "crm-auth"
         ],
         "databaseFiles": [
-          "crm_fillings.schema.json"
+          "crm_return_reweighs.schema.json",
+          "crm_return_reweigh_state.schema.json",
+          "crm_return_reweigh_rounds.schema.json"
         ],
-        "baseCommit": "84ef685d12c61b98ad2f42993cf2cb2434334c73",
+        "baseCommit": "94779590fe131cc4473dcb90d1a5bb12c7f0490e",
         "sourceFiles": [
-          "src/components/domain/filling/FillingBatchPreview.vue",
-          "src/components/domain/filling/FillingEditView.vue",
-          "src/components/domain/filling/FillingListView.vue",
           "src/components/domain/pda/PdaHomeView.vue",
           "src/components/domain/pda/PdaReweighView.vue",
           "src/composables/pda/usePdaReweigh.js",
-          "src/composables/useReweighCorrection.js",
           "src/manifest.json",
           "src/pages.json",
-          "src/pages/pda/reweigh.vue",
+          "src/pages/pda/return-reweigh.vue",
           "src/services/api/reweigh.js",
-          "src/services/bottleInspectionCandidates.mjs",
-          "src/services/fillingOperations.js",
           "src/services/pageAclRegistry.js",
           "src/services/pda/reweighDraft.js",
           "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/index.js",
           "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
           "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
           "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistry.js",
           "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/fillingOperations.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistry.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/reweighRules.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/reweighService.js",
           "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
           "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js",
-          "uniCloud-alipay/database/crm_fillings.schema.json",
-          "uniCloud-alipay/database/schema/crm_fillings.schema.json"
+          "uniCloud-alipay/database/crm_return_reweigh_rounds.schema.json",
+          "uniCloud-alipay/database/crm_return_reweigh_state.schema.json",
+          "uniCloud-alipay/database/crm_return_reweighs.schema.json"
         ]
       },
       "integrityScope": "deployment"

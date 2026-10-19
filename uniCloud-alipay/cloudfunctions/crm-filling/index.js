@@ -4,6 +4,7 @@ const { authorizeMobileSaleEffect } = require('./mobileSaleEffectsLocal')
 const { inventoryTon, kgToTon } = require('./gasInventoryPrecisionLocal')
 const { resolveWeighingCorrection } = require('./weighingCorrection')
 const { createReweighService } = require('./reweighService')
+const { createReturnReweighService } = require('./returnReweighService')
 
 
 const flowRules = require('./bottleFlowRulesLocal')
@@ -62,6 +63,11 @@ const FILLING_START_LOSS_ADJUST_REASON = 'filling_start_weight_loss'
 const START_LOSS_SYNC_LIMIT = 2000
 const PAGE_ACTION_RULES = {
 	previewReweighV1: [{ pagePath: '/pages/pda/reweigh', action: 'view' }, { pagePath: '/pages/filling/edit', action: 'view' }],
+	getReturnReweighRoundV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'view' }],
+	startReturnReweighRoundV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'create' }],
+	previewReturnReweighV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'view' }],
+	saveReturnReweighV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'create' }],
+	getReturnReweighV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'view' }],
 	createReweighV1: [{ pagePath: '/pages/pda/reweigh', action: 'create' }],
 	correctReweighV1: [{ pagePath: '/pages/pda/reweigh', action: 'update' }, { pagePath: '/pages/filling/edit', action: 'update' }],
 	capabilitiesV1: [{ pagePath: '/pages/filling/list', action: 'create' }, { pagePath: '/pages/pda/filling-create', action: 'create' }],
@@ -4503,6 +4509,7 @@ const fillingOperations = createFillingOperations({ db,
 	saveRow: saveOperationFillingRow, synchronizeRow: synchronizeOperationFillingRow, scanTarget: scanOperationTarget })
 const reweighService = createReweighService({ db, operations: fillingOperations,
 	submitCreate: submitPreparedFillings, stableId: stableFillingId, now: () => Date.now() })
+const returnReweighService = createReturnReweighService({ db, readInputs: reweighService.readInputs })
 
 async function dispatch(event, context) {
 	// Only the platform context can authorize a timer; never trust event.type/source.
@@ -4527,6 +4534,11 @@ async function dispatch(event, context) {
 
 	if (action === 'capabilitiesV1') return { code: 0, data: { rule_version: VERSION, durable_operations: true, source_status_query: true, source_payload_hash: true, reweigh_durable: true } }
 	if (action === 'previewReweighV1') return reweighService.preview(data)
+	if (action === 'getReturnReweighRoundV1') return returnReweighService.roundStatus(user)
+	if (action === 'startReturnReweighRoundV1') return returnReweighService.startRound(user, data)
+	if (action === 'previewReturnReweighV1') return returnReweighService.preview(user, data)
+	if (action === 'saveReturnReweighV1') return returnReweighService.save(user, data)
+	if (action === 'getReturnReweighV1') return returnReweighService.status(user, data)
 	if (action === 'createReweighV1') return reweighService.submit(user, data, 'create')
 	if (action === 'correctReweighV1') {
 		const requiredPage = data.capture_method === 'manual' ? '/pages/filling/edit' : '/pages/pda/reweigh'

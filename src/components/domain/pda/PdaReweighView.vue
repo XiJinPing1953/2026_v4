@@ -1,5 +1,5 @@
 <template>
-	<AppPage title="复秤" subtitle="蓝牙吊秤 · 逐瓶核算" icon="bottle" hideBottleQuery>
+	<AppPage :title="isReturn ? '回瓶复秤' : '复秤'" :subtitle="isReturn ? '蓝牙吊秤 · 回瓶称重' : '蓝牙吊秤 · 逐瓶核算'" icon="bottle" hideBottleQuery>
 		<AppSection v-if="!nativeSupported" title="请使用原生 PDA">
 			<text class="hint">本模块使用 PDA 扫描头和 NVK 蓝牙吊秤，请在 PDA 应用中打开。</text>
 		</AppSection>
@@ -8,6 +8,17 @@
 			<text v-if="storageError" class="notice notice--error">草稿未能保存：{{ storageError }}。请保留本页，恢复本机存储后再试。</text>
 			<text v-if="error" class="notice notice--error">{{ error }}</text>
 			<text class="notice" role="status">{{ message }}</text>
+
+			<AppSection v-if="isReturn" title="本轮回瓶复秤统计">
+				<text class="result-value">{{ roundReady && round ? round.bottle_count : '—' }} <text class="unit">瓶</text></text>
+				<text class="hint">{{ round ? '本轮按不同瓶号统计，重复复秤不增加瓶数。' : '尚未开始本轮回瓶复秤。' }}</text>
+				<text v-if="round" class="hint">开始时间：{{ roundTime }}</text>
+				<text v-if="pendingRound" class="notice">开始结果待确认，请重试原请求；确认前暂停扫码称重。</text>
+				<view class="actions">
+					<AppButton size="sm" :disabled="busy || !canCreate || Boolean(current.bottleNo && !current.receipt?.complete)" @click="onStartRound">{{ pendingRound ? '重试开始本轮' : round ? '开始新一轮' : '开始本轮' }}</AppButton>
+					<AppButton size="sm" kind="neutral" :disabled="busy" @click="refreshRound">刷新统计</AppButton>
+				</view>
+			</AppSection>
 
 			<AppSection title="吊秤">
 				<view class="scale-strip">
@@ -25,15 +36,22 @@
 			<AppSection title="本瓶复秤">
 				<PdaBottleSuggestField
 					:model-value="current.bottleNo || bottleKeyword" label="瓶号" placeholder="按 PDA 扫码键，或输入瓶号"
-					:disabled="locked || busy || Boolean(current.bottleNo) || !snapshot.is_connected || !canCreate"
+					:disabled="locked || busy || Boolean(current.bottleNo) || !snapshot.is_connected || !canCreate || !readyForBottle"
 					@update:modelValue="value => bottleKeyword = value" @select="onBottleSelected" @confirm="onSelectKeyword"
 				/>
-				<AppButton v-if="!current.bottleNo" size="sm" kind="neutral" :disabled="locked || busy || !snapshot.is_connected || !canCreate" @click="onSelectKeyword">确认瓶号</AppButton>
+				<AppButton v-if="!current.bottleNo" size="sm" kind="neutral" :disabled="locked || busy || !snapshot.is_connected || !canCreate || !readyForBottle" @click="onSelectKeyword">确认瓶号</AppButton>
 				<view v-if="current.preview" class="facts">
 					<text>档案皮重：{{ weight(current.preview.bottle.tare_weight) }} kg</text>
-					<text>上次回瓶毛重：{{ weight(current.preview.basis.gross_weight) }} kg</text>
-					<text class="hint">回瓶日期：{{ current.preview.basis.date }} · 灌装时间：{{ current.date }}</text>
-					<AppTag :kind="current.preview.mode === 'correct' ? 'warning' : 'soft'">{{ current.preview.mode === 'correct' ? '更正本周期原灌装记录' : '新建本次灌装记录' }}</AppTag>
+					<template v-if="isReturn">
+						<text v-if="current.preview.previous">原回瓶毛重：{{ weight(current.preview.previous.gross_weight) }} kg</text>
+						<text class="hint">回瓶复秤时间：{{ current.date }}</text>
+						<AppTag :kind="current.preview.previous ? 'warning' : 'soft'">{{ current.preview.previous ? '已有回瓶复秤，将保存新的称重依据' : '保存新的回瓶复秤依据' }}</AppTag>
+					</template>
+					<template v-else>
+						<text>上次回瓶毛重：{{ weight(current.preview.basis.gross_weight) }} kg</text>
+						<text class="hint">回瓶日期：{{ current.preview.basis.date }} · 灌装时间：{{ current.date }}</text>
+						<AppTag :kind="current.preview.mode === 'correct' ? 'warning' : 'soft'">{{ current.preview.mode === 'correct' ? '更正本周期原灌装记录' : '新建本次灌装记录' }}</AppTag>
+					</template>
 				</view>
 				<view v-if="current.bottleNo && !current.frozen" class="actions">
 					<AppButton kind="neutral" :disabled="busy || !snapshot.is_connected || Boolean(pendingSession) || !canCreate" @click="startMeasurement">{{ current.capture ? '重新称重' : '本瓶称重' }}</AppButton>
@@ -41,14 +59,14 @@
 				</view>
 				<text v-if="pendingSession" class="notice">正在等待 {{ current.bottleNo }} 号瓶稳定，请勿切换钢瓶。</text>
 				<view v-if="current.capture" class="result">
-					<text class="result-label">本次灌装量</text>
-					<text class="result-value">{{ weight(current.preview?.fill_weight) }} <text class="unit">kg</text></text>
-					<text class="hint">复秤毛重 − 上次回瓶毛重</text>
+					<text class="result-label">{{ isReturn ? '回瓶毛重' : '本次灌装量' }}</text>
+					<text class="result-value">{{ weight(isReturn ? current.grossWeight : current.preview?.fill_weight) }} <text class="unit">kg</text></text>
+					<text v-if="!isReturn" class="hint">复秤毛重 − 上次回瓶毛重</text>
 					<view class="result-secondary">
-						<text>毛重 {{ weight(current.grossWeight) }} kg</text>
-						<text>标签净重 {{ weight(current.preview?.net_weight) }} kg</text>
+						<text>{{ isReturn ? '皮重' : '毛重' }} {{ weight(isReturn ? current.preview?.bottle.tare_weight : current.grossWeight) }} kg</text>
+						<text>{{ isReturn ? '净重' : '标签净重' }} {{ weight(current.preview?.net_weight) }} kg</text>
 					</view>
-					<text class="hint">标签净重 = 毛重 − 档案皮重</text>
+					<text class="hint">{{ isReturn ? '净重 = 毛重 − 档案皮重，保留零值和负值。' : '标签净重 = 毛重 − 档案皮重' }}</text>
 				</view>
 				<view v-if="current.capture && current.preview?.mode === 'correct'" class="correction">
 					<text class="result-label">原记录与本次称重</text>
@@ -57,15 +75,15 @@
 				</view>
 				<AppInput v-if="current.bottleNo" :model-value="current.remark" label="备注（可选）" :disabled="locked || busy" @update:modelValue="value => setText('remark', value)" />
 				<view class="actions">
-					<AppButton v-if="!current.frozen" :loading="busy" :disabled="busy || !current.capture || !canCreate || locked" @click="submit">{{ current.preview?.mode === 'correct' ? '确认更正原灌装记录' : '保存灌装记录' }}</AppButton>
+					<AppButton v-if="!current.frozen" :loading="busy" :disabled="busy || !current.capture || !canCreate || locked || !readyForBottle" @click="submit">{{ isReturn ? '保存回瓶复秤' : current.preview?.mode === 'correct' ? '确认更正原灌装记录' : '保存灌装记录' }}</AppButton>
 					<AppButton v-if="current.bottleNo && !current.frozen" kind="ghost" :disabled="busy" @click="onNext">放弃本瓶草稿</AppButton>
 				</view>
-				<text class="hint">本阶段保存称重与灌装数据，暂不打印标签。</text>
+				<text class="hint">{{ isReturn ? '保存后作为灌装复秤的回瓶依据。' : '本阶段保存称重与灌装数据，暂不打印标签。' }}</text>
 			</AppSection>
 
 			<AppSection v-if="current.frozen" :title="receiptTitle(current.receipt)">
 				<text class="hint">{{ current.receipt?.message || '提交内容已锁定，请查询原操作的保存结果。' }}</text>
-				<text v-if="current.receipt?.fillingId" class="identifier">灌装单：{{ current.receipt.fillingId }}</text>
+				<text v-if="current.receipt?.fillingId" class="identifier">{{ isReturn ? '回瓶复秤记录' : '灌装单' }}：{{ current.receipt.fillingId }}</text>
 				<text class="identifier">操作编号：{{ current.operationId }}</text>
 				<view class="actions">
 					<AppButton size="sm" kind="neutral" :disabled="busy" @click="query()">查询保存结果</AppButton>
@@ -77,7 +95,7 @@
 
 			<AppSection v-if="history.length" title="本机已保存记录">
 				<view v-for="item in history.slice().reverse()" :key="item.operationId" class="history-row">
-					<text>{{ item.bottleNo }} 号瓶 · 本次灌装量 {{ weight(item.preview?.fill_weight) }} kg</text>
+					<text>{{ item.bottleNo }} 号瓶 · {{ isReturn ? '回瓶毛重' : '本次灌装量' }} {{ weight(isReturn ? item.grossWeight : item.preview?.fill_weight) }} kg</text>
 					<text :class="['hint', !item.receipt?.complete ? 'pending' : '']">{{ receiptTitle(item.receipt) }}</text>
 					<text class="identifier">{{ item.receipt?.fillingId || item.operationId }}</text>
 					<text v-if="!item.receipt?.complete" class="hint">{{ item.receipt?.message }}</text>
@@ -101,8 +119,16 @@ import AppTag from '@/components/base/AppTag.vue'
 import PdaBottleSuggestField from '@/components/domain/pda/PdaBottleSuggestField.vue'
 import { reweighChangeText, usePdaReweigh } from '@/composables/pda/usePdaReweigh'
 
-const { current, history, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext,
-	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText } = usePdaReweigh()
+const props = defineProps({ mode: { type: String, default: 'filling' } })
+const isReturn = props.mode === 'return'
+const { current, history, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
+	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText } = usePdaReweigh({ mode: props.mode })
+const readyForBottle = computed(() => !isReturn || (roundReady.value && Boolean(round.value?._id)))
+const roundTime = computed(() => {
+	const timestamp = Number(round.value?.created_at)
+	if (!Number.isFinite(timestamp) || timestamp <= 0) return '—'
+	return new Date(timestamp + 8 * 60 * 60 * 1000).toISOString().slice(0, 16).replace('T', ' ')
+})
 const bottleKeyword = ref('')
 const weight = value => value == null || value === '' || !Number.isFinite(Number(value)) ? '—' : Number(value).toFixed(1)
 const scaleStatus = computed(() => !snapshot.value.is_connected ? '未连接' : !snapshot.value.is_online ? '等待秤值' : snapshot.value.is_stable ? '稳定' : '动态中')
@@ -110,6 +136,7 @@ const receiptTitle = receipt => receipt?.complete ? '已保存，处理完成' :
 function onBottleSelected(bottle) { return selectBottle(bottle?.bottle_no || bottleKeyword.value) }
 function onSelectKeyword() { return selectBottle(bottleKeyword.value) }
 async function onNext() { if (await nextBottle()) bottleKeyword.value = '' }
+async function onStartRound() { if (await startRound()) bottleKeyword.value = '' }
 defineExpose({ activate, deactivate })
 </script>
 

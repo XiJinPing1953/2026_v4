@@ -3,6 +3,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const { makeApp } = require('./lib/fillingHarness.cjs')
+const { bottleKey } = require('../uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules')
 const rows = (app, name) => [...app.db.data(name).values()]
 const source = app => rows(app, 'crm_fillings')[0]
 const plain = value => JSON.parse(JSON.stringify(value))
@@ -12,6 +13,11 @@ function fixture(options) {
 	Object.assign(app.db.data('crm_bottles').get('b1'), { tare_weight: 100 })
 	app.db.data('crm_sale_records').set('return1', { _id: 'return1', date: '2026-09-05', biz_mode: 'bottle',
 		back_items: [{ bottle_no: 'B1', gross: 120, tare: 100, net: 20 }], out_items: [], updated_at: 1 })
+	app.db.data('crm_return_reweighs').set('measured_return1', { _id: 'measured_return1', bottle_id: 'b1', bottle_no: 'B1',
+		round_id: 'return_round_001', date: '2026-09-05 08:00:00', created_at: app.now() - 86400000,
+		gross_weight: 120, tare_weight: 100, net_weight: 20, outgoing_facts: [], manual_facts: [], baseline_filling_ids: [] })
+	app.db.data('crm_return_reweigh_state').set(bottleKey('B1'), { _id: bottleKey('B1'), kind: 'bottle', bottle_no: 'B1',
+		record_id: 'measured_return1', consumed_filling_id: '' })
 	return app
 }
 
@@ -59,7 +65,8 @@ test('real handler creates 50 kg filling, 70 kg label net, and freezes an idempo
 	assert.equal(row.reweigh.net_weight, 70)
 	assert.deepEqual(Object.keys(row.reweigh.label).sort(), ['bottle_no', 'company', 'gross_weight', 'net_weight', 'tare_weight'])
 	assert.equal(row.reweigh.label.company, '新拓能源')
-	assert.equal(row.reweigh.basis.sale_id, 'return1')
+	assert.equal(row.reweigh.basis.source_type, 'pda_return_reweigh')
+	assert.equal(row.reweigh.basis.return_reweigh_id, 'measured_return1')
 	assert.equal(row._reweigh_before, undefined)
 	assert.equal(row._reweigh_guard, undefined)
 	const repeat = await app.invoke('createReweighV1', payload)
@@ -185,7 +192,7 @@ test('concurrent corrections from the same source version permit only one new ve
 })
 
 test('changed return or bottle tare after preview rejects creation before any source write', async () => {
-	for (const change of [app => { app.db.data('crm_sale_records').get('return1').back_items[0].gross = 121 }, app => { app.db.data('crm_bottles').get('b1').tare_weight = 101 }]) {
+	for (const change of [app => { app.db.data('crm_return_reweighs').get('measured_return1').gross_weight = 121 }, app => { app.db.data('crm_bottles').get('b1').tare_weight = 101 }]) {
 		const app = fixture(), payload = await request(app, 'reweigh_stale_001')
 		change(app)
 		assert.equal((await app.invoke('createReweighV1', payload)).code, 409)

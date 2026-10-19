@@ -5,8 +5,8 @@ export function createReweighId() {
 
 export const cloneReweigh = (value) => JSON.parse(JSON.stringify(value))
 
-export function createReweighDraftStore(ownerId, storage, currentOwner = () => ownerId) {
-	const key = `crm_pda_reweigh_v1:${ownerId}`
+export function createReweighDraftStore(ownerId, storage, currentOwner = () => ownerId, mode = 'filling') {
+	const key = `${mode === 'return' ? 'crm_pda_return_reweigh_v1' : 'crm_pda_reweigh_v1'}:${ownerId}`
 	let expected = null
 	const token = (raw) => raw ? (typeof raw === 'string' ? raw : JSON.stringify(raw)) : null
 	function assertWritable() {
@@ -25,9 +25,9 @@ export function createReweighDraftStore(ownerId, storage, currentOwner = () => o
 			if (data.version !== 1 || data.ownerId !== ownerId || !valid(data.current) || !Array.isArray(data.history) || !data.history.every(valid)) throw new Error('复秤草稿无法识别，原数据已保留')
 			return cloneReweigh(data)
 		},
-		save(current, history) {
+		save(current, history, metadata = null) {
 			assertWritable()
-			const value = JSON.stringify({ version: 1, ownerId, savedAt: Date.now(), current, history })
+			const value = JSON.stringify({ version: 1, ownerId, savedAt: Date.now(), current, history, metadata })
 			storage.setStorageSync(key, value)
 			expected = value
 			if (token(storage.getStorageSync(key)) !== value) throw new Error('复秤草稿写入核对失败')

@@ -13,7 +13,9 @@ function load(file, names, globals = {}) {
 const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt'])
 function harness(t, options = {}) {
 	const storage = options.storage || new Map()
-	const requests = [], previews = [], confirmations = []
+	const requests = [], previews = [], confirmations = [], roundRequests = []
+	let round = options.round === null ? null : { _id: 'round-1', created_at: Date.now(), bottle_count: 0, ...options.round }
+	const countedBottles = new Set()
 	let owner = options.owner || 'u1', listener, scanner, sequence = 0, stopped = 0
 	let latest = { is_connected: false, is_online: false, is_stable: false, weight_kg: null, session_id: '', stable_seq: 0 }
 	const modalResults = [...(options.modalResults || [])]
@@ -49,13 +51,33 @@ function harness(t, options = {}) {
 		correctReweighV1: async payload => { requests.push({ mode: 'correct', payload: copy(payload) }); return { code: 0, data: { operation_id: payload.operation_id, complete: true, saved_total: 1, _id: payload.filling_id } } },
 		getReweighOperationV1: options.query || (async () => ({ code: 404, msg: '操作未找到' })),
 		retryReweighOperationV1: options.retry || (async operationId => ({ code: 0, data: { operation_id: operationId, complete: true, saved_total: 1, _id: 'f1' } })),
+		getReturnReweighRoundV1: async () => ({ code: 0, data: { round: copy(round) } }),
+		startReturnReweighRoundV1: async payload => {
+			roundRequests.push(copy(payload))
+			if (options.startRound) return options.startRound(payload, roundRequests.length)
+			round = { _id: payload.round_id, created_at: Date.now(), bottle_count: 0 }; countedBottles.clear()
+			return { code: 0, data: { round: copy(round) } }
+		},
+		previewReturnReweighV1: async params => {
+			previews.push(copy(params))
+			const result = preview(params); delete result.data.basis; delete result.data.label; delete result.data.fill_weight
+			result.data.round = copy(round); result.data.previous = options.previous || null
+			return options.preview ? options.preview(params, previews.length, result) : result
+		},
+		saveReturnReweighV1: async payload => {
+			requests.push({ mode: 'return', payload: copy(payload) })
+			if (options.send) return options.send(payload, requests.length)
+			countedBottles.add(payload.bottle_no); round.bottle_count = countedBottles.size
+			return { code: 0, data: { operation_id: payload.operation_id, complete: true, saved_total: 1, _id: 'r1', round: copy(round) } }
+		},
+		getReturnReweighV1: options.query || (async () => ({ code: 404, msg: '操作未找到' })),
 		uni: {
 			getStorageSync: key => storage.get(key), setStorageSync: (key, value) => { if (options.storageFails) throw new Error('quota'); storage.set(key, value) },
 			showModal: params => { confirmations.push({ title: params.title, content: params.content }); params.success({ confirm: modalResults.length ? modalResults.shift() : true }) },
 			showActionSheet: params => params.success({ tapIndex: 0 })
 		}
 	})
-	const form = stateModule.usePdaReweigh()
+	const form = stateModule.usePdaReweigh({ mode: options.returnMode ? 'return' : 'filling' })
 	t.after(() => onDestroy.forEach(fn => fn()))
 	async function start() { await form.activate(); emit({ is_connected: true }) }
 	async function measure(bottle = '101', gross = 120) {
@@ -63,7 +85,7 @@ function harness(t, options = {}) {
 		emit({ weight_kg: gross, sampled_at: Date.now(), is_connected: true, is_online: true, is_stable: true, stable_seq: 1, device_id: 'NVK-1', frame_raw: 'ST,+01200kg' })
 		await tick()
 	}
-	return { form, storage, requests, previews, confirmations, emit, start, measure, module: stateModule, scan: text => scanner({ rawText: text }), setOwner: value => { owner = value }, stopped: () => stopped }
+	return { form, storage, requests, previews, confirmations, roundRequests, emit, start, measure, module: stateModule, scan: text => scanner({ rawText: text }), setOwner: value => { owner = value }, stopped: () => stopped }
 }
 
 test('one bottle gets its own window, half-kilogram gross and server-derived two distinct weights', async t => {
@@ -232,4 +254,70 @@ test('saved receipt survives a later query error and completed state is not infe
 	assert.equal(previous.status, 'pending')
 	assert.equal(draft.reweighReceipt({ code: 500, msg: '网络错误' }, 'a', previous).saved, true)
 	assert.equal(draft.reweighReceipt({ code: 0, data: { operation_id: 'other', saved_total: 1, complete: true } }, 'a').saved, false)
+})
+
+test('return reweigh saves signed net with its server round and server distinct-bottle count', async t => {
+	const h = harness(t, { returnMode: true }); await h.measure('282', 99.5)
+	assert.equal(h.form.current.value.preview.net_weight, -0.5)
+	assert.equal(h.form.current.value.preview.basis, undefined)
+	assert.equal(await h.form.submit(), true)
+	assert.equal(h.requests[0].payload.round_id, 'round-1')
+	assert.equal(h.requests[0].payload.capture_method, 'ble')
+	assert.equal(h.form.round.value.bottle_count, 1)
+	assert.match(h.form.current.value.receipt.message, /回瓶复秤已保存/)
+	await h.form.nextBottle(); await h.measure('282', 100); await h.form.submit()
+	assert.equal(h.form.current.value.preview.net_weight, 0)
+	assert.equal(h.form.round.value.bottle_count, 1)
+	await h.form.nextBottle(); await h.measure('283', 101); await h.form.submit()
+	assert.equal(h.form.round.value.bottle_count, 2)
+})
+
+test('return repeat weighing requires explicit previous/new weight confirmation before saving', async t => {
+	const h = harness(t, { returnMode: true, previous: { gross_weight: 101, net_weight: 1 }, modalResults: [false, true] })
+	await h.measure('282', 100)
+	assert.equal(await h.form.submit(), false); assert.equal(h.requests.length, 0)
+	assert.match(h.confirmations[0].content, /101\.0 kg → 100\.0 kg/)
+	assert.match(h.confirmations[0].content, /相同瓶号本轮只统计一次/)
+	assert.equal(await h.form.submit(), true)
+})
+
+test('return round must start explicitly, lost start receipt survives restart and retries immutable request', async t => {
+	const h = harness(t, { returnMode: true, round: null, startRound: () => { throw new Error('timeout') } })
+	await h.measure(); assert.equal(h.form.current.value.bottleNo, '')
+	assert.equal(await h.form.startRound(), false)
+	const frozenRound = copy(h.form.pendingRound.value)
+	assert.equal(h.form.locked.value, true)
+	const recovered = harness(t, { returnMode: true, storage: h.storage, round: { _id: frozenRound.round_id, bottle_count: 0 } })
+	await recovered.start()
+	assert.deepEqual(copy(recovered.form.pendingRound.value), frozenRound)
+	assert.equal(await recovered.form.startRound(), true)
+	assert.deepEqual(recovered.roundRequests[0], frozenRound)
+	assert.equal(recovered.form.pendingRound.value, null)
+	assert.equal(recovered.form.round.value._id, frozenRound.round_id)
+})
+
+test('return uncertain save freezes round switching, survives reload, and 404 retry reuses exact operation', async t => {
+	const h = harness(t, { returnMode: true, send: () => { throw new Error('timeout') } })
+	await h.measure(); await h.form.submit()
+	assert.equal(await h.form.startRound(), false); assert.equal(h.roundRequests.length, 0)
+	const recovered = harness(t, { returnMode: true, storage: h.storage }); await recovered.start()
+	assert.equal(await recovered.form.nextBottle(), false)
+	await recovered.form.query(); assert.ok(recovered.form.current.value.frozen)
+	await recovered.form.query(undefined, true)
+	assert.deepEqual(recovered.requests[0], h.requests[0])
+	assert.equal(recovered.form.current.value.receipt.complete, true)
+})
+
+test('return new round confirms completed count and does not alter existing filling draft storage', async t => {
+	const filling = harness(t); await filling.measure('100')
+	const fillingSaved = filling.storage.get('crm_pda_reweigh_v1:u1')
+	const h = harness(t, { returnMode: true, storage: filling.storage, modalResults: [false, true] }); await h.measure('282'); await h.form.submit()
+	assert.equal(await h.form.startRound(), false); assert.equal(h.roundRequests.length, 0)
+	assert.match(h.confirmations[0].content, /本轮已复秤 1 瓶/)
+	assert.equal(await h.form.startRound(), true)
+	assert.equal(h.roundRequests[0].expected_round_id, 'round-1')
+	assert.equal(h.form.current.value.bottleNo, '')
+	assert.equal(h.form.round.value.bottle_count, 0)
+	assert.equal(h.form.history.value.length, 1)
+	assert.equal(filling.storage.get('crm_pda_reweigh_v1:u1'), fillingSaved)
 })

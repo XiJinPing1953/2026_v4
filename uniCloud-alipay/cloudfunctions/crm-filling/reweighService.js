@@ -1,7 +1,8 @@
 'use strict'
 
 const { fingerprint } = require('./fillingPayloadLocal')
-const { resolveReweighContext, calculateReweighWeights } = require('./reweighRules')
+const { calculateReweighWeights } = require('./reweighRules')
+const { resolveMeasuredReweighContext, bottleKey } = require('./returnReweighRules')
 
 const text = value => value == null ? '' : String(value).trim()
 const bottleNo = value => text(value).toUpperCase().replace(/\s+/g, '')
@@ -43,11 +44,16 @@ function createReweighService({ db, operations, submitCreate, stableId, now = Da
 		else for (const read of reads) results.push(await read())
 		const [bottles, sales, fillings, manual] = results
 		if (bottles.length !== 1) throw permanent(bottles.length ? '瓶号对应多个档案，请先核查' : '钢瓶档案不存在')
-		return { bottle: bottles[0], sales, fillings, manual }
+		const one = result => Array.isArray(result.data) ? result.data[0] : result.data
+		const returnHead = one(await database.collection('crm_return_reweigh_state').doc(bottleKey(no)).get()) || null
+		const returnRecord = returnHead?.record_id ? one(await database.collection('crm_return_reweighs').doc(returnHead.record_id).get()) || null : null
+		return { bottle: bottles[0], sales, fillings, manual, returnHead, returnRecord }
 	}
 	function sourceGuard(inputs, excludeId = '') {
 		const b = inputs.bottle
 		return fingerprint({
+			return_record: inputs.returnRecord,
+			return_head: inputs.returnHead ? { record_id: inputs.returnHead.record_id } : null,
 			bottle: { _id: b._id, bottle_no: b.bottle_no, tare_weight: b.tare_weight, is_active: b.is_active,
 				unavailable: ['scrapped', 'lost'].includes(b.status) },
 			sales: inputs.sales.map(sale => ({ _id: sale._id, date: sale.date, biz_mode: sale.biz_mode,
@@ -69,7 +75,7 @@ function createReweighService({ db, operations, submitCreate, stableId, now = Da
 		}
 		if (!no) return rejected(400, '请选择钢瓶')
 		const inputs = await readInputs(no, database)
-		const resolved = resolveReweighContext({ ...inputs, at: now(), fillingId: text(data.filling_id) })
+		const resolved = resolveMeasuredReweighContext({ ...inputs, at: now(), fillingId: text(data.filling_id) })
 		if (!resolved.ok) return rejected(resolved.code || 409, resolved.msg)
 		const result = resolved.data
 		const date = result.filling?.filling_time || result.filling?.date || text(data.date) || hour(now())
@@ -154,8 +160,13 @@ function createReweighService({ db, operations, submitCreate, stableId, now = Da
 	async function validateSources(row, database = db) {
 		const inputs = await readInputs(row.bottle_no, database)
 		if (sourceGuard(inputs, row._id) !== row._reweigh_guard) throw permanent('回瓶、瓶档或本周期记录已变化，复秤操作停止，请重新核查')
+		const head = inputs.returnHead
+		if (!head || head.record_id !== row.reweigh?.basis?.return_reweigh_id || (head.consumed_filling_id && head.consumed_filling_id !== row._id)) throw permanent('本轮回瓶依据已变化或被其他灌装使用，请重新核查')
+		// A shared per-bottle transaction write serializes return replacement and filling.
+		// A stale return preview cannot replace a basis after its filling commits.
+		await database.collection('crm_return_reweigh_state').doc(head._id).update({ consumed_filling_id: row._id })
 	}
-	return { preview, submit, validateSources }
+	return { preview, submit, validateSources, readInputs }
 }
 
 module.exports = { createReweighService, allRows }
