@@ -6,98 +6,80 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.19-pda-return-reweigh",
+      "version": "2026.10.19-reweigh-review-fixes",
       "output": "dist/build/web",
-      "acceptance": "PDA return reweigh without printing. Persist immutable BLE measurements, operator rounds and distinct-cylinder counts atomically. Filling reweigh uses the latest unconsumed measured return basis; preserve existing same-day filling limit and sales accounting. Unknown results recover by original operation ID. Native device validation remains manual.",
+      "acceptance": "Reviewed reweigh fixes: stable departure identity with legacy compatibility; account-bound submissions and recovery cleanup; shared transaction conflict protection between sale source writes and both reweigh operations. Deploy crm-sale and crm-filling together. PDA device operation and acceptance remain manual.",
       "deploymentScope": {
         "functions": [
-          "crm-filling",
-          "crm-bottle",
-          "crm-user",
-          "crm-auth"
+          "crm-sale",
+          "crm-filling"
         ],
-        "databaseFiles": [
-          "crm_return_reweighs.schema.json",
-          "crm_return_reweigh_state.schema.json",
-          "crm_return_reweigh_rounds.schema.json"
-        ],
-        "baseCommit": "94779590fe131cc4473dcb90d1a5bb12c7f0490e",
+        "databaseFiles": [],
+        "baseCommit": "00c2b2ca52188b97c48d5844d888fd5bd3857f85",
         "sourceFiles": [
-          "src/components/domain/pda/PdaHomeView.vue",
-          "src/components/domain/pda/PdaReweighView.vue",
-          "src/composables/pda/usePdaReweigh.js",
           "src/manifest.json",
-          "src/pages.json",
-          "src/pages/pda/return-reweigh.vue",
-          "src/services/api/reweigh.js",
-          "src/services/pageAclRegistry.js",
-          "src/services/pda/reweighDraft.js",
-          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistryLocal.js",
+          "src/services/fillingOperations.js",
+          "uniCloud-alipay/cloudfunctions/common/bottleSourceGuard.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/bottleSourceGuardLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/reweighService.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js",
-          "uniCloud-alipay/database/crm_return_reweigh_rounds.schema.json",
-          "uniCloud-alipay/database/crm_return_reweigh_state.schema.json",
-          "uniCloud-alipay/database/crm_return_reweighs.schema.json"
-        ]
+          "uniCloud-alipay/cloudfunctions/crm-sale/bottleSourceGuardLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/saleSourceWrite.js"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.19-pda-return-reweigh",
+      "version": "2026.10.19-reweigh-review-fixes",
       "output": "release/cloud",
-      "acceptance": "PDA return reweigh without printing. Persist immutable BLE measurements, operator rounds and distinct-cylinder counts atomically. Filling reweigh uses the latest unconsumed measured return basis; preserve existing same-day filling limit and sales accounting. Unknown results recover by original operation ID. Native device validation remains manual.",
+      "acceptance": "Reviewed reweigh fixes: stable departure identity with legacy compatibility; account-bound submissions and recovery cleanup; shared transaction conflict protection between sale source writes and both reweigh operations. Deploy crm-sale and crm-filling together. PDA device operation and acceptance remain manual.",
       "deploymentScope": {
         "functions": [
-          "crm-filling",
-          "crm-bottle",
-          "crm-user",
-          "crm-auth"
+          "crm-sale",
+          "crm-filling"
         ],
-        "databaseFiles": [
-          "crm_return_reweighs.schema.json",
-          "crm_return_reweigh_state.schema.json",
-          "crm_return_reweigh_rounds.schema.json"
-        ],
-        "baseCommit": "94779590fe131cc4473dcb90d1a5bb12c7f0490e",
+        "databaseFiles": [],
+        "baseCommit": "00c2b2ca52188b97c48d5844d888fd5bd3857f85",
         "sourceFiles": [
-          "src/components/domain/pda/PdaHomeView.vue",
-          "src/components/domain/pda/PdaReweighView.vue",
-          "src/composables/pda/usePdaReweigh.js",
           "src/manifest.json",
-          "src/pages.json",
-          "src/pages/pda/return-reweigh.vue",
-          "src/services/api/reweigh.js",
-          "src/services/pageAclRegistry.js",
-          "src/services/pda/reweighDraft.js",
-          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistryLocal.js",
+          "src/services/fillingOperations.js",
+          "uniCloud-alipay/cloudfunctions/common/bottleSourceGuard.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/bottleSourceGuardLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/reweighService.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js",
-          "uniCloud-alipay/database/crm_return_reweigh_rounds.schema.json",
-          "uniCloud-alipay/database/crm_return_reweigh_state.schema.json",
-          "uniCloud-alipay/database/crm_return_reweighs.schema.json"
-        ]
+          "uniCloud-alipay/cloudfunctions/crm-sale/bottleSourceGuardLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/saleSourceWrite.js"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     },
@@ -149,50 +131,41 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.3-104",
+      "version": "1.0.4-105",
       "output": "release/pda",
-      "acceptance": "PDA return reweigh without printing. Persist immutable BLE measurements, operator rounds and distinct-cylinder counts atomically. Filling reweigh uses the latest unconsumed measured return basis; preserve existing same-day filling limit and sales accounting. Unknown results recover by original operation ID. Native device validation remains manual.",
+      "acceptance": "Reviewed reweigh fixes: stable departure identity with legacy compatibility; account-bound submissions and recovery cleanup; shared transaction conflict protection between sale source writes and both reweigh operations. Deploy crm-sale and crm-filling together. PDA device operation and acceptance remain manual.",
       "deploymentScope": {
         "functions": [
-          "crm-filling",
-          "crm-bottle",
-          "crm-user",
-          "crm-auth"
+          "crm-sale",
+          "crm-filling"
         ],
-        "databaseFiles": [
-          "crm_return_reweighs.schema.json",
-          "crm_return_reweigh_state.schema.json",
-          "crm_return_reweigh_rounds.schema.json"
-        ],
-        "baseCommit": "94779590fe131cc4473dcb90d1a5bb12c7f0490e",
+        "databaseFiles": [],
+        "baseCommit": "00c2b2ca52188b97c48d5844d888fd5bd3857f85",
         "sourceFiles": [
-          "src/components/domain/pda/PdaHomeView.vue",
-          "src/components/domain/pda/PdaReweighView.vue",
-          "src/composables/pda/usePdaReweigh.js",
           "src/manifest.json",
-          "src/pages.json",
-          "src/pages/pda/return-reweigh.vue",
-          "src/services/api/reweigh.js",
-          "src/services/pageAclRegistry.js",
-          "src/services/pda/reweighDraft.js",
-          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/pageAclRegistryLocal.js",
+          "src/services/fillingOperations.js",
+          "uniCloud-alipay/cloudfunctions/common/bottleSourceGuard.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/bottleSourceGuardLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/reweighService.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js",
-          "uniCloud-alipay/database/crm_return_reweigh_rounds.schema.json",
-          "uniCloud-alipay/database/crm_return_reweigh_state.schema.json",
-          "uniCloud-alipay/database/crm_return_reweighs.schema.json"
-        ]
+          "uniCloud-alipay/cloudfunctions/crm-sale/bottleSourceGuardLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/saleSourceWrite.js"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     }
