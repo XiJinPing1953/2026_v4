@@ -89,3 +89,23 @@ test('inspection validity ends one day before the cycle anniversary', async () =
  assert.equal(vm.runInContext("addMonths('2026-04-01', 6)", edit), '2026-09-30')
  assert.equal(vm.runInContext("addMonths('2024-08-31', 6)", edit), '2025-02-27')
 })
+
+test('protected batch rejects stale originals, rolls back on failure/rehearsal, and cannot be applied twice', async () => {
+ const { digest } = require('../uniCloud-alipay/cloudfunctions/crm-bottle/aliasRepair')
+ for (const mode of ['stale', 'rehearse', 'failure', 'commit']) {
+  const tables = { crm_users: [{ _id: 'u', token: 'test', role: 'superadmin' }], crm_customers: [], crm_operation_logs: [], crm_bottles: [{ _id: 'X1', bottle_no: 'X1', pressure_gauge_check_date: '2026-10-17', pressure_gauge_next_check_date: '2027-04-17', pressure_gauge_cycle_months: 6 }] }
+  const before = structuredClone(tables.crm_bottles)
+  const db = makeDb(tables, { mutate: true, transaction: true, txDocumentObject: true, txWrite: () => { if (mode === 'failure') throw Error('simulated write failure') } })
+  const handler = loadHandler('crm-bottle', db)
+  const payload = { ...request(['X1']), inspection_date: '2026-10-17', expected_digests: { X1: mode === 'stale' ? '0'.repeat(64) : digest(before[0]) }, rehearse: mode === 'rehearse' }
+  const result = await invoke(handler, 'batchUpdateInspectionV2', payload)
+  assert.equal(result.code, ['stale', 'failure'].includes(mode) ? 409 : 0, result.msg)
+  if (mode !== 'commit') assert.deepEqual(tables.crm_bottles, before)
+  else {
+   assert.equal(tables.crm_bottles[0].pressure_gauge_next_check_date, '2027-04-16')
+   const again = await invoke(handler, 'batchUpdateInspectionV2', payload)
+   assert.equal(again.code, 409)
+   assert.equal(tables.crm_bottles[0].pressure_gauge_next_check_date, '2027-04-16')
+  }
+ }
+})

@@ -1915,6 +1915,21 @@ async function batchUpdateInspectionV2(user, data, requestId) {
 		return { code: 409, msg: invalidItems.length ? '存在档案不存在或检测周期无效的钢瓶，整批未更新' : '没有可更新的钢瓶', data: previewData }
 	}
 
+	const expectedDigests = data.expected_digests
+	let transaction = null
+	if (expectedDigests != null) {
+		if (payload.scope_mode !== 'ids' || typeof expectedDigests !== 'object' || Array.isArray(expectedDigests) || Object.keys(expectedDigests).length !== targetRows.length || targetRows.some(doc => !/^[a-f0-9]{64}$/.test(expectedDigests[doc._id] || ''))) return { code: 400, msg: '受保护登记须提供每个目标档案的原值摘要' }
+		transaction = await db.startTransaction()
+		try {
+			const { digest } = require('./aliasRepair')
+			for (const doc of targetRows) {
+				const result = await transaction.collection('crm_bottles').doc(doc._id).get()
+				const current = Array.isArray(result.data) ? result.data[0] : result.data
+				if (digest(current) !== expectedDigests[doc._id]) throw Error(`档案已变化：${doc.bottle_no}，整批未更新`)
+			}
+		} catch (err) { await transaction.rollback(); return { code: 409, msg: err.message } }
+	}
+	const targetBottles = transaction ? transaction.collection('crm_bottles') : bottles
 	const failedItems = []
 	let success = 0
 	const chunkSize = 20
@@ -1929,10 +1944,10 @@ async function batchUpdateInspectionV2(user, data, requestId) {
 				patch[meta.checkField] = payload.inspection_date
 				patch[meta.nextField] = addMonthsDate(payload.inspection_date, cycle)
 			}
-			return bottles
+			return targetBottles
 				.doc(doc._id)
 				.update(patch)
-				.then(() => ({ ok: true, doc }))
+				.then((result) => { if (Number(result.updated) !== 1) throw Error('档案未更新'); return { ok: true, doc } })
 				.catch((err) => ({ ok: false, doc, error: err && err.message ? err.message : String(err) }))
 		})
 		const results = await Promise.all(jobs)
@@ -1950,6 +1965,14 @@ async function batchUpdateInspectionV2(user, data, requestId) {
 		}
 	}
 
+	if (transaction) {
+		if (failedItems.length || data.rehearse === true) {
+			await transaction.rollback()
+			return { code: failedItems.length ? 409 : 0, msg: failedItems.length ? '整批已回滚' : '演练已回滚，未修改档案', data: { rehearsed: !failedItems.length, total: requestedTotal, failed_items: failedItems } }
+		}
+		try { await transaction.commit() }
+		catch (err) { await transaction.rollback().catch(() => {}); return { code: 409, msg: '事务提交结果需回查：' + err.message } }
+	}
 	const executeData = {
 		scope_mode: payload.scope_mode,
 		inspection_date: payload.inspection_date,
