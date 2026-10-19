@@ -22,7 +22,7 @@
             }
           }
         },
-        "baseCommit": "fcf9031",
+        "baseCommit": "fcf90318345ab8c2f0b6e85404151f99afb068f2",
         "sourceFiles": [
           "src/components/domain/bottle/BottleEditView.vue",
           "uniCloud-alipay/cloudfunctions/crm-bottle/index.js"
