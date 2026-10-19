@@ -48,6 +48,7 @@
 					</template>
 				</AppListItem>
 			</AppList>
+			<AppButton v-if="paging.hasMore" kind="neutral" :disabled="loading" @click="loadMore">加载更多</AppButton>
 		</AppSection>
 		</template>
 	</AppPage>
@@ -62,7 +63,7 @@ import AppListItem from '@/components/base/AppListItem.vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppTag from '@/components/base/AppTag.vue'
-import { listPdaBottles } from '@/services/pda/bottle'
+import { queryPdaBottleArchive } from '@/services/pda/bottle'
 import { formatWeight, normalizeText } from '@/services/pda/shared'
 
 import PdaMovementQueryView from './PdaMovementQueryView.vue'
@@ -88,12 +89,13 @@ const movementVersion = ref(0)
 const canMovement = canViewPage('/pages/pda/movement-query')
 const isNative = isPdaAppMode()
 let queryVersion = 0
-function invalidateQuery() { queryVersion += 1; loading.value = false; list.value = []; movementVersion.value += 1; tab.value = 'bottle' }
+let searchedFilters = null
+function invalidateQuery() { queryVersion += 1; loading.value = false; list.value = []; paging.value = { page: 1, pageSize: 20, total: 0, hasMore: false }; searchedFilters = null; movementVersion.value += 1; tab.value = 'bottle' }
 const { scannerReady, activate, deactivate: stopScanner, invalidate: invalidateScan } = usePdaQueryScan({ onStart: invalidateQuery, onBottle: showBottle })
 function deactivate() { invalidateQuery(); return stopScanner() }
 defineExpose({ activate, deactivate })
 onBeforeUnmount(() => { queryVersion += 1 })
-function showBottle(bottleNo) { tab.value = 'bottle'; filters.keyword = bottleNo; filters.statusIndex = 0; runSearch() }
+function showBottle(bottleNo, id) { tab.value = 'bottle'; filters.keyword = bottleNo; filters.statusIndex = 0; runSearch({ id }) }
 function openMovement(bottleNo) { invalidateScan(); queryVersion += 1; movementBottle.value = bottleNo || ''; movementVersion.value += 1; tab.value = 'movement' }
 
 const statusOptions = [
@@ -118,24 +120,25 @@ watch(
 	{ immediate: true }
 )
 
-async function runSearch() {
+async function runSearch(options = {}) {
+	const append = options.append === true
+	if (append && (loading.value || !paging.value.hasMore || !searchedFilters)) return
 	invalidateScan()
 	const version = ++queryVersion
 	loading.value = true
-	list.value = []
+	if (!append) {
+		list.value = []
+		paging.value = { page: 1, pageSize: 20, total: 0, hasMore: false }
+		searchedFilters = { keyword: filters.keyword, status: statusOptions[filters.statusIndex]?.value || '', id: options.id || '' }
+	}
 	try {
-		const res = await listPdaBottles({
-			keyword: filters.keyword,
-			status: statusOptions[filters.statusIndex]?.value || '',
-			page: 1,
-			pageSize: 20
-		})
+		const res = await queryPdaBottleArchive({ ...searchedFilters, page: append ? paging.value.page + 1 : 1, pageSize: 20 })
 		if (version !== queryVersion) return
 		if (res?.code !== 0) {
 			uni.showToast({ title: res?.msg || '查询失败', icon: 'none' })
 			return
 		}
-		list.value = res.data || []
+		list.value = append ? Array.from(new Map([...list.value, ...(res.data || [])].map(item => [item._id || item.bottle_no, item])).values()) : res.data || []
 		paging.value = res.paging || paging.value
 	} catch (error) {
 		if (version === queryVersion) uni.showToast({ title: error.message || '查询失败', icon: 'none' })
@@ -143,6 +146,8 @@ async function runSearch() {
 		if (version === queryVersion) loading.value = false
 	}
 }
+
+function loadMore() { return runSearch({ append: true }) }
 
 function resetSearch() {
 	invalidateScan()

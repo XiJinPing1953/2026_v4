@@ -48,6 +48,25 @@ function normalizePdaBottleSummary(bottle = null) {
 	}
 }
 
+// 完整瓶号优先；扫码使用已解析的档案 ID，避免再进入模糊候选。
+export async function queryPdaBottleArchive(params = {}) {
+	const keyword = normalizeBottleNo(params.keyword)
+	let id = normalizeText(params.id)
+	if (!id && keyword && Number(params.page || 1) === 1) {
+		const exact = await resolveBottleNoV1({ bottle_no: keyword })
+		if (exact?.code === 0) id = exact.data?.bottle?._id || ''
+		else if (exact?.code !== 404) return exact
+	}
+	if (id) {
+		const result = await getBottleV1({ id })
+		if (result?.code !== 0) return result
+		const bottle = result.data
+		const data = bottle && (!params.status || bottle.status === params.status) ? [bottle] : []
+		return { code: 0, data, paging: { page: 1, pageSize: 20, total: data.length, hasMore: false } }
+	}
+	return listPdaBottles(params)
+}
+
 export async function listPdaBottles(params = {}) {
 	const page = Number(params.page || 1)
 	const pageSize = Number(params.pageSize || 20)

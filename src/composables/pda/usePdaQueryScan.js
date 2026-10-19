@@ -18,7 +18,7 @@ export function usePdaQueryScan({ onStart, onBottle }) {
 			const result = await resolvePdaBottleByQrCode(payload.rawText)
 			if (!active || current !== version) return
 			if (result?.code !== 0 || !result.data?.bottle_no) throw new Error(result?.msg || '未找到钢瓶')
-			onBottle(result.data.bottle_no)
+			onBottle(result.data.bottle_no, result.data._id)
 		} catch (error) {
 			if (active && current === version) uni.showToast({ title: error.message || '扫码查询失败', icon: 'none' })
 		}
