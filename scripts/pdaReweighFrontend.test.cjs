@@ -11,8 +11,11 @@ function load(file, names, globals = {}) {
 	return vm.runInNewContext(`${source}\n;({${names.join(',')}})`, { Date, Math, Promise, console, ...globals })
 }
 const trace = load('src/services/pda/weighTrace.js', ['createWeighTrace', 'exportWeighTrace'], { setTimeout, clearTimeout })
+const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReturnWeight'])
 const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt'])
 function harness(t, options = {}) {
+	let clock = Date.now(), diagnostic
+	class TestDate extends Date { static now() { return clock } }
 	const storage = options.storage || new Map()
 	const requests = [], previews = [], confirmations = [], roundRequests = []
 	let round = options.round === null ? null : { _id: 'round-1', created_at: Date.now(), bottle_count: 0, ...options.round }
@@ -39,10 +42,10 @@ function harness(t, options = {}) {
 	}
 	const onDestroy = []
 	const stateModule = load('src/composables/pda/usePdaReweigh.js', ['usePdaReweigh', 'usableReweighSample', 'reweighChangeText'], {
-		...draft, ...trace, ref: vue.ref, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
+		...draft, ...trace, ...autoWeight, Date: options.returnMode ? TestDate : Date, ref: vue.ref, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
 		getUser: () => ({ _id: owner }), canPageAction: () => options.canCreate !== false,
 		getPdaBleScaleCapabilities: () => ({ transport: options.web ? 'web' : 'native', supported: true }),
-		createPdaBleScaleSession: () => scale, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
+		createPdaBleScaleSession: profile => { diagnostic = profile.onDiagnosticFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
 		ensurePdaBleRuntimePermission: async () => ({ code: 0 }), quantizeBleScaleWeightKg: value => Math.round(value * 2) / 2,
 		normalizeBottleNo: value => String(value || '').trim().toUpperCase(),
 		enterBarcodeSession: async ({ onResult }) => { scanner = onResult; return { code: 0 } }, leaveBarcodeSession: async () => {},
@@ -81,12 +84,14 @@ function harness(t, options = {}) {
 	const form = stateModule.usePdaReweigh({ mode: options.returnMode ? 'return' : 'filling' })
 	t.after(() => onDestroy.forEach(fn => fn()))
 	async function start() { await form.activate(); emit({ is_connected: true }) }
+	function frames(weight, duration = 3100) { for (let i = 0; i <= duration; i += 100) { clock += 100; diagnostic({ session_id: latest.session_id, sampled_at: clock, display_kg: weight, device_id: 'NVK-1', raw: String(weight) }) } }
 	async function measure(bottle = '101', gross = 120) {
 		await start(); await form.selectBottle(bottle)
 		emit({ weight_kg: gross, sampled_at: Date.now(), is_connected: true, is_online: true, is_stable: true, stable_seq: 1, device_id: 'NVK-1', frame_raw: 'ST,+01200kg' })
+		if (options.returnMode) frames(gross)
 		await tick()
 	}
-	return { form, storage, requests, previews, confirmations, roundRequests, emit, start, measure, module: stateModule, scan: text => scanner({ rawText: text }), setOwner: value => { owner = value }, stopped: () => stopped }
+	return { frames, form, storage, requests, previews, confirmations, roundRequests, emit, start, measure, module: stateModule, scan: text => scanner({ rawText: text }), setOwner: value => { owner = value }, stopped: () => stopped }
 }
 
 test('one bottle gets its own window, half-kilogram gross and server-derived two distinct weights', async t => {
@@ -373,4 +378,21 @@ test('回瓶采样使用实际保存回执，不将成功误标为未保存', as
  const h = harness(t, { returnMode: true }); await h.start(); await h.form.toggleTrace(); await h.measure(); assert.equal(await h.form.submit(), true); await h.form.toggleTrace()
  const rows = [...h.storage.entries()].filter(([key]) => key.startsWith('pda_weigh_trace_v1_u1_')).flatMap(([, rows]) => rows)
  assert.equal(rows.find(row => row.type === 'save_response').saved, true)
+})
+
+test('回瓶自动修正不增网络核算或确认，卸瓶保留并冻结提交重量',async t=>{
+ let release
+ const h=harness(t,{returnMode:true,send:()=>new Promise(resolve=>{release=resolve})})
+ await h.measure('23',124);const previews=h.previews.length
+ h.frames(122);assert.equal(h.form.current.value.grossWeight,122);assert.equal(h.form.current.value.preview.net_weight,22)
+ h.frames(80);h.frames(0);assert.equal(h.form.current.value.grossWeight,122)
+ assert.equal(h.previews.length,previews);assert.equal(h.confirmations.length,0)
+ const pending=h.form.submit();await tick();h.frames(123);assert.equal(h.requests[0].payload.gross_weight,122);assert.equal(h.form.current.value.grossWeight,122)
+ release({code:0,data:{operation_id:h.requests[0].payload.operation_id,saved_total:1,complete:true}});await pending
+ h.frames(123);assert.equal(h.form.current.value.grossWeight,122)
+})
+test('回瓶已取重断线后不得继续自动覆盖，保留采样数据',async t=>{
+ const h=harness(t,{returnMode:true});h.storage.set('pda_weigh_trace_v1_u1',{enabled:false,chunks:0,count:2833,started:1})
+ await h.measure('23',122);await h.form.disconnect();h.frames(123)
+ assert.equal(h.form.current.value.grossWeight,122);assert.equal(h.storage.get('pda_weigh_trace_v1_u1').count,2833)
 })

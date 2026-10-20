@@ -1,0 +1,6 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm')
+const {createAutoReturnWeight}=vm.runInNewContext(fs.readFileSync('src/services/pda/autoReturnWeight.js','utf8').replace(/export /g,'')+'\n;({createAutoReturnWeight})',{Date})
+function rig(){const a=createAutoReturnWeight();let t=10000;return {a,run(w,ms=3100){let result=null;for(let i=0;i<=ms;i+=100){t+=100;const x=a.feed({sampled_at:t,display_kg:w},124,t);if(x!==null)result=x}return result},gap(){t+=1000}}}
+test('跳过长时间空钩，3秒稳定允许负净重，短平台不取重',()=>{const h=rig();assert.equal(h.run(1,5000),null);assert.equal(h.run(125,2000),null);assert.equal(h.run(122),122)})
+test('小幅稳定修正、固定锚点阻止阶梯下降，恢复允许更新',()=>{const h=rig();assert.equal(h.run(148),148);assert.equal(h.run(147.5),147.5);assert.equal(h.run(144),144);assert.equal(h.run(141),141);assert.equal(h.run(138),null);assert.equal(h.run(100),null);assert.equal(h.run(0),null);assert.equal(h.run(147.5),147.5)})
+test('间断/过期帧不能拼成稳定；下一瓶重置锚点',()=>{const h=rig();assert.equal(h.run(122,1500),null);h.gap();assert.equal(h.run(122,1400),null);assert.equal(h.run(122,1700),122);h.a.reset();assert.equal(h.run(90),90);assert.equal(h.a.feed({sampled_at:1,display_kg:130},124,10000),null)})
