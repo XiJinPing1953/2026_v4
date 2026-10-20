@@ -31,16 +31,20 @@ export async function checkPdaAppUpdate() {
  try {
   const version = await readPdaAppVersion()
   if (version.appid !== PDA_APP_ID) throw new Error('请使用正式 PDA 安装包检查更新')
-  const response = await new Promise((resolve, reject) => uni.request({ url: `${PDA_UPDATE_ROOT}latest.json?t=${Date.now()}`, timeout: 15000, success: resolve, fail: reject }))
+  const response = await new Promise((resolve, reject) => uni.request({ url: `${PDA_UPDATE_ROOT}latest.json?t=${Date.now()}`, timeout: 30000, firstIpv4: true, success: resolve, fail: reject }))
   if (response.statusCode !== 200) throw new Error('暂时无法获取更新，请稍后重试')
   const update = validatePdaUpdate(response.data, version.resource, version.native)
   if (!onHome()) return
   if (!update) { uni.showToast({ title: '已是最新版本', icon: 'none' }); return }
   if (!await modal({ title: `更新至 ${update.version}`, content: `${String(update.notes || '改进应用功能').slice(0, 300)}\n更新完成后将重启应用，已保存的数据保留。`, confirmText: '更新并重启' }) || !onHome()) return
   uni.showLoading({ title: '下载更新中', mask: true })
-  const downloaded = await new Promise((resolve, reject) => uni.downloadFile({ url: PDA_UPDATE_ROOT + update.file, timeout: 120000, success: resolve, fail: reject }))
-  downloadPath = downloaded.tempFilePath || ''
-  if (downloaded.statusCode !== 200 || !downloadPath) throw new Error('更新下载失败，请重试')
+  // 使用应用私有路径；uni.downloadFile返回的临时绝对路径在部分Android上
+  // 无法被plus.io/runtime访问，必须让下载、校验、安装使用同一_doc路径。
+  downloadPath = `_doc/pda-updates/${update.file}`
+  await new Promise((resolve, reject) => {
+   const task = plus.downloader.createDownload(PDA_UPDATE_ROOT + update.file, { filename: downloadPath, timeout: 120, retry: 0 }, (_task, status) => status === 200 ? resolve() : reject(new Error('更新下载失败，请重试')))
+   task.start()
+  })
   const info = await new Promise((resolve, reject) => plus.io.getFileInfo({ filePath: downloadPath, digestAlgorithm: 'sha1', success: resolve, fail: reject }))
   if (Number(info.size) !== update.size || String(info.digest).toLowerCase() !== update.sha1) throw new Error('更新文件校验失败，请重新下载')
   if (!onHome()) return
