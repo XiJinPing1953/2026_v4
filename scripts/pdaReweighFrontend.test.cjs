@@ -369,3 +369,8 @@ test('new local filling round clears only its count after confirmation and retai
 	assert.equal(h.requests.length, 1)
 	assert.equal(h.roundRequests.length, 0)
 })
+test('回瓶采样使用实际保存回执，不将成功误标为未保存', async t => {
+ const h = harness(t, { returnMode: true }); await h.start(); await h.form.toggleTrace(); await h.measure(); assert.equal(await h.form.submit(), true); await h.form.toggleTrace()
+ const rows = [...h.storage.entries()].filter(([key]) => key.startsWith('pda_weigh_trace_v1_u1_')).flatMap(([, rows]) => rows)
+ assert.equal(rows.find(row => row.type === 'save_response').saved, true)
+})

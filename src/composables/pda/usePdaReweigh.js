@@ -253,8 +253,8 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		if (!persist()) return false
 		try {
 			const response = await (isReturn ? saveReturnReweighV1 : frozen.mode === 'correct' ? correctReweighV1 : createReweighV1)(cloneReweigh(frozen.payload))
-			traceEvent('save_response', { operation: frozen.payload.operation_id, code: response?.code, saved: response?.data?.saved === true })
 			const receipt = applyReceipt(response, frozen.payload.operation_id, current.value, true)
+			traceEvent('save_response', { operation: frozen.payload.operation_id, code: response?.code, saved: receipt.saved === true })
 			if (receipt.rejected) return false
 			if (response?.code !== 0) fail(response.msg || '结果待确认，请查询原操作')
 			return response?.code === 0
