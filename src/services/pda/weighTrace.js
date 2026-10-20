@@ -75,6 +75,7 @@ export async function exportWeighTrace(text) {
   let stream
   try {
    stream = android.invoke(resolver, 'openOutputStream', uri)
+   if (!stream) throw new Error('下载文件暂时无法写入，请重试导出')
    const JavaString = android.importClass('java.lang.String')
    const bytes = android.invoke(new JavaString(text), 'getBytes', 'UTF-8')
    android.invoke(stream, 'write', bytes)
