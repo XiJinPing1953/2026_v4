@@ -8,7 +8,7 @@
     "web": {
       "version": "2026.10.20-pda-weigh-trace",
       "output": "dist/build/web",
-      "acceptance": "Return weighing: 3-second stable capture, automatic correction and 5% unloading protection. Existing trace storage and submission flow preserved; device validation pending.",
+      "acceptance": "Return weighing: 3-second stable capture, automatic correction and 5% unloading protection. Diagnostic recording and UI removed; existing stored traces and submission flow preserved.",
       "deploymentScope": {
         "functions": [
           "crm-bottle"
@@ -94,9 +94,9 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.11",
+      "version": "1.0.12",
       "output": "release/pda",
-      "acceptance": "Return weighing: 3-second stable capture, automatic correction and 5% unloading protection. Existing trace storage and submission flow preserved; device validation pending.",
+      "acceptance": "Return weighing: 3-second stable capture, automatic correction and 5% unloading protection. Diagnostic recording and UI removed; existing stored traces and submission flow preserved.",
       "deploymentScope": {
         "functions": [
           "crm-bottle"

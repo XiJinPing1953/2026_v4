@@ -10,7 +10,6 @@ function load(file, names, globals = {}) {
 	const source = fs.readFileSync(file, 'utf8').replace(/^import[\s\S]*?\bfrom\s+['"][^'"]+['"]\s*\n/gm, '').replace(/^export /gm, '')
 	return vm.runInNewContext(`${source}\n;({${names.join(',')}})`, { Date, Math, Promise, console, ...globals })
 }
-const trace = load('src/services/pda/weighTrace.js', ['createWeighTrace', 'exportWeighTrace'], { setTimeout, clearTimeout })
 const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReturnWeight'])
 const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt'])
 function harness(t, options = {}) {
@@ -42,7 +41,7 @@ function harness(t, options = {}) {
 	}
 	const onDestroy = []
 	const stateModule = load('src/composables/pda/usePdaReweigh.js', ['usePdaReweigh', 'usableReweighSample', 'reweighChangeText'], {
-		...draft, ...trace, ...autoWeight, Date: options.returnMode ? TestDate : Date, ref: vue.ref, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
+		...draft, ...autoWeight, Date: options.returnMode ? TestDate : Date, ref: vue.ref, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
 		getUser: () => ({ _id: owner }), canPageAction: () => options.canCreate !== false,
 		getPdaBleScaleCapabilities: () => ({ transport: options.web ? 'web' : 'native', supported: true }),
 		createPdaBleScaleSession: profile => { diagnostic = profile.onDiagnosticFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
@@ -374,12 +373,6 @@ test('new local filling round clears only its count after confirmation and retai
 	assert.equal(h.requests.length, 1)
 	assert.equal(h.roundRequests.length, 0)
 })
-test('回瓶采样使用实际保存回执，不将成功误标为未保存', async t => {
- const h = harness(t, { returnMode: true }); await h.start(); await h.form.toggleTrace(); await h.measure(); assert.equal(await h.form.submit(), true); await h.form.toggleTrace()
- const rows = [...h.storage.entries()].filter(([key]) => key.startsWith('pda_weigh_trace_v1_u1_')).flatMap(([, rows]) => rows)
- assert.equal(rows.find(row => row.type === 'save_response').saved, true)
-})
-
 test('回瓶自动修正不增网络核算或确认，卸瓶保留并冻结提交重量',async t=>{
  let release
  const h=harness(t,{returnMode:true,send:()=>new Promise(resolve=>{release=resolve})})

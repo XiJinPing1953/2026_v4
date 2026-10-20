@@ -1,5 +1,4 @@
 import { createAutoReturnWeight } from '@/services/pda/autoReturnWeight'
-import { createWeighTrace, exportWeighTrace } from '@/services/pda/weighTrace'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { getUser } from '@/services/auth'
 import { canPageAction } from '@/services/pageAcl'
@@ -61,33 +60,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 	let unreadable = false
 	let boundDevice = null
 	try { boundDevice = uni.getStorageSync('pda_ble_scale_bound_device_v1') || null; if (typeof boundDevice === 'string') boundDevice = JSON.parse(boundDevice) } catch (_) {}
-	const traceStatus = ref({ enabled: false, count: 0, error: '' })
-	const trace = createWeighTrace(ownerId, {
-		getStorageSync: key => uni.getStorageSync(key), setStorageSync: (key, value) => uni.setStorageSync(key, value), removeStorageSync: key => uni.removeStorageSync(key)
-	}, state => { traceStatus.value = state })
-	function traceEvent(type, data = {}) {
-		if (isReturn && active.value && ownerMatches()) trace.record(type, { bottle: current.value.bottleNo, operation: current.value.operationId, ...data })
-	}
-	async function toggleTrace() {
-		if (!ownerMatches()) return
-		if (traceStatus.value.enabled) { trace.stop(); return }
-		try {
-			if (traceStatus.value.count) {
-				if (!await confirm('开始新采样', '将清理上一批采样，请确认已导出。业务称重记录不受影响。') || !ownerMatches()) return
-				trace.clear()
-			}
-			trace.start()
-		} catch (cause) { uni.showToast({ title: cause.message || '采样启动失败', icon: 'none' }) }
-	}
-	async function exportTrace() {
-		if (!ownerMatches()) return
-		try {
-			trace.stop()
-			const path = await exportWeighTrace(trace.dump())
-			uni.showModal({ title: '采样已导出', content: `文件已写入下载目录：${path}。请通过文件管理器将JSON文件传到Mac。`, showCancel: false })
-		} catch (cause) { uni.showModal({ title: '导出失败，记录仍保留', content: cause.message || '请检查文件权限后重试', showCancel: false }) }
-	}
-	const scale = createPdaBleScaleSession({ onDiagnosticFrame: frame => { traceEvent('frame', frame); acceptReturnFrame(frame) }, deviceId: boundDevice?.deviceId || '', deviceNamePrefix: 'NVK', divisionStepKg: 0.5, displayDecimals: 1 })
+	const scale = createPdaBleScaleSession({ onDiagnosticFrame: acceptReturnFrame, deviceId: boundDevice?.deviceId || '', deviceNamePrefix: 'NVK', divisionStepKg: 0.5, displayDecimals: 1 })
 	// Explicit wrappers also work with uni-app's statically injected storage APIs.
 	const store = createReweighDraftStore(ownerId, {
 		getStorageSync: key => uni.getStorageSync(key),
@@ -143,7 +116,6 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		return startMeasurement()
 	}
 	async function scan(payload = {}) {
-		traceEvent('scan')
 		if (!editable()) return
 		if (current.value.bottleNo) return fail('本瓶已选定，重复扫码不会覆盖；请完成本瓶或放弃草稿')
 		if (!snapshot.value.is_connected) return fail('请先连接吊秤')
@@ -169,7 +141,6 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		autoWeight.reset(); autoSession = ''; autoSequence = 0
 		pendingSession.value = scale.beginMeasurement()
 		if (isReturn) { autoSession = pendingSession.value; autoStartedAt = Date.now() }
-		traceEvent('measurement_start', { session_id: pendingSession.value })
 		message.value = '本瓶正在称重，请保持稳定。允许先挂瓶，再扫码选瓶。'
 		return true
 	}
@@ -179,7 +150,6 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
   const weight = autoWeight.feed(frame, current.value.preview?.bottle?.tare_weight, Date.now())
   if (weight === null) return
   const capture = { sampled_at: frame.sampled_at, device_id: frame.device_id, stable_seq: ++autoSequence, measurement_id: frame.session_id, stable: true, raw: frame.raw || '' }
-  traceEvent('capture', { weight_kg: weight, sampled_at: frame.sampled_at, session_id: frame.session_id })
   pendingSession.value = ''
   const tare = Number(current.value.preview?.bottle?.tare_weight)
   current.value = { ...current.value, grossWeight: weight, capture, preview: { ...current.value.preview, gross_weight: weight, net_weight: Number.isFinite(tare) ? Math.round((weight - tare) * 10) / 10 : null } }
@@ -190,7 +160,6 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 	async function acceptSample(next) {
 		if (isReturn || !editable() || !usableReweighSample(next, pendingSession.value)) return
 		const capture = { sampled_at: next.sampled_at, device_id: next.device_id, stable_seq: next.stable_seq, measurement_id: next.session_id, stable: true, raw: next.frame_raw || next.last_frame_raw || '' }
-		traceEvent('capture', { weight_kg: next.weight_kg, sampled_at: next.sampled_at, session_id: next.session_id })
 		pendingSession.value = ''
 		current.value = { ...current.value, grossWeight: quantizeBleScaleWeightKg(next.weight_kg), capture }
 		if (!persist()) return
@@ -207,7 +176,6 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		finally { busy.value = false }
 	}
 	const unsubscribe = scale.onSnapshot(next => {
-		if (snapshot.value.is_connected !== next.is_connected || snapshot.value.is_online !== next.is_online) traceEvent('connection', { connected: next.is_connected, online: next.is_online })
 		snapshot.value = next
 		if (autoSession && (next.session_id !== autoSession || !next.is_connected)) { autoSession = ''; autoWeight.reset() }
 		if (pendingSession.value && (next.session_id !== pendingSession.value || !next.is_connected)) { pendingSession.value = ''; message.value = '称重会话已中断，请重新连接后点击本瓶称重。' }
@@ -274,14 +242,12 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		try {
 			const response = await (isReturn ? saveReturnReweighV1 : frozen.mode === 'correct' ? correctReweighV1 : createReweighV1)(cloneReweigh(frozen.payload))
 			const receipt = applyReceipt(response, frozen.payload.operation_id, current.value, true)
-			traceEvent('save_response', { operation: frozen.payload.operation_id, code: response?.code, saved: receipt.saved === true })
 			if (receipt.rejected) return false
 			if (response?.code !== 0) fail(response.msg || '结果待确认，请查询原操作')
 			return response?.code === 0
 		} catch (cause) { applyReceipt({ msg: cause.message || '网络中断，保存结果待确认' }, frozen.payload.operation_id); return false }
 	}
 	async function submit() {
-		traceEvent('save_pressed', { weight_kg: current.value.grossWeight })
 		autoWeight.interrupt()
 		if (!editable() || !current.value.capture) return fail('请先完成本瓶稳定称重')
 		busy.value = true; error.value = ''
@@ -412,7 +378,6 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		await stopping
 		if (version !== lifecycleVersion) return false
 		active.value = true
-		traceEvent('page_show')
 		if (!nativeSupported) return fail('复秤仅支持原生 PDA，请使用安装了扫描头插件的 PDA 应用')
 		if (isReturn) { roundReady.value = false; await refreshRound() }
 		else if (!round.value && !unreadable && ownerMatches()) {
@@ -431,13 +396,12 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 	}
 	async function deactivate() {
 		autoSession = ''; autoWeight.reset()
-		traceEvent('page_hide'); trace.flush()
 		active.value = false; epoch += 1; lifecycleVersion += 1; pendingSession.value = ''; scannerReady.value = false
 		persist()
 		stopping = Promise.allSettled([stopping, scale.stop(), leaveBarcodeSession({ page, reason: 'page-hidden' })])
 		await stopping
 	}
 	onBeforeUnmount(() => { unsubscribe(); void deactivate() })
-	return { traceStatus, toggleTrace, exportTrace, current, history, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
+	return { current, history, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
 		selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText }
 }
