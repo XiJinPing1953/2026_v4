@@ -72,16 +72,28 @@ export async function exportWeighTrace(text) {
   android.invoke(values, 'put', 'relative_path', 'Download/')
   const uri = android.invoke(resolver, 'insert', Uri.parse('content://media/external/downloads'), values)
   if (!uri) throw new Error('无法创建下载文件')
-  let stream
+  let stream, writer, descriptor
   try {
    stream = android.invoke(resolver, 'openOutputStream', uri)
    if (!stream) throw new Error('下载文件暂时无法写入，请重试导出')
-   const JavaString = android.importClass('java.lang.String')
-   const bytes = android.invoke(new JavaString(text), 'getBytes', 'UTF-8')
-   android.invoke(stream, 'write', bytes)
+   // 不让 byte[] 穿越 Native.js 桥；直接由 Java Writer 编码 UTF-8。
+   writer = android.newObject('java.io.OutputStreamWriter', stream, 'UTF-8')
+   if (!writer) throw new Error('无法创建采样写入器，原记录保留')
+   android.invoke(writer, 'write', text, 0, text.length)
+   android.invoke(writer, 'flush')
+   android.invoke(writer, 'close'); writer = null
    android.invoke(stream, 'close'); stream = null
+   // Native.js 调用失败可能不抛异常，必须核对实际文件大小。
+   descriptor = android.invoke(resolver, 'openFileDescriptor', uri, 'r')
+   if (!descriptor) throw new Error('无法核验导出文件，原记录保留')
+   const size = Number(android.invoke(descriptor, 'getStatSize'))
+   const expected = encodeURIComponent(text).replace(/%[0-9A-F]{2}|./g, 'x').length
+   if (!expected || size !== expected) throw new Error('采样文件写入不完整，原记录保留，请重试导出')
+   android.invoke(descriptor, 'close'); descriptor = null
    return `Download/${filename}`
   } catch (error) {
+   if (descriptor) { try { android.invoke(descriptor, 'close') } catch (_) {} }
+   if (writer) { try { android.invoke(writer, 'close') } catch (_) {} }
    if (stream) { try { android.invoke(stream, 'close') } catch (_) {} }
    try { android.invoke(resolver, 'delete', uri, null, null) } catch (_) {}
    throw error

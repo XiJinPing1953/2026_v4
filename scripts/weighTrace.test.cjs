@@ -11,3 +11,27 @@ test('Android文件流为空时导出失败并删除空文件，不能报告成�
  const {exportWeighTrace}=vm.runInNewContext(fs.readFileSync('src/services/pda/weighTrace.js','utf8').replace(/export /g,'')+'\n;({exportWeighTrace})',{plus:{android},Date})
  await assert.rejects(exportWeighTrace('{}'),/无法写入/);assert.equal(deleted,true)
 })
+function exporter(mode='ok') {
+ const state={text:'',deleted:false,closed:0},stream={},writer={},descriptor={}
+ const android={
+  importClass:name=>name.endsWith('VERSION')?{SDK_INT:30}:name.endsWith('Uri')?{parse:x=>x}:function(){},
+  runtimeMainActivity:()=>({}),
+  newObject:(name,s,encoding)=>{assert.equal(name,'java.io.OutputStreamWriter');assert.equal(s,stream);assert.equal(encoding,'UTF-8');return mode==='noWriter'?null:writer},
+  invoke:(obj,method,...args)=>{
+   if(method==='getContentResolver'||method==='insert')return {}
+   if(method==='openOutputStream')return stream
+   if(method==='write'){assert.equal(obj,writer);assert.equal(args[1],0);assert.equal(args[2],args[0].length);if(mode!=='silent')state.text=args[0]}
+   if(method==='openFileDescriptor')return mode==='noDescriptor'?null:descriptor
+   if(method==='getStatSize')return mode==='partial'?2:Buffer.byteLength(state.text,'utf8')
+   if(method==='close')state.closed++
+   if(method==='delete')state.deleted=true
+  }
+ }
+ return {state,run:vm.runInNewContext(fs.readFileSync('src/services/pda/weighTrace.js','utf8').replace(/export /g,'')+'\n;exportWeighTrace',{plus:{android},Date}).bind(null)}
+}
+test('UTF-8中文与非BMP字符写入后核验实际字节，成功才返回路径',async()=>{const x=exporter();const text=JSON.stringify({records:['新拓能源','😀',122]});assert.match(await x.run(text),/^Download\/weigh-trace-\d+\.json$/);assert.equal(x.state.text,text);assert.equal(x.state.deleted,false);assert.equal(x.state.closed,3)})
+for(const mode of ['silent','partial','noWriter','noDescriptor'])test(`导出${mode}失败，删除本次不完整文件且保留2833条原采样`,async()=>{
+ const s=store(),a=createWeighTrace('original',s);a.start();for(let i=0;i<2831;i++)a.record('frame',{weight:i});a.stop();const before=JSON.parse(a.dump());assert.equal(before.count,2833)
+ const x=exporter(mode);await assert.rejects(x.run(a.dump()));assert.equal(x.state.deleted,true)
+ const after=JSON.parse(createWeighTrace('original',s).dump());assert.deepEqual(after.records,before.records);assert.equal(after.count,2833)
+})
