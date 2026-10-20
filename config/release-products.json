@@ -8,7 +8,7 @@
     "web": {
       "version": "2026.10.20-pda-weigh-trace",
       "output": "dist/build/web",
-      "acceptance": "Opt-in local return weighing trace, bounded recording and JSON export. Weighing algorithm and submission unchanged. Manual native export/device validation.",
+      "acceptance": "Return weighing: 3-second stable capture, automatic correction and 5% unloading protection. Existing trace storage and submission flow preserved; device validation pending.",
       "deploymentScope": {
         "functions": [
           "crm-bottle"
@@ -17,6 +17,7 @@
         "baseCommit": "0b693f27825eecf2eeb8818f381bd708e0b20963",
         "sourceFiles": [
           "src/services/pda/weighTrace.js",
+          "src/services/pda/autoReturnWeight.js",
           "src/services/pda/bleScaleCore.js",
           "src/composables/pda/usePdaReweigh.js",
           "src/components/domain/pda/PdaReweighView.vue",
@@ -93,9 +94,9 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.9",
+      "version": "1.0.11",
       "output": "release/pda",
-      "acceptance": "Opt-in local return weighing trace, bounded recording and JSON export. Weighing algorithm and submission unchanged. Manual native export/device validation.",
+      "acceptance": "Return weighing: 3-second stable capture, automatic correction and 5% unloading protection. Existing trace storage and submission flow preserved; device validation pending.",
       "deploymentScope": {
         "functions": [
           "crm-bottle"
@@ -104,6 +105,7 @@
         "baseCommit": "0b693f27825eecf2eeb8818f381bd708e0b20963",
         "sourceFiles": [
           "src/services/pda/weighTrace.js",
+          "src/services/pda/autoReturnWeight.js",
           "src/services/pda/bleScaleCore.js",
           "src/composables/pda/usePdaReweigh.js",
           "src/components/domain/pda/PdaReweighView.vue",
