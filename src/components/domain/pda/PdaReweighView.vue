@@ -1,5 +1,5 @@
 <template>
-	<AppPage class="reweigh-page" :title="isReturn ? '回瓶复秤' : '罐装复秤'" :subtitle="isReturn ? '蓝牙吊秤 · 回瓶称重' : '蓝牙吊秤 · 逐瓶核算'" icon="bottle" hideBottleQuery>
+	<AppPage class="reweigh-page pda-compact-page pda-compact-page--inner" :title="isReturn ? '回瓶复秤' : '罐装复秤'" :subtitle="isReturn ? '蓝牙吊秤 · 回瓶称重' : '蓝牙吊秤 · 逐瓶核算'" icon="bottle" hideBottleQuery>
 		<AppSection v-if="!nativeSupported" title="请使用原生 PDA">
 			<text class="hint">本模块使用 PDA 扫描头和 NVK 蓝牙吊秤，请在 PDA 应用中打开。</text>
 		</AppSection>
@@ -7,7 +7,7 @@
 			<text v-if="!canCreate" class="notice notice--error">当前账号没有复秤保存权限。</text>
 			<text v-if="storageError" class="notice notice--error">草稿未能保存：{{ storageError }}。请保留本页，恢复本机存储后再试。</text>
 			<text v-if="error" class="notice notice--error">{{ error }}</text>
-			<text class="notice" role="status">{{ message }}</text>
+			<text v-if="message" class="notice" role="status">{{ message }}</text>
 
 			<AppSection :title="isReturn ? '本轮回瓶复秤统计' : '本轮罐装复秤统计'">
 				<view class="round-summary"><text class="result-value">{{ roundReady && round ? round.bottle_count : '—' }} <text class="unit">瓶</text></text>
@@ -179,4 +179,8 @@ defineExpose({ activate, deactivate })
 .reweigh-page :deep(.header__content) { min-width: 0; }
 .reweigh-page :deep(.section__header) { padding: 12rpx 18rpx; }
 .reweigh-page :deep(.section__body) { padding: 16rpx 18rpx; }
+</style>
+
+<style scoped lang="scss">
+@import './pdaCompact.scss';
 </style>

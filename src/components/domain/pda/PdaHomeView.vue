@@ -1,5 +1,5 @@
 <template>
-		<AppPage :title="isNative ? '新拓能源' : '移动工作台'" :subtitle="isNative ? '现场设备' : '销售与现场查询'" icon="home" hideBottleQuery>
+	<AppPage class="pda-compact-page" :title="isNative ? '新拓能源' : '移动工作台'" :subtitle="isNative ? '现场设备' : '销售与现场查询'" icon="home" hideBottleQuery>
 		<AppSection title="当前账号">
 			<view class="session-grid">
 				<view class="session-cell">
@@ -25,6 +25,7 @@
 		<view class="footer-actions">
 			<AppButton kind="outline" @click="onLogout">退出登录</AppButton>
 		</view>
+		<PdaAppUpdate v-if="isNative" />
 	</AppPage>
 </template>
 
@@ -32,6 +33,7 @@
 import AppButton from '@/components/base/AppButton.vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
+import PdaAppUpdate from '@/components/domain/pda/PdaAppUpdate.vue'
 import { clearAuth, getUser } from '@/services/auth'
 import { goLogin } from '@/services/navigation'
 import { canPageAction, canViewPage } from '@/services/pageAcl'
@@ -132,4 +134,8 @@ async function onLogout() {
 }
 
 
+</style>
+
+<style scoped lang="scss">
+@import './pdaCompact.scss';
 </style>

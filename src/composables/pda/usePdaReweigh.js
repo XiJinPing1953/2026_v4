@@ -1,21 +1,14 @@
-import { createAutoReturnWeight } from '@/services/pda/autoReturnWeight'
+import { createAutoReweighWeight } from '@/services/pda/autoReturnWeight'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { getUser } from '@/services/auth'
 import { canPageAction } from '@/services/pageAcl'
 import { previewReweighV1, createReweighV1, correctReweighV1, getReweighOperationV1, retryReweighOperationV1 } from '@/services/api/reweigh'
 import { getReturnReweighRoundV1, startReturnReweighRoundV1, previewReturnReweighV1, saveReturnReweighV1, getReturnReweighV1 } from '@/services/api/reweigh'
-import { createPdaBleScaleSession, createEmptyPdaBleScaleSnapshot, ensurePdaBleRuntimePermission, getPdaBleScaleCapabilities, quantizeBleScaleWeightKg } from '@/services/pda/bleScale'
+import { createPdaBleScaleSession, createEmptyPdaBleScaleSnapshot, ensurePdaBleRuntimePermission, getPdaBleScaleCapabilities } from '@/services/pda/bleScale'
 import { resolvePdaBottleByQrCode } from '@/services/pda/bottle'
 import { enterBarcodeSession, leaveBarcodeSession } from '@/services/pda/capture'
 import { normalizeBottleNo } from '@/services/pda/shared'
 import { cloneReweigh, createReweighId, createReweighDraftStore, reweighReceipt } from '@/services/pda/reweighDraft'
-
-export function usableReweighSample(snapshot, sessionId, now = Date.now()) {
-	const sampledAt = Number(snapshot.sampled_at)
-	return Boolean(sessionId && snapshot.session_id === sessionId && snapshot.is_connected && snapshot.is_online && snapshot.is_stable
-		&& Number(snapshot.weight_kg) > 0 && Number(snapshot.stable_seq) > 0 && sampledAt > 0 && sampledAt <= now
-		&& now - sampledAt <= 3000 && sampledAt >= Number(snapshot.measurement_started_at || 0))
-}
 
 const weightText = (value) => value == null ? '—' : `${Number(value).toFixed(1)} kg`
 export function reweighChangeText(preview) {
@@ -52,7 +45,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 	const scannerReady = ref(false)
 	const pendingSession = ref('')
 	const snapshot = ref(createEmptyPdaBleScaleSnapshot())
-	const autoWeight = createAutoReturnWeight()
+	const autoWeight = createAutoReweighWeight()
 	let autoSession = '', autoSequence = 0, autoStartedAt = 0
 	let epoch = 0
 	let lifecycleVersion = 0
@@ -60,7 +53,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 	let unreadable = false
 	let boundDevice = null
 	try { boundDevice = uni.getStorageSync('pda_ble_scale_bound_device_v1') || null; if (typeof boundDevice === 'string') boundDevice = JSON.parse(boundDevice) } catch (_) {}
-	const scale = createPdaBleScaleSession({ onDiagnosticFrame: acceptReturnFrame, deviceId: boundDevice?.deviceId || '', deviceNamePrefix: 'NVK', divisionStepKg: 0.5, displayDecimals: 1 })
+	const scale = createPdaBleScaleSession({ onWeightFrame: acceptWeightFrame, deviceId: boundDevice?.deviceId || '', deviceNamePrefix: 'NVK', divisionStepKg: 0.5, displayDecimals: 1 })
 	// Explicit wrappers also work with uni-app's statically injected storage APIs.
 	const store = createReweighDraftStore(ownerId, {
 		getStorageSync: key => uni.getStorageSync(key),
@@ -140,46 +133,33 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		error.value = ''
 		autoWeight.reset(); autoSession = ''; autoSequence = 0
 		pendingSession.value = scale.beginMeasurement()
-		if (isReturn) { autoSession = pendingSession.value; autoStartedAt = Date.now() }
+		autoSession = pendingSession.value; autoStartedAt = Date.now()
 		message.value = '本瓶正在称重，请保持稳定。允许先挂瓶，再扫码选瓶。'
 		return true
 	}
- function acceptReturnFrame(frame) {
-  if (!isReturn || !autoSession || frame.session_id !== autoSession || Number(frame.sampled_at) < autoStartedAt) return
-  if (!editable() || !current.value.bottleNo) { autoWeight.interrupt(); return }
-  const weight = autoWeight.feed(frame, current.value.preview?.bottle?.tare_weight, Date.now())
-  if (weight === null) return
-  const capture = { sampled_at: frame.sampled_at, device_id: frame.device_id, stable_seq: ++autoSequence, measurement_id: frame.session_id, stable: true, raw: frame.raw || '' }
-  pendingSession.value = ''
-  const tare = Number(current.value.preview?.bottle?.tare_weight)
-  current.value = { ...current.value, grossWeight: weight, capture, preview: { ...current.value.preview, gross_weight: weight, net_weight: Number.isFinite(tare) ? Math.round((weight - tare) * 10) / 10 : null } }
-  persist()
-  message.value = '稳定重量已采集，卸瓶后保留；保存前自动修正稳定读数。'
- }
-
-	async function acceptSample(next) {
-		if (isReturn || !editable() || !usableReweighSample(next, pendingSession.value)) return
-		const capture = { sampled_at: next.sampled_at, device_id: next.device_id, stable_seq: next.stable_seq, measurement_id: next.session_id, stable: true, raw: next.frame_raw || next.last_frame_raw || '' }
+	function acceptWeightFrame(frame) {
+		if (!autoSession || frame.session_id !== autoSession || Number(frame.sampled_at) < autoStartedAt) return
+		if (!editable() || !current.value.bottleNo) { autoWeight.interrupt(); return }
+		const weight = autoWeight.feed(frame, current.value.preview?.bottle?.tare_weight, Date.now())
+		if (weight === null) return
+		const capture = { sampled_at: frame.sampled_at, device_id: frame.device_id, stable_seq: ++autoSequence, measurement_id: frame.session_id, stable: true, raw: frame.raw || '' }
 		pendingSession.value = ''
-		current.value = { ...current.value, grossWeight: quantizeBleScaleWeightKg(next.weight_kg), capture }
-		if (!persist()) return
-		busy.value = true
-		const version = ++epoch
-		try {
-			const result = await previewRequest(previewArgs())
-			if (!sameWork(version)) return
-			if (result?.code !== 0) return fail(result?.msg || '重量已采集，核算失败，请重新核算')
-			const previousBasis = current.value.previousBasis || (result.data.context_hash !== current.value.preview?.context_hash ? current.value.preview : null)
-			current.value = { ...current.value, preview: result.data, previousBasis }; persist()
-			message.value = isReturn ? '稳定重量已采集，请核对回瓶毛重、皮重与净重后保存。' : '稳定重量已采集，请核对标签净重与本次灌装量后保存。'
-		} catch (cause) { if (sameWork(version)) fail(cause.message || '重量已采集，核算失败，保存时将重新核算') }
-		finally { busy.value = false }
+		const preview = current.value.preview
+		const subtract = value => value != null && Number.isFinite(Number(value)) ? Math.round((weight - Number(value)) * 10) / 10 : null
+		// Use the selected server basis for live display. Submit still revalidates it and
+		// obtains authoritative weights/label; automatic corrections add no network busy state.
+		current.value = { ...current.value, grossWeight: weight, capture, preview: {
+			...preview, gross_weight: weight, net_weight: subtract(preview?.bottle?.tare_weight),
+			...(!isReturn ? { fill_weight: subtract(preview?.basis?.gross_weight), label: null } : {})
+		} }
+		persist()
+		message.value = '稳定重量已采集，卸瓶后保留；保存前自动修正稳定读数。'
 	}
+
 	const unsubscribe = scale.onSnapshot(next => {
 		snapshot.value = next
 		if (autoSession && (next.session_id !== autoSession || !next.is_connected)) { autoSession = ''; autoWeight.reset() }
 		if (pendingSession.value && (next.session_id !== pendingSession.value || !next.is_connected)) { pendingSession.value = ''; message.value = '称重会话已中断，请重新连接后点击本瓶称重。' }
-		void acceptSample(next)
 	})
 	async function connect(forcePick = false) {
 		if (!nativeSupported || !active.value || busy.value) return false

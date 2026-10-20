@@ -1,5 +1,5 @@
-// 仅回瓶复秤的自动候选；不改变秤协议、提交规则或持久化格式。
-export function createAutoReturnWeight() {
+// 回瓶与罐装复秤共用的自动候选；不改变秤协议、提交规则或持久化格式。
+export function createAutoReweighWeight() {
  let anchor = null, accepted = null, candidate = null, since = 0, previous = 0
  function interrupt() { candidate = null; since = 0; previous = 0 }
  function reset() { anchor = null; accepted = null; interrupt() }

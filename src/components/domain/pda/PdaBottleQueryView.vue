@@ -1,5 +1,5 @@
 <template>
-	<AppPage title="钢瓶查询" icon="bottle" hideBottleQuery>
+	<AppPage class="pda-compact-page pda-compact-page--inner" title="钢瓶查询" icon="bottle" hideBottleQuery>
 		<view class="query-tabs">
 			<AppButton :kind="tab === 'bottle' ? 'primary' : 'neutral'" @click="tab = 'bottle'">钢瓶档案</AppButton>
 			<AppButton v-if="canMovement" :kind="tab === 'movement' ? 'primary' : 'neutral'" @click="openMovement(filters.keyword)">流转记录</AppButton>
@@ -206,4 +206,11 @@ function onStatusChange(event) {
 }
 
 .query-tabs { display: flex; gap: 12rpx; margin-bottom: 12rpx; }
+</style>
+
+<style scoped lang="scss">
+@import './pdaCompact.scss';
+/* #ifdef APP-PLUS */
+.query-tabs { margin-bottom: 0; }
+/* #endif */
 </style>

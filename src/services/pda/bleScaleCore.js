@@ -695,8 +695,8 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 		const quantized = quantizeBleScaleWeightKg(parsed.weightKg, profile.divisionStepKg, profile.displayDecimals)
 		if (quantized == null) return
 		const stable = deriveBusinessStable(quantized, parsed, sampledAt)
-		// 在界面节流之前观察每条已解析报文；诊断回调不能影响正常收秤。
-		try { inputProfile.onDiagnosticFrame?.({ device_id: snapshot.device_id, sampled_at: sampledAt, weight_kg: parsed.weightKg, display_kg: quantized, head_stable: parsed.headStable === true, business_stable: stable, raw: String(rawLine || '').slice(0, 256), session_id: sessionId }) } catch (_) {}
+		// 自动复秤需要界面节流前的连续读数；业务回调异常不影响正常收秤。
+		try { inputProfile.onWeightFrame?.({ device_id: snapshot.device_id, sampled_at: sampledAt, display_kg: quantized, raw: String(rawLine || '').slice(0, 256), session_id: sessionId }) } catch (_) {}
 		lastFrameAt = sampledAt
 		staleMarked = false
 		reconnectAttempt = 0

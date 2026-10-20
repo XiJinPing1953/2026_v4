@@ -10,10 +10,10 @@ function load(file, names, globals = {}) {
 	const source = fs.readFileSync(file, 'utf8').replace(/^import[\s\S]*?\bfrom\s+['"][^'"]+['"]\s*\n/gm, '').replace(/^export /gm, '')
 	return vm.runInNewContext(`${source}\n;({${names.join(',')}})`, { Date, Math, Promise, console, ...globals })
 }
-const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReturnWeight'])
+const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight'])
 const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt'])
 function harness(t, options = {}) {
-	let clock = Date.now(), diagnostic
+	let clock = Date.now(), weightFrame
 	class TestDate extends Date { static now() { return clock } }
 	const storage = options.storage || new Map()
 	const requests = [], previews = [], confirmations = [], roundRequests = []
@@ -40,11 +40,11 @@ function harness(t, options = {}) {
 			label: gross == null ? null : { company: '新拓能源', bottle_no: params.bottle_no, tare_weight: 100, gross_weight: gross, net_weight: gross - 100 } } }
 	}
 	const onDestroy = []
-	const stateModule = load('src/composables/pda/usePdaReweigh.js', ['usePdaReweigh', 'usableReweighSample', 'reweighChangeText'], {
-		...draft, ...autoWeight, Date: options.returnMode ? TestDate : Date, ref: vue.ref, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
+	const stateModule = load('src/composables/pda/usePdaReweigh.js', ['usePdaReweigh', 'reweighChangeText'], {
+		...draft, ...autoWeight, Date: TestDate, ref: vue.ref, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
 		getUser: () => ({ _id: owner }), canPageAction: () => options.canCreate !== false,
 		getPdaBleScaleCapabilities: () => ({ transport: options.web ? 'web' : 'native', supported: true }),
-		createPdaBleScaleSession: profile => { diagnostic = profile.onDiagnosticFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
+		createPdaBleScaleSession: profile => { weightFrame = profile.onWeightFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
 		ensurePdaBleRuntimePermission: async () => ({ code: 0 }), quantizeBleScaleWeightKg: value => Math.round(value * 2) / 2,
 		normalizeBottleNo: value => String(value || '').trim().toUpperCase(),
 		enterBarcodeSession: async ({ onResult }) => { scanner = onResult; return { code: 0 } }, leaveBarcodeSession: async () => {},
@@ -83,17 +83,17 @@ function harness(t, options = {}) {
 	const form = stateModule.usePdaReweigh({ mode: options.returnMode ? 'return' : 'filling' })
 	t.after(() => onDestroy.forEach(fn => fn()))
 	async function start() { await form.activate(); emit({ is_connected: true }) }
-	function frames(weight, duration = 3100) { for (let i = 0; i <= duration; i += 100) { clock += 100; diagnostic({ session_id: latest.session_id, sampled_at: clock, display_kg: weight, device_id: 'NVK-1', raw: String(weight) }) } }
+	function frames(weight, duration = 3100) { for (let i = 0; i <= duration; i += 100) { clock += 100; weightFrame({ session_id: latest.session_id, sampled_at: clock, display_kg: Math.round(weight * 2) / 2, device_id: 'NVK-1', raw: String(weight) }) } }
 	async function measure(bottle = '101', gross = 120) {
 		await start(); await form.selectBottle(bottle)
 		emit({ weight_kg: gross, sampled_at: Date.now(), is_connected: true, is_online: true, is_stable: true, stable_seq: 1, device_id: 'NVK-1', frame_raw: 'ST,+01200kg' })
-		if (options.returnMode) frames(gross)
+		frames(gross)
 		await tick()
 	}
 	return { frames, form, storage, requests, previews, confirmations, roundRequests, emit, start, measure, module: stateModule, scan: text => scanner({ rawText: text }), setOwner: value => { owner = value }, stopped: () => stopped }
 }
 
-test('one bottle gets its own window, half-kilogram gross and server-derived two distinct weights', async t => {
+test('one bottle gets its own window, half-kilogram gross and two distinct weights revalidated by server', async t => {
 	const h = harness(t); await h.measure('101', 120.1)
 	assert.equal(h.form.current.value.grossWeight, 120)
 	assert.equal(h.form.current.value.preview.net_weight, 20)
@@ -114,19 +114,9 @@ test('same-weight next bottle cannot consume previous stable snapshot; duplicate
 	await h.form.submit(); await h.form.nextBottle(); await h.form.selectBottle('102')
 	assert.equal(h.form.current.value.capture, null)
 	assert.equal(h.form.pendingSession.value, 'sample-2')
-	h.emit({ sampled_at: Date.now(), is_online: true, is_stable: true, stable_seq: 1, weight_kg: 120 }); await tick()
+	h.frames(120); await tick()
 	assert.equal(h.form.current.value.grossWeight, 120)
 	assert.equal(h.form.current.value.capture.measurement_id, 'sample-2')
-})
-
-test('old, future, disconnected and mismatched-session samples never count as a measurement', async t => {
-	const h = harness(t); const check = h.module.usableReweighSample
-	const snapshot = { session_id: 'a', is_connected: true, is_online: true, is_stable: true, weight_kg: 120, stable_seq: 1, sampled_at: 10000, measurement_started_at: 9999 }
-	assert.equal(check(snapshot, 'a', 10000), true)
-	assert.equal(check(snapshot, 'a', 13001), false)
-	assert.equal(check(snapshot, 'a', 9999), false)
-	assert.equal(check({ ...snapshot, is_connected: false }, 'a', 10000), false)
-	assert.equal(check(snapshot, 'b', 10000), false)
 })
 
 test('hiding native page stops scale and scan; restored completed measurement survives without a pending window', async t => {
@@ -166,7 +156,8 @@ test('basis changes during measurement remain visible for explicit pre-submit co
 		if (count > 1) { result.data.context_hash = 'context-2'; result.data.basis.gross_weight = 106; result.data.fill_weight = params.gross_weight - 106 }
 		return result
 	} }); await h.measure()
-	assert.equal(h.form.current.value.previousBasis.context_hash, 'context-1')
+	assert.equal(h.form.current.value.preview.context_hash, 'context-1')
+	assert.equal(h.previews.length, 1)
 	assert.equal(await h.form.submit(), false); assert.equal(h.requests.length, 0)
 	assert.match(h.confirmations[0].content, /105\.0 kg → 106\.0 kg/)
 	assert.equal(await h.form.submit(), true); assert.equal(h.requests[0].payload.context_hash, 'context-2')
@@ -390,3 +381,48 @@ test('回瓶已取重断线后不得继续自动覆盖，保留采样数据',asy
  assert.equal(h.form.current.value.grossWeight,122);assert.equal(h.storage.get('pda_weigh_trace_v1_u1').count,2833)
 })
 test('回瓶起吊中途稳定后继续上升，再卸瓶时提交最终悬重',async t=>{const h=harness(t,{returnMode:true});await h.measure('23',125);h.frames(148);h.frames(125);await h.form.submit();assert.equal(h.requests[0].payload.gross_weight,148)})
+
+test('filling uses continuous stable frames, updates both weights without network busy, and preserves unloading result', async t => {
+	const h = harness(t); await h.start(); await h.form.selectBottle('97')
+	h.frames(4, 4000); h.frames(150, 2800)
+	assert.equal(h.form.current.value.capture, null)
+	h.frames(148)
+	assert.equal(h.form.current.value.grossWeight, 148)
+	h.frames(147.5)
+	assert.equal(h.form.current.value.preview.net_weight, 47.5)
+	assert.equal(h.form.current.value.preview.fill_weight, 42.5)
+	assert.equal(h.form.current.value.preview.label, null)
+	assert.equal(h.form.busy.value, false)
+	assert.equal(h.previews.length, 1)
+	assert.equal(h.confirmations.length, 0)
+	h.frames(140); h.frames(0)
+	assert.equal(h.form.current.value.grossWeight, 147.5)
+	assert.equal(await h.form.submit(), true)
+	assert.equal(h.requests[0].payload.gross_weight, 147.5)
+	assert.equal(h.form.current.value.preview.label.gross_weight, 147.5)
+	assert.equal(h.form.current.value.preview.fill_weight, 42.5)
+})
+
+test('filling freezes auto corrections throughout server revalidation and confirms changed basis', async t => {
+	let release
+	const h = harness(t, { preview: (params, count, result) => count === 1 ? result : new Promise(resolve => {
+		release = () => {
+			result.data.context_hash = 'context-new'
+			result.data.basis.gross_weight = 106
+			result.data.fill_weight = params.gross_weight - 106
+			resolve(result)
+		}
+	}) })
+	await h.measure('97', 148)
+	h.frames(147.5)
+	const pending = h.form.submit()
+	h.frames(149)
+	assert.equal(h.form.current.value.grossWeight, 147.5)
+	release(); assert.equal(await pending, true)
+	assert.equal(h.requests[0].payload.gross_weight, 147.5)
+	assert.equal(h.requests[0].payload.context_hash, 'context-new')
+	assert.match(h.confirmations[0].content, /105\.0 kg → 106\.0 kg/)
+	assert.equal(h.form.current.value.preview.fill_weight, 41.5)
+	h.frames(149)
+	assert.equal(h.form.current.value.grossWeight, 147.5)
+})

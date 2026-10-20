@@ -1,0 +1,13 @@
+/* Native PDA spacing only. Keep controls and the Chrome sales layout unchanged. */
+/* #ifdef APP-PLUS */
+.pda-compact-page :deep(.page__body--padded) { gap: 14rpx; padding: 0 18rpx; }
+.pda-compact-page :deep(.page__header) { padding: 16rpx 20rpx 0; margin-bottom: 14rpx; }
+.pda-compact-page :deep(.header__top) { gap: 16rpx; padding-bottom: 16rpx; }
+.pda-compact-page :deep(.header__icon-box) { width: 56rpx; height: 56rpx; }
+.pda-compact-page :deep(.header__content) { min-width: 0; }
+.pda-compact-page :deep(.section__header) { padding: 12rpx 18rpx; }
+.pda-compact-page :deep(.section__body) { padding: 16rpx 18rpx; }
+/* These pages already have the same title in their native navigation bar. */
+.pda-compact-page--inner { padding-top: 14rpx; }
+.pda-compact-page--inner :deep(.page__header) { display: none; }
+/* #endif */

@@ -1,5 +1,5 @@
 <template>
-	<AppPage title="钢瓶查询" subtitle="流转记录" icon="bottle" hideBottleQuery>
+	<AppPage class="pda-compact-page pda-compact-page--inner" title="钢瓶查询" subtitle="流转记录" icon="bottle" hideBottleQuery>
 		<PdaMovementQueryView :initial-bottle-no="initialBottleNo" />
 	</AppPage>
 </template>
@@ -16,3 +16,7 @@ onLoad((options) => {
 	initialBottleNo.value = String(options?.bottle_no || '')
 })
 </script>
+
+<style scoped lang="scss">
+@import '@/components/domain/pda/pdaCompact.scss';
+</style>
