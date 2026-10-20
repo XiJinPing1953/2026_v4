@@ -42,7 +42,11 @@ export async function checkPdaAppUpdate() {
   // 无法被plus.io/runtime访问，必须让下载、校验、安装使用同一_doc路径。
   downloadPath = `_doc/pda-updates/${update.file}`
   await new Promise((resolve, reject) => {
-   const task = plus.downloader.createDownload(PDA_UPDATE_ROOT + update.file, { filename: downloadPath, timeout: 120, retry: 0 }, (_task, status) => status === 200 ? resolve() : reject(new Error('更新下载失败，请重试')))
+   const task = plus.downloader.createDownload(PDA_UPDATE_ROOT + update.file, { filename: downloadPath, timeout: 120, retry: 0 }, (completed, status) => {
+    // 同名残留文件会让运行时另存为带序号的文件，后续必须使用实际路径。
+    if (completed.filename) downloadPath = completed.filename
+    status === 200 ? resolve() : reject(new Error('更新下载失败，请重试'))
+   })
    task.start()
   })
   const info = await new Promise((resolve, reject) => plus.io.getFileInfo({ filePath: downloadPath, digestAlgorithm: 'sha1', success: resolve, fail: reject }))
