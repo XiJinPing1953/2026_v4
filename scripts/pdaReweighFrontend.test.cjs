@@ -10,6 +10,7 @@ function load(file, names, globals = {}) {
 	const source = fs.readFileSync(file, 'utf8').replace(/^import[\s\S]*?\bfrom\s+['"][^'"]+['"]\s*\n/gm, '').replace(/^export /gm, '')
 	return vm.runInNewContext(`${source}\n;({${names.join(',')}})`, { Date, Math, Promise, console, ...globals })
 }
+const trace = load('src/services/pda/weighTrace.js', ['createWeighTrace', 'exportWeighTrace'], { setTimeout, clearTimeout })
 const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt'])
 function harness(t, options = {}) {
 	const storage = options.storage || new Map()
@@ -38,7 +39,7 @@ function harness(t, options = {}) {
 	}
 	const onDestroy = []
 	const stateModule = load('src/composables/pda/usePdaReweigh.js', ['usePdaReweigh', 'usableReweighSample', 'reweighChangeText'], {
-		...draft, ref: vue.ref, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
+		...draft, ...trace, ref: vue.ref, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
 		getUser: () => ({ _id: owner }), canPageAction: () => options.canCreate !== false,
 		getPdaBleScaleCapabilities: () => ({ transport: options.web ? 'web' : 'native', supported: true }),
 		createPdaBleScaleSession: () => scale, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),

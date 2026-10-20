@@ -6,19 +6,20 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.19-pda-review-fixes",
+      "version": "2026.10.20-pda-weigh-trace",
       "output": "dist/build/web",
-      "acceptance": "Three review fixes: queued navigation survives preceding failure, serialized scanner lifecycle, cancelled archive loading cleanup. Frontend only; manual PDA validation.",
+      "acceptance": "Opt-in local return weighing trace, bounded recording and JSON export. Weighing algorithm and submission unchanged. Manual native export/device validation.",
       "deploymentScope": {
         "functions": [
           "crm-bottle"
         ],
         "databaseFiles": [],
-        "baseCommit": "42fa8490eb003a069f472376119afec8ad2052b7",
+        "baseCommit": "0b693f27825eecf2eeb8818f381bd708e0b20963",
         "sourceFiles": [
-          "src/services/navigation.js",
-          "src/composables/pda/usePdaQueryScan.js",
-          "src/components/domain/pda/PdaBottleQueryView.vue",
+          "src/services/pda/weighTrace.js",
+          "src/services/pda/bleScaleCore.js",
+          "src/composables/pda/usePdaReweigh.js",
+          "src/components/domain/pda/PdaReweighView.vue",
           "src/manifest.json"
         ]
       },
@@ -92,19 +93,20 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.8",
+      "version": "1.0.9",
       "output": "release/pda",
-      "acceptance": "Three review fixes: queued navigation survives preceding failure, serialized scanner lifecycle, cancelled archive loading cleanup. Frontend only; manual PDA validation.",
+      "acceptance": "Opt-in local return weighing trace, bounded recording and JSON export. Weighing algorithm and submission unchanged. Manual native export/device validation.",
       "deploymentScope": {
         "functions": [
           "crm-bottle"
         ],
         "databaseFiles": [],
-        "baseCommit": "42fa8490eb003a069f472376119afec8ad2052b7",
+        "baseCommit": "0b693f27825eecf2eeb8818f381bd708e0b20963",
         "sourceFiles": [
-          "src/services/navigation.js",
-          "src/composables/pda/usePdaQueryScan.js",
-          "src/components/domain/pda/PdaBottleQueryView.vue",
+          "src/services/pda/weighTrace.js",
+          "src/services/pda/bleScaleCore.js",
+          "src/composables/pda/usePdaReweigh.js",
+          "src/components/domain/pda/PdaReweighView.vue",
           "src/manifest.json"
         ]
       },

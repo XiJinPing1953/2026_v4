@@ -31,6 +31,11 @@
 					<AppButton size="sm" :loading="busy" :disabled="busy" @click="connect(false)">{{ snapshot.is_connected ? '重连吊秤' : '连接吊秤' }}</AppButton>
 					<AppButton size="sm" kind="neutral" :disabled="busy" @click="connect(true)">更换吊秤</AppButton>
 					<AppButton size="sm" kind="ghost" :disabled="busy || !snapshot.is_connected" @click="disconnect">断开</AppButton>
+					<template v-if="isReturn">
+						<AppButton size="sm" kind="ghost" @click="toggleTrace">{{ traceStatus.enabled ? '停止采样' : '开始采样' }}</AppButton>
+						<AppButton size="sm" kind="ghost" @click="exportTrace">导出采样</AppButton>
+						<text class="section-hint">{{ traceStatus.enabled ? '采样中' : '采样已停止' }} · {{ traceStatus.count }}条 {{ traceStatus.error }}</text>
+					</template>
 				</view>
 			</AppSection>
 
@@ -128,7 +133,7 @@ import { reweighChangeText, usePdaReweigh } from '@/composables/pda/usePdaReweig
 
 const props = defineProps({ mode: { type: String, default: 'filling' } })
 const isReturn = props.mode === 'return'
-const { current, history, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
+const { traceStatus, toggleTrace, exportTrace, current, history, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
 	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText } = usePdaReweigh({ mode: props.mode })
 const readyForBottle = computed(() => !isReturn || (roundReady.value && Boolean(round.value?._id)))
 const roundTime = computed(() => {
