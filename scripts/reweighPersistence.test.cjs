@@ -247,7 +247,6 @@ test('PDA create-only owner can recover own creation but cannot recover a correc
 	const user = { _id: 'creator', username: 'creator', role: 'user', token: 'creator', page_permissions: {
 		'/pages/pda/reweigh': { view: true, create: true, update: false },
 		'/pages/filling/list': { view: false, create: false }, '/pages/filling/edit': { view: false, update: false },
-		'/pages/pda/filling-create': { view: false, create: false }
 	} }
 	app.db.data('crm_users').set(user._id, user)
 	const payload = await request(app, 'reweigh_creator_recover')

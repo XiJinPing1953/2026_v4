@@ -134,30 +134,6 @@
 			}
 		},
 		{
-			"path": "pages/pda/filling-board",
-			"style": {
-				"navigationBarTitleText": "PDA 灌装看板"
-			}
-		},
-		{
-			"path": "pages/pda/filling-station",
-			"style": {
-				"navigationBarTitleText": "PDA 灌装工位"
-			}
-		},
-		{
-			"path": "pages/pda/filling-create",
-			"style": {
-				"navigationBarTitleText": "PDA 灌装录入"
-			}
-		},
-		{
-			"path": "pages/pda/filling-complete",
-			"style": {
-				"navigationBarTitleText": "PDA 灌装完成"
-			}
-		},
-		{
 			"path": "pages/pda/return-reweigh",
 			"style": {
 				"navigationBarTitleText": "回瓶复秤"

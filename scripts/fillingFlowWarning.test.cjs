@@ -88,7 +88,7 @@ test('warning rows beyond the old display limit are prioritized without losing i
  assert.equal(r.data.create_items[0].line_no,51);assert.equal(r.data.warning_total,1)
 })
 test('post-save incomplete history remains recoverable and never updates bottle status',async()=>{
- const { makeApp } = require('./lib/pdaCompletionHarness.cjs')
+ const { makeApp } = require('./lib/fillingIntegrationHarness.cjs')
  const app = makeApp()
  app.db.setFault((name,action)=>{
   if(name==='crm_bottle_movements' && action==='get' && app.db.data('crm_fillings').size) throw Error('history unavailable')

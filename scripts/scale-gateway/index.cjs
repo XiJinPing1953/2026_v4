@@ -10,12 +10,9 @@ const {
 } = require('../lib/qrImportCommon.cjs')
 const {
 	DEFAULT_SCALE_CODE,
-	C606_TARGET_QUANT1_ADDRESS,
 	decodeC606ConfigRegisters,
 	decodeC606GrossFloatRegisters,
 	decodeC606GrossIntRegisters,
-	decodeFloat32HighFirst,
-	encodeFloat32HighFirstRegisters,
 	getMockFrame
 } = require('./protocol.cjs')
 
@@ -85,7 +82,7 @@ function printHelp() {
 
 环境变量:
   SCALE_SERIAL_PORT / SCALE_BAUD_RATE / SCALE_DATA_BITS / SCALE_STOP_BITS / SCALE_PARITY / SCALE_SLAVE_ID
-  SCALE_CODE / SCALE_POLL_MS / SCALE_HEARTBEAT_MS / SCALE_TARGET_WRITE_POLL_MS / SCALE_CONFIG_REFRESH_MS
+  SCALE_CODE / SCALE_POLL_MS / SCALE_HEARTBEAT_MS / SCALE_CONFIG_REFRESH_MS
   CRM_SPACE_ID + CRM_CLIENT_SECRET 或 CRM_ACCESS_KEY / CRM_SECRET_KEY / CRM_SPACE_APP_ID
   GATEWAY_USERNAME / GATEWAY_PASSWORD
   SUPERADMIN_USERNAME / SUPERADMIN_PASSWORD
@@ -113,7 +110,6 @@ function loadConfig(args) {
 		requestGapMs: toPositiveInt(process.env.SCALE_REQUEST_GAP_MS, 100),
 		requestRetries: Math.max(0, Math.min(toPositiveInt(process.env.SCALE_REQUEST_RETRIES, 1), 5)),
 		heartbeatMs: toPositiveInt(process.env.SCALE_HEARTBEAT_MS, 2000),
-		targetWritePollMs: toPositiveInt(process.env.SCALE_TARGET_WRITE_POLL_MS, 1000),
 		configRefreshMs: toPositiveInt(process.env.SCALE_CONFIG_REFRESH_MS, 60000),
 		crmSpaceId: normalizeString(process.env.CRM_SPACE_ID || process.env.UNI_SPACE_ID),
 		clientSecret: normalizeString(process.env.CRM_CLIENT_SECRET || process.env.UNI_CLIENT_SECRET),
@@ -479,7 +475,6 @@ function createRawRtuClient(port, config) {
 async function createReader(config) {
 	if (config.mock) {
 		let mockIndex = 0
-		let mockTargetNetWeight = null
 		return {
 			async read() {
 				mockIndex += 1
@@ -493,17 +488,6 @@ async function createReader(config) {
 					sampledAt: Date.now(),
 					decoded: frame.decoded,
 					label: frame.name
-				}
-			},
-			async writeTargetNetWeight(targetNetWeight) {
-				const registers = encodeFloat32HighFirstRegisters(targetNetWeight)
-				mockTargetNetWeight = Number(targetNetWeight)
-				return {
-					targetNetWeight: mockTargetNetWeight,
-					address: C606_TARGET_QUANT1_ADDRESS,
-					registers,
-					readback: mockTargetNetWeight,
-					mock: true
 				}
 			},
 			async close() {}
@@ -537,20 +521,7 @@ async function createReader(config) {
 		}
 		return decoded
 	}
-	async function writeTargetNetWeight(targetNetWeight) {
-		const registers = encodeFloat32HighFirstRegisters(targetNetWeight)
-		const writeAck = await client.writeMultipleRegisters(C606_TARGET_QUANT1_ADDRESS, registers)
-		const readbackRegisters = await client.readHoldingRegisters(C606_TARGET_QUANT1_ADDRESS, 2)
-		const readback = decodeFloat32HighFirst(readbackRegisters)
-		return {
-			targetNetWeight: Number(targetNetWeight),
-			address: C606_TARGET_QUANT1_ADDRESS,
-			registers,
-			writeAck,
-			readbackRegisters,
-			readback
-		}
-	}
+
 	return {
 		async read() {
 			const sampledAt = Date.now()
@@ -568,7 +539,6 @@ async function createReader(config) {
 				label: 'c606_modbus'
 			}
 		},
-		writeTargetNetWeight,
 		async close() {
 			await closeRawRtuPort(port)
 		}
@@ -604,80 +574,6 @@ function logUpload(snapshot, label) {
 	)
 }
 
-function normalizeCloudResult(res) {
-	return res && res.result ? res.result : res || {}
-}
-
-async function processTargetWrite({ uploader, reader, config }) {
-	const claimRes = normalizeCloudResult(
-		await uploader.callFunction('crm-pda-filling', {
-			action: 'claimTargetWriteV1',
-			data: {
-				scale_code: config.scaleCode
-			}
-		})
-	)
-	if (claimRes.code !== 0) {
-		throw new Error(`claimTargetWriteV1 失败: ${JSON.stringify(claimRes)}`)
-	}
-	const task = claimRes.data && claimRes.data.task ? claimRes.data.task : null
-	if (!task || !task._id) return false
-
-	let finishPayload = null
-	try {
-		const writeResult = await reader.writeTargetNetWeight(task.target_net_weight)
-		finishPayload = {
-			action: 'finishTargetWriteV1',
-			data: {
-				task_id: task._id,
-				success: true,
-				readback: writeResult.readback,
-				payload: {
-					target_register: '0x00CA',
-					target_register_decimal: C606_TARGET_QUANT1_ADDRESS,
-					target_value_kind: 'target_net_weight',
-					target_net_weight: Number(task.target_net_weight),
-					registers: writeResult.registers,
-					write_ack: writeResult.writeAck || null,
-					readback_registers: writeResult.readbackRegisters || null,
-					mock: writeResult.mock === true
-				}
-			}
-		}
-	} catch (error) {
-		finishPayload = {
-			action: 'finishTargetWriteV1',
-			data: {
-				task_id: task._id,
-				success: false,
-				error: normalizeString(error && error.message) || 'C606+目标写入失败',
-				payload: {
-					target_register: '0x00CA',
-					target_register_decimal: C606_TARGET_QUANT1_ADDRESS,
-					target_value_kind: 'target_net_weight',
-					target_net_weight: Number(task.target_net_weight)
-				}
-			}
-		}
-	}
-	const finishRes = normalizeCloudResult(await uploader.callFunction('crm-pda-filling', finishPayload))
-	if (finishRes.code !== 0) {
-		throw new Error(`finishTargetWriteV1 失败: ${JSON.stringify(finishRes)}`)
-	}
-	console.log(
-		'[scale-gateway] target-write',
-		JSON.stringify({
-			task_id: task._id,
-			scale_code: task.scale_code,
-			bottle_no: task.bottle_no,
-			target_net_weight: task.target_net_weight,
-			success: finishPayload.data.success,
-			error: finishPayload.data.error || ''
-		})
-	)
-	return true
-}
-
 async function run() {
 	const args = parseArgs(process.argv)
 	if (args.help) {
@@ -694,7 +590,6 @@ async function run() {
 	let lastUploadedAt = 0
 	let lastUploadedSnapshot = null
 	let consecutiveFailures = 0
-	let lastTargetWritePollAt = 0
 
 	try {
 		while (true) {
@@ -728,14 +623,7 @@ async function run() {
 				lastUploadedAt = Date.now()
 				logUpload(nextSnapshot, label)
 			}
-			if (Date.now() - lastTargetWritePollAt >= config.targetWritePollMs) {
-				lastTargetWritePollAt = Date.now()
-				try {
-					await processTargetWrite({ uploader, reader, config })
-				} catch (error) {
-					console.error('[scale-gateway] target-write failed:', normalizeString(error && error.message) || error)
-				}
-			}
+
 
 			if (config.once) break
 			const elapsed = Date.now() - loopStartAt

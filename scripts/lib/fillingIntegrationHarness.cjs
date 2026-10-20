@@ -1,11 +1,10 @@
 'use strict'
-// Dedicated storage/transport harness; production PDA and filling handlers are loaded unchanged.
+// Storage/transport harness for the production filling handler and import recovery.
 // Store behavior follows fillingConsistency.test.cjs, adding nested selectors and acknowledgement faults.
 const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 const { createRequire } = require('node:module')
-const { operationKey } = require('../../uniCloud-alipay/cloudfunctions/crm-filling/fillingOperations')
 function makeDatabase() {
 	const tables = new Map()
 	let seq = 0
@@ -94,29 +93,12 @@ function makeApp(options = {}) {
 	const db = makeDatabase()
 	let time = Date.parse('2026-09-08T01:00:00Z')
 	const DateMock = class extends Date { static now() { return time } }
-	const permissions = {
-		'/pages/pda/filling-create': { view: true, create: true },
-		'/pages/pda/filling-complete': { view: true, update: true },
-		'/pages/pda/filling-board': { view: true, update: true },
-		'/pages/pda/filling-station': { view: true }
-	}
+	const permissions = { '/pages/filling/list': { view: true, create: true, update: true } }
 	const user = { _id: 'owner', username: 'operator', nickname: '原操作者', role: 'user', page_permissions: permissions, token: 'good' }
 	db.data('crm_users').set(user._id, user)
 	db.data('crm_users').set('other', { ...structuredClone(user), _id: 'other', token: 'other', nickname: '其他人' })
 	db.data('crm_users').set('admin', { _id: 'admin', username: 'admin', role: 'superadmin', token: 'admin' })
 	db.data('crm_bottles').set('b1', { _id: 'b1', bottle_no: 'B1', is_active: true, status: 'empty' })
-	db.data('crm_pda_filling_tasks').set('task-1', {
-		_id: 'task-1', station_code: 'station_1', station_name: '1号机', scale_code: 'filling_scale_main', date: '2026-09-08',
-		bottle_id: 'b1', bottle_no: 'B1', target_net_weight: 10, target_gross_weight: 30, weight_start: 20,
-		status: 'ready', target_write_status: 'success', target_write_finished_at: time - 30000,
-		created_at: time - 40000, updated_at: time - 30000, created_by: user._id, created_by_name: user.username,
-		filling_record_id: null, ended_at: null, completed_at: null, remark: '任务原备注'
-	})
-	const scale = (weight = 30) => db.data('crm_pda_scale_latest').set('scale-1', {
-		_id: 'scale-1', scale_code: 'filling_scale_main', weight_kg: weight,
-		is_stable: true, is_online: true, gateway_at: time, sampled_at: time, scale_read_mode: 'modbus'
-	})
-	scale()
 	const calls = []
 	const handlers = {}
 	const cloud = { database: () => db, callFunction: async ({ name, data }) => {
@@ -144,10 +126,7 @@ function makeApp(options = {}) {
 		return context.exports.main
 	}
 	handlers.filling = load('crm-filling', 'fillingOperations')
-	handlers.pda = load('crm-pda-filling', 'completionProtocol')
-	const invoke = (action = 'completeTaskV1', data = {}, token = 'good') => handlers.pda({ action, token, data: { task_id: 'task-1', completion_protocol: 'pda-completion-2026-09-08-v1', ...data } }, {})
-	return { db, calls, invoke, user, scale, advance: (n) => { time += n }, task: () => db.data('crm_pda_filling_tasks').get('task-1'),
-		operation: () => db.data('crm_filling_operations').get(operationKey(db.data('crm_pda_filling_tasks').get('task-1')?.completion_intent?.payload?.operation_id)),
+	return { db, calls, user, advance: (n) => { time += n },
 		filling: (action, data, token = 'good') => handlers.filling({ action, data, token }, {}) }
 }
 module.exports = { makeApp }

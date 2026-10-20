@@ -277,7 +277,7 @@ test('scan done without complete read evidence is never accepted as complete', a
 test('PDA-only creator can list own operations for recovery but cannot see another operator', async () => {
 	const app = makeApp()
 	app.db.data('crm_users').set('pda', { _id: 'pda', token: 'pda', role: 'user', page_permissions: {
-		'/pages/pda/filling-create': { view: true, create: true }, '/pages/filling/list': { view: false, create: false }
+		'/pages/pda/reweigh': { view: true, create: true }, '/pages/filling/list': { view: false, create: false }
 	} })
 	await app.invoke('batchCreateV1', payload('operation_admin_only', 1))
 	const result = await app.invoke('listOperationsV1', {}, 'pda')

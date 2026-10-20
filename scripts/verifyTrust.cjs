@@ -26,8 +26,6 @@ const TEST_FILES = [
 	'scripts/frontendTrust.test.cjs',
 	'scripts/accountingFrontend.test.cjs',
 	'scripts/fillingConsistency.test.cjs',
-	'scripts/pdaFillingCompletion.test.cjs',
-	'scripts/pdaFillingCompletionFrontend.test.cjs',
 	'scripts/importFillingsFromJson.test.cjs',
 	'scripts/releaseEvidence.test.cjs',
 	'scripts/releaseScope.test.cjs',
@@ -61,8 +59,6 @@ const SYNTAX_FILES = [
 	'uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js',
 	'uniCloud-alipay/cloudfunctions/crm-filling/index.js',
 	'uniCloud-alipay/cloudfunctions/crm-filling/fillingOperations.js',
-	'uniCloud-alipay/cloudfunctions/crm-pda-filling/index.js',
-	'uniCloud-alipay/cloudfunctions/crm-pda-filling/completionProtocol.js',
 	'uniCloud-alipay/cloudfunctions/crm-bottle-anomaly/index.js',
 	'uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js'
 ]

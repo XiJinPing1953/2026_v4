@@ -71,8 +71,7 @@ const PAGE_ACTION_RULES = {
 		{ pagePath: '/pages/bottle/list', action: 'view' },
 		{ pagePath: '/pages/bottle/inspection', action: 'view' },
 		{ pagePath: '/pages/pda/bottle-query', action: 'view' },
-		{ pagePath: '/pages/pda/sale-create', action: 'view' },
-		{ pagePath: '/pages/pda/filling-create', action: 'view' }
+		{ pagePath: '/pages/pda/sale-create', action: 'view' }
 	],
 	getV1: [
 		{ pagePath: '/pages/bottle/list', action: 'view' },
@@ -83,14 +82,12 @@ const PAGE_ACTION_RULES = {
 		{ pagePath: '/pages/pda/bottle-query', action: 'view' },
 		{ pagePath: '/pages/pda/return-reweigh', action: 'view' },
 		{ pagePath: '/pages/pda/reweigh', action: 'view' },
-		{ pagePath: '/pages/pda/filling-create', action: 'view' },
 		{ pagePath: '/pages/pda/sale-create', action: 'view' }
 	],
 	resolveBottleNoV1: [
 		{ pagePath: '/pages/pda/bottle-query', action: 'view' },
 		{ pagePath: '/pages/pda/return-reweigh', action: 'view' },
 		{ pagePath: '/pages/pda/reweigh', action: 'view' },
-		{ pagePath: '/pages/pda/filling-create', action: 'view' },
 		{ pagePath: '/pages/pda/sale-create', action: 'view' }
 	],
 	createV1: [{ pagePath: '/pages/bottle/edit', action: 'create' }],

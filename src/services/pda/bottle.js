@@ -125,8 +125,3 @@ export function buildPdaMovementQueryUrl(bottleNo = '') {
 	const normalized = normalizeBottleNo(bottleNo)
 	return normalized ? `/pages/pda/movement-query?bottle_no=${encodeURIComponent(normalized)}` : '/pages/pda/movement-query'
 }
-
-export function buildPdaFillingCreateUrl(bottleNo = '') {
-	void bottleNo
-	return '/pages/pda/filling-board'
-}

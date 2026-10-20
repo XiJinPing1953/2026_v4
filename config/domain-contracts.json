@@ -93,8 +93,7 @@
     {
       "source": "uniCloud-alipay/cloudfunctions/common/fillingPayload.js",
       "targets": [
-        "uniCloud-alipay/cloudfunctions/crm-filling/fillingPayloadLocal.js",
-        "uniCloud-alipay/cloudfunctions/crm-pda-filling/fillingPayloadLocal.js"
+        "uniCloud-alipay/cloudfunctions/crm-filling/fillingPayloadLocal.js"
       ]
     },
     {

@@ -70,27 +70,23 @@ const PAGE_ACTION_RULES = {
 	getReturnReweighV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'view' }],
 	createReweighV1: [{ pagePath: '/pages/pda/reweigh', action: 'create' }],
 	correctReweighV1: [{ pagePath: '/pages/pda/reweigh', action: 'update' }, { pagePath: '/pages/filling/edit', action: 'update' }],
-	capabilitiesV1: [{ pagePath: '/pages/filling/list', action: 'create' }, { pagePath: '/pages/pda/filling-create', action: 'create' }],
-	getOperationV1: [{ pagePath: '/pages/filling/list', action: 'view' }, { pagePath: '/pages/pda/filling-create', action: 'view' }],
-	listOperationsV1: [{ pagePath: '/pages/filling/list', action: 'view' }, { pagePath: '/pages/pda/filling-create', action: 'view' }],
-	retryOperationV1: [{ pagePath: '/pages/filling/list', action: 'create' }, { pagePath: '/pages/pda/filling-create', action: 'create' }],
+	capabilitiesV1: [{ pagePath: '/pages/filling/list', action: 'create' }],
+	getOperationV1: [{ pagePath: '/pages/filling/list', action: 'view' }],
+	listOperationsV1: [{ pagePath: '/pages/filling/list', action: 'view' }],
+	retryOperationV1: [{ pagePath: '/pages/filling/list', action: 'create' }],
 	listV1: [
-		{ pagePath: '/pages/filling/list', action: 'view' },
-		{ pagePath: '/pages/pda/filling-create', action: 'view' }
+		{ pagePath: '/pages/filling/list', action: 'view' }
 	],
 	getV1: [
 		{ pagePath: '/pages/filling/list', action: 'view' },
-		{ pagePath: '/pages/filling/edit', action: 'view' },
-		{ pagePath: '/pages/pda/filling-create', action: 'view' }
+		{ pagePath: '/pages/filling/edit', action: 'view' }
 	],
 	resolveFillWeightV1: [
-		{ pagePath: '/pages/filling/list', action: 'view' },
-		{ pagePath: '/pages/pda/filling-create', action: 'view' }
+		{ pagePath: '/pages/filling/list', action: 'view' }
 	],
 	auditBottleFlowWarningsV1: [{ pagePath: '/pages/filling/list', action: 'view' }],
 	createV1: [
-		{ pagePath: '/pages/filling/list', action: 'create' },
-		{ pagePath: '/pages/pda/filling-create', action: 'create' }
+		{ pagePath: '/pages/filling/list', action: 'create' }
 	],
 	updateV1: [{ pagePath: '/pages/filling/edit', action: 'update' }],
 	removeV1: [{ pagePath: '/pages/filling/list', action: 'delete' }],

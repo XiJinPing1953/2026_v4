@@ -347,7 +347,7 @@ test('rerun retries a failed existing operation with the same id and confirms it
 })
 
 test('actual importer and filling handler recover failed downstream work even when retry acknowledgement is lost', async (t) => {
-	const { makeApp } = require('./lib/pdaCompletionHarness.cjs')
+	const { makeApp } = require('./lib/fillingIntegrationHarness.cjs')
 	let scanBlocked = true
 	const app = makeApp({ scan: async () => scanBlocked
 		? { code: 409, msg: 'controlled source check failure' }
@@ -385,7 +385,7 @@ test('actual importer and filling handler recover failed downstream work even wh
 })
 
 test('import recovery rejects another payload occupying the frozen operation id', async (t) => {
-	const { makeApp } = require('./lib/pdaCompletionHarness.cjs')
+	const { makeApp } = require('./lib/fillingIntegrationHarness.cjs')
 	const app = makeApp()
 	const workspace = makeWorkspace(t)
 	writeRows(workspace.inputPath, [row({ date: '2026-09-08', bottle_no: 'B1', operator: 'operator' })])
