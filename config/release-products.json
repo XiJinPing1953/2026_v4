@@ -99,7 +99,7 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.16",
+      "version": "1.0.17",
       "output": "release/pda",
       "acceptance": "Both PDA weighing flows share automatic capture; compact native UI and manual verified WGT updates. Diagnostic source retained in pda-sampling-1.0.11 tag.",
       "deploymentScope": {

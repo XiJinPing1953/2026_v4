@@ -39,12 +39,12 @@ export async function checkPdaAppUpdate() {
   if (!await modal({ title: `更新至 ${update.version}`, content: `${String(update.notes || '改进应用功能').slice(0, 300)}\n更新完成后将重启应用，已保存的数据保留。`, confirmText: '更新并重启' }) || !onHome()) return
   uni.showLoading({ title: '下载更新中', mask: true })
   // 使用应用私有路径；uni.downloadFile返回的临时绝对路径在部分Android上
-  // 无法被plus.io/runtime访问，必须让下载、校验、安装使用同一_doc路径。
+  // 无法被plus.io/runtime访问，下载到_doc后转换为同一文件的绝对路径。
   downloadPath = `_doc/pda-updates/${update.file}`
   await new Promise((resolve, reject) => {
    const task = plus.downloader.createDownload(PDA_UPDATE_ROOT + update.file, { filename: downloadPath, timeout: 120, retry: 0 }, (completed, status) => {
-    // 同名残留文件会让运行时另存为带序号的文件，后续必须使用实际路径。
-    if (completed.filename) downloadPath = completed.filename
+    // 同名残留会另存带序号的文件；Android校验接口要求先转绝对路径。
+    downloadPath = plus.io.convertLocalFileSystemURL(completed.filename || downloadPath)
     status === 200 ? resolve() : reject(new Error('更新下载失败，请重试'))
    })
    task.start()
