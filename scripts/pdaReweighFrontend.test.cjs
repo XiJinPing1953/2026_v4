@@ -396,3 +396,4 @@ test('回瓶已取重断线后不得继续自动覆盖，保留采样数据',asy
  await h.measure('23',122);await h.form.disconnect();h.frames(123)
  assert.equal(h.form.current.value.grossWeight,122);assert.equal(h.storage.get('pda_weigh_trace_v1_u1').count,2833)
 })
+test('回瓶起吊中途稳定后继续上升，再卸瓶时提交最终悬重',async t=>{const h=harness(t,{returnMode:true});await h.measure('23',125);h.frames(148);h.frames(125);await h.form.submit();assert.equal(h.requests[0].payload.gross_weight,148)})
