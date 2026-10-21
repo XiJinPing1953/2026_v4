@@ -374,7 +374,7 @@
 						v-for="item in list"
 						:key="item._id"
 						:title="item.bottle_no"
-						:subtitle="item.filling_time || item.date"
+						:subtitle="formatFillingTime(item)"
 						icon="bottle"
 						icon-class="bg-teal"
 					>
@@ -453,6 +453,8 @@ import {
 	removeFillingV1,
 	resolveFillingFillWeightV1
 } from '@/services/filling'
+
+import { formatFillingTime } from '@/services/mappers/filling'
 
 const props = defineProps({
 	presetSourceAnomalyId: { type: String, default: '' },

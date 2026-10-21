@@ -96,7 +96,8 @@ function createReweighService({ db, operations, submitCreate, stableId, now = Da
 		try { const result = await context(data); delete result.inputs; return result }
 		catch (error) { return rejected(409, error.message || '复秤依据读取失败') }
 	}
-	async function submit(user, data, kind) {
+	async function submit(user, data, kind, { manualBackfill = false } = {}) {
+		if (manualBackfill && (user.role !== 'superadmin' || kind !== 'create' || data.capture_method !== 'manual')) return rejected(403, '无权执行人工补录')
 		const previous = await operations.existing(user, data)
 		if (previous) return previous
 		let result
@@ -109,8 +110,12 @@ function createReweighService({ db, operations, submitCreate, stableId, now = Da
 		if (kind === 'correct' && (!data.filling_id || c.filling?._id !== data.filling_id ||
 			Number(data.expected_source_version) !== Number(c.filling.source_version))) return rejected(409, '原灌装记录已变化，请重新核对')
 		const method = data.capture_method
-		if (!['ble', 'manual'].includes(method) || (kind === 'create' && method !== 'ble')) return rejected(400, '新建复秤单必须使用蓝牙吊秤')
+		if (!['ble', 'manual'].includes(method) || (kind === 'create' && method !== 'ble' && !manualBackfill)) return rejected(400, '新建复秤单必须使用蓝牙吊秤')
 		const reason = text(data.reason)
+		if (manualBackfill) {
+			const measuredAt = Number(data.measured_at)
+			if (!reason || !Number.isSafeInteger(measuredAt) || measuredAt < Number(c.basis.business_at) || measuredAt > now() || hour(measuredAt) !== c.date) return rejected(400, '补录须填写原因及回瓶后、不晚于当前的实际称重时间，与业务时间一致')
+		}
 		if (kind === 'correct' && !reason) return rejected(400, '请填写更正原因')
 		const capture = data.capture && typeof data.capture === 'object' ? data.capture : null
 		if (method === 'ble') {
@@ -136,7 +141,9 @@ function createReweighService({ db, operations, submitCreate, stableId, now = Da
 			basis: c.basis, label: c.label, capture_method: method,
 			capture: storedCapture,
 			original_ble_capture: originalBle || storedCapture,
-			measured_at: method === 'ble' ? Number(capture.sampled_at) : time,
+			measured_at: method === 'ble' ? Number(capture.sampled_at) : manualBackfill ? Number(data.measured_at) : time,
+			...(manualBackfill ? { backfill: { measured_at: Number(data.measured_at), recorded_at: time, recorded_by: user._id, reason } }
+				: old?.reweigh?.backfill ? { backfill: old.reweigh.backfill } : {}),
 			reason, corrected_by: kind === 'correct' ? user._id : null,
 			corrected_by_name: kind === 'correct' ? user.username || '' : '', corrected_at: kind === 'correct' ? time : null
 		}

@@ -103,3 +103,13 @@ test('storage failure never dispatches a correction that cannot be recovered',as
  assert.equal(a.calls.filter(x=>x[0]==='correct').length,0);assert.equal(a.ui.isFrozen.value,false)
  assert.match(a.ui.error.value,/本地草稿保存失败/)
 })
+
+test('filling list uses the original weighing minute in UTC+8 and does not invent legacy minutes', async () => {
+ const source = fs.readFileSync('src/services/mappers/filling.js', 'utf8')
+ const { formatFillingTime } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'))
+ const at = Date.parse('2026-10-21T07:23:45Z')
+ assert.equal(formatFillingTime({ entry_source: 'pda_reweigh', reweigh: { measured_at: at } }), '2026-10-21 15:23')
+ assert.equal(formatFillingTime({ entry_source: 'pda_reweigh', reweigh: { measured_at: at + 3600000, original_ble_capture: { sampled_at: at } } }), '2026-10-21 15:23')
+ assert.equal(formatFillingTime({ entry_source: 'pda_reweigh', reweigh: { measured_at: at + 3600000, backfill: { measured_at: at } } }), '2026-10-21 15:23')
+ assert.equal(formatFillingTime({ filling_time: '2026-10-21-15' }), '2026-10-21 15时')
+})
