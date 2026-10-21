@@ -1,7 +1,7 @@
 // Weighing timestamps are milliseconds; CRM business time is UTC+8.
 export function formatFillingTime(row) {
 	const measuredAt = row?.entry_source === 'pda_reweigh'
-		? row.reweigh?.original_ble_capture?.sampled_at || row.reweigh?.backfill?.measured_at || row.reweigh?.measured_at : null
+		? row.reweigh?.backfill?.measured_at || row.reweigh?.original_ble_capture?.sampled_at || row.reweigh?.measured_at : null
 	if (measuredAt != null && measuredAt !== '' && Number.isFinite(Number(measuredAt)) && Number(measuredAt) > 0) {
 		const date = new Date(Number(measuredAt) + 8 * 3600000)
 		if (Number.isFinite(date.getTime())) return date.toISOString().slice(0, 16).replace('T', ' ')

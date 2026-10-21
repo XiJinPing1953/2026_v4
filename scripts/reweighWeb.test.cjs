@@ -110,6 +110,6 @@ test('filling list uses the original weighing minute in UTC+8 and does not inven
  const at = Date.parse('2026-10-21T07:23:45Z')
  assert.equal(formatFillingTime({ entry_source: 'pda_reweigh', reweigh: { measured_at: at } }), '2026-10-21 15:23')
  assert.equal(formatFillingTime({ entry_source: 'pda_reweigh', reweigh: { measured_at: at + 3600000, original_ble_capture: { sampled_at: at } } }), '2026-10-21 15:23')
- assert.equal(formatFillingTime({ entry_source: 'pda_reweigh', reweigh: { measured_at: at + 3600000, backfill: { measured_at: at } } }), '2026-10-21 15:23')
+ assert.equal(formatFillingTime({ entry_source: 'pda_reweigh', reweigh: { measured_at: at + 3600000, original_ble_capture: { sampled_at: at + 3600000 }, backfill: { measured_at: at } } }), '2026-10-21 15:23')
  assert.equal(formatFillingTime({ filling_time: '2026-10-21-15' }), '2026-10-21 15时')
 })
