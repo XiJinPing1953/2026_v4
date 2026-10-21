@@ -70,6 +70,15 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 	const locked = computed(() => unreadable || !ownerMatches() || Boolean(current.value.frozen) || Boolean(pendingRound.value))
 	const canCreate = computed(() => canPageAction(pagePath, 'create'))
 	const canNext = computed(() => !busy.value && current.value.receipt?.saved === true)
+	const entryRoundId = entry => entry.roundId || entry.frozen?.payload?.round_id || ''
+	const roundHistory = computed(() => {
+		if (!round.value?._id) return []
+		const rows = history.value.filter(item => item.operationId !== current.value.operationId)
+		if (current.value.receipt?.saved) rows.push(current.value)
+		return rows.filter(item => item.receipt?.saved && entryRoundId(item) === round.value._id)
+	})
+	// A remotely changed return round must not hide unfinished older operations.
+	const recoveryHistory = computed(() => history.value.filter(item => !item.receipt?.complete && entryRoundId(item) !== round.value?._id))
 	function fail(text) { error.value = text; return false }
 	function persist() {
 		if (unreadable) return false
@@ -287,9 +296,6 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		const old = current.value
 		const previousHistory = history.value
 		if (old.frozen) history.value = [...history.value.filter(item => item.operationId !== old.operationId), cloneReweigh(old)]
-		// Never evict unfinished receipts. Retain the last ten completed bottles for field recovery.
-		const complete = history.value.filter(item => item.receipt?.complete).slice(-10)
-		history.value = history.value.filter(item => !item.receipt?.complete).concat(complete)
 		current.value = emptyDraft()
 		if (!persist()) { current.value = old; history.value = previousHistory; return false }
 		epoch += 1; pendingSession.value = ''; error.value = ''; message.value = isReturn ? '请扫描下一瓶；同一瓶再次复秤，本轮瓶数不重复增加。' : '请扫描下一瓶；同一瓶再次扫描时将核查是否允许更正。'
@@ -325,7 +331,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 			const previous = round.value
 			round.value = newLocalRound()
 			if (!persist()) { round.value = previous; return false }
-			if (current.value.frozen) history.value = [...history.value, cloneReweigh(current.value)].slice(-10)
+			if (current.value.frozen) history.value = [...history.value.filter(item => item.operationId !== current.value.operationId), cloneReweigh(current.value)]
 			current.value = emptyDraft(); pendingSession.value = ''; epoch += 1
 			message.value = '本轮罐装复秤已开始，按不同瓶号统计。'
 			return persist()
@@ -346,7 +352,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 			}
 			if (response.data?.round?._id !== pendingRound.value.round_id) return fail('本轮回执不匹配，请重试原请求')
 			round.value = response.data.round; pendingRound.value = null; roundReady.value = true
-			if (current.value.frozen) history.value = [...history.value, cloneReweigh(current.value)].slice(-10)
+			if (current.value.frozen) history.value = [...history.value.filter(item => item.operationId !== current.value.operationId), cloneReweigh(current.value)]
 			current.value = emptyDraft(); pendingSession.value = ''; epoch += 1
 			message.value = '本轮已开始，请连接吊秤并扫描回瓶。'
 			return persist()
@@ -382,6 +388,6 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		await stopping
 	}
 	onBeforeUnmount(() => { unsubscribe(); void deactivate() })
-	return { current, history, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
+	return { current, history, roundHistory, recoveryHistory, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
 		selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText }
 }

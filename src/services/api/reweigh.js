@@ -12,3 +12,6 @@ export const startReturnReweighRoundV1 = (data) => callCloud('crm-filling', { ac
 export const previewReturnReweighV1 = (data) => callCloud('crm-filling', { action: 'previewReturnReweighV1', data })
 export const saveReturnReweighV1 = (data) => callCloud('crm-filling', { action: 'saveReturnReweighV1', data })
 export const getReturnReweighV1 = (operation_id) => callCloud('crm-filling', { action: 'getReturnReweighV1', data: { operation_id } })
+
+export const listReturnReweighRecordsV1 = (data) => callCloud('crm-filling', { action: 'listReturnReweighRecordsV1', data })
+export const listFillingReweighRecordsV1 = (data) => callCloud('crm-filling', { action: 'listFillingReweighRecordsV1', data })

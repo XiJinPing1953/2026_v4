@@ -98,10 +98,10 @@
 				<text v-if="!current.receipt?.saved" class="hint">保存未确认前请勿另建操作。重试始终使用原称重与原操作编号。</text>
 			</AppSection>
 
-			<AppSection v-if="history.length" title="本机已保存记录">
-				<template #actions><AppButton size="sm" kind="ghost" @click="showHistory = !showHistory">{{ showHistory ? '收起' : '展开' }}（{{ history.length }}）</AppButton></template>
+			<AppSection v-for="group in historyGroups" :key="group.title" :title="group.title">
+				<template #actions><AppButton size="sm" kind="ghost" @click="showHistory = !showHistory">{{ showHistory ? '收起' : '展开' }}（{{ group.items.length }}）</AppButton></template>
 				<view v-if="showHistory">
-				<view v-for="item in history.slice().reverse()" :key="item.operationId" class="history-row">
+				<view v-for="item in group.items.slice().reverse()" :key="item.operationId" class="history-row">
 					<text>{{ item.bottleNo }} 号瓶 · {{ isReturn ? '回瓶毛重' : '本次灌装量' }} {{ weight(isReturn ? item.grossWeight : item.preview?.fill_weight) }} kg</text>
 					<text :class="['hint', !item.receipt?.complete ? 'pending' : '']">{{ receiptTitle(item.receipt) }}</text>
 					<text class="history-time">{{ reweighHistoryTime(item) }}</text>
@@ -130,8 +130,12 @@ import { reweighHistoryTime } from '@/services/pda/reweighDraft'
 
 const props = defineProps({ mode: { type: String, default: 'filling' } })
 const isReturn = props.mode === 'return'
-const { current, history, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
+const { current, roundHistory, recoveryHistory, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
 	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText } = usePdaReweigh({ mode: props.mode })
+const historyGroups = computed(() => [
+	{ title: '本轮已保存记录', items: roundHistory.value },
+	{ title: '其他轮次待处理记录', items: recoveryHistory.value }
+].filter(group => group.items.length))
 const readyForBottle = computed(() => !isReturn || (roundReady.value && Boolean(round.value?._id)))
 const roundTime = computed(() => {
 	const timestamp = Number(round.value?.created_at)

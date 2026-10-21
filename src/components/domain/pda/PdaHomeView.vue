@@ -1,5 +1,6 @@
 <template>
-	<AppPage class="pda-compact-page" :title="isNative ? '新拓能源' : '移动工作台'" :subtitle="isNative ? '现场设备' : '销售与现场查询'" icon="home" hideBottleQuery>
+	<PdaReweighRecordsView v-if="recordsOpened" v-show="showRecords" ref="recordsRef" @back="closeRecords" />
+	<AppPage v-show="!showRecords" class="pda-compact-page" :title="isNative ? '新拓能源' : '移动工作台'" :subtitle="isNative ? '现场设备' : '销售与现场查询'" icon="home" hideBottleQuery>
 		<AppSection title="当前账号">
 			<view class="session-grid">
 				<view class="session-cell">
@@ -15,6 +16,10 @@
 
 		<AppSection title="快捷入口">
 			<view class="action-grid">
+				<view v-if="canRecords" class="action-card" @click="openRecords">
+					<text class="action-card__title">复秤记录</text>
+					<text class="action-card__desc">按日期、瓶号或扫码查询回瓶及罐装记录</text>
+				</view>
 				<view v-for="item in actions" :key="item.url" class="action-card" @click="go(item.url)">
 					<text class="action-card__title">{{ item.title }}</text>
 					<text class="action-card__desc">{{ item.desc }}</text>
@@ -30,6 +35,8 @@
 </template>
 
 <script setup>
+import { nextTick, onBeforeUnmount, ref } from 'vue'
+import PdaReweighRecordsView from './PdaReweighRecordsView.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
@@ -41,6 +48,36 @@ import { isPdaAppMode } from '@/services/pda/entry'
 
 const currentUser = getUser() || {}
 const isNative = isPdaAppMode()
+const canRecords = isNative && (canViewPage('/pages/pda/return-reweigh') || canViewPage('/pages/pda/reweigh'))
+const showRecords = ref(false)
+const recordsOpened = ref(false)
+const recordsRef = ref(null)
+let visible = false
+let lifecycle = 0
+async function activate() {
+	visible = true
+	const version = ++lifecycle
+	await nextTick()
+	if (visible && version === lifecycle && showRecords.value) await recordsRef.value?.activate()
+}
+function deactivate() { visible = false; lifecycle++; return recordsRef.value?.deactivate() }
+async function openRecords() {
+	if (!canRecords || showRecords.value) return
+	recordsOpened.value = true
+	showRecords.value = true
+	const version = ++lifecycle
+	await nextTick()
+	if (visible && version === lifecycle && showRecords.value) await recordsRef.value?.activate()
+}
+function closeRecords() {
+	if (!showRecords.value) return false
+	lifecycle++
+	void recordsRef.value?.deactivate()
+	showRecords.value = false
+	return true
+}
+onBeforeUnmount(deactivate)
+defineExpose({ activate, deactivate, closeRecords })
 const actions = [
 	{ title: '钢瓶查询', desc: '看瓶号、流向、空瓶重、检验日期', url: '/pages/pda/bottle-query' },
 	{ title: '罐装复秤', desc: '吊秤称重，结合上次回瓶核算本次灌装量', url: '/pages/pda/reweigh', nativeOnly: true, createRequired: true },
@@ -48,7 +85,8 @@ const actions = [
 	{ title: '手机称重销售', desc: '摄像头扫码、吊秤称重、提交瓶装 kg 销售', url: '/pages/pda/sale-create', webOnly: true }
 ].filter((item) => (!item.nativeOnly || isNative) && (!item.webOnly || !isNative) && canViewPage(item.url) && (!(item.createRequired || item.url === '/pages/pda/sale-create') || canPageAction(item.url, 'create')))
 
-function go(url) {
+async function go(url) {
+	await recordsRef.value?.deactivate()
 	uni.navigateTo({ url })
 }
 
@@ -62,6 +100,7 @@ async function onLogout() {
 		})
 	})
 	if (!confirmed) return
+	await recordsRef.value?.deactivate()
 	clearAuth()
 	goLogin()
 }

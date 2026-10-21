@@ -318,14 +318,14 @@ test('return new round confirms completed count and does not alter existing fill
 	assert.equal(filling.storage.get('crm_pda_reweigh_v1:u1'), fillingSaved)
 })
 
-test('local filling round counts confirmed distinct bottles beyond history retention and survives restart', async t => {
+test('local filling round counts confirmed distinct bottles without a history count cap and survives restart', async t => {
 	const h = harness(t)
 	for (let i = 0; i < 12; i++) {
 		await h.measure(String(100 + i)); assert.equal(h.form.round.value.bottle_count, i)
 		await h.form.submit(); assert.equal(h.form.round.value.bottle_count, i + 1)
 		await h.form.nextBottle()
 	}
-	assert.equal(h.form.history.value.length, 10)
+	assert.equal(h.form.history.value.length, 12)
 	await h.form.deactivate()
 	const restored = harness(t, { storage: h.storage }); await restored.measure('100')
 	await restored.form.submit()
@@ -427,18 +427,39 @@ test('filling freezes auto corrections throughout server revalidation and confir
 	assert.equal(h.form.current.value.grossWeight, 147.5)
 })
 
-for (const returnMode of [false, true]) test(`${returnMode ? 'return' : 'filling'} history keeps ten completed receipts plus unfinished recovery after restart`, async t => {
+for (const returnMode of [false, true]) test(`${returnMode ? 'return' : 'filling'} history retains all completed receipts plus unfinished recovery after restart`, async t => {
  const h = harness(t, { returnMode, send: (payload, count) => ({ code: 0, data: { operation_id: payload.operation_id, saved_total: 1, complete: count !== 1, _id: `r${count}` } }) })
  for (let i = 0; i < 13; i++) {
   await h.measure(String(100 + i)); await h.form.submit()
   assert.equal(await h.form.nextBottle(), true)
  }
  assert.equal(h.requests.length, 13)
- assert.equal(h.form.history.value.length, 11)
+ assert.equal(h.form.history.value.length, 13)
  assert.equal(h.form.history.value[0].bottleNo, '100')
  assert.equal(h.form.history.value[0].receipt.complete, false)
- assert.deepEqual(copy(h.form.history.value.slice(1).map(row => row.bottleNo)), Array.from({length:10}, (_,i) => String(103+i)))
+ assert.deepEqual(copy(h.form.history.value.slice(1).map(row => row.bottleNo)), Array.from({length:12}, (_,i) => String(101+i)))
  const restored = harness(t, { returnMode, storage: h.storage }); await restored.start()
- assert.equal(restored.form.history.value.length, 11)
+ assert.equal(restored.form.history.value.length, 13)
  assert.equal(restored.form.current.value.bottleNo, '')
+})
+
+for (const returnMode of [false, true]) test(`${returnMode ? 'return' : 'filling'} round history includes just-saved bottle and isolates new round without losing stored history`, async t => {
+ const h = harness(t, { returnMode })
+ for (let i=0;i<15;i++) { await h.measure(String(i+1)); await h.form.submit(); assert.equal(h.form.roundHistory.value.length,i+1); await h.form.nextBottle() }
+ await h.measure('16'); await h.form.submit()
+ assert.equal(h.form.roundHistory.value.length,16)
+ assert.equal(await h.form.startRound(),true)
+ assert.equal(h.form.roundHistory.value.length,0)
+ assert.equal(h.form.history.value.length,16)
+ await h.measure('99'); await h.form.submit()
+ assert.deepEqual(copy(h.form.roundHistory.value.map(r=>r.bottleNo)),['99'])
+ const restored=harness(t,{returnMode,storage:h.storage,round:copy(h.form.round.value)});await restored.start()
+ assert.deepEqual(copy(restored.form.roundHistory.value.map(r=>r.bottleNo)),['99'])
+})
+test('return externally changed round keeps previous pending receipt recoverable without mixing round list', async t => {
+ const h=harness(t,{returnMode:true,send:payload=>({code:0,data:{operation_id:payload.operation_id,saved_total:1,complete:false}})})
+ await h.measure('130');await h.form.submit();await h.form.nextBottle()
+ const restored=harness(t,{returnMode:true,storage:h.storage,round:{_id:'another-round'}});await restored.start()
+ assert.equal(restored.form.roundHistory.value.length,0)
+ assert.equal(restored.form.recoveryHistory.value[0].bottleNo,'130')
 })
