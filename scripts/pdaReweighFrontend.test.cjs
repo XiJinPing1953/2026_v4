@@ -426,3 +426,19 @@ test('filling freezes auto corrections throughout server revalidation and confir
 	h.frames(149)
 	assert.equal(h.form.current.value.grossWeight, 147.5)
 })
+
+for (const returnMode of [false, true]) test(`${returnMode ? 'return' : 'filling'} history keeps ten completed receipts plus unfinished recovery after restart`, async t => {
+ const h = harness(t, { returnMode, send: (payload, count) => ({ code: 0, data: { operation_id: payload.operation_id, saved_total: 1, complete: count !== 1, _id: `r${count}` } }) })
+ for (let i = 0; i < 13; i++) {
+  await h.measure(String(100 + i)); await h.form.submit()
+  assert.equal(await h.form.nextBottle(), true)
+ }
+ assert.equal(h.requests.length, 13)
+ assert.equal(h.form.history.value.length, 11)
+ assert.equal(h.form.history.value[0].bottleNo, '100')
+ assert.equal(h.form.history.value[0].receipt.complete, false)
+ assert.deepEqual(copy(h.form.history.value.slice(1).map(row => row.bottleNo)), Array.from({length:10}, (_,i) => String(103+i)))
+ const restored = harness(t, { returnMode, storage: h.storage }); await restored.start()
+ assert.equal(restored.form.history.value.length, 11)
+ assert.equal(restored.form.current.value.bottleNo, '')
+})

@@ -73,7 +73,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 	function fail(text) { error.value = text; return false }
 	function persist() {
 		if (unreadable) return false
-		try { store.save(current.value, history.value, { round: round.value, pendingRound: pendingRound.value }); storageError.value = ''; return true }
+		try { history.value = store.save(current.value, history.value, { round: round.value, pendingRound: pendingRound.value }); storageError.value = ''; return true }
 		catch (cause) { storageError.value = cause.message; return false }
 	}
 	function editable() { return nativeSupported && active.value && canCreate.value && !locked.value && !busy.value && (!isReturn || (roundReady.value && round.value?._id)) }

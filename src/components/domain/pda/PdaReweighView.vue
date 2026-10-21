@@ -104,7 +104,7 @@
 				<view v-for="item in history.slice().reverse()" :key="item.operationId" class="history-row">
 					<text>{{ item.bottleNo }} 号瓶 · {{ isReturn ? '回瓶毛重' : '本次灌装量' }} {{ weight(isReturn ? item.grossWeight : item.preview?.fill_weight) }} kg</text>
 					<text :class="['hint', !item.receipt?.complete ? 'pending' : '']">{{ receiptTitle(item.receipt) }}</text>
-					<text class="identifier">{{ item.receipt?.fillingId || item.operationId }}</text>
+					<text class="history-time">{{ reweighHistoryTime(item) }}</text>
 					<text v-if="!item.receipt?.complete" class="hint">{{ item.receipt?.message }}</text>
 					<view v-if="!item.receipt?.complete" class="actions">
 						<AppButton size="sm" kind="neutral" :disabled="busy" @click="query(item.operationId)">查询状态</AppButton>
@@ -126,6 +126,7 @@ import AppSection from '@/components/base/AppSection.vue'
 import AppTag from '@/components/base/AppTag.vue'
 import PdaBottleSuggestField from '@/components/domain/pda/PdaBottleSuggestField.vue'
 import { reweighChangeText, usePdaReweigh } from '@/composables/pda/usePdaReweigh'
+import { reweighHistoryTime } from '@/services/pda/reweighDraft'
 
 const props = defineProps({ mode: { type: String, default: 'filling' } })
 const isReturn = props.mode === 'return'
@@ -170,6 +171,7 @@ defineExpose({ activate, deactivate })
 .identifier { display: block; overflow-wrap: anywhere; font-size: 23rpx; color: var(--crm-text-muted); margin-top: 12rpx; }
 .history-row { padding: 20rpx 0; border-bottom: 1rpx solid var(--crm-border); font-size: 27rpx; }
 .history-row:last-child { border-bottom: 0; }
+.history-time { display: block; margin-top: 8rpx; font-size: 27rpx; font-weight: 700; }
 .pending { color: #9a3412; }
 /* Compact only this PDA workflow; leave shared and Chrome sales pages unchanged. */
 .reweigh-page :deep(.page__body--padded) { gap: 14rpx; padding: 0 18rpx; }
