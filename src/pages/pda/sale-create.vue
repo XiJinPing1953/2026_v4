@@ -1,5 +1,6 @@
 <template>
-	<PdaSaleCreateView
+	<component
+		:is="isNative ? PdaNativeSaleView : PdaSaleCreateView"
 		ref="viewRef"
 		:initial-customer-id="initialCustomerId"
 		:initial-customer-name="initialCustomerName"
@@ -11,9 +12,12 @@
 import { nextTick, ref } from 'vue'
 import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import PdaSaleCreateView from '@/components/domain/pda/PdaSaleCreateView.vue'
+import PdaNativeSaleView from '@/components/domain/pda/PdaNativeSaleView.vue'
+import { isPdaAppMode } from '@/services/pda/entry'
 import { restoreScannerProfile } from '@/services/pda/capture'
 
 const initialCustomerId = ref('')
+const isNative = isPdaAppMode()
 const initialCustomerName = ref('')
 const initialOutBottleNo = ref('')
 const viewRef = ref(null)
@@ -22,6 +26,7 @@ let activationVersion = 0
 let pageVisible = false
 
 onLoad((options) => {
+	if (isNative) uni.setNavigationBarTitle({ title: '称重销售' })
 	initialCustomerId.value = String(options?.customer_id || '')
 	initialCustomerName.value = String(options?.customer_name || '')
 	initialOutBottleNo.value = String(options?.out_bottle_no || '')

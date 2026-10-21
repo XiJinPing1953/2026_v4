@@ -82,7 +82,7 @@ const actions = [
 	{ title: '钢瓶查询', desc: '看瓶号、流向、空瓶重、检验日期', url: '/pages/pda/bottle-query' },
 	{ title: '罐装复秤', desc: '吊秤称重，结合上次回瓶核算本次灌装量', url: '/pages/pda/reweigh', nativeOnly: true, createRequired: true },
 	{ title: '回瓶复秤', desc: '保存回瓶称重依据，统计本轮已复秤瓶数', url: '/pages/pda/return-reweigh', nativeOnly: true, createRequired: true },
-	{ title: '手机称重销售', desc: '摄像头扫码、吊秤称重、提交瓶装 kg 销售', url: '/pages/pda/sale-create', webOnly: true }
+	{ title: isNative ? '称重销售' : '手机称重销售', desc: isNative ? '选客户、称出瓶、称回瓶、确认保存' : '摄像头扫码、吊秤称重、提交瓶装 kg 销售', url: '/pages/pda/sale-create' }
 ].filter((item) => (!item.nativeOnly || isNative) && (!item.webOnly || !isNative) && canViewPage(item.url) && (!(item.createRequired || item.url === '/pages/pda/sale-create') || canPageAction(item.url, 'create')))
 
 async function go(url) {

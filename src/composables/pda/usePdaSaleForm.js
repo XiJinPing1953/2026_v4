@@ -73,6 +73,7 @@ export function usePdaSaleForm(initialValues = {}) {
 	const depositDirty = ref(true)
 	const submitting = ref(false)
 	const draftStep = ref(1)
+	const pdaStep = ref(null)
 	const receipt = ref(null)
 	const frozenSubmission = ref(null)
 	const currentOwner = () => normalizeText(getUser()?._id || getUser()?.id)
@@ -112,7 +113,7 @@ export function usePdaSaleForm(initialValues = {}) {
 				draftStatus.value = { ...draftStatus.value, state: 'ready', message: '' }
 				return true
 			}
-			store.save({ draftId, form: form.value, customer: selectedCustomer.value, step: draftStep.value, submission: frozenSubmission.value, receipt: receipt.value })
+			store.save({ draftId, form: form.value, customer: selectedCustomer.value, step: draftStep.value, ...(pdaStep.value ? { pdaStep: pdaStep.value } : {}), submission: frozenSubmission.value, receipt: receipt.value })
 			draftStatus.value = { ...draftStatus.value, state: 'saved', message: '草稿已保存到当前浏览器' }
 			return true
 		} catch (error) {
@@ -133,6 +134,7 @@ export function usePdaSaleForm(initialValues = {}) {
 		selectedCustomer.value = availableDraft.customer || null
 		customerKeyword.value = form.value.customerName || ''
 		draftStep.value = Math.max(1, Math.min(3, Number(availableDraft.step) || 1))
+		pdaStep.value = [1, 2, 3, 4].includes(availableDraft.pdaStep) ? availableDraft.pdaStep : null
 		frozenSubmission.value = availableDraft.submission || null
 		receipt.value = availableDraft.receipt || null
 		if (frozenSubmission.value && receipt.value?.operationId !== frozenSubmission.value.operationId) {
@@ -156,6 +158,7 @@ export function usePdaSaleForm(initialValues = {}) {
 		frozenSubmission.value = null
 		receipt.value = null
 		draftStep.value = 1
+		pdaStep.value = null
 		depositDirty.value = true
 		availableDraft = null
 		draftStatus.value.available = false
@@ -178,7 +181,7 @@ export function usePdaSaleForm(initialValues = {}) {
 		return true
 	}
 
-	watch([form, selectedCustomer, draftStep, frozenSubmission, receipt], persistDraft, { deep: true, flush: 'sync' })
+	watch([form, selectedCustomer, draftStep, pdaStep, frozenSubmission, receipt], persistDraft, { deep: true, flush: 'sync' })
 	if (typeof window !== 'undefined') window.addEventListener('pagehide', persistDraft)
 	onBeforeUnmount(() => {
 		persistDraft()
@@ -631,6 +634,7 @@ export function usePdaSaleForm(initialValues = {}) {
 
 	return {
 		invalidateAsyncWork,
+		pdaStep,
 		draftStep,
 		draftStatus,
 		receipt,

@@ -251,7 +251,7 @@ test('route hidden before nextTick cannot reactivate camera/scale session later'
 	const script = source.split('<script setup>')[1].split('</script>')[0].replace(/^import[\s\S]*?\bfrom\s+['"][^'"]+['"]\s*\n/gm, '')
 	const ticks = [], timers = []
 	let activations = 0
-	const context = vm.createContext({ ref: valueRef, nextTick: fn => ticks.push(fn), onLoad() {}, onShow() {}, onHide() {}, onUnload() {},
+	const context = vm.createContext({ isPdaAppMode: () => false, ref: valueRef, nextTick: fn => ticks.push(fn), onLoad() {}, onShow() {}, onHide() {}, onUnload() {},
 		setTimeout: fn => { timers.push(fn); return timers.length }, clearTimeout() {}, restoreScannerProfile() {} })
 	vm.runInContext(`${script}\nglobalThis.page = { viewRef, activateSession, deactivateSession };`, context)
 	context.page.viewRef.value = { activateBarcodeSession: () => activations++, deactivateBarcodeSession() {} }
