@@ -483,12 +483,12 @@ async function ensureBottleIdentityUnique(doc, excludeId = '') {
 	return ''
 }
 
-async function resolveUniqueBottleByField(field, rawValue, { label, normalizer, matchType } = {}) {
+async function resolveUniqueBottleByField(field, rawValue, { label, normalizer, matchType, matchWhere } = {}) {
 	const normalize = typeof normalizer === 'function' ? normalizer : normalizeString
 	const value = normalize(rawValue)
 	if (!value) return { code: 400, msg: `${label || field}必填` }
 	const hiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, await fetchHiddenCustomerIds(customers), ['current_customer_id'])
-	const where = mergeVisibilityWhere(dbCmd, { [field]: value }, hiddenWhere)
+	const where = mergeVisibilityWhere(dbCmd, matchWhere || { [field]: value }, hiddenWhere)
 	const res = await bottles
 		.where(where)
 		.field({
@@ -2169,10 +2169,16 @@ async function getV1(user, data) {
 
 async function resolveQrCodeV1(user, data) {
 	void user
-	return resolveUniqueBottleByField('pda_qr_code', data.pda_qr_code ?? data.pdaQrCode ?? data.qr_code ?? data.qrCode ?? data.token, {
+	const value = normalizeCode(data.pda_qr_code ?? data.pdaQrCode ?? data.qr_code ?? data.qrCode ?? data.token)
+	// 实物登记牌：条码为11位二维码号；二维码为已核验登记站网址，130108是地区前缀。
+	// 只识别这一明确格式，不从任意网址或长数字中截尾猜测瓶号。
+	const registrationUrl = /^https?:\/\/teshe\.org\.cn\/Q\?id=130108(\d{11})$/i.exec(value)
+	const registrationCode = registrationUrl ? registrationUrl[1] : /^\d{11}$/.test(value) ? value : ''
+	return resolveUniqueBottleByField('pda_qr_code', value, {
 		label: '钢瓶PDA二维码',
 		normalizer: normalizeCode,
-		matchType: 'pda_qr_code'
+		matchType: registrationCode ? 'bottle_scan_code' : 'pda_qr_code',
+		matchWhere: registrationCode ? dbCmd.or([{ pda_qr_code: value }, { qr_code: registrationCode }]) : null
 	})
 }
 
