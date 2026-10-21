@@ -63,6 +63,7 @@ const BOTTLE_FLOW_WARNING_KIND = 'bottle_flow_mismatch'
 const FILLING_START_LOSS_ADJUST_REASON = 'filling_start_weight_loss'
 const START_LOSS_SYNC_LIMIT = 2000
 const PAGE_ACTION_RULES = {
+	listReturnReweighRoundRecordsV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'view' }],
 	listReturnReweighRecordsV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'view' }],
 	listFillingReweighRecordsV1: [{ pagePath: '/pages/pda/reweigh', action: 'view' }],
 	previewReweighV1: [{ pagePath: '/pages/pda/reweigh', action: 'view' }, { pagePath: '/pages/filling/edit', action: 'view' }],
@@ -4534,6 +4535,7 @@ async function dispatch(event, context) {
 
 	if (action === 'capabilitiesV1') return { code: 0, data: { rule_version: VERSION, durable_operations: true, source_status_query: true, source_payload_hash: true, reweigh_durable: true } }
 	if (action === 'previewReweighV1') return reweighService.preview(data)
+	if (action === 'listReturnReweighRoundRecordsV1') return reweighRecordsService.list(user, data, 'return', { byRound: true })
 	if (action === 'listReturnReweighRecordsV1') return reweighRecordsService.list(user, data, 'return')
 	if (action === 'listFillingReweighRecordsV1') return reweighRecordsService.list(user, data, 'filling')
 	if (action === 'getReturnReweighRoundV1') return returnReweighService.roundStatus(user)

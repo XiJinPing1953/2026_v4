@@ -53,7 +53,7 @@ export function usePdaReweighRecords() {
 		loading.value = true; error.value = ''
 		try {
 			const request = snapshot.type === 'return' ? listReturnReweighRecordsV1 : listFillingReweighRecordsV1
-			const response = await request({ date: snapshot.date, bottle_no: snapshot.bottle_no, cursor: requestCursor, page_size: 30 })
+			const response = await request({ date: snapshot.date, bottle_no: snapshot.bottle_no, cursor: requestCursor, page_size: 30 }, { shouldContinue: () => active && owner === currentOwner() && version === queryVersion })
 			if (!validOwner() || version !== queryVersion) return
 			if (response?.code !== 0) throw new Error(response?.msg || '复秤记录查询失败')
 			if (!Array.isArray(response.data?.rows) || (response.data.has_more && !response.data.next_cursor)) throw new Error('复秤记录响应不完整，请重新查询')

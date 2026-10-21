@@ -7,6 +7,12 @@ const day = '2026-10-21'
 const instant = Date.parse(`${day}T00:00:00+08:00`)
 const actions = { return: 'listReturnReweighRecordsV1', filling: 'listFillingReweighRecordsV1' }
 const tables = { return: 'crm_return_reweighs', filling: 'crm_fillings' }
+const roundAction = 'listReturnReweighRoundRecordsV1'
+const roundId = 'round_restore_20261021'
+
+function seedRound(app, id = roundId, owner = 'owner') {
+	app.db.data('crm_return_reweigh_rounds').set(id, { _id: id, created_by: owner, bottle_ids: [] })
+}
 
 function fixture() {
 	const app = makeApp(), collection = app.db.collection.bind(app.db), reads = []
@@ -125,4 +131,64 @@ test('dispatch requires existing module view permission separately for each type
 	operator.page_permissions['/pages/pda/reweigh'].view = true
 	assert.equal((await app.invoke(actions.return, { date: day }, 'operator')).code, 403)
 	assert.equal((await app.invoke(actions.filling, { date: day }, 'operator')).code, 0)
+})
+
+test('owned return round restores all 127 records across dates with equal timestamps and bounded cursor pages', async () => {
+	const app = fixture(); seedRound(app)
+	for (let i = 0; i < 127; i++) seed(app, 'return', `r${String(i).padStart(3, '0')}`, {
+		round_id: roundId, operation_id: `operation_restore_${i}`, created_at: instant,
+		date: i % 2 ? '2026-10-20 23:59:59' : `${day} 00:00:01`
+	})
+	seed(app, 'return', 'other-round', { round_id: 'other_round_20261021' })
+	seed(app, 'return', 'other-owner', { round_id: roundId, created_by: 'other' })
+	const before = JSON.stringify([...app.db.tables].map(([name, rows]) => [name, [...rows]]))
+	let cursor = '', rows = []
+	do {
+		const response = await app.invoke(roundAction, { round_id: roundId, page_size: 50, cursor })
+		assert.equal(response.code, 0, response.msg)
+		rows.push(...response.data.rows); cursor = response.data.next_cursor
+		assert.ok(rows.length <= 127)
+	} while (cursor)
+	assert.equal(rows.length, 127); assert.equal(new Set(rows.map(row => row.id)).size, 127)
+	assert.equal(rows.filter(row => row.date === '2026-10-20 23:59:59').length, 63)
+	assert.ok(rows.every(row => row.round_id === roundId && row.operation_id.startsWith('operation_restore_')))
+	assert.deepEqual(rows[0].capture, { sampled_at: instant })
+	assert.equal(rows[0].weighed_at, '2026-10-21 00:00:00')
+	assert.ok(!JSON.stringify(rows).includes('private'))
+	assert.deepEqual(app.reads, [51, 51, 51])
+	assert.equal(JSON.stringify([...app.db.tables].map(([name, data]) => [name, [...data]])), before)
+})
+
+test('return round cursor cannot cross rounds, users, bottle filters or date queries; invalid rounds do not scan records', async () => {
+	const app = fixture(); seedRound(app); seedRound(app, 'other_round_20261021')
+	seedRound(app, 'foreign_round_20261021', 'other')
+	for (const id of ['r1', 'r2']) seed(app, 'return', id, { round_id: roundId })
+	const first = await app.invoke(roundAction, { round_id: roundId, page_size: 1 })
+	const cursor = first.data.next_cursor; assert.ok(cursor)
+	for (const data of [{}, { round_id: '' }, { round_id: 'short' }, { round_id: { $ne: null } },
+		{ round_id: `${roundId} ` }, { round_id: roundId, page_size: 51 }, { round_id: 'other_round_20261021', cursor },
+		{ round_id: roundId, cursor: 'invalid' }, { round_id: roundId, bottle_no: '282', cursor }]) {
+		assert.equal((await app.invoke(roundAction, data)).code, 400)
+	}
+	assert.equal((await app.invoke(roundAction, { round_id: 'foreign_round_20261021' })).code, 403)
+	assert.equal((await app.invoke(roundAction, { round_id: 'missing_round_20261021' })).code, 404)
+	assert.equal((await app.invoke(actions.return, { date: day, cursor })).code, 400)
+	app.db.data('crm_users').set('other', { _id: 'other', token: 'other', role: 'superadmin' })
+	assert.equal((await app.invoke(roundAction, { round_id: roundId, cursor }, 'other')).code, 400)
+	assert.deepEqual(app.reads, [2])
+	const datePage = await app.invoke(actions.return, { date: day, page_size: 1 })
+	assert.equal((await app.invoke(roundAction, { round_id: roundId, cursor: datePage.data.next_cursor })).code, 400)
+})
+
+test('return round restoration requires return-view permission and owned round; filling-only permission is insufficient', async () => {
+	const app = fixture(); seedRound(app)
+	const operator = { _id: 'operator', role: 'user', token: 'operator', page_permissions: {
+		'/pages/pda/return-reweigh': { view: false }, '/pages/pda/reweigh': { view: true } } }
+	app.db.data('crm_users').set(operator._id, operator)
+	assert.equal((await app.invoke(roundAction, { round_id: roundId }, '')).code, 401)
+	assert.equal((await app.invoke(roundAction, { round_id: roundId }, 'operator')).code, 403)
+	operator.page_permissions['/pages/pda/return-reweigh'].view = true
+	assert.equal((await app.invoke(roundAction, { round_id: roundId }, 'operator')).code, 403)
+	seedRound(app, 'operator_round_20261021', 'operator')
+	assert.equal((await app.invoke(roundAction, { round_id: 'operator_round_20261021' }, 'operator')).code, 0)
 })

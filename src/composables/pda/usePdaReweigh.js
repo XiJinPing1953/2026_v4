@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { getUser } from '@/services/auth'
 import { canPageAction } from '@/services/pageAcl'
 import { previewReweighV1, createReweighV1, correctReweighV1, getReweighOperationV1, retryReweighOperationV1 } from '@/services/api/reweigh'
-import { getReturnReweighRoundV1, startReturnReweighRoundV1, previewReturnReweighV1, saveReturnReweighV1, getReturnReweighV1 } from '@/services/api/reweigh'
+import { getReturnReweighRoundV1, startReturnReweighRoundV1, previewReturnReweighV1, saveReturnReweighV1, getReturnReweighV1, listReturnReweighRoundRecordsV1 } from '@/services/api/reweigh'
 import { createPdaBleScaleSession, createEmptyPdaBleScaleSnapshot, ensurePdaBleRuntimePermission, getPdaBleScaleCapabilities } from '@/services/pda/bleScale'
 import { resolvePdaBottleByQrCode } from '@/services/pda/bottle'
 import { enterBarcodeSession, leaveBarcodeSession } from '@/services/pda/capture'
@@ -37,6 +37,8 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 	const pendingRound = ref(null)
 	const roundReady = ref(!isReturn)
 	const history = ref([])
+	const historySyncing = ref(false), historySyncError = ref('')
+	let historySyncVersion = 0
 	const message = ref('请连接 NVK 吊秤，再按 PDA 扫码键选择钢瓶。')
 	const error = ref('')
 	const storageError = ref('')
@@ -304,6 +306,43 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 	function newLocalRound() {
 		return { _id: createReweighId(), created_at: Date.now(), bottle_nos: [], bottle_count: 0 }
 	}
+	async function restoreRoundHistory() {
+		if (!isReturn || !active.value || !ownerMatches() || unreadable || !round.value?._id) return false
+		const roundId = round.value._id, lifecycle = lifecycleVersion, version = ++historySyncVersion
+		const valid = () => active.value && ownerMatches() && lifecycle === lifecycleVersion && version === historySyncVersion && round.value?._id === roundId
+		historySyncing.value = true; historySyncError.value = ''
+		try {
+			let cursor = ''
+			const cursors = new Set(), restored = new Map()
+			do {
+				const response = await listReturnReweighRoundRecordsV1({ round_id: roundId, cursor, page_size: 50 }, { shouldContinue: valid })
+				if (!valid()) return false
+				if (response?.code !== 0) throw new Error(response?.msg || '本轮记录补齐失败')
+				const data = response.data
+				if (!Array.isArray(data?.rows) || (data.has_more && (!data.next_cursor || cursors.has(data.next_cursor)))) throw new Error('本轮记录读取不完整，请刷新统计重试')
+				for (const row of data.rows) {
+					if (!row.operation_id || row.round_id !== roundId || typeof row.bottle_no !== 'string' || row.status !== 'complete') throw new Error('本轮记录归属或状态不完整，请重试')
+					restored.set(row.operation_id, { operationId: row.operation_id, roundId, bottleNo: row.bottle_no, date: row.weighed_at,
+						grossWeight: row.gross_weight, capture: row.capture || null, preview: { net_weight: row.net_weight, bottle: { tare_weight: row.tare_weight } },
+						receipt: { saved: true, complete: true, fillingId: row.id, operationId: row.operation_id, message: '回瓶复秤已保存' } })
+				}
+				cursor = data.has_more ? data.next_cursor : ''
+				if (cursor) cursors.add(cursor)
+			} while (cursor)
+			// Merge only after every page succeeds. Do not replace a live draft or a pending local receipt.
+			const known = new Set([...history.value.map(item => item.operationId), current.value.operationId])
+			const missing = [...restored.values()].filter(item => !known.has(item.operationId))
+			if (missing.length) {
+				const previous = history.value
+				history.value = [...history.value, ...missing].sort((a, b) => Number(a.capture?.sampled_at || 0) - Number(b.capture?.sampled_at || 0))
+				if (!persist()) { history.value = previous; throw new Error('本轮记录未能缓存，原记录保留') }
+			}
+			return true
+		} catch (cause) {
+			if (valid()) historySyncError.value = `${cause.message || '本轮记录补齐失败'}；当前显示本机已有记录，不影响称重保存。`
+			return false
+		} finally { if (version === historySyncVersion) historySyncing.value = false }
+	}
 	async function refreshRound() {
 		if (!isReturn) return ownerMatches() && active.value && !unreadable && persist()
 		if (!isReturn || busy.value || !active.value || !ownerMatches() || unreadable) return false
@@ -316,7 +355,9 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 			round.value = response.data?.round || null
 			roundReady.value = true
 			if (!round.value && !pendingRound.value) message.value = '请先开始本轮回瓶复秤，再连接吊秤、扫码称重。'
-			return persist()
+			const saved = persist()
+			if (saved) void restoreRoundHistory()
+			return saved
 		} catch (cause) { if (sameWork(version)) fail(cause.message || '本轮统计读取失败，请重试'); return false }
 		finally { busy.value = false }
 	}
@@ -352,6 +393,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 			}
 			if (response.data?.round?._id !== pendingRound.value.round_id) return fail('本轮回执不匹配，请重试原请求')
 			round.value = response.data.round; pendingRound.value = null; roundReady.value = true
+			historySyncVersion++; historySyncing.value = false; historySyncError.value = ''
 			if (current.value.frozen) history.value = [...history.value.filter(item => item.operationId !== current.value.operationId), cloneReweigh(current.value)]
 			current.value = emptyDraft(); pendingSession.value = ''; epoch += 1
 			message.value = '本轮已开始，请连接吊秤并扫描回瓶。'
@@ -381,6 +423,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		} catch (cause) { fail(cause.message || '扫描头初始化失败') }
 	}
 	async function deactivate() {
+		historySyncVersion++; historySyncing.value = false; historySyncError.value = ''
 		autoSession = ''; autoWeight.reset()
 		active.value = false; epoch += 1; lifecycleVersion += 1; pendingSession.value = ''; scannerReady.value = false
 		persist()
@@ -388,6 +431,6 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		await stopping
 	}
 	onBeforeUnmount(() => { unsubscribe(); void deactivate() })
-	return { current, history, roundHistory, recoveryHistory, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
+	return { current, history, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
 		selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText }
 }

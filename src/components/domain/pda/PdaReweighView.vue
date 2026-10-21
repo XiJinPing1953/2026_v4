@@ -19,6 +19,8 @@
 				</view>
 				</view>
 				<text class="hint">{{ isReturn ? '同瓶重称不重复计数' : '仅本机本账号 · 同瓶重称不重复计数' }}{{ round ? ' · ' + roundTime : '' }}</text>
+				<text v-if="historySyncing" class="hint">正在补齐本轮已保存记录…</text>
+				<text v-if="historySyncError" class="notice notice--error">{{ historySyncError }}</text>
 			</AppSection>
 
 			<AppSection title="吊秤">
@@ -130,7 +132,7 @@ import { reweighHistoryTime } from '@/services/pda/reweighDraft'
 
 const props = defineProps({ mode: { type: String, default: 'filling' } })
 const isReturn = props.mode === 'return'
-const { current, roundHistory, recoveryHistory, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
+const { current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
 	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText } = usePdaReweigh({ mode: props.mode })
 const historyGroups = computed(() => [
 	{ title: '本轮已保存记录', items: roundHistory.value },

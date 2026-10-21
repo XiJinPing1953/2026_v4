@@ -1,4 +1,5 @@
 import { callCloud } from '@/services/api'
+import { getToken } from '@/services/auth'
 import { submitBatchFillingOperation, getFillingOperationV1, retryFillingOperationV1 } from '@/services/fillingOperations'
 
 export const previewReweighV1 = (data) => callCloud('crm-filling', { action: 'previewReweighV1', data })
@@ -13,5 +14,20 @@ export const previewReturnReweighV1 = (data) => callCloud('crm-filling', { actio
 export const saveReturnReweighV1 = (data) => callCloud('crm-filling', { action: 'saveReturnReweighV1', data })
 export const getReturnReweighV1 = (operation_id) => callCloud('crm-filling', { action: 'getReturnReweighV1', data: { operation_id } })
 
-export const listReturnReweighRecordsV1 = (data) => callCloud('crm-filling', { action: 'listReturnReweighRecordsV1', data })
-export const listFillingReweighRecordsV1 = (data) => callCloud('crm-filling', { action: 'listFillingReweighRecordsV1', data })
+// Only these read-only queries tolerate a briefly stale cloud instance after deployment.
+async function listReweighRecords(action, data, { shouldContinue = () => true } = {}) {
+ const token = getToken() || ''
+ const retryDelays = [200, 500]
+ for (let attempt = 0; ; attempt += 1) {
+  if (!shouldContinue()) return { code: 499, msg: '复秤查询已取消' }
+  const result = await callCloud('crm-filling', { action, data, token, isResponseCurrent: shouldContinue })
+  if (!shouldContinue()) return { code: 499, msg: '复秤查询已取消' }
+  if (result?.code !== 400 || !/^未知\s*action$/i.test(String(result.msg || ''))) return result
+  if (attempt >= retryDelays.length) return { ...result, msg: '复秤查询服务暂未同步，请稍后重试' }
+  await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]))
+ }
+}
+
+export const listReturnReweighRecordsV1 = (data, options) => listReweighRecords('listReturnReweighRecordsV1', data, options)
+export const listFillingReweighRecordsV1 = (data, options) => listReweighRecords('listFillingReweighRecordsV1', data, options)
+export const listReturnReweighRoundRecordsV1 = (data, options) => listReweighRecords('listReturnReweighRoundRecordsV1', data, options)

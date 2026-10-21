@@ -54,6 +54,7 @@ function harness(t, options = {}) {
 		correctReweighV1: async payload => { requests.push({ mode: 'correct', payload: copy(payload) }); return { code: 0, data: { operation_id: payload.operation_id, complete: true, saved_total: 1, _id: payload.filling_id } } },
 		getReweighOperationV1: options.query || (async () => ({ code: 404, msg: '操作未找到' })),
 		retryReweighOperationV1: options.retry || (async operationId => ({ code: 0, data: { operation_id: operationId, complete: true, saved_total: 1, _id: 'f1' } })),
+		listReturnReweighRoundRecordsV1: options.historyQuery || (async () => ({ code: 0, data: { rows: [], has_more: false, next_cursor: '' } })),
 		getReturnReweighRoundV1: async () => ({ code: 0, data: { round: copy(round) } }),
 		startReturnReweighRoundV1: async payload => {
 			roundRequests.push(copy(payload))
@@ -462,4 +463,44 @@ test('return externally changed round keeps previous pending receipt recoverable
  const restored=harness(t,{returnMode:true,storage:h.storage,round:{_id:'another-round'}});await restored.start()
  assert.equal(restored.form.roundHistory.value.length,0)
  assert.equal(restored.form.recoveryHistory.value[0].bottleNo,'130')
+})
+
+function restoredRoundRow(i) {
+ return { id: `return-${i}`, operation_id: `op-${i}`, round_id: 'round-1', bottle_no: String(i),
+  weighed_at: '2026-10-21 11:00:00', gross_weight: 120, tare_weight: 100, net_weight: 20,
+  capture: { sampled_at: Date.parse('2026-10-21T11:00:00+08:00')+i }, status: 'complete' }
+}
+function legacyRoundStorage() {
+ const history=Array.from({length:10},(_,j)=>{const i=j+44;return {operationId:`op-${i}`,roundId:'round-1',bottleNo:String(i),grossWeight:120,capture:restoredRoundRow(i).capture,receipt:{saved:true,complete:true}}})
+ return new Map([['crm_pda_return_reweigh_v1:u1',JSON.stringify({version:1,ownerId:'u1',current:{operationId:'live-draft',roundId:'round-1',bottleNo:'NEW',capture:null},history,metadata:{round:{_id:'round-1',bottle_count:55}}})]])
+}
+test('upgrade restores full 55-row cloud round from legacy ten-row cache without touching live draft and survives restart',async t=>{
+ const calls=[],storage=legacyRoundStorage()
+ const historyQuery=async args=>{calls.push(copy(args));const offset=args.cursor?50:0;return {code:0,data:{rows:Array.from({length:offset?5:50},(_,i)=>restoredRoundRow(i+offset)),has_more:!offset,next_cursor:offset?'':'page2'}}}
+ const h=harness(t,{returnMode:true,storage,round:{bottle_count:55},historyQuery});await h.start();await tick()
+ assert.equal(h.form.roundHistory.value.length,55);assert.equal(new Set(h.form.roundHistory.value.map(x=>x.operationId)).size,55)
+ assert.equal(h.form.current.value.operationId,'live-draft');assert.equal(h.form.current.value.bottleNo,'NEW')
+ assert.equal(h.form.round.value.bottle_count,55);assert.deepEqual(calls.map(x=>x.cursor),['','page2'])
+ const restored=harness(t,{returnMode:true,storage});await restored.start();await tick();assert.equal(restored.form.roundHistory.value.length,55)
+})
+test('a failed later restore page preserves the ten cached records, exposes incomplete state and does not lock weighing',async t=>{
+ const h=harness(t,{returnMode:true,storage:legacyRoundStorage(),historyQuery:async args=>args.cursor?{code:500,msg:'network'}:{code:0,data:{rows:[restoredRoundRow(0)],has_more:true,next_cursor:'next'}}})
+ await h.start();await tick();assert.equal(h.form.roundHistory.value.length,10);assert.match(h.form.historySyncError.value,/network/);assert.equal(h.form.busy.value,false);assert.equal(h.form.locked.value,false)
+})
+test('late round restore cannot write after hide, account switch or round change; repeated cursors never loop forever',async t=>{
+ for(const change of ['hide','owner','round']){
+  let release;const h=harness(t,{returnMode:true,storage:legacyRoundStorage(),historyQuery:()=>new Promise(resolve=>{release=resolve})})
+  await h.start();if(change==='hide')await h.form.deactivate();if(change==='owner')h.setOwner('u2');if(change==='round')h.form.round.value={_id:'round-2'}
+  release({code:0,data:{rows:[restoredRoundRow(0)],has_more:false}});await tick();assert.equal(h.form.history.value.length,10)
+ }
+ let calls=0;const h=harness(t,{returnMode:true,storage:legacyRoundStorage(),historyQuery:async()=>{calls++;return {code:0,data:{rows:[restoredRoundRow(0)],has_more:true,next_cursor:'same'}}}})
+ await h.start();await tick();assert.equal(calls,2);assert.equal(h.form.history.value.length,10);assert.match(h.form.historySyncError.value,/不完整/)
+})
+test('restore preserves a local pending receipt and rolls back in-memory additions if persistent write fails',async t=>{
+ let release;const storage=legacyRoundStorage();const key='crm_pda_return_reweigh_v1:u1';const data=JSON.parse(storage.get(key));data.history[0].receipt.complete=false;storage.set(key,JSON.stringify(data))
+ const options={returnMode:true,storage,historyQuery:()=>new Promise(resolve=>{release=resolve})};const h=harness(t,options);await h.start()
+ release({code:0,data:{rows:[restoredRoundRow(44),restoredRoundRow(0)],has_more:false}});await tick();assert.equal(h.form.history.value.find(x=>x.operationId==='op-44').receipt.complete,false)
+ assert.equal(h.form.history.value.length,11)
+ let release2 // separate instance to exercise cache failure after successful activation
+ const opts={returnMode:true,storage:legacyRoundStorage(),historyQuery:()=>new Promise(resolve=>{release2=resolve})};const failed=harness(t,opts);await failed.start();opts.storageFails=true;release2({code:0,data:{rows:[restoredRoundRow(0)],has_more:false}});await tick();assert.equal(failed.form.history.value.length,10);assert.match(failed.form.historySyncError.value,/未能缓存/)
 })

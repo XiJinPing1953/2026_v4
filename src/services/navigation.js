@@ -86,12 +86,14 @@ export function goLogin(options = {}) {
 	return reLaunchOnce(LOGIN_PATH)
 }
 
-export function handle401(message) {
+export function handle401(message, shouldHandle = () => true) {
+	if (!shouldHandle()) return
 	uni.showModal({
 		title: '提示',
 		content: message || '登录已过期，请重新登录',
 		showCancel: false,
 		success: () => {
+			if (!shouldHandle()) return
 			clearAuth()
 			goLogin({ captureCurrent: true })
 		}

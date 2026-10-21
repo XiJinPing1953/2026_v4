@@ -25,7 +25,7 @@ function numberOrNull(value) {
 	return Number.isFinite(result) ? result : null
 }
 
-function publicRecord(row, mode) {
+function publicRecord(row, mode, byRound = false) {
 	const filling = mode === 'filling'
 	const weights = filling ? row.reweigh || {} : row
 	const manual = filling && weights.capture_method === 'manual'
@@ -33,7 +33,9 @@ function publicRecord(row, mode) {
 	const saved = timestamp(row.created_at)
 	const timeSource = measured ? (manual ? 'manual' : 'measured') : (saved ? 'saved' : 'unknown')
 	return {
-		id: row._id, bottle_no: text(row.bottle_no), date: text(row.date).slice(0, 10),
+		id: row._id, bottle_no: text(row.bottle_no), date: byRound ? text(row.date) : text(row.date).slice(0, 10),
+		...(byRound ? { operation_id: text(row.operation_id), round_id: text(row.round_id),
+			capture: { sampled_at: timestamp(row.capture?.sampled_at) ? Number(row.capture.sampled_at) : null } } : {}),
 		weighed_at: measured || saved || '—', time_source: timeSource,
 		time_label: { measured: '称重时间', manual: '人工更正时间', saved: '保存时间', unknown: '时间未知' }[timeSource],
 		gross_weight: numberOrNull(weights.gross_weight), tare_weight: numberOrNull(weights.tare_weight), net_weight: numberOrNull(weights.net_weight),
@@ -43,16 +45,19 @@ function publicRecord(row, mode) {
 }
 
 function createReweighRecordsService({ db }) {
-	async function list(user, data = {}, mode) {
+	async function list(user, data = {}, mode, { byRound = false } = {}) {
 		if (!user?._id) return { code: 401, msg: '未登录或登录已过期' }
 		if (!['return', 'filling'].includes(mode)) return invalid('复秤类型无效')
-		if (!data || typeof data !== 'object' || !validDay(data.date)) return invalid('请选择有效日期')
+		if (!data || typeof data !== 'object' || Array.isArray(data)) return invalid('查询参数无效')
+		if (byRound) {
+			if (mode !== 'return' || typeof data.round_id !== 'string' || !/^[A-Za-z0-9_-]{12,128}$/.test(data.round_id)) return invalid('缺少有效轮次编号')
+		} else if (!validDay(data.date)) return invalid('请选择有效日期')
 		if (data.bottle_no != null && typeof data.bottle_no !== 'string') return invalid('瓶号格式无效')
 		const bottle = text(data.bottle_no).toUpperCase().replace(/\s+/g, '')
 		if (bottle.length > 128) return invalid('瓶号过长')
 		const size = data.page_size == null ? 30 : Number(data.page_size)
 		if (!Number.isInteger(size) || size < 1 || size > 50) return invalid('每页条数须为1至50')
-		const scope = { mode, date: data.date, bottle_no: bottle, owner: user._id }
+		const scope = { mode, ...(byRound ? { round_id: data.round_id } : { date: data.date }), bottle_no: bottle, owner: user._id }
 		let cursor = null
 		if (data.cursor != null && data.cursor !== '') {
 			if (typeof data.cursor !== 'string' || data.cursor.length > 2048) return invalid('分页位置无效，请重新查询')
@@ -63,10 +68,16 @@ function createReweighRecordsService({ db }) {
 					typeof cursor.id !== 'string' || !cursor.id || cursor.id.length > 128) throw new Error('invalid cursor')
 			} catch (_) { return invalid('分页位置无效，请重新查询') }
 		}
+		if (byRound) {
+			const result = await db.collection('crm_return_reweigh_rounds').doc(data.round_id).field({ created_by: true }).get()
+			const round = Array.isArray(result.data) ? result.data[0] : result.data
+			if (!round) return { code: 404, msg: '回瓶复秤轮次不存在' }
+			if (round.created_by !== user._id) return { code: 403, msg: '无权访问该轮次' }
+		}
 		const cmd = db.command
 		// Query the stored business date. A later correction does not move an old
 		// filling into today's business list; the returned timestamp identifies it.
-		const conditions = [{ created_by: user._id }, mode === 'filling'
+		const conditions = [{ created_by: user._id }, byRound ? { round_id: data.round_id } : mode === 'filling'
 			? { entry_source: 'pda_reweigh', date: data.date }
 			: { date: cmd.and([cmd.gte(`${data.date} 00:00:00`), cmd.lte(`${data.date} 23:59:59`)]) }]
 		if (bottle) conditions.push({ bottle_no: bottle })
@@ -77,12 +88,13 @@ function createReweighRecordsService({ db }) {
 		const result = await db.collection(mode === 'filling' ? 'crm_fillings' : 'crm_return_reweighs')
 			.where(cmd.and(conditions)).orderBy('created_at', 'desc').orderBy('_id', 'desc').limit(size + 1)
 			.field({ _id: true, bottle_no: true, date: true, created_at: true, gross_weight: true, tare_weight: true,
+				...(byRound ? { operation_id: true, round_id: true } : {}),
 				net_weight: true, fill_weight: true, consistency_status: true, 'capture.sampled_at': true,
 				'reweigh.gross_weight': true, 'reweigh.tare_weight': true, 'reweigh.net_weight': true,
 				'reweigh.capture_method': true, 'reweigh.measured_at': true, 'reweigh.capture.sampled_at': true }).get()
 		if (!Array.isArray(result.data)) throw new Error('复秤记录读取未完成，请重试')
 		const rows = result.data.slice(0, size), more = result.data.length > size, last = rows[rows.length - 1]
-		return { code: 0, data: { rows: rows.map(row => publicRecord(row, mode)), has_more: more,
+		return { code: 0, data: { rows: rows.map(row => publicRecord(row, mode, byRound)), has_more: more,
 			next_cursor: more ? Buffer.from(JSON.stringify({ ...scope, created_at: last.created_at, id: last._id })).toString('base64') : '' } }
 	}
 	return { list }

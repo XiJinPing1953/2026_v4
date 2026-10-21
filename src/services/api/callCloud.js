@@ -11,8 +11,10 @@ function generateRequestId() {
 // - 自动带 token（除非显式传入 token）
 // - 统一处理 401
 // - 返回 { code, msg, data, ... }
-async function invokeCloud(name, { action, data = {}, token, timeout } = {}) {
+async function invokeCloud(name, { action, data = {}, token, timeout, isResponseCurrent } = {}) {
 	const t = token != null ? token : getToken()
+	const responseCurrent = () => !isResponseCurrent || (isResponseCurrent() && (getToken() || '') === (t || ''))
+	if (!responseCurrent()) return { code: 499, msg: '查询已取消' }
 	const payload = { action, data }
 	if (t) payload.token = t
 	const requestId = generateRequestId()
@@ -47,9 +49,10 @@ async function invokeCloud(name, { action, data = {}, token, timeout } = {}) {
 	}
 
 	const result = res.result || {}
+	if (!responseCurrent()) return { code: 499, msg: '查询已取消' }
 	console.info('[crm-query]', JSON.stringify({ name, action, request_id: requestId, elapsed_ms: Date.now() - started, code: result.code, server: result.query_performance, response_chars: JSON.stringify(result).length }))
 	if (result.code === 401) {
-		handle401(result.msg)
+		handle401(result.msg, responseCurrent)
 	}
 	if (result.code === 403) {
 		handle403(result.msg)
