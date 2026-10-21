@@ -317,33 +317,3 @@ test('missing manual snapshot fails closed', async () => {
 	assert.equal(result.code, 409)
 	assert.match(result.msg, /人工流转或损耗变更/)
 })
-
-test('confirmed manual backfill retains provenance, consumes return basis and is idempotent', async () => {
-	const app = fixture(); await start(app); await save(app)
-	app.advance(60000)
-	const measuredAt = app.now()
-	const query = { bottle_no: 'B1', gross_weight: 185.5, date: '2026-09-06-08' }
-	const preview = await app.invoke('previewReweighV1', query)
-	const payload = { ...query, operation_id: 'confirmed_backfill_001', context_hash: preview.data.context_hash,
-		capture_method: 'manual', measured_at: measuredAt, reason: '用户确认照片补录' }
-	assert.equal((await app.invoke('createReweighV1', payload)).code, 400)
-	for (const invalid of [{ reason: '' }, { measured_at: measuredAt + 1 }, { measured_at: measuredAt - 120000 }, { date: '2026-09-06-07' }]) {
-		assert.notEqual((await app.invoke('backfillReweighV1', { ...payload, ...invalid })).code, 0)
-	}
-	const user = app.db.data('crm_users').get('owner'); user.role = 'admin'
-	assert.equal((await app.invoke('backfillReweighV1', payload)).code, 403)
-	user.role = 'superadmin'
-	const result = await app.invoke('backfillReweighV1', payload)
-	assert.equal(result.code, 0, result.msg)
-	assert.equal(result.data.complete, true)
-	const row = rows(app, 'crm_fillings')[0]
-	assert.equal(row.fill_weight, 65.5)
-	assert.equal(row.reweigh.capture, null)
-	assert.equal(row.reweigh.original_ble_capture, null)
-	assert.equal(row.reweigh.measured_at, measuredAt)
-	assert.equal(row.reweigh.backfill.reason, payload.reason)
-	assert.equal(row.reweigh.backfill.recorded_by, 'owner')
-	assert.equal(app.db.data('crm_return_reweigh_state').get(bottleKey('B1')).consumed_filling_id, row._id)
-	assert.equal((await app.invoke('backfillReweighV1', payload)).data.complete, true)
-	assert.equal(rows(app, 'crm_fillings').length, 1)
-})

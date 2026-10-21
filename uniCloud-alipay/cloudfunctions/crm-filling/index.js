@@ -72,7 +72,6 @@ const PAGE_ACTION_RULES = {
 	previewReturnReweighV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'view' }],
 	saveReturnReweighV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'create' }],
 	getReturnReweighV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'view' }],
-	backfillReweighV1: [{ pagePath: '/pages/filling/list', action: 'create' }],
 	createReweighV1: [{ pagePath: '/pages/pda/reweigh', action: 'create' }],
 	correctReweighV1: [{ pagePath: '/pages/pda/reweigh', action: 'update' }, { pagePath: '/pages/filling/edit', action: 'update' }],
 	capabilitiesV1: [{ pagePath: '/pages/filling/list', action: 'create' }],
@@ -4544,10 +4543,6 @@ async function dispatch(event, context) {
 	if (action === 'previewReturnReweighV1') return returnReweighService.preview(user, data)
 	if (action === 'saveReturnReweighV1') return returnReweighService.save(user, data)
 	if (action === 'getReturnReweighV1') return returnReweighService.status(user, data)
-	if (action === 'backfillReweighV1') {
-		if (user.role !== 'superadmin') return { code: 403, msg: '仅超级管理员可按确认事实补录复秤' }
-		return reweighService.submit(user, data, 'create', { manualBackfill: true })
-	}
 	if (action === 'createReweighV1') return reweighService.submit(user, data, 'create')
 	if (action === 'correctReweighV1') {
 		const requiredPage = data.capture_method === 'manual' ? '/pages/filling/edit' : '/pages/pda/reweigh'

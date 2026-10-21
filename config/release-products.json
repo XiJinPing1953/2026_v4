@@ -8,18 +8,14 @@
     "web": {
       "version": "2026.10.21-filling-time",
       "output": "dist/build/web",
-      "acceptance": "Display original reweigh time to the minute. Superadmin confirmed manual reweigh backfill retains source evidence and durable consistency; PDA BLE create flow unchanged.",
+      "acceptance": "Display original PDA weighing time to the minute in UTC+8; preserve original capture time after corrections and avoid inventing minutes for legacy hour-only records.",
       "deploymentScope": {
-        "functions": [
-          "crm-filling"
-        ],
+        "functions": [],
         "databaseFiles": [],
         "baseCommit": "a76168fa3acb55affbaf9f41399f28815b8cab1e",
         "sourceFiles": [
           "src/components/domain/filling/FillingListView.vue",
-          "src/services/mappers/filling.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/reweighService.js"
+          "src/services/mappers/filling.js"
         ]
       },
       "integrityScope": "deployment"
