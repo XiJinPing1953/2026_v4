@@ -10,7 +10,9 @@
       "output": "dist/build/web",
       "acceptance": "Display original PDA weighing time to the minute in UTC+8; preserve original capture time after corrections and avoid inventing minutes for legacy hour-only records.",
       "deploymentScope": {
-        "functions": [],
+        "functions": [
+          "crm-filling"
+        ],
         "databaseFiles": [],
         "baseCommit": "a76168fa3acb55affbaf9f41399f28815b8cab1e",
         "sourceFiles": [
