@@ -186,7 +186,7 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.18",
+      "version": "1.0.19",
       "output": "release/pda",
       "acceptance": "Both PDA weighing flows share automatic capture; compact native UI and manual verified WGT updates. Diagnostic source retained in pda-sampling-1.0.11 tag. Retire unused PDA filling tasks; preserve normal filling, both reweigh flows, historical data and gateway snapshots. Candidate only; no deployment performed.",
       "deploymentScope": {
