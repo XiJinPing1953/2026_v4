@@ -408,3 +408,104 @@ test('a new measurement receives its own three-second timeout even after a long 
 	assert.equal(f.session.getSnapshot().is_stable, true)
 	await f.session.stop()
 })
+
+function nativeFixture({ failAttempts = [], holdAttempt = 0 } = {}) {
+	const { context, time } = load()
+	let onValue, onConnection, heldConnection
+	const stats = { connects: [], closes: 0 }
+	const deviceId = 'AA:BB:CC:DD:EE:FF'
+	const lost = () => onConnection?.({ deviceId, connected: false })
+	const native = {
+		openBluetoothAdapter: args => args.success({}),
+		createBLEConnection(args) {
+			stats.connects.push(time.Date.now())
+			if (stats.connects.length === holdAttempt) { heldConnection = args; return }
+			if (failAttempts.includes(stats.connects.length)) args.fail({ errCode: 10003, errMsg: 'temporary connection failure' })
+			else args.success({})
+		},
+		notifyBLECharacteristicValueChange: args => args.success({}),
+		// Native cleanup may also report a disconnected event.
+		closeBLEConnection(args) { stats.closes++; lost(); args.success({}) },
+		closeBluetoothAdapter: args => args.success({}),
+		onBLECharacteristicValueChange: fn => { onValue = fn }, offBLECharacteristicValueChange() {},
+		onBLEConnectionStateChange: fn => { onConnection = fn }, offBLEConnectionStateChange() { onConnection = null }
+	}
+	const session = context.createBleScaleCoreSession({ deviceId }, native)
+	const send = (text = 'UT,NT,+120.0kg\r\n') => onValue({ deviceId, characteristicId: 'FFE1', value: Uint8Array.from(Buffer.from(text)).buffer })
+	return { time, session, stats, send, lost, finishConnect: () => heldConnection.success({}) }
+}
+
+test('native data timeout invalidates weight without reconnecting a live link; fresh frames recover automatically', async () => {
+	const f = nativeFixture()
+	await f.session.connect()
+	for (let i = 0; i < 5; i++) { f.send(); await f.time.advance(300) }
+	assert.equal(f.session.getSnapshot().is_stable, true)
+	const previousSession = f.session.getSnapshot().session_id
+	await f.time.advance(3500)
+	assert.equal(f.session.getSnapshot().error_code, 'read_timeout')
+	assert.equal(f.session.getSnapshot().is_connected, true)
+	assert.equal(f.session.getSnapshot().is_online, false)
+	assert.equal(f.session.getSnapshot().weight_kg, null)
+	assert.equal(f.session.getSnapshot().last_stable_weight_kg, null)
+	assert.notEqual(f.session.getSnapshot().session_id, previousSession)
+	// Cover both prolonged silence and a recovery near the old 4.5-second reconnect.
+	await f.time.advance(10000)
+	assert.equal(f.stats.connects.length, 1)
+	f.send()
+	assert.equal(f.session.getSnapshot().is_online, true)
+	assert.equal(f.session.getSnapshot().is_stable, false)
+	await f.time.advance(4000)
+	f.send()
+	await f.time.advance(500)
+	assert.equal(f.stats.connects.length, 1)
+	assert.equal(f.stats.closes, 0)
+	assert.equal(f.session.getSnapshot().weight_kg, 120)
+	await f.session.stop()
+})
+
+test('native physical loss retries bound device at 1/2/5 seconds despite failed cleanup and duplicate loss events', async () => {
+	const f = nativeFixture({ failAttempts: [2, 3] })
+	await f.session.connect()
+	f.send()
+	f.lost()
+	assert.equal(f.session.getSnapshot().weight_kg, null)
+	await f.time.advance(500)
+	f.lost()
+	await f.time.advance(500)
+	assert.equal(f.stats.connects.length, 2)
+	assert.equal(f.session.getSnapshot().is_connected, false)
+	await f.time.advance(2000)
+	assert.equal(f.stats.connects.length, 3)
+	await f.time.advance(5000)
+	assert.deepEqual(f.stats.connects, [10000, 11000, 13000, 18000])
+	assert.equal(f.session.getSnapshot().is_connected, true)
+	assert.equal(f.session.getSnapshot().is_online, false)
+	assert.equal(f.session.getSnapshot().last_stable_weight_kg, null)
+	f.send()
+	assert.equal(f.session.getSnapshot().is_online, true)
+	await f.session.stop()
+})
+
+test('native stop cancels both scheduled and in-flight automatic reconnects', async () => {
+	for (const inFlight of [false, true]) {
+		const f = nativeFixture({ holdAttempt: inFlight ? 2 : 0 })
+		await f.session.connect()
+		f.lost()
+		if (inFlight) await f.time.advance(1000)
+		await f.session.stop()
+		if (inFlight) { f.finishConnect(); await flush() }
+		await f.time.advance(15000)
+		assert.equal(f.stats.connects.length, inFlight ? 2 : 1)
+		assert.equal(f.session.getSnapshot().is_connected, false)
+		assert.equal(f.time.count(), 0)
+	}
+})
+
+test('native initial bound-device failure retains manual error without background retries', async () => {
+	const f = nativeFixture({ failAttempts: [1] })
+	assert.equal((await f.session.connect()).code, 409)
+	assert.equal(f.session.getSnapshot().error_code, 'bound_device_unavailable')
+	await f.time.advance(15000)
+	assert.equal(f.stats.connects.length, 1)
+	await f.session.stop()
+})

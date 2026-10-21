@@ -606,12 +606,13 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 	}
 
 	function scheduleReconnect(reason = 'reconnect') {
-		if (!keepAlive) return
-		resetReconnectTimer()
+		if (!keepAlive || connected || reconnectTimer) return
 		const delay = pickReconnectDelay(profile.reconnectDelays, reconnectAttempt)
 		reconnectAttempt += 1
 		reconnectTimer = setTimeout(() => {
-			connectInternal({ reason, silent: true }).catch(() => {})
+			reconnectTimer = null
+			if (!keepAlive || connected) return
+			connectInternal({ reason, silent: true, automatic: true }).catch(() => {})
 		}, delay)
 	}
 
@@ -699,6 +700,7 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 		try { inputProfile.onWeightFrame?.({ device_id: snapshot.device_id, sampled_at: sampledAt, display_kg: quantized, raw: String(rawLine || '').slice(0, 256), session_id: sessionId }) } catch (_) {}
 		lastFrameAt = sampledAt
 		staleMarked = false
+		resetReconnectTimer()
 		reconnectAttempt = 0
 		lastFrameRaw = String(rawLine || '')
 		if (!stable && stableLockedWeightKg !== null && stableLockedWeightKg !== quantized) {
@@ -814,7 +816,8 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 							error_message: '吊秤连接中断'
 						})
 					)
-					scheduleReconnect('connection_lost')
+					// 连接失败后的清理也可能发出断线事件，由连接流程统一安排下一次重试。
+					if (!connecting) scheduleReconnect('connection_lost')
 				}
 			}
 		}
@@ -856,7 +859,7 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 					error_message: '吊秤数据超时'
 				})
 			)
-			scheduleReconnect('read_timeout')
+			// 数据超时只使旧读数失效；连接仍在时继续监听，避免重复建连反而断开吊秤。
 		}, 500)
 	}
 
@@ -951,7 +954,7 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 			const message = normalizeText(error?.errMsg || error?.message) || '吊秤连接失败'
 			const errorCode = parseBleErrorCode(error) || 'connect_failed'
 			await closeConnectionQuietly()
-			if (connectMode === 'bound') {
+			if (connectMode === 'bound' && !options.automatic) {
 				keepAlive = false
 				emit(
 					withDiagnostics({
