@@ -258,3 +258,62 @@ test('concurrent distinct bottles retain both count entries; concurrent same-bot
 	assert.equal(rows(app, 'crm_return_reweighs').length, 3)
 	assert.equal((await app.invoke('getReturnReweighRoundV1')).data.round.bottle_count, 2)
 })
+
+function seedManualLosses(app) {
+	const movements = app.db.data('crm_bottle_movements')
+	for (const [id, loss] of [['manual_a', 1], ['manual_b', 2]]) movements.set(id, {
+		_id: id, bottle_no: 'B1', source_type: 'manual_fix', date: '2026-09-05',
+		type: 'filling_start_weight_loss', net_weight: -loss, loss_weight: loss
+	})
+	return movements
+}
+
+test('regenerated manual IDs and reordered rows retain the original return basis and allow filling', async () => {
+	const app = fixture(), movements = seedManualLosses(app)
+	await start(app); const saved = await save(app)
+	const original = plain(app.db.data('crm_return_reweighs').get(saved.result.data._id))
+	const prior = [...movements.values()]; movements.clear()
+	for (const [index, row] of prior.reverse().entries()) {
+		const id = 'rebuilt_' + index
+		movements.set(id, { ...row, _id: id })
+	}
+	const filling = await fill(app)
+	assert.equal(filling.fill_weight, 50)
+	assert.equal(filling.reweigh.basis.return_reweigh_id, saved.result.data._id)
+	assert.deepEqual(plain(app.db.data('crm_return_reweighs').get(saved.result.data._id)), original)
+})
+
+test('real manual changes still reject both preview and submission, including equal-total changes and duplicates', async () => {
+	const variants = {
+		date: m => { m.get('manual_a').date = '2026-09-04' },
+		type: m => { m.get('manual_a').type = 'loss' },
+		net: m => { m.get('manual_a').net_weight = 1 },
+		loss: m => { m.get('manual_a').loss_weight = 1.5 },
+		balanced: m => { m.get('manual_a').loss_weight = 1.5; m.get('manual_b').loss_weight = 1.5 },
+		duplicate: m => { m.set('duplicate', { ...m.get('manual_a'), _id: 'duplicate' }) },
+		removed: m => { m.delete('manual_a') }
+	}
+	for (const [name, change] of Object.entries(variants)) {
+		const app = fixture(), movements = seedManualLosses(app)
+		await start(app); await save(app)
+		const query = { bottle_no: 'B1', gross_weight: 170 }
+		const before = await app.invoke('previewReweighV1', query)
+		assert.equal(before.code, 0, name)
+		change(movements)
+		for (const action of ['previewReweighV1', 'createReweighV1']) {
+			const result = await app.invoke(action, { ...query, operation_id: 'manual_change_' + name,
+				context_hash: before.data.context_hash })
+			assert.equal(result.code, 409, name + ':' + action)
+			assert.match(result.msg, /人工流转或损耗变更/)
+		}
+		assert.equal(rows(app, 'crm_fillings').length, 0)
+	}
+})
+
+test('missing manual snapshot fails closed', async () => {
+	const app = fixture(); await start(app); const saved = await save(app)
+	delete app.db.data('crm_return_reweighs').get(saved.result.data._id).manual_facts
+	const result = await app.invoke('previewReweighV1', { bottle_no: 'B1', gross_weight: 170 })
+	assert.equal(result.code, 409)
+	assert.match(result.msg, /人工流转或损耗变更/)
+})

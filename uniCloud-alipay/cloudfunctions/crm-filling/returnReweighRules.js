@@ -28,6 +28,10 @@ function canonicalOutgoingFacts(facts, bottleNo) {
 }
 const manualFacts = inputs => inputs.manual.map(row => ({ _id: row._id, date: row.date || row.event_day,
 	type: row.type, net_weight: row.net_weight, loss_weight: row.loss_weight })).sort((a, b) => a._id.localeCompare(b._id))
+// Rebuilt movement rows get new IDs. Compare the full multiset of business
+// facts; keep duplicates, signed weights and the original snapshot unchanged.
+const manualSignatures = facts => facts.map(({ date, type, net_weight, loss_weight }) =>
+	fingerprint({ date, type, net_weight, loss_weight })).sort()
 function validBottle(bottle) {
 	if (!bottle?._id || !no(bottle.bottle_no)) return reject('未找到有效钢瓶档案')
 	if (bottle.is_active !== true || ['scrapped', 'lost'].includes(bottle.status)) return reject('钢瓶档案未启用或已报废、遗失')
@@ -66,7 +70,7 @@ function resolveMeasuredReweighContext(inputs) {
 	if (!record || !head || head.record_id !== record._id) return reject('未找到本轮回瓶复秤数据，请先在 PDA“回瓶复秤”称重保存')
 	if (!(number(record.gross_weight) > 0)) return reject('本轮回瓶复秤毛重无效，请先核查')
 	if (fingerprint(outgoingFacts(inputs)) !== fingerprint(canonicalOutgoingFacts(record.outgoing_facts, inputs.bottle.bottle_no))) return reject('回瓶复秤后出瓶记录已变化，请先完成新一轮回瓶复秤或核查原单')
-	if (fingerprint(manualFacts(inputs)) !== fingerprint(record.manual_facts)) return reject('回瓶复秤后存在人工流转或损耗变更，请先核查')
+	if (!Array.isArray(record.manual_facts) || fingerprint(manualSignatures(manualFacts(inputs))) !== fingerprint(manualSignatures(record.manual_facts))) return reject('回瓶复秤后存在人工流转或损耗变更，请先核查')
 	const current = inputs.fillings.filter(row => !(record.baseline_filling_ids || []).includes(row._id))
 	if (current.length > 1) return reject('本轮存在多次灌装，不能用复秤自动分配更正量')
 	const filling = current[0] || null
