@@ -30,7 +30,7 @@ export function getPairedTestPrinters(android) {
 	while (android.invoke(iterator, 'hasNext')) {
 		const device = android.invoke(iterator, 'next')
 		const name = String(android.invoke(device, 'getName') || '')
-		if (name !== 'QR380A-AA21') continue
+		if (name !== 'HL30-AA21') continue
 		const address = String(android.invoke(device, 'getAddress') || '')
 		if (/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(address)) devices.push({ name, address })
 	}

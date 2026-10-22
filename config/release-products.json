@@ -139,9 +139,9 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.26",
+      "version": "1.0.27",
       "output": "release/pda",
-      "acceptance": "HL300 single-label 50x80 portrait printing trial using paired QR380A-AA21; no business writes or automatic retries. Physical compatibility, Chinese QR and media size pending device acceptance.",
+      "acceptance": "HL300 single-label 50x80 portrait printing trial using paired HL30-AA21; no business writes or automatic retries. Physical compatibility, Chinese QR and media size pending device acceptance.",
       "deploymentScope": {
         "functions": [
           "crm-auth",
@@ -150,9 +150,8 @@
           "crm-user"
         ],
         "databaseFiles": [],
-        "baseCommit": "6814dfd1343854668f6aa4172bd4c8420b663257",
+        "baseCommit": "3f0f3e99b2018e9a6aebdfece834e4e75c05e27b",
         "sourceFiles": [
-          "src/components/domain/pda/PdaHomeView.vue",
           "src/components/domain/pda/PdaPrinterTest.vue",
           "src/services/pda/printerTest.js",
           "src/manifest.json"

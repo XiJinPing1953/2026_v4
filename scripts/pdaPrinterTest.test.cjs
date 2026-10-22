@@ -30,11 +30,11 @@ test('ambiguous native send error remains locked and never auto retries',()=>{
  assert.throws(()=>h.session.print(),/native failure/);assert.throws(()=>h.session.print(),/已发送/)
 })
 test('paired selection excludes scale and BLE alias; no adapter close or discovery',()=>{
- const h=setup(), devices=[{name:'NVK',address:'00:11:22:33:44:55'},{name:'QR380A-AA21_Ble',address:'00:11:22:33:AA:22'},{name:'QR380A-AA21',address:'00:11:22:33:AA:21'}]
+ const h=setup(), devices=[{name:'NVK',address:'00:11:22:33:44:55'},{name:'HL30-AA21_Ble',address:'00:11:22:33:AA:22'},{name:'HL30-AA21',address:'00:11:22:33:AA:21'}]
  let i=0
  const adapter={isEnabled:()=>true,getBondedDevices:()=>({iterator:()=>({hasNext:()=>i<devices.length,next:()=>{const d=devices[i++];return {getName:()=>d.name,getAddress:()=>d.address}}})})}
  const result=h.api.getPairedTestPrinters({importClass:()=>({getDefaultAdapter:()=>adapter}),invoke:(o,m)=>o[m]()})
- assert.equal(result.length,1);assert.equal(result[0].name,'QR380A-AA21')
+ assert.equal(result.length,1);assert.equal(result[0].name,'HL30-AA21')
  h.session.connect(result[0].address);h.session.close();h.session.close()
  assert.equal(h.calls.filter(x=>x[0]==='bluetoothDisConn').length,1)
  assert.ok(!h.calls.some(x=>/Discovery|Adapter|Search/.test(x[0])))

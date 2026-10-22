@@ -7,7 +7,7 @@
 			<text>毛重 185.5 kg　净重 75.5 kg</text>
 			<text>新拓能源及以上四项同时放入二维码。测试标签不要贴到实瓶。</text>
 			<text role="status">{{ message }}</text>
-			<AppButton :disabled="busy || attempted" @click="connect">连接 QR380A-AA21</AppButton>
+			<AppButton :disabled="busy || attempted" @click="connect">连接 HL30-AA21</AppButton>
 			<AppButton :disabled="!connected || sent || busy" @click="print">打印一张测试标签</AppButton>
 		</view>
 	</view>
@@ -18,7 +18,7 @@ import AppButton from '@/components/base/AppButton.vue'
 import { ensurePdaBleRuntimePermission } from '@/services/pda/bleScale'
 import { createPrinterTestSession, getPairedTestPrinters } from '@/services/pda/printerTest'
 const opened = ref(false), busy = ref(false), attempted = ref(false), connected = ref(false), sent = ref(false)
-const message = ref('先在系统蓝牙中配对 QR380A-AA21，再点击连接。')
+const message = ref('先在系统蓝牙中配对 HL30-AA21，再点击连接。')
 let session = null, generation = 0
 function close() {
 	generation++; session?.close(); session = null
@@ -27,7 +27,7 @@ function close() {
 function toggle() {
 	if (opened.value) return close()
 	opened.value = true; attempted.value = false; sent.value = false
-	message.value = '先在系统蓝牙中配对 QR380A-AA21，再点击连接。'
+	message.value = '先在系统蓝牙中配对 HL30-AA21，再点击连接。'
 }
 async function connect() {
 	if (!opened.value || busy.value || attempted.value) return
@@ -38,7 +38,7 @@ async function connect() {
 		if (current !== generation) return
 		if (permission.code !== 0) throw new Error(permission.msg || '请允许蓝牙权限')
 		const devices = getPairedTestPrinters(plus.android)
-		if (devices.length !== 1) throw new Error('未找到唯一的已配对 QR380A-AA21，请到系统蓝牙核对')
+		if (devices.length !== 1) throw new Error('未找到唯一的已配对 HL30-AA21，请到系统蓝牙核对')
 		session = createPrinterTestSession(uni.requireNativePlugin('TH-PlatformBLE'), state => {
 			if (current !== generation) return
 			connected.value = state.connected; message.value = state.message
