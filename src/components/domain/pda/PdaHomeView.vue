@@ -31,6 +31,7 @@
 			<AppButton kind="outline" @click="onLogout">退出登录</AppButton>
 		</view>
 		<PdaAppUpdate v-if="isNative" />
+		<PdaPrinterTest v-if="isNative && canViewPage('/pages/pda/reweigh')" ref="printerRef" />
 	</AppPage>
 </template>
 
@@ -40,6 +41,7 @@ import PdaReweighRecordsView from './PdaReweighRecordsView.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
+import PdaPrinterTest from './PdaPrinterTest.vue'
 import PdaAppUpdate from '@/components/domain/pda/PdaAppUpdate.vue'
 import { clearAuth, getUser } from '@/services/auth'
 import { goLogin } from '@/services/navigation'
@@ -53,6 +55,7 @@ const canRecords = isNative && (canViewPage('/pages/pda/return-reweigh') || canV
 const showRecords = ref(false)
 const recordsOpened = ref(false)
 const recordsRef = ref(null)
+const printerRef = ref(null)
 let visible = false
 let lifecycle = 0
 async function activate() {
@@ -61,8 +64,9 @@ async function activate() {
 	await nextTick()
 	if (visible && version === lifecycle && showRecords.value) await recordsRef.value?.activate()
 }
-function deactivate() { visible = false; lifecycle++; return recordsRef.value?.deactivate() }
+function deactivate() { printerRef.value?.close(); visible = false; lifecycle++; return recordsRef.value?.deactivate() }
 async function openRecords() {
+	printerRef.value?.close()
 	if (!canRecords || showRecords.value) return
 	recordsOpened.value = true
 	showRecords.value = true

@@ -139,9 +139,9 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.25",
+      "version": "1.0.26",
       "output": "release/pda",
-      "acceptance": "PDA numeric bottle input with string identifiers and IME confirm; explicit alphanumeric entry; preserve existing lookup, weighing and submission guards. Customer uses existing system handwriting configuration; real-device IME acceptance pending.",
+      "acceptance": "HL300 single-label 50x80 portrait printing trial using paired QR380A-AA21; no business writes or automatic retries. Physical compatibility, Chinese QR and media size pending device acceptance.",
       "deploymentScope": {
         "functions": [
           "crm-auth",
@@ -150,17 +150,12 @@
           "crm-user"
         ],
         "databaseFiles": [],
-        "baseCommit": "6725c3e51db64239db66e54317c06283d6c5322c",
+        "baseCommit": "6814dfd1343854668f6aa4172bd4c8420b663257",
         "sourceFiles": [
-          "src/components/base/AppInput.vue",
-          "src/components/domain/pda/PdaBottleQueryView.vue",
-          "src/components/domain/pda/PdaBottleSuggestField.vue",
-          "src/components/domain/pda/PdaMovementQueryView.vue",
-          "src/components/domain/pda/PdaNativeSaleView.vue",
-          "src/components/domain/pda/PdaReweighRecordsView.vue",
-          "src/components/domain/pda/PdaReweighView.vue",
-          "src/manifest.json",
-          "src/components/domain/pda/PdaBottleInput.vue"
+          "src/components/domain/pda/PdaHomeView.vue",
+          "src/components/domain/pda/PdaPrinterTest.vue",
+          "src/services/pda/printerTest.js",
+          "src/manifest.json"
         ]
       },
       "integrityScope": "deployment"
