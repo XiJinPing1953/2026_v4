@@ -48,7 +48,19 @@
           "uniCloud-alipay/cloudfunctions/crm-filling/reweighRecords.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js"
-        ]
+        ],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            },
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     },
@@ -95,7 +107,19 @@
           "uniCloud-alipay/cloudfunctions/crm-filling/reweighRecords.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js"
-        ]
+        ],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            },
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     },
@@ -189,7 +213,19 @@
           "uniCloud-alipay/cloudfunctions/crm-filling/reweighRecords.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js"
-        ]
+        ],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            },
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     }
