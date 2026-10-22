@@ -22,7 +22,7 @@ export function usePdaSalePrinter(active) {
  busy.value=true;const ticket=epoch
  try{if(automatic){if(!eligible.has(operationId))return;eligible.delete(operationId);if(uni.getStorageSync(key))return;uni.setStorageSync(key,'attempted');if(uni.getStorageSync(key)!=='attempted')throw Error('打印状态无法保存')}
  if(!session?.connected)throw Error('记录已保存，打印机未连接，请手动补打')
- const result=await getPdaSale(id);if(ticket!==epoch||!valid())return;if(result.code!==0)throw Error(result.msg)
+ const result=await getPdaSale(id, { shouldContinue: () => ticket === epoch && valid() });if(ticket!==epoch||!valid())return;if(result.code!==0)throw Error(result.msg)
  const pages=salePrintPages(result.data)
  for(const page of pages){if(ticket!==epoch||!valid())return;if(!session?.connected)throw Error('打印已停止，请核对出纸后补打');await session.sendDocument(plugin=>writeSalePage(plugin,page))}
  if(ticket===epoch)status.value=`已发送 ${pages.length} 页，请查看出纸`

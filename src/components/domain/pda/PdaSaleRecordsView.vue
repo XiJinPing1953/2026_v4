@@ -25,9 +25,9 @@ const owner=String(getUser()?._id||''),valid=()=>active.value&&owner===String(ge
 const printer=usePdaSalePrinter(valid)
 let epoch=0,page=1,filter=null
 async function load(more=false){if(!valid()||loading.value)return;const ticket=epoch;loading.value=true;error.value='';if(!more){page=1;rows.value=[];detail.value=null;filter={date:date.value,customer:customer.value}}
- try{const result=await listPdaSales({...filter,page});if(ticket!==epoch||!valid())return;if(result.code!==0)throw Error(result.msg);rows.value=more?[...rows.value,...result.data.rows]:result.data.rows;hasMore.value=result.data.has_more;if(hasMore.value)page++}catch(e){if(ticket===epoch)error.value=e.message}finally{if(ticket===epoch)loading.value=false}}
+ try{const result=await listPdaSales({...filter,page}, { shouldContinue: () => ticket === epoch && valid() });if(ticket!==epoch||!valid())return;if(result.code!==0)throw Error(result.msg);rows.value=more?[...rows.value,...result.data.rows]:result.data.rows;hasMore.value=result.data.has_more;if(hasMore.value)page++}catch(e){if(ticket===epoch)error.value=e.message}finally{if(ticket===epoch)loading.value=false}}
 function search(){return load(false)}
-async function open(id){if(!valid()||loading.value)return;const ticket=epoch;loading.value=true;try{const result=await getPdaSale(id);if(ticket!==epoch||!valid())return;if(result.code!==0)throw Error(result.msg);detail.value=result.data}catch(e){if(ticket===epoch)error.value=e.message}finally{if(ticket===epoch)loading.value=false}}
+async function open(id){if(!valid()||loading.value)return;const ticket=epoch;loading.value=true;try{const result=await getPdaSale(id, { shouldContinue: () => ticket === epoch && valid() });if(ticket!==epoch||!valid())return;if(result.code!==0)throw Error(result.msg);detail.value=result.data}catch(e){if(ticket===epoch)error.value=e.message}finally{if(ticket===epoch)loading.value=false}}
 function activate(){active.value=true;epoch++;const d=new Date();date.value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;return search()}
 function deactivate(){active.value=false;epoch++;loading.value=false;printer.close()}
 function back(){deactivate();emit('back')}

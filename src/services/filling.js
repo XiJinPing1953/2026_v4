@@ -42,9 +42,10 @@ export async function resolveFillingFillWeightV1(params = {}) {
 	})
 }
 
-export async function getFillingV1(params = {}) {
+export async function getFillingV1(params = {}, options = {}) {
 	return callCloud('crm-filling', {
 		action: 'getV1',
+		isResponseCurrent: options.shouldContinue,
 		data: {
 			_id: params._id || params.id || ''
 		}

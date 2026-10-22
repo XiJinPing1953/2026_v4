@@ -120,7 +120,7 @@ export function usePdaNativeSale() {
 		try {
 			let confirmed = null
    if (label) {
-    const verified = await resolveFillingLabel(label)
+    const verified = await resolveFillingLabel(label, { shouldContinue: () => same(ticket) })
     if (!same(ticket)) return false
     if (verified?.code !== 0) return fail(verified?.msg || '无法核对充装信息，请重试或现场称重')
     confirmed = verified.data

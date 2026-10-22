@@ -13,8 +13,10 @@ export function usePdaFillingPrinter({ enabled, active, entries }) {
 	const storage = { getStorageSync: key => uni.getStorageSync(key), setStorageSync: (key, value) => uni.setStorageSync(key, value) }
 	const control = createFillingPrintController({ ownerId, currentOwner, storage, valid, entries, printer: () => session,
 		verify: async entry => {
-   verifyCurrentLabel(entry, await getFillingV1({ _id: entry.receipt.fillingId }))
-   const result = await issueFillingLabel({ filling_id:entry.receipt.fillingId, operation_id:entry.operationId })
+   const ticket = generation, options = { shouldContinue: () => valid() && ticket === generation }
+   verifyCurrentLabel(entry, await getFillingV1({ _id: entry.receipt.fillingId }, options))
+   if (!options.shouldContinue()) throw new Error('打印已取消')
+   const result = await issueFillingLabel({ filling_id:entry.receipt.fillingId, operation_id:entry.operationId }, options)
    if (result?.code !== 0 || !result.data?.qr_url) throw new Error(result?.msg || '标签网址暂不可用，请稍后补打')
    return result.data
   },
