@@ -1,6 +1,6 @@
 <template>
 	<PdaReweighRecordsView v-if="recordsOpened" v-show="showRecords" ref="recordsRef" @back="closeRecords" />
-	<AppPage v-show="!showRecords" class="pda-compact-page" :title="isNative ? '新拓能源' : '移动工作台'" :subtitle="isNative ? '现场设备' : '销售与现场查询'" icon="home" hideBottleQuery>
+	<AppPage v-show="!showRecords" class="pda-compact-page" :title="isNative ? '新拓能源' : '移动工作台'" :subtitle="isNative ? '' : '销售与现场查询'" icon="home" hideBottleQuery>
 		<AppSection title="当前账号">
 			<view class="session-grid">
 				<view class="session-cell">
@@ -9,7 +9,7 @@
 				</view>
 				<view class="session-cell">
 					<text class="session-label">角色</text>
-					<text class="session-value">{{ currentUser.role_template || currentUser.role || '-' }}</text>
+					<text class="session-value">{{ isNative ? roleLabel : currentUser.role_template || currentUser.role || '-' }}</text>
 				</view>
 			</view>
 		</AppSection>
@@ -18,7 +18,7 @@
 			<view class="action-grid">
 				<view v-if="canRecords" class="action-card" @click="openRecords">
 					<text class="action-card__title">复秤记录</text>
-					<text class="action-card__desc">按日期、瓶号或扫码查询回瓶及罐装记录</text>
+					<text class="action-card__desc">查已保存的称重记录</text>
 				</view>
 				<view v-for="item in actions" :key="item.url" class="action-card" @click="go(item.url)">
 					<text class="action-card__title">{{ item.title }}</text>
@@ -48,6 +48,7 @@ import { isPdaAppMode } from '@/services/pda/entry'
 
 const currentUser = getUser() || {}
 const isNative = isPdaAppMode()
+const roleLabel = ({ superadmin: '超级管理员', admin: '管理员', finance: '财务', pda_operator: '现场操作员', safety_inspector: '安全巡检员', user: '普通用户' })[currentUser.role_template || currentUser.role] || '其他角色'
 const canRecords = isNative && (canViewPage('/pages/pda/return-reweigh') || canViewPage('/pages/pda/reweigh'))
 const showRecords = ref(false)
 const recordsOpened = ref(false)
@@ -80,9 +81,9 @@ onBeforeUnmount(deactivate)
 defineExpose({ activate, deactivate, closeRecords })
 const actions = [
 	{ title: '钢瓶查询', desc: '看瓶号、流向、空瓶重、检验日期', url: '/pages/pda/bottle-query' },
-	{ title: '罐装复秤', desc: '吊秤称重，结合上次回瓶核算本次灌装量', url: '/pages/pda/reweigh', nativeOnly: true, createRequired: true },
-	{ title: '回瓶复秤', desc: '保存回瓶称重依据，统计本轮已复秤瓶数', url: '/pages/pda/return-reweigh', nativeOnly: true, createRequired: true },
-	{ title: isNative ? '称重销售' : '手机称重销售', desc: isNative ? '选客户、称出瓶、称回瓶、确认保存' : '摄像头扫码、吊秤称重、提交瓶装 kg 销售', url: '/pages/pda/sale-create' }
+	{ title: '罐装复秤', desc: '称罐装后的瓶子', url: '/pages/pda/reweigh', nativeOnly: true, createRequired: true },
+	{ title: '回瓶复秤', desc: '称回来的瓶子', url: '/pages/pda/return-reweigh', nativeOnly: true, createRequired: true },
+	{ title: isNative ? '称重销售' : '手机称重销售', desc: isNative ? '选客户，称瓶，保存' : '摄像头扫码、吊秤称重、提交瓶装 kg 销售', url: '/pages/pda/sale-create' }
 ].filter((item) => (!item.nativeOnly || isNative) && (!item.webOnly || !isNative) && canViewPage(item.url) && (!(item.createRequired || item.url === '/pages/pda/sale-create') || canPageAction(item.url, 'create')))
 
 async function go(url) {

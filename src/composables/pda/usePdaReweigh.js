@@ -39,7 +39,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 	const history = ref([])
 	const historySyncing = ref(false), historySyncError = ref('')
 	let historySyncVersion = 0
-	const message = ref('请连接 NVK 吊秤，再按 PDA 扫码键选择钢瓶。')
+	const message = ref('请连接吊秤，再按扫描键选瓶。')
 	const error = ref('')
 	const storageError = ref('')
 	const busy = ref(false)
@@ -48,6 +48,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 	const pendingSession = ref('')
 	const snapshot = ref(createEmptyPdaBleScaleSnapshot())
 	const autoWeight = createAutoReweighWeight()
+	const captureMinimum = ref(0)
 	let autoSession = '', autoSequence = 0, autoStartedAt = 0
 	let epoch = 0
 	let lifecycleVersion = 0
@@ -55,7 +56,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 	let unreadable = false
 	let boundDevice = null
 	try { boundDevice = uni.getStorageSync('pda_ble_scale_bound_device_v1') || null; if (typeof boundDevice === 'string') boundDevice = JSON.parse(boundDevice) } catch (_) {}
-	const scale = createPdaBleScaleSession({ onWeightFrame: acceptWeightFrame, deviceId: boundDevice?.deviceId || '', deviceNamePrefix: 'NVK', divisionStepKg: 0.5, displayDecimals: 1 })
+	const scale = createPdaBleScaleSession({ preserveMeasurementOnReadTimeout: true, onWeightFrame: acceptWeightFrame, deviceId: boundDevice?.deviceId || '', deviceNamePrefix: 'NVK', divisionStepKg: 0.5, displayDecimals: 1 })
 	// Explicit wrappers also work with uni-app's statically injected storage APIs.
 	const store = createReweighDraftStore(ownerId, {
 		getStorageSync: key => uni.getStorageSync(key),
@@ -66,7 +67,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		if (saved) {
 			current.value = saved.current; history.value = saved.history
 			round.value = saved.metadata?.round || null; pendingRound.value = saved.metadata?.pendingRound || null
-			message.value = '已恢复本账号复秤草稿。已采集重量保留，未完成称重需重新连接吊秤。'
+			message.value = '已恢复上次记录，已称重量保留；没称好的请连接吊秤后继续。'
 		}
 	} catch (cause) { unreadable = true; storageError.value = cause.message }
 	const locked = computed(() => unreadable || !ownerMatches() || Boolean(current.value.frozen) || Boolean(pendingRound.value))
@@ -105,7 +106,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		if (!editable()) return false
 		const normalized = normalizeBottleNo(bottleNo)
 		if (!normalized) return fail('请扫描或输入瓶号')
-		if (current.value.bottleNo) return fail(current.value.bottleNo === normalized ? '本瓶已选定，重复扫码不会覆盖重量；需要时请点重新称重' : '请先保存或放弃当前瓶草稿，再选择下一瓶')
+		if (current.value.bottleNo) return fail(current.value.bottleNo === normalized ? '已选这瓶，需要重称请点重新称重' : '请先保存这瓶，或点放弃这瓶')
 		if (!snapshot.value.is_connected) return fail('请先连接吊秤')
 		busy.value = true; error.value = ''
 		const version = ++epoch
@@ -121,7 +122,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 	}
 	async function scan(payload = {}) {
 		if (!editable()) return
-		if (current.value.bottleNo) return fail('本瓶已选定，重复扫码不会覆盖；请完成本瓶或放弃草稿')
+		if (current.value.bottleNo) return fail('请先完成这瓶，或点放弃这瓶')
 		if (!snapshot.value.is_connected) return fail('请先连接吊秤')
 		busy.value = true
 		const version = ++epoch
@@ -137,21 +138,22 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		if (!editable() || !current.value.bottleNo) return false
 		if (!snapshot.value.is_connected) return fail('请先连接吊秤，再点击本瓶称重')
 		const version = epoch
-		if (current.value.capture && !await confirm('重新称重', '将清空本瓶尚未提交的重量，等待新的稳定秤值。')) return false
+		if (current.value.capture && !await confirm('重新称重', '清除这瓶尚未保存的重量，重新称一次。')) return false
 		if (!sameWork(version) || locked.value || busy.value) return false
 		current.value = { ...current.value, grossWeight: null, capture: null, preview: { ...current.value.preview, gross_weight: null, net_weight: null, fill_weight: null, label: null } }
 		if (!persist()) return false
 		error.value = ''
-		autoWeight.reset(); autoSession = ''; autoSequence = 0
+		autoWeight.reset(); captureMinimum.value = 0; autoSession = ''; autoSequence = 0
 		pendingSession.value = scale.beginMeasurement()
 		autoSession = pendingSession.value; autoStartedAt = Date.now()
-		message.value = '本瓶正在称重，请保持稳定。允许先挂瓶，再扫码选瓶。'
+		message.value = '等待称重，请把瓶子完全吊起。'
 		return true
 	}
 	function acceptWeightFrame(frame) {
 		if (!autoSession || frame.session_id !== autoSession || Number(frame.sampled_at) < autoStartedAt) return
 		if (!editable() || !current.value.bottleNo) { autoWeight.interrupt(); return }
 		const weight = autoWeight.feed(frame, current.value.preview?.bottle?.tare_weight, Date.now())
+		captureMinimum.value = autoWeight.minimumWeight(current.value.preview?.bottle?.tare_weight)
 		if (weight === null) return
 		const capture = { sampled_at: frame.sampled_at, device_id: frame.device_id, stable_seq: ++autoSequence, measurement_id: frame.session_id, stable: true, raw: frame.raw || '' }
 		pendingSession.value = ''
@@ -164,13 +166,13 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 			...(!isReturn ? { fill_weight: subtract(preview?.basis?.gross_weight), label: null } : {})
 		} }
 		persist()
-		message.value = '稳定重量已采集，卸瓶后保留；保存前自动修正稳定读数。'
+		message.value = '这瓶称好了，可以保存。'
 	}
 
 	const unsubscribe = scale.onSnapshot(next => {
 		snapshot.value = next
-		if (autoSession && (next.session_id !== autoSession || !next.is_connected)) { autoSession = ''; autoWeight.reset() }
-		if (pendingSession.value && (next.session_id !== pendingSession.value || !next.is_connected)) { pendingSession.value = ''; message.value = '称重会话已中断，请重新连接后点击本瓶称重。' }
+		if (autoSession && (next.session_id !== autoSession || !next.is_connected)) { autoSession = ''; autoWeight.reset(); captureMinimum.value = 0 }
+		if (pendingSession.value && (next.session_id !== pendingSession.value || !next.is_connected)) { pendingSession.value = ''; message.value = '吊秤已断开，请连接后点本瓶称重。' }
 	})
 	async function connect(forcePick = false) {
 		if (!nativeSupported || !active.value || busy.value) return false
@@ -193,13 +195,13 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 			if (!sameWork(version)) { await scale.stop(); return false }
 			if (result?.code !== 0) return fail(`${result?.msg || '连接失败'}；可点击更换吊秤重新选择`)
 			try { uni.setStorageSync('pda_ble_scale_bound_device_v1', boundDevice) } catch (_) {}
-			message.value = current.value.capture ? '吊秤已连接，本瓶已采集的重量保持不变。' : '吊秤已连接。扫码选瓶，或点击本瓶称重。'
+			message.value = current.value.capture ? '吊秤已连接，已称重量保留。' : '吊秤已连接，请扫码选瓶。'
 			return true
 		} catch (cause) { return fail(cause.message || '吊秤连接失败') }
 		finally { busy.value = false }
 	}
-	async function disconnect() { pendingSession.value = ''; await scale.disconnect(); message.value = '吊秤已断开，已采集重量保留。' }
-	function cancelMeasurement() { autoSession = ''; autoWeight.reset(); pendingSession.value = ''; message.value = '本瓶待称重已取消，点击本瓶称重可重新开始。' }
+	async function disconnect() { pendingSession.value = ''; await scale.disconnect(); message.value = '吊秤已断开，已称重量保留。' }
+	function cancelMeasurement() { autoSession = ''; autoWeight.reset(); captureMinimum.value = 0; pendingSession.value = ''; message.value = '已停止取重，点本瓶称重可继续。' }
 	function applyReceipt(response, operationId, target = current.value, directResponse = false) {
 		const receipt = reweighReceipt(response, operationId, target?.receipt)
 		// A direct pre-write rejection may omit its ID. Queries must explicitly identify the original operation.
@@ -210,7 +212,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 			round.value = { ...round.value, bottle_nos: bottles, bottle_count: bottles.length }
 		}
 		if (isReturn && matched && receipt.saved) {
-			if (!response.msg) receipt.message = '回瓶复秤已保存，可作为灌装复秤的回瓶依据'
+			if (!response.msg) receipt.message = '回瓶复秤已保存'
 			if (response.data?.round?._id === round.value?._id) round.value = response.data.round
 		}
 		if (response?.data?.rejected === true && matched && !receipt.saved) {
@@ -234,9 +236,9 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 			const response = await (isReturn ? saveReturnReweighV1 : frozen.mode === 'correct' ? correctReweighV1 : createReweighV1)(cloneReweigh(frozen.payload))
 			const receipt = applyReceipt(response, frozen.payload.operation_id, current.value, true)
 			if (receipt.rejected) return false
-			if (response?.code !== 0) fail(response.msg || '结果待确认，请查询原操作')
+			if (response?.code !== 0) fail(response.msg || '还没确认是否保存成功，请查询保存结果')
 			return response?.code === 0
-		} catch (cause) { applyReceipt({ msg: cause.message || '网络中断，保存结果待确认' }, frozen.payload.operation_id); return false }
+		} catch (cause) { applyReceipt({ msg: cause.message || '网络中断，还没确认是否保存成功' }, frozen.payload.operation_id); return false }
 	}
 	async function submit() {
 		autoWeight.interrupt()
@@ -252,8 +254,8 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 			if (preview.context_hash !== old?.context_hash) {
 				const text = isReturn
 					? `档案或原回瓶复秤记录已有变化，请核对后确认。\n皮重：${weightText(old?.bottle?.tare_weight)} → ${weightText(preview.bottle.tare_weight)}\n净重：${weightText(old?.net_weight)} → ${weightText(preview.net_weight)}`
-					: `档案或回瓶依据已有变化，请核对后确认。\n皮重：${weightText(old?.bottle?.tare_weight)} → ${weightText(preview.bottle.tare_weight)}\n回瓶毛重：${weightText(old?.basis?.gross_weight)} → ${weightText(preview.basis.gross_weight)}\n标签净重：${weightText(old?.net_weight)} → ${weightText(preview.net_weight)}\n本次灌装量：${weightText(old?.fill_weight)} → ${weightText(preview.fill_weight)}`
-				if (!await confirm('核算依据变化', text) || !sameWork(version)) return false
+					: `皮重或上次回瓶重量有变化，请核对。\n皮重：${weightText(old?.bottle?.tare_weight)} → ${weightText(preview.bottle.tare_weight)}\n回瓶毛重：${weightText(old?.basis?.gross_weight)} → ${weightText(preview.basis.gross_weight)}\n标签净重：${weightText(old?.net_weight)} → ${weightText(preview.net_weight)}\n本次灌装量：${weightText(old?.fill_weight)} → ${weightText(preview.fill_weight)}`
+				if (!await confirm('称重资料有变化', text) || !sameWork(version)) return false
 			}
 			if (isReturn && preview.previous && (!await confirm('确认再次回瓶复秤', `此瓶已有回瓶复秤记录。\n毛重：${weightText(preview.previous.gross_weight)} → ${weightText(preview.gross_weight)}\n净重：${weightText(preview.previous.net_weight)} → ${weightText(preview.net_weight)}\n保存后使用本次称重作为回瓶依据，原称重保留。相同瓶号本轮只统计一次。`) || !sameWork(version))) return false
 			if (preview.mode === 'correct') {
@@ -286,12 +288,12 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 				if (retryReceipt.rejected) return false
 			}
 			return response?.code === 0
-		} catch (cause) { applyReceipt({ msg: cause.message || '查询失败，原操作已保留' }, operationId, target); return false }
+		} catch (cause) { applyReceipt({ msg: cause.message || '查询失败，这笔记录已保留，请重试查询' }, operationId, target); return false }
 		finally { busy.value = false }
 	}
 	async function nextBottle() {
 		if (busy.value || unreadable || !ownerMatches() || !active.value) return false
-		if (current.value.frozen && !current.value.receipt?.saved) return fail('保存结果尚未确认，必须先查询或重试原操作')
+		if (current.value.frozen && !current.value.receipt?.saved) return fail('还没确认是否保存成功，请查询或重试保存')
 		const version = epoch
 		if (!current.value.frozen && (current.value.bottleNo || current.value.capture) && !await confirm('放弃本瓶草稿', '当前瓶尚未提交，确认放弃已选瓶号和称重结果？')) return false
 		if (!sameWork(version)) return false
@@ -300,7 +302,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		if (old.frozen) history.value = [...history.value.filter(item => item.operationId !== old.operationId), cloneReweigh(old)]
 		current.value = emptyDraft()
 		if (!persist()) { current.value = old; history.value = previousHistory; return false }
-		epoch += 1; pendingSession.value = ''; error.value = ''; message.value = isReturn ? '请扫描下一瓶；同一瓶再次复秤，本轮瓶数不重复增加。' : '请扫描下一瓶；同一瓶再次扫描时将核查是否允许更正。'
+		epoch += 1; pendingSession.value = ''; error.value = ''; message.value = isReturn ? '请扫描下一瓶。' : '请扫描下一瓶。'
 		return true
 	}
 	function newLocalRound() {
@@ -364,17 +366,17 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 	async function startRound() {
 		if (!nativeSupported || busy.value || !active.value || !ownerMatches() || unreadable || !canCreate.value) return false
 		if (current.value.frozen && !current.value.receipt?.complete) return fail('请先确认本瓶保存完成，再开始新一轮')
-		if (current.value.bottleNo && !current.value.receipt?.complete) return fail('请先保存或放弃本瓶草稿，再开始新一轮')
-		if (history.value.some(item => item.frozen && !item.receipt?.complete)) return fail('请先查询并完成本机未完成的保存记录')
+		if (current.value.bottleNo && !current.value.receipt?.complete) return fail('请先保存或放弃这瓶，再开始新一轮')
+		if (history.value.some(item => item.frozen && !item.receipt?.complete)) return fail('还有记录没处理完，请先查询保存结果')
 		const version = epoch
 		if (!isReturn) {
-			if (round.value && (!await confirm('开始新一轮罐装复秤', `本轮已保存 ${round.value.bottle_count} 瓶。仅清零本机本账号统计，云端记录保留。`) || !sameWork(version) || busy.value)) return false
+			if (round.value && (!await confirm('开始新一轮罐装复秤', `本轮已保存 ${round.value.bottle_count} 瓶。只重新计算本机本账号的瓶数，已保存记录保留。`) || !sameWork(version) || busy.value)) return false
 			const previous = round.value
 			round.value = newLocalRound()
 			if (!persist()) { round.value = previous; return false }
 			if (current.value.frozen) history.value = [...history.value.filter(item => item.operationId !== current.value.operationId), cloneReweigh(current.value)]
 			current.value = emptyDraft(); pendingSession.value = ''; epoch += 1
-			message.value = '本轮罐装复秤已开始，按不同瓶号统计。'
+			message.value = '新一轮已开始，同瓶只算一瓶。'
 			return persist()
 		}
 		if (!pendingRound.value) {
@@ -389,16 +391,16 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 			if (!sameWork(version)) return false
 			if (response?.code !== 0) {
 				if (response?.data?.rejected === true) { pendingRound.value = null; roundReady.value = false; persist() }
-				return fail(response?.msg || '本轮开始结果待确认，请重试原请求')
+				return fail(response?.msg || '还没确认新一轮是否开始，请点重试开始本轮')
 			}
-			if (response.data?.round?._id !== pendingRound.value.round_id) return fail('本轮回执不匹配，请重试原请求')
+			if (response.data?.round?._id !== pendingRound.value.round_id) return fail('暂时无法确认本轮，请点重试开始本轮')
 			round.value = response.data.round; pendingRound.value = null; roundReady.value = true
 			historySyncVersion++; historySyncing.value = false; historySyncError.value = ''
 			if (current.value.frozen) history.value = [...history.value.filter(item => item.operationId !== current.value.operationId), cloneReweigh(current.value)]
 			current.value = emptyDraft(); pendingSession.value = ''; epoch += 1
 			message.value = '本轮已开始，请连接吊秤并扫描回瓶。'
 			return persist()
-		} catch (cause) { if (sameWork(version)) fail(`${cause.message || '网络中断'}；本轮开始结果待确认，请重试原请求`); return false }
+		} catch (cause) { if (sameWork(version)) fail(`${cause.message || '网络中断'}；还没确认新一轮是否开始，请点重试开始本轮`); return false }
 		finally { busy.value = false }
 	}
 	async function activate() {
@@ -406,7 +408,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		await stopping
 		if (version !== lifecycleVersion) return false
 		active.value = true
-		if (!nativeSupported) return fail('复秤仅支持原生 PDA，请使用安装了扫描头插件的 PDA 应用')
+		if (!nativeSupported) return fail('请在 PDA 应用中打开复秤')
 		if (isReturn) { roundReady.value = false; await refreshRound() }
 		else if (!round.value && !unreadable && ownerMatches()) {
 			round.value = newLocalRound()
@@ -419,18 +421,18 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 			const result = await enterBarcodeSession({ page, onResult: scan, activeTarget: { page, target: 'reweigh.bottleNo', label: isReturn ? '回瓶复秤瓶号' : '复秤瓶号', scope: 'reweigh', field: 'bottleNo' } })
 			if (!active.value || version !== lifecycleVersion || !ownerMatches()) { await leaveBarcodeSession({ page }); return false }
 			scannerReady.value = result?.code === 0
-			if (!scannerReady.value) fail(result?.msg || '扫描头初始化失败，可输入瓶号选择')
+			if (!scannerReady.value) fail(result?.msg || '扫描键暂不可用，请手输瓶号')
 		} catch (cause) { fail(cause.message || '扫描头初始化失败') }
 	}
 	async function deactivate() {
 		historySyncVersion++; historySyncing.value = false; historySyncError.value = ''
-		autoSession = ''; autoWeight.reset()
+		autoSession = ''; autoWeight.reset(); captureMinimum.value = 0
 		active.value = false; epoch += 1; lifecycleVersion += 1; pendingSession.value = ''; scannerReady.value = false
 		persist()
 		stopping = Promise.allSettled([stopping, scale.stop(), leaveBarcodeSession({ page, reason: 'page-hidden' })])
 		await stopping
 	}
 	onBeforeUnmount(() => { unsubscribe(); void deactivate() })
-	return { current, history, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
+	return { captureMinimum, current, history, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
 		selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText }
 }

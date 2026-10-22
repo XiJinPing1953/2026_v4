@@ -45,7 +45,8 @@ async function harness(t, options = {}) {
 		getMobileSaleCreateResult: options.query || (async id => ({ code: 0, data: { operation_id: id, source_saved: true, processing_state: 'completed', sale_id: 's1' } })),
 		ensurePdaBleRuntimePermission: async () => ({ code: 0 }),
 		enterBarcodeSession: async ({ onResult }) => { scanner = onResult; return { code: 0 } }, leaveBarcodeSession: async () => {},
-		createPdaBleScaleSession: ({ onWeightFrame }) => {
+		createPdaBleScaleSession: ({ onWeightFrame, preserveMeasurementOnReadTimeout }) => {
+			assert.equal(preserveMeasurementOnReadTimeout, true)
 			frameListener = onWeightFrame
 			return {
 				onSnapshot: callback => { onSnapshot = callback; callback(core.createEmptyPdaBleScaleSnapshot()); return () => {} },
@@ -71,7 +72,7 @@ async function harness(t, options = {}) {
 			frameListener({ sampled_at: now, display_kg: weight, session_id: oldSession || `session${session}`, device_id: 'scale1' })
 		}
 	}
-	return { panel, start, frames, storage, requests, confirmations, scan: value => scanner({ rawText: value }), setOwner: value => { owner = value }, session: () => `session${session}` }
+	return { pause: ms => { now += ms; onSnapshot({ ...core.createEmptyPdaBleScaleSnapshot(), is_connected: connected, session_id: `session${session}`, error_code: 'read_timeout' }) }, panel, start, frames, storage, requests, confirmations, scan: value => scanner({ rawText: value }), setOwner: value => { owner = value }, session: () => `session${session}` }
 }
 
 test('PDA continuous weighing waits through swing, corrects current weight and freezes previous bottle', async t => {
@@ -177,4 +178,30 @@ test('unknown submission stays frozen and retries the original operation and pay
 	await h.panel.save(true)
 	assert.equal(h.requests.length, 2); assert.equal(h.requests[0].id, h.requests[1].id)
 	assert.deepEqual(h.requests[0].payload, h.requests[1].payload)
+})
+
+test('low out weight and a fifteen-minute data silence recover without another scan; unloading does not replace weight', async t => {
+ const h = await harness(t); await h.start(); await h.scan('101'); h.frames(90)
+ assert.equal(h.panel.current.value.gross, '')
+ assert.match(h.panel.error.value, /重量偏小/)
+ h.pause(15 * 60 * 1000); h.frames(120, 1000)
+ assert.equal(h.panel.current.value.gross, '')
+ h.frames(120, 2200)
+ assert.equal(h.panel.current.value.gross, '120.0'); assert.equal(h.panel.error.value, '')
+ h.pause(4000); h.frames(4)
+ assert.equal(h.panel.current.value.gross, '120.0')
+ h.frames(119.5)
+ assert.equal(h.panel.current.value.gross, '119.5')
+ assert.equal(h.confirmations.length, 0)
+})
+
+test('large sale keeps every row and raw scale updates do not rewrite the draft', async t => {
+ const storage = new Map(); let writes = 0
+ const originalSet = storage.set.bind(storage); storage.set = (key, value) => { writes++; return originalSet(key, value) }
+ const h = await harness(t, { storage }); await h.start()
+ for (let i=1; i<=100; i++) { await h.scan(String(i)); h.frames(120) }
+ assert.equal(h.panel.outRows.value.length, 100)
+ const before = writes; h.frames(120, 10000)
+ assert.equal(writes, before)
+ assert.equal(h.panel.outRows.value.every(row => row.gross === '120.0'), true)
 })

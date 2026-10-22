@@ -139,9 +139,9 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.23",
+      "version": "1.0.24",
       "output": "release/pda",
-      "acceptance": "PDA-only customer/out/return/confirm sale with shared automatic capture and existing submission recovery; Chrome and both reweigh flows preserved. Local 1.0.23 test candidate; device acceptance and production publication pending.",
+      "acceptance": "PDA-only automatic capture survives data silence, retains unloading protection and old drafts; shared worker-facing weighing status, compact queries, native UI. Chrome default timeout semantics unchanged. No cloud/schema changes; field acceptance remains separate.",
       "deploymentScope": {
         "functions": [
           "crm-auth",
@@ -150,14 +150,24 @@
           "crm-user"
         ],
         "databaseFiles": [],
-        "baseCommit": "ecaed5a68b093e02790dec98b13a46034646a051",
+        "baseCommit": "7ea8a2d781086db79506922881ef6198debaf015",
         "sourceFiles": [
+          "src/components/domain/pda/PdaAppUpdate.vue",
+          "src/components/domain/pda/PdaBottleQueryView.vue",
           "src/components/domain/pda/PdaHomeView.vue",
+          "src/components/domain/pda/PdaMovementQueryView.vue",
           "src/components/domain/pda/PdaNativeSaleView.vue",
+          "src/components/domain/pda/PdaReweighRecordsView.vue",
+          "src/components/domain/pda/PdaReweighView.vue",
+          "src/components/domain/pda/PdaWeighScale.vue",
+          "src/components/domain/pda/pdaCompact.scss",
           "src/composables/pda/usePdaNativeSale.js",
-          "src/composables/pda/usePdaSaleForm.js",
-          "src/pages/pda/sale-create.vue",
-          "src/manifest.json"
+          "src/composables/pda/usePdaReweigh.js",
+          "src/manifest.json",
+          "src/services/pda/appUpdate.js",
+          "src/services/pda/autoReturnWeight.js",
+          "src/services/pda/bleScaleCore.js",
+          "src/services/pda/weighStatus.js"
         ]
       },
       "integrityScope": "deployment"

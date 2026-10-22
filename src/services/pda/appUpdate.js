@@ -11,7 +11,7 @@ export function compareAppVersion(a, b) {
 export function validatePdaUpdate(meta, installed, nativeVersion) {
  if (!meta || meta.schema !== 1 || meta.appid !== PDA_APP_ID || meta.platform !== 'android') throw new Error('更新信息不匹配本应用')
  if (compareAppVersion(meta.version, installed) <= 0) return null
- if (compareAppVersion(nativeVersion, meta.minNativeVersion) < 0 || compareAppVersion(nativeVersion, meta.maxNativeVersion) > 0) throw new Error('本次更新需要先安装新版 APK')
+ if (compareAppVersion(nativeVersion, meta.minNativeVersion) < 0 || compareAppVersion(nativeVersion, meta.maxNativeVersion) > 0) throw new Error('请先安装新版 PDA 安装包，再检查更新')
  if (!/^crm-pda-\d+\.\d+\.\d+-[a-f0-9]{12}\.wgt$/.test(meta.file || '') || !/^[a-f0-9]{40}$/.test(meta.sha1 || '') || !Number.isSafeInteger(meta.size) || meta.size <= 0 || meta.size > 50 * 1024 * 1024) throw new Error('更新包信息不完整')
  return meta
 }
@@ -50,7 +50,7 @@ export async function checkPdaAppUpdate() {
    task.start()
   })
   const info = await new Promise((resolve, reject) => plus.io.getFileInfo({ filePath: downloadPath, digestAlgorithm: 'sha1', success: resolve, fail: reject }))
-  if (Number(info.size) !== update.size || String(info.digest).toLowerCase() !== update.sha1) throw new Error('更新文件校验失败，请重新下载')
+  if (Number(info.size) !== update.size || String(info.digest).toLowerCase() !== update.sha1) throw new Error('更新包不完整，请重新下载')
   if (!onHome()) return
   uni.showLoading({ title: '安装更新中', mask: true })
   // 不使用 force；由运行时再次校验 appid 和版本，失败保留现有资源。
@@ -60,7 +60,7 @@ export async function checkPdaAppUpdate() {
   else await modal({ title: '更新已安装', content: '下次重启应用后生效。', showCancel: false })
  } catch (cause) {
   uni.hideLoading()
-  await modal({ title: '更新未完成', content: cause.message || cause.errMsg || '请检查网络后重试，已有数据保持不变。', showCancel: false })
+  await modal({ title: '更新未完成', content: cause instanceof Error ? cause.message : '请检查网络后重试，已有数据保持不变。', showCancel: false })
  } finally {
   uni.hideLoading(); updating = false
   if (downloadPath) plus.io.resolveLocalFileSystemURL(downloadPath, entry => entry.remove(() => {}, () => {}), () => {})

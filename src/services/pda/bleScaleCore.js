@@ -624,9 +624,11 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 		localStableCandidateHits = 0
 	}
 
-	function resetRuntimeStats(startMeasurement = false) {
-		sessionId = `scale-${nowMs().toString(36)}-${++measurementSessionCounter}`
-		measurementStartedAt = startMeasurement ? nowMs() : null
+	function resetRuntimeStats(startMeasurement = false, retainMeasurement = false) {
+		if (!retainMeasurement) {
+			sessionId = `scale-${nowMs().toString(36)}-${++measurementSessionCounter}`
+			measurementStartedAt = startMeasurement ? nowMs() : null
+		}
 		lineBuffer = ''
 		fixedBuffer = ''
 		frameRxCount = 0
@@ -644,6 +646,13 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 		clearStableCandidates()
 		lastFrameAt = startMeasurement ? measurementStartedAt : 0
 		staleMarked = false
+	}
+
+	function invalidateStaleReadings() {
+		// Only the three native automatic workflows opt in. Expired readings and
+		// stability candidates are always cleared; the selected bottle stays bound.
+		resetRuntimeStats(false, inputProfile.preserveMeasurementOnReadTimeout === true
+			&& runtime.transport !== 'web' && measurementStartedAt != null)
 	}
 
 	function beginMeasurement() {
@@ -774,7 +783,7 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 		if (incomingDeviceId && deviceId && !isSameBleDeviceId(incomingDeviceId, deviceId)) return
 
 		const sampledAt = nowMs()
-		if (lastFrameAt && sampledAt - lastFrameAt > profile.staleAfterMs) resetRuntimeStats()
+		if (lastFrameAt && sampledAt - lastFrameAt > profile.staleAfterMs) invalidateStaleReadings()
 		lastNotifyAt = sampledAt
 		notifyRxCount += 1
 		notifyRxBytes += getBytesLength(res?.value)
@@ -846,7 +855,7 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 		staleTimer = setInterval(() => {
 			if (!connected) return
 			if (nowMs() - (lastFrameAt || connectedAt) <= profile.staleAfterMs || staleMarked) return
-			resetRuntimeStats()
+			invalidateStaleReadings()
 			staleMarked = true
 			emit(
 				withDiagnostics({

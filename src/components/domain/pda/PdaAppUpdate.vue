@@ -13,7 +13,7 @@ async function check() { if (busy.value) return; busy.value = true; try { await 
 </script>
 <style scoped>
 .app-update { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 4px; }
-.version { color:var(--crm-text-secondary); font-size:12px; }
-.check { margin:0; background:transparent; color:var(--crm-primary); font-size:14px; min-height:44px; line-height:44px; padding:0 10px; }
+.version { color:var(--crm-text-secondary); font-size:14px; }
+.check { margin:0; background:transparent; color:var(--crm-primary); font-size:16px; min-height:48px; line-height:48px; padding:0 10px; }
 .check::after { border:none; }
 </style>

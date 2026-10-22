@@ -48,17 +48,18 @@ export function usePdaNativeSale() {
 	let measurement = null
 	let boundDevice = null
 	const autoWeight = createAutoReweighWeight()
+	const captureMinimum = ref(0)
 	try {
 		boundDevice = uni.getStorageSync('pda_ble_scale_bound_device_v1') || null
 		if (typeof boundDevice === 'string') boundDevice = JSON.parse(boundDevice)
 	} catch (_) {}
-	const scale = createPdaBleScaleSession({ deviceId: boundDevice?.deviceId || '', deviceNamePrefix: 'NVK', divisionStepKg: 0.5, displayDecimals: 1, onWeightFrame: acceptFrame })
+	const scale = createPdaBleScaleSession({ preserveMeasurementOnReadTimeout: true, deviceId: boundDevice?.deviceId || '', deviceNamePrefix: 'NVK', divisionStepKg: 0.5, displayDecimals: 1, onWeightFrame: acceptFrame })
 	const editable = () => active.value && !locked.value && !busy.value
 	const fail = text => { error.value = text; return false }
 	const context = () => ({ epoch, customerId: form.value.customerId, step: step.value })
 	const same = ticket => active.value && ownerMatches() && ticket.epoch === epoch && ticket.customerId === form.value.customerId && ticket.step === step.value
 	const confirm = (title, content) => new Promise(resolve => uni.showModal({ title, content, success: result => resolve(Boolean(result.confirm)), fail: () => resolve(false) }))
-	function freeze() { measurement = null; autoWeight.reset() }
+	function freeze() { measurement = null; autoWeight.reset(); captureMinimum.value = 0 }
 	function invalidate() { epoch++; freeze(); sale.invalidateAsyncWork() }
 	function selectStep(next) {
 		invalidate()
@@ -82,12 +83,14 @@ export function usePdaNativeSale() {
 		const index = rowsFor(target.type).findIndex(row => row.rowId === target.rowId && row.bottleNo === target.bottleNo)
 		if (index < 0 || currentId.value !== target.rowId) return freeze()
 		const weight = autoWeight.feed(frame, rowsFor(target.type)[index].tare)
+		captureMinimum.value = autoWeight.minimumWeight(rowsFor(target.type)[index].tare)
 		if (weight === null) return
 		const result = sale.applyScaleWeightToRow(target.type, index, {
 			...snapshot.value, session_id: target.sessionId, weight_kg: weight, sampled_at: frame.sampled_at,
 			is_online: true, is_stable: true, stable_seq: ++target.sequence, measurement_started_at: target.startedAt
 		}, { sessionId: target.sessionId, force: true })
-		if (result.code !== 0) return fail(result.msg)
+		if (result.code !== 0) return fail(target.type === 'out' && Number(weight) <= Number(rowsFor(target.type)[index].tare)
+			? '重量偏小，请检查是否完全吊起；仍偏小请核对皮重' : result.msg)
 		error.value = ''
 		message.value = `${target.bottleNo} 号瓶：这瓶称好了，可以扫下一瓶`
 	}
@@ -95,7 +98,7 @@ export function usePdaNativeSale() {
 		snapshot.value = next
 		if (measurement && (!next.is_connected || next.session_id !== measurement.sessionId)) {
 			freeze()
-			message.value = '称重连接已中断，已称重量保留；未称好请连接后重新称重'
+			message.value = '吊秤已断开，已称重量保留；连接后可点重新称重'
 		}
 	})
 	watch(() => form.value.customerId, () => { invalidate(); currentId.value = '' }, { flush: 'sync' })
@@ -320,6 +323,6 @@ export function usePdaNativeSale() {
 		await stopping
 	}
 	onBeforeUnmount(() => { unsubscribe(); void deactivate() })
-	return { sale, step, direction, outRows, backRows, rows, current, currentId, snapshot, busy, locked, error, message, changes, weighed,
+	return { captureMinimum, sale, step, direction, outRows, backRows, rows, current, currentId, snapshot, busy, locked, error, message, changes, weighed,
 		chooseBottle, selectCustomer, go, connect, disconnect, reweigh, remove, save, query, restore, discard, nextSale, applyChanges, activate, deactivate }
 }

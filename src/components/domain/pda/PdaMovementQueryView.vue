@@ -1,24 +1,24 @@
 <template>
 	<view class="movement-query-panel">
-		<AppSection title="筛选">
-			<view class="filters">
+		<AppSection :title="isNative ? '查流转记录' : '筛选'">
+			<view :class="['filters', isNative && !moreFilters && 'filters--simple']">
 				<AppInput v-model="filters.bottleNo" label="瓶号" placeholder="请输入瓶号" @confirm="runSearch" />
-				<picker class="picker-block" mode="selector" :range="typeOptions" range-key="label" @change="onTypeChange">
+				<picker v-if="!isNative || moreFilters" class="picker-block" mode="selector" :range="typeOptions" range-key="label" @change="onTypeChange">
 					<view class="picker-trigger">
 						<AppInput :model-value="typeLabel" label="类型" readonly />
 					</view>
 				</picker>
-				<picker class="picker-block" mode="selector" :range="sourceOptions" range-key="label" @change="onSourceChange">
+				<picker v-if="!isNative || moreFilters" class="picker-block" mode="selector" :range="sourceOptions" range-key="label" @change="onSourceChange">
 					<view class="picker-trigger">
 						<AppInput :model-value="sourceLabel" label="来源" readonly />
 					</view>
 				</picker>
-				<picker class="picker-block" mode="date" :value="filters.dateStart" @change="(e) => onDateChange('dateStart', e)">
+				<picker v-if="!isNative || moreFilters" class="picker-block" mode="date" :value="filters.dateStart" @change="(e) => onDateChange('dateStart', e)">
 					<view class="picker-trigger">
 						<AppInput :model-value="filters.dateStart" label="开始日期" readonly placeholder="请选择开始日期" />
 					</view>
 				</picker>
-				<picker class="picker-block" mode="date" :value="filters.dateEnd" @change="(e) => onDateChange('dateEnd', e)">
+				<picker v-if="!isNative || moreFilters" class="picker-block" mode="date" :value="filters.dateEnd" @change="(e) => onDateChange('dateEnd', e)">
 					<view class="picker-trigger">
 						<AppInput :model-value="filters.dateEnd" label="结束日期" readonly placeholder="请选择结束日期" />
 					</view>
@@ -26,6 +26,7 @@
 			</view>
 			<view class="actions-row">
 				<AppButton @click="runSearch">查询</AppButton>
+				<AppButton v-if="isNative" kind="ghost" @click="moreFilters = !moreFilters">{{ moreFilters ? '收起条件' : '更多条件' }}</AppButton>
 				<AppButton kind="neutral" @click="resetSearch">重置</AppButton>
 			</view>
 		</AppSection>
@@ -62,6 +63,7 @@
 </template>
 
 <script setup>
+import { isPdaAppMode } from '@/services/pda/entry'
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
@@ -72,6 +74,8 @@ import AppTag from '@/components/base/AppTag.vue'
 import { listBottleMovementsV1 } from '@/services/bottleMovement'
 import { formatDateTime, normalizeBottleNo, normalizeText } from '@/services/pda/shared'
 
+const isNative = isPdaAppMode()
+const moreFilters = ref(false)
 const props = defineProps({
 	initialBottleNo: { type: String, default: '' },
 	embedded: { type: Boolean, default: false }
@@ -200,6 +204,7 @@ function goBottle(item) {
 
 <style scoped>
 .movement-query-panel { display: flex; flex-direction: column; gap: 14rpx; min-width: 0; }
+.filters--simple { grid-template-columns: 1fr !important; }
 .filters {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));

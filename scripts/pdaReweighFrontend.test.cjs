@@ -44,7 +44,7 @@ function harness(t, options = {}) {
 		...draft, ...autoWeight, Date: TestDate, ref: vue.ref, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
 		getUser: () => ({ _id: owner }), canPageAction: () => options.canCreate !== false,
 		getPdaBleScaleCapabilities: () => ({ transport: options.web ? 'web' : 'native', supported: true }),
-		createPdaBleScaleSession: profile => { weightFrame = profile.onWeightFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
+		createPdaBleScaleSession: profile => { assert.equal(profile.preserveMeasurementOnReadTimeout, true); weightFrame = profile.onWeightFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
 		ensurePdaBleRuntimePermission: async () => ({ code: 0 }), quantizeBleScaleWeightKg: value => Math.round(value * 2) / 2,
 		normalizeBottleNo: value => String(value || '').trim().toUpperCase(),
 		enterBarcodeSession: async ({ onResult }) => { scanner = onResult; return { code: 0 } }, leaveBarcodeSession: async () => {},
@@ -91,7 +91,7 @@ function harness(t, options = {}) {
 		frames(gross)
 		await tick()
 	}
-	return { frames, form, storage, requests, previews, confirmations, roundRequests, emit, start, measure, module: stateModule, scan: text => scanner({ rawText: text }), setOwner: value => { owner = value }, stopped: () => stopped }
+	return { pause: ms => { clock += ms; emit({ is_online: false, is_stable: false, weight_kg: null, error_code: 'read_timeout' }) }, frames, form, storage, requests, previews, confirmations, roundRequests, emit, start, measure, module: stateModule, scan: text => scanner({ rawText: text }), setOwner: value => { owner = value }, stopped: () => stopped }
 }
 
 test('one bottle gets its own window, half-kilogram gross and two distinct weights revalidated by server', async t => {
@@ -503,4 +503,15 @@ test('restore preserves a local pending receipt and rolls back in-memory additio
  assert.equal(h.form.history.value.length,11)
  let release2 // separate instance to exercise cache failure after successful activation
  const opts={returnMode:true,storage:legacyRoundStorage(),historyQuery:()=>new Promise(resolve=>{release2=resolve})};const failed=harness(t,opts);await failed.start();opts.storageFails=true;release2({code:0,data:{rows:[restoredRoundRow(0)],has_more:false}});await tick();assert.equal(failed.form.history.value.length,10);assert.match(failed.form.historySyncError.value,/未能缓存/)
+})
+
+for (const returnMode of [false, true]) test(`automatic ${returnMode ? 'return' : 'filling'} capture resumes after silence and preserves unloaded weight`, async t => {
+ const h = harness(t, { returnMode }); await h.start(); await h.form.selectBottle('101')
+ h.frames(4); assert.equal(h.form.current.value.grossWeight, null)
+ h.pause(15 * 60 * 1000); h.frames(120, 1000)
+ assert.equal(h.form.current.value.grossWeight, null)
+ h.frames(120, 2200); assert.equal(h.form.current.value.grossWeight, 120)
+ h.pause(4000); h.frames(4); assert.equal(h.form.current.value.grossWeight, 120)
+ h.frames(119.5); assert.equal(h.form.current.value.grossWeight, 119.5)
+ assert.equal(h.confirmations.length, 0)
 })

@@ -409,7 +409,7 @@ test('a new measurement receives its own three-second timeout even after a long 
 	await f.session.stop()
 })
 
-function nativeFixture({ failAttempts = [], holdAttempt = 0 } = {}) {
+function nativeFixture({ failAttempts = [], holdAttempt = 0, profile = {} } = {}) {
 	const { context, time } = load()
 	let onValue, onConnection, heldConnection
 	const stats = { connects: [], closes: 0 }
@@ -430,7 +430,7 @@ function nativeFixture({ failAttempts = [], holdAttempt = 0 } = {}) {
 		onBLECharacteristicValueChange: fn => { onValue = fn }, offBLECharacteristicValueChange() {},
 		onBLEConnectionStateChange: fn => { onConnection = fn }, offBLEConnectionStateChange() { onConnection = null }
 	}
-	const session = context.createBleScaleCoreSession({ deviceId }, native)
+	const session = context.createBleScaleCoreSession({ ...profile, deviceId }, native)
 	const send = (text = 'UT,NT,+120.0kg\r\n') => onValue({ deviceId, characteristicId: 'FFE1', value: Uint8Array.from(Buffer.from(text)).buffer })
 	return { time, session, stats, send, lost, finishConnect: () => heldConnection.success({}) }
 }
@@ -508,4 +508,27 @@ test('native initial bound-device failure retains manual error without backgroun
 	await f.time.advance(15000)
 	assert.equal(f.stats.connects.length, 1)
 	await f.session.stop()
+})
+
+for (const suspended of [false, true]) test(`native automatic weighing keeps bottle binding across silence (suspended timers: ${suspended})`, async () => {
+ const f = nativeFixture({ profile: { preserveMeasurementOnReadTimeout: true } })
+ await f.session.connect()
+ const id = f.session.beginMeasurement()
+ for (let i = 0; i < 12; i++) { f.send(); await f.time.advance(100) }
+ if (suspended) f.time.jump(15 * 60 * 1000)
+ else {
+  await f.time.advance(3500)
+  assert.equal(f.session.getSnapshot().weight_kg, null)
+  assert.equal(f.session.getSnapshot().last_stable_weight_kg, null)
+  await f.time.advance(15 * 60 * 1000)
+ }
+ f.send()
+ assert.equal(f.session.getSnapshot().session_id, id)
+ assert.equal(f.session.getSnapshot().is_stable, false)
+ for (let i = 0; i < 12; i++) { await f.time.advance(100); f.send() }
+ assert.equal(f.session.getSnapshot().is_stable, true)
+ assert.equal(f.stats.connects.length, 1)
+ f.lost()
+ assert.notEqual(f.session.getSnapshot().session_id, id)
+ await f.session.stop()
 })

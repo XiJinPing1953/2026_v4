@@ -7,10 +7,10 @@
 		<text v-if="isNative" class="section-hint">{{ scannerReady ? '按扫描键查询钢瓶' : '可输入瓶号查询，扫描头未就绪' }}</text>
 		<PdaMovementQueryView v-if="tab === 'movement' && canMovement" :key="movementVersion" embedded :initial-bottle-no="movementBottle" @bottle="showBottle" />
 		<template v-else>
-		<AppSection title="筛选">
-			<view class="filters">
-				<AppInput v-model="filters.keyword" label="瓶号 / 关键词" placeholder="请输入瓶号" @confirm="runSearch" />
-				<picker class="picker-block" mode="selector" :range="statusOptions" range-key="label" @change="onStatusChange">
+		<AppSection :title="isNative ? '查钢瓶' : '筛选'">
+			<view :class="['filters', isNative && !moreFilters && 'filters--simple']">
+				<AppInput v-model="filters.keyword" :label="isNative ? '瓶号' : '瓶号 / 关键词'" placeholder="请输入瓶号" @confirm="runSearch" />
+				<picker v-if="!isNative || moreFilters" class="picker-block" mode="selector" :range="statusOptions" range-key="label" @change="onStatusChange">
 					<view class="picker-trigger">
 						<AppInput :model-value="statusLabel" label="流向" readonly />
 					</view>
@@ -18,6 +18,7 @@
 			</view>
 			<view class="actions-row">
 				<AppButton @click="runSearch">查询</AppButton>
+				<AppButton v-if="isNative" kind="ghost" @click="moreFilters = !moreFilters">{{ moreFilters ? '收起条件' : '更多条件' }}</AppButton>
 				<AppButton kind="neutral" @click="resetSearch">重置</AppButton>
 			</view>
 		</AppSection>
@@ -36,7 +37,7 @@
 				>
 					<template #meta>
 						<view class="meta-row">
-							<AppTag kind="soft">{{ item.status || 'unknown' }}</AppTag>
+							<AppTag kind="soft">{{ isNative ? statusText(item.status) : item.status || 'unknown' }}</AppTag>
 							<text class="meta-text">空瓶重 {{ formatWeight(item.tare_weight) }} kg</text>
 							<text class="meta-text">检验 {{ item.bottle_next_check_date || item.bottle_check_date || '-' }}</text>
 						</view>
@@ -83,6 +84,8 @@ const loading = ref(false)
 const list = ref([])
 const paging = ref({ page: 1, pageSize: 20, total: 0, hasMore: false })
 
+const moreFilters = ref(false)
+const statusText = status => statusOptions.find(item => item.value === status)?.label || '未知'
 const tab = ref('bottle')
 const movementBottle = ref('')
 const movementVersion = ref(0)
@@ -166,6 +169,7 @@ function onStatusChange(event) {
 </script>
 
 <style scoped>
+.filters--simple { grid-template-columns: 1fr !important; }
 .filters {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));

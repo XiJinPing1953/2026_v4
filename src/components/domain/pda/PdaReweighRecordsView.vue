@@ -1,11 +1,11 @@
 <template>
-	<AppPage class="pda-compact-page" title="复秤记录" subtitle="当前账号的云端记录" icon="bottle" hideBottleQuery>
+	<AppPage class="pda-compact-page" title="复秤记录" subtitle="查已保存的称重记录" icon="bottle" hideBottleQuery>
 		<view class="top-row">
 			<AppButton kind="neutral" size="sm" @click="$emit('back')">返回首页</AppButton>
 			<text class="hint">{{ scannerReady ? '可按扫描键查询钢瓶' : '可输入瓶号查询' }}</text>
 		</view>
 		<AppSection title="查询条件">
-			<text class="hint">按记录日期查询；罐装显示原单的最新结果</text>
+
 			<view class="filter-grid">
 				<picker mode="date" :value="date" @change="setFilter('date', $event.detail.value)">
 					<AppInput label="记录日期" :model-value="date" readonly />
@@ -15,7 +15,7 @@
 				</picker>
 			</view>
 			<view class="bottle-row">
-				<AppInput class="bottle-input" label="瓶号" :model-value="bottleNo" placeholder="留空查询当天全部瓶号" @update:model-value="setFilter('bottle', $event)" @confirm="search()" />
+				<AppInput class="bottle-input" label="瓶号" :model-value="bottleNo" placeholder="不填瓶号可查当天全部" @update:model-value="setFilter('bottle', $event)" @confirm="search()" />
 				<AppButton @click="search()">查询</AppButton>
 			</view>
 		</AppSection>
@@ -24,7 +24,7 @@
 			<text v-if="error" class="error">{{ error }}</text>
 			<text v-else-if="!loading && !rows.length" class="hint">暂无符合条件的记录</text>
 			<view v-for="item in rows" :key="item.id" class="record">
-				<view class="record-head"><text class="bottle">{{ item.bottle_no }} 号瓶</text><text class="hint">{{ item.status === 'complete' ? '已完成' : item.status === 'pending' ? '处理中' : '状态未知' }}</text></view>
+				<view class="record-head"><text class="bottle">{{ item.bottle_no }} 号瓶</text><text class="hint">{{ item.status === 'complete' ? '已完成' : item.status === 'pending' ? '处理中' : '待核对' }}</text></view>
 				<text class="record-time">{{ item.time_label || '称重时间' }} {{ item.weighed_at || '时间未记录' }}</text>
 				<view class="weights">
 					<text>毛重 {{ formatWeight(item.gross_weight) }} kg</text>
@@ -60,12 +60,12 @@ defineExpose({ activate, deactivate })
 .filter-grid, .weights { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
 .bottle-row { display: flex; align-items: flex-end; gap: 12rpx; margin-top: 12rpx; }
 .bottle-input { flex: 1; min-width: 0; }
-.hint { font-size: 22rpx; color: var(--crm-text-muted); }
-.error { font-size: 26rpx; color: #b42318; }
+.hint { font-size: 14px; color: var(--crm-text-muted); }
+.error { font-size: 16px; color: #b42318; }
 .record { padding: 14rpx 0; border-bottom: 1rpx solid var(--crm-border); }
-.bottle { font-size: 28rpx; font-weight: 700; }
-.record-time { display: block; margin: 8rpx 0; font-size: 27rpx; font-weight: 700; }
-.weights { font-size: 24rpx; color: var(--crm-text-muted); }
+.bottle { font-size: 18px; font-weight: 700; }
+.record-time { display: block; margin: 8rpx 0; font-size: 16px; font-weight: 700; }
+.weights { font-size: 16px; color: var(--crm-text-muted); }
 </style>
 <style scoped lang="scss">
 @import './pdaCompact.scss';
