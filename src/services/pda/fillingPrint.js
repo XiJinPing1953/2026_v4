@@ -13,7 +13,15 @@ export function isSuperseded(entry, entries) {
 	const index = entries.findIndex(row => row.operationId === entry.operationId)
 	return entries.slice(index + 1).some(row => row.operationId !== entry.operationId && row.receipt?.saved && row.frozen?.mode === 'correct' && row.frozen.payload.filling_id === id)
 }
-export function createFillingPrintController({ ownerId, currentOwner, storage, valid, entries, printer, report }) {
+export function verifyCurrentLabel(entry, response) {
+	const label = savedLabel(entry), row = response?.data
+	if (response?.code !== 0 || !row || row._id !== entry.receipt.fillingId) throw new Error('暂时无法核对最新记录，请稍后补打')
+	if (row.operation_id !== entry.operationId || row.bottle_no !== label.bottle_no || row.entry_source !== 'pda_reweigh') throw new Error('这笔记录已有变更，不能打印旧标签')
+	const actual = normalizePrintLabel(row.reweigh?.label)
+	if (JSON.stringify(actual) !== JSON.stringify(label)) throw new Error('这笔重量已有变更，不能打印旧标签')
+	return true
+}
+export function createFillingPrintController({ ownerId, currentOwner, storage, valid, entries, printer, report, verify }) {
 	const key = `crm_pda_filling_print_v1:${ownerId}`
 	const eligible = new Set(), consumed = new Set()
 	let sending = false, generation = 0
@@ -49,6 +57,9 @@ export function createFillingPrintController({ ownerId, currentOwner, storage, v
 				return false
 			}
 			sending = true; acquired = true
+			await verify(entry, label)
+			if (!allowed() || version !== generation) return false
+			if (!connection.connected || connection !== printer()) throw new Error('打印机连接已变化，标签未打印')
 			// Durable lock precedes every native write. Never infer paper delivery from SDK return.
 			record(id, 'attempted', label)
 			if (!allowed() || version !== generation) return false

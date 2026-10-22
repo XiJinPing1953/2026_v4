@@ -1,8 +1,9 @@
 import { ref, onBeforeUnmount } from 'vue'
+import { getFillingV1 } from '@/services/filling'
 import { getUser } from '@/services/auth'
 import { ensurePdaBleRuntimePermission } from '@/services/pda/bleScale'
 import { createLabelPrinterSession, getPairedPrinters } from '@/services/pda/labelPrinter'
-import { createFillingPrintController, savedLabel, isSuperseded } from '@/services/pda/fillingPrint'
+import { createFillingPrintController, savedLabel, isSuperseded, verifyCurrentLabel } from '@/services/pda/fillingPrint'
 export function usePdaFillingPrinter({ enabled, active, entries }) {
 	const ownerId = String(getUser()?._id || ''), currentOwner = () => String(getUser()?._id || '')
 	const valid = () => enabled && active() && currentOwner() === ownerId
@@ -10,6 +11,7 @@ export function usePdaFillingPrinter({ enabled, active, entries }) {
 	let session = null, generation = 0, ownerTimer = null
 	const storage = { getStorageSync: key => uni.getStorageSync(key), setStorageSync: (key, value) => uni.setStorageSync(key, value) }
 	const control = createFillingPrintController({ ownerId, currentOwner, storage, valid, entries, printer: () => session,
+		verify: async entry => verifyCurrentLabel(entry, await getFillingV1({ _id: entry.receipt.fillingId })),
 		report: (id, text) => { messages.value = { ...messages.value, [id]: text } } })
 	async function connect() {
 		if (!valid() || connecting.value || session?.busy) return
