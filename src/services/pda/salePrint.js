@@ -5,7 +5,15 @@ export function salePrintPages(sale) {
   const outs = sale.out_items || [], backs = sale.back_items || []
   if (![...outs,...backs].every(r => text(r.bottle_no || r.bottleNo) && finite(r.net))) throw new Error('瓶号或重量资料不完整，暂不能打印')
   const width = s => [...s].reduce((n,c) => n + (c.charCodeAt(0)>127?24:12),0)
-  const wrap = s => { const result=[]; let line=''; for (const c of s) { if(width(line+c)>592){result.push(line);line=''} line+=c } if(line)result.push(line);return result }
+  const wrap = s => {
+    const result=[]; let line=''
+    // Keep ordinary bottle numbers and decimal weights together across line breaks.
+    for (const token of s.match(/[A-Za-z0-9_.-]+|[^A-Za-z0-9_.-]/gu) || []) {
+      const parts = width(token) > 592 ? [...token] : [token]
+      for (const part of parts) { if (line && width(line+part)>592) { result.push(line); line='' } line+=part }
+    }
+    if(line)result.push(line); return result
+  }
   const lines=[]
   const add=s=>lines.push(...wrap(s))
   add(`客户: ${text(sale.delivery_customer_name || sale.customer_name)}`)

@@ -51,7 +51,7 @@ function rows(raw, direction) {
     const net = number(row.net, '净重', { signed: direction === '回瓶', tenths: true })
     if (Math.round(gross * 10) - Math.round(tare * 10) !== Math.round(net * 10)) fail(`${direction}瓶号 ${bottleNo} 毛重减皮重必须等于净重`)
     const result = { bottle_no: bottleNo, bottle_id: bottleId, gross, tare, net }
-    if (row.weight_source === 'filling_reweigh') {
+    if (text(row.weight_source ?? row.weightSource) === 'filling_reweigh') {
       if (direction !== '出瓶' || !/^[a-f0-9]{48}$/.test(row.filling_label_token || '')) fail('充装标签来源无效，请重新扫码')
       result.filling_label_token = row.filling_label_token
     }

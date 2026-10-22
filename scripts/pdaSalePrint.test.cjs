@@ -27,3 +27,8 @@ test('detail preserves hidden customer restriction before projection', async () 
  const svc=createService({db:{collection:()=>({doc:()=>({get:async()=>({data:[doc]})})})},isAdmin:()=>true,hiddenIds:async()=>['hidden'],mentionsHidden:(row,ids)=>ids.includes(row.customer_id),amounts:()=>{calculated=true;return{amounts:{}}}})
  assert.equal((await svc.get({}, {id:'s'})).code,404);assert.equal(calculated,false)
 })
+test('line wrapping preserves bottle number and decimal weight tokens',()=>{
+ const doc={...sale,customer_name:'客'.repeat(22)+'123456',out_items:[{bottle_no:'123456789',net:12.5}],back_items:[{bottle_no:'2',net:2.5}]}
+ const lines=salePrintPages(doc).flatMap(p=>p.rows)
+ assert.ok(lines.some(s=>s.includes('123456789号')));assert.ok(lines.some(s=>s.includes('12.5')));assert.ok(lines.some(s=>s.includes('123456')))
+})

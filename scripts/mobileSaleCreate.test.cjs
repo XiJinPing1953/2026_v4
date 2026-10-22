@@ -529,3 +529,15 @@ test('filling label source is verified again at submit; correction or newer-fill
  const input=h.input();Object.assign(input.payload.outRows[0],{weight_source:'filling_reweigh',filling_label_token:'a'.repeat(48)})
  assert.equal((await h.invoke('createMobileV1',input)).code,409);assert.equal(h.tables.crm_sale_records.length,0)
 })
+
+test('camelCase filling source cannot bypass return direction or missing token validation', async()=>{
+ for(const direction of ['outRows','backRows']) for(const hasToken of [false,true]) {
+  if(direction==='outRows'&&hasToken)continue
+  const h=harness(),input=h.input(),row={...input.payload.outRows[0],weightSource:'filling_reweigh'}
+  delete row.weight_source
+  if(hasToken)row.filling_label_token='a'.repeat(48)
+  input.payload.outRows=direction==='outRows'?[row]:[];input.payload.backRows=direction==='backRows'?[row]:[]
+  const response=await h.invoke('createMobileV1',input)
+  assert.notEqual(response.code,0);assert.equal(h.tables.crm_sale_records.length,0);assert.equal(h.tables[M.OPERATIONS].length,0)
+ }
+})
