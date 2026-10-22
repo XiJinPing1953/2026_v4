@@ -1,41 +1,54 @@
-const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm')
-function setup() {
- const calls=[], updates=[]; let callback, timer
- const plugin = new Proxy({}, {get(target,key) { return target[key] ||= (...args) => {calls.push([key,...args]); if(key==='connState')callback=args[0]} }})
- const source=fs.readFileSync('src/services/pda/printerTest.js','utf8').replace(/^export /gm,'')
- const api=vm.runInNewContext(source+'\n;({createPrinterTestSession,getPairedTestPrinters,TEST_QR})',{setTimeout(fn){timer=fn;return 1},clearTimeout(){}})
- const session=api.createPrinterTestSession(plugin, value=>updates.push(value))
- return {calls,updates,plugin,session,api,state(value){callback(value)},timeout(){timer()}}
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm')
+function modules(globals={}) {
+ const source=fs.readFileSync('src/services/pda/labelPrinter.js','utf8').replace(/^export /gm,'')+'\n'+fs.readFileSync('src/services/pda/fillingPrint.js','utf8').replace(/^import .*\n/gm,'').replace(/^export /gm,'')
+ return vm.runInNewContext(source+'\n;({TEST_LABEL,labelLayout,createLabelPrinterSession,getPairedPrinters,createFillingPrintController,savedLabel,isSuperseded})',{setTimeout,clearTimeout,Date,...globals})
 }
-test('one click sends one 50x80 test label; duplicate cannot send',()=>{
- const h=setup(); h.session.connect('00:11:22:33:AA:21'); h.state(0); h.session.print()
- assert.throws(()=>h.session.print(),/已发送/)
- assert.equal(h.calls.filter(x=>x[0]==='startPrint').length,1)
- assert.deepEqual(h.calls.find(x=>x[0]==='setSize').slice(1),[50,80])
- assert.match(h.api.TEST_QR,/TEST001/);assert.doesNotMatch(h.api.TEST_QR,/回瓶|灌装量/)
- assert.match(h.updates.at(-1).message,/已发送一张/)
+const entry=(id='op1')=>({operationId:id,bottleNo:'0015',preview:{context_hash:'v',label:{company:'新拓能源',bottle_no:'0015',tare_weight:110,gross_weight:185.5,net_weight:75.5}},frozen:{mode:'create',payload:{operation_id:id,bottle_no:'0015',gross_weight:185.5,context_hash:'v'}},receipt:{saved:true,fillingId:'fill1'}})
+function harness(options={}) {
+ const m=modules(),data=options.data||new Map(),calls=[],messages=[];let owner='u1',active=true,rows=[entry()]
+ const printer={connected:options.connected!==false,print:async label=>{calls.push(label);if(options.failure)throw Error('send unknown')}}
+ const control=m.createFillingPrintController({ownerId:'u1',currentOwner:()=>owner,valid:()=>active,entries:()=>rows,printer:()=>printer,report:(id,text)=>messages.push([id,text]),storage:{getStorageSync:k=>data.get(k),setStorageSync:(k,v)=>{if(options.storageFailure)throw Error('storage unavailable');data.set(k,v)}}})
+ return {m,data,calls,messages,printer,control,e:rows[0],setOwner:x=>owner=x,setRows:x=>rows=x,setActive:x=>active=x}
+}
+const tick=()=>new Promise(resolve=>setImmediate(resolve))
+function arm(h){h.control.arm({...h.e,receipt:null})}
+test('confirmed matching save prints once; unknown/mismatched receipt does not',async()=>{
+ const h=harness();arm(h);h.control.confirmed(h.e,false);assert.equal(h.calls.length,0)
+ h.control.confirmed({...h.e,receipt:null},true);h.control.confirmed(h.e,true);h.control.confirmed(h.e,true);await tick();assert.equal(h.calls.length,1)
+ assert.equal(h.calls[0].bottle_no,'0015');assert.match(h.messages.at(-1)[1],/已发送/)
+ const resumed=harness({data:h.data});arm(resumed);resumed.control.confirmed(resumed.e,true);await tick();assert.equal(resumed.calls.length,0)
 })
-test('disconnect, timeout and closed late callback cannot enable printing',()=>{
- for(const kind of ['disconnect','timeout','close']) {
-  const h=setup(); h.session.connect('00:11:22:33:AA:21')
-  if(kind==='disconnect'){h.state(0);h.state(2)}
-  if(kind==='timeout'){h.timeout();h.state(0)}
-  if(kind==='close'){h.session.close();h.state(0)}
-  assert.throws(()=>h.session.print(),/先连接/);assert.equal(h.calls.filter(x=>x[0]==='startPrint').length,0)
- }
+test('no historical/reentry auto print; disconnect never queues a reconnect resend',async()=>{
+ const h=harness({connected:false});h.control.confirmed(h.e,true);assert.equal(h.calls.length,0)
+ arm(h);h.control.confirmed(h.e,true);await tick();h.printer.connected=true;h.control.confirmed(h.e,true);await tick();assert.equal(h.calls.length,0)
+ await h.control.reprint(h.e);assert.equal(h.calls.length,1)
+ h.control.close();h.control.confirmed(h.e,true);assert.equal(h.calls.length,1)
 })
-test('ambiguous native send error remains locked and never auto retries',()=>{
- const h=setup();h.session.connect('00:11:22:33:AA:21');h.state(0)
- h.plugin.startPrint=()=>{throw new Error('native failure')}
- assert.throws(()=>h.session.print(),/native failure/);assert.throws(()=>h.session.print(),/已发送/)
+test('unknown send and storage failure do not retry; saved record untouched',async()=>{
+ for(const options of [{failure:true},{storageFailure:true}]){const h=harness(options),before=JSON.stringify(h.e);arm(h);h.control.confirmed(h.e,true);await tick();h.control.confirmed(h.e,true);assert.equal(h.calls.length,options.failure?1:0);assert.equal(JSON.stringify(h.e),before)}
 })
-test('paired selection excludes scale and BLE alias; no adapter close or discovery',()=>{
- const h=setup(), devices=[{name:'NVK',address:'00:11:22:33:44:55'},{name:'HL30-AA21_Ble',address:'00:11:22:33:AA:22'},{name:'HL30-AA21',address:'00:11:22:33:AA:21'}]
- let i=0
- const adapter={isEnabled:()=>true,getBondedDevices:()=>({iterator:()=>({hasNext:()=>i<devices.length,next:()=>{const d=devices[i++];return {getName:()=>d.name,getAddress:()=>d.address}}})})}
- const result=h.api.getPairedTestPrinters({importClass:()=>({getDefaultAdapter:()=>adapter}),invoke:(o,m)=>o[m]()})
- assert.equal(result.length,1);assert.equal(result[0].name,'HL30-AA21')
- h.session.connect(result[0].address);h.session.close();h.session.close()
- assert.equal(h.calls.filter(x=>x[0]==='bluetoothDisConn').length,1)
- assert.ok(!h.calls.some(x=>/Discovery|Adapter|Search/.test(x[0])))
+test('account change and closed eligibility block late callbacks',async()=>{
+ const h=harness();arm(h);h.setOwner('u2');h.control.confirmed(h.e,true);await h.control.reprint(h.e);assert.equal(h.calls.length,0)
+ h.setOwner('u1');h.control.close();h.control.confirmed(h.e,true);assert.equal(h.calls.length,0)
+})
+test('reprint double taps are serialized and old corrected entry cannot print',async()=>{
+ const h=harness();let finish;h.printer.print=()=>new Promise(resolve=>{h.calls.push('send');finish=resolve})
+ const pending=h.control.reprint(h.e);await h.control.reprint(h.e);assert.equal(h.calls.length,1);assert.equal(h.control.busy,true);finish();await pending
+ const correction=entry('op2');correction.frozen.mode='correct';correction.frozen.payload.filling_id='fill1';h.setRows([h.e,correction]);await h.control.reprint(h.e);assert.equal(h.calls.length,1);assert.match(h.messages.at(-1)[1],/已更正/)
+})
+test('missing or mutable label never falls back to current bottle master',()=>{
+ const m=modules(),e=entry();assert.equal(m.savedLabel(e).tare_weight,110)
+ e.preview.context_hash='changed';assert.throws(()=>m.savedLabel(e));delete e.preview.label;assert.throws(()=>m.savedLabel(e))
+})
+test('layout contains only five fields, centered title and bounded long bottle lines',()=>{
+ const m=modules();for(const bottle of ['0015','X046','A'.repeat(48)]){const l=m.labelLayout({...m.TEST_LABEL,bottle_no:bottle});assert.ok(l.lines.every(x=>x.x>=32 && x.y+24<l.qrY-20));assert.ok(l.qrY+(400-2*l.qrX)+20<=640);assert.doesNotMatch(l.qr,/回瓶|灌装量/);assert.match(l.qr,/皮重：110.0 kg/)}
+ assert.throws(()=>m.labelLayout({...m.TEST_LABEL,bottle_no:'bad"\nPRINT'}))
+})
+test('native ownership is exclusive, closed late callbacks cannot reconnect or touch scale',async()=>{
+ const timers=[],m=modules({setTimeout(fn){timers.push(fn);return timers.length},clearTimeout(){}}),calls=[];let cb
+ const p=new Proxy({}, {get:(o,k)=>o[k]||((...args)=>{calls.push([k,...args]);if(k==='connState')cb=args[0]})})
+ const s=m.createLabelPrinterSession(p);assert.throws(()=>m.createLabelPrinterSession(p),/其他页面/);s.connect('00:11:22:33:AA:21');cb(null);assert.equal(s.connected,false);cb('0');assert.equal(s.connected,true)
+ const send=s.print(m.TEST_LABEL);timers.at(-1)();await send;assert.equal(calls.filter(x=>x[0]==='startPrint').length,1)
+ s.close();cb(0);await assert.rejects(s.print(m.TEST_LABEL));assert.ok(!calls.some(x=>/Adapter|Discovery|Search/.test(x[0])))
+ m.createLabelPrinterSession(p).close()
 })

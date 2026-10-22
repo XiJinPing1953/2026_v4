@@ -22,6 +22,10 @@
 			</view>
 			<text v-if="historySyncing" class="hint">正在读取本轮记录…</text>
 			<text v-if="historySyncError" class="notice notice--error">{{ historySyncError }}</text>
+			<view v-if="!isReturn" class="printer-strip">
+				<text>{{ printer.status.value }}</text>
+				<AppButton kind="outline" size="sm" :disabled="printer.connecting.value || printer.busy.value" @click="printer.connect">{{ printer.connected.value ? '重连打印机' : '连接打印机' }}</AppButton>
+			</view>
 			<PdaWeighScale :minimum-weight="captureMinimum" :snapshot="snapshot" :selected="Boolean(current.bottleNo)" :captured="Boolean(current.capture)" :gross="current.grossWeight" :tare="current.preview?.bottle?.tare_weight" :busy="busy" @connect="connect" @disconnect="disconnect" />
 			<AppSection v-if="!current.frozen" :title="current.bottleNo ? current.bottleNo + ' 号瓶' : '请扫码选瓶'">
 				<text v-if="error" class="notice notice--error" role="alert">{{ error }}</text>
@@ -42,7 +46,12 @@
 					<text class="result-label">{{ isReturn ? '回瓶毛重' : '本次灌装量' }}</text>
 					<text class="result-value">{{ weight(isReturn ? current.grossWeight : current.preview?.fill_weight) }} <text class="unit">kg</text></text>
 					<text v-if="!isReturn && factsOpen" class="hint">罐装量 = 本次毛重 − 上次回瓶毛重</text>
-					<view class="result-secondary">
+					<view v-if="!isReturn && current.receipt?.saved" class="print-result">
+					<text>{{ printer.messages.value[current.operationId] || '可补打这笔记录的标签' }}</text>
+					<text v-if="printer.reason(current)" class="hint">{{ printer.reason(current) }}</text>
+					<AppButton v-else kind="outline" :disabled="printer.busy.value" @click="printer.reprint(current)">补打标签</AppButton>
+				</view>
+				<view class="result-secondary">
 						<text>{{ isReturn ? '皮重' : '毛重' }} {{ weight(isReturn ? current.preview?.bottle.tare_weight : current.grossWeight) }} kg</text>
 						<text>净重 {{ weight(current.preview?.net_weight) }} kg</text>
 					</view>
@@ -83,6 +92,11 @@
 			<AppSection v-if="current.frozen" :title="receiptTitle(current.receipt)">
 				<text v-if="error" class="notice notice--error" role="alert">{{ error }}</text>
 				<text class="hint">{{ current.receipt?.message || '还没确认是否保存成功，请点查询保存结果。' }}</text>
+				<view v-if="!isReturn && current.receipt?.saved" class="print-result">
+					<text>{{ printer.messages.value[current.operationId] || '可补打这笔记录的标签' }}</text>
+					<text v-if="printer.reason(current)" class="hint">{{ printer.reason(current) }}</text>
+					<AppButton v-else kind="outline" :disabled="printer.busy.value" @click="printer.reprint(current)">补打标签</AppButton>
+				</view>
 				<view class="result-secondary"><text>{{ current.bottleNo }} 号瓶</text><text>毛重 {{ weight(current.grossWeight) }} kg</text><text>净重 {{ weight(current.preview?.net_weight) }} kg</text></view>
 				<AppButton size="sm" kind="ghost" @click="showReceiptDetails = !showReceiptDetails">{{ showReceiptDetails ? '收起详情' : '查看详情' }}</AppButton>
 				<text v-if="showReceiptDetails && current.receipt?.fillingId" class="identifier">{{ isReturn ? '回瓶复秤记录' : '灌装单' }}：{{ current.receipt.fillingId }}</text>
@@ -101,6 +115,11 @@
 				<view v-for="item in group.items.slice().reverse()" :key="item.operationId" class="history-row">
 					<text>{{ item.bottleNo }} 号瓶 · {{ isReturn ? '回瓶毛重' : '本次灌装量' }} {{ weight(isReturn ? item.grossWeight : item.preview?.fill_weight) }} kg</text>
 					<text :class="['hint', !item.receipt?.complete ? 'pending' : '']">{{ receiptTitle(item.receipt) }}</text>
+					<view v-if="!isReturn && item.receipt?.saved" class="print-result">
+						<text v-if="printer.messages.value[item.operationId]">{{ printer.messages.value[item.operationId] }}</text>
+						<text v-if="printer.reason(item)" class="hint">{{ printer.reason(item) }}</text>
+						<AppButton v-else kind="outline" :disabled="printer.busy.value" @click="printer.reprint(item)">补打标签</AppButton>
+					</view>
 					<text class="history-time">{{ reweighHistoryTime(item) }}</text>
 					<text v-if="!item.receipt?.complete" class="hint">{{ item.receipt?.message }}</text>
 					<view v-if="!item.receipt?.complete" class="actions">
@@ -120,6 +139,7 @@ import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
+import { usePdaFillingPrinter } from '@/composables/pda/usePdaFillingPrinter'
 import PdaWeighScale from './PdaWeighScale.vue'
 import PdaBottleSuggestField from '@/components/domain/pda/PdaBottleSuggestField.vue'
 import { reweighChangeText, usePdaReweigh } from '@/composables/pda/usePdaReweigh'
@@ -127,8 +147,10 @@ import { reweighHistoryTime } from '@/services/pda/reweighDraft'
 
 const props = defineProps({ mode: { type: String, default: 'filling' } })
 const isReturn = props.mode === 'return'
+const printer = usePdaFillingPrinter({ enabled: !isReturn, active: () => form?.active.value && form.nativeSupported, entries: () => [...form.history.value.filter(item => item.operationId !== form.current.value.operationId), form.current.value] })
+const form = usePdaReweigh({ mode: props.mode, printing: isReturn ? null : printer })
 const { captureMinimum, current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
-	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText } = usePdaReweigh({ mode: props.mode })
+	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText } = form
 const historyGroups = computed(() => [
 	{ title: '本轮已保存记录', items: roundHistory.value },
 	{ title: '其他轮次待处理记录', items: recoveryHistory.value }
@@ -156,6 +178,9 @@ defineExpose({ activate, deactivate })
 </script>
 
 <style scoped>
+.printer-strip { display:flex; flex-wrap:wrap; align-items:center; gap:12px; font-size:16px; margin:8px 0; }
+.print-result { display:flex; flex-direction:column; gap:8px; margin:12px 0; font-size:16px; }
+.printer-strip :deep(.btn), .print-result :deep(.btn) { min-height:48px; font-size:16px; }
 .reweigh-page { font-size: 16px; }
 .reweigh-page--editing { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
 .round-count { font-size: 18px; font-weight: 700; }

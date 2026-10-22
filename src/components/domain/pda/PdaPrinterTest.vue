@@ -49,10 +49,11 @@ async function connect() {
 		if (current === generation) { session?.close(); session = null; connected.value = false; message.value = error.message || '连接失败，请收起后重试' }
 	} finally { if (current === generation) busy.value = false }
 }
-function print() {
+async function print() {
 	if (!opened.value || !connected.value || sent.value || busy.value) return
 	sent.value = true
-	try { session.print() } catch (error) { message.value = `${error.message || '发送异常'}。请先查看是否出纸，避免重复打印。` }
+	const version = generation
+	try { await session.print() } catch (error) { if (version !== generation) return; message.value = `${error.message || '发送异常'}。请先查看是否出纸，避免重复打印。` }
 }
 onBeforeUnmount(close)
 defineExpose({ close })

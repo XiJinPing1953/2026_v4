@@ -23,7 +23,7 @@ function emptyDraft() {
 	return { operationId: createReweighId(), bottleNo: '', date: '', preview: null, previousBasis: null, grossWeight: null, capture: null, frozen: null, receipt: null, reason: '现场复秤', remark: '' }
 }
 
-export function usePdaReweigh({ mode = 'filling' } = {}) {
+export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	const isReturn = mode === 'return'
 	const page = isReturn ? 'pda-return-reweigh' : 'pda-reweigh'
 	const pagePath = isReturn ? '/pages/pda/return-reweigh' : '/pages/pda/reweigh'
@@ -225,7 +225,11 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 			fail(receipt.message)
 		} else if (current.value.operationId === operationId) current.value = { ...current.value, receipt }
 		else history.value = history.value.map(item => item.operationId === operationId ? { ...item, receipt } : item)
-		persist()
+		const persisted = persist()
+		if (!isReturn && persisted && active.value && ownerMatches()) {
+			const entry = current.value.operationId === operationId ? current.value : history.value.find(item => item.operationId === operationId)
+			try { printing?.confirmed(entry, response?.data?.operation_id === operationId) } catch (_) { /* Printing never changes save outcome. */ }
+		}
 		return receipt
 	}
 	async function sendFrozen() {
@@ -266,7 +270,8 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 				capture_method: 'ble', capture: cloneReweigh(current.value.capture), remark: current.value.remark,
 				...(isReturn ? { round_id: current.value.roundId } : {}),
 				...(preview.mode === 'correct' ? { filling_id: preview.filling._id, expected_source_version: preview.filling.source_version, reason: current.value.reason } : {}) }
-			current.value = { ...current.value, preview, previousBasis: null, frozen: { mode: preview.mode, payload } }
+			current.value = { ...current.value, preview, previousBasis: null, frozen: { mode: preview.mode, payload, ...(!isReturn ? { label: cloneReweigh(preview.label) } : {}) } }
+			if (!isReturn) { try { printing?.arm(current.value) } catch (_) {} }
 			return await sendFrozen()
 		} catch (cause) { return fail(cause.message || '提交前核算失败') }
 		finally { busy.value = false }
@@ -425,6 +430,7 @@ export function usePdaReweigh({ mode = 'filling' } = {}) {
 		} catch (cause) { fail(cause.message || '扫描头初始化失败') }
 	}
 	async function deactivate() {
+		if (!isReturn) printing?.close()
 		historySyncVersion++; historySyncing.value = false; historySyncError.value = ''
 		autoSession = ''; autoWeight.reset(); captureMinimum.value = 0
 		active.value = false; epoch += 1; lifecycleVersion += 1; pendingSession.value = ''; scannerReady.value = false

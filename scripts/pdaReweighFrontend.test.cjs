@@ -81,7 +81,7 @@ function harness(t, options = {}) {
 			showActionSheet: params => params.success({ tapIndex: 0 })
 		}
 	})
-	const form = stateModule.usePdaReweigh({ mode: options.returnMode ? 'return' : 'filling' })
+	const form = stateModule.usePdaReweigh({ mode: options.returnMode ? 'return' : 'filling', printing: options.printing })
 	t.after(() => onDestroy.forEach(fn => fn()))
 	async function start() { await form.activate(); emit({ is_connected: true }) }
 	function frames(weight, duration = 3100) { for (let i = 0; i <= duration; i += 100) { clock += 100; weightFrame({ session_id: latest.session_id, sampled_at: clock, display_kg: Math.round(weight * 2) / 2, device_id: 'NVK-1', raw: String(weight) }) } }
@@ -514,4 +514,14 @@ for (const returnMode of [false, true]) test(`automatic ${returnMode ? 'return' 
  h.pause(4000); h.frames(4); assert.equal(h.form.current.value.grossWeight, 120)
  h.frames(119.5); assert.equal(h.form.current.value.grossWeight, 119.5)
  assert.equal(h.confirmations.length, 0)
+})
+
+
+test('filling hooks freeze authoritative label, arm before save and match receipt; return never prints', async t => {
+ const events=[]; const printing={arm: entry=>events.push(['arm',copy(entry)]),confirmed:(entry,matched)=>events.push(['saved',copy(entry),matched]),close:()=>events.push(['close'])}
+ const h=harness(t,{printing});await h.measure('0015',120);await h.form.submit()
+ assert.equal(events[0][0],'arm');assert.equal(events[0][1].frozen.label.bottle_no,'0015')
+ assert.equal(events[1][0],'saved');assert.equal(events[1][2],true);assert.equal(events[1][1].receipt.saved,true)
+ await h.form.deactivate();assert.equal(events.at(-1)[0],'close')
+ const count=events.length;const r=harness(t,{returnMode:true,printing});await r.measure('101',120);await r.form.submit();await r.form.deactivate();assert.equal(events.length,count)
 })
