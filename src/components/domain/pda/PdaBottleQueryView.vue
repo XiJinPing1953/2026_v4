@@ -9,7 +9,7 @@
 		<template v-else>
 		<AppSection :title="isNative ? '查钢瓶' : '筛选'">
 			<view :class="['filters', isNative && !moreFilters && 'filters--simple']">
-				<AppInput v-model="filters.keyword" :label="isNative ? '瓶号' : '瓶号 / 关键词'" placeholder="请输入瓶号" @confirm="runSearch" />
+				<PdaBottleInput v-model="filters.keyword" :label="isNative ? '瓶号' : '瓶号 / 关键词'" placeholder="请输入瓶号" @confirm="runSearch" />
 				<picker v-if="!isNative || moreFilters" class="picker-block" mode="selector" :range="statusOptions" range-key="label" @change="onStatusChange">
 					<view class="picker-trigger">
 						<AppInput :model-value="statusLabel" label="流向" readonly />
@@ -59,6 +59,7 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
+import PdaBottleInput from './PdaBottleInput.vue'
 import AppList from '@/components/base/AppList.vue'
 import AppListItem from '@/components/base/AppListItem.vue'
 import AppPage from '@/components/base/AppPage.vue'

@@ -15,7 +15,7 @@
 				</picker>
 			</view>
 			<view class="bottle-row">
-				<AppInput class="bottle-input" label="瓶号" :model-value="bottleNo" placeholder="不填瓶号可查当天全部" @update:model-value="setFilter('bottle', $event)" @confirm="search()" />
+				<PdaBottleInput class="bottle-input" label="瓶号" :model-value="bottleNo" placeholder="不填瓶号可查当天全部" @update:model-value="setFilter('bottle', $event)" @confirm="search()" />
 				<AppButton @click="search()">查询</AppButton>
 			</view>
 		</AppSection>
@@ -43,6 +43,7 @@
 import { computed } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
+import PdaBottleInput from './PdaBottleInput.vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import { formatWeight } from '@/services/pda/shared'

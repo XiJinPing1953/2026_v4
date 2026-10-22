@@ -135,8 +135,8 @@ async function searchCustomers(keyword) {
 }
 async function searchDeliveries(keyword) { const result = await listPdaDeliveries({ keyword, page: 1, pageSize: 12, isActive: true }); return result?.code === 0 ? result.data || [] : [] }
 async function searchVehicles(keyword) { const result = await listPdaVehicles({ keyword, page: 1, pageSize: 12, isActive: true }); return result?.code === 0 ? result.data || [] : [] }
-async function addManualBottle() { if (await chooseBottle(bottleInput.value)) bottleInput.value = '' }
-async function selectManualBottle(bottle) { if (bottle?.bottle_no && await chooseBottle(bottle.bottle_no)) bottleInput.value = '' }
+async function addManualBottle() { if (await chooseBottle(bottleInput.value)) { bottleInput.value = ''; uni.hideKeyboard() } }
+async function selectManualBottle(bottle) { if (bottle?.bottle_no && await chooseBottle(bottle.bottle_no)) { bottleInput.value = ''; uni.hideKeyboard() } }
 function openNext() { if (nextSale()) { manualOpen.value = false; recordsOpen.value = false; bottleInput.value = ''; otherOpen.value = false; previewDetailsOpen.value = false } }
 function keyboardChanged(event) { keyboardOpen.value = Number(event.height) > 0 }
 if (typeof uni.onKeyboardHeightChange === 'function') uni.onKeyboardHeightChange(keyboardChanged)

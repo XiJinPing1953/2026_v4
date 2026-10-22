@@ -2,7 +2,7 @@
 	<view class="movement-query-panel">
 		<AppSection :title="isNative ? '查流转记录' : '筛选'">
 			<view :class="['filters', isNative && !moreFilters && 'filters--simple']">
-				<AppInput v-model="filters.bottleNo" label="瓶号" placeholder="请输入瓶号" @confirm="runSearch" />
+				<PdaBottleInput v-model="filters.bottleNo" label="瓶号" placeholder="请输入瓶号" @confirm="runSearch" />
 				<picker v-if="!isNative || moreFilters" class="picker-block" mode="selector" :range="typeOptions" range-key="label" @change="onTypeChange">
 					<view class="picker-trigger">
 						<AppInput :model-value="typeLabel" label="类型" readonly />
@@ -67,6 +67,7 @@ import { isPdaAppMode } from '@/services/pda/entry'
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
+import PdaBottleInput from './PdaBottleInput.vue'
 import AppList from '@/components/base/AppList.vue'
 import AppListItem from '@/components/base/AppListItem.vue'
 import AppSection from '@/components/base/AppSection.vue'

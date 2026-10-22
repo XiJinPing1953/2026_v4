@@ -20,6 +20,7 @@
 				:autocomplete="autocomplete"
 				:placeholder="placeholder"
 				:confirm-type="confirmType"
+				:confirm-hold="confirmHold"
 				:disabled="disabled || readonly"
 				:focus="focus"
 				@input="onInput"
@@ -46,6 +47,7 @@ const props = defineProps({
 	name: { type: String, default: '' },
 	autocomplete: { type: String, default: '' },
 	confirmType: { type: String, default: 'done' },
+	confirmHold: { type: Boolean, default: false },
 	prefixIcon: { type: String, default: '' },
 	size: { type: String, default: 'md' },
 	focus: { type: Boolean, default: false }

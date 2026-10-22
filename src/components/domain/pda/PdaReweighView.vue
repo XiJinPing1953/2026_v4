@@ -144,8 +144,9 @@ const roundDetails = ref(false), factsOpen = ref(false), manualOpen = ref(false)
 const showRemark = ref(false), showReceiptDetails = ref(false), showHistory = ref(false)
 const weight = value => value == null || value === '' || !Number.isFinite(Number(value)) ? '—' : Number(value).toFixed(1)
 const receiptTitle = receipt => receipt?.complete ? '已保存' : receipt?.saved ? '记录已保存，还有信息待核对' : '还没确认是否保存成功'
-function onBottleSelected(bottle) { return selectBottle(bottle?.bottle_no || bottleKeyword.value) }
-function onSelectKeyword() { return selectBottle(bottleKeyword.value) }
+async function selectManual(value) { const accepted = await selectBottle(value); if (accepted) uni.hideKeyboard(); return accepted }
+function onBottleSelected(bottle) { return selectManual(bottle?.bottle_no || bottleKeyword.value) }
+function onSelectKeyword() { return selectManual(bottleKeyword.value) }
 async function onNext() { if (await nextBottle()) { bottleKeyword.value = ''; factsOpen.value = false; manualOpen.value = false; showRemark.value = false; showReceiptDetails.value = false } }
 async function onStartRound() { if (await startRound()) bottleKeyword.value = '' }
 function keyboardChanged(event) { keyboardOpen.value = Number(event.height) > 0 }

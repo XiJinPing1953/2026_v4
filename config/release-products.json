@@ -139,9 +139,9 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.24",
+      "version": "1.0.25",
       "output": "release/pda",
-      "acceptance": "PDA-only automatic capture survives data silence, retains unloading protection and old drafts; shared worker-facing weighing status, compact queries, native UI. Chrome default timeout semantics unchanged. No cloud/schema changes; field acceptance remains separate.",
+      "acceptance": "PDA numeric bottle input with string identifiers and IME confirm; explicit alphanumeric entry; preserve existing lookup, weighing and submission guards. Customer uses existing system handwriting configuration; real-device IME acceptance pending.",
       "deploymentScope": {
         "functions": [
           "crm-auth",
@@ -150,24 +150,17 @@
           "crm-user"
         ],
         "databaseFiles": [],
-        "baseCommit": "7ea8a2d781086db79506922881ef6198debaf015",
+        "baseCommit": "6725c3e51db64239db66e54317c06283d6c5322c",
         "sourceFiles": [
-          "src/components/domain/pda/PdaAppUpdate.vue",
+          "src/components/base/AppInput.vue",
           "src/components/domain/pda/PdaBottleQueryView.vue",
-          "src/components/domain/pda/PdaHomeView.vue",
+          "src/components/domain/pda/PdaBottleSuggestField.vue",
           "src/components/domain/pda/PdaMovementQueryView.vue",
           "src/components/domain/pda/PdaNativeSaleView.vue",
           "src/components/domain/pda/PdaReweighRecordsView.vue",
           "src/components/domain/pda/PdaReweighView.vue",
-          "src/components/domain/pda/PdaWeighScale.vue",
-          "src/components/domain/pda/pdaCompact.scss",
-          "src/composables/pda/usePdaNativeSale.js",
-          "src/composables/pda/usePdaReweigh.js",
           "src/manifest.json",
-          "src/services/pda/appUpdate.js",
-          "src/services/pda/autoReturnWeight.js",
-          "src/services/pda/bleScaleCore.js",
-          "src/services/pda/weighStatus.js"
+          "src/components/domain/pda/PdaBottleInput.vue"
         ]
       },
       "integrityScope": "deployment"

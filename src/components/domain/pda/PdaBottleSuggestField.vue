@@ -1,11 +1,12 @@
 <template>
 	<view class="suggest-field">
-		<AppInput
+		<PdaBottleInput
 			:model-value="modelValue"
 			:label="label"
 			:placeholder="placeholder"
 			:type="type"
 			:confirm-type="confirmType"
+			confirm-hold
 			:readonly="readonly"
 			:disabled="disabled"
 			:size="size"
@@ -26,7 +27,7 @@
 </template>
 
 <script setup>
-import AppInput from '@/components/base/AppInput.vue'
+import PdaBottleInput from './PdaBottleInput.vue'
 import PdaSuggestList from '@/components/domain/pda/PdaSuggestList.vue'
 import { usePdaSuggestions } from '@/composables/pda/usePdaSuggestions'
 import { formatBottleSuggestionSub, normalizeBottleNo, searchBottleSuggestions } from '@/composables/useBottleSuggestions'
