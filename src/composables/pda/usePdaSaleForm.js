@@ -49,7 +49,7 @@ export function resolveUsableBleScaleWeight(scaleSnapshot = {}, now = Date.now()
 	}
 }
 
-export function usePdaSaleForm(initialValues = {}) {
+export function usePdaSaleForm(initialValues = {}, printing = null) {
 	// Account defaults seed new sales only; restored drafts and user edits keep their values.
 	function createNewForm(values = {}) {
 		const defaults = getUser()?.mobile_sale_defaults || {}
@@ -574,6 +574,7 @@ export function usePdaSaleForm(initialValues = {}) {
 			frozenSubmission.value = null
 		}
 		persistDraft()
+		if (receipt.value?.operationId === operationId) void printing?.confirmed(receipt.value)
 		return res
 	}
 
@@ -625,6 +626,7 @@ export function usePdaSaleForm(initialValues = {}) {
 			}
 			if (!ownerMatches()) return { code: 401, msg: '账号已变化，原提交未发送' }
 			const { operationId, payload } = frozenSubmission.value
+			if (!previouslyAttempted) printing?.arm(operationId)
 			return acceptResponse(await createMobileSale(operationId, cloneMobileSale(payload)))
 		} catch (error) {
 			if (!frozenSubmission.value?.attempted) return { code: 503, msg: error?.message || '提交前核对失败，尚未发送销售单' }

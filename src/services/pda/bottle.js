@@ -1,3 +1,4 @@
+import { parseFillingLabel } from './fillingLabel'
 import { getBottleV1, resolveBottleNoV1, resolveBottlePdaQrCodeV1, searchBottlesV1 } from '@/services/bottle'
 import { normalizeBottleNo, normalizeQrCode, normalizeText } from './shared'
 
@@ -106,6 +107,8 @@ export async function findPdaBottleByNo(bottleNo, options = {}) {
 }
 
 export async function resolvePdaBottleByQrCode(qrCode) {
+ const label = parseFillingLabel(qrCode)
+ if (label) return findPdaBottleByNo(label.bottle_no, { fresh: true })
 	const normalized = normalizeQrCode(qrCode)
 	if (!normalized) return { code: 400, msg: '钢瓶PDA二维码必填', data: null }
 	const cached = readCache(bottleQrCache, normalized)

@@ -63,6 +63,8 @@ const BOTTLE_FLOW_WARNING_KIND = 'bottle_flow_mismatch'
 const FILLING_START_LOSS_ADJUST_REASON = 'filling_start_weight_loss'
 const START_LOSS_SYNC_LIMIT = 2000
 const PAGE_ACTION_RULES = {
+ issueFillingLabelV1: [{ pagePath: '/pages/pda/reweigh', action: 'view' }],
+ resolveFillingLabelV1: [{ pagePath: '/pages/pda/sale-create', action: 'create' }],
 	listReturnReweighRoundRecordsV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'view' }],
 	listReturnReweighRecordsV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'view' }],
 	listFillingReweighRecordsV1: [{ pagePath: '/pages/pda/reweigh', action: 'view' }],
@@ -4512,10 +4514,12 @@ const reweighService = createReweighService({ db, operations: fillingOperations,
 const returnReweighService = createReturnReweighService({ db, readInputs: reweighService.readInputs })
 const reweighRecordsService = createReweighRecordsService({ db })
 
+const fillingLabels = require('./fillingLabels').createFillingLabels({ db })
 async function dispatch(event, context) {
 	// Only the platform context can authorize a timer; never trust event.type/source.
 	if (context && context.SOURCE === 'timing') return fillingOperations.drain()
 	const { action, data = {}, token } = event || {}
+ if (action === 'getPublicFillingLabelV1') return fillingLabels.read(data)
 	const requestId =
 		normalizeString(event.request_id || event.requestId || context?.requestId || context?.request_id || '') ||
 		generateRequestId()
@@ -4533,6 +4537,8 @@ async function dispatch(event, context) {
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
+	if (action === 'issueFillingLabelV1') return fillingLabels.issue(user, data)
+ if (action === 'resolveFillingLabelV1') return fillingLabels.read(data, true)
 	if (action === 'capabilitiesV1') return { code: 0, data: { rule_version: VERSION, durable_operations: true, source_status_query: true, source_payload_hash: true, reweigh_durable: true } }
 	if (action === 'previewReweighV1') return reweighService.preview(data)
 	if (action === 'listReturnReweighRoundRecordsV1') return reweighRecordsService.list(user, data, 'return', { byRound: true })

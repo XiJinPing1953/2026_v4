@@ -505,3 +505,27 @@ test('receipt lookup outage before processing preserves unknown; no frozen reque
   const result=await h.invoke('createMobileV1',h.input())
   assert.equal(result.error_code,'MOBILE_SALE_RESULT_UNKNOWN');assert.equal(result.data.source_saved,null);assert.equal(h.writes.length,0)
 })
+
+test('filling label source is verified again at submit; correction or newer-filling race rolls back source',async()=>{
+ for (const race of [false,'correct','newer']) {
+  let h
+  const proof={ filling_id:'fill-1',operation_id:'fill-op-1',source_version:1,label_token:'a'.repeat(48),bottle_no:'B1',tare_weight:2,gross_weight:12.5,net_weight:10.5 }
+  h=harness({cloud:async request=>{
+   if(request.data.action==='resolveFillingLabelV1') {
+    assert.equal(request.data.data.token,proof.label_token)
+    if(race === 'correct') h.tables.crm_fillings[0].source_version=2
+    if(race === 'newer') h.tables.crm_fillings.push({_id:'fill-2',operation_id:'fill-op-2',source_version:1,bottle_no:'B1',created_at:101})
+    return {result:{code:0,data:proof}}
+   }
+   return {result:{code:0,data:{job_id:'test-job',done:true,status:'completed',applied_amount:0,unresolved_count:0}}}
+  }})
+  h.tables.crm_fillings=[{_id:'fill-1',operation_id:'fill-op-1',source_version:1,bottle_no:'B1',created_at:100}]
+  const input=h.input();Object.assign(input.payload.outRows[0],{weight_source:'filling_reweigh',filling_label_token:proof.label_token})
+  const response=await h.invoke('createMobileV1',input)
+  if(race) {assert.notEqual(response.code,0);assert.equal(h.tables.crm_sale_records.length,0);assert.equal(h.tables[M.OPERATIONS].length,0)}
+  else {assert.equal(response.code,0);assert.equal(h.tables.crm_sale_records[0].mobile_filling_label_sources[0].label_token,proof.label_token)}
+ }
+ const h=harness({cloud:async()=>({result:{code:409,msg:'已更正'}})})
+ const input=h.input();Object.assign(input.payload.outRows[0],{weight_source:'filling_reweigh',filling_label_token:'a'.repeat(48)})
+ assert.equal((await h.invoke('createMobileV1',input)).code,409);assert.equal(h.tables.crm_sale_records.length,0)
+})

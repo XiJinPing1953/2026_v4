@@ -51,6 +51,10 @@ function rows(raw, direction) {
     const net = number(row.net, '净重', { signed: direction === '回瓶', tenths: true })
     if (Math.round(gross * 10) - Math.round(tare * 10) !== Math.round(net * 10)) fail(`${direction}瓶号 ${bottleNo} 毛重减皮重必须等于净重`)
     const result = { bottle_no: bottleNo, bottle_id: bottleId, gross, tare, net }
+    if (row.weight_source === 'filling_reweigh') {
+      if (direction !== '出瓶' || !/^[a-f0-9]{48}$/.test(row.filling_label_token || '')) fail('充装标签来源无效，请重新扫码')
+      result.filling_label_token = row.filling_label_token
+    }
     const location = scanLocation(row.scan_location ?? row.scanLocation)
     if (location) result.scan_location = location
     for (const [field, alias] of [['weight_source', 'weightSource'], ['scale_session_id', 'scaleSessionId'], ['scale_device_id', 'scaleDeviceId']]) {
@@ -103,7 +107,7 @@ function processingGuard(doc, now = Date.now()) {
     msg: '手机销售正在保存关联内容，请稍后重试；可在销售单详情查看处理状态',
     data: { sale_id: doc._id, source_saved: true, processing_state: 'processing', retry_after_seconds: Math.ceil(remaining / 1000) } }
 }
-function createService({ db, createSale }) {
+function createService({ db, createSale, verifyFillingLabel }) {
   const one = async (table, id) => first(await db.collection(table).where({ _id: id }).limit(1).get())
   async function writeState(operation, state, warnings, extra = {}) {
     let tx
@@ -267,6 +271,13 @@ function createService({ db, createSale }) {
       if (existing) return await existingResult(existing, user, fingerprint)
       uncertain = false
       await assertBottles(payload)
+      const labelChecks = []
+      for (const row of payload.outRows.filter(row => row.weight_source === 'filling_reweigh')) {
+        if (!verifyFillingLabel) fail('充装标签核对服务不可用',503,'FILLING_LABEL_INVALID')
+        const response = await verifyFillingLabel({ token:row.filling_label_token, bottle_no:row.bottle_no, tare_weight:row.tare, gross_weight:row.gross, net_weight:row.net }, token)
+        if (response?.result?.code !== 0) fail(response?.result?.msg || '充装标签无法核对，请重新称重', 409, 'FILLING_LABEL_INVALID')
+        labelChecks.push(response.result.data)
+      }
       const result = await createSale(user, payload, requestId, token, { mobile: true, getSideEffectCapability: () => capability, insertSource: async doc => {
         if (typeof db.startTransaction !== 'function') fail('当前数据库不支持事务，销售尚未保存', 503, 'MOBILE_SALE_TRANSACTION_UNAVAILABLE')
         const now = Date.now(), tx = await db.startTransaction()
@@ -278,6 +289,13 @@ function createService({ db, createSale }) {
         Object.assign(doc, { _id: key, mobile_create_operation_key: key, mobile_create_state: 'processing' })
         try {
           await guardSaleSource(tx, db.command, null, doc)
+          for (const proof of labelChecks) {
+            const source = first(await tx.collection('crm_fillings').doc(proof.filling_id).get())
+            if (!source || source.operation_id !== proof.operation_id || Number(source.source_version || 0) !== proof.source_version) fail('充装记录已变化，请重新扫码或称重',409,'FILLING_LABEL_INVALID')
+            const newer = first(await tx.collection('crm_fillings').where({ bottle_no:proof.bottle_no, created_at:db.command.gt(source.created_at) }).limit(1).get())
+            if (newer) fail('这只瓶已有新的充装，请重新扫码或称重',409,'FILLING_LABEL_INVALID')
+          }
+          if (labelChecks.length) doc.mobile_filling_label_sources = labelChecks.map(proof => ({ filling_id:proof.filling_id, operation_id:proof.operation_id, source_version:proof.source_version, label_token:proof.label_token, bottle_no:proof.bottle_no, tare_weight:proof.tare_weight, gross_weight:proof.gross_weight, net_weight:proof.net_weight }))
           await tx.collection(OPERATIONS).add(operation)
           await tx.collection(SALES).add(doc)
           await tx.commit()

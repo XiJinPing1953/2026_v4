@@ -17,6 +17,7 @@ const auto = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWei
 const settlement = load('src/services/models/settlement.js', ['normalizePaymentMethod', 'normalizePaymentStatus', 'normalizeSettlementMode'])
 const model = load('src/services/models/sale.js', ['normalizeSaleDraft'], settlement)
 const sales = load('src/services/pda/sale.js', ['createPdaBottleSaleForm', 'createPdaOutItem', 'createPdaBackItem', 'applyBottleToSaleRow', 'syncPdaBackRow', 'validatePdaBottleSaleForm', 'buildMobileSalePayload'], { ...shared, ...draft, ...pricing, ...location, ...model })
+const labelParsing = load('src/services/pda/fillingLabel.js', ['parseFillingLabel'])
 const customer = { _id: 'customer', name: '测试客户', default_price_unit: 'kg', default_unit_price: 8, is_active: true }
 const bottle = no => ({ _id: `b${no}`, bottle_no: String(no), tare_weight: 100, is_active: true })
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done }); return { resolve, promise } }
@@ -25,7 +26,8 @@ async function harness(t, options = {}) {
 	let now = 10000, owner = 'worker', onSnapshot, frameListener, scanner, session = 0, connected = false
 	const storage = options.storage || new Map(), requests = [], confirmations = []
 	const runtime = {
-		...shared, ...draft, ...pricing, ...location, ...core, ...auto, ...sales,
+		...shared, ...draft, ...pricing, ...location, ...core, ...auto, ...sales, ...labelParsing,
+  resolveFillingLabel: options.resolveLabel || (async () => ({ code:409, msg:'标签已失效' })),
 		ref: vue.ref, computed: vue.computed, watch: vue.watch, onBeforeUnmount() {},
 		Date: class extends Date { static now() { return now } },
 		getUser: () => ({ _id: owner }), canPageAction: () => true,
@@ -58,6 +60,7 @@ async function harness(t, options = {}) {
 		}
 	}
 	function emit() { onSnapshot({ ...core.createEmptyPdaBleScaleSnapshot(), is_connected: connected, session_id: `session${session}` }) }
+	runtime.usePdaSalePrinter = () => ({ arm() {}, confirmed() {}, close() {} })
 	runtime.createAutoReweighWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight'], { Date: runtime.Date }).createAutoReweighWeight
 	Object.assign(runtime, load('src/composables/pda/usePdaSaleForm.js', ['usePdaSaleForm'], runtime))
 	const module = load('src/composables/pda/usePdaNativeSale.js', ['usePdaNativeSale', 'isNativeSaleRowWeighed'], runtime)
@@ -204,4 +207,21 @@ test('large sale keeps every row and raw scale updates do not rewrite the draft'
  const before = writes; h.frames(120, 10000)
  assert.equal(writes, before)
  assert.equal(h.panel.outRows.value.every(row => row.gross === '120.0'), true)
+})
+
+const labelUrl = `https://env-00jxuffegf2n-static.normal.cloudstatic.cn/#/pages/public/filling-label?t=${'a'.repeat(48)}&c=${encodeURIComponent('新拓能源')}&b=90&p=100.0&g=185.5&n=85.5`
+test('verified filling QR fills out row without scale and duplicate does not overwrite; back still weighs', async t => {
+ const h = await harness(t, { resolveQr:async()=>({code:0,data:bottle('90')}), resolveLabel:async()=>({code:0,data:{bottle_no:'90',tare_weight:100,gross_weight:185.5,net_weight:85.5,label_token:'a'.repeat(48)}}) })
+ h.panel.selectCustomer(customer); await h.panel.go(2)
+ assert.equal(await h.scan(labelUrl),true)
+ assert.equal(h.panel.outRows.value.length,1);assert.equal(h.panel.outRows.value[0].weightSource,'filling_reweigh');assert.equal(h.panel.outRows.value[0].gross,'185.5')
+ await h.scan(labelUrl);assert.equal(h.panel.outRows.value.length,1)
+ const payload=sales.buildMobileSalePayload(h.panel.sale.form.value);assert.equal(payload.outRows[0].filling_label_token,'a'.repeat(48));assert.equal(payload.outRows[0].scale_session_id,'')
+ await h.panel.go(3);assert.equal(await h.scan(labelUrl),false);assert.match(h.panel.error.value,/连接吊秤/)
+})
+test('invalid or late filling QR verification cannot add a bottle',async t=>{
+ const pending=deferred();const h=await harness(t,{resolveLabel:()=>pending.promise})
+ h.panel.selectCustomer(customer);await h.panel.go(2);const scan=h.scan(labelUrl)
+ await h.panel.deactivate();pending.resolve({code:0,data:{bottle_no:'90',tare_weight:100,gross_weight:185.5,net_weight:85.5}});await scan
+ assert.equal(h.panel.outRows.value.length,0)
 })

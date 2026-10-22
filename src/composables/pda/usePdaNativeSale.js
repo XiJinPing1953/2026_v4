@@ -1,3 +1,5 @@
+import { parseFillingLabel, resolveFillingLabel } from '@/services/pda/fillingLabel'
+import { usePdaSalePrinter } from '@/composables/pda/usePdaSalePrinter'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { usePdaSaleForm } from '@/composables/pda/usePdaSaleForm'
 import { getUser } from '@/services/auth'
@@ -20,12 +22,13 @@ export function isNativeSaleRowWeighed(row, type) {
 }
 
 export function usePdaNativeSale() {
-	const sale = usePdaSaleForm()
+	const active = ref(false)
+	const printer = usePdaSalePrinter(() => active.value)
+	const sale = usePdaSaleForm({}, printer)
 	const { form, selectedCustomer, submissionLocked } = sale
 	const ownerId = String(getUser()?._id || getUser()?.id || '')
 	const ownerMatches = () => ownerId && String(getUser()?._id || getUser()?.id || '') === ownerId
 	const canCreate = computed(() => canPageAction('/pages/pda/sale-create', 'create'))
-	const active = ref(false)
 	const busy = ref(false)
 	const error = ref('')
 	const message = ref('请先选择客户')
@@ -108,12 +111,21 @@ export function usePdaNativeSale() {
 		if (!editable() || ![2, 3].includes(step.value)) return false
 		const unfinished = rows.value.find(row => !weighed(row))
 		if (unfinished) { currentId.value = unfinished.rowId; return fail(`请先称好 ${unfinished.bottleNo} 号瓶；不需要这瓶时可删除`) }
-		if (!snapshot.value.is_connected) return fail('请先连接吊秤')
+		let label = null
+  try { label = scanned && direction.value === 'out' ? parseFillingLabel(value) : null } catch (cause) { return fail(cause.message) }
+  if (!label && !snapshot.value.is_connected) return fail('请先连接吊秤')
 		autoWeight.interrupt()
 		const ticket = context()
 		busy.value = true; error.value = ''
 		try {
-			const result = await (scanned ? resolvePdaBottleByQrCode(value) : findPdaBottleByNo(value))
+			let confirmed = null
+   if (label) {
+    const verified = await resolveFillingLabel(label)
+    if (!same(ticket)) return false
+    if (verified?.code !== 0) return fail(verified?.msg || '无法核对充装信息，请重试或现场称重')
+    confirmed = verified.data
+   }
+   const result = await (scanned ? resolvePdaBottleByQrCode(value) : findPdaBottleByNo(value))
 			if (!same(ticket)) return false
 			if (result?.code !== 0 || !result.data) return fail(result?.msg || '没有找到这个瓶号')
 			const bottle = result.data
@@ -132,8 +144,13 @@ export function usePdaNativeSale() {
 			if (index < 0) { type === 'back' ? sale.addBackItem() : sale.addOutItem(); index = rowsFor(type).length - 1 }
 			const row = sale.applyBottleSelection(type, index, bottle)
 			if (!row) return false
-			if (!snapshot.value.is_connected) { currentId.value = row.rowId; return fail('吊秤已断开，请连接后重新称重') }
-			beginRow(row)
+			if (confirmed) {
+    Object.assign(row, { gross:String(confirmed.gross_weight), tare:String(confirmed.tare_weight), net:String(confirmed.net_weight), grossMeasured:String(confirmed.gross_weight), tareSource:'filling_reweigh', weightSource:'filling_reweigh', fillingLabelToken:confirmed.label_token, weightSampledAt:null, scaleSessionId:'', scaleStableSeq:0 })
+    currentId.value = row.rowId; message.value = `${row.bottleNo} 号瓶：已用充装复秤重量`
+   } else {
+    if (!snapshot.value.is_connected) { currentId.value = row.rowId; return fail('吊秤已断开，请连接后重新称重') }
+    beginRow(row)
+   }
 			if (scanned) void recordLocation(ticket, type, row.rowId, row.bottleNo)
 			return true
 		} catch (cause) { if (same(ticket)) fail(cause.message || '查瓶失败，请重试'); return false }
@@ -318,11 +335,11 @@ export function usePdaNativeSale() {
 		} catch (cause) { if (active.value) fail(cause.message || '扫描头初始化失败') }
 	}
 	async function deactivate() {
-		active.value = false; lifecycle++; invalidate(); sale.persistDraft()
+		printer.close(); active.value = false; lifecycle++; invalidate(); sale.persistDraft()
 		stopping = Promise.allSettled([stopping, scale.stop(), leaveBarcodeSession({ page: 'pda-native-sale', reason: 'page-hidden' })])
 		await stopping
 	}
 	onBeforeUnmount(() => { unsubscribe(); void deactivate() })
-	return { captureMinimum, sale, step, direction, outRows, backRows, rows, current, currentId, snapshot, busy, locked, error, message, changes, weighed,
+	return { printer, captureMinimum, sale, step, direction, outRows, backRows, rows, current, currentId, snapshot, busy, locked, error, message, changes, weighed,
 		chooseBottle, selectCustomer, go, connect, disconnect, reweigh, remove, save, query, restore, discard, nextSale, applyChanges, activate, deactivate }
 }

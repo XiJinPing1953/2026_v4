@@ -1,6 +1,7 @@
 <template>
 	<PdaReweighRecordsView v-if="recordsOpened" v-show="showRecords" ref="recordsRef" @back="closeRecords" />
-	<AppPage v-show="!showRecords" class="pda-compact-page" :title="isNative ? '新拓能源' : '移动工作台'" :subtitle="isNative ? '' : '销售与现场查询'" icon="home" hideBottleQuery>
+	<PdaSaleRecordsView v-if="salesOpened" v-show="showSales" ref="salesRef" @back="closeSales" />
+	<AppPage v-show="!showRecords && !showSales" class="pda-compact-page" :title="isNative ? '新拓能源' : '移动工作台'" :subtitle="isNative ? '' : '销售与现场查询'" icon="home" hideBottleQuery>
 		<AppSection title="当前账号">
 			<view class="session-grid">
 				<view class="session-cell">
@@ -16,6 +17,10 @@
 
 		<AppSection title="快捷入口">
 			<view class="action-grid">
+				<view v-if="canSales" class="action-card" @click="openSales">
+					<text class="action-card__title">销售记录</text>
+					<text class="action-card__desc">查销售、打印销售单</text>
+				</view>
 				<view v-if="canRecords" class="action-card" @click="openRecords">
 					<text class="action-card__title">复秤记录</text>
 					<text class="action-card__desc">查已保存的称重记录</text>
@@ -37,6 +42,7 @@
 
 <script setup>
 import { nextTick, onBeforeUnmount, ref } from 'vue'
+import PdaSaleRecordsView from './PdaSaleRecordsView.vue'
 import PdaReweighRecordsView from './PdaReweighRecordsView.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppPage from '@/components/base/AppPage.vue'
@@ -52,6 +58,8 @@ const currentUser = getUser() || {}
 const isNative = isPdaAppMode()
 const roleLabel = ({ superadmin: '超级管理员', admin: '管理员', finance: '财务', pda_operator: '现场操作员', safety_inspector: '安全巡检员', user: '普通用户' })[currentUser.role_template || currentUser.role] || '其他角色'
 const canRecords = isNative && (canViewPage('/pages/pda/return-reweigh') || canViewPage('/pages/pda/reweigh'))
+const canSales = isNative && canViewPage('/pages/pda/sale-create')
+const salesOpened = ref(false), showSales = ref(false), salesRef = ref(null)
 const showRecords = ref(false)
 const recordsOpened = ref(false)
 const recordsRef = ref(null)
@@ -63,8 +71,9 @@ async function activate() {
 	const version = ++lifecycle
 	await nextTick()
 	if (visible && version === lifecycle && showRecords.value) await recordsRef.value?.activate()
+	if (visible && version === lifecycle && showSales.value) await salesRef.value?.activate()
 }
-function deactivate() { printerRef.value?.close(); visible = false; lifecycle++; return recordsRef.value?.deactivate() }
+function deactivate() { printerRef.value?.close(); visible = false; lifecycle++; return Promise.all([recordsRef.value?.deactivate(), salesRef.value?.deactivate()]) }
 async function openRecords() {
 	printerRef.value?.close()
 	if (!canRecords || showRecords.value) return
@@ -74,7 +83,22 @@ async function openRecords() {
 	await nextTick()
 	if (visible && version === lifecycle && showRecords.value) await recordsRef.value?.activate()
 }
+async function openSales() {
+	if (!canSales || showSales.value) return
+	printerRef.value?.close()
+	await recordsRef.value?.deactivate()
+	salesOpened.value = true; showSales.value = true
+	const version = ++lifecycle
+	await nextTick()
+	if (visible && version === lifecycle && showSales.value) await salesRef.value?.activate()
+}
+function closeSales() {
+	if (!showSales.value) return false
+	lifecycle++; void salesRef.value?.deactivate(); showSales.value = false
+	return true
+}
 function closeRecords() {
+	if (showSales.value) return closeSales()
 	if (!showRecords.value) return false
 	lifecycle++
 	void recordsRef.value?.deactivate()
@@ -91,7 +115,7 @@ const actions = [
 ].filter((item) => (!item.nativeOnly || isNative) && (!item.webOnly || !isNative) && canViewPage(item.url) && (!(item.createRequired || item.url === '/pages/pda/sale-create') || canPageAction(item.url, 'create')))
 
 async function go(url) {
-	await recordsRef.value?.deactivate()
+	await deactivate()
 	uni.navigateTo({ url })
 }
 
@@ -105,7 +129,7 @@ async function onLogout() {
 		})
 	})
 	if (!confirmed) return
-	await recordsRef.value?.deactivate()
+	await deactivate()
 	clearAuth()
 	goLogin()
 }

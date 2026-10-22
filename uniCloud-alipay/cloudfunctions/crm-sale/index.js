@@ -10,7 +10,7 @@ const { readComplete, withFinancialEvidence, FinancialReadError } = require('./f
 const db = uniCloud.database()
 const dbCmd = db.command
 const { createService: createMobileSaleService } = require('./mobileSaleCreate')
-const mobileSaleService = createMobileSaleService({ db, createSale: createV2 })
+const mobileSaleService = createMobileSaleService({ db, createSale: createV2, verifyFillingLabel: (data, token) => uniCloud.callFunction({ name:'crm-filling', data:{ action:'resolveFillingLabelV1', data, token } }) })
 const {
 	fetchHiddenCustomerIds,
 	docIsHiddenCustomer
@@ -46,6 +46,8 @@ const APPLY_OFFSET_CREDIT_PAGE = '/pages/sale/apply-offset-credit'
 const AGENT_SALE_BACKFILL_ROLES = new Set(['superadmin'])
 const AGENT_SALE_BACKFILL_CONFIRM_TEXT = 'BACKFILL_AGENT_SALE_BOTTLE_MOVEMENTS'
 const PAGE_ACTION_RULES = {
+	listPdaV1: [{ pagePath: "/pages/pda/sale-create", action: "view" }],
+	getPdaV1: [{ pagePath: "/pages/pda/sale-create", action: "view" }],
 	createMobileV1: [{ pagePath: '/pages/pda/sale-create', action: 'create' }],
 	getMobileCreateResultV1: [{ pagePath: '/pages/pda/sale-create', action: 'view' }],
 	listV2: [{ pagePath: '/pages/sale/list', action: 'view' }],
@@ -5545,6 +5547,8 @@ async function cleanupPaymentMethodV1(user, data, requestId) {
 	}
 }
 
+const pdaSaleRecords = require('./pdaSaleRecords').createService({ db, mentionsHidden: saleMentionsHiddenCustomer, project: applyRemarkMetaToDoc, amounts: doc => computeSaleAmountsForDoc(doc, { allowUnresolved: true }), isAdmin: user => isSuperAdmin(user), hiddenIds: () => fetchHiddenCustomerIds(customers) })
+
 const main = async (event, context) => {
 	void context
 	const { action, data = {}, token } = event
@@ -5561,6 +5565,8 @@ const main = async (event, context) => {
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
+	if (action === 'listPdaV1') return pdaSaleRecords.list(user, data)
+	if (action === 'getPdaV1') return pdaSaleRecords.get(user, data)
 	if (action === 'createMobileV1') return mobileSaleService.create(user, data, requestId, token)
 	if (action === 'getMobileCreateResultV1') return mobileSaleService.getResult(user, data)
 	if (action === 'createV2') return createV2(user, data, requestId, token)

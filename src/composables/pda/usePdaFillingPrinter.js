@@ -1,3 +1,4 @@
+import { issueFillingLabel } from '@/services/pda/fillingLabel'
 import { ref, onBeforeUnmount } from 'vue'
 import { getFillingV1 } from '@/services/filling'
 import { getUser } from '@/services/auth'
@@ -11,7 +12,12 @@ export function usePdaFillingPrinter({ enabled, active, entries }) {
 	let session = null, generation = 0, ownerTimer = null
 	const storage = { getStorageSync: key => uni.getStorageSync(key), setStorageSync: (key, value) => uni.setStorageSync(key, value) }
 	const control = createFillingPrintController({ ownerId, currentOwner, storage, valid, entries, printer: () => session,
-		verify: async entry => verifyCurrentLabel(entry, await getFillingV1({ _id: entry.receipt.fillingId })),
+		verify: async entry => {
+   verifyCurrentLabel(entry, await getFillingV1({ _id: entry.receipt.fillingId }))
+   const result = await issueFillingLabel({ filling_id:entry.receipt.fillingId, operation_id:entry.operationId })
+   if (result?.code !== 0 || !result.data?.qr_url) throw new Error(result?.msg || '标签网址暂不可用，请稍后补打')
+   return result.data
+  },
 		report: (id, text) => { messages.value = { ...messages.value, [id]: text } } })
 	async function connect() {
 		if (!valid() || connecting.value || session?.busy) return
@@ -45,7 +51,7 @@ export function usePdaFillingPrinter({ enabled, active, entries }) {
 	async function reprint(entry) {
 		if (!valid() || busy.value || control.busy) return
 		busy.value = true
-		try { await control.reprint(entry) } finally { busy.value = false }
+		try { return await control.reprint(entry) } finally { busy.value = false }
 	}
 	onBeforeUnmount(close)
 	return { status, connected, connecting, messages, busy, connect, close, reason, reprint,

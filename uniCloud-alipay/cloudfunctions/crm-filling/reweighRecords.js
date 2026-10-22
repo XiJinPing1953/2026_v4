@@ -25,7 +25,7 @@ function numberOrNull(value) {
 	return Number.isFinite(result) ? result : null
 }
 
-function publicRecord(row, mode, byRound = false) {
+function publicRecord(row, mode, byRound = false, includePrint = false) {
 	const filling = mode === 'filling'
 	const weights = filling ? row.reweigh || {} : row
 	const manual = filling && weights.capture_method === 'manual'
@@ -40,6 +40,7 @@ function publicRecord(row, mode, byRound = false) {
 		time_label: { measured: '称重时间', manual: '人工更正时间', saved: '保存时间', unknown: '时间未知' }[timeSource],
 		gross_weight: numberOrNull(weights.gross_weight), tare_weight: numberOrNull(weights.tare_weight), net_weight: numberOrNull(weights.net_weight),
 		...(filling ? { fill_weight: numberOrNull(row.fill_weight) } : {}),
+		...(includePrint && filling ? { operation_id: text(row.operation_id), label: row.reweigh?.label ? { company: row.reweigh.label.company, bottle_no: row.reweigh.label.bottle_no, tare_weight: row.reweigh.label.tare_weight, gross_weight: row.reweigh.label.gross_weight, net_weight: row.reweigh.label.net_weight } : null } : {}),
 		status: filling ? (row.consistency_status === 'complete' ? 'complete' : 'pending') : 'complete'
 	}
 }
@@ -81,6 +82,7 @@ function createReweighRecordsService({ db }) {
 			? { entry_source: 'pda_reweigh', date: data.date }
 			: { date: cmd.and([cmd.gte(`${data.date} 00:00:00`), cmd.lte(`${data.date} 23:59:59`)]) }]
 		if (bottle) conditions.push({ bottle_no: bottle })
+		const summaryConditions = [...conditions]
 		if (cursor) conditions.push(cmd.or([
 			{ created_at: cmd.lt(cursor.created_at) },
 			cmd.and([{ created_at: cursor.created_at }, { _id: cmd.lt(cursor.id) }])
@@ -88,13 +90,40 @@ function createReweighRecordsService({ db }) {
 		const result = await db.collection(mode === 'filling' ? 'crm_fillings' : 'crm_return_reweighs')
 			.where(cmd.and(conditions)).orderBy('created_at', 'desc').orderBy('_id', 'desc').limit(size + 1)
 			.field({ _id: true, bottle_no: true, date: true, created_at: true, gross_weight: true, tare_weight: true,
-				...(byRound ? { operation_id: true, round_id: true } : {}),
+				...((byRound || data.include_print === true) ? { operation_id: true, round_id: true, 'reweigh.label': true } : {}),
 				net_weight: true, fill_weight: true, consistency_status: true, 'capture.sampled_at': true,
 				'reweigh.gross_weight': true, 'reweigh.tare_weight': true, 'reweigh.net_weight': true,
 				'reweigh.capture_method': true, 'reweigh.measured_at': true, 'reweigh.capture.sampled_at': true }).get()
 		if (!Array.isArray(result.data)) throw new Error('复秤记录读取未完成，请重试')
 		const rows = result.data.slice(0, size), more = result.data.length > size, last = rows[rows.length - 1]
-		return { code: 0, data: { rows: rows.map(row => publicRecord(row, mode, byRound)), has_more: more,
+		let summary
+		if (data.include_summary === true && !cursor) {
+			const bottles = new Set(), rounds = new Map()
+			let after = '', count = 0, complete = false
+			// Keyset pages avoid provider aggregate result caps. Never return a partial total.
+			for (let page = 0; page < 200; page++) {
+				const filter = after ? [...summaryConditions, { _id: cmd.gt(after) }] : summaryConditions
+				const part = await db.collection(mode === 'filling' ? 'crm_fillings' : 'crm_return_reweighs')
+					.where(cmd.and(filter)).orderBy('_id', 'asc').limit(100)
+					.field({ _id: true, bottle_no: true, round_id: true, date: true }).get()
+				if (!Array.isArray(part.data)) throw new Error('统计读取未完成，请重试')
+				for (const row of part.data) {
+					count++; bottles.add(text(row.bottle_no))
+					if (mode === 'return' && text(row.round_id)) {
+						const id = text(row.round_id), item = rounds.get(id) || { id, first_time: text(row.date), bottles: new Set() }
+						if (text(row.date) < item.first_time) item.first_time = text(row.date)
+						item.bottles.add(text(row.bottle_no)); rounds.set(id, item)
+					}
+				}
+				if (part.data.length < 100) { complete = true; break }
+				const next = text(part.data[part.data.length - 1]._id)
+				if (!next || next <= after) throw new Error('统计分页异常，请重试')
+				after = next
+			}
+			if (!complete) throw new Error('记录较多，统计尚未完成，请缩小查询范围')
+			summary = { record_count: count, bottle_count: bottles.size, rounds: [...rounds.values()].map(item => ({ id: item.id, first_time: item.first_time, bottle_count: item.bottles.size })) }
+		}
+		return { code: 0, data: { ...(summary ? { summary } : {}), rows: rows.map(row => publicRecord(row, mode, byRound, data.include_print === true)), has_more: more,
 			next_cursor: more ? Buffer.from(JSON.stringify({ ...scope, created_at: last.created_at, id: last._id })).toString('base64') : '' } }
 	}
 	return { list }

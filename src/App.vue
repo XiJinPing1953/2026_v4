@@ -35,6 +35,10 @@ export default {
       return authBootstrapPromise
     },
     async checkAuthAndRedirect() {
+      // Public label route only exposes the token-scoped server projection.
+      // #ifdef H5
+      if (typeof window !== 'undefined' && /^#\/pages\/public\/filling-label(?:\?|$)/.test(window.location.hash)) return
+      // #endif
       const result = await syncCurrentUser({ force: true })
       if (result?.code === 401) {
         await goLogin({ captureCurrent: true })

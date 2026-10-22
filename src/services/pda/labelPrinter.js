@@ -13,10 +13,14 @@ export function normalizePrintLabel(label) {
 }
 export function labelQrText(value) {
 	const l = normalizePrintLabel(value)
+ if (value.qr_url) {
+  if (!/^https:\/\/env-00jxuffegf2n-static\.normal\.cloudstatic\.cn\/#\/pages\/public\/filling-label\?/.test(value.qr_url) || value.qr_url.length > 500) throw new Error('标签网址无效')
+  return value.qr_url
+ }
 	return `新拓能源、瓶号：${l.bottle_no}、皮重：${l.tare_weight.toFixed(1)} kg、毛重：${l.gross_weight.toFixed(1)} kg、净重：${l.net_weight.toFixed(1)} kg`
 }
 export function labelLayout(value, test = false) {
-	const l = normalizePrintLabel(value), qr = labelQrText(l)
+	const l = normalizePrintLabel(value), qr = labelQrText(value)
 	const lines = []
 	const no = `瓶号: ${l.bottle_no}`
 	// TSS24.BF2: Chinese 24 dots, ASCII 12 dots. 400-dot wide stock.
@@ -27,9 +31,9 @@ export function labelLayout(value, test = false) {
 	const left = Math.floor((400 - Math.max(...lines.map(width))) / 2)
 	// The validated native command uses GB Chinese bytes and automatic QR encoding.
 	const bytes = [...qr].reduce((n, ch) => n + (ch.charCodeAt(0) > 127 ? 2 : 1), 0)
-	const version = [14, 26, 42, 62, 84, 106, 122, 152, 180, 213].findIndex(capacity => bytes <= capacity) + 1
+	const version = [14, 26, 42, 62, 84, 106, 122, 152, 180, 213, 251, 287, 331, 362, 412, 450, 504].findIndex(capacity => bytes <= capacity) + 1
 	if (!version) throw new Error('标签内容过长，暂不能打印')
-	const moduleSize = version >= 9 ? 4 : 5
+	const moduleSize = version >= 12 ? 3 : version >= 9 ? 4 : 5
 	const qrWidth = (17 + version * 4) * moduleSize
 	return { label: l, qr, qrX: Math.floor((400 - qrWidth) / 2), qrY: 352, moduleSize, lines: lines.map((text, i) => ({ text, x: left, y: 112 + i * 36 })), test }
 }
@@ -71,11 +75,12 @@ export function createLabelPrinterSession(plugin, update = () => {}) {
 			timer = setTimeout(() => { if (!closed && !connected) { session.close(); update({ connected: false, connecting: false, message: '打印机连接超时，请重连' }) } }, 15000)
 			plugin.bluetoothConn(address)
 		},
-		async print(label, test = false) {
+		async print(label, test = false) { return session.sendDocument(plugin => writeLabel(plugin, copy(label), test)) },
+		async sendDocument(writer) {
 			if (closed || !connected) throw new Error('打印机未连接')
 			if (sending) throw new Error('上一张正在发送，请稍后补打')
 			sending = true
-			try { writeLabel(plugin, copy(label), test) }
+			try { writer(plugin) }
 			finally {
 				// SDK provides no completion callback. Serialize sends and absorb double taps.
 				await new Promise(resolve => { sendTimer = setTimeout(resolve, 1500) })

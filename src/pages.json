@@ -6,6 +6,7 @@
 				"navigationBarTitleText": "工作台"
 			}
 		},
+ {"path":"pages/public/filling-label","style":{"navigationBarTitleText":"新拓能源"}},
 		{
 			"path": "pages/login/login",
 			"style": {

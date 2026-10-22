@@ -57,13 +57,13 @@ export function createFillingPrintController({ ownerId, currentOwner, storage, v
 				return false
 			}
 			sending = true; acquired = true
-			await verify(entry, label)
+			const verified = await verify(entry, label)
 			if (!allowed() || version !== generation) return false
 			if (!connection.connected || connection !== printer()) throw new Error('打印机连接已变化，标签未打印')
 			// Durable lock precedes every native write. Never infer paper delivery from SDK return.
 			record(id, 'attempted', label)
 			if (!allowed() || version !== generation) return false
-			await connection.print(label)
+			await connection.print({ ...label, ...(verified?.qr_url ? { qr_url: verified.qr_url } : {}) })
 			notify('标签已发送，请查看出纸')
 			return true
 		} catch (error) { notify(`记录已保存，${error.message || '标签发送结果不明'}；请查看出纸后再补打`); return false }

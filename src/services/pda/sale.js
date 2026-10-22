@@ -319,6 +319,7 @@ export function buildMobileSalePayload(form, options = {}) {
 			return {
 				...row,
 				weight_source: source?.weightSource || '',
+    filling_label_token: source?.weightSource === 'filling_reweigh' ? source?.fillingLabelToken || '' : '',
 				weight_sampled_at: source?.weightSampledAt || null,
 				scale_session_id: source?.scaleSessionId || '',
 				scale_stable_seq: Number(source?.scaleStableSeq || 0)

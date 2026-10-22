@@ -1,0 +1,29 @@
+const test = require('node:test'), assert = require('node:assert/strict')
+const { createFillingLabels, qrUrl, snapshot } = require('../uniCloud-alipay/cloudfunctions/crm-filling/fillingLabels')
+const fs = require('fs'), vm = require('vm')
+const frontend = vm.runInNewContext(fs.readFileSync('src/services/pda/fillingLabel.js','utf8').replace(/^import.*\n/gm,'').replace(/^export /gm,'')+';({parseFillingLabel})')
+const label = { company:'新拓能源', bottle_no:'90', tare_weight:110, gross_weight:185.5, net_weight:75.5 }
+function harness() {
+ const row = { _id:'f1', entry_source:'pda_reweigh', bottle_no:'90', operation_id:'op1', source_version:1, operator:'王师傅', created_at:100, reweigh:{label,measured_at:1792567380000} }
+ const tables = {crm_fillings:[row],crm_filling_labels:[]}
+ const db = { command:{gt:v=>({gt:v})},collection:name=>{
+  const q = where => ({ get:async()=>({data:tables[name].filter(r=>Object.entries(where).every(([k,v])=>v?.gt!==undefined?r[k]>v.gt:r[k]===v))}),limit(){return this} })
+  return {doc:id=>q({_id:id}),where:q,add:async d=>tables[name].push(d)}
+ }}
+ return {tables,row,api:createFillingLabels({db})}
+}
+test('opaque token exposes whitelist only, URL weights tamper rejected, correction and later filling invalidate', async()=>{
+ const h=harness(), issued=await h.api.issue({_id:'worker'},{filling_id:'f1',operation_id:'op1'})
+ assert.equal(issued.code,0)
+ const parsed=frontend.parseFillingLabel(issued.data.qr_url)
+ assert.equal(parsed.bottle_no,'90'); assert.match(parsed.token,/^[a-f0-9]{48}$/)
+ const publicRead=await h.api.read({token:parsed.token});assert.equal(publicRead.data.operator,'王师傅');assert.equal(publicRead.data.valid,true);assert.equal(publicRead.data.filling_id,undefined);assert.match(publicRead.data.weighed_at,/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/)
+ assert.equal((await h.api.read({...parsed,gross_weight:1},true)).code,409)
+ assert.equal((await h.api.read(parsed,true)).code,0)
+ h.row.source_version++; assert.equal((await h.api.read(parsed,true)).code,409);assert.equal((await h.api.read(parsed)).data.valid,false)
+ h.row.source_version--;h.tables.crm_fillings.push({...h.row,_id:'f2',created_at:101});assert.equal((await h.api.read(parsed,true)).code,409)
+})
+test('unknown tokens have no data; original registration URLs remain outside label parser',async()=>{
+ const h=harness();assert.equal((await h.api.read({token:'f1'})).code,404);assert.equal(frontend.parseFillingLabel('https://example.com/90'),null)
+ assert.throws(()=>frontend.parseFillingLabel('https://env-00jxuffegf2n-static.normal.cloudstatic.cn/#/pages/public/filling-label?t=bad'))
+})

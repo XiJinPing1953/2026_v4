@@ -1,5 +1,6 @@
 <template>
 	<AppPage class="pda-compact-page pda-compact-page--inner native-sale" hideBottleQuery>
+		<view class="buttons"><text>{{ printer.status.value }}</text><AppButton :disabled="printer.busy.value || printer.connecting.value" @click="printer.connect">连接打印机</AppButton><AppButton v-if="printer.busy.value" @click="printer.stop">停止打印</AppButton></view>
 		<view class="sale-steps" aria-label="销售步骤">
 			<view v-for="(title, index) in titles" :key="title" :class="['sale-step', step === index + 1 && 'sale-step--active']">
 				<text>{{ index + 1 }} {{ title }}</text>
@@ -17,6 +18,7 @@
 			<view class="buttons">
 				<AppButton v-if="submissionLocked && receipt.status !== 'saved'" :loading="submitting" @click="query">查询保存结果</AppButton>
 				<AppButton v-if="receipt.status === 'unknown'" kind="outline" :disabled="submitting" @click="save(true)">重试这单</AppButton>
+				<AppButton v-if="receipt.sourceSaved === true" :disabled="printer.busy.value" @click="printer.print(receipt.saleId)">补打销售单</AppButton>
 				<AppButton v-if="receipt.sourceSaved === true" :disabled="submitting" @click="openNext">开下一单</AppButton>
 			</view>
 		</view>
@@ -109,7 +111,7 @@ import { listPdaCustomers, resolvePdaCustomerPricing } from '@/services/pda/cust
 import { listPdaDeliveries } from '@/services/pda/delivery'
 import { listPdaVehicles } from '@/services/pda/vehicle'
 
-const { captureMinimum, sale, step, direction, outRows, backRows, rows, current, currentId, snapshot, busy, locked, error, message, changes, weighed,
+const { printer, captureMinimum, sale, step, direction, outRows, backRows, rows, current, currentId, snapshot, busy, locked, error, message, changes, weighed,
 	chooseBottle, selectCustomer, go, connect, disconnect, reweigh, remove, save, query, restore, discard, nextSale, applyChanges, activate, deactivate } = usePdaNativeSale()
 const { form, selectedCustomer, customerKeyword, draftStatus, receipt, submissionLocked, submitting } = sale
 const titles = ['客户', '出瓶', '回瓶', '确认']

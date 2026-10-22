@@ -16,6 +16,8 @@ function harness(t, options = {}) {
 		Date, String, Boolean, Array, Map, Promise, ...vue, onBeforeUnmount: fn => hooks.push(fn),
 		getUser: () => ({ _id: owner }), canViewPage: url => !options.onlyFilling || url === '/pages/pda/reweigh',
 		isPdaAppMode: () => true, normalizeBottleNo: value => String(value || '').trim().toUpperCase(),
+		localFillingRounds: () => options.localRounds || [], uni: { getStorageSync: () => '' },
+		listReturnReweighRoundRecordsV1: request('round'),
 		listReturnReweighRecordsV1: request('return'), listFillingReweighRecordsV1: request('filling'),
 		resolvePdaBottleByQrCode: options.resolveQr || (async rawText => ({ code: 0, data: { bottle_no: rawText } })),
 		enterBarcodeSession: async params => { registrations.push(params.page); callback = params.onResult; return options.enter ? options.enter(params) : { code: 0 } },
@@ -131,4 +133,28 @@ test('home hide before nextTick prevents late scanner activation and resumes onl
 	home.recordsRef.value = { activate: async () => { starts++ }, deactivate: () => {} }
 	await home.activate(); const opening = home.openRecords(); home.deactivate(); await opening
 	assert.equal(starts, 0); await home.activate(); assert.equal(starts, 1)
+})
+
+
+test('ended local filling round is selectable without changing or migrating the stored drafts', async t => {
+ const localRounds = [{ id: 'old-round', first_time: '2026-10-21 12:00:00', bottle_count: 55, rows: Array.from({ length: 55 }, (_, i) => ({ id: `old-${i}`, bottle_no: String(i) })) }]
+ const h = harness(t, { onlyFilling: true, localRounds })
+ await h.form.activate(); await tick()
+ assert.equal(h.form.rounds.value.length, 1)
+ h.form.setFilter('round', 'old-round'); await h.form.search()
+ assert.equal(h.form.rows.value.length, 55)
+ assert.equal(h.form.summary.value.bottle_count, 55)
+ assert.equal(h.requests.length, 1)
+ h.setOwner('other'); await h.form.search()
+ assert.equal(h.form.rows.value.length, 0); assert.equal(h.form.rounds.value.length, 0)
+})
+
+test('return historical round uses server round scope and full summary rather than page length', async t => {
+ const h = harness(t, { request: async (data, count) => ({ code: 0, data: { rows: [{ id: 'r', bottle_no: '1' }], has_more: false, summary: { bottle_count: 55, record_count: 57, rounds: [{ id: 'old-round', first_time: '2026-10-21 12:00:00', bottle_count: 55 }] } } }) })
+ await h.form.activate(); await tick()
+ assert.equal(h.form.summary.value.bottle_count, 55)
+ assert.equal(h.requests[0].include_summary, true)
+ h.form.setFilter('round', 'old-round'); await h.form.search()
+ assert.equal(h.requests[1].type, 'round'); assert.equal(h.requests[1].round_id, 'old-round')
+ assert.equal(h.form.summary.value.record_count, 57)
 })

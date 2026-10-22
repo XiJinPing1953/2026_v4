@@ -192,3 +192,31 @@ test('return round restoration requires return-view permission and owned round; 
 	seedRound(app, 'operator_round_20261021', 'operator')
 	assert.equal((await app.invoke(roundAction, { round_id: 'operator_round_20261021' }, 'operator')).code, 0)
 })
+
+test('explicit summary reads entire owned scope and deduplicates bottles beyond the displayed page', async () => {
+ const app = fixture(); seedRound(app)
+ for (let i = 0; i < 127; i++) seed(app, 'return', `r${String(i).padStart(3, '0')}`, { bottle_no: String(i % 55), round_id: roundId })
+ seed(app, 'return', 'foreign', { created_by: 'other', bottle_no: '999' })
+ const response = await app.invoke(actions.return, { date: day, page_size: 30, include_summary: true })
+ assert.equal(response.code, 0)
+ assert.equal(response.data.rows.length, 30)
+ assert.equal(response.data.summary.record_count, 127)
+ assert.equal(response.data.summary.bottle_count, 55)
+ assert.equal(response.data.summary.rounds[0].bottle_count, 55)
+ assert.deepEqual(app.reads, [31, 100, 100])
+ const scoped = await app.invoke(actions.return, { date: day, bottle_no: '1', include_summary: true })
+ assert.equal(scoped.data.summary.bottle_count, 1)
+ assert.equal(scoped.data.summary.record_count, 3)
+})
+
+test('print history exposes only stored label snapshot, never fabricates one from weights', async () => {
+ const app = fixture()
+ const row = seed(app, 'filling', 'label', { operation_id: 'op-label' })
+ row.reweigh.label = { company: '新拓能源', bottle_no: '282', tare_weight: 110, gross_weight: 120, net_weight: 10, secret: 'private' }
+ seed(app, 'filling', 'legacy')
+ const result = await app.invoke(actions.filling, { date: day, include_print: true, include_summary: true })
+ assert.equal(result.data.summary.record_count, 2)
+ assert.equal(result.data.rows.find(item => item.id === 'label').operation_id, 'op-label')
+ assert.equal(result.data.rows.find(item => item.id === 'legacy').label, null)
+ assert.ok(!JSON.stringify(result).includes('private'))
+})

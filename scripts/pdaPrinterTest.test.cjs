@@ -62,3 +62,10 @@ test('authoritative correction, deletion or unavailable read prevents stale repr
 test('late read after page exit or account switch never sends',async()=>{
  let finish;const h=harness({verify:()=>new Promise(resolve=>finish=resolve)});const pending=h.control.reprint(h.e);h.control.close();finish();await pending;assert.equal(h.calls.length,0)
 })
+test('issued URL remains intact and its longer QR fits 50x80 stock with long bottle',async()=>{
+ const {qrUrl}=require('../uniCloud-alipay/cloudfunctions/crm-filling/fillingLabels')
+ const m=modules(),label={...m.TEST_LABEL,bottle_no:'A'.repeat(48)}
+ const url=qrUrl({_id:'a'.repeat(48),snapshot:label}),layout=m.labelLayout({...label,qr_url:url})
+ assert.equal(layout.qr,url);assert.ok(layout.qrX>=20);assert.ok(layout.qrY+(400-2*layout.qrX)+20<=640)
+ const h=harness({verify:async()=>({qr_url:url})});arm(h);h.control.confirmed(h.e,true);await tick();assert.equal(h.calls[0].qr_url,url)
+})
