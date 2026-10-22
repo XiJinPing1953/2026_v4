@@ -1,1 +1,39 @@
-{"bsonType":"object","description":"不可枚举充装标签公开快照；仅云函数读写","permission":{"read":false,"create":false,"update":false,"delete":false},"required":["filling_id","operation_id","source_version","snapshot"],"properties":{"_id":{"bsonType":"string"},"filling_id":{"bsonType":"string"},"operation_id":{"bsonType":"string"},"source_version":{"bsonType":"number"},"snapshot":{"bsonType":"object"},"created_at":{"bsonType":"number"},"created_by":{"bsonType":"string"}}
+{
+  "bsonType": "object",
+  "description": "不可枚举充装标签公开快照；仅云函数读写",
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "required": [
+    "filling_id",
+    "operation_id",
+    "source_version",
+    "snapshot"
+  ],
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "filling_id": {
+      "bsonType": "string"
+    },
+    "operation_id": {
+      "bsonType": "string"
+    },
+    "source_version": {
+      "bsonType": "number"
+    },
+    "snapshot": {
+      "bsonType": "object"
+    },
+    "created_at": {
+      "bsonType": "number"
+    },
+    "created_by": {
+      "bsonType": "string"
+    }
+  }
+}

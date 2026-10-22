@@ -27,3 +27,8 @@ test('unknown tokens have no data; original registration URLs remain outside lab
  const h=harness();assert.equal((await h.api.read({token:'f1'})).code,404);assert.equal(frontend.parseFillingLabel('https://example.com/90'),null)
  assert.throws(()=>frontend.parseFillingLabel('https://env-00jxuffegf2n-static.normal.cloudstatic.cn/#/pages/public/filling-label?t=bad'))
 })
+test('deployed schema is valid JSON and denies all direct client access',()=>{
+ const schema=JSON.parse(fs.readFileSync('uniCloud-alipay/database/crm_filling_labels.schema.json','utf8'))
+ for(const action of ['read','create','update','delete'])assert.equal(schema.permission[action],false)
+ assert.ok(schema.required.includes('snapshot'));assert.equal(schema.properties.snapshot.bsonType,'object')
+})
