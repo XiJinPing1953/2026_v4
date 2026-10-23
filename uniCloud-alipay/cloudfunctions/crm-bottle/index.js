@@ -98,6 +98,7 @@ const PAGE_ACTION_RULES = {
 	backfillRegFieldsV1: [{ pagePath: '/pages/bottle/list', action: 'update' }]
 }
 const SUPERADMIN_ONLY_ACTIONS = [
+	'suspendPrefixesV1',
 	'repairXAliasesV1',
 	'backfillBottleSortKeysV1',
 	'auditUniqueFieldsV1',
@@ -3145,6 +3146,10 @@ exports.main = async (event, context) => {
 	})
 	if (!acl.ok) return { code: acl.code, msg: acl.msg }
 
+	if (action === 'suspendPrefixesV1') {
+		try { return await require('./suspendPrefixes').run({ db, data, user }) }
+		catch (e) { return { code: 409, msg: e.message } }
+	}
 	if (action === 'repairXAliasesV1') {
 		try { return await require('./aliasRepair').repair({ db, data, user, helpers: { mergeFields: DUPLICATE_MERGE_FIELDS, merge: buildCanonicalMergePatch, sort: buildBottleNoSortMeta, state: buildExpectedBottleState } }) }
 		catch (e) { return { code: 409, msg: e.message } }

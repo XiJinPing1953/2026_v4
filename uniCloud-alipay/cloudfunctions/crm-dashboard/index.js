@@ -234,8 +234,8 @@ async function fetchAll(collection, where, field) {
 
 async function countInspectionDueByField(field, today, dueEnd, hiddenWhere = null) {
 	const validDateRx = db.RegExp({ regexp: '^\\d{4}-\\d{2}-\\d{2}$', options: '' })
-	const overdueWhere = dbCmd.and([{ [field]: validDateRx }, { [field]: dbCmd.lt(today) }])
-	const dueWhere = dbCmd.and([{ [field]: validDateRx }, { [field]: dbCmd.gte(today) }, { [field]: dbCmd.lte(dueEnd) }])
+	const overdueWhere = dbCmd.and([{ is_active: true }, { [field]: validDateRx }, { [field]: dbCmd.lt(today) }])
+	const dueWhere = dbCmd.and([{ is_active: true }, { [field]: validDateRx }, { [field]: dbCmd.gte(today) }, { [field]: dbCmd.lte(dueEnd) }])
 	const overdueRes = await bottles.where(mergeVisibilityWhere(dbCmd, overdueWhere, hiddenWhere)).count()
 	const dueRes = await bottles.where(mergeVisibilityWhere(dbCmd, dueWhere, hiddenWhere)).count()
 	const overdue = Number(overdueRes.total || 0)
