@@ -302,7 +302,8 @@ function alipayIdOmission(tables, onDocument) {
 }
 
 test('Alipay automatic-ID omissions in both count and get are recovered by verified document reads', async () => {
-  const db = alipayIdOmission(destinationsFixture())
+  const documents = []
+  const db = alipayIdOmission(destinationsFixture(), (name, id) => documents.push(`${name}:${id}`))
   const { data } = await run(db)
   assert.equal(data.read_complete, true)
   assert.equal(data.complete, true, JSON.stringify(data.cash))
@@ -311,6 +312,9 @@ test('Alipay automatic-ID omissions in both count and get are recovered by verif
   assert.equal(data.cash.destinations.prior_period, 20)
   assert.equal(data.cash.destinations.future_period, 10)
   assert.equal(data.cash.destinations.refunded_after_or_current, 10)
+  assert.equal(documents.includes('crm_sale_records:same'), false, 'period sales are reused with their verification dependency')
+  assert.equal(documents.includes('crm_customer_receipts:r'), false, 'period cash sources are reused')
+  assert.equal(documents.filter(value => value === 'crm_sale_records:prior').length, 2, 'outside-period fallback is read then verified')
   assert.equal(db.writes.length, 0)
 })
 
@@ -340,6 +344,18 @@ test('fallback documents are fingerprinted again so legacy changes without times
   assert.equal(result.data.cash.net, 95)
   assert.equal(result.data.cash.destinations.complete, false)
   assert.equal(has(result.data.cash.destinations, 'records_changed_during_brief'), true)
+})
+
+test('a fallback document changed after request start is rejected even when both document reads would be identical', async () => {
+  for (const field of ['created_at', 'updated_at']) {
+    const tables = destinationsFixture()
+    tables.crm_sale_records.find(row => row._id === 'prior')[field] = Date.now() + 1000
+    const result = await run(alipayIdOmission(tables))
+    assert.equal(result.data.read_complete, false, field)
+    assert.equal(result.data.cash.net, 95)
+    assert.equal(result.data.cash.destinations.complete, false)
+    assert.equal(has(result.data.cash.destinations, 'records_changed_during_brief'), true)
+  }
 })
 
 test('reference read failure or concurrent allocation change invalidates only dependent domains', async () => {

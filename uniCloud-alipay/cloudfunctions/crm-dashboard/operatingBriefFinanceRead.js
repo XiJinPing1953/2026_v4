@@ -29,8 +29,24 @@ const fingerprint = value => JSON.stringify(value, (_key, child) => child && typ
   ? Object.fromEntries(Object.keys(child).sort().map(key => [key, child[key]])) : child)
 
 async function readBriefFinance(db, data, helpers, range, { version, summarizeOperations }) {
-  const started = Date.now(), command = db.command, reads = [], documentReads = [], allowed = new Map(), errors = Object.fromEntries(ALL.map(key => [key, []]))
+  const started = Date.now(), command = db.command, reads = [], documentReads = [], sourceCache = new Map(), allowed = new Map(), errors = Object.fromEntries(ALL.map(key => [key, []]))
   let sourceReadComplete = true
+  let activeDocuments = 0
+  const documentWaiters = []
+  async function documentGet(name, id) {
+    if (activeDocuments < DOCUMENT_CONCURRENCY) activeDocuments++
+    else await new Promise(resolve => documentWaiters.push(resolve))
+    try { return await db.collection(name).doc(id).get() }
+    finally {
+      const next = documentWaiters.shift()
+      if (next) next()
+      else activeDocuments--
+    }
+  }
+  function remember(name, id, row, record) {
+    if (!sourceCache.has(name)) sourceCache.set(name, new Map())
+    sourceCache.get(name).set(id, { row, record })
+  }
   function failed(tags, error, name) {
     const details = error?.details || {}
     const safe = F.issue({ code: error?.code, details: { ...details, source_type: details.source_type || name } }, allowed)
@@ -41,7 +57,9 @@ async function readBriefFinance(db, data, helpers, range, { version, summarizeOp
       const rows = await readComplete(db.collection(name), where, { command, field, source: name })
       if (!allowed.has(name)) allowed.set(name, new Set())
       for (const row of rows) if (row.is_hidden !== true) allowed.get(name).add(F.text(row._id))
-      reads.push({ name, where, tags, count: rows.length })
+      const record = { name, where, tags, count: rows.length }
+      reads.push(record)
+      if (!field) for (const row of rows) remember(name, F.text(row._id), row, record)
       return rows
     } catch (error) { sourceReadComplete = false; failed(tags, error, name); return [] }
   }
@@ -57,20 +75,40 @@ async function readBriefFinance(db, data, helpers, range, { version, summarizeOp
   async function missingDocument(name, id, tags) {
     if (!visibilityKnown) return null
     try {
-      const row = documentFromResult(await db.collection(name).doc(id).get(), id, name)
-      documentReads.push({ name, id, tags, fingerprint: fingerprint(row) })
+      const row = documentFromResult(await documentGet(name, id), id, name)
+      // A write after this request began may precede the first fallback read;
+      // two equal fingerprints alone would miss that cross-source change.
+      if (row && ['created_at', 'updated_at'].some(field => Number.isFinite(Number(row[field])) && Number(row[field]) >= started))
+        throw new FinancialReadError('records_changed_during_brief', { source: name })
+      const record = { name, id, tags, fingerprint: fingerprint(row) }
+      documentReads.push(record)
       // A document lookup bypasses the query's visibility predicate. Apply the
       // exact same source/customer exclusion before adding it to any domain.
-      if (!row || hiddenIds.has(F.text(row.customer_id)) || name === F.TABLES.sales && hiddenIds.has(F.text(row.delivery_customer_id))) return null
+      if (!row || hiddenIds.has(F.text(row.customer_id)) || name === F.TABLES.sales && hiddenIds.has(F.text(row.delivery_customer_id))) {
+        remember(name, id, null, record)
+        return null
+      }
       if (!allowed.has(name)) allowed.set(name, new Set())
       allowed.get(name).add(id)
+      remember(name, id, row, record)
       return row
     } catch (error) { sourceReadComplete = false; failed(tags, error, name); return null }
   }
   async function byIds(name, ids, tags, { fields = ['_id'], visible = customerWhere, extra = null } = {}) {
     const rows = [], chunks = batches(ids)
     for (let index = 0; index < chunks.length; index += BATCH_CONCURRENCY) await Promise.all(chunks.slice(index, index + BATCH_CONCURRENCY).map(async batch => {
-      const idsWhere = fields.length === 1 ? { [fields[0]]: command.in(batch) } : command.or(fields.map(key => ({ [key]: command.in(batch) })))
+      const documentIds = fields.length === 1 && fields[0] === '_id' && !extra
+      const requested = documentIds ? batch.filter(id => {
+        const cached = sourceCache.get(name)?.get(id)
+        if (!cached) return true
+        // Reuse already read period sources and attach the new domain to their
+        // original end-of-read verification, rather than querying them again.
+        cached.record.tags = [...new Set([...cached.record.tags, ...tags])]
+        if (cached.row) rows.push(cached.row)
+        return false
+      }) : batch
+      if (!requested.length) return
+      const idsWhere = fields.length === 1 ? { [fields[0]]: command.in(requested) } : command.or(fields.map(key => ({ [key]: command.in(requested) })))
       const where = mergeWhere(command, extra ? command.and([idsWhere, extra]) : idsWhere, visible)
       const found = await safeRead(name, where, tags)
       rows.push(...found)
@@ -78,8 +116,8 @@ async function readBriefFinance(db, data, helpers, range, { version, summarizeOp
       // when both count() and get() consistently return zero. Settlement's
       // getDocsByIds uses this same document fallback; count alone is no proof
       // that a referenced document is absent.
-      if (fields.length === 1 && fields[0] === '_id' && !extra) {
-        const foundIds = new Set(found.map(row => F.text(row._id))), missing = batch.filter(id => !foundIds.has(id))
+      if (documentIds) {
+        const foundIds = new Set(found.map(row => F.text(row._id))), missing = requested.filter(id => !foundIds.has(id))
         for (let offset = 0; offset < missing.length; offset += DOCUMENT_CONCURRENCY) {
           const recovered = await Promise.all(missing.slice(offset, offset + DOCUMENT_CONCURRENCY).map(id => missingDocument(name, id, tags)))
           rows.push(...recovered.filter(Boolean))
@@ -141,7 +179,7 @@ async function readBriefFinance(db, data, helpers, range, { version, summarizeOp
   // deletion/replacement and legacy writes without updated_at are detected.
   for (let index = 0; index < documentReads.length; index += DOCUMENT_CONCURRENCY) await Promise.all(documentReads.slice(index, index + DOCUMENT_CONCURRENCY).map(async record => {
     try {
-      const row = documentFromResult(await db.collection(record.name).doc(record.id).get(), record.id, record.name)
+      const row = documentFromResult(await documentGet(record.name, record.id), record.id, record.name)
       if (fingerprint(row) !== record.fingerprint) throw new FinancialReadError('records_changed_during_brief', { source: record.name })
     } catch (error) { sourceReadComplete = false; failed(record.tags, error, record.name) }
   }))
