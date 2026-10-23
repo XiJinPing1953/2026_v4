@@ -40,3 +40,13 @@ test('old cloudstatic labels remain readable while new labels use the custom dom
  assert.deepEqual(JSON.parse(JSON.stringify(frontend.parseFillingLabel(current))),JSON.parse(JSON.stringify(frontend.parseFillingLabel(legacy))))
  assert.equal(frontend.parseFillingLabel(current.replace('xintuonengyuan.com','xintuonengyuan.com.attacker.example')),null)
 })
+
+test('database snapshot field order never invalidates a matching original label',async()=>{
+ const h=harness(),issued=await h.api.issue({_id:'worker'},{filling_id:'f1',operation_id:'op1'})
+ const parsed=frontend.parseFillingLabel(issued.data.qr_url),stored=h.tables.crm_filling_labels[0]
+ stored.snapshot=Object.fromEntries(Object.entries(stored.snapshot).reverse())
+ assert.equal((await h.api.read({token:parsed.token})).data.valid,true)
+ assert.equal((await h.api.read(parsed,true)).code,0)
+ stored.snapshot.gross_weight++
+ assert.equal((await h.api.read({token:parsed.token})).data.valid,false)
+})

@@ -22,7 +22,7 @@ function createFillingLabels({ db }) {
  async function current(doc) {
   const row = first(await fillings.doc(doc.filling_id).get())
   if (!row || row.operation_id !== doc.operation_id || Number(row.source_version || 0) !== doc.source_version) return false
-  try { if (JSON.stringify(snapshot(row)) !== JSON.stringify(doc.snapshot)) return false } catch (_) { return false }
+  try { if (['company','bottle_no',...fields,'operator','weighed_at'].some(key => snapshot(row)[key] !== doc.snapshot?.[key])) return false } catch (_) { return false }
   // A later filling invalidates this weight for sale, even when its old source still exists.
   const later = first(await fillings.where({ bottle_no: doc.snapshot.bottle_no, created_at: db.command.gt(row.created_at) }).limit(1).get())
   return !later
