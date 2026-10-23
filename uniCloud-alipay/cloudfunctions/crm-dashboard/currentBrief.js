@@ -18,6 +18,7 @@ function unresolved(reason, row, details = {}) {
   error.message = ({
     source_allocation_exceeds_principal: '原单应收与已收口径需核对，请检查货款、其他费用及收款归属',
     receipt_operation_pending: '收款调整尚未完成，请进入客户对账继续处理',
+    refund_backing_mismatch: '退款记录与原收款的已退金额对不上，请核对退款来源',
     invalid_source_precision: '原单金额精度与结算规则不一致，请核对来源',
     fund_source_scope_unresolved: '收款关联来源或客户归属待核，暂不能划分已核实范围'
   })[reason] || '部分账务记录需核对，暂不能汇总'
