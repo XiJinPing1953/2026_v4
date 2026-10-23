@@ -30,3 +30,7 @@ WGT1.0.29（130），原生兼容1.0.17。文件 `crm-pda-1.0.29-09304e04b0e0.wg
 4. 新充装标签手机扫码看公开页，PDA销售出瓶扫码带入；两个复秤模块扫码只带瓶号。双蓝牙、旋转文字、分页、断线与纸张位置待用户实测。
 
 证据：`outputs/trust-audit/2026-10-22-pda-sales-labels/` 的 tests-final.log、review*.log、cloud-verified.json、runtime-checks.json、cloud-smoke.json、web-proof.json、candidate-source.json、release-manifest/latest.json、latest-before.json。生产数据和凭据证据不纳入git。
+
+## 1.0.30 现场打印兼容修复
+
+38u7g账号打印销售单报告 `m.at is not a function`；定位到salePrintPages存瓶分页调用Array.at，旧PDA运行时缺失该方法。改为末项索引访问，src全量搜索无其余.at调用。隔离VM禁用Array.prototype.at测试多页存瓶及逐页发送；30项打印/更新回归通过，Codex review无新增问题。源码`b3a14aa`，WGT1.0.30（131）已发布，包/清单回读一致；SHA256 `b770be99775987658f685e105be0c7975915ec5d8c96b7da8b1c07d81ac6beaa`。3项文件同步PDA工作区；仅WGT，无云函数或网页重发，无业务数据变更。更新后原销售单直接补打，实体打印待用户复测。证据：`outputs/trust-audit/2026-10-23-pda-print-compat/`。
