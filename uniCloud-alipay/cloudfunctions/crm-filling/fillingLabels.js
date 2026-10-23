@@ -1,6 +1,6 @@
 'use strict'
 const crypto = require('crypto')
-const HOST = 'https://env-00jxuffegf2n-static.normal.cloudstatic.cn'
+const HOST = 'https://xintuonengyuan.com'
 const first = r => (r?.data || [])[0]
 const fields = ['tare_weight', 'gross_weight', 'net_weight']
 function minute(value) {

@@ -2,7 +2,7 @@
 	<view class="printer-test">
 		<AppButton kind="outline" @click="toggle">{{ opened ? '收起打印测试' : '打印测试' }}</AppButton>
 		<view v-if="opened" class="printer-test__body">
-			<text>HL300 · 50×80 mm 竖版 · 仅测试</text>
+			<text>HL300 · 60×40 mm 横版 · 仅测试</text>
 			<text>测试瓶 TEST001　皮重 110.0 kg</text>
 			<text>毛重 185.5 kg　净重 75.5 kg</text>
 			<text>新拓能源及以上四项同时放入二维码。测试标签不要贴到实瓶。</text>

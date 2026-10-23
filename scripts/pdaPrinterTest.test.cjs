@@ -41,7 +41,7 @@ test('missing or mutable label never falls back to current bottle master',()=>{
  e.preview.context_hash='changed';assert.throws(()=>m.savedLabel(e));delete e.preview.label;assert.throws(()=>m.savedLabel(e))
 })
 test('layout contains only five fields, centered title and bounded long bottle lines',()=>{
- const m=modules();for(const bottle of ['0015','X046','A'.repeat(48)]){const l=m.labelLayout({...m.TEST_LABEL,bottle_no:bottle});assert.ok(l.lines.every(x=>x.x>=32 && x.y+24<l.qrY-20));assert.ok(l.qrY+(400-2*l.qrX)+20<=640);assert.doesNotMatch(l.qr,/回瓶|灌装量/);assert.match(l.qr,/皮重：110.0 kg/)}
+ const m=modules();for(const bottle of ['0015','X046','A'.repeat(48)]){const l=m.labelLayout({...m.TEST_LABEL,bottle_no:bottle});assert.ok(l.lines.every(x=>x.x>=12 && x.y+24<=276));assert.ok(l.qrX-l.quiet>=228 && l.qrX+l.qrWidth+l.quiet<=480 && l.qrY+l.qrWidth+l.quiet<=308);assert.doesNotMatch(l.qr,/回瓶|灌装量/);assert.match(l.qr,/皮重：110.0 kg/)}
  assert.throws(()=>m.labelLayout({...m.TEST_LABEL,bottle_no:'bad"\nPRINT'}))
 })
 test('native ownership is exclusive, closed late callbacks cannot reconnect or touch scale',async()=>{
@@ -62,10 +62,10 @@ test('authoritative correction, deletion or unavailable read prevents stale repr
 test('late read after page exit or account switch never sends',async()=>{
  let finish;const h=harness({verify:()=>new Promise(resolve=>finish=resolve)});const pending=h.control.reprint(h.e);h.control.close();finish();await pending;assert.equal(h.calls.length,0)
 })
-test('issued URL remains intact and its longer QR fits 50x80 stock with long bottle',async()=>{
+test('issued URL remains intact and its longer QR fits 60x40 stock with long bottle',async()=>{
  const {qrUrl}=require('../uniCloud-alipay/cloudfunctions/crm-filling/fillingLabels')
  const m=modules(),label={...m.TEST_LABEL,bottle_no:'A'.repeat(48)}
  const url=qrUrl({_id:'a'.repeat(48),snapshot:label}),layout=m.labelLayout({...label,qr_url:url})
- assert.equal(layout.qr,url);assert.ok(layout.qrX>=20);assert.ok(layout.qrY+(400-2*layout.qrX)+20<=640)
+ assert.equal(layout.qr,url);assert.ok(layout.qrX>=20);assert.ok(layout.qrY+layout.qrWidth+layout.quiet<=308)
  const h=harness({verify:async()=>({qr_url:url})});arm(h);h.control.confirmed(h.e,true);await tick();assert.equal(h.calls[0].qr_url,url)
 })

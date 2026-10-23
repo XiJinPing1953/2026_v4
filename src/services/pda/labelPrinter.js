@@ -14,38 +14,34 @@ export function normalizePrintLabel(label) {
 export function labelQrText(value) {
 	const l = normalizePrintLabel(value)
  if (value.qr_url) {
-  if (!/^https:\/\/env-00jxuffegf2n-static\.normal\.cloudstatic\.cn\/#\/pages\/public\/filling-label\?/.test(value.qr_url) || value.qr_url.length > 500) throw new Error('标签网址无效')
+  if (!/^https:\/\/(?:xintuonengyuan\.com|env-00jxuffegf2n-static\.normal\.cloudstatic\.cn)\/#\/pages\/public\/filling-label\?/.test(value.qr_url) || value.qr_url.length > 500) throw new Error('标签网址无效')
   return value.qr_url
  }
 	return `新拓能源、瓶号：${l.bottle_no}、皮重：${l.tare_weight.toFixed(1)} kg、毛重：${l.gross_weight.toFixed(1)} kg、净重：${l.net_weight.toFixed(1)} kg`
 }
 export function labelLayout(value, test = false) {
-	const l = normalizePrintLabel(value), qr = labelQrText(value)
-	const lines = []
-	const no = `瓶号: ${l.bottle_no}`
-	// TSS24.BF2: Chinese 24 dots, ASCII 12 dots. 400-dot wide stock.
-	const width = text => [...text].reduce((n, ch) => n + (ch.charCodeAt(0) > 127 ? 24 : 12), 0)
-	let line = ''
-	for (const ch of no) { if (width(line + ch) > 336) { lines.push(line); line = '' } line += ch }
-	lines.push(line, `皮重: ${l.tare_weight.toFixed(1)} kg`, `毛重: ${l.gross_weight.toFixed(1)} kg`, `净重: ${l.net_weight.toFixed(1)} kg`)
-	const left = Math.floor((400 - Math.max(...lines.map(width))) / 2)
-	// The validated native command uses GB Chinese bytes and automatic QR encoding.
-	const bytes = [...qr].reduce((n, ch) => n + (ch.charCodeAt(0) > 127 ? 2 : 1), 0)
-	const version = [14, 26, 42, 62, 84, 106, 122, 152, 180, 213, 251, 287, 331, 362, 412, 450, 504].findIndex(capacity => bytes <= capacity) + 1
-	if (!version) throw new Error('标签内容过长，暂不能打印')
-	const moduleSize = version >= 12 ? 3 : version >= 9 ? 4 : 5
-	const qrWidth = (17 + version * 4) * moduleSize
-	return { label: l, qr, qrX: Math.floor((400 - qrWidth) / 2), qrY: 352, moduleSize, lines: lines.map((text, i) => ({ text, x: left, y: 112 + i * 36 })), test }
+ const l=normalizePrintLabel(value),qr=labelQrText(value)
+ const width=s=>[...s].reduce((n,c)=>n+(c.charCodeAt(0)>127?24:12),0)
+ const lines=[];let line=''
+ for(const ch of `瓶号: ${l.bottle_no}`){if(width(line+ch)>204){lines.push(line);line=''}line+=ch}
+ lines.push(line,`皮重: ${l.tare_weight.toFixed(1)}`,`毛重: ${l.gross_weight.toFixed(1)}`,`净重: ${l.net_weight.toFixed(1)}`)
+ const bytes=[...qr].reduce((n,ch)=>n+(ch.charCodeAt(0)>127?2:1),0)
+ const version=[14,26,42,62,84,106,122,152,180,213,251,287,331,362,412,450,504].findIndex(capacity=>bytes<=capacity)+1
+ if(!version)throw new Error('标签内容过长，暂不能打印')
+ const moduleSize=Math.min(4,Math.floor(228/(25+version*4)))
+ if(moduleSize<3)throw new Error('二维码内容过长，请使用新标签网址')
+ const qrWidth=(17+version*4)*moduleSize,quiet=4*moduleSize
+ const qrX=480-12-quiet-qrWidth,qrY=72+quiet
+ return {label:l,qr,qrX,qrY,qrWidth,quiet,moduleSize,lines:lines.map((text,i)=>({text,x:12,y:72+i*28})),test}
 }
-export function writeLabel(plugin, label, test = false) {
-	const layout = labelLayout(label, test)
-	plugin.clear(); plugin.setSize(50, 80); plugin.setCls(); plugin.setDirection(0); plugin.setReference(0, 0)
-	plugin.setText(104, 24, 'TSS24.BF2', 2, 2, '新拓能源')
-	if (test) plugin.setText(92, 80, 'TSS24.BF2', 1, 1, '测试标签 勿贴实瓶')
-	for (const row of layout.lines) plugin.setText(row.x, row.y, 'TSS24.BF2', 1, 1, row.text)
-	plugin.setQR(layout.qrX, layout.qrY, 'M', layout.moduleSize, 'A', layout.qr)
-	plugin.setPagePrint()
-	return plugin.startPrint()
+export function writeLabel(plugin,label,test=false){
+ const layout=labelLayout(label,test)
+ plugin.clear();plugin.setSize(60,40);plugin.setCls();plugin.setDirection(0);plugin.setReference(0,0)
+ plugin.setText(144,8,'TSS24.BF2',2,2,'新拓能源')
+ for(const row of layout.lines)plugin.setText(row.x,row.y,'TSS24.BF2',1,1,row.text)
+ plugin.setText(12,288,'TSS24.BF2',1,1,test?'测试标签 勿贴实瓶':'重量单位: kg')
+ plugin.setQR(layout.qrX,layout.qrY,'M',layout.moduleSize,'A',layout.qr)
+ plugin.setPagePrint();return plugin.startPrint()
 }
 export function getPairedPrinters(android) {
 	const Adapter = android.importClass('android.bluetooth.BluetoothAdapter'), adapter = Adapter.getDefaultAdapter()

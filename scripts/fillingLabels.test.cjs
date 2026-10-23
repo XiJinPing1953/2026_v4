@@ -14,7 +14,7 @@ function harness() {
 }
 test('opaque token exposes whitelist only, URL weights tamper rejected, correction and later filling invalidate', async()=>{
  const h=harness(), issued=await h.api.issue({_id:'worker'},{filling_id:'f1',operation_id:'op1'})
- assert.equal(issued.code,0)
+ assert.equal(issued.code,0);assert.ok(issued.data.qr_url.startsWith('https://xintuonengyuan.com/#/pages/public/filling-label?'))
  const parsed=frontend.parseFillingLabel(issued.data.qr_url)
  assert.equal(parsed.bottle_no,'90'); assert.match(parsed.token,/^[a-f0-9]{48}$/)
  const publicRead=await h.api.read({token:parsed.token});assert.equal(publicRead.data.operator,'王师傅');assert.equal(publicRead.data.valid,true);assert.equal(publicRead.data.filling_id,undefined);assert.match(publicRead.data.weighed_at,/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/)
@@ -31,4 +31,12 @@ test('deployed schema is valid JSON and denies all direct client access',()=>{
  const schema=JSON.parse(fs.readFileSync('uniCloud-alipay/database/crm_filling_labels.schema.json','utf8'))
  for(const action of ['read','create','update','delete'])assert.equal(schema.permission[action],false)
  assert.ok(schema.required.includes('snapshot'));assert.equal(schema.properties.snapshot.bsonType,'object')
+})
+
+test('old cloudstatic labels remain readable while new labels use the custom domain',()=>{
+ const current=qrUrl({_id:'a'.repeat(48),snapshot:label})
+ const legacy=current.replace('https://xintuonengyuan.com','https://env-00jxuffegf2n-static.normal.cloudstatic.cn')
+ assert.equal(frontend.parseFillingLabel(current).bottle_no,'90')
+ assert.deepEqual(JSON.parse(JSON.stringify(frontend.parseFillingLabel(current))),JSON.parse(JSON.stringify(frontend.parseFillingLabel(legacy))))
+ assert.equal(frontend.parseFillingLabel(current.replace('xintuonengyuan.com','xintuonengyuan.com.attacker.example')),null)
 })
