@@ -95,22 +95,19 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.32",
+      "version": "1.0.33",
       "output": "release/pda",
-      "acceptance": "Vehicle-bound PDA sales history, landscape paginated sales printing, historical reweigh counts/reprint and verified filling label URLs. Physical printer acceptance remains with user.",
+      "acceptance": "Compact 60x40 sales labels: four out/four back on two sheets; balanced filling label text/QR with safe margins. Physical printing remains user acceptance. WGT-only deployment; retained crm-filling is checked as a runtime dependency, not uploaded.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "bcddf8ad6e92cf8aa6317b3a48486c7cb52cd322",
+        "baseCommit": "8ccf33dd325202b486be10fead56b6ce7188bf54",
         "sourceFiles": [
-          "src/components/domain/pda/PdaPrinterTest.vue",
           "src/manifest.json",
-          "src/services/pda/fillingLabel.js",
           "src/services/pda/labelPrinter.js",
-          "src/services/pda/salePrint.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/fillingLabels.js"
+          "src/services/pda/salePrint.js"
         ]
       },
       "integrityScope": "deployment"

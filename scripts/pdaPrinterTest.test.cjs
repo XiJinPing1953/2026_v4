@@ -41,7 +41,7 @@ test('missing or mutable label never falls back to current bottle master',()=>{
  e.preview.context_hash='changed';assert.throws(()=>m.savedLabel(e));delete e.preview.label;assert.throws(()=>m.savedLabel(e))
 })
 test('layout contains only five fields, centered title and bounded long bottle lines',()=>{
- const m=modules();for(const bottle of ['0015','X046','A'.repeat(48)]){const l=m.labelLayout({...m.TEST_LABEL,bottle_no:bottle});assert.ok(l.lines.every(x=>x.x>=12 && x.y+24<=276));assert.ok(l.qrX-l.quiet>=228 && l.qrX+l.qrWidth+l.quiet<=480 && l.qrY+l.qrWidth+l.quiet<=308);assert.doesNotMatch(l.qr,/回瓶|灌装量/);assert.match(l.qr,/皮重：110.0 kg/)}
+ const m=modules();for(const bottle of ['0015','X046','A'.repeat(48)]){const l=m.labelLayout({...m.TEST_LABEL,bottle_no:bottle});assert.ok(l.lines.every(x=>x.x>=16 && x.y+24<=304));assert.ok(l.qrX-l.quiet>=240 && l.qrX+l.qrWidth+l.quiet<=464 && l.qrY-l.quiet>=80 && l.qrY+l.qrWidth+l.quiet<=304);assert.doesNotMatch(l.qr,/回瓶|灌装量/);assert.match(l.qr,/皮重：110.0 kg/)}
  assert.throws(()=>m.labelLayout({...m.TEST_LABEL,bottle_no:'bad"\nPRINT'}))
 })
 test('native ownership is exclusive, closed late callbacks cannot reconnect or touch scale',async()=>{
@@ -66,6 +66,24 @@ test('issued URL remains intact and its longer QR fits 60x40 stock with long bot
  const {qrUrl}=require('../uniCloud-alipay/cloudfunctions/crm-filling/fillingLabels')
  const m=modules(),label={...m.TEST_LABEL,bottle_no:'A'.repeat(48)}
  const url=qrUrl({_id:'a'.repeat(48),snapshot:label}),layout=m.labelLayout({...label,qr_url:url})
- assert.equal(layout.qr,url);assert.ok(layout.qrX>=20);assert.ok(layout.qrY+layout.qrWidth+layout.quiet<=308)
+ assert.equal(layout.qr,url);assert.ok(layout.qrX>=20);assert.ok(layout.qrY+layout.qrWidth+layout.quiet<=304)
  const h=harness({verify:async()=>({qr_url:url})});arm(h);h.control.confirmed(h.e,true);await tick();assert.equal(h.calls[0].qr_url,url)
+})
+
+test('filling text and QR have matching vertical centers and 16-dot safe margins',()=>{
+ const m=modules(),{qrUrl}=require('../uniCloud-alipay/cloudfunctions/crm-filling/fillingLabels')
+ for(const bottle of ['96','X046','B'.repeat(48)]){
+  const label={...m.TEST_LABEL,bottle_no:bottle},url=qrUrl({_id:'a'.repeat(48),snapshot:label}),l=m.labelLayout({...label,qr_url:url})
+  assert.ok(l.moduleSize>=3);assert.equal(l.quiet,4*l.moduleSize)
+  const q={left:l.qrX-l.quiet,right:l.qrX+l.qrWidth+l.quiet,top:l.qrY-l.quiet,bottom:l.qrY+l.qrWidth+l.quiet}
+  assert.ok(q.left>=240&&q.right<=464&&q.top>=80&&q.bottom<=304)
+  const first=l.lines[0],last=l.lines[l.lines.length-1]
+  assert.ok(Math.abs((first.y+last.y+24)/2-(q.top+q.bottom)/2)<=1)
+  assert.equal(last.text,'单位: kg')
+  for(const row of l.lines){const w=[...row.text].reduce((n,c)=>n+(c.charCodeAt(0)>127?24:12),0);assert.ok(row.x>=16&&row.x+w<=220&&row.y>=80&&row.y+24<=304)}
+  const QRCode=require('qrcode-terminal/vendor/QRCode'),Level=require('qrcode-terminal/vendor/QRCode/QRErrorCorrectLevel')
+  const qr=new QRCode(-1,Level.M);qr.addData(url);qr.make();assert.equal(qr.getModuleCount()*l.moduleSize,l.qrWidth)
+ }
+ const testLabel=m.labelLayout(m.TEST_LABEL,true)
+ assert.ok(testLabel.lines.every(row=>row.y+24<=272));assert.ok(testLabel.qrY+testLabel.qrWidth+testLabel.quiet<=272)
 })

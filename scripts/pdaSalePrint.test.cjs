@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 function load(path,names,context={}){let code=fs.readFileSync(path,'utf8').replace(/^import .*$/gm,'').replace(/export /g,'');const c={...context};vm.createContext(c);vm.runInContext(code+'\nthis.api={'+names.join(',')+'}',c);return c.api}
 const {salePrintPages,writeSalePage}=load('src/services/pda/salePrint.js',['salePrintPages','writeSalePage'])
 const sale={_id:'s',biz_mode:'bottle',price_unit:'kg',unit_price:5,should_receive:50,total_net_weight:10,customer_name:'客户',out_items:[{bottle_no:'1',net:12}],back_items:[{bottle_no:'2',net:2}],deposit_rows:[{bottle_no:'1'}]}
-test('landscape pages keep every bottle and formula without changing source',()=>{const doc={...sale,out_items:Array.from({length:40},(_,i)=>({bottle_no:`B${i}`,net:12})),should_receive:2390,total_net_weight:478};const before=JSON.stringify(doc),pages=salePrintPages(doc);assert.ok(pages.length>1);const all=pages.flatMap(p=>p.rows).join('');for(let i=0;i<40;i++)assert.ok(all.includes(`B${i}`));assert.ok(all.includes('2390.00'));assert.equal(JSON.stringify(doc),before);assert.ok(pages.every(p=>p.commands.every(r=>r.y>=40&&r.y+24<=276)));assert.ok(pages.at(-1).rows.at(-1).includes('存瓶'))})
+test('landscape pages keep every bottle and formula without changing source',()=>{const doc={...sale,out_items:Array.from({length:40},(_,i)=>({bottle_no:`B${i}`,net:12})),should_receive:2390,total_net_weight:478};const before=JSON.stringify(doc),pages=salePrintPages(doc);assert.ok(pages.length>1);const all=pages.flatMap(p=>p.rows).join('');for(let i=0;i<40;i++)assert.ok(all.includes(`B${i}`));assert.ok(all.includes('2390.00'));assert.equal(JSON.stringify(doc),before);assert.ok(pages.every(p=>p.commands.every(r=>r.y>=44&&r.y+24<=304)));assert.ok(pages.at(-1).rows.at(-1).includes('存瓶'))})
 test('uses native 60x40 landscape stock and rejects inconsistent/missing weight',()=>{const calls=[];const plugin=new Proxy({},{get:(_,k)=>(...args)=>calls.push([k,...args])});writeSalePage(plugin,salePrintPages(sale)[0]);assert.ok(calls.some(c=>c[0]==='setSize'&&c[1]===60&&c[2]===40));assert.ok(calls.some(c=>c[0]==='setText'));assert.ok(!calls.some(c=>c[0]==='setTextRotation'));assert.throws(()=>salePrintPages({...sale,total_net_weight:99}));assert.throws(()=>salePrintPages({...sale,out_items:[{bottle_no:'1',net:null}]}))})
 const {createService}=require('../uniCloud-alipay/cloudfunctions/crm-sale/pdaSaleRecords')
 test('PDA detail uses server vehicle binding and fails closed when missing',async()=>{let read=0;const db={collection:()=>({doc:()=>({get:async()=>({data:[{car_no:'A'}]})})})};const svc=createService({db,isAdmin:u=>u.admin,hiddenIds:async()=>[],mentionsHidden:()=>false,amounts:()=>{read++;return{amounts:{}}}});assert.equal((await svc.get({_id:'u'},{id:'s',vehicle_no:'A'})).code,403);assert.equal((await svc.get({mobile_sale_defaults:{vehicle_id:'b',vehicle_no:'B'}},{id:'s',vehicle_no:'A'})).code,404);assert.equal(read,0);assert.equal((await svc.get({mobile_sale_defaults:{vehicle_id:'a',vehicle_no:'A'}},{id:'s'})).code,0);assert.equal(read,1)})
@@ -41,7 +41,7 @@ test('legacy PDA runtime without Array.at can paginate deposits and send all pag
  const before=JSON.stringify(doc),pages=c.api.salePrintPages(doc),calls=[]
  const plugin=new Proxy({},{get:(_,key)=>(...args)=>calls.push([key,...args])})
  for(const page of pages)c.api.writeSalePage(plugin,page)
- assert.ok(pages.length>1);assert.ok(pages.every(p=>p.commands.every(r=>r.y>=40&&r.y+24<=276)))
+ assert.ok(pages.length>1);assert.ok(pages.every(p=>p.commands.every(r=>r.y>=44&&r.y+24<=304)))
  assert.ok(pages.map(p=>p.rows.join('')).join('').includes('BOTTLE99'))
  assert.equal(calls.filter(c=>c[0]==='startPrint').length,pages.length)
  assert.equal(JSON.stringify(doc),before)
@@ -53,5 +53,43 @@ test('one bottle per table row exposes original tare/gross/net and preserves mis
  const row=detail.commands.find(c=>c.text==='147').y
  for(const v of ['110.0','122.0','12.0'])assert.ok(detail.commands.some(c=>c.text===v&&c.y===row))
  const missingRow=detail.commands.find(c=>c.text==='90').y;assert.equal(detail.commands.filter(c=>c.text==='未记录'&&c.y===missingRow).length,2)
- assert.ok(pages.every(p=>p.commands.every(c=>c.x>=12&&c.y+24<=276)))
+ assert.ok(pages.every(p=>p.commands.every(c=>c.x>=16&&c.y+24<=304)))
+})
+
+const fourEach={...sale,date:'2026-10-23',car_no:'冀A19E6T',delivery_man:'徐永辉/罗小强',customer_name:'恒昌皮业',out_items:Array.from({length:4},(_,i)=>({bottle_no:String(90+i),tare:110,gross:180,net:70})),back_items:Array.from({length:4},(_,i)=>({bottle_no:String(190+i),tare:110,gross:115,net:5})),unit_price:8,total_net_weight:260,should_receive:2080,deposit_rows:[{bottle_no:'55'}]}
+const dotWidth=s=>[...s].reduce((n,c)=>n+(c.charCodeAt(0)>127?24:12),0)
+function assertBounds(pages){
+ for(const page of pages){
+  const calls=[],plugin=new Proxy({},{get:(_,k)=>(...args)=>calls.push([k,...args])})
+  writeSalePage(plugin,page)
+  const boxes=calls.filter(c=>c[0]==='setText').map(c=>({x:c[1],y:c[2],w:dotWidth(c[6]),h:24,text:c[6]}))
+  for(const b of boxes)assert.ok(b.x>=16&&b.x+b.w<=464&&b.y>=16&&b.y+b.h<=304,JSON.stringify(b))
+  for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++){
+   const a=boxes[i],b=boxes[j]
+   assert.ok(!(a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h),`${a.text} overlaps ${b.text}`)
+  }
+ }
+}
+test('four outgoing and four returning bottles fit two readable sheets including settlement and deposits',()=>{
+ const before=JSON.stringify(fourEach),pages=salePrintPages(fourEach)
+ assert.equal(pages.length,2);assert.match(pages[0].section,/出瓶4瓶/);assert.match(pages[1].section,/回瓶4瓶/)
+ const rows=pages[1].rows.join('');assert.match(rows,/计费 260kg 单价 8元\/kg/);assert.match(rows,/\(280-20\)×8=2080.00元/);assert.match(rows,/存瓶: 55/)
+ for(const [i,items] of [fourEach.out_items,fourEach.back_items].entries())for(const item of items){
+  const cell=pages[i].commands.find(c=>c.text===item.bottle_no);assert.ok(cell)
+  for(const k of ['tare','gross','net'])assert.ok(pages[i].commands.some(c=>c.y===cell.y&&c.text===item[k].toFixed(1)))
+ }
+ assertBounds(pages);assert.equal(JSON.stringify(fourEach),before)
+})
+test('only outgoing or returning prints no empty direction and retains signed formula',()=>{
+ for(const direction of ['out_items','back_items']){
+  const doc={...fourEach,out_items:[],back_items:[],[direction]:fourEach[direction],total_net_weight:direction==='out_items'?280:-20,should_receive:direction==='out_items'?2240:-160}
+  const pages=salePrintPages(doc);assert.ok(!pages.some(p=>p.section.includes(direction==='out_items'?'回瓶':'出瓶')))
+  assert.ok(pages.flatMap(p=>p.rows).join('').includes(`${doc.should_receive.toFixed(2)}元`));assertBounds(pages)
+ }
+})
+test('long metadata, bottle IDs, large amounts, deposit continuation and rounding never overlap or omit',()=>{
+ const doc={...fourEach,customer_name:'非常长的客户名称'.repeat(3),delivery_man:'配送员甲和配送员乙共同配送',out_items:[{bottle_no:'B'.repeat(48),tare:110,gross:100110,net:100000}],back_items:[],total_net_weight:100000,should_receive:800000,rounding_amount:0.5,effective_should_receive:799999.5,deposit_rows:Array.from({length:40},(_,i)=>({bottle_no:'DEPOSIT'+i}))}
+ const pages=salePrintPages(doc),all=pages.flatMap(p=>p.rows).join('')
+ assert.match(all,/800000.00元/);assert.match(all,/抹零: 0.50 元/);assert.match(all,/实应收: 799999.50 元/);assert.match(all,/DEPOSIT39/)
+ assert.equal(pages.flatMap(p=>p.commands).filter(c=>/^B+$/.test(c.text)).map(c=>c.text).join(''),'B'.repeat(48));assertBounds(pages)
 })
