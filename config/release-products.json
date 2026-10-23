@@ -29,14 +29,16 @@
           "uniCloud-alipay/cloudfunctions/crm-dashboard/customerBalanceLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBrief.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistryLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/saleSourceValidation.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/tankLoss.js"
         ],
         "aclCanonicalRevisions": {
           "crm-dashboard": {
             "registry": {
-              "commit": "01638f67599f12aa1582aac0a581f4ef63d83f8a",
-              "sha256": "ca5875fb6017b01bb08fad39895cc7bc9d3f17fe3cc23f7e9fb84af18b209e4f"
+              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
+              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
             }
           },
           "crm-customer-settlement": {
@@ -73,14 +75,16 @@
           "uniCloud-alipay/cloudfunctions/crm-dashboard/customerBalanceLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBrief.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistryLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/saleSourceValidation.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/tankLoss.js"
         ],
         "aclCanonicalRevisions": {
           "crm-dashboard": {
             "registry": {
-              "commit": "01638f67599f12aa1582aac0a581f4ef63d83f8a",
-              "sha256": "ca5875fb6017b01bb08fad39895cc7bc9d3f17fe3cc23f7e9fb84af18b209e4f"
+              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
+              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
             }
           },
           "crm-customer-settlement": {
