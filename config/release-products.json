@@ -6,44 +6,90 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.23-print-60x40",
+      "version": "2026.10.23-operating-brief",
       "output": "dist/build/web",
-      "acceptance": "Vehicle-bound PDA sales history, landscape paginated sales printing, historical reweigh counts/reprint and verified filling label URLs. Physical printer acceptance remains with user.",
+      "acceptance": "Homepage operating brief, vehicle fuel and liquid-level estimated tank loss/surplus; complete read-only sources, missing data stays unavailable. Verify live homepage and independent sections.",
       "deploymentScope": {
         "functions": [
-          "crm-filling"
+          "crm-dashboard",
+          "crm-customer-settlement"
         ],
         "databaseFiles": [],
-        "baseCommit": "bcddf8ad6e92cf8aa6317b3a48486c7cb52cd322",
+        "baseCommit": "acdb2eccf750deee07db4bf0db703f117dc9260c",
         "sourceFiles": [
-          "src/components/domain/pda/PdaPrinterTest.vue",
-          "src/manifest.json",
-          "src/services/pda/fillingLabel.js",
-          "src/services/pda/labelPrinter.js",
-          "src/services/pda/salePrint.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/fillingLabels.js"
-        ]
+          "src/components/domain/dashboard/DashboardHome.vue",
+          "src/components/domain/dashboard/OperatingBrief.vue",
+          "src/composables/dashboard/useOperatingBrief.js",
+          "src/services/api/dashboard.js",
+          "src/services/mappers/operatingBrief.js",
+          "uniCloud-alipay/cloudfunctions/common/customerBalance.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerBalanceLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/currentBrief.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/customerBalanceLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBrief.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/saleSourceValidation.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankLoss.js"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-dashboard": {
+            "registry": {
+              "commit": "01638f67599f12aa1582aac0a581f4ef63d83f8a",
+              "sha256": "ca5875fb6017b01bb08fad39895cc7bc9d3f17fe3cc23f7e9fb84af18b209e4f"
+            }
+          },
+          "crm-customer-settlement": {
+            "registry": {
+              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
+              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.22-pda-sales-labels",
+      "version": "2026.10.23-operating-brief",
       "output": "release/cloud",
-      "acceptance": "Vehicle-bound PDA sales history, landscape paginated sales printing, historical reweigh counts/reprint and verified filling label URLs. Physical printer acceptance remains with user.",
+      "acceptance": "Homepage operating brief, vehicle fuel and liquid-level estimated tank loss/surplus; complete read-only sources, missing data stays unavailable. Verify live homepage and independent sections.",
       "deploymentScope": {
         "functions": [
-          "crm-filling"
+          "crm-dashboard",
+          "crm-customer-settlement"
         ],
         "databaseFiles": [],
-        "baseCommit": "bcddf8ad6e92cf8aa6317b3a48486c7cb52cd322",
+        "baseCommit": "acdb2eccf750deee07db4bf0db703f117dc9260c",
         "sourceFiles": [
-          "src/components/domain/pda/PdaPrinterTest.vue",
-          "src/manifest.json",
-          "src/services/pda/fillingLabel.js",
-          "src/services/pda/labelPrinter.js",
-          "src/services/pda/salePrint.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/fillingLabels.js"
-        ]
+          "src/components/domain/dashboard/DashboardHome.vue",
+          "src/components/domain/dashboard/OperatingBrief.vue",
+          "src/composables/dashboard/useOperatingBrief.js",
+          "src/services/api/dashboard.js",
+          "src/services/mappers/operatingBrief.js",
+          "uniCloud-alipay/cloudfunctions/common/customerBalance.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerBalanceLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/currentBrief.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/customerBalanceLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBrief.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/saleSourceValidation.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankLoss.js"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-dashboard": {
+            "registry": {
+              "commit": "01638f67599f12aa1582aac0a581f4ef63d83f8a",
+              "sha256": "ca5875fb6017b01bb08fad39895cc7bc9d3f17fe3cc23f7e9fb84af18b209e4f"
+            }
+          },
+          "crm-customer-settlement": {
+            "registry": {
+              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
+              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     },

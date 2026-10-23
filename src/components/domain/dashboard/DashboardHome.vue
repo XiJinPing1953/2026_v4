@@ -1,7 +1,7 @@
 <template>
 	<AppPage hideNav :bodyPadding="false">
 		<view class="dashboard">
-			<text v-if="dashboardIssue" role="alert" style="grid-column: 1 / -1">{{ dashboardIssue }}；当前汇总不可用。</text>
+			<text v-if="dashboardIssue" role="alert" style="grid-column: 1 / -1">{{ dashboardIssue }}；运营状态尚未刷新。</text>
 			<view class="dashboard__sidebar">
 				<view class="sidebar-menu">
 					<view class="brand">
@@ -111,6 +111,7 @@
 				</view>
 
 				<view class="dashboard__content">
+					<OperatingBrief :can-view="canView" @navigate="go" />
 					<!-- KPI 横向一行 -->
 						<view class="kpi-row">
 							<AppStatCard
@@ -132,17 +133,7 @@
 								:delta="kpiDelta.inspectionDue"
 								@click="go('/pages/bottle/inspection')"
 							/>
-							<AppStatCard
-								class="kpi-card"
-								label="本月销售"
-								style="overflow-wrap: anywhere"
-							:value="stats.sales"
-							hint="元"
-							:icon="stats.sales.length > 9 ? '' : 'chart'"
-							:delta="kpiDelta.sales"
-							:trend="kpiTrend.sales"
-							@click="go('/pages/sale/list')"
-						/>
+
 						<AppStatCard
 							class="kpi-card"
 							label="在户资产"
@@ -202,107 +193,6 @@
 						</view>
 					</view>
 
-						<view class="overview-grid">
-							<view class="overview-card">
-								<view class="overview-header">
-									<view class="overview-header__left">
-										<text class="overview-title">业务日报</text>
-										<text class="overview-meta">{{ dailyReportRangeLabel }}</text>
-									</view>
-									<view class="overview-header__right">
-										<scroll-view scroll-x class="daily-range-scroll">
-											<view class="daily-range-cards">
-												<view
-													v-for="item in dailyReportRangeOptions"
-													:key="item.value"
-													:class="['daily-range-card', dailyReportRangePreset === item.value ? 'daily-range-card--active' : '']"
-													@click="onDailyReportRangeChange(item.value)"
-												>
-													<text class="daily-range-card__label">{{ item.label }}</text>
-												</view>
-											</view>
-										</scroll-view>
-										<view class="daily-export-wrap">
-											<AppButton
-												size="sm"
-												kind="neutral"
-												:loading="dailyReportExporting"
-												:disabled="!dailyReportCanExport"
-												@click="onExportDailyReport"
-											>
-												导出
-											</AppButton>
-										</view>
-									</view>
-								</view>
-                                <view class="daily-report-toolbar">
-                                    <view class="daily-report-tabs">
-                                        <view :class="['daily-report-tab', dailyReportView === 'main' && 'daily-report-tab--active']" @click="dailyReportView = 'main'">钢瓶与销售</view>
-                                        <view :class="['daily-report-tab', dailyReportView === 'vehicle' && 'daily-report-tab--active']" @click="dailyReportView = 'vehicle'">车辆充装</view>
-                                    </view>
-                                    <text class="daily-report-help" @click="dailyReportShowNotes = !dailyReportShowNotes">{{ dailyReportShowNotes ? '收起说明' : '统计口径' }}</text>
-                                </view>
-                                <view :class="['daily-report-table', dailyReportView === 'vehicle' && 'daily-report-table--vehicle']">
-                                    <view class="daily-report-head daily-report-row">
-                                        <text>日期</text>
-                                        <template v-if="dailyReportView === 'main'"><text>钢瓶充装</text><text>销售</text><text>客户</text></template>
-                                        <template v-else><text>地方车</text><text>车辆燃气补给</text></template>
-                                    </view>
-                                    <view v-for="row in dailyReportDisplayRows" :key="row.date" class="daily-report-row">
-                                        <text class="daily-report-date">{{ shortDateLabel(row.date) }}</text>
-                                        <template v-if="dailyReportView === 'main'">
-                                            <view class="daily-report-cell"><text>{{ formatCompactWeight(row.fillBottleWeightKg) }}</text><text class="daily-report-weight">{{ row.fillBottleCount }} 瓶次</text></view>
-                                            <view class="daily-report-cell"><text>{{ formatCompactWeight(row.saleWeightKg) }}</text><text class="daily-report-weight">{{ row.saleBottleCount }} 瓶</text></view>
-                                            <view class="daily-report-cell"><text>{{ row.saleCustomerCount }} 户</text></view>
-                                        </template>
-                                        <template v-else>
-                                            <view class="daily-report-cell"><text>{{ formatCompactWeight(row.localWeightKg) }}</text><text class="daily-report-weight">{{ row.localCount }} 次</text></view>
-                                            <view class="daily-report-cell"><text>{{ formatCompactWeight(row.vehicleWeightKg) }}</text><text class="daily-report-weight">{{ row.vehicleCount }} 次</text></view>
-                                        </template>
-                                    </view>
-                                </view>
-                                <text v-if="!dailyReportDisplayRows.length" class="overview-meta">当前无预览数据</text>
-                                <text v-if="MONTH_EXPORT_PRESET_SET.has(dailyReportRangePreset)" class="overview-meta">仅预览最近可用日期，完整月份请导出</text>
-                                <view v-if="dailyReportShowNotes" class="daily-report-note">{{ dailyReportPreviewLabel }}。充装按正重量记录计次；客户按日去重，摘要为每日客户户次之和；充装与销售重量之差不代表损耗。</view>
-							</view>
-
-							<view class="overview-aside">
-								<text class="overview-aside__title">预览数据摘要</text>
-								<view class="overview-summary">
-									<view class="overview-summary__item">
-										<text class="overview-summary__label">钢瓶充装瓶次</text>
-										<text class="overview-summary__value">{{ dailyReportDisplaySummary.fillBottleCount }}</text>
-									</view>
-									<view class="overview-summary__item">
-										<text class="overview-summary__label">全部充装重量</text>
-										<text class="overview-summary__value">{{ formatCompactWeight(dailyReportDisplaySummary.fillTotalWeightKg) }}</text>
-									</view>
-									<view class="overview-summary__item">
-										<text class="overview-summary__label">销售瓶数合计</text>
-										<text class="overview-summary__value">{{ dailyReportDisplaySummary.saleBottleCount }}</text>
-									</view>
-									<view class="overview-summary__item">
-										<text class="overview-summary__label">销售重量合计</text>
-										<text class="overview-summary__value">{{ formatCompactWeight(dailyReportDisplaySummary.saleWeightKg) }}</text>
-									</view>
-									<view class="overview-summary__item">
-										<text class="overview-summary__label">成交客户户次</text>
-										<text class="overview-summary__value">{{ dailyReportDisplaySummary.saleCustomerCount }}</text>
-									</view>
-								</view>
-								
-								<view class="overview-mini-chart">
-									<view class="overview-mini-chart__head">
-										<text class="overview-mini-chart__title">预览日期销售重量</text>
-										<text class="overview-mini-chart__value">{{ formatCompactWeight(dailyReportDisplaySummary.saleWeightKg) }}</text>
-									</view>
-									<AppMiniBars :values="dailyReportBarValues" :height="68" :bar-width="18" :gap="10" color="#2563eb" />
-									<view class="overview-mini-chart__labels">
-										<text v-for="row in dailyReportDisplayRows" :key="`label-${row.date}`" class="overview-mini-chart__label">{{ shortDateLabel(row.date) }}</text>
-									</view>
-								</view>
-							</view>
-						</view>
 
 					<AppSection class="dashboard-card" title="业务管理">
 						<view class="nav-grid">
@@ -447,42 +337,6 @@
 					</view>
 				</view>
 
-				<view v-if="!dashboardIssue" class="rail-card">
-					<text class="rail-title">近 7 日新增应收 vs 净收款</text>
-					<view class="receivable-chart">
-						<view v-for="row in receivableChartRows" :key="row.date" class="receivable-day">
-							<view class="receivable-bars">
-								<view class="receivable-bar receivable-bar--receivable" :style="{ height: `${row.receivableHeight}%` }"></view>
-								<view class="receivable-bar receivable-bar--received" :style="{ height: `${row.receivedHeight}%` }"></view>
-							</view>
-							<text class="receivable-label">{{ row.label }}</text>
-						</view>
-					</view>
-					<view class="receivable-legend">
-						<view class="shipment-legend__item">
-							<view class="shipment-legend__dot receivable-legend__dot--receivable"></view>
-							<text class="shipment-legend__label">新增应收</text>
-							<text class="shipment-legend__value">{{ formatCompactAmount(receivableSummary.totalReceivable) }}</text>
-						</view>
-						<view class="shipment-legend__item">
-							<view class="shipment-legend__dot receivable-legend__dot--received"></view>
-							<text class="shipment-legend__label">净收款</text>
-							<text class="shipment-legend__value">{{ formatCompactAmount(receivableSummary.totalReceived) }}</text>
-						</view>
-						<view class="shipment-legend__item">
-							<view class="shipment-legend__dot receivable-legend__dot--gap"></view>
-							<text class="shipment-legend__label">差额</text>
-							<text class="shipment-legend__value">{{ formatCompactAmount(receivableSummary.gapAmount) }}</text>
-						</view>
-						<view class="shipment-legend__item">
-							<view class="shipment-legend__dot receivable-legend__dot--rate"></view>
-							<text class="shipment-legend__label">回款率</text>
-							<text class="shipment-legend__value">{{ formatPercent(receivableSummary.collectionRate) }}</text>
-						</view>
-					</view>
-					<text class="mini-caption">收款按到账日期扣除退款，不含期初转入与非现金冲抵</text>
-				</view>
-
 				<view class="rail-card tank-card">
 					<view class="tank-card__head">
 						<text class="rail-title">储罐监控</text>
@@ -561,20 +415,14 @@ import AppSection from '@/components/base/AppSection.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
 import AppIcon from '@/components/base/AppIcon.vue'
 import AppButton from '@/components/base/AppButton.vue'
-import AppMiniBars from '@/components/base/AppMiniBars.vue'
+import OperatingBrief from './OperatingBrief.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
-import { useQuery } from '@/composables/useQuery'
 import { getDashboardSummaryV1 } from '@/services/dashboard'
 import { mapTankDisplay } from '@/services/mappers/tankDisplay'
-import { listSalesV2 } from '@/services/sale'
 import { clearAuth, getUser } from '@/services/auth'
 import { goLogin } from '@/services/navigation'
 import { normalizeRoleTemplate } from '@/services/pageAclRegistry'
-import {
-	buildDailyReportWorkbookXml,
-	buildDailyReportExportFileName,
-	downloadWorkbookFile as downloadDailyReportWorkbookFile
-} from '@/components/domain/dashboard/exportDailyReportWorkbook'
+
 
 const { requireLogin, canPageAction, canViewPage } = useAuthGuard()
 requireLogin()
@@ -583,7 +431,6 @@ const currentUser = ref(getUser() || null)
 const stats = reactive({
 	anomaly: '-',
 	inspectionDue: '-',
-	sales: '-',
 	atCustomer: '-',
 	inStation: '-'
 })
@@ -591,7 +438,6 @@ const stats = reactive({
 const kpiDelta = reactive({
 	anomaly: '',
 	inspectionDue: '',
-	sales: '',
 	atCustomer: '',
 	inStation: ''
 })
@@ -599,7 +445,6 @@ const kpiDelta = reactive({
 const kpiTrend = reactive({
 	anomaly: '',
 	inspectionDue: '',
-	sales: '',
 	atCustomer: '',
 	inStation: ''
 })
@@ -608,20 +453,6 @@ const inspectionDue = reactive({
 	bottle: { overdue: 0, due_60d: 0 },
 	gauge: { overdue: 0, due_60d: 0 },
 	valve: { overdue: 0, due_60d: 0 }
-})
-const dailyReportSummary = reactive({
-	fillTotalWeightKg: 0,
-	saleTotalWeightKg: 0,
-	customerCount: 0,
-	bottleFillWeightKg: 0,
-	localWeightKg: 0,
-	vehicleWeightKg: 0
-})
-const receivableSummary = reactive({
-	totalReceivable: 0,
-	totalReceived: 0,
-	gapAmount: 0,
-	collectionRate: null
 })
 const tankTelemetry = reactive({
 	levelKpa: null,
@@ -639,96 +470,13 @@ const tankTelemetry = reactive({
 	message: ''
 })
 
-const dailyReportRows = ref([])
-const receivableRows = ref([])
-const dailyReportExporting = ref(false)
-const dailyReportRangeOptions = [
-	{ value: 'today', label: '当日' },
-	{ value: 'yesterday', label: '前一日' },
-	{ value: 'last3', label: '近三日' },
-	{ value: 'last5', label: '近五日' },
-	{ value: 'lastMonth', label: '上月' },
-	{ value: 'thisMonth', label: '当月' }
-]
-const dailyReportRangePreset = ref('last5')
-const dailyReportView = ref('main')
-const dailyReportShowNotes = ref(false)
-const DAILY_REPORT_MAX_VISIBLE_DAYS = 5
-const MONTH_EXPORT_PRESET_SET = new Set(['lastMonth', 'thisMonth'])
-const DASHBOARD_REFRESH_MS = 60000
 const QUICK_REFRESH_MS = 15000
 let quickTimer = null
+let pageVisible = false
 let quickPolling = false
-let pageVisible = true
-const isDashboardPolling = ref(false)
-let dashboardRefreshTimer = null
-
-const dailyReportDateRange = computed(() => resolveDailyReportDateRange(dailyReportRangePreset.value))
-const dailyReportRangeLabel = computed(() => {
-	const { start, end } = dailyReportDateRange.value
-	if (!start || !end) return '-'
-	return start === end ? start : `${start}~${end}`
-})
-const dailyReportExportRows = computed(() => {
-	const { start, end } = dailyReportDateRange.value
-	if (!start || !end) return []
-	return dailyReportRows.value.filter((row) => {
-		const date = String(row?.date || '')
-		return date >= start && date <= end
-	})
-})
-const dailyReportDisplayRows = computed(() => dailyReportExportRows.value.slice(0, DAILY_REPORT_MAX_VISIBLE_DAYS))
-const dailyReportPreviewLabel = computed(() => {
-    const rows = dailyReportDisplayRows.value
-    const scope = rows.length ? `${rows[rows.length - 1].date} ~ ${rows[0].date}（${rows.length}天）` : '无可预览日期'
-    return `当前预览：${scope}${MONTH_EXPORT_PRESET_SET.has(dailyReportRangePreset.value) ? ' · 月份完整数据请导出' : ''}`
-})
-const dailyReportCanExport = computed(() => {
-	if (MONTH_EXPORT_PRESET_SET.has(dailyReportRangePreset.value)) return true
-	return dailyReportExportRows.value.length > 0
-})
-const dailyReportBarValues = computed(() => dailyReportDisplayRows.value.map((row) => Number(row.saleWeightKg || 0)))
-const dailyReportDisplaySummary = computed(() => {
-	const summary = {
-		fillBottleCount: 0,
-		fillBottleWeightKg: 0,
-		localCount: 0,
-		localWeightKg: 0,
-		vehicleCount: 0,
-		vehicleWeightKg: 0,
-		saleCustomerCount: 0,
-		saleBottleCount: 0,
-		saleWeightKg: 0,
-		fillTotalWeightKg: 0
-	}
-	dailyReportDisplayRows.value.forEach((row) => {
-		summary.fillBottleCount += Number(row.fillBottleCount || 0)
-		summary.fillBottleWeightKg = fix2(summary.fillBottleWeightKg + Number(row.fillBottleWeightKg || 0))
-		summary.localCount += Number(row.localCount || 0)
-		summary.localWeightKg = fix2(summary.localWeightKg + Number(row.localWeightKg || 0))
-		summary.vehicleCount += Number(row.vehicleCount || 0)
-		summary.vehicleWeightKg = fix2(summary.vehicleWeightKg + Number(row.vehicleWeightKg || 0))
-		summary.saleCustomerCount += Number(row.saleCustomerCount || 0)
-		summary.saleBottleCount += Number(row.saleBottleCount || 0)
-		summary.saleWeightKg = fix2(summary.saleWeightKg + Number(row.saleWeightKg || 0))
-	})
-	summary.fillTotalWeightKg = fix2(summary.fillBottleWeightKg + summary.localWeightKg + summary.vehicleWeightKg)
-	return summary
-})
-
-const receivableChartRows = computed(() => {
-	const rows = receivableRows.value.length ? receivableRows.value : []
-	const max = Math.max(
-		...rows.map((row) => Math.max(Number(row.receivable || 0), Number(row.received || 0))),
-		1
-	)
-	return rows.map((row) => ({
-		date: row.date,
-		label: shortDateLabel(row.date),
-		receivableHeight: Number(row.receivable || 0) > 0 ? Math.max(Math.round((Number(row.receivable || 0) / max) * 100), 8) : 0,
-		receivedHeight: Number(row.received || 0) > 0 ? Math.max(Math.round((Number(row.received || 0) / max) * 100), 8) : 0
-	}))
-})
+let quickRevision = 0
+let disposed = false
+const dashboardIssue = ref('')
 
 const tankLevelPercent = computed(() => {
 	const num = Number(tankTelemetry.levelPercent)
@@ -783,88 +531,11 @@ function canAction(pagePath, action) {
 	return canPageAction(pagePath, action)
 }
 
-function formatLocalDateYmd(date = new Date()) {
-	const y = date.getFullYear()
-	const m = String(date.getMonth() + 1).padStart(2, '0')
-	const d = String(date.getDate()).padStart(2, '0')
-	return `${y}-${m}-${d}`
-}
-
-function addDaysYmd(baseYmd, days) {
-	const text = String(baseYmd || '').trim()
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return ''
-	const [year, month, day] = text.split('-').map((item) => Number(item))
-	const date = new Date(year, month - 1, day)
-	date.setDate(date.getDate() + Number(days || 0))
-	return formatLocalDateYmd(date)
-}
-
-function getMonthRange(monthOffset = 0) {
-	const now = new Date()
-	const first = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1)
-	const last = new Date(now.getFullYear(), now.getMonth() + monthOffset + 1, 0)
-	return {
-		start: formatLocalDateYmd(first),
-		end: formatLocalDateYmd(last)
-	}
-}
-
-function resolveDailyReportDateRange(preset) {
-	const today = formatLocalDateYmd(new Date())
-	if (preset === 'today') return { start: today, end: today }
-	if (preset === 'yesterday') {
-		const y = addDaysYmd(today, -1)
-		return { start: y, end: y }
-	}
-	if (preset === 'last3') return { start: addDaysYmd(today, -2), end: today }
-	if (preset === 'thisMonth') return getMonthRange(0)
-	if (preset === 'lastMonth') return getMonthRange(-1)
-	return { start: addDaysYmd(today, -4), end: today }
-}
-
-function onDailyReportRangeChange(value) {
-	const text = String(value || '')
-	if (!dailyReportRangeOptions.some((item) => item.value === text)) return
-	dailyReportRangePreset.value = text
-}
-
 function formatNumber(value) {
 	const num = Number(value)
 	if (!Number.isFinite(num)) return '-'
 	if (Math.abs(num) >= 10000) return `${(Math.round((num / 10000) * 10) / 10).toFixed(1)}w`
 	return Math.round(num).toString()
-}
-
-function formatCompactAmount(value) {
-	return `¥${formatFinancialAmount(value)}`
-}
-
-function formatFinancialAmount(value) {
-	const num = value == null || value === '' ? NaN : Number(value)
-	return Number.isFinite(num) ? num.toLocaleString('en-US', { maximumFractionDigits: 3 }) : '待核'
-}
-
-function formatCompactWeight(value) {
-	const num = Number(value)
-	if (!Number.isFinite(num) || num === 0) return '0kg'
-	if (Math.abs(num) >= 1000) return `${formatFixedNoRound(num / 1000, 3)}吨`
-	return `${Math.round(num)}kg`
-}
-
-function formatFixedNoRound(value, digits = 3) {
-	const num = Number(value)
-	if (!Number.isFinite(num)) return '0'
-	const factor = 10 ** Math.max(0, Number(digits) || 0)
-	const sign = num < 0 ? '-' : ''
-	const abs = Math.abs(num)
-	const truncated = Math.trunc(abs * factor) / factor
-	return `${sign}${truncated.toFixed(Math.max(0, Number(digits) || 0))}`
-}
-
-function formatPercent(value) {
-	const num = Number(value)
-	if (!Number.isFinite(num)) return '-'
-	return `${num.toFixed(1)}%`
 }
 
 function formatTankValue(value, unit, digits = 2) {
@@ -893,33 +564,6 @@ function normalizeTankStatus(value) {
 	return 'empty'
 }
 
-function fix2(value) {
-	const num = Number(value || 0)
-	return Math.round(num * 100) / 100
-}
-
-function shortDateLabel(value) {
-	const text = String(value || '').trim()
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return text || '-'
-	return text.slice(5)
-}
-
-function normalizeDailyReportRows(rawRows) {
-	if (!Array.isArray(rawRows)) return []
-	return rawRows.map((row) => ({
-		date: String(row?.date || ''),
-		fillBottleCount: Number((row?.fillBottleCount ?? row?.fill_bottle_count) || 0),
-		fillBottleWeightKg: Number((row?.fillBottleWeightKg ?? row?.fill_bottle_weight) || 0),
-		localCount: Number((row?.localCount ?? row?.local_count) || 0),
-		localWeightKg: Number((row?.localWeightKg ?? row?.local_weight) || 0),
-		vehicleCount: Number((row?.vehicleCount ?? row?.vehicle_count) || 0),
-		vehicleWeightKg: Number((row?.vehicleWeightKg ?? row?.vehicle_weight) || 0),
-		saleCustomerCount: Number((row?.saleCustomerCount ?? row?.sale_customer_count) || 0),
-		saleBottleCount: Number((row?.saleBottleCount ?? row?.sale_bottle_count) || 0),
-		saleWeightKg: Number((row?.saleWeightKg ?? row?.sale_weight) || 0)
-	}))
-}
-
 function applyTankTelemetry(raw) {
 	const tank = mapTankDisplay(raw && typeof raw === 'object' ? raw : {})
 	const toNullableNumber = (value) => {
@@ -940,42 +584,6 @@ function applyTankTelemetry(raw) {
 	tankTelemetry.sampledAt = toNullableNumber(tank.sampled_at ?? tank.sampledAt)
 	tankTelemetry.updatedAt = toNullableNumber(tank.updated_at ?? tank.updatedAt)
 	tankTelemetry.message = String(tank.message || '').trim()
-}
-
-const dashboardIssue = ref('')
-function applyDashboard(data) {
-	if (!data) return
-	dashboardIssue.value = data.load_error || ''
-	if (dashboardIssue.value) {
-		stats.sales = '待核'
-		kpiDelta.sales = ''
-		kpiTrend.sales = ''
-		return
-	}
-	const kpi = data.kpi || {}
-	stats.sales = formatFinancialAmount(kpi.sales_month)
-
-	const delta = kpi.delta || {}
-	kpiDelta.sales = delta.sales || ''
-	kpiTrend.sales = delta.salesTrend || ''
-
-	const dailyReport = data.daily_report || {}
-	dailyReportRows.value = normalizeDailyReportRows(dailyReport.rows)
-	dailyReportSummary.fillTotalWeightKg = Number(dailyReport.fill_total_weight_kg || 0)
-	dailyReportSummary.saleTotalWeightKg = Number(dailyReport.sale_total_weight_kg || 0)
-	dailyReportSummary.customerCount = Number(dailyReport.customer_count || 0)
-	dailyReportSummary.bottleFillWeightKg = Number(dailyReport.channel_totals?.bottle || 0)
-	dailyReportSummary.localWeightKg = Number(dailyReport.channel_totals?.local || 0)
-	dailyReportSummary.vehicleWeightKg = Number(dailyReport.channel_totals?.vehicle || 0)
-
-	const receivable = data.receivable || {}
-	receivableRows.value = Array.isArray(receivable.rows) ? receivable.rows : []
-	receivableSummary.totalReceivable = Number(receivable.total_receivable || 0)
-	receivableSummary.totalReceived = Number(receivable.total_received || 0)
-	receivableSummary.gapAmount = Number(receivable.gap_amount || 0)
-	receivableSummary.collectionRate =
-		receivable.collection_rate == null || receivable.collection_rate === '' ? null : Number(receivable.collection_rate)
-
 }
 
 function applyQuickStatus(data) {
@@ -1006,54 +614,31 @@ function applyQuickStatus(data) {
 }
 
 async function refreshQuickStatus() {
-	if (quickPolling || !pageVisible) return
+	if (quickPolling || !pageVisible || disposed) return
+	const revision = ++quickRevision
 	quickPolling = true
 	try {
 		const res = await getDashboardSummaryV1({ section: 'quick' })
-		if (res.code === 0 && res.data?.section === 'quick') applyQuickStatus(res.data)
-	} catch (err) { console.warn('首页状态刷新失败', err?.message) }
-	finally { quickPolling = false }
-}
-
-const { run: fetchDashboardSummary } = useQuery(
-	async (options = {}) => {
-		const res = await getDashboardSummaryV1({ days: 7 })
-		if (res?.code !== 0) {
-			if (!options.silent) uni.showToast({ title: res?.msg || '工作台数据加载失败', icon: 'none' })
-			return { load_error: res?.msg || '工作台数据读取未完成' }
-		}
-		return res.data || null
-	},
-	{
-		immediate: false,
-		cacheTTL: 8000,
-		throttleMs: 300,
-		onSuccess: applyDashboard,
-		onError(err) {
-			applyDashboard({ load_error: err?.message || '工作台数据读取未完成' })
-			if (!isDashboardPolling.value) uni.showToast({ title: err?.message || '工作台数据加载失败', icon: 'none' })
-		}
+		if (revision !== quickRevision || !pageVisible || disposed) return
+		if (res?.code !== 0 || res.data?.section !== 'quick') throw new Error(res?.msg || '运营状态读取未完成')
+		applyQuickStatus(res.data)
+		dashboardIssue.value = ''
+	} catch (err) {
+		if (revision === quickRevision && pageVisible && !disposed) dashboardIssue.value = err?.message || '运营状态读取失败'
+	} finally {
+		if (revision === quickRevision) quickPolling = false
 	}
-)
-
-function refreshDashboardSilently() {
-	if (isDashboardPolling.value || !pageVisible) return
-	isDashboardPolling.value = true
-	Promise.resolve(fetchDashboardSummary({ force: true, silent: true })).finally(() => {
-		isDashboardPolling.value = false
-	})
 }
 
 function stopDashboardPolling() {
-	if (dashboardRefreshTimer) clearInterval(dashboardRefreshTimer)
 	if (quickTimer) clearInterval(quickTimer)
-	dashboardRefreshTimer = null; quickTimer = null
+	quickTimer = null
+	quickRevision += 1
+	quickPolling = false
 }
 function startDashboardPolling() {
-	stopDashboardPolling()
-	if (!pageVisible || (typeof document !== 'undefined' && document.hidden)) return
-	refreshDashboardSilently(); refreshQuickStatus()
-	dashboardRefreshTimer = setInterval(refreshDashboardSilently, DASHBOARD_REFRESH_MS)
+	if (disposed || !pageVisible || (typeof document !== 'undefined' && document.hidden) || quickTimer) return
+	refreshQuickStatus()
 	quickTimer = setInterval(refreshQuickStatus, QUICK_REFRESH_MS)
 }
 function onVisibilityChange() {
@@ -1063,100 +648,19 @@ function onVisibilityChange() {
 onShow(() => { pageVisible = true; startDashboardPolling() })
 onHide(() => { pageVisible = false; stopDashboardPolling() })
 onMounted(() => {
+	pageVisible = true
 	startDashboardPolling()
 	if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibilityChange)
 })
 onBeforeUnmount(() => {
-	pageVisible = false; stopDashboardPolling()
+	disposed = true
+	pageVisible = false
+	stopDashboardPolling()
 	if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 
 function go(url) {
 	uni.navigateTo({ url })
-}
-
-async function fetchAllSalesRowsForDailyReportExport({ dateStart, dateEnd }) {
-	const rows = []
-	let page = 1
-	let hasMore = true
-	let guard = 0
-	while (hasMore) {
-		if (guard > 500) throw new Error('导出分页异常，请缩小范围后重试')
-		const res = await listSalesV2({
-			dateStart,
-			dateEnd,
-			keyword: '',
-			priceUnit: '',
-			bizMode: '',
-			paymentStatus: '',
-			settlementScope: '',
-			hasRemark: '',
-			remarkTag: '',
-			page,
-			pageSize: 50
-		})
-		if (res?.code !== 0) throw new Error(res?.msg || '导出查询失败')
-		const pageRows = Array.isArray(res.data) ? res.data : []
-		rows.push(...pageRows)
-		hasMore = Boolean(res?.paging?.hasMore)
-		if (!pageRows.length) break
-		page += 1
-		guard += 1
-	}
-	return rows
-}
-
-function filterDailyReportRowsByRange(rows, start, end) {
-	return (Array.isArray(rows) ? rows : []).filter((row) => {
-		const date = String(row?.date || '')
-		return date >= start && date <= end
-	})
-}
-
-async function resolveSummaryRowsForDailyReportExport(start, end) {
-	const localRows = filterDailyReportRowsByRange(dailyReportRows.value, start, end)
-	if (!MONTH_EXPORT_PRESET_SET.has(dailyReportRangePreset.value)) return localRows
-	try {
-		const res = await getDashboardSummaryV1({ days: 31 })
-		if (res?.code !== 0) return localRows
-		const rows = normalizeDailyReportRows(res?.data?.daily_report?.rows)
-		const filtered = filterDailyReportRowsByRange(rows, start, end)
-		return filtered.length ? filtered : localRows
-	} catch (_) {
-		return localRows
-	}
-}
-
-async function onExportDailyReport() {
-	if (dailyReportExporting.value) return
-	dailyReportExporting.value = true
-	uni.showLoading({ title: '导出中...', mask: true })
-	try {
-		const { start, end } = dailyReportDateRange.value
-		const rows = await resolveSummaryRowsForDailyReportExport(start, end)
-		if (!rows.length) {
-			uni.showToast({ title: '暂无可导出数据', icon: 'none' })
-			return
-		}
-		const salesRows = await fetchAllSalesRowsForDailyReportExport({ dateStart: start, dateEnd: end })
-		const workbookText = buildDailyReportWorkbookXml({
-			summaryRows: rows,
-			salesRows,
-			periodLabel: dailyReportRangeLabel.value
-		})
-		const fileName = buildDailyReportExportFileName({ dateStart: start, dateEnd: end })
-		const downloaded = await downloadDailyReportWorkbookFile(workbookText, fileName)
-		if (!downloaded) {
-			uni.showToast({ title: '当前端不支持导出下载', icon: 'none', duration: 2600 })
-			return
-		}
-		uni.showToast({ title: `已导出${rows.length}天`, icon: 'success' })
-	} catch (err) {
-		uni.showToast({ title: err?.message || '导出失败', icon: 'none', duration: 2600 })
-	} finally {
-		uni.hideLoading()
-		dailyReportExporting.value = false
-	}
 }
 
 async function onLogout() {
@@ -1381,253 +885,6 @@ function goInspectionDue(module) {
 
 :deep(.kpi-card .stat__icon) {
 	margin-left: 12px;
-}
-
-.overview-grid {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) 280px;
-	gap: 16px;
-}
-
-.overview-card {
-	min-width: 0;
-	background: #fff;
-	border: 1px solid #eef1f5;
-	border-radius: 18px;
-	padding: 16px;
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-	box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
-}
-
-.overview-header {
-	flex-wrap: wrap;
-	display: flex;
-	align-items: flex-start;
-	justify-content: space-between;
-	gap: 12px;
-}
-
-.overview-header__left {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	min-width: 0;
-}
-
-.overview-header__right {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	gap: 10px;
-	flex: 0 0 auto;
-	max-width: 100%;
-	margin-top: 8px;
-}
-
-.overview-title {
-	font-size: 16px;
-	font-weight: 600;
-	color: #0f172a;
-}
-
-.overview-meta {
-	font-size: 12px;
-	color: #94a3b8;
-}
-
-.daily-range-scroll {
-	width: auto;
-	max-width: 560px;
-}
-
-.daily-range-cards {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 8px;
-	min-width: 0;
-}
-
-.daily-range-card {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	padding: 5px 9px;
-	border-radius: 999px;
-	background: #f1f5f9;
-	border: 1px solid #e2e8f0;
-	color: #475569;
-	font-size: 12px;
-	font-weight: 600;
-	cursor: pointer;
-	white-space: nowrap;
-}
-
-.daily-range-card--active {
-	background: #2563eb;
-	border-color: #2563eb;
-	color: #fff;
-}
-
-.daily-export-wrap {
-	width: auto;
-	display: flex;
-	justify-content: center;
-}
-
-.daily-report-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.daily-report-tabs { display: flex; gap: 16px; }
-.daily-report-tab { padding: 4px 0 7px; border-bottom: 2px solid transparent; color: #64748b; font-size: 12px; cursor: pointer; }
-.daily-report-tab--active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
-.daily-report-help { color: #94a3b8; font-size: 11px; cursor: pointer; white-space: nowrap; }
-.daily-report-table { width: 100%; min-width: 0; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; box-sizing: border-box; background: #fff; }
-.daily-report-row { display: grid; grid-template-columns: 62px repeat(2, minmax(0, 1fr)) 52px; align-items: center; min-height: 44px; }
-.daily-report-table--vehicle .daily-report-row { grid-template-columns: 62px repeat(2, minmax(0, 1fr)); }
-.daily-report-row + .daily-report-row { border-top: 1px solid #eef2f6; }
-.daily-report-head { min-height: 32px; background: #f5f8fc; font-size: 11px; color: #64748b; text-align: center; }
-.daily-report-date { padding: 6px 8px; font-size: 12px; font-weight: 500; color: #475569; text-align: center; }
-.daily-report-cell { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 5px 2px; min-width: 0; text-align: center; font-size: 12px; color: #0f172a; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.daily-report-weight { color: #94a3b8; font-size: 10px; }
-.daily-report-note { font-size: 11px; line-height: 1.6; color: #64748b; }
-
-.shipment-legend {
-	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: 10px 12px;
-}
-
-.shipment-legend__item {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	min-width: 0;
-}
-
-.shipment-legend__dot {
-	width: 10px;
-	height: 10px;
-	border-radius: 999px;
-	flex: none;
-}
-
-.shipment-legend__dot--bottle {
-	background: #2563eb;
-}
-
-.shipment-legend__dot--local {
-	background: #0ea5e9;
-}
-
-.shipment-legend__dot--vehicle {
-	background: #10b981;
-}
-
-.shipment-legend__label {
-	flex: 1;
-	font-size: 12px;
-	color: #94a3b8;
-	white-space: nowrap;
-}
-
-.shipment-legend__value {
-	font-size: 12px;
-	font-weight: 600;
-	color: #0f172a;
-	white-space: nowrap;
-}
-
-.overview-aside {
-	background: #fff;
-	border: 1px solid #eef1f5;
-	border-radius: 18px;
-	padding: 16px;
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
-	box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
-}
-
-.overview-aside__title {
-	font-size: 14px;
-	font-weight: 600;
-	color: #0f172a;
-}
-
-.overview-summary {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 10px 12px;
-}
-
-.overview-summary__item {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: 4px;
-	padding: 10px 12px;
-	border-radius: 14px;
-	background: #f8fafc;
-	border: 1px solid #eef2f7;
-	min-width: 0;
-}
-
-.overview-summary__item:last-child {
-	grid-column: 1 / -1;
-}
-
-.overview-summary__label {
-	font-size: 12px;
-	color: #94a3b8;
-}
-
-.overview-summary__value {
-	font-size: 15px;
-	font-weight: 600;
-	color: #0f172a;
-}
-
-.overview-mini-chart {
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
-	padding: 12px;
-	border-radius: 16px;
-	background: linear-gradient(180deg, #f8fbff 0%, #f1f6ff 100%);
-	border: 1px solid #dbeafe;
-}
-
-.overview-mini-chart__head {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-}
-
-.overview-mini-chart__title {
-	font-size: 12px;
-	font-weight: 600;
-	color: #475569;
-}
-
-.overview-mini-chart__value {
-	font-size: 14px;
-	font-weight: 700;
-	color: #0f172a;
-}
-
-.overview-mini-chart__labels {
-	display: grid;
-	grid-template-columns: repeat(5, minmax(0, 1fr));
-	gap: 8px;
-}
-
-.overview-mini-chart__label {
-	font-size: 11px;
-	color: #94a3b8;
-	text-align: center;
-	white-space: nowrap;
 }
 
 /* 导航网格 */
@@ -1857,73 +1114,6 @@ function goInspectionDue(module) {
 	color: #64748b;
 }
 
-.receivable-chart {
-	display: grid;
-	grid-template-columns: repeat(7, minmax(0, 1fr));
-	align-items: end;
-	gap: 8px;
-	height: 150px;
-	padding: 8px 0 0;
-}
-
-.receivable-day {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 8px;
-}
-
-.receivable-bars {
-	height: 104px;
-	width: 100%;
-	display: flex;
-	align-items: flex-end;
-	justify-content: center;
-	gap: 4px;
-}
-
-.receivable-bar {
-	width: 12px;
-	border-radius: 8px 8px 4px 4px;
-	min-height: 2px;
-}
-
-.receivable-bar--receivable {
-	background: linear-gradient(180deg, rgba(37, 99, 235, 0.92), rgba(96, 165, 250, 0.68));
-}
-
-.receivable-bar--received {
-	background: linear-gradient(180deg, rgba(245, 158, 11, 0.95), rgba(251, 191, 36, 0.72));
-}
-
-.receivable-label {
-	font-size: 11px;
-	color: #94a3b8;
-	white-space: nowrap;
-}
-
-.receivable-legend {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 8px 12px;
-}
-
-.receivable-legend__dot--receivable {
-	background: #2563eb;
-}
-
-.receivable-legend__dot--received {
-	background: #f59e0b;
-}
-
-.receivable-legend__dot--gap {
-	background: #64748b;
-}
-
-.receivable-legend__dot--rate {
-	background: #8b5cf6;
-}
-
 /* 右侧栏卡片 */
 .rail-card {
 	background: #fff;
@@ -2030,26 +1220,6 @@ function goInspectionDue(module) {
 	}
 	.kpi-row {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-	.overview-grid {
-		grid-template-columns: 1fr;
-	}
-	.overview-header {
-		flex-direction: column;
-	}
-	.overview-header__right {
-		width: 100%;
-		align-items: flex-start;
-		margin-top: 4px;
-		flex-direction: row;
-	}
-	.daily-range-scroll {
-		max-width: 100%;
-		flex: 1;
-		min-width: 0;
-	}
-	.daily-export-wrap {
-		justify-content: flex-start;
 	}
 
 	.topbar-right {

@@ -147,6 +147,13 @@
         "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankDisplayFilter.js",
         "apps/tank-gateway/tankDisplayFilter.js"
       ]
+    },
+    {
+      "source": "uniCloud-alipay/cloudfunctions/common/customerBalance.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerBalanceLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-dashboard/customerBalanceLocal.js"
+      ]
     }
   ],
   "promotedSchemas": [

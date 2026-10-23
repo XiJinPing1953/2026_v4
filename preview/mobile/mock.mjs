@@ -3,6 +3,7 @@ import { callCloud as statementCall } from '../statement/mock.mjs'
 import inspectionTemplates from './inspection-templates.json'
 import { PAGE_REGISTRY } from '../../src/services/pageAclRegistry.js'
 import { phoneSaleFixture } from './sale.mjs'
+import { dashboardFixture } from './dashboard.mjs'
 if (typeof window !== 'undefined') window.__crmMobilePreview = true
 const longName = '手机布局测试客户（长名称）新拓能源配送服务有限公司'
 const stamp = Date.UTC(2026,8,28)
@@ -48,7 +49,11 @@ export async function callCloud(name, options={}) {
   if(action==='listV1') return ok([record],{paging:{total:1,hasMore:false}});
   if(action==='listHazardsV1'||action==='listRevisionsV1') return ok([],{paging:{total:0,hasMore:false}});
  }
- if(name==='crm-dashboard'&&action==='summaryV1') return ok({section:data.section,kpi:{sales_month:1234567.89,anomaly_open:3,at_customer:135,in_station:120},daily_report:{rows:[]},receivable:{rows:[],total_receivable:1234567.89,total_received:100000,gap_amount:1134567.89,collection_rate:8.1}});
+ if(name==='crm-dashboard'&&action==='summaryV1') return dashboardFixture(data) || ok({section:data.section,kpi:{sales_month:1234567.89,anomaly_open:3,at_customer:135,in_station:120},daily_report:{rows:[]},receivable:{rows:[],total_receivable:1234567.89,total_received:100000,gap_amount:1134567.89,collection_rate:8.1}});
+ if(name==='crm-sale'&&action==='listV2'&&data.include_summary===false&&data.dateStart&&data.dateEnd) {
+  const row={...sale,date:data.dateStart,accounting:{status:'resolved',complete:true}};
+  return ok(data.page===1?[row]:[],{paging:{page:data.page,pageSize:data.pageSize,total:1,hasMore:false}});
+ }
  if(name==='crm-bottle-movement'&&action==='listV1') return ok([{...bottle,type:'out',source_type:'sale',net_weight:56}],{summary,paging:{total:1,page:1,hasMore:false}});
  if(name==='crm-bottle-anomaly'&&action==='typesV1') return ok([]);
  if(name==='crm-bottle-anomaly'&&action==='listV1') return ok([{...bottle,type:'consecutive_out',status:'open',reason:base.remark}],{summary,paging:{total:1,page:1,hasMore:false}});

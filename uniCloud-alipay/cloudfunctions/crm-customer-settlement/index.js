@@ -4,6 +4,26 @@ const { isSettlementFeeReceipt, isOpeningPrepayReceipt, isDepositTransferReceipt
 const { isConfirmedOpeningPrepay, isConfirmedPrepayWriteoff } = require('./confirmedPrepayWriteoff')
 
 const saleAccounting = require('./saleAccountingLocal')
+const {
+	toNumber,
+	fix2,
+	truncateByScale,
+	fix3,
+	fixByScale,
+	resolveMoneyScaleByPriceUnit,
+	resolveCustomerMoneyScale,
+	countDecimalPlaces,
+	parseScaledBigInt,
+	pow10BigInt,
+	scaleBigInt,
+	normalizeDecimalText,
+	resolvePaymentStatusByAmount,
+	resolveOpeningDebtRoundingAmount,
+	computeSaleSnapshot,
+	computeFlowSettlementSnapshot,
+	computeOpeningDebtSnapshot,
+	resolveOpeningDebtMoneyScale
+} = require('./customerBalanceLocal').createCustomerBalance(saleAccounting)
 const { readComplete, withFinancialEvidence, FinancialReadError } = require('./financialReadLocal')
 const offsetCreditRefund = require('./offsetCreditRefund')
 const customerRefund = require('./customerRefund')
@@ -197,88 +217,6 @@ function normalizeId(value) {
 	if (value == null) return ''
 	if (typeof value === 'object' && value.$oid) return String(value.$oid).trim()
 	return String(value).trim()
-}
-
-function toNumber(value, fallback = 0) {
-	if (value === '' || value == null) return fallback
-	const num = Number(value)
-	return Number.isFinite(num) ? num : fallback
-}
-
-function fix2(value) {
-	const num = Number(value)
-	return Number.isFinite(num) ? Number(num.toFixed(2)) : 0
-}
-
-function truncateByScale(value, scale = 2) {
-	const digits = Math.max(Math.floor(toNumber(scale, 0)), 0)
-	const text = normalizeDecimalText(value)
-	if (!text) return 0
-	const sourceScale = countDecimalPlaces(text)
-	const parsed = parseScaledBigInt(text, sourceScale)
-	if (parsed == null) return 0
-	const scaled = scaleBigInt(parsed, sourceScale, digits)
-	const factor = 10 ** digits
-	if (!Number.isFinite(factor) || factor <= 0) return Number(scaled)
-	return Number(scaled) / factor
-}
-
-function fix3(value) {
-	return truncateByScale(value, 3)
-}
-
-function fixByScale(value, scale = 2) {
-	return Number(scale) === 3 ? fix3(value) : fix2(value)
-}
-
-function resolveMoneyScaleByPriceUnit(priceUnit) {
-	return normalizeString(priceUnit) === 'm3' ? 3 : 2
-}
-
-function resolveCustomerMoneyScale(customerDoc) {
-	return resolveMoneyScaleByPriceUnit(customerDoc && customerDoc.default_price_unit)
-}
-
-function countDecimalPlaces(text) {
-	const source = normalizeString(text)
-	const dotIndex = source.indexOf('.')
-	if (dotIndex < 0) return 0
-	return Math.max(source.length - dotIndex - 1, 0)
-}
-
-function parseScaledBigInt(text, scaleDigits) {
-	const source = normalizeString(text)
-	if (!source) return null
-	const match = source.match(/^([+-]?)(\d+)(?:\.(\d+))?$/)
-	if (!match) return null
-	const sign = match[1] === '-' ? -1n : 1n
-	const integerPart = match[2] || '0'
-	const decimalPart = (match[3] || '').padEnd(scaleDigits, '0').slice(0, scaleDigits)
-	const combined = `${integerPart}${decimalPart}`.replace(/^0+(?=\d)/, '') || '0'
-	return sign * BigInt(combined)
-}
-
-function pow10BigInt(digits) {
-	const value = Number(digits)
-	if (!Number.isFinite(value) || value <= 0) return 1n
-	return 10n ** BigInt(Math.floor(value))
-}
-
-function scaleBigInt(value, fromScale, toScale) {
-	if (fromScale === toScale) return value
-	if (fromScale < toScale) {
-		return value * pow10BigInt(toScale - fromScale)
-	}
-	return value / pow10BigInt(fromScale - toScale)
-}
-
-function normalizeDecimalText(value) {
-	const raw = value == null ? '' : String(value).trim()
-	if (!raw) return ''
-	if (/^[+-]?\d+(?:\.\d+)?$/.test(raw)) return raw
-	const num = Number(raw)
-	if (!Number.isFinite(num)) return ''
-	return String(num)
 }
 
 function normalizeFlowValue3(value) {
@@ -1050,17 +988,6 @@ function resolveAllocationConfig(data = {}, fallbackDate = '') {
 	}
 }
 
-function resolvePaymentStatusByAmount(shouldReceive, amountReceived, scale = 2) {
-	const moneyScale = Number(scale) === 3 ? 3 : 2
-	const fixMoney = (value) => fixByScale(value, moneyScale)
-	const should = fixMoney(shouldReceive)
-	const received = fixMoney(amountReceived)
-	if (should <= 0) return 'paid'
-	if (received <= 0) return 'unpaid'
-	if (received >= should) return 'paid'
-	return 'partial'
-}
-
 function resolveEffectiveShouldReceive(shouldReceive, roundingAmount) {
 	const should = fix2(toNumber(shouldReceive, 0))
 	const rounding = Math.max(toNumber(roundingAmount, 0), 0)
@@ -1090,14 +1017,6 @@ function isOtherFeeSourceType(value) {
 function resolveOpeningDebtEntryType(doc) {
 	if (normalizeString(doc && doc.source_type) === 'balance_adjustment') return 'balance_adjustment'
 	return isOtherFeeSourceType(doc && doc.source_type) ? 'other_fee' : 'opening_debt'
-}
-
-function resolveOpeningDebtRoundingAmount(amountValue, roundingValue, moneyScale = 2) {
-	const fixMoney = (value) => fixByScale(value, moneyScale)
-	const amount = fixMoney(Math.max(toNumber(amountValue, 0), 0))
-	if (!(amount > 0)) return 0
-	const rounding = fixMoney(Math.max(toNumber(roundingValue, 0), 0))
-	return fixMoney(Math.min(rounding, amount))
 }
 
 function openingDebtEntryLabelByType(entryType) {
@@ -1146,26 +1065,6 @@ function computeFlow(base, priceUnit) {
 }
 
 const computeAmounts = saleAccounting.computeAmounts
-
-function computeSaleSnapshot(doc) {
-	const { amounts } = saleAccounting.computeSaleAmountsForDoc(doc)
-	const shouldReceive = fix2(amounts.should_receive)
-	const effectiveShouldReceive = fix2(amounts.effective_should_receive)
-	const amountReceived = fix2(toNumber(doc && doc.amount_received, 0))
-	const receiptRoundingAmount = fix2(Math.max(toNumber(doc && doc.receipt_rounding_amount, 0), 0))
-	const paidTotal = fix2(amountReceived + receiptRoundingAmount)
-	const outstanding = effectiveShouldReceive > paidTotal ? fix2(effectiveShouldReceive - paidTotal) : 0
-	return {
-		should_receive: shouldReceive,
-		should_receive_effective: effectiveShouldReceive,
-		rounding_amount: fix2(Math.max(toNumber(amounts.rounding_amount, 0), 0)),
-		amount_received: amountReceived,
-		receipt_rounding_amount: receiptRoundingAmount,
-		paid_total: paidTotal,
-		outstanding,
-		payment_status: resolvePaymentStatusByAmount(effectiveShouldReceive, paidTotal)
-	}
-}
 
 function normalizeBottleNo(value) {
 	const text = normalizeString(value)
@@ -1297,51 +1196,6 @@ function computeSaleActualWeight(doc) {
 		roundingAmount: toNumber(current.rounding_amount, 0)
 	})
 	return fix2(toNumber(amounts.total_net_weight, 0))
-}
-
-function computeFlowSettlementSnapshot(doc) {
-	const shouldReceive = fix3(toNumber(doc && doc.should_receive, 0))
-	const amountReceived = fix3(toNumber(doc && doc.amount_received, 0))
-	const receiptRoundingAmount = fix3(Math.max(toNumber(doc && doc.receipt_rounding_amount, 0), 0))
-	const paidTotal = sumMoneyByScale([amountReceived, receiptRoundingAmount], 3)
-	const outstanding = shouldReceive > paidTotal ? sumMoneyByScale([shouldReceive, -paidTotal], 3) : 0
-	return {
-		should_receive: shouldReceive,
-		amount_received: amountReceived,
-		receipt_rounding_amount: receiptRoundingAmount,
-		paid_total: paidTotal,
-		outstanding,
-		payment_status: resolvePaymentStatusByAmount(shouldReceive, paidTotal, 3)
-	}
-}
-
-function computeOpeningDebtSnapshot(doc, moneyScale = 2) {
-	const fixMoney = (value) => fixByScale(value, moneyScale)
-	const amount = fixMoney(toNumber(doc && doc.amount, 0))
-	const roundingAmount = resolveOpeningDebtRoundingAmount(amount, doc && doc.rounding_amount, moneyScale)
-	const effectiveShouldReceive = amount > 0 ? Math.max(sumMoneyByScale([amount, -roundingAmount], moneyScale), 0) : 0
-	const amountReceived = fixMoney(toNumber(doc && doc.amount_received, 0))
-	const receiptRoundingAmount = fixMoney(Math.max(toNumber(doc && doc.receipt_rounding_amount, 0), 0))
-	const paidTotal = sumMoneyByScale([amountReceived, receiptRoundingAmount], moneyScale)
-	const outstanding = effectiveShouldReceive > paidTotal ? sumMoneyByScale([effectiveShouldReceive, -paidTotal], moneyScale) : 0
-	return {
-		amount,
-		rounding_amount: roundingAmount,
-		should_receive_effective: effectiveShouldReceive,
-		amount_received: amountReceived,
-		receipt_rounding_amount: receiptRoundingAmount,
-		paid_total: paidTotal,
-		outstanding,
-		payment_status: resolvePaymentStatusByAmount(effectiveShouldReceive, paidTotal, moneyScale)
-	}
-}
-
-function resolveOpeningDebtMoneyScale(doc, fallback = 2) {
-	const fixedFallback = Number(fallback) === 3 ? 3 : 2
-	const scale = Number(doc && doc.money_scale)
-	if (scale === 3) return 3
-	if (scale === 2) return 2
-	return fixedFallback
 }
 
 async function getCustomerById(customerId) {

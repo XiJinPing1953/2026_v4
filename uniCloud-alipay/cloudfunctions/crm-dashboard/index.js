@@ -406,6 +406,19 @@ async function quickStatusV1() {
 
 async function summaryV1(user, data, requestId) {
 	if (data.section === 'quick') return quickStatusV1()
+	if (data.section === 'tank_loss') return require('./tankLoss').readTankLoss(db, data)
+	if (data.section === 'brief' || data.section === 'daily_report') {
+		return require('./operatingBrief').readOperatingBrief(db, data, {
+			computeSaleAmount, computeSaleWeight, computeSaleBottleCount, detectGasFlowMode, buildCustomerKey
+		})
+	}
+	if (data.section === 'current') {
+		const acl = await ensureActionAcl(user, 'currentBrief', {
+			currentBrief: [{ pagePath: '/pages/customer/list', action: 'view' }]
+		}, [], { recordLog, requestId, cloudFunction: 'crm-dashboard' })
+		if (!acl.ok) return { code: acl.code, msg: acl.msg }
+		return { code: 0, data: await require('./currentBrief').readCurrentBrief(db) }
+	}
 	const days = Math.min(Math.max(Number(data.days || 7), 3), 31)
 	const today = getCNDate()
 	const recentDates = getRecentDates(days)
