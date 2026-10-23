@@ -14,7 +14,10 @@ const DEBT_KINDS = ['customers', 'sales', 'flows', 'debts']
 const FUNDS_KINDS = ['customers', 'receipts', 'intakes']
 function unresolved(reason, row, details = {}) {
   const error = new FinancialReadError(reason, { source: row && sourceForRow.get(row) || 'operating_brief_current', source_id: text(row?._id), customer_id: text(row?.customer_id), ...details })
-  error.message = '当前账务来源待核，该项未返回确定合计'
+  error.message = ({
+    source_allocation_exceeds_principal: '有单据的已抵金额超过应收，需核对原单',
+    receipt_operation_pending: '有收款调整尚未完成，暂不能汇总'
+  })[reason] || '部分账务记录需核对，暂不能汇总'
   throw error
 }
 function numeric(value, row, field, { optional = false, signed = false } = {}) {

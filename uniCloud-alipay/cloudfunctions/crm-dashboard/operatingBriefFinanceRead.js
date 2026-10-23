@@ -134,13 +134,31 @@ async function readBriefFinance(db, data, helpers, range, { version, summarizeOp
   ])
   const cashReceipts = periodReceipts.filter(row => isCashReceipt(row) && Number(row.amount) > 0)
   const cohort = new Set([...sales.map(row => `sale:${row._id}`), ...flows.map(row => `flow_settlement:${row._id}`)])
-  const [saleAllocations, flowAllocations, cashAllocations, intakes] = await Promise.all([
-    byIds(F.TABLES.allocations, sales.map(row => row._id), ['evidence'], { fields: ['target_id', 'sale_id'] }),
-    byIds(F.TABLES.allocations, flows.map(row => row._id), ['evidence'], { fields: ['target_id', 'sale_id', 'flow_settlement_id'] }),
-    byIds(F.TABLES.allocations, cashReceipts.map(row => row._id), ['destinations'], { fields: ['receipt_id'] }),
-    byIds(F.TABLES.intakes, periodReceipts.filter(row => row.source_type === 'cashier_intake').map(row => row.intake_id || row.source_id), ['cash', 'destinations'])
-  ])
-  const cohortAllocations = mergeRows(saleAllocations, flowAllocations)
+  const cashReceiptIds = new Set(cashReceipts.map(row => F.text(row._id)))
+  const intakeRead = () => byIds(F.TABLES.intakes, periodReceipts.filter(row => row.source_type === 'cashier_intake').map(row => row.intake_id || row.source_id), ['cash', 'destinations'])
+  let cohortAllocations, cashAllocations, intakes
+  if (cohort.size + cashReceiptIds.size > BATCH) {
+    // On Alipay, many target/receipt OR-in predicates scan the allocation table
+    // repeatedly and can time out. For a large cohort, read the visible table
+    // once with complete keyset pagination, then select the same references.
+    // readComplete's row limit and the final scope recheck still apply; a failed
+    // full read invalidates both uses rather than returning a partial subtotal.
+    const [allAllocations, intakeRows] = await Promise.all([
+      safeRead(F.TABLES.allocations, customerWhere || {}, ['evidence', 'destinations']), intakeRead()
+    ])
+    const cohortIds = new Set([...sales, ...flows].map(row => F.text(row._id)))
+    const flowIds = new Set(flows.map(row => F.text(row._id)))
+    cohortAllocations = allAllocations.filter(row => ['target_id', 'sale_id'].some(key => cohortIds.has(F.text(row[key]))) || flowIds.has(F.text(row.flow_settlement_id)))
+    cashAllocations = allAllocations.filter(row => cashReceiptIds.has(F.text(row.receipt_id)))
+    intakes = intakeRows
+  } else {
+    const [saleRows, flowRows, cashRows, intakeRows] = await Promise.all([
+      byIds(F.TABLES.allocations, sales.map(row => row._id), ['evidence'], { fields: ['target_id', 'sale_id'] }),
+      byIds(F.TABLES.allocations, flows.map(row => row._id), ['evidence'], { fields: ['target_id', 'sale_id', 'flow_settlement_id'] }),
+      byIds(F.TABLES.allocations, [...cashReceiptIds], ['destinations'], { fields: ['receipt_id'] }), intakeRead()
+    ])
+    cohortAllocations = mergeRows(saleRows, flowRows); cashAllocations = cashRows; intakes = intakeRows
+  }
   const targetIds = { sales: [], flows: [], debts: [] }
   for (const row of cashAllocations) try {
     if (!F.active(row, 'allocations')) continue

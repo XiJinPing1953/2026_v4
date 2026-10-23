@@ -284,6 +284,62 @@ test('referenced targets use bounded ID batches with complete pagination instead
   assert.equal(db.writes.length, 0)
 })
 
+function largeCohortFixture() {
+  const ids = Array.from({ length: BATCH + 1 }, (_, i) => `period-${String(i).padStart(3, '0')}`)
+  return base(ids.map(id => sale(id, 1, { amount_received: 1 })), {
+    crm_customer_receipts: [receipt('period-cash', ids.length, { allocated_amount: ids.length, unallocated_amount: 0 })],
+    crm_customer_allocations: [
+      ...ids.map(id => allocation(`a-${id}`, 'period-cash', id, 1)),
+      // Unrelated historical rows are read for completeness, but cannot poison
+      // the selected cohort or be silently included in its amounts.
+      ...Array.from({ length: 170 }, (_, i) => ({ ...dated, _id: `old-${i}`, receipt_id: 'unrelated', target_id: 'unrelated', allocate_amount: null })),
+      // A legacy flow reference equal to a sale ID was outside the bounded
+      // sale query and must remain outside the full-read cohort as well.
+      { ...dated, _id: 'old-flow-id-collision', receipt_id: 'unrelated', target_id: 'unrelated', target_type: 'unknown', flow_settlement_id: ids[0], allocate_amount: null }
+    ]
+  })
+}
+
+test('large periods read allocations once completely, then select cohort and cash uses without repeated OR scans', async () => {
+  let pages = 0
+  const db = makeDb(largeCohortFixture(), { get: (name, rows, options) => {
+    if (name === 'crm_customer_allocations') {
+      assert.doesNotMatch(JSON.stringify(options.where), /"(?:target_id|sale_id|flow_settlement_id|receipt_id)"/)
+      if (options.limit === 200) pages++
+    }
+    return { data: structuredClone(rows) }
+  } })
+  const result = await run(db)
+  assert.equal(result.data.complete, true, JSON.stringify(result.data.cash))
+  assert.equal(result.data.cash.destinations.same_period, BATCH + 1)
+  assert.equal(result.data.cash.evidence.complete, true)
+  assert.equal(pages, 2, 'all 252 visible allocations were paged before selecting the 81 relevant rows')
+  assert.equal(result.financial_evidence.reads.filter(row => row.source === 'crm_customer_allocations').length, 1)
+  assert.equal(db.writes.length, 0)
+})
+
+test('large-period allocation read failure or later mutation is never reported as a partial or zero destination', async () => {
+  const failed = await run(makeDb(largeCohortFixture(), { count: (name, total) => ({ total: name === 'crm_customer_allocations' ? null : total }) }))
+  assert.equal(failed.data.read_complete, false)
+  assert.equal(failed.data.business.net, BATCH + 1)
+  assert.equal(failed.data.cash.received, BATCH + 1)
+  assert.equal(failed.data.cash.evidence.complete, false)
+  assert.equal(failed.data.cash.destinations.total, null)
+  const tables = largeCohortFixture(); let changed = false
+  const moved = await run(makeDb(tables, { get: (name, rows, options) => {
+    if (!changed && name === 'crm_customer_receipts' && JSON.stringify(options.where).includes('"$lt":0')) {
+      tables.crm_customer_allocations[0].updated_at = Date.now() + 1000
+      changed = true
+    }
+    return { data: structuredClone(rows) }
+  } }))
+  assert.equal(changed, true)
+  assert.equal(moved.data.read_complete, false)
+  assert.equal(moved.data.cash.received, BATCH + 1)
+  assert.equal(moved.data.cash.destinations.total, null)
+  assert.equal(has(moved.data.cash.destinations, 'records_changed_during_brief'), true)
+})
+
 const usesIdIn = options => JSON.stringify(options.where || {}).includes('"_id":{"$in":')
 function alipayIdOmission(tables, onDocument) {
   return makeDb(tables, {
