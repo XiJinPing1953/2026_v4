@@ -7,6 +7,8 @@ const vm = require('node:vm')
 const vue = require('vue')
 const version = 'operating-brief/2026-10-23.1'
 const financeVersion = 'operating-brief-finance/2026-10-23.1'
+const currentVersion = 'operating-brief-current/2026-10-24.1'
+const currentDomain = subtotal => ({ ...available(), verified_subtotal: subtotal, issue_count: 0, issues_complete: true, coverage: { complete: true, total_customers: 4, verified_customers: 4, pending_customers: 0 } })
 const available = () => ({ complete: true, status: 'available', issues: [] })
 const unavailable = () => ({ complete: false, status: 'unavailable', issues: [{ code: 'SOURCE_UNRESOLVED', message: '来源待核' }] })
 const strip = path => fs.readFileSync(path, 'utf8').replace(/^import .*\n/gm, '').replace(/^export /gm, '')
@@ -31,10 +33,10 @@ function brief(period = 'yesterday', value = 10) {
 	} }
 }
 function current() {
-	return { code: 0, data: { section: 'current', version, complete: true, updated_at: 1792717200000, money_scale: 3,
+	return { code: 0, data: { section: 'current', version, current_version: currentVersion, complete: true, updated_at: 1792717200000, money_scale: 3,
 		current: { receivable: 20.123, prepay: 5.123, offset_credit: 0, customer_count: 4, complete: true,
 			prepay_label: '可用款（不含退气抵款）', prepay_sources: { manual_prepay: 5.123, receipt_unallocated: 0, opening_prepay: 0, deposit_transfer: 0, settlement_fee: 0 },
-			debt: available(), available_funds: available(), debt_ranking: { ...available(), total_receivable: 20.123, positive_customer_count: 3,
+			debt: currentDomain(20.123), available_funds: currentDomain(5.123), debt_ranking: { ...available(), total_receivable: 20.123, positive_customer_count: 3,
 				items: [{ customer_id: 'c1', name: '客户一', code: '001', amount: 10, share_of_total: 0.496944 },
 					{ customer_id: 'c2', name: '客户二', code: '002', amount: 6, share_of_total: 0.298167 },
 					{ customer_id: 'c3', name: '客户三', code: '003', amount: 4.123, share_of_total: 0.20489 }] } },
@@ -44,9 +46,9 @@ function current() {
 function tankLoss(period = 'yesterday', amount = 20) {
 	return { code: 0, data: {
 		section: 'tank_loss', version, period, range: brief(period).data.range, complete: true,
-		status: 'available', opening: { weight_kg: 1200, observed_at: 1792598400000, level_kpa: 12.5 },
+		status: amount < 0 ? 'needs_review' : 'available', opening: { weight_kg: 1200, observed_at: 1792598400000, level_kpa: 12.5 },
 		closing: { weight_kg: 1120 - amount, observed_at: 1792684800000, level_kpa: 11.8 },
-		inbound_kg: 0, recorded_outflow_kg: 80, estimated_consumption_kg: 80 + amount, estimated_loss_kg: amount, issues: [],
+		inbound_kg: 0, recorded_outflow_kg: 80, estimated_consumption_kg: 80 + amount, estimated_loss_kg: amount, issues: amount < 0 ? [{ code: amount < -80 ? 'tank_stock_increase_without_inbound' : 'negative_estimated_loss', message: amount < -80 ? '罐存增加但登记入罐为零，请核对入库记录' : '已登记出罐超过液位估算耗气，请核对出罐与液位依据' }] : [],
 		outflow: { weight_kg: 80, complete: true, issues: [], channels: [
 			{ key: 'bottle', label: '钢瓶充装', weight_kg: 50, count: 2, count_unit: '瓶次', complete: true },
 			{ key: 'local', label: '地方车', weight_kg: 10, count: 1, count_unit: '次', complete: true },
@@ -58,6 +60,7 @@ function tankLoss(period = 'yesterday', amount = 20) {
 }
 function failDomain(block, fields = []) {
 	Object.assign(block, unavailable())
+	if (block.coverage) Object.assign(block, { verified_subtotal: null, issue_count: 1, issues_complete: true, coverage: { complete: true, total_customers: 4, verified_customers: 0, pending_customers: 4 } })
 	for (const field of fields) block[field] = null
 	return block
 }
@@ -82,7 +85,7 @@ function harness(options = {}) {
 		Date, Number, Object, Array, Boolean, Set, Error,
 		setInterval: fn => { const id = Symbol(); timers.set(id, fn); return id }, clearInterval: id => timers.delete(id)
 	}
-	vm.runInNewContext(strip('src/services/mappers/operatingBrief.js') + '\n' + strip('src/composables/dashboard/useOperatingBrief.js') + '\nthis.api = { useOperatingBrief, operatingBriefDateRange, mapOperatingBrief, mapOperatingCurrent, mapOperatingTankLoss, tankLossPresentation, mapDashboardDailyReport };', ctx)
+	vm.runInNewContext(strip('src/services/mappers/operatingBrief.js') + '\n' + strip('src/composables/dashboard/useOperatingBrief.js') + '\nthis.api = { useOperatingBrief, operatingBriefDateRange, mapOperatingBrief, mapOperatingCurrent, mapOperatingTankLoss, tankLossPresentation, operatingReviewItems, mapDashboardDailyReport };', ctx)
 	return { ...ctx.api, state: ctx.api.useOperatingBrief(options), calls, currents, tankLosses, reports, sales, timers }
 }
 
@@ -210,7 +213,7 @@ test('current debt, available funds and pending receipts retain independent unav
 
 test('current mapper accepts a real zero empty ranking and rejects corrupted or missing ranking contracts', () => {
 	const h = harness(), empty = current().data
-	empty.current.receivable = 0
+	empty.current.receivable = 0; empty.current.debt.verified_subtotal = 0
 	Object.assign(empty.current.debt_ranking, { total_receivable: 0, positive_customer_count: 0, items: [] })
 	assert.equal(h.mapOperatingCurrent(empty).current.debt_ranking.items.length, 0)
 	for (const mutate of [
@@ -238,6 +241,113 @@ test('current mapper accepts a real zero empty ranking and rejects corrupted or 
 	}
 })
 
+function partialCurrent() {
+	const data = current().data
+	data.complete = false; data.current.complete = false; data.current.receivable = null
+	Object.assign(data.current.debt, { ...unavailable(), status: 'partial', verified_subtotal: 12,
+		coverage: { complete: true, total_customers: 4, verified_customers: 3, pending_customers: 1 }, issue_count: 1,
+		issues: [{ code: 'overpaid', message: '有单据的已抵金额超过应收，需核对原单', source: 'crm_sale_records', source_id: 'sale-1', customer_id: 'c4', customer_name: '待核客户', customer_code: '004' }] })
+	failDomain(data.current.debt_ranking, ['total_receivable', 'positive_customer_count']); data.current.debt_ranking.items = []
+	return data
+}
+
+test('current partial subtotals require complete coverage and never become whole-population totals or rankings', () => {
+	const h = harness(), data = partialCurrent()
+	const mapped = h.mapOperatingCurrent(data)
+	assert.equal(mapped.current.receivable, null)
+	assert.equal(mapped.current.debt.verified_subtotal, 12)
+	assert.equal(mapped.current.prepay, 5.123)
+	assert.equal(mapped.current.debt_ranking.items.length, 0)
+	for (const mutate of [
+		data => { data.current.debt.coverage.verified_customers = 4 },
+		data => { data.current.debt.coverage.complete = false },
+		data => { data.current.debt.verified_subtotal = null },
+		data => { data.current.debt.verified_subtotal = -1 },
+		data => { data.current.receivable = 12 },
+		data => { data.current.debt.complete = true },
+		data => { data.current.debt_ranking = current().data.current.debt_ranking },
+		data => { data.current.debt.issue_count = 0 },
+		data => { data.current.debt.issues_complete = true; data.current.debt.issue_count = 2 }
+	]) { const bad = partialCurrent(); mutate(bad); assert.throws(() => h.mapOperatingCurrent(bad), /未完成|不一致/) }
+	const unknown = partialCurrent()
+	Object.assign(unknown.current.debt, { status: 'unavailable', verified_subtotal: null, coverage: { complete: false, total_customers: null, verified_customers: null, pending_customers: null } })
+	assert.equal(h.mapOperatingCurrent(unknown).current.debt.coverage.total_customers, null)
+})
+
+test('known previous current contract remains readable during rollout but cannot advertise partial sums', () => {
+	const h = harness(), old = current().data
+	delete old.current_version
+	old.current.debt = available(); old.current.available_funds = available()
+	assert.equal(h.mapOperatingCurrent(old).current.debt.verified_subtotal, 20.123)
+	const invalid = partialCurrent(); delete invalid.current_version
+	assert.throws(() => h.mapOperatingCurrent(invalid), /未完成|不一致/)
+})
+
+test('review items deduplicate source issues across metrics and never invent receipt adjustment deep links', () => {
+	const h = harness(), issue = { code: 'pending_receipt', message: '收款调整尚未完成', source: 'crm_customer_receipts', source_id: 'r/1', customer_id: 'c/1', customer_name: '客户甲', action: 'resume_receipt_adjustment' }
+	const block = { complete: false, issues: [issue, { ...issue, code: 'balance_pending', message: '相关可用款待核' }] }
+	const rows = h.operatingReviewItems([['客户欠款', block], ['客户可用款', block]])
+	assert.equal(rows.length, 1)
+	assert.equal(rows[0].messages.length, 2)
+	assert.equal(rows[0].actions.length, 1)
+	assert.equal(rows[0].actions[0].route, '/pages/customer/statement?_id=c%2F1')
+	assert.match(rows[0].hint, /收款记录/)
+	const unknown = h.operatingReviewItems([['待核', { complete: false, issues: [{ ...issue, source: 'unknown', customer_id: null, action: 'javascript:fake' }] }]])
+	assert.equal(unknown[0].actions.length, 0)
+	for (const source of ['crm_cashier_intakes', 'crm_cashier_receipt_intakes']) {
+		const intake = h.operatingReviewItems([['待核', { complete: false, issues: [{ ...issue, source, customer_id: null }] }]])
+		assert.equal(intake[0].actions[0].route, '/pages/cashier/receipt-intake')
+	}
+})
+
+async function renderBrief(h, expanded = '', canView = () => true) {
+	const { parse, compileScript } = require('@vue/compiler-sfc')
+	let template = fs.readFileSync('src/components/domain/dashboard/OperatingBrief.vue', 'utf8')
+	template = template.replace("const expanded = ref('')", `const expanded = ref(${JSON.stringify(expanded)})`)
+	const source = compileScript(parse(template).descriptor, { id: 'brief-state-view', inlineTemplate: true, templateOptions: { compilerOptions: { isCustomElement: tag => ['view', 'text', 'scroll-view'].includes(tag) } } }).content
+		.replace(/^import \{([^}]+)\} from ["']vue["']/gm, (_, names) => `const {${names.replace(/\bas\b/g, ':')}} = Vue`)
+		.replace(/^import .*$/gm, '').replace('export default', 'globalThis.Component =')
+	const context = vm.createContext({ Vue: { ...vue, onMounted() {} }, onShow() {}, onHide() {},
+		useOperatingBrief: () => h.state, tankLossPresentation: h.tankLossPresentation, operatingReviewItems: h.operatingReviewItems,
+		AppButton: { setup(_, { slots }) { return () => vue.h('button', slots.default?.()) } } })
+	vm.runInContext(source, context)
+	const app = vue.createSSRApp(context.Component, { canView })
+	app.config.warnHandler = () => {}
+	app.component('scroll-view', { setup(_, { slots }) { return () => vue.h('div', slots.default?.()) } })
+	return require('@vue/server-renderer').renderToString(app)
+}
+
+test('rendered current funds show verified subtotal and source actions, with no empty ranking or fabricated zero', async () => {
+	const h = harness(); h.state.current.value = h.mapOperatingCurrent(partialCurrent())
+	const partial = await renderBrief(h, 'current-review')
+	assert.match(partial, /已核客户欠款小计/); assert.match(partial, /已核 3 \/ 4 户，1 户待核/)
+	assert.match(partial, /¥12.00/); assert.match(partial, /查看销售单/); assert.match(partial, /查看客户账款/)
+	assert.doesNotMatch(partial, /欠款前三|完整核算后显示排名/)
+	const unavailable = current().data; unavailable.complete = false; unavailable.current.complete = false
+	for (const block of [unavailable.current.debt, unavailable.current.available_funds]) failDomain(block)
+	Object.assign(unavailable.current, { receivable: null, prepay: null, offset_credit: null, prepay_sources: null })
+	failDomain(unavailable.current.debt_ranking, ['total_receivable', 'positive_customer_count']); unavailable.current.debt_ranking.items = []
+	h.state.current.value = h.mapOperatingCurrent(unavailable)
+	const empty = await renderBrief(h)
+	assert.match(empty, /客户资金暂不可汇总/); assert.doesNotMatch(empty, /欠款前三|brief__balance-value|完整核算后显示排名/)
+	h.state.current.value = h.mapOperatingCurrent(partialCurrent())
+	assert.doesNotMatch(await renderBrief(h, 'current-review', () => false), /查看销售单|查看客户账款|当前客户资金/)
+	h.state.current.value = null; h.state.currentError.value = '连接失败'
+	const failed = await renderBrief(h)
+	assert.match(failed, /读取失败：连接失败/); assert.doesNotMatch(failed, /客户资金暂不可汇总/)
+})
+
+test('rendered negative tank difference stays in evidence and directs to real inbound records without implying surplus', async () => {
+	const h = harness(); h.state.tankLoss.value = h.mapOperatingTankLoss(tankLoss('yesterday', -20539).data, 'yesterday')
+	const closed = await renderBrief(h)
+	assert.match(closed, /暂无法确认/); assert.match(closed, /请核对入库记录/)
+	assert.doesNotMatch(closed, /20,539|估算盈余/)
+	const opened = await renderBrief(h, 'loss')
+	assert.match(opened, /-20,539 kg/); assert.match(opened, /核对入库记录/)
+	assert.doesNotMatch(opened, /估算盈余/)
+	assert.doesNotMatch(await renderBrief(h, 'loss', () => false), /核对入库记录 →/)
+})
+
 test('gas mapper preserves independently known channels and consumption when loss or a channel cannot be confirmed', () => {
 	const h = harness(), data = tankLoss().data
 	data.status = 'insufficient_data'; data.estimated_loss_kg = null; data.recorded_outflow_kg = null
@@ -253,6 +363,21 @@ test('gas mapper preserves independently known channels and consumption when los
 	Object.assign(missingBoundary, { status: 'insufficient_data', opening: null, estimated_consumption_kg: null,
 		estimated_loss_kg: null, issues: [{ code: 'opening_missing_sample', message: '缺期初采样' }] })
 	assert.equal(h.mapOperatingTankLoss(missingBoundary, 'yesterday').outflow.weight_kg, 80)
+	data.estimated_consumption_kg = -100
+	assert.equal(h.mapOperatingTankLoss(data, 'yesterday').status, 'insufficient_data', 'missing outflow takes priority over a negative known consumption')
+})
+
+test('old available negative tank estimates safely become review states during deployment transition', () => {
+	const h = harness(), old = tankLoss('yesterday', -20539).data
+	old.status = 'available'; old.issues = []
+	const mapped = h.mapOperatingTankLoss(old, 'yesterday')
+	assert.equal(mapped.status, 'needs_review')
+	assert.equal(mapped.estimated_loss_kg, -20539)
+	assert.equal(h.tankLossPresentation(mapped).amount, null)
+	assert.equal(h.tankLossPresentation(mapped).needsReview, true)
+	const inconsistent = tankLoss().data
+	inconsistent.status = 'needs_review'; inconsistent.issues = [{ code: 'negative_estimated_loss', message: '负差待核' }]
+	assert.throws(() => h.mapOperatingTankLoss(inconsistent, 'yesterday'), /不一致/)
 })
 
 test('gas mapper rejects legacy or contradictory outflow, counts, consumption and subtotal contracts', () => {
@@ -298,6 +423,17 @@ test('mappers accept actual backend empty and independently failed domain respon
 	const gas = await readTankLoss(makeDb({}), { period: 'today' }, now)
 	assert.equal(h.mapOperatingTankLoss(gas.data, 'today').outflow.weight_kg, 0)
 	assert.equal(gas.data.estimated_consumption_kg, null)
+	const customerRows = ['good', 'pending'].map(_id => ({ _id, name: `合成${_id}`, default_price_unit: 'kg' }))
+	const sales = customerRows.map(row => ({ _id: `sale-${row._id}`, customer_id: row._id, date: range.start,
+		settlement_mode: 'sale', biz_mode: 'bottle', price_unit: 'kg', unit_price: row._id === 'good' ? 10 : null,
+		out_items: [{ net: 10 }], back_items: [], amount_received: 0, created_at: 1, updated_at: 1 }))
+	const partial = h.mapOperatingCurrent(await readCurrentBrief(makeDb({ crm_customers: customerRows, crm_sale_records: sales }), { now }))
+	assert.equal(partial.current.debt.status, 'partial')
+	assert.equal(partial.current.debt.verified_subtotal, 100)
+	assert.equal(partial.current.debt.coverage.verified_customers, 1)
+	assert.equal(partial.current.debt.coverage.pending_customers, 1)
+	assert.equal(partial.current.debt_ranking.items.length, 0)
+	assert.equal(h.operatingReviewItems([['客户欠款', partial.current.debt]])[0].actions[0].route, '/pages/sale/detail?_id=sale-pending')
 })
 
 test('period switching ignores older responses; periodic reads do not re-read current funds', async () => {
@@ -361,7 +497,7 @@ test('home-only permission loads business data but never requests restricted cur
 
 test('tank loss preserves positive, negative and real zero server values; missing evidence never displays zero', () => {
 	const h = harness()
-	for (const [signed, label, displayed] of [[20.125, '估算损耗', 20.125], [-8.5, '估算盈余', 8.5], [0, '估算损耗', 0]]) {
+	for (const [signed, label, displayed] of [[20.125, '估算损耗', 20.125], [-8.5, '估算损耗', null], [0, '估算损耗', 0]]) {
 		const response = h.mapOperatingTankLoss(tankLoss('yesterday', signed).data, 'yesterday')
 		assert.equal(response.estimated_loss_kg, signed)
 		assert.equal(h.tankLossPresentation(response).label, label)

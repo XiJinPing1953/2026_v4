@@ -2,6 +2,7 @@
 // Amounts below are synthetic and deliberately exercise independent source states.
 const version = 'operating-brief/2026-10-23.1'
 const financeVersion = 'operating-brief-finance/2026-10-23.1'
+const currentVersion = 'operating-brief-current/2026-10-24.1'
 const day = 86400000
 const date = value => new Date(value).toISOString().slice(0, 10)
 const available = () => ({ status: 'available', complete: true, issues: [], issue_count: 0 })
@@ -65,7 +66,8 @@ export function dashboardFixture(data = {}) {
 		const from = Date.parse(`${range.start}T00:00:00+08:00`)
 		const to = period === 'yesterday' ? Date.parse(`${range.end}T00:00:00+08:00`) + day : now
 		const missing = fixture === 'tank-missing', unknownOutflow = fixture === 'tank-outflow-unavailable'
-		const loss = empty ? 0 : fixture === 'tank-gain' ? value(-15.125) : value(29.028)
+		const missingInbound = ['tank-inbound-missing', 'brief-review'].includes(fixture)
+		const loss = empty ? 0 : missingInbound ? -20539.195 : fixture === 'tank-gain' ? value(-15.125) : value(29.028)
 		const inbound = !empty && period === 'month' ? 60000 : 0
 		const channels = [
 			{ key: 'bottle', label: '钢瓶充装', weight_kg: operations.fill_bottle_weight_kg, count: operations.fill_bottle_count, count_unit: '瓶次', complete: true },
@@ -77,9 +79,11 @@ export function dashboardFixture(data = {}) {
 		const consumption = Number((registered + loss).toFixed(3))
 		if (unknownOutflow) Object.assign(channels[3], { weight_kg: null, count: null, complete: false })
 		const issues = missing ? [{ code: 'opening_missing', message: '缺少期初附近的储罐液位日志' }] : unknownOutflow
-			? [{ code: 'outflow_time_missing', message: '整车补气登记时刻待核，暂不计算完整出罐和损耗' }] : []
+			? [{ code: 'outflow_time_missing', message: '整车补气登记时刻待核，暂不计算完整出罐和损耗' }]
+			: missingInbound ? [{ code: 'tank_stock_increase_without_inbound', message: '罐存增加但未登记入库，请核对入库记录' }]
+			: loss < 0 ? [{ code: 'negative_estimated_loss', message: '出罐量大于估算耗气量，请核对液位和登记记录' }] : []
 		payload = { section: 'tank_loss', version, period, range, complete: true,
-			status: missing || unknownOutflow ? 'insufficient_data' : 'available',
+			status: missing || unknownOutflow ? 'insufficient_data' : loss < 0 ? 'needs_review' : 'available',
 			opening: missing ? null : { weight_kg: 12000, observed_at: from - 5000, level_kpa: 23.3 },
 			closing: { weight_kg: Number((12000 + inbound - consumption).toFixed(3)), observed_at: to - 5000, level_kpa: 16.8 },
 			inbound_kg: inbound, recorded_outflow_kg: unknownOutflow ? null : registered,
@@ -90,6 +94,10 @@ export function dashboardFixture(data = {}) {
 	}
 	if (data.section === 'current') {
 		const debt = available(), funds = available(), total = empty ? 0 : 203600.123
+		const checkedCustomers = empty ? 0 : 86
+		const checked = amount => ({ verified_subtotal: amount, coverage: { complete: true, total_customers: checkedCustomers,
+			verified_customers: checkedCustomers, pending_customers: 0 }, issues_complete: true })
+		Object.assign(debt, checked(total)); Object.assign(funds, checked(empty ? 0 : 12000.018))
 		const items = empty ? [] : [
 			{ customer_id: 'fixture-customer-001', name: '示例甲客户', code: 'KH001', amount: 90000 },
 			{ customer_id: 'fixture-customer-002', name: '示例乙客户（停用）', code: 'KH002', amount: 60000 },
@@ -101,25 +109,34 @@ export function dashboardFixture(data = {}) {
 			prepay_label: '可用款（不含退气抵款）', customer_count: empty ? 0 : 86, complete: true, debt, available_funds: funds,
 			debt_ranking: { ...available(), total_receivable: total, positive_customer_count: empty ? 0 : 20, items } }
 		const pending = { count: empty ? 0 : 2, amount: empty ? 0 : 3200.012, ...available() }
-		if (['current-partial', 'current-debt-unavailable'].includes(fixture)) {
-			const state = unavailable('客户欠款来源待核，不展示局部排名', { source: 'crm_sale_records', source_id: 'fixture-sale-004', field: 'unit_price' })
+		if (['current-partial', 'current-debt-unavailable', 'brief-review', 'current-all-unavailable'].includes(fixture)) {
+			const state = unavailable('原单应收与已抵金额需核对', { source: 'crm_sale_records', source_id: 'fixture-sale-004', field: 'amount_received',
+				customer_id: 'fixture-customer-004', customer_name: '示例待核客户', customer_code: 'KH004', source_date: '2026-01-03', action: 'review_source' })
 			Object.assign(debt, state); current.receivable = null
 			Object.assign(current.debt_ranking, state, { total_receivable: null, positive_customer_count: null, items: [] })
+			Object.assign(debt, { status: 'partial', verified_subtotal: 186200.123,
+				coverage: { complete: true, total_customers: 86, verified_customers: 85, pending_customers: 1 } })
 		}
-		if (fixture === 'current-funds-unavailable') {
-			Object.assign(funds, unavailable('预收款可用余额不守恒', { source: 'crm_customer_receipts', source_id: 'fixture-receipt-001', field: 'unallocated_amount' }))
+		if (['current-funds-unavailable', 'brief-review', 'current-all-unavailable'].includes(fixture)) {
+			Object.assign(funds, unavailable('有收款调整尚未完成', { code: 'receipt_operation_pending', source: 'crm_customer_receipts',
+				source_id: 'fixture-receipt-001', field: 'unallocated_amount', customer_id: 'fixture-customer-005', customer_name: '示例收款待核客户',
+				customer_code: 'KH005', source_date: '2026-10-20', action: 'resume_receipt_adjustment' }), { status: 'partial', verified_subtotal: 10000.018,
+				coverage: { complete: true, total_customers: 86, verified_customers: 85, pending_customers: 1 } })
 			current.prepay = null; current.offset_credit = null; current.prepay_sources = null
 		}
+		if (fixture === 'current-all-unavailable') for (const block of [debt, funds]) Object.assign(block,
+			{ status: 'unavailable', verified_subtotal: null, coverage: { complete: false, total_customers: null, verified_customers: null, pending_customers: null }, issues_complete: false })
 		if (fixture === 'current-pending-unavailable') {
 			clear(pending, ['count', 'amount'], unavailable('结账收款关联凭据待核', { source: 'crm_cashier_intakes', source_id: 'fixture-intake-001' }))
 		}
 		if (fixture === 'top3-one') {
 			current.receivable = 90000; Object.assign(current.debt_ranking, { total_receivable: 90000, positive_customer_count: 1,
 				items: [{ ...items[0], share_of_total: 1 }] })
+			debt.verified_subtotal = 90000
 		}
 		current.complete = debt.complete && funds.complete
 		const complete = current.complete && pending.complete
-		payload = { section: 'current', version, money_scale: 3, current, pending, complete, updated_at: now,
+		payload = { section: 'current', version, current_version: currentVersion, money_scale: 3, current, pending, complete, updated_at: now,
 			accounting: { status: complete ? 'resolved' : 'unresolved' }, scope: 'visible_settlement_customers_including_inactive',
 			read_started_at: now, read_completed_at: now, snapshot_consistent: false }
 	}

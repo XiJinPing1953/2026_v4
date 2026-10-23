@@ -28,13 +28,13 @@ function arrival(id, purpose, amount, available = amount, extra = {}) {
 function unavailable(result, domain = 'debt', reason) {
   const value = domain === 'pending' ? result.pending : result.current[domain]
   assert.equal(value.status, 'unavailable'); assert.equal(value.complete, false)
-  assert.ok(value.issues.length > 0); if (reason) assert.equal(value.issues[0].reason, reason)
+  assert.ok(value.issues.length > 0); if (reason) assert.ok(value.issues.some(issue => issue.reason === reason), `missing ${reason}`)
   if (domain === 'debt') {
     assert.equal(result.current.receivable, null); assert.equal(result.current.debt_ranking.complete, false)
     assert.equal(result.current.debt_ranking.total_receivable, null); assert.deepEqual(result.current.debt_ranking.items, [])
   } else if (domain === 'available_funds') { assert.equal(result.current.prepay, null); assert.equal(result.current.offset_credit, null) }
   else { assert.equal(result.pending.count, null); assert.equal(result.pending.amount, null) }
-  return value.issues[0]
+  return (reason && value.issues.find(issue => issue.reason === reason)) || value.issues[0]
 }
 
 test('empty sources return verified zero and never persist customer caches', async () => {
@@ -384,5 +384,154 @@ test('top debtor access still requires both home and customer visibility permiss
     if (expected) { assert.deepEqual(reads, []); assert.equal(result.data?.current, undefined) }
     else assert.equal(result.data.current.debt_ranking.items[0].customer_id, 'a')
     assert.ok(db.writes.every(write => write.name === 'crm_operation_logs'))
+  }
+})
+
+test('real handler isolates an entire bad debtor, reports every affected source, and never ranks a partial population', async () => {
+  const tables = fixture({ crm_customers: [customer('a', { qr_code: 'K001' }), customer('b'), customer('idle', { is_active: false }),
+    customer('delivery', { settlement_customer_id: 'b' }), customer('hidden', { is_hidden: true })],
+    crm_sale_records: [sale({ _id: 'bad-price', unit_price: null }), sale({ _id: 'bad-allocation', amount_received: 101 }),
+      sale({ _id: 'good-same-customer', unit_price: 999 }), sale({ _id: 'good-b', customer_id: 'b', delivery_customer_id: 'delivery' }),
+      sale({ _id: 'hidden-source', customer_id: 'hidden', amount_received: null })] })
+  const before = structuredClone(tables), db = makeDb(tables)
+  const response = await loadHandler('crm-dashboard', db)({ token: 'test', action: 'summaryV1', data: { section: 'current' } })
+  assert.equal(response.code, 0)
+  const result = response.data, domain = result.current.debt
+  assert.equal(result.current_version, 'operating-brief-current/2026-10-24.1')
+  assert.equal(domain.status, 'partial'); assert.equal(domain.complete, false)
+  assert.equal(domain.verified_subtotal, 100)
+  assert.deepEqual(domain.coverage, { complete: true, total_customers: 3, verified_customers: 2, pending_customers: 1 })
+  assert.equal(domain.issues_complete, true); assert.equal(domain.issue_count, 2)
+  assert.deepEqual(domain.issues.map(row => row.source_id), ['bad-allocation', 'bad-price'])
+  for (const issue of domain.issues) {
+    assert.equal(issue.customer_id, 'a'); assert.equal(issue.customer_name, '合成a'); assert.equal(issue.customer_code, 'K001')
+    assert.equal(issue.source_date, '2026-10-23'); assert.equal(issue.action, 'review_source')
+  }
+  assert.equal(result.current.receivable, null); assert.equal(result.current.debt_ranking.total_receivable, null)
+  assert.equal(result.current.debt_ranking.complete, false); assert.deepEqual(result.current.debt_ranking.items, [])
+  assert.equal(result.read_complete, true); assert.equal(response.financial_evidence.read_complete, true)
+  assert.equal(result.current.available_funds.complete, true); assert.equal(result.pending.complete, true)
+  assert.equal(JSON.stringify(domain).includes('hidden'), false)
+  assert.deepEqual(tables, before); assert.ok(db.writes.every(write => write.name === 'crm_operation_logs'))
+})
+
+test('debt and available funds quarantine different customers and retain independent verified subtotals', async () => {
+  const tables = fixture({ crm_customers: ['a', 'b', 'c'].map(id => customer(id)),
+    crm_sale_records: [sale({ unit_price: null }), sale({ _id: 'b-sale', customer_id: 'b' }), sale({ _id: 'c-sale', customer_id: 'c', unit_price: 5 })],
+    crm_customer_receipts: [receipt(), receipt({ _id: 'b-pending', customer_id: 'b', receipt_adjustment_status: 'pending' }),
+      receipt({ _id: 'b-other-invalid', customer_id: 'b', unallocated_amount: 81 }),
+      receipt({ _id: 'b-valid-but-excluded', customer_id: 'b' }), receipt({ _id: 'c-good', customer_id: 'c', amount: 10, unallocated_amount: 10 })] })
+  const result = await readCurrentBrief(makeDb(tables))
+  assert.equal(result.current.debt.verified_subtotal, 150)
+  const funds = result.current.available_funds
+  assert.equal(funds.verified_subtotal, 90); assert.equal(funds.status, 'partial')
+  assert.deepEqual(funds.coverage, { complete: true, total_customers: 3, verified_customers: 2, pending_customers: 1 })
+  assert.equal(funds.issue_count, 2); assert.equal(funds.issues_complete, true)
+  assert.equal(funds.issues.find(row => row.source_id === 'b-pending').action, 'resume_receipt_adjustment')
+  assert.equal(result.current.prepay, null); assert.equal(result.current.prepay_sources, null); assert.equal(result.current.offset_credit, null)
+  assert.equal(result.pending.complete, true); assert.equal(result.pending.count, 0)
+})
+
+test('no verified customer is unknown, while an explicitly verified zero subtotal stays zero', async () => {
+  const allBad = await readCurrentBrief(makeDb(fixture({ crm_sale_records: [sale({ unit_price: null })] })))
+  assert.equal(allBad.current.debt.status, 'unavailable'); assert.equal(allBad.current.debt.verified_subtotal, null)
+  assert.deepEqual(allBad.current.debt.coverage, { complete: true, total_customers: 1, verified_customers: 0, pending_customers: 1 })
+  const verifiedZero = await readCurrentBrief(makeDb(fixture({ crm_customers: [customer(), customer('zero')],
+    crm_sale_records: [sale({ unit_price: null })] })))
+  assert.equal(verifiedZero.current.debt.status, 'partial'); assert.equal(verifiedZero.current.debt.verified_subtotal, 0)
+  assert.equal(verifiedZero.current.debt.coverage.verified_customers, 1)
+  const none = await readCurrentBrief(makeDb(fixture({ crm_customers: [] })))
+  assert.equal(none.current.debt.status, 'available'); assert.equal(none.current.debt.verified_subtotal, 0)
+  assert.deepEqual(none.current.debt.coverage, { complete: true, total_customers: 0, verified_customers: 0, pending_customers: 0 })
+  assert.deepEqual(none.current.prepay_sources, { manual_prepay: 0, receipt_unallocated: 0, opening_prepay: 0, deposit_transfer: 0, settlement_fee: 0 })
+})
+
+test('source read failure, ownership ambiguity, and read-window changes forbid even a partial debt claim', async () => {
+  for (const scenario of ['read', 'unknown', 'delivery', 'changed']) {
+    const tables = fixture({ crm_customers: [customer(), customer('b')], crm_sale_records: [sale(), sale({ _id: 'b-sale', customer_id: 'b' })] })
+    if (scenario === 'unknown') tables.crm_sale_records.push(sale({ _id: 'unscoped-private-source', customer_id: 'unknown-private-id' }))
+    if (scenario === 'delivery') tables.crm_sale_records[0].delivery_customer_id = 'b'
+    let changed = false
+    const result = await readCurrentBrief(makeDb(tables, { get: (name, rows) => {
+      if (scenario === 'read' && name === 'crm_sale_records') throw Error('storage unavailable')
+      if (scenario === 'changed' && !changed && name === 'crm_customer_receipts') {
+        changed = true; tables.crm_sale_records[0].updated_at = Date.now() + 10
+      }
+      return { data: structuredClone(rows) }
+    } }))
+    const domain = result.current.debt
+    assert.equal(domain.status, 'unavailable', scenario); assert.equal(domain.verified_subtotal, null)
+    assert.deepEqual(domain.coverage, { complete: false, total_customers: null, verified_customers: null, pending_customers: null })
+    assert.equal(domain.issues_complete, false); assert.equal(result.current.available_funds.complete, true)
+    assert.deepEqual(result.current.debt_ranking.items, [])
+    if (scenario === 'unknown') assert.equal(JSON.stringify(result).includes('private'), false)
+  }
+})
+
+test('cross-customer or unowned funding links block the funding population before customer partitioning', async () => {
+  for (const scenario of ['refund', 'intake', 'shared_legacy_source', 'missing_source']) {
+    const tables = fixture({ crm_customers: [customer(), customer('b'), customer('good')],
+      crm_sale_records: [sale()], crm_customer_receipts: [receipt(), receipt({ _id: 'good', customer_id: 'good' })] })
+    if (scenario === 'refund' || scenario === 'missing_source') tables.crm_customer_receipts.push(receipt({ _id: 'refund-b', customer_id: 'b',
+      source_type: 'customer_cash_refund', amount: -20, allocated_amount: 0, unallocated_amount: 0,
+      refund_source_status: 'linked', refund_sources: [{ id: scenario === 'refund' ? 'receipt-a' : 'missing-private-source', amount: 20 }] }))
+    if (scenario === 'intake') {
+      const value = arrival('i', 'settlement', 100); value.receipt.customer_id = 'b'
+      tables.crm_cashier_intakes.push(value.head); tables.crm_customer_receipts.push(value.receipt)
+    }
+    if (scenario === 'shared_legacy_source') tables.crm_customer_receipts.push(...['a', 'b'].map(id => receipt({ _id: `legacy-${id}`, customer_id: id,
+      source_type: 'cashier_intake', source_id: 'same-legacy-source' })))
+    const result = await readCurrentBrief(makeDb(tables)), funds = result.current.available_funds
+    assert.equal(funds.status, 'unavailable', scenario); assert.equal(funds.coverage.complete, false, scenario)
+    assert.equal(funds.verified_subtotal, null); assert.equal(funds.issues_complete, false)
+    assert.equal(funds.issues[0].reason, 'fund_source_scope_unresolved')
+    assert.equal(result.current.debt.complete, true); assert.equal(result.current.receivable, 100)
+    assert.equal(JSON.stringify(result).includes('missing-private-source'), false)
+  }
+})
+
+test('a malformed refund within one known customer excludes that whole customer, not independent customers', async () => {
+  const source = receipt({ amount: 100, allocated_amount: 30, unallocated_amount: 50, cash_refunded_amount: 20 })
+  const refund = receipt({ _id: 'refund', source_type: 'customer_cash_refund', amount: -20, allocated_amount: 0, unallocated_amount: 0,
+    refund_source_status: 'linked', refund_sources: [{ id: source._id, amount: 19 }] })
+  const result = await readCurrentBrief(makeDb(fixture({ crm_customers: [customer(), customer('b')],
+    crm_customer_receipts: [source, refund, receipt({ _id: 'good-a' }), receipt({ _id: 'good-b', customer_id: 'b' })] })))
+  assert.equal(result.current.available_funds.status, 'partial'); assert.equal(result.current.available_funds.verified_subtotal, 80)
+  assert.equal(result.current.available_funds.coverage.pending_customers, 1)
+  assert.equal(result.current.available_funds.issues_complete, true)
+  assert.deepEqual(result.current.available_funds.issues.map(row => row.source_id), ['receipt-a', 'refund'])
+})
+
+test('mixed legacy gas and remarked fees remain unresolved without capping money or inferring rounding', async () => {
+  const source = sale({ unit_price: 5.3, biz_mode: 'agent_sale', agent_sale_items: [{ fill_weight: 1279 }],
+    amount_received: 33278, rounding_amount: 0, remark: '检测费25000元，遇冷费1500元' })
+  const tables = fixture({ crm_customers: [customer(), customer('b')], crm_sale_records: [source, sale({ _id: 'b-sale', customer_id: 'b' })] })
+  const before = structuredClone(tables), db = makeDb(tables), result = await readCurrentBrief(db)
+  assert.equal(snapshots.computeSaleSnapshot(source).should_receive, 6778.7)
+  assert.equal(result.current.debt.status, 'partial'); assert.equal(result.current.debt.verified_subtotal, 100)
+  assert.equal(result.current.debt.issues[0].reason, 'source_allocation_exceeds_principal')
+  assert.match(result.current.debt.issues[0].message, /应收与已收口径/)
+  assert.deepEqual(tables, before); assert.deepEqual(db.writes, [])
+})
+
+test('raw sales and opening debt precision must survive the canonical scale before a customer is verified', async () => {
+  for (const kind of ['sale', 'debt']) for (const field of ['amount_received', 'rounding_amount', 'receipt_rounding_amount', ...(kind === 'debt' ? ['amount'] : [])]) {
+    const tables = fixture({ crm_customers: [customer(), customer('b')], crm_sale_records: [sale({ _id: 'good-b', customer_id: 'b' })] })
+    if (kind === 'sale') tables.crm_sale_records.push(sale({ [field]: 0.001 }))
+    else tables.crm_customer_opening_debts.push(debt({ [field]: 0.001 }))
+    const before = structuredClone(tables), result = await readCurrentBrief(makeDb(tables))
+    assert.equal(result.current.debt.status, 'partial', `${kind}.${field}`)
+    assert.equal(result.current.debt.verified_subtotal, 100)
+    assert.equal(result.current.debt.coverage.pending_customers, 1)
+    assert.equal(result.current.debt.issues[0].reason, 'invalid_source_precision')
+    assert.equal(result.current.debt.issues[0].field, field)
+    assert.equal(result.current.receivable, null); assert.deepEqual(result.current.debt_ranking.items, [])
+    assert.deepEqual(tables, before)
+  }
+  for (const custom of [{ money_scale: 3 }, { customer: { default_price_unit: 'm3' } }]) {
+    const { customer: customerPatch, ...sourcePatch } = custom
+    const result = await readCurrentBrief(makeDb(fixture({ crm_customers: [customer('a', customerPatch)],
+      crm_customer_opening_debts: [debt({ amount: 0.028, amount_received: 0.018, receipt_rounding_amount: 0.002, ...sourcePatch })] })))
+    assert.equal(result.current.debt.complete, true); assert.equal(result.current.debt.verified_subtotal, 0.008)
   }
 })

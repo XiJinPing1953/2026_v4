@@ -68,16 +68,95 @@ test('real handler computes signed estimated loss from model endpoints, station-
 	assert.equal(db.writes.length, 0)
 })
 
-test('zero records with valid endpoints give exact zero; negative result remains a surplus', async () => {
+test('zero records with unchanged endpoints give verified zero; rising stock with no inbound stays a signed review difference', async () => {
 	for (const [openLevel, closeLevel] of [[30, 30], [29, 30]]) {
 		const result = await run(makeDb(setup({}, openLevel, closeLevel)))
-		assert.equal(result.data.status, 'available')
+		assert.equal(result.data.status, openLevel === closeLevel ? 'available' : 'needs_review')
 		assert.equal(result.data.inbound_kg, 0)
 		assert.equal(result.data.recorded_outflow_kg, 0)
 		assert.equal(result.data.outflow.complete, true)
 		assert.ok(result.data.outflow.channels.every(row => row.complete && row.weight_kg === 0 && row.count === 0))
 		assert.equal(result.data.estimated_loss_kg, round(kg(openLevel) - kg(closeLevel)))
+		assert.deepEqual(result.data.issues.map(row => row.code), openLevel === closeLevel ? [] : ['tank_stock_increase_without_inbound'])
 	}
+})
+
+test('missing-inbound signature preserves all signed inputs and requests review on any business date without writes', async () => {
+	for (const date of ['2026-10-12', '2026-10-23']) {
+		const start = Date.parse(`${date}T00:00:00+08:00`), end = start + DAY
+		const tables = setup({ crm_operation_logs: [log('opening', start - 1000, 5.53), log('closing', end - 1000, 40.03)],
+			crm_fillings: [filling('bottles', 1621.5, { date, filling_time: `${date}-10`, bottle_no: '123' }),
+				filling('vehicle', 401, { date, filling_time: `${date}-11`, record_type: 'truck_out_no_sale' })] })
+		const before = structuredClone(tables), db = makeDb(tables), result = await run(db, { period: 'yesterday' }, end + 10000)
+		assert.equal(result.code, 0)
+		assert.equal(result.data.complete, true)
+		assert.equal(result.data.status, 'needs_review')
+		assert.deepEqual([result.data.opening.weight_kg, result.data.inbound_kg, result.data.closing.weight_kg,
+			result.data.recorded_outflow_kg, result.data.estimated_consumption_kg, result.data.estimated_loss_kg],
+		[2600.85, 0, 21117.545, 2022.5, -18516.695, -20539.195])
+		assert.deepEqual(result.data.issues, [{ code: 'tank_stock_increase_without_inbound', message: '罐存增加但登记入罐为零，请核对入库记录' }])
+		assert.equal(result.data.outflow.complete, true)
+		assert.deepEqual(tables, before); assert.deepEqual(db.writes, [])
+	}
+})
+
+test('insufficient registered inbound and excess registered outflow have distinct review reasons', async () => {
+	const rise = await run(makeDb(setup({ crm_gas_in: [inbound('small-input', {
+		net_weight_t: 1, station_weight_t: 1, direct_sale_weight_t: 0 })] }, 5.53, 40.03)))
+	assert.equal(rise.data.status, 'needs_review')
+	assert.equal(rise.data.estimated_consumption_kg, -17516.695)
+	assert.equal(rise.data.issues[0].code, 'negative_estimated_consumption')
+	const lower = await run(makeDb(setup({ crm_fillings: [filling('more-than-model', 1000)] })))
+	assert.ok(lower.data.estimated_consumption_kg > 0)
+	assert.ok(lower.data.estimated_loss_kg < 0)
+	assert.equal(lower.data.status, 'needs_review')
+	assert.equal(lower.data.issues[0].code, 'negative_estimated_loss')
+})
+
+test('a later complete source read can resolve a prior review without changing the loss formula', async () => {
+	const tables = setup({ crm_fillings: [filling('out', 2022.5)] }, 5.53, 40.03)
+	const pending = await run(makeDb(tables))
+	assert.equal(pending.data.status, 'needs_review')
+	// A separate synthetic source snapshot models a newly registered arrival.
+	const registered = { ...tables, crm_gas_in: [inbound('new-source', {
+		product_name: 'LNG', net_weight_t: 20.54, station_weight_t: 20.54, direct_sale_weight_t: 0 })] }
+	const db = makeDb(registered), result = await run(db)
+	assert.equal(result.data.status, 'available')
+	assert.equal(result.data.estimated_loss_kg, 0.805)
+	assert.deepEqual(result.data.issues, [])
+	assert.deepEqual(db.writes, [])
+})
+
+test('missing physical sources keep null loss and insufficient status even when known consumption needs review', async () => {
+	const result = await run(makeDb(setup({ crm_fillings: [filling('missing-weight', null)] }, 5.53, 40.03)))
+	insufficient(result)
+	assert.equal(result.data.estimated_consumption_kg, -18516.695)
+	assert.equal(result.data.recorded_outflow_kg, null)
+	assert.ok(result.data.issues.some(row => row.code === 'tank_stock_increase_without_inbound'))
+	const noBoundary = await run(makeDb(setup({ crm_operation_logs: [] })))
+	insufficient(noBoundary)
+	assert.equal(noBoundary.data.estimated_consumption_kg, null)
+	assert.ok(noBoundary.data.issues.every(row => !row.code.startsWith('negative_') && row.code !== 'tank_stock_increase_without_inbound'))
+})
+
+test('main-tank inbound accepts the gas-in LNG default but rejects explicit unverified products without inventing zero', async () => {
+	for (const product_name of [undefined, null, '', '  ', 'LNG', ' lng ']) {
+		const result = await run(makeDb(setup({ crm_gas_in: [inbound('lng', { product_name })] })))
+		assert.equal(result.data.status, 'available', String(product_name))
+		assert.equal(result.data.inbound_kg, 1500)
+	}
+	for (const product_name of ['液氮', 'unknown', 12, true, {}]) {
+		const result = await run(makeDb(setup({ crm_gas_in: [inbound('wrong-product', { product_name })],
+			crm_fillings: [filling('known-outflow', 10)] })))
+		insufficient(result)
+		assert.equal(result.data.inbound_kg, null)
+		assert.equal(result.data.estimated_consumption_kg, null)
+		assert.equal(result.data.outflow.weight_kg, 10)
+		assert.equal(result.data.issues[0].code, 'inbound_product_unverified')
+	}
+	const future = await run(makeDb(setup({ crm_gas_in: [inbound('future', { date: '2026-10-23-13-00', product_name: 'unknown' })] })))
+	assert.equal(future.data.status, 'available')
+	assert.equal(future.data.inbound_kg, 0)
 })
 
 test('legacy net/direct split is compatible and direct-only gas never becomes station inventory', async () => {
@@ -312,7 +391,7 @@ test('tank outflow distinguishes real cylinders, 000, explicit vehicle fuel and 
 		filling('no-identity', 12), filling('zero', 0, { bottle_no: 'X001' })
 	]
 	const db = makeDb(setup({ crm_fillings: records }, 30, 30)), result = await run(db)
-	assert.equal(result.data.status, 'available')
+	assert.equal(result.data.status, 'needs_review')
 	const c = channelMap(result)
 	assert.deepEqual([c.bottle.weight_kg, c.bottle.count, c.bottle.count_unit], [6, 3, '瓶次'])
 	assert.deepEqual([c.local.weight_kg, c.local.count], [4, 1])
@@ -331,7 +410,7 @@ test('outflow channel totals use the same cutoff and three-decimal sums as tank 
 		rows.push(filling(`${key}-past`, 0.001, fields), filling(`${key}-future`, 900, { ...fields, filling_time: '2026-10-23-13' }))
 	}
 	const result = await run(makeDb(setup({ crm_fillings: rows }, 30, 30)))
-	assert.equal(result.data.status, 'available')
+	assert.equal(result.data.status, 'needs_review')
 	assert.equal(result.data.outflow.weight_kg, 0.004)
 	assert.equal(result.data.estimated_loss_kg, -0.004)
 	assert.ok(result.data.outflow.channels.every(row => row.weight_kg === 0.001 && row.count === 1 && row.complete))

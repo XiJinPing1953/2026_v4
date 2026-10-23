@@ -142,6 +142,12 @@ function sumInbound(rows, range, endAt, issues) {
 		const time = businessTime(row, 'inbound', range, endAt)
 		if (time.issue) { issues.push({ code: 'inbound_time_unknown', message: `入罐记录 ${row._id}：${time.issue}` }); valid = false; continue }
 		if (!time.include) continue
+		// The gas-in domain defaults legacy empty product names to LNG. An
+		// explicit different/invalid product cannot establish this main tank's input.
+		const product = row.product_name == null ? '' : typeof row.product_name === 'string' ? row.product_name.trim().toUpperCase() : null
+		if (product == null || product !== '' && product !== 'LNG') {
+			issues.push({ code: 'inbound_product_unverified', message: `入库记录 ${row._id}：品种无法确认为主罐 LNG，请核对` }); valid = false; continue
+		}
 		const weight = stationInboundKg(row)
 		if (weight == null || !Number.isSafeInteger(Math.round(weight * 1000))) {
 			issues.push({ code: 'inbound_weight_invalid', message: `入罐记录 ${row._id}：重量缺失、无效或入罐分配不守恒` }); valid = false; continue
@@ -189,14 +195,26 @@ async function readTankLoss(db, data = {}, now = Date.now()) {
 			if (!Array.isArray(changed.data) || changed.data.length) throw new FinancialReadError('records_changed_during_tank_loss', { source: name, read_started_at: started })
 		})
 	}
-	const available = issues.length === 0
+	const canCalculateLoss = issues.length === 0
 	const consumption = opening && closing && opening.gateway_id === closing.gateway_id && inboundKg != null
 		? (Math.round(opening.weight_kg * 1000) + Math.round(inboundKg * 1000) - Math.round(closing.weight_kg * 1000)) / 1000 : null
 	if (consumption != null && !Number.isSafeInteger(Math.round(consumption * 1000))) throw new FinancialReadError('quantity_overflow', { source: 'tank_loss' })
-	const loss = available ? (Math.round(consumption * 1000) - Math.round(outflowKg * 1000)) / 1000 : null
-	if (available && !Number.isSafeInteger(Math.round(loss * 1000))) throw new FinancialReadError('quantity_overflow', { source: 'tank_loss' })
+	const loss = canCalculateLoss ? (Math.round(consumption * 1000) - Math.round(outflowKg * 1000)) / 1000 : null
+	if (loss != null && !Number.isSafeInteger(Math.round(loss * 1000))) throw new FinancialReadError('quantity_overflow', { source: 'tank_loss' })
+	// A complete read does not prove that all physical receipts were registered.
+	// Keep the signed arithmetic for review, without claiming a surplus or guessing
+	// the missing receipt's amount/date from the model's residual.
+	let reviewIssue = null
+	if (consumption != null && consumption < 0) reviewIssue = inboundKg === 0
+		? { code: 'tank_stock_increase_without_inbound', message: '罐存增加但登记入罐为零，请核对入库记录' }
+		: { code: 'negative_estimated_consumption', message: '罐存增加量超过登记入罐量，请核对入库与液位依据' }
+	else if (loss != null && loss < 0) reviewIssue = {
+		code: 'negative_estimated_loss', message: '已登记出罐超过液位估算耗气，请核对出罐与液位依据'
+	}
+	if (reviewIssue) issues.push(reviewIssue)
+	const status = !canCalculateLoss ? 'insufficient_data' : reviewIssue ? 'needs_review' : 'available'
 	return { code: 0, data: { section: 'tank_loss', version: VERSION, period: data.period || 'yesterday', range,
-		complete: true, status: available ? 'available' : 'insufficient_data', opening, closing,
+		complete: true, status, opening, closing,
 		inbound_kg: inboundKg, recorded_outflow_kg: outflowKg, outflow,
 		estimated_consumption_kg: consumption, estimated_loss_kg: loss, issues,
 		updated_at: Date.now(), estimate_version: TANK_ESTIMATE_VERSION, read_started_at: started,

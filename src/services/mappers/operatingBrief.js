@@ -1,5 +1,6 @@
 const BRIEF_VERSION = 'operating-brief/2026-10-23.1'
 const FINANCE_VERSION = 'operating-brief-finance/2026-10-23.1'
+const CURRENT_VERSION = 'operating-brief-current/2026-10-24.1'
 
 function requireEnvelope(data, section) {
 	if (!data || data.section !== section || data.version !== BRIEF_VERSION || typeof data.complete !== 'boolean') {
@@ -85,11 +86,14 @@ export function mapOperatingBrief(data, period) {
 
 export function mapOperatingCurrent(data) {
 	requireEnvelope(data, 'current')
-	if (data.money_scale !== 3 || !data.current || typeof data.current.complete !== 'boolean') invalidSummary()
+	if (data.current_version != null && data.current_version !== CURRENT_VERSION || data.money_scale !== 3 || !data.current || typeof data.current.complete !== 'boolean') invalidSummary()
 	const block = data.current
-	const debt = requireDomain(block.debt), funds = requireDomain(block.available_funds)
+	const modern = data.current_version === CURRENT_VERSION
+	const readDomain = modern ? requireCurrentDomain : requireDomain
+	const debt = readDomain(block.debt), funds = readDomain(block.available_funds)
 	requireValues(block, ['receivable'], debt, { nonnegative: ['receivable'] })
 	requireValues(block, ['prepay', 'offset_credit'], funds, { nonnegative: ['prepay', 'offset_credit'] })
+	if (modern && (debt && block.debt.verified_subtotal !== block.receivable || funds && block.available_funds.verified_subtotal !== block.prepay)) invalidSummary()
 	if (block.customer_count !== null && (!Number.isSafeInteger(block.customer_count) || block.customer_count < 0)) invalidSummary()
 	if ((debt || funds) && block.customer_count === null || typeof block.prepay_label !== 'string' || !block.prepay_label) invalidSummary()
 	if (funds) {
@@ -99,7 +103,36 @@ export function mapOperatingCurrent(data) {
 	const pending = requireDomain(data.pending, ['count', 'amount'], { nonnegative: ['amount'], counts: ['count'] })
 	if (block.complete && !(debt && funds) || data.complete && !(debt && funds && pending)) invalidSummary()
 	requireDebtRanking(block.debt_ranking, debt, block.receivable, block.customer_count)
-	return data
+	if (modern) return data
+	// The deployed previous contract has only whole-domain available/unavailable
+	// states. Adapt those known states during rollout; never infer a partial sum.
+	const legacyDomain = (domain, amount) => ({ ...domain, verified_subtotal: domain.complete ? amount : null,
+		coverage: { complete: domain.complete, total_customers: domain.complete ? block.customer_count : null,
+			verified_customers: domain.complete ? block.customer_count : null, pending_customers: domain.complete ? 0 : null },
+		issue_count: domain.issue_count ?? domain.issues.length,
+		issues_complete: domain.complete || domain.issue_count === domain.issues.length })
+	return { ...data, current: { ...block, debt: legacyDomain(block.debt, block.receivable), available_funds: legacyDomain(block.available_funds, block.prepay) } }
+}
+
+function requireCurrentDomain(block) {
+	if (!block || !['available', 'partial', 'unavailable'].includes(block.status) || block.complete !== (block.status === 'available')) invalidSummary()
+	requireIssues(block.issues)
+	if (!Number.isSafeInteger(block.issue_count) || block.issue_count < block.issues.length || typeof block.issues_complete !== 'boolean' ||
+		block.issues_complete && block.issue_count !== block.issues.length ||
+		(block.complete ? block.issue_count !== 0 : block.issue_count === 0)) invalidSummary()
+	const coverage = block.coverage
+	if (!coverage || typeof coverage.complete !== 'boolean') invalidSummary()
+	const fields = ['total_customers', 'verified_customers', 'pending_customers']
+	requireValues(coverage, fields, coverage.complete, { counts: fields })
+	if (!coverage.complete) {
+		if (block.status !== 'unavailable' || block.verified_subtotal !== null) invalidSummary()
+	} else {
+		const { total_customers: total, verified_customers: verified, pending_customers: pending } = coverage
+		if (verified + pending !== total ||
+			(block.status === 'available' ? pending !== 0 : block.status === 'partial' ? !(verified > 0 && pending > 0) : verified !== 0 || pending === 0)) invalidSummary()
+		requireValues(block, ['verified_subtotal'], block.status !== 'unavailable', { nonnegative: ['verified_subtotal'] })
+	}
+	return block.complete
 }
 
 function requireDebtRanking(ranking, debtAvailable, receivable, customerCount) {
@@ -139,33 +172,71 @@ function requireGasOutflow(outflow, recordedWeight) {
 export function mapOperatingTankLoss(data, period) {
 	requireComplete(data, 'tank_loss')
 	requirePeriod(data, period)
-	if (!['available', 'insufficient_data'].includes(data.status) || !Array.isArray(data.issues)) throw new Error('估算损耗数据读取未完成')
+	if (!['available', 'needs_review', 'insufficient_data'].includes(data.status) || !Array.isArray(data.issues)) throw new Error('估算损耗数据读取未完成')
 	const available = data.status === 'available'
+	const hasEvidence = data.status !== 'insufficient_data'
 	requireIssues(data.issues)
 	if (available ? data.issues.length !== 0 : data.issues.length === 0) invalidSummary()
 	for (const field of ['opening', 'closing']) {
 		const row = data[field]
-		if (row === null && !available) continue
+		if (row === null && !hasEvidence) continue
 		if (!row || !isNumber(row.weight_kg) || row.weight_kg < 0 || !isNumber(row.level_kpa) || row.level_kpa < 0 ||
 			!isNumber(row.observed_at) || row.observed_at <= 0) throw new Error('储罐估算依据读取未完成')
 	}
 	for (const field of ['inbound_kg', 'recorded_outflow_kg', 'estimated_consumption_kg', 'estimated_loss_kg']) {
-		if (data[field] === null && !available) continue
+		if (data[field] === null && !hasEvidence) continue
 		if (!isNumber(data[field])) throw new Error('估算损耗数据读取未完成')
 	}
-	if (!available && data.estimated_loss_kg != null) throw new Error('估算损耗状态与数据不一致')
+	if (!hasEvidence && data.estimated_loss_kg != null ||
+		data.status === 'needs_review' && !(data.estimated_loss_kg < 0 || data.estimated_consumption_kg < 0)) throw new Error('估算损耗状态与数据不一致')
 	if (data.inbound_kg != null && data.inbound_kg < 0) invalidSummary()
 	if (data.estimated_consumption_kg != null && (!data.opening || !data.closing || data.inbound_kg === null ||
 		data.opening.gateway_id && data.closing.gateway_id && data.opening.gateway_id !== data.closing.gateway_id)) invalidSummary()
 	requireGasOutflow(data.outflow, data.recorded_outflow_kg)
-	if (available && !data.outflow.complete) invalidSummary()
+	if (hasEvidence && !data.outflow.complete) invalidSummary()
+	// The previous deployed endpoint labelled negative estimates available.
+	// Downgrade that known shape during rollout without hiding its signed basis.
+	if (available && (data.estimated_loss_kg < 0 || data.estimated_consumption_kg < 0)) return { ...data, status: 'needs_review',
+		issues: [{ code: 'negative_estimated_difference', message: '液位估算与登记气量存在负差，请核对入库、出罐及液位依据' }] }
 	return data
 }
 
 // Display sign only; all weights and the signed difference come from the server.
 export function tankLossPresentation(data) {
-	if (!data || data.status !== 'available' || !isNumber(data.estimated_loss_kg)) return { label: '估算损耗', amount: null }
-	return { label: data.estimated_loss_kg < 0 ? '估算盈余' : '估算损耗', amount: Math.abs(data.estimated_loss_kg) }
+	if (data?.status === 'needs_review' || isNumber(data?.estimated_loss_kg) && data.estimated_loss_kg < 0) return { label: '估算损耗', amount: null, needsReview: true }
+	if (!data || data.status !== 'available' || !isNumber(data.estimated_loss_kg)) return { label: '估算损耗', amount: null, needsReview: false }
+	return { label: '估算损耗', amount: data.estimated_loss_kg, needsReview: false }
+}
+
+// Keep every supplied issue, but combine affected metrics that refer to the
+// same source. Routes only use entry points supported by the existing pages.
+export function operatingReviewItems(groups) {
+	const rows = new Map()
+	const text = value => typeof value === 'string' ? value.trim() : ''
+	for (const [label, block] of groups) {
+		if (!block || block.complete !== false) continue
+		const issues = block.issues?.length ? block.issues : [{ code: 'source_unavailable', message: '来源不完整，暂不显示合计' }]
+		for (const issue of issues) {
+			const source = text(issue.source) || text(issue.source_type), sourceId = text(issue.source_id)
+			const customerId = text(issue.customer_id) || (source === 'crm_customers' ? sourceId : '')
+			const key = sourceId ? `${source}:${sourceId}` : `${customerId}:${issue.code}:${issue.message}`
+			let row = rows.get(key)
+			if (!row) {
+				const actions = []
+				if (sourceId && ['crm_sale_records', 'sale'].includes(source)) actions.push({ label: '查看销售单', route: `/pages/sale/detail?_id=${encodeURIComponent(sourceId)}` })
+				if (customerId) actions.push({ label: '查看客户账款', route: `/pages/customer/statement?_id=${encodeURIComponent(customerId)}` })
+				if (['crm_cashier_intakes', 'crm_cashier_receipt_intakes'].includes(source)) actions.push({ label: '打开收款登记', route: '/pages/cashier/receipt-intake' })
+				row = { key, labels: [], messages: [], actions, sourceId,
+					context: [text(issue.customer_code), text(issue.customer_name), text(issue.source_date)].filter(Boolean).join(' · '),
+					hint: issue.action === 'resume_receipt_adjustment' ? '进入客户账款后，在收款记录中继续未完成的调整。' : '' }
+				rows.set(key, row)
+			}
+			if (!row.labels.includes(label)) row.labels.push(label)
+			if (!row.messages.includes(issue.message)) row.messages.push(issue.message)
+			if (issue.action === 'resume_receipt_adjustment') row.hint = '进入客户账款后，在收款记录中继续未完成的调整。'
+		}
+	}
+	return [...rows.values()].map(row => ({ ...row, label: row.labels.join('、'), message: row.messages.join('；') }))
 }
 
 const DAILY_FIELDS = {

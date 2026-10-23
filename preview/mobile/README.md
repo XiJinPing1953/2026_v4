@@ -12,7 +12,7 @@
 
 `?fixture=empty`、`?fixture=error`、`?fixture=loading` 放在 `#` 前可检查列表空态、读取失败和延迟 10 秒的加载态。这三个开关仅服务于展示验收，不是生产功能。
 
-首页另支持 `?fixture=tank-gain`（估算盈余）、`?fixture=tank-missing`（缺期初液位）、`?fixture=tank-error`（仅损耗读取失败）和 `?fixture=brief-incomplete`（账务读取待核）。示例损耗为合成数字，不代表生产储罐测量结果。
+首页另支持 `?fixture=tank-gain`（负差额待核）、`?fixture=tank-inbound-missing`（罐存增加而无登记入库）、`?fixture=tank-missing`（缺期初液位）、`?fixture=tank-error`（仅损耗读取失败）和 `?fixture=brief-incomplete`（账务读取待核）。`?fixture=brief-review` 同时展示气量待核与客户资金部分可用，`?fixture=current-all-unavailable` 展示客户资金整体不可汇总。示例数字用于界面验收，不代表生产业务结果。
 
 `inspection-templates.json` 是当前巡检模板的本地只读快照，用于展示模板字段，不读取真实巡检记录。没有模拟照片、原生蓝牙、扫描器、称重网关和真实导出任务。
 

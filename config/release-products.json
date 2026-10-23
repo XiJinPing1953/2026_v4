@@ -6,26 +6,19 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.23-operating-brief-refined",
+      "version": "2026.10.24-operating-brief-validation",
       "output": "dist/build/web",
-      "acceptance": "Separate period goods principal, current settlement and actual cash receipts; trace allocation destinations, independently verified current debt TOP3 and same-cutoff gas balance. Verify partial/unknown states and real homepage.",
+      "acceptance": "Detect unexplained tank gains before labeling loss; preserve signed evidence and known outflow. Validate complete current sources by settlement customer, isolate entire unresolved customers, expose verified subtotals and coverage, suppress incomplete overall ranking. Verify compact mobile exception states and real source navigation.",
       "deploymentScope": {
         "functions": [
           "crm-dashboard"
         ],
         "databaseFiles": [],
-        "baseCommit": "d6bb19e5b3cdd25e5fde6b907303999e12d9beee",
+        "baseCommit": "5eb9faa303b90c54ce20f88aef82b952e5dbdc75",
         "sourceFiles": [
           "src/components/domain/dashboard/OperatingBrief.vue",
-          "src/composables/dashboard/useOperatingBrief.js",
           "src/services/mappers/operatingBrief.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/currentBrief.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/gasOutflow.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBrief.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBriefFinance.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBriefFinanceRead.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/saleSourceValidation.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/tankLoss.js"
         ],
         "aclCanonicalRevisions": {
@@ -40,34 +33,26 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.24-bottle-prefix-suspend",
+      "version": "2026.10.24-operating-brief-validation",
       "output": "release/cloud",
-      "acceptance": "Suspend existing Y/Z/N/J bottles with original-document backups, version checks, rollback and batch idempotency. Preserve all inspection dates; dashboard inspection counts include active bottles only. Verify all 497 targets and three inspection modules against production.",
+      "acceptance": "Detect unexplained tank gains before labeling loss; preserve signed evidence and known outflow. Validate complete current sources by settlement customer, isolate entire unresolved customers, expose verified subtotals and coverage, suppress incomplete overall ranking. Verify compact mobile exception states and real source navigation.",
       "deploymentScope": {
         "functions": [
-          "crm-bottle",
           "crm-dashboard"
         ],
         "databaseFiles": [],
-        "baseCommit": "29956c8456063588ac05c50d4b6d000e434d2140",
+        "baseCommit": "5eb9faa303b90c54ce20f88aef82b952e5dbdc75",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/suspendPrefixes.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistryLocal.js"
+          "src/components/domain/dashboard/OperatingBrief.vue",
+          "src/services/mappers/operatingBrief.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/currentBrief.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankLoss.js"
         ],
         "aclCanonicalRevisions": {
           "crm-dashboard": {
             "registry": {
               "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
               "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
-            }
-          },
-          "crm-bottle": {
-            "registry": {
-              "commit": "b334c9da11936983d6b1514da2ee95b786d42f71",
-              "sha256": "01ceeccab063663d13b505fcec00017891af9105f250a1b141daf2c643f050c3"
             }
           }
         }
