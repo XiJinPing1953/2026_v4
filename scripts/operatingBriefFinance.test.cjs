@@ -284,6 +284,64 @@ test('referenced targets use bounded ID batches with complete pagination instead
   assert.equal(db.writes.length, 0)
 })
 
+const usesIdIn = options => JSON.stringify(options.where || {}).includes('"_id":{"$in":')
+function alipayIdOmission(tables, onDocument) {
+  return makeDb(tables, {
+    count: (name, total, options) => ({ total: usesIdIn(options) ? 0 : total }),
+    get: (name, rows, options) => {
+      if (usesIdIn(options)) return { data: [] }
+      const id = typeof options.where?._id === 'string' ? options.where._id : null
+      if (id) {
+        const doc = structuredClone(rows[0] || null)
+        onDocument?.(name, id)
+        return { data: doc } // The SDK supports document objects as well as arrays.
+      }
+      return { data: structuredClone(rows) }
+    }
+  })
+}
+
+test('Alipay automatic-ID omissions in both count and get are recovered by verified document reads', async () => {
+  const db = alipayIdOmission(destinationsFixture())
+  const { data } = await run(db)
+  assert.equal(data.read_complete, true)
+  assert.equal(data.complete, true, JSON.stringify(data.cash))
+  assert.equal(data.cash.evidence.complete, true)
+  assert.equal(data.cash.destinations.same_period, 30)
+  assert.equal(data.cash.destinations.prior_period, 20)
+  assert.equal(data.cash.destinations.future_period, 10)
+  assert.equal(data.cash.destinations.refunded_after_or_current, 10)
+  assert.equal(db.writes.length, 0)
+})
+
+test('Alipay document fallback retains customer visibility and does not expose hidden referenced IDs', async () => {
+  const tables = destinationsFixture()
+  tables.crm_customers.push({ _id: 'hidden-owner', is_hidden: true })
+  tables.crm_sale_records[1].customer_id = 'hidden-owner'
+  tables.crm_sale_records[1]._id = 'hidden-target'
+  tables.crm_customer_allocations[1].target_id = 'hidden-target'
+  tables.crm_customer_allocations[1].sale_id = 'hidden-target'
+  const result = await run(alipayIdOmission(tables))
+  assert.equal(result.data.cash.net, 95)
+  assert.equal(result.data.cash.destinations.complete, false)
+  assert.equal(JSON.stringify(result).includes('hidden-target'), false)
+  assert.equal(JSON.stringify(result).includes('hidden-owner'), false)
+})
+
+test('fallback documents are fingerprinted again so legacy changes without timestamps invalidate dependent domains', async () => {
+  const tables = destinationsFixture(); let changed = false
+  const result = await run(alipayIdOmission(tables, (name, id) => {
+    if (name === 'crm_sale_records' && id === 'prior' && !changed) {
+      changed = true
+      tables.crm_sale_records.find(row => row._id === id).amount_received = 21
+    }
+  }))
+  assert.equal(result.data.read_complete, false)
+  assert.equal(result.data.cash.net, 95)
+  assert.equal(result.data.cash.destinations.complete, false)
+  assert.equal(has(result.data.cash.destinations, 'records_changed_during_brief'), true)
+})
+
 test('reference read failure or concurrent allocation change invalidates only dependent domains', async () => {
   const countFailure = makeDb(destinationsFixture(), { count: (name, total) => ({ total: name === 'crm_customer_allocations' ? null : total }) })
   const first = (await run(countFailure)).data

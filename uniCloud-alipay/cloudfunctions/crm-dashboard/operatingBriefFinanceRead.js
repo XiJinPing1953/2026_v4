@@ -8,15 +8,28 @@ const ALL = ['business', 'settlement', 'cash', 'destinations', 'evidence', 'oper
 const OP_FIELDS = ['sale_weight_kg', 'sale_bottle_count', 'customer_count', 'fill_bottle_weight_kg', 'fill_bottle_count',
   'local_weight_kg', 'local_count', 'vehicle_weight_kg', 'vehicle_count', 'recorded_outflow_kg']
 const BATCH = 80
+const BATCH_CONCURRENCY = 3
+const DOCUMENT_CONCURRENCY = 8
 function batches(values) {
   const ids = [...new Set(values.map(F.text).filter(Boolean))], result = []
   for (let i = 0; i < ids.length; i += BATCH) result.push(ids.slice(i, i + BATCH))
   return result
 }
 function mergeRows(...groups) { return [...new Map(groups.flat().map(row => [F.text(row._id), row])).values()] }
+function documentFromResult(result, id, name) {
+  if (!result || !Object.prototype.hasOwnProperty.call(result, 'data')) throw new FinancialReadError('invalid_document_response', { source: name })
+  const value = result.data
+  const row = Array.isArray(value) ? value.length === 0 ? null : value.length === 1 ? value[0] : undefined : value
+  if (row === null) return null
+  if (!row || typeof row !== 'object' || Array.isArray(row) || F.text(row._id) !== id)
+    throw new FinancialReadError('invalid_document_response', { source: name })
+  return row
+}
+const fingerprint = value => JSON.stringify(value, (_key, child) => child && typeof child === 'object' && !Array.isArray(child)
+  ? Object.fromEntries(Object.keys(child).sort().map(key => [key, child[key]])) : child)
 
 async function readBriefFinance(db, data, helpers, range, { version, summarizeOperations }) {
-  const started = Date.now(), command = db.command, reads = [], allowed = new Map(), errors = Object.fromEntries(ALL.map(key => [key, []]))
+  const started = Date.now(), command = db.command, reads = [], documentReads = [], allowed = new Map(), errors = Object.fromEntries(ALL.map(key => [key, []]))
   let sourceReadComplete = true
   function failed(tags, error, name) {
     const details = error?.details || {}
@@ -35,18 +48,44 @@ async function readBriefFinance(db, data, helpers, range, { version, summarizeOp
   const customers = await read(F.TABLES.customers, {}, ALL, { is_hidden: true, settlement_customer_id: true, default_price_unit: true })
   const visibilityKnown = !errors.business.length
   const hidden = customers.filter(row => row.is_hidden === true).map(row => row._id)
+  const hiddenIds = new Set(hidden.map(F.text))
   const customerWhere = buildNotHiddenCustomerFieldsWhere(command, hidden, ['customer_id'])
   const saleVisibility = buildNotHiddenCustomerFieldsWhere(command, hidden, ['customer_id', 'delivery_customer_id'])
   const dateWhere = key => command.and([{ [key]: command.gte(range.start) }, { [key]: command.lte(range.end) }])
   const dated = (key, visible, posted = false) => mergeWhere(command, command.and([dateWhere(key), ...(posted ? [{ status: 'posted' }] : [])]), visible)
   const safeRead = (name, where, tags) => visibilityKnown ? read(name, where, tags) : Promise.resolve([])
+  async function missingDocument(name, id, tags) {
+    if (!visibilityKnown) return null
+    try {
+      const row = documentFromResult(await db.collection(name).doc(id).get(), id, name)
+      documentReads.push({ name, id, tags, fingerprint: fingerprint(row) })
+      // A document lookup bypasses the query's visibility predicate. Apply the
+      // exact same source/customer exclusion before adding it to any domain.
+      if (!row || hiddenIds.has(F.text(row.customer_id)) || name === F.TABLES.sales && hiddenIds.has(F.text(row.delivery_customer_id))) return null
+      if (!allowed.has(name)) allowed.set(name, new Set())
+      allowed.get(name).add(id)
+      return row
+    } catch (error) { sourceReadComplete = false; failed(tags, error, name); return null }
+  }
   async function byIds(name, ids, tags, { fields = ['_id'], visible = customerWhere, extra = null } = {}) {
-    const rows = []
-    for (const batch of batches(ids)) {
+    const rows = [], chunks = batches(ids)
+    for (let index = 0; index < chunks.length; index += BATCH_CONCURRENCY) await Promise.all(chunks.slice(index, index + BATCH_CONCURRENCY).map(async batch => {
       const idsWhere = fields.length === 1 ? { [fields[0]]: command.in(batch) } : command.or(fields.map(key => ({ [key]: command.in(batch) })))
       const where = mergeWhere(command, extra ? command.and([idsWhere, extra]) : idsWhere, visible)
-      rows.push(...await safeRead(name, where, tags))
-    }
+      const found = await safeRead(name, where, tags)
+      rows.push(...found)
+      // Alipay automatically generated IDs can be omitted by `_id in`, even
+      // when both count() and get() consistently return zero. Settlement's
+      // getDocsByIds uses this same document fallback; count alone is no proof
+      // that a referenced document is absent.
+      if (fields.length === 1 && fields[0] === '_id' && !extra) {
+        const foundIds = new Set(found.map(row => F.text(row._id))), missing = batch.filter(id => !foundIds.has(id))
+        for (let offset = 0; offset < missing.length; offset += DOCUMENT_CONCURRENCY) {
+          const recovered = await Promise.all(missing.slice(offset, offset + DOCUMENT_CONCURRENCY).map(id => missingDocument(name, id, tags)))
+          rows.push(...recovered.filter(Boolean))
+        }
+      }
+    }))
     return mergeRows(rows)
   }
   const [sales, flows, periodReceipts, fillings] = await Promise.all([
@@ -96,6 +135,15 @@ async function readBriefFinance(db, data, helpers, range, { version, summarizeOp
         throw new FinancialReadError('membership_changed_during_brief', { source: query.name })
       if (!Array.isArray(changed.data) || changed.data.length) throw new FinancialReadError('records_changed_during_brief', { source: query.name })
     } catch (error) { sourceReadComplete = false; failed(query.tags, error, query.name) }
+  }))
+  // Fallback documents are outside a reliable `_id in` query scope. Re-read
+  // every one (including verified absences), comparing complete content so
+  // deletion/replacement and legacy writes without updated_at are detected.
+  for (let index = 0; index < documentReads.length; index += DOCUMENT_CONCURRENCY) await Promise.all(documentReads.slice(index, index + DOCUMENT_CONCURRENCY).map(async record => {
+    try {
+      const row = documentFromResult(await db.collection(record.name).doc(record.id).get(), record.id, record.name)
+      if (fingerprint(row) !== record.fingerprint) throw new FinancialReadError('records_changed_during_brief', { source: record.name })
+    } catch (error) { sourceReadComplete = false; failed(record.tags, error, record.name) }
   }))
   const business = F.businessSummary({ sales, flows, customers }, errors.business, errors.settlement)
   const cash = F.cashSummary({ receipts: periodReceipts, intakes, customers }, errors.cash)
