@@ -2,9 +2,8 @@
 
 const { readComplete, FinancialReadError } = require('./financialReadLocal')
 const { sumMoneyByScale } = require('./saleAccountingLocal')
-const { isCashReceipt } = require('./receiptSourceLocal')
 const { buildNotHiddenCustomerFieldsWhere, mergeWhere } = require('./customerVisibilityLocal')
-const { validateSale, validateSaleOperations } = require('./saleSourceValidation')
+const { validateSaleOperations } = require('./saleSourceValidation')
 
 const VERSION = 'operating-brief/2026-10-23.1'
 const DAY = 86400000
@@ -92,6 +91,9 @@ function dailyRows(sales, fillings, range, helpers) {
 async function readOperatingBrief(db, data, helpers, now = Date.now()) {
 	const range = resolveRange(data, now)
 	if (!range) return { code: 400, msg: '请选择今天、昨天、本月，或不超过31天且不晚于今天的完整日期范围' }
+	if (data.section !== 'daily_report') return require('./operatingBriefFinanceRead').readBriefFinance(db, data, helpers, range, {
+		version: VERSION, summarizeOperations
+	})
 	const command = db.command
 	const started = Date.now()
 	const queries = []
@@ -105,33 +107,11 @@ async function readOperatingBrief(db, data, helpers, now = Date.now()) {
 	const hidden = customerRows.filter(row => row.is_hidden === true).map(row => row._id)
 	const dateWhere = key => command.and([{ [key]: command.gte(range.start) }, { [key]: command.lte(range.end) }])
 	const saleWhere = mergeWhere(command, dateWhere('date'), buildNotHiddenCustomerFieldsWhere(command, hidden, ['customer_id', 'delivery_customer_id']))
-	const customerWhere = buildNotHiddenCustomerFieldsWhere(command, hidden, ['customer_id'])
-	const postedWhere = mergeWhere(command, command.and([{ status: 'posted' }, dateWhere('biz_date')]), customerWhere)
 	const [sales, fillings] = await Promise.all([
 		read('crm_sale_records', saleWhere),
 		read('crm_fillings', dateWhere('date'), { date: true, bottle_no: true, record_type: true, fill_weight: true })
 	])
-	let result
-	if (data.section === 'daily_report') {
-		result = { section: 'daily_report', version: VERSION, range, daily_report: { rows: dailyRows(sales, fillings, range, helpers) }, complete: true }
-	} else {
-		const [flows, receipts] = await Promise.all([
-			read('crm_customer_flow_settlements', postedWhere, { should_receive: true }),
-			read('crm_customer_receipts', postedWhere, { amount: true, source_type: true, entry_kind: true })
-		])
-		const salesAmount = sum(sales.map(row => {
-			const amount = helpers.computeSaleAmount(row)
-			validateSale(row)
-			return amount
-		}))
-		const flowAmount = sum(flows.map(row => requiredMoney(row.should_receive, 'crm_customer_flow_settlements', row._id)))
-		const cash = receipts.filter(isCashReceipt).map(row => requiredMoney(row.amount, 'crm_customer_receipts', row._id))
-		const received = sum(cash.filter(value => value >= 0)), refund = sum(cash.filter(value => value < 0).map(value => -value))
-		result = { section: 'brief', version: VERSION, period: data.period || 'yesterday', range, money_scale: 3,
-			business: { sales: salesAmount, flow: flowAmount, total: sum([salesAmount, flowAmount]), complete: true },
-			cash: { received, refund, net: sum([received, -refund]), complete: true, scope: 'posted_receipts' },
-			operations: summarizeOperations(sales, fillings, helpers), complete: true }
-	}
+	const result = { section: 'daily_report', version: VERSION, range, daily_report: { rows: dailyRows(sales, fillings, range, helpers) }, complete: true }
 	// Detect timestamped writes across the whole read window, not just each collection's page loop.
 	// Deletions without tombstones and old rows without timestamps still preclude an atomic snapshot claim.
 	for (const query of queries) {

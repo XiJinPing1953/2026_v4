@@ -1,118 +1,57 @@
 <template>
 	<view class="brief">
-		<view class="brief__heading">
-			<view>
-				<text class="brief__eyebrow">每天看经营，也看回款</text>
-				<text class="brief__title">经营简报</text>
-			</view>
-			<AppButton role="button" size="sm" kind="ghost" :tabindex="(loading || currentLoading) ? -1 : 0" :aria-disabled="loading || currentLoading" :disabled="loading || currentLoading" @click="refreshAll" @keydown="activateOnKey($event, refreshAll, loading || currentLoading)">刷新</AppButton>
-		</view>
-		<view class="brief__toolbar">
-			<view class="brief__periods" aria-label="经营简报统计期间">
-				<button role="button" tabindex="0" v-for="item in periods" :key="item.value" class="brief__period" :class="{ 'brief__period--active': period === item.value }" :aria-pressed="period === item.value" @click="changePeriod(item.value)" @keydown="activateOnKey($event, changePeriod, false, item.value)">{{ item.label }}</button>
-			</view>
-			<text class="brief__meta">{{ rangeLabel }}</text>
-		</view>
-		<view v-if="error" class="brief__issue" role="alert">{{ error }}{{ stale ? '；以下为上次成功读取的数据。' : '；当前期间暂不可用。' }}</view>
+		<view class="brief__heading"><view><text class="brief__eyebrow">业务 · 货款 · 回款</text><text class="brief__title">经营简报</text></view><AppButton role="button" size="sm" kind="ghost" :tabindex="loading || currentLoading ? -1 : 0" :disabled="loading || currentLoading" :aria-disabled="loading || currentLoading" @click="refreshAll" @keydown="activateOnKey($event, refreshAll, loading || currentLoading)">刷新</AppButton></view>
+		<view class="brief__toolbar"><view class="brief__periods" aria-label="经营简报统计期间"><button role="button" tabindex="0" v-for="item in periods" :key="item.value" class="brief__period" :class="{ 'brief__period--active': period === item.value }" :aria-pressed="period === item.value" @click="changePeriod(item.value)" @keydown="activateOnKey($event, changePeriod, false, item.value)">{{ item.label }}</button></view><text class="brief__meta">{{ rangeLabel }}</text></view>
+		<view v-if="error" class="brief__issue" role="alert">{{ error }}{{ stale ? '；以下为上次成功读取的数据。' : '；货款与收款暂不可用。' }}</view>
 		<text v-else-if="loading" class="brief__meta" role="status">{{ result ? '正在更新已登记记录…' : '正在读取经营简报…' }}</text>
-		<text v-if="result" class="brief__lead">{{ leadText }}</text>
-		<view class="brief__metrics">
-			<button role="button" class="brief__metric" :disabled="!result" :aria-disabled="!result" :tabindex="result ? 0 : -1" :aria-expanded="expanded === 'business'" @click="toggleDetail('business')" @keydown="activateOnKey($event, toggleDetail, !result, 'business')">
-				<text class="brief__label">已确认业务额</text>
-				<text class="brief__amount">{{ money(result?.business?.total) }}</text>
-				<text class="brief__meta">销售 {{ money(result?.business?.sales) }} · 流量结算 {{ money(result?.business?.flow) }}</text>
-				<text class="brief__link">查看构成 <text aria-hidden="true">→</text></text>
-			</button>
-			<button role="button" class="brief__metric" :disabled="!result" :aria-disabled="!result" :tabindex="result ? 0 : -1" :aria-expanded="expanded === 'cash'" @click="toggleDetail('cash')" @keydown="activateOnKey($event, toggleDetail, !result, 'cash')">
-				<text class="brief__label">气款净收</text>
-				<text class="brief__amount">{{ money(result?.cash?.net) }}</text>
-				<text class="brief__meta">收款 {{ money(result?.cash?.received) }} · 退款 {{ money(result?.cash?.refund) }}</text>
-				<text class="brief__link">查看到账 <text aria-hidden="true">→</text></text>
-			</button>
+		<view v-if="reviewItems.length" class="brief__review">
+			<button role="button" tabindex="0" class="brief__review-toggle" :aria-expanded="expanded === 'review'" @click="toggleDetail('review')" @keydown="activateOnKey($event, toggleDetail, false, 'review')"><view><text class="brief__section-title">{{ reviewItems.length }} 项数据需核对</text><text class="brief__note">{{ reviewItems[0].label }}：{{ reviewItems[0].message }}</text></view><text class="brief__link">{{ expanded === 'review' ? '收起' : '查看' }}</text></button>
+			<view v-if="expanded === 'review'" class="brief__review-list"><view v-for="(item, index) in reviewItems" :key="index" class="brief__review-item"><text class="brief__note">{{ item.label }} · {{ item.message }}</text><button v-if="item.route && canView(item.route.split('?')[0])" role="button" tabindex="0" class="brief__text-button" @click="navigateTo(item.route)" @keydown="activateOnKey($event, navigateTo, false, item.route)">核对来源 →</button></view></view>
 		</view>
-		<view class="brief__operations brief__operations--sales">
-			<button role="button" v-for="item in salesCards" :key="item.key" class="brief__operation" :disabled="!result" :aria-disabled="!result" :tabindex="result ? 0 : -1" :aria-expanded="expanded === item.key" @click="toggleDetail(item.key)" @keydown="activateOnKey($event, toggleDetail, !result, item.key)">
-				<text class="brief__meta">{{ item.label }}</text>
-				<text class="brief__operation-value">{{ item.value }}</text>
-				<text class="brief__operation-sub">{{ item.sub }}</text>
-			</button>
+		<view class="brief__ledger brief__gas">
+			<view class="brief__section-heading"><text class="brief__section-title">业务概况</text><text class="brief__meta">{{ periodNoun }}已登记</text></view>
+			<view class="brief__sales-strip"><text>销售 {{ weight(result?.operations?.sale_weight_kg) }}</text><text>{{ number(result?.operations?.sale_bottle_count) }} 瓶 · {{ number(result?.operations?.customer_count) }} 户</text></view>
+			<text v-if="tankLossError" class="brief__loss-issue" role="alert">{{ tankLossError }}{{ tankLossStale ? '；保留上次读取结果。' : '；估算暂不可用。' }}</text><text v-else-if="tankLoss?.status === 'insufficient_data'" class="brief__loss-issue">{{ lossIssueText }}</text><text v-else-if="tankLossLoading" class="brief__meta" role="status">正在读取储罐估算依据…</text><text v-if="tankLossStale" class="brief__note">气量为上次读取结果，更新于 {{ dateTime(tankLoss?.updated_at) }}</text>
+			<view class="brief__outflow-channels"><view v-for="item in outflowCards" :key="item.key" class="brief__operation"><text class="brief__meta">{{ item.label }}</text><text class="brief__operation-value">{{ item.complete ? weight(item.weight_kg) : '待核' }}</text><text class="brief__operation-sub">{{ item.complete ? number(item.count) + ' ' + item.count_unit : '记录待核' }}</text></view></view>
+			<text v-if="otherOutflow && (!otherOutflow.complete || otherOutflow.weight_kg > 0)" class="brief__note brief__other">整车补气及其他 {{ otherOutflow.complete ? weight(otherOutflow.weight_kg) : '待核' }} · {{ number(otherOutflow.count) }} 次</text>
+			<button role="button" tabindex="0" class="brief__gas-summary" :aria-expanded="expanded === 'loss'" @click="toggleDetail('loss')" @keydown="activateOnKey($event, toggleDetail, false, 'loss')"><view><text class="brief__meta">出罐合计</text><text class="brief__subamount">{{ weight(tankLoss?.outflow?.weight_kg) }}</text></view><view><text class="brief__meta">{{ lossPresentation.label }}</text><text class="brief__subamount">{{ lossValueText }}</text></view><text class="brief__link">明细 →</text></button>
+			<view v-if="expanded === 'loss'" class="brief__detail brief__loss-detail"><text class="brief__detail-title">{{ lossPresentation.label }}依据</text><template v-if="tankLoss"><text class="brief__note">{{ dateRange(tankLoss.range) }} · 更新于 {{ dateTime(tankLoss.updated_at) }}</text><view class="brief__detail-row"><view><text>期初估算重量</text><text class="brief__note">{{ tankSampleText(tankLoss.opening) }}</text></view><text>{{ evidenceWeight(tankLoss.opening?.weight_kg) }}</text></view><view class="brief__detail-row"><text>期间入罐</text><text>{{ evidenceWeight(tankLoss.inbound_kg) }}</text></view><view class="brief__detail-row"><view><text>期末估算重量</text><text class="brief__note">{{ tankSampleText(tankLoss.closing) }}</text></view><text>{{ evidenceWeight(tankLoss.closing?.weight_kg) }}</text></view><view class="brief__detail-row"><text>储罐耗气（液位估算）</text><text>{{ evidenceWeight(tankConsumption) }}</text></view><view class="brief__detail-row"><text>已登记出罐</text><text>{{ evidenceWeight(tankLoss.recorded_outflow_kg) }}</text></view><view class="brief__detail-row"><text>差额计算值</text><text>{{ evidenceWeight(tankLoss.estimated_loss_kg) }}</text></view><text v-for="(issue, index) in tankLoss.issues" :key="index" class="brief__loss-issue">{{ issue.message }}</text></template><text class="brief__note">期初估算 + 期间入罐 − 期末估算 − 已登记出罐。正差为估算损耗，负差为估算盈余；保留小数仅用于核对计算，不代表仪表精度。</text><AppButton role="button" :tabindex="tankLossLoading ? -1 : 0" :disabled="tankLossLoading" size="sm" kind="ghost" @click="refreshTankLoss" @keydown="activateOnKey($event, refreshTankLoss, tankLossLoading)">重新核算</AppButton>
+			<view class="brief__outflow-footer"><button v-if="canView('/pages/gas-closure/index')" role="button" tabindex="0" class="brief__text-button" @click="navigateTo('/pages/gas-closure/index')" @keydown="activateOnKey($event, navigateTo, false, '/pages/gas-closure/index')">损耗核对 →</button></view></view>
 		</view>
-		<view class="brief__outflow">
-			<view class="brief__section-heading">
-				<text class="brief__section-title">已登记出罐量</text>
-				<button role="button" class="brief__outflow-total" :disabled="!result" :aria-disabled="!result" :tabindex="result ? 0 : -1" :aria-expanded="expanded === 'outflow'" @click="toggleDetail('outflow')" @keydown="activateOnKey($event, toggleDetail, !result, 'outflow')">{{ weight(result?.operations?.recorded_outflow_kg) }}</button>
+		<view class="brief__ledger">
+			<view class="brief__section-heading"><text class="brief__section-title">{{ periodNoun }}货款</text><text class="brief__meta">销售 + 流量结算</text></view>
+			<view class="brief__hero"><view><text class="brief__label">货款净额</text><text class="brief__amount">{{ amountFor(result?.business, 'net') }}</text></view><button role="button" :tabindex="result ? 0 : -1" :disabled="!result" :aria-expanded="expanded === 'business'" class="brief__text-button" @click="toggleDetail('business')" @keydown="activateOnKey($event, toggleDetail, !result, 'business')">明细 →</button></view>
+			<view v-if="result?.business?.negative !== 0" class="brief__net-equation"><text>正向货款 {{ amountFor(result?.business, 'positive') }}</text><text>− 负向货款 {{ amountFor(result?.business, 'negative') }}</text></view>
+			<view class="brief__settlement">
+				<view class="brief__section-heading"><text class="brief__label">货款结算</text><text class="brief__meta">截至 {{ result ? dateTime(result.updated_at) : '本次读取' }}</text></view>
+				<view class="brief__settlement-grid"><view><text class="brief__meta">已抵货款</text><text class="brief__subamount">{{ amountFor(settlement, 'allocated') }}</text></view><view><text class="brief__meta">抹零</text><text class="brief__subamount">{{ amountFor(settlement, 'rounding') }}</text></view><view><text class="brief__meta">还欠</text><text class="brief__subamount">{{ amountFor(settlement, 'outstanding') }}</text></view></view>
+				<text class="brief__note">只拆正向货款；已抵货款含预收款、抵款。</text>
+				<text v-if="settlement?.complete === false" class="brief__loss-issue">结算进度待核，暂不显示拆分金额。</text>
 			</view>
-			<view class="brief__outflow-channels">
-				<button role="button" v-for="item in outflowCards" :key="item.key" class="brief__operation" :disabled="!result" :aria-disabled="!result" :tabindex="result ? 0 : -1" :aria-expanded="expanded === item.key" @click="toggleDetail(item.key)" @keydown="activateOnKey($event, toggleDetail, !result, item.key)">
-					<text class="brief__meta">{{ item.label }}</text>
-					<text class="brief__operation-value">{{ item.value }}</text>
-					<text class="brief__operation-sub">{{ item.sub }}</text>
-				</button>
-			</view>
-			<button role="button" tabindex="0" class="brief__loss" :class="{ 'brief__loss--surplus': lossPresentation.label === '估算盈余' }" :aria-expanded="expanded === 'loss'" @click="toggleDetail('loss')" @keydown="activateOnKey($event, toggleDetail, false, 'loss')">
-				<view><text class="brief__section-title">{{ lossPresentation.label }}</text><text class="brief__meta">液位换算 · {{ tankLossStale ? '上次读取' : '同周期核算' }}</text></view>
-				<view class="brief__loss-amount"><text>{{ lossValueText }}</text><text class="brief__link">查看依据 →</text></view>
-			</button>
-			<text v-if="tankLossError" class="brief__loss-issue" role="alert">{{ tankLossError }}{{ tankLossStale ? '；保留上次读取结果。' : '；估算暂不可用。' }}</text>
-			<text v-else-if="tankLoss?.status === 'insufficient_data'" class="brief__loss-issue">{{ lossIssueText }}</text>
-			<text v-else-if="tankLossLoading" class="brief__meta" role="status">正在读取储罐估算依据…</text>
-			<view v-if="expanded === 'loss'" class="brief__detail brief__loss-detail" aria-live="polite">
-				<text class="brief__detail-title">{{ lossPresentation.label }}依据</text>
-				<template v-if="tankLoss">
-					<text class="brief__note">{{ dateRange(tankLoss.range) }} · 更新于 {{ dateTime(tankLoss.updated_at) }}</text>
-					<view class="brief__detail-row"><view><text>期初估算重量</text><text class="brief__note">{{ tankSampleText(tankLoss.opening) }}</text></view><text>{{ evidenceWeight(tankLoss.opening?.weight_kg) }}</text></view>
-					<view class="brief__detail-row"><text>期间入罐</text><text>{{ evidenceWeight(tankLoss.inbound_kg) }}</text></view>
-					<view class="brief__detail-row"><view><text>期末估算重量</text><text class="brief__note">{{ tankSampleText(tankLoss.closing) }}</text></view><text>{{ evidenceWeight(tankLoss.closing?.weight_kg) }}</text></view>
-					<view class="brief__detail-row"><text>已登记出罐</text><text>{{ evidenceWeight(tankLoss.recorded_outflow_kg) }}</text></view>
-					<view class="brief__detail-row brief__loss-result"><text>{{ lossPresentation.label }}</text><text>{{ lossValueText }}</text></view>
-					<text v-for="(issue, index) in tankLoss.issues" :key="`${issue.code}-${index}`" class="brief__loss-issue">{{ issue.message }}</text>
-				</template>
-				<text class="brief__note">估算损耗 = 期初估算 + 期间入罐 − 期末估算 − 已登记出罐。</text>
-				<text class="brief__note">储罐重量按现有液位换算，同周期正差为损耗，负差为盈余；数值随液位和业务记录更新。</text>
-				<AppButton role="button" :tabindex="tankLossLoading ? -1 : 0" :aria-disabled="tankLossLoading" :disabled="tankLossLoading" size="sm" kind="ghost" @click="refreshTankLoss" @keydown="activateOnKey($event, refreshTankLoss, tankLossLoading)">重新核算</AppButton>
-			</view>
-			<view class="brief__outflow-footer">
-				<text class="brief__note">按液位估算，同周期差额计损耗</text>
-				<button v-if="canView('/pages/gas-closure/index')" role="button" tabindex="0" class="brief__text-button" @click="navigateTo('/pages/gas-closure/index')" @keydown="activateOnKey($event, navigateTo, false, '/pages/gas-closure/index')">损耗核对 →</button>
-			</view>
+			<view v-if="expanded === 'business' && result" class="brief__detail"><text class="brief__detail-title">货款明细</text><view class="brief__detail-row"><text>正向货款</text><text>{{ amountFor(result.business, 'positive') }}</text></view><view class="brief__detail-row"><text>负向货款</text><text>{{ amountFor(result.business, 'negative') }}</text></view><view class="brief__detail-row"><text>独立计费销售</text><text>{{ amountFor(result.business, 'sales') }}</text></view><view class="brief__detail-row"><text>有效流量结算</text><text>{{ amountFor(result.business, 'flow') }}</text></view><view class="brief__detail-row"><text>销售抹零 / 收款抹零</text><text>{{ amountFor(settlement, 'sale_rounding') }} / {{ amountFor(settlement, 'receipt_rounding') }}</text></view><text class="brief__note">货款净额＝正向货款－负向货款，抹零单列。已抵货款指已核销金额，可含预收款、退气抵款等，不代表当天收款。流量客户送气记业务量，结算时计货款；结算状态按当前记录核算。</text><button v-if="canView('/pages/sale/list')" role="button" tabindex="0" class="brief__text-button" @click="navigateTo('/pages/sale/list')" @keydown="activateOnKey($event, navigateTo, false, '/pages/sale/list')">查看销售记录 →</button></view>
 		</view>
-		<view v-if="periodDetail" class="brief__detail" aria-live="polite">
-			<text class="brief__detail-title">{{ periodDetail.title }}</text>
-			<view v-for="row in periodDetail.rows" :key="row.label" class="brief__detail-row"><text>{{ row.label }}</text><text>{{ row.value }}</text></view>
-			<text class="brief__note">{{ periodDetail.note }}</text>
-			<AppButton role="button" tabindex="0" v-if="periodDetail.route && canView(periodDetail.route)" size="sm" kind="ghost" @click="emit('navigate', periodDetail.route)" @keydown="activateOnKey($event, navigateTo, false, periodDetail.route)">{{ periodDetail.action }}</AppButton>
+		<view class="brief__ledger">
+			<view class="brief__section-heading"><view><text class="brief__section-title">{{ periodNoun }}收款</text><text class="brief__meta brief__inline-note">按到账日</text></view><button role="button" :tabindex="result ? 0 : -1" :disabled="!result" class="brief__text-button" :aria-expanded="expanded === 'cash'" @click="toggleDetail('cash')" @keydown="activateOnKey($event, toggleDetail, !result, 'cash')">收款去向 {{ expanded === 'cash' ? '−' : '+' }}</button></view>
+			<view class="brief__cash-grid"><view><text class="brief__label">到账</text><text class="brief__subamount">{{ amountFor(result?.cash, 'received') }}</text></view><view><text class="brief__label">退款</text><text class="brief__subamount">{{ amountFor(result?.cash, 'refund') }}</text></view><view><text class="brief__label">净到账</text><text class="brief__subamount">{{ amountFor(result?.cash, 'net') }}</text></view></view>
+			<text class="brief__note">含往期回款和预收，不含押金、抵款。</text>
+			<text v-if="result?.cash?.evidence?.complete === false" class="brief__loss-issue">收款依据待核，当前只显示已登记到账。</text>
+			<view v-if="expanded === 'cash'" class="brief__detail"><template v-if="destinations?.complete"><view v-for="row in destinationRows" :key="row.key" class="brief__detail-row"><text>{{ row.label }}</text><text>{{ money(row.amount) }}</text></view></template><text v-else class="brief__loss-issue">收款去向待核，暂不显示部分分配结果。</text><text class="brief__note">按当前有效分配追踪这批收款，合计等于上方实际收款。后续已退款也保留在去向中；当日退款单独按退款日期统计。</text><button v-if="canView('/pages/cashier/receipt-intake')" role="button" tabindex="0" class="brief__text-button" @click="navigateTo('/pages/cashier/receipt-intake')" @keydown="activateOnKey($event, navigateTo, false, '/pages/cashier/receipt-intake')">打开收款登记 →</button></view>
 		</view>
-		<view v-if="canReadCurrent" class="brief__current">
-			<view class="brief__section-heading"><text class="brief__section-title">当前客户资金</text><text class="brief__meta">{{ currentTimeLabel }}</text></view>
-			<view v-if="currentError" class="brief__issue" role="alert">{{ currentError }}{{ currentStale ? '；以下为上次成功读取的数据。' : '；当前资金与待办暂不可用。' }}</view>
-			<text v-else-if="currentLoading" class="brief__meta" role="status">正在核算当前客户资金…</text>
-			<view class="brief__balances">
-				<button role="button" class="brief__balance" :disabled="!current" :aria-disabled="!current" :tabindex="current ? 0 : -1" :aria-expanded="expanded === 'debt'" @click="toggleDetail('debt')" @keydown="activateOnKey($event, toggleDetail, !current, 'debt')"><text class="brief__meta">客户欠款合计</text><text class="brief__balance-value">{{ money(current?.current?.receivable) }}</text></button>
-				<button role="button" class="brief__balance" :disabled="!current" :aria-disabled="!current" :tabindex="current ? 0 : -1" :aria-expanded="expanded === 'prepay'" @click="toggleDetail('prepay')" @keydown="activateOnKey($event, toggleDetail, !current, 'prepay')"><text class="brief__meta">{{ availableFundsLabel }}</text><text class="brief__balance-value">{{ money(current?.current?.prepay) }}</text></button>
+		<view v-if="canReadCurrent" class="brief__ledger brief__current">
+			<view class="brief__section-heading"><text class="brief__section-title">回款关注</text><text class="brief__meta">{{ currentTimeLabel }}</text></view>
+			<view v-if="currentError" class="brief__issue" role="alert">{{ currentError }}{{ currentStale ? '；以下为上次成功读取的数据。' : '；当前资金暂不可用。' }}</view><text v-else-if="currentLoading" class="brief__meta" role="status">正在核算当前客户资金…</text>
+			<view class="brief__balances"><view><text class="brief__meta">客户欠款</text><text class="brief__balance-value">{{ amountFor(current?.current?.debt, 'receivable', current?.current) }}</text></view><view><text class="brief__meta">客户可用款</text><text class="brief__balance-value">{{ amountFor(current?.current?.available_funds, 'prepay', current?.current) }}</text></view></view>
+			<text class="brief__note brief__funds-note">可用款不含退气抵款</text><view class="brief__ranking"><view class="brief__section-heading"><text class="brief__label">欠款前三</text><text v-if="ranking?.complete && ranking.items.length" class="brief__meta">占全部欠款 {{ percentage(topShare) }}</text></view><text class="brief__note">按欠款金额排序，不代表逾期。</text>
+				<template v-if="ranking?.complete"><button v-for="(item, index) in ranking.items" :key="item.customer_id" role="button" :tabindex="canView('/pages/customer/statement') ? 0 : -1" :disabled="!canView('/pages/customer/statement')" class="brief__rank-row" @click="openCustomer(item.customer_id)" @keydown="activateOnKey($event, openCustomer, !canView('/pages/customer/statement'), item.customer_id)"><text class="brief__rank">{{ index + 1 }}</text><view class="brief__rank-name"><text>{{ item.name }}</text><text class="brief__meta">{{ item.code }}</text></view><view class="brief__rank-amount"><text>{{ money(item.amount) }}</text><text class="brief__meta">占 {{ percentage(item.share_of_total) }} <text v-if="canView('/pages/customer/statement')">→</text></text></view></button><text v-if="!ranking.items.length" class="brief__empty">暂无客户欠款</text></template><text v-else class="brief__empty">{{ currentLoading && !current ? '正在核算欠款排名…' : '欠款来源待核，完整核算后显示排名' }}</text>
 			</view>
-			<button role="button" tabindex="0" v-if="current && current.pending.count > 0" class="brief__pending" :aria-expanded="expanded === 'pending'" @click="toggleDetail('pending')" @keydown="activateOnKey($event, toggleDetail, false, 'pending')">
-				<view><text class="brief__pending-title">{{ number(current.pending.count) }} 笔结账收款待分配</text><text class="brief__pending-sub">{{ money(current.pending.amount) }} · 已计入收款，待匹配账单</text></view><text class="brief__pending-action">查看 <text aria-hidden="true">→</text></text>
-			</button>
-			<text v-else-if="current" class="brief__note">{{ currentStale ? '上次读取时' : '' }}暂无结账收款待分配；正常预收款不计入提醒。</text>
-			<view v-if="currentDetail" class="brief__detail" aria-live="polite">
-				<text class="brief__detail-title">{{ currentDetail.title }}</text>
-				<view v-for="row in currentDetail.rows" :key="row.label" class="brief__detail-row"><text>{{ row.label }}</text><text>{{ row.value }}</text></view>
-				<text class="brief__note">{{ currentDetail.note }}</text>
-				<AppButton role="button" tabindex="0" v-if="canView(currentDetail.route)" size="sm" kind="ghost" @click="emit('navigate', currentDetail.route)" @keydown="activateOnKey($event, navigateTo, false, currentDetail.route)">{{ currentDetail.action }}</AppButton>
-			</view>
+			<button v-if="current?.pending?.complete && current.pending.count > 0" role="button" tabindex="0" class="brief__pending" :aria-expanded="expanded === 'pending'" @click="toggleDetail('pending')" @keydown="activateOnKey($event, toggleDetail, false, 'pending')"><view><text class="brief__pending-title">待匹配账单 {{ number(current.pending.count) }} 笔</text><text class="brief__pending-sub">{{ money(current.pending.amount) }}</text></view><text class="brief__pending-action">查看 →</text></button><text v-else-if="current?.pending?.complete === false" class="brief__loss-issue">待匹配账单金额待核。</text>
+			<view v-if="expanded === 'pending'" class="brief__detail"><text class="brief__note">只包含用于结账且尚有未分配金额的收款。可在收款登记中核对账单。</text><button v-if="canView('/pages/cashier/receipt-intake')" role="button" tabindex="0" class="brief__text-button" @click="navigateTo('/pages/cashier/receipt-intake')" @keydown="activateOnKey($event, navigateTo, false, '/pages/cashier/receipt-intake')">打开收款登记 →</button></view>
 		</view>
-		<view class="brief__footer">
-			<text class="brief__meta">{{ result ? `业务数据更新于 ${dateTime(result.updated_at)}` : '业务数据尚未读取完成' }}</text>
-			<button role="button" tabindex="0" class="brief__text-button" :aria-expanded="showScope" @click="showScope = !showScope" @keydown="activateOnKey($event, toggleScope)">{{ showScope ? '收起口径' : '统计口径' }}</button>
-		</view>
-		<view v-if="showScope" class="brief__scope">
-			<text>业务额按独立计费销售与有效流量结算统计；流量客户送气只记业务量，结算时计金额。</text>
-			<text>气款按正式收款单的到账日期归集，含历史欠款回款和预收款；扣除退款，不含押金、抹零及非现金冲抵。</text>
-			<text>日期切换业务额、收退款、业务量和估算损耗。客户欠款、可用款及待分配收款按各自标注的读取时点展示，刷新后重新核算。</text>
-			<text>销售客户按选定期间去重；车辆燃气加注单列重量与次数。充装按正重量记录计次。估算损耗按液位换算重量与同周期入罐、出罐量核算，正差为损耗，负差为盈余。补录或更正后，历史日期结果可能变化。</text>
-		</view>
+
+		<view class="brief__footer"><text class="brief__meta">{{ result ? `业务数据更新于 ${dateTime(result.updated_at)}` : '业务数据尚未读取完成' }}</text><button role="button" tabindex="0" class="brief__text-button" :aria-expanded="showScope" @click="toggleScope" @keydown="activateOnKey($event, toggleScope)">{{ showScope ? '收起口径' : '统计口径' }}</button></view>
+		<view v-if="showScope" class="brief__scope"><text>日期切换货款、收退款和气量；当前欠款、可用款及待分配按标注的读取时点核算。结算进度与收款去向也按当前有效记录展示，不是历史日末快照。</text><text>客户欠款逐户核算后汇总，不以其他客户预收款冲减。TOP3只在完整核算全部可见客户后展示；欠款金额排序不代表逾期或信用风险。</text><text>储罐重量使用现有液位换算，钢瓶、地方车、车辆燃气及其他出罐使用同一截止时点。历史补录或更正后，结果可能变化。</text></view>
 		<view class="brief__report">
-			<button role="button" tabindex="0" class="brief__report-toggle" :aria-expanded="reportOpen" @click="toggleReport" @keydown="activateOnKey($event, toggleReport)"><text>业务日报明细与导出</text><text class="brief__link">{{ reportOpen ? '收起 −' : '展开 +' }}</text></button>
+			<button role="button" tabindex="0" class="brief__report-toggle" :aria-expanded="reportOpen" @click="toggleReport" @keydown="activateOnKey($event, toggleReport)"><text>业务明细与导出</text><text class="brief__link">{{ reportOpen ? '收起 −' : '展开 +' }}</text></button>
 			<view v-if="reportOpen" class="brief__report-content">
 				<view class="brief__report-toolbar">
 					<view class="brief__report-periods"><button role="button" v-for="item in reportPeriods" :key="item.value" class="brief__text-button" :class="{ 'brief__text-button--active': reportPreset === item.value }" :aria-pressed="reportPreset === item.value" :tabindex="(exporting) ? -1 : 0" :aria-disabled="exporting" :disabled="exporting" @click="selectReportPreset(item.value)" @keydown="activateOnKey($event, selectReportPreset, exporting, item.value)">{{ item.label }}</button></view>
@@ -140,7 +79,6 @@
 		</view>
 	</view>
 </template>
-
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { onHide, onShow } from '@dcloudio/uni-app'
@@ -171,7 +109,7 @@ function number(value, digits = 3) {
 	if (value == null || value === '' || !Number.isFinite(Number(value))) return '—'
 	return Number(value).toLocaleString('en-US', { maximumFractionDigits: digits })
 }
-function money(value) { return value == null ? '—' : `¥${number(value)}` }
+function money(value) { return value == null ? '—' : `¥${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}` }
 function weight(value) { return value == null ? '—' : `${number(value)} kg` }
 function evidenceWeight(value) { return value == null ? '待补数据' : weight(value) }
 function tankSampleText(row) { return row ? `接收 ${dateTime(row.observed_at)} · 液位 ${number(row.level_kpa)} kPa` : '缺少采样记录' }
@@ -183,60 +121,50 @@ function dateTime(value) {
 	return new Date(date.getTime() + 8 * 3600000).toISOString().slice(5, 16).replace('T', ' ')
 }
 const rangeLabel = computed(() => result.value ? `${dateRange(result.value.range)}${period.value === 'yesterday' ? ' · 按当前已登记记录' : ' · 截至当前已登记'}` : (period.value === 'month' ? '本月已登记记录' : `${period.value === 'today' ? '今天' : '昨天'}已登记记录`))
-const leadText = computed(() => {
-	const name = period.value === 'today' ? '今日截至目前' : period.value === 'month' ? '本月至今' : '昨日'
-	return `${name}登记销售客户 ${number(result.value?.operations?.customer_count)} 户。业务与回款分别查看，历史回款计入到账日。`
-})
+const periodNoun = computed(() => period.value === 'month' ? '本月' : period.value === 'today' ? '今日' : '昨日')
+function amountFor(domain, key, values = domain) { return domain?.complete === false ? '待核' : money(values?.[key]) }
+function percentage(value) { return `${number(value * 100, 1)}%` }
+const settlement = computed(() => result.value?.business?.positive_settlement)
+const destinations = computed(() => result.value?.cash?.destinations)
+const ranking = computed(() => current.value?.current?.debt_ranking)
+const topShare = computed(() => (ranking.value?.items || []).reduce((sum, item) => sum + item.share_of_total, 0))
 const availableFundsLabel = computed(() => current.value?.current?.prepay_label || '可用款（不含退气抵款）')
 const lossPresentation = computed(() => tankLossPresentation(tankLoss.value))
 const lossValueText = computed(() => {
-	if (lossPresentation.value.amount != null) return weight(lossPresentation.value.amount)
-	if (tankLoss.value?.status === 'insufficient_data') return '待补数据'
-	return tankLossLoading.value ? '读取中…' : '读取未完成'
+	const amount = lossPresentation.value.amount
+	if (amount != null) return amount === 0 ? '0 kg' : amount < 1 ? '不足 1 kg' : `约 ${number(amount, 0)} kg`
+	return tankLossLoading.value && !tankLoss.value ? '读取中…' : '待补数据'
 })
+const tankConsumption = computed(() => tankLoss.value?.estimated_consumption_kg)
 const lossIssueText = computed(() => {
 	const issues = tankLoss.value?.issues || []
 	return issues.length ? `${issues[0].message}${issues.length > 1 ? `等 ${issues.length} 项` : ''}` : '期初、入罐或期末估算依据不足'
 })
 const currentTimeLabel = computed(() => current.value ? `截至 ${dateTime(current.value.updated_at)}${currentStale.value ? ' · 上次读取' : ''}` : '按当前时点核算')
-const operationCards = computed(() => {
-	const op = result.value?.operations
-	return [
-		{ key: 'sales', label: '销售重量', value: weight(op?.sale_weight_kg), sub: `${number(op?.sale_bottle_count)} 瓶` },
-		{ key: 'customers', label: '销售客户', value: op ? `${number(op.customer_count)} 户` : '—', sub: '期间去重' },
-		{ key: 'bottle', label: '钢瓶充装', value: weight(op?.fill_bottle_weight_kg), sub: `${number(op?.fill_bottle_count)} 瓶次` },
-		{ key: 'local', label: '地方车', value: weight(op?.local_weight_kg), sub: `${number(op?.local_count)} 次` },
-		{ key: 'vehicle', label: '车辆燃气加注', value: weight(op?.vehicle_weight_kg), sub: `${number(op?.vehicle_count)} 次` }
+const outflowCards = computed(() => (tankLoss.value?.outflow?.channels || [
+	{ key: 'bottle', label: '钢瓶充装' }, { key: 'local', label: '地方车' }, { key: 'vehicle', label: '车辆燃气加注' }
+]).filter(row => row.key !== 'other'))
+const otherOutflow = computed(() => tankLoss.value?.outflow?.channels?.find(row => row.key === 'other'))
+const destinationRows = computed(() => [
+	['same_period', `${periodNoun.value}货款`], ['prior_period', '往期货款'], ['future_period', '后来形成的货款'],
+	['other', '其他账单'], ['refunded_after_or_current', '后续已退款'], ['remaining_prepay', '预收款未使用'],
+	['remaining_settlement', '结账款待匹配'], ['remaining_unknown', '余款用途待确认']
+].map(([key, label]) => ({ key, label, amount: destinations.value?.[key] })))
+const reviewItems = computed(() => {
+	const data = result.value, funds = current.value
+	const groups = [
+		['货款', data?.business], ['货款结算', data?.business?.positive_settlement], ['到账凭据', data?.cash],
+		['收款依据', data?.cash?.evidence], ['收款去向', data?.cash?.destinations], ['销售业务量', data?.operations],
+		['客户欠款', funds?.current?.debt], ['客户可用款', funds?.current?.available_funds], ['结账待分配', funds?.pending]
 	]
+	return groups.filter(([, block]) => block?.complete === false).map(([label, block]) => {
+		const issue = block.issues?.[0] || {}
+		const source = issue.source || issue.source_type
+		const route = issue.source_id && ['crm_sale_records', 'sale'].includes(source) ? `/pages/sale/detail?_id=${encodeURIComponent(issue.source_id)}` : null
+		return { label, message: issue.message || '来源不完整，暂不显示合计', route }
+	})
 })
-const salesCards = computed(() => operationCards.value.slice(0, 2))
-const outflowCards = computed(() => operationCards.value.slice(2))
-const periodDetail = computed(() => {
-	const data = result.value
-	if (!data) return null
-	const op = data.operations
-	const entries = {
-		business: { title: '已确认业务额构成', rows: [{ label: '独立计费销售', value: money(data.business.sales) }, { label: '有效流量结算', value: money(data.business.flow) }, { label: '业务额合计', value: money(data.business.total) }], note: '流量客户送气只记业务量，在流量结算时计金额；不代表选定期间实际用气收入。' },
-		cash: { title: '气款到账构成', rows: [{ label: '气款收款', value: money(data.cash.received) }, { label: '气款退款', value: money(data.cash.refund) }, { label: '气款净收', value: money(data.cash.net) }], note: '正式收款单，按到账日期；含历史回款和预收，不含押金、抹零、非现金冲抵。', route: '/pages/cashier/receipt-intake', action: '打开收款登记' },
-		sales: { title: '销售业务量', rows: [{ label: '销售重量', value: weight(op.sale_weight_kg) }, { label: '销售瓶数', value: `${number(op.sale_bottle_count)} 瓶` }], note: '按选定日期的销售记录归集，流量客户送气计入业务量。', route: '/pages/sale/list', action: '打开销售记录' },
-		customers: { title: '销售客户', rows: [{ label: '期间去重客户', value: `${number(op.customer_count)} 户` }], note: '同一客户在选定期间多日销售只计一户，不能把每日户数相加当作期间客户数。', route: '/pages/sale/list', action: '打开销售记录' },
-		outflow: { title: '已登记出罐量构成', rows: [{ label: '钢瓶充装', value: weight(op.fill_bottle_weight_kg) }, { label: '地方车', value: weight(op.local_weight_kg) }, { label: '车辆燃气加注', value: weight(op.vehicle_weight_kg) }, { label: '已登记出罐量合计', value: weight(op.recorded_outflow_kg) }], note: '按充装记录汇总。储罐按液位换算重量，与同周期入罐、出罐量核算估算损耗；正差为损耗，负差为盈余。', route: '/pages/gas-closure/index', action: '打开损耗核对' },
-		bottle: { title: '钢瓶充装', rows: [{ label: '充装重量', value: weight(op.fill_bottle_weight_kg) }, { label: '充装瓶次', value: `${number(op.fill_bottle_count)} 瓶次` }], note: '按正重量充装记录计次；同一钢瓶多次充装可计多次。', route: '/pages/filling/list', action: '打开灌装记录' },
-		local: { title: '地方车充装', rows: [{ label: '充装重量', value: weight(op.local_weight_kg) }, { label: '充装次数', value: `${number(op.local_count)} 次` }], note: '按地方车渠道的正重量记录统计。', route: '/pages/filling/list', action: '打开灌装记录' },
-		vehicle: { title: '车辆燃气加注', rows: [{ label: '加注重量', value: weight(op.vehicle_weight_kg) }, { label: '加注次数', value: `${number(op.vehicle_count)} 次` }], note: '按车辆燃气加注渠道的正重量记录统计，与钢瓶和地方车分列。', route: '/pages/filling/list', action: '打开灌装记录' }
-	}
-	return entries[expanded.value] || null
-})
-const currentDetail = computed(() => {
-	const data = current.value
-	if (!data) return null
-	const entries = {
-		debt: { title: '当前客户欠款', rows: [{ label: '客户欠款合计', value: money(data.current.receivable) }], note: '按各客户核算欠款后汇总，其他客户的预收款不冲减此金额。', route: '/pages/customer/list?scene=statement', action: '打开客户对账' },
-		prepay: { title: availableFundsLabel.value, rows: [{ label: '可用款合计', value: money(data.current.prepay) }], note: '按客户资金账本核算的可用款，不代表新增现金，不含退气抵款；具体来源在客户对账中查看。', route: '/pages/customer/list?scene=statement', action: '打开客户对账' },
-		pending: { title: '结账收款待分配', rows: [{ label: '待分配收款', value: `${number(data.pending.count)} 笔` }, { label: '待分配金额', value: money(data.pending.amount) }], note: '只提示用于结账且尚有待分配金额的收款，正常预付款不作为异常。进入收款登记核对对应账单。', route: '/pages/cashier/receipt-intake', action: '打开收款登记' }
-	}
-	return entries[expanded.value] || null
-})
+function openCustomer(id) { navigateTo(`/pages/customer/statement?_id=${encodeURIComponent(id)}`) }
 function activateOnKey(event, action, disabled = false, value) {
 	if (disabled || !['Enter', ' '].includes(event?.key)) return
 	event.preventDefault()
@@ -363,4 +291,115 @@ onBeforeUnmount(() => {
 	.brief__period, .brief__text-button, .brief__operation, .brief__balance, .brief__report-toggle { min-height: 44px; }
 }
 @media (max-width: 380px) { .brief__metrics { grid-template-columns: 1fr; } .brief__balances { grid-template-columns: 1fr; } }
+
+.brief__ledger { padding: 22px 0; border-bottom: 1px solid var(--crm-border); }
+.brief__ledger:first-of-type { padding-top: 0; }
+.brief__hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-top: 16px; }
+.brief__hero > view { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.brief__hero .brief__amount { font-size: clamp(28px, 3vw, 38px); }
+.brief__net-equation { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; color: var(--crm-text-muted); margin: 10px 0 18px; font-variant-numeric: tabular-nums; }
+.brief__settlement { padding: 16px; border-radius: 8px; background: var(--crm-bg); }
+.brief__settlement-grid, .brief__cash-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 14px 0 10px; }
+.brief__settlement-grid > view, .brief__cash-grid > view, .brief__balances > view { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.brief__subamount { font-size: clamp(17px, 1.8vw, 23px); line-height: 1.4; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.brief__sales-note { display: block; font-size: 12px; color: var(--crm-text-muted); margin-top: 12px; }
+.brief__disclosure { display: flex; justify-content: space-between; width: 100%; gap: 12px; background: transparent; border: 0; padding: 14px 0 0; text-align: left; font-size: 13px !important; }
+.brief__ledger .brief__detail { margin: 14px 0 0; }
+.brief__current { border-top: 0; }
+.brief__ranking { margin: 16px 0; border: 1px solid var(--crm-border); border-radius: 8px; padding: 14px 16px; }
+.brief__ranking > .brief__note { margin: 5px 0 10px; }
+.brief__rank-row { width: 100%; display: flex; align-items: center; gap: 12px; border: 0; border-top: 1px solid var(--crm-border-weak); background: transparent; padding: 11px 0; text-align: left; }
+.brief__rank { color: var(--crm-text-muted); font-size: 13px; width: 16px; }
+.brief__rank-name { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 14px; overflow-wrap: anywhere; }
+.brief__rank-amount { display: flex; flex-direction: column; align-items: flex-end; font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.brief__empty { display: block; padding: 12px 0 4px; font-size: 13px; color: var(--crm-text-muted); }
+.brief__gas-equation { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: start; margin: 18px 0; }
+.brief__gas-equation > view, .brief__gas-result { display: flex; flex-direction: column; gap: 6px; }
+.brief__gas-result { background: transparent; border: 0; padding: 0; text-align: left; }
+.brief__operator { color: var(--crm-text-muted); align-self: center; font-size: 18px; }
+.brief__outflow-channels { border-top: 1px solid var(--crm-border-weak); padding-top: 16px; }
+.brief__other { margin-top: 10px; }
+.brief__review { border: 1px solid var(--crm-border); border-left: 3px solid var(--crm-warning); border-radius: 6px; margin: 14px 0 0; background: var(--crm-bg); }
+.brief__review-toggle { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 12px; background: transparent; border: 0; padding: 12px 14px; text-align: left; }
+.brief__review-toggle > view { min-width: 0; }
+.brief__review-list { padding: 0 14px 12px; }
+.brief__review-item { display: flex; justify-content: space-between; gap: 12px; align-items: center; border-top: 1px solid var(--crm-border-weak); padding-top: 8px; }
+@media (max-width: 600px) {
+ .brief__ledger { padding: 18px 0; }
+ .brief__settlement { padding: 12px; }
+ .brief__settlement-grid, .brief__cash-grid { gap: 10px; }
+ .brief__subamount { font-size: 17px; }
+ .brief__gas-equation { gap: 5px; }
+ .brief__gas-equation .brief__subamount { font-size: 15px; }
+ .brief__ranking { padding: 12px; }
+ .brief__disclosure, .brief__gas-result { min-height: 44px; }
+}
+
+
+.brief__heading > view { gap: 1px; }
+.brief__eyebrow { display: none; }
+.brief__toolbar { margin-top: 12px; margin-bottom: 4px; gap: 6px; }
+.brief__ledger { padding: 14px 0; }
+.brief__hero { margin-top: 4px; align-items: center; }
+.brief__hero > view { gap: 2px; }
+.brief__hero .brief__amount { font-size: 30px; }
+.brief__net-equation { margin: 6px 0; gap: 4px 12px; font-size: 12px; }
+.brief__settlement { padding: 10px 12px; margin-top: 8px; }
+.brief__settlement-grid, .brief__cash-grid { gap: 10px; margin: 8px 0 6px; }
+.brief__subamount { font-size: 19px; white-space: nowrap; overflow-wrap: normal; }
+.brief__sales-strip { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+.brief__outflow-channels { border: 0; padding-top: 12px; gap: 10px; }
+.brief__operation { gap: 3px; }
+.brief__operation-value { font-size: 17px; }
+.brief__gas-summary { width: 100%; display: grid; grid-template-columns: 1.2fr 1fr auto; align-items: center; gap: 10px; border: 0; background: var(--crm-bg); padding: 9px 10px; border-radius: 6px; margin-top: 12px !important; text-align: left; }
+.brief__gas-summary > view { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.brief__gas-summary .brief__subamount { font-size: 17px; }
+.brief__inline-note { margin-left: 8px; }
+.brief__balances { margin: 10px 0 4px; gap: 10px; }
+.brief__balance-value { font-size: 19px; }
+.brief__ranking { padding: 0; border: 0; border-radius: 0; margin: 12px 0 4px; }
+.brief__ranking > .brief__note { margin: 2px 0 4px; }
+.brief__rank-row { padding: 7px 0; gap: 8px; min-height: 44px; }
+.brief__rank-name, .brief__rank-amount { gap: 0; }
+.brief__rank-amount { font-size: 15px; white-space: nowrap; }
+.brief__pending { padding: 8px 10px; margin-top: 8px !important; background: var(--crm-bg); color: var(--crm-text) !important; border-color: var(--crm-border); }
+.brief__pending > view { flex-direction: row; flex-wrap: wrap; gap: 2px 8px; align-items: center; }
+.brief__pending-title { font-size: 12px; }
+.brief__footer { margin-top: 8px; gap: 2px; }
+.brief__report { margin-top: 6px; }
+.brief__report-toggle { padding-top: 8px; }
+.brief__review-toggle { padding: 8px 10px; }
+@media (max-width: 600px) {
+ .brief { padding: 14px 14px 10px; }
+ .brief__ledger { padding: 12px 0; }
+ .brief__title { font-size: 20px; }
+ .brief__period { padding: 5px 16px; }
+ .brief__hero .brief__amount { font-size: 28px; }
+ .brief__settlement-grid, .brief__cash-grid { grid-template-columns: 1fr; gap: 2px; }
+ .brief__settlement-grid > view, .brief__cash-grid > view { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 10px; }
+ .brief__settlement-grid .brief__subamount, .brief__cash-grid .brief__subamount { font-size: 17px; }
+ .brief__settlement-grid { margin: 6px 0; }
+ .brief__cash-grid { margin: 5px 0; }
+ .brief__balances { grid-template-columns: 1fr; gap: 3px; }
+ .brief__balances > view { flex-direction: row; justify-content: space-between; align-items: baseline; }
+ .brief__balance-value { font-size: 17px; }
+ .brief__operation { min-height: 0; }
+ .brief__outflow-channels .brief__operation-value { font-size: 15px; }
+ .brief__gas-summary { grid-template-columns: 1.15fr 1fr auto; gap: 6px; padding: 8px; }
+ .brief__gas-summary .brief__subamount { font-size: 15px; }
+ .brief__funds-note { text-align: right; }
+ .brief__detail { padding: 12px; }
+ .brief__detail-row { flex-wrap: wrap; gap: 3px 10px; }
+ .brief__detail-row > text:last-child { margin-left: auto; }
+}
+
+
+.brief__amount, .brief__balance-value { white-space: nowrap; overflow-wrap: normal; }
+.brief__hero { flex-wrap: wrap; }
+.brief__pending, .brief__gas-summary { min-height: 44px; }
+.brief__operation-sub { font-size: 12px; }
+@media (max-width: 767px) {
+ .brief__period, .brief__text-button, .brief__report-toggle, .brief__rank-row, .brief__review-toggle { min-height: 44px; }
+ .brief__balances > view { flex-wrap: wrap; }
+}
 </style>

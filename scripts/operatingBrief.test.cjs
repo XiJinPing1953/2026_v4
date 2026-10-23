@@ -98,15 +98,17 @@ test('full daily report includes every requested day and vehicle fuel without a 
 })
 
 test('unknown sales ownership or bad financial/physical source fields cannot return a confident zero', async () => {
-	for (const [key, rows] of [
-		['crm_sale_records', [saleDoc({ date: today })]],
-		['crm_customer_flow_settlements', [{ ...posted, _id: 'bad' }]],
-		['crm_customer_receipts', [{ ...posted, _id: 'bad', amount: 'unknown' }]],
-		['crm_fillings', [{ _id: 'bad', date: today }]]
+	for (const [key, rows, domain, field] of [
+		['crm_sale_records', [saleDoc({ date: today })], 'business', 'total'],
+		['crm_customer_flow_settlements', [{ ...posted, _id: 'bad' }], 'business', 'total'],
+		['crm_customer_receipts', [{ ...posted, _id: 'bad', amount: 'unknown' }], 'cash', 'net'],
+		['crm_fillings', [{ _id: 'bad', date: today }], 'operations', 'fill_bottle_weight_kg']
 	]) {
 		const result = await run(makeDb(setup({ [key]: rows })))
-		assert.equal(result.code, 409, key)
-		assert.equal(result.data.business, undefined)
+		assert.equal(result.code, 0, key)
+		assert.equal(result.data[domain].complete, false, key)
+		assert.equal(result.data[domain][field], null)
+		if (domain !== 'cash') assert.equal(result.data.cash.net, 0, 'unrelated official cash remains readable')
 	}
 })
 
@@ -114,9 +116,10 @@ test('missing sale price rejects financial brief while a physical daily report k
 	const tables = setup()
 	tables.crm_sale_records[0].unit_price = null
 	const financial = await run(makeDb(tables))
-	assert.equal(financial.code, 409)
-	assert.equal(financial.data.business, undefined)
-	assert.equal(financial.data.financial_evidence.field, 'unit_price')
+	assert.equal(financial.code, 0)
+	assert.equal(financial.data.business.total, null)
+	assert.equal(financial.data.business.issues[0].field, 'unit_price')
+	assert.equal(financial.data.cash.complete, true)
 	const physical = await run(makeDb(tables), { section: 'daily_report', date_start: today, date_end: today })
 	assert.equal(physical.code, 0)
 	assert.equal(physical.data.daily_report.rows[0].sale_weight, 10)
@@ -136,9 +139,15 @@ test('bad bottle, metered-flow, agent and truck physical inputs cannot silently 
 		Object.assign(tables.crm_sale_records[0], patch)
 		for (const data of [{}, { section: 'daily_report', date_start: today, date_end: today }]) {
 			const result = await run(makeDb(tables), data)
-			assert.equal(result.code, 409, JSON.stringify({ patch, data }))
-			assert.equal(result.data.operations, undefined)
-			assert.equal(result.data.daily_report, undefined)
+			if (data.section === 'daily_report') {
+				assert.equal(result.code, 409, JSON.stringify({ patch, data }))
+				assert.equal(result.data.daily_report, undefined)
+			} else {
+				assert.equal(result.code, 0)
+				assert.equal(result.data.operations.complete, false)
+				assert.equal(result.data.operations.sale_weight_kg, null)
+				assert.equal(result.data.cash.complete, true)
+			}
 		}
 	}
 })
@@ -156,8 +165,10 @@ test('unavailable counts and cross-collection updates reject totals, including v
 	for (const name of ['crm_customers', 'crm_sale_records', 'crm_fillings', 'crm_customer_receipts']) {
 		const db = makeDb(setup(), { count: (table, total) => ({ total: table === name ? null : total }) })
 		const result = await run(db)
-		assert.equal(result.code, 409, name)
-		assert.equal(result.data.operations, undefined)
+		assert.equal(result.code, 0, name)
+		const domain = name === 'crm_customer_receipts' ? 'cash' : 'operations'
+		assert.equal(result.data[domain].complete, false)
+		if (name === 'crm_fillings' || name === 'crm_sale_records') assert.equal(result.data.cash.complete, true)
 	}
 	const tables = setup()
 	let changed = false
@@ -166,8 +177,10 @@ test('unavailable counts and cross-collection updates reject totals, including v
 		return { data: structuredClone(rows) }
 	} })
 	const result = await run(db)
-	assert.equal(result.code, 409)
-	assert.equal(result.data.financial_evidence.reason, 'records_changed_during_brief')
+	assert.equal(result.code, 0)
+	assert.equal(result.data.business.complete, false)
+	assert.ok(['records_changed_during_brief', 'records_changed_during_read'].includes(result.data.business.issues[0].code))
+	assert.equal(result.data.cash.complete, true)
 })
 
 test('empty successful reads are real zero while invalid ranges and unsigned users are rejected', async () => {

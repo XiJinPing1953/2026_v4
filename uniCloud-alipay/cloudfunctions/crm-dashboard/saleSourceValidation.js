@@ -7,8 +7,8 @@ function invalid(reason, row, field) {
   error.message = '销售单计价或重量来源待核，未返回确定合计'
   throw error
 }
-function numeric(value, row, field) {
-  if (!['string', 'number'].includes(typeof value) || text(value) === '' || !Number.isFinite(Number(value)) || Number(value) < 0)
+function numeric(value, row, field, signed = false) {
+	if (!['string', 'number'].includes(typeof value) || text(value) === '' || !Number.isFinite(Number(value)) || (!signed && Number(value) < 0))
     invalid('invalid_source_amount', row, field)
 }
 function saleMode(row) {
@@ -32,7 +32,10 @@ function bottleQuantity(row, requireWeight) {
   for (const field of ['out_items', 'back_items']) {
     if (row[field] == null) continue
     if (!Array.isArray(row[field])) invalid('sale_quantity_missing', row, field)
-    if (requireWeight) for (const item of row[field]) numeric(item?.net, row, `${field}.net`)
+    // The canonical sale rule retains gross-minus-tare signs, including a
+    // returned bottle weighed below its registered tare. Do not recast it as
+    // missing evidence or silently clamp it; absent/non-finite values still fail.
+    if (requireWeight) for (const item of row[field]) numeric(item?.net, row, `${field}.net`, true)
   }
 }
 

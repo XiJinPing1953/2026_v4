@@ -244,13 +244,14 @@ export function useOperatingBrief(options = {}) {
 			reportLoading.value = false
 			exporting.value = false
 			stale.value = Boolean(result.value)
+			currentStale.value = Boolean(current.value)
 			tankLossStale.value = Boolean(tankLoss.value)
 			reportStale.value = Boolean(report.value)
 			return
 		}
 		refresh()
 		refreshTankLoss()
-		if (!current.value) refreshCurrent()
+		refreshCurrent()
 		if (reportOpen.value) refreshReport()
 		timer = setInterval(() => {
 			refresh({ background: true })

@@ -3,6 +3,7 @@
 const { readComplete, FinancialReadError } = require('./financialReadLocal')
 const { resolveRange, VERSION } = require('./operatingBrief')
 const { deriveTankEstimate, TANK_ESTIMATE_VERSION } = require('./tankTelemetry')
+const { summarizeGasOutflow } = require('./gasOutflow')
 
 const DAY = 86400000
 const OFFSET = 8 * 3600000
@@ -135,18 +136,18 @@ function stationInboundKg(row) {
 	return roundKg(station * 1000)
 }
 
-function sumBusiness(rows, kind, range, endAt, issues) {
+function sumInbound(rows, range, endAt, issues) {
 	let mills = 0, valid = true
 	for (const row of rows) {
-		const time = businessTime(row, kind, range, endAt)
-		if (time.issue) { issues.push({ code: `${kind}_time_unknown`, message: `${kind === 'filling' ? '出罐' : '入罐'}记录 ${row._id}：${time.issue}` }); valid = false; continue }
+		const time = businessTime(row, 'inbound', range, endAt)
+		if (time.issue) { issues.push({ code: 'inbound_time_unknown', message: `入罐记录 ${row._id}：${time.issue}` }); valid = false; continue }
 		if (!time.include) continue
-		const weight = kind === 'filling' ? numberOrNull(row.fill_weight) : stationInboundKg(row)
+		const weight = stationInboundKg(row)
 		if (weight == null || !Number.isSafeInteger(Math.round(weight * 1000))) {
-			issues.push({ code: `${kind}_weight_invalid`, message: `${kind === 'filling' ? '出罐' : '入罐'}记录 ${row._id}：重量缺失、无效或入罐分配不守恒` }); valid = false; continue
+			issues.push({ code: 'inbound_weight_invalid', message: `入罐记录 ${row._id}：重量缺失、无效或入罐分配不守恒` }); valid = false; continue
 		}
 		mills += Math.round(weight * 1000)
-		if (!Number.isSafeInteger(mills)) throw new FinancialReadError('quantity_overflow', { source: kind })
+		if (!Number.isSafeInteger(mills)) throw new FinancialReadError('quantity_overflow', { source: 'inbound' })
 	}
 	return valid ? mills / 1000 : null
 }
@@ -174,8 +175,10 @@ async function readTankLoss(db, data = {}, now = Date.now()) {
 	if (opening && closing && opening.gateway_id !== closing.gateway_id) {
 		issues.push({ code: 'gateway_changed', message: '期初与期末主罐采样网关不同，无法确认同一来源' })
 	}
-	const inboundKg = sumBusiness(inbound, 'inbound', range, endAt, issues)
-	const outflowKg = sumBusiness(fillings, 'filling', range, endAt, issues)
+	const inboundKg = sumInbound(inbound, range, endAt, issues)
+	const outflow = summarizeGasOutflow(fillings, { resolveTime: row => businessTime(row, 'filling', range, endAt) })
+	const outflowKg = outflow.weight_kg
+	issues.push(...outflow.issues)
 	for (const { name, where, count } of queries) {
 		await guardedRead(name, async () => {
 			const collection = db.collection(name)
@@ -187,12 +190,15 @@ async function readTankLoss(db, data = {}, now = Date.now()) {
 		})
 	}
 	const available = issues.length === 0
-	const loss = available ? (Math.round(opening.weight_kg * 1000) + Math.round(inboundKg * 1000) -
-		Math.round(closing.weight_kg * 1000) - Math.round(outflowKg * 1000)) / 1000 : null
+	const consumption = opening && closing && opening.gateway_id === closing.gateway_id && inboundKg != null
+		? (Math.round(opening.weight_kg * 1000) + Math.round(inboundKg * 1000) - Math.round(closing.weight_kg * 1000)) / 1000 : null
+	if (consumption != null && !Number.isSafeInteger(Math.round(consumption * 1000))) throw new FinancialReadError('quantity_overflow', { source: 'tank_loss' })
+	const loss = available ? (Math.round(consumption * 1000) - Math.round(outflowKg * 1000)) / 1000 : null
 	if (available && !Number.isSafeInteger(Math.round(loss * 1000))) throw new FinancialReadError('quantity_overflow', { source: 'tank_loss' })
 	return { code: 0, data: { section: 'tank_loss', version: VERSION, period: data.period || 'yesterday', range,
 		complete: true, status: available ? 'available' : 'insufficient_data', opening, closing,
-		inbound_kg: inboundKg, recorded_outflow_kg: outflowKg, estimated_loss_kg: loss, issues,
+		inbound_kg: inboundKg, recorded_outflow_kg: outflowKg, outflow,
+		estimated_consumption_kg: consumption, estimated_loss_kg: loss, issues,
 		updated_at: Date.now(), estimate_version: TANK_ESTIMATE_VERSION, read_started_at: started,
 		read_completed_at: Date.now(), snapshot_consistent: false, tank_id: 'main',
 		observation_time_basis: 'server_received_at', observation_time_note: '边界采样使用服务器接收时间，不代表现场开阀时刻',

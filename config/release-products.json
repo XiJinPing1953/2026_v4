@@ -6,31 +6,25 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.23-operating-brief",
+      "version": "2026.10.23-operating-brief-refined",
       "output": "dist/build/web",
-      "acceptance": "Homepage operating brief, vehicle fuel and liquid-level estimated tank loss/surplus; complete read-only sources, missing data stays unavailable. Verify live homepage and independent sections.",
+      "acceptance": "Separate period goods principal, current settlement and actual cash receipts; trace allocation destinations, independently verified current debt TOP3 and same-cutoff gas balance. Verify partial/unknown states and real homepage.",
       "deploymentScope": {
         "functions": [
-          "crm-dashboard",
-          "crm-customer-settlement"
+          "crm-dashboard"
         ],
         "databaseFiles": [],
-        "baseCommit": "acdb2eccf750deee07db4bf0db703f117dc9260c",
+        "baseCommit": "d6bb19e5b3cdd25e5fde6b907303999e12d9beee",
         "sourceFiles": [
-          "src/components/domain/dashboard/DashboardHome.vue",
           "src/components/domain/dashboard/OperatingBrief.vue",
           "src/composables/dashboard/useOperatingBrief.js",
-          "src/services/api/dashboard.js",
           "src/services/mappers/operatingBrief.js",
-          "uniCloud-alipay/cloudfunctions/common/customerBalance.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerBalanceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/currentBrief.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/customerBalanceLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/gasOutflow.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBrief.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBriefFinance.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBriefFinanceRead.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/saleSourceValidation.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/tankLoss.js"
         ],
@@ -39,12 +33,6 @@
             "registry": {
               "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
               "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
-            }
-          },
-          "crm-customer-settlement": {
-            "registry": {
-              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
-              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
             }
           }
         }
@@ -52,31 +40,25 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.23-operating-brief",
+      "version": "2026.10.23-operating-brief-refined",
       "output": "release/cloud",
-      "acceptance": "Homepage operating brief, vehicle fuel and liquid-level estimated tank loss/surplus; complete read-only sources, missing data stays unavailable. Verify live homepage and independent sections.",
+      "acceptance": "Separate period goods principal, current settlement and actual cash receipts; trace allocation destinations, independently verified current debt TOP3 and same-cutoff gas balance. Verify partial/unknown states and real homepage.",
       "deploymentScope": {
         "functions": [
-          "crm-dashboard",
-          "crm-customer-settlement"
+          "crm-dashboard"
         ],
         "databaseFiles": [],
-        "baseCommit": "acdb2eccf750deee07db4bf0db703f117dc9260c",
+        "baseCommit": "d6bb19e5b3cdd25e5fde6b907303999e12d9beee",
         "sourceFiles": [
-          "src/components/domain/dashboard/DashboardHome.vue",
           "src/components/domain/dashboard/OperatingBrief.vue",
           "src/composables/dashboard/useOperatingBrief.js",
-          "src/services/api/dashboard.js",
           "src/services/mappers/operatingBrief.js",
-          "uniCloud-alipay/cloudfunctions/common/customerBalance.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerBalanceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/currentBrief.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/customerBalanceLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/gasOutflow.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBrief.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBriefFinance.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBriefFinanceRead.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/saleSourceValidation.js",
           "uniCloud-alipay/cloudfunctions/crm-dashboard/tankLoss.js"
         ],
@@ -85,12 +67,6 @@
             "registry": {
               "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
               "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
-            }
-          },
-          "crm-customer-settlement": {
-            "registry": {
-              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
-              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
             }
           }
         }

@@ -417,7 +417,8 @@ async function summaryV1(user, data, requestId) {
 			currentBrief: [{ pagePath: '/pages/customer/list', action: 'view' }]
 		}, [], { recordLog, requestId, cloudFunction: 'crm-dashboard' })
 		if (!acl.ok) return { code: acl.code, msg: acl.msg }
-		return { code: 0, data: await require('./currentBrief').readCurrentBrief(db) }
+		const current = await require('./currentBrief').readCurrentBrief(db)
+		return { code: 0, data: { ...current, accounting: { status: current.complete ? 'resolved' : 'unresolved' } } }
 	}
 	const days = Math.min(Math.max(Number(data.days || 7), 3), 31)
 	const today = getCNDate()
@@ -829,4 +830,11 @@ const main = async (event, context) => {
 	return { code: 400, msg: '未知 action' }
 }
 
-exports.main = withFinancialEvidence(main, saleAccounting.RULE_VERSION)
+const financialHandler = withFinancialEvidence(main, saleAccounting.RULE_VERSION)
+exports.main = async (event, context) => {
+	const result = await financialHandler(event, context)
+	if (result?.financial_evidence && typeof result.data?.read_complete === 'boolean') {
+		result.financial_evidence.read_complete = result.data.read_complete
+	}
+	return result
+}

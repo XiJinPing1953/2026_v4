@@ -9,13 +9,26 @@ async (page) => {
   page.on('pageerror', onError)
   const check = (value, message) => { if (!value) throw Error(message) }
   const brief = page.locator('.brief')
+  const businessAmount = brief.locator('.brief__hero .brief__amount')
+  const currentBalances = brief.locator('.brief__balances > *')
+  const waitBusiness = async amount => {
+    await businessAmount.filter({ hasText: new RegExp(`^¥${amount}(?:\\.00)?$`) }).waitFor()
+  }
+  const openReport = async key => {
+    const toggle = brief.locator('.brief__report-toggle')
+    if (key) await toggle.press(key)
+    else await toggle.click()
+  }
   const go = async fixture => {
     await page.goto(`${origin}/${fixture ? `?fixture=${fixture}` : ''}#/pages/index/index`)
     await brief.waitFor()
   }
   try {
     await go('')
-    await brief.getByRole('button', { name: '3,470.972 kg', exact: true }).waitFor()
+    await waitBusiness('24,600')
+    await brief.getByRole('button', { name: /^出罐合计.*估算损耗.*明细/ }).waitFor()
+    await brief.locator('.brief__gas-summary').getByText('3,590.972 kg', { exact: true }).waitFor()
+    check((await brief.locator('.brief__ledger').first().innerText()).includes('业务概况'), 'Business is not above finance')
     const widths = []
     for (const width of [1440, 768, 390, 320]) {
       await page.setViewportSize({ width, height: 1000 })
@@ -29,14 +42,21 @@ async (page) => {
     await page.setViewportSize({ width: 390, height: 844 })
     const periods = brief.locator('.brief__periods')
     await periods.getByRole('button', { name: '今天', exact: true }).press('Enter')
-    await brief.getByRole('button', { name: /已确认业务额 ¥12,300/ }).waitFor()
+    await waitBusiness('12,300')
     await periods.getByRole('button', { name: '本月', exact: true }).press('Space')
-    await brief.getByRole('button', { name: /已确认业务额 ¥467,400/ }).waitFor()
-    check(await brief.getByRole('button', { name: /客户欠款合计 ¥203,600.123/ }).count() === 1, 'Period changed current funds')
+    await waitBusiness('467,400')
+    check((await currentBalances.first().innerText()).includes('¥203,600.123'), 'Period changed current funds')
     await periods.getByRole('button', { name: '昨天', exact: true }).click()
-    await brief.getByRole('button', { name: '3,470.972 kg', exact: true }).press('Enter')
-    await brief.getByText('已登记出罐量构成', { exact: true }).waitFor()
-    await brief.getByRole('button', { name: '业务日报明细与导出 展开 +', exact: true }).press('Space')
+    await waitBusiness('24,600')
+    await brief.locator('.brief__gas-summary').press('Enter')
+    await brief.locator('.brief__loss-detail').getByText('3,590.972 kg', { exact: true }).waitFor()
+    const finance = brief.locator('.brief__ledger').filter({ has: page.locator('.brief__hero') })
+    await finance.getByRole('button', { name: '明细 →', exact: true }).press('Space')
+    await finance.getByText('货款明细', { exact: true }).waitFor()
+    for (const label of ['已抵货款', '抹零', '还欠']) await finance.locator('.brief__settlement-grid').getByText(label, { exact: true }).waitFor()
+    await brief.getByRole('button', { name: /^待匹配账单 2 笔/ }).waitFor()
+    await brief.getByRole('button', { name: '业务明细与导出 展开 +', exact: true }).waitFor()
+    await openReport('Space')
     await brief.getByText(/5 天完整数据/).waitFor()
     await brief.locator('.brief__report-periods').getByRole('button', { name: '上月', exact: true }).click()
     const today = new Date(Date.now() + 8 * 3600000)
@@ -51,18 +71,36 @@ async (page) => {
     await go('brief-incomplete')
     await brief.getByText(/本地示例：账务来源待核/).first().waitFor()
     check(await brief.locator('.brief__amount').allTextContents().then(values => values.every(value => value === '—')), 'Incomplete data displayed as zero')
-    await brief.getByRole('button', { name: '业务日报明细与导出 展开 +', exact: true }).click()
+    await openReport()
     check(await brief.getByRole('button', { name: '导出完整日报', exact: true }).getAttribute('aria-disabled') === 'true', 'Incomplete export enabled')
     await brief.screenshot({ path: 'output/playwright/operating-brief-incomplete.png' })
+    await go('cash-destinations-unavailable')
+    await brief.locator('.brief__cash-grid').getByText('¥19,800.00', { exact: true }).waitFor()
+    await brief.getByRole('button', { name: '收款去向 +', exact: true }).click()
+    await brief.getByText(/收款去向待核/).first().waitFor()
+    await waitBusiness('24,600')
+    await go('current-debt-unavailable')
+    await currentBalances.nth(1).getByText('¥12,000.018', { exact: true }).waitFor()
+    check((await currentBalances.first().innerText()).includes('待核'), 'Unavailable debt showed a number')
+    check(await brief.locator('.brief__rank-row').count() === 0, 'Partial debt displayed a ranking')
+    await go('current-funds-unavailable')
+    await brief.locator('.brief__rank-row').nth(2).waitFor()
+    check((await currentBalances.nth(1).innerText()).includes('待核'), 'Unavailable funds showed a number')
+    await go('top3-one')
+    await brief.locator('.brief__rank-row').first().waitFor()
+    check(await brief.locator('.brief__rank-row').count() === 1, 'One debtor was padded to TOP3')
     await go('empty')
-    await brief.getByRole('button', { name: '0 kg', exact: true }).waitFor()
-    await brief.getByText('暂无结账收款待分配；正常预收款不计入提醒。', { exact: true }).waitFor()
-    check((await brief.locator('.brief__amount').allTextContents()).every(value => value === '¥0'), 'Empty totals are not zero')
+    await waitBusiness('0')
+    await brief.locator('.brief__gas-summary .brief__subamount').nth(1).filter({ hasText: /^0 kg$/ }).waitFor()
+    await brief.locator('.brief__ranking .brief__empty').filter({ hasText: /暂无.*欠款/ }).waitFor()
+    check(await brief.locator('.brief__pending').count() === 0, 'Empty pending work still displays a reminder')
+    check((await brief.locator('.brief__amount').allTextContents()).every(value => /^¥0(?:\.00)?$/.test(value)), 'Empty totals are not zero')
     check(errors.length === 0, errors.join('\n'))
     await go('')
-    await brief.getByRole('button', { name: '3,470.972 kg', exact: true }).waitFor()
-    return { widths, keyboard: ['Enter', 'Space'], periodSwitch: true, currentFundsIndependent: true,
-      previousMonthDays: lastMonthDays, exportDownloaded: true, incompleteDisabled: true, emptyZero: true, pageErrors: errors }
+    await waitBusiness('24,600')
+    return { widths, keyboard: ['Enter', 'Space'], businessFirst: true, periodSwitch: true, currentFundsIndependent: true,
+      previousMonthDays: lastMonthDays, exportDownloaded: true, incompleteDisabled: true, independentFinancialDomains: true,
+      completeDebtRankingOnly: true, shortRankingUnpadded: true, emptyZero: true, pageErrors: errors }
   } finally {
     page.off('pageerror', onError)
   }

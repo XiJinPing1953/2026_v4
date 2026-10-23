@@ -32,6 +32,7 @@ const insufficient = result => {
 	assert.equal(result.data.estimated_loss_kg, null)
 	assert.ok(result.data.issues.length > 0)
 }
+const channelMap = result => Object.fromEntries(result.data.outflow.channels.map(row => [row.key, row]))
 
 test('real handler computes signed estimated loss from model endpoints, station-only gas and all recorded outflows, with no writes', async () => {
 	const tables = setup({ crm_gas_in: [inbound('gas')], crm_fillings: [
@@ -47,7 +48,17 @@ test('real handler computes signed estimated loss from model endpoints, station-
 	assert.equal(d.closing.weight_kg, kg(29))
 	assert.equal(d.inbound_kg, 1500)
 	assert.equal(d.recorded_outflow_kg, 220.124)
+	assert.equal(d.outflow.weight_kg, d.recorded_outflow_kg)
+	assert.equal(d.outflow.complete, true)
+	assert.deepEqual(d.outflow.channels.map(({ key, weight_kg, count, count_unit, complete }) =>
+		({ key, weight_kg, count, count_unit, complete })), [
+		{ key: 'bottle', weight_kg: 100.123, count: 1, count_unit: '瓶次', complete: true },
+		{ key: 'local', weight_kg: 40, count: 1, count_unit: '次', complete: true },
+		{ key: 'vehicle', weight_kg: 20, count: 1, count_unit: '次', complete: true },
+		{ key: 'other', weight_kg: 60.001, count: 2, count_unit: '次', complete: true }
+	])
 	assert.equal(d.estimated_loss_kg, round(kg(30) + 1500 - kg(29) - 220.124))
+	assert.equal(d.estimated_consumption_kg, round(kg(30) + 1500 - kg(29)))
 	assert.equal(d.estimate_version, TANK_ESTIMATE_VERSION)
 	assert.equal(d.observation_time_basis, 'server_received_at')
 	assert.equal(d.opening.observed_at, START - 5000)
@@ -63,6 +74,8 @@ test('zero records with valid endpoints give exact zero; negative result remains
 		assert.equal(result.data.status, 'available')
 		assert.equal(result.data.inbound_kg, 0)
 		assert.equal(result.data.recorded_outflow_kg, 0)
+		assert.equal(result.data.outflow.complete, true)
+		assert.ok(result.data.outflow.channels.every(row => row.complete && row.weight_kg === 0 && row.count === 0))
 		assert.equal(result.data.estimated_loss_kg, round(kg(openLevel) - kg(closeLevel)))
 	}
 })
@@ -281,4 +294,120 @@ test('invalid period returns 400 without business reads and home ACL still gates
 	const tables = setup({ crm_users: [{ _id: 'viewer', token: 'test', role: 'user', page_permissions: { '/pages/index/index': { view: false } } }] })
 	const result = await run(makeDb(tables))
 	assert.equal(result.code, 403)
+})
+
+test('tank outflow distinguishes real cylinders, 000, explicit vehicle fuel and TRUCK or unknown records without double counting', async () => {
+	const records = [
+		filling('normal', 1, { bottle_no: 'X001', record_type: 'normal_fill' }),
+		filling('legacy', 2, { bottle_no: 'X001' }),
+		filling('agent-cylinder', 3, { bottle_no: '123', record_type: 'truck_out_agent_sale' }),
+		filling('local', 4, { bottle_no: ' 000 ', record_type: 'normal_fill' }),
+		filling('vehicle000', 5, { bottle_no: '000', record_type: 'truck_out_no_sale' }),
+		filling('vehicletruck', 6, { bottle_no: 'TRUCK-123', record_type: 'truck_out_no_sale' }),
+		filling('topup', 7, { bottle_no: 'TRUCK-9335Z', record_type: 'normal_fill' }),
+		filling('short-topup', 8, { bottle_no: 'truck' }),
+		filling('compact-topup', 9, { bottle_no: 'TRUCK_9335Z' }),
+		filling('unknown-type', 10, { bottle_no: '123', record_type: 'unknown' }),
+		filling('bad-type', 11, { bottle_no: '123', record_type: true }),
+		filling('no-identity', 12), filling('zero', 0, { bottle_no: 'X001' })
+	]
+	const db = makeDb(setup({ crm_fillings: records }, 30, 30)), result = await run(db)
+	assert.equal(result.data.status, 'available')
+	const c = channelMap(result)
+	assert.deepEqual([c.bottle.weight_kg, c.bottle.count, c.bottle.count_unit], [6, 3, '瓶次'])
+	assert.deepEqual([c.local.weight_kg, c.local.count], [4, 1])
+	assert.deepEqual([c.vehicle.weight_kg, c.vehicle.count], [11, 2])
+	assert.deepEqual([c.other.weight_kg, c.other.count, c.other.count_unit], [57, 6, '次'])
+	assert.equal(result.data.outflow.weight_kg, 78)
+	assert.equal(result.data.recorded_outflow_kg, 78)
+	assert.equal(result.data.estimated_loss_kg, -78, 'vehicle fuel and TRUCK supplement are deducted exactly once')
+	assert.equal(db.writes.length, 0)
+})
+
+test('outflow channel totals use the same cutoff and three-decimal sums as tank loss', async () => {
+	const rows = []
+	for (const [key, fields] of Object.entries({ bottle: { bottle_no: '123' }, local: { bottle_no: '000' },
+		vehicle: { record_type: 'truck_out_no_sale' }, other: { bottle_no: 'TRUCK-1' } })) {
+		rows.push(filling(`${key}-past`, 0.001, fields), filling(`${key}-future`, 900, { ...fields, filling_time: '2026-10-23-13' }))
+	}
+	const result = await run(makeDb(setup({ crm_fillings: rows }, 30, 30)))
+	assert.equal(result.data.status, 'available')
+	assert.equal(result.data.outflow.weight_kg, 0.004)
+	assert.equal(result.data.estimated_loss_kg, -0.004)
+	assert.ok(result.data.outflow.channels.every(row => row.weight_kg === 0.001 && row.count === 1 && row.complete))
+})
+
+test('missing telemetry boundaries preserve independently complete inbound, outflow and all channels', async () => {
+	const result = await run(makeDb(setup({ crm_operation_logs: [], crm_gas_in: [inbound('gas')],
+		crm_fillings: [filling('bottle', 12, { bottle_no: '123' }), filling('truck', 8, { bottle_no: 'TRUCK-1' })] })))
+	insufficient(result)
+	assert.equal(result.data.opening, null)
+	assert.equal(result.data.closing, null)
+	assert.equal(result.data.estimated_consumption_kg, null)
+	assert.equal(result.data.inbound_kg, 1500)
+	assert.equal(result.data.outflow.complete, true)
+	assert.equal(result.data.outflow.weight_kg, 20)
+	assert.equal(channelMap(result).bottle.weight_kg, 12)
+	assert.equal(channelMap(result).other.weight_kg, 8)
+	assert.deepEqual(result.data.outflow.issues, [])
+})
+
+test('a current-day missing business time invalidates only its affected channel and the total', async () => {
+	const result = await run(makeDb(setup({ crm_fillings: [
+		filling('unknown-bottle-time', 10, { bottle_no: '123', filling_time: '' }),
+		filling('local', 5, { bottle_no: '000' }), filling('vehicle', 6, { record_type: 'truck_out_no_sale' })
+	] })))
+	insufficient(result)
+	const c = channelMap(result)
+	assert.equal(result.data.outflow.complete, false)
+	assert.equal(result.data.outflow.weight_kg, null)
+	assert.equal(result.data.recorded_outflow_kg, null)
+	assert.equal(result.data.estimated_consumption_kg, round(kg(30) - kg(29)), 'known tank consumption survives missing outflow business time')
+	assert.deepEqual([c.bottle.complete, c.bottle.weight_kg, c.bottle.count], [false, null, null])
+	assert.deepEqual([c.local.complete, c.local.weight_kg, c.local.count], [true, 5, 1])
+	assert.deepEqual([c.vehicle.complete, c.vehicle.weight_kg, c.vehicle.count], [true, 6, 1])
+	assert.deepEqual([c.other.complete, c.other.weight_kg, c.other.count], [true, 0, 0])
+	assert.equal(result.data.outflow.issues[0].channel_key, 'bottle')
+	assert.equal(result.data.outflow.issues[0].code, 'filling_time_unknown')
+})
+
+test('bad outflow weight does not erase unrelated known channels; bad inbound does not erase outflow', async () => {
+	const badOutflow = await run(makeDb(setup({ crm_fillings: [filling('bad-truck', -1, { bottle_no: 'TRUCK-1' }),
+		filling('bottle', 10, { bottle_no: '123' })] })))
+	insufficient(badOutflow)
+	assert.equal(channelMap(badOutflow).other.complete, false)
+	assert.equal(channelMap(badOutflow).other.weight_kg, null)
+	assert.equal(channelMap(badOutflow).bottle.weight_kg, 10)
+	assert.equal(badOutflow.data.inbound_kg, 0)
+	const badInbound = await run(makeDb(setup({ crm_gas_in: [inbound('bad-gas', { station_weight_t: 'bad' })],
+		crm_fillings: [filling('bottle', 10, { bottle_no: '123' })] })))
+	insufficient(badInbound)
+	assert.equal(badInbound.data.inbound_kg, null)
+	assert.equal(badInbound.data.estimated_consumption_kg, null)
+	assert.equal(badInbound.data.outflow.complete, true)
+	assert.equal(badInbound.data.outflow.weight_kg, 10)
+	assert.equal(channelMap(badInbound).bottle.count, 1)
+})
+
+test('outflow source read failure cannot be turned into zero-valued channels', async () => {
+	const db = makeDb(setup(), { get(name, rows) {
+		if (name === 'crm_fillings') throw new Error('filling source unavailable')
+		return { data: rows }
+	} })
+	const result = await run(db)
+	assert.equal(result.code, 409)
+	assert.equal(result.error_code, 'FINANCIAL_READ_INCOMPLETE')
+	assert.equal(result.data.outflow, undefined)
+	assert.equal(db.writes.length, 0)
+})
+
+test('outflow categories include all pages and count repeated cylinder filling events, not distinct cylinders', async () => {
+	const rows = Array.from({ length: 251 }, (_, index) => filling(`bottle-${String(index).padStart(3, '0')}`, 0.001, { bottle_no: '123' }))
+	rows.push(filling('zero-local', 0, { bottle_no: '000' }), filling('zero-truck', 0, { bottle_no: 'TRUCK-1' }))
+	const result = await run(makeDb(setup({ crm_fillings: rows })))
+	assert.equal(result.data.outflow.complete, true)
+	assert.equal(result.data.outflow.weight_kg, 0.251)
+	assert.deepEqual([channelMap(result).bottle.weight_kg, channelMap(result).bottle.count], [0.251, 251])
+	assert.equal(channelMap(result).local.count, 0)
+	assert.equal(channelMap(result).other.count, 0)
 })
