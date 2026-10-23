@@ -109,7 +109,8 @@
           "uniCloud-alipay/cloudfunctions/crm-filling/reweighRecords.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
-          "src/services/filling.js"
+          "src/services/filling.js",
+          "src/components/domain/pda/PdaPrinterTest.vue"
         ],
         "aclCanonicalRevisions": {
           "crm-sale": {
