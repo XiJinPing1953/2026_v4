@@ -53,13 +53,21 @@
         "sourceFiles": [
           "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
           "uniCloud-alipay/cloudfunctions/crm-bottle/suspendPrefixes.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js"
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-bottle/pageAclRegistryLocal.js"
         ],
         "aclCanonicalRevisions": {
           "crm-dashboard": {
             "registry": {
               "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
               "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
+            }
+          },
+          "crm-bottle": {
+            "registry": {
+              "commit": "b334c9da11936983d6b1514da2ee95b786d42f71",
+              "sha256": "01ceeccab063663d13b505fcec00017891af9105f250a1b141daf2c643f050c3"
             }
           }
         }
