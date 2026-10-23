@@ -32,3 +32,17 @@ test('line wrapping preserves bottle number and decimal weight tokens',()=>{
  const lines=salePrintPages(doc).flatMap(p=>p.rows)
  assert.ok(lines.some(s=>s.includes('123456789号')));assert.ok(lines.some(s=>s.includes('12.5')));assert.ok(lines.some(s=>s.includes('123456')))
 })
+
+test('legacy PDA runtime without Array.at can paginate deposits and send all pages',()=>{
+ const c={};vm.createContext(c);vm.runInContext('Array.prototype.at = undefined',c)
+ const code=fs.readFileSync('src/services/pda/salePrint.js','utf8').replace(/export /g,'')
+ vm.runInContext(code+'\nthis.api={salePrintPages,writeSalePage}',c)
+ const doc={...sale,deposit_rows:Array.from({length:100},(_,i)=>({bottle_no:'BOTTLE'+i}))}
+ const before=JSON.stringify(doc),pages=c.api.salePrintPages(doc),calls=[]
+ const plugin=new Proxy({},{get:(_,key)=>(...args)=>calls.push([key,...args])})
+ for(const page of pages)c.api.writeSalePage(plugin,page)
+ assert.ok(pages.length>1);assert.ok(pages.every(p=>p.rows.length<=10))
+ assert.ok(pages.map(p=>p.rows.join('')).join('').includes('BOTTLE99'))
+ assert.equal(calls.filter(c=>c[0]==='startPrint').length,pages.length)
+ assert.equal(JSON.stringify(doc),before)
+})

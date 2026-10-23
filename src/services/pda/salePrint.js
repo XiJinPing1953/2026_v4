@@ -36,7 +36,7 @@ export function salePrintPages(sale) {
   // Ten 28-dot rows plus header and footer within logical 640×400 dots.
   while(lines.length) pages.push(lines.splice(0,10))
   if(!pages.length)pages.push([])
-  for(const line of deposits){ if(pages.at(-1).length>=10)pages.push([]);pages.at(-1).push(line) }
+  for(const line of deposits){ if(pages[pages.length - 1].length>=10)pages.push([]);pages[pages.length - 1].push(line) }
   return pages.map((rows,index)=>({ rows, page:index+1, total:pages.length, id:sale._id, depositStart:Math.max(0,contentCount-index*10) }))
 }
 export function writeSalePage(plugin,page) {
