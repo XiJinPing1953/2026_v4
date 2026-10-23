@@ -224,7 +224,7 @@ onBeforeUnmount(() => {
 .brief__metric { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; padding: 20px; border: 1px solid var(--crm-border-weak); border-radius: var(--crm-radius-md); background: #f5f8fc; text-align: left; }
 .brief__label { font-size: 14px; }
 .brief__amount { max-width: 100%; overflow-wrap: anywhere; font-size: clamp(24px, 2.4vw, 34px); font-weight: 600; line-height: 1.3; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
-.brief__link { color: var(--crm-primary); font-size: 12px; }
+.brief__link { color: var(--crm-primary); font-size: 12px; white-space: nowrap; flex-shrink: 0; }
 .brief__operations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 20px 0; }
 .brief__outflow { padding: 16px; margin-bottom: 18px; border: 1px solid var(--crm-border-weak); border-radius: var(--crm-radius-md); }
 .brief__outflow-total { min-height: 36px; padding: 0; border: 0; background: transparent; text-align: right; color: var(--crm-primary) !important; font-size: 19px !important; font-weight: 500 !important; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
