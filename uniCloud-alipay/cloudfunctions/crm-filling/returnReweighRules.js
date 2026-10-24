@@ -1,6 +1,7 @@
 'use strict'
 
 const { fingerprint } = require('./fillingPayloadLocal')
+const { businessTime } = require('./reweighRules')
 const text = value => String(value == null ? '' : value).trim()
 const no = value => text(value).toUpperCase().replace(/\s+/g, '')
 const number = value => value == null || text(value) === '' || typeof value === 'boolean' || !Number.isFinite(Number(value)) ? null : Number(value)
@@ -49,12 +50,28 @@ function returnBasis(record) {
 		date: record.date, business_at: record.created_at, time_precision: 'millisecond',
 		gross_weight: record.gross_weight, weight_source: 'return_reweigh_gross', source_version: 1 }
 }
+// A late historical entry is not a new physical filling in this return cycle.
+// Exclude only ordinary, unbound records on an unambiguously earlier business
+// day. Same-day/invalid dates, measured records and loss confirmations stay in
+// the existing checks; never rewrite the immutable return baseline.
+function cycleFillings(inputs, record) {
+	const returnTime = businessTime(record.date)
+	const returnDay = returnTime && businessTime(returnTime.day)
+	return inputs.fillings.filter(row => {
+		if ((record.baseline_filling_ids || []).includes(row._id)) return false
+		if (inputs.returnHead?.consumed_filling_id === row._id || row.reweigh || row.entry_source ||
+			(row.record_type && row.record_type !== 'normal_fill') || row.raw_scale_payload?.task ||
+			text(row.scale_source).toUpperCase().includes('C606') || row.confirmed_fill_loss || row.context?.confirmed_fill_loss) return true
+		const when = businessTime(row.date)
+		return !returnDay || !when || when.end >= returnDay.start
+	})
+}
 function canRecordReturn(inputs) {
 	const valid = validBottle(inputs.bottle); if (!valid.ok) return valid
 	const prior = inputs.returnRecord, head = inputs.returnHead
 	if (head && !prior) return reject('上一条回瓶复秤依据缺失，请先核查')
 	if (!prior) return { ok: true }
-	const newFillings = inputs.fillings.filter(row => !(prior.baseline_filling_ids || []).includes(row._id))
+	const newFillings = cycleFillings(inputs, prior)
 	if (head.consumed_filling_id || newFillings.length) {
 		const previousKeys = new Set(canonicalOutgoingFacts(prior.outgoing_facts, inputs.bottle.bottle_no).map(row => row.key))
 		// Only a newly recorded departure can close a consumed return cycle. Editing
@@ -71,7 +88,7 @@ function resolveMeasuredReweighContext(inputs) {
 	if (!(number(record.gross_weight) > 0)) return reject('本轮回瓶复秤毛重无效，请先核查')
 	if (fingerprint(outgoingFacts(inputs)) !== fingerprint(canonicalOutgoingFacts(record.outgoing_facts, inputs.bottle.bottle_no))) return reject('回瓶复秤后出瓶记录已变化，请先完成新一轮回瓶复秤或核查原单')
 	if (!Array.isArray(record.manual_facts) || fingerprint(manualSignatures(manualFacts(inputs))) !== fingerprint(manualSignatures(record.manual_facts))) return reject('回瓶复秤后存在人工流转或损耗变更，请先核查')
-	const current = inputs.fillings.filter(row => !(record.baseline_filling_ids || []).includes(row._id))
+	const current = cycleFillings(inputs, record)
 	if (current.length > 1) return reject('本轮存在多次灌装，不能用复秤自动分配更正量')
 	const filling = current[0] || null
 	if (head.consumed_filling_id && filling?._id !== head.consumed_filling_id) return reject('本轮回瓶依据已被使用，原灌装记录缺失或变化，请先核查')

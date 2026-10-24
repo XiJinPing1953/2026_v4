@@ -317,3 +317,62 @@ test('missing manual snapshot fails closed', async () => {
 	assert.equal(result.code, 409)
 	assert.match(result.msg, /人工流转或损耗变更/)
 })
+
+function historicalBackfill(app, overrides = {}) {
+ const row = { _id: 'late_historical_fill', bottle_no: 'B1', date: '2026-09-03',
+  record_type: 'normal_fill', fill_weight: 48, actual_net_weight: 48, created_at: app.now(),
+  consistency_status: 'complete', ...overrides }
+ app.db.data('crm_fillings').set(row._id, row)
+ return row
+}
+
+test('late older-day manual backfill does not consume return basis or change its immutable snapshot', async () => {
+ const app = fixture(); await start(app); await save(app)
+ const before = plain(rows(app, 'crm_return_reweighs'))
+ const historical = plain(historicalBackfill(app))
+ const preview = await app.invoke('previewReweighV1', { bottle_no: 'B1', gross_weight: 170 })
+ assert.equal(preview.code, 0, preview.msg)
+ assert.equal(preview.data.mode, 'create')
+ assert.equal((await app.invoke('previewReturnReweighV1', { round_id: roundId, bottle_no: 'B1' })).code, 0)
+ const filling = await fill(app)
+ assert.equal(filling.fill_weight, 50)
+ assert.deepEqual(rows(app, 'crm_return_reweighs'), before)
+ assert.deepEqual(app.db.data('crm_fillings').get(historical._id), historical)
+ assert.equal((await app.invoke('previewReweighV1', { bottle_no: 'B1', gross_weight: 171 })).data.mode, 'correct')
+ assert.equal((await app.invoke('previewReturnReweighV1', { round_id: roundId, bottle_no: 'B1' })).code, 409)
+})
+
+test('same-day, future, missing and invalid backfill dates still block both return replacement and filling', async () => {
+ for (const date of ['2026-09-06', '2026-09-06-00', '2026-09-07', '', null, '2026-02-30', 'bad']) {
+  const app = fixture(); await start(app); await save(app); historicalBackfill(app, { date })
+  const result = await app.invoke('previewReweighV1', { bottle_no: 'B1' })
+  assert.equal(result.code, 409, String(date)); assert.match(result.msg, /原灌装/)
+  assert.equal((await app.invoke('previewReturnReweighV1', { round_id: roundId, bottle_no: 'B1' })).code, 409)
+ }
+})
+
+test('older-day dates cannot hide measured, bound, non-normal or loss-confirmed filling records', async () => {
+ for (const extra of [{ entry_source: 'pda_reweigh' }, { reweigh: { basis: {} } },
+  { raw_scale_payload: { task: 'physical' } }, { scale_source: 'C606+' },
+  { confirmed_fill_loss: 1 }, { context: { confirmed_fill_loss: 1 } }, { record_type: 'other' }]) {
+  const app = fixture(); await start(app); await save(app); historicalBackfill(app, extra)
+  assert.equal((await app.invoke('previewReweighV1', { bottle_no: 'B1' })).code, 409)
+  assert.equal((await app.invoke('previewReturnReweighV1', { round_id: roundId, bottle_no: 'B1' })).code, 409)
+ }
+ const app = fixture(); await start(app); await save(app)
+ const f = historicalBackfill(app)
+ app.db.data('crm_return_reweigh_state').get(bottleKey('B1')).consumed_filling_id = f._id
+ assert.equal((await app.invoke('previewReweighV1', { bottle_no: 'B1' })).code, 409)
+})
+
+test('historical exclusion preserves real duplicate filling and manual loss change guards', async () => {
+ const app = fixture(); await start(app); await save(app); historicalBackfill(app); await fill(app)
+ historicalBackfill(app, { _id: 'second_current_fill', date: '2026-09-06' })
+ const duplicate = await app.invoke('previewReweighV1', { bottle_no: 'B1' })
+ assert.equal(duplicate.code, 409); assert.match(duplicate.msg, /多次灌装/)
+ app.db.data('crm_fillings').delete('second_current_fill')
+ app.db.data('crm_bottle_movements').set('real_loss', { _id: 'real_loss', bottle_no: 'B1', source_type: 'manual',
+  date: '2026-09-06', type: 'loss', net_weight: 0, loss_weight: 1 })
+ const loss = await app.invoke('previewReweighV1', { bottle_no: 'B1' })
+ assert.equal(loss.code, 409); assert.match(loss.msg, /损耗变更/)
+})
