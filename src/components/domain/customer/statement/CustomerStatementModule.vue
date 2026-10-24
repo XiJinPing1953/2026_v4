@@ -856,7 +856,8 @@
 				</template>
 			</AppSection>
 
-			<AppSection v-if="isFlowCustomer" v-show="activeWorkspace === 'flow'" title="流量结算单（近20条）">
+			<AppSection v-if="showFlowWorkspace" v-show="activeWorkspace === 'flow'" title="流量结算单（近20条）">
+				<text v-if="!isFlowCustomer" class="section-hint">当前按 {{ priceUnitText(customerPriceUnit) }} 结算，以下为历史流量记录，仅供查看。</text>
 				<AppList :loading="loading" :empty="recentFlowSettlements.length === 0" empty-title="暂无流量结算单">
 					<AppListItem
 						v-for="row in flowHistoryPageRows"
@@ -870,10 +871,10 @@
 					>
 						<template #right>
 							<view class="mini-amounts">
-								<text>应收 ¥{{ formatMoney(row.should_receive) }}</text>
-								<text>实收 ¥{{ formatMoney(row.amount_received) }}</text>
-								<text v-if="toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
-								<text>未收 ¥{{ formatMoney(row.outstanding) }}</text>
+								<text>应收 ¥{{ formatMoney(row.should_receive, 3) }}</text>
+								<text>实收 ¥{{ formatMoney(row.amount_received, 3) }}</text>
+								<text v-if="toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount, 3) }}</text>
+								<text>未收 ¥{{ formatMoney(row.outstanding, 3) }}</text>
 							</view>
 						</template>
 						<template #default>
@@ -887,7 +888,7 @@
 								<text v-if="row.note">{{ row.note }}</text>
 							</view>
 						</template>
-						<template #footer>
+						<template v-if="isFlowCustomer" #footer>
 							<view class="row-actions">
 								<AppButton size="sm" kind="ghost" @click="onEditFlowSettlement(row)">编辑</AppButton>
 								<AppButton size="sm" kind="outline" @click="onRemoveFlowSettlement(row)">删除</AppButton>
@@ -921,19 +922,19 @@
 					</template>
 					<StatementRecordTable :rows="salesPageRows" :columns="salesColumns" :row-key="salesRecordKey" :loading="loading" :empty-title="salesDetailEmptyTitle" label="销售明细">
 						<template #type="{ row }"><view class="record-document"><text class="record-type">{{ bizModeText(row.biz_mode) }} · {{ isSaleRecordRow(row) ? '销售单' : '结算单' }}</text><text class="record-reference" selectable>记录 ID：{{ row._id || '—' }}</text></view></template>
-                        <template #outstanding="{ row }"><text class="record-balance" :class="{ 'record-balance--due': toNumber(row.outstanding, 0) > 0 }">¥{{ formatMoney(row.outstanding) }}</text></template>
+                        <template #outstanding="{ row }"><text class="record-balance" :class="{ 'record-balance--due': toNumber(row.outstanding, 0) > 0 }">¥{{ formatRecordMoney(row.outstanding, row) }}</text></template>
                         <template #status="{ row }"><AppTag :kind="paymentStatusKind(row.payment_status)">{{ paymentStatusText(row.payment_status) }}</AppTag></template>
                         <template #detail="{ row }"><text class="section-hint">单据 {{ row._id }}</text>
 							<view class="mini-amounts mini-amounts--left">
-								<text>应收 ¥{{ formatMoney(row.should_receive) }}</text>
+								<text>应收 ¥{{ formatRecordMoney(row.should_receive, row) }}</text>
 									<text v-if="resolveSaleRoundingAmount(row) > 0" class="mini-amounts__rounding">
 										抹零 ¥{{ formatMoney(resolveSaleRoundingAmount(row)) }}（计费应收 ¥{{ formatMoney(resolveSaleEffectiveShouldReceive(row)) }}）
 									</text>
-									<text>实收 ¥{{ formatMoney(isSaleRecordRow(row) ? resolveSaleManualReceived(row) : row.amount_received) }}</text>
+									<text>实收 ¥{{ formatRecordMoney(isSaleRecordRow(row) ? resolveSaleManualReceived(row) : row.amount_received, row) }}</text>
 									<text v-if="resolveSaleReceiptAllocated(row) > 0" class="mini-amounts__receipt-allocation">
 										收款分配 ¥{{ formatMoney(resolveSaleReceiptAllocated(row)) }}
 									</text>
-									<text v-if="toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
+									<text v-if="toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatRecordMoney(row.receipt_rounding_amount, row) }}</text>
 									<text v-if="resolveSaleOffsetApplied(row) > 0" class="mini-amounts__offset">
 										{{ formatSaleOffsetLine(row) }}
 									</text>
@@ -943,7 +944,7 @@
 									<text v-if="isSaleRecordRow(row) && resolveSalePostedReceived(row) !== resolveSaleManualReceived(row)" class="mini-amounts__posted">
 										入账 ¥{{ formatMoney(resolveSalePostedReceived(row)) }}
 									</text>
-									<text>未收 ¥{{ formatMoney(row.outstanding) }}</text>
+									<text>未收 ¥{{ formatRecordMoney(row.outstanding, row) }}</text>
 								<text v-if="isSaleRecordRow(row)" class="mini-amounts__movement">
 									本单出瓶 {{ resolveSaleOutBottleCount(row) }} · 本单回瓶 {{ resolveSaleBackBottleCount(row) }} · 存瓶(截止本单) {{ resolveSaleDepositBalanceCount(row) }}
 								</text>
@@ -984,7 +985,7 @@
 								抹零结清 ¥{{ formatMoney(resolveSalesDetailOutstanding(row)) }}
 							</AppButton>
 							<AppButton v-if="isSaleRecordRow(row)" size="sm" kind="ghost" @click="onOpenSale(row._id)">查看销售单</AppButton>
-							<AppButton v-else size="sm" kind="ghost" @click="onEditFlowSettlement(row)">编辑结算单</AppButton>
+							<AppButton v-else-if="isFlowCustomer" size="sm" kind="ghost" @click="onEditFlowSettlement(row)">编辑结算单</AppButton>
 						</template>
 					</StatementRecordTable>
 					<StatementPager v-model:page="salesPage" :total="salesDetailRows.length" :disabled="loading" />
@@ -1012,9 +1013,9 @@
 								<text v-if="row.row_type === 'sale'">应收 ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'sale' && toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
 								<text v-if="row.row_type === 'sale'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
-								<text v-if="row.row_type === 'flow_settlement'">应收 ¥{{ formatMoney(row.amount) }}</text>
-								<text v-if="row.row_type === 'flow_settlement' && toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatMoney(row.receipt_rounding_amount) }}</text>
-								<text v-if="row.row_type === 'flow_settlement'">未收 ¥{{ formatMoney(row.outstanding) }}</text>
+								<text v-if="row.row_type === 'flow_settlement'">应收 ¥{{ formatRecordMoney(row.amount, row) }}</text>
+								<text v-if="row.row_type === 'flow_settlement' && toNumber(row.receipt_rounding_amount, 0) > 0" class="mini-amounts__receipt-rounding">收款抹零 ¥{{ formatRecordMoney(row.receipt_rounding_amount, row) }}</text>
+								<text v-if="row.row_type === 'flow_settlement'">未收 ¥{{ formatRecordMoney(row.outstanding, row) }}</text>
 								<text v-if="row.row_type === 'opening_debt'">应收 ¥{{ formatMoney(row.amount) }}</text>
 								<text v-if="row.row_type === 'opening_debt' && resolveOpeningDebtRoundingAmount(row) > 0" class="mini-amounts__rounding">
 									抹零 ¥{{ formatMoney(resolveOpeningDebtRoundingAmount(row)) }}（计费应收 ¥{{ formatMoney(resolveOpeningDebtEffectiveShouldReceive(row)) }}）
@@ -1477,6 +1478,7 @@ const overviewOffsetCreditBalance = computed(() => (
 
 const customerPriceUnit = computed(() => normalizeString(customer.value?.default_price_unit) || 'kg')
 const isFlowCustomer = computed(() => customerPriceUnit.value === 'm3')
+const showFlowWorkspace = computed(() => isFlowCustomer.value || recentFlowSettlements.value.length > 0)
 const currentMoneyScale = computed(() => (isFlowCustomer.value ? 3 : 2))
 const isKgCustomer = computed(() => customerPriceUnit.value === 'kg')
 const isBottleCustomer = computed(() => customerPriceUnit.value === 'bottle')
@@ -1966,7 +1968,6 @@ const allocationDecisionStickyTitle = computed(() => {
 })
 const recentSalesDisplayRows = computed(() => {
 	const saleRows = buildSaleDetailSaleRows(recentSales.value)
-	if (!isFlowCustomer.value) return saleRows
 	const flowRows = buildSaleDetailFlowRows(recentFlowSettlements.value)
 	return sortSaleDetailRows([...flowRows, ...saleRows]).slice(0, 100)
 })
@@ -1997,7 +1998,7 @@ const workspaceTabs = computed(() => [
 	{ label: '账务操作', value: 'operations' },
 	{ label: '销售明细', value: 'sales' },
 	{ label: '账务流水', value: 'ledger' },
-	...(isFlowCustomer.value ? [{ label: '流量结算', value: 'flow' }] : []),
+	...(showFlowWorkspace.value ? [{ label: isFlowCustomer.value ? '流量结算' : '历史流量', value: 'flow' }] : []),
 	...(isKgCustomer.value || isBottleCustomer.value ? [{ label: '经营分析', value: 'analysis' }] : [])
 ])
 const { page: salesPage, visible: salesPageRows } = useStatementPage(salesDetailRows)
@@ -2009,17 +2010,17 @@ const ledgerRecordKey = row => `${row.row_type}:${row.row_id}`
 const salesColumns = [
 	{ key: 'date', label: '日期', value: row => row.date || '-' },
 	{ key: 'type', label: '业务 / 单据', value: row => bizModeText(row.biz_mode) },
-	{ key: 'receivable', label: '应收', value: row => `¥${formatMoney(row.should_receive)}` },
-	{ key: 'received', label: '实收', value: row => `¥${formatMoney(isSaleRecordRow(row) ? resolveSaleManualReceived(row) : row.amount_received)}` },
-	{ key: 'outstanding', label: '未收', value: row => `¥${formatMoney(row.outstanding)}` },
+	{ key: 'receivable', label: '应收', value: row => `¥${formatRecordMoney(row.should_receive, row)}` },
+	{ key: 'received', label: '实收', value: row => `¥${formatRecordMoney(isSaleRecordRow(row) ? resolveSaleManualReceived(row) : row.amount_received, row)}` },
+	{ key: 'outstanding', label: '未收', value: row => `¥${formatRecordMoney(row.outstanding, row)}` },
 	{ key: 'status', label: '状态', value: row => paymentStatusText(row.payment_status) }
 ]
 const ledgerColumns = [
 	{ key: 'date', label: '日期', value: row => row.biz_date || '-' },
 	{ key: 'type', label: '单据', value: row => row.row_type === 'receipt' ? receiptDocumentLabel(row) : ({sale:'销售单',allocation:'收款分配',flow_settlement:'流量结算',opening_debt:'历史欠款',balance_adjustment:'非现金余额调整',other_fee:'其他费用',rounding_reversal:'抹零冲回',prepay_writeoff:'多收款结清'}[row.row_type] || '其他') },
-	{ key: 'amount', label: '发生金额', value: row => `¥${formatMoney(row.amount)}` },
-	{ key: 'outstanding', label: '未收', value: row => ['sale', 'flow_settlement', 'opening_debt', 'other_fee', 'balance_adjustment', 'rounding_reversal'].includes(row.row_type) ? `¥${formatMoney(row.outstanding)}` : '—' },
-	{ key: 'rounding', label: '收款抹零', value: row => row.row_type === 'receipt' ? `¥${formatMoney(row.rounding_allocated_amount || 0)}` : (row.receipt_rounding_amount > 0 ? `¥${formatMoney(row.receipt_rounding_amount)}` : '—') },
+	{ key: 'amount', label: '发生金额', value: row => `¥${formatRecordMoney(row.amount, row)}` },
+	{ key: 'outstanding', label: '未收', value: row => ['sale', 'flow_settlement', 'opening_debt', 'other_fee', 'balance_adjustment', 'rounding_reversal'].includes(row.row_type) ? `¥${formatRecordMoney(row.outstanding, row)}` : '—' },
+	{ key: 'rounding', label: '收款抹零', value: row => row.row_type === 'receipt' ? `¥${formatMoney(row.rounding_allocated_amount || 0)}` : (row.receipt_rounding_amount > 0 ? `¥${formatRecordMoney(row.receipt_rounding_amount, row)}` : '—') },
 	{ key: 'status', label: '状态', value: row => statementRowStatus(row) }
 ]
 const receiptPreviewStale = ref(false)
@@ -2320,11 +2321,14 @@ function truncateDecimal(value, scale = 2) {
 	return Number(scaled) / factor
 }
 
-function formatMoney(value) {
-	const precision = isFlowCustomer.value ? 3 : 2
+function formatMoney(value, precision = isFlowCustomer.value ? 3 : 2) {
 	const scaled = toScaledBigInt(value, precision)
 	if (scaled == null) return formatScaledBigIntFixed(0n, precision)
 	return formatScaledBigIntFixed(scaled, precision)
+}
+
+function formatRecordMoney(value, row) {
+	return formatMoney(value, (row?.record_type || row?.row_type) === 'flow_settlement' ? 3 : currentMoneyScale.value)
 }
 
 function formatSummaryMoney(value) {
@@ -2741,13 +2745,11 @@ function sortSaleDetailRows(rows = []) {
 function buildNetDebtSalesDetailSourceRows() {
 	const sourceSales = netDebtSourceSales.value.length ? netDebtSourceSales.value : recentSales.value
 	const saleRows = buildSaleDetailSaleRows(sourceSales)
-	const flowRows = isFlowCustomer.value
-		? buildSaleDetailFlowRows(
-			netDebtSourceFlowSettlements.value.length
-				? netDebtSourceFlowSettlements.value
-				: recentFlowSettlements.value
-		)
-		: []
+	const flowRows = buildSaleDetailFlowRows(
+		netDebtSourceFlowSettlements.value.length
+			? netDebtSourceFlowSettlements.value
+			: recentFlowSettlements.value
+	)
 	return sortSaleDetailRows([...flowRows, ...saleRows])
 }
 
@@ -2781,6 +2783,7 @@ function resolveSalesDetailOutstanding(row) {
 }
 
 function resolveQuickRoundingTarget(row) {
+	if (!isSaleRecordRow(row) && !isFlowCustomer.value) return null
 	const targetId = normalizeString(row?._id)
 	if (!targetId) return null
 	const outstanding = resolveSalesDetailOutstanding(row)
@@ -2858,7 +2861,7 @@ async function createQuickRoundingReceipts(targets = []) {
 
 function isNetDebtSalesDetailRow(row) {
 	if (!isRowInSalesDetailScope(row)) return false
-	return resolveSalesDetailOutstanding(row) > 0
+	return toNumber(row?.outstanding, 0) > 0
 }
 
 function isLocatedSalesDetailRow(row) {
@@ -4164,6 +4167,7 @@ function cancelFlowEditing() {
 }
 
 function onEditFlowSettlement(row) {
+	if (!isFlowCustomer.value) return
 	activeWorkspace.value = 'flow'
 	const flowId = normalizeString(row?._id)
 	if (!flowId) return
@@ -4178,6 +4182,7 @@ function onEditFlowSettlement(row) {
 }
 
 async function onRemoveFlowSettlement(row) {
+	if (!isFlowCustomer.value) return
 	const flowId = normalizeString(row?._id)
 	if (!flowId || !recordId.value) return
 	const confirmed = await showConfirmModal({

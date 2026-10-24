@@ -25,14 +25,17 @@ function cashierRows(id,name,unit){
  })
 }
 function fixture(id){
- if(!demoCustomerIds.includes(id))throw Error('只允许本地示例客户')
+ if(!demoCustomerIds.includes(id)&&id!=='demo-former-flow')throw Error('只允许本地示例客户')
  if(db.has(id))return db.get(id)
- const unit=id.slice(5),sales=Array.from({length:23},(_,i)=>({_id:`${id}-sale-${i+1}`,date:date(i),sale_date:date(i),biz_date:date(i),biz_mode:'bottle',payment_status:'unpaid',price_unit:unit,unit_price:unit==='kg'?5:unit==='bottle'?120:3,qty:10+i,bottle_count:10+i,net_weight:240+i*10,actual_weight_kg:240+i*10,should_receive:1200+i*50,amount_received:i<10?1000:0,allocated_received:0,rounding_amount:0,outstanding:1200+i*50-(i<10?1000:0),status:'posted',note:'纯模拟销售记录'}))
+ const formerFlow=id==='demo-former-flow'
+ const unit=formerFlow?'kg':id.slice(5),sales=Array.from({length:23},(_,i)=>({_id:`${id}-sale-${i+1}`,date:date(i),sale_date:date(i),biz_date:date(i),biz_mode:'bottle',payment_status:'unpaid',price_unit:unit,unit_price:unit==='kg'?5:unit==='bottle'?120:3,qty:10+i,bottle_count:10+i,net_weight:240+i*10,actual_weight_kg:240+i*10,should_receive:1200+i*50,amount_received:i<10?1000:0,allocated_received:0,rounding_amount:0,outstanding:1200+i*50-(i<10?1000:0),status:'posted',note:'纯模拟销售记录'}))
  const receipts=Array.from({length:13},(_,i)=>({_id:`${id}-receipt-${i+1}`,biz_date:date(i),amount:1000,allocated_amount:i<10?1000:0,unallocated_amount:i<10?0:1000,rounding_amount:0,payment_method:i%2?'bank':'cash',status:'posted',source_type:'customer_statement',note:'纯模拟收款记录'}))
- const flows=unit==='m3'?Array.from({length:7},(_,i)=>({_id:`${id}-flow-${i+1}`,biz_date:date(i+2),flow_index_prev:1000+i*100,flow_index_curr:1100+i*100,flow_volume_m3:100,flow_theory_ratio:1.429,unit_price:3,should_receive:300,amount_received:0,outstanding:300,status:'posted',actual_weight_kg:145,note:'模拟流量结算'})):[]
+ const flows=(unit==='m3'||formerFlow)?Array.from({length:7},(_,i)=>({_id:`${id}-flow-${i+1}`,biz_date:date(i+2),flow_index_prev:1000+i*100,flow_index_curr:1100+i*100,flow_volume_m3:100,flow_theory_ratio:1.429,unit_price:3,should_receive:300,amount_received:0,outstanding:300,status:'posted',actual_weight_kg:145,note:'模拟流量结算'})):[]
+ if(formerFlow)Object.assign(flows[0],{should_receive:300.125,amount_received:100.001,outstanding:200.124,flow_index_prev:1000.1234,flow_index_curr:1100.1234,note:'改用 kg 前的模拟流量记录'})
+ if(formerFlow)Object.assign(flows[1],{should_receive:300.001,amount_received:300,outstanding:0.001})
  const pools=[{_id:`${id}-offset-1`,biz_date:'2026-09-01',amount:800,unallocated_amount:800,allocated_amount:0,status:'posted',source_type:'offset_credit',note:'模拟冲抵来源'}]
  for(let i=0;i<10;i++){receipts[i].allocations=[{target_type:'sale',target_id:sales[i]._id,allocate_amount:1000,received_field:'amount_received'}];receipts[i].allocation_mode='checked';receipts[i].allocation_targets=[{target_type:'sale',target_id:sales[i]._id}]}
- const customer={_id:id,name:`模拟客户 · ${unit==='bottle'?'按瓶':unit}`,contact:'示例联系人',phone:'—',default_price_unit:unit,effective_default_price_unit:unit,settlement_default_price_unit:unit,money_scale:unit==='m3'?3:2,default_unit_price:unit==='kg'?5:unit==='bottle'?120:3,flow_index_last:1700,matched_delivery_sites:[{_id:`${id}-site`,name:`${unit} 模拟送达点`}]}
+ const customer={_id:id,name:`模拟客户 · ${formerFlow?'流量转 kg':unit==='bottle'?'按瓶':unit}`,contact:'示例联系人',phone:'—',default_price_unit:unit,effective_default_price_unit:unit,settlement_default_price_unit:unit,money_scale:unit==='m3'?3:2,default_unit_price:unit==='kg'?5:unit==='bottle'?120:3,flow_index_last:1700,matched_delivery_sites:[{_id:`${id}-site`,name:`${unit} 模拟送达点`}]}
  const state={adjustment:null,customer,sales,receipts,flows,pools,cashierIntakes:cashierRows(id,customer.name,unit)};db.set(id,state);return state
 }
 const targets=s=>[...s.sales.map(r=>({...r,type:'sale',date:r.sale_date})),...s.flows.map(r=>({...r,type:'flow_settlement',date:r.biz_date}))]

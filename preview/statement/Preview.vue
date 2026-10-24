@@ -3,7 +3,7 @@
 import { ref } from 'vue'
 import CustomerStatementModule from '@/components/domain/customer/statement/CustomerStatementModule.vue'
 import { resetFixtures } from '/preview/statement/mock.mjs'
-const units=[{id:'demo-kg',label:'按 kg · 23 笔销售'},{id:'demo-bottle',label:'按瓶 · 23 笔销售'},{id:'demo-m3',label:'按 m³ · 流量历史'}]
+const units=[{id:'demo-kg',label:'按 kg · 23 笔销售'},{id:'demo-bottle',label:'按瓶 · 23 笔销售'},{id:'demo-m3',label:'按 m³ · 流量历史'},{id:'demo-former-flow',label:'流量转 kg · 历史只读'}]
 const id=ref('demo-kg'),version=ref(0)
 function select(value){id.value=value}
 function reset(){resetFixtures();version.value++}

@@ -2,7 +2,7 @@
 
 仅纯模拟数据，挂载真实 CustomerStatementModule。不是账务计算验收依据。
 
-启动：`npm run preview:statement`。客户对账打开 http://127.0.0.1:5190/#/pages/customer/statement ；出纳登记打开 http://127.0.0.1:5190/#/pages/cashier/receipt-intake 。服务只绑定本机。对账页可切换 kg/瓶/m3；出纳页提供 72 条模拟登记、每页 20 条游标分页，以及“一次上传失败”“一次保存回执超时”开关。重置按钮或刷新恢复初始模拟数据。
+启动：`npm run preview:statement`。客户对账打开 http://127.0.0.1:5190/#/pages/customer/statement ；出纳登记打开 http://127.0.0.1:5190/#/pages/cashier/receipt-intake 。服务只绑定本机。对账页可切换 kg/瓶/m3，以及“流量转 kg”历史只读场景（含三位金额、四位表数及0.001元未收）；出纳页提供 72 条模拟登记、每页 20 条游标分页，以及“一次上传失败”“一次保存回执超时”开关。重置按钮或刷新恢复初始模拟数据。
 
 测试：`node --test preview/statement/mock.test.mjs`。覆盖示例计数、预览只读、模拟新增/确认、冲抵分配/撤销、未知操作/客户/函数拒绝及重置。模拟不支持的删除、退款、押金写入、抹零等会明确拒绝，不能据此推断线上能力。
 

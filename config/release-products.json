@@ -6,26 +6,23 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.24-operating-brief-validation",
+      "version": "2026.10.24-customer-flow-history",
       "output": "dist/build/web",
-      "acceptance": "Detect unexplained tank gains before labeling loss; preserve signed evidence and known outflow. Validate complete current sources by settlement customer, isolate entire unresolved customers, expose verified subtotals and coverage, suppress incomplete overall ranking. Verify compact mobile exception states and real source navigation.",
+      "acceptance": "H5 only. Preserve read-only historical flow statements after pricing changes to kg, show historical flow sources and original precision, and retain current m3 entry. crm-customer-settlement is an unchanged runtime dependency; do not upload cloud functions or schemas.",
       "deploymentScope": {
         "functions": [
-          "crm-dashboard"
+          "crm-customer-settlement"
         ],
         "databaseFiles": [],
-        "baseCommit": "5eb9faa303b90c54ce20f88aef82b952e5dbdc75",
+        "baseCommit": "a23c82a2ce4b928bf444d50e44697a198e94bc8e",
         "sourceFiles": [
-          "src/components/domain/dashboard/OperatingBrief.vue",
-          "src/services/mappers/operatingBrief.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/currentBrief.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankLoss.js"
+          "src/components/domain/customer/statement/CustomerStatementModule.vue"
         ],
         "aclCanonicalRevisions": {
-          "crm-dashboard": {
+          "crm-customer-settlement": {
             "registry": {
-              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
-              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
+              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
+              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
             }
           }
         }
@@ -35,24 +32,21 @@
     "cloud": {
       "version": "2026.10.24-operating-brief-validation",
       "output": "release/cloud",
-      "acceptance": "Detect unexplained tank gains before labeling loss; preserve signed evidence and known outflow. Validate complete current sources by settlement customer, isolate entire unresolved customers, expose verified subtotals and coverage, suppress incomplete overall ranking. Verify compact mobile exception states and real source navigation.",
+      "acceptance": "Retained crm-customer-settlement runtime dependency for the customer flow history H5 release. Dependency checks only; no cloud or schema deployment in this batch.",
       "deploymentScope": {
         "functions": [
-          "crm-dashboard"
+          "crm-customer-settlement"
         ],
         "databaseFiles": [],
-        "baseCommit": "5eb9faa303b90c54ce20f88aef82b952e5dbdc75",
+        "baseCommit": "a23c82a2ce4b928bf444d50e44697a198e94bc8e",
         "sourceFiles": [
-          "src/components/domain/dashboard/OperatingBrief.vue",
-          "src/services/mappers/operatingBrief.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/currentBrief.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankLoss.js"
+          "src/components/domain/customer/statement/CustomerStatementModule.vue"
         ],
         "aclCanonicalRevisions": {
-          "crm-dashboard": {
+          "crm-customer-settlement": {
             "registry": {
-              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
-              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
+              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
+              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
             }
           }
         }
