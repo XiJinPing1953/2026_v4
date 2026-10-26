@@ -293,3 +293,58 @@ test('unrelated sale payment and remark changes do not strand committed reweigh 
 	assertOneContribution(app, 50)
 	assert.equal(source(app).reweigh.basis.gross_weight, 120)
 })
+
+function legacyPaymentFixture() {
+ const app=fixture(), record=app.db.data('crm_return_reweighs').get('measured_return1')
+ app.db.data('crm_bottles').get('b1').updated_at=record.created_at-15
+ app.db.data('crm_sale_records').set('oldOut', {_id:'oldOut',date:'2026-09-04',biz_mode:'bottle',
+  created_at:record.created_at-86400000,updated_at:app.now(),amount_received:123,
+  out_items:[{bottle_no:'B1',gross:180,tare:100,net:80}]})
+ return app
+}
+
+test('legacy payment case saves once, then corrects using its frozen facts after bottle source time advances', async () => {
+ const app=legacyPaymentFixture(), original=plain(app.db.data('crm_return_reweighs').get('measured_return1'))
+ const {payload}=await create(app,'legacy_payment_create')
+ assertOneContribution(app,50)
+ assert.equal(source(app).reweigh.sales_snapshot_version,2)
+ assert.equal(source(app).reweigh.outgoing_facts.length,1)
+ assert.deepEqual(app.db.data('crm_return_reweighs').get('measured_return1'),original)
+ assert.ok(app.db.data('crm_bottles').get('b1').updated_at>original.created_at)
+ app.advance(1000)
+ Object.assign(app.db.data('crm_sale_records').get('oldOut'),{amount_received:150,updated_at:app.now()})
+ const change=await correction(app,'legacy_payment_correct')
+ assert.equal((await app.invoke('correctReweighV1',change)).data.complete,true)
+ assertOneContribution(app,55)
+ assert.equal((await app.invoke('createReweighV1',payload)).code,0)
+ for(const field of ['gross','tare','net']) {
+  const item=app.db.data('crm_sale_records').get('oldOut').out_items[0];item[field]+=1
+  assert.match((await app.invoke('previewReweighV1',{bottle_no:'B1'})).msg,/出瓶记录已变化/)
+  item[field]-=1
+ }
+ app.db.data('crm_sale_records').get('oldOut').out_items.push({bottle_no:'B1',gross:180,tare:100,net:80})
+ assert.match((await app.invoke('previewReweighV1',{bottle_no:'B1'})).msg,/出瓶记录已变化/)
+})
+
+test('legacy recovery keeps manual loss, duplicate filling and wrong-basis guards', async () => {
+ const app=legacyPaymentFixture();await create(app,'legacy_guards_create')
+ app.db.data('crm_bottle_movements').set('newLoss',{_id:'newLoss',bottle_no:'B1',source_type:'manual',type:'adjust',date:'2026-09-06',loss_weight:1})
+ assert.match((await app.invoke('previewReweighV1',{bottle_no:'B1'})).msg,/损耗变更/)
+ app.db.data('crm_bottle_movements').delete('newLoss')
+ app.db.data('crm_fillings').set('duplicate',{_id:'duplicate',bottle_no:'B1',date:'2026-09-06'})
+ assert.match((await app.invoke('previewReweighV1',{bottle_no:'B1'})).msg,/多次灌装/)
+ app.db.data('crm_fillings').delete('duplicate')
+ source(app).reweigh.basis.return_reweigh_id='other-return'
+ assert.equal((await app.invoke('previewReweighV1',{bottle_no:'B1'})).code,409)
+})
+
+test('physical source edit after preview remains rejected before creation and during source commit', async () => {
+ for(const changeDuringCommit of [false,true]) {
+  const app=legacyPaymentFixture(), payload=await request(app,'legacy_source_race')
+  const mutate=()=>{app.db.data('crm_sale_records').get('oldOut').out_items[0].gross+=1;app.db.data('crm_bottles').get('b1').updated_at=app.now()+1}
+  if(!changeDuringCommit)mutate()
+  else {let once=true;app.db.setFault(async(name,action)=>{if(once&&name==='crm_filling_operations'&&action==='add'){once=false;mutate()}})}
+  const result=await app.invoke('createReweighV1',payload)
+  assert.equal(rows(app,'crm_fillings').length,0,JSON.stringify(result))
+ }
+})

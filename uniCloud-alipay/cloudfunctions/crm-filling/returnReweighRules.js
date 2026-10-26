@@ -34,9 +34,14 @@ function comparableOutgoingFacts(inputs, record) {
  if (record.sales_snapshot_version === 2) return outgoingFacts(inputs)
  const priorKeys = new Set(canonicalOutgoingFacts(record.outgoing_facts, inputs.bottle.bottle_no).map(row => row.key))
  const at = number(record.created_at), day = businessTime(record.date)
+ // Sale source mutations touch this bottle inside their source transaction;
+ // accounting-only updates do not. The return save touches it before created_at.
+ // Missing/newer bottle timestamps cannot certify a legacy omitted sale.
+ const sourceAt = number(inputs.bottle.updated_at)
+ const sourcesUnchanged = sourceAt > 0 && at > 0 && sourceAt <= at
  const oldKeys = new Set(inputs.sales.filter(sale => {
   const created = number(sale.created_at), updated = number(sale.updated_at), when = businessTime(sale.date)
-  return at > 0 && created > 0 && created <= at && updated >= created && updated <= at && when && day && when.day <= day.day
+  return at > 0 && created > 0 && created <= at && updated >= created && (updated <= at || sourcesUnchanged) && when && day && when.day <= day.day
  }).map(sale => `${sale._id}:bottle:${no(inputs.bottle.bottle_no)}`))
  return outgoingFacts(inputs).filter(row => priorKeys.has(row.key) || !oldKeys.has(row.key))
 }
@@ -103,7 +108,14 @@ function resolveMeasuredReweighContext(inputs) {
 	const { returnRecord: record, returnHead: head, fillingId } = inputs
 	if (!record || !head || head.record_id !== record._id) return reject('未找到本轮回瓶复秤数据，请先在 PDA“回瓶复秤”称重保存')
 	if (!(number(record.gross_weight) > 0)) return reject('本轮回瓶复秤毛重无效，请先核查')
-	if (fingerprint(comparableOutgoingFacts(inputs, record)) !== fingerprint(canonicalOutgoingFacts(record.outgoing_facts, inputs.bottle.bottle_no))) return reject('回瓶复秤后出瓶记录已变化，请先完成新一轮回瓶复秤或核查原单')
+	// Once a legacy basis has been safely consumed, the filling's full snapshot
+	// survives its own bottle timestamp updates. Never borrow another cycle's proof.
+	const bound = inputs.fillings.find(row => row._id === head.consumed_filling_id && row.entry_source === 'pda_reweigh'
+		&& fingerprint(row.reweigh?.basis) === fingerprint(returnBasis(record)))
+	const recovered = record.sales_snapshot_version !== 2 && bound?.reweigh?.sales_snapshot_version === 2 && Array.isArray(bound.reweigh.outgoing_facts)
+	const actualOutgoing = recovered ? outgoingFacts(inputs) : comparableOutgoingFacts(inputs, record)
+	const expectedOutgoing = recovered ? bound.reweigh.outgoing_facts : record.outgoing_facts
+	if (fingerprint(actualOutgoing) !== fingerprint(canonicalOutgoingFacts(expectedOutgoing, inputs.bottle.bottle_no))) return reject('回瓶复秤后出瓶记录已变化，请先完成新一轮回瓶复秤或核查原单')
 	if (!Array.isArray(record.manual_facts) || fingerprint(manualSignatures(manualFacts(inputs))) !== fingerprint(manualSignatures(record.manual_facts))) return reject('回瓶复秤后存在人工流转或损耗变更，请先核查')
 	const current = cycleFillings(inputs, record)
 	if (current.length > 1) return reject('本轮存在多次灌装，不能用复秤自动分配更正量')

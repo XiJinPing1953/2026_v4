@@ -60,3 +60,28 @@ test('unrelated sales beyond 20000 rows do not impose a per-bottle history limit
  db.data('crm_sale_records').set('z-last',sale('z-last','2026-10-24',at+86400000))
  const r=await createReweighService({db}).readInputs('263');assert.deepEqual(r.sales.map(x=>x._id),['z-last'])
 })
+
+test('legacy omitted sale payment update is harmless only with an unchanged bottle source guard', () => {
+ const i=inputs();i.returnHead.consumed_filling_id='';i.fillings=[]
+ i.bottle.updated_at=at-15;i.sales=[sale('old','2026-10-21',at-86400000)]
+ i.sales[0].updated_at=at+1000
+ assert.equal(resolveMeasuredReweighContext(i).ok,true)
+ for(const stamp of [undefined,0,at+1]) {
+  i.bottle.updated_at=stamp
+  assert.match(resolveMeasuredReweighContext(i).msg,/出瓶记录已变化/)
+ }
+ i.bottle.updated_at=at-15
+ i.sales[0].created_at=at+1
+ assert.match(resolveMeasuredReweighContext(i).msg,/出瓶记录已变化/)
+ i.sales[0].created_at=at-1000;i.sales[0].date='2026-10-24'
+ assert.match(resolveMeasuredReweighContext(i).msg,/出瓶记录已变化/)
+})
+
+test('source guard cannot hide changes to captured facts or bypass complete return snapshots', () => {
+ const i=inputs();i.bottle.updated_at=at-15;i.sales=[sale('old','2026-10-21',at-1000)]
+ i.returnRecord.outgoing_facts=require('../uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules').outgoingFacts(i)
+ i.sales[0].out_items[0].gross+=1
+ assert.match(resolveMeasuredReweighContext(i).msg,/出瓶记录已变化/)
+ i.returnRecord.sales_snapshot_version=2;i.returnRecord.outgoing_facts=[]
+ assert.match(resolveMeasuredReweighContext(i).msg,/出瓶记录已变化/)
+})

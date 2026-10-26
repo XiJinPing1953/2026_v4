@@ -22,21 +22,19 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.26-return-round-notice",
+      "version": "2026.10.26-legacy-payment-reweigh",
       "output": "release/cloud",
-      "acceptance": "Only crm-filling: expose existing return round_id in read responses for PDA notice; no business writes or rule changes.",
+      "acceptance": "Only crm-filling: legacy missed-sale snapshots may use unchanged bottle source guard to distinguish payment-only updates; freeze complete outgoing facts on subsequent normal reweigh saves. Keep real source, duplicate filling and loss guards. No existing business data, schema, H5 or WGT changes.",
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "c4cd9e153b5b6b6b6409a932287d84868995c547",
+        "baseCommit": "8237555f8ba564adef575804b33c41c80b78c50f",
         "sourceFiles": [
-          "src/manifest.json",
-          "src/components/domain/pda/PdaReweighView.vue",
-          "src/services/pda/reweighDraft.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js"
+          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/reweighService.js"
         ]
       }
     },

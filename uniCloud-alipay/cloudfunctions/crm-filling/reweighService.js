@@ -2,7 +2,7 @@
 
 const { fingerprint } = require('./fillingPayloadLocal')
 const { calculateReweighWeights } = require('./reweighRules')
-const { resolveMeasuredReweighContext, bottleKey } = require('./returnReweighRules')
+const { resolveMeasuredReweighContext, bottleKey, outgoingFacts } = require('./returnReweighRules')
 const { touchBottleSources } = require('./bottleSourceGuardLocal')
 
 const text = value => value == null ? '' : String(value).trim()
@@ -136,6 +136,7 @@ function createReweighService({ db, operations, submitCreate, stableId, now = Da
 			device_id: text(capture.device_id).slice(0, 160), raw: text(capture.raw).slice(0, 2000)
 		} : null
 		const reweigh = {
+			...(result.inputs.returnRecord.sales_snapshot_version !== 2 ? { sales_snapshot_version: 2, outgoing_facts: outgoingFacts(result.inputs) } : {}),
 			tare_weight: c.bottle.tare_weight, gross_weight: c.gross_weight, net_weight: c.net_weight,
 			basis: c.basis, label: c.label, capture_method: method,
 			capture: storedCapture,
