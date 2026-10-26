@@ -6,18 +6,38 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.26-web-home-redirect",
+      "version": "2026.10.26-operating-brief-rebuild",
       "output": "dist/build/web",
-      "acceptance": "H5 only: regular browser accounts ignore stale PDA-home login targets and recover from an already-open PDA home. Preserve native PDA, PDA operator and safety roles, mobile-sales deep links, permissions and all business data. Do not deploy cloud functions, schemas or WGT.",
+      "acceptance": "Only H5 and crm-dashboard: source-backed operating brief, completed-day comparison, seven-day signed net-gas chart, four outflow channels, settlement-customer contribution, paged source evidence, current allocation-chain checks and authoritative daily export. Preserve accounting records, liquid conversion, existing production ACL and other functions. No schema, WGT or hardware changes; production readback, CRM coverage, staff and external proof are recorded separately.",
       "deploymentScope": {
         "functions": [
-          "crm-auth"
+          "crm-dashboard"
         ],
         "databaseFiles": [],
-        "baseCommit": "b05ec4fdea21da8df386aa079ba3f91b710eb210",
+        "baseCommit": "8237555f8ba564adef575804b33c41c80b78c50f",
         "sourceFiles": [
-          "src/services/pda/entry.js"
-        ]
+          "src/components/domain/dashboard/OperatingBrief.vue",
+          "src/components/domain/dashboard/OperatingBriefInsights.vue",
+          "src/components/domain/dashboard/OperatingBriefSources.vue",
+          "src/components/domain/dashboard/OperatingOutflowChart.vue",
+          "src/components/domain/dashboard/exportDailyReportWorkbook.js",
+          "src/composables/dashboard/useOperatingBrief.js",
+          "src/services/api/dashboard.js",
+          "src/services/mappers/operatingBrief.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/currentBrief.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBrief.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBriefAnalysis.js",
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/operatingBriefFinanceRead.js"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-dashboard": {
+            "registry": {
+              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
+              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     },
