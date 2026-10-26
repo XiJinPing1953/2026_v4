@@ -14,7 +14,7 @@
           "crm-dashboard"
         ],
         "databaseFiles": [],
-        "baseCommit": "d84c58fdecc86592c93e2af1ea93554a427b5526",
+        "baseCommit": "ead34ed2b789034ae0fb02e25087f8b91cd6290c",
         "sourceFiles": [
           "src/components/domain/dashboard/OperatingBrief.vue",
           "src/components/domain/dashboard/OperatingBriefInsights.vue",
@@ -43,7 +43,7 @@
           "crm-dashboard"
         ],
         "databaseFiles": [],
-        "baseCommit": "d84c58fdecc86592c93e2af1ea93554a427b5526",
+        "baseCommit": "ead34ed2b789034ae0fb02e25087f8b91cd6290c",
         "sourceFiles": [
           "src/components/domain/dashboard/OperatingBrief.vue",
           "src/components/domain/dashboard/OperatingBriefInsights.vue",
