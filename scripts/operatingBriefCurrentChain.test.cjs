@@ -18,6 +18,23 @@ const fixture = (extra = {}) => ({ crm_customers: [customer('a'), customer('b')]
   crm_customer_flow_settlements: [], crm_customer_opening_debts: [], crm_cashier_intakes: [],
   crm_customer_receipts: [receipt(), receipt({ _id: 'r-b', customer_id: 'b', amount: 5, allocated_amount: 0, unallocated_amount: 5, rounding_allocated_amount: 0 })],
   crm_customer_allocations: [allocation(), allocation({ _id: 'a-round', allocate_kind: 'rounding', allocate_amount: 2 })], ...extra })
+
+test('missing allocation source and cross-customer references preserve a precise reason through pending without claiming read failure', async () => {
+  for (const [mutate, field, message] of [
+    [t => { t.crm_sale_records = t.crm_sale_records.filter(row => row._id !== 's-a') }, 'target_id', /引用的账单未在核算范围内找到/],
+    [t => { t.crm_customer_receipts = t.crm_customer_receipts.filter(row => row._id !== 'r-a') }, 'receipt_id', /引用的收款未在核算范围内找到/],
+    [t => { t.crm_customer_allocations[0].customer_id = 'b' }, 'customer_id', /客户归属不一致/]
+  ]) {
+    const tables = fixture(); mutate(tables)
+    const db = makeDb(tables), result = await readCurrentBrief(db)
+    assert.equal(result.read_complete, true)
+    const cause = result.current.debt.issues[0]
+    assert.equal(cause.field, field); assert.match(cause.message, message)
+    assert.equal(result.pending.issues[0].message, cause.message)
+    assert.doesNotMatch(result.pending.issues[0].message, /读取未完成|期间发生变化|本次未返回/)
+    assert.equal(result.current.receivable, null); assert.deepEqual(db.writes, [])
+  }
+})
 const reason = (domain, name) => assert.ok(domain.issues.some(row => row.reason === name), `missing ${name}`)
 function isolated(result, expectedReason) {
   for (const name of ['debt', 'available_funds']) {

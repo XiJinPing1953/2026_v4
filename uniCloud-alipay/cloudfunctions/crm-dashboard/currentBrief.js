@@ -30,6 +30,11 @@ function unresolved(reason, row, details = {}) {
     allocation_chain_receipt_mismatch: '收款已分配金额与完整分配明细不一致',
     allocation_chain_legacy_backing: '历史内嵌款缺少完整分配背书，余额沿原单规则核算，分配链仍待核'
   })[reason] || '部分账务记录需核对，暂不能汇总'
+  if (reason === 'allocation_chain_scope_unresolved') error.message = ({
+    target_id: '分配记录引用的账单未在核算范围内找到，暂不能确认归属',
+    receipt_id: '分配记录引用的收款未在核算范围内找到，暂不能确认归属',
+    customer_id: '分配记录、账单与收款的客户归属不一致，暂不能确认核算范围'
+  })[details.field] || error.message
   throw error
 }
 function numeric(value, row, field, { optional = false, signed = false } = {}) {
@@ -400,8 +405,10 @@ function allocationChain(inputs, scope) {
       continue
     }
     const target = maps[ref.kind].get(ref.id), receipt = maps.receipts.get(text(row.receipt_id))
-    if (!target || !receipt || text(target.customer_id) !== text(row.customer_id) ||
-        text(receipt.customer_id) !== text(row.customer_id)) unresolved('allocation_chain_scope_unresolved', row)
+    if (!target) unresolved('allocation_chain_scope_unresolved', row, { field: 'target_id' })
+    if (!receipt) unresolved('allocation_chain_scope_unresolved', row, { field: 'receipt_id' })
+    if (text(target.customer_id) !== text(row.customer_id) || text(receipt.customer_id) !== text(row.customer_id))
+      unresolved('allocation_chain_scope_unresolved', row, { field: 'customer_id' })
     scope.owner(target, ref.kind === 'sales'); scope.owner(receipt)
     activeRows.push({ row, ref, target, receipt })
   }
@@ -607,7 +614,12 @@ async function readCurrentBrief(db, { now = Date.now() } = {}) {
   const debt = scopedDomain(DEBT_KINDS, 'debt')
   const funds = scopedDomain(FUNDS_KINDS, 'funds')
   const pending = domain([...FUNDS_KINDS, ...chainKinds], () => {
-    if (chainBlocked.length) throw new FinancialReadError('allocation_chain_scope_unresolved', chainBlocked[0])
+    if (chainBlocked.length) {
+      const cause = chainBlocked[0]
+      const error = new FinancialReadError(cause.reason, cause)
+      error.message = cause.message
+      throw error
+    }
     const selected = pendingInputs(inputs), owners = new Set(selected.receipts.map(row => text(row.customer_id)))
     for (const id of owners) if (chain?.conflicts.has(id)) throw chain.conflicts.get(id)[0].error
     return summarizeFunds(selected, scope).pending

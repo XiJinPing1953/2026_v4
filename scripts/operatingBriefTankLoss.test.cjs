@@ -46,6 +46,7 @@ test('real handler computes signed estimated loss from model endpoints, station-
 	assert.equal(d.status, 'available')
 	assert.equal(d.opening.weight_kg, kg(30))
 	assert.equal(d.closing.weight_kg, kg(29))
+	assert.equal(d.level_change_kpa, -1)
 	assert.equal(d.inbound_kg, 1500)
 	assert.equal(d.recorded_outflow_kg, 220.124)
 	assert.equal(d.outflow.weight_kg, d.recorded_outflow_kg)
@@ -72,6 +73,7 @@ test('zero records with unchanged endpoints give verified zero; rising stock wit
 	for (const [openLevel, closeLevel] of [[30, 30], [29, 30]]) {
 		const result = await run(makeDb(setup({}, openLevel, closeLevel)))
 		assert.equal(result.data.status, openLevel === closeLevel ? 'available' : 'needs_review')
+		assert.equal(result.data.level_change_kpa, closeLevel - openLevel)
 		assert.equal(result.data.inbound_kg, 0)
 		assert.equal(result.data.recorded_outflow_kg, 0)
 		assert.equal(result.data.outflow.complete, true)

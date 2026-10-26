@@ -5,7 +5,7 @@
 		<view v-if="error" class="brief__issue" role="alert">{{ error }}{{ stale ? '；以下为上次成功读取的数据。' : '；货款与收款暂不可用。' }}</view>
 		<text v-else-if="loading" class="brief__meta" role="status">{{ result ? '正在更新已登记记录…' : '正在读取经营简报…' }}</text>
 		<text v-if="result?.preview" class="brief__note">本地演示 · 合成记录，不代表生产数据</text>
-		<OperatingBriefInsights :key="period" :can-view="canView" :analysis="result?.analysis" :operations="result?.operations" :period="period" :attention="priorityAttention" :stale="stale" :error="result?.analysis_error" @sources="openSources" />
+		<OperatingBriefInsights :key="period" :can-view="canView" :analysis="result?.analysis" :operations="result?.operations" :business-range="result?.range" :period="period" :attention="priorityAttention" :stale="stale" :error="result?.analysis_error" :tank-loss="tankLoss" :tank-loss-stale="tankLossStale" :tank-loss-error="tankLossError" :tank-loss-loading="tankLossLoading" @sources="openSources" />
 		<OperatingBriefSources v-if="sourceQuery" :data="sources" :query="sourceQuery" :loading="sourcesLoading" :error="sourcesError" :can-view="canView" @close="closeSources" @more="moreSources" @navigate="navigateTo" />
 		<view class="brief__ledger">
 			<view class="brief__section-heading"><text class="brief__section-title">{{ periodNoun }}货款</text><text class="brief__meta">销售 + 流量结算</text></view>
@@ -43,7 +43,7 @@
 			<view v-if="current?.current?.chain_evidence" class="brief__chain-evidence"><text class="brief__note">分配链背书：{{ current.current.chain_evidence.complete ? 'CRM 内部关系已核对' : '仍有来源待核' }}</text><text v-if="current.current.chain_evidence.coverage?.complete" class="brief__note">{{ number(current.current.chain_evidence.coverage.verified_customers) }} / {{ number(current.current.chain_evidence.coverage.total_customers) }} 户具备完整分配链依据。余额来源核对不等同银行对账。</text></view>
 			<text v-if="currentMetrics.some(item => item.key === 'funds')" class="brief__note brief__funds-note">可用款不含退气抵款</text>
 			<view v-if="currentReviewItems.length" class="brief__current-review">
-				<button role="button" tabindex="0" class="brief__review-toggle" :aria-expanded="expanded === 'current-review'" @click="toggleDetail('current-review')" @keydown="activateOnKey($event, toggleDetail, false, 'current-review')"><view><text class="brief__label">{{ currentMetrics.length ? '客户账款有待核事项' : '客户资金暂不可汇总' }}</text><text class="brief__note">{{ currentReviewItems[0].message }}</text></view><text class="brief__link">{{ expanded === 'current-review' ? '收起' : '查看原因' }}</text></button>
+				<button role="button" tabindex="0" class="brief__review-toggle" :aria-expanded="expanded === 'current-review'" @click="toggleDetail('current-review')" @keydown="activateOnKey($event, toggleDetail, false, 'current-review')"><view><text class="brief__label">{{ currentMetrics.length ? '客户账款有待核事项' : '客户资金暂不可汇总' }}</text><text class="brief__note">{{ currentReviewLead }}</text></view><text class="brief__link">{{ expanded === 'current-review' ? '收起' : '查看原因' }}</text></button>
 				<view v-if="expanded === 'current-review'" class="brief__review-list"><view v-for="item in currentReviewItems" :key="item.key" class="brief__review-item"><view><text v-if="item.context" class="brief__label">{{ item.context }}</text><text class="brief__note">{{ item.label }} · {{ item.message }}</text><text v-if="item.sourceId" class="brief__note brief__reference" selectable>来源 {{ item.sourceId }}</text><text v-if="item.hint" class="brief__note">{{ item.hint }}</text></view><view class="brief__review-actions"><button v-for="action in allowedActions(item)" :key="action.route" role="button" tabindex="0" class="brief__text-button" @click="navigateTo(action.route)" @keydown="activateOnKey($event, navigateTo, false, action.route)">{{ action.label }} →</button></view></view><text v-if="currentIssuesIncomplete" class="brief__note">仅列出已返回的待核来源，完整范围仍需确认。</text></view>
 			</view>
 			<view v-if="ranking?.complete" class="brief__ranking"><view class="brief__section-heading"><text class="brief__label">欠款前三</text><text v-if="ranking.items.length" class="brief__meta">占全部欠款 {{ percentage(topShare) }}</text></view><template v-if="ranking.items.length"><text class="brief__note">按欠款金额排序，不代表逾期。</text><button v-for="(item, index) in ranking.items" :key="item.customer_id" role="button" :tabindex="canView('/pages/customer/statement') ? 0 : -1" :disabled="!canView('/pages/customer/statement')" class="brief__rank-row" @click="openCustomer(item.customer_id)" @keydown="activateOnKey($event, openCustomer, !canView('/pages/customer/statement'), item.customer_id)"><text class="brief__rank">{{ index + 1 }}</text><view class="brief__rank-name"><text>{{ item.name }}</text><text class="brief__meta">{{ item.code }}</text></view><view class="brief__rank-amount"><text>{{ money(item.amount) }}</text><text class="brief__meta">占 {{ percentage(item.share_of_total) }} <text v-if="canView('/pages/customer/statement')">→</text></text></view></button></template><text v-else class="brief__empty">暂无客户欠款</text></view>
@@ -170,12 +170,16 @@ const reviewItems = computed(() => {
 const currentReviewItems = computed(() => operatingReviewItems([
 	['客户欠款', current.value?.current?.debt], ['客户可用款', current.value?.current?.available_funds], ['结账待分配', current.value?.pending], ['分配链背书', current.value?.current?.chain_evidence]
 ]))
+const currentReviewLead = computed(() => {
+	const first = currentReviewItems.value[0]
+	return first ? `${first.context ? first.context + '：' : ''}${first.message}` : ''
+})
 const priorityAttention = computed(() => {
 	if (stale.value) return '期间数据刷新失败，当前保留上次结果，请刷新后再判断。'
 	if (reviewItems.value.length) return `${reviewItems.value[0].label}：${reviewItems.value[0].message}`
 	if (tankLossError.value || tankLoss.value && tankLoss.value.status !== 'available') return tankLossError.value || lossIssueText.value
 	if (currentError.value || currentStale.value) return '当前账款读取未完成，请重新读取后核对欠款与待分配事项。'
-	if (currentReviewItems.value.length) return currentReviewItems.value[0].message
+	if (currentReviewItems.value.length) return currentReviewLead.value
 	if (current.value?.current?.chain_evidence?.complete === false) return '客户资金分配链仍有历史背书待核，余额可用范围与分配链证据分别展示。'
 	if (current.value?.pending?.complete && current.value.pending.count > 0) return `${current.value.pending.count} 笔结账收款待匹配账单。`
 	return ''

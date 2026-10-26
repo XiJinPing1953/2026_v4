@@ -213,8 +213,10 @@ async function readTankLoss(db, data = {}, now = Date.now()) {
 	}
 	if (reviewIssue) issues.push(reviewIssue)
 	const status = !canCalculateLoss ? 'insufficient_data' : reviewIssue ? 'needs_review' : 'available'
+	const levelChange = opening && closing && opening.gateway_id === closing.gateway_id
+		? Math.round((closing.level_kpa - opening.level_kpa) * 1000) / 1000 : null
 	return { code: 0, data: { section: 'tank_loss', version: VERSION, period: data.period || 'yesterday', range,
-		complete: true, status, opening, closing,
+		complete: true, status, opening, closing, level_change_kpa: levelChange,
 		inbound_kg: inboundKg, recorded_outflow_kg: outflowKg, outflow,
 		estimated_consumption_kg: consumption, estimated_loss_kg: loss, issues,
 		updated_at: Date.now(), estimate_version: TANK_ESTIMATE_VERSION, read_started_at: started,

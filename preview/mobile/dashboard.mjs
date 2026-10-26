@@ -97,8 +97,9 @@ export function dashboardFixture(data = {}) {
 			: loss < 0 ? [{ code: 'negative_estimated_loss', message: '出罐量大于估算耗气量，请核对液位和登记记录' }] : []
 		payload = { section: 'tank_loss', version, period, range, complete: true,
 			status: missing || unknownOutflow ? 'insufficient_data' : loss < 0 ? 'needs_review' : 'available',
-			opening: missing ? null : { weight_kg: 12000, observed_at: from - 5000, level_kpa: 23.3 },
-			closing: { weight_kg: Number((12000 + inbound - consumption).toFixed(3)), observed_at: to - 5000, level_kpa: 16.8 },
+			opening: missing ? null : { weight_kg: 12000, observed_at: from - 5000, level_kpa: 23.3, gateway_id: 'preview-main' },
+			closing: { weight_kg: Number((12000 + inbound - consumption).toFixed(3)), observed_at: to - 5000, level_kpa: 16.8, gateway_id: 'preview-main' },
+			level_change_kpa: missing ? null : -6.5,
 			inbound_kg: inbound, recorded_outflow_kg: unknownOutflow ? null : registered,
 			estimated_consumption_kg: missing ? null : consumption, estimated_loss_kg: missing || unknownOutflow ? null : loss,
 			outflow: { complete: !unknownOutflow, weight_kg: unknownOutflow ? null : registered, channels, issues: unknownOutflow ? issues : [] },

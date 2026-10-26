@@ -324,6 +324,57 @@ async function renderBrief(h, expanded = '', canView = () => true) {
 	return require('@vue/server-renderer').renderToString(app)
 }
 
+const renderedSummary = html => html.match(/class="insights__summary"[\s\S]*?<\/view>/)?.[0] || ''
+function levelEvidence(data, change = -0.7) {
+	Object.assign(data.opening, { gateway_id: 'main-gateway' })
+	Object.assign(data.closing, { gateway_id: 'main-gateway', level_kpa: data.opening.level_kpa + change })
+	return { ...data, level_change_kpa: change }
+}
+test('summary uses same-cutoff filling events and server liquid-level change, while identifying estimated tank loss', async () => {
+	const h = harness(); h.state.result.value = h.mapOperatingBrief(brief().data, 'yesterday')
+	h.state.tankLoss.value = h.mapOperatingTankLoss(levelEvidence(tankLoss().data), 'yesterday')
+	const summary = renderedSummary(await renderBrief(h))
+	assert.match(summary, /钢瓶灌装 2 瓶次，共 50 kg/)
+	assert.doesNotMatch(summary, /钢瓶灌装 4 瓶次/)
+	assert.match(summary, /液位下降 0.7 kPa（12.5 → 11.8 kPa）/)
+	assert.match(summary, /储罐收支估算损耗约 20 kg/)
+	assert.match(summary, /不能直接归为钢瓶灌装亏损/)
+})
+test('summary preserves verified zero and rising liquid, but never calls a negative estimate a confirmed filling loss', async () => {
+	const h = harness(), zero = levelEvidence(tankLoss('yesterday', 0).data, 0)
+	zero.outflow.channels.forEach(row => { row.count = 0; row.weight_kg = 0 })
+	zero.outflow.weight_kg = zero.recorded_outflow_kg = zero.estimated_consumption_kg = 0
+	h.state.tankLoss.value = h.mapOperatingTankLoss(zero, 'yesterday')
+	let summary = renderedSummary(await renderBrief(h))
+	assert.match(summary, /钢瓶灌装 0 瓶次，共 0 kg/); assert.match(summary, /液位持平，变化 0 kPa/)
+	assert.match(summary, /估算损耗0 kg/)
+	h.state.tankLoss.value = h.mapOperatingTankLoss(levelEvidence(tankLoss('yesterday', -20539).data, 3), 'yesterday')
+	summary = renderedSummary(await renderBrief(h))
+	assert.match(summary, /液位上升 3 kPa/); assert.match(summary, /估算损耗待核/)
+	assert.doesNotMatch(summary, /20,539|估算盈余/)
+})
+test('summary excludes stale or other-day gas while retaining an independently valid business result', async () => {
+	const h = harness(); h.state.result.value = h.mapOperatingBrief(brief().data, 'yesterday')
+	h.state.tankLoss.value = h.mapOperatingTankLoss(levelEvidence(tankLoss().data), 'yesterday')
+	for (const field of ['tankLossStale', 'tankLossError']) {
+		h.state[field].value = field === 'tankLossError' ? '连接失败' : true
+		const summary = renderedSummary(await renderBrief(h))
+		assert.match(summary, /销售净气量 120 kg/); assert.match(summary, /灌装与储罐依据更新未完成/)
+		assert.doesNotMatch(summary, /钢瓶灌装 2|液位下降|损耗约 20/)
+		h.state[field].value = field === 'tankLossError' ? '' : false
+	}
+	h.state.tankLoss.value.range = { ...h.state.tankLoss.value.range, start: '2026-10-21', end: '2026-10-21' }
+	assert.doesNotMatch(renderedSummary(await renderBrief(h)), /钢瓶灌装 2|液位下降|损耗约 20/)
+})
+test('liquid-level change rejects mismatched arithmetic or gateways; rollout without the field remains compatible', () => {
+	const h = harness(); h.mapOperatingTankLoss(tankLoss().data, 'yesterday')
+	const bad = levelEvidence(tankLoss().data)
+	bad.level_change_kpa = 3
+	assert.throws(() => h.mapOperatingTankLoss(bad, 'yesterday'))
+	bad.level_change_kpa = -0.7; bad.closing.gateway_id = 'other'
+	assert.throws(() => h.mapOperatingTankLoss(bad, 'yesterday'))
+})
+
 test('rendered current funds show verified subtotal and source actions, with no empty ranking or fabricated zero', async () => {
 	const h = harness(); h.state.current.value = h.mapOperatingCurrent(partialCurrent())
 	const partial = await renderBrief(h, 'current-review')

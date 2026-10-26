@@ -267,6 +267,11 @@ export function mapOperatingTankLoss(data, period) {
 		if (data[field] === null && !hasEvidence) continue
 		if (!isNumber(data[field])) throw new Error('估算损耗数据读取未完成')
 	}
+	if (Object.prototype.hasOwnProperty.call(data, 'level_change_kpa')) {
+		const comparable = data.opening && data.closing && typeof data.opening.gateway_id === 'string' && data.opening.gateway_id.trim() && data.opening.gateway_id === data.closing.gateway_id
+		if (comparable ? !isNumber(data.level_change_kpa) || !sameUnits(data.level_change_kpa,
+			Math.round((data.closing.level_kpa - data.opening.level_kpa) * 1000) / 1000) : data.level_change_kpa !== null) invalidSummary()
+	}
 	if (!hasEvidence && data.estimated_loss_kg != null ||
 		data.status === 'needs_review' && !(data.estimated_loss_kg < 0 || data.estimated_consumption_kg < 0)) throw new Error('估算损耗状态与数据不一致')
 	if (data.inbound_kg != null && data.inbound_kg < 0) invalidSummary()

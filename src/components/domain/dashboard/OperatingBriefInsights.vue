@@ -59,7 +59,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-const props = defineProps({ analysis: { type: Object, default: null }, operations: { type: Object, default: null }, period: { type: String, default: 'yesterday' }, attention: { type: String, default: '' }, canView: { type: Function, default: () => false }, stale: Boolean, error: { type: String, default: '' } })
+const props = defineProps({ analysis: { type: Object, default: null }, operations: { type: Object, default: null }, businessRange: { type: Object, default: null }, period: { type: String, default: 'yesterday' }, attention: { type: String, default: '' }, canView: { type: Function, default: () => false }, stale: Boolean, error: { type: String, default: '' }, tankLoss: { type: Object, default: null }, tankLossStale: Boolean, tankLossError: { type: String, default: '' }, tankLossLoading: Boolean })
 defineEmits(['sources'])
 const dailyOpen = ref(false)
 const comparisonOpen = ref(false)
@@ -75,14 +75,35 @@ const sourceMetrics = computed(() => metrics.value.filter(row => {
 	return paths[row.key].every(path => props.canView(path))
 }))
 const summary = computed(() => {
-	if (props.stale) return ['当前保留上次读取结果，刷新后再判断最新变化。', props.attention].filter(Boolean)
 	const lines = [], change = comparison.value?.metrics?.sale_weight_kg
-	if (change?.status === 'available') lines.push(`${props.period === 'month' ? '本月可比完整日' : '昨日'}销售净气量 ${number(change.current)} kg，较基期${change.delta < 0 ? '减少' : change.delta > 0 ? '增加' : '持平'}${change.delta ? ' ' + number(Math.abs(change.delta)) + ' kg' : ''}。`)
+	const periodName = props.period === 'month' ? '本月' : props.period === 'today' ? '今日' : '昨日'
+	if (props.stale) lines.push('业务数据保留上次读取结果，刷新后再判断最新变化。')
+	else if (change?.status === 'available') lines.push(`${props.period === 'month' ? '本月可比完整日' : '昨日'}销售净气量 ${number(change.current)} kg，较基期${change.delta < 0 ? '减少' : change.delta > 0 ? '增加' : '持平'}${change.delta ? ' ' + number(Math.abs(change.delta)) + ' kg' : ''}。`)
+	else if (props.operations?.complete) lines.push(`${periodName}已登记销售净气量 ${number(props.operations.sale_weight_kg)} kg、出瓶 ${number(props.operations.sale_bottle_count)} 瓶，涉及 ${number(props.operations.customer_count)} 户客户。${props.period === 'today' ? '今日仍在进行。' : '期间比较依据待核。'}`)
 	else lines.push(props.period === 'today' ? '今日业务仍在进行，按已登记记录展示。' : props.analysis ? '业务比较依据尚不足，先核对受影响来源。' : '业务与货款按各自来源展示，比较依据尚未取得。')
-	const driver = props.analysis?.drivers?.status === 'available' && props.analysis.drivers.items[0]
+	const gas = props.tankLoss?.period === props.period && (!props.businessRange ||
+		props.tankLoss.range?.start === props.businessRange.start && props.tankLoss.range?.end === props.businessRange.end) ? props.tankLoss : null
+	if (props.tankLossStale || props.tankLossError) lines.push('灌装与储罐依据更新未完成，重新读取后再判断。')
+	else if (gas) {
+		const bottle = gas.outflow?.channels?.find(row => row.key === 'bottle')
+		const end = new Date(Number(gas.period_ended_at) + 8 * 3600000)
+		const cutoff = props.period === 'yesterday' ? '' : `（截至 ${Number.isFinite(end.getTime()) ? end.toISOString().slice(5, 16).replace('T', ' ') : '本次读取'}）`
+		lines.push(bottle?.complete ? `${periodName}${cutoff}登记钢瓶灌装 ${number(bottle.count)} 瓶次，共 ${number(bottle.weight_kg)} kg。` : `${periodName}钢瓶灌装记录待核，暂不能确认瓶次与气量。`)
+		const level = gas.level_change_kpa
+		let tank = typeof level === 'number' && gas.opening && gas.closing
+			? `同期主罐采样液位${level < 0 ? '下降 ' + number(-level) : level > 0 ? '上升 ' + number(level) : '持平，变化 0'} kPa（${number(gas.opening.level_kpa)} → ${number(gas.closing.level_kpa)} kPa）`
+			: '同期主罐液位变化待核'
+		if (gas.status === 'available') {
+			const loss = gas.estimated_loss_kg
+			const estimate = loss === 0 ? '0 kg' : loss < 1 ? '不足 1 kg' : `约 ${number(loss, 0)} kg`
+			tank += `；按储罐收支估算损耗${estimate}。该差额不能直接归为钢瓶灌装亏损。`
+		} else tank += '；估算损耗待核。'
+		lines.push(tank)
+	} else if (props.tankLossLoading) lines.push('正在读取灌装瓶次、储罐液位和估算损耗依据。')
+	const driver = !props.stale && props.analysis?.drivers?.status === 'available' && props.analysis.drivers.items[0]
 	if (driver && driver.delta !== 0) lines.push(`${driver.name || driver.code || '首位客户'}的货款变化贡献最大：${signed(driver.delta, '元')}。`)
 	if (props.attention) lines.push(`优先核对：${props.attention}`)
-	return lines.slice(0, 3)
+	return lines
 })
 const extent = computed(() => {
 	const values = (props.analysis?.trend.points || []).filter(p => p.status === 'available').map(p => p.value)
