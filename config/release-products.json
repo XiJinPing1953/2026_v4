@@ -30,19 +30,17 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.26-pda-sale-cycle",
+      "version": "2026.10.26-return-round-notice",
       "output": "release/cloud",
-      "acceptance": "Only crm-filling: complete projected sales reads, legacy snapshot compatibility and new cycle recognition. No database or frontend changes.",
+      "acceptance": "Only crm-filling: expose existing return round_id in read responses for PDA notice; no business writes or rule changes.",
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "0b66fa2b43498b9f818fed5d87583274121bbd78",
+        "baseCommit": "c4cd9e153b5b6b6b6409a932287d84868995c547",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/crm-filling/reweighService.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js"
         ]
       }
@@ -95,19 +93,19 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.33",
+      "version": "1.0.34",
       "output": "release/pda",
-      "acceptance": "Compact 60x40 sales labels: four out/four back on two sheets; balanced filling label text/QR with safe margins. Physical printing remains user acceptance. WGT-only deployment; retained crm-filling is checked as a runtime dependency, not uploaded.",
+      "acceptance": "Return reweigh notice is shown only for an authoritative same-round previous record; older or unknown rounds show no duplicate warning; no extra worker actions, persistence or weighing changes. WGT and crm-filling only.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "8ccf33dd325202b486be10fead56b6ce7188bf54",
+        "baseCommit": "c4cd9e153b5b6b6b6409a932287d84868995c547",
         "sourceFiles": [
           "src/manifest.json",
-          "src/services/pda/labelPrinter.js",
-          "src/services/pda/salePrint.js"
+          "src/components/domain/pda/PdaReweighView.vue",
+          "src/services/pda/reweighDraft.js"
         ]
       },
       "integrityScope": "deployment"

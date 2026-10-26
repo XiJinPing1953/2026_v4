@@ -41,7 +41,7 @@
 				<AppButton v-if="!current.bottleNo" size="sm" kind="neutral" :disabled="locked || busy || !snapshot.is_connected || !canCreate || !readyForBottle" @click="onSelectKeyword">确认瓶号</AppButton>
 				</view>
 				<text v-if="current.preview && !current.capture" class="hint">皮重 {{ weight(current.preview.bottle.tare_weight) }} kg</text>
-				<text v-if="current.preview?.previous || current.preview?.mode === 'correct'" class="notice">{{ isReturn ? '这瓶已有回瓶记录，保存后采用本次重量' : '这瓶已有罐装记录，保存后更正原记录' }}</text>
+				<text v-if="previousNotice" class="notice">{{ previousNotice }}</text>
 				<view v-if="current.capture" class="result">
 					<text class="result-label">{{ isReturn ? '回瓶毛重' : '本次灌装量' }}</text>
 					<text class="result-value">{{ weight(isReturn ? current.grossWeight : current.preview?.fill_weight) }} <text class="unit">kg</text></text>
@@ -143,7 +143,7 @@ import { usePdaFillingPrinter } from '@/composables/pda/usePdaFillingPrinter'
 import PdaWeighScale from './PdaWeighScale.vue'
 import PdaBottleSuggestField from '@/components/domain/pda/PdaBottleSuggestField.vue'
 import { reweighChangeText, usePdaReweigh } from '@/composables/pda/usePdaReweigh'
-import { reweighHistoryTime } from '@/services/pda/reweighDraft'
+import { reweighHistoryTime, reweighPreviousNotice } from '@/services/pda/reweighDraft'
 
 const props = defineProps({ mode: { type: String, default: 'filling' } })
 const isReturn = props.mode === 'return'
@@ -156,6 +156,7 @@ const historyGroups = computed(() => [
 	{ title: '其他轮次待处理记录', items: recoveryHistory.value }
 ].filter(group => group.items.length))
 const readyForBottle = computed(() => !isReturn || (roundReady.value && Boolean(round.value?._id)))
+const previousNotice = computed(() => reweighPreviousNotice(current.value.preview, isReturn))
 const roundTime = computed(() => {
 	const timestamp = Number(round.value?.created_at)
 	if (!Number.isFinite(timestamp) || timestamp <= 0) return '—'

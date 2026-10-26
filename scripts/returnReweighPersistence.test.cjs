@@ -376,3 +376,18 @@ test('historical exclusion preserves real duplicate filling and manual loss chan
  const loss = await app.invoke('previewReweighV1', { bottle_no: 'B1' })
  assert.equal(loss.code, 409); assert.match(loss.msg, /损耗变更/)
 })
+
+
+test('return preview identifies previous round without changing saved records', async () => {
+ const app = fixture(); await start(app); await save(app)
+ const before = JSON.stringify(rows(app, 'crm_return_reweighs'))
+ const same = await app.invoke('previewReturnReweighV1', { round_id: roundId, bottle_no: 'B1' })
+ assert.equal(same.code, 0)
+ assert.equal(same.data.previous.round_id, same.data.round._id)
+ const next = 'return_round_002'; await start(app, next, roundId)
+ const older = await app.invoke('previewReturnReweighV1', { round_id: next, bottle_no: 'B1' })
+ assert.equal(older.code, 0)
+ assert.equal(older.data.previous.round_id, roundId)
+ assert.equal(older.data.round._id, next)
+ assert.equal(JSON.stringify(rows(app, 'crm_return_reweighs')), before)
+})

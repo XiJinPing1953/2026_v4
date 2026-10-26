@@ -525,3 +525,19 @@ test('filling hooks freeze authoritative label, arm before save and match receip
  await h.form.deactivate();assert.equal(events.at(-1)[0],'close')
  const count=events.length;const r=harness(t,{returnMode:true,printing});await r.measure('101',120);await r.form.submit();await r.form.deactivate();assert.equal(events.length,count)
 })
+
+
+test('return notice distinguishes saved rounds without guessing for old drafts', () => {
+ const { reweighPreviousNotice: notice } = load('src/services/pda/reweighDraft.js', ['reweighPreviousNotice'])
+ assert.equal(notice(null, true), '')
+ assert.equal(notice({ round: { _id: 'today' } }, true), '')
+ const preview = { round: { _id: 'today' }, previous: { round_id: 'today' } }
+ assert.equal(notice(preview, true), '这瓶本轮已称过，保存后采用本次重量')
+ preview.previous.round_id = 'earlier'
+	assert.equal(notice(preview, true), '')
+ delete preview.previous.round_id
+ assert.equal(notice(preview, true), '')
+ assert.equal(notice({ previous: { round_id: 'earlier' } }, true), '')
+ assert.equal(notice({ mode: 'correct' }, false), '这瓶已有罐装记录，保存后更正原记录')
+ assert.equal(notice({ mode: 'create' }, false), '')
+})

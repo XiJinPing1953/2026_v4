@@ -11,7 +11,7 @@ const ownerKey = id => `owner_${fingerprint(id)}`
 const one = result => Array.isArray(result.data) ? result.data[0] : result.data
 const rejected = (msg, code = 409) => ({ code, msg, data: { rejected: true } })
 const publicRound = row => row ? { _id: row._id, created_at: row.created_at, bottle_count: (row.bottle_ids || []).length } : null
-const publicRecord = row => ({ _id: row._id, bottle_no: row.bottle_no, date: row.date, gross_weight: row.gross_weight,
+const publicRecord = row => ({ _id: row._id, round_id: row.round_id, bottle_no: row.bottle_no, date: row.date, gross_weight: row.gross_weight,
 	tare_weight: row.tare_weight, net_weight: row.net_weight, created_at: row.created_at })
 
 function createReturnReweighService({ db, readInputs, now = Date.now }) {

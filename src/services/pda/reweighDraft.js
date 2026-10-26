@@ -79,6 +79,16 @@ export function createReweighDraftStore(ownerId, storage, currentOwner = () => o
 	}
 }
 
+export function reweighPreviousNotice(preview, isReturn) {
+	if (!isReturn) return preview?.mode === 'correct' ? '这瓶已有罐装记录，保存后更正原记录' : ''
+	if (!preview?.previous) return ''
+	const previousRound = preview.previous.round_id
+	const currentRound = preview.round?._id
+	return previousRound && currentRound && previousRound === currentRound
+		? '这瓶本轮已称过，保存后采用本次重量'
+		: ''
+}
+
 export function reweighReceipt(response, operationId, previous = null) {
 	const data = response?.data || {}
 	const matched = !data.operation_id || data.operation_id === operationId
