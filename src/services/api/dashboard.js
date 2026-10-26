@@ -31,3 +31,9 @@ export function getOperatingTankLossV1(period) {
 		timeout: 60000
 	})
 }
+
+export function getOperatingSourcesV1(data) {
+	return callCloud('crm-dashboard', {
+		action: 'summaryV1', data: { ...data, section: 'brief_sources' }, timeout: 60000
+	})
+}

@@ -4,7 +4,9 @@ const { readComplete, FinancialReadError } = require('./financialReadLocal')
 const { buildNotHiddenCustomerFieldsWhere, mergeWhere } = require('./customerVisibilityLocal')
 const { isCashReceipt } = require('./receiptSourceLocal')
 const F = require('./operatingBriefFinance')
-const ALL = ['business', 'settlement', 'cash', 'destinations', 'evidence', 'operations']
+const A = require('./operatingBriefAnalysis')
+const CORE = ['business', 'settlement', 'cash', 'destinations', 'evidence', 'operations']
+const ALL = [...CORE, 'analysis_sales', 'analysis_business', 'analysis_cash']
 const OP_FIELDS = ['sale_weight_kg', 'sale_bottle_count', 'customer_count', 'fill_bottle_weight_kg', 'fill_bottle_count',
   'local_weight_kg', 'local_count', 'vehicle_weight_kg', 'vehicle_count', 'recorded_outflow_kg']
 const BATCH = 80
@@ -28,7 +30,11 @@ function documentFromResult(result, id, name) {
 const fingerprint = value => JSON.stringify(value, (_key, child) => child && typeof child === 'object' && !Array.isArray(child)
   ? Object.fromEntries(Object.keys(child).sort().map(key => [key, child[key]])) : child)
 
-async function readBriefFinance(db, data, helpers, range, { version, summarizeOperations }) {
+async function readBriefFinance(db, data, helpers, range, { version, summarizeOperations, primaryOnly = false }) {
+  const analysisPlan = A.analysisPlan(data.period || 'yesterday', range)
+  const sourceRange = primaryOnly ? range : analysisPlan.read_range
+  const expandedRange = sourceRange.start < range.start || sourceRange.end > range.end
+  let expandedReadFailed = false
   const started = Date.now(), command = db.command, reads = [], documentReads = [], sourceCache = new Map(), allowed = new Map(), errors = Object.fromEntries(ALL.map(key => [key, []]))
   let sourceReadComplete = true
   let activeDocuments = 0
@@ -52,26 +58,30 @@ async function readBriefFinance(db, data, helpers, range, { version, summarizeOp
     const safe = F.issue({ code: error?.code, details: { ...details, source_type: details.source_type || name } }, allowed)
     for (const tag of tags) errors[tag].push(safe)
   }
-  async function read(name, where, tags, field) {
+  async function read(name, where, tags, field, { expanded = false } = {}) {
     try {
       const rows = await readComplete(db.collection(name), where, { command, field, source: name })
       if (!allowed.has(name)) allowed.set(name, new Set())
       for (const row of rows) if (row.is_hidden !== true) allowed.get(name).add(F.text(row._id))
-      const record = { name, where, tags, count: rows.length }
+      const record = { name, where, tags, count: rows.length, expanded }
       reads.push(record)
       if (!field) for (const row of rows) remember(name, F.text(row._id), row, record)
       return rows
-    } catch (error) { sourceReadComplete = false; failed(tags, error, name); return [] }
+    } catch (error) {
+      if (expanded) expandedReadFailed = true
+      if (tags.some(tag => CORE.includes(tag))) sourceReadComplete = false
+      failed(tags, error, name); return []
+    }
   }
-  const customers = await read(F.TABLES.customers, {}, ALL, { is_hidden: true, settlement_customer_id: true, default_price_unit: true })
+  const customers = await read(F.TABLES.customers, {}, ALL, { is_hidden: true, settlement_customer_id: true, default_price_unit: true, name: true, qr_code: true })
   const visibilityKnown = !errors.business.length
   const hidden = customers.filter(row => row.is_hidden === true).map(row => row._id)
   const hiddenIds = new Set(hidden.map(F.text))
   const customerWhere = buildNotHiddenCustomerFieldsWhere(command, hidden, ['customer_id'])
   const saleVisibility = buildNotHiddenCustomerFieldsWhere(command, hidden, ['customer_id', 'delivery_customer_id'])
-  const dateWhere = key => command.and([{ [key]: command.gte(range.start) }, { [key]: command.lte(range.end) }])
-  const dated = (key, visible, posted = false) => mergeWhere(command, command.and([dateWhere(key), ...(posted ? [{ status: 'posted' }] : [])]), visible)
-  const safeRead = (name, where, tags) => visibilityKnown ? read(name, where, tags) : Promise.resolve([])
+  const dateWhere = (key, selectedRange = range) => command.and([{ [key]: command.gte(selectedRange.start) }, { [key]: command.lte(selectedRange.end) }])
+  const dated = (key, visible, posted = false, selectedRange = range) => mergeWhere(command, command.and([dateWhere(key, selectedRange), ...(posted ? [{ status: 'posted' }] : [])]), visible)
+  const safeRead = (name, where, tags, options) => visibilityKnown ? read(name, where, tags, undefined, options) : Promise.resolve([])
   async function missingDocument(name, id, tags) {
     if (!visibilityKnown) return null
     try {
@@ -92,7 +102,7 @@ async function readBriefFinance(db, data, helpers, range, { version, summarizeOp
       allowed.get(name).add(id)
       remember(name, id, row, record)
       return row
-    } catch (error) { sourceReadComplete = false; failed(tags, error, name); return null }
+    } catch (error) { if (tags.some(tag => CORE.includes(tag))) sourceReadComplete = false; failed(tags, error, name); return null }
   }
   async function byIds(name, ids, tags, { fields = ['_id'], visible = customerWhere, extra = null } = {}) {
     const rows = [], chunks = batches(ids)
@@ -126,12 +136,26 @@ async function readBriefFinance(db, data, helpers, range, { version, summarizeOp
     }))
     return mergeRows(rows)
   }
-  const [sales, flows, periodReceipts, fillings] = await Promise.all([
-    safeRead(F.TABLES.sales, dated('date', saleVisibility), ['business', 'settlement', 'evidence', 'operations']),
-    safeRead(F.TABLES.flows, dated('biz_date', customerWhere, true), ['business', 'settlement', 'evidence']),
-    safeRead(F.TABLES.receipts, dated('biz_date', customerWhere, true), ['cash', 'destinations']),
+  // One full source read serves the displayed period, comparison windows and
+  // seven completed days. Validation is applied after slicing each domain, so
+  // a bad historical row cannot invalidate today's otherwise independent value.
+  const [analysisSales, analysisFlows, analysisReceipts, fillings] = await Promise.all([
+    safeRead(F.TABLES.sales, dated('date', saleVisibility, false, sourceRange), ['business', 'settlement', 'evidence', 'operations', 'analysis_sales', 'analysis_business'], { expanded: expandedRange }),
+    safeRead(F.TABLES.flows, dated('biz_date', customerWhere, true, sourceRange), ['business', 'settlement', 'evidence', 'analysis_business'], { expanded: expandedRange }),
+    safeRead(F.TABLES.receipts, dated('biz_date', customerWhere, true, sourceRange), ['cash', 'destinations', 'analysis_cash'], { expanded: expandedRange }),
     read('crm_fillings', dateWhere('date'), ['operations'])
   ])
+  const sales = analysisSales.filter(row => A.contains(range, row.date))
+  const flows = analysisFlows.filter(row => A.contains(range, row.biz_date))
+  const periodReceipts = analysisReceipts.filter(row => A.contains(range, row.biz_date))
+  // Historical comparison rows are not substitutes for the existing verified
+  // document fallback used by current allocation/refund references. In
+  // particular, legacy referenced rows without updated_at still need their
+  // second complete-content read even if the analysis scan happened to see them.
+  for (const [name, rows] of [[F.TABLES.sales, sales], [F.TABLES.flows, flows], [F.TABLES.receipts, periodReceipts]]) {
+    const selectedIds = new Set(rows.map(row => F.text(row._id)))
+    for (const id of sourceCache.get(name)?.keys() || []) if (!selectedIds.has(id)) sourceCache.get(name).delete(id)
+  }
   const cashReceipts = periodReceipts.filter(row => isCashReceipt(row) && Number(row.amount) > 0)
   const cohort = new Set([...sales.map(row => `sale:${row._id}`), ...flows.map(row => `flow_settlement:${row._id}`)])
   const cashReceiptIds = new Set(cashReceipts.map(row => F.text(row._id)))
@@ -178,6 +202,8 @@ async function readBriefFinance(db, data, helpers, range, { version, summarizeOp
   for (const row of refunds) if (Array.isArray(row.refund_sources) && row.refund_sources.some(link => cashIds.has(F.text(link.id))))
     for (const link of row.refund_sources) refundSourceIds.push(link.id)
   const refundSources = await byIds(F.TABLES.receipts, refundSourceIds, ['destinations'])
+  const analysisIntakes = await byIds(F.TABLES.intakes,
+    analysisReceipts.filter(row => row.source_type === 'cashier_intake').map(row => row.intake_id || row.source_id), ['analysis_cash'])
 
   // Recheck every scope after all dependencies were read. Counts and timestamps
   // detect supported changes, but are not an atomic historical snapshot.
@@ -190,7 +216,11 @@ async function readBriefFinance(db, data, helpers, range, { version, summarizeOp
       if (!['number', 'string'].includes(typeof after.total) || F.text(after.total) === '' || !Number.isSafeInteger(Number(after.total)) || Number(after.total) !== query.count)
         throw new FinancialReadError('membership_changed_during_brief', { source: query.name })
       if (!Array.isArray(changed.data) || changed.data.length) throw new FinancialReadError('records_changed_during_brief', { source: query.name })
-    } catch (error) { sourceReadComplete = false; failed(query.tags, error, query.name) }
+    } catch (error) {
+      if (query.expanded) expandedReadFailed = true
+      if (query.tags.some(tag => CORE.includes(tag))) sourceReadComplete = false
+      failed(query.tags, error, query.name)
+    }
   }))
   // Fallback documents are outside a reliable `_id in` query scope. Re-read
   // every one (including verified absences), comparing complete content so
@@ -199,7 +229,7 @@ async function readBriefFinance(db, data, helpers, range, { version, summarizeOp
     try {
       const row = documentFromResult(await documentGet(record.name, record.id), record.id, record.name)
       if (fingerprint(row) !== record.fingerprint) throw new FinancialReadError('records_changed_during_brief', { source: record.name })
-    } catch (error) { sourceReadComplete = false; failed(record.tags, error, record.name) }
+    } catch (error) { if (record.tags.some(tag => CORE.includes(tag))) sourceReadComplete = false; failed(record.tags, error, record.name) }
   }))
   const business = F.businessSummary({ sales, flows, customers }, errors.business, errors.settlement)
   const cash = F.cashSummary({ receipts: periodReceipts, intakes, customers }, errors.cash)
@@ -223,8 +253,30 @@ async function readBriefFinance(db, data, helpers, range, { version, summarizeOp
     domain.issues = domain.issues.map(row => row.source_id && !allowed.get(row.source_type)?.has(row.source_id)
       ? Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'source_id')) : row)
   const complete = [business, business.positive_settlement, cash, cash.evidence, cash.destinations, operations].every(row => row.complete)
+  const analysisMetadata = { read_started_at: started, read_completed_at: Date.now(),
+    issues: { sales: errors.analysis_sales, business: errors.analysis_business, cash: errors.analysis_cash } }
+  let analysisBundle
+  try { analysisBundle = A.buildAnalysis({ customers, sales: analysisSales, flows: analysisFlows, receipts: analysisReceipts, intakes: analysisIntakes }, helpers, analysisPlan, analysisMetadata) }
+  catch (error) {
+    // An analysis-only overflow or unexpected source shape cannot erase the
+    // independently computed current brief. A failed comparison is not zero.
+    const issues = [F.issue(error, allowed)]
+    analysisBundle = A.buildAnalysis({ customers: [], sales: [], flows: [], receipts: [], intakes: [] }, helpers, analysisPlan,
+      { ...analysisMetadata, issues: { sales: issues, business: issues, cash: issues } })
+  }
+  if (data.section === 'brief_sources') return A.sourcePage(analysisBundle, data)
+  if (expandedReadFailed && !primaryOnly) {
+    // An optional history window can exceed a limit, fail, or change even when
+    // the requested period is fully readable. Re-read that period and ALL of
+    // its finance dependencies once, with the original completeness checks.
+    // Keep the failed historical analysis explicit; never publish the empty
+    // historical buckets produced by the smaller fallback read as real zeros.
+    const currentResult = await readBriefFinance(db, data, helpers, range, { version, summarizeOperations, primaryOnly: true })
+    if (currentResult.code === 0 && currentResult.data) currentResult.data.analysis = analysisBundle.analysis
+    return currentResult
+  }
   return { code: 0, data: { section: 'brief', version, finance_version: F.VERSION, period: data.period || 'yesterday', range, money_scale: 3,
-    business, cash, operations, complete, read_complete: sourceReadComplete,
+    business, cash, operations, complete, read_complete: sourceReadComplete, analysis: analysisBundle.analysis,
     accounting: { complete, status: complete ? 'resolved' : 'unresolved' }, updated_at: Date.now(),
     read_started_at: started, read_completed_at: Date.now(), consistency: 'live_read_non_atomic', snapshot_consistent: false } }
 }

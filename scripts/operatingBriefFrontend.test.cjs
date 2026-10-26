@@ -72,21 +72,21 @@ function report(range) {
 	for (let time = Date.parse(`${range.start}T00:00:00Z`); time <= Date.parse(`${range.end}T00:00:00Z`); time += 86400000) {
 		rows.push({ date: new Date(time).toISOString().slice(0, 10), fill_bottle_count: 1, fill_bottle_weight: 3.123,
 			local_count: 0, local_weight: 0, vehicle_count: 2, vehicle_weight: 22.123,
-			sale_customer_count: 1, sale_bottle_count: 1, sale_weight: 3.123 })
+			sale_customer_count: 1, sale_bottle_count: 1, sale_weight: 3.123, other_count: 0, other_weight: 0 })
 	}
-	return { code: 0, data: { section: 'daily_report', version, range: { ...range }, complete: true, daily_report: { rows }, updated_at: 1792717200000 } }
+	return { code: 0, data: { section: 'daily_report', version, daily_version: 'operating-daily/2026-10-26.1', sale_ids: ['sale-1'], sale_weights: [{ source_id: 'sale-1', weight_kg: 3.123 * rows.length }], export_evidence: { complete: true, issues: [], issue_count: 0 }, source_token: 'fixture-token', range: { ...range }, complete: true, daily_report: { rows }, updated_at: 1792717200000 } }
 }
 function harness(options = {}) {
-	const calls = [], currents = [], tankLosses = [], reports = [], sales = [], timers = new Map()
+	const calls = [], currents = [], tankLosses = [], reports = [], sales = [], sources = [], timers = new Map()
 	const enqueue = list => query => { const request = { query, ...deferred() }; list.push(request); return request.promise }
 	const ctx = {
 		ref: vue.ref, computed: vue.computed, onBeforeUnmount() {},
-		getOperatingBriefV1: enqueue(calls), getOperatingCurrentV1: enqueue(currents), getOperatingTankLossV1: enqueue(tankLosses), getDashboardDailyReportV1: enqueue(reports), listSalesV2: enqueue(sales),
+		getOperatingSourcesV1: enqueue(sources), getOperatingBriefV1: enqueue(calls), getOperatingCurrentV1: enqueue(currents), getOperatingTankLossV1: enqueue(tankLosses), getDashboardDailyReportV1: enqueue(reports), listSalesV2: enqueue(sales),
 		Date, Number, Object, Array, Boolean, Set, Error,
 		setInterval: fn => { const id = Symbol(); timers.set(id, fn); return id }, clearInterval: id => timers.delete(id)
 	}
-	vm.runInNewContext(strip('src/services/mappers/operatingBrief.js') + '\n' + strip('src/composables/dashboard/useOperatingBrief.js') + '\nthis.api = { useOperatingBrief, operatingBriefDateRange, mapOperatingBrief, mapOperatingCurrent, mapOperatingTankLoss, tankLossPresentation, operatingReviewItems, mapDashboardDailyReport };', ctx)
-	return { ...ctx.api, state: ctx.api.useOperatingBrief(options), calls, currents, tankLosses, reports, sales, timers }
+	vm.runInNewContext(strip('src/services/mappers/operatingBrief.js') + '\n' + strip('src/composables/dashboard/useOperatingBrief.js') + '\nthis.api = { useOperatingBrief, operatingBriefDateRange, mapOperatingAnalysis, mapOperatingSources, mapOperatingBrief, mapOperatingCurrent, mapOperatingTankLoss, tankLossPresentation, operatingReviewItems, mapDashboardDailyReport };', ctx)
+	return { ...ctx.api, state: ctx.api.useOperatingBrief(options), calls, currents, tankLosses, reports, sales, sources, timers }
 }
 
 test('business dates use UTC+8 and this month stops at today', () => {
@@ -310,6 +310,13 @@ async function renderBrief(h, expanded = '', canView = () => true) {
 	const context = vm.createContext({ Vue: { ...vue, onMounted() {} }, onShow() {}, onHide() {},
 		useOperatingBrief: () => h.state, tankLossPresentation: h.tankLossPresentation, operatingReviewItems: h.operatingReviewItems,
 		AppButton: { setup(_, { slots }) { return () => vue.h('button', slots.default?.()) } } })
+	for (const name of ['OperatingBriefInsights', 'OperatingOutflowChart', 'OperatingBriefSources']) {
+		const child = compileScript(parse(fs.readFileSync(`src/components/domain/dashboard/${name}.vue`, 'utf8')).descriptor, { id: name, inlineTemplate: true, templateOptions: { compilerOptions: { isCustomElement: tag => ['view', 'text'].includes(tag) } } }).content
+			.replace(/^import \{([^}]+)\} from ["']vue["']/gm, (_, names) => `const {${names.replace(/\bas\b/g, ':')}} = Vue`)
+			.replace(/^import .*$/gm, '').replace('export default', 'globalThis.Child =')
+		const childContext = vm.createContext({ Vue: vue })
+		vm.runInContext(child, childContext); context[name] = childContext.Child
+	}
 	vm.runInContext(source, context)
 	const app = vue.createSSRApp(context.Component, { canView })
 	app.config.warnHandler = () => {}
@@ -625,13 +632,14 @@ test('successful export preserves server weights and changing range cancels olde
 	const output = h.state.prepareExport()
 	h.reports[1].resolve(report(h.reports[1].query)); await settle()
 	h.sales[0].resolve({ code: 0, data: [{ _id: 'sale-1', date: h.sales[0].query.dateStart, accounting: { complete: true, status: 'resolved' } }], paging: { page: 1, total: 1, hasMore: false } }); await settle()
+	h.reports[2].resolve(report(h.reports[2].query)); await settle()
 	const data = await output
 	assert.equal(data.summaryRows[0].vehicleWeightKg, 22.123)
 	assert.equal(data.salesRows.length, 1)
 	assert.equal(data.isCurrent(), true)
 	const old = h.state.prepareExport()
 	h.state.selectReportPreset('yesterday')
-	h.reports[2].resolve(report(h.reports[2].query)); await settle()
+	h.reports[3].resolve(report(h.reports[3].query)); await settle()
 	assert.equal(await old, null)
 	assert.equal(data.isCurrent(), false)
 	assert.equal(h.state.exportError.value, '')
@@ -667,4 +675,141 @@ test('uni-button keyboard activation handles Enter and Space, skips disabled/rep
 		assert.match(tag, /:?tabindex=/)
 		assert.match(tag, /@keydown="activateOnKey/)
 	}
+})
+
+
+async function analyzedBrief(period = 'yesterday', fixture = '') {
+	const { analysisFixture } = await import('../preview/mobile/dashboard.mjs')
+	const response = brief(period)
+	response.data.analysis = analysisFixture(response.data.range.today, period, fixture)
+	return response
+}
+
+test('analysis preserves signed quantities, true zero and gaps; rejects corrupted dates and contributions independently', async () => {
+	const h = harness(), response = await analyzedBrief('yesterday', 'trend-gap')
+	const mapped = h.mapOperatingBrief(response.data, 'yesterday')
+	assert.ok(mapped.analysis)
+	assert.equal(mapped.analysis.trend.points[2].value, -120)
+	assert.equal(mapped.analysis.trend.points[3].value, null)
+	const empty = h.mapOperatingBrief((await analyzedBrief('yesterday', 'empty')).data, 'yesterday')
+	assert.equal(empty.analysis.comparison.metrics.business_net.rate, null)
+	for (const corrupt of [
+		a => { a.trend.points[0].date = a.trend.points[1].date },
+		a => { a.trend.points[3].value = 0 },
+		a => { a.drivers.other_delta = 999 },
+		a => { a.comparison.metrics.business_net.rate = 999 }
+	]) {
+		const data = JSON.parse(JSON.stringify(response.data)); corrupt(data.analysis)
+		const result = h.mapOperatingBrief(data, 'yesterday')
+		assert.equal(result.analysis, null)
+		assert.match(result.analysis_error, /依据/)
+		assert.equal(result.business.net, response.data.business.net)
+	}
+})
+
+test('today and month start refuse whole-day comparisons; month end compares common complete days', async () => {
+	const { analysisFixture } = await import('../preview/mobile/dashboard.mjs'), h = harness()
+	for (const [today, period] of [['2026-10-26', 'today'], ['2026-11-01', 'month'], ['2028-03-31', 'month']]) {
+		const mapped = h.mapOperatingAnalysis(analysisFixture(today, period), today, period)
+		if (today === '2028-03-31') {
+			assert.equal(mapped.comparison.current_range.end, '2028-03-29')
+			assert.equal(mapped.comparison.baseline_range.end, '2028-02-29')
+		} else assert.equal(mapped.comparison.status, 'not_comparable')
+	}
+})
+
+test('source pages ignore old periods and reject changed or truncated evidence', async () => {
+	const h = harness(); h.state.setVisible(true)
+	h.calls[0].resolve(await analyzedBrief()); await settle()
+	const opened = h.state.openSources({ metric: 'business_net', scope: 'period' })
+	const query = h.sources[0].query
+	const page = { section: 'brief_sources', version: 'operating-analysis/2026-10-26.1', metric: query.metric, scope: query.scope, evidence_token: query.evidence_token, total: 1, next_cursor: null, items: [{ source_type: 'crm_sale_records', source_id: 's1', date: '2026-10-22' }] }
+	h.state.selectPeriod('today'); h.sources[0].resolve({ code: 0, data: page }); await opened
+	assert.equal(h.state.sources.value, null)
+	h.calls[1].resolve(await analyzedBrief('today')); await settle()
+	const next = h.state.openSources({ metric: 'business_net', scope: 'period' })
+	h.sources[1].resolve({ code: 409, msg: '来源记录已变化' }); await next
+	assert.equal(h.state.sources.value, null); assert.match(h.state.sourcesError.value, /已变化/)
+	h.state.dispose()
+})
+
+test('legacy daily classification remains readable but cannot certify an export', () => {
+	const h = harness(), range = { start: '2026-10-01', end: '2026-10-02' }, data = report(range).data
+	delete data.daily_version
+	const mapped = h.mapDashboardDailyReport(data, range)
+	assert.equal(mapped.rows[0].otherWeightKg, null)
+	h.state.report.value = mapped
+	assert.equal(h.state.reportCanExport.value, false)
+})
+
+test('export detects same-count source changes after reading detail', async () => {
+	const h = harness(); h.state.setVisible(true); h.state.toggleReport()
+	h.reports[0].resolve(report(h.reports[0].query)); await settle()
+	const pending = h.state.prepareExport()
+	h.reports[1].resolve(report(h.reports[1].query)); await settle()
+	h.sales[0].resolve({ code: 0, data: [{ _id: 'sale-1', date: h.sales[0].query.dateStart }], paging: { page: 1, total: 1, hasMore: false } }); await settle()
+	const changed = report(h.reports[2].query); changed.data.source_token = 'changed-in-place'
+	h.reports[2].resolve(changed); await settle()
+	assert.equal(await pending, null); assert.match(h.state.exportError.value, /原单已变化/)
+	h.state.dispose()
+})
+
+test('export excludes void unresolved rows before checking eligible accounting', async () => {
+	const h = harness(); h.state.setVisible(true); h.state.toggleReport()
+	h.reports[0].resolve(report(h.reports[0].query)); await settle()
+	const output = h.state.prepareExport()
+	h.reports[1].resolve(report(h.reports[1].query)); await settle()
+	const date = h.sales[0].query.dateStart
+	h.sales[0].resolve({ code: 0, data: [{ _id: 'sale-1', date }, { _id: 'void-legacy', date, status: 'void', accounting: { status: 'unresolved', complete: false } }], paging: { page: 1, total: 2, hasMore: false } }); await settle()
+	h.reports[2].resolve(report(h.reports[2].query)); await settle()
+	assert.equal((await output).salesRows.length, 1)
+	assert.equal(h.state.exportError.value, '')
+	h.state.dispose()
+})
+
+test('actual source reader survives frontend contract and rejects malformed source pages', async () => {
+	const { fixture, readAt } = require('./fixtures/operatingBriefAnalysis.runner.cjs')
+	const h = harness(), { result } = await readAt(fixture.collections)
+	const mapped = h.mapOperatingBrief(result.data, fixture.period)
+	assert.ok(mapped.analysis, mapped.analysis_error)
+	const query = { metric: 'business_net', scope: 'period', evidence_token: mapped.analysis.evidence.token, expected_range: result.data.range }
+	const { result: sources } = await readAt(fixture.collections, { section: 'brief_sources', ...query })
+	assert.equal(sources.code, 0)
+	assert.ok(h.mapOperatingSources(sources.data, query).items.length)
+	for (const corrupt of [
+		data => { data.range.start = '1999-01-01' },
+		data => { data.items[0].value = NaN },
+		data => { data.items[0].date = '1999-01-01' },
+		data => { data.next_cursor = '0' },
+		data => { data.read_complete = false }
+	]) {
+		const page = structuredClone(sources.data); corrupt(page)
+		assert.throws(() => h.mapOperatingSources(page, query))
+	}
+})
+
+test('refresh invalidates open evidence explicitly and cancels an in-flight source response', async () => {
+	const h = harness(); h.state.setVisible(true)
+	h.calls[0].resolve(await analyzedBrief()); await settle()
+	const opened = h.state.openSources({ metric: 'business_net' })
+	const refresh = h.state.refresh(), updated = await analyzedBrief()
+	updated.data.analysis.evidence.token = 'replacement-token'
+	h.calls[1].resolve(updated); await refresh
+	assert.ok(h.state.sourceQuery.value)
+	assert.match(h.state.sourcesError.value, /来源已变化/)
+	h.sources[0].resolve({ code: 0, data: {} }); await opened
+	assert.equal(h.state.sources.value, null)
+	assert.match(h.state.sourcesError.value, /来源已变化/)
+	h.state.dispose()
+})
+
+test('physical daily totals remain readable when monetary export evidence is unresolved', () => {
+	const h = harness(), range = { start: '2026-10-25', end: '2026-10-25' }, response = report(range)
+	response.data.export_evidence = { complete: false, issues: [{ code: 'missing_price', message: '原单缺少单价' }], issue_count: 1 }
+	h.state.report.value = h.mapDashboardDailyReport(response.data, range)
+	assert.equal(h.state.report.value.rows[0].saleWeightKg, 3.123)
+	assert.equal(h.state.reportCanExport.value, false)
+	const malformed = report(range).data
+	malformed.sale_weights[0].source_id = 'unrelated-sale'
+	assert.throws(() => h.mapDashboardDailyReport(malformed, range), /逐单净气量/)
 })

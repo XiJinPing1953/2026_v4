@@ -39,8 +39,7 @@ test('real dashboard handler separates billed business, formal cash, refunds and
 			{ _id: 'b', date: today, bottle_no: '12', fill_weight: 123.456 },
 			{ _id: 'local', date: today, bottle_no: '000', fill_weight: 50 },
 			{ _id: 'vehicle', date: today, bottle_no: '000', record_type: 'truck_out_no_sale', fill_weight: 20 },
-			{ _id: 'vehicle2', date: today, bottle_no: '000', record_type: 'truck_out_no_sale', fill_weight: 30 },
-			{ _id: 'negative', date: today, record_type: 'truck_out_no_sale', fill_weight: -10 }
+			{ _id: 'vehicle2', date: today, bottle_no: '000', record_type: 'truck_out_no_sale', fill_weight: 30 }
 		]
 	})
 	tables.crm_sale_records.push(saleDoc({ _id: 'flow-delivery', settlement_mode: 'customer_flow', date: today, out_items: [{ net: 5 }] }))
@@ -191,4 +190,27 @@ test('empty successful reads are real zero while invalid ranges and unsigned use
 	assert.equal(result.data.operations.vehicle_count, 0)
 	assert.equal((await run(db, { period: 'lastyear' })).code, 400)
 	assert.equal((await handler({ action: 'summaryV1', data: { section: 'brief' } }, {})).code, 401)
+})
+
+
+test('negative filling weights invalidate physical totals instead of being silently dropped', async () => {
+	const result = await run(makeDb(setup({ crm_fillings: [{ _id: 'negative', date: today, record_type: 'truck_out_no_sale', fill_weight: -10 }] })))
+	assert.equal(result.data.operations.complete, false)
+	assert.equal(result.data.operations.recorded_outflow_kg, null)
+	assert.equal(result.data.business.complete, true)
+})
+
+test('daily reports share eligible sales and four outflow channels with the homepage', async () => {
+	const tables = setup({ crm_fillings: [{ _id: 'truck', date: today, bottle_no: 'TRUCK-1', fill_weight: 12.345 }] })
+	tables.crm_sale_records.push(saleDoc({ _id: 'void-sale', date: today, status: 'void', settlement_mode: 'sale' }))
+	const brief = await run(makeDb(tables))
+	const report = await run(makeDb(tables), { section: 'daily_report', date_start: today, date_end: today })
+	assert.equal(report.code, 0)
+	const row = report.data.daily_report.rows[0]
+	assert.equal(row.sale_weight, brief.data.operations.sale_weight_kg)
+	assert.equal(row.other_weight, 12.345)
+	assert.equal(row.fill_bottle_weight, 0)
+	assert.equal(row.fill_total_weight, brief.data.operations.recorded_outflow_kg)
+	assert.equal(report.data.sale_ids.includes('void-sale'), false)
+	assert.match(report.data.source_token, /^[a-f0-9]{64}$/)
 })

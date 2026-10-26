@@ -5,10 +5,11 @@ const { computeSaleSnapshot, computeFlowSettlementSnapshot, computeOpeningDebtSn
   resolveCustomerMoneyScale, resolveOpeningDebtMoneyScale } = require('./customerBalanceLocal').createCustomerBalance(require('./saleAccountingLocal'))
 const { isOffsetCreditReceipt, isDepositTransferReceipt, isSettlementFeeReceipt } = require('./receiptSourceLocal')
 const { validateSale } = require('./saleSourceValidation')
+const finance = require('./operatingBriefFinance')
 const VERSION = 'operating-brief/2026-10-23.1'
 const CURRENT_VERSION = 'operating-brief-current/2026-10-24.1'
 const TABLES = { customers: 'crm_customers', sales: 'crm_sale_records', flows: 'crm_customer_flow_settlements',
-  debts: 'crm_customer_opening_debts', receipts: 'crm_customer_receipts', intakes: 'crm_cashier_intakes' }
+  debts: 'crm_customer_opening_debts', receipts: 'crm_customer_receipts', intakes: 'crm_cashier_intakes', allocations: 'crm_customer_allocations' }
 const text = value => String(value ?? '').trim()
 const sourceForRow = new WeakMap()
 const DEBT_KINDS = ['customers', 'sales', 'flows', 'debts']
@@ -20,7 +21,14 @@ function unresolved(reason, row, details = {}) {
     receipt_operation_pending: '收款调整尚未完成，请进入客户对账继续处理',
     refund_backing_mismatch: '退款记录与原收款的已退金额对不上，请核对退款来源',
     invalid_source_precision: '原单金额精度与结算规则不一致，请核对来源',
-    fund_source_scope_unresolved: '收款关联来源或客户归属待核，暂不能划分已核实范围'
+    fund_source_scope_unresolved: '收款关联来源或客户归属待核，暂不能划分已核实范围',
+    allocation_chain_scope_unresolved: '分配关联来源或客户归属待核，暂不能划分已核实范围',
+    allocation_chain_invalid: '分配记录的类型、状态或引用字段待核',
+    allocation_chain_target_invalid: '分配目标已作废、类型不符或金额待核',
+    allocation_chain_receipt_invalid: '分配的来源收款已作废、调整未完成或金额不守恒',
+    allocation_chain_exceeds_target: '分配明细超过原单的已抵货款或收款抹零',
+    allocation_chain_receipt_mismatch: '收款已分配金额与完整分配明细不一致',
+    allocation_chain_legacy_backing: '历史内嵌款缺少完整分配背书，余额沿原单规则核算，分配链仍待核'
   })[reason] || '部分账务记录需核对，暂不能汇总'
   throw error
 }
@@ -244,7 +252,7 @@ function summarizeFunds(inputs, scope, collect) {
 // A damaged unrelated prepayment must not hide otherwise complete settlement
 // reminders. Follow every connected source/refund/head of settlement receipts,
 // while retaining the same conservation and ownership checks as available funds.
-function pendingInputs(inputs) {
+function pendingInputs(inputs, receiptIds = null) {
   const heads = new Map(), receipts = new Map(), headsByReceipt = new Map(), receiptsByHead = new Map(), refundsBySource = new Map()
   const link = (map, key, value) => { if (!key) return; if (!map.has(key)) map.set(key, []); map.get(key).push(value) }
   const queue = [], selectedHeads = new Set(), selectedReceipts = new Set()
@@ -255,10 +263,10 @@ function pendingInputs(inputs) {
     selected.add(id); queue.push([kind, id])
   }
   for (const row of inputs.intakes) {
-    if (!active(row, 'intakes')) continue
-    if (!['prepay', 'settlement', 'unspecified'].includes(row.purpose)) unresolved('intake_purpose_missing', row, { field: 'purpose' })
+    if (receiptIds ? row.status === 'void' : !active(row, 'intakes')) continue
+    if (!receiptIds && !['prepay', 'settlement', 'unspecified'].includes(row.purpose)) unresolved('intake_purpose_missing', row, { field: 'purpose' })
     heads.set(row._id, row); link(headsByReceipt, text(row.receipt_id), row._id)
-    if (row.purpose === 'settlement') enqueue('head', row._id)
+    if (!receiptIds && row.purpose === 'settlement') enqueue('head', row._id)
   }
   for (const row of inputs.receipts) {
     if (row.status === 'void') continue
@@ -268,6 +276,7 @@ function pendingInputs(inputs) {
     if (Array.isArray(row.refund_sources)) for (const source of row.refund_sources) link(refundsBySource, text(source?.id), row._id)
     link(refundsBySource, text(row.offset_source_receipt_id), row._id)
   }
+  if (receiptIds) for (const id of receiptIds) enqueue('receipt', id)
   for (let cursor = 0; cursor < queue.length; cursor++) {
     const [kind, id] = queue[cursor]
     if (kind === 'head') {
@@ -363,7 +372,120 @@ function validateFundsScope(inputs) {
   }
   for (const row of heads.values()) reference(row, row.receipt_id, receipts, 'receipt_id')
 }
-function customerDomain(inputs, scope, kinds, kind) {
+// This is a current relation check, not a reconstruction of historical cash
+// dates. Historical embedded amounts retain their established balance meaning;
+// missing backing is reported separately from a demonstrated contradiction.
+function allocationChain(inputs, scope) {
+  const maps = Object.fromEntries(['sales', 'flows', 'debts', 'receipts'].map(kind =>
+    [kind, new Map((inputs[kind] || []).map(row => [text(row._id), row]))]))
+  const conflicts = new Map(), legacy = [], targets = new Map(), receipts = new Map(), activeRows = []
+  const retain = (error, row) => {
+    const id = text(row.customer_id)
+    if (!conflicts.has(id)) conflicts.set(id, [])
+    conflicts.get(id).push({ error, row })
+  }
+  const warn = row => {
+    try { unresolved('allocation_chain_legacy_backing', row) }
+    catch (error) { legacy.push({ error, row }) }
+  }
+  // Resolve ownership before per-customer isolation. A cross-customer or
+  // missing reference cannot be silently assigned to the referring customer.
+  for (const row of inputs.allocations || []) {
+    if (row.status === 'void') continue
+    scope.owner(row)
+    let ref
+    try { ref = finance.targetRef(row) }
+    catch (_) {
+      try { unresolved('allocation_chain_invalid', row) } catch (error) { retain(error, row) }
+      continue
+    }
+    const target = maps[ref.kind].get(ref.id), receipt = maps.receipts.get(text(row.receipt_id))
+    if (!target || !receipt || text(target.customer_id) !== text(row.customer_id) ||
+        text(receipt.customer_id) !== text(row.customer_id)) unresolved('allocation_chain_scope_unresolved', row)
+    scope.owner(target, ref.kind === 'sales'); scope.owner(receipt)
+    activeRows.push({ row, ref, target, receipt })
+  }
+  for (const { row, ref, target, receipt } of activeRows) {
+    try {
+      if (row.status && row.status !== 'posted') unresolved('allocation_chain_invalid', row, { field: 'status' })
+      const kind = text(row.allocate_kind) || 'receipt'
+      if (!['receipt', 'rounding'].includes(kind)) unresolved('allocation_chain_invalid', row, { field: 'allocate_kind' })
+      const amount = units(row.allocate_amount, row, 'allocate_amount')
+      if (!amount) unresolved('allocation_chain_invalid', row, { field: 'allocate_amount' })
+      if (!active(target, ref.kind)) unresolved('allocation_chain_target_invalid', row)
+      const debtType = target.source_type === 'balance_adjustment' ? 'balance_adjustment' :
+        text(target.source_type).toLowerCase().includes('other_fee') ? 'other_fee' : 'opening_debt'
+      if (ref.kind === 'debts' && debtType !== ref.type) unresolved('allocation_chain_target_invalid', row, { field: 'target_type' })
+      if (!active(receipt, 'receipts') || receipt.receipt_adjustment_status === 'pending' || receipt.refund_source_status === 'pending')
+        unresolved('allocation_chain_receipt_invalid', row)
+      if (text(row.receipt_source_type) && text(row.receipt_source_type) !== text(receipt.source_type) ||
+          (text(row.receipt_source_type) || text(row.receipt_entry_kind)) &&
+          isOffsetCreditReceipt({ source_type: row.receipt_source_type, entry_kind: row.receipt_entry_kind }) !== isOffsetCreditReceipt(receipt))
+        unresolved('allocation_chain_invalid', row, { field: 'receipt_source_type' })
+      const principal = units(receipt.amount, receipt, 'amount'), allocated = units(receipt.allocated_amount, receipt, 'allocated_amount')
+      const remaining = units(receipt.unallocated_amount, receipt, 'unallocated_amount')
+      const cashRefund = units(receipt.cash_refunded_amount, receipt, 'cash_refunded_amount', { optional: true })
+      const offsetRefund = units(receipt.offset_cash_refunded_amount, receipt, 'offset_cash_refunded_amount', { optional: true })
+      const rounding = units(receipt.rounding_allocated_amount, receipt, 'rounding_allocated_amount', { optional: true })
+      if (isOffsetCreditReceipt(receipt) ? cashRefund || principal !== add(add(allocated, remaining), add(rounding, offsetRefund)) :
+        offsetRefund || principal !== add(add(allocated, remaining), cashRefund)) unresolved('allocation_chain_receipt_invalid', row)
+      const targetKey = `${ref.kind}:${ref.id}`
+      if (!targets.has(targetKey)) targets.set(targetKey, { row: target, receipt: 0, rounding: 0 })
+      if (!receipts.has(receipt._id)) receipts.set(receipt._id, { row: receipt, receipt: 0, rounding: 0 })
+      targets.get(targetKey)[kind] = add(targets.get(targetKey)[kind], amount)
+      receipts.get(receipt._id)[kind] = add(receipts.get(receipt._id)[kind], amount)
+    } catch (error) { retain(error, row) }
+  }
+  for (const [kind, records] of Object.entries(maps)) for (const row of records.values()) {
+    if (row.status === 'void') continue
+    try {
+      if (kind === 'receipts') {
+        const known = receipts.get(row._id)
+        const allocated = units(row.allocated_amount, row, 'allocated_amount')
+        const rounding = units(row.rounding_allocated_amount, row, 'rounding_allocated_amount', { optional: true })
+        // A legacy counter without any ledger rows is not evidence of a
+        // contradiction. Once a ledger exists, its complete sum must agree.
+        if (known && (known.receipt !== allocated || known.rounding !== rounding)) unresolved('allocation_chain_receipt_mismatch', row)
+        else if (!known && (allocated || rounding)) warn(row)
+      } else {
+        const known = targets.get(`${kind}:${row._id}`) || { receipt: 0, rounding: 0 }
+        const received = units(row.amount_received, row, 'amount_received', { signed: true })
+        const rounding = units(row.receipt_rounding_amount, row, 'receipt_rounding_amount', { optional: true })
+        if (known.receipt > Math.max(received, 0) || known.rounding > rounding) unresolved('allocation_chain_exceeds_target', row)
+        if (received !== known.receipt || rounding !== known.rounding) warn(row)
+      }
+    } catch (error) {
+      // Existing domain validation owns malformed unrelated snapshots. Only a
+      // proven relation conflict changes both debt and available-funds scopes.
+      if (['allocation_chain_receipt_mismatch', 'allocation_chain_exceeds_target'].includes(error.details?.reason)) retain(error, row)
+    }
+  }
+  if (receipts.size) {
+    // Only follow funding connected to an actual allocation. An unrelated bad
+    // prepayment must not invalidate an otherwise backed debt calculation.
+    const linked = pendingInputs(inputs, [...receipts.keys()])
+    validateFundsScope(linked)
+    summarizeFunds(linked, scope, retain)
+    const heads = new Set(linked.intakes.map(row => row._id))
+    for (const { row } of receipts.values()) if (row.source_type === 'cashier_intake' &&
+      !heads.has(text(row.intake_id || row.source_id))) warn(row)
+  }
+  return { conflicts, legacy, allocation_count: (inputs.allocations || []).filter(row => row.status !== 'void').length }
+}
+function chainEvidence(chain, scope, states, blocked = []) {
+  const entries = [...(chain?.legacy || []), ...[...(chain?.conflicts.values() || [])].flat()]
+  const issues = [...new Map([...entries.map(({ error, row }) => reviewIssue(error, row, scope)),
+    ...states.flatMap(state => state.issues), ...blocked].map(row => [`${row.source}:${row.source_id}:${row.reason}`, row])).values()]
+  const scoped = !!scope && !blocked.length && states.every(state => state.coverage.complete) && issues.every(row => row.customer_id)
+  const pending = new Set(issues.map(row => row.customer_id)), verified = scoped ? scope.count - pending.size : null
+  return { status: !issues.length && scoped ? 'available' : scoped && verified > 0 ? 'partial' : 'unavailable',
+    complete: !issues.length && scoped, coverage: { complete: scoped, total_customers: scoped ? scope.count : null,
+      verified_customers: verified, pending_customers: scoped ? pending.size : null },
+    allocation_count: chain?.allocation_count ?? null, legacy_source_count: chain ? new Set(chain.legacy.map(({ row }) => `${sourceForRow.get(row)}:${row._id}`)).size : null,
+    issues: issues.slice(0, 20), issue_count: issues.length, issues_complete: scoped && issues.length <= 20,
+    scope_label: 'CRM当前分配关系；历史内嵌款缺少独立背书时单列待核', external_verified: false }
+}
+function customerDomain(inputs, scope, kinds, kind, chain) {
   const groups = partitionCustomers(inputs, scope, kinds)
   if (kind === 'funds') validateFundsScope(inputs)
   const issues = [], verified = new Map()
@@ -380,6 +502,7 @@ function customerDomain(inputs, scope, kinds, kind) {
       if (!customerIssues.has(key)) customerIssues.set(key, evidence)
     }
     const value = kind === 'debt' ? summarizeDebt(group, scope, collect) : summarizeFunds(group, scope, collect)
+    for (const { error, row } of chain?.conflicts.get(customerId) || []) collect(error, row)
     if (customerIssues.size) issues.push(...customerIssues.values())
     else verified.set(customerId, value)
   }
@@ -426,7 +549,7 @@ async function readCurrentBrief(db, { now = Date.now() } = {}) {
     const hidden = inputs.customers.filter(row => row.is_hidden === true).map(row => row._id)
     const where = hidden.length ? { customer_id: command.nin(hidden) } : {}
     const saleWhere = hidden.length ? command.and([where, { delivery_customer_id: command.nin(hidden) }]) : where
-    const kinds = ['sales', 'flows', 'debts', 'receipts', 'intakes']
+    const kinds = ['sales', 'flows', 'debts', 'receipts', 'intakes', 'allocations']
     for (let i = 0; i < kinds.length; i += 3) await Promise.all(kinds.slice(i, i + 3).map(kind => read(kind, kind === 'sales' ? saleWhere : where)))
   }
   // Count and mutation checks span the entire request, independently per source.
@@ -467,21 +590,35 @@ async function readCurrentBrief(db, { now = Date.now() } = {}) {
     const row = inputs[kind]?.find(row => row._id === value.source_id)
     return enrichIssue(value, row, diagnosticScope)
   }
+  const hasAllocations = (inputs.allocations || []).some(row => row.status !== 'void')
+  const chainKinds = hasAllocations ? ['allocations', 'sales', 'flows', 'debts', 'receipts', 'intakes'] : ['allocations']
+  const chainBlocked = [...new Set(['customers', ...chainKinds])].filter(kind => failures.has(kind)).map(kind => diagnostic(failures.get(kind)))
+  let chain
+  if (!chainBlocked.length) {
+    try { chain = allocationChain(inputs, scope) }
+    catch (error) { chainBlocked.push(diagnostic(issue(error))) }
+  }
   function scopedDomain(kinds, kind) {
-    const issues = kinds.filter(source => failures.has(source)).map(source => diagnostic(failures.get(source)))
+    const issues = [...kinds.filter(source => failures.has(source)).map(source => diagnostic(failures.get(source))), ...chainBlocked]
     if (issues.length) return blockedCustomerDomain(issues)
-    try { return customerDomain(inputs, scope, kinds, kind) }
+    try { return customerDomain(inputs, scope, kinds, kind, chain) }
     catch (error) { return blockedCustomerDomain([diagnostic(issue(error))]) }
   }
   const debt = scopedDomain(DEBT_KINDS, 'debt')
   const funds = scopedDomain(FUNDS_KINDS, 'funds')
-  const pending = domain(FUNDS_KINDS, () => summarizeFunds(pendingInputs(inputs), scope).pending)
+  const pending = domain([...FUNDS_KINDS, ...chainKinds], () => {
+    if (chainBlocked.length) throw new FinancialReadError('allocation_chain_scope_unresolved', chainBlocked[0])
+    const selected = pendingInputs(inputs), owners = new Set(selected.receipts.map(row => text(row.customer_id)))
+    for (const id of owners) if (chain?.conflicts.has(id)) throw chain.conflicts.get(id)[0].error
+    return summarizeFunds(selected, scope).pending
+  })
   const complete = debt.state.complete && funds.state.complete && pending.state.complete
   return { section: 'current', version: VERSION, current_version: CURRENT_VERSION, money_scale: 3,
     current: { receivable: debt.value?.receivable ?? null, prepay: funds.value?.prepay ?? null,
       offset_credit: funds.value?.offset_credit ?? null, prepay_sources: funds.value?.prepay_sources ?? null,
       prepay_label: '可用款（不含退气抵款）', customer_count: scope?.count ?? null,
       complete: debt.state.complete && funds.state.complete, debt: debt.state, available_funds: funds.state,
+      chain_evidence: chainEvidence(chain, scope, [debt.state, funds.state], chainBlocked),
       debt_ranking: { ...(debt.state.complete ? available() : unavailable(debt.state.issues)),
         ...(debt.value?.ranking || { total_receivable: null, positive_customer_count: null, items: [] }) } },
     pending: { ...pending.state, count: pending.value?.count ?? null, amount: pending.value?.amount ?? null },

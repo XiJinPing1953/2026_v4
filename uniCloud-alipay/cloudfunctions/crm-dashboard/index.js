@@ -407,9 +407,28 @@ async function quickStatusV1() {
 async function summaryV1(user, data, requestId) {
 	if (data.section === 'quick') return quickStatusV1()
 	if (data.section === 'tank_loss') return require('./tankLoss').readTankLoss(db, data)
-	if (data.section === 'brief' || data.section === 'daily_report') {
+	if (data.section === 'brief_sources') {
+		const sourcePages = {
+			sale_weight_kg: ['/pages/sale/list'], customer_count: ['/pages/sale/list'],
+			business_net: ['/pages/sale/list', '/pages/customer/statement'], cash_net: ['/pages/cashier/receipt-intake']
+		}
+		if (!Object.prototype.hasOwnProperty.call(sourcePages, data.metric)) return { code: 400, msg: '不支持的来源指标' }
+		// ensureActionAcl accepts OR rules. This compound source view requires
+		// every contributing source permission, so check them individually.
+		for (const pagePath of sourcePages[data.metric]) {
+			const sourceAcl = await ensureActionAcl(user, 'briefSources', {
+				briefSources: [{ pagePath, action: 'view' }]
+			}, [], { recordLog, requestId, cloudFunction: 'crm-dashboard' })
+			if (!sourceAcl.ok) return { code: sourceAcl.code, msg: sourceAcl.msg }
+		}
+	}
+	if (data.section === 'brief' || data.section === 'daily_report' || data.section === 'brief_sources') {
+		const customerAnalysisAcl = await ensureActionAcl(user, 'analysisCustomers', {
+			analysisCustomers: [{ pagePath: '/pages/customer/list', action: 'view' }]
+		})
 		return require('./operatingBrief').readOperatingBrief(db, data, {
-			computeSaleAmount, computeSaleWeight, computeSaleBottleCount, detectGasFlowMode, buildCustomerKey
+			computeSaleAmount, computeSaleWeight, computeSaleBottleCount, detectGasFlowMode, buildCustomerKey,
+			canReadCustomerAnalysis: customerAnalysisAcl.ok
 		})
 	}
 	if (data.section === 'current') {

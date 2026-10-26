@@ -1,6 +1,6 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { getOperatingBriefV1, getOperatingCurrentV1, getOperatingTankLossV1, getDashboardDailyReportV1 } from '@/services/api/dashboard'
-import { mapOperatingBrief, mapOperatingCurrent, mapOperatingTankLoss, mapDashboardDailyReport } from '@/services/mappers/operatingBrief'
+import { getOperatingBriefV1, getOperatingCurrentV1, getOperatingTankLossV1, getDashboardDailyReportV1, getOperatingSourcesV1 } from '@/services/api/dashboard'
+import { mapOperatingBrief, mapOperatingCurrent, mapOperatingTankLoss, mapDashboardDailyReport, mapOperatingSources } from '@/services/mappers/operatingBrief'
 import { listSalesV2 } from '@/services/sale'
 
 export function operatingBriefDateRange(preset, now = Date.now()) {
@@ -29,6 +29,7 @@ export function useOperatingBrief(options = {}) {
 	const fetchTankLoss = options.fetchTankLoss || getOperatingTankLossV1
 	const canReadCurrent = options.canReadCurrent || (() => true)
 	const fetchSales = options.fetchSales || listSalesV2
+	const fetchSources = options.fetchSources || getOperatingSourcesV1
 	const period = ref('yesterday')
 	const result = ref(null)
 	const loading = ref(false)
@@ -51,6 +52,11 @@ export function useOperatingBrief(options = {}) {
 	const reportStale = ref(false)
 	const exporting = ref(false)
 	const exportError = ref('')
+	const sources = ref(null)
+	const sourceQuery = ref(null)
+	const sourcesLoading = ref(false)
+	const sourcesError = ref('')
+	let sourceRevision = 0
 	let visible = false
 	let disposed = false
 	let timer = null
@@ -60,7 +66,7 @@ export function useOperatingBrief(options = {}) {
 	let reportRevision = 0
 	let exportRevision = 0
 
-	const reportCanExport = computed(() => Boolean(report.value?.complete && !reportLoading.value && !reportError.value && !reportStale.value && !exporting.value))
+	const reportCanExport = computed(() => Boolean(report.value?.complete && report.value?.classificationComplete && report.value?.exportEvidence?.complete && !reportLoading.value && !reportError.value && !reportStale.value && !exporting.value))
 	function clearTimer() {
 		if (timer != null) clearInterval(timer)
 		timer = null
@@ -75,7 +81,13 @@ export function useOperatingBrief(options = {}) {
 			const response = await fetchBrief(selected)
 			if (current !== revision || !visible || disposed) return
 			if (response?.code !== 0) throw new Error(response?.msg || '经营简报读取失败')
-			result.value = mapOperatingBrief(response.data, selected)
+			const mapped = mapOperatingBrief(response.data, selected)
+			if (sourceQuery.value && sourceQuery.value.evidence_token !== mapped.analysis?.evidence?.token) {
+				sourceRevision += 1
+				sources.value = null; sourcesLoading.value = false
+				sourcesError.value = '简报来源已变化，请重新打开原单依据。'
+			}
+			result.value = mapped
 			stale.value = false
 		} catch (err) {
 			if (current !== revision || !visible || disposed) return
@@ -88,6 +100,7 @@ export function useOperatingBrief(options = {}) {
 	function selectPeriod(value) {
 		if (!['yesterday', 'today', 'month'].includes(value) || value === period.value) return
 		period.value = value
+		closeSources()
 		result.value = null
 		error.value = ''
 		stale.value = false
@@ -142,6 +155,49 @@ export function useOperatingBrief(options = {}) {
 		refreshCurrent()
 		if (reportOpen.value) refreshReport()
 	}
+	function closeSources() {
+		sourceRevision += 1
+		sources.value = null; sourceQuery.value = null; sourcesError.value = ''; sourcesLoading.value = false
+	}
+	async function readSources(query, append) {
+		if (!visible || disposed || sourcesLoading.value) return
+		const request = ++sourceRevision
+		sourcesLoading.value = true; sourcesError.value = ''
+		try {
+			const response = await fetchSources(query)
+			if (request !== sourceRevision || !visible || disposed) return
+			if (response?.code !== 0) throw new Error(response?.msg || '来源读取失败')
+			const mapped = mapOperatingSources(response.data, query)
+			if (append) {
+				const previous = sources.value
+				if (!previous || previous.total !== mapped.total) throw new Error('来源数量已变化，请刷新简报')
+				const keys = new Set(previous.items.map(row => `${row.source_type}:${row.source_id}`))
+				if (mapped.items.some(row => keys.has(`${row.source_type}:${row.source_id}`))) throw new Error('来源分页重复，请刷新简报')
+				mapped.items = [...previous.items, ...mapped.items]
+			}
+			if (mapped.items.length > mapped.total || mapped.next_cursor === null && mapped.items.length !== mapped.total) throw new Error('来源分页未完整返回，请刷新简报')
+			sources.value = mapped
+		} catch (err) {
+			if (request === sourceRevision && visible && !disposed) { sources.value = null; sourcesError.value = err?.message || '来源读取失败' }
+		} finally { if (request === sourceRevision) sourcesLoading.value = false }
+	}
+	function openSources(selection) {
+		closeSources()
+		const token = result.value?.analysis?.evidence?.token
+		if (!token || stale.value) return
+		const analysis = result.value.analysis
+		const scope = selection.scope || 'period'
+		const range = scope === 'period' ? result.value.range : scope === 'trend'
+			? selection.date ? { start: selection.date, end: selection.date } : analysis.trend.range
+			: analysis.comparison[`${scope}_range`]
+		if (!range) return
+		sourceQuery.value = { ...selection, scope, period: period.value, evidence_token: token, expected_range: { start: range.start, end: range.end } }
+		return readSources(sourceQuery.value, false)
+	}
+	function moreSources() {
+		if (!sources.value?.next_cursor || !sourceQuery.value) return
+		return readSources({ ...sourceQuery.value, cursor: sources.value.next_cursor }, true)
+	}
 	async function refreshReport() {
 		if (!visible || disposed || !reportOpen.value) return
 		const range = operatingBriefDateRange(reportPreset.value)
@@ -192,6 +248,10 @@ export function useOperatingBrief(options = {}) {
 			if (!isCurrent()) return null
 			if (response?.code !== 0) throw new Error(response?.msg || '日报导出读取失败')
 			const completeReport = mapDashboardDailyReport(response.data, range)
+			if (!completeReport.classificationComplete) throw new Error('日报仍使用旧分类，请更新服务后导出')
+			if (!completeReport.exportEvidence?.complete) throw new Error(completeReport.exportEvidence?.issues?.[0]?.message || '日报导出账务依据未完成，请核实后重试')
+			const eligibleIds = new Set(completeReport.saleIds)
+			const saleWeights = new Map(completeReport.saleWeights.map(row => [row.source_id, row.weight_kg]))
 			const salesRows = []
 			const ids = new Set()
 			let expectedTotal = null
@@ -210,15 +270,20 @@ export function useOperatingBrief(options = {}) {
 					if (!id || ids.has(id)) throw new Error('销售明细分页不完整，请重新导出')
 					const date = row?.date
 					if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date < range.start || date > range.end) throw new Error('销售明细超出日期范围，请重新导出')
-					if (row.accounting?.status === 'unresolved' || row.accounting?.complete === false) throw new Error('销售明细含待核账务，核实后才能导出')
+					if (eligibleIds.has(id) && (row.accounting?.status === 'unresolved' || row.accounting?.complete === false)) throw new Error('销售明细含待核账务，核实后才能导出')
 					ids.add(id)
-					salesRows.push(row)
+					if (eligibleIds.has(id)) salesRows.push({ ...row, operating_weight_kg: saleWeights.get(id) })
 				}
 				if (!paging.hasMore) break
 				if (!sales.data.length) throw new Error('销售明细分页未完成，请重新导出')
 				page += 1
 			}
-			if (salesRows.length !== expectedTotal) throw new Error('销售明细读取未完成，请重新导出')
+			if (ids.size !== expectedTotal || salesRows.length !== eligibleIds.size) throw new Error('销售明细读取未完成，请重新导出')
+			const after = await fetchReport(range)
+			if (!isCurrent()) return null
+			if (after?.code !== 0) throw new Error(after?.msg || '导出来源无法再次确认')
+			const verified = mapDashboardDailyReport(after.data, range)
+			if (verified.sourceToken !== completeReport.sourceToken) throw new Error('导出期间原单已变化，请重新导出')
 			return { summaryRows: completeReport.rows, salesRows, range, isCurrent }
 		} catch (err) {
 			if (isCurrent()) exportError.value = err?.message || '导出失败'
@@ -233,6 +298,7 @@ export function useOperatingBrief(options = {}) {
 		visible = next
 		clearTimer()
 		if (!visible) {
+			closeSources()
 			revision += 1
 			currentRevision += 1
 			tankLossRevision += 1
@@ -264,6 +330,7 @@ export function useOperatingBrief(options = {}) {
 	}
 	onBeforeUnmount(dispose)
 	return {
+		sources, sourceQuery, sourcesLoading, sourcesError, openSources, closeSources, moreSources,
 		period, result, loading, error, stale, refresh, selectPeriod, setVisible, dispose,
 		current, currentLoading, currentError, currentStale, refreshCurrent, refreshAll,
 		tankLoss, tankLossLoading, tankLossError, tankLossStale, refreshTankLoss,

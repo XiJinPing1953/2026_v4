@@ -1,0 +1,478 @@
+{
+  "description": "完全合成、脱敏的原始集合；不是生产数据，不预填计算结果。",
+  "now": "2026-10-26T04:00:00.000Z",
+  "period": "yesterday",
+  "collections": {
+    "crm_customers": [
+      {
+        "_id": "a",
+        "name": "示例客户A",
+        "qr_code": "DEMO-A",
+        "default_price_unit": "kg"
+      },
+      {
+        "_id": "b",
+        "name": "示例客户B",
+        "qr_code": "DEMO-B",
+        "default_price_unit": "kg"
+      },
+      {
+        "_id": "c",
+        "name": "示例客户C",
+        "qr_code": "DEMO-C",
+        "default_price_unit": "kg"
+      },
+      {
+        "_id": "d",
+        "name": "示例客户D",
+        "qr_code": "DEMO-D",
+        "default_price_unit": "kg"
+      },
+      {
+        "_id": "e",
+        "name": "示例客户E",
+        "qr_code": "DEMO-E",
+        "default_price_unit": "kg"
+      },
+      {
+        "_id": "hidden",
+        "name": "不可见示例",
+        "is_hidden": true
+      }
+    ],
+    "crm_sale_records": [
+      {
+        "_id": "s20",
+        "customer_id": "a",
+        "customer_name": "示例客户A",
+        "date": "2026-10-20",
+        "biz_mode": "bottle",
+        "price_unit": "kg",
+        "settlement_mode": "sale",
+        "unit_price": 10,
+        "out_items": [
+          {
+            "bottle_no": "s20",
+            "net": 3
+          }
+        ],
+        "back_items": [],
+        "amount_received": 0,
+        "rounding_amount": 0,
+        "receipt_rounding_amount": 0,
+        "created_at": 1,
+        "updated_at": 1
+      },
+      {
+        "_id": "void21",
+        "customer_id": "a",
+        "customer_name": "示例客户A",
+        "date": "2026-10-21",
+        "biz_mode": "bottle",
+        "price_unit": "kg",
+        "settlement_mode": "sale",
+        "unit_price": 10,
+        "out_items": [
+          {
+            "bottle_no": "void21",
+            "net": 100
+          }
+        ],
+        "back_items": [],
+        "amount_received": 0,
+        "rounding_amount": 0,
+        "receipt_rounding_amount": 0,
+        "created_at": 1,
+        "updated_at": 1,
+        "status": "void"
+      },
+      {
+        "_id": "hidden22",
+        "customer_id": "hidden",
+        "customer_name": "示例客户HIDDEN",
+        "date": "2026-10-22",
+        "biz_mode": "bottle",
+        "price_unit": "kg",
+        "settlement_mode": "sale",
+        "unit_price": 10,
+        "out_items": [
+          {
+            "bottle_no": "hidden22",
+            "net": 100
+          }
+        ],
+        "back_items": [],
+        "amount_received": 0,
+        "rounding_amount": 0,
+        "receipt_rounding_amount": 0,
+        "created_at": 1,
+        "updated_at": 1
+      },
+      {
+        "_id": "delivery23",
+        "customer_id": "a",
+        "customer_name": "示例客户A",
+        "date": "2026-10-23",
+        "biz_mode": "bottle",
+        "price_unit": "kg",
+        "settlement_mode": "customer_flow",
+        "unit_price": null,
+        "out_items": [
+          {
+            "bottle_no": "delivery23",
+            "net": 5
+          }
+        ],
+        "back_items": [],
+        "amount_received": 0,
+        "rounding_amount": 0,
+        "receipt_rounding_amount": 0,
+        "created_at": 1,
+        "updated_at": 1
+      },
+      {
+        "_id": "a24",
+        "customer_id": "a",
+        "customer_name": "示例客户A",
+        "date": "2026-10-24",
+        "biz_mode": "bottle",
+        "price_unit": "kg",
+        "settlement_mode": "sale",
+        "unit_price": 10,
+        "out_items": [
+          {
+            "bottle_no": "a24",
+            "net": 10
+          }
+        ],
+        "back_items": [],
+        "amount_received": 0,
+        "rounding_amount": 0,
+        "receipt_rounding_amount": 0,
+        "created_at": 1,
+        "updated_at": 1
+      },
+      {
+        "_id": "b24",
+        "customer_id": "b",
+        "customer_name": "示例客户B",
+        "date": "2026-10-24",
+        "biz_mode": "bottle",
+        "price_unit": "kg",
+        "settlement_mode": "sale",
+        "unit_price": 5,
+        "out_items": [
+          {
+            "bottle_no": "b24",
+            "net": 20
+          }
+        ],
+        "back_items": [],
+        "amount_received": 0,
+        "rounding_amount": 0,
+        "receipt_rounding_amount": 0,
+        "created_at": 1,
+        "updated_at": 1
+      },
+      {
+        "_id": "c24",
+        "customer_id": "c",
+        "customer_name": "示例客户C",
+        "date": "2026-10-24",
+        "biz_mode": "bottle",
+        "price_unit": "kg",
+        "settlement_mode": "sale",
+        "unit_price": 6,
+        "out_items": [
+          {
+            "bottle_no": "c24",
+            "net": 5
+          }
+        ],
+        "back_items": [],
+        "amount_received": 0,
+        "rounding_amount": 0,
+        "receipt_rounding_amount": 0,
+        "created_at": 1,
+        "updated_at": 1
+      },
+      {
+        "_id": "d24",
+        "customer_id": "d",
+        "customer_name": "示例客户D",
+        "date": "2026-10-24",
+        "biz_mode": "bottle",
+        "price_unit": "kg",
+        "settlement_mode": "sale",
+        "unit_price": 2,
+        "out_items": [
+          {
+            "bottle_no": "d24",
+            "net": 10
+          }
+        ],
+        "back_items": [],
+        "amount_received": 0,
+        "rounding_amount": 0,
+        "receipt_rounding_amount": 0,
+        "created_at": 1,
+        "updated_at": 1
+      },
+      {
+        "_id": "a25",
+        "customer_id": "a",
+        "customer_name": "示例客户A",
+        "date": "2026-10-25",
+        "biz_mode": "bottle",
+        "price_unit": "kg",
+        "settlement_mode": "sale",
+        "unit_price": 10,
+        "out_items": [
+          {
+            "bottle_no": "a25",
+            "net": 15
+          }
+        ],
+        "back_items": [],
+        "amount_received": 0,
+        "rounding_amount": 0,
+        "receipt_rounding_amount": 0,
+        "created_at": 1,
+        "updated_at": 1
+      },
+      {
+        "_id": "b25-return",
+        "customer_id": "b",
+        "customer_name": "示例客户B",
+        "date": "2026-10-25",
+        "biz_mode": "bottle",
+        "price_unit": "kg",
+        "settlement_mode": "sale",
+        "unit_price": 5,
+        "out_items": [
+          {
+            "bottle_no": "b25-return",
+            "net": 0
+          }
+        ],
+        "back_items": [
+          {
+            "bottle_no": "b25-return",
+            "net": 2
+          }
+        ],
+        "amount_received": 0,
+        "rounding_amount": 0,
+        "receipt_rounding_amount": 0,
+        "created_at": 1,
+        "updated_at": 1
+      },
+      {
+        "_id": "d25",
+        "customer_id": "d",
+        "customer_name": "示例客户D",
+        "date": "2026-10-25",
+        "biz_mode": "bottle",
+        "price_unit": "kg",
+        "settlement_mode": "sale",
+        "unit_price": 2,
+        "out_items": [
+          {
+            "bottle_no": "d25",
+            "net": 10
+          }
+        ],
+        "back_items": [],
+        "amount_received": 0,
+        "rounding_amount": 0,
+        "receipt_rounding_amount": 0,
+        "created_at": 1,
+        "updated_at": 1
+      },
+      {
+        "_id": "e25",
+        "customer_id": "e",
+        "customer_name": "示例客户E",
+        "date": "2026-10-25",
+        "biz_mode": "bottle",
+        "price_unit": "kg",
+        "settlement_mode": "sale",
+        "unit_price": 4,
+        "out_items": [
+          {
+            "bottle_no": "e25",
+            "net": 20
+          }
+        ],
+        "back_items": [],
+        "amount_received": 0,
+        "rounding_amount": 0,
+        "receipt_rounding_amount": 0,
+        "created_at": 1,
+        "updated_at": 1
+      },
+      {
+        "_id": "hidden-delivery25",
+        "customer_id": "a",
+        "customer_name": "示例客户A",
+        "date": "2026-10-25",
+        "biz_mode": "bottle",
+        "price_unit": "kg",
+        "settlement_mode": "sale",
+        "unit_price": 10,
+        "out_items": [
+          {
+            "bottle_no": "hidden-delivery25",
+            "net": 999
+          }
+        ],
+        "back_items": [],
+        "amount_received": 0,
+        "rounding_amount": 0,
+        "receipt_rounding_amount": 0,
+        "created_at": 1,
+        "updated_at": 1,
+        "delivery_customer_id": "hidden"
+      }
+    ],
+    "crm_customer_flow_settlements": [
+      {
+        "_id": "f24",
+        "customer_id": "a",
+        "customer_name": "示例客户A",
+        "status": "posted",
+        "biz_date": "2026-10-24",
+        "period_start_date": "2026-10-24",
+        "period_end_date": "2026-10-24",
+        "flow_index_prev": 0,
+        "flow_index_curr": 4,
+        "flow_volume_m3": 4,
+        "unit_price": 2.5,
+        "should_receive": 10,
+        "amount_received": 0,
+        "receipt_rounding_amount": 0,
+        "created_at": 1,
+        "updated_at": 1,
+        "sale_ids": []
+      },
+      {
+        "_id": "f25",
+        "customer_id": "a",
+        "customer_name": "示例客户A",
+        "status": "posted",
+        "biz_date": "2026-10-25",
+        "period_start_date": "2026-10-25",
+        "period_end_date": "2026-10-25",
+        "flow_index_prev": 4,
+        "flow_index_curr": 12,
+        "flow_volume_m3": 8,
+        "unit_price": 2.5,
+        "should_receive": 20,
+        "amount_received": 0,
+        "receipt_rounding_amount": 0,
+        "created_at": 1,
+        "updated_at": 1,
+        "sale_ids": []
+      }
+    ],
+    "crm_customer_receipts": [
+      {
+        "_id": "r24a",
+        "customer_id": "a",
+        "status": "posted",
+        "biz_date": "2026-10-24",
+        "amount": 100,
+        "purpose": "prepay",
+        "payment_method": "bank",
+        "created_at": 1,
+        "updated_at": 1,
+        "allocated_amount": 0,
+        "unallocated_amount": 100,
+        "cash_refunded_amount": 0
+      },
+      {
+        "_id": "r24b",
+        "customer_id": "b",
+        "status": "posted",
+        "biz_date": "2026-10-24",
+        "amount": 40,
+        "purpose": "prepay",
+        "payment_method": "bank",
+        "created_at": 1,
+        "updated_at": 1,
+        "allocated_amount": 0,
+        "unallocated_amount": 20,
+        "cash_refunded_amount": 20
+      },
+      {
+        "_id": "r25a",
+        "customer_id": "a",
+        "status": "posted",
+        "biz_date": "2026-10-25",
+        "amount": 200,
+        "purpose": "prepay",
+        "payment_method": "bank",
+        "created_at": 1,
+        "updated_at": 1,
+        "allocated_amount": 0,
+        "unallocated_amount": 200,
+        "cash_refunded_amount": 0
+      },
+      {
+        "_id": "r25refund",
+        "customer_id": "b",
+        "status": "posted",
+        "biz_date": "2026-10-25",
+        "amount": -20,
+        "purpose": "prepay",
+        "payment_method": "bank",
+        "created_at": 1,
+        "updated_at": 1,
+        "refund_sources": [
+          {
+            "id": "r24b",
+            "amount": 20
+          }
+        ],
+        "allocated_amount": 0,
+        "unallocated_amount": 0,
+        "cash_refunded_amount": 0,
+        "source_type": "customer_cash_refund",
+        "refund_source_status": "linked"
+      },
+      {
+        "_id": "r25opening",
+        "customer_id": "a",
+        "status": "posted",
+        "biz_date": "2026-10-25",
+        "amount": 999,
+        "purpose": "prepay",
+        "payment_method": "bank",
+        "created_at": 1,
+        "updated_at": 1,
+        "source_type": "opening_prepay",
+        "allocated_amount": 0,
+        "unallocated_amount": 999,
+        "cash_refunded_amount": 0
+      },
+      {
+        "_id": "r25hidden",
+        "customer_id": "hidden",
+        "status": "posted",
+        "biz_date": "2026-10-25",
+        "amount": 999,
+        "purpose": "prepay",
+        "payment_method": "bank",
+        "created_at": 1,
+        "updated_at": 1,
+        "allocated_amount": 0,
+        "unallocated_amount": 999,
+        "cash_refunded_amount": 0
+      }
+    ],
+    "crm_customer_allocations": [],
+    "crm_cashier_intakes": [],
+    "crm_customer_opening_debts": [],
+    "crm_fillings": []
+  }
+}

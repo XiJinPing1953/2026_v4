@@ -177,7 +177,7 @@ test('current sources are read by collection, not once per customer', async () =
     crm_sale_records: Array.from({ length: 80 }, (_, i) => sale({ _id: `s${i}`, customer_id: `c${i}` })) })
   let queries = 0
   await readCurrentBrief(makeDb(tables, { get: (name, rows) => { queries++; return { data: structuredClone(rows) } } }))
-  assert.ok(queries <= 20, `expected bounded collection reads, got ${queries}`)
+  assert.ok(queries <= 21, `expected bounded reads for seven source collections, got ${queries}`)
 })
 test('shared extraction retains two-decimal rounding, three-decimal truncation and exact settlement imports', async () => {
   assert.equal(snapshots.fix2(1.239), 1.24); assert.equal(snapshots.fix3(1.2399), 1.239)

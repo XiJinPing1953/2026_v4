@@ -81,6 +81,76 @@ export function mapOperatingBrief(data, period) {
 		counts: ['sale_bottle_count', 'customer_count', 'fill_bottle_count', 'local_count', 'vehicle_count']
 	})
 	if (data.complete && ![business, settlement, cash, evidence, destinations, operations].every(Boolean)) invalidSummary()
+	if (data.analysis == null) return data
+	try { return { ...data, analysis: mapOperatingAnalysis(data.analysis, data.range.today, period) } }
+	catch (_) { return { ...data, analysis: null, analysis_error: '比较与趋势依据未通过核对，请刷新；本期数字仍按各自状态展示。' } }
+}
+
+const ANALYSIS_VERSION = 'operating-analysis/2026-10-26.1'
+const ANALYSIS_METRICS = ['sale_weight_kg', 'business_net', 'cash_net', 'customer_count']
+function sameUnits(a, b) { return Math.abs(a - b) < 0.0000001 }
+export function mapOperatingAnalysis(data, today, period) {
+	if (data?.version !== ANALYSIS_VERSION || !isDay(today)) invalidSummary()
+	const day = 86400000, shift = n => new Date(Date.parse(today) + n * day).toISOString().slice(0, 10)
+	if (data.trend?.range?.start !== shift(-7) || data.trend?.range?.end !== shift(-1) || data.trend.points?.length !== 7) invalidSummary()
+	for (const [i, point] of data.trend.points.entries()) {
+		if (point.date !== shift(i - 7) || !['available', 'unavailable'].includes(point.status)) invalidSummary()
+		requireIssues(point.issues)
+		if (point.status === 'available' ? !isNumber(point.value) || !Number.isSafeInteger(point.source_count) || point.source_count < 0 || point.issues.length : point.value !== null || !point.issues.length) invalidSummary()
+	}
+	const comparison = data.comparison
+	if (!comparison || !['available', 'partial', 'unavailable', 'not_comparable'].includes(comparison.status)) invalidSummary()
+	let currentRange = null, baselineRange = null
+	if (period === 'yesterday') {
+		currentRange = { start: shift(-1), end: shift(-1) }; baselineRange = { start: shift(-2), end: shift(-2) }
+	} else if (period === 'month') {
+		const monthStart = `${today.slice(0, 7)}-01`, lastDay = new Date(Date.parse(monthStart) - day).toISOString().slice(0, 10)
+		const n = Math.min(Number(today.slice(8)) - 1, Number(lastDay.slice(8)))
+		if (n > 0) { currentRange = { start: monthStart, end: `${today.slice(0, 7)}-${String(n).padStart(2, '0')}` }; baselineRange = { start: `${lastDay.slice(0, 7)}-01`, end: `${lastDay.slice(0, 7)}-${String(n).padStart(2, '0')}` } }
+	}
+	if (!currentRange) {
+		if (comparison.status !== 'not_comparable') invalidSummary()
+	} else if (comparison.current_range?.start !== currentRange.start || comparison.current_range?.end !== currentRange.end || comparison.baseline_range?.start !== baselineRange.start || comparison.baseline_range?.end !== baselineRange.end) invalidSummary()
+	for (const key of ANALYSIS_METRICS) {
+		const metric = comparison.metrics?.[key]
+		if (!metric || !['available', 'unavailable', 'not_comparable'].includes(metric.status)) invalidSummary()
+		requireIssues(metric.issues)
+		if (metric.status === 'available') {
+			if (!currentRange || ['current', 'baseline', 'delta'].some(k => !isNumber(metric[k])) || !sameUnits(metric.current - metric.baseline, metric.delta)) invalidSummary()
+			if (metric.baseline <= 0 ? metric.rate !== null : !isNumber(metric.rate) || Math.abs(metric.rate - metric.delta / metric.baseline) > 0.00001) invalidSummary()
+		} else if (metric.delta !== null || metric.rate !== null ||
+			['current', 'baseline'].some(k => metric.status === 'not_comparable' ? metric[k] !== null : metric[k] !== null && !isNumber(metric[k]))) invalidSummary()
+	}
+	const drivers = data.drivers
+	if (!drivers || !Array.isArray(drivers.items) || drivers.items.length > 3) invalidSummary()
+	if (drivers.status === 'available') {
+		if (comparison.metrics.business_net.status !== 'available' || !isNumber(drivers.other_delta) || !sameUnits(drivers.total_delta, comparison.metrics.business_net.delta)) invalidSummary()
+		const ids = new Set()
+		for (const row of drivers.items) {
+			if (!row.customer_id || ids.has(row.customer_id) || typeof row.name !== 'string' || ['current', 'baseline', 'delta'].some(k => !isNumber(row[k])) || !sameUnits(row.current - row.baseline, row.delta)) invalidSummary()
+			ids.add(row.customer_id)
+		}
+		if (!sameUnits(drivers.items.reduce((sum, row) => sum + row.delta, drivers.other_delta), drivers.total_delta)) invalidSummary()
+	} else if (drivers.items.length || drivers.other_delta != null || drivers.total_delta != null) invalidSummary()
+	if (!data.evidence || typeof data.evidence.token !== 'string' || !data.evidence.token || data.evidence.snapshot_consistent !== false || data.evidence.external_verified !== false) invalidSummary()
+	return data
+}
+
+export function mapOperatingSources(data, query) {
+	if (data?.section !== 'brief_sources' || data.version !== ANALYSIS_VERSION || data.metric !== query.metric || data.scope !== (query.scope || 'period') || data.evidence_token !== query.evidence_token || !Array.isArray(data.items) || !Number.isSafeInteger(data.total) || data.total < data.items.length || data.next_cursor !== null && !/^\d+$/.test(data.next_cursor)) throw new Error('来源明细已变化或不完整，请刷新简报后重试')
+	if (!isDay(data.range?.start) || !isDay(data.range?.end) || data.range.start > data.range.end ||
+		query.expected_range && (data.range.start !== query.expected_range.start || data.range.end !== query.expected_range.end) || data.read_complete !== true) throw new Error('来源日期或读取范围无法确认')
+	requireDomain(data, ['value'])
+	const offset = Number(query.cursor || 0), next = offset + data.items.length
+	if (!Number.isSafeInteger(offset) || offset < 0 || next > data.total ||
+		(data.next_cursor === null ? next !== data.total : Number(data.next_cursor) !== next || !data.items.length || next >= data.total)) throw new Error('来源分页位置无法确认')
+	const ids = new Set()
+	for (const row of data.items) {
+		if (!['crm_sale_records', 'crm_customer_flow_settlements', 'crm_customer_receipts'].includes(row.source_type) || typeof row.source_id !== 'string' || !row.source_id || ids.has(`${row.source_type}:${row.source_id}`) || !isDay(row.date) || row.date < data.range.start || row.date > data.range.end ||
+			!['available', 'unavailable'].includes(row.status) || (row.status === 'available' ? !isNumber(row.value) : row.value !== null) || typeof row.unit !== 'string') throw new Error('来源明细无法确认')
+		requireIssues(row.issues)
+		ids.add(`${row.source_type}:${row.source_id}`)
+	}
 	return data
 }
 
@@ -88,6 +158,16 @@ export function mapOperatingCurrent(data) {
 	requireEnvelope(data, 'current')
 	if (data.current_version != null && data.current_version !== CURRENT_VERSION || data.money_scale !== 3 || !data.current || typeof data.current.complete !== 'boolean') invalidSummary()
 	const block = data.current
+	if (block.chain_evidence != null) {
+		const chain = block.chain_evidence, coverage = chain.coverage
+		if (!['available', 'partial', 'unavailable'].includes(chain.status) || chain.complete !== (chain.status === 'available') || chain.external_verified !== false || !coverage || typeof coverage.complete !== 'boolean') invalidSummary()
+		requireIssues(chain.issues)
+		if (!Number.isSafeInteger(chain.issue_count) || chain.issue_count < chain.issues.length || typeof chain.issues_complete !== 'boolean' || chain.issues_complete && chain.issue_count !== chain.issues.length) invalidSummary()
+		if (coverage.complete) {
+			requireValues(coverage, ['total_customers', 'verified_customers', 'pending_customers'], true, { counts: ['total_customers', 'verified_customers', 'pending_customers'] })
+			if (coverage.verified_customers + coverage.pending_customers !== coverage.total_customers || chain.complete && coverage.pending_customers !== 0) invalidSummary()
+		} else if (chain.complete || ['total_customers', 'verified_customers', 'pending_customers'].some(k => coverage[k] !== null)) invalidSummary()
+	}
 	const modern = data.current_version === CURRENT_VERSION
 	const readDomain = modern ? requireCurrentDomain : requireDomain
 	const debt = readDomain(block.debt), funds = readDomain(block.available_funds)
@@ -259,6 +339,16 @@ export function mapDashboardDailyReport(data, range) {
 	const count = (Date.parse(`${range.end}T00:00:00Z`) - Date.parse(`${range.start}T00:00:00Z`)) / 86400000 + 1
 	if (count < 1 || count > 31 || rawRows.length !== count) throw new Error('日报未覆盖完整日期，暂不能导出')
 	const seen = new Set()
+	const modern = data.daily_version === 'operating-daily/2026-10-26.1'
+	if (modern && (!Array.isArray(data.sale_ids) || data.sale_ids.some(id => typeof id !== 'string' || !id) || new Set(data.sale_ids).size !== data.sale_ids.length || typeof data.source_token !== 'string' || !data.source_token)) throw new Error('日报来源清单未完成')
+	if (modern && (!Array.isArray(data.sale_weights) || data.sale_weights.length !== data.sale_ids.length ||
+		new Set(data.sale_weights.map(row => row.source_id)).size !== data.sale_ids.length ||
+		data.sale_weights.some(row => !data.sale_ids.includes(row.source_id) || !isNumber(row.weight_kg)))) throw new Error('日报逐单净气量依据未完成')
+	if (modern && data.export_evidence != null) {
+		if (typeof data.export_evidence.complete !== 'boolean') throw new Error('日报导出账务依据未完成')
+		requireIssues(data.export_evidence.issues)
+		if (data.export_evidence.complete && data.export_evidence.issues.length) throw new Error('日报导出账务状态不一致')
+	}
 	const rows = rawRows.map(row => {
 		if (!isDay(row?.date) || row.date < range.start || row.date > range.end || seen.has(row.date)) throw new Error('日报日期不完整或重复，请重新读取')
 		seen.add(row.date)
@@ -268,7 +358,11 @@ export function mapDashboardDailyReport(data, range) {
 			if (!isNumber(value)) throw new Error('日报业务量读取未完成')
 			result[name] = value
 		}
+		if (modern && (!isNumber(row.other_count) || row.other_count < 0 || !Number.isSafeInteger(row.other_count) || !isNumber(row.other_weight) || row.other_weight < 0)) throw new Error('其他出罐数据未完成')
+		result.otherCount = modern ? row.other_count : null
+		result.otherWeightKg = modern ? row.other_weight : null
 		return result
 	}).sort((a, b) => b.date.localeCompare(a.date))
-	return { rows, range: { ...range }, complete: true, updated_at: data.updated_at }
+	return { rows, range: { ...range }, complete: true, classificationComplete: modern, saleIds: modern ? data.sale_ids : null, saleWeights: modern ? data.sale_weights : null,
+		exportEvidence: modern ? data.export_evidence : null, sourceToken: modern ? data.source_token : null, updated_at: data.updated_at }
 }

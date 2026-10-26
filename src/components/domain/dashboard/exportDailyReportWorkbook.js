@@ -8,14 +8,6 @@ function toNumber(value, fallback = 0) {
 	return Number.isFinite(num) ? num : fallback
 }
 
-function fix2(value) {
-	return Number(toNumber(value, 0).toFixed(2))
-}
-
-function fix3(value) {
-	return Number(toNumber(value, 0).toFixed(3))
-}
-
 function paymentStatusText(value) {
 	const text = normalizeString(value).toLowerCase()
 	if (text === 'paid' || text === '已结清') return '已结清'
@@ -24,12 +16,34 @@ function paymentStatusText(value) {
 	return normalizeString(value) || '-'
 }
 
-function resolveEffectiveShouldReceive(shouldReceive, roundingAmount = 0) {
-	const should = toNumber(shouldReceive, 0)
-	const rounding = Math.max(toNumber(roundingAmount, 0), 0)
-	if (should > 0) return Number((should - rounding).toFixed(2))
-	if (should < 0) return Number((should + rounding).toFixed(2))
-	return 0
+const REPORT_SCOPE_NOTE = '本表按销售业务日期列示有效销售单，不含另行登记的流量结算货款；流量客户送气不重复计货款。'
+const SETTLEMENT_NOTE = '已抵货款为当前原单核销，含非现金抵款；负数表示原单退款或冲回。销售抹零、收款抹零单列，均不代表期间现金收入。'
+const BALANCE_NOTE = '账面待结净额直接采用后端结果，负数表示待退或待抵余额；已计入退气转抵款处理，不是历史日末余额，不能跨客户相抵作为客户欠款合计。'
+
+function requiredNumber(value, label) {
+	if (!['number', 'string'].includes(typeof value) || String(value).trim() === '' || !Number.isFinite(Number(value))) {
+		throw new Error(`${label}尚未取得权威数值，暂不能导出`)
+	}
+	return Number(value)
+}
+
+function normalizeExportSales(rows) {
+	const ids = new Set()
+	return rows.map(row => {
+		const id = normalizeString(row?._id || row?.id), customerId = normalizeString(row?.customer_id)
+		if (!id || ids.has(id) || !customerId || row.status === 'void' || row.accounting?.status !== 'resolved' || row.accounting?.complete === false) {
+			throw new Error('销售来源、客户归属或账务状态未核实，暂不能导出')
+		}
+		ids.add(id)
+		return { ...row, _id: id, customer_id: customerId, report_values: {
+			weight: requiredNumber(row.operating_weight_kg, '销售净气量'),
+			principal: requiredNumber(row.should_receive, '货款'),
+			allocated: requiredNumber(row.amount_received, '已抵货款'),
+			saleRounding: requiredNumber(row.rounding_amount, '销售抹零'),
+			receiptRounding: requiredNumber(row.receipt_rounding_amount ?? 0, '收款抹零'),
+			outstanding: requiredNumber(row.net_outstanding_effective, '账面待结净额')
+		} }
+	})
 }
 
 function bizModeText(value) {
@@ -42,7 +56,7 @@ function bizModeText(value) {
 }
 
 function escapeXml(value) {
-	return String(value || '')
+	return String(value ?? '')
 		.replace(/&/g, '&amp;')
 		.replace(/</g, '&lt;')
 		.replace(/>/g, '&gt;')
@@ -51,17 +65,19 @@ function escapeXml(value) {
 }
 
 function numberCell(value, digits = null) {
-	const num = toNumber(value, 0)
-	const finalNum = Number.isFinite(Number(digits)) ? Number(num.toFixed(Number(digits))) : num
+	const num = requiredNumber(value, '导出数据')
+	const finalNum = digits != null && Number.isInteger(digits) ? Number(num.toFixed(digits)) : num
 	return {
 		__cell_type: 'Number',
-		value: finalNum
+		value: finalNum,
+		digits
 	}
 }
 
 function buildCellXml(cell = '') {
 	if (cell && typeof cell === 'object' && cell.__cell_type === 'Number') {
-		return `<Cell><Data ss:Type="Number">${escapeXml(cell.value)}</Data></Cell>`
+		const style = cell.digits === 3 ? ' ss:StyleID="Decimal3"' : cell.digits === 0 ? ' ss:StyleID="Integer"' : ''
+		return `<Cell${style}><Data ss:Type="Number">${escapeXml(cell.value)}</Data></Cell>`
 	}
 	return `<Cell><Data ss:Type="String">${escapeXml(cell)}</Data></Cell>`
 }
@@ -116,12 +132,6 @@ function buildRemarkText(row = {}) {
 	return parts.join('；')
 }
 
-function toKgDisplay(row = {}) {
-	const num = Number(row.total_net_weight)
-	if (!Number.isFinite(num)) return 0
-	return fix3(num)
-}
-
 function sortRowsForExport(rows = []) {
 	return [...rows].sort((a, b) => {
 		const dateA = normalizeString(a?.date)
@@ -140,7 +150,10 @@ function sortRowsForExport(rows = []) {
 function buildSummarySheetRows({ summaryRows = [], periodLabel = '' } = {}) {
 	const rows = []
 	rows.push([`业务日报汇总（${periodLabel || '-' }）`])
-	rows.push(['钢瓶充装瓶次', '钢瓶充装重量(kg)', '地方车充装次数', '地方车充装重量(kg)', '车辆燃气补给次数', '车辆燃气补给重量(kg)', '成交客户户次（每日去重后相加）', '销售瓶数', '销售重量(kg)'])
+	rows.push([REPORT_SCOPE_NOTE])
+	rows.push([SETTLEMENT_NOTE])
+	rows.push([BALANCE_NOTE])
+	rows.push(['钢瓶充装瓶次', '钢瓶充装重量(kg)', '地方车充装次数', '地方车充装重量(kg)', '车辆燃气补给次数', '车辆燃气补给重量(kg)', '成交客户户次（每日去重后相加）', '销售瓶数', '销售净气量(kg)', '其他出罐次数', '其他出罐重量(kg)'])
 	const source = Array.isArray(summaryRows) ? summaryRows : []
 	const total = source.reduce(
 		(acc, row) => {
@@ -153,6 +166,8 @@ function buildSummarySheetRows({ summaryRows = [], periodLabel = '' } = {}) {
 			acc.saleCustomerCount += Number(row.saleCustomerCount || 0)
 			acc.saleBottleCount += Number(row.saleBottleCount || 0)
 			acc.saleWeightKg += toNumber(row.saleWeightKg, 0)
+			acc.otherCount += toNumber(row.otherCount, 0)
+			acc.otherWeightKg += toNumber(row.otherWeightKg, 0)
 			return acc
 		},
 		{
@@ -164,7 +179,7 @@ function buildSummarySheetRows({ summaryRows = [], periodLabel = '' } = {}) {
 			vehicleWeightKg: 0,
 			saleCustomerCount: 0,
 			saleBottleCount: 0,
-			saleWeightKg: 0
+			saleWeightKg: 0, otherCount: 0, otherWeightKg: 0
 		}
 	)
 	rows.push([
@@ -176,129 +191,75 @@ function buildSummarySheetRows({ summaryRows = [], periodLabel = '' } = {}) {
 		numberCell(total.vehicleWeightKg, 3),
 		numberCell(total.saleCustomerCount, 0),
 		numberCell(total.saleBottleCount, 0),
-		numberCell(total.saleWeightKg, 3)
+		numberCell(total.saleWeightKg, 3),
+		numberCell(total.otherCount, 0),
+		numberCell(total.otherWeightKg, 3)
 	])
 	return rows
 }
 
+function unitPriceCell(row) {
+	return row.unit_price == null || row.unit_price === '' ? '-' : numberCell(requiredNumber(row.unit_price, '单价'))
+}
+
+function newTotals() {
+	return { orderCount: 0, weight: 0, principal: 0, allocated: 0, saleRounding: 0, receiptRounding: 0, outstanding: 0 }
+}
+function addTotals(total, row) {
+	total.orderCount += 1
+	for (const field of ['weight', 'principal', 'allocated', 'saleRounding', 'receiptRounding', 'outstanding']) {
+		const units = Math.round(row.report_values[field] * 1000)
+		if (!Number.isSafeInteger(units) || !Number.isSafeInteger(total[field] + units)) throw new Error('导出合计超出安全范围')
+		total[field] += units
+	}
+}
+function totalCells(label, total) {
+	return [label, `共${total.orderCount}单`, numberCell(total.weight / 1000, 3), '', '',
+		numberCell(total.principal / 1000, 3), '', numberCell(total.allocated / 1000, 3),
+		numberCell(total.saleRounding / 1000, 3), numberCell(total.receiptRounding / 1000, 3),
+		numberCell(total.outstanding / 1000, 3), '', '']
+}
 function buildDailyDetailRows({ salesRows = [], periodLabel = '' } = {}) {
-	const rows = []
-	const sorted = sortRowsForExport(salesRows)
-	const groupMap = new Map()
-	sorted.forEach((row) => {
+	const rows = [], groupMap = new Map(), allTotals = newTotals()
+	for (const row of sortRowsForExport(salesRows)) {
 		const date = normalizeString(row.date) || '-'
 		if (!groupMap.has(date)) groupMap.set(date, [])
 		groupMap.get(date).push(row)
-	})
-	rows.push(['无极新拓能源销售出库单'])
-	rows.push([`导出范围：${periodLabel || '-'}`])
-	rows.push([])
-	if (!groupMap.size) {
-		rows.push(['无销售记录'])
-		return rows
 	}
-	const allTotals = {
-		orderCount: 0,
-		quantityKg: 0,
-		amount: 0,
-		paid: 0,
-		unpaid: 0
-	}
-	const dates = Array.from(groupMap.keys())
-	dates.forEach((date) => {
-		const list = groupMap.get(date) || []
-		const dayTotals = {
-			orderCount: 0,
-			quantityKg: 0,
-			amount: 0,
-			paid: 0,
-			unpaid: 0
-		}
+	rows.push(['无极新拓能源销售出库单'], [`导出范围：${periodLabel || '-'}`],
+		[REPORT_SCOPE_NOTE], [SETTLEMENT_NOTE], [BALANCE_NOTE], [])
+	if (!groupMap.size) { rows.push(['无销售记录']); return rows }
+	for (const [date, list] of groupMap) {
+		const dayTotals = newTotals()
 		rows.push([`日期：${formatDateToCn(date)}`])
-		rows.push(['序号', '客户名称', '数量kg', '单价', '金额', '付款状态', '已付', '未付', '备注'])
+		rows.push(['序号', '客户名称', '销售净气量(kg)', '计价单位', '单价', '货款(元)', '原单付款状态',
+			'已抵货款(元)', '销售抹零(元)', '收款抹零(元)', '账面待结净额(元)', '来源单号', '备注'])
 		list.forEach((row, index) => {
-			const shouldReceive = toNumber(row.should_receive, 0)
-			const amountReceived = toNumber(row.amount_received, 0)
-			const roundingAmount = toNumber(row.rounding_amount, 0)
-			const effectiveShouldReceive = resolveEffectiveShouldReceive(shouldReceive, roundingAmount)
-			const outstanding = Number((effectiveShouldReceive - amountReceived).toFixed(2))
-			const quantityKg = toKgDisplay(row)
-			dayTotals.orderCount += 1
-			dayTotals.quantityKg += quantityKg
-			dayTotals.amount += shouldReceive
-			dayTotals.paid += amountReceived
-			dayTotals.unpaid += outstanding
-			rows.push([
-				numberCell(index + 1, 0),
-				normalizeString(row.customer_name) || '-',
-				numberCell(quantityKg, 3),
-				numberCell(row.unit_price, 3),
-				numberCell(row.should_receive, 2),
-				paymentStatusText(row.payment_status),
-				numberCell(amountReceived, 2),
-				numberCell(outstanding, 2),
-				buildRemarkText(row)
-			])
+			const value = row.report_values
+			addTotals(dayTotals, row); addTotals(allTotals, row)
+			rows.push([numberCell(index + 1, 0), normalizeString(row.customer_name) || '-', numberCell(value.weight, 3),
+				normalizeString(row.price_unit) || '-', unitPriceCell(row), numberCell(value.principal, 3),
+				paymentStatusText(row.payment_status), numberCell(value.allocated, 3), numberCell(value.saleRounding, 3),
+				numberCell(value.receiptRounding, 3), numberCell(value.outstanding, 3), row._id, buildRemarkText(row)])
 		})
-		rows.push([
-			'当日汇总',
-			`共${dayTotals.orderCount}单`,
-			numberCell(dayTotals.quantityKg, 3),
-			'',
-			numberCell(dayTotals.amount, 2),
-			'',
-			numberCell(dayTotals.paid, 2),
-			numberCell(dayTotals.unpaid, 2),
-			''
-		])
-		allTotals.orderCount += dayTotals.orderCount
-		allTotals.quantityKg += dayTotals.quantityKg
-		allTotals.amount += dayTotals.amount
-		allTotals.paid += dayTotals.paid
-		allTotals.unpaid += dayTotals.unpaid
-		rows.push([])
-	})
-	if (dates.length > 1) {
-		rows.push([
-			'期间总汇总',
-			`共${allTotals.orderCount}单`,
-			numberCell(allTotals.quantityKg, 3),
-			'',
-			numberCell(allTotals.amount, 2),
-			'',
-			numberCell(allTotals.paid, 2),
-			numberCell(allTotals.unpaid, 2),
-			''
-		])
+		rows.push(totalCells('当日汇总', dayTotals), [])
 	}
+	if (groupMap.size > 1) rows.push(totalCells('期间总汇总', allTotals))
 	return rows
 }
 
-function buildCustomerSheetRows({ customerName = '', rows = [], periodLabel = '' } = {}) {
-	const result = []
-	result.push([`${normalizeString(customerName) || '未命名客户'} 销售详单`])
-	result.push([`导出范围：${periodLabel || '-'}`])
-	result.push(['日期', '业务模式', '计价单位', '数量kg', '单价', '金额', '实收', '未收', '业务备注', '系统备注', '收款备注'])
-	sortRowsForExport(rows).forEach((row) => {
-		const shouldReceive = toNumber(row.should_receive, 0)
-		const amountReceived = toNumber(row.amount_received, 0)
-		const roundingAmount = toNumber(row.rounding_amount, 0)
-		const effectiveShouldReceive = resolveEffectiveShouldReceive(shouldReceive, roundingAmount)
-		const outstanding = Number((effectiveShouldReceive - amountReceived).toFixed(2))
-		result.push([
-			normalizeString(row.date),
-			bizModeText(row.biz_mode),
-			normalizeString(row.price_unit) || '-',
-			numberCell(toKgDisplay(row), 3),
-			numberCell(row.unit_price, 3),
-			numberCell(row.should_receive, 2),
-			numberCell(row.amount_received, 2),
-			numberCell(outstanding, 2),
-			normalizeString(row.remark),
-			normalizeString(row.system_note),
-			normalizeString(row.payment_note)
-		])
-	})
+function buildCustomerSheetRows({ customerId = '', customerName = '', rows = [], periodLabel = '' } = {}) {
+	const result = [[`${normalizeString(customerName) || '未命名客户'} 销售详单`],
+		[`客户ID：${customerId || '-'}；导出范围：${periodLabel || '-'}`], [REPORT_SCOPE_NOTE], [SETTLEMENT_NOTE], [BALANCE_NOTE],
+		['日期', '业务模式', '计价单位', '销售净气量(kg)', '单价', '货款(元)', '已抵货款(元)',
+			'销售抹零(元)', '收款抹零(元)', '账面待结净额(元)', '来源单号', '业务备注', '系统备注', '收款备注']]
+	for (const row of sortRowsForExport(rows)) {
+		const value = row.report_values
+		result.push([normalizeString(row.date), bizModeText(row.biz_mode), normalizeString(row.price_unit) || '-',
+			numberCell(value.weight, 3), unitPriceCell(row), numberCell(value.principal, 3), numberCell(value.allocated, 3),
+			numberCell(value.saleRounding, 3), numberCell(value.receiptRounding, 3), numberCell(value.outstanding, 3),
+			row._id, normalizeString(row.remark), normalizeString(row.system_note), normalizeString(row.payment_note)])
+	}
 	if (!rows.length) result.push(['无销售记录'])
 	return result
 }
@@ -365,9 +326,28 @@ function openUniDocument(filePath) {
 	})
 }
 
+function validateWeightAgreement(summaryRows, salesRows) {
+	const expected = new Map(), actual = new Map()
+	const fields = ['fillBottleCount', 'fillBottleWeightKg', 'localCount', 'localWeightKg', 'vehicleCount',
+		'vehicleWeightKg', 'saleCustomerCount', 'saleBottleCount', 'saleWeightKg', 'otherCount', 'otherWeightKg']
+	for (const row of summaryRows) {
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(row.date || '') || expected.has(row.date)) throw new Error('日报日期范围不完整或重复，暂不能导出')
+		for (const key of fields) requiredNumber(row[key], '日报汇总')
+		expected.set(row.date, Math.round(row.saleWeightKg * 1000))
+	}
+	for (const row of salesRows) {
+		if (!expected.has(row.date)) throw new Error('销售明细不在日报范围内，暂不能导出')
+		const total = (actual.get(row.date) || 0) + Math.round(row.report_values.weight * 1000)
+		if (!Number.isSafeInteger(total)) throw new Error('销售净气量合计超出安全范围')
+		actual.set(row.date, total)
+	}
+	for (const [date, weight] of expected) if (weight !== (actual.get(date) || 0)) throw new Error('销售明细与日报净气量不一致，暂不能导出')
+}
+
 export function buildDailyReportWorkbookXml(payload = {}) {
 	const summaryRows = Array.isArray(payload.summaryRows) ? payload.summaryRows : []
-	const salesRows = Array.isArray(payload.salesRows) ? payload.salesRows : []
+	const salesRows = normalizeExportSales(Array.isArray(payload.salesRows) ? payload.salesRows : [])
+	validateWeightAgreement(summaryRows, salesRows)
 	const periodLabel = normalizeString(payload.periodLabel)
 	const usedNames = new Set()
 	const sheets = []
@@ -380,14 +360,18 @@ export function buildDailyReportWorkbookXml(payload = {}) {
 
 	const customerMap = new Map()
 	salesRows.forEach((row) => {
+		const customerId = row.customer_id
 		const customerName = normalizeString(row.customer_name) || '未命名客户'
-		if (!customerMap.has(customerName)) customerMap.set(customerName, [])
-		customerMap.get(customerName).push(row)
+		if (!customerMap.has(customerId)) customerMap.set(customerId, { name: customerName, rows: [] })
+		customerMap.get(customerId).rows.push(row)
 	})
-	if (!customerMap.size) customerMap.set('未命名客户', [])
-	Array.from(customerMap.entries()).forEach(([customerName, rows]) => {
-		const sheetName = ensureUniqueSheetName(customerName, usedNames)
-		sheets.push(buildWorksheetXml(sheetName, buildCustomerSheetRows({ customerName, rows, periodLabel })))
+	if (!customerMap.size) customerMap.set('', { name: '未命名客户', rows: [] })
+	const nameCounts = new Map()
+	for (const { name } of customerMap.values()) nameCounts.set(name, (nameCounts.get(name) || 0) + 1)
+	Array.from(customerMap.entries()).forEach(([customerId, { name: customerName, rows }]) => {
+		const name = nameCounts.get(customerName) > 1 ? `${customerName} ${customerId.slice(-8)}` : customerName
+		const sheetName = ensureUniqueSheetName(name, usedNames)
+		sheets.push(buildWorksheetXml(sheetName, buildCustomerSheetRows({ customerId, customerName, rows, periodLabel })))
 	})
 
 	return [
@@ -398,6 +382,7 @@ export function buildDailyReportWorkbookXml(payload = {}) {
 		' xmlns:x="urn:schemas-microsoft-com:office:excel"',
 		' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"',
 		' xmlns:html="http://www.w3.org/TR/REC-html40">',
+		'<Styles><Style ss:ID="Decimal3"><NumberFormat ss:Format="0.000"/></Style><Style ss:ID="Integer"><NumberFormat ss:Format="0"/></Style></Styles>',
 		sheets.join(''),
 		'</Workbook>'
 	].join('')

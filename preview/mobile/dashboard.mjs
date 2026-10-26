@@ -30,6 +30,19 @@ export function dashboardFixture(data = {}) {
 		local_weight_kg: value(850.125), local_count: Math.round(value(4)), vehicle_weight_kg: value(180.532), vehicle_count: Math.round(value(6)),
 		recorded_outflow_kg: value(3470.972), ...available() }
 	let payload
+	if (data.section === 'brief_sources') {
+		const cursor = Number(data.cursor || 0), scope = data.scope || 'period'
+		if (fixture === 'sources-changed') return { code: 409, msg: '本地示例：原始来源已变化，请刷新简报' }
+		const a = analysisFixture(today, period, fixture), sourceRange = data.expected_range || range
+		const point = scope === 'trend' && a.trend.points.find(row => row.date === data.date)
+		const periodValue = { sale_weight_kg: operations.sale_weight_kg, customer_count: operations.customer_count, business_net: sales + flow, cash_net: received - refund }[data.metric]
+		const totalValue = point ? point.value : scope === 'current' || scope === 'baseline' ? a.comparison.metrics[data.metric][scope] : periodValue
+		const state = totalValue == null ? unavailable('该日期净重来源待核') : available()
+		const count = fixture === 'sources-many' ? 51 : data.metric === 'customer_count' ? totalValue : point ? point.source_count ?? 1 : totalValue === 0 ? 0 : 1
+		const part = totalValue == null ? null : Math.trunc(totalValue * 1000 / Math.max(count, 1)) / 1000
+		const items = Array.from({ length: count }, (_, i) => ({ source_type: data.metric === 'cash_net' ? 'crm_customer_receipts' : 'crm_sale_records', source_id: `fixture-source-${i}`, date: sourceRange.start, customer_id: `fixture-customer-${data.metric === 'customer_count' ? i : '001'}`, customer_name: '本地示例客户', label: '本地合成原单', value: totalValue == null ? null : data.metric === 'customer_count' ? 1 : i === count - 1 ? Number((totalValue - part * (count - 1)).toFixed(3)) : part, unit: data.metric === 'sale_weight_kg' ? 'kg' : data.metric === 'customer_count' ? '条销售记录' : '元', status: state.status, issues: state.issues })).slice(cursor, cursor + 50)
+		return { code: 0, data: { section: 'brief_sources', version: 'operating-analysis/2026-10-26.1', metric: data.metric, scope, range: sourceRange, items, total: count, next_cursor: cursor + 50 < count ? String(cursor + 50) : null, evidence_token: data.evidence_token, ...state, read_complete: true, value: totalValue, note: data.metric === 'customer_count' ? '按原始销售客户去重；逐条记录数不能相加作为客户数' : '合成原单仅用于界面验收' } }
+	}
 	if (data.section === 'brief') {
 		const positiveSettlement = { principal: value(25000), allocated: value(18000), sale_rounding: value(70), receipt_rounding: value(30),
 			rounding: value(100), outstanding: value(6900), as_of: 'current', scope_label: '所选业务正向货款，按当前有效核销', ...available() }
@@ -57,8 +70,8 @@ export function dashboardFixture(data = {}) {
 		if (fixture === 'operations-unavailable') clear(operations, Object.keys(operations).filter(key => typeof operations[key] === 'number' && key !== 'issue_count'),
 			unavailable('销售净重来源待核', { source: 'crm_sale_records', source_id: 'fixture-sale-003', field: 'out_items.net' }))
 		const complete = [business, positiveSettlement, cash, cash.evidence, destinations, operations].every(block => block.complete)
-		payload = { section: 'brief', version, finance_version: financeVersion, period, range, money_scale: 3,
-			business, cash, operations, complete, accounting: { status: complete ? 'resolved' : 'unresolved' },
+		payload = { section: 'brief', preview: true, version, finance_version: financeVersion, period, range, money_scale: 3,
+			business, cash, operations, analysis: analysisFixture(today, period, fixture, { business, cash, operations }), complete, accounting: { status: complete ? 'resolved' : 'unresolved' },
 			updated_at: now, read_started_at: now, read_completed_at: now, snapshot_consistent: false }
 	}
 	if (data.section === 'tank_loss') {
@@ -148,8 +161,43 @@ export function dashboardFixture(data = {}) {
 			vehicle_count: operations.vehicle_count, vehicle_weight: operations.vehicle_weight_kg,
 			fill_total_weight: value(3470.972), sale_customer_count: operations.customer_count,
 			sale_bottle_count: operations.sale_bottle_count, sale_weight: operations.sale_weight_kg })
-		payload = { section: 'daily_report', version, range: { start: data.date_start, end: data.date_end }, daily_report: { rows }, complete: true, updated_at: now }
+		for (const row of rows) { row.other_count = 0; row.other_weight = 0 }
+		payload = { section: 'daily_report', version, daily_version: 'operating-daily/2026-10-26.1', source_token: 'local-fixture-report', sale_ids: [], sale_weights: [], export_evidence: { complete: false, issues: [{ code: 'preview_only', message: '合成展示样例不提供真实销售原单导出' }], issue_count: 1 }, range: { start: data.date_start, end: data.date_end }, daily_report: { rows }, complete: true, updated_at: now }
 	}
 	if (!payload) return null
 	return { code: 0, msg: '本地经营简报示例', data: payload, financial_evidence: { complete: payload.complete, read_complete: true, snapshot_consistent: false } }
+}
+
+
+// Deliberately synthetic presentation cases, never used as production evidence.
+export function analysisFixture(today, period, fixture = '', domains = {}) {
+	const shift = n => date(Date.parse(today) + n * day), empty = fixture === 'empty'
+	let currentRange = null, baselineRange = null
+	if (period === 'yesterday') { currentRange = { start: shift(-1), end: shift(-1) }; baselineRange = { start: shift(-2), end: shift(-2) } }
+	if (period === 'month') {
+		const last = date(Date.parse(today.slice(0, 7) + '-01') - day), n = Math.min(Number(today.slice(8)) - 1, Number(last.slice(8)))
+		if (n > 0) { currentRange = { start: today.slice(0, 7) + '-01', end: today.slice(0, 7) + '-' + String(n).padStart(2, '0') }; baselineRange = { start: last.slice(0, 7) + '-01', end: last.slice(0, 7) + '-' + String(n).padStart(2, '0') } }
+	}
+	const metric = (current, baseline, failed = false) => !currentRange || failed ? { status: failed ? 'unavailable' : 'not_comparable', current: null, baseline: null, delta: null, rate: null, issues: failed ? [{ code: 'fixture_unresolved', message: '本地示例：来源待核' }] : [] } : { status: 'available', current: empty ? 0 : current, baseline: empty ? 0 : baseline, delta: empty ? 0 : Number((current - baseline).toFixed(3)), rate: empty || baseline <= 0 ? null : Number((current - baseline).toFixed(3)) / baseline, issues: [] }
+	const scale = period === 'month' ? 18 : 1
+	const metrics = {
+		sale_weight_kg: metric(2180.125 * scale, 1970 * scale, domains.operations?.complete === false),
+		business_net: metric(24600 * scale, 22400 * scale, domains.business?.complete === false),
+		cash_net: metric(19300 * scale, 21000 * scale, domains.cash?.complete === false),
+		customer_count: metric(period === 'month' ? 80 : 18, period === 'month' ? 73 : 16, domains.operations?.complete === false)
+	}
+	const values = empty ? [0, 0, 0, 0, 0, 0, 0] : [1460, 2050, -120, 0, 2330, 1970, 2180.125]
+	const points = values.map((value, i) => ({ date: shift(i - 7), value, status: 'available', source_count: value === 0 ? 0 : 5, issues: [] }))
+	if (fixture === 'trend-gap') Object.assign(points[3], { value: null, status: 'unavailable', source_count: null, issues: [{ code: 'fixture_gap', message: '本地示例：净重来源缺失' }] })
+	const ready = metrics.business_net.status === 'available'
+	return { version: 'operating-analysis/2026-10-26.1',
+		trend: { range: { start: shift(-7), end: shift(-1) }, points, status: fixture === 'trend-gap' ? 'partial' : 'available', issues: [] },
+		comparison: { current_range: currentRange, baseline_range: baselineRange, status: !currentRange ? 'not_comparable' : Object.values(metrics).every(m => m.status === 'available') ? 'available' : 'partial', reason: !currentRange ? '尚无可比较完整日' : '', metrics },
+		drivers: { status: ready ? 'available' : 'unavailable', items: ready && !empty ? [
+			{ customer_id: 'fixture-customer-001', name: '示例客户甲', code: 'KH001', current: 9000 * scale, baseline: 6000 * scale, delta: 3000 * scale },
+			{ customer_id: 'fixture-customer-002', name: '示例客户乙', code: 'KH002', current: 2500 * scale, baseline: 4000 * scale, delta: -1500 * scale },
+			{ customer_id: 'fixture-customer-003', name: '示例客户丙', code: 'KH003', current: 1200 * scale, baseline: 0, delta: 1200 * scale }
+		] : [], other_delta: ready ? empty ? 0 : -500 * scale : null, total_delta: ready ? empty ? 0 : 2200 * scale : null, issues: [] },
+		evidence: { token: `local-fixture-${today}-${period}-${fixture}`, source_count: 15, snapshot_consistent: false, external_verified: false, time_basis: 'current_registered_records', read_started_at: Date.now(), read_completed_at: Date.now() }
+	}
 }

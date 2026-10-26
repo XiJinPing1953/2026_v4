@@ -4,6 +4,9 @@ const { readComplete, FinancialReadError } = require('./financialReadLocal')
 const { sumMoneyByScale } = require('./saleAccountingLocal')
 const { buildNotHiddenCustomerFieldsWhere, mergeWhere } = require('./customerVisibilityLocal')
 const { validateSaleOperations } = require('./saleSourceValidation')
+const { summarizeGasOutflow } = require('./gasOutflow')
+const F = require('./operatingBriefFinance')
+const { createHash } = require('crypto')
 
 const VERSION = 'operating-brief/2026-10-23.1'
 const DAY = 86400000
@@ -48,8 +51,8 @@ function summarizeOperations(sales, fillings, helpers) {
 	const customers = new Set()
 	const result = { sale_weight_kg: 0, sale_bottle_count: 0, customer_count: 0,
 		fill_bottle_weight_kg: 0, fill_bottle_count: 0, local_weight_kg: 0, local_count: 0,
-		vehicle_weight_kg: 0, vehicle_count: 0, complete: true }
-	const saleWeights = [], fillWeights = [], localWeights = [], vehicleWeights = []
+		vehicle_weight_kg: 0, vehicle_count: 0, other_weight_kg: 0, other_count: 0, complete: true }
+	const saleWeights = []
 	for (const row of sales) {
 		validateSaleOperations(row)
 		const key = helpers.buildCustomerKey(row)
@@ -57,19 +60,17 @@ function summarizeOperations(sales, fillings, helpers) {
 		saleWeights.push(helpers.computeSaleWeight(row))
 		result.sale_bottle_count += helpers.computeSaleBottleCount(row)
 	}
-	for (const row of fillings) {
-		const weight = requiredMoney(row.fill_weight, 'crm_fillings', row._id)
-		if (weight <= 0) continue
-		const mode = helpers.detectGasFlowMode(row)
-		if (mode === 'vehicle') { result.vehicle_count++; vehicleWeights.push(weight) }
-		else if (mode === 'local') { result.local_count++; localWeights.push(weight) }
-		else { result.fill_bottle_count++; fillWeights.push(weight) }
+	// Date-based operational reports share channel classification with the
+	// time-bounded tank balance. Their distinct time basis stays explicit.
+	const outflow = summarizeGasOutflow(fillings, { resolveTime: () => ({ include: true }) })
+	if (!outflow.complete) throw new FinancialReadError('invalid_filling_source', { source: 'crm_fillings', source_id: outflow.issues[0]?.source_id })
+	for (const channel of outflow.channels) {
+		const prefix = channel.key === 'bottle' ? 'fill_bottle' : channel.key
+		result[`${prefix}_count`] = channel.count
+		result[`${prefix}_weight_kg`] = channel.weight_kg
 	}
 	result.sale_weight_kg = sum(saleWeights)
-	result.fill_bottle_weight_kg = sum(fillWeights)
-	result.local_weight_kg = sum(localWeights)
-	result.vehicle_weight_kg = sum(vehicleWeights)
-	result.recorded_outflow_kg = sum([result.fill_bottle_weight_kg, result.local_weight_kg, result.vehicle_weight_kg])
+	result.recorded_outflow_kg = outflow.weight_kg
 	result.customer_count = customers.size
 	return result
 }
@@ -83,6 +84,7 @@ function dailyRows(sales, fillings, range, helpers) {
 		return { date, fill_bottle_count: row.fill_bottle_count, fill_bottle_weight: row.fill_bottle_weight_kg,
 			local_count: row.local_count, local_weight: row.local_weight_kg,
 			vehicle_count: row.vehicle_count, vehicle_weight: row.vehicle_weight_kg,
+			other_count: row.other_count, other_weight: row.other_weight_kg,
 			fill_total_weight: row.recorded_outflow_kg,
 			sale_customer_count: row.customer_count, sale_bottle_count: row.sale_bottle_count, sale_weight: row.sale_weight_kg }
 	})
@@ -103,7 +105,7 @@ async function readOperatingBrief(db, data, helpers, now = Date.now()) {
 		return rows
 	}
 	// Visibility itself must be complete: the old list helper silently capped hidden IDs.
-	const customerRows = await read('crm_customers', {}, { is_hidden: true })
+	const customerRows = await read('crm_customers', {}, { is_hidden: true, settlement_customer_id: true, default_price_unit: true })
 	const hidden = customerRows.filter(row => row.is_hidden === true).map(row => row._id)
 	const dateWhere = key => command.and([{ [key]: command.gte(range.start) }, { [key]: command.lte(range.end) }])
 	const saleWhere = mergeWhere(command, dateWhere('date'), buildNotHiddenCustomerFieldsWhere(command, hidden, ['customer_id', 'delivery_customer_id']))
@@ -111,7 +113,24 @@ async function readOperatingBrief(db, data, helpers, now = Date.now()) {
 		read('crm_sale_records', saleWhere),
 		read('crm_fillings', dateWhere('date'), { date: true, bottle_no: true, record_type: true, fill_weight: true })
 	])
-	const result = { section: 'daily_report', version: VERSION, range, daily_report: { rows: dailyRows(sales, fillings, range, helpers) }, complete: true }
+	const eligibleSales = sales.filter(row => F.active(row, 'sales'))
+	const scope = F.scopeFor(customerRows)
+	for (const row of eligibleSales) scope.owner(row, 'sales')
+	const saleWeights = eligibleSales.map(row => ({ source_id: row._id, weight_kg: helpers.computeSaleWeight(row) }))
+	// A physical report may remain readable with a missing price. Exporting
+	// monetary columns additionally requires the existing finance validation;
+	// listV2's classification flag alone does not certify those source amounts.
+	const exportFinance = F.businessSummary({ sales: eligibleSales, customers: customerRows })
+	const exportSettlement = exportFinance.positive_settlement
+	const exportEvidence = F.state([...exportFinance.issues, ...exportSettlement.issues])
+	exportEvidence.complete = exportFinance.complete && exportSettlement.complete
+	exportEvidence.issues_complete = exportFinance.issue_count === exportFinance.issues.length &&
+		exportSettlement.issue_count === exportSettlement.issues.length && exportEvidence.issue_count === exportEvidence.issues.length
+	const sourceToken = createHash('sha256').update(JSON.stringify([customerRows, sales, fillings])).digest('hex')
+	const result = { section: 'daily_report', version: VERSION, daily_version: 'operating-daily/2026-10-26.1', range,
+		time_basis: 'registered_business_date', source_token: sourceToken, sale_ids: eligibleSales.map(row => row._id),
+		sale_weights: saleWeights, export_evidence: exportEvidence,
+		daily_report: { rows: dailyRows(eligibleSales, fillings, range, helpers) }, complete: true }
 	// Detect timestamped writes across the whole read window, not just each collection's page loop.
 	// Deletions without tombstones and old rows without timestamps still preclude an atomic snapshot claim.
 	for (const query of queries) {
