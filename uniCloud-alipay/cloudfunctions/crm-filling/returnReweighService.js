@@ -119,7 +119,7 @@ function createReturnReweighService({ db, readInputs, now = Date.now }) {
 				capture: { gross_weight: result.data.gross_weight, stable: true, sampled_at: Number(capture.sampled_at),
 					stable_seq: Number(capture.stable_seq), measurement_id: text(capture.measurement_id).slice(0, 160),
 					device_id: text(capture.device_id).slice(0, 160), raw: text(capture.raw).slice(0, 2000) },
-				outgoing_facts: outgoingFacts(inputs), manual_facts: manualFacts(inputs), baseline_filling_ids: inputs.fillings.map(row => row._id) }
+				sales_snapshot_version: 2, outgoing_facts: outgoingFacts(inputs), manual_facts: manualFacts(inputs), baseline_filling_ids: inputs.fillings.map(row => row._id) }
 			await tx.collection('crm_return_reweighs').add(row)
 			const state = { kind: 'bottle', bottle_no: no, record_id: row._id, consumed_filling_id: '', updated_at: time }
 			if (inputs.returnHead) await tx.collection('crm_return_reweigh_state').doc(inputs.returnHead._id).update(state)

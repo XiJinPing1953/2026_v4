@@ -27,6 +27,19 @@ function canonicalOutgoingFacts(facts, bottleNo) {
 	return (facts || []).map(row => ({ ...row, key: text(row.key).replace(/^(.*):(out_items|agent_sale_items):[^:]+$/, (_, id) => `${id}:bottle:${no(bottleNo)}`) }))
 		.sort((a, b) => a.key.localeCompare(b.key) || fingerprint(a).localeCompare(fingerprint(b)))
 }
+// Older deployments could snapshot no sales because an array query returned empty.
+// Ignore only newly visible facts proven to predate that snapshot and unchanged
+// since it; retain every previously captured fact and every uncertain/change case.
+function comparableOutgoingFacts(inputs, record) {
+ if (record.sales_snapshot_version === 2) return outgoingFacts(inputs)
+ const priorKeys = new Set(canonicalOutgoingFacts(record.outgoing_facts, inputs.bottle.bottle_no).map(row => row.key))
+ const at = number(record.created_at), day = businessTime(record.date)
+ const oldKeys = new Set(inputs.sales.filter(sale => {
+  const created = number(sale.created_at), updated = number(sale.updated_at), when = businessTime(sale.date)
+  return at > 0 && created > 0 && created <= at && updated >= created && updated <= at && when && day && when.day <= day.day
+ }).map(sale => `${sale._id}:bottle:${no(inputs.bottle.bottle_no)}`))
+ return outgoingFacts(inputs).filter(row => priorKeys.has(row.key) || !oldKeys.has(row.key))
+}
 const manualFacts = inputs => inputs.manual.map(row => ({ _id: row._id, date: row.date || row.event_day,
 	type: row.type, net_weight: row.net_weight, loss_weight: row.loss_weight })).sort((a, b) => a._id.localeCompare(b._id))
 // Rebuilt movement rows get new IDs. Compare the full multiset of business
@@ -76,7 +89,11 @@ function canRecordReturn(inputs) {
 		const previousKeys = new Set(canonicalOutgoingFacts(prior.outgoing_facts, inputs.bottle.bottle_no).map(row => row.key))
 		// Only a newly recorded departure can close a consumed return cycle. Editing
 		// an old departure's weight is not evidence of another physical cycle.
-		const departed = outgoingFacts(inputs).some(row => !previousKeys.has(row.key) && text(row.date).slice(0, 10) >= prior.date.slice(0, 10))
+		const departed = comparableOutgoingFacts(inputs, prior).some(row => {
+			const sale = inputs.sales.find(sale => `${sale._id}:bottle:${no(inputs.bottle.bottle_no)}` === row.key)
+			// Updating a previously missed old sale is not a new departure.
+			return !previousKeys.has(row.key) && (prior.sales_snapshot_version === 2 || number(sale?.created_at) > number(prior.created_at)) && text(row.date).slice(0, 10) >= prior.date.slice(0, 10)
+		})
 		if (!departed) return reject('本轮回瓶已用于灌装，不能改写依据；请完成出瓶后再登记下一轮回瓶')
 	}
 	return { ok: true }
@@ -86,7 +103,7 @@ function resolveMeasuredReweighContext(inputs) {
 	const { returnRecord: record, returnHead: head, fillingId } = inputs
 	if (!record || !head || head.record_id !== record._id) return reject('未找到本轮回瓶复秤数据，请先在 PDA“回瓶复秤”称重保存')
 	if (!(number(record.gross_weight) > 0)) return reject('本轮回瓶复秤毛重无效，请先核查')
-	if (fingerprint(outgoingFacts(inputs)) !== fingerprint(canonicalOutgoingFacts(record.outgoing_facts, inputs.bottle.bottle_no))) return reject('回瓶复秤后出瓶记录已变化，请先完成新一轮回瓶复秤或核查原单')
+	if (fingerprint(comparableOutgoingFacts(inputs, record)) !== fingerprint(canonicalOutgoingFacts(record.outgoing_facts, inputs.bottle.bottle_no))) return reject('回瓶复秤后出瓶记录已变化，请先完成新一轮回瓶复秤或核查原单')
 	if (!Array.isArray(record.manual_facts) || fingerprint(manualSignatures(manualFacts(inputs))) !== fingerprint(manualSignatures(record.manual_facts))) return reject('回瓶复秤后存在人工流转或损耗变更，请先核查')
 	const current = cycleFillings(inputs, record)
 	if (current.length > 1) return reject('本轮存在多次灌装，不能用复秤自动分配更正量')

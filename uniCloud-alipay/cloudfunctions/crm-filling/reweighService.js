@@ -12,15 +12,16 @@ const hour = at => new Date(at + 8 * 3600000).toISOString().slice(0, 13).replace
 const permanent = msg => Object.assign(new Error(msg), { permanent: true })
 
 // All reads are keyset-paginated. Reaching a safety limit never means "no return".
-async function allRows(collection, where, command) {
+async function allRows(collection, where, command, accept = () => true, maxPages = 100, deadline = Infinity) {
 	const rows = []; let cursor = ''
-	for (let page = 0; page < 100; page++) {
+	for (let page = 0; page < maxPages; page++) {
+		if (Date.now() >= deadline) throw new Error('销售明细读取未完成，请稍后重试')
 		const result = await collection.where(cursor ? command.and([where, { _id: command.gt(cursor) }]) : where)
 			.orderBy('_id', 'asc').limit(200).get()
 		if (!Array.isArray(result.data)) throw new Error('复秤依据读取不完整，请稍后重试')
 		for (const row of result.data) {
 			if (!row._id || (cursor && String(row._id) <= cursor)) throw new Error('复秤依据分页异常，请稍后重试')
-			cursor = String(row._id); rows.push(row)
+			cursor = String(row._id); if (accept(row)) rows.push(row)
 		}
 		if (result.data.length < 200) return rows
 	}
@@ -32,10 +33,13 @@ function createReweighService({ db, operations, submitCreate, stableId, now = Da
 	async function readInputs(no, database = db) {
 		const values = [no]
 		if (/^\d+$/.test(no)) values.push(Number(no))
-		const saleWhere = command.or(values.flatMap(value => ['back_items', 'out_items', 'agent_sale_items'].map(field => ({ [`${field}.bottle_no`]: value }))))
+		// Alipay can silently miss nested array matches without array indexes. Read
+		// projected source rows completely, then match locally; never trust an empty match.
+		const saleFields = ['back_items', 'out_items', 'agent_sale_items']
 		const reads = [
 			() => allRows(database.collection('crm_bottles'), { bottle_no: command.in(values) }, command),
-			() => allRows(database.collection('crm_sale_records'), saleWhere, command),
+			() => allRows(database.collection('crm_sale_records').field({ _id: true, date: true, biz_mode: true, created_at: true, updated_at: true, back_items: true, out_items: true, agent_sale_items: true }), {}, command,
+				row => saleFields.some(field => Array.isArray(row[field]) && row[field].some(item => bottleNo(item.bottle_no) === bottleNo(no))), Infinity, Date.now() + (database === db ? 45000 : 6000)),
 			() => allRows(database.collection('crm_fillings'), { bottle_no: command.in(values) }, command),
 			() => allRows(database.collection('crm_bottle_movements'), { bottle_no: command.in(values), source_type: command.in(['manual', 'manual_fix']) }, command)
 		]
