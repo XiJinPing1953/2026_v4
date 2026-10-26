@@ -41,6 +41,9 @@
         "databaseFiles": [],
         "baseCommit": "c4cd9e153b5b6b6b6409a932287d84868995c547",
         "sourceFiles": [
+          "src/manifest.json",
+          "src/components/domain/pda/PdaReweighView.vue",
+          "src/services/pda/reweighDraft.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js"
         ]
       }
@@ -105,7 +108,8 @@
         "sourceFiles": [
           "src/manifest.json",
           "src/components/domain/pda/PdaReweighView.vue",
-          "src/services/pda/reweighDraft.js"
+          "src/services/pda/reweighDraft.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js"
         ]
       },
       "integrityScope": "deployment"
