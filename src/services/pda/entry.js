@@ -84,6 +84,9 @@ export function resolveLoginRedirectForRuntime(redirectUrl, userLike) {
 	if (isSafetyInspectorRole(userLike)) {
 		return isSafetyInspectionPagePath(normalizedUrl) ? normalizedUrl : ''
 	}
+	// The browser's regular accounts return to the web desk, even if login
+	// captured the PDA home. Keep permitted mobile-sales deep links intact.
+	if (!isPdaAppMode() && !isPdaOperatorRole(userLike) && normalizeAppPagePath(normalizedUrl) === PDA_HOME_PATH) return ''
 	if (isPdaPagePath(normalizedUrl) && !canViewPage(normalizeAppPagePath(normalizedUrl), userLike)) return ''
 	return normalizedUrl
 }
@@ -95,5 +98,6 @@ export function shouldRedirectToPreferredHome(pagePath, userLike) {
 	if (isSafetyInspectorRole(userLike)) {
 		return currentPath !== LOGIN_PATH && !isSafetyInspectionPagePath(currentPath)
 	}
+	if (!isPdaAppMode() && !isPdaOperatorRole(userLike) && currentPath === PDA_HOME_PATH) return true
 	return currentPath === DEFAULT_HOME_PATH || currentPath === LOGIN_PATH
 }

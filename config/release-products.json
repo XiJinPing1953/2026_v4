@@ -6,17 +6,17 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.24-customer-flow-history",
+      "version": "2026.10.26-web-home-redirect",
       "output": "dist/build/web",
-      "acceptance": "H5 only. Preserve read-only historical flow statements after pricing changes to kg, show historical flow sources and original precision, and retain current m3 entry. crm-customer-settlement is an unchanged runtime dependency; do not upload cloud functions or schemas.",
+      "acceptance": "H5 only: regular browser accounts ignore stale PDA-home login targets and recover from an already-open PDA home. Preserve native PDA, PDA operator and safety roles, mobile-sales deep links, permissions and all business data. Do not deploy cloud functions, schemas or WGT.",
       "deploymentScope": {
         "functions": [
           "crm-customer-settlement"
         ],
         "databaseFiles": [],
-        "baseCommit": "a23c82a2ce4b928bf444d50e44697a198e94bc8e",
+        "baseCommit": "b05ec4fdea21da8df386aa079ba3f91b710eb210",
         "sourceFiles": [
-          "src/components/domain/customer/statement/CustomerStatementModule.vue"
+          "src/services/pda/entry.js"
         ],
         "aclCanonicalRevisions": {
           "crm-customer-settlement": {

@@ -6,9 +6,9 @@ const vm = require('node:vm')
 const path = require('node:path')
 const root = path.resolve(__dirname, '..')
 const stripImports = source => source.replace(/^import[\s\S]*?\bfrom\s+['"][^'"]+['"]\s*\n/gm, '')
-function load(file, names, globals) {
+function load(file, names, globals, native = false) {
   const source = stripImports(fs.readFileSync(path.join(root, file), 'utf8'))
-    .replace(/^export /gm, '').replace(/\s*\/\/ #ifdef APP-PLUS[\s\S]*?\/\/ #endif/g, '')
+    .replace(/^export /gm, '').replace(/\s*\/\/ #ifdef APP-PLUS[\s\S]*?\/\/ #endif/g, native ? '\nreturn true\n' : '')
   return vm.runInNewContext(`${source}\n;({${names.join(',')}})`, globals)
 }
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
@@ -30,11 +30,11 @@ function harness(options = {}) {
       }
     }
   }
-  const navigation = load('src/services/navigation.js', ['goLogin', 'setPendingLoginRedirect', 'getPendingLoginRedirect', 'consumePendingLoginRedirect'], globals)
+  const navigation = load('src/services/navigation.js', ['goLogin', 'setPendingLoginRedirect', 'getPendingLoginRedirect', 'consumePendingLoginRedirect', 'reLaunchOnce'], globals)
   const canViewPage = (page, actor) => actor?.role === 'superadmin' || Boolean(actor?.allowedPages?.includes(page))
   const entry = load('src/services/pda/entry.js', ['normalizeAppPagePath', 'resolveHomePath', 'resolveLoginRedirectForRuntime', 'shouldRedirectToPreferredHome'], {
     normalizeText: value => String(value ?? '').trim(), canViewPage
-  })
+  }, options.native)
   const appSource = fs.readFileSync(path.join(root, 'src/App.vue'), 'utf8').match(/<script>([\s\S]*?)<\/script>/)[1]
   const app = vm.runInNewContext(`${stripImports(appSource).replace('export default', 'const app =')}\n;app`, {
     ...globals, ...navigation, ...entry, canViewPage, getUser: () => user,
@@ -101,4 +101,29 @@ test('failed authentication check without a user does not consume pending destin
   await h.bootstrap()
   assert.equal(h.getPendingLoginRedirect(), '/pages/pda/sale-create')
   assert.equal(h.navigations.length, 0)
+})
+
+test('browser login discards the stale PDA home for regular accounts including superadmin', async () => {
+ for (const role of ['superadmin', 'user', 'driver']) {
+  const h = harness({ pages: [{ route: 'pages/login/login' }], user: { role, allowedPages: ['/pages/pda/home'] } })
+  h.setPendingLoginRedirect('/pages/pda/home?from=old-login')
+  await h.bootstrap()
+  assert.deepEqual(h.navigations, ['/pages/index/index'])
+  assert.equal(h.getPendingLoginRedirect(), '')
+ }
+})
+
+test('browser startup repairs an already authenticated PDA home without a redirect loop', async () => {
+ const h = harness({ pages: [{ route: 'pages/pda/home' }], user: { role: 'superadmin' } })
+ await h.bootstrap(); await h.bootstrap()
+ assert.deepEqual(h.navigations, ['/pages/index/index'])
+})
+
+test('native PDA and browser PDA operators retain their existing home and login destination', async () => {
+ for (const options of [{ native: true, user: { role: 'superadmin' } }, { user: { role: 'pda_operator', allowedPages: ['/pages/pda/home'] } }]) {
+  const h = harness({ ...options, pages: [{ route: 'pages/login/login' }] })
+  h.setPendingLoginRedirect('/pages/pda/home?from=login')
+  await h.bootstrap(); await h.bootstrap()
+  assert.deepEqual(h.navigations, ['/pages/pda/home?from=login'])
+ }
 })
