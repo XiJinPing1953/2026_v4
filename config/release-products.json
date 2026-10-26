@@ -11,21 +11,13 @@
       "acceptance": "H5 only: regular browser accounts ignore stale PDA-home login targets and recover from an already-open PDA home. Preserve native PDA, PDA operator and safety roles, mobile-sales deep links, permissions and all business data. Do not deploy cloud functions, schemas or WGT.",
       "deploymentScope": {
         "functions": [
-          "crm-customer-settlement"
+          "crm-auth"
         ],
         "databaseFiles": [],
         "baseCommit": "b05ec4fdea21da8df386aa079ba3f91b710eb210",
         "sourceFiles": [
           "src/services/pda/entry.js"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-customer-settlement": {
-            "registry": {
-              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
-              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
-            }
-          }
-        }
+        ]
       },
       "integrityScope": "deployment"
     },
