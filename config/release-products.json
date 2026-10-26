@@ -30,28 +30,22 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.24-operating-brief-validation",
+      "version": "2026.10.26-pda-sale-cycle",
       "output": "release/cloud",
-      "acceptance": "Retained crm-customer-settlement runtime dependency for the customer flow history H5 release. Dependency checks only; no cloud or schema deployment in this batch.",
+      "acceptance": "Only crm-filling: complete projected sales reads, legacy snapshot compatibility and new cycle recognition. No database or frontend changes.",
+      "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
-          "crm-customer-settlement"
+          "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "a23c82a2ce4b928bf444d50e44697a198e94bc8e",
+        "baseCommit": "0b66fa2b43498b9f818fed5d87583274121bbd78",
         "sourceFiles": [
-          "src/components/domain/customer/statement/CustomerStatementModule.vue"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-customer-settlement": {
-            "registry": {
-              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
-              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
-            }
-          }
-        }
-      },
-      "integrityScope": "deployment"
+          "uniCloud-alipay/cloudfunctions/crm-filling/reweighService.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js"
+        ]
+      }
     },
     "tank-gateway": {
       "version": "1.0.3",
