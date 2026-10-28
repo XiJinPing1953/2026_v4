@@ -137,8 +137,9 @@ import AppIcon from '@/components/base/AppIcon.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppTag from '@/components/base/AppTag.vue'
 import { getBottleMovementTimelineV1 } from '@/services/bottleMovement'
-import { searchBottlesV1 } from '@/services/bottle'
+import { resolveBottleNoV1, searchBottlesV1 } from '@/services/bottle'
 import { buildBottleTimelineDisplayEvents } from '@/services/models/bottleTimeline'
+import { getBottleSuggestionStatusLabel } from '@/composables/useBottleSuggestions'
 
 const open = ref(false)
 const loading = ref(false)
@@ -188,12 +189,15 @@ const result = computed(() => {
 	const latestBack = findLatestEventByType(events, 'back')
 	const saleRecordCount = countUniqueSourceIds(events.filter((row) => normalizeString(row?.source_type).toLowerCase() === 'sale'))
 	const fillRecordCount = countUniqueSourceIds(events.filter((row) => normalizeString(row?.type).toLowerCase() === 'fill'))
-	const currentStatus = resolveCurrentStatus(data.state, latestEvent)
-	const currentCustomer = resolveCurrentCustomer(currentStatus, latestEvent, latestOut, latestBack)
 	const bottleProfile = data?.bottle_profile && typeof data.bottle_profile === 'object' ? data.bottle_profile : {}
+	const bottle = data?.bottle_archive || null
+	const currentStatus = bottle ? getBottleSuggestionStatusLabel(bottle.status) : '状态读取失败'
+	const currentCustomer = currentStatus === '在客户'
+		? normalizeString(bottle?.current_customer_name) || '—'
+		: currentStatus === '在站' ? normalizeString(latestBack?.customer_name) || '—' : '—'
 	return {
 		bottleNo: normalizeBottleNo(data.bottle_no),
-		statusKind: normalizeString(data.state?.kind) || 'soft',
+		statusKind: ['在站', '在客户'].includes(currentStatus) ? 'success' : 'soft',
 		tareWeightText: `${formatProfileNumber(bottleProfile.tare_weight)} kg`,
 		volumeText: `${formatProfileNumber(bottleProfile.volume_l)} L`,
 		currentStatus,
@@ -289,27 +293,6 @@ function countUniqueSourceIds(rows) {
 		if (id) set.add(id)
 	}
 	return set.size
-}
-
-function resolveCurrentStatus(state, latestEvent) {
-	const code = normalizeString(state?.code)
-	if (code === 'waiting_back') return '在客户'
-	if (['waiting_fill', 'ready_out', 'adjusted'].includes(code)) return '在站'
-	if (code === 'waiting_next_action') return '待后续动作'
-	if (code === 'anomaly_open') {
-		return normalizeString(latestEvent?.type).toLowerCase() === 'out' ? '在客户' : '在站'
-	}
-	return normalizeString(state?.label) || '待确认'
-}
-
-function resolveCurrentCustomer(currentStatus, latestEvent, latestOut, latestBack) {
-	if (currentStatus === '在客户') {
-		return normalizeString(latestOut?.customer_name) || normalizeString(latestEvent?.customer_name) || '—'
-	}
-	if (currentStatus === '在站') {
-		return normalizeString(latestBack?.customer_name) || normalizeString(latestEvent?.customer_name) || '—'
-	}
-	return normalizeString(latestEvent?.customer_name) || normalizeString(latestOut?.customer_name) || normalizeString(latestBack?.customer_name) || '—'
 }
 
 function resolveCurrentCustomerLabel(currentStatus) {
@@ -464,10 +447,13 @@ async function onSearch() {
 	}
 	loading.value = true
 	try {
-		const [res, bottleRes] = await Promise.all([
+		const [res, bottleRes, exactRes] = await Promise.all([
 			getBottleMovementTimelineV1({ bottleNo, limit: 1200 }),
-			searchBottlesV1({ keyword: bottleNo, page: 1, pageSize: 50 })
+			searchBottlesV1({ keyword: bottleNo, page: 1, pageSize: 50 }),
+			resolveBottleNoV1({ bottle_no: bottleNo }).catch(() => null)
 		])
+		const exactBottle = exactRes?.code === 0 && normalizeBottleNo(exactRes?.data?.bottle?.bottle_no) === bottleNo
+			? exactRes.data.bottle : null
 		const bottleProfile = bottleRes?.code === 0
 			? pickBottleProfileByBottleNo(bottleRes?.data, bottleNo)
 			: { tare_weight: null, volume_l: null }
@@ -485,6 +471,7 @@ async function onSearch() {
 				...buildTimelineDefault(),
 				...res.data,
 				bottle_profile: bottleProfile,
+				bottle_archive: exactBottle,
 				state: { ...buildTimelineDefault().state, ...(res.data.state || {}) },
 				stats: { ...buildTimelineDefault().stats, ...(res.data.stats || {}) },
 				events: Array.isArray(res.data.events) ? res.data.events : []
