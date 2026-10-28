@@ -31,6 +31,10 @@
 
 1.0.36（137）候选将销售发送改为ESC/POS：复用原生1.0.17安装包内`EscCommand`及既有`DeviceConnFactoryManager`，不新建蓝牙连接、不改AAR。保留四列、出回顺序、存瓶与保存/重打保护；按y坐标逐行打印和走纸，末行后只留4毫米，取消标签SIZE/GAP/PRINT以及找标签操作。分区改用留白，超长内容仍完整续段。连接提示明确使用“小票模式”，充装标签路径不变。
 
-40项相关测试通过；用真实SDK类在JVM生成示例指令，与测试输出690字节逐字节相等，四出四回示例91毫米。正式原生1.0.17 APK（SHA256 `06069d00194280fd9151c83ab940cc6d5f7de033efd1b8fbcee8c10fb1499ad6`）DEX已核实两个类及所有需要的public方法均保留。Native.js静默失败通过发送前缓冲长度检查拦截；连接变更/断线拒绝发送。构建、发布和真机验收尚待完成；JVM/DEX检查不能代替Native.js真机与物理出纸。
+40项相关测试通过；用真实SDK类在JVM生成示例指令，与测试输出690字节逐字节相等，四出四回示例91毫米。正式原生1.0.17 APK（SHA256 `06069d00194280fd9151c83ab940cc6d5f7de033efd1b8fbcee8c10fb1499ad6`）DEX已核实两个类及所有需要的public方法均保留。Native.js静默失败通过发送前缓冲长度检查拦截；连接变更/断线拒绝发送。JVM/DEX检查不能代替Native.js真机与物理出纸。
 
 协议依据：[ESC J逐行打印/走纸](https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/esc_cj.html)、[GS P走纸单位](https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_cp.html)、[Native.js调用与失败返回](https://www.html5plus.org/doc/zh_cn/android.html)。设备具体兼容仍以现场为准。证据另存`outputs/trust-audit/2026-10-28-sale-receipt-protocol/`。
+
+修复已按原发布授权完成：源码`1fbda973cdcca96a2aa0011ebdcbe9582bae1abb`，WGT **1.0.36（137）**，`crm-pda-1.0.36-d48e375eb955.wgt`，996352字节，SHA256 `d48e375eb955dfd9571624033dc2853c03968c4a057eedd6797ac138a1a1ec90`。干净发布范围检查、绑定正式空间WGT构建、原云配置比对、线上包逐字节/摘要/大小、更新校验器及latest逐字段回读均通过。原PDA工作区7文件核对原值并备份同步。仅WGT，云函数/H5/业务数据保持；1.0.35包及更新清单已保留备份，已安装设备回退需递增版本资源包。
+
+现场下一步：更新至1.0.36并重启，打印机选择“小票模式”，补打一张既有销售单，核对中文、四列、存瓶和尾部空白。此时销售不再使用标签模式；换回充装标签需使用标签模式和相应纸张。设备实际更新版本、Native.js调用及真实走纸仍待用户确认，不记为已现场通过。
