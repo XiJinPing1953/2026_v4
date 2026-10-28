@@ -1,12 +1,13 @@
 import { buildDepositPreviewRows } from './shared'
+import { writeReceiptText } from './receiptPrinter'
 
-const text = value => String(value ?? '').replace(/[\r\n\t]/g, ' ').trim()
+const text = value => String(value ?? '').replace(/[\x00-\x1f\x7f]/g, ' ').trim()
 const finite = value => value !== null && value !== '' && Number.isFinite(Number(value))
 const width = value => [...value].reduce((n, c) => n + (c.charCodeAt(0) > 127 ? 24 : 12), 0)
 // 80 mm continuous stock; keep commands inside a 576-dot (72 mm) print head.
 // Long receipts use bounded buffers; 50 mm is the roll diameter, not a page height.
 const LEFT = 16, RIGHT = 560, TOP = 52, LINE = 28, FONT_HEIGHT = 24
-const MAX_HEIGHT_MM = 200, LAST_Y = MAX_HEIGHT_MM * 8 - 16 - FONT_HEIGHT
+const MAX_HEIGHT_MM = 200, LAST_Y = MAX_HEIGHT_MM * 8 - 32 - FONT_HEIGHT
 const COLUMN_ENDS = [160, 292, 424, 560]
 
 function wrap(value, limit = RIGHT - LEFT) {
@@ -38,7 +39,7 @@ export function salePrintPages(sale) {
   let current, y
   function put(x, value, at = y) { current.commands.push({ x, y: at, text: value }); current.rows.push(value) }
   function page(section) {
-    current = { section, commands: [], bars: [], rows: [], id: sale._id }; pages.push(current); y = TOP
+    current = { section, commands: [], rows: [], id: sale._id }; pages.push(current); y = TOP
     for (const line of customer) { put(LEFT, line); y += LINE }
   }
   function lines(value, section = current.section) {
@@ -48,7 +49,7 @@ export function salePrintPages(sale) {
     }
   }
   function separator() {
-    current.bars.push({ x: LEFT, y: y + 2, width: RIGHT - LEFT, height: 1 })
+    // Separate sections with space; receipt text is streamed line by line.
     y += 16
   }
   function header(section) {
@@ -104,24 +105,16 @@ export function salePrintPages(sale) {
   lines(deposits ? '存瓶(' + deposits.length + '瓶): ' + (deposits.map(row => row.bottle_no).join('、') || '无') : '存瓶: 原单未记录，待核对', '存瓶 kg')
 
   return pages.map((p, i) => ({ ...p, page: i + 1, total: pages.length,
-    heightMm: Math.ceil((Math.max(40, ...p.commands.map(row => row.y + FONT_HEIGHT), ...p.bars.map(bar => bar.y + bar.height)) + 16) / 8)
+    heightMm: Math.ceil((Math.max(40, ...p.commands.map(row => row.y + FONT_HEIGHT)) + 32) / 8)
   }))
 }
 
-export function writeSalePage(plugin, page) {
-  // Validate before buffering anything: silently omitting GAP would seek label gaps.
-  for (const method of ['setGap', 'setBackFeed', 'setBar']) {
-    if (typeof plugin?.[method] !== 'function') throw new Error('当前安装包缺少连续小票打印接口，请更新安装包')
-  }
-  plugin.clear(); plugin.setSize(80, page.heightMm); plugin.setGap(0); plugin.setCls()
-  plugin.setBackFeed(0); plugin.setDirection(0); plugin.setReference(0, 0)
+export function writeSalePage(android, page, address) {
   const title = '新拓能源 销售单'
-  plugin.setText(Math.floor((LEFT + RIGHT - width(title)) / 2), 16, 'TSS24.BF2', 1, 1, title)
+  const rows = [{ x: Math.floor((LEFT + RIGHT - width(title)) / 2), y: 16, text: title }, ...page.commands]
   if (page.total > 1) {
     const footer = page.page + '/' + page.total
-    plugin.setText(RIGHT - width(footer), 16, 'TSS24.BF2', 1, 1, footer)
+    rows.push({ x: RIGHT - width(footer), y: 16, text: footer })
   }
-  for (const row of page.commands) plugin.setText(row.x, row.y, 'TSS24.BF2', 1, 1, row.text)
-  for (const bar of page.bars) plugin.setBar(bar.x, bar.y, bar.width, bar.height)
-  plugin.setPagePrint(); return plugin.startPrint()
+  return writeReceiptText(android, rows, address)
 }

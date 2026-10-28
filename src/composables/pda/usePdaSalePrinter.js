@@ -7,16 +7,17 @@ import { salePrintPages, writeSalePage } from '@/services/pda/salePrint'
 export function usePdaSalePrinter(active) {
  const owner=String(getUser()?._id||''), valid=()=>active()&&owner&&owner===String(getUser()?._id||'')
  const status=ref('打印机未连接'),busy=ref(false),connecting=ref(false),connected=ref(false)
- let session=null,epoch=0,timer=null
+ let session=null,epoch=0,timer=null,printerAddress=''
  const eligible=new Set()
  async function connect(){if(!valid()||busy.value||connecting.value)return;close();const ticket=epoch;connecting.value=true
  try{const permission=await ensurePdaBleRuntimePermission();if(ticket!==epoch||!valid())return;if(permission.code!==0)throw Error(permission.msg)
  const devices=getPairedPrinters(plus.android),bound=uni.getStorageSync('pda_label_printer_bound_v1'),device=devices.find(d=>d.address===bound?.address)||(devices.length===1?devices[0]:null)
  if(!device)throw Error('请先在系统蓝牙配对 HL30-AA21')
- session=createLabelPrinterSession(uni.requireNativePlugin('TH-PlatformBLE'),s=>{if(ticket!==epoch)return;if(!valid()){close();return}connected.value=s.connected;connecting.value=Boolean(s.connecting);status.value=s.message;if(s.connected)try{uni.setStorageSync('pda_label_printer_bound_v1',device)}catch(_){}})
+ printerAddress=device.address
+ session=createLabelPrinterSession(uni.requireNativePlugin('TH-PlatformBLE'),s=>{if(ticket!==epoch)return;if(!valid()){close();return}connected.value=s.connected;connecting.value=Boolean(s.connecting);status.value=s.connected?'打印机已连接，请使用小票模式':s.message;if(s.connected)try{uni.setStorageSync('pda_label_printer_bound_v1',device)}catch(_){}})
  timer=setInterval(()=>{if(!valid())close()},1000);session.connect(device.address)
  }catch(e){if(ticket===epoch){session?.close();session=null;status.value=e.message;connecting.value=false}} }
- function close(){epoch++;clearInterval(timer);session?.close();session=null;connected.value=false;connecting.value=false;eligible.clear()}
+ function close(){epoch++;clearInterval(timer);session?.close();session=null;printerAddress='';connected.value=false;connecting.value=false;eligible.clear()}
  function stop(){epoch++;status.value='已停止；已发送的页请查看出纸'}
  async function print(id,{automatic=false,operationId=''}={}){if(!valid()||busy.value)return;const key=`pda_sale_print_v1:${owner}:${operationId||id}`
  busy.value=true;const ticket=epoch
@@ -24,7 +25,7 @@ export function usePdaSalePrinter(active) {
  if(!session?.connected)throw Error('记录已保存，打印机未连接，请手动补打')
  const result=await getPdaSale(id, { shouldContinue: () => ticket === epoch && valid() });if(ticket!==epoch||!valid())return;if(result.code!==0)throw Error(result.msg)
  const pages=salePrintPages(result.data)
- for(const page of pages){if(ticket!==epoch||!valid())return;if(!session?.connected)throw Error('打印已停止，请核对出纸后补打');await session.sendDocument(plugin=>writeSalePage(plugin,page))}
+ for(const page of pages){if(ticket!==epoch||!valid())return;if(!session?.connected)throw Error('打印已停止，请核对出纸后补打');await session.sendDocument(()=>writeSalePage(plus.android,page,printerAddress))}
  if(ticket===epoch)status.value=`已发送 ${pages.length} 页，请查看出纸`
  }catch(e){if(ticket===epoch)status.value=e.message||'发送结果不明，请查看出纸后补打'}finally{busy.value=false}}
  onBeforeUnmount(close)

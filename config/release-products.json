@@ -98,18 +98,20 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.35",
+      "version": "1.0.36",
       "output": "release/pda",
-      "acceptance": "WGT only: 80 mm continuous sales receipts, outgoing above returning, content-dependent length and post-sale deposit bottles (saved set union outgoing minus returning). Retain saved facts and print deduplication. crm-filling is checked as an existing runtime dependency only; no cloud/schema/H5 deployment. Verify physical receipt on device separately.",
+      "acceptance": "WGT only: send sales receipts using ESC/POS through the existing native BLE connection, with content-based feed and 4 mm trailing allowance. Printer must be in receipt mode. Preserve deposit calculation and filling label printing. Existing native 1.0.17 APK contains required public interfaces; physical receipt validation remains separate. No cloud/schema/H5 deployment.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "41850e861be99216da7871c3c2ee2cafac1310bb",
+        "baseCommit": "856dc6941ba2e0938874fd9a247dd506fdb516ce",
         "sourceFiles": [
           "src/manifest.json",
-          "src/services/pda/salePrint.js"
+          "src/services/pda/salePrint.js",
+          "src/services/pda/receiptPrinter.js",
+          "src/composables/pda/usePdaSalePrinter.js"
         ]
       },
       "integrityScope": "deployment"

@@ -24,3 +24,13 @@
 原PDA工作区3个源码/测试/版本文件和发布配置的PDA部分已核对前值、备份并同步，其他产品配置保持原值。用户在PDA首页检查更新至1.0.35，使用80毫米连续小票纸，补打一张既有四出四回销售单核对：上下顺序、四列重量、存瓶增减及纸张进纸；实际出纸尚未验收。回退时恢复保存的`latest-before.json`，已安装新资源的设备需另做版本递增的回退包，不强制降级、不清登录/草稿/称重记录。
 
 证据：`outputs/trust-audit/2026-10-28-sale-receipt-80mm/`；可查看示例`output/pdf/sale-80mm-receipt-implemented/sales-receipt-80mm.pdf`与同名PNG。测试和布局未写生产数据。
+
+## 同日现场回归：小票模式打印标签指令、标签模式尾部空走纸
+
+用户照片直接显示`GAP/CLS/TEXT/PRINT`等TSPL标签指令，中文字本身正常；用户另确认标签模式打印内容正确但尾部走出长段空白。根因中已证实的是1.0.35发送标签协议，`GAP 0`只选择连续介质，不能使发送内容变成小票协议；标签模式多走纸的固件定位机制尚无设备回读，不能断言具体参数。
+
+1.0.36（137）候选将销售发送改为ESC/POS：复用原生1.0.17安装包内`EscCommand`及既有`DeviceConnFactoryManager`，不新建蓝牙连接、不改AAR。保留四列、出回顺序、存瓶与保存/重打保护；按y坐标逐行打印和走纸，末行后只留4毫米，取消标签SIZE/GAP/PRINT以及找标签操作。分区改用留白，超长内容仍完整续段。连接提示明确使用“小票模式”，充装标签路径不变。
+
+40项相关测试通过；用真实SDK类在JVM生成示例指令，与测试输出690字节逐字节相等，四出四回示例91毫米。正式原生1.0.17 APK（SHA256 `06069d00194280fd9151c83ab940cc6d5f7de033efd1b8fbcee8c10fb1499ad6`）DEX已核实两个类及所有需要的public方法均保留。Native.js静默失败通过发送前缓冲长度检查拦截；连接变更/断线拒绝发送。构建、发布和真机验收尚待完成；JVM/DEX检查不能代替Native.js真机与物理出纸。
+
+协议依据：[ESC J逐行打印/走纸](https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/esc_cj.html)、[GS P走纸单位](https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_cp.html)、[Native.js调用与失败返回](https://www.html5plus.org/doc/zh_cn/android.html)。设备具体兼容仍以现场为准。证据另存`outputs/trust-audit/2026-10-28-sale-receipt-protocol/`。
