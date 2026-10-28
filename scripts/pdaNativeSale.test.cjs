@@ -60,7 +60,25 @@ async function harness(t, options = {}) {
 		}
 	}
 	function emit() { onSnapshot({ ...core.createEmptyPdaBleScaleSnapshot(), is_connected: connected, session_id: `session${session}` }) }
-	runtime.usePdaSalePrinter = () => ({ arm() {}, confirmed() {}, close() {} })
+	runtime.usePdaSalePrinter = () => ({ busy: vue.ref(false), arm() {}, confirmed() {}, close() {} })
+	const printNative = require('./lib/receiptPrinterHarness.cjs').receiptPrinterHarness(), printReads = []
+	if (options.printing) {
+		const receiptApi = load('src/services/pda/receiptPrinter.js', ['writeReceiptText', 'RECEIPT_TAIL_DOTS'])
+		Object.assign(runtime, load('src/services/pda/salePrint.js', ['salePrintPages', 'writeSalePage'], { ...shared, ...receiptApi }))
+		Object.assign(runtime, {
+			plus: { android: printNative.android }, setInterval: () => 0, clearInterval() {},
+			selectPairedPrinter: async () => ({ name: 'HL30-AA20', address: printNative.address }), rememberPrinter() {},
+			createLabelPrinterSession: (_, callback) => ({ connected: true, close() {}, connect() { callback({ connected: true }) }, async sendDocument(writer) { writer({}); await options.afterPrint?.() } }),
+			getPdaSale: async id => {
+				printReads.push(id); assert.equal(requests.length, 1)
+				const p = requests[0].payload, out = p.outRows, back = p.backRows
+				const net = out.reduce((n, r) => n + Number(r.net), 0) - back.reduce((n, r) => n + Number(r.net), 0)
+				return { code: 0, data: { _id: id, biz_mode: 'bottle', price_unit: 'kg', customer_name: customer.name, unit_price: 8, total_net_weight: net, should_receive: net * 8, out_items: out, back_items: back, deposit_rows: p.depositRows } }
+			}
+		})
+		runtime.uni.requireNativePlugin = () => ({})
+		Object.assign(runtime, load('src/composables/pda/usePdaSalePrinter.js', ['usePdaSalePrinter'], runtime))
+	}
 	runtime.createAutoReweighWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight'], { Date: runtime.Date }).createAutoReweighWeight
 	Object.assign(runtime, load('src/composables/pda/usePdaSaleForm.js', ['usePdaSaleForm'], runtime))
 	const module = load('src/composables/pda/usePdaNativeSale.js', ['usePdaNativeSale', 'isNativeSaleRowWeighed'], runtime)
@@ -75,7 +93,7 @@ async function harness(t, options = {}) {
 			frameListener({ sampled_at: now, display_kg: weight, session_id: oldSession || `session${session}`, device_id: 'scale1' })
 		}
 	}
-	return { pause: ms => { now += ms; onSnapshot({ ...core.createEmptyPdaBleScaleSnapshot(), is_connected: connected, session_id: `session${session}`, error_code: 'read_timeout' }) }, panel, start, frames, storage, requests, confirmations, scan: value => scanner({ rawText: value }), setOwner: value => { owner = value }, session: () => `session${session}` }
+	return { printNative, printReads, pause: ms => { now += ms; onSnapshot({ ...core.createEmptyPdaBleScaleSnapshot(), is_connected: connected, session_id: `session${session}`, error_code: 'read_timeout' }) }, panel, start, frames, storage, requests, confirmations, scan: value => scanner({ rawText: value }), setOwner: value => { owner = value }, session: () => `session${session}` }
 }
 
 test('PDA continuous weighing waits through swing, corrects current weight and freezes previous bottle', async t => {
@@ -224,4 +242,29 @@ test('invalid or late filling QR verification cannot add a bottle',async t=>{
  h.panel.selectCustomer(customer);await h.panel.go(2);const scan=h.scan(labelUrl)
  await h.panel.deactivate();pending.resolve({code:0,data:{bottle_no:'90',tare_weight:100,gross_weight:185.5,net_weight:85.5}});await scan
  assert.equal(h.panel.outRows.value.length,0)
+})
+
+test('preview save submits once then sends two signed copies; next sale waits for both sends', async t => {
+	const hold = deferred(), h = await harness(t, { printing: true, afterPrint: () => hold.promise })
+	await h.start(); await h.scan('101'); h.frames(120); await h.panel.go(3); await h.panel.go(4)
+	await h.panel.printer.connect()
+	await Promise.all([h.panel.save(), h.panel.save()])
+	assert.equal(h.requests.length, 1); assert.equal(h.panel.sale.receipt.value.status, 'saved')
+	assert.deepEqual(h.printReads, ['s1']); assert.equal(h.printNative.sends.length, 1)
+	assert.equal(h.panel.nextSale(), false); assert.equal(await h.panel.save(), false)
+	hold.resolve(); await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h.printNative.sends.length, 2)
+	const texts = h.printNative.operations.filter(row => row[0] === 'addText').map(row => row[1])
+	assert.equal(texts.filter(s => s === '留底联').length, 1); assert.equal(texts.filter(s => s === '客户联').length, 1)
+	assert.equal(texts.filter(s => s.startsWith('客户签名:')).length, 2)
+	assert.equal(h.panel.printer.busy.value, false); assert.equal(h.panel.nextSale(), true)
+})
+
+test('preview with unknown save result sends no copy until the original operation is confirmed', async t => {
+	const h = await harness(t, { printing: true, send: async () => { throw Error('timeout') } })
+	await h.start(); await h.scan('101'); h.frames(120); await h.panel.go(3); await h.panel.go(4); await h.panel.printer.connect()
+	await h.panel.save(); assert.equal(h.panel.sale.receipt.value.status, 'unknown'); assert.equal(h.printNative.sends.length, 0)
+	await h.panel.query(); await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h.requests.length, 1); assert.equal(h.printNative.sends.length, 2)
+	await h.panel.query(); await new Promise(resolve => setImmediate(resolve)); assert.equal(h.printNative.sends.length, 2)
 })

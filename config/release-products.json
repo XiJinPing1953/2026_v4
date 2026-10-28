@@ -98,25 +98,23 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.37",
+      "version": "1.0.38",
       "output": "release/pda",
-      "acceptance": "WGT only: operator selects a system-paired printer by name/address in sales, filling and test flows; no hardcoded printer name or automatic stale-address selection. Remember successful selections only. Add 16 mm receipt exit clearance so the last rows reach the tear edge. Preserve receipt/label protocols, source facts, storage and print deduplication. Existing crm-filling is only an integrity dependency; no cloud/schema/H5 deployment. Confirm AA20 selection and physical paper exit onsite.",
+      "acceptance": "WGT only: saved-sale preview action sends two serialized copies (office/customer), each with a final customer signature area and 20 mm exit clearance. One immutable authorized saved snapshot for both copies; preserve deduplication, failure/unknown-save handling, stop/disconnect/account guards, source weights/deposits and all other flows. Existing crm-filling is only an integrity dependency; no cloud/schema/H5 deployment. Physical double-copy and signature spacing acceptance remains onsite.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "d63674720c0db04d55d5793782fb9f4dd8bc3834",
+        "baseCommit": "1999ce9d8cc03e13fa84cef0f21dd584c5060ea0",
         "sourceFiles": [
           "src/manifest.json",
-          "src/services/pda/labelPrinter.js",
-          "src/services/pda/printerSelection.js",
-          "src/services/pda/printerTest.js",
           "src/services/pda/salePrint.js",
           "src/services/pda/receiptPrinter.js",
           "src/composables/pda/usePdaSalePrinter.js",
-          "src/composables/pda/usePdaFillingPrinter.js",
-          "src/components/domain/pda/PdaPrinterTest.vue"
+          "src/composables/pda/usePdaNativeSale.js",
+          "src/components/domain/pda/PdaNativeSaleView.vue",
+          "src/components/domain/pda/PdaSaleRecordsView.vue"
         ]
       },
       "integrityScope": "deployment"

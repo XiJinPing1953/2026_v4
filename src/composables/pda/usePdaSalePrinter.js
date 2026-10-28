@@ -23,14 +23,14 @@ export function usePdaSalePrinter(active) {
  function close(){epoch++;clearInterval(timer);session?.close();session=null;printerAddress='';connected.value=false;connecting.value=false;eligible.clear()}
  function stop(){epoch++;status.value='已停止；已发送的页请查看出纸'}
  async function print(id,{automatic=false,operationId=''}={}){if(!valid()||busy.value)return;const key=`pda_sale_print_v1:${owner}:${operationId||id}`
- busy.value=true;const ticket=epoch
+ busy.value=true;const ticket=epoch;let sent=0
  try{if(automatic){if(!eligible.has(operationId))return;eligible.delete(operationId);if(uni.getStorageSync(key))return;uni.setStorageSync(key,'attempted');if(uni.getStorageSync(key)!=='attempted')throw Error('打印状态无法保存')}
  if(!session?.connected)throw Error('记录已保存，打印机未连接，请手动补打')
  const result=await getPdaSale(id, { shouldContinue: () => ticket === epoch && valid() });if(ticket!==epoch||!valid())return;if(result.code!==0)throw Error(result.msg)
  const pages=salePrintPages(result.data)
- for(const page of pages){if(ticket!==epoch||!valid())return;if(!session?.connected)throw Error('打印已停止，请核对出纸后补打');await session.sendDocument(()=>writeSalePage(plus.android,page,printerAddress))}
- if(ticket===epoch)status.value=`已发送 ${pages.length} 页，请查看出纸`
- }catch(e){if(ticket===epoch)status.value=e.message||'发送结果不明，请查看出纸后补打'}finally{busy.value=false}}
+ for(const copy of ['留底联','客户联'])for(const page of pages){if(ticket!==epoch||!valid())return;if(!session?.connected)throw Error('打印已停止，请核对出纸后补打');status.value=`正在发送${copy} ${page.page}/${page.total}`;await session.sendDocument(()=>writeSalePage(plus.android,page,printerAddress,copy));sent++}
+ if(ticket===epoch)status.value=`已发送两联（留底联、客户联），共 ${sent} 页，请查看出纸`
+ }catch(e){if(ticket===epoch)status.value=(sent?`已发送 ${sent} 页；`:'')+(e.message||'发送结果不明，请查看出纸后补打')}finally{busy.value=false}}
  onBeforeUnmount(close)
  return{status,busy,connecting,connected,connect,close,stop,print,arm:id=>{if(id)eligible.add(id)},confirmed:r=>r?.sourceSaved&&r.saleId?print(r.saleId,{automatic:true,operationId:r.operationId}):null}
 }

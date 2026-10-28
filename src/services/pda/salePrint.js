@@ -104,14 +104,20 @@ export function salePrintPages(sale) {
   y += 12
   lines(deposits ? '存瓶(' + deposits.length + '瓶): ' + (deposits.map(row => row.bottle_no).join('、') || '无') : '存瓶: 原单未记录，待核对', '存瓶 kg')
 
+  // Keep the handwriting space and signature line together on the final page.
+  if (y + 64 > LAST_Y) page('签名')
+  y += 64
+  lines('客户签名: ____________________', '签名')
+
   return pages.map((p, i) => ({ ...p, page: i + 1, total: pages.length,
     heightMm: Math.ceil((Math.max(40, ...p.commands.map(row => row.y + FONT_HEIGHT)) + RECEIPT_TAIL_DOTS) / 8)
   }))
 }
 
-export function writeSalePage(android, page, address) {
+export function writeSalePage(android, page, address, copyLabel = '') {
   const title = '新拓能源 销售单'
   const rows = [{ x: Math.floor((LEFT + RIGHT - width(title)) / 2), y: 16, text: title }, ...page.commands]
+  if (copyLabel) rows.push({ x: LEFT, y: 16, text: copyLabel })
   if (page.total > 1) {
     const footer = page.page + '/' + page.total
     rows.push({ x: RIGHT - width(footer), y: 16, text: footer })

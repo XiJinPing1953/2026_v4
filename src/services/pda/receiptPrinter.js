@@ -3,9 +3,9 @@
 const COMMAND = 'com.smart.command.EscCommand'
 const MANAGER = 'com.uni.blePrintSDK.print.DeviceConnFactoryManager'
 const missing = () => new Error('当前安装包缺少小票打印接口，请更新安装包')
-// The print head sits inside the case. The old 4 mm stopped with the final rows
-// still behind the tear edge (onsite feedback); include 16 mm of exit clearance.
-export const RECEIPT_TAIL_DOTS = 128
+// 16 mm cleared the tear edge onsite; the requested signature area gets a
+// slightly longer 20 mm trailing allowance on continuous receipt stock.
+export const RECEIPT_TAIL_DOTS = 160
 
 export function writeReceiptText(android, rows, address) {
   if (!android?.newObject || !android?.invoke) throw missing()

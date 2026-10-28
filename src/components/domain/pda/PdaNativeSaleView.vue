@@ -18,8 +18,8 @@
 			<view class="buttons">
 				<AppButton v-if="submissionLocked && receipt.status !== 'saved'" :loading="submitting" @click="query">查询保存结果</AppButton>
 				<AppButton v-if="receipt.status === 'unknown'" kind="outline" :disabled="submitting" @click="save(true)">重试这单</AppButton>
-				<AppButton v-if="receipt.sourceSaved === true" :disabled="printer.busy.value" @click="printer.print(receipt.saleId)">补打销售单</AppButton>
-				<AppButton v-if="receipt.sourceSaved === true" :disabled="submitting" @click="openNext">开下一单</AppButton>
+				<AppButton v-if="receipt.sourceSaved === true" :disabled="printer.busy.value" @click="printer.print(receipt.saleId)">补打两联</AppButton>
+				<AppButton v-if="receipt.sourceSaved === true" :disabled="submitting || printer.busy.value" @click="openNext">开下一单</AppButton>
 			</view>
 		</view>
 		<view v-if="changes.length" class="notice">
@@ -75,6 +75,7 @@
 			</template>
 			<template v-else>
 				<view class="customer"><text class="strong">{{ form.customerName }}</text><text>出瓶 {{ outRows.length }} 瓶 · 回瓶 {{ backRows.length }} 瓶</text><text>单价 {{ form.unitPrice }} 元/kg</text></view>
+				<text>保存后直接打印两联：留底联、客户联，底部可签名。</text>
 				<view v-for="group in previewGroups" :key="group.title" class="details">
 					<text class="strong">{{ group.title }} {{ group.rows.length }} 瓶</text>
 					<text v-if="!group.rows.length">本次没有{{ group.title }}</text>
@@ -91,7 +92,7 @@
 			<view :class="['sale-footer', keyboardOpen && 'sale-footer--keyboard']">
 				<AppButton v-if="step > 1" kind="outline" :disabled="busy || locked" @click="go(step - 1)">上一步</AppButton>
 				<AppButton v-if="step < 4" :loading="busy" :disabled="locked || (step === 3 && !rows.length && !outRows.length)" @click="go(step + 1)">{{ nextLabel }}</AppButton>
-				<AppButton v-else :loading="submitting" :disabled="busy || locked" @click="save(false)">确认保存</AppButton>
+				<AppButton v-else :loading="submitting" :disabled="busy || locked || printer.busy.value" @click="save(false)">保存并打印两联</AppButton>
 			</view>
 		</view>
 	</AppPage>

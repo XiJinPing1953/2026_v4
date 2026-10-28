@@ -273,7 +273,7 @@ export function usePdaNativeSale() {
 		finally { busy.value = false }
 	}
 	async function save(retry = false) {
-		if (!active.value || !ownerMatches() || !canCreate.value || busy.value || sale.submitting.value) return false
+		if (!active.value || !ownerMatches() || !canCreate.value || busy.value || sale.submitting.value || printer.busy.value) return false
 		if (!retry && (step.value !== 4 || locked.value)) return false
 		freeze(); error.value = ''
 		const ticket = context()
@@ -319,7 +319,7 @@ export function usePdaNativeSale() {
 		} finally { busy.value = false }
 	}
 	function nextSale() {
-		if (!active.value || busy.value || !sale.startNewSale()) return false
+		if (!active.value || busy.value || printer.busy.value || !sale.startNewSale()) return false
 		changes.value = []; selectStep(1)
 		return true
 	}

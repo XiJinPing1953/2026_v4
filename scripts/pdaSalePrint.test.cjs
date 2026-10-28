@@ -24,19 +24,19 @@ test('sales use ESC/POS receipt commands, bounded tail feed and preserve origina
  assert.ok(h.operations.some(c=>c[0]==='addSetPrintingAreaWidth'&&c[1]===576))
  assert.ok(h.operations.some(c=>c[0]==='addText'&&c[1]==='新拓能源 销售单'))
  const feeds=h.operations.filter(c=>c[0]==='addPrintAndFeedPaper').map(c=>c[1])
- assert.deepEqual(feeds.slice(-2),[127,25]);assert.equal(RECEIPT_TAIL_DOTS,128)
- assert.equal(feeds.reduce((a,b)=>a+b,0),Math.max(...page.commands.map(c=>c.y))+24+128)
+ assert.deepEqual(feeds.slice(-2),[127,57]);assert.equal(RECEIPT_TAIL_DOTS,160)
+ assert.equal(feeds.reduce((a,b)=>a+b,0),Math.max(...page.commands.map(c=>c.y))+24+160)
  assert.ok(feeds.every(n=>n>0&&n<=127))
  assert.doesNotMatch(Buffer.from(h.sends[0]).toString('ascii'),/SIZE |GAP |CLS|TEXT |PRINT |FORMFEED|HOME/)
  assert.throws(()=>salePrintPages({...sale,total_net_weight:99}));assert.throws(()=>salePrintPages({...sale,out_items:[{bottle_no:'1',net:null}]}))
 })
 const {createService}=require('../uniCloud-alipay/cloudfunctions/crm-sale/pdaSaleRecords')
 test('PDA detail uses server vehicle binding and fails closed when missing',async()=>{let read=0;const db={collection:()=>({doc:()=>({get:async()=>({data:[{car_no:'A'}]})})})};const svc=createService({db,isAdmin:u=>u.admin,hiddenIds:async()=>[],mentionsHidden:()=>false,amounts:()=>{read++;return{amounts:{}}}});assert.equal((await svc.get({_id:'u'},{id:'s',vehicle_no:'A'})).code,403);assert.equal((await svc.get({mobile_sale_defaults:{vehicle_id:'b',vehicle_no:'B'}},{id:'s',vehicle_no:'A'})).code,404);assert.equal(read,0);assert.equal((await svc.get({mobile_sale_defaults:{vehicle_id:'a',vehicle_no:'A'}},{id:'s'})).code,0);assert.equal(read,1)})
-function printerHarness(){let user={_id:'u'},active=true,callback,sends=0;const native=receiptPrinterHarness(),store=new Map();const session={connected:true,close(){},connect(){callback({connected:true,message:'ok'})},sendDocument:async writer=>{writer({});sends++}};const api=load('src/composables/pda/usePdaSalePrinter.js',['usePdaSalePrinter'],{ref:v=>({value:v}),onBeforeUnmount(){},getUser:()=>user,ensurePdaBleRuntimePermission:async()=>({code:0}),selectPairedPrinter:async()=>({name:'HL30-AA20',address:native.address}),rememberPrinter:(ui,device)=>ui.setStorageSync('pda_label_printer_bound_v1',device),plus:{android:native.android},uni:{getStorageSync:k=>store.get(k),setStorageSync:(k,v)=>store.set(k,v),requireNativePlugin:()=>({})},createLabelPrinterSession:(_,cb)=>{callback=cb;return session},getPdaSale:async()=>({code:0,data:sale}),salePrintPages,writeSalePage,setInterval:()=>0,clearInterval(){}});const p=api.usePdaSalePrinter(()=>active);return{p,store,get sends(){return sends},setUser:v=>user=v,disable:()=>active=false}}
-test('sales automatic print deduplicates and old records never auto print; explicit reprint allowed',async()=>{const h=printerHarness();await h.p.connect();const r={sourceSaved:true,saleId:'s',operationId:'op'};await h.p.confirmed(r);assert.equal(h.sends,0);h.p.arm('op');await Promise.all([h.p.confirmed(r),h.p.confirmed(r)]);assert.equal(h.sends,salePrintPages(sale).length);h.p.arm('op');await h.p.confirmed(r);assert.equal(h.sends,salePrintPages(sale).length);await h.p.print('s');assert.equal(h.sends,salePrintPages(sale).length*2);h.setUser({_id:'other'});await h.p.print('s');assert.equal(h.sends,salePrintPages(sale).length*2)})
-test('disconnected save consumes automatic attempt and reconnect does not send',async()=>{const h=printerHarness();const r={sourceSaved:true,saleId:'s',operationId:'op'};h.p.arm('op');await h.p.confirmed(r);assert.equal(h.sends,0);await h.p.connect();await h.p.confirmed(r);assert.equal(h.sends,0);await h.p.print('s');assert.equal(h.sends,salePrintPages(sale).length)})
+function printerHarness(options={}){let user={_id:'u'},active=true,callback,sends=0;const native=receiptPrinterHarness(),store=new Map();const session={connected:true,close(){},connect(){callback({connected:true,message:'ok'})},sendDocument:async writer=>{writer({});sends++;await options.afterSend?.(sends)}};const api=load('src/composables/pda/usePdaSalePrinter.js',['usePdaSalePrinter'],{ref:v=>({value:v}),onBeforeUnmount(){},getUser:()=>user,ensurePdaBleRuntimePermission:async()=>({code:0}),selectPairedPrinter:async()=>({name:'HL30-AA20',address:native.address}),rememberPrinter:(ui,device)=>ui.setStorageSync('pda_label_printer_bound_v1',device),plus:{android:native.android},uni:{getStorageSync:k=>store.get(k),setStorageSync:(k,v)=>store.set(k,v),requireNativePlugin:()=>({})},createLabelPrinterSession:(_,cb)=>{callback=cb;return session},getPdaSale:options.getSale|| (async()=>({code:0,data:options.sale||sale})),salePrintPages,writeSalePage,setInterval:()=>0,clearInterval(){}});const p=api.usePdaSalePrinter(()=>active);return{p,store,native,session,get sends(){return sends},setUser:v=>user=v,disable:()=>active=false}}
+test('sales automatic print deduplicates and old records never auto print; explicit reprint allowed',async()=>{const h=printerHarness();await h.p.connect();const r={sourceSaved:true,saleId:'s',operationId:'op'};await h.p.confirmed(r);assert.equal(h.sends,0);h.p.arm('op');await Promise.all([h.p.confirmed(r),h.p.confirmed(r)]);assert.equal(h.sends,salePrintPages(sale).length*2);h.p.arm('op');await h.p.confirmed(r);assert.equal(h.sends,salePrintPages(sale).length*2);await h.p.print('s');assert.equal(h.sends,salePrintPages(sale).length*4);h.setUser({_id:'other'});await h.p.print('s');assert.equal(h.sends,salePrintPages(sale).length*4)})
+test('disconnected save consumes automatic attempt and reconnect does not send',async()=>{const h=printerHarness();const r={sourceSaved:true,saleId:'s',operationId:'op'};h.p.arm('op');await h.p.confirmed(r);assert.equal(h.sends,0);await h.p.connect();await h.p.confirmed(r);assert.equal(h.sends,0);await h.p.print('s');assert.equal(h.sends,salePrintPages(sale).length*2)})
 test('list binds account vehicle and ignores forged client vehicle filter',async()=>{let where;const chain={where:v=>(where=v,chain),orderBy:()=>chain,skip:()=>chain,limit:()=>chain,get:async()=>({data:[]})};const db={command:{and:v=>v,or:v=>v,nin:v=>v},collection:()=>chain};const svc=createService({db,isAdmin:()=>false,hiddenIds:async()=>[],amounts:()=>({amounts:{}})});assert.equal((await svc.list({mobile_sale_defaults:{vehicle_id:'a',vehicle_no:'A'}},{date:'2026-10-22',vehicle_no:'B'})).code,0);assert.ok(where.some(c=>c.car_no==='A'));assert.ok(!where.some(c=>c.car_no==='B'))})
-test('local print ledger failure prevents automatic send without touching saved sale',async()=>{const h=printerHarness();await h.p.connect();h.p.arm('op');h.store.set=()=>{throw Error('storage full')};await h.p.confirmed({sourceSaved:true,saleId:'s',operationId:'op'});assert.equal(h.sends,0);assert.match(h.p.status.value,/storage full/);await h.p.print('s');assert.equal(h.sends,salePrintPages(sale).length)})
+test('local print ledger failure prevents automatic send without touching saved sale',async()=>{const h=printerHarness();await h.p.connect();h.p.arm('op');h.store.set=()=>{throw Error('storage full')};await h.p.confirmed({sourceSaved:true,saleId:'s',operationId:'op'});assert.equal(h.sends,0);assert.match(h.p.status.value,/storage full/);await h.p.print('s');assert.equal(h.sends,salePrintPages(sale).length*2)})
 test('detail returns only the same authorized snapshot with no re-read or reconciliation writes', async () => {
  let reads=0,writes=0
  const initial={...sale,car_no:'A',mobile_create_state:'processing',customer_id:'visible'}
@@ -88,7 +88,7 @@ function assertBounds(pages){
   assert.ok(page.heightMm>0&&page.heightMm<=200)
   let printed
   const {writeSalePage:writer}=load('src/services/pda/salePrint.js',['writeSalePage'],{RECEIPT_TAIL_DOTS,writeReceiptText:(_,rows)=>{printed=rows}})
-  writer({},page,'address')
+  writer({},page,'address','留底联')
   const boxes=printed.map(c=>({x:c.x,y:c.y,w:dotWidth(c.text),h:24,text:c.text}))
   for(const b of boxes)assert.ok(b.x>=16&&b.x+b.w<=560&&b.y>=16&&b.y+b.h<=page.heightMm*8-16,JSON.stringify(b))
   for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++){
@@ -99,7 +99,7 @@ function assertBounds(pages){
 }
 test('four outgoing then four returning fit one variable-length receipt including settlement and corrected deposits',()=>{
  const before=JSON.stringify(fourEach),pages=salePrintPages(fourEach)
- assert.equal(pages.length,1);assert.ok(pages[0].heightMm>50&&pages[0].heightMm<110)
+ assert.equal(pages.length,1);assert.ok(pages[0].heightMm>50&&pages[0].heightMm<130)
  const rows=pages[0].rows.join('');assert.match(rows,/计费: 260kg  单价: 8元\/kg/);assert.match(rows,/\(280-20\)×8=2080.00元/);assert.match(rows,/存瓶\(5瓶\): 55、90、91、92、93/)
  assert.ok(pages[0].commands.find(c=>c.text.startsWith('回瓶 4瓶')).y>pages[0].commands.find(c=>c.text==='93').y)
  for(const items of [fourEach.out_items,fourEach.back_items])for(const item of items){
@@ -125,11 +125,11 @@ test('long metadata, bottle IDs, large amounts, deposit continuation and roundin
 test('post-sale deposits add outgoing, remove returning, normalize and deduplicate without mutating the saved list',()=>{
  const base=[{bottle_no:'KEEP'},{bottle_no:'190'},{bottleNo:' 191 '},{bottle_no:'90'},{bottle_no:'keep'}]
  const doc={...fourEach,deposit_rows:base},before=JSON.stringify(doc)
- const lines=salePrintPages(doc).flatMap(p=>p.rows),deposits=lines.slice(lines.findIndex(s=>s.startsWith('存瓶('))).join('')
+ const lines=salePrintPages(doc).flatMap(p=>p.rows),deposits=lines.slice(lines.findIndex(s=>s.startsWith('存瓶(')),lines.findIndex(s=>s.startsWith('客户签名:'))).join('')
  assert.equal(deposits,'存瓶(5瓶): 90、91、92、93、KEEP')
  const computed=buildDepositPreviewRows({baseBottleNos:base,outItems:doc.out_items,backItems:doc.back_items})
  const again=salePrintPages({...doc,deposit_rows:computed}).flatMap(p=>p.rows)
- assert.equal(again.slice(again.findIndex(s=>s.startsWith('存瓶('))).join(''),deposits)
+ assert.equal(again.slice(again.findIndex(s=>s.startsWith('存瓶(')),again.findIndex(s=>s.startsWith('客户签名:'))).join(''),deposits)
  assert.equal(JSON.stringify(doc),before)
 })
 
@@ -169,4 +169,37 @@ test('receipt sends only through the selected connected printer and strips embed
  late.android.invoke=(target,method,...args)=>{const r=invoke(target,method,...args);if(method==='addText')late.disconnect();return r}
  assert.throws(()=>writeSalePage(late.android,page,late.address),/连接已变化/)
  assert.equal(late.sends.length,0)
+})
+
+test('signature space is kept on the last page and both copies use the same saved rows',async()=>{
+ const doc={...fourEach,deposit_rows:Array.from({length:300},(_,i)=>({bottle_no:'D'+i}))}
+ const pages=salePrintPages(doc),signature=pages.flatMap(p=>p.commands).filter(c=>c.text.startsWith('客户签名:'))
+ assert.equal(signature.length,1)
+ assert.ok(pages[pages.length-1].commands.includes(signature[0]));assertBounds(pages)
+ const last=pages[pages.length-1],previous=last.commands.filter(c=>c.y<signature[0].y)
+ assert.ok(signature[0].y-Math.max(...previous.map(c=>c.y+24))>=64)
+ const h=printerHarness({sale:doc});await h.p.connect();await h.p.print('s')
+ assert.equal(h.sends,pages.length*2)
+ const texts=h.native.operations.filter(c=>c[0]==='addText').map(c=>c[1])
+ assert.equal(texts.filter(s=>s==='留底联').length,pages.length)
+ assert.equal(texts.filter(s=>s==='客户联').length,pages.length)
+ const cut=texts.indexOf('客户联'),left=texts.slice(0,cut).filter(s=>s!=='留底联'),right=texts.slice(cut).filter(s=>s!=='客户联')
+ assert.deepEqual(left,right);assert.match(h.p.status.value,/已发送两联/)
+})
+
+test('double taps, stop, disconnect, hide and account changes cannot send an unwanted second copy',async()=>{
+ for(const mode of ['stop','disconnect','hide','account']){
+  let h;h=printerHarness({afterSend:()=>{if(mode==='stop')h.p.stop();if(mode==='disconnect')h.session.connected=false;if(mode==='hide')h.disable();if(mode==='account')h.setUser({_id:'other'})}})
+  await h.p.connect();h.p.arm('op');const receipt={sourceSaved:true,saleId:'s',operationId:'op'}
+  await Promise.all([h.p.confirmed(receipt),h.p.confirmed(receipt)])
+  assert.equal(h.sends,1,mode);assert.equal(h.p.busy.value,false)
+  await h.p.confirmed(receipt);assert.equal(h.sends,1,mode)
+  if(mode==='disconnect')assert.match(h.p.status.value,/已发送 1 页/)
+ }
+})
+
+test('late authorized detail after leaving never sends either copy',async()=>{
+ let resolve;const pending=new Promise(done=>{resolve=done})
+ const h=printerHarness({getSale:()=>pending});await h.p.connect();const print=h.p.print('s');h.disable()
+ resolve({code:0,data:sale});await print;assert.equal(h.sends,0)
 })

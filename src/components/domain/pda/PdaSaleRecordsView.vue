@@ -8,7 +8,7 @@
    <text class="title">{{ detail.delivery_customer_name || detail.customer_name }}</text><text>{{ detail.date }}　{{ detail.car_no }}　{{ detail.delivery_man }}</text>
    <text>单价 {{ detail.unit_price }} 元/kg　应收 {{ detail.effective_should_receive }} 元</text>
    <template v-for="group in [{name:'出瓶',rows:detail.out_items||[]},{name:'回瓶',rows:detail.back_items||[]}]" :key="group.name"><text class="title">{{ group.name }} {{ group.rows.length }} 瓶</text><text v-for="(r,i) in group.rows" :key="i">{{ r.bottle_no || r.bottleNo }}号　毛 {{ r.gross }}　皮 {{ r.tare }}　净 {{ r.net }} kg</text></template>
-   <AppButton :disabled="printer.busy.value" @click="printer.print(detail._id)">打印销售单</AppButton><AppButton kind="outline" @click="detail=null">收起明细</AppButton>
+   <AppButton :disabled="printer.busy.value" @click="printer.print(detail._id)">打印两联</AppButton><AppButton kind="outline" @click="detail=null">收起明细</AppButton>
   </view>
   <view v-for="r in rows" :key="r.id" class="card" @click="open(r.id)"><text class="title">{{ r.customer }}</text><text>{{ r.date }}　{{ r.vehicle }}</text><text>出瓶 {{ r.out_count }}　回瓶 {{ r.back_count }}　金额 {{ r.amount == null ? '待核对' : r.amount }} 元</text><AppButton kind="outline" :disabled="loading" @click.stop="open(r.id)">查看明细 / 打印</AppButton></view>
   <text v-if="!loading && !rows.length && !error">当天没有销售记录</text><AppButton v-if="hasMore" :disabled="loading" @click="load(true)">加载更多</AppButton>
