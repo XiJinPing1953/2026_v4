@@ -6,27 +6,30 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.26-brief-summary-detail",
+      "version": "2026.10.28-bottle-query-status",
       "output": "dist/build/web",
-      "acceptance": "Operating brief summary adds same-window bottle filling count/weight, signed tank level change and estimated tank loss. Explain precise allocation reference/ownership problems without changing ledger records. H5 and crm-dashboard only; no schemas, PDA or hardware changes.",
+      "acceptance": "H5 bottle query and sale suggestions use the same bottle archive status; unavailable archive is explicit. No cloud functions, schema or PDA package deployed.",
       "deploymentScope": {
         "functions": [
-          "crm-dashboard"
+          "crm-bottle",
+          "crm-bottle-movement"
         ],
         "databaseFiles": [],
-        "baseCommit": "ead34ed2b789034ae0fb02e25087f8b91cd6290c",
+        "baseCommit": "f1b07974412013e8f9fd3542676a1aaa5491f370",
         "sourceFiles": [
-          "src/components/domain/dashboard/OperatingBrief.vue",
-          "src/components/domain/dashboard/OperatingBriefInsights.vue",
-          "src/services/mappers/operatingBrief.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/currentBrief.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankLoss.js"
+          "src/components/base/AppBottleQueryFloat.vue"
         ],
         "aclCanonicalRevisions": {
-          "crm-dashboard": {
+          "crm-bottle": {
             "registry": {
-              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
-              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
+              "commit": "b334c9da11936983d6b1514da2ee95b786d42f71",
+              "sha256": "01ceeccab063663d13b505fcec00017891af9105f250a1b141daf2c643f050c3"
+            }
+          },
+          "crm-bottle-movement": {
+            "registry": {
+              "commit": "01638f67599f12aa1582aac0a581f4ef63d83f8a",
+              "sha256": "ca5875fb6017b01bb08fad39895cc7bc9d3f17fe3cc23f7e9fb84af18b209e4f"
             }
           }
         }
@@ -40,22 +43,25 @@
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
-          "crm-dashboard"
+          "crm-bottle",
+          "crm-bottle-movement"
         ],
         "databaseFiles": [],
-        "baseCommit": "ead34ed2b789034ae0fb02e25087f8b91cd6290c",
+        "baseCommit": "f1b07974412013e8f9fd3542676a1aaa5491f370",
         "sourceFiles": [
-          "src/components/domain/dashboard/OperatingBrief.vue",
-          "src/components/domain/dashboard/OperatingBriefInsights.vue",
-          "src/services/mappers/operatingBrief.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/currentBrief.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/tankLoss.js"
+          "src/components/base/AppBottleQueryFloat.vue"
         ],
         "aclCanonicalRevisions": {
-          "crm-dashboard": {
+          "crm-bottle": {
             "registry": {
-              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
-              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
+              "commit": "b334c9da11936983d6b1514da2ee95b786d42f71",
+              "sha256": "01ceeccab063663d13b505fcec00017891af9105f250a1b141daf2c643f050c3"
+            }
+          },
+          "crm-bottle-movement": {
+            "registry": {
+              "commit": "01638f67599f12aa1582aac0a581f4ef63d83f8a",
+              "sha256": "ca5875fb6017b01bb08fad39895cc7bc9d3f17fe3cc23f7e9fb84af18b209e4f"
             }
           }
         }
