@@ -98,20 +98,18 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.34",
+      "version": "1.0.35",
       "output": "release/pda",
-      "acceptance": "Return reweigh notice is shown only for an authoritative same-round previous record; older or unknown rounds show no duplicate warning; no extra worker actions, persistence or weighing changes. WGT and crm-filling only.",
+      "acceptance": "WGT only: 80 mm continuous sales receipts, outgoing above returning, content-dependent length and post-sale deposit bottles (saved set union outgoing minus returning). Retain saved facts and print deduplication. crm-filling is checked as an existing runtime dependency only; no cloud/schema/H5 deployment. Verify physical receipt on device separately.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "c4cd9e153b5b6b6b6409a932287d84868995c547",
+        "baseCommit": "41850e861be99216da7871c3c2ee2cafac1310bb",
         "sourceFiles": [
           "src/manifest.json",
-          "src/components/domain/pda/PdaReweighView.vue",
-          "src/services/pda/reweighDraft.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js"
+          "src/services/pda/salePrint.js"
         ]
       },
       "integrityScope": "deployment"
