@@ -1781,7 +1781,7 @@ async function fetchCustomerNameMapByIds(customerIds = []) {
 	return out
 }
 
-async function reconcileBottleCurrentCustomerByDepositSnapshot({ customerIds = [], bottleNos = [] } = {}) {
+async function reconcileBottleCurrentCustomerByDepositSnapshot({ customerIds = [], bottleNos = [], excludeSaleId = '' } = {}) {
 	const normalizedCustomerIds = uniqStrings((customerIds || []).map((item) => normalizeString(item))).filter(Boolean)
 	const normalizedCustomerIdSet = new Set(normalizedCustomerIds)
 	const normalizedBottleNos = uniqStrings((bottleNos || []).map((item) => normalizeBottleNoForCreate(item))).filter((item) =>
@@ -1811,7 +1811,7 @@ async function reconcileBottleCurrentCustomerByDepositSnapshot({ customerIds = [
 
 	const expectedOwnerMap = new Map()
 	for (const customerId of normalizedCustomerIds) {
-		const saleRows = await fetchCustomerDepositSaleRows(customerId, '', '')
+		const saleRows = await fetchCustomerDepositSaleRows(customerId, '', excludeSaleId)
 		const depositSet = buildCustomerDepositBottleSet(saleRows)
 		normalizedBottleNos.forEach((bottleNo) => {
 			if (!depositSet.has(bottleNo)) return
@@ -5320,7 +5320,8 @@ async function removeV2(user, data, requestId, token) {
 	const bottleStatusSyncRes = await syncBottleCurrentStatusByBottleNos(touchedBottleNos)
 	const bottleDepositReconcileRes = await reconcileBottleCurrentCustomerByDepositSnapshot({
 		customerIds: collectSaleCustomerIdsFromDoc(saleDoc),
-		bottleNos: touchedBottleNos
+		bottleNos: touchedBottleNos,
+		excludeSaleId: recordId
 	})
 	try {
 		await removeSaleGasInventoryMovement(recordId)
