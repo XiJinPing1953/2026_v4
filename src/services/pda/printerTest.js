@@ -1,8 +1,7 @@
-import { TEST_LABEL, labelQrText, writeLabel, getPairedPrinters, createLabelPrinterSession } from './labelPrinter'
+import { TEST_LABEL, labelQrText, writeLabel, createLabelPrinterSession } from './labelPrinter'
 export { TEST_LABEL }
 export const TEST_QR = labelQrText(TEST_LABEL)
 export const writeTestLabel = plugin => writeLabel(plugin, TEST_LABEL, true)
-export const getPairedTestPrinters = getPairedPrinters
 export function createPrinterTestSession(plugin, update) {
 	const session = createLabelPrinterSession(plugin, update)
 	let sent = false

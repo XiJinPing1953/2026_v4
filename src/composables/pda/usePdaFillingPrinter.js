@@ -3,7 +3,8 @@ import { ref, onBeforeUnmount } from 'vue'
 import { getFillingV1 } from '@/services/filling'
 import { getUser } from '@/services/auth'
 import { ensurePdaBleRuntimePermission } from '@/services/pda/bleScale'
-import { createLabelPrinterSession, getPairedPrinters } from '@/services/pda/labelPrinter'
+import { createLabelPrinterSession } from '@/services/pda/labelPrinter'
+import { selectPairedPrinter, rememberPrinter } from '@/services/pda/printerSelection'
 import { createFillingPrintController, savedLabel, isSuperseded, verifyCurrentLabel } from '@/services/pda/fillingPrint'
 export function usePdaFillingPrinter({ enabled, active, entries }) {
 	const ownerId = String(getUser()?._id || ''), currentOwner = () => String(getUser()?._id || '')
@@ -30,15 +31,15 @@ export function usePdaFillingPrinter({ enabled, active, entries }) {
 			const result = await ensurePdaBleRuntimePermission()
 			if (version !== generation || !valid()) return
 			if (result.code !== 0) throw new Error(result.msg || '请允许蓝牙权限')
-			const devices = getPairedPrinters(plus.android)
-			const bound = uni.getStorageSync('pda_label_printer_bound_v1')
-			const device = devices.find(row => row.address === bound?.address) || (devices.length === 1 ? devices[0] : null)
-			if (!device) throw new Error('请先在系统蓝牙中配对 HL30-AA21')
+			const device = await selectPairedPrinter({ android: plus.android, ui: uni, valid: () => version === generation && valid() })
+			if (version !== generation || !valid()) return
+			if (!device) throw new Error('已取消选择打印机')
+			status.value = '正在连接 ' + device.name
 			session = createLabelPrinterSession(uni.requireNativePlugin('TH-PlatformBLE'), state => {
 				if (version !== generation) return
 				if (!valid()) { close(); return }
-				connected.value = state.connected; connecting.value = Boolean(state.connecting); status.value = state.message
-				if (state.connected) { try { uni.setStorageSync('pda_label_printer_bound_v1', device) } catch (_) {} }
+				connected.value = state.connected; connecting.value = Boolean(state.connecting); status.value = state.connected ? '已连接 ' + device.name : state.message
+				if (state.connected) rememberPrinter(uni, device)
 			})
 			ownerTimer = setInterval(() => { if (!valid()) close() }, 1000)
 			session.connect(device.address)

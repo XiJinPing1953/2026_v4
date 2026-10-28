@@ -3,6 +3,9 @@
 const COMMAND = 'com.smart.command.EscCommand'
 const MANAGER = 'com.uni.blePrintSDK.print.DeviceConnFactoryManager'
 const missing = () => new Error('当前安装包缺少小票打印接口，请更新安装包')
+// The print head sits inside the case. The old 4 mm stopped with the final rows
+// still behind the tear edge (onsite feedback); include 16 mm of exit clearance.
+export const RECEIPT_TAIL_DOTS = 128
 
 export function writeReceiptText(android, rows, address) {
   if (!android?.newObject || !android?.invoke) throw missing()
@@ -44,7 +47,7 @@ export function writeReceiptText(android, rows, address) {
     append('addSetAbsolutePrintPosition', 4, row.x)
     if (row.text) append('addText', null, row.text) // SDK encodes GB2312, same as existing labels
   }
-  feed(24 + 32) // last 24-dot text row plus only 4 mm of trailing paper
+  feed(24 + RECEIPT_TAIL_DOTS)
   checkConnection()
   android.invoke(manager, 'sendDataImmediately', bytes)
   // The SDK has no physical completion acknowledgement; caller reports "sent" only.

@@ -58,10 +58,9 @@ export function getPairedPrinters(android) {
 	if (!adapter || !android.invoke(adapter, 'isEnabled')) throw new Error('请先打开系统蓝牙')
 	const iterator = android.invoke(android.invoke(adapter, 'getBondedDevices'), 'iterator'), devices = []
 	while (android.invoke(iterator, 'hasNext')) {
-		const device = android.invoke(iterator, 'next'), name = String(android.invoke(device, 'getName') || '')
-		if (name !== 'HL30-AA21') continue
-		const address = String(android.invoke(device, 'getAddress') || '')
-		if (/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(address)) devices.push({ name, address })
+		const device = android.invoke(iterator, 'next'), name = String(android.invoke(device, 'getName') || '').trim() || '未命名设备'
+		const address = String(android.invoke(device, 'getAddress') || '').toUpperCase()
+		if (/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(address) && !devices.some(row => row.address === address)) devices.push({ name, address })
 	}
 	return devices
 }

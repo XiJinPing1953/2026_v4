@@ -98,20 +98,25 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.36",
+      "version": "1.0.37",
       "output": "release/pda",
-      "acceptance": "WGT only: send sales receipts using ESC/POS through the existing native BLE connection, with content-based feed and 4 mm trailing allowance. Printer must be in receipt mode. Preserve deposit calculation and filling label printing. Existing native 1.0.17 APK contains required public interfaces; physical receipt validation remains separate. No cloud/schema/H5 deployment.",
+      "acceptance": "WGT only: operator selects a system-paired printer by name/address in sales, filling and test flows; no hardcoded printer name or automatic stale-address selection. Remember successful selections only. Add 16 mm receipt exit clearance so the last rows reach the tear edge. Preserve receipt/label protocols, source facts, storage and print deduplication. Existing crm-filling is only an integrity dependency; no cloud/schema/H5 deployment. Confirm AA20 selection and physical paper exit onsite.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "856dc6941ba2e0938874fd9a247dd506fdb516ce",
+        "baseCommit": "d63674720c0db04d55d5793782fb9f4dd8bc3834",
         "sourceFiles": [
           "src/manifest.json",
+          "src/services/pda/labelPrinter.js",
+          "src/services/pda/printerSelection.js",
+          "src/services/pda/printerTest.js",
           "src/services/pda/salePrint.js",
           "src/services/pda/receiptPrinter.js",
-          "src/composables/pda/usePdaSalePrinter.js"
+          "src/composables/pda/usePdaSalePrinter.js",
+          "src/composables/pda/usePdaFillingPrinter.js",
+          "src/components/domain/pda/PdaPrinterTest.vue"
         ]
       },
       "integrityScope": "deployment"

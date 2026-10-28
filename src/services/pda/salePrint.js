@@ -1,5 +1,5 @@
 import { buildDepositPreviewRows } from './shared'
-import { writeReceiptText } from './receiptPrinter'
+import { writeReceiptText, RECEIPT_TAIL_DOTS } from './receiptPrinter'
 
 const text = value => String(value ?? '').replace(/[\x00-\x1f\x7f]/g, ' ').trim()
 const finite = value => value !== null && value !== '' && Number.isFinite(Number(value))
@@ -7,7 +7,7 @@ const width = value => [...value].reduce((n, c) => n + (c.charCodeAt(0) > 127 ? 
 // 80 mm continuous stock; keep commands inside a 576-dot (72 mm) print head.
 // Long receipts use bounded buffers; 50 mm is the roll diameter, not a page height.
 const LEFT = 16, RIGHT = 560, TOP = 52, LINE = 28, FONT_HEIGHT = 24
-const MAX_HEIGHT_MM = 200, LAST_Y = MAX_HEIGHT_MM * 8 - 32 - FONT_HEIGHT
+const MAX_HEIGHT_MM = 200, LAST_Y = MAX_HEIGHT_MM * 8 - RECEIPT_TAIL_DOTS - FONT_HEIGHT
 const COLUMN_ENDS = [160, 292, 424, 560]
 
 function wrap(value, limit = RIGHT - LEFT) {
@@ -105,7 +105,7 @@ export function salePrintPages(sale) {
   lines(deposits ? '存瓶(' + deposits.length + '瓶): ' + (deposits.map(row => row.bottle_no).join('、') || '无') : '存瓶: 原单未记录，待核对', '存瓶 kg')
 
   return pages.map((p, i) => ({ ...p, page: i + 1, total: pages.length,
-    heightMm: Math.ceil((Math.max(40, ...p.commands.map(row => row.y + FONT_HEIGHT)) + 32) / 8)
+    heightMm: Math.ceil((Math.max(40, ...p.commands.map(row => row.y + FONT_HEIGHT)) + RECEIPT_TAIL_DOTS) / 8)
   }))
 }
 

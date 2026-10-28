@@ -1,7 +1,8 @@
 import { ref, onBeforeUnmount } from 'vue'
 import { getUser } from '@/services/auth'
 import { ensurePdaBleRuntimePermission } from '@/services/pda/bleScale'
-import { createLabelPrinterSession, getPairedPrinters } from '@/services/pda/labelPrinter'
+import { createLabelPrinterSession } from '@/services/pda/labelPrinter'
+import { selectPairedPrinter, rememberPrinter } from '@/services/pda/printerSelection'
 import { getPdaSale } from '@/services/pda/saleRecords'
 import { salePrintPages, writeSalePage } from '@/services/pda/salePrint'
 export function usePdaSalePrinter(active) {
@@ -11,10 +12,12 @@ export function usePdaSalePrinter(active) {
  const eligible=new Set()
  async function connect(){if(!valid()||busy.value||connecting.value)return;close();const ticket=epoch;connecting.value=true
  try{const permission=await ensurePdaBleRuntimePermission();if(ticket!==epoch||!valid())return;if(permission.code!==0)throw Error(permission.msg)
- const devices=getPairedPrinters(plus.android),bound=uni.getStorageSync('pda_label_printer_bound_v1'),device=devices.find(d=>d.address===bound?.address)||(devices.length===1?devices[0]:null)
- if(!device)throw Error('请先在系统蓝牙配对 HL30-AA21')
+ const device=await selectPairedPrinter({android:plus.android,ui:uni,valid:()=>ticket===epoch&&valid()})
+ if(ticket!==epoch||!valid())return
+ if(!device)throw Error('已取消选择打印机')
  printerAddress=device.address
- session=createLabelPrinterSession(uni.requireNativePlugin('TH-PlatformBLE'),s=>{if(ticket!==epoch)return;if(!valid()){close();return}connected.value=s.connected;connecting.value=Boolean(s.connecting);status.value=s.connected?'打印机已连接，请使用小票模式':s.message;if(s.connected)try{uni.setStorageSync('pda_label_printer_bound_v1',device)}catch(_){}})
+ status.value='正在连接 '+device.name
+ session=createLabelPrinterSession(uni.requireNativePlugin('TH-PlatformBLE'),s=>{if(ticket!==epoch)return;if(!valid()){close();return}connected.value=s.connected;connecting.value=Boolean(s.connecting);status.value=s.connected?'已连接 '+device.name+'，请使用小票模式':s.message;if(s.connected)rememberPrinter(uni,device)})
  timer=setInterval(()=>{if(!valid())close()},1000);session.connect(device.address)
  }catch(e){if(ticket===epoch){session?.close();session=null;status.value=e.message;connecting.value=false}} }
  function close(){epoch++;clearInterval(timer);session?.close();session=null;printerAddress='';connected.value=false;connecting.value=false;eligible.clear()}
