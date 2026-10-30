@@ -115,6 +115,7 @@
 				<view class="selection-toolbar">
 					<AppButton size="sm" kind="neutral" :disabled="!canSelectAll" @click="selectAllFiltered">全选当前筛选</AppButton>
 					<AppButton size="sm" kind="ghost" :disabled="selectedCount === 0 && selectionMode !== 'filter'" @click="clearSelection">清空选择</AppButton>
+					<AppButton size="sm" kind="neutral" :loading="exporting" :disabled="loading || exporting" @click="onExportFiltered">导出当前筛选</AppButton>
 					<text v-if="pager.total > BATCH_LIMIT" class="selection-warning">筛选结果超过 {{ BATCH_LIMIT }} 瓶，请缩小范围后再全选</text>
 					<text v-else-if="selectionMode === 'filter'" class="selection-hint">已全选当前筛选，可取消个别瓶子</text>
 					<text v-else class="selection-hint">可跨页勾选，选择会保留</text>
@@ -199,6 +200,7 @@ import AppTag from '@/components/base/AppTag.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { batchUpdateInspectionV2, searchBottlesV1 } from '@/services/bottle'
 import { loadInspectionCandidates } from '@/services/bottleInspectionCandidates.mjs'
+import { buildInspectionExportCsv, downloadInspectionCsv } from '@/services/bottleInspectionExport.mjs'
 import DEFAULT_INSPECTION_CYCLES from '../../../../uniCloud-alipay/cloudfunctions/crm-bottle/inspectionCycles.json'
 
 const BATCH_LIMIT = 2000
@@ -250,6 +252,7 @@ let candidateCache = null
 let candidateCacheKey = ''
 let searchVersion = 0
 const loading = ref(false)
+const exporting = ref(false)
 const submitting = ref(false)
 const inspectionDate = ref('')
 const selectedModules = ref([])
@@ -371,10 +374,10 @@ function buildFilterParams({ page = 1, pageSize = 50 } = {}) {
 		if (numericEnd != null) data.bottle_no_numeric_end = numericEnd
 	}
 	if (data.is_active == null) delete data.is_active
-	if (!data.inspection_due_module || !data.inspection_due_state) {
+	if (!data.inspection_due_state) {
 		delete data.inspection_due_module
 		delete data.inspection_due_state
-	}
+	} else if (!data.inspection_due_module) data.inspection_due_module = 'all'
 	return data
 }
 
@@ -628,6 +631,34 @@ async function onSearch(resetPage = false) {
 		uni.showToast({ title: err?.message || '查询失败', icon: 'none' })
 	} finally {
 		if (version === searchVersion) loading.value = false
+	}
+}
+
+async function onExportFiltered() {
+	if (exporting.value || loading.value || !validateFilters()) return
+	const snapshot = buildFilterSnapshot()
+	const params = buildFilterParams()
+	exporting.value = true
+	try {
+		const rows = await loadInspectionCandidates(searchBottlesV1, params)
+		if (snapshot !== buildFilterSnapshot()) {
+			uni.showToast({ title: '筛选条件已变化，请重新导出', icon: 'none' })
+			return
+		}
+		if (!rows.length) {
+			uni.showToast({ title: '没有可导出的钢瓶', icon: 'none' })
+			return
+		}
+		const filename = `钢瓶检验_${inspectionDueModuleLabel.value}_${inspectionDueStateLabel.value}_${rows.length}条_${new Date().toISOString().slice(0, 10)}.csv`
+		if (!downloadInspectionCsv(buildInspectionExportCsv(rows, params), filename)) {
+			uni.showToast({ title: '请在浏览器端导出', icon: 'none' })
+			return
+		}
+		uni.showToast({ title: `已导出${rows.length}瓶`, icon: 'success' })
+	} catch (err) {
+		uni.showToast({ title: err?.message || '导出失败', icon: 'none', duration: 2600 })
+	} finally {
+		exporting.value = false
 	}
 }
 

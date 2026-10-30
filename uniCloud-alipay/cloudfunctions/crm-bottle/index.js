@@ -26,7 +26,7 @@ const bottleImportBackups = db.collection('crm_bottles_import_backups')
 const STATUS = ['unknown', 'in_station', 'at_customer', 'scrapped', 'lost']
 const CHECK_CYCLE_MONTHS = [6, 12, 24, 36]
 const DEFAULT_INSPECTION_CYCLES = require('./inspectionCycles.json')
-const INSPECTION_DUE_MODULES = ['bottle', 'gauge', 'valve']
+const INSPECTION_DUE_MODULES = ['all', 'bottle', 'gauge', 'valve']
 const INSPECTION_DUE_STATES = ['overdue', 'due_60d', 'overdue_or_due_60d']
 const BATCH_INSPECTION_LIMIT = 2000
 const BOTTLE_NUMERIC_SEGMENT_SCAN_LIMIT = 5000
@@ -961,6 +961,7 @@ function parseInspectionDateEqPair(data = {}, keys = {}, label = '检验批次')
 }
 
 function resolveInspectionDueField(moduleValue) {
+	if (moduleValue === 'all') return 'all'
 	if (moduleValue === 'bottle') return 'bottle_next_check_date'
 	if (moduleValue === 'gauge') return 'pressure_gauge_next_check_date'
 	if (moduleValue === 'valve') return 'safety_valve_next_check_date'
@@ -1193,17 +1194,19 @@ function buildBottleListWhereByFilter(data = {}) {
 	}
 
 	if (dueFilterResult.data.field) {
-		const dueField = dueFilterResult.data.field
 		const validDateRx = db.RegExp({ regexp: '^\\d{4}-\\d{2}-\\d{2}$', options: '' })
-		conditions.push({ [dueField]: validDateRx })
-		if (dueFilterResult.data.state === 'overdue') {
-			conditions.push({ [dueField]: dbCmd.lt(dueFilterResult.data.today) })
-		} else if (dueFilterResult.data.state === 'due_60d') {
-			conditions.push({ [dueField]: dbCmd.gte(dueFilterResult.data.today) })
-			conditions.push({ [dueField]: dbCmd.lte(dueFilterResult.data.due_end) })
-		} else {
-			conditions.push({ [dueField]: dbCmd.lte(dueFilterResult.data.due_end) })
-		}
+		const dueFields = dueFilterResult.data.field === 'all'
+			? ['bottle_next_check_date', 'pressure_gauge_next_check_date', 'safety_valve_next_check_date']
+			: [dueFilterResult.data.field]
+		const alternatives = dueFields.map((field) => {
+			const terms = [{ [field]: validDateRx }]
+			if (dueFilterResult.data.state === 'overdue') terms.push({ [field]: dbCmd.lt(dueFilterResult.data.today) })
+			else if (dueFilterResult.data.state === 'due_60d') {
+				terms.push({ [field]: dbCmd.gte(dueFilterResult.data.today) }, { [field]: dbCmd.lte(dueFilterResult.data.due_end) })
+			} else terms.push({ [field]: dbCmd.lte(dueFilterResult.data.due_end) })
+			return dbCmd.and(terms)
+		})
+		conditions.push(alternatives.length === 1 ? alternatives[0] : dbCmd.or(alternatives))
 	}
 
 	const where =

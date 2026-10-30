@@ -26,9 +26,22 @@ function makeInspectionView(initialInspectionDueModule = '', initialInspectionDu
 		uni: { showToast: () => {} },
 		Date, Intl, JSON, Set, Map, Promise
 	}
-	vm.runInNewContext(scriptAt('src/components/domain/bottle/BottleInspectionView.vue') + '\nthis.view = { filters, selectedModules, selectedBottleIds, excludedBottleIds, selectionMode, inspectionDate, pager, onQuickDueFilter, isQuickFilterActive, selectAllFiltered, buildRequest, onModuleChange, onInspectionDueStateChange }', context)
+	vm.runInNewContext(scriptAt('src/components/domain/bottle/BottleInspectionView.vue') + '\nthis.view = { filters, selectedModules, selectedBottleIds, excludedBottleIds, selectionMode, inspectionDate, pager, onQuickDueFilter, isQuickFilterActive, selectAllFiltered, buildRequest, buildFilterParams, onModuleChange, onInspectionDueStateChange, onExportFiltered }', context)
 	return { context, requests, view: context.view }
 }
+
+test('all modules forwards overdue and upcoming state to list and filtered registration', async () => {
+	const { view, requests } = makeInspectionView()
+	for (const [index, state] of [[1,'overdue_or_due_60d'],[2,'overdue'],[3,'due_60d']]) {
+		view.onInspectionDueStateChange({detail:{value:index}})
+		await new Promise(resolve=>setImmediate(resolve))
+		assert.equal(requests.at(-1).inspection_due_module,'all')
+		assert.equal(requests.at(-1).inspection_due_state,state)
+		view.inspectionDate.value='2026-10-30';view.selectedModules.value=['bottle'];view.selectAllFiltered()
+		const payload=view.buildRequest(true)
+		assert.equal(payload.selector.inspection_due_module,'all');assert.equal(payload.selector.inspection_due_state,state)
+	}
+})
 
 test('quick actions clear old scope, filter active bottles and preselect the matching project', async () => {
 	const { view, requests } = makeInspectionView()

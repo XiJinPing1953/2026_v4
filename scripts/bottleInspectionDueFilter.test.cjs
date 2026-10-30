@@ -92,3 +92,30 @@ test('old overdue and upcoming states remain separate', async () => {
 		assert.deepEqual(result.data.map((row) => row._id), expected)
 	}
 })
+
+test('all modules returns each matching bottle once for overdue and approaching dates, including batch scope', async () => {
+	const rows = [
+		bottle('01-bottle', dateAtOffset(-1)),
+		bottle('02-gauge', dateAtOffset(61), { pressure_gauge_next_check_date: dateAtOffset(-2) }),
+		bottle('03-valve', dateAtOffset(61), { safety_valve_next_check_date: dateAtOffset(-3) }),
+		bottle('04-multiple', dateAtOffset(-1), { pressure_gauge_next_check_date: dateAtOffset(-1) }),
+		bottle('05-today', dateAtOffset(61), { pressure_gauge_next_check_date: dateAtOffset(0) }),
+		bottle('06-60', dateAtOffset(61), { safety_valve_next_check_date: dateAtOffset(60) }),
+		bottle('07-61', dateAtOffset(61), { safety_valve_next_check_date: dateAtOffset(61) }),
+		bottle('08-inactive', dateAtOffset(-1), { is_active:false }),
+		bottle('09-invalid', 'not-a-date', { pressure_gauge_next_check_date:'', safety_valve_next_check_date:null })
+	]
+	const db = makeDb({ crm_users:[{_id:'user-1',token:'test',role:'superadmin'}], crm_customers:[],crm_operation_logs:[],crm_bottles:rows })
+	const handler = loadHandler('crm-bottle',db)
+	for (const [state, ids] of [
+		['overdue',['01-bottle','02-gauge','03-valve','04-multiple']],
+		['due_60d',['05-today','06-60']],
+		['overdue_or_due_60d',['01-bottle','02-gauge','03-valve','04-multiple','05-today','06-60']]
+	]) {
+		const all = { inspection_due_module:'all',inspection_due_state:state,is_active:true }
+		const list = await invoke(handler,'listV1',{...all,page:1,pageSize:50,include_summary:false})
+		assert.equal(list.code,0,list.msg);assert.deepEqual(list.data.map(row=>row._id),ids)
+		const preview = await invoke(handler,'batchUpdateInspectionV2',{preview:true,inspection_date:dateAtOffset(0),modules:['bottle'],scope_mode:'filter',selector:all})
+		assert.equal(preview.code,0,preview.msg);assert.equal(preview.data.target_total,ids.length)
+	}
+})
