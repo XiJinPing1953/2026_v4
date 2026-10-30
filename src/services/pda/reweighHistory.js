@@ -1,16 +1,15 @@
-import { savedLabel, isSuperseded } from './fillingPrint'
-import { reweighHistoryTime } from './reweighDraft'
+import { savedLabel, supersededOperationIds } from './fillingPrint'
+import { reweighHistoryTime, readReweighDraft } from './reweighDraft'
 
 // Read only: never call the draft store's migration/save path while browsing history.
 export function localFillingRounds(owner, storage) {
- const raw = storage.getStorageSync(`crm_pda_reweigh_v1:${owner}`)
- if (!raw) return []
- const data = typeof raw === 'string' ? JSON.parse(raw) : raw
- if (data?.version !== 1 || data.ownerId !== owner || !Array.isArray(data.history)) throw new Error('本机历史无法读取，原数据已保留')
+ const data = readReweighDraft(owner, storage)
+ if (!data) return []
  const entries = [...new Map([...data.history, data.current].filter(Boolean).map(row => [row.operationId, row])).values()]
+ const superseded = supersededOperationIds(entries)
  const rounds = new Map()
  for (const entry of entries) {
-  if (!entry.receipt?.saved || !entry.roundId || isSuperseded(entry, entries)) continue
+  if (!entry.receipt?.saved || !entry.roundId || superseded.has(entry.operationId)) continue
   let group = rounds.get(entry.roundId)
   if (!group) { group = { id: entry.roundId, first_time: '', rows: [] }; rounds.set(entry.roundId, group) }
   const time = reweighHistoryTime(entry)

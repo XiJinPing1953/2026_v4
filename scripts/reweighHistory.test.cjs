@@ -37,11 +37,12 @@ test('both account stores remove old completed history with backup and preserve 
   assert.deepEqual(copy(result.current), original.current)
   assert.deepEqual(copy(result.metadata), original.metadata)
   assert.deepEqual(JSON.parse(f.map.get(f.backupKey)), original)
-  assert.equal(JSON.parse(f.map.get(f.key)).history.length, 1)
+  assert.equal(JSON.parse(f.map.get(f.key)).historyChunks[0].count, 1)
   for (const [key, value] of untouched) if (key !== f.key) assert.equal(f.map.get(key), value)
-  assert.deepEqual(f.writes, [f.backupKey, f.key])
+  assert.equal(f.writes[0], f.backupKey); assert.equal(f.writes.at(-1), f.key)
+  const count = f.writes.length
   createReweighDraftStore('u1', f.storage, () => 'u1', mode).load()
-  assert.equal(f.writes.length, 2, 'reloading clean data does not migrate again')
+  assert.equal(f.writes.length, count, 'reloading clean data does not migrate again')
  }
 })
 

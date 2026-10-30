@@ -39,7 +39,7 @@ function entryHarness(kind){
  const ui=uiFor(),connections=[],sessions=[];let callback,owner={_id:'u'},active=true
  ui.requireNativePlugin=()=>({})
  const session={close(){},connect:address=>connections.push(address),print:async()=>callback({connected:true,message:'已发送一张，请查看出纸并扫码核对；未出纸也不会自动重打'})}
- const context={ref:value=>({value}),onBeforeUnmount(){},defineExpose(){},getUser:()=>owner,plus:{android:androidFor(devices)},uni:ui,ensurePdaBleRuntimePermission:async()=>({code:0}),selectPairedPrinter,rememberPrinter,setInterval:()=>0,clearInterval(){},createLabelPrinterSession:(_,cb)=>{callback=cb;sessions.push(session);return session},createPrinterTestSession:(_,cb)=>{callback=cb;sessions.push(session);return session},createFillingPrintController:()=>({close(){}})}
+ const context={computed:fn=>({get value(){return fn()}}),ref:value=>({value}),onBeforeUnmount(){},defineExpose(){},getUser:()=>owner,plus:{android:androidFor(devices)},uni:ui,ensurePdaBleRuntimePermission:async()=>({code:0}),selectPairedPrinter,rememberPrinter,setInterval:()=>0,clearInterval(){},createLabelPrinterSession:(_,cb)=>{callback=cb;sessions.push(session);return session},createPrinterTestSession:(_,cb)=>{callback=cb;sessions.push(session);return session},createFillingPrintController:()=>({close(){}})}
  let entry
  if(kind==='test'){
   const source=fs.readFileSync('src/components/domain/pda/PdaPrinterTest.vue','utf8').match(/<script setup>([\s\S]*?)<\/script>/)[1].replace(/^import .*$/gm,'')

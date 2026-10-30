@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
-const status = new Function(fs.readFileSync('src/services/pda/weighStatus.js', 'utf8').replace('export ', '') + ';return pdaWeighStatus')()
+const status = new Function(fs.readFileSync('src/services/pda/weighStatus.js', 'utf8').replace(/^export /gm, '') + ';return pdaWeighStatus')()
 const live = { is_connected: true, is_online: true, is_stable: true, weight_kg: 120 }
 test('stable scale alone does not show a completed bottle', () => {
  assert.equal(status(live).tone, 'waiting')
@@ -22,7 +22,7 @@ test('return signed net remains usable; timeout or unloaded live scale cannot fa
 })
 
 test('unloading rejection stays red using the same anchor floor as capture', () => {
- const createAuto = new Function(fs.readFileSync('src/services/pda/autoReturnWeight.js', 'utf8').replace('export ', '') + ';return createAutoReweighWeight')()
+ const createAuto = new Function(fs.readFileSync('src/services/pda/autoReturnWeight.js', 'utf8').replace(/^export /gm, '') + ';return createAutoReweighWeight')()
  const auto = createAuto(); let now = 10000
  function frames(w) { let result; for(let i=0;i<34;i++) {now+=100; result=auto.feed({sampled_at:now,display_kg:w},100,now) ?? result} return result }
  assert.equal(frames(120),120); assert.equal(frames(119.5),119.5)

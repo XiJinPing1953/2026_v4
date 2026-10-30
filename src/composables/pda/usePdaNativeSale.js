@@ -1,3 +1,4 @@
+import { sameWeighDisplay } from '@/services/pda/weighStatus'
 import { parseFillingLabel, resolveFillingLabel } from '@/services/pda/fillingLabel'
 import { usePdaSalePrinter } from '@/composables/pda/usePdaSalePrinter'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
@@ -89,7 +90,7 @@ export function usePdaNativeSale() {
 		captureMinimum.value = autoWeight.minimumWeight(rowsFor(target.type)[index].tare)
 		if (weight === null) return
 		const result = sale.applyScaleWeightToRow(target.type, index, {
-			...snapshot.value, session_id: target.sessionId, weight_kg: weight, sampled_at: frame.sampled_at,
+			...snapshot.value, frame_raw: frame.raw || '', session_id: target.sessionId, weight_kg: weight, sampled_at: frame.sampled_at,
 			is_online: true, is_stable: true, stable_seq: ++target.sequence, measurement_started_at: target.startedAt
 		}, { sessionId: target.sessionId, force: true })
 		if (result.code !== 0) return fail(target.type === 'out' && Number(weight) <= Number(rowsFor(target.type)[index].tare)
@@ -98,7 +99,7 @@ export function usePdaNativeSale() {
 		message.value = `${target.bottleNo} 号瓶：这瓶称好了，可以扫下一瓶`
 	}
 	const unsubscribe = scale.onSnapshot(next => {
-		snapshot.value = next
+		if (!sameWeighDisplay(snapshot.value, next)) snapshot.value = next
 		if (measurement && (!next.is_connected || next.session_id !== measurement.sessionId)) {
 			freeze()
 			message.value = '吊秤已断开，已称重量保留；连接后可点重新称重'
@@ -145,7 +146,7 @@ export function usePdaNativeSale() {
 			const row = sale.applyBottleSelection(type, index, bottle)
 			if (!row) return false
 			if (confirmed) {
-    Object.assign(row, { gross:String(confirmed.gross_weight), tare:String(confirmed.tare_weight), net:String(confirmed.net_weight), grossMeasured:String(confirmed.gross_weight), tareSource:'filling_reweigh', weightSource:'filling_reweigh', fillingLabelToken:confirmed.label_token, weightSampledAt:null, scaleSessionId:'', scaleStableSeq:0 })
+    rowsFor(type)[index] = { ...row, gross:String(confirmed.gross_weight), tare:String(confirmed.tare_weight), net:String(confirmed.net_weight), grossMeasured:String(confirmed.gross_weight), tareSource:'filling_reweigh', weightSource:'filling_reweigh', fillingLabelToken:confirmed.label_token, weightSampledAt:null, scaleSessionId:'', scaleStableSeq:0 }
     currentId.value = row.rowId; message.value = `${row.bottleNo} 号瓶：已用充装复秤重量`
    } else {
     if (!snapshot.value.is_connected) { currentId.value = row.rowId; return fail('吊秤已断开，请连接后重新称重') }

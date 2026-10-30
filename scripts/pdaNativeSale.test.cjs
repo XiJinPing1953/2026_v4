@@ -8,6 +8,7 @@ function load(file, names, globals = {}) {
 	const source = fs.readFileSync(file, 'utf8').replace(/^import[\s\S]*?\bfrom\s+['"][^'"]+['"]\s*\n/gm, '').replace(/^export /gm, '')
 	return vm.runInNewContext(`${source}\n;({${names.join(',')}})`, { Date, Math, console, ...globals })
 }
+const display = load('src/services/pda/weighStatus.js', ['sameWeighDisplay'])
 const shared = load('src/services/pda/shared.js', ['normalizeText', 'normalizeBottleNo', 'toNumber', 'todayDate', 'buildDepositPreviewRows'])
 const draft = load('src/services/pda/mobileSaleDraft.js', ['createMobileSaleDraftStore', 'createMobileSaleId', 'cloneMobileSale', 'mobileSaleReceipt', 'canReleaseMobileSubmission'])
 const pricing = load('src/services/pda/customer.js', ['resolvePdaCustomerPricing'], shared)
@@ -16,7 +17,7 @@ const core = load('src/services/pda/bleScaleCore.js', ['createEmptyPdaBleScaleSn
 const auto = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight'])
 const settlement = load('src/services/models/settlement.js', ['normalizePaymentMethod', 'normalizePaymentStatus', 'normalizeSettlementMode'])
 const model = load('src/services/models/sale.js', ['normalizeSaleDraft'], settlement)
-const sales = load('src/services/pda/sale.js', ['createPdaBottleSaleForm', 'createPdaOutItem', 'createPdaBackItem', 'applyBottleToSaleRow', 'syncPdaBackRow', 'validatePdaBottleSaleForm', 'buildMobileSalePayload'], { ...shared, ...draft, ...pricing, ...location, ...model })
+const sales = load('src/services/pda/sale.js', ['createPdaBottleSaleForm', 'createPdaOutItem', 'createPdaBackItem', 'applyBottleToSaleRow', 'syncPdaBackRow', 'validatePdaBottleSaleForm', 'buildMobileSalePayload'], { ...display, ...shared, ...draft, ...pricing, ...location, ...model })
 const labelParsing = load('src/services/pda/fillingLabel.js', ['parseFillingLabel'])
 const customer = { _id: 'customer', name: '测试客户', default_price_unit: 'kg', default_unit_price: 8, is_active: true }
 const bottle = no => ({ _id: `b${no}`, bottle_no: String(no), tare_weight: 100, is_active: true })
@@ -26,7 +27,7 @@ async function harness(t, options = {}) {
 	let now = 10000, owner = 'worker', onSnapshot, frameListener, scanner, session = 0, connected = false
 	const storage = options.storage || new Map(), requests = [], confirmations = []
 	const runtime = {
-		...shared, ...draft, ...pricing, ...location, ...core, ...auto, ...sales, ...labelParsing,
+		...display, ...shared, ...draft, ...pricing, ...location, ...core, ...auto, ...sales, ...labelParsing,
   resolveFillingLabel: options.resolveLabel || (async () => ({ code:409, msg:'标签已失效' })),
 		ref: vue.ref, computed: vue.computed, watch: vue.watch, onBeforeUnmount() {},
 		Date: class extends Date { static now() { return now } },

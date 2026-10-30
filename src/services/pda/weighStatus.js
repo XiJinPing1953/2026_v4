@@ -11,3 +11,10 @@ export function pdaWeighStatus(snapshot = {}, { selected = false, captured = fal
  if (captured && gross != null && Math.abs(live - Number(gross)) < 0.001) return { tone: 'ready', text: '这瓶称好了' }
  return { tone: 'waiting', text: '等待称重' }
 }
+
+// Raw frame counters and timestamps are diagnostic data, not changing display state.
+// Business capture continues to consume every raw frame before this comparison.
+export function sameWeighDisplay(previous, next) {
+ return ['weight_kg', 'is_connected', 'is_online', 'is_stable', 'error_code', 'error_message', 'session_id', 'device_id', 'unit']
+  .every(key => previous?.[key] === next?.[key])
+}

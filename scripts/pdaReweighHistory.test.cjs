@@ -6,9 +6,9 @@ function load(path, names, context = {}) {
  const source = fs.readFileSync(path, 'utf8').replace(/^import.*\n/gm, '').replace(/^export /gm, '')
  return vm.runInNewContext(`${source}\n;({${names}})`, { ...context })
 }
-const { reweighHistoryTime } = load('src/services/pda/reweighDraft.js', 'reweighHistoryTime')
-const { savedLabel, isSuperseded } = load('src/services/pda/fillingPrint.js', 'savedLabel,isSuperseded', { normalizePrintLabel: label => { if (!label) throw Error('missing'); return label } })
-const { localFillingRounds, historyPrintEntry } = load('src/services/pda/reweighHistory.js', 'localFillingRounds,historyPrintEntry', { reweighHistoryTime, savedLabel, isSuperseded })
+const { reweighHistoryTime, readReweighDraft } = load('src/services/pda/reweighDraft.js', 'reweighHistoryTime,readReweighDraft')
+const { savedLabel, supersededOperationIds } = load('src/services/pda/fillingPrint.js', 'savedLabel,supersededOperationIds', { normalizePrintLabel: label => { if (!label) throw Error('missing'); return label } })
+const { localFillingRounds, historyPrintEntry } = load('src/services/pda/reweighHistory.js', 'localFillingRounds,historyPrintEntry', { reweighHistoryTime, readReweighDraft, savedLabel, supersededOperationIds })
 function entry(id, round = 'round1') { return { operationId: id, roundId: round, bottleNo: '55', date: '2026-10-22 12:00:00',
  receipt: { saved: true, complete: true, fillingId: id }, frozen: { mode: 'create', payload: { operation_id: id, bottle_no: '55', gross_weight: 150 },
  label: { company: '新拓能源', bottle_no: '55', gross_weight: 150, tare_weight: 110, net_weight: 40 } } } }

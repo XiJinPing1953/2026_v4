@@ -13,6 +13,21 @@ export function isSuperseded(entry, entries) {
 	const index = entries.findIndex(row => row.operationId === entry.operationId)
 	return entries.slice(index + 1).some(row => row.operationId !== entry.operationId && row.receipt?.saved && row.frozen?.mode === 'correct' && row.frozen.payload.filling_id === id)
 }
+// One reverse pass instead of scanning all later records for every rendered row.
+export function supersededOperationIds(entries) {
+	const corrections = new Map(), superseded = new Set()
+	for (let index = entries.length - 1; index >= 0; index--) {
+		const entry = entries[index], id = entry?.receipt?.fillingId || entry?.frozen?.payload?.filling_id
+		const later = corrections.get(id)
+		if (id && later && (later.size > 1 || !later.has(entry.operationId))) superseded.add(entry.operationId)
+		if (entry.receipt?.saved && entry.frozen?.mode === 'correct' && entry.frozen.payload.filling_id) {
+			const target = entry.frozen.payload.filling_id
+			if (!corrections.has(target)) corrections.set(target, new Set())
+			corrections.get(target).add(entry.operationId)
+		}
+	}
+	return superseded
+}
 export function verifyCurrentLabel(entry, response) {
 	const label = savedLabel(entry), row = response?.data
 	if (response?.code !== 0 || !row || row._id !== entry.receipt.fillingId) throw new Error('暂时无法核对最新记录，请稍后补打')

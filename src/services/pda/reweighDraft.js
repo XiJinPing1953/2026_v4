@@ -25,7 +25,7 @@ export function reweighHistoryTime(entry) {
 export function pruneReweighHistory(history) {
 	// 固定清理用户指定日期之前的已完成历史，不按“今天”滚动删记录。
 	// 未确认/待处理操作和无法确定日期的旧数据保留恢复入口。
-	return history.filter(entry => {
+	const kept = history.filter(entry => {
 		if (entry.receipt?.complete !== true) return true
 		const time = reweighHistoryTime(entry)
 		const value = time === '—' ? String(entry.frozen?.payload?.date || entry.date || '') : time
@@ -34,47 +34,104 @@ export function pruneReweighHistory(history) {
 		if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Number.isFinite(date.getTime()) || new Date(date.getTime() + BUSINESS_OFFSET_MS).toISOString().slice(0, 10) !== day) return true
 		return day >= HISTORY_KEEP_FROM
 	})
+	return kept.length === history.length ? history : kept
+}
+
+const HISTORY_CHUNK_SIZE = 40
+const storageToken = raw => raw ? (typeof raw === 'string' ? raw : JSON.stringify(raw)) : null
+export function reweighDraftKey(ownerId, mode = 'filling') {
+	return `${mode === 'return' ? 'crm_pda_return_reweigh_v1' : 'crm_pda_reweigh_v1'}:${ownerId}`
+}
+
+// Shared read-only decoder: record queries must also understand the chunked format.
+export function readReweighDraft(ownerId, storage, mode = 'filling', raw = storage.getStorageSync(reweighDraftKey(ownerId, mode))) {
+	if (!raw) return null
+	const data = typeof raw === 'string' ? JSON.parse(raw) : raw
+	if (![1, 2].includes(data?.version) || data.ownerId !== ownerId) throw new Error('复秤草稿无法读取或识别，原数据已保留')
+	let history = data.history
+	if (data.version === 2) {
+		const prefix = `${reweighDraftKey(ownerId, mode)}:history:`
+		if (!Array.isArray(data.historyChunks)) throw new Error('复秤历史索引无法读取，原数据已保留')
+		history = data.historyChunks.flatMap(chunk => {
+			if (typeof chunk.key !== 'string' || !chunk.key.startsWith(prefix) || !Number.isInteger(chunk.count) || chunk.count < 1 || chunk.count > HISTORY_CHUNK_SIZE) throw new Error('复秤历史索引无法读取，原数据已保留')
+			const value = storage.getStorageSync(chunk.key)
+			const rows = typeof value === 'string' ? JSON.parse(value) : value
+			if (!Array.isArray(rows) || rows.length !== chunk.count) throw new Error('复秤历史分段无法读取，原数据已保留')
+			return rows
+		})
+	}
+	if (!Array.isArray(history)) throw new Error('复秤历史无法读取，原数据已保留')
+	return { ...data, history }
 }
 
 export function createReweighDraftStore(ownerId, storage, currentOwner = () => ownerId, mode = 'filling') {
-	const key = `${mode === 'return' ? 'crm_pda_return_reweigh_v1' : 'crm_pda_reweigh_v1'}:${ownerId}`
-	const backupKey = `${key}:history-backup-before-20261021`
-	let expected = null
-	const token = (raw) => raw ? (typeof raw === 'string' ? raw : JSON.stringify(raw)) : null
+	const key = reweighDraftKey(ownerId, mode)
+	let expected = null, previousHistory = null, chunks = []
 	function assertWritable() {
 		if (!ownerId || currentOwner() !== ownerId) throw new Error('登录账号已变化，请使用原账号恢复复秤草稿')
-		if (token(storage.getStorageSync(key)) !== expected) throw new Error('复秤草稿已在另一页面更新，请重新进入并恢复最新内容')
+		if (storageToken(storage.getStorageSync(key)) !== expected) throw new Error('复秤草稿已在另一页面更新，请重新进入并恢复最新内容')
+	}
+	function verifiedWrite(name, value) {
+		storage.setStorageSync(name, value)
+		if (storageToken(storage.getStorageSync(name)) !== value) throw new Error('复秤草稿写入核对失败')
+	}
+	function backup(name, value) {
+		if (!storage.getStorageSync(name)) verifiedWrite(name, value)
 	}
 	function write(data) {
 		assertWritable()
-		const history = pruneReweighHistory(data.history)
-		if (history.length !== data.history.length && !storage.getStorageSync(backupKey)) {
-			// 先备份并回读，再替换本账号/本模块的历史；不触碰登录、采样或其他存储键。
-			const backup = JSON.stringify(data)
-			storage.setStorageSync(backupKey, backup)
-			if (storage.getStorageSync(backupKey) !== backup) throw new Error('复秤历史备份失败，原数据已保留')
+		const history = data.history === previousHistory ? data.history : pruneReweighHistory(data.history)
+		if (history.length !== data.history.length) backup(`${key}:history-backup-before-20261021`, JSON.stringify(data))
+		// Keep a verified original before the first format upgrade. Never truncate history.
+		if (expected && JSON.parse(expected).version === 1) backup(`${key}:before-chunked-v2`, expected)
+		const nextChunks = [], created = []
+		let committed = false
+		try {
+			if (history === previousHistory) nextChunks.push(...chunks)
+			else for (let start = 0; start < history.length; start += HISTORY_CHUNK_SIZE) {
+				const rows = history.slice(start, start + HISTORY_CHUNK_SIZE), old = chunks[start / HISTORY_CHUNK_SIZE]
+				if (old && rows.length === old.count && rows.every((row, index) => row === previousHistory?.[start + index])) nextChunks.push(old)
+				else {
+					const name = `${key}:history:${createReweighId()}`
+					created.push(name)
+					verifiedWrite(name, JSON.stringify(rows))
+					nextChunks.push({ key: name, count: rows.length })
+				}
+			}
+			assertWritable()
+			const { history: ignored, ...head } = data
+			const value = JSON.stringify({ ...head, version: 2, historyChunks: nextChunks })
+			// Once root commit starts, retain chunks even if the native write reports an error.
+			committed = true
+			storage.setStorageSync(key, value)
+			expected = value
+			if (storageToken(storage.getStorageSync(key)) !== value) throw new Error('复秤草稿写入核对失败')
+			const retained = new Set(nextChunks.map(chunk => chunk.key))
+			for (const chunk of chunks) if (!retained.has(chunk.key)) { try { storage.removeStorageSync?.(chunk.key) } catch (_) {} }
+			chunks = nextChunks; previousHistory = history
+			return { ...data, history }
+		} catch (cause) {
+			if (!committed) for (const name of created) { try { storage.removeStorageSync?.(name) } catch (_) {} }
+			throw cause
 		}
-		assertWritable()
-		const value = JSON.stringify({ ...data, history })
-		storage.setStorageSync(key, value)
-		expected = value
-		if (token(storage.getStorageSync(key)) !== value) throw new Error('复秤草稿写入核对失败')
-		return { ...data, history }
 	}
 	return {
 		load() {
 			if (!ownerId || currentOwner() !== ownerId) throw new Error('请先登录')
 			const raw = storage.getStorageSync(key)
-			expected = token(raw)
+			expected = storageToken(raw)
 			if (!raw) return null
-			const data = typeof raw === 'string' ? JSON.parse(raw) : raw
-			const valid = (entry) => entry && typeof entry.operationId === 'string' && entry.operationId && typeof entry.bottleNo === 'string'
+			const data = readReweighDraft(ownerId, storage, mode, raw)
+			const valid = entry => entry && typeof entry.operationId === 'string' && entry.operationId && typeof entry.bottleNo === 'string'
 				&& (!entry.frozen || (['create', 'correct'].includes(entry.frozen.mode) && entry.frozen.payload?.operation_id === entry.operationId && entry.frozen.payload?.bottle_no === entry.bottleNo))
-			if (data.version !== 1 || data.ownerId !== ownerId || !valid(data.current) || !Array.isArray(data.history) || !data.history.every(valid)) throw new Error('复秤草稿无法识别，原数据已保留')
-			return cloneReweigh(pruneReweighHistory(data.history).length !== data.history.length ? write(data) : data)
+			if (!valid(data.current) || !data.history.every(valid)) throw new Error('复秤草稿无法读取或识别，原数据已保留')
+			// Loaded records and history replacements are immutable snapshots.
+			const result = cloneReweigh(data)
+			chunks = result.historyChunks || []; previousHistory = result.version === 2 ? result.history : null
+			return pruneReweighHistory(result.history).length !== result.history.length ? write(result) : result
 		},
 		save(current, history, metadata = null) {
-			return write({ version: 1, ownerId, savedAt: Date.now(), current, history, metadata }).history
+			return write({ ownerId, savedAt: Date.now(), current, history, metadata }).history
 		}
 	}
 }

@@ -1,5 +1,6 @@
+import { sameWeighDisplay } from '@/services/pda/weighStatus'
 import { createAutoReweighWeight } from '@/services/pda/autoReturnWeight'
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { getUser } from '@/services/auth'
 import { canPageAction } from '@/services/pageAcl'
 import { previewReweighV1, createReweighV1, correctReweighV1, getReweighOperationV1, retryReweighOperationV1 } from '@/services/api/reweigh'
@@ -36,7 +37,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	const round = ref(null)
 	const pendingRound = ref(null)
 	const roundReady = ref(!isReturn)
-	const history = ref([])
+	const history = shallowRef([])
 	const historySyncing = ref(false), historySyncError = ref('')
 	let historySyncVersion = 0
 	const message = ref('请连接吊秤，再按扫描键选瓶。')
@@ -60,7 +61,8 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	// Explicit wrappers also work with uni-app's statically injected storage APIs.
 	const store = createReweighDraftStore(ownerId, {
 		getStorageSync: key => uni.getStorageSync(key),
-		setStorageSync: (key, value) => uni.setStorageSync(key, value)
+		setStorageSync: (key, value) => uni.setStorageSync(key, value),
+		removeStorageSync: key => uni.removeStorageSync(key)
 	}, () => String(getUser()?._id || ''), mode)
 	try {
 		const saved = store.load()
@@ -170,7 +172,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	}
 
 	const unsubscribe = scale.onSnapshot(next => {
-		snapshot.value = next
+		if (!sameWeighDisplay(snapshot.value, next)) snapshot.value = next
 		if (autoSession && (next.session_id !== autoSession || !next.is_connected)) { autoSession = ''; autoWeight.reset(); captureMinimum.value = 0 }
 		if (pendingSession.value && (next.session_id !== pendingSession.value || !next.is_connected)) { pendingSession.value = ''; message.value = '吊秤已断开，请连接后点本瓶称重。' }
 	})
@@ -201,7 +203,8 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		finally { busy.value = false }
 	}
 	async function disconnect() { pendingSession.value = ''; await scale.disconnect(); message.value = '吊秤已断开，已称重量保留。' }
-	function cancelMeasurement() { autoSession = ''; autoWeight.reset(); captureMinimum.value = 0; pendingSession.value = ''; message.value = '已停止取重，点本瓶称重可继续。' }
+	function stopMeasurement() { autoSession = ''; autoWeight.reset(); captureMinimum.value = 0; pendingSession.value = '' }
+	function cancelMeasurement() { stopMeasurement(); message.value = '已停止取重，点本瓶称重可继续。' }
 	function applyReceipt(response, operationId, target = current.value, directResponse = false) {
 		const receipt = reweighReceipt(response, operationId, target?.receipt)
 		// A direct pre-write rejection may omit its ID. Queries must explicitly identify the original operation.
@@ -225,6 +228,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 			fail(receipt.message)
 		} else if (current.value.operationId === operationId) current.value = { ...current.value, receipt }
 		else history.value = history.value.map(item => item.operationId === operationId ? { ...item, receipt } : item)
+		if (current.value.operationId === operationId && receipt.saved) stopMeasurement()
 		const persisted = persist()
 		if (!isReturn && persisted && active.value && ownerMatches()) {
 			const entry = current.value.operationId === operationId ? current.value : history.value.find(item => item.operationId === operationId)
@@ -307,7 +311,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		if (old.frozen) history.value = [...history.value.filter(item => item.operationId !== old.operationId), cloneReweigh(old)]
 		current.value = emptyDraft()
 		if (!persist()) { current.value = old; history.value = previousHistory; return false }
-		epoch += 1; pendingSession.value = ''; error.value = ''; message.value = isReturn ? '请扫描下一瓶。' : '请扫描下一瓶。'
+		epoch += 1; stopMeasurement(); error.value = ''; message.value = '请扫描下一瓶。'
 		return true
 	}
 	function newLocalRound() {

@@ -10,6 +10,7 @@ function load(file, names, globals = {}) {
 	const source = fs.readFileSync(file, 'utf8').replace(/^import[\s\S]*?\bfrom\s+['"][^'"]+['"]\s*\n/gm, '').replace(/^export /gm, '')
 	return vm.runInNewContext(`${source}\n;({${names.join(',')}})`, { Date, Math, Promise, console, ...globals })
 }
+const display = load('src/services/pda/weighStatus.js', ['sameWeighDisplay'])
 const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight'])
 const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt'])
 function harness(t, options = {}) {
@@ -41,7 +42,7 @@ function harness(t, options = {}) {
 	}
 	const onDestroy = []
 	const stateModule = load('src/composables/pda/usePdaReweigh.js', ['usePdaReweigh', 'reweighChangeText'], {
-		...draft, ...autoWeight, Date: TestDate, ref: vue.ref, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
+		...display, ...draft, ...autoWeight, Date: TestDate, ref: vue.ref, shallowRef: vue.shallowRef, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
 		getUser: () => ({ _id: owner }), canPageAction: () => options.canCreate !== false,
 		getPdaBleScaleCapabilities: () => ({ transport: options.web ? 'web' : 'native', supported: true }),
 		createPdaBleScaleSession: profile => { assert.equal(profile.preserveMeasurementOnReadTimeout, true); weightFrame = profile.onWeightFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
@@ -540,4 +541,26 @@ test('return notice distinguishes saved rounds without guessing for old drafts',
  assert.equal(notice({ previous: { round_id: 'earlier' } }, true), '')
  assert.equal(notice({ mode: 'correct' }, false), '这瓶已有罐装记录，保存后更正原记录')
  assert.equal(notice({ mode: 'create' }, false), '')
+})
+
+for (const returnMode of [false, true]) test(`${returnMode ? 'return' : 'filling'} continuous save/next supports both scanner and manual entry; idle raw data does not rerender or rewrite`, async t => {
+ const h = harness(t, { returnMode }); await h.start()
+ for (let i = 0; i < 60; i++) {
+  assert.equal(await (i % 2 ? h.form.selectBottle(String(i)) : h.scan(String(i))), true)
+  h.frames(120); assert.equal(h.form.current.value.grossWeight, 120)
+  assert.equal(await h.form.submit(), true)
+  assert.equal(await h.form.nextBottle(), true)
+  assert.equal(h.form.busy.value, false); assert.equal(h.form.locked.value, false)
+ }
+ assert.equal(h.form.history.value.length, 60)
+ const stored = [...h.storage.entries()]
+ h.emit({ is_online: true, is_stable: true, weight_kg: 120, error_code: null })
+ let renders = 0
+ const stop = vue.watch(h.form.snapshot, () => { renders++ }, { flush: 'sync' })
+ for (let i = 0; i < 500; i++) h.emit({ sampled_at: Date.now() + i, stable_seq: i, notify_rx_count: i, frame_raw: `frame-${i}` })
+ h.frames(120, 10000)
+ assert.equal(renders, 0, 'unchanged display must not repaint full page for diagnostics')
+ assert.deepEqual([...h.storage.entries()], stored, 'previous bottle session is stopped')
+ h.emit({ is_online: false }); assert.equal(renders, 1, 'disconnect/read timeout remains immediately visible')
+ stop()
 })

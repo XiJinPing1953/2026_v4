@@ -98,23 +98,24 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.38",
+      "version": "1.0.39",
       "output": "release/pda",
-      "acceptance": "WGT only: saved-sale preview action sends two serialized copies (office/customer), each with a final customer signature area and 20 mm exit clearance. One immutable authorized saved snapshot for both copies; preserve deduplication, failure/unknown-save handling, stop/disconnect/account guards, source weights/deposits and all other flows. Existing crm-filling is only an integrity dependency; no cloud/schema/H5 deployment. Physical double-copy and signature spacing acceptance remains onsite.",
+      "acceptance": "WGT only: bounded chunked local reweigh history writes with verified migration backup; preserve all retained history, original operations, account isolation and recovery. End saved bottle measurement; suppress display-only BLE diagnostic refresh without dropping raw weighing frames. Linear correction lookup also covers history printing. Preserve sales printing, weight thresholds and business calculations. No cloud/schema/H5/native plugin change. Whole-page freeze resolution requires physical PDA acceptance.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "1999ce9d8cc03e13fa84cef0f21dd584c5060ea0",
+        "baseCommit": "c80f0781a151b90d3b75627a0e4e406fe15e0f69",
         "sourceFiles": [
           "src/manifest.json",
-          "src/services/pda/salePrint.js",
-          "src/services/pda/receiptPrinter.js",
-          "src/composables/pda/usePdaSalePrinter.js",
+          "src/services/pda/reweighDraft.js",
+          "src/services/pda/reweighHistory.js",
+          "src/services/pda/fillingPrint.js",
+          "src/services/pda/weighStatus.js",
+          "src/composables/pda/usePdaReweigh.js",
           "src/composables/pda/usePdaNativeSale.js",
-          "src/components/domain/pda/PdaNativeSaleView.vue",
-          "src/components/domain/pda/PdaSaleRecordsView.vue"
+          "src/composables/pda/usePdaFillingPrinter.js"
         ]
       },
       "integrityScope": "deployment"

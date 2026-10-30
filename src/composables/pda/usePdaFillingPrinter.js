@@ -1,11 +1,11 @@
 import { issueFillingLabel } from '@/services/pda/fillingLabel'
-import { ref, onBeforeUnmount } from 'vue'
+import { computed, ref, onBeforeUnmount } from 'vue'
 import { getFillingV1 } from '@/services/filling'
 import { getUser } from '@/services/auth'
 import { ensurePdaBleRuntimePermission } from '@/services/pda/bleScale'
 import { createLabelPrinterSession } from '@/services/pda/labelPrinter'
 import { selectPairedPrinter, rememberPrinter } from '@/services/pda/printerSelection'
-import { createFillingPrintController, savedLabel, isSuperseded, verifyCurrentLabel } from '@/services/pda/fillingPrint'
+import { createFillingPrintController, savedLabel, supersededOperationIds, verifyCurrentLabel } from '@/services/pda/fillingPrint'
 export function usePdaFillingPrinter({ enabled, active, entries }) {
 	const ownerId = String(getUser()?._id || ''), currentOwner = () => String(getUser()?._id || '')
 	const valid = () => enabled && active() && currentOwner() === ownerId
@@ -47,8 +47,9 @@ export function usePdaFillingPrinter({ enabled, active, entries }) {
 		finally { if (version === generation && !session) connecting.value = false }
 	}
 	function close() { clearInterval(ownerTimer); ownerTimer = null; generation++; control.close(); session?.close(); session = null; connected.value = false; connecting.value = false; busy.value = false; status.value = '打印机未连接' }
+	const superseded = computed(() => supersededOperationIds(entries()))
 	function reason(entry) {
-		try { if (isSuperseded(entry, entries())) return '这笔已更正，请补打更正后的记录'; savedLabel(entry); return '' }
+		try { if (superseded.value.has(entry.operationId)) return '这笔已更正，请补打更正后的记录'; savedLabel(entry); return '' }
 		catch (error) { return error.message }
 	}
 	async function reprint(entry) {
