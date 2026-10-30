@@ -254,6 +254,11 @@ function buildPayload(row, lineNo, options) {
 	if (!parseDateString(bottleNextCheckDate)) options.errors.push(`第 ${lineNo} 行钢瓶下次检验日期格式无效`)
 	if (!parseDateString(gaugeCheckDate)) options.errors.push(`第 ${lineNo} 行压力表检验日期格式无效`)
 	if (!parseDateString(gaugeNextCheckDate)) options.errors.push(`第 ${lineNo} 行压力表下次检验日期格式无效`)
+	if (parseDateString(gaugeCheckDate) && parseDateString(gaugeNextCheckDate)) {
+		const latest = addMonths(parseDateString(gaugeCheckDate), 6)
+		latest.setUTCDate(latest.getUTCDate() - 1)
+		if (parseDateString(gaugeNextCheckDate) > latest) options.errors.push(`第 ${lineNo} 行压力表下次检验日期超过6个月有效期，请核对原始检验资料`)
+	}
 	if (!parseDateString(valveCheckDate)) options.errors.push(`第 ${lineNo} 行安全阀检测日期格式无效`)
 	if (!parseDateString(valveNextCheckDate)) options.errors.push(`第 ${lineNo} 行安全阀下次检验日期格式无效`)
 
@@ -302,7 +307,7 @@ function buildPayload(row, lineNo, options) {
 		pressure_gauge_range_max: pressureMax,
 		pressure_gauge_check_date: gaugeCheckDate,
 		pressure_gauge_next_check_date: gaugeNextCheckDate,
-		pressure_gauge_cycle_months: inferCycleMonths(gaugeCheckDate, gaugeNextCheckDate, 6),
+		pressure_gauge_cycle_months: 6,
 		safety_valve_count: 2,
 		safety_valve_check_date: valveCheckDate,
 		safety_valve_next_check_date: valveNextCheckDate,

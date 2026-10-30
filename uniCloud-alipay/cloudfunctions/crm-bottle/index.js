@@ -101,6 +101,7 @@ const PAGE_ACTION_RULES = {
 	backfillRegFieldsV1: [{ pagePath: '/pages/bottle/list', action: 'update' }]
 }
 const SUPERADMIN_ONLY_ACTIONS = [
+	'repairGaugeCyclesV1',
 	'suspendPrefixesV1',
 	'repairXAliasesV1',
 	'backfillBottleSortKeysV1',
@@ -1301,6 +1302,8 @@ function parseBatchInspectionPayload(data = {}) {
 	if (hasOwn(modulesRaw, 'gauge')) {
 		const parsed = parseInspectionModuleInput(modulesRaw.gauge, '压力表检验')
 		if (!parsed.ok) return { ok: false, msg: parsed.msg }
+		if (parsed.data.cycle_months !== 6) return { ok: false, msg: '压力表检测周期必须为6个月' }
+		if (parsed.data.next_check_date_override && parsed.data.next_check_date_override > addMonthsDate(parsed.data.check_date, 6)) return { ok: false, msg: '压力表下次检验日期不能超过6个月有效期' }
 		modules.gauge = parsed.data
 	}
 	if (hasOwn(modulesRaw, 'valve')) {
@@ -1810,7 +1813,7 @@ function buildInspectionV2InvalidItems(rows, modules, missingIds = []) {
 		for (let j = 0; j < modules.length; j += 1) {
 			const meta = INSPECTION_V2_MODULES[modules[j]]
 			const cycle = inspectionCycleMonths(row, meta)
-			if (!CHECK_CYCLE_MONTHS.includes(cycle)) missingModules.push(meta.label)
+			if (!CHECK_CYCLE_MONTHS.includes(cycle) || (modules[j] === 'gauge' && cycle !== 6)) missingModules.push(meta.label)
 		}
 		if (missingModules.length) {
 			invalidItems.push({
@@ -2196,7 +2199,9 @@ async function resolveBottleNoV1(user, data) {
 }
 
 async function createV1(user, data, requestId, token) {
+	if (data.pressure_gauge_cycle_months != null && String(data.pressure_gauge_cycle_months).trim() !== '' && Number(data.pressure_gauge_cycle_months) !== 6) return { code: 400, msg: '压力表检测周期必须为6个月' }
 	const normalized = normalizeBottlePayload(data, { forUpdate: false })
+	if (normalized.pressure_gauge_check_date && normalized.pressure_gauge_next_check_date && isValidDateString(normalized.pressure_gauge_check_date) && isValidDateString(normalized.pressure_gauge_next_check_date) && normalized.pressure_gauge_next_check_date > addMonthsDate(normalized.pressure_gauge_check_date, 6)) return { code: 400, msg: '压力表下次检验日期不能超过6个月有效期' }
 	normalized.safety_valve_count = 2
 	normalized.station_id = normalizeString(normalized.station_id) || resolveDefaultStationId()
 	normalized.gas_medium_code = normalizeGasMediumCode(normalized.gas_medium_code, resolveDefaultGasMediumCode())
@@ -2248,6 +2253,7 @@ async function createV1(user, data, requestId, token) {
 }
 
 async function updateV1(user, data, requestId, token) {
+	if (hasOwn(data, 'pressure_gauge_cycle_months') && data.pressure_gauge_cycle_months != null && String(data.pressure_gauge_cycle_months).trim() !== '' && Number(data.pressure_gauge_cycle_months) !== 6) return { code: 400, msg: '压力表检测周期必须为6个月' }
 	const id = normalizeString(data._id || data.id)
 	if (!id) return { code: 400, msg: '缺少钢瓶 ID' }
 
@@ -2260,6 +2266,7 @@ async function updateV1(user, data, requestId, token) {
 		...existing,
 		...patch
 	}
+	if ((hasOwn(data, 'pressure_gauge_check_date') || hasOwn(data, 'pressure_gauge_next_check_date') || hasOwn(data, 'pressure_gauge_cycle_months')) && merged.pressure_gauge_check_date && merged.pressure_gauge_next_check_date && isValidDateString(merged.pressure_gauge_check_date) && isValidDateString(merged.pressure_gauge_next_check_date) && merged.pressure_gauge_next_check_date > addMonthsDate(merged.pressure_gauge_check_date, 6)) return { code: 400, msg: '压力表下次检验日期不能超过6个月有效期' }
 	const sortMeta = buildBottleNoSortMeta(merged.bottle_no)
 	Object.assign(merged, sortMeta)
 	Object.assign(patch, sortMeta)
@@ -3151,6 +3158,10 @@ exports.main = async (event, context) => {
 
 	if (action === 'suspendPrefixesV1') {
 		try { return await require('./suspendPrefixes').run({ db, data, user }) }
+		catch (e) { return { code: 409, msg: e.message } }
+	}
+	if (action === 'repairGaugeCyclesV1') {
+		try { return await require('./gaugeCycleRepair').run({ db, data, user, helpers: { addMonthsDate } }) }
 		catch (e) { return { code: 409, msg: e.message } }
 	}
 	if (action === 'repairXAliasesV1') {

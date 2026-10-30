@@ -36,16 +36,24 @@ test('78 legacy bottles pass read-only preview; execution fills only selected ga
 	}
 })
 
-test('filter scope uses 36/6/12 months and clamps leap day; explicit valid cycles remain unchanged', async () => {
-	const rows = [{ _id: 'legacy', bottle_no: 'legacy', is_active: true }, { _id: 'configured', bottle_no: 'configured', is_active: true, bottle_check_cycle_months: 24, pressure_gauge_cycle_months: '12', safety_valve_cycle_months: 6 }]
+test('filter scope uses 36/6/12 months and clamps leap day; other explicit valid cycles remain unchanged', async () => {
+	const rows = [{ _id: 'legacy', bottle_no: 'legacy', is_active: true }, { _id: 'configured', bottle_no: 'configured', is_active: true, bottle_check_cycle_months: 24, pressure_gauge_cycle_months: '6', safety_valve_cycle_months: 6 }]
 	const { handler } = setup(rows)
 	const result = await invoke(handler, 'batchUpdateInspectionV2', { inspection_date: '2024-02-29', modules: ['bottle', 'gauge', 'valve'], scope_mode: 'filter', selector: { is_active: true } })
 	assert.equal(result.code, 0, result.msg)
 	assert.equal(result.data.success, 2)
 	assert.deepEqual([rows[0].bottle_next_check_date, rows[0].pressure_gauge_next_check_date, rows[0].safety_valve_next_check_date], ['2027-02-27', '2024-08-28', '2025-02-27'])
 	for (const [field, value] of Object.entries(defaults)) assert.equal(rows[0][field], value)
-	assert.deepEqual([rows[1].bottle_next_check_date, rows[1].pressure_gauge_next_check_date, rows[1].safety_valve_next_check_date], ['2026-02-27', '2025-02-27', '2024-08-28'])
-	assert.equal(rows[1].pressure_gauge_cycle_months, '12')
+	assert.deepEqual([rows[1].bottle_next_check_date, rows[1].pressure_gauge_next_check_date, rows[1].safety_valve_next_check_date], ['2026-02-27', '2024-08-28', '2024-08-28'])
+	assert.equal(rows[1].pressure_gauge_cycle_months, '6')
+})
+
+test('existing non-six-month gauge cycles cannot be used for registration', async () => {
+ for (const cycle of [12,24,36]) {
+  const { db, handler } = setup([{ _id:'bad',bottle_no:'bad',pressure_gauge_cycle_months:cycle }])
+  const result = await invoke(handler,'batchUpdateInspectionV2',request(['bad']))
+  assert.equal(result.code,409); assert.equal(db.writes.filter(w=>w.name==='crm_bottles').length,0)
+ }
 })
 
 test('invalid nonempty cycles and missing bottle ids still block all bottle writes', async () => {
