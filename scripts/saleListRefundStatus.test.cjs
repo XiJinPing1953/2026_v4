@@ -2,6 +2,8 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const vm = require('node:vm')
 const { makeDb, loadHandler, invoke } = require('./lib/accountingTestHarness.cjs')
 
 const sale = (id, net, received = 0, extra = {}) => ({
@@ -31,6 +33,7 @@ test('negative sale status, filters, summary and pagination use refunds and offs
 	const list = async params => {
 		const result = await invoke(handler, 'listV2', { page: 1, pageSize: 50, ...params })
 		assert.equal(result.code, 0, result.msg)
+		assert.equal(result.sale_list_status_version, 'refund-status/1')
 		return result
 	}
 	const all = await list({})
@@ -83,4 +86,21 @@ test('incomplete credit reads and unresolved sale ownership never certify a filt
 	assert.equal(summary.summary.accounting_complete, false)
 	assert.equal(summary.summary.paid, null)
 	assert.deepEqual(unknownDb.writes, [])
+})
+
+test('page rejects a successful response from an older cloud version', async () => {
+	const source = fs.readFileSync('src/components/domain/sale/SaleListView.vue', 'utf8')
+	const start = source.indexOf('async function listSalesWithStatusVersion(')
+	const end = source.indexOf('\nconst { read: readList', start)
+	assert(start >= 0 && end > start)
+	let response
+	const context = { listSalesV2: async () => response, statusVersionMessage: '版本更新中' }
+	vm.runInNewContext(`${source.slice(start, end)}\nthis.read = listSalesWithStatusVersion`, context)
+	response = { code: 0, data: [] }
+	const stale = await context.read({})
+	assert.equal(stale.code, 503); assert.equal(stale.statusVersionMismatch, true)
+	response = { code: 0, sale_list_status_version: 'refund-status/1', data: [] }
+	assert.equal(await context.read({}), response)
+	response = { code: 409, msg: '读取未完成' }
+	assert.equal(await context.read({}), response)
 })

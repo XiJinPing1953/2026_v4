@@ -290,6 +290,8 @@ const canViewCustomerStatement = computed(() => canViewPage('/pages/customer/sta
 const list = ref([])
 const exporting = ref(false)
 const financialIssue = ref('')
+const statusVersionIssue = ref(false)
+const statusVersionMessage = '销售状态版本正在更新，请稍后刷新重试'
 const summary = ref({
 	total: 0,
 	paid: 0,
@@ -550,7 +552,15 @@ function clearFilterChip(key) {
 	onSearch(true)
 }
 
-const { read: readList, pending: summaryPending, error: summaryError, invalidate: invalidateSummary } = usePagedSummary(listSalesV2, applySummary)
+async function listSalesWithStatusVersion(params) {
+	const result = await listSalesV2(params)
+	if (result?.code === 0 && result.sale_list_status_version !== 'refund-status/1') {
+		return { code: 503, msg: statusVersionMessage, statusVersionMismatch: true }
+	}
+	return result
+}
+
+const { read: readList, pending: summaryPending, error: summaryError, invalidate: invalidateSummary } = usePagedSummary(listSalesWithStatusVersion, applySummary)
 
 const { loading, run: fetchList } = useQuery(
 	async (options = {}) => {
@@ -571,8 +581,9 @@ const { loading, run: fetchList } = useQuery(
 			pageSize: pager.pageSize
 		})
 		if (res?.code !== 0) {
-			financialIssue.value = res?.msg || '销售记录加载失败'
-			throw new Error(res?.msg || '销售记录加载失败')
+			const error = new Error(res?.msg || '销售记录加载失败')
+			error.statusVersionMismatch = Boolean(res?.statusVersionMismatch)
+			throw error
 		}
 		return {
 			items: Array.isArray(res.data) ? res.data : [],
@@ -630,7 +641,18 @@ const { loading, run: fetchList } = useQuery(
 		cacheTTL: 10000,
 		throttleMs: 0,
 			cacheKey: () => null,
+		onSuccess() {
+			statusVersionIssue.value = false
+			if (financialIssue.value === statusVersionMessage) financialIssue.value = ''
+		},
 		onError(err) {
+			if (err?.statusVersionMismatch) {
+				statusVersionIssue.value = true
+				list.value = []
+				pager.total = 0
+				pager.hasMore = false
+			}
+			financialIssue.value = err?.message || '销售记录加载失败'
 			uni.showToast({ title: err?.message || '销售记录加载失败', icon: 'none' })
 		}
 		}
@@ -649,7 +671,7 @@ function applyResult(payload) {
 
 function applySummary(summaryData) {
 	const unresolvedCount = Number(summaryData.unresolved_count || 0)
-	financialIssue.value = summaryData.accounting_complete === false
+	financialIssue.value = statusVersionIssue.value ? statusVersionMessage : summaryData.accounting_complete === false
 		? `当前筛选范围有 ${unresolvedCount} 张历史 m³ 销售单缺少结算归属；记录仍可查看，涉及金额的合计和导出已停用。`
 		: ''
 	summary.value = {
@@ -1251,7 +1273,7 @@ async function fetchAllRowsForExport() {
 	let guard = 0
 	while (hasMore) {
 		if (guard > 500) throw new Error('导出分页异常，请缩小筛选后重试')
-		const res = await listSalesV2(buildListParams(page, 50))
+		const res = await listSalesWithStatusVersion(buildListParams(page, 50))
 		if (res?.code !== 0) throw new Error(res?.msg || '导出查询失败')
 		if (res?.summary?.accounting_complete === false) {
 			throw new Error(`当前筛选范围有 ${Number(res?.summary?.unresolved_count || 0)} 张历史 m³ 销售单待核，不能导出不完整金额`)

@@ -5562,7 +5562,10 @@ const main = async (event, context) => {
 	if (action === 'updateV2') return updateV2(user, data, requestId, token)
 	if (action === 'updateSettlementV1') return updateSettlementV1(user, data, requestId, token)
 	if (action === 'removeV2') return removeV2(user, data, requestId, token)
-	if (action === 'listV2') return listV2(user, data)
+	if (action === 'listV2') {
+		const result = await listV2(user, data)
+		return { ...result, sale_list_status_version: 'refund-status/1' }
+	}
 	if (action === 'getV2') return getV2(user, data)
 	if (action === 'classifyLegacyM3SettlementV1') return classifyLegacyM3SettlementV1(user, data, requestId, token)
 	if (action === 'searchAgentFillSuggestionsV1') return searchAgentFillSuggestionsV1(user, data)
