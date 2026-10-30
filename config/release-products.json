@@ -159,20 +159,21 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.34",
+      "version": "1.0.40",
       "output": "release/pda",
-      "acceptance": "Return reweigh notice is shown only for an authoritative same-round previous record; older or unknown rounds show no duplicate warning; no extra worker actions, persistence or weighing changes. WGT and crm-filling only.",
+      "acceptance": "Use the i6310 system scanner API without the incompatible StatusListener plugin constructor; serialize scanner lifecycle and defer business work out of broadcast callbacks. Bound history reads and reuse complete recent round history; preserve weighing, frozen operations and receipt printing. WGT only; physical responsiveness still requires device acceptance. Existing crm-filling is dependency-checked only; no cloud deployment in this batch.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "c4cd9e153b5b6b6b6409a932287d84868995c547",
+        "baseCommit": "31199f877ebe95d4c0c096bd1cd635f58d0f22cc",
         "sourceFiles": [
           "src/manifest.json",
-          "src/components/domain/pda/PdaReweighView.vue",
-          "src/services/pda/reweighDraft.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js"
+          "src/services/pda/capture/index.js",
+          "src/services/pda/capture/scannerDriver.js",
+          "src/services/api/reweigh.js",
+          "src/composables/pda/usePdaReweigh.js"
         ]
       },
       "integrityScope": "deployment"

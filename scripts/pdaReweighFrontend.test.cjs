@@ -471,6 +471,27 @@ function restoredRoundRow(i) {
   weighed_at: '2026-10-21 11:00:00', gross_weight: 120, tare_weight: 100, net_weight: 20,
   capture: { sampled_at: Date.parse('2026-10-21T11:00:00+08:00')+i }, status: 'complete' }
 }
+test('complete round history survives short re-entry without refetch; explicit refresh and expiry still query', async t => {
+ let calls = 0
+ const options = { returnMode: true, historyQuery: async () => { calls++; return { code: 0, data: { rows: [restoredRoundRow(0)], has_more: false } } } }
+ const h = harness(t, options); await h.start(); await tick(); assert.equal(calls, 1)
+ await h.form.deactivate()
+ const reentered = harness(t, { ...options, storage: h.storage }); await reentered.start(); await tick()
+ assert.equal(calls, 1); assert.equal(reentered.form.roundHistory.value.length, 1)
+ await reentered.form.refreshRound(); await tick(); assert.equal(calls, 2)
+ reentered.pause(61000); await reentered.form.deactivate(); await reentered.start(); await tick(); assert.equal(calls, 3)
+})
+test('throttled history preserves records, gives truthful notice and does not repeat on quick re-entry', async t => {
+ let calls = 0
+ const options = { returnMode: true, storage: legacyRoundStorage(), historyQuery: async () => { calls++; throw new Error('[crm-filling]: 函数调用系统限流') } }
+ const h = harness(t, options); await h.start(); await tick()
+ assert.equal(h.form.roundHistory.value.length, 10)
+ assert.match(h.form.historySyncError.value, /服务暂时繁忙/)
+ assert.doesNotMatch(h.form.historySyncError.value, /crm-filling|不影响称重保存/)
+ await h.form.deactivate(); await h.start(); await tick(); assert.equal(calls, 1)
+ await h.form.refreshRound(); await tick(); assert.equal(calls, 2)
+ assert.equal(h.form.busy.value, false)
+})
 function legacyRoundStorage() {
  const history=Array.from({length:10},(_,j)=>{const i=j+44;return {operationId:`op-${i}`,roundId:'round-1',bottleNo:String(i),grossWeight:120,capture:restoredRoundRow(i).capture,receipt:{saved:true,complete:true}}})
  return new Map([['crm_pda_return_reweigh_v1:u1',JSON.stringify({version:1,ownerId:'u1',current:{operationId:'live-draft',roundId:'round-1',bottleNo:'NEW',capture:null},history,metadata:{round:{_id:'round-1',bottle_count:55}}})]])

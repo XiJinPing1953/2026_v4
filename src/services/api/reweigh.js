@@ -8,7 +8,7 @@ export const correctReweighV1 = (data) => submitBatchFillingOperation(data, 'cor
 export const getReweighOperationV1 = getFillingOperationV1
 export const retryReweighOperationV1 = retryFillingOperationV1
 
-export const getReturnReweighRoundV1 = () => callCloud('crm-filling', { action: 'getReturnReweighRoundV1', data: {} })
+export const getReturnReweighRoundV1 = ({ shouldContinue = () => true } = {}) => callCloud('crm-filling', { action: 'getReturnReweighRoundV1', data: {}, timeout: 12000, isResponseCurrent: shouldContinue })
 export const startReturnReweighRoundV1 = (data) => callCloud('crm-filling', { action: 'startReturnReweighRoundV1', data })
 export const previewReturnReweighV1 = (data) => callCloud('crm-filling', { action: 'previewReturnReweighV1', data })
 export const saveReturnReweighV1 = (data) => callCloud('crm-filling', { action: 'saveReturnReweighV1', data })
@@ -20,7 +20,7 @@ async function listReweighRecords(action, data, { shouldContinue = () => true } 
  const retryDelays = [200, 500]
  for (let attempt = 0; ; attempt += 1) {
   if (!shouldContinue()) return { code: 499, msg: '复秤查询已取消' }
-  const result = await callCloud('crm-filling', { action, data, token, isResponseCurrent: shouldContinue })
+  const result = await callCloud('crm-filling', { action, data, token, timeout: 12000, isResponseCurrent: shouldContinue })
   if (!shouldContinue()) return { code: 499, msg: '复秤查询已取消' }
   if (result?.code !== 400 || !/^未知\s*action$/i.test(String(result.msg || ''))) return result
   if (attempt >= retryDelays.length) return { ...result, msg: '复秤查询服务暂未同步，请稍后重试' }

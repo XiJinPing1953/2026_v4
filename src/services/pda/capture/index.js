@@ -1,4 +1,5 @@
 import { normalizeText } from '@/services/pda/shared'
+import { createSystemScannerDriver } from './scannerDriver'
 
 const PLATFORM_PLUGIN_NAME = 'TH-PlatformSDK'
 const DEFAULT_BROADCAST_ACTION = 'android.intent.ACTION_DECODE_DATA'
@@ -24,6 +25,14 @@ const SCANNER_PROFILE_RETRY_DELAY_MS = 150
 
 const TYPE_KEYS = ['barcodeType', 'barcode_type', 'symbology', 'symName', 'codetype', 'com.ubx.datawedge.symbology_name']
 const TEXT_KEYS = [DEFAULT_BROADCAST_DATA_KEY, 'scannerdata', 'decode_data', 'data', 'com.ubx.datawedge.data_string']
+
+let desiredSession = null
+let hardwareQueue = Promise.resolve()
+function withScannerHardware(work) {
+	const pending = hardwareQueue.then(work, work)
+	hardwareQueue = pending.catch(() => {})
+	return pending
+}
 
 export const PDA_CAPTURE_TARGETS = {
 	FILLING_BOTTLE_NO: 'filling.bottleNo',
@@ -158,7 +167,7 @@ function getIntentExtraKeys(intent) {
 		const iterator = typeof keySet.iterator === 'function' ? keySet.iterator() : plus.android.invoke(keySet, 'iterator')
 		if (!iterator) return []
 		const keys = []
-		while (true) {
+		for (let index = 0; index < 20; index += 1) {
 			const hasNext = typeof iterator.hasNext === 'function' ? iterator.hasNext() : plus.android.invoke(iterator, 'hasNext')
 			if (!hasNext) break
 			const next = typeof iterator.next === 'function' ? iterator.next() : plus.android.invoke(iterator, 'next')
@@ -173,6 +182,10 @@ function getIntentExtraKeys(intent) {
 }
 
 function getPlatformPlugin() {
+	try {
+		const driver = createSystemScannerDriver(plus.android)
+		if (driver) return driver
+	} catch (_) {}
 	try {
 		const plugin = uni.requireNativePlugin(PLATFORM_PLUGIN_NAME)
 		return plugin || null
@@ -197,6 +210,7 @@ function delay(ms = 0) {
 }
 
 function normalizeOutputMode(value) {
+	if (value == null || value === '') return null
 	const mode = Number(value)
 	if (mode === 0 || mode === 1) return mode
 	return null
@@ -281,6 +295,16 @@ function callPluginGetter(methodName, args = []) {
 			skipped: true,
 			msg: `插件方法不可用: ${methodName}`
 		})
+	}
+	// These SDK getters are synchronous. Passing a callback to them makes a
+	// failed native invocation wait 900 ms and then repeat it without a callback.
+	if (methodName !== 'getScanParameterString' || plugin.driver === 'system-scan-manager') {
+		try {
+			const value = plugin[methodName](...args)
+			return Promise.resolve(value == null
+				? { ok: false, msg: `读取扫码配置失败: ${methodName}` }
+				: { ok: true, value: normalizeProfileDiagnosticValue(value), via: 'return' })
+		} catch (error) { return Promise.resolve({ ok: false, msg: normalizeText(error?.message) || `读取扫码配置失败: ${methodName}` }) }
 	}
 	return new Promise((resolve) => {
 		let settled = false
@@ -409,17 +433,7 @@ async function captureScannerProfileSnapshot(label = '') {
 }
 
 function applyBroadcastProfile() {
-	const plugin = runtimeState.plugin
-	if (!plugin || typeof plugin.setScanParameterString !== 'function') return { ok: true, skipped: true }
-	try {
-		plugin.setScanParameterString([BROADCAST_ACTION_CONFIG_KEY, BROADCAST_DATA_KEY_CONFIG_KEY], [runtimeState.broadcastAction, runtimeState.broadcastDataKey], () => {})
-		return { ok: true }
-	} catch (error) {
-		return {
-			ok: false,
-			msg: normalizeText(error?.message) || '设置扫码广播参数失败'
-		}
-	}
+	return callPluginSetter('setScanParameterString', [[BROADCAST_ACTION_CONFIG_KEY, BROADCAST_DATA_KEY_CONFIG_KEY], [runtimeState.broadcastAction, runtimeState.broadcastDataKey], () => {}])
 }
 
 function shouldSuppressDuplicate(targetMeta = null, rawText = '') {
@@ -444,20 +458,26 @@ function shouldSuppressDuplicate(targetMeta = null, rawText = '') {
 function dispatchBarcodeSessionPayload(payload = {}) {
 	const session = runtimeState.session
 	if (!session || typeof session.onResult !== 'function') return
-	const routeResolver = typeof session.routeResolver === 'function' ? session.routeResolver : null
-	const targetMeta = normalizeBarcodeTargetMeta(routeResolver ? routeResolver(session.activeTarget || null, payload) : session.activeTarget)
-	const rawText = normalizeText(payload.rawText)
-	if (!targetMeta || !rawText) return
-	if (shouldSuppressDuplicate(targetMeta, rawText)) {
-		runtimeState.diagnostic.broadcastDedupedCount += 1
-		return
+	const activeTarget = session.activeTarget
+	const failed = error => {
+		if (runtimeState.session === session) runtimeState.lastError = normalizeText(error?.message) || '扫码处理失败'
 	}
-	session.onResult({
-		rawText,
-		symbology: normalizeText(payload.symbology),
-		action: normalizeText(payload.action),
-		targetMeta
-	})
+	// Finish the native broadcast before storage, API or reactive page work.
+	// A queued result must still belong to the same page and selected field.
+	setTimeout(() => {
+		if (runtimeState.session !== session || session.activeTarget !== activeTarget) return
+		try {
+			const resolver = typeof session.routeResolver === 'function' ? session.routeResolver : null
+			const targetMeta = normalizeBarcodeTargetMeta(resolver ? resolver(activeTarget || null, payload) : activeTarget)
+			const rawText = normalizeText(payload.rawText)
+			if (!targetMeta || !rawText) return
+			if (shouldSuppressDuplicate(targetMeta, rawText)) {
+				runtimeState.diagnostic.broadcastDedupedCount += 1
+				return
+			}
+			Promise.resolve(session.onResult({ rawText, symbology: normalizeText(payload.symbology), action: normalizeText(payload.action), targetMeta })).catch(failed)
+		} catch (error) { failed(error) }
+	}, 0)
 }
 
 function createBroadcastReceiver() {
@@ -468,10 +488,6 @@ function createBroadcastReceiver() {
 			const receiver = plus.android.implements(receiverClass, {
 				onReceive(context, intent) {
 					void context
-					try {
-						plus.android.importClass(intent)
-					} catch (importError) {
-					}
 						const action = normalizeText(typeof intent.getAction === 'function' ? intent.getAction() : plus.android.invoke(intent, 'getAction'))
 						runtimeState.diagnostic.broadcastReceivedCount += 1
 						runtimeState.lastBroadcastAction = action
@@ -481,14 +497,15 @@ function createBroadcastReceiver() {
 							return
 						}
 					runtimeState.diagnostic.broadcastMatchedCount += 1
-					const extraKeys = getIntentExtraKeys(intent)
+					let rawText = extractIntentExtra(intent, Array.from(new Set([runtimeState.broadcastDataKey, ...TEXT_KEYS])))
+					const extraKeys = rawText ? [] : getIntentExtraKeys(intent)
 					runtimeState.diagnostic.lastExtraKeys = extraKeys.slice(0, 20)
-					const rawText = extractIntentExtra(intent, [runtimeState.broadcastDataKey, ...TEXT_KEYS, ...extraKeys])
+					if (!rawText) rawText = extractIntentExtra(intent, extraKeys)
 					if (!rawText) {
 						runtimeState.diagnostic.broadcastIgnoredCount += 1
 						return
 					}
-					const symbology = extractIntentExtra(intent, [...TYPE_KEYS, ...extraKeys])
+					const symbology = extractIntentExtra(intent, TYPE_KEYS)
 					runtimeState.diagnostic.broadcastPayloadCount += 1
 					runtimeState.lastPayload = rawText
 					runtimeState.lastSymbology = symbology
@@ -710,7 +727,7 @@ async function restoreScannerProfileSnapshot() {
 		const restoreOutput = callPluginSetter('switchOutputMode', [outputMode])
 		if (!restoreOutput.ok) restoreError = restoreOutput.msg || restoreError
 	}
-	runtimeState.scannerProfile.restored = await captureScannerProfileSnapshot('after-restore')
+	runtimeState.scannerProfile.restored = { ...before, label: 'restore-requested', at: Date.now(), verified: false }
 	if (openedBySession) {
 		const closeResult = callPluginSetter('closeScanner')
 		if (!closeResult.ok) restoreError = closeResult.msg || restoreError
@@ -732,15 +749,16 @@ async function ensureSharedCaptureReady() {
 	if (!runtimeState.pluginReady) {
 		return { ok: false, msg: '当前构建未集成 TH-PlatformSDK 插件，请使用包含该插件的自定义基座' }
 	}
+	if (runtimeState.scannerProfile.active && runtimeState.receiverRegistered) return { ok: true }
 	let warning = ''
 	const profileResult = await applyScannerProfileSnapshot()
 	if (!profileResult.ok) return { ok: false, msg: profileResult.msg || '设置扫码模式失败' }
 	const broadcastResult = applyBroadcastProfile()
 	if (!broadcastResult.ok) {
-		runtimeState.lastError = broadcastResult.msg || ''
-		warning = runtimeState.lastError
+		await releaseScanProfile()
+		return { ok: false, msg: broadcastResult.msg || '设置扫码广播参数失败' }
 	}
-	runtimeState.scannerProfile.applied = await captureScannerProfileSnapshot('after-enter')
+	runtimeState.scannerProfile.applied = { label: 'apply-requested', at: Date.now(), outputMode: SCANNER_BROADCAST_OUTPUT_MODE, verified: false }
 	const receiverResult = registerBroadcastReceiver()
 	if (!receiverResult.ok) return { ok: false, msg: receiverResult.msg || '注册扫码广播失败' }
 	return { ok: true, warning }
@@ -753,34 +771,40 @@ async function releaseHardwareIfIdle() {
 }
 
 export async function enterBarcodeSession(options = {}) {
-	const ready = ensureRuntimeReady()
-	if (!ready.ok) return { code: 501, msg: ready.msg, data: null }
 	const onResult = typeof options.onResult === 'function' ? options.onResult : null
 	if (!onResult) return { code: 400, msg: '扫码会话缺少结果处理函数', data: null }
-	const prepare = await ensureSharedCaptureReady()
-	if (!prepare.ok) return { code: 500, msg: prepare.msg, data: null }
-	const warningParts = [ready.warning, prepare.warning].map((item) => normalizeText(item)).filter(Boolean)
-	const warningText = Array.from(new Set(warningParts)).join('；')
-	runtimeState.session = {
-		page: normalizeText(options.page),
-		onResult,
-		routeResolver: typeof options.routeResolver === 'function' ? options.routeResolver : null,
-		activeTarget: normalizeBarcodeTargetMeta(options.activeTarget)
-	}
-	runtimeState.lastError = warningText
-	runtimeState.lastDelivered = {
-		target: '',
-		rawText: '',
-		at: 0
-	}
-	return {
-		code: 0,
-		msg: warningText ? `扫码会话已启动（${warningText}）` : '',
-		data: {
-			page: runtimeState.session.page,
-			activeTarget: runtimeState.session.activeTarget
+	const session = { page: normalizeText(options.page), onResult, routeResolver: typeof options.routeResolver === 'function' ? options.routeResolver : null, activeTarget: normalizeBarcodeTargetMeta(options.activeTarget) }
+	desiredSession = session
+	runtimeState.session = null
+	return withScannerHardware(async () => {
+		const cancelled = () => ({ code: 499, msg: '扫码页面已切换', data: null })
+		if (desiredSession !== session) return cancelled()
+		const ready = ensureRuntimeReady()
+		if (!ready.ok) return { code: 501, msg: ready.msg, data: null }
+		const prepare = await ensureSharedCaptureReady()
+		if (desiredSession !== session) return cancelled()
+		if (!prepare.ok) {
+			await releaseHardwareIfIdle()
+			return { code: 500, msg: prepare.msg, data: null }
 		}
-	}
+		const warningParts = [ready.warning, prepare.warning].map((item) => normalizeText(item)).filter(Boolean)
+		const warningText = Array.from(new Set(warningParts)).join('；')
+		runtimeState.session = session
+		runtimeState.lastError = warningText
+		runtimeState.lastDelivered = {
+			target: '',
+			rawText: '',
+			at: 0
+		}
+		return {
+			code: 0,
+			msg: warningText ? `扫码会话已启动（${warningText}）` : '',
+			data: {
+				page: runtimeState.session.page,
+				activeTarget: runtimeState.session.activeTarget
+			}
+		}
+	})
 }
 
 export async function setActiveBarcodeTarget(targetMeta = null) {
@@ -803,12 +827,13 @@ export async function setActiveBarcodeTarget(targetMeta = null) {
 export async function leaveBarcodeSession(options = {}) {
 	const page = normalizeText(options.page)
 	const reason = normalizeText(options.reason)
-	if (!runtimeState.session) return restoreScannerProfile({ reason, clearSession: true })
-	if (page && runtimeState.session.page && page !== runtimeState.session.page) {
+	const owner = desiredSession || runtimeState.session
+	if (page && owner?.page && page !== owner.page) {
 		return { code: 0, msg: '当前页无物理扫码会话', data: { restored: false } }
 	}
+	desiredSession = null
 	runtimeState.session = null
-	await releaseHardwareIfIdle()
+	await withScannerHardware(() => desiredSession ? undefined : releaseHardwareIfIdle())
 	return {
 		code: 0,
 		msg: reason ? `已退出扫码会话：${reason}` : '已退出扫码会话',
@@ -820,22 +845,25 @@ export async function leaveBarcodeSession(options = {}) {
 
 export async function restoreScannerProfile(options = {}) {
 	const reason = normalizeText(options.reason)
-	if (options.clearSession !== false) runtimeState.session = null
-	unregisterBroadcastReceiver()
-	await releaseScanProfile()
-	runtimeState.lastError = ''
-	runtimeState.lastDelivered = {
-		target: '',
-		rawText: '',
-		at: 0
-	}
-	return {
-		code: 0,
-		msg: reason ? `扫描头已恢复：${reason}` : '扫描头已恢复',
-		data: {
-			restored: true
+	if (options.clearSession !== false) { desiredSession = null; runtimeState.session = null }
+	return withScannerHardware(async () => {
+		if (desiredSession) return { code: 0, msg: '', data: { restored: false } }
+		unregisterBroadcastReceiver()
+		await releaseScanProfile()
+		runtimeState.lastError = ''
+		runtimeState.lastDelivered = {
+			target: '',
+			rawText: '',
+			at: 0
 		}
-	}
+		return {
+			code: 0,
+			msg: reason ? `扫描头已恢复：${reason}` : '扫描头已恢复',
+			data: {
+				restored: true
+			}
+		}
+	})
 }
 
 export async function stopCapture() {
@@ -884,7 +912,8 @@ export function getScannerState() {
 	return {
 		supported: Boolean(runtimeState.supported),
 		pluginReady: Boolean(runtimeState.pluginReady),
-		pluginRequired: true,
+		pluginRequired: runtimeState.plugin?.driver !== 'system-scan-manager',
+		driver: runtimeState.plugin?.driver || 'platform-plugin',
 		captureMode,
 		androidBroadcastReady: Boolean(runtimeState.ready && runtimeState.mainActivity && runtimeState.receiver),
 		ready: Boolean(runtimeState.ready),
@@ -913,40 +942,46 @@ export function getScannerState() {
 }
 
 export async function teardownPdaCapture() {
-	unregisterBroadcastReceiver()
-	await releaseScanProfile()
+	desiredSession = null
 	runtimeState.session = null
-	runtimeState.receiver = null
-	runtimeState.mainActivity = null
-	runtimeState.supported = null
-	runtimeState.pluginReady = false
-	runtimeState.captureMode = 'unknown'
-	runtimeState.ready = false
-	runtimeState.lastError = ''
-	runtimeState.lastPayload = ''
-	runtimeState.lastSymbology = ''
-	runtimeState.lastBroadcastAction = ''
-	runtimeState.registeredActions = []
-	runtimeState.scannerProfile = {
-		active: false,
-		before: null,
-		applied: null,
-		restored: null,
-		lastError: '',
-		openedBySession: false,
-		defaultedBroadcastProfile: false
-	}
-	runtimeState.lastDelivered = {
-		target: '',
-		rawText: '',
-		at: 0
-	}
-	runtimeState.diagnostic = {
-		broadcastReceivedCount: 0,
-		broadcastMatchedCount: 0,
-		broadcastPayloadCount: 0,
-		broadcastIgnoredCount: 0,
-		broadcastDedupedCount: 0,
-		lastExtraKeys: []
-	}
+	return withScannerHardware(async () => {
+		if (desiredSession) return
+		unregisterBroadcastReceiver()
+		await releaseScanProfile()
+		runtimeState.session = null
+		runtimeState.receiver = null
+		runtimeState.mainActivity = null
+		runtimeState.supported = null
+		runtimeState.pluginReady = false
+		runtimeState.plugin = null
+		runtimeState.captureMode = 'unknown'
+		runtimeState.ready = false
+		runtimeState.lastError = ''
+		runtimeState.lastPayload = ''
+		runtimeState.lastSymbology = ''
+		runtimeState.lastBroadcastAction = ''
+		runtimeState.registeredActions = []
+		runtimeState.scannerProfile = {
+			active: false,
+			before: null,
+			applied: null,
+			restored: null,
+			lastError: '',
+			openedBySession: false,
+			defaultedBroadcastProfile: false
+		}
+		runtimeState.lastDelivered = {
+			target: '',
+			rawText: '',
+			at: 0
+		}
+		runtimeState.diagnostic = {
+			broadcastReceivedCount: 0,
+			broadcastMatchedCount: 0,
+			broadcastPayloadCount: 0,
+			broadcastIgnoredCount: 0,
+			broadcastDedupedCount: 0,
+			lastExtraKeys: []
+		}
+	})
 }

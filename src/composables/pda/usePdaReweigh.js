@@ -40,6 +40,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	const history = shallowRef([])
 	const historySyncing = ref(false), historySyncError = ref('')
 	let historySyncVersion = 0
+	let historySyncMeta = null
 	const message = ref('请连接吊秤，再按扫描键选瓶。')
 	const error = ref('')
 	const storageError = ref('')
@@ -69,6 +70,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		if (saved) {
 			current.value = saved.current; history.value = saved.history
 			round.value = saved.metadata?.round || null; pendingRound.value = saved.metadata?.pendingRound || null
+			historySyncMeta = saved.metadata?.historySyncMeta || null
 			message.value = '已恢复上次记录，已称重量保留；没称好的请连接吊秤后继续。'
 		}
 	} catch (cause) { unreadable = true; storageError.value = cause.message }
@@ -87,7 +89,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	function fail(text) { error.value = text; return false }
 	function persist() {
 		if (unreadable) return false
-		try { history.value = store.save(current.value, history.value, { round: round.value, pendingRound: pendingRound.value }); storageError.value = ''; return true }
+		try { history.value = store.save(current.value, history.value, { round: round.value, pendingRound: pendingRound.value, ...(isReturn ? { historySyncMeta } : {}) }); storageError.value = ''; return true }
 		catch (cause) { storageError.value = cause.message; return false }
 	}
 	function editable() { return nativeSupported && active.value && canCreate.value && !locked.value && !busy.value && (!isReturn || (roundReady.value && round.value?._id)) }
@@ -317,8 +319,13 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	function newLocalRound() {
 		return { _id: createReweighId(), created_at: Date.now(), bottle_nos: [], bottle_count: 0 }
 	}
-	async function restoreRoundHistory() {
+	async function restoreRoundHistory({ force = false } = {}) {
 		if (!isReturn || !active.value || !ownerMatches() || unreadable || !round.value?._id) return false
+		const age = Date.now() - Number(historySyncMeta?.at || 0)
+		if (!force && historySyncMeta?.roundId === round.value._id && age >= 0 && age < (historySyncMeta.complete ? 60000 : 15000)) {
+			if (!historySyncMeta.complete) historySyncError.value = '本轮历史暂未同步，已保留本机记录；请稍后刷新瓶数重试。'
+			return Boolean(historySyncMeta.complete)
+		}
 		const roundId = round.value._id, lifecycle = lifecycleVersion, version = ++historySyncVersion
 		const valid = () => active.value && ownerMatches() && lifecycle === lifecycleVersion && version === historySyncVersion && round.value?._id === roundId
 		historySyncing.value = true; historySyncError.value = ''
@@ -343,31 +350,39 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 			// Merge only after every page succeeds. Do not replace a live draft or a pending local receipt.
 			const known = new Set([...history.value.map(item => item.operationId), current.value.operationId])
 			const missing = [...restored.values()].filter(item => !known.has(item.operationId))
+			const previous = history.value, previousMeta = historySyncMeta
 			if (missing.length) {
-				const previous = history.value
 				history.value = [...history.value, ...missing].sort((a, b) => Number(a.capture?.sampled_at || 0) - Number(b.capture?.sampled_at || 0))
-				if (!persist()) { history.value = previous; throw new Error('本轮记录未能缓存，原记录保留') }
 			}
+			historySyncMeta = { roundId, at: Date.now(), complete: true }
+			if (!persist()) { history.value = previous; historySyncMeta = previousMeta; throw new Error('本轮记录未能缓存，原记录保留') }
 			return true
 		} catch (cause) {
-			if (valid()) historySyncError.value = `${cause.message || '本轮记录补齐失败'}；当前显示本机已有记录，不影响称重保存。`
+			if (valid()) {
+				historySyncMeta = { roundId, at: Date.now(), complete: false }
+				persist()
+				const text = String(cause.message || '')
+				historySyncError.value = /限流|throttl|too many|rate.?limit/i.test(text)
+					? '服务暂时繁忙，本轮历史尚未同步；已保留本机记录，请稍后刷新瓶数重试。'
+					: `${text || '本轮历史暂未同步'}；已保留本机记录，请稍后刷新瓶数重试。`
+			}
 			return false
 		} finally { if (version === historySyncVersion) historySyncing.value = false }
 	}
-	async function refreshRound() {
+	async function refreshRound({ refreshHistory = true } = {}) {
 		if (!isReturn) return ownerMatches() && active.value && !unreadable && persist()
 		if (!isReturn || busy.value || !active.value || !ownerMatches() || unreadable) return false
 		busy.value = true; roundReady.value = false; error.value = ''
 		const version = epoch
 		try {
-			const response = await getReturnReweighRoundV1()
+			const response = await getReturnReweighRoundV1({ shouldContinue: () => sameWork(version) })
 			if (!sameWork(version)) return false
 			if (response?.code !== 0) return fail(response?.msg || '本轮统计读取失败，请重试')
 			round.value = response.data?.round || null
 			roundReady.value = true
 			if (!round.value && !pendingRound.value) message.value = '请先开始本轮回瓶复秤，再连接吊秤、扫码称重。'
 			const saved = persist()
-			if (saved) void restoreRoundHistory()
+			if (saved) void restoreRoundHistory({ force: refreshHistory })
 			return saved
 		} catch (cause) { if (sameWork(version)) fail(cause.message || '本轮统计读取失败，请重试'); return false }
 		finally { busy.value = false }
@@ -418,7 +433,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		if (version !== lifecycleVersion) return false
 		active.value = true
 		if (!nativeSupported) return fail('请在 PDA 应用中打开复秤')
-		if (isReturn) { roundReady.value = false; await refreshRound() }
+		if (isReturn) { roundReady.value = false; await refreshRound({ refreshHistory: false }) }
 		else if (!round.value && !unreadable && ownerMatches()) {
 			round.value = newLocalRound()
 			// Legacy frozen submissions predate this local round; never back-count them.
