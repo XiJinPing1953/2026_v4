@@ -425,7 +425,8 @@ test('existing desktop createV2 remains compatible and has no mobile receipt or 
   const res=await h.invoke('createV2',p,'admin');assert.equal(res.code,0,JSON.stringify(res))
   assert.equal(h.tables.crm_sale_records[0].mobile_create_operation_key,undefined);assert.equal(h.tables[M.OPERATIONS].length,0)
   assert.equal(h.tables.crm_bottles.some(b=>b.bottle_no==='NEW-DESKTOP'),true)
-  assert.equal(h.calls.some(call=>call.data.action==='repairOffsetCreditsV1'),true)
+  assert.equal(h.calls.some(call=>call.data.action==='repairOffsetCreditsV1'),false)
+  assert.equal(h.calls.some(call=>call.data.action==='syncSaleOffsetCreditV1' && call.data.data.sale_id===h.tables.crm_sale_records[0]._id),true)
   assert.equal(h.calls.some(call=>call.data.mobile_sale_capability),false)
 })
 test('schema declares captured fields, both mirrored schemas match, operation index matches canonical schema',()=>{

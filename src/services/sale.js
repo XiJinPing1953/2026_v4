@@ -1,6 +1,14 @@
 import { callCloud } from '@/services/api'
 import { normalizeSaleDraft, validateSaleDraftForCreate } from '@/services/models'
 
+export async function retrySaleOffsetSyncV1(saleId, operationId) {
+	return callCloud('crm-sale', { action: 'retryOffsetSyncV1', data: { sale_id: saleId, operation_id: operationId }, timeout: 30000 })
+}
+
+export async function retrySaleOffsetUseV1(saleId, operationId) {
+	return callCloud('crm-sale', { action: 'retryOffsetUseV1', data: { sale_id: saleId, operation_id: operationId }, timeout: 30000 })
+}
+
 const SALE_SAVE_TIMEOUT_MS = 120000
 
 function normalizeBizMode(value) {

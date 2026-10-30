@@ -323,6 +323,8 @@ export async function allocateOffsetCreditV1(params = {}) {
 		data: {
 			customer_id: params.customerId || params.customer_id || '',
 			receipt_id: params.receiptId || params.receipt_id || '',
+			operation_id: params.operationId || params.operation_id || '',
+			expected_source_version: params.expectedSourceVersion || params.expected_source_version || '',
 			amount: params.amount,
 			allocation_mode: params.allocationMode || params.allocation_mode || '',
 			allocation_start_date: params.allocationStartDate || params.allocation_start_date || '',
@@ -334,14 +336,30 @@ export async function allocateOffsetCreditV1(params = {}) {
 	})
 }
 
+export async function getOffsetCreditOperationV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'getOffsetCreditOperationV1',
+		data: { customer_id: params.customerId || params.customer_id || '', operation_id: params.operationId || params.operation_id || '' }
+	})
+}
+
 export async function removeOffsetCreditAllocationV1(params = {}) {
 	return callCloud('crm-customer-settlement', {
 		action: 'removeOffsetCreditAllocationV1',
 		data: {
 			customer_id: params.customerId || params.customer_id || '',
 			receipt_id: params.receiptId || params.receipt_id || params._id || '',
+			operation_id: params.operationId || params.operation_id || '',
+			expected_source_version: params.expectedSourceVersion || params.expected_source_version || '',
 			reason: params.reason || ''
 		}
+	})
+}
+
+export async function getOffsetReleaseOperationV1(params = {}) {
+	return callCloud('crm-customer-settlement', {
+		action: 'getOffsetReleaseOperationV1',
+		data: { customer_id: params.customerId || params.customer_id || '', operation_id: params.operationId || params.operation_id || '' }
 	})
 }
 

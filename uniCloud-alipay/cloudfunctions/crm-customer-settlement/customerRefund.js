@@ -14,7 +14,9 @@ const sourceSnapshot = r => ({ id:r._id, customer_id:r.customer_id, status:r.sta
  updated_at:r.updated_at || 0, source_type:r.source_type, entry_kind:r.entry_kind, receipt_adjustment_status:r.receipt_adjustment_status })
 const protectedReceipt = r => r && (r.source_type === SOURCE || num(r.cash_refunded_amount)>0 || num(r.offset_cash_refunded_amount)>0)
 function createRefundService({ db, command, readComplete, moneyScale, refreshBalances }) {
- const get = async (store,id) => { const {data}=await store.doc(id).get(); return Array.isArray(data)?data[0]:data }
+ // Alipay may throw for doc(id).get() when the first operation does not exist yet.
+ // A bounded fixed-ID query represents absence as an empty result without hiding read failures.
+ const get = async (store,id) => { const {data}=await store.where({_id:id}).limit(1).get(); return Array.isArray(data)?data[0]:data }
  const all = async (store,cid) => readComplete(store,{customer_id:cid},{command,source:'customer_refunds',sort:['created_at']})
  async function context(cid) {
   const customer=await get(db.collection('crm_customers'),cid)
@@ -84,6 +86,9 @@ function createRefundService({ db, command, readComplete, moneyScale, refreshBal
    const store=tx.collection('crm_customer_receipts'),audit=tx.collection('crm_operation_logs')
    const prior=await get(audit,logId)
    if(prior){if(prior.detail.fingerprint!==fingerprint) fail('该操作号已有不同内容的退款');await tx.rollback();return {...prior.detail,idempotent:true}}
+   const customer=await get(tx.collection('crm_customers'),value.customer_id)
+   if(!customer) fail('客户不存在',404)
+   await tx.collection('crm_customers').doc(value.customer_id).update({receipt_allocation_revision:operationId,updated_at:Date.now()})
    const p=await plan(data,store)
    if(text(data.plan_hash)!==p.plan_hash) fail('预览已变化，请重新预览')
    const now=Date.now(),actor={updated_at:now,updated_by:user._id,updated_by_name:user.username}

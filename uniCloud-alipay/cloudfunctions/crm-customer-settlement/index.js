@@ -27,6 +27,10 @@ const {
 const { readComplete, withFinancialEvidence, FinancialReadError } = require('./financialReadLocal')
 const offsetCreditRefund = require('./offsetCreditRefund')
 const customerRefund = require('./customerRefund')
+const offsetOperation = require('./offsetOperation')
+const offsetRelease = require('./offsetAllocationRelease')
+const saleOffsetAllocation = require('./saleOffsetAllocation')
+const { createSaleOffsetSyncService } = require('./saleOffsetSync')
 const customerAdjustment = require('./customerAdjustment')
 const { isCustomerAdjustment, assertCustomerAdjustmentSourceMutable } = require('./customerAdjustmentGuardLocal')
 
@@ -113,6 +117,16 @@ const PAGE_ACTION_RULES = {
 	createPrepayEntryV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	repairReceiptAllocationV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	repairAutoPrepayAllocationsV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	syncSaleOffsetCreditV1: [
+		{ pagePath: '/pages/sale/edit', action: 'create' },
+		{ pagePath: '/pages/sale/edit', action: 'update' },
+		{ pagePath: '/pages/sale/settlement', action: 'update' }
+	],
+	getSaleOffsetSyncOperationV1: [
+		{ pagePath: '/pages/sale/edit', action: 'create' },
+		{ pagePath: '/pages/sale/edit', action: 'update' },
+		{ pagePath: '/pages/sale/settlement', action: 'update' }
+	],
 	repairOffsetCreditsV1: [
 		{ pagePath: '/pages/customer/statement', action: 'update' },
 		{ pagePath: '/pages/sale/edit', action: 'create' },
@@ -120,6 +134,12 @@ const PAGE_ACTION_RULES = {
 		{ pagePath: '/pages/sale/detail', action: 'update' }
 	],
 	autoApplyPrepayToSaleV1: [
+		{ pagePath: '/pages/customer/statement', action: 'update' },
+		{ pagePath: '/pages/sale/edit', action: 'create' },
+		{ pagePath: '/pages/sale/edit', action: 'update' },
+		{ pagePath: '/pages/sale/settlement', action: 'update' }
+	],
+	getSaleOffsetUseOperationV1: [
 		{ pagePath: '/pages/customer/statement', action: 'update' },
 		{ pagePath: '/pages/sale/edit', action: 'create' },
 		{ pagePath: '/pages/sale/edit', action: 'update' },
@@ -147,7 +167,9 @@ const PAGE_ACTION_RULES = {
 		{ pagePath: '/pages/sale/detail', action: 'update' }
 	],
 	allocateOffsetCreditV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	getOffsetCreditOperationV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	removeOffsetCreditAllocationV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
+	getOffsetReleaseOperationV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	previewOffsetCreditCashRefundV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
 	convertOffsetCreditToCashRefundV1: [{ pagePath: '/pages/customer/statement', action: 'update' }],
 	getCustomerStatementAnalysisV1: [{ pagePath: '/pages/customer/statement', action: 'view' }],
@@ -2079,14 +2101,16 @@ function splitReceiptAndRoundingAllocations(plan, amount, roundingAmount, moneyS
 			receiptAllocations.push({
 				...(rawItem || {}),
 				allocate_kind: 'receipt',
-				allocate_amount: receiptUse
+				allocate_amount: receiptUse,
+				outstanding_after: fixMoney(toNumber(rawItem.outstanding_before, 0) - receiptUse)
 			})
 		}
 		if (roundingUse > 0) {
 			roundingAllocations.push({
 				...(rawItem || {}),
 				allocate_kind: 'rounding',
-				allocate_amount: roundingUse
+				allocate_amount: roundingUse,
+				outstanding_before: fixMoney(toNumber(rawItem.outstanding_before, 0) - receiptUse)
 			})
 		}
 		mergedAllocations.push({
@@ -3775,6 +3799,7 @@ async function beginReceiptAdjustmentV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (isOffsetCreditReceiptRow(receiptDoc)) return { code: 409, msg: '冲抵来源不支持旧整单修改；请先安全删除原分配，再重新选择目标，额度更正须单独核对' }
 	if (customerRefund.protectedReceipt(receiptDoc)) return { code: 409, msg: '该单已有退款关联，不能直接调整或删除；请核查退款记录' }
 	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费修正须走有备份的专用核对流程' }
 	if (isDepositTransferReceipt(receiptDoc)) return { code: 400, msg: '押金转气款来源受保护，请在押金流水中核对或作废；可继续分配' }
@@ -3906,6 +3931,7 @@ async function cancelReceiptAdjustmentV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (isOffsetCreditReceiptRow(receiptDoc)) return { code: 409, msg: '历史冲抵调整须先核对原分配和快照，再按受保护流程完成或取消' }
 	if (normalizeId(receiptDoc.customer_id) !== customerId) return { code: 400, msg: '收款单不属于该客户' }
 	const customer = await getCustomerById(customerId)
 	if (!customer) return { code: 404, msg: '客户不存在' }
@@ -4667,6 +4693,7 @@ async function updateReceiptV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (isOffsetCreditReceiptRow(receiptDoc)) return { code: 409, msg: '冲抵来源不支持旧整单修改；请先安全删除原分配，再重新选择目标，额度更正须单独核对' }
 	const receiptSourceType = normalizeString(receiptDoc.source_type) || 'manual'
 	const isCashierSource = isCashierReceiptSourceType(receiptSourceType)
 	if (isCashierSource && !normalizeString(data.operation_id || data.operationId)) return { code: 409, msg: '出纳到账分配已升级，请刷新页面使用固定操作号保存' }
@@ -5170,6 +5197,7 @@ async function removeReceiptV1(user, data, requestId) {
 	const receiptRes = await receipts.doc(receiptId).get()
 	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
 	if (!receiptDoc) return { code: 404, msg: '收款单不存在' }
+	if (isOffsetCreditReceiptRow(receiptDoc)) return { code: 409, msg: '冲抵来源不支持旧整单修改；请先安全删除原分配，再重新选择目标，额度更正须单独核对' }
 	if (customerRefund.protectedReceipt(receiptDoc)) return { code: 409, msg: '该单已有退款关联，不能直接调整或删除；请核查退款记录' }
 	if (isSettlementFeeReceipt(receiptDoc)) return { code: 400, msg: '手续费修正须走有备份的专用核对流程' }
 	if (isDepositTransferReceipt(receiptDoc)) return { code: 400, msg: '押金转气款来源受保护，请在押金流水中核对或作废；可继续分配' }
@@ -6504,9 +6532,11 @@ async function listOffsetCreditPoolV1(user, data) {
 		).sort((a, b) => (a === b ? 0 : a < b ? -1 : 1))
 		return {
 			_id: receiptId,
+			source_version: offsetOperation.sourceVersion(row),
 			biz_date: normalizeDate(row && row.biz_date),
 			amount: fixMoney(toNumber(row && row.amount, 0)),
 			allocated_amount: fixMoney(toNumber(row && row.allocated_amount, 0)),
+			rounding_allocated_amount: fixMoney(toNumber(row && row.rounding_allocated_amount, 0)),
 			unallocated_amount: fixMoney(toNumber(row && row.unallocated_amount, 0)),
 			payment_method: normalizePaymentMethod(row && row.payment_method, 'paid'),
 			note: normalizeString(row && row.note),
@@ -6554,12 +6584,20 @@ async function applyOffsetAllocationsToReceipt({
 	allocationEndDate = '',
 	allocationTargets = [],
 	allocationNote = '',
-	allocationSourceType = 'offset_manual_allocate'
+	allocationSourceType = 'offset_manual_allocate',
+	operation = null
 }) {
 	const receiptId = normalizeId(receiptDoc && receiptDoc._id)
 	if (!receiptId) return { ok: false, code: 400, msg: 'receipt_id 无效' }
-	// 押金转气款与原押金作废共用收款源的事务锁，避免已抵扣后恢复押金。
-	const transferTransaction = (isDepositTransferReceipt(receiptDoc) || isCashierReceiptSourceType(receiptDoc.source_type)) ? await db.startTransaction() : null
+	// Every balance source shares the receipt write conflict with refunds and source edits.
+	const receiptEvidence = await listCustomerReceipts(customer._id)
+	const pendingRefunds = receiptEvidence.filter(row => row.status === 'posted' && row.source_type === 'customer_cash_refund' && row.refund_source_status === 'pending')
+	if (pendingRefunds.length) throw Object.assign(new Error('该客户有来源待核退款，可用余额需先核对'), { code: 409 })
+	const existingRows = await readComplete(db.collection('crm_customer_allocations'), { receipt_id: receiptId }, { command: dbCmd, source: 'offset_allocation_reverse_links' })
+	if (existingRows.some(row => row.customer_id !== customer._id)) throw Object.assign(new Error('冲抵来源存在跨客户分配，须先核对'), { code: 409 })
+	if (resolvePlanAllocationItems(plan).length > 30) throw Object.assign(new Error('本次目标过多，请分批选择不超过30笔'), { code: 400 })
+	const transactionStarted = Date.now()
+	const transferTransaction = await db.startTransaction()
 	const readDocument = (response) => {
 		const value = response && response.data
 		if (Array.isArray(value)) return value.length === 1 ? value[0] : null
@@ -6572,6 +6610,10 @@ async function applyOffsetAllocationsToReceipt({
 	const flowSettlements = targetDb.collection('crm_customer_flow_settlements')
 	const openingDebts = targetDb.collection('crm_customer_opening_debts')
 	try {
+	if (operation) {
+		const prior = await offsetOperation.read(transferTransaction, operation.data, operation.fingerprint)
+		if (prior.status === 'saved') { await transferTransaction.rollback(); return { ok: true, replay: prior.result } }
+	}
 	if (transferTransaction) {
 		const currentCustomer = readDocument(await transferTransaction.collection('crm_customers').doc(customer._id).get())
 		if (!currentCustomer || require('./depositModel').digest(currentCustomer) !== require('./depositModel').digest(customer)) throw Object.assign(new Error('客户账务已变化，请重新查询'),{code:409})
@@ -6579,7 +6621,7 @@ async function applyOffsetAllocationsToReceipt({
 		const current = readDocument(await receipts.doc(receiptId).get())
 		const canonical = (row) => JSON.stringify(Object.keys(row || {}).sort().map((key) => [key, row[key]]))
 		if (!current || normalizeString(current.status) !== 'posted' || canonical(current) !== canonical(receiptDoc)) {
-			throw Object.assign(new Error('押金转款来源已变化，请刷新后重新分配'), { code: 409 })
+			throw Object.assign(new Error('冲抵来源已变化，请刷新后重新分配'), { code: 409 })
 		}
 	}
 	const moneyScale = isDepositTransferReceipt(receiptDoc) ? 3 : resolveCustomerMoneyScale(customer)
@@ -6599,7 +6641,24 @@ async function applyOffsetAllocationsToReceipt({
 		receiptDoc && receiptDoc.entry_kind,
 		receiptSourceType.includes('offset') ? 'offset_credit' : 'prepay'
 	)
-	const existingRows = await listReceiptAllocationRows(receiptId, customer._id)
+	if (receiptDoc.receipt_adjustment_status === 'pending') throw Object.assign(new Error('该来源正在调整，暂不能分配'), { code: 409 })
+	const components = fixMoney(currentAllocated + currentUnallocated + toNumber(receiptDoc.offset_cash_refunded_amount, 0) + toNumber(receiptDoc.cash_refunded_amount, 0) + (isOffsetCreditReceiptRow(receiptDoc) ? currentRoundingAllocated : 0))
+	if (components !== fixMoney(toNumber(receiptDoc.amount, 0))) throw Object.assign(new Error('来源余额不完整，请核对后再分配'), { code: 409 })
+	const values = [receiptDoc.amount, currentAllocated, currentUnallocated, currentRoundingAllocated, receiptDoc.cash_refunded_amount || 0, receiptDoc.offset_cash_refunded_amount || 0]
+	if (values.some(value => !Number.isFinite(Number(value)) || Number(value) < 0)) throw Object.assign(new Error('来源金额无效，须先核对'), { code: 409 })
+	const liveRows = existingRows.filter(row => !['void', 'voided', 'cancelled'].includes(row.status))
+	if (liveRows.some(row => !Number.isFinite(Number(row.allocate_amount)) || Number(row.allocate_amount) <= 0)) throw Object.assign(new Error('来源分配明细含无效金额，须先核对'), { code: 409 })
+	const linkedAmount = fixMoney(liveRows.filter(row => row.allocate_kind !== 'rounding').reduce((sum, row) => sum + toNumber(row.allocate_amount, 0), 0))
+	const linkedRounding = fixMoney(liveRows.filter(row => row.allocate_kind === 'rounding').reduce((sum, row) => sum + toNumber(row.allocate_amount, 0), 0))
+	if (linkedAmount !== currentAllocated || linkedRounding !== currentRoundingAllocated) throw Object.assign(new Error('来源与实际分配记录不一致，须先核对'), { code: 409 })
+	if (isOffsetCreditReceiptRow(receiptDoc)) {
+		const refunded = fixMoney(receiptEvidence.filter(row => row.status === 'posted').reduce((sum, row) => {
+			if (row.source_type === 'customer_cash_refund') return sum + (row.refund_sources || []).filter(link => link.id === receiptId).reduce((n, link) => n + toNumber(link.amount, 0), 0)
+			if (row.source_type === 'offset_credit_cash_refund' && (row.offset_source_receipt_id || row.source_id) === receiptId) return sum - toNumber(row.amount, 0)
+			return sum
+		}, 0))
+		if (refunded !== fixMoney(toNumber(receiptDoc.offset_cash_refunded_amount, 0))) throw Object.assign(new Error('来源退款背书不完整，须先核对'), { code: 409 })
+	}
 	let seq = existingRows.reduce((maxValue, row) => Math.max(maxValue, toNumber(row && row.seq, 0)), 0) + 1
 	let allocatedDelta = 0
 	let roundingAllocatedDelta = 0
@@ -6617,8 +6676,9 @@ async function applyOffsetAllocationsToReceipt({
 		if (targetType === 'flow_settlement') {
 			const flowRes = await flowSettlements.doc(targetId).get()
 			const flowDoc = readDocument(flowRes)
-			if (!flowDoc || normalizeId(flowDoc.customer_id) !== customer._id || normalizeString(flowDoc.status) !== 'posted') continue
+			if (!flowDoc || normalizeId(flowDoc.customer_id) !== customer._id || normalizeString(flowDoc.status) !== 'posted') throw Object.assign(new Error('冲抵目标已变化'), { code: 409 })
 			const snapshot = computeFlowSettlementSnapshot(flowDoc)
+			if (item.outstanding_before != null && Math.abs(toNumber(item.outstanding_before, 0) - snapshot.outstanding) > 0.00001) throw Object.assign(new Error('目标欠款已变化，请重新预览'), { code: 409 })
 			if (snapshot.outstanding <= 0) continue
 			allocateAmount = fix3(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
 			if (allocateAmount <= 0) continue
@@ -6646,8 +6706,9 @@ async function applyOffsetAllocationsToReceipt({
 		} else if (targetType === 'opening_debt' || targetType === 'other_fee' || targetType === 'balance_adjustment') {
 			const debtRes = await openingDebts.doc(targetId).get()
 			const debtDoc = readDocument(debtRes)
-			if (!debtDoc || normalizeId(debtDoc.customer_id) !== customer._id || normalizeString(debtDoc.status) !== 'posted') continue
+			if (!debtDoc || normalizeId(debtDoc.customer_id) !== customer._id || normalizeString(debtDoc.status) !== 'posted') throw Object.assign(new Error('冲抵目标已变化'), { code: 409 })
 			const snapshot = computeOpeningDebtSnapshot(debtDoc, moneyScale)
+			if (item.outstanding_before != null && Math.abs(toNumber(item.outstanding_before, 0) - snapshot.outstanding) > 0.00001) throw Object.assign(new Error('目标欠款已变化，请重新预览'), { code: 409 })
 			if (snapshot.outstanding <= 0) continue
 			allocateAmount = fixMoney(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
 			if (allocateAmount <= 0) continue
@@ -6683,8 +6744,9 @@ async function applyOffsetAllocationsToReceipt({
 		} else {
 			const saleRes = await sales.doc(targetId).get()
 			const saleDoc = readDocument(saleRes)
-			if (!saleDoc || normalizeId(saleDoc.customer_id) !== customer._id) continue
+			if (!saleDoc || normalizeId(saleDoc.customer_id) !== customer._id) throw Object.assign(new Error('冲抵目标已变化'), { code: 409 })
 			const snapshot = computeSaleSnapshot(saleDoc)
+			if (item.outstanding_before != null && Math.abs(toNumber(item.outstanding_before, 0) - snapshot.outstanding) > 0.00001) throw Object.assign(new Error('目标欠款已变化，请重新预览'), { code: 409 })
 			if (snapshot.outstanding <= 0) continue
 			allocateAmount = fix2(Math.min(snapshot.outstanding, toNumber(item.allocate_amount, 0)))
 			if (allocateAmount <= 0) continue
@@ -6748,7 +6810,7 @@ async function applyOffsetAllocationsToReceipt({
 		}
 	}
 
-	if (transferTransaction && allocatedDelta - currentUnallocated > moneyEpsilon(3)) throw Object.assign(new Error('押金转款分配超过来源可用金额，请重新预览'), { code: 409 })
+	if (transferTransaction && allocatedDelta - currentUnallocated > moneyEpsilon(3)) throw Object.assign(new Error('分配超过来源可用金额，请重新预览'), { code: 409 })
 	const nextAllocated = fixMoney(currentAllocated + allocatedDelta)
 	const nextUnallocated = fixMoney(Math.max(currentUnallocated - allocatedDelta, 0))
 	const nextRoundingAmount = fixMoney(currentRoundingAmount + roundingAllocatedDelta)
@@ -6768,8 +6830,7 @@ async function applyOffsetAllocationsToReceipt({
 		updated_by_name: normalizeString(user && user.username)
 	})
 
-	if (transferTransaction) await transferTransaction.commit()
-	return {
+	const outcome = {
 		ok: true,
 		receipt_id: receiptId,
 		allocated_delta: allocatedDelta,
@@ -6779,6 +6840,14 @@ async function applyOffsetAllocationsToReceipt({
 		rounding_allocated_amount: nextRoundingAllocated,
 		unallocated_amount: nextUnallocated
 	}
+	if (operation) {
+		const result = { operation_id: operation.operationId, receipt_id: receiptId, customer_id: customer._id, allocation_mode: normalizedMode, allocation_start_date: normalizedStartDate, allocation_end_date: normalizedEndDate, allocated_total: allocatedDelta, remaining_unallocated: nextUnallocated, allocations: plan.allocations || [], balance_refresh_pending: true }
+		await transferTransaction.collection('crm_operation_logs').add({ _id: operation.key, action: 'offset_allocation_committed_v1', request_id: requestId, user_id: user._id, created_at: Date.now(), detail: { customer_id: customer._id, operation_id: operation.operationId, fingerprint: operation.fingerprint, result } })
+		outcome.operationResult = result
+	}
+	if (Date.now() - transactionStarted > 8000) throw Object.assign(new Error('本次分配事务超时，已回滚；请减少目标后重试原操作'), { code: 503 })
+	await transferTransaction.commit()
+	return outcome
 	} catch (error) {
 		if (transferTransaction) await transferTransaction.rollback().catch(() => {})
 		throw error
@@ -6789,6 +6858,9 @@ async function allocateOffsetCreditV1(user, data, requestId) {
 	const auth = await ensureWritePermission(user, 'allocateOffsetCreditV1', requestId)
 	if (!auth.ok) return { code: auth.code, msg: auth.msg }
 
+	const op = { ...offsetOperation.identity(data), data, fingerprint: offsetOperation.fingerprint(data) }
+	const prior = await offsetOperation.read(db, data, op.fingerprint)
+	if (prior.status === 'saved') return { code: 0, msg: '冲抵已提交', data: { ...await refreshOffsetAllocationResult(data, prior.result), idempotent: true } }
 	const customerId = normalizeId(data.customer_id || data.customerId)
 	const receiptId = normalizeId(data.receipt_id || data.receiptId)
 	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
@@ -6806,11 +6878,12 @@ async function allocateOffsetCreditV1(user, data, requestId) {
 	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持已入账冲抵来源' }
 	if (!isOffsetCreditReceiptRow(receiptDoc)) return { code: 400, msg: '该单据不是冲抵款来源' }
 
+	if (!normalizeString(data.expected_source_version) || data.expected_source_version !== offsetOperation.sourceVersion(receiptDoc)) return { code: 409, msg: '冲抵来源版本已变化，请刷新后重新预览' }
 	const available = fixMoney(toNumber(receiptDoc.unallocated_amount, 0))
 	if (!(available > 0)) return { code: 400, msg: '该冲抵来源无可用余额' }
 	let amount = data.amount == null || data.amount === '' ? available : fixMoney(toNumber(data.amount, 0))
 	if (!(amount > 0)) return { code: 400, msg: '本次冲抵金额必须大于0' }
-	if (amount > available) amount = available
+	if (amount > available) return { code: 409, msg: '本次冲抵金额超过来源可用余额，请刷新' }
 
 	const inputTargets = normalizeAllocationTargets(data.allocation_targets || data.allocationTargets || [])
 	const inputStartDate = normalizeDate(data.allocation_start_date || data.allocationStartDate)
@@ -6856,42 +6929,29 @@ async function allocateOffsetCreditV1(user, data, requestId) {
 		allocationMode: allocation.allocation_mode,
 		allocationStartDate: allocation.allocation_start_date,
 		allocationEndDate: allocation.allocation_end_date,
-		allocationTargets: allocation.allocation_targets
+		allocationTargets: allocation.allocation_targets,
+		operation: op
 	})
 	if (!applyRes.ok) return { code: applyRes.code || 400, msg: applyRes.msg || '冲抵分配失败' }
 
-	const balances = await rebuildCustomerBalances(customerId)
-	await recordLog(
-		user,
-		'customer_offset_credit_allocate_v1',
-		{
-			customer_id: customerId,
-			receipt_id: receiptId,
-			allocation_mode: allocation.allocation_mode,
-			allocation_start_date: allocation.allocation_start_date,
-			allocation_end_date: allocation.allocation_end_date,
-			target_count: allocation.allocation_targets.length,
-			allocated_delta: applyRes.allocated_delta,
-			allocated_rows: Array.isArray(plan.allocations) ? plan.allocations.length : 0
-		},
-		requestId
-	)
+	const result = await refreshOffsetAllocationResult(data, applyRes.replay || applyRes.operationResult)
+	return { code: 0, msg: result.balance_refresh_pending ? '冲抵已提交，余额显示待刷新' : '冲抵分配成功', data: result }
+}
 
-	return {
-		code: 0,
-		msg: '冲抵分配成功',
-		data: {
-			receipt_id: receiptId,
-			customer_id: customerId,
-			allocation_mode: allocation.allocation_mode,
-			allocation_start_date: allocation.allocation_start_date,
-			allocation_end_date: allocation.allocation_end_date,
-			allocated_total: applyRes.allocated_delta,
-			remaining_unallocated: applyRes.unallocated_amount,
-			allocations: Array.isArray(plan.allocations) ? plan.allocations : [],
-			balances
-		}
-	}
+
+async function refreshOffsetAllocationResult(data, storedResult) {
+	const result = { ...storedResult }
+	if (!result.balance_refresh_pending) return result
+	try {
+		result.balances = await rebuildCustomerBalances(result.customer_id)
+		const { key } = offsetOperation.identity(data)
+		const response = await logs.where({ _id: key }).limit(1).get()
+		const row = Array.isArray(response.data) ? response.data[0] : response.data
+		if (!row?.detail?.result) throw new Error('已提交操作记录待核')
+		await logs.doc(key).update({ detail: { ...row.detail, result: { ...row.detail.result, balance_refresh_pending: false } } })
+		result.balance_refresh_pending = false
+	} catch (_) { result.balance_refresh_pending = true }
+	return result
 }
 
 function offsetRefundExpected(data) {
@@ -6915,7 +6975,7 @@ async function buildOffsetRefundPreview(data, sourceCollection = receipts) {
 	const customer = await getCustomerById(customerId)
 	if (!customer) return { ok: false, code: 404, reason: 'customer_missing' }
 	const sourceRes = await sourceCollection.doc(receiptId).get()
-	const source = (sourceRes.data && sourceRes.data[0]) || null
+	const source = (Array.isArray(sourceRes.data) ? sourceRes.data[0] : sourceRes.data) || null
 	return offsetCreditRefund.buildOffsetCreditRefundPlan({
 		source, customerId, operationId,
 		refundAmount: data.refund_amount ?? data.refundAmount,
@@ -6950,6 +7010,7 @@ async function convertOffsetCreditToCashRefundV1(user, data, requestId) {
 		return { code: 400, msg: '退款方式必须是真实现金、银行、微信、支付宝、支票或待核' }
 	}
 	const transaction = await db.startTransaction()
+	let committed = false
 	try {
 		const txReceipts = transaction.collection('crm_customer_receipts')
 		const txLogs = transaction.collection('crm_operation_logs')
@@ -6965,9 +7026,16 @@ async function convertOffsetCreditToCashRefundV1(user, data, requestId) {
 			if (fix3(Math.abs(toNumber(prior[0].amount, 0))) !== fix3(refundAmount) || normalizeDate(prior[0].biz_date) !== refundDate) {
 				throw Object.assign(new Error('operation_id 对应的退款金额或日期不同'), { code: 409 })
 			}
-			await transaction.commit()
-			return { code: 0, msg: '该退款已执行', data: { execute: true, idempotent: true, refund_receipt: prior[0] } }
+			await transaction.rollback()
+			committed = true
+			let balances = null, balanceRefreshPending = false
+			try { balances = await rebuildCustomerBalances(customerId) } catch (_) { balanceRefreshPending = true }
+			return { code: 0, msg: '该退款已执行', data: { execute: true, idempotent: true, refund_receipt: prior[0], balances, balance_refresh_pending: balanceRefreshPending } }
 		}
+		const customerResponse = await transaction.collection('crm_customers').doc(customerId).get()
+		const currentCustomer = Array.isArray(customerResponse.data) ? customerResponse.data[0] : customerResponse.data
+		if (!currentCustomer) throw Object.assign(new Error('客户不存在'), { code: 404 })
+		await transaction.collection('crm_customers').doc(customerId).update({ receipt_allocation_revision: operationId, updated_at: Date.now() })
 		const plan = await buildOffsetRefundPreview(data, txReceipts)
 		if (!plan.ok) throw Object.assign(new Error(plan.reason || '原值检查失败'), { code: plan.code || 409, plan })
 		const now = Date.now()
@@ -7011,80 +7079,25 @@ async function convertOffsetCreditToCashRefundV1(user, data, requestId) {
 				before: plan.before, after: plan.after }
 		})
 		await transaction.commit()
-		const balances = await rebuildCustomerBalances(customerId)
+		committed = true
+		let balances = null, balanceRefreshPending = false
+		try { balances = await rebuildCustomerBalances(customerId) } catch (_) { balanceRefreshPending = true }
 		return { code: 0, msg: '冲抵余额已转为正式现金退款', data: { execute: true, idempotent: false,
-			operation_id: operationId, refund_receipt_id: normalizeId(addRes && addRes.id), plan, balances } }
+			operation_id: operationId, refund_receipt_id: normalizeId(addRes && addRes.id), plan, balances, balance_refresh_pending: balanceRefreshPending } }
 	} catch (error) {
-		try { await transaction.rollback() } catch (_) {}
+		try { if (!committed) await transaction.rollback() } catch (_) {}
 		return { code: error.code || 500, msg: error.message || '冲抵余额退款失败，事务已回滚', data: error.plan ? { plan: error.plan } : undefined }
 	}
 }
 
+function offsetReleaseService() {
+	return offsetRelease.createService({ db, command: dbCmd, readComplete, saleSnapshot: computeSaleSnapshot, flowSnapshot: computeFlowSettlementSnapshot, debtSnapshot: computeOpeningDebtSnapshot, moneyScale: resolveCustomerMoneyScale, refreshBalances: rebuildCustomerBalances })
+}
+
 async function removeOffsetCreditAllocationV1(user, data, requestId) {
-	const auth = await ensureWritePermission(user, 'removeOffsetCreditAllocationV1', requestId)
-	if (!auth.ok) return { code: auth.code, msg: auth.msg }
-
-	const customerId = normalizeId(data.customer_id || data.customerId)
-	const receiptId = normalizeId(data.receipt_id || data.receiptId || data._id)
-	if (!customerId) return { code: 400, msg: 'customer_id 必填' }
-	if (!receiptId) return { code: 400, msg: 'receipt_id 必填' }
-
-	const customer = await getCustomerById(customerId)
-	if (!customer) return { code: 404, msg: '客户不存在' }
-	const moneyScale = resolveCustomerMoneyScale(customer)
-	const fixMoney = (value) => fixByScale(value, moneyScale)
-
-	const receiptRes = await receipts.doc(receiptId).get()
-	const receiptDoc = (receiptRes.data && receiptRes.data[0]) || null
-	if (!receiptDoc) return { code: 404, msg: '冲抵来源不存在' }
-	if (normalizeId(receiptDoc.customer_id) !== customerId) return { code: 400, msg: '冲抵来源不属于该客户' }
-	if (normalizeString(receiptDoc.status) !== 'posted') return { code: 400, msg: '仅支持已入账冲抵来源' }
-	if (!isOffsetCreditReceiptRow(receiptDoc)) return { code: 400, msg: '该单据不是冲抵款来源' }
-
-	const allocationRows = await listReceiptAllocationRows(receiptId, customerId)
-	if (!allocationRows.length) return { code: 400, msg: '该冲抵来源暂无已分配记录' }
-
-	const rollback = await rollbackReceiptAllocations({
-		customerId,
-		receiptId,
-		allocationRows
-	})
-	const amount = fixMoney(toNumber(receiptDoc.amount, 0))
-	await receipts.doc(receiptId).update({
-		allocated_amount: 0,
-		rounding_allocated_amount: 0,
-		unallocated_amount: fixMoney(amount - toNumber(receiptDoc.offset_cash_refunded_amount, 0)),
-		allocation_targets: [],
-		updated_at: Date.now(),
-		updated_by: normalizeId(user && user._id) || null,
-		updated_by_name: normalizeString(user && user.username)
-	})
-
-	const balances = await rebuildCustomerBalances(customerId)
-	await recordLog(
-		user,
-		'customer_offset_credit_allocation_remove_v1',
-		{
-			customer_id: customerId,
-			receipt_id: receiptId,
-			rollback_total: rollback.rollback_total,
-			allocation_rows: rollback.rows,
-			rollback_skipped: rollback.skipped
-		},
-		requestId
-	)
-
-	return {
-		code: 0,
-		msg: '冲抵分配已删除，金额已退回可用冲抵余额',
-		data: {
-			receipt_id: receiptId,
-			customer_id: customerId,
-			released_total: fixMoney(toNumber(rollback.rollback_total, 0)),
-			remaining_unallocated: amount,
-			balances
-		}
-	}
+	void requestId
+	try { return { code: 0, msg: '冲抵分配已解除，额度已退回来源', data: await offsetReleaseService().run(data, user) } }
+	catch (error) { return { code: error.code || 500, msg: error.message, data: error.details || {} } }
 }
 
 async function allocatePrepayReceiptV1(user, data, requestId) {
@@ -8620,103 +8633,30 @@ async function autoApplyPrepayToSaleV1(user, data, requestId, mobileAuthorizatio
 		return { code: 403, msg: '当前账号无使用冲抵款权限，请联系超级管理员授权' }
 	}
 
-	const moneyScale = resolveCustomerMoneyScale(customer)
-	const fixMoney = (value) => fixByScale(value, moneyScale)
-	const initialSnapshot = computeSaleSnapshot(saleDoc)
-	let remaining = fixMoney(initialSnapshot.outstanding)
-	let appliedTotal = 0
-	let appliedSourceCount = 0
-	const appliedReceipts = []
-	const allocationTargets = [{ target_type: 'sale', target_id: saleId }]
+	const operationId = normalizeString(data.operation_id || saleDoc.offset_use_revision)
+	if (!operationId) return { code: 409, msg: '本次使用冲抵款尚未登记操作号，请重新确认使用冲抵款' }
+	try {
+		const result = await saleOffsetUseService().run({ customer_id: customerId, sale_id: saleId, operation_id: operationId }, user)
+		return { code: 0, msg: result.balance_refresh_pending ? '冲抵已保存，客户汇总待刷新' : '冲抵处理已完成', data: result }
+	} catch (error) { return { code: error.code || 500, msg: error.message || '冲抵结果待核，请查询原操作', data: { operation_id: operationId, retryable: true } } }
+}
 
-	if (remaining > 0) {
-		const offsetRows = (await readComplete(receipts, buildOffsetCreditPoolWhere(customerId, true), { command: dbCmd, source: 'offset_credit_pool', sort: ['biz_date', 'created_at'] }))
-			.filter((row) => normalizeId(row && row.source_id) !== saleId)
-		for (const row of offsetRows) {
-			if (remaining <= 0) break
-			const receiptId = normalizeId(row && row._id)
-			if (!receiptId) continue
-			const sourceAvailable = fixMoney(toNumber(row && row.unallocated_amount, 0))
-			if (sourceAvailable <= 0) continue
-			const applyAmount = fixMoney(Math.min(remaining, sourceAvailable))
-			if (applyAmount <= 0) continue
-			const plan = await buildAllocationPlan(customerId, applyAmount, {
-				manualAllocations: [
-					{
-						target_type: 'sale',
-						target_id: saleId,
-						allocate_amount: applyAmount
-					}
-				],
-				allocationMode: 'checked',
-				allocationTargets
-			})
-			if (!plan.ok) return { code: plan.code || 400, msg: plan.msg || '冲抵分配计划生成失败' }
-			if (fixMoney(toNumber(plan.allocated_total, 0)) <= 0) break
-			const applyRes = await applyOffsetAllocationsToReceipt({
-				user,
-				requestId,
-				customer,
-				receiptDoc: row,
-				plan,
-				allocationMode: 'checked',
-				allocationTargets
-			})
-			if (!applyRes.ok) return { code: applyRes.code || 400, msg: applyRes.msg || '冲抵分配失败' }
-			const allocatedDelta = fixMoney(toNumber(applyRes.allocated_delta, 0))
-			if (allocatedDelta <= 0) continue
-			appliedTotal = fixMoney(appliedTotal + allocatedDelta)
-			remaining = fixMoney(Math.max(remaining - allocatedDelta, 0))
-			appliedSourceCount += 1
-			appliedReceipts.push({
-				receipt_id: receiptId,
-				allocated_amount: allocatedDelta,
-				unallocated_amount: fixMoney(toNumber(applyRes.unallocated_amount, 0))
-			})
-		}
-	}
+function saleOffsetUseService() {
+	return saleOffsetAllocation.createService({ db, command: dbCmd, readComplete,
+		saleSnapshot: computeSaleSnapshot, moneyScale: resolveCustomerMoneyScale, refreshBalances: rebuildCustomerBalances })
+}
 
-	const latestSaleRes = await sales.doc(saleId).get()
-	const latestSaleDoc = (latestSaleRes.data && latestSaleRes.data[0]) || saleDoc
-	const latestSnapshot = computeSaleSnapshot(latestSaleDoc)
-	await sales.doc(saleId).update({
-		payment_status: latestSnapshot.payment_status,
-		payment_method: normalizePaymentMethod(latestSaleDoc && latestSaleDoc.payment_method, latestSnapshot.payment_status),
-		apply_offset_credit: false,
-		updated_at: Date.now()
-	})
-	const balances = await rebuildCustomerBalances(customerId)
-	await recordLog(
-		user,
-		'customer_sale_offset_apply_v1',
-		{
-			sale_id: saleId,
-			customer_id: customerId,
-			applied_amount: appliedTotal,
-			applied_source_count: appliedSourceCount,
-			outstanding_before: initialSnapshot.outstanding,
-			outstanding_after: latestSnapshot.outstanding
-		},
-		requestId
-	)
-	const message = appliedTotal > 0
-		? '冲抵款已分配'
-		: (initialSnapshot.outstanding <= 0 ? '销售单无待冲抵欠款' : '未找到可用冲抵款')
-	return {
-		code: appliedTotal > 0 || initialSnapshot.outstanding <= 0 ? 0 : 400,
-		msg: message,
-		data: {
-			sale_id: saleId,
-			applied_amount: appliedTotal,
-			applied_source_count: appliedSourceCount,
-			applied_receipts: appliedReceipts,
-			payment_status: latestSnapshot.payment_status,
-			amount_received: latestSnapshot.amount_received,
-			outstanding: latestSnapshot.outstanding,
-			auto_prepay_disabled: false,
-			balances
-		}
-	}
+async function getSaleOffsetUseOperationV1(user, data) {
+	if (!canUseSaleOffsetCredit(user)) return { code: 403, msg: '当前账号无使用冲抵款权限' }
+	const saleId = normalizeId(data.sale_id || data.saleId)
+	if (!saleId) return { code: 400, msg: 'sale_id 必填' }
+	try {
+		const found = await sales.where({ _id: saleId }).limit(1).get()
+		const sale = Array.isArray(found.data) ? found.data[0] : found.data
+		if (!sale) return { code: 404, msg: '销售单不存在' }
+		return { code: 0, data: await saleOffsetUseService().getOperation({ customer_id: sale.customer_id, sale_id: saleId,
+			operation_id: normalizeString(data.operation_id || sale.offset_use_revision) }) }
+	} catch (error) { return { code: error.code || 500, msg: error.message || '冲抵结果查询失败' } }
 }
 
 function normalizeAutoPrepayAllocationSource(value) {
@@ -10019,6 +9959,14 @@ async function guardLegacyAdjustmentMutation(action, data) {
 		if (linked.some(isCustomerAdjustment)) throw Object.assign(new Error('已有账务调整，不能执行旧全库分配重建；请按关联来源核查'), { code: 409 })
 	}
 	if (!customerId) return
+	if (targetId) {
+		const targetLinks = await readComplete(allocations, dbCmd.or([{ target_id: targetId }, { sale_id: targetId }]), { command: dbCmd, source: 'offset_target_mutation_guard' })
+		const receiptIds = [...new Set(targetLinks.filter(row => !['void', 'voided', 'cancelled'].includes(row.status)).map(row => normalizeId(row.receipt_id)).filter(Boolean))]
+		const linkedReceipts = receiptIds.length ? await readComplete(receipts, { _id: dbCmd.in(receiptIds) }, { command: dbCmd, source: 'offset_target_receipts_guard' }) : []
+		const sourceReceipts = action === 'releaseSaleSettlementOnRemoveV1'
+			? await readComplete(receipts, { source_id: targetId }, { command: dbCmd, source: 'offset_sale_source_mutation_guard' }) : []
+		if ([...linkedReceipts, ...sourceReceipts].some(isOffsetCreditReceiptRow)) throw Object.assign(new Error('该单已关联冲抵来源或分配，请先核对并通过安全删除分配入口处理'), { code: 409 })
+	}
 	if (rebuild) {
 		const rows = await readComplete(openingDebts, { customer_id: customerId }, { command: dbCmd, source: 'adjustment_rebuild_guard' })
 		if (rows.some(row => row.status === 'posted' && isCustomerAdjustment(row))) throw Object.assign(new Error('客户已有账务调整，不能使用旧重建流程；请先核对关联记录'), { code: 409 })
@@ -10046,6 +9994,12 @@ const main = async (event, context) => {
 		cloudFunction: 'crm-customer-settlement'
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
+	if (action === 'repairOffsetCreditsV1' && data.execute) return { code: 409, msg: '旧批量冲抵重建已停用；新单按本单同步，历史差异须逐笔预览确认' }
+	if (action === 'repairReceiptAllocationV1' && data.execute) {
+		const receiptIds = normalizeRepairItems(data.items || []).map(row => normalizeId(row.receipt_id)).filter(Boolean)
+		const candidates = receiptIds.length ? await readComplete(receipts, { _id: dbCmd.in(receiptIds) }, { command: dbCmd, source: 'offset_legacy_rebuild_guard' }) : []
+		if (candidates.some(isOffsetCreditReceiptRow)) return { code: 409, msg: '旧批量重分配不能处理冲抵来源，请使用带操作号的冲抵分配入口' }
+	}
 	if (['inspectReconciliationCustomerV1', 'refreshReconciliationCacheV1', 'getReconciliationCacheOperationV1'].includes(action)) {
 		try {
 			const service = require('./reconciliationAudit').createAuditService({ db, command: dbCmd, readComplete,
@@ -10131,6 +10085,12 @@ const main = async (event, context) => {
 
 	}
 
+	if (['syncSaleOffsetCreditV1', 'getSaleOffsetSyncOperationV1'].includes(action)) {
+		try {
+			const service = createSaleOffsetSyncService({ db, command: dbCmd, readComplete, saleSnapshot: computeSaleSnapshot, refreshBalances: rebuildCustomerBalances })
+			return { code: 0, data: await service.run(action, data, user) }
+		} catch (error) { return { code: error.code || 500, msg: error.message, data: error.details || {} } }
+	}
 	if (action === 'getLegacyM3EvidenceV1') return getLegacyM3EvidenceV1(user, data)
 	if (['listCustomerRefundsV1','getCustomerRefundOperationV1','previewCustomerRefundV1','createCustomerRefundV1'].includes(action)) {
 		if (['previewCustomerRefundV1','createCustomerRefundV1'].includes(action) && !['superadmin','admin','finance'].includes(user.role)) return { code:403, msg:'仅财务或管理员可登记退款' }
@@ -10161,7 +10121,15 @@ const main = async (event, context) => {
 	if (action === 'removeOtherFeeEntryV1') return removeOtherFeeEntryV1(user, data, requestId)
 	if (action === 'releaseSaleSettlementOnRemoveV1') return releaseSaleSettlementOnRemoveV1(user, data, requestId)
 	if (action === 'listOffsetCreditPoolV1') return listOffsetCreditPoolV1(user, data)
-	if (action === 'allocateOffsetCreditV1') return allocateOffsetCreditV1(user, data, requestId)
+	if (action === 'getOffsetReleaseOperationV1') {
+		try { return { code: 0, data: await offsetReleaseService().getOperation(data, user) } } catch (error) { return { code: error.code || 500, msg: error.message } }
+	}
+	if (action === 'getOffsetCreditOperationV1') {
+		try { return { code: 0, data: await offsetOperation.read(db, data) } } catch (error) { return { code: error.code || 500, msg: error.message } }
+	}
+	if (action === 'allocateOffsetCreditV1') {
+		try { return await allocateOffsetCreditV1(user, data, requestId) } catch (error) { return { code: error.code || 500, msg: error.message || '冲抵结果待核，请查询原操作号' } }
+	}
 	if (action === 'previewOffsetCreditCashRefundV1') return previewOffsetCreditCashRefundV1(user, data, requestId)
 	if (action === 'convertOffsetCreditToCashRefundV1') return convertOffsetCreditToCashRefundV1(user, data, requestId)
 	if (action === 'removeOffsetCreditAllocationV1') return removeOffsetCreditAllocationV1(user, data, requestId)
@@ -10169,6 +10137,7 @@ const main = async (event, context) => {
 	if (action === 'repairReceiptAllocationV1') return repairReceiptAllocationV1(user, data, requestId)
 	if (action === 'repairAutoPrepayAllocationsV1') return repairAutoPrepayAllocationsV1(user, data, requestId)
 	if (action === 'repairOffsetCreditsV1') return repairOffsetCreditsV1(user, data, requestId)
+	if (action === 'getSaleOffsetUseOperationV1') return getSaleOffsetUseOperationV1(user, data)
 	if (action === 'autoApplyPrepayToSaleV1') return autoApplyPrepayToSaleV1(user, data, requestId, mobileAuthorization)
 	if (action === 'autoApplyPrepayToFlowSettlementV1') return autoApplyPrepayToFlowSettlementV1(user, data, requestId)
 	if (action === 'previewFlowSettlementV1') return previewFlowSettlementV1(user, data)

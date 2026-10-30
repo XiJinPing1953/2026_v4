@@ -193,8 +193,9 @@ import AppCard from '@/components/base/AppCard.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { normalizeBottleNo } from '@/services/models'
-import { createSaleV2, getSaleV2, updateSaleV2, updateSaleSettlementV1, getCustomerDepositV1 } from '@/services/sale'
+import { createSaleV2, getSaleV2, updateSaleV2, updateSaleSettlementV1, getCustomerDepositV1, retrySaleOffsetSyncV1, retrySaleOffsetUseV1 } from '@/services/sale'
 import { listOffsetCreditPoolV1 } from '@/services/customerSettlement'
+import { saleSaveWarning, pendingSaleOffsetActions } from '@/services/models/saleSaveWarning'
 import { useQuery } from '@/composables/useQuery'
 import { useSaleSettlement } from '@/composables/useSaleSettlement'
 import { toNumber, fix2 } from '@/utils/number'
@@ -656,9 +657,9 @@ watch(
 	}
 )
 
-async function loadDetail(id) {
-	const data = await fetchDetail(id)
-	if (!data) return
+async function loadDetail(id, options = {}) {
+	const data = await fetchDetail(id, { force: options.force === true })
+	if (!data || recordId.value !== id) return
 	const doc = data
 	externalReceiptRounding.value = Math.max(toNumber(doc.receipt_rounding_amount, 0), 0)
 	form.value = {
@@ -762,6 +763,10 @@ async function loadDetail(id) {
 		deposit: extractBottleNos(depositRows.value)
 	}
 	await applyTicketImages(Array.isArray(doc.ticket_images) ? doc.ticket_images : [doc.ticket_image || ''])
+	const pending = pendingSaleOffsetActions(doc)
+	if (options.showRecovery !== false && recordId.value === id && pending.data.warning) {
+		await showSaleSaveWarning(pending, '本单有待核对的冲抵处理')
+	}
 }
 
 async function loadOffsetCreditAvailability(customerId = form.value.customerId) {
@@ -857,6 +862,10 @@ async function onSubmitBusiness() {
 			result = await submitSale(true)
 		}
 		if (result?.code !== 0) {
+			if (result?.data?.offset_use?.status === 'pending') {
+				await showSaleSaveWarning({ code: 0, data: { ...result.data, warning: result.msg } }, '本次未保存，原冲抵待核对')
+				return
+			}
 			uni.showToast({ title: result?.msg || '保存失败', icon: 'none' })
 			return
 		}
@@ -866,7 +875,12 @@ async function onSubmitBusiness() {
 			// ignore storage failures
 		}
 		const savedWithOverride = Boolean(result?.data?.bottle_flow_warning_overridden) && Number(result?.data?.bottle_flow_warning_count || 0) > 0
-		uni.showToast({ title: savedWithOverride ? '已核对并保存' : '保存成功', icon: 'success' })
+		const warning = saleSaveWarning(result)
+		if (warning) {
+			await showSaleSaveWarning(result, '单据已保存，后续处理待核对')
+		} else {
+			uni.showToast({ title: savedWithOverride ? '已核对并保存' : '保存成功', icon: 'success' })
+		}
 		navigateAfterSave()
 	} catch (err) {
 		const failure = resolveSubmitFailure(err)
@@ -908,6 +922,10 @@ async function onSubmitSettlement() {
 	try {
 		const result = await submitSaleSettlement()
 		if (result?.code !== 0) {
+			if (result?.data?.offset_use?.status === 'pending') {
+				await showSaleSaveWarning({ code: 0, data: { ...result.data, warning: result.msg } }, '本次未保存，原冲抵待核对')
+				return
+			}
 			uni.showToast({ title: result?.msg || '结算保存失败', icon: 'none' })
 			return
 		}
@@ -916,8 +934,11 @@ async function onSubmitSettlement() {
 		} catch (_) {
 			// ignore storage failures
 		}
-		const reminder = buildOverCollectionReminder()
-		if (reminder) {
+		const warning = saleSaveWarning(result)
+		const reminder = warning ? '' : buildOverCollectionReminder()
+		if (warning) {
+			await showSaleSaveWarning(result, '结算已保存，后续处理待核对')
+		} else if (reminder) {
 			await uni.showModal({
 				title: '结算保存成功',
 				content: reminder,
@@ -927,6 +948,7 @@ async function onSubmitSettlement() {
 		} else {
 			uni.showToast({ title: '结算保存成功', icon: 'success' })
 		}
+		if (result.data?.offset_use?.status === 'completed') await loadDetail(recordId.value, { force: true, showRecovery: false })
 	} catch (err) {
 		const failure = resolveSubmitFailure(err)
 		console.error('save settlement failed', failure, err)
@@ -944,6 +966,38 @@ async function onSubmitSettlement() {
 		submitting.value = false
 		submittingMode.value = ''
 	}
+}
+
+async function showSaleSaveWarning(result, title) {
+	const tasks = [['offset_sync', '入池', '重试入池'], ['offset_use', '使用冲抵', '查询并继续冲抵']]
+		.filter(([field]) => result?.data?.[field]?.status === 'pending' && result.data[field].sale_id)
+	if (!tasks.length) {
+		await uni.showModal({ title, content: saleSaveWarning(result), showCancel: false, confirmText: '知道了' })
+		return
+	}
+	let refreshSaleId = ''
+	for (const [index, [field, label, confirmText]] of tasks.entries()) {
+		const operation = result.data[field]
+		const answer = await uni.showModal({ title: tasks.length > 1 ? `${label}结果待核对` : title,
+			content: index === 0 ? saleSaveWarning(result) : operation.warning || `${label}结果待核，请按原操作查询。`,
+			showCancel: true, confirmText, cancelText: '稍后处理' })
+		if (!answer.confirm) continue
+		uni.showLoading({ title: `核对本单${label}...`, mask: true })
+		let retry
+		try { retry = field === 'offset_use' ? await retrySaleOffsetUseV1(operation.sale_id, operation.operation_id) : await retrySaleOffsetSyncV1(operation.sale_id, operation.operation_id) }
+		catch (error) { retry = { code: 500, msg: error?.message || `${label}结果暂未确认，请稍后核对本单。` } }
+		finally { uni.hideLoading() }
+		refreshSaleId = operation.sale_id
+		const outcome = retry?.data?.[field] || retry?.data || {}
+		const warning = saleSaveWarning(retry) || String(outcome.warning || '')
+		if (retry?.code === 0 && outcome.status === 'completed' && !warning && !outcome.balance_refresh_pending) {
+			uni.showToast({ title: `本单${label}处理已完成`, icon: 'success' })
+		} else {
+			await uni.showModal({ title: retry?.code === 0 && outcome.status === 'completed' ? `${label}已完成，请核对汇总` : `单据已保存，${label}仍待核对`,
+				content: warning || (outcome.balance_refresh_pending ? `${label}已完成，客户汇总刷新尚未完成，请刷新核对。` : retry?.msg) || `请稍后核对本单的${label}结果。`, showCancel: false, confirmText: '知道了' })
+		}
+	}
+	if (refreshSaleId && recordId.value === refreshSaleId) await loadDetail(refreshSaleId, { force: true, showRecovery: false })
 }
 
 function buildOverCollectionReminder() {
