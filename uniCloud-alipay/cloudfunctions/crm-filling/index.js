@@ -71,6 +71,7 @@ const PAGE_ACTION_RULES = {
 	previewReweighV1: [{ pagePath: '/pages/pda/reweigh', action: 'view' }, { pagePath: '/pages/filling/edit', action: 'view' }],
 	getReturnReweighRoundV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'view' }],
 	startReturnReweighRoundV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'create' }],
+	endReturnReweighRoundV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'create' }],
 	previewReturnReweighV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'view' }],
 	saveReturnReweighV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'create' }],
 	getReturnReweighV1: [{ pagePath: '/pages/pda/return-reweigh', action: 'view' }],
@@ -4546,6 +4547,7 @@ async function dispatch(event, context) {
 	if (action === 'listFillingReweighRecordsV1') return reweighRecordsService.list(user, data, 'filling')
 	if (action === 'getReturnReweighRoundV1') return returnReweighService.roundStatus(user)
 	if (action === 'startReturnReweighRoundV1') return returnReweighService.startRound(user, data)
+	if (action === 'endReturnReweighRoundV1') return returnReweighService.endRound(user, data)
 	if (action === 'previewReturnReweighV1') return returnReweighService.preview(user, data)
 	if (action === 'saveReturnReweighV1') return returnReweighService.save(user, data)
 	if (action === 'getReturnReweighV1') return returnReweighService.status(user, data)

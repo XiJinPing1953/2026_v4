@@ -9,13 +9,15 @@
 
 
 			<view class="round-summary">
-				<text class="round-count">本轮已保存 {{ roundReady && round ? round.bottle_count : '—' }} 瓶</text>
-				<AppButton kind="ghost" @click="roundDetails = !roundDetails">{{ roundDetails ? '收起' : '本轮设置' }}</AppButton>
+				<text class="round-count">{{ round ? '本轮已保存 ' + (roundReady ? round.bottle_count : '—') + ' 瓶' : lastEndedRound ? '本轮已结束 · ' + lastEndedRound.bottle_count + ' 瓶' : '本轮尚未开始' }}</text>
+				<AppButton v-if="(round || pendingEndRound) && !pendingRound" :disabled="busy || !canCreate" @click="onEndRound">{{ pendingEndRound ? '重试结束本轮' : '结束本轮' }}</AppButton>
+				<AppButton v-else :disabled="busy || !canCreate || Boolean(pendingEndRound)" @click="onStartRound">{{ pendingRound ? '重试开始本轮' : '开始新一轮' }}</AppButton>
 			</view>
+			<text v-if="pendingEndRound" class="notice">结束结果还未确认，请点“重试结束本轮”；已保存记录保留。</text>
+			<AppButton kind="ghost" size="sm" @click="roundDetails = !roundDetails">{{ roundDetails ? '收起本轮详情' : '本轮详情' }}</AppButton>
 			<text v-if="pendingRound" class="notice">还没确认新一轮是否开始，请点“重试开始本轮”。</text>
 			<view v-if="roundDetails || !round || pendingRound" class="facts">
 				<view class="actions">
-					<AppButton :disabled="busy || !canCreate || Boolean(current.bottleNo && !current.receipt?.complete)" @click="onStartRound">{{ pendingRound ? '重试开始本轮' : round ? '开始新一轮' : '开始本轮' }}</AppButton>
 					<AppButton v-if="isReturn" kind="neutral" :disabled="busy" @click="refreshRound">刷新瓶数</AppButton>
 				</view>
 				<text class="hint">{{ isReturn ? '同瓶重称只算一瓶' : '本机、本账号统计，同瓶只算一瓶' }}{{ round ? ' · ' + roundTime : '' }}</text>
@@ -149,13 +151,13 @@ const props = defineProps({ mode: { type: String, default: 'filling' } })
 const isReturn = props.mode === 'return'
 const printer = usePdaFillingPrinter({ enabled: !isReturn, active: () => form?.active.value && form.nativeSupported, entries: () => [...form.history.value.filter(item => item.operationId !== form.current.value.operationId), form.current.value] })
 const form = usePdaReweigh({ mode: props.mode, printing: isReturn ? null : printer })
-const { captureMinimum, current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
-	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText } = form
+const { captureMinimum, current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, startRound, refreshRound,
+	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText, endRound } = form
 const historyGroups = computed(() => [
 	{ title: '本轮已保存记录', items: roundHistory.value },
 	{ title: '其他轮次待处理记录', items: recoveryHistory.value }
 ].filter(group => group.items.length))
-const readyForBottle = computed(() => !isReturn || (roundReady.value && Boolean(round.value?._id)))
+const readyForBottle = computed(() => Boolean(round.value?._id) && !pendingEndRound.value && (!isReturn || roundReady.value))
 const previousNotice = computed(() => reweighPreviousNotice(current.value.preview, isReturn))
 const roundTime = computed(() => {
 	const timestamp = Number(round.value?.created_at)
@@ -172,6 +174,7 @@ function onBottleSelected(bottle) { return selectManual(bottle?.bottle_no || bot
 function onSelectKeyword() { return selectManual(bottleKeyword.value) }
 async function onNext() { if (await nextBottle()) { bottleKeyword.value = ''; factsOpen.value = false; manualOpen.value = false; showRemark.value = false; showReceiptDetails.value = false } }
 async function onStartRound() { if (await startRound()) bottleKeyword.value = '' }
+async function onEndRound() { if (await endRound()) { bottleKeyword.value = ''; manualOpen.value = false; showReceiptDetails.value = false } }
 function keyboardChanged(event) { keyboardOpen.value = Number(event.height) > 0 }
 if (typeof uni.onKeyboardHeightChange === 'function') uni.onKeyboardHeightChange(keyboardChanged)
 onBeforeUnmount(() => { if (typeof uni.offKeyboardHeightChange === 'function') uni.offKeyboardHeightChange(keyboardChanged) })
@@ -197,7 +200,7 @@ defineExpose({ activate, deactivate })
 .notice { display: block; padding: 12rpx 16rpx; margin-bottom: 0; border-radius: var(--crm-radius-sm); background: #eff6ff; color: #1e40af; font-size: 16px; line-height: 1.6; }
 .notice--error { background: #fff7ed; color: #9a3412; }
 .scale-strip, .actions, .result-secondary { display: flex; flex-wrap: wrap; align-items: center; gap: 16rpx; }
-.round-summary { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; flex-wrap: wrap; }
+.round-summary { padding: 18rpx 0; display: flex; align-items: center; justify-content: space-between; gap: 12rpx; flex-wrap: wrap; }
 .round-summary .actions { margin: 0; }
 .scale-strip { justify-content: space-between; margin-bottom: 12rpx; }
 .live-weight { font-size: 32px; font-weight: 700; }

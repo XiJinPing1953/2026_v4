@@ -391,3 +391,41 @@ test('return preview identifies previous round without changing saved records', 
  assert.equal(older.data.round._id, next)
  assert.equal(JSON.stringify(rows(app, 'crm_return_reweighs')), before)
 })
+
+test('ending a return round preserves all measurements and rejects a late unsaved bottle', async () => {
+ const app = fixture(); await start(app)
+ const saved = await save(app), late = await request(app, 'late_after_round_end')
+ const before = plain(rows(app, 'crm_return_reweighs'))
+ const result = await app.invoke('endReturnReweighRoundV1', { round_id: roundId })
+ assert.equal(result.code, 0); assert.equal(result.data.ended_round_id, roundId)
+ assert.equal((await app.invoke('getReturnReweighRoundV1')).data.round, null)
+ assert.deepEqual(plain(rows(app, 'crm_return_reweighs')), before)
+ assert.equal((await app.invoke('saveReturnReweighV1', late)).code, 409)
+ assert.equal((await app.invoke('saveReturnReweighV1', saved.payload)).data.complete, true)
+ assert.equal((await app.invoke('endReturnReweighRoundV1', { round_id: roundId })).code, 0)
+ await start(app, 'return_round_after_end')
+ const repeated = await app.invoke('endReturnReweighRoundV1', { round_id: roundId })
+ assert.equal(repeated.code, 0); assert.equal(repeated.data.round._id, 'return_round_after_end')
+ assert.equal((await app.invoke('getReturnReweighRoundV1')).data.round._id, 'return_round_after_end')
+ assert.equal(rows(app, 'crm_return_reweighs').length, 1)
+})
+test('lost end acknowledgement retries original round without clearing a newer one', async () => {
+ const app = fixture(); await start(app)
+ const original = app.db.startTransaction.bind(app.db); let lost = true
+ app.db.startTransaction = async () => { const tx = await original(), commit = tx.commit.bind(tx); tx.commit = async () => { await commit(); if (lost) { lost = false; throw Error('lost end ack') } }; return tx }
+ assert.equal((await app.invoke('endReturnReweighRoundV1', { round_id: roundId })).code, 503)
+ assert.equal((await app.invoke('getReturnReweighRoundV1')).data.round, null)
+ await start(app, 'return_round_after_lost_end')
+ const replay = await app.invoke('endReturnReweighRoundV1', { round_id: roundId })
+ assert.equal(replay.code, 0); assert.equal(replay.data.round._id, 'return_round_after_lost_end')
+})
+test('end round requires permission and ownership, and transaction failure leaves current round active', async () => {
+ const app = fixture(); await start(app)
+ app.db.data('crm_users').set('other', { _id: 'other', token: 'other', role: 'user', page_permissions: { '/pages/pda/return-reweigh': { view: true, create: true } } })
+ assert.equal((await app.invoke('endReturnReweighRoundV1', { round_id: roundId }, 'other')).code, 403)
+ app.db.data('crm_users').get('other').page_permissions['/pages/pda/return-reweigh'].create = false
+ assert.equal((await app.invoke('endReturnReweighRoundV1', { round_id: roundId }, 'other')).code, 403)
+ app.db.setFault(async (name, action) => { if (name === 'crm_return_reweigh_state' && action === 'update') throw Error('offline') })
+ assert.equal((await app.invoke('endReturnReweighRoundV1', { round_id: roundId })).code, 503)
+ assert.equal((await app.invoke('getReturnReweighRoundV1')).data.round._id, roundId)
+})

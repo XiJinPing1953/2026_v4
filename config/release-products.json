@@ -161,7 +161,7 @@
     "pda": {
       "version": "1.0.40",
       "output": "release/pda",
-      "acceptance": "Use the i6310 system scanner API without the incompatible StatusListener plugin constructor; serialize scanner lifecycle and defer business work out of broadcast callbacks. Bound history reads and reuse complete recent round history; preserve weighing, frozen operations and receipt printing. WGT only; physical responsiveness still requires device acceptance. Existing crm-filling is dependency-checked only; no cloud deployment in this batch.",
+      "acceptance": "PDA 1.0.40: bypass incompatible scanner plugin constructor, serialize capture lifecycle, reuse recent complete round history and show clear service-busy notices. Both reweigh pages expose End round beside the count; preserve saved/unknown operations and require explicit Start new round. Return end uses original-round idempotent cloud transaction. Deploy WGT and crm-filling; no schema or historical data changes. Device responsiveness requires field acceptance.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
@@ -169,11 +169,14 @@
         "databaseFiles": [],
         "baseCommit": "31199f877ebe95d4c0c096bd1cd635f58d0f22cc",
         "sourceFiles": [
+          "src/components/domain/pda/PdaReweighView.vue",
+          "src/composables/pda/usePdaReweigh.js",
           "src/manifest.json",
+          "src/services/api/reweigh.js",
           "src/services/pda/capture/index.js",
           "src/services/pda/capture/scannerDriver.js",
-          "src/services/api/reweigh.js",
-          "src/composables/pda/usePdaReweigh.js"
+          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighService.js"
         ]
       },
       "integrityScope": "deployment"

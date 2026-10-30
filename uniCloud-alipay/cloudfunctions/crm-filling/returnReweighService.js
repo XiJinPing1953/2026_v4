@@ -46,6 +46,30 @@ function createReturnReweighService({ db, readInputs, now = Date.now }) {
 			return { code: 503, msg: committing ? '轮次创建结果待确认，请用原编号重试' : '轮次暂未完成，请重试原编号' }
 		}
 	}
+	async function endRound(user, data) {
+		if (!validId(data.round_id)) return rejected('缺少有效轮次编号', 400)
+		const tx = await db.startTransaction(); let committing = false
+		try {
+			const row = one(await tx.collection('crm_return_reweigh_rounds').doc(data.round_id).get())
+			if (!row || row.created_by !== user._id) { await tx.rollback(); return rejected('无权结束该轮次', 403) }
+			const current = await currentRound(user, tx)
+			// The round ID is the immutable retry key. Replaying an old end must
+			// never clear a newer round started by another page/device.
+			if (current?._id !== row._id) {
+				await tx.rollback()
+				return { code: 0, data: { ended_round_id: row._id, round: publicRound(current) } }
+			}
+			// Uses the same owner document as save/start, so a late save and an
+			// end cannot both commit against the old active round.
+			await tx.collection('crm_return_reweigh_state').doc(ownerKey(user._id)).update({ round_id: '', updated_at: now() })
+			committing = true; await tx.commit()
+			return { code: 0, data: { ended_round_id: row._id, round: null } }
+		} catch (error) {
+			await tx.rollback().catch(() => {})
+			console.warn('[return-reweigh] end round transaction:', error.message)
+			return { code: 503, msg: committing ? '结束本轮结果待确认，请用原轮次重试' : '本轮暂未结束，请重试原轮次' }
+		}
+	}
 	async function context(user, data, database = db) {
 		const round = await currentRound(user, database)
 		if (!round || round._id !== data.round_id || round.created_by !== user._id) return rejected('当前轮次已变化，请刷新本轮统计')
@@ -137,7 +161,7 @@ function createReturnReweighService({ db, readInputs, now = Date.now }) {
 			return { code: 503, msg: committing ? '回瓶复秤保存结果待确认，请查询原操作' : '回瓶复秤暂未完成，请用原操作重试' }
 		}
 	}
-	return { preview, save, status, roundStatus, startRound }
+	return { preview, save, status, roundStatus, startRound, endRound }
 }
 
 module.exports = { createReturnReweighService, recordKey, ownerKey }

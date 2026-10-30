@@ -4,7 +4,7 @@ import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { getUser } from '@/services/auth'
 import { canPageAction } from '@/services/pageAcl'
 import { previewReweighV1, createReweighV1, correctReweighV1, getReweighOperationV1, retryReweighOperationV1 } from '@/services/api/reweigh'
-import { getReturnReweighRoundV1, startReturnReweighRoundV1, previewReturnReweighV1, saveReturnReweighV1, getReturnReweighV1, listReturnReweighRoundRecordsV1 } from '@/services/api/reweigh'
+import { getReturnReweighRoundV1, startReturnReweighRoundV1, endReturnReweighRoundV1, previewReturnReweighV1, saveReturnReweighV1, getReturnReweighV1, listReturnReweighRoundRecordsV1 } from '@/services/api/reweigh'
 import { createPdaBleScaleSession, createEmptyPdaBleScaleSnapshot, ensurePdaBleRuntimePermission, getPdaBleScaleCapabilities } from '@/services/pda/bleScale'
 import { resolvePdaBottleByQrCode } from '@/services/pda/bottle'
 import { enterBarcodeSession, leaveBarcodeSession } from '@/services/pda/capture'
@@ -36,6 +36,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	const current = ref(emptyDraft())
 	const round = ref(null)
 	const pendingRound = ref(null)
+	const pendingEndRound = ref(null), localRoundEnded = ref(false), lastEndedRound = ref(null)
 	const roundReady = ref(!isReturn)
 	const history = shallowRef([])
 	const historySyncing = ref(false), historySyncError = ref('')
@@ -71,28 +72,31 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 			current.value = saved.current; history.value = saved.history
 			round.value = saved.metadata?.round || null; pendingRound.value = saved.metadata?.pendingRound || null
 			historySyncMeta = saved.metadata?.historySyncMeta || null
+			pendingEndRound.value = saved.metadata?.pendingEndRound || null
+			localRoundEnded.value = saved.metadata?.localRoundEnded === true; lastEndedRound.value = saved.metadata?.lastEndedRound || null
 			message.value = '已恢复上次记录，已称重量保留；没称好的请连接吊秤后继续。'
 		}
 	} catch (cause) { unreadable = true; storageError.value = cause.message }
-	const locked = computed(() => unreadable || !ownerMatches() || Boolean(current.value.frozen) || Boolean(pendingRound.value))
+	const locked = computed(() => unreadable || !ownerMatches() || Boolean(current.value.frozen) || Boolean(pendingRound.value) || Boolean(pendingEndRound.value))
 	const canCreate = computed(() => canPageAction(pagePath, 'create'))
 	const canNext = computed(() => !busy.value && current.value.receipt?.saved === true)
 	const entryRoundId = entry => entry.roundId || entry.frozen?.payload?.round_id || ''
 	const roundHistory = computed(() => {
-		if (!round.value?._id) return []
+		const visibleRoundId = round.value?._id || lastEndedRound.value?._id
+		if (!visibleRoundId) return []
 		const rows = history.value.filter(item => item.operationId !== current.value.operationId)
 		if (current.value.receipt?.saved) rows.push(current.value)
-		return rows.filter(item => item.receipt?.saved && entryRoundId(item) === round.value._id)
+		return rows.filter(item => item.receipt?.saved && entryRoundId(item) === visibleRoundId)
 	})
 	// A remotely changed return round must not hide unfinished older operations.
 	const recoveryHistory = computed(() => history.value.filter(item => !item.receipt?.complete && entryRoundId(item) !== round.value?._id))
 	function fail(text) { error.value = text; return false }
 	function persist() {
 		if (unreadable) return false
-		try { history.value = store.save(current.value, history.value, { round: round.value, pendingRound: pendingRound.value, ...(isReturn ? { historySyncMeta } : {}) }); storageError.value = ''; return true }
+		try { history.value = store.save(current.value, history.value, { round: round.value, pendingRound: pendingRound.value, pendingEndRound: pendingEndRound.value, localRoundEnded: localRoundEnded.value, lastEndedRound: lastEndedRound.value, ...(isReturn ? { historySyncMeta } : {}) }); storageError.value = ''; return true }
 		catch (cause) { storageError.value = cause.message; return false }
 	}
-	function editable() { return nativeSupported && active.value && canCreate.value && !locked.value && !busy.value && (!isReturn || (roundReady.value && round.value?._id)) }
+	function editable() { return nativeSupported && active.value && canCreate.value && !locked.value && !busy.value && Boolean(round.value?._id) && (!isReturn || roundReady.value) }
 	function sameWork(version) { return active.value && ownerMatches() && epoch === version }
 	function confirm(title, content) {
 		return new Promise(resolve => uni.showModal({ title, content, confirmText: '确认', cancelText: '取消', success: result => resolve(Boolean(result.confirm)), fail: () => resolve(false) }))
@@ -378,7 +382,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 			const response = await getReturnReweighRoundV1({ shouldContinue: () => sameWork(version) })
 			if (!sameWork(version)) return false
 			if (response?.code !== 0) return fail(response?.msg || '本轮统计读取失败，请重试')
-			round.value = response.data?.round || null
+			if (!pendingEndRound.value) round.value = response.data?.round || null
 			roundReady.value = true
 			if (!round.value && !pendingRound.value) message.value = '请先开始本轮回瓶复秤，再连接吊秤、扫码称重。'
 			const saved = persist()
@@ -388,6 +392,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		finally { busy.value = false }
 	}
 	async function startRound() {
+		if (pendingEndRound.value) return fail('请先确认上轮结束结果')
 		if (!nativeSupported || busy.value || !active.value || !ownerMatches() || unreadable || !canCreate.value) return false
 		if (current.value.frozen && !current.value.receipt?.complete) return fail('请先确认本瓶保存完成，再开始新一轮')
 		if (current.value.bottleNo && !current.value.receipt?.complete) return fail('请先保存或放弃这瓶，再开始新一轮')
@@ -395,13 +400,13 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		const version = epoch
 		if (!isReturn) {
 			if (round.value && (!await confirm('开始新一轮罐装复秤', `本轮已保存 ${round.value.bottle_count} 瓶。只重新计算本机本账号的瓶数，已保存记录保留。`) || !sameWork(version) || busy.value)) return false
-			const previous = round.value
-			round.value = newLocalRound()
-			if (!persist()) { round.value = previous; return false }
+			const previous = { round: round.value, current: current.value, history: history.value, ended: localRoundEnded.value, last: lastEndedRound.value }
 			if (current.value.frozen) history.value = [...history.value.filter(item => item.operationId !== current.value.operationId), cloneReweigh(current.value)]
-			current.value = emptyDraft(); pendingSession.value = ''; epoch += 1
+			round.value = newLocalRound(); current.value = emptyDraft(); localRoundEnded.value = false; lastEndedRound.value = null
+			if (!persist()) { round.value = previous.round; current.value = previous.current; history.value = previous.history; localRoundEnded.value = previous.ended; lastEndedRound.value = previous.last; return false }
+			stopMeasurement(); epoch += 1
 			message.value = '新一轮已开始，同瓶只算一瓶。'
-			return persist()
+			return true
 		}
 		if (!pendingRound.value) {
 			if (!roundReady.value) return fail('请先刷新本轮统计')
@@ -418,13 +423,48 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 				return fail(response?.msg || '还没确认新一轮是否开始，请点重试开始本轮')
 			}
 			if (response.data?.round?._id !== pendingRound.value.round_id) return fail('暂时无法确认本轮，请点重试开始本轮')
-			round.value = response.data.round; pendingRound.value = null; roundReady.value = true
+			round.value = response.data.round; pendingRound.value = null; roundReady.value = true; localRoundEnded.value = false; lastEndedRound.value = null
 			historySyncVersion++; historySyncing.value = false; historySyncError.value = ''
 			if (current.value.frozen) history.value = [...history.value.filter(item => item.operationId !== current.value.operationId), cloneReweigh(current.value)]
 			current.value = emptyDraft(); pendingSession.value = ''; epoch += 1
 			message.value = '本轮已开始，请连接吊秤并扫描回瓶。'
 			return persist()
 		} catch (cause) { if (sameWork(version)) fail(`${cause.message || '网络中断'}；还没确认新一轮是否开始，请点重试开始本轮`); return false }
+		finally { busy.value = false }
+	}
+	async function endRound() {
+
+		if ((!round.value && !pendingEndRound.value) || !nativeSupported || busy.value || !active.value || !ownerMatches() || unreadable || !canCreate.value || pendingRound.value) return false
+		if (current.value.bottleNo && !current.value.receipt?.complete) return fail('请先保存或放弃这瓶，再结束本轮')
+		if (history.value.some(item => item.frozen && !item.receipt?.complete)) return fail('还有记录没处理完，请先查询保存结果')
+		const version = epoch
+		if (!pendingEndRound.value && (!await confirm(isReturn ? '结束本轮回瓶复秤' : '结束本轮罐装复秤', `本轮已保存 ${round.value.bottle_count} 瓶。结束后保留记录，点击“开始新一轮”后继续称重。`) || !sameWork(version) || busy.value)) return false
+		const finished = round.value || lastEndedRound.value
+		if (isReturn && !pendingEndRound.value) {
+			pendingEndRound.value = { round_id: round.value._id }
+		}
+		if (isReturn && !persist()) return false
+		busy.value = true; error.value = ''
+		try {
+			let nextRound = null
+			if (isReturn) {
+				const response = await endReturnReweighRoundV1(cloneReweigh(pendingEndRound.value))
+				if (!sameWork(version)) return false
+				if (response?.code !== 0 || response.data?.ended_round_id !== pendingEndRound.value.round_id) return fail(response?.msg || '结束本轮结果待确认，请重试结束本轮')
+				nextRound = response.data.round || null
+			}
+			const previous = { round: round.value, current: current.value, history: history.value, ended: localRoundEnded.value, last: lastEndedRound.value, pending: pendingEndRound.value }
+			if (current.value.frozen) history.value = [...history.value.filter(item => item.operationId !== current.value.operationId), cloneReweigh(current.value)]
+			round.value = nextRound; current.value = emptyDraft(); localRoundEnded.value = true; lastEndedRound.value = finished; pendingEndRound.value = null
+			if (!persist()) {
+				round.value = previous.round; current.value = previous.current; history.value = previous.history; localRoundEnded.value = previous.ended; lastEndedRound.value = previous.last; pendingEndRound.value = previous.pending
+				return false
+			}
+			historySyncVersion++; historySyncing.value = false; historySyncError.value = ''
+			epoch++; stopMeasurement()
+			message.value = nextRound ? '原轮次已结束，已恢复其他页面开始的新轮次。' : '本轮已结束，已保存记录保留。点击“开始新一轮”后继续。'
+			return true
+		} catch (cause) { if (sameWork(version)) fail(`${cause.message || '网络中断'}；结束结果待确认，请重试结束本轮`); return false }
 		finally { busy.value = false }
 	}
 	async function activate() {
@@ -434,7 +474,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		active.value = true
 		if (!nativeSupported) return fail('请在 PDA 应用中打开复秤')
 		if (isReturn) { roundReady.value = false; await refreshRound({ refreshHistory: false }) }
-		else if (!round.value && !unreadable && ownerMatches()) {
+		else if (!round.value && !localRoundEnded.value && !unreadable && ownerMatches()) {
 			round.value = newLocalRound()
 			// Legacy frozen submissions predate this local round; never back-count them.
 			if (current.value.bottleNo && !current.value.frozen) current.value = { ...current.value, roundId: round.value._id }
@@ -458,6 +498,6 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		await stopping
 	}
 	onBeforeUnmount(() => { unsubscribe(); void deactivate() })
-	return { captureMinimum, current, history, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, startRound, refreshRound,
+	return { captureMinimum, current, history, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, startRound, endRound, refreshRound,
 		selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText }
 }

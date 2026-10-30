@@ -10,6 +10,7 @@ export const retryReweighOperationV1 = retryFillingOperationV1
 
 export const getReturnReweighRoundV1 = ({ shouldContinue = () => true } = {}) => callCloud('crm-filling', { action: 'getReturnReweighRoundV1', data: {}, timeout: 12000, isResponseCurrent: shouldContinue })
 export const startReturnReweighRoundV1 = (data) => callCloud('crm-filling', { action: 'startReturnReweighRoundV1', data })
+export const endReturnReweighRoundV1 = (data) => callCloud('crm-filling', { action: 'endReturnReweighRoundV1', data })
 export const previewReturnReweighV1 = (data) => callCloud('crm-filling', { action: 'previewReturnReweighV1', data })
 export const saveReturnReweighV1 = (data) => callCloud('crm-filling', { action: 'saveReturnReweighV1', data })
 export const getReturnReweighV1 = (operation_id) => callCloud('crm-filling', { action: 'getReturnReweighV1', data: { operation_id } })

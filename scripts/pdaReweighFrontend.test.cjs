@@ -57,6 +57,7 @@ function harness(t, options = {}) {
 		retryReweighOperationV1: options.retry || (async operationId => ({ code: 0, data: { operation_id: operationId, complete: true, saved_total: 1, _id: 'f1' } })),
 		listReturnReweighRoundRecordsV1: options.historyQuery || (async () => ({ code: 0, data: { rows: [], has_more: false, next_cursor: '' } })),
 		getReturnReweighRoundV1: async () => ({ code: 0, data: { round: copy(round) } }),
+		endReturnReweighRoundV1: async payload => { if (options.endRound) return options.endRound(payload); round = null; return { code: 0, data: { ended_round_id: payload.round_id, round: null } } },
 		startReturnReweighRoundV1: async payload => {
 			roundRequests.push(copy(payload))
 			if (options.startRound) return options.startRound(payload, roundRequests.length)
@@ -584,4 +585,43 @@ for (const returnMode of [false, true]) test(`${returnMode ? 'return' : 'filling
  assert.deepEqual([...h.storage.entries()], stored, 'previous bottle session is stopped')
  h.emit({ is_online: false }); assert.equal(renders, 1, 'disconnect/read timeout remains immediately visible')
  stop()
+})
+
+for (const returnMode of [false, true]) test(`${returnMode ? 'return' : 'filling'} end stays ended across restart, keeps saved history and requires explicit new round`, async t => {
+ const h = harness(t, { returnMode }); await h.measure(); await h.form.submit()
+ const id = h.form.round.value._id
+ assert.equal(await h.form.endRound(), true)
+ assert.equal(h.form.round.value, null); assert.equal(h.form.roundHistory.value.length, 1)
+ assert.equal(h.form.lastEndedRound.value._id, id)
+ assert.equal(await h.form.selectBottle('102'), false)
+ await h.form.deactivate()
+ const restored = harness(t, { returnMode, storage: h.storage, round: null }); await restored.start()
+ assert.equal(restored.form.round.value, null); assert.equal(restored.form.roundHistory.value.length, 1)
+ assert.equal(await restored.form.startRound(), true)
+ assert.notEqual(restored.form.round.value._id, id); assert.equal(restored.form.round.value.bottle_count, 0)
+ assert.equal(restored.form.history.value.length, 1)
+})
+for (const returnMode of [false, true]) test(`${returnMode ? 'return' : 'filling'} unfinished bottle or uncertain save prevents end`, async t => {
+ const h = harness(t, { returnMode }); await h.measure()
+ const id = h.form.round.value._id
+ assert.equal(await h.form.endRound(), false); assert.equal(h.form.round.value._id, id)
+ h.form.current.value = { ...h.form.current.value, frozen: { payload: { operation_id: h.form.current.value.operationId } }, receipt: { saved: true, complete: false } }
+ assert.equal(await h.form.endRound(), false); assert.equal(h.form.round.value._id, id)
+})
+test('uncertain return end persists original round key, blocks new work and recovers after restart', async t => {
+ const ids = [], h = harness(t, { returnMode: true, endRound: async payload => { ids.push(payload.round_id); throw Error('lost ack') } })
+ await h.start(); assert.equal(await h.form.endRound(), false)
+ assert.equal(h.form.locked.value, true); assert.equal(await h.form.startRound(), false)
+ await h.form.deactivate()
+ const restored = harness(t, { returnMode: true, storage: h.storage, round: null, endRound: async payload => { ids.push(payload.round_id); return { code: 0, data: { ended_round_id: payload.round_id, round: null } } } })
+ await restored.start(); assert.equal(restored.form.locked.value, true)
+ assert.equal(await restored.form.endRound(), true); assert.deepEqual(ids, ['round-1', 'round-1'])
+ assert.equal(restored.form.pendingEndRound.value, null); assert.equal(restored.form.round.value, null)
+})
+test('failed local persistence preserves the round and saved bottle when ending', async t => {
+ const options = {}, h = harness(t, options); await h.measure(); await h.form.submit()
+ const id = h.form.round.value._id, bottle = h.form.current.value.bottleNo
+ options.storageFails = true
+ assert.equal(await h.form.endRound(), false)
+ assert.equal(h.form.round.value._id, id); assert.equal(h.form.current.value.bottleNo, bottle)
 })
