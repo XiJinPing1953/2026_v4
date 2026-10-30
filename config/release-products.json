@@ -6,24 +6,28 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.30-inspection-due-export",
+      "version": "2026.10.30-sale-refund-status",
       "output": "dist/build/web",
-      "acceptance": "Inspection registration: all modules match any overdue or due item; export all filtered bottles and inspection dates.",
+      "acceptance": "Display negative sale processing consistently with refunds and offset credits; preserve accounting records.",
       "deploymentScope": {
         "functions": [
-          "crm-bottle"
+          "crm-sale"
         ],
         "databaseFiles": [],
-        "baseCommit": "ee0fb11f369345e8d42093f4774c594779293b6a",
+        "baseCommit": "84de23413ddc2f1adfdd0050f8237aaea0937a7c",
         "sourceFiles": [
-          "src/components/domain/bottle/BottleInspectionView.vue",
-          "src/services/bottleInspectionExport.mjs"
+          "src/components/domain/sale/SaleListView.vue",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js"
         ],
         "aclCanonicalRevisions": {
-          "crm-bottle": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
             "registry": {
-              "commit": "b334c9da11936983d6b1514da2ee95b786d42f71",
-              "sha256": "01ceeccab063663d13b505fcec00017891af9105f250a1b141daf2c643f050c3"
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
             }
           }
         }
@@ -31,20 +35,29 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.26-brief-summary-detail",
+      "version": "2026.10.30-sale-refund-status",
       "output": "release/cloud",
-      "acceptance": "Operating brief summary adds same-window bottle filling count/weight, signed tank level change and estimated tank loss. Explain precise allocation reference/ownership problems without changing ledger records. H5 and crm-dashboard only; no schemas, PDA or hardware changes.",
+      "acceptance": "Display negative sale processing consistently with refunds and offset credits; preserve accounting records.",
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
-          "crm-bottle"
+          "crm-sale"
         ],
         "databaseFiles": [],
+        "baseCommit": "84de23413ddc2f1adfdd0050f8237aaea0937a7c",
+        "sourceFiles": [
+          "src/components/domain/sale/SaleListView.vue",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js"
+        ],
         "aclCanonicalRevisions": {
-          "crm-bottle": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
             "registry": {
-              "commit": "b334c9da11936983d6b1514da2ee95b786d42f71",
-              "sha256": "01ceeccab063663d13b505fcec00017891af9105f250a1b141daf2c643f050c3"
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
             }
           }
         }

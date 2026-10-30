@@ -1781,7 +1781,7 @@ async function fetchCustomerNameMapByIds(customerIds = []) {
 	return out
 }
 
-async function reconcileBottleCurrentCustomerByDepositSnapshot({ customerIds = [], bottleNos = [] } = {}) {
+async function reconcileBottleCurrentCustomerByDepositSnapshot({ customerIds = [], bottleNos = [], excludeSaleId = '' } = {}) {
 	const normalizedCustomerIds = uniqStrings((customerIds || []).map((item) => normalizeString(item))).filter(Boolean)
 	const normalizedCustomerIdSet = new Set(normalizedCustomerIds)
 	const normalizedBottleNos = uniqStrings((bottleNos || []).map((item) => normalizeBottleNoForCreate(item))).filter((item) =>
@@ -1811,7 +1811,7 @@ async function reconcileBottleCurrentCustomerByDepositSnapshot({ customerIds = [
 
 	const expectedOwnerMap = new Map()
 	for (const customerId of normalizedCustomerIds) {
-		const saleRows = await fetchCustomerDepositSaleRows(customerId, '', '')
+		const saleRows = await fetchCustomerDepositSaleRows(customerId, '', excludeSaleId)
 		const depositSet = buildCustomerDepositBottleSet(saleRows)
 		normalizedBottleNos.forEach((bottleNo) => {
 			if (!depositSet.has(bottleNo)) return
@@ -2065,24 +2065,6 @@ function normalizePaymentStatusValue(value) {
 	if (status === '部分付') return 'partial'
 	if (status === '未付款') return 'unpaid'
 	return ''
-}
-
-function buildPaymentStatusWhere(value) {
-	const text = normalizeString(value)
-	if (!text) return null
-	if (text === 'unsettled') {
-		return dbCmd.or([
-			{ payment_status: 'unpaid' },
-			{ payment_status: '未付款' },
-			{ payment_status: 'partial' },
-			{ payment_status: '部分付' }
-		])
-	}
-	const status = normalizePaymentStatusValue(text)
-	if (!status) return null
-	if (status === 'paid') return dbCmd.or([{ payment_status: 'paid' }, { payment_status: '已结清' }])
-	if (status === 'partial') return dbCmd.or([{ payment_status: 'partial' }, { payment_status: '部分付' }])
-	return dbCmd.or([{ payment_status: 'unpaid' }, { payment_status: '未付款' }])
 }
 
 function computeFlow(base, priceUnit) {
@@ -3248,7 +3230,6 @@ function buildSaleListWhere(data = {}, currentCustomerIds = []) {
 	const bizMode = normalizeString(data.bizMode)
 	const dateStart = normalizeString(data.dateStart)
 	const dateEnd = normalizeString(data.dateEnd)
-	const paymentStatus = normalizeString(data.paymentStatus)
 
 	const conditions = []
 	if (keyword) {
@@ -3284,8 +3265,6 @@ function buildSaleListWhere(data = {}, currentCustomerIds = []) {
 	if (bizMode) conditions.push({ biz_mode: bizMode })
 	if (dateStart) conditions.push({ date: dbCmd.gte(dateStart) })
 	if (dateEnd) conditions.push({ date: dbCmd.lte(dateEnd) })
-	const paymentStatusWhere = buildPaymentStatusWhere(paymentStatus)
-	if (paymentStatusWhere) conditions.push(paymentStatusWhere)
 
 	return conditions.length === 0 ? {} : conditions.length === 1 ? conditions[0] : dbCmd.and(conditions)
 }
@@ -3303,6 +3282,25 @@ function resolveSalePaidTotalAmount(amountReceived = 0, receiptRoundingAmount = 
 	return fix2(toNumber(amountReceived, 0) + toNumber(receiptRoundingAmount, 0))
 }
 
+// Negative sales are settled by refund or transfer to the offset pool, not by
+// the legacy payment_status field, which defaults to paid for negative sales.
+function resolveListPaymentStatus(entry, netOutstandingEffective) {
+	if (entry.unresolved) return null
+	if (entry.effectiveShouldReceive >= 0) return normalizePaymentStatusValue((entry.doc || entry.row || {}).payment_status)
+	const outstanding = fix2(netOutstandingEffective)
+	if (outstanding > 0) return 'partial'
+	if (outstanding === 0) return 'paid'
+	return Math.abs(outstanding) < Math.abs(entry.effectiveShouldReceive) ? 'partial' : 'unpaid'
+}
+
+function matchesListPaymentStatus(filter, status) {
+	if (!filter) return true
+	if (!status) return false
+	if (filter === 'unsettled') return status === 'unpaid' || status === 'partial'
+	const normalized = normalizePaymentStatusValue(filter)
+	return !normalized || status === normalized
+}
+
 function matchSettlementScope(
 	scope,
 	shouldReceive,
@@ -3318,7 +3316,7 @@ function matchSettlementScope(
 	if (scope === 'receivable_outstanding') return should > 0 && outstanding > 0
 	if (scope === 'refund_outstanding') {
 		const pending = toNumber(refundPending, NaN)
-		if (Number.isFinite(pending)) return pending > 0.01
+		if (Number.isFinite(pending)) return pending >= 0.01
 		return should < 0 && outstanding < 0
 	}
 	if (scope === 'net_outstanding_non_zero') {
@@ -3461,23 +3459,12 @@ async function buildSaleOffsetPoolStatsMapBySaleIds(saleIds = []) {
 			{ source_type: dbCmd.in(['sale_offset_credit', 'sale_offset_credit_repair']) },
 			{ source_id: dbCmd.in(chunk) }
 		])
-		const batchSize = 200
-		let page = 1
-		let guard = 0
-		while (guard < 500) {
-			const res = await customerReceipts
-				.where(where)
-				.field({
-					source_id: true,
-					amount: true,
-					allocated_amount: true
-				})
-				.skip((page - 1) * batchSize)
-				.limit(batchSize)
-				.get()
-			const rows = Array.isArray(res.data) ? res.data : []
-			if (!rows.length) break
-			rows.forEach((row) => {
+		const rows = await readComplete(customerReceipts, where, {
+			command: dbCmd,
+			source: 'sale_list_offset_credits',
+			field: { source_id: true, amount: true, allocated_amount: true }
+		})
+		rows.forEach((row) => {
 				const saleId = normalizeString(row && row.source_id)
 				if (!saleId) return
 				const prev = result.get(saleId) || {
@@ -3488,11 +3475,7 @@ async function buildSaleOffsetPoolStatsMapBySaleIds(saleIds = []) {
 					entered_amount: fix2(toNumber(prev.entered_amount, 0) + toNumber(row && row.amount, 0)),
 					allocated_amount: fix2(toNumber(prev.allocated_amount, 0) + toNumber(row && row.allocated_amount, 0))
 				})
-			})
-			if (rows.length < batchSize) break
-			page += 1
-			guard += 1
-		}
+		})
 	}
 	return result
 }
@@ -3585,6 +3568,7 @@ function buildSaleListBatchEntries(docs = []) {
 
 async function computeSaleListSummary(where, filters = {}, options = {}) {
 	const settlementScope = normalizeSettlementScope(filters.settlementScope || filters.settlement_scope)
+	const paymentStatus = normalizeString(filters.paymentStatus)
 	const hasRemark = normalizeHasRemarkFilter(filters.hasRemark || filters.has_remark)
 	const remarkTag = normalizeRemarkTagFilter(filters.remarkTag || filters.remark_tag)
 	const hiddenCustomerIdSet = buildHiddenCustomerIdSet(options.hiddenCustomerIds)
@@ -3681,16 +3665,12 @@ async function computeSaleListSummary(where, filters = {}, options = {}) {
 				const doc = entry.doc
 				const row = entry.row
 				if (entry.unresolved) {
-					const matchesNonFinancialFilters = !settlementScope && matchSaleListFilters(row, {
-						settlementScope,
-						hasRemark,
-						remarkTag
-					})
-					if (!settlementScope && !matchesNonFinancialFilters) continue
+					const matchesNonFinancialFilters = matchRemarkFilters(row, { hasRemark, remarkTag })
+					if (!matchesNonFinancialFilters) continue
 					summary.accounting_complete = false
 					summary.unresolved_count += 1
 					if (summary.unresolved_source_ids.length < 100) summary.unresolved_source_ids.push(normalizeString(doc && doc._id))
-					if (!matchesNonFinancialFilters) continue
+					if (settlementScope || paymentStatus) continue
 					summary.total += 1
 					const unresolvedBizMode = normalizeBizModeValue(row && row.biz_mode)
 					const unresolvedNetWeight = toNumber(row && row.total_net_weight, 0)
@@ -3732,6 +3712,8 @@ async function computeSaleListSummary(where, filters = {}, options = {}) {
 					offsetPoolEntered,
 					offsetPoolAllocated
 				})
+				const status = resolveListPaymentStatus(entry, netOutstandingEffective)
+				if (!matchesListPaymentStatus(paymentStatus, status)) continue
 				if (!matchSaleListFilters(row, {
 					settlementScope,
 					hasRemark,
@@ -3741,7 +3723,6 @@ async function computeSaleListSummary(where, filters = {}, options = {}) {
 				})) continue
 				const effectiveShouldReceive = entry.effectiveShouldReceive
 				const outstanding = fix2(effectiveShouldReceive - paidTotal)
-				const status = normalizePaymentStatusValue(doc && doc.payment_status)
 				const netWeight = toNumber(row && row.total_net_weight, 0)
 				const bottleQuantity = computeSaleBottleQuantity(doc)
 
@@ -3769,7 +3750,7 @@ async function computeSaleListSummary(where, filters = {}, options = {}) {
 					summary.overpaid_count += 1
 				}
 			} else if (effectiveShouldReceive < 0) {
-				if (refundPending > 0.01) {
+				if (refundPending >= 0.01) {
 					summary.refund_outstanding_total = fix2(summary.refund_outstanding_total + refundPending)
 					summary.refund_outstanding_count += 1
 					summary.refund_outstanding_bottle_count += bottleQuantity
@@ -3850,7 +3831,9 @@ async function enrichSaleRowsWithNetOutstandingEffective(rows = []) {
 		})
 		return {
 			...entry.row,
-			net_outstanding_effective: fix2(netOutstandingEffective)
+			net_outstanding_effective: fix2(netOutstandingEffective),
+			list_payment_status: resolveListPaymentStatus(entry, netOutstandingEffective),
+			list_negative_sale: entry.effectiveShouldReceive < 0
 		}
 	})
 }
@@ -3971,6 +3954,7 @@ async function listV2(user, data) {
 	const page = Math.max(toNumber(data.page, 1), 1)
 	const pageSize = Math.min(Math.max(toNumber(data.pageSize, 20), 1), 50)
 	const settlementScope = normalizeSettlementScope(data.settlementScope || data.settlement_scope)
+	const paymentStatus = normalizeString(data.paymentStatus)
 	const hasRemark = normalizeHasRemarkFilter(data.hasRemark || data.has_remark)
 	const remarkTag = normalizeRemarkTagFilter(data.remarkTag || data.remark_tag)
 
@@ -3983,7 +3967,7 @@ async function listV2(user, data) {
 	const where = buildSaleListWhere(data, currentCustomerIds)
 	let dataList = []
 	let total = 0
-	const needPostFilter = Boolean(settlementScope || hasRemark || remarkTag)
+	const needPostFilter = Boolean(settlementScope || paymentStatus || hasRemark || remarkTag)
 
 	if (data.summary_only === true) {
 		// Statistics-only request skips page enrichment.
@@ -3993,7 +3977,7 @@ async function listV2(user, data) {
 			const matchedRows = []
 			const batchSize = 200
 			const needsRefundPending = settlementScope === 'refund_outstanding'
-			const needsNetOutstandingEffective = settlementScope === 'net_outstanding_non_zero'
+			const needsNetOutstandingEffective = settlementScope === 'net_outstanding_non_zero' || Boolean(paymentStatus)
 			const needsOffsetPool = needsRefundPending || needsNetOutstandingEffective
 			const allDocs = await readComplete(sales, where, { command: dbCmd, source: 'sale_list_post_filter' })
 			allDocs.sort((a, b) => {
@@ -4031,7 +4015,10 @@ async function listV2(user, data) {
 				: new Map()
 				for (const entry of visibleEntryRows) {
 					if (entry.unresolved) {
-						if (!settlementScope && matchSaleListFilters(entry.row, { settlementScope, hasRemark, remarkTag })) matchedRows.push(entry.row)
+						if (paymentStatus && matchRemarkFilters(entry.row, { hasRemark, remarkTag })) {
+							throw new FinancialReadError('sale_status_classification_required', { source: 'sale_list_post_filter', source_id: normalizeString(entry.doc && entry.doc._id) })
+						}
+						if (!settlementScope && !paymentStatus && matchSaleListFilters(entry.row, { settlementScope, hasRemark, remarkTag })) matchedRows.push(entry.row)
 						continue
 					}
 				const row = entry.row
@@ -4064,6 +4051,7 @@ async function listV2(user, data) {
 						offsetPoolAllocated
 					})
 				}
+				if (!matchesListPaymentStatus(paymentStatus, resolveListPaymentStatus(entry, netOutstandingEffective))) continue
 				if (!matchSaleListFilters(row, {
 					settlementScope,
 					hasRemark,
@@ -4095,7 +4083,7 @@ async function listV2(user, data) {
 		return { code: 0, data: dataList, total, paging: { page, pageSize, total, hasMore: page * pageSize < total }, summary: null }
 	}
 	const [summary, monthHeadline] = await Promise.all([
-		computeSaleListSummary(where, { settlementScope, hasRemark, remarkTag }, { hiddenCustomerIds: hiddenCustomerIdSet }),
+		computeSaleListSummary(where, { settlementScope, paymentStatus, hasRemark, remarkTag }, { hiddenCustomerIds: hiddenCustomerIdSet }),
 		computeMonthSalesHeadline(hiddenCustomerIdSet)
 	])
 	if (!total) total = Number(summary.total || 0)
@@ -5320,7 +5308,8 @@ async function removeV2(user, data, requestId, token) {
 	const bottleStatusSyncRes = await syncBottleCurrentStatusByBottleNos(touchedBottleNos)
 	const bottleDepositReconcileRes = await reconcileBottleCurrentCustomerByDepositSnapshot({
 		customerIds: collectSaleCustomerIdsFromDoc(saleDoc),
-		bottleNos: touchedBottleNos
+		bottleNos: touchedBottleNos,
+		excludeSaleId: recordId
 	})
 	try {
 		await removeSaleGasInventoryMovement(recordId)

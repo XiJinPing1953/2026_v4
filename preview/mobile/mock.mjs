@@ -29,6 +29,14 @@ export async function callCloud(name, options={}) {
   window.__mobilePreviewCalls.push({name,action})
   const state=new URLSearchParams(window.location.search).get('fixture')
   if(state==='phone-sale') return phoneSaleFixture(name, action, data)
+  if(state==='refund-status' && name==='crm-sale' && action==='listV2') {
+   const samples=[['待退或冲抵','unpaid',-24,0],['部分处理','partial',-14,-10],['已退款','paid',0,-24],['已转冲抵','paid',0,0]]
+   const records=samples.map(([name,status,balance,received],index)=>({...sale,_id:`refund-demo-${index}`,customer_name:`模拟客户·${name}`,delivery_customer_name:`模拟客户·${name}`,unit_price:8,should_receive:-24,total_net_weight:-3,amount_received:received,payment_status:'paid',list_payment_status:status,list_negative_sale:true,net_outstanding_effective:balance,out_items:[],back_items:[{bottle_no:'61',net:3}],accounting:{status:'resolved'}}))
+   const filtered=records.filter(row=>!data.paymentStatus || (data.paymentStatus==='unsettled' ? row.list_payment_status!=='paid' : row.list_payment_status===data.paymentStatus))
+   const pending=filtered.filter(row=>row.net_outstanding_effective<0)
+   const totals={total:filtered.length,paid:filtered.filter(row=>row.list_payment_status==='paid').length,refund_outstanding_total:pending.reduce((sum,row)=>sum-row.net_outstanding_effective,0),refund_outstanding_count:pending.length,accounting_complete:true}
+   return ok(data.summary_only?[]:filtered,{summary:totals,paging:{page:1,pageSize:50,total:filtered.length,hasMore:false}})
+  }
   if(state==='loading') await new Promise(resolve=>setTimeout(resolve,10000))
   if(state==='error') return {code:503,msg:'模拟读取失败，请重试'}
   if(state==='empty' && /^(list|search)/.test(action)) return ok([],{summary:{total:0,active:0,inactive:0,priced:0},paging:{page:1,pageSize:20,total:0,hasMore:false}})
