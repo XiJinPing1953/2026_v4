@@ -1,6 +1,7 @@
 'use strict'
 const { assertCustomerAdjustmentSourceMutable } = require('./customerAdjustmentGuardLocal')
 const { writeSaleSource } = require('./saleSourceWrite')
+const { assertOffsetSourceEditable, financialIdentity } = require('./saleOffsetGuard')
 
 const { inventoryTon, kgToTon } = require('./gasInventoryPrecisionLocal')
 
@@ -58,6 +59,8 @@ const PAGE_ACTION_RULES = {
 	],
 	updateV2: [{ pagePath: '/pages/sale/edit', action: 'update' }],
 	updateSettlementV1: [{ pagePath: '/pages/sale/settlement', action: 'update' }],
+	retryOffsetSyncV1: [{ pagePath: '/pages/sale/settlement', action: 'update' }, { pagePath: '/pages/sale/edit', action: 'create' }, { pagePath: '/pages/sale/edit', action: 'update' }],
+	retryOffsetUseV1: [{ pagePath: '/pages/sale/settlement', action: 'update' }],
 	searchAgentFillSuggestionsV1: [{ pagePath: '/pages/sale/edit', action: 'view' }],
 	removeV2: [{ pagePath: '/pages/sale/detail', action: 'delete' }],
 	quickReceiveV1: [{ pagePath: '/pages/sale/detail', action: 'update' }],
@@ -2761,43 +2764,99 @@ async function callCustomerSettlement(action, data, token, requestId, mobileCapa
 	}
 }
 
-async function syncOffsetCreditsByDates(customerId, dates = [], token, requestId) {
-	const normalizedCustomerId = normalizeString(customerId)
-	if (!normalizedCustomerId) return []
-	const uniqueDates = Array.from(
-		new Set(
-			(Array.isArray(dates) ? dates : [])
-				.map((item) => normalizeYmdDate(item, ''))
-				.filter(Boolean)
-		)
-	)
-	if (!uniqueDates.length) return []
-	const sortedDates = uniqueDates.slice().sort()
-	const dateFrom = sortedDates[0]
-	const dateTo = sortedDates[sortedDates.length - 1]
-	const res = await callCustomerSettlement(
-		'repairOffsetCreditsV1',
-		{
-			customer_id: normalizedCustomerId,
-			date_from: dateFrom,
-			date_to: dateTo,
-			execute: true,
-			auto_apply: false
-		},
-		token,
-		requestId
-	)
-	return [
-		{
-			date: dateFrom === dateTo ? dateFrom : `${dateFrom}~${dateTo}`,
-			date_from: dateFrom,
-			date_to: dateTo,
-			code: toNumber(res && res.code, 500),
-			msg: normalizeString(res && res.msg),
-			total_sales: toNumber(res && res.data && res.data.total_sales, 0),
-			unresolved_count: toNumber(res && res.data && res.data.unresolved_count, 0)
+async function syncOffsetCreditForSale(saleDoc, token, requestId) {
+	const data = { customer_id: saleDoc.customer_id, sale_id: saleDoc._id, operation_id: saleDoc.offset_sync_revision, expected_updated_at: saleDoc.updated_at }
+	let result
+	try { result = await callCustomerSettlement('syncSaleOffsetCreditV1', data, token, requestId) }
+	catch (error) { result = { code: 500, msg: error.message || '同步结果待查询' } }
+	if (result.code !== 0) {
+		try { await sales.where({ _id: saleDoc._id, offset_sync_revision: saleDoc.offset_sync_revision }).update({ offset_sync_error: result.msg || '同步结果待查询' }) } catch (_) { /* original revision remains queryable */ }
+	}
+	const warning = result.code !== 0 ? `冲抵入池待处理：${result.msg || '请查询原操作结果'}` : result.data?.balance_refresh_pending ? '冲抵入池已完成，客户余额显示待刷新' : ''
+	return { warning, sale_id: saleDoc._id, operation_id: saleDoc.offset_sync_revision, status: result.code === 0 ? 'completed' : 'pending', code: result.code, balance_refresh_pending: Boolean(result.data?.balance_refresh_pending) }
+}
+
+function retainedOffsetSync(saleDoc) {
+	if (!saleDoc.offset_sync_revision || saleDoc.offset_sync_status === 'completed') return null
+	return { warning: '原冲抵入池结果待核，请使用“重试入池”查询原操作后处理', sale_id: saleDoc._id,
+		operation_id: saleDoc.offset_sync_revision, status: 'pending', code: 409 }
+}
+
+async function retryOffsetSyncV1(user, data, requestId, token) {
+	void user
+	const id = normalizeString(data.sale_id || data.recordId)
+	if (!id) return { code: 400, msg: 'sale_id 必填' }
+	const response = await sales.where({ _id: id }).limit(1).get()
+	const sale = Array.isArray(response.data) ? response.data[0] : response.data
+	if (!sale || saleMentionsHiddenCustomer(sale, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
+	if (!sale.offset_sync_revision) return { code: 409, msg: '该历史单据没有新同步操作，须先核查并确认修正范围' }
+	const operationId = normalizeString(data.operation_id || sale.offset_sync_revision)
+	const prior = await callCustomerSettlement('getSaleOffsetSyncOperationV1', { customer_id: sale.customer_id, sale_id: id, operation_id: operationId }, token, requestId)
+	if (prior.code !== 0) return { code: prior.code || 500, msg: prior.msg || '原入池结果查询失败，请稍后重试' }
+	if (prior.data?.status === 'completed' && !prior.data.balance_refresh_pending) return { code: 0, msg: '冲抵入池已确认', data: prior.data }
+	if (prior.data?.status !== 'completed' && sale.offset_sync_revision !== operationId) return { code: 409, msg: '原入池操作版本已变化，请刷新核对' }
+	const result = await syncOffsetCreditForSale({ ...sale, offset_sync_revision: operationId,
+		...(prior.data?.status === 'completed' ? { updated_at: prior.data.source_updated_at } : {}) }, token, requestId)
+	return { code: result.code, msg: result.warning || '冲抵入池已确认', data: result }
+}
+
+function retainedOffsetUse(saleDoc) {
+	if (!saleDoc.offset_use_revision || saleDoc.offset_use_status !== 'pending') return null
+	return { warning: '原使用冲抵结果待核，请查询并继续原操作；不要再次保存来重试', sale_id: saleDoc._id,
+		operation_id: saleDoc.offset_use_revision, status: 'pending', code: 409 }
+}
+
+async function offsetUseResult(saleDoc, response, user, requestId) {
+	const completed = response?.code === 0 && response.data?.status === 'completed' && response.data.operation_id === saleDoc.offset_use_revision && Number.isFinite(Number(response.data.applied_amount))
+	const result = { ...(response?.data || {}), sale_id: saleDoc._id, operation_id: saleDoc.offset_use_revision,
+		status: completed ? 'completed' : 'pending', code: completed ? 0 : response?.code || 500 }
+	const warnings = []
+	if (!completed) {
+		warnings.push(`使用冲抵待核对：${response?.code === 0 ? '返回结果缺少原操作确认，请查询原操作结果' : response?.msg || '请查询原操作结果'}`)
+		try { await sales.where({ _id: saleDoc._id, offset_use_revision: saleDoc.offset_use_revision, offset_use_status: 'pending' }).update({ offset_use_error: warnings[0] }) } catch (_) { /* The pending identity was saved with the sale. */ }
+	} else {
+		if (result.balance_refresh_pending) warnings.push('使用冲抵已保存，客户汇总刷新待完成')
+		if (toNumber(result.applied_amount, 0) > 0) {
+			try { await resyncSaleVoucherById(user, saleDoc._id, requestId) }
+			catch (_) { warnings.push('使用冲抵已保存，凭证同步待核对') }
 		}
-	]
+	}
+	result.warning = warnings.join('；')
+	return result
+}
+
+async function applyOffsetUseForSale(saleDoc, user, token, requestId) {
+	const response = await callCustomerSettlement('autoApplyPrepayToSaleV1', {
+		sale_id: saleDoc._id, operation_id: saleDoc.offset_use_revision, exclude_offset_credit: false
+	}, token, requestId)
+	return offsetUseResult(saleDoc, response, user, requestId)
+}
+
+async function retryOffsetUseV1(user, data, requestId, token) {
+	if (!canUseSaleOffsetCredit(user)) return { code: 403, msg: '当前账号无使用冲抵款权限，请联系超级管理员授权' }
+	const id = normalizeString(data.sale_id || data.recordId)
+	if (!id) return { code: 400, msg: 'sale_id 必填' }
+	const response = await sales.where({ _id: id }).limit(1).get()
+	const sale = Array.isArray(response.data) ? response.data[0] : response.data
+	if (!sale || saleMentionsHiddenCustomer(sale, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
+	const operationId = normalizeString(data.operation_id || sale.offset_use_revision)
+	if (!operationId || !sale.offset_use_revision) return { code: 409, msg: '该历史单据没有已登记的使用冲抵操作，须先核查并确认修正范围' }
+	const scope = { customer_id: sale.customer_id, sale_id: id, operation_id: operationId }
+	const prior = await callCustomerSettlement('getSaleOffsetUseOperationV1', scope, token, requestId)
+	let result
+	if (prior.code !== 0 || !['saved', 'not_found'].includes(prior.data?.status)) {
+		result = { sale_id: id, operation_id: operationId, status: 'pending', code: prior.code || 500,
+			warning: prior.msg || '原使用冲抵结果尚未查明，未发起新的分配' }
+	} else if (prior.data.status === 'saved' && !prior.data.result?.balance_refresh_pending) {
+		result = await offsetUseResult({ ...sale, offset_use_revision: operationId }, { code: 0, data: prior.data.result }, user, requestId)
+	} else {
+		if (prior.data.status === 'not_found' && (sale.offset_use_revision !== operationId || sale.offset_use_status !== 'pending' || !toBoolean(sale.apply_offset_credit, false))) {
+			return { code: 409, msg: '原使用冲抵授权已变化，请刷新核对，未重新分配' }
+		}
+		if (prior.data.status === 'not_found' && sale.offset_sync_status === 'pending') return { code: 409, msg: '请先确认本单原入池结果，再查询并继续使用冲抵', data: { offset_use: retainedOffsetUse(sale) } }
+		result = await applyOffsetUseForSale({ ...sale, offset_use_revision: operationId }, user, token, requestId)
+	}
+	return { code: result.code, msg: result.warning || '本单使用冲抵已确认', data: { warning: result.warning, offset_use: result } }
 }
 
 async function resyncSaleVoucherById(user, saleId, requestId) {
@@ -3027,6 +3086,11 @@ async function createV2(user, payload, requestId, token, options = {}) {
 		doc.flow_theory_ratio = null
 	}
 
+	if (settlementMode !== 'customer_flow' && !options.mobile) {
+		doc.offset_sync_revision = `offset-${generateRequestId()}`
+		doc.offset_sync_status = 'pending'
+	}
+
 	const res = options.insertSource ? await options.insertSource(doc)
 		: await writeSaleSource(db, null, doc, tx => tx.collection('crm_sale_records').add(doc))
 	const saleDoc = { ...doc, _id: res.id }
@@ -3089,19 +3153,10 @@ async function createV2(user, payload, requestId, token, options = {}) {
 		if (isMissingCollectionError(err)) sideWarnings.push('凭证未同步（缺集合）')
 		else throw err
 	}
-	// A new mobile sale has no receipts and explicitly disables overpayment credits.
-	// Do not use its narrow creation permission to repair unrelated historical sales.
+	let offsetSync = null
 	if (settlementMode !== 'customer_flow' && !options.mobile) {
-		const offsetSyncResults = await syncOffsetCreditsByDates(
-			customer._id,
-			[monthStartOf(date, ''), date],
-			token,
-			requestId
-		)
-		offsetSyncResults.forEach((row) => {
-			if (row.code !== 0) sideWarnings.push(`冲抵款同步失败(${row.date})`)
-			if (row.unresolved_count > 0) sideWarnings.push(`冲抵款存在未消化差额(${row.date})`)
-		})
+		offsetSync = await syncOffsetCreditForSale(saleDoc, token, requestId)
+		if (offsetSync.warning) sideWarnings.push(offsetSync.warning)
 	}
 	if (settlementMode !== 'customer_flow') {
 		const prepayApplyRes = await callCustomerSettlement(
@@ -3116,7 +3171,7 @@ async function createV2(user, payload, requestId, token, options = {}) {
 		)
 		if (prepayApplyRes.code !== 0) {
 			const applyMsg = normalizeString(prepayApplyRes.msg) || '客户预付款抵扣未同步'
-			if (nextApplyOffsetCredit) return { code: prepayApplyRes.code, msg: applyMsg }
+			if (applyOffsetCredit) return { code: prepayApplyRes.code, msg: applyMsg }
 			sideWarnings.push(applyMsg)
 		} else if (toNumber(prepayApplyRes?.data?.applied_amount, 0) > 0) {
 			try {
@@ -3180,6 +3235,7 @@ async function createV2(user, payload, requestId, token, options = {}) {
 		data: {
 			_id: res.id,
 			warning: warningText,
+			offset_sync: offsetSync,
 			...(options.mobile && touchRes.job ? { anomaly_refresh_job: touchRes.job } : {}),
 			bottle_flow_warning_overridden: ignoreBottleFlowWarning && bottleFlowWarnings.length > 0,
 			bottle_flow_warning_count: bottleFlowWarnings.length,
@@ -4781,17 +4837,6 @@ async function updateV2(user, data, requestId, token) {
 		return buildBottleFlowWarningResponse(bottleFlowWarnings)
 	}
 
-	if (bizMode === 'bottle') {
-		const ensureRes = await ensureBottlesExist({
-			customerId: deliveryCustomer._id,
-			customerName: deliveryCustomer.name,
-			outRows,
-			backRows,
-			depositRows
-		})
-		if (!ensureRes.ok) return { code: 400, msg: ensureRes.msg }
-	}
-
 	const flowForCheck = computeFlow(
 		{
 			flow_index_prev: flowIndexPrev,
@@ -4820,7 +4865,7 @@ async function updateV2(user, data, requestId, token) {
 				: Math.max(toNumber(existing && existing.rounding_amount, 0), 0)
 		})
 	const existingOffsetEnabled = resolveSaleOffsetEnabled(existing, true)
-	const nextApplyOffsetCredit = false
+	const nextApplyOffsetCredit = existing.offset_use_status === 'pending' && toBoolean(existing.apply_offset_credit, false)
 	const amountReceived = settlementMode === 'customer_flow' ? 0 : toNumber(existing && existing.amount_received, 0)
 	const nextOffsetEnabled = settlementMode === 'customer_flow' ? false : existingOffsetEnabled
 	const paymentStatus = settlementMode === 'customer_flow'
@@ -4921,6 +4966,24 @@ async function updateV2(user, data, requestId, token) {
 		updateDoc.flow_theory_ratio = null
 	}
 
+	const financialChanged = financialIdentity(existing) !== financialIdentity({ ...existing, ...updateDoc })
+	if (financialChanged && retainedOffsetUse(existing)) return { code: 409, msg: '原使用冲抵结果待核，请先查询原操作，不能变更金额或另建冲抵请求', data: { offset_use: retainedOffsetUse(existing) } }
+	try { await assertOffsetSourceEditable(db, existing, { ...existing, ...updateDoc }) }
+	catch (error) { if (error.code === 409) return { code: 409, msg: error.message }; throw error }
+	// Metadata edits must not manufacture a new operation that repairs historical
+	// balances. A pending operation is continued only through the explicit retry.
+	const shouldSyncOffset = financialChanged && settlementMode !== 'customer_flow'
+	if (shouldSyncOffset) { updateDoc.offset_sync_revision = `offset-${generateRequestId()}`; updateDoc.offset_sync_status = 'pending' }
+	if (bizMode === 'bottle') {
+		const ensureRes = await ensureBottlesExist({
+			customerId: deliveryCustomer._id,
+			customerName: deliveryCustomer.name,
+			outRows,
+			backRows,
+			depositRows
+		})
+		if (!ensureRes.ok) return { code: 400, msg: ensureRes.msg }
+	}
 	await writeSaleSource(db, existing, { ...existing, ...updateDoc }, tx => tx.collection('crm_sale_records').doc(recordId).update(updateDoc))
 	await movements
 		.where({ source_type: 'sale', source_id: recordId })
@@ -4999,24 +5062,14 @@ async function updateV2(user, data, requestId, token) {
 		if (isMissingCollectionError(err)) sideWarnings.push('凭证未同步（缺集合）')
 		else throw err
 	}
-	if (settlementMode !== 'customer_flow') {
-		const offsetSyncResults = await syncOffsetCreditsByDates(
-			customer._id,
-			[
-				monthStartOf(date, ''),
-				date,
-				monthStartOf(normalizeString(existing.date), ''),
-				normalizeString(existing.date)
-			],
-			token,
-			requestId
-		)
-		offsetSyncResults.forEach((row) => {
-			if (row.code !== 0) sideWarnings.push(`冲抵款同步失败(${row.date})`)
-			if (row.unresolved_count > 0) sideWarnings.push(`冲抵款存在未消化差额(${row.date})`)
-		})
+	let offsetSync = retainedOffsetSync(existing)
+	if (shouldSyncOffset) {
+		offsetSync = await syncOffsetCreditForSale({ ...existing, ...updateDoc, _id: recordId }, token, requestId)
 	}
-	if (settlementMode !== 'customer_flow') {
+	if (offsetSync?.warning) sideWarnings.push(offsetSync.warning)
+	const offsetUse = retainedOffsetUse(existing)
+	if (offsetUse?.warning) sideWarnings.push(offsetUse.warning)
+	if (financialChanged && settlementMode !== 'customer_flow') {
 		const prepayApplyRes = await callCustomerSettlement(
 			'autoApplyPrepayToSaleV1',
 			{
@@ -5110,6 +5163,8 @@ async function updateV2(user, data, requestId, token) {
 		msg: warningText ? `更新成功（${warningText}）` : '更新成功',
 		data: {
 			warning: warningText,
+			offset_sync: offsetSync,
+			offset_use: offsetUse,
 			bottle_flow_warning_overridden: ignoreBottleFlowWarning && bottleFlowWarnings.length > 0,
 			bottle_flow_warning_count: bottleFlowWarnings.length,
 			bottle_status_deposit_reconciled_total: bottleDepositReconcileRes.updated_total
@@ -5168,7 +5223,9 @@ async function updateSettlementV1(user, data, requestId, token) {
 	const existingOffsetEnabled = resolveSaleOffsetEnabled(existing, true)
 	const requestedOffsetEnabled = toBoolean(payload.offsetEnabled ?? payload.offset_enabled, existingOffsetEnabled)
 	const existingApplyOffsetCredit = toBoolean(existing && (existing.apply_offset_credit ?? existing.applyOffsetCredit), false)
-	const nextApplyOffsetCredit = toBoolean(payload.applyOffsetCredit ?? payload.apply_offset_credit, existingApplyOffsetCredit)
+	const pendingOffsetUse = retainedOffsetUse(existing)
+	// A pending request is recovered by its own endpoint; unchecking a fresh form cannot cancel its durable authorization.
+	const nextApplyOffsetCredit = pendingOffsetUse ? existingApplyOffsetCredit : toBoolean(payload.applyOffsetCredit ?? payload.apply_offset_credit, existingApplyOffsetCredit)
 	const canApplyOffsetCredit = canUseSaleOffsetCredit(user)
 	if (nextApplyOffsetCredit && !canApplyOffsetCredit) {
 		return { code: 403, msg: '当前账号无使用冲抵款权限，请联系超级管理员授权' }
@@ -5176,7 +5233,8 @@ async function updateSettlementV1(user, data, requestId, token) {
 
 	const effectiveShouldReceive = toNumber(amounts.effective_should_receive, 0)
 	const offsetDelta = fix2(Math.max(0, amountReceived - effectiveShouldReceive))
-	const nextOffsetEnabled = offsetDelta > 0 ? requestedOffsetEnabled : false
+	const settlementAmountsChanged = amountReceived !== toNumber(existing.amount_received, 0) || roundingAmount !== existingRounding
+	const nextOffsetEnabled = offsetDelta > 0 || !settlementAmountsChanged ? requestedOffsetEnabled : false
 	if (existingOffsetEnabled && !nextOffsetEnabled) {
 		const hasAllocated = await hasAllocatedOffsetCreditForSale(normalizeString(existing.customer_id), recordId)
 		if (hasAllocated) return { code: 400, msg: '请先在客户对账回滚/调整冲抵分配' }
@@ -5193,7 +5251,21 @@ async function updateSettlementV1(user, data, requestId, token) {
 		updated_at: Date.now()
 	}
 
-	await sales.doc(recordId).update(updateDoc)
+	const financialChanged = financialIdentity(existing) !== financialIdentity({ ...existing, ...updateDoc })
+	if (financialChanged && pendingOffsetUse) return { code: 409, msg: '原使用冲抵结果待核，请先查询原操作，不能变更金额或另建冲抵请求', data: { offset_use: pendingOffsetUse } }
+	try { await assertOffsetSourceEditable(db, existing, { ...existing, ...updateDoc }) }
+	catch (error) { if (error.code === 409) return { code: 409, msg: error.message }; throw error }
+	if (financialChanged) {
+		updateDoc.offset_sync_revision = `offset-${generateRequestId()}`
+		updateDoc.offset_sync_status = 'pending'
+	}
+	const shouldApplyOffset = !pendingOffsetUse && nextApplyOffsetCredit && (financialChanged || !existingApplyOffsetCredit)
+	if (shouldApplyOffset) {
+		updateDoc.offset_use_revision = `offset-use-${generateRequestId()}`
+		updateDoc.offset_use_status = 'pending'
+		updateDoc.offset_use_error = ''
+	}
+	await writeSaleSource(db, existing, { ...existing, ...updateDoc }, tx => tx.collection('crm_sale_records').doc(recordId).update(updateDoc))
 	const sideWarnings = []
 	try {
 		await syncSaleVoucher(user, { ...existing, ...updateDoc, _id: recordId }, amounts, requestId)
@@ -5204,40 +5276,18 @@ async function updateSettlementV1(user, data, requestId, token) {
 
 	const date = normalizeString(existing && existing.date)
 	const customerId = normalizeString(existing && existing.customer_id)
-	if (date && customerId) {
-		const offsetSyncResults = await syncOffsetCreditsByDates(
-			customerId,
-			[monthStartOf(date, ''), date],
-			token,
-			requestId
-		)
-		offsetSyncResults.forEach((row) => {
-			if (row.code !== 0) sideWarnings.push(`冲抵款同步失败(${row.date})`)
-			if (row.unresolved_count > 0) sideWarnings.push(`冲抵款存在未消化差额(${row.date})`)
-		})
-	}
+	const offsetSync = financialChanged
+		? await syncOffsetCreditForSale({ ...existing, ...updateDoc, _id: recordId }, token, requestId)
+		: retainedOffsetSync(existing)
+	if (offsetSync?.warning) sideWarnings.push(offsetSync.warning)
 
-	const prepayApplyRes = await callCustomerSettlement(
-		'autoApplyPrepayToSaleV1',
-		{
-			sale_id: recordId,
-			exclude_offset_credit: !(nextApplyOffsetCredit && canApplyOffsetCredit)
-		},
-		token,
-		requestId
-	)
-	if (prepayApplyRes.code !== 0) {
-		const applyMsg = normalizeString(prepayApplyRes.msg) || '客户预付款抵扣未同步'
-		if (nextApplyOffsetCredit) return { code: prepayApplyRes.code, msg: applyMsg }
-		sideWarnings.push(applyMsg)
-	} else if (toNumber(prepayApplyRes?.data?.applied_amount, 0) > 0) {
-		try {
-			await resyncSaleVoucherById(user, recordId, requestId)
-		} catch (err) {
-			if (isMissingCollectionError(err)) sideWarnings.push('预付款抵扣后凭证未同步（缺集合）')
-			else throw err
-		}
-	}
+	// An existing use-offset preference is not a new instruction on a note edit.
+	const offsetUse = shouldApplyOffset
+		? (offsetSync?.status === 'pending'
+			? { ...retainedOffsetUse({ ...existing, ...updateDoc, _id: recordId }), warning: '请先确认本单原入池结果，再查询并继续使用冲抵' }
+			: await applyOffsetUseForSale({ ...existing, ...updateDoc, _id: recordId }, user, token, requestId))
+		: pendingOffsetUse
+	if (offsetUse?.warning) sideWarnings.push(offsetUse.warning)
 
 	await recordLog(
 		user,
@@ -5259,7 +5309,7 @@ async function updateSettlementV1(user, data, requestId, token) {
 	return {
 		code: 0,
 		msg: warningText ? `结算更新成功（${warningText}）` : '结算更新成功',
-		data: { warning: warningText }
+		data: { warning: warningText, offset_sync: offsetSync, offset_use: offsetUse }
 	}
 }
 
@@ -5285,6 +5335,8 @@ async function removeV2(user, data, requestId, token) {
 	})
 	saleAccounting.assertSalesClassified(customerSalesBeforeRemove.filter((row) => !saleMentionsHiddenCustomer(row, hiddenCustomerIds)))
 
+	try { await assertOffsetSourceEditable(db, saleDoc, null) }
+	catch (error) { if (error.code === 409) return { code: 409, msg: error.message }; throw error }
 	const source = `sale:${recordId}`
 	const sideWarnings = []
 	const backBottleNosForStartLoss = collectSaleBackBottleNosFromDoc(saleDoc)
@@ -5560,6 +5612,8 @@ const main = async (event, context) => {
 	if (action === 'getMobileCreateResultV1') return mobileSaleService.getResult(user, data)
 	if (action === 'createV2') return createV2(user, data, requestId, token)
 	if (action === 'updateV2') return updateV2(user, data, requestId, token)
+	if (action === 'retryOffsetSyncV1') return retryOffsetSyncV1(user, data, requestId, token)
+	if (action === 'retryOffsetUseV1') return retryOffsetUseV1(user, data, requestId, token)
 	if (action === 'updateSettlementV1') return updateSettlementV1(user, data, requestId, token)
 	if (action === 'removeV2') return removeV2(user, data, requestId, token)
 	if (action === 'listV2') {

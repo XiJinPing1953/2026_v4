@@ -116,6 +116,14 @@
         "null"
       ]
     },
+    "offset_sync_revision": { "bsonType": "string", "description": "本单冲抵同步固定操作号" },
+    "offset_sync_status": { "bsonType": "string", "description": "本单冲抵同步pending或completed" },
+    "offset_sync_completed_at": { "bsonType": "long", "description": "本单冲抵同步完成时间" },
+    "offset_sync_error": { "bsonType": "string", "description": "本单冲抵同步待处理原因" },
+    "offset_use_revision": { "bsonType": "string", "description": "本单明确使用冲抵款的固定操作号，与入池同步独立" },
+    "offset_use_status": { "bsonType": "string", "description": "本单使用冲抵款pending或completed" },
+    "offset_use_completed_at": { "bsonType": "long", "description": "本单使用冲抵款完成时间" },
+    "offset_use_error": { "bsonType": "string", "description": "本单使用冲抵款待处理原因" },
     "offset_enabled": {
       "bsonType": [
         "bool",

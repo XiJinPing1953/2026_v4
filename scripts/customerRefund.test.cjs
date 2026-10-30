@@ -70,3 +70,50 @@ test('支付宝事务doc.get对象响应：退款提交和重复查询保持幂�
  assert.equal(t.crm_customer_receipts.filter(x=>x.source_type==='customer_cash_refund').length,1);
  assert.equal(t.crm_customer_receipts.find(x=>x._id==='offset').unallocated_amount,0);
 })
+
+function withAlipayMissingDocuments(database, { failOperationRead=false } = {}) {
+ const wrapQuery=(query,name,document=false)=>new Proxy(query,{get(target,prop){
+  if(prop==='get')return async()=>{
+   if(failOperationRead && name==='crm_operation_logs')throw Error('operation lookup network unavailable')
+   const result=await target.get();const rows=Array.isArray(result.data)?result.data:result.data?[result.data]:[]
+   if(document && !rows.length)throw Error('支付宝 not found doc')
+   return document?{...result,data:rows[0]}:result
+  }
+  if(['doc','where','limit','orderBy','skip','field'].includes(prop))return(...args)=>wrapQuery(target[prop](...args),name,prop==='doc'||document)
+  return target[prop]
+ }})
+ const wrapDb=db=>({...db,collection:name=>wrapQuery(db.collection(name),name),
+  ...(db.startTransaction?{startTransaction:async()=>wrapDb(await db.startTransaction())}:{})})
+ return wrapDb(database)
+}
+
+test('支付宝缺文档抛错兼容：首次退款、操作查询及原号重试通过真实handler',async()=>{
+ const t=fixture(),db=withAlipayMissingDocuments(mutableDb(t)),h=loadHandler('crm-customer-settlement',db)
+ const before=JSON.stringify(t)
+ const absent=await invoke(h,'getCustomerRefundOperationV1',{customer_id:'customer-1',operation_id:'first-refund-op'})
+ assert.equal(absent.code,0,absent.msg);assert.equal(absent.data.status,'not_found');assert.equal(JSON.stringify(t),before)
+ const source=(await invoke(h,'listCustomerRefundsV1',{customer_id:'customer-1'})).data.sources.find(x=>x.id==='offset')
+ const request={...await prepare(h,{...draft,amount:50,sources:[{id:source.id,version:source.version,amount:50}]}),operation_id:'first-refund-op'}
+ const created=await invoke(h,'createCustomerRefundV1',request)
+ assert.equal(created.code,0,created.msg);assert.equal(created.data.status,'saved')
+ assert.equal(t.crm_customers[0].receipt_allocation_revision,request.operation_id)
+ assert.equal(t.crm_customer_receipts.find(x=>x._id==='offset').unallocated_amount,530)
+ const saved=await invoke(h,'getCustomerRefundOperationV1',{customer_id:'customer-1',operation_id:request.operation_id})
+ assert.equal(saved.code,0,saved.msg);assert.equal(saved.data.refund_id,created.data.refund_id)
+ const repeated=await invoke(h,'createCustomerRefundV1',request)
+ assert.equal(repeated.code,0,repeated.msg);assert.equal(repeated.data.idempotent,true)
+ assert.equal(t.crm_customer_receipts.filter(x=>x.source_type==='customer_cash_refund').length,1)
+ assert.equal(t.crm_customer_receipts.find(x=>x._id==='offset').unallocated_amount,530)
+})
+
+test('退款固定ID查询的网络错误不能被吞成不存在或继续提交',async()=>{
+ const t=fixture(),db=withAlipayMissingDocuments(mutableDb(t),{failOperationRead:true}),h=loadHandler('crm-customer-settlement',db)
+ const source=(await invoke(h,'listCustomerRefundsV1',{customer_id:'customer-1'})).data.sources.find(x=>x.id==='offset')
+ const request=await prepare(h,{...draft,amount:50,sources:[{id:source.id,version:source.version,amount:50}]})
+ const before=JSON.stringify(t)
+ for(const action of ['getCustomerRefundOperationV1','createCustomerRefundV1']) {
+  const result=await invoke(h,action,request)
+  assert.equal(result.code,500);assert.match(result.msg,/network unavailable/)
+  assert.equal(JSON.stringify(t),before)
+ }
+})

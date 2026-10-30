@@ -178,10 +178,10 @@
 							size="sm"
 							kind="primary"
 							:loading="offsetAllocating"
-							:disabled="!isOffsetAdjustmentActive && selectedOffsetReceiptCount <= 0"
+							:disabled="!isOffsetAdjustmentActive && !offsetPendingBatch && !offsetPendingRelease && !offsetRecoveryError && selectedOffsetReceiptCount <= 0"
 							@click="onSubmitOffsetAction"
 						>
-							{{ isOffsetAdjustmentActive ? '保存调整' : '提交冲抵' }}
+							{{ offsetPendingRelease ? '查询删除结果' : (isOffsetAdjustmentActive ? '保存调整' : (offsetPendingBatch || offsetRecoveryError ? '继续上次冲抵' : '提交冲抵')) }}
 						</AppButton>
 					</view>
 					<view v-else-if="activeOperationTab === 'receipt'" class="section-actions">
@@ -1075,8 +1075,13 @@ import CustomerRefundPanel from '@/components/domain/customer/statement/Customer
 import CustomerDepositPanel from '@/components/domain/customer/statement/CustomerDepositPanel.vue'
 import CashierIntakeRecords from '@/components/domain/customer/statement/CashierIntakeRecords.vue'
 import { buildDatePresetRange, detectDatePreset } from '@/utils/datePreset'
+import { getUser } from '@/services/auth'
+import { createOffsetAllocationBatch, readOffsetAllocationBatch, resumeOffsetAllocationBatch, offsetAllocationProgress } from '@/services/models/offsetAllocationRecovery'
+import { readOffsetRelease, resumeOffsetRelease } from '@/services/models/offsetReleaseRecovery'
 import {
 	allocateOffsetCreditV1,
+	getOffsetCreditOperationV1,
+	getOffsetReleaseOperationV1,
 	allocatePrepayReceiptV1,
 	beginReceiptAdjustmentV1,
 	cancelReceiptAdjustmentV1,
@@ -1144,6 +1149,9 @@ const otherFeeSubmitting = ref(false)
 const offsetPoolLoading = ref(false)
 const offsetHistoryLoading = ref(false)
 const offsetAllocating = ref(false)
+const offsetPendingBatch = ref(null)
+const offsetPendingRelease = ref(null)
+const offsetRecoveryError = ref('')
 const prepayReceiptAllocating = ref(false)
 const quickRoundingSubmitting = ref(false)
 let receiptPeriodSummaryTimer = null
@@ -5124,46 +5132,109 @@ function onRowsNext() {
 	loadRows()
 }
 
+function offsetRecoveryKey(customerId) {
+	return `customer-offset-pending:${getUser()?._id || 'unknown'}:${customerId}`
+}
+
+function restoreOffsetAllocation(customerId) {
+	offsetPendingBatch.value = null
+	offsetPendingRelease.value = null
+	offsetRecoveryError.value = ''
+	if (!customerId) return
+	try {
+		offsetPendingBatch.value = readOffsetAllocationBatch(uni.getStorageSync(offsetRecoveryKey(customerId)), customerId)
+		offsetPendingRelease.value = readOffsetRelease(uni.getStorageSync(`${offsetRecoveryKey(customerId)}:release`), customerId)
+	} catch (error) {
+		offsetRecoveryError.value = error.message || '无法读取上次冲抵结果，请核对后再处理。'
+	}
+}
+
+function saveOffsetAllocation(batch, key) {
+	uni.setStorageSync(key, batch)
+	const saved = readOffsetAllocationBatch(uni.getStorageSync(key), batch.customer_id)
+	if (JSON.stringify(saved) !== JSON.stringify(batch)) throw new Error('无法保存冲抵恢复记录，本次未继续提交。')
+	if (recordId.value === batch.customer_id) offsetPendingBatch.value = saved
+}
+
+async function runPendingOffsetAllocation(batch, key) {
+	const customerId = batch.customer_id
+	const result = await resumeOffsetAllocationBatch(batch, {
+		persist: next => saveOffsetAllocation(next, key),
+		allocate: allocateOffsetCreditV1,
+		query: getOffsetCreditOperationV1
+	})
+	let recoveryCleanupPending = false
+	if (result.status !== 'pending') {
+		try { uni.removeStorageSync(key) } catch (_) { recoveryCleanupPending = true }
+	}
+	if (recordId.value !== customerId) return
+	offsetPendingBatch.value = result.status === 'pending' || recoveryCleanupPending ? result.batch : null
+	if (result.status !== 'pending') {
+		offsetCheckedTargetKeys.value = []
+		resetOffsetAllocateForm()
+	}
+	await refreshAfterSave()
+	if (result.status === 'complete' && !result.message && !recoveryCleanupPending) {
+		uni.showToast({ title: `冲抵成功（来源 ${result.applied_source_count} 笔，合计 ¥${formatMoney(result.allocated_total)}）`, icon: 'success' })
+	} else {
+		await uni.showModal({
+			title: result.status === 'pending' ? '冲抵结果待确认' : (result.status === 'rejected' ? '冲抵未全部完成' : '冲抵已保存'),
+			content: `已确认冲抵 ¥${formatMoney(result.allocated_total)}。${result.message}${result.status === 'pending' ? '再次点击“继续上次冲抵”将查询原请求并按原操作号继续。' : ''}${recoveryCleanupPending ? '本地恢复记录暂未清理，已完成的冲抵不会重新提交。' : ''}`,
+			showCancel: false, confirmText: '知道了'
+		})
+	}
+}
+
 async function onAllocateOffsetCredit() {
 	if (!recordId.value || offsetAllocating.value) return
-	const selectedSources = dedupeOffsetSourceRows(selectedOffsetReceipts.value)
-		.filter((row) => toNumber(row?.unallocated_amount, 0) > 0)
-		.sort((a, b) => {
-			const leftDate = normalizeDate(a?.source_sale_date) || normalizeDate(a?.biz_date)
-			const rightDate = normalizeDate(b?.source_sale_date) || normalizeDate(b?.biz_date)
-			if (leftDate !== rightDate) return leftDate < rightDate ? -1 : 1
-			const leftId = normalizeString(a?._id)
-			const rightId = normalizeString(b?._id)
-			return leftId < rightId ? -1 : 1
-		})
-	if (!selectedSources.length) {
-		uni.showToast({ title: '请先选择至少一笔冲抵来源', icon: 'none' })
+	const customerId = recordId.value
+	const storageKey = offsetRecoveryKey(customerId)
+	// Read again before a new batch; another page may have persisted an unfinished request.
+	restoreOffsetAllocation(customerId)
+	if (offsetPendingRelease.value) {
+		await uni.showModal({ title: '请先查询删除结果', content: '上次删除冲抵尚未确认，请先完成原操作。', showCancel: false })
 		return
 	}
-	const allocationPayload = buildOffsetAllocationPayload()
-	if (!allocationPayload) return
-	const available = fix2(selectedSources.reduce((sum, row) => sum + toNumber(row?.unallocated_amount, 0), 0))
-	if (!(available > 0)) {
-		uni.showToast({ title: '所选来源无可用冲抵余额', icon: 'none' })
+	if (offsetRecoveryError.value) {
+		await uni.showModal({ title: '请先核对上次冲抵', content: offsetRecoveryError.value, showCancel: false })
 		return
 	}
-	let amount = Number(offsetAllocateForm.amount)
-	if (!Number.isFinite(amount) || amount <= 0) {
-		uni.showToast({ title: '请输入大于0的冲抵金额', icon: 'none' })
-		return
-	}
-	if (amount > available) amount = available
-
 	offsetAllocating.value = true
 	try {
-		const previewRes = await previewAllocationV1({
-			customerId: recordId.value,
-			amount,
-			allocationMode: allocationPayload.allocationMode,
-			allocationStartDate: allocationPayload.allocationStartDate,
-			allocationEndDate: allocationPayload.allocationEndDate,
-			allocationTargets: allocationPayload.allocationTargets
-		})
+		if (offsetPendingBatch.value) {
+			const batch = offsetPendingBatch.value
+			const progress = offsetAllocationProgress(batch)
+			const confirmed = await showConfirmModal({
+				title: '继续上次冲抵',
+				content: `上次计划冲抵 ¥${formatMoney(batch.amount)}，已确认 ¥${formatMoney(progress.allocated_total)}。将查询原请求结果，并按上次保存的金额和目标继续；不会使用当前重新选择的内容。`,
+				confirmText: '查询并继续'
+			})
+			if (confirmed && customerId === recordId.value) await runPendingOffsetAllocation(batch, storageKey)
+			return
+		}
+		const selectedSources = dedupeOffsetSourceRows(selectedOffsetReceipts.value)
+			.filter(row => toNumber(row?.unallocated_amount, 0) > 0)
+			.sort((a, b) => {
+				const leftDate = normalizeDate(a?.source_sale_date) || normalizeDate(a?.biz_date)
+				const rightDate = normalizeDate(b?.source_sale_date) || normalizeDate(b?.biz_date)
+				if (leftDate !== rightDate) return leftDate < rightDate ? -1 : 1
+				return normalizeString(a?._id).localeCompare(normalizeString(b?._id))
+			})
+		if (!selectedSources.length) {
+			uni.showToast({ title: '请先选择至少一笔冲抵来源', icon: 'none' })
+			return
+		}
+		const allocationPayload = buildOffsetAllocationPayload()
+		if (!allocationPayload) return
+		const available = fixCurrentMoney(selectedSources.reduce((sum, row) => sum + toNumber(row?.unallocated_amount, 0), 0))
+		let amount = Number(offsetAllocateForm.amount)
+		if (!Number.isFinite(amount) || amount <= 0 || !(available > 0)) {
+			uni.showToast({ title: '请输入有效金额并核对来源可用余额', icon: 'none' })
+			return
+		}
+		amount = Math.min(amount, available)
+		const previewRes = await previewAllocationV1({ customerId, amount, ...allocationPayload })
+		if (customerId !== recordId.value) return
 		if (previewRes?.code !== 0) {
 			uni.showToast({ title: previewRes?.msg || '冲抵分配失败', icon: 'none' })
 			return
@@ -5171,69 +5242,16 @@ async function onAllocateOffsetCredit() {
 		if (allocationPayload.allocationMode === 'period') syncOffsetPeriodSummaryFromPlan(previewRes?.data || {})
 		const maxAllocatable = toNumber(previewRes?.data?.allocated_total, 0)
 		if (!(maxAllocatable > 0)) {
-			uni.showToast({
-				title: allocationPayload.allocationMode === 'period' ? '当前时间段内无可冲抵欠款' : '当前勾选目标无可冲抵欠款',
-				icon: 'none'
-			})
+			uni.showToast({ title: '当前选择范围无可冲抵欠款', icon: 'none' })
 			return
 		}
-		const amountToAllocate = Math.min(amount, maxAllocatable)
-		let remaining = amountToAllocate
-		let allocatedTotal = 0
-		let appliedSourceCount = 0
-		let failedMsg = ''
-		for (const source of selectedSources) {
-			if (!(remaining > 0)) break
-			const receiptId = normalizeString(source?._id)
-			if (!receiptId) continue
-			const sourceAvailable = Math.max(toNumber(source?.unallocated_amount, 0), 0)
-			if (!(sourceAvailable > 0)) continue
-			const applyAmount = Math.min(remaining, sourceAvailable)
-			const res = await allocateOffsetCreditV1({
-				customerId: recordId.value,
-				receiptId,
-				amount: applyAmount,
-				allocationMode: allocationPayload.allocationMode,
-				allocationStartDate: allocationPayload.allocationStartDate,
-				allocationEndDate: allocationPayload.allocationEndDate,
-				allocationTargets: allocationPayload.allocationTargets
-			})
-			if (res?.code !== 0) {
-				failedMsg = normalizeString(res?.msg) || '冲抵分配失败'
-				break
-			}
-			const allocatedDelta = toNumber(res?.data?.allocated_total, 0)
-			if (!(allocatedDelta > 0)) break
-			allocatedTotal = fix2(allocatedTotal + allocatedDelta)
-			remaining = fix2(Math.max(remaining - allocatedDelta, 0))
-			appliedSourceCount += 1
-		}
-		if (!(allocatedTotal > 0)) {
-			uni.showToast({ title: failedMsg || '冲抵分配失败', icon: 'none' })
-			return
-		}
-		offsetCheckedTargetKeys.value = []
-		void refreshAfterSave()
-		const nextRemaining = fix2(Math.max(amountToAllocate - allocatedTotal, 0))
-		const nextAvailable = selectedOffsetReceiptAvailableTotal.value
-		if (nextRemaining > 0) {
-			const suggested = Math.min(nextRemaining, nextAvailable)
-			offsetAllocateForm.amount = suggested > 0 ? formatMoney(suggested) : ''
-		} else {
-			offsetAllocateForm.amount = nextAvailable > 0 ? formatMoney(nextAvailable) : ''
-		}
-		if (failedMsg) {
-			uni.showToast({
-				title: `已冲抵 ¥${formatMoney(allocatedTotal)}，部分来源失败：${failedMsg}`,
-				icon: 'none',
-				duration: 2800
-			})
-		} else {
-			uni.showToast({
-				title: `冲抵成功（来源 ${appliedSourceCount} 笔，合计 ¥${formatMoney(allocatedTotal)}）`,
-				icon: 'success'
-			})
-		}
+		const batch = createOffsetAllocationBatch({ customerId, sources: selectedSources, amount: fixCurrentMoney(Math.min(amount, maxAllocatable)),
+			allocation: allocationPayload, scale: currentMoneyScale.value,
+			makeId: () => `offset-${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}` })
+		saveOffsetAllocation(batch, storageKey)
+		await runPendingOffsetAllocation(batch, storageKey)
+	} catch (error) {
+		await uni.showModal({ title: '冲抵处理未完成', content: error.message || '请查询原操作结果后再处理。', showCancel: false })
 	} finally {
 		offsetAllocating.value = false
 	}
@@ -5242,6 +5260,10 @@ async function onAllocateOffsetCredit() {
 async function onBeginOffsetAdjustment(row) {
 	const receiptId = normalizeString(row?._id)
 	if (!recordId.value || !receiptId || offsetAllocating.value) return
+	if (offsetPendingBatch.value || offsetPendingRelease.value || offsetRecoveryError.value) {
+		uni.showToast({ title: '请先继续上次冲抵并确认结果', icon: 'none' })
+		return
+	}
 	if (isOpeningPrepayReceipt(row) || isDepositTransferReceipt(row)) return
 	if (normalizeString(offsetAdjustingReceiptId.value) === receiptId) return
 	const confirmed = await showConfirmModal({
@@ -5282,6 +5304,14 @@ async function cancelOffsetAdjustment(options = {}) {
 		receiptId,
 		customerId: recordId.value
 	})
+	if (res?.code === 409) {
+		await uni.showModal({ title: '原冲抵调整仍待核对',
+			content: `${res.msg || '该历史冲抵调整不能自动取消。'}\n本次仅退出页面编辑，没有恢复或改写原分配；请保留该笔待核记录。`, showCancel: false, confirmText: '退出编辑' })
+		clearOffsetAdjustmentState()
+		resetOffsetAllocateForm()
+		void refreshAfterSave()
+		return true
+	}
 	if (res?.code !== 0) {
 		uni.showToast({ title: res?.msg || '放弃冲抵调整失败', icon: 'none' })
 		return false
@@ -5335,6 +5365,7 @@ async function onSaveOffsetAdjustment() {
 }
 
 async function onSubmitOffsetAction() {
+	if (offsetPendingRelease.value) { await onRemoveOffsetAllocation(null); return }
 	if (isOffsetAdjustmentActive.value) {
 		await onSaveOffsetAdjustment()
 		return
@@ -5343,40 +5374,57 @@ async function onSubmitOffsetAction() {
 }
 
 async function onRemoveOffsetAllocation(row) {
-	const receiptId = normalizeString(row?._id)
-	if (!recordId.value || !receiptId || offsetAllocating.value) return
-	if (isOpeningPrepayReceipt(row) || isDepositTransferReceipt(row)) return
+	if (!recordId.value || offsetAllocating.value) return
+	const customerId = recordId.value
+	const key = `${offsetRecoveryKey(customerId)}:release`
+	restoreOffsetAllocation(customerId)
+	if (offsetPendingBatch.value || offsetRecoveryError.value) {
+		uni.showToast({ title: offsetRecoveryError.value || '请先继续上次冲抵并确认结果', icon: 'none' })
+		return
+	}
 	if (isOffsetAdjustmentActive.value) {
 		uni.showToast({ title: '请先完成或取消当前冲抵调整', icon: 'none' })
 		return
 	}
-	const allocatedAmount = fix2(toNumber(row?.allocated_amount, 0))
-	if (!(allocatedAmount > 0)) {
-		uni.showToast({ title: '该冲抵来源暂无已分配记录', icon: 'none' })
-		return
-	}
-	const confirmed = await showConfirmModal({
-		title: '删除冲抵分配',
-		content: `将删除这笔来源当前已冲抵的 ¥${formatMoney(allocatedAmount)}，金额退回可用冲抵余额；冲抵来源本身不会作废。确认继续吗？`,
-		confirmText: '删除冲抵'
-	})
-	if (!confirmed) return
 	offsetAllocating.value = true
 	try {
-		const res = await removeOffsetCreditAllocationV1({
-			customerId: recordId.value,
-			receiptId
-		})
-		if (res?.code !== 0) {
-			uni.showToast({ title: res?.msg || '删除冲抵失败', icon: 'none' })
-			return
+		let operation = offsetPendingRelease.value
+		if (operation) {
+			const confirmed = await showConfirmModal({ title: '查询上次删除冲抵', content: '将查询上次删除结果；若尚未保存，将按原操作号和原来源继续，不会处理本次另选的来源。', confirmText: '查询并继续' })
+			if (!confirmed || recordId.value !== customerId) return
+		} else {
+			const receiptId = normalizeString(row?._id)
+			if (!receiptId || isOpeningPrepayReceipt(row) || isDepositTransferReceipt(row)) return
+			if (!row.source_version) throw Error('缺少冲抵来源版本，请刷新冲抵后重新确认。')
+			const allocatedAmount = fixCurrentMoney(toNumber(row.allocated_amount, 0) + toNumber(row.rounding_allocated_amount, 0))
+			if (!(allocatedAmount > 0)) throw Error('该冲抵来源暂无已分配记录。')
+			const confirmed = await showConfirmModal({ title: '删除冲抵分配', content: `将删除这笔来源当前已冲抵的 ¥${formatMoney(allocatedAmount)}，恢复对应欠款并退回本来源可用余额。冲抵来源本身不会作废。确认继续吗？`, confirmText: '删除冲抵' })
+			if (!confirmed || recordId.value !== customerId) return
+			operation = { version: 1, customer_id: customerId, receipt_id: receiptId, expected_source_version: row.source_version,
+				operation_id: `offset-release-${Date.now()}-${Math.random().toString(36).slice(2)}`, attempted: false }
 		}
-		resetOffsetAllocateForm()
-		void refreshAfterSave()
-		uni.showToast({ title: res?.msg || '冲抵分配已删除', icon: 'success' })
-	} finally {
-		offsetAllocating.value = false
-	}
+		const persist = next => {
+			uni.setStorageSync(key, next)
+			const saved = readOffsetRelease(uni.getStorageSync(key), customerId)
+			if (JSON.stringify(saved) !== JSON.stringify(next)) throw Error('无法保存删除冲抵的恢复记录，本次未继续提交。')
+			if (recordId.value === customerId) offsetPendingRelease.value = saved
+		}
+		persist(operation)
+		const result = await resumeOffsetRelease(operation, { persist, submit: removeOffsetCreditAllocationV1, query: getOffsetReleaseOperationV1 })
+		let cleanupPending = false
+		if (result.status !== 'pending') { try { uni.removeStorageSync(key) } catch (_) { cleanupPending = true } }
+		if (recordId.value !== customerId) return
+		offsetPendingRelease.value = result.status === 'pending' || cleanupPending ? result.operation : null
+		if (result.status === 'complete') resetOffsetAllocateForm()
+		await refreshAfterSave()
+		if (result.status === 'complete') {
+			await uni.showModal({ title: '冲抵分配已删除', content: `已退回可用冲抵余额 ¥${formatMoney(result.data.released_total)}。${result.data.balance_refresh_pending ? '客户汇总刷新待完成，请刷新核对。' : ''}${cleanupPending ? '本地恢复记录暂未清理，已完成操作不会重复执行。' : ''}`, showCancel: false })
+		} else {
+			await uni.showModal({ title: result.status === 'pending' ? '删除结果待确认' : '冲抵分配未删除', content: result.message, showCancel: false })
+		}
+	} catch (error) {
+		await uni.showModal({ title: '请核对删除冲抵结果', content: error.message || '请查询原操作结果后再处理。', showCancel: false })
+	} finally { offsetAllocating.value = false }
 }
 
 async function onQuickRoundSalesDetailRow(row) {
@@ -5497,6 +5545,7 @@ watch(
 		flowHistoryPage.value = 1
 		receiptTargetPage.value = 1
 		allocationPreviewPage.value = 1
+		restoreOffsetAllocation(id)
 		if (!id) return
 		quickSceneApplied.value = false
 		salesDetailMode.value = 'all'

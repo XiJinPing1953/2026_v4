@@ -74,6 +74,7 @@ test('remaining real receipt can settle a subsequent flow without new cash or ot
  const future={_id:'next-real-flow',customer_id:CUSTOMER_ID,status:'posted',biz_date:'2026-09-09',should_receive:100,amount_received:0,payment_status:'unpaid'}
  t.crm_customer_flow_settlements.push(future);const credit=t.crm_customer_receipts.find(r=>r.status==='posted' && r.unallocated_amount>0),db=mutableDb(t),handler=loadHandler('crm-customer-settlement',db)
  const r=await invoke(handler,'allocatePrepayReceiptV1',{customer_id:CUSTOMER_ID,receipt_id:credit._id,amount:100,allocation_mode:'checked',allocation_targets:[{target_type:'flow_settlement',target_id:future._id}]})
- assert.equal(r.code,0,r.msg);assert.equal(credit.unallocated_amount,36261.68);assert.equal(future.payment_status,'paid')
+ // Transaction commits replace the mock's document snapshots; read persisted state.
+ assert.equal(r.code,0,r.msg);assert.equal(t.crm_customer_receipts.find(row=>row._id===credit._id).unallocated_amount,36261.68);assert.equal(t.crm_customer_flow_settlements.find(row=>row._id===future._id).payment_status,'paid')
  const p=(await q(handler,'getCustomerStatementV1','2025-12-01','2026-09-09')).data.period_summary;assert.equal(p.cash_received,280000);assert.equal(p.complete,true);assert.deepEqual(t.crm_customers.find(r=>r._id==='other'),otherBefore)
 })
