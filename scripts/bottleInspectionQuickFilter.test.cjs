@@ -43,6 +43,18 @@ test('all modules forwards overdue and upcoming state to list and filtered regis
 	}
 })
 
+test('export discards a complete result if the user changes filters during loading', async () => {
+	const {context,view}=makeInspectionView()
+	let resolveLoad,downloaded=false
+	context.loadInspectionCandidates=()=>new Promise(resolve=>{resolveLoad=resolve})
+	context.buildInspectionExportCsv=()=>''
+	context.downloadInspectionCsv=()=>{downloaded=true;return true}
+	const pending=view.onExportFiltered()
+	view.filters.keyword='different filter'
+	resolveLoad([{_id:'one'}]);await pending
+	assert.equal(downloaded,false)
+})
+
 test('quick actions clear old scope, filter active bottles and preselect the matching project', async () => {
 	const { view, requests } = makeInspectionView()
 	view.filters.keyword = 'old keyword'
