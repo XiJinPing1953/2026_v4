@@ -7,12 +7,16 @@ const vm = require('node:vm')
 test('sales list cached payload restores its own completeness warning when filters change', () => {
 	const source = fs.readFileSync('src/components/domain/sale/SaleListView.vue', 'utf8')
 	const code = source.slice(source.indexOf('function applyResult(payload)'), source.indexOf('\nasync function onSearch(', source.indexOf('function applyResult(payload)')))
-	const context = vm.createContext({ list: { value: [] }, pager: {}, financialIssue: { value: '' }, summary: { value: {} },
+	const context = vm.createContext({ list: { value: [] }, pager: {}, financialIssue: { value: '' }, statusVersionIssue: { value: false }, statusVersionMessage: '版本更新中', summary: { value: {} },
 		toNumber: (value, fallback) => value == null ? fallback : Number(value) })
 	vm.runInContext(code, context)
 	const incomplete = { items: [], summary: { accounting_complete: false, unresolved_count: 38 } }
 	context.applyResult(incomplete)
 	assert.match(context.financialIssue.value, /38/)
+	context.statusVersionIssue.value = true
+	context.applyResult({ items: [], summary: { accounting_complete: true } })
+	assert.equal(context.financialIssue.value, '版本更新中')
+	context.statusVersionIssue.value = false
 	context.applyResult({ items: [], summary: { accounting_complete: true } })
 	assert.equal(context.financialIssue.value, '')
 	context.applyResult(incomplete)
@@ -24,7 +28,7 @@ test('sales export rejects a missing, duplicated or changing page instead of exp
 	const code = source.slice(source.indexOf('async function fetchAllRowsForExport()'), source.indexOf('\nfunction compareSaleRows('))
 	const page = (id, total, hasMore) => ({ code: 0, data: id ? [{ _id: id }] : [], paging: { total, hasMore } })
 	async function run(pages) {
-		const context = vm.createContext({ listSalesV2: async () => pages.shift(), buildListParams: () => ({}) })
+		const context = vm.createContext({ listSalesWithStatusVersion: async () => pages.shift(), buildListParams: () => ({}) })
 		vm.runInContext(code, context)
 		return context.fetchAllRowsForExport()
 	}

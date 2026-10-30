@@ -29,6 +29,14 @@ export async function callCloud(name, options={}) {
   window.__mobilePreviewCalls.push({name,action})
   const state=new URLSearchParams(window.location.search).get('fixture')
   if(state==='phone-sale') return phoneSaleFixture(name, action, data)
+  if(state==='refund-status' && name==='crm-sale' && action==='listV2') {
+   const samples=[['待退或冲抵','unpaid',-24,0],['部分处理','partial',-14,-10],['已退款','paid',0,-24],['已转冲抵','paid',0,0]]
+   const records=samples.map(([name,status,balance,received],index)=>({...sale,_id:`refund-demo-${index}`,customer_name:`模拟客户·${name}`,delivery_customer_name:`模拟客户·${name}`,unit_price:8,should_receive:-24,total_net_weight:-3,amount_received:received,payment_status:'paid',list_payment_status:status,list_negative_sale:true,net_outstanding_effective:balance,out_items:[],back_items:[{bottle_no:'61',net:3}],accounting:{status:'resolved'}}))
+   const filtered=records.filter(row=>!data.paymentStatus || (data.paymentStatus==='unsettled' ? row.list_payment_status!=='paid' : row.list_payment_status===data.paymentStatus))
+   const pending=filtered.filter(row=>row.net_outstanding_effective<0)
+   const totals={total:filtered.length,paid:filtered.filter(row=>row.list_payment_status==='paid').length,refund_outstanding_total:pending.reduce((sum,row)=>sum-row.net_outstanding_effective,0),refund_outstanding_count:pending.length,accounting_complete:true}
+   return ok(data.summary_only?[]:filtered,{sale_list_status_version:'refund-status/1',summary:totals,paging:{page:1,pageSize:50,total:filtered.length,hasMore:false}})
+  }
   if(state==='loading') await new Promise(resolve=>setTimeout(resolve,10000))
   if(state==='error') return {code:503,msg:'模拟读取失败，请重试'}
   if(state==='empty' && /^(list|search)/.test(action)) return ok([],{summary:{total:0,active:0,inactive:0,priced:0},paging:{page:1,pageSize:20,total:0,hasMore:false}})
@@ -52,7 +60,7 @@ export async function callCloud(name, options={}) {
  if(name==='crm-dashboard'&&action==='summaryV1') return dashboardFixture(data) || ok({section:data.section,kpi:{sales_month:1234567.89,anomaly_open:3,at_customer:135,in_station:120},daily_report:{rows:[]},receivable:{rows:[],total_receivable:1234567.89,total_received:100000,gap_amount:1134567.89,collection_rate:8.1}});
  if(name==='crm-sale'&&action==='listV2'&&data.include_summary===false&&data.dateStart&&data.dateEnd) {
   const row={...sale,date:data.dateStart,accounting:{status:'resolved',complete:true}};
-  return ok(data.page===1?[row]:[],{paging:{page:data.page,pageSize:data.pageSize,total:1,hasMore:false}});
+  return ok(data.page===1?[row]:[],{sale_list_status_version:'refund-status/1',paging:{page:data.page,pageSize:data.pageSize,total:1,hasMore:false}});
  }
  if(name==='crm-bottle-movement'&&action==='listV1') return ok([{...bottle,type:'out',source_type:'sale',net_weight:56}],{summary,paging:{total:1,page:1,hasMore:false}});
  if(name==='crm-bottle-anomaly'&&action==='typesV1') return ok([]);
@@ -77,7 +85,7 @@ export async function callCloud(name, options={}) {
  if(name==='crm-bottle-movement'&&action==='cycleLossV1') return ok({list:[],incomplete_list:[],summary:{},paging:{total:0,page:1,hasMore:false}});
  if(name==='crm-gas-in'&&action==='getTankConfigV1') return ok({});
  const rows=rowsByName[name]
- if(rows&&['listV1','listV2','listManageV1','listTasksV1'].includes(action)) return ok(structuredClone(rows),{summary,paging:{page:1,pageSize:20,total:rows.length,hasMore:false}})
+ if(rows&&['listV1','listV2','listManageV1','listTasksV1'].includes(action)) return ok(structuredClone(rows),{...(name==='crm-sale'&&action==='listV2'?{sale_list_status_version:'refund-status/1'}:{}),summary,paging:{page:1,pageSize:20,total:rows.length,hasMore:false}})
  if(rows&&['getV1','getV2','getTaskV1'].includes(action)) return ok(structuredClone(rows[0]))
  if(name==='crm-bottle'&&action==='resolveBottleNoV1') return ok(bottle)
  return {code:501,msg:`本地布局预览未配置 ${name}/${action}，没有网络请求`}

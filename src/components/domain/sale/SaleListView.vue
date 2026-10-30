@@ -28,7 +28,7 @@
 					/>
 					<AppStatCard
 						:class="['summary-card', 'summary-card--refund', isSummaryScopeActive('refund_outstanding') ? 'summary-card--active' : '']"
-						label="应退未退"
+						label="待退或冲抵"
 						:value="refundOutstandingText"
 						:hint="refundHintText"
 						icon="alert"
@@ -183,8 +183,8 @@
 						class="sale-item"
 						:title="resolveSaleDisplayCustomerName(item)"
 						:subtitle="item.date"
-							:status="isAccountingUnresolved(item) ? '待核' : paymentStatusText(item.payment_status)"
-							:status-kind="isAccountingUnresolved(item) ? 'warning' : paymentStatusKind(item.payment_status)"
+							:status="saleListStatusText(item)"
+							:status-kind="saleListStatusKind(item)"
 						:icon="getBizModeIcon(item.biz_mode)"
 						:icon-class="getBizModeColor(item.biz_mode)"
 						clickable
@@ -290,6 +290,8 @@ const canViewCustomerStatement = computed(() => canViewPage('/pages/customer/sta
 const list = ref([])
 const exporting = ref(false)
 const financialIssue = ref('')
+const statusVersionIssue = ref(false)
+const statusVersionMessage = '销售状态版本正在更新，请稍后刷新重试'
 const summary = ref({
 	total: 0,
 	paid: 0,
@@ -378,9 +380,9 @@ const bizModeOptions = [
 ]
 const paymentStatusOptions = [
 	{ label: '全部状态', value: '' },
-	{ label: '仅未结清(未付+部分付)', value: 'unsettled' },
-	{ label: '未付款', value: 'unpaid' },
-	{ label: '部分付', value: 'partial' },
+	{ label: '仅未结清', value: 'unsettled' },
+	{ label: '未付款 / 待退抵', value: 'unpaid' },
+	{ label: '部分付 / 部分处理', value: 'partial' },
 	{ label: '已结清', value: 'paid' }
 ]
 const hasRemarkOptions = [
@@ -408,7 +410,7 @@ const hasRemarkIndex = ref(0)
 const remarkTagIndex = ref(0)
 const settlementScopeTextMap = {
 	receivable_outstanding: '应收未收',
-	refund_outstanding: '应退未退',
+	refund_outstanding: '待退或冲抵',
 	net_outstanding_non_zero: '净未收非零',
 	overpaid_or_prereceive: '超收/预收'
 }
@@ -550,7 +552,15 @@ function clearFilterChip(key) {
 	onSearch(true)
 }
 
-const { read: readList, pending: summaryPending, error: summaryError, invalidate: invalidateSummary } = usePagedSummary(listSalesV2, applySummary)
+async function listSalesWithStatusVersion(params) {
+	const result = await listSalesV2(params)
+	if (result?.code === 0 && result.sale_list_status_version !== 'refund-status/1') {
+		return { code: 503, msg: statusVersionMessage, statusVersionMismatch: true }
+	}
+	return result
+}
+
+const { read: readList, pending: summaryPending, error: summaryError, invalidate: invalidateSummary } = usePagedSummary(listSalesWithStatusVersion, applySummary)
 
 const { loading, run: fetchList } = useQuery(
 	async (options = {}) => {
@@ -571,8 +581,9 @@ const { loading, run: fetchList } = useQuery(
 			pageSize: pager.pageSize
 		})
 		if (res?.code !== 0) {
-			financialIssue.value = res?.msg || '销售记录加载失败'
-			throw new Error(res?.msg || '销售记录加载失败')
+			const error = new Error(res?.msg || '销售记录加载失败')
+			error.statusVersionMismatch = Boolean(res?.statusVersionMismatch)
+			throw error
 		}
 		return {
 			items: Array.isArray(res.data) ? res.data : [],
@@ -630,7 +641,18 @@ const { loading, run: fetchList } = useQuery(
 		cacheTTL: 10000,
 		throttleMs: 0,
 			cacheKey: () => null,
+		onSuccess() {
+			statusVersionIssue.value = false
+			if (financialIssue.value === statusVersionMessage) financialIssue.value = ''
+		},
 		onError(err) {
+			if (err?.statusVersionMismatch) {
+				statusVersionIssue.value = true
+				list.value = []
+				pager.total = 0
+				pager.hasMore = false
+			}
+			financialIssue.value = err?.message || '销售记录加载失败'
 			uni.showToast({ title: err?.message || '销售记录加载失败', icon: 'none' })
 		}
 		}
@@ -649,7 +671,7 @@ function applyResult(payload) {
 
 function applySummary(summaryData) {
 	const unresolvedCount = Number(summaryData.unresolved_count || 0)
-	financialIssue.value = summaryData.accounting_complete === false
+	financialIssue.value = statusVersionIssue.value ? statusVersionMessage : summaryData.accounting_complete === false
 		? `当前筛选范围有 ${unresolvedCount} 张历史 m³ 销售单缺少结算归属；记录仍可查看，涉及金额的合计和导出已停用。`
 		: ''
 	summary.value = {
@@ -999,6 +1021,21 @@ function paymentStatusText(value) {
 	return map[value] || value
 }
 
+function saleListStatusText(item) {
+	if (isAccountingUnresolved(item)) return '待核'
+	if (item?.list_negative_sale) {
+		if (Number(item.net_outstanding_effective) > 0) return '超退待核'
+		return { unpaid: '待退或冲抵', partial: '部分处理', paid: '已处理' }[item.list_payment_status] || '待核'
+	}
+	return paymentStatusText(item?.list_payment_status || item?.payment_status)
+}
+
+function saleListStatusKind(item) {
+	if (isAccountingUnresolved(item)) return 'warning'
+	if (item?.list_negative_sale && Number(item.net_outstanding_effective) > 0) return 'warning'
+	return paymentStatusKind(item?.list_payment_status || item?.payment_status)
+}
+
 function paymentStatusKind(value) {
 	const map = {
 		paid: 'success',
@@ -1135,9 +1172,9 @@ function getSettlementState(item) {
 		return { text: '结清', className: 'price-trend--flat' }
 	}
 	if (effectiveShouldReceive < 0) {
-		if (outstanding < 0) return { text: '应退未退', className: 'price-trend--warn' }
+		if (outstanding < 0) return { text: '待退或冲抵', className: 'price-trend--warn' }
 		if (outstanding > 0) return { text: '超退', className: 'price-trend--down' }
-		return { text: '已退款', className: 'price-trend--up' }
+		return { text: '已处理', className: 'price-trend--up' }
 	}
 	if (paidTotal > 0) return { text: '预收', className: 'price-trend--up' }
 	if (paidTotal < 0) return { text: '预退', className: 'price-trend--warn' }
@@ -1236,7 +1273,7 @@ async function fetchAllRowsForExport() {
 	let guard = 0
 	while (hasMore) {
 		if (guard > 500) throw new Error('导出分页异常，请缩小筛选后重试')
-		const res = await listSalesV2(buildListParams(page, 50))
+		const res = await listSalesWithStatusVersion(buildListParams(page, 50))
 		if (res?.code !== 0) throw new Error(res?.msg || '导出查询失败')
 		if (res?.summary?.accounting_complete === false) {
 			throw new Error(`当前筛选范围有 ${Number(res?.summary?.unresolved_count || 0)} 张历史 m³ 销售单待核，不能导出不完整金额`)
@@ -1376,7 +1413,7 @@ function buildExportCsv(rows) {
 			formatMoneyCell(outstanding),
 			row?.delivery_man || '',
 			carNo,
-			paymentStatusText(row?.payment_status),
+			saleListStatusText(row),
 			String(row?.remark || '').trim(),
 			String(row?.system_note || '').trim(),
 			String(row?.payment_note || '').trim()
