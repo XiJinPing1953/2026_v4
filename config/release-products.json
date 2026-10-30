@@ -6,18 +6,36 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.30-sale-refund-status",
+      "version": "2026.10.30-offset-reliability",
       "output": "dist/build/web",
-      "acceptance": "Display negative sale processing consistently with refunds and offset credits; preserve accounting records.",
+      "acceptance": "Current-sale offset synchronization, atomic allocation/release/use, original-operation recovery and historical source protection. Preserve historical accounting and existing entry defaults; no PDA deployment.",
       "deploymentScope": {
         "functions": [
+          "crm-customer-settlement",
           "crm-sale"
         ],
-        "databaseFiles": [],
-        "baseCommit": "84de23413ddc2f1adfdd0050f8237aaea0937a7c",
+        "databaseFiles": [
+          "crm_sale_records.schema.json"
+        ],
+        "baseCommit": "fdd5f9d66a948e8796e3ce4ae7471c06ecc4d5d2",
         "sourceFiles": [
-          "src/components/domain/sale/SaleListView.vue",
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js"
+          "src/components/domain/customer/statement/CustomerStatementModule.vue",
+          "src/components/domain/sale/SaleEditView.vue",
+          "src/services/customerSettlement.js",
+          "src/services/models/offsetAllocationRecovery.js",
+          "src/services/models/offsetReleaseRecovery.js",
+          "src/services/models/saleSaveWarning.js",
+          "src/services/sale.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerRefund.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/offsetAllocationRelease.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/offsetOperation.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/saleOffsetAllocation.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/saleOffsetSync.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/saleOffsetGuard.js",
+          "uniCloud-alipay/database/crm_sale_records.schema.json",
+          "uniCloud-alipay/database/schema/crm_sale_records.schema.json"
         ],
         "aclCanonicalRevisions": {
           "crm-sale": {
@@ -29,25 +47,49 @@
               "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
               "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
             }
+          },
+          "crm-customer-settlement": {
+            "registry": {
+              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
+              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
+            }
           }
         }
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.30-sale-refund-status",
+      "version": "2026.10.30-offset-reliability",
       "output": "release/cloud",
-      "acceptance": "Display negative sale processing consistently with refunds and offset credits; preserve accounting records.",
+      "acceptance": "Current-sale offset synchronization, atomic allocation/release/use, original-operation recovery and historical source protection. Preserve historical accounting and existing entry defaults; no PDA deployment.",
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
+          "crm-customer-settlement",
           "crm-sale"
         ],
-        "databaseFiles": [],
-        "baseCommit": "84de23413ddc2f1adfdd0050f8237aaea0937a7c",
+        "databaseFiles": [
+          "crm_sale_records.schema.json"
+        ],
+        "baseCommit": "fdd5f9d66a948e8796e3ce4ae7471c06ecc4d5d2",
         "sourceFiles": [
-          "src/components/domain/sale/SaleListView.vue",
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js"
+          "src/components/domain/customer/statement/CustomerStatementModule.vue",
+          "src/components/domain/sale/SaleEditView.vue",
+          "src/services/customerSettlement.js",
+          "src/services/models/offsetAllocationRecovery.js",
+          "src/services/models/offsetReleaseRecovery.js",
+          "src/services/models/saleSaveWarning.js",
+          "src/services/sale.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerRefund.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/offsetAllocationRelease.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/offsetOperation.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/saleOffsetAllocation.js",
+          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/saleOffsetSync.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/saleOffsetGuard.js",
+          "uniCloud-alipay/database/crm_sale_records.schema.json",
+          "uniCloud-alipay/database/schema/crm_sale_records.schema.json"
         ],
         "aclCanonicalRevisions": {
           "crm-sale": {
@@ -58,6 +100,12 @@
             "registry": {
               "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
               "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          },
+          "crm-customer-settlement": {
+            "registry": {
+              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
+              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
             }
           }
         }
