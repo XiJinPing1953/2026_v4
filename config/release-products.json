@@ -18,7 +18,15 @@
         "sourceFiles": [
           "src/components/domain/bottle/BottleInspectionView.vue",
           "src/services/bottleInspectionExport.mjs"
-        ]
+        ],
+        "aclCanonicalRevisions": {
+          "crm-bottle": {
+            "registry": {
+              "commit": "b334c9da11936983d6b1514da2ee95b786d42f71",
+              "sha256": "01ceeccab063663d13b505fcec00017891af9105f250a1b141daf2c643f050c3"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     },
@@ -29,25 +37,14 @@
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
-          "crm-bottle",
-          "crm-bottle-movement"
+          "crm-bottle"
         ],
         "databaseFiles": [],
-        "baseCommit": "f1b07974412013e8f9fd3542676a1aaa5491f370",
-        "sourceFiles": [
-          "src/components/base/AppBottleQueryFloat.vue"
-        ],
         "aclCanonicalRevisions": {
           "crm-bottle": {
             "registry": {
               "commit": "b334c9da11936983d6b1514da2ee95b786d42f71",
               "sha256": "01ceeccab063663d13b505fcec00017891af9105f250a1b141daf2c643f050c3"
-            }
-          },
-          "crm-bottle-movement": {
-            "registry": {
-              "commit": "01638f67599f12aa1582aac0a581f4ef63d83f8a",
-              "sha256": "ca5875fb6017b01bb08fad39895cc7bc9d3f17fe3cc23f7e9fb84af18b209e4f"
             }
           }
         }
