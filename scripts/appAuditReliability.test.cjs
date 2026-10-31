@@ -118,3 +118,20 @@ test('caller-specific cancellation never cancels another identical cloud query',
  jobs[0].resolve({ result: { code: 0 } }); jobs[1].resolve({ result: { code: 0 } })
  assert.equal((await a).code, 499); assert.equal((await b).code, 0)
 })
+
+test('inventory polling pauses in background and discards late success/error after leaving', async () => {
+ const globals = { inventoryVisible: true, inventoryMounted: true, inventoryRevision: 0, inventoryRefreshRunning: false, freshnessTimer: null, inventoryRefreshTimer: null, document: { hidden: false }, clockNow: vue.ref(0), summary: { inventory: { current: { marker: 'preserved' } } } }
+ const timers = new Set(), jobs = []
+ Object.assign(globals, { setInterval: fn => { timers.add(fn); return fn }, clearInterval: fn => timers.delete(fn), console: { warn() {} }, getCurrentGasInventoryV1: () => { const job = deferred(); jobs.push(job); return job.promise } })
+ const source = script('src/components/domain/gasIn/GasInListView.vue'), names = ['refreshCurrentInventory','stopInventoryPolling','startInventoryPolling','inventoryVisibilityChanged']
+ const ast = require('@babel/parser').parse(source, { sourceType: 'module' })
+ const code = ast.program.body.filter(n => n.type === 'FunctionDeclaration' && names.includes(n.id.name)).map(n => source.slice(n.start,n.end)).join('\n')
+ vm.createContext(globals); vm.runInContext(code, globals)
+ globals.startInventoryPolling(); globals.startInventoryPolling(); assert.equal(timers.size, 2)
+ const old = globals.refreshCurrentInventory(); globals.document.hidden = true; globals.inventoryVisibilityChanged(); assert.equal(timers.size, 0)
+ jobs[0].resolve({ code: 0, data: { current: { physical: {} } } }); await old; assert.equal(globals.summary.inventory.current.marker, 'preserved')
+ await globals.refreshCurrentInventory(); assert.equal(jobs.length, 1)
+ globals.document.hidden = false; globals.inventoryVisibilityChanged(); assert.equal(timers.size, 2); assert.equal(jobs.length, 2)
+ globals.inventoryVisible = false; globals.stopInventoryPolling(); jobs[1].reject(Error('late')); await tick()
+ assert.equal(globals.summary.inventory.current.marker, 'preserved'); assert.equal(timers.size, 0)
+})

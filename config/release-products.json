@@ -6,52 +6,17 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.31-app-light",
+      "version": "2026.10.31-app-light.1",
       "output": "dist/build/web",
-      "acceptance": "Application audit: fix signature/draft feedback, stale queries and account caches; coalesce ordinary sale edits, keep durable weighing/submission/leave flushes, omit unused customer suggestion totals, asynchronously read and page reweigh history. Preserve accounting, ACL, original operations and all print scope. H5 and WGT only; crm-filling is an unchanged checked dependency, no cloud/schema/native APK deployment. Device acceptance remains separate.",
+      "acceptance": "Includes application audit fixes from 49ae440. Stop inventory polling while the page or browser is hidden; reject late inventory responses and resume on return. H5 only; no backend/schema/PDA changes.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "d129ed4e4811b6f4a2bfec3e72ef1fcd1e626e60",
+        "baseCommit": "49ae44023613c1ca99a2ac626bdf384d412a5732",
         "sourceFiles": [
-          "src/components/domain/accounting/AccountListView.vue",
-          "src/components/domain/accounting/LedgerGeneralView.vue",
-          "src/components/domain/accounting/LedgerSubView.vue",
-          "src/components/domain/accounting/PeriodListView.vue",
-          "src/components/domain/accounting/ReceivableDetailView.vue",
-          "src/components/domain/accounting/TrialBalanceView.vue",
-          "src/components/domain/accounting/VoucherListView.vue",
-          "src/components/domain/bottle/BottleAnomalyView.vue",
-          "src/components/domain/bottle/BottleListView.vue",
-          "src/components/domain/bottle/BottleMovementView.vue",
-          "src/components/domain/collection/CollectionTaskDetailView.vue",
-          "src/components/domain/collection/CollectionTaskListView.vue",
-          "src/components/domain/customer/CustomerListView.vue",
-          "src/components/domain/delivery/DeliveryListView.vue",
-          "src/components/domain/filling/FillingListView.vue",
-          "src/components/domain/homeSafetyInspection/HomeSafetyInspectionFormView.vue",
-          "src/components/domain/log/OperationLogListView.vue",
-          "src/components/domain/pda/PdaCustomerQueryView.vue",
-          "src/components/domain/pda/PdaMovementQueryView.vue",
-          "src/components/domain/pda/PdaNativeSaleView.vue",
-          "src/components/domain/pda/PdaReweighRecordsView.vue",
-          "src/components/domain/rfid/RfidSessionListView.vue",
-          "src/components/domain/sale/SaleListView.vue",
-          "src/components/domain/stationSafetyInspection/StationSafetyInspectionFormView.vue",
-          "src/components/domain/vehicle/VehicleListView.vue",
-          "src/composables/pda/usePdaReweighRecords.js",
-          "src/composables/pda/usePdaSaleForm.js",
-          "src/composables/pda/usePdaSuggestions.js",
-          "src/composables/useQuery.js",
-          "src/manifest.json",
-          "src/services/api/callCloud.js",
-          "src/services/pda/bottle.js",
-          "src/services/pda/customer.js",
-          "src/services/pda/mobileSaleDraft.js",
-          "src/services/pda/reweighDraft.js",
-          "src/services/pda/reweighHistory.js"
+          "src/components/domain/gasIn/GasInListView.vue"
         ]
       },
       "integrityScope": "deployment"

@@ -172,6 +172,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { onHide, onShow } from '@dcloudio/uni-app'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppList from '@/components/base/AppList.vue'
@@ -208,6 +209,7 @@ const clockNow = ref(Date.now())
 let freshnessTimer = null
 let inventoryRefreshTimer = null
 let inventoryRefreshRunning = false
+let inventoryVisible = false, inventoryMounted = false, inventoryRevision = 0
 
 const pager = reactive({
 	page: 1,
@@ -645,10 +647,12 @@ function applyResult(payload = {}) {
 }
 
 async function refreshCurrentInventory() {
-	if (inventoryRefreshRunning) return
+	if (!inventoryVisible || inventoryRefreshRunning || (typeof document !== 'undefined' && document.hidden)) return
+	const revision = inventoryRevision
 	inventoryRefreshRunning = true
 	try {
 		const res = await getCurrentGasInventoryV1()
+		if (revision !== inventoryRevision || !inventoryVisible) return
 		if (res?.code !== 0) throw new Error(res?.msg || '库存读取失败')
 		const current = res?.data?.current
 		const tank = res?.data?.tank
@@ -668,13 +672,14 @@ async function refreshCurrentInventory() {
 		}
 		clockNow.value = Date.now()
 	} catch (err) {
+		if (revision !== inventoryRevision || !inventoryVisible) return
 		console.warn('[gas-in] refresh current inventory failed', err)
 		summary.inventory.current = buildEmptyCurrentInventory()
 		summary.inventory.current.physical.message = '库存读取失败，暂不可用，请稍后刷新'
 		summary.inventory.current.quality.load_error = true
 		summary.inventory.current.quality.message = normalizeString(err?.message)
 	} finally {
-		inventoryRefreshRunning = false
+		if (revision === inventoryRevision) inventoryRefreshRunning = false
 	}
 }
 
@@ -1033,22 +1038,36 @@ function refresh() {
 
 defineExpose({ refresh })
 
+function stopInventoryPolling() {
+	if (freshnessTimer) clearInterval(freshnessTimer)
+	if (inventoryRefreshTimer) clearInterval(inventoryRefreshTimer)
+	freshnessTimer = null; inventoryRefreshTimer = null
+	inventoryRevision++; inventoryRefreshRunning = false
+}
+function startInventoryPolling() {
+	if (!inventoryMounted || !inventoryVisible || freshnessTimer || (typeof document !== 'undefined' && document.hidden)) return
+	freshnessTimer = setInterval(() => { clockNow.value = Date.now() }, 10000)
+	inventoryRefreshTimer = setInterval(refreshCurrentInventory, 30000)
+}
+function inventoryVisibilityChanged() {
+	if (typeof document !== 'undefined' && document.hidden) stopInventoryPolling()
+	else { startInventoryPolling(); void refreshCurrentInventory() }
+}
+onShow(() => { inventoryVisible = true; startInventoryPolling(); if (inventoryMounted) void refreshCurrentInventory() })
+onHide(() => { inventoryVisible = false; stopInventoryPolling() })
 onMounted(() => {
+	inventoryMounted = true; inventoryVisible = true
 	syncDatePreset()
 	loadTankConfig()
 	onSearch(true)
-	freshnessTimer = setInterval(() => {
-		clockNow.value = Date.now()
-	}, 10000)
-	inventoryRefreshTimer = setInterval(refreshCurrentInventory, 30000)
+	startInventoryPolling()
+	if (typeof document !== 'undefined') document.addEventListener('visibilitychange', inventoryVisibilityChanged)
+})
+onBeforeUnmount(() => {
+	inventoryMounted = false; inventoryVisible = false; stopInventoryPolling()
+	if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', inventoryVisibilityChanged)
 })
 
-onBeforeUnmount(() => {
-	if (freshnessTimer) clearInterval(freshnessTimer)
-	if (inventoryRefreshTimer) clearInterval(inventoryRefreshTimer)
-	freshnessTimer = null
-	inventoryRefreshTimer = null
-})
 </script>
 
 <style scoped>

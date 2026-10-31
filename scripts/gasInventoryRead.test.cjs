@@ -65,7 +65,7 @@ function frontendHarness(call) {
  const names=['buildEmptyCurrentInventory','applyResult','refreshCurrentInventory'];
  const functions=names.map(name=>{const start=vue.indexOf((name==='refreshCurrentInventory'?'async ':'')+'function '+name+'(');const end=vue.indexOf('\n}',start)+2;return vue.slice(start,end)}).join('\n');
  const context={summary:{inventory:{current:{physical:{total_t:12}},tank:{}}},list:{value:[]},pager:{},tankConfigDraft:{value:''},clockNow:{value:0},normalizeString:x=>String(x||''),getInventoryAsOfDate:()=>'',buildEmptyTankTelemetry:()=>({}),buildEmptyTankEstimate:()=>({}),getCurrentGasInventoryV1:call,console:{warn(){}},Date};
- vm.runInNewContext('let inventoryRefreshRunning=false;\n'+functions+'\nthis.apply=applyResult;this.refresh=refreshCurrentInventory;',context);return context;
+ vm.runInNewContext('let inventoryRefreshRunning=false, inventoryVisible=true, inventoryRevision=0;\n'+functions+'\nthis.apply=applyResult;this.refresh=refreshCurrentInventory;',context);return context;
 }
 test('late list response does not reset independently loaded inventory',()=>{
  const ui=frontendHarness();ui.apply({rows:[{_id:'g'}],summary:{total:1,amount_total:123}});assert.equal(ui.summary.inventory.current.physical.total_t,12);assert.equal(ui.summary.amountTotal,123);
