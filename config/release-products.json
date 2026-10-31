@@ -8,7 +8,7 @@
     "web": {
       "version": "2026.10.31-read-performance.1",
       "output": "dist/build/web",
-      "acceptance": "Bounded native chunk reuse must survive oversized sequential scans without raising the memory limit. Cloud date records load independently of local round history; identical pending searches share one request, while refresh after completion remains fresh. Preserve archive integrity, active/pending recovery, ownership, labels and full-round printing. Existing cloud scope is compatibility verification only: this batch uploads no cloud functions, schemas or indexes. Device timing remains separate from synthetic tests.",
+      "acceptance": "Bounded native chunk reuse survives oversized sequential scans without raising memory limits. Cloud date records load independently of local round history; identical pending searches share one request. crm-filling reuses a complete first page for its summary, with complete keyset summary for larger scopes. Preserve ownership, pending recovery, archive/label facts and full-round printing. Actual cloud upload is crm-filling only; other listed cloud dependencies are compatibility verification. No schema/index changes. Device timings are separate from synthetic tests.",
       "deploymentScope": {
         "functions": [
           "crm-auth",
@@ -68,6 +68,7 @@
           "uniCloud-alipay/cloudfunctions/crm-dashboard/performanceTraceLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/performanceTraceLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/reweighRecords.js",
           "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
           "uniCloud-alipay/cloudfunctions/crm-gas-in/pageAclRegistry.js",
           "uniCloud-alipay/cloudfunctions/crm-gas-in/pageAclRegistryLocal.js",
@@ -162,9 +163,9 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.31-performance-trace",
+      "version": "2026.10.31-read-performance.1",
       "output": "release/cloud",
-      "acceptance": "Move completed reweigh rounds to query-only archives; preserve active/pending recovery and label facts. Add bottom pagination and scroll to page start. Explicit ten-minute segmented timing only; preserve deployed business/ACL helpers and native compatibility. Device timing and acceptance recorded separately.",
+      "acceptance": "Bounded native chunk reuse survives oversized sequential scans without raising memory limits. Cloud date records load independently of local round history; identical pending searches share one request. crm-filling reuses a complete first page for its summary, with complete keyset summary for larger scopes. Preserve ownership, pending recovery, archive/label facts and full-round printing. Actual cloud upload is crm-filling only; other listed cloud dependencies are compatibility verification. No schema/index changes. Device timings are separate from synthetic tests.",
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
@@ -225,6 +226,7 @@
           "uniCloud-alipay/cloudfunctions/crm-dashboard/performanceTraceLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/performanceTraceLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/reweighRecords.js",
           "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
           "uniCloud-alipay/cloudfunctions/crm-gas-in/pageAclRegistry.js",
           "uniCloud-alipay/cloudfunctions/crm-gas-in/pageAclRegistryLocal.js",
@@ -367,7 +369,7 @@
     "pda": {
       "version": "1.0.48",
       "output": "release/pda",
-      "acceptance": "Bounded native chunk reuse must survive oversized sequential scans without raising the memory limit. Cloud date records load independently of local round history; identical pending searches share one request, while refresh after completion remains fresh. Preserve archive integrity, active/pending recovery, ownership, labels and full-round printing. Existing cloud scope is compatibility verification only: this batch uploads no cloud functions, schemas or indexes. Device timing remains separate from synthetic tests.",
+      "acceptance": "Bounded native chunk reuse survives oversized sequential scans without raising memory limits. Cloud date records load independently of local round history; identical pending searches share one request. crm-filling reuses a complete first page for its summary, with complete keyset summary for larger scopes. Preserve ownership, pending recovery, archive/label facts and full-round printing. Actual cloud upload is crm-filling only; other listed cloud dependencies are compatibility verification. No schema/index changes. Device timings are separate from synthetic tests.",
       "deploymentScope": {
         "functions": [
           "crm-auth",
@@ -427,6 +429,7 @@
           "uniCloud-alipay/cloudfunctions/crm-dashboard/performanceTraceLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/performanceTraceLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/reweighRecords.js",
           "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
           "uniCloud-alipay/cloudfunctions/crm-gas-in/pageAclRegistry.js",
           "uniCloud-alipay/cloudfunctions/crm-gas-in/pageAclRegistryLocal.js",

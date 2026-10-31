@@ -15,8 +15,11 @@ function seedRound(app, id = roundId, owner = 'owner') {
 }
 
 function fixture() {
-	const app = makeApp(), collection = app.db.collection.bind(app.db), reads = []
-	app.db.collection = name => {
+	const reads = []
+	// Install the test projection/read probe before the runtime binds DB methods.
+	const app = makeApp({ configureDatabase(db) {
+	const collection = db.collection.bind(db)
+	db.collection = name => {
 		const wrap = query => new Proxy(query, { get(target, key) {
 			if (key === 'field') return fields => {
 				// Existing harness projects top-level keys only. Include each nested
@@ -32,6 +35,7 @@ function fixture() {
 		} })
 		return wrap(collection(name))
 	}
+	} })
 	return { ...app, reads }
 }
 
@@ -67,6 +71,22 @@ test('both query types page beyond ten without gaps at equal timestamps and only
 			.sort((a, b) => b.created_at - a.created_at || b._id.localeCompare(a._id)).map(row => row._id))
 		assert.equal(pages, 5); assert.deepEqual(app.reads, [31, 31, 31, 31, 31])
 		assert.equal(JSON.stringify([...app.db.data(tables[mode])]), before)
+	}
+})
+
+test('summary reuses a complete first page, but never treats a truncated display page as complete', async () => {
+	for (const mode of ['return', 'filling']) for (const count of [0, 1, 30, 31]) {
+		const app = fixture()
+		for (let i = 0; i < count; i++) seed(app, mode, `r${String(i).padStart(3, '0')}`, { round_id: roundId, bottle_no: String(i % 7) })
+		const result = await app.invoke(actions[mode], { date: day, page_size: 30, include_summary: true })
+		assert.equal(result.code, 0)
+		assert.equal(result.data.summary.record_count, count)
+		assert.equal(result.data.summary.bottle_count, Math.min(count, 7))
+		assert.equal(result.data.rows.length, Math.min(count, 30))
+		assert.equal(result.data.has_more, count > 30)
+		assert.deepEqual(app.reads, count <= 30 ? [31] : [31, 100])
+		assert.equal(result.data.summary.rounds.length, mode === 'return' && count ? 1 : 0)
+		if (mode === 'return' && count) assert.equal(result.data.summary.rounds[0].bottle_count, Math.min(count, 7))
 	}
 })
 

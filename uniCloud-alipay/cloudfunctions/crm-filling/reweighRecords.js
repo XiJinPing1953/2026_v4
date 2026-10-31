@@ -91,6 +91,7 @@ function createReweighRecordsService({ db }) {
 			.where(cmd.and(conditions)).orderBy('created_at', 'desc').orderBy('_id', 'desc').limit(size + 1)
 			.field({ _id: true, bottle_no: true, date: true, created_at: true, gross_weight: true, tare_weight: true,
 				...((byRound || data.include_print === true) ? { operation_id: true, round_id: true, 'reweigh.label': true } : {}),
+				...(data.include_summary === true && !cursor ? { round_id: true } : {}),
 				net_weight: true, fill_weight: true, consistency_status: true, 'capture.sampled_at': true,
 				'reweigh.gross_weight': true, 'reweigh.tare_weight': true, 'reweigh.net_weight': true,
 				'reweigh.capture_method': true, 'reweigh.measured_at': true, 'reweigh.capture.sampled_at': true }).get()
@@ -99,15 +100,9 @@ function createReweighRecordsService({ db }) {
 		let summary
 		if (data.include_summary === true && !cursor) {
 			const bottles = new Set(), rounds = new Map()
-			let after = '', count = 0, complete = false
-			// Keyset pages avoid provider aggregate result caps. Never return a partial total.
-			for (let page = 0; page < 200; page++) {
-				const filter = after ? [...summaryConditions, { _id: cmd.gt(after) }] : summaryConditions
-				const part = await db.collection(mode === 'filling' ? 'crm_fillings' : 'crm_return_reweighs')
-					.where(cmd.and(filter)).orderBy('_id', 'asc').limit(100)
-					.field({ _id: true, bottle_no: true, round_id: true, date: true }).get()
-				if (!Array.isArray(part.data)) throw new Error('统计读取未完成，请重试')
-				for (const row of part.data) {
+			let after = '', count = 0, complete = !more
+			const collect = values => {
+				for (const row of values) {
 					count++; bottles.add(text(row.bottle_no))
 					if (mode === 'return' && text(row.round_id)) {
 						const id = text(row.round_id), item = rounds.get(id) || { id, first_time: text(row.date), bottles: new Set() }
@@ -115,6 +110,18 @@ function createReweighRecordsService({ db }) {
 						item.bottles.add(text(row.bottle_no)); rounds.set(id, item)
 					}
 				}
+			}
+			// limit(size + 1) proves completeness only when there is no next page.
+			// Reuse that exact snapshot instead of reading the same small scope twice.
+			if (complete) collect(rows)
+			// Keyset pages avoid provider aggregate result caps. Never return a partial total.
+			for (let page = 0; !complete && page < 200; page++) {
+				const filter = after ? [...summaryConditions, { _id: cmd.gt(after) }] : summaryConditions
+				const part = await db.collection(mode === 'filling' ? 'crm_fillings' : 'crm_return_reweighs')
+					.where(cmd.and(filter)).orderBy('_id', 'asc').limit(100)
+					.field({ _id: true, bottle_no: true, round_id: true, date: true }).get()
+				if (!Array.isArray(part.data)) throw new Error('统计读取未完成，请重试')
+				collect(part.data)
 				if (part.data.length < 100) { complete = true; break }
 				const next = text(part.data[part.data.length - 1]._id)
 				if (!next || next <= after) throw new Error('统计分页异常，请重试')

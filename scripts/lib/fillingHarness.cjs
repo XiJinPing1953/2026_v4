@@ -109,8 +109,9 @@ function makeDatabase({ nextId, serializeTransactions = true } = {}) {
 	return db
 }
 
-function makeApp({ scan, regulatory, serializeTransactions = true } = {}) {
+function makeApp({ scan, regulatory, serializeTransactions = true, configureDatabase } = {}) {
 	const db = makeDatabase({ serializeTransactions })
+	configureDatabase?.(db)
 	let time = Date.parse('2026-09-06T00:00:00Z')
 	const DateMock = class extends Date { static now() { return time } }
 	const user = { _id: 'owner', username: 'tester', role: 'superadmin', token: 'good' }
