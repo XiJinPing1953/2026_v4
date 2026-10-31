@@ -66,7 +66,8 @@ export function readReweighDraft(ownerId, storage, mode = 'filling', raw = stora
 
 export function createReweighDraftStore(ownerId, storage, currentOwner = () => ownerId, mode = 'filling') {
 	const key = reweighDraftKey(ownerId, mode)
-	let expected = null, previousHistory = null, chunks = []
+	let expected = null, previousHistory = null, chunks = [], lastContent = null
+	const contentToken = (data, parts) => JSON.stringify({ ownerId: data.ownerId, current: data.current, metadata: data.metadata ?? null, historyChunks: parts })
 	function assertWritable() {
 		if (!ownerId || currentOwner() !== ownerId) throw new Error('登录账号已变化，请使用原账号恢复复秤草稿')
 		if (storageToken(storage.getStorageSync(key)) !== expected) throw new Error('复秤草稿已在另一页面更新，请重新进入并恢复最新内容')
@@ -80,6 +81,9 @@ export function createReweighDraftStore(ownerId, storage, currentOwner = () => o
 	}
 	function write(data) {
 		assertWritable()
+		// Hiding/unmounting an unchanged page still checks ownership and conflicts,
+		// but does not rewrite SQLite or advance savedAt.
+		if (data.history === previousHistory && contentToken(data, chunks) === lastContent) return data
 		const history = data.history === previousHistory ? data.history : pruneReweighHistory(data.history)
 		if (history.length !== data.history.length) backup(`${key}:history-backup-before-20261021`, JSON.stringify(data))
 		// Keep a verified original before the first format upgrade. Never truncate history.
@@ -108,7 +112,7 @@ export function createReweighDraftStore(ownerId, storage, currentOwner = () => o
 			if (storageToken(storage.getStorageSync(key)) !== value) throw new Error('复秤草稿写入核对失败')
 			const retained = new Set(nextChunks.map(chunk => chunk.key))
 			for (const chunk of chunks) if (!retained.has(chunk.key)) { try { storage.removeStorageSync?.(chunk.key) } catch (_) {} }
-			chunks = nextChunks; previousHistory = history
+			chunks = nextChunks; previousHistory = history; lastContent = contentToken(data, nextChunks)
 			return { ...data, history }
 		} catch (cause) {
 			if (!committed) for (const name of created) { try { storage.removeStorageSync?.(name) } catch (_) {} }
@@ -128,6 +132,7 @@ export function createReweighDraftStore(ownerId, storage, currentOwner = () => o
 			// Loaded records and history replacements are immutable snapshots.
 			const result = cloneReweigh(data)
 			chunks = result.historyChunks || []; previousHistory = result.version === 2 ? result.history : null
+			lastContent = result.version === 2 ? contentToken(result, chunks) : null
 			return pruneReweighHistory(result.history).length !== result.history.length ? write(result) : result
 		},
 		save(current, history, metadata = null) {

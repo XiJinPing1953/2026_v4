@@ -1,4 +1,4 @@
-/* Native PDA spacing only. Keep controls and the Chrome sales layout unchanged. */
+/* Native PDA spacing and immediate feedback. Browser layouts are unchanged. */
 /* #ifdef APP-PLUS */
 .pda-compact-page :deep(.page__body--padded) { gap: 14rpx; padding: 0 18rpx; }
 .pda-compact-page :deep(.page__header) { padding: 16rpx 20rpx 0; margin-bottom: 14rpx; }
@@ -8,7 +8,7 @@
 .pda-compact-page :deep(.section__header) { padding: 12rpx 18rpx; }
 .pda-compact-page :deep(.section__body) { padding: 16rpx 18rpx; }
 .pda-compact-page { font-size: 16px; }
-.pda-compact-page :deep(.btn) { min-height: 48px; font-size: 16px; }
+.pda-compact-page :deep(.btn) { min-height: 48px; font-size: 16px; transition: none; touch-action: manipulation; }
 .pda-compact-page :deep(.field__input) { font-size: 16px; }
 .pda-compact-page :deep(.field__label) { font-size: 14px; }
 .pda-compact-page :deep(.section__title) { font-size: 18px; }

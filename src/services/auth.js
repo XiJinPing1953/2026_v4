@@ -2,7 +2,36 @@
 
 const TOKEN_KEY = 'crm_token'
 const USER_KEY = 'crm_user'
-let syncPromise = null
+let syncPending = null
+let sessionVersion = 0
+// APP-PLUS has one service context and all auth writes pass through this module.
+// Keep H5 reads live so other tabs' login/logout remains immediately visible.
+let nativeSnapshot = false
+// #ifdef APP-PLUS
+nativeSnapshot = true
+// #endif
+const cache = new Map()
+function readAuth(key, fallback) {
+	if (nativeSnapshot && cache.has(key)) return cache.get(key)
+	const value = uni.getStorageSync(key) || fallback
+	if (nativeSnapshot) cache.set(key, key === USER_KEY ? immutableUser(value) : value)
+	return nativeSnapshot ? cache.get(key) : value
+}
+function immutableUser(value) {
+	if (!value) return null
+	const snapshot = JSON.parse(JSON.stringify(value))
+	function freeze(node) {
+		if (!node || typeof node !== 'object') return node
+		Object.values(node).forEach(freeze)
+		return Object.freeze(node)
+	}
+	return freeze(snapshot)
+}
+function invalidateSession() {
+	sessionVersion++
+	syncPending = null
+	lastSyncAt = 0
+}
 let lastSyncAt = 0
 
 function generateRequestId() {
@@ -12,24 +41,29 @@ function generateRequestId() {
 }
 
 export function getToken() {
-	return uni.getStorageSync(TOKEN_KEY) || ''
+	return readAuth(TOKEN_KEY, '')
 }
 
 export function setToken(token) {
 	uni.setStorageSync(TOKEN_KEY, token || '')
+	cache.set(TOKEN_KEY, token || '')
+	cache.delete(USER_KEY)
+	invalidateSession()
 }
 
 export function clearAuth() {
-	uni.removeStorageSync(TOKEN_KEY)
-	uni.removeStorageSync(USER_KEY)
+	cache.clear()
+	invalidateSession()
+	try { uni.removeStorageSync(TOKEN_KEY) } finally { uni.removeStorageSync(USER_KEY) }
 }
 
 export function getUser() {
-	return uni.getStorageSync(USER_KEY) || null
+	return readAuth(USER_KEY, null)
 }
 
 export function setUser(user) {
 	uni.setStorageSync(USER_KEY, user || null)
+	if (nativeSnapshot) cache.set(USER_KEY, immutableUser(user))
 }
 
 export function getRoleTemplate() {
@@ -46,12 +80,14 @@ export async function syncCurrentUser(options = {}) {
 	if (!token) return { code: 401, msg: '未登录' }
 	const force = Boolean(options.force)
 	const now = Date.now()
-	if (!force && syncPromise) return syncPromise
+	if (syncPending?.version === sessionVersion && syncPending.token === token) return syncPending.promise
 	if (!force && now - lastSyncAt < 5000) {
 		return { code: 0, user: getUser() || null, cached: true }
 	}
 
-	syncPromise = uniCloud
+	const request = { version: sessionVersion, token }
+	const isCurrent = () => request.version === sessionVersion && token === getToken()
+	request.promise = uniCloud
 		.callFunction({
 			name: 'crm-auth',
 			data: {
@@ -62,6 +98,7 @@ export async function syncCurrentUser(options = {}) {
 			timeout: 15000
 		})
 		.then((res) => {
+			if (!isCurrent()) return { code: -1, stale: true, msg: '登录账号已变化，请重新进入' }
 			const result = res?.result || {}
 			if (result.code === 0) {
 				setUser(result.user || null)
@@ -73,8 +110,9 @@ export async function syncCurrentUser(options = {}) {
 		})
 		.catch((err) => ({ code: -1, msg: err?.message || '登录态同步失败' }))
 		.finally(() => {
-			syncPromise = null
+			if (syncPending === request) syncPending = null
 		})
 
-	return syncPromise
+	syncPending = request
+	return request.promise
 }

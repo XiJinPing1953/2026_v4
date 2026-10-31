@@ -56,6 +56,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	let epoch = 0
 	let lifecycleVersion = 0
 	let stopping = Promise.resolve()
+	let deactivated = false
 	let unreadable = false
 	let boundDevice = null
 	try { boundDevice = uni.getStorageSync('pda_ble_scale_bound_device_v1') || null; if (typeof boundDevice === 'string') boundDevice = JSON.parse(boundDevice) } catch (_) {}
@@ -468,6 +469,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		finally { busy.value = false }
 	}
 	async function activate() {
+		deactivated = false
 		const version = ++lifecycleVersion
 		await stopping
 		if (version !== lifecycleVersion) return false
@@ -489,6 +491,8 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		} catch (cause) { fail(cause.message || '扫描头初始化失败') }
 	}
 	async function deactivate() {
+		if (deactivated) return stopping
+		deactivated = true
 		if (!isReturn) printing?.close()
 		historySyncVersion++; historySyncing.value = false; historySyncError.value = ''
 		autoSession = ''; autoWeight.reset(); captureMinimum.value = 0

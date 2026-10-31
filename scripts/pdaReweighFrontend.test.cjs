@@ -625,3 +625,10 @@ test('failed local persistence preserves the round and saved bottle when ending'
  assert.equal(await h.form.endRound(), false)
  assert.equal(h.form.round.value._id, id); assert.equal(h.form.current.value.bottleNo, bottle)
 })
+
+test('hide/unload/unmount share cleanup, while reactivation still stops the next session',async t=>{
+ const h=harness(t);await h.start()
+ await Promise.all([h.form.deactivate(),h.form.deactivate(),h.form.deactivate()])
+ assert.equal(h.stopped(),1)
+ await h.start();await h.form.deactivate();assert.equal(h.stopped(),2)
+})

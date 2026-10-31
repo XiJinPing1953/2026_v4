@@ -113,43 +113,50 @@
 		{
 			"path": "pages/pda/home",
 			"style": {
-				"navigationBarTitleText": "新拓能源"
+				"navigationBarTitleText": "新拓能源",
+				"app-plus": { "animationType": "none", "animationDuration": 0 }
 			}
 		},
 		{
 			"path": "pages/pda/bottle-query",
 			"style": {
-				"navigationBarTitleText": "钢瓶查询"
+				"navigationBarTitleText": "钢瓶查询",
+				"app-plus": { "animationType": "none", "animationDuration": 0 }
 			}
 		},
 		{
 			"path": "pages/pda/movement-query",
 			"style": {
-				"navigationBarTitleText": "钢瓶查询"
+				"navigationBarTitleText": "钢瓶查询",
+				"app-plus": { "animationType": "none", "animationDuration": 0 }
 			}
 		},
 		{
 			"path": "pages/pda/customer-query",
 			"style": {
-				"navigationBarTitleText": "PDA 客户查询"
+				"navigationBarTitleText": "PDA 客户查询",
+				"app-plus": { "animationType": "none", "animationDuration": 0 }
 			}
 		},
 		{
 			"path": "pages/pda/return-reweigh",
 			"style": {
-				"navigationBarTitleText": "回瓶复秤"
+				"navigationBarTitleText": "回瓶复秤",
+				"app-plus": { "animationType": "none", "animationDuration": 0 }
 			}
 		},
 		{
 			"path": "pages/pda/reweigh",
 			"style": {
-				"navigationBarTitleText": "罐装复秤"
+				"navigationBarTitleText": "罐装复秤",
+				"app-plus": { "animationType": "none", "animationDuration": 0 }
 			}
 		},
 		{
 			"path": "pages/pda/sale-create",
 			"style": {
-				"navigationBarTitleText": "手机称重销售"
+				"navigationBarTitleText": "手机称重销售",
+				"app-plus": { "animationType": "none", "animationDuration": 0 }
 			}
 		},
 		{
