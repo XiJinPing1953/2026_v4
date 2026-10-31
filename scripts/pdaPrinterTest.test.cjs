@@ -115,6 +115,7 @@ test('brand and original filling time stay outside the QR and retain the source 
  assert.equal(m.formatFillingPrintTime('2026-10-29'),'2026-10-29（仅日期）')
  for(const bad of [null,1793264400000,'2026-02-30','2026-02-30-09','2026-10-29-24','2026-10-29 24','2026-10-29 09:60','2026-10-29\nPRINT']) assert.equal(m.formatFillingPrintTime(bad),'未记录')
  assert.equal(m.formatFillingPrintTime('2026-10-29 09:12'),'2026-10-29 09:12')
+ assert.equal(m.formatFillingPrintTime('2026-10-29 09:12:57'),'2026-10-29 09:12')
 })
 
 test('reprints use the verified business time without invalidating old weight-only snapshots',async()=>{
@@ -128,10 +129,10 @@ test('reprints use the verified business time without invalidating old weight-on
  const source=fs.readFileSync('src/composables/pda/usePdaFillingPrinter.js','utf8').replace(/^import .*\n/gm,'').replace(/^export /gm,'')
  const context={ref:v=>({value:v}),computed:fn=>({get value(){return fn()}}),onBeforeUnmount(){},getUser:()=>({_id:'u1'}),uni:{},
   createFillingPrintController:options=>(verify=options.verify,{}),verifyCurrentLabel:m.verifyCurrentLabel,
-  getFillingV1:async()=>({code:0,data:row}),issueFillingLabel:async()=>({code:0,data:{qr_url:'issued',filling_time:'2099-01-01 22'}})}
+  getFillingV1:async()=>({code:0,data:row}),issueFillingLabel:async()=>({code:0,data:{qr_url:'issued',...(row.filling_time?{filling_time:'2026-10-29 09:18'}:{})}})}
  const use=vm.runInNewContext(source+';usePdaFillingPrinter',context)
  use({enabled:true,active:()=>true,entries:()=>[e]})
- assert.equal((await verify(e)).filling_time,'2026-10-29-09')
+ assert.equal((await verify(e)).filling_time,'2026-10-29 09:18')
  delete row.filling_time;assert.equal((await verify(e)).filling_time,'2026-10-29')
  delete row.date;assert.equal((await verify(e)).filling_time,'')
 })

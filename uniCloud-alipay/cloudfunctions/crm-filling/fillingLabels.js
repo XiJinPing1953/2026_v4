@@ -1,5 +1,6 @@
 'use strict'
 const crypto = require('crypto')
+const { fillingPrintTime } = require('./fillingPrintTimeLocal')
 const HOST = 'https://xintuonengyuan.com'
 const first = r => (r?.data || [])[0]
 const fields = ['tare_weight', 'gross_weight', 'net_weight']
@@ -39,7 +40,7 @@ function createFillingLabels({ db }) {
    let doc = first(await labels.where({ filling_id:row._id, operation_id:row.operation_id, source_version:version }).limit(1).get())
    if (!doc) { doc = { _id:crypto.randomBytes(24).toString('hex'), filling_id:row._id, operation_id:row.operation_id, source_version:version, snapshot:s, created_at:Date.now(), created_by:user._id }; await labels.add(doc) }
    if (!await current(doc)) return { code:409, msg:'这笔充装信息已失效，请使用最新记录' }
-   return { code:0, data:{ qr_url:qrUrl(doc) } }
+   return { code:0, data:{ qr_url:qrUrl(doc), filling_time:fillingPrintTime(row) } }
   },
   async read(data, authenticated = false) {
    const doc = await lookup(data.token)

@@ -1,5 +1,6 @@
 // Display the saved business time at its original precision. A reprint must not
-// substitute the phone clock, measurement time, or modification timestamp.
+// substitute the phone clock or a later correction timestamp. The server may
+// refine the original business hour using its verified first BLE capture.
 export function formatFillingPrintTime(value) {
  // CRM stores hour-precision filling_time as YYYY-MM-DD-HH. Older display
  // snapshots may already contain a space/T separator; keep both readable.
@@ -12,5 +13,5 @@ export function formatFillingPrintTime(value) {
  const calendar = `${year}-${month}-${day}`
  if (hour === undefined) return `${calendar}（仅日期）`
  if (minute === undefined) return `${calendar} ${hour}时`
- return `${calendar} ${hour}:${minute}${second === undefined ? '' : ':' + second}`
+ return `${calendar} ${hour}:${minute}`
 }

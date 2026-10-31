@@ -50,3 +50,13 @@ test('database snapshot field order never invalidates a matching original label'
  stored.snapshot.gross_weight++
  assert.equal((await h.api.read({token:parsed.token})).data.valid,false)
 })
+
+test('issued print time is original filling minute even after correction and on reprint',async()=>{
+ const h=harness();Object.assign(h.row,{date:'2026-10-29',filling_time:'2026-10-29-09'})
+ h.row.reweigh.original_ble_capture={sampled_at:Date.parse('2026-10-29T09:18:57+08:00'),stable:true}
+ h.row.reweigh.measured_at=Date.parse('2026-10-31T18:45:00+08:00')
+ const first=await h.api.issue({_id:'worker'},{filling_id:'f1',operation_id:'op1'})
+ assert.equal(first.data.filling_time,'2026-10-29 09:18')
+ const again=await h.api.issue({_id:'worker'},{filling_id:'f1',operation_id:'op1'})
+ assert.equal(again.data.filling_time,first.data.filling_time);assert.equal(h.tables.crm_filling_labels.length,1)
+})

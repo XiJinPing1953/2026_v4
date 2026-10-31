@@ -28,3 +28,20 @@ test('time enrichment happens only after existing vehicle/hidden-customer author
  assert.equal((await svc.get({mobile_sale_defaults:{vehicle_id:'other',vehicle_no:'B'}},{id:'s1'})).code,404)
  assert.equal(database.reads(),0)
 })
+
+test('minute precision uses matching original capture, never a later correction or another business day',()=>{
+ const sampled=Date.parse('2026-10-29T09:18:57+08:00')
+ const row={entry_source:'pda_reweigh',source_version:2,filling_time:'2026-10-29-09',reweigh:{original_ble_capture:{sampled_at:sampled,stable:true},capture:{sampled_at:Date.parse('2026-10-31T18:45:00+08:00'),stable:true},measured_at:Date.now()}}
+ assert.equal(fillingPrintTime(row),'2026-10-29 09:18')
+ assert.equal(fillingPrintTime({...row,filling_time:'2026-10-28-09'}),'2026-10-28-09')
+ assert.equal(fillingPrintTime({...row,filling_time:'2026-10-29-08'}),'2026-10-29-08')
+ assert.equal(fillingPrintTime({...row,filling_time:'2026-10-29 09:16:59'}),'2026-10-29 09:16')
+ assert.equal(fillingPrintTime({...row,reweigh:{...row.reweigh,original_ble_capture:null}}),'2026-10-29-09')
+ assert.equal(fillingPrintTime({...row,source_version:1,reweigh:{capture_method:'ble',capture:{sampled_at:sampled,stable:true}}}),'2026-10-29 09:18')
+})
+test('old sales resolve original source minutes; new frozen minute snapshots need no reads',async()=>{
+ const source={_id:'f1',operation_id:'op1',source_version:1,entry_source:'pda_reweigh',bottle_no:'1',filling_time:'2026-10-29-09',reweigh:{label:{...proof},original_ble_capture:{sampled_at:Date.parse('2026-10-29T09:18:57+08:00'),stable:true}}}
+ assert.equal((await withFillingPrintTimes(sale,db([source]))).out_items[0].filling_time,'2026-10-29 09:18')
+ const stored={...sale,mobile_filling_label_sources:[{...proof,filling_time:'2026-10-29 09:18'}]},database=db()
+ assert.equal((await withFillingPrintTimes(stored,database)).out_items[0].filling_time,'2026-10-29 09:18');assert.equal(database.reads(),0)
+})

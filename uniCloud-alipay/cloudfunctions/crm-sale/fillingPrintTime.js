@@ -1,18 +1,11 @@
 "use strict"
-// Business filling time only; never derive this from a reprint/correction timestamp.
-function fillingPrintTime(row) {
- const value = String(row?.filling_time || row?.date || '').trim()
- if (!/^\d{4}-\d{2}-\d{2}(?:-\d{2})?$/.test(value)) return ''
- const day = value.slice(0,10), at = Date.parse(day+'T00:00:00Z')
- if (!Number.isFinite(at) || new Date(at).toISOString().slice(0,10)!==day || (value.length===13 && Number(value.slice(11))>23)) return ''
- return value
-}
+const { fillingPrintTime } = require('./fillingPrintTimeLocal')
 async function withFillingPrintTimes(doc, db) {
  const proofs = Array.isArray(doc.mobile_filling_label_sources) ? doc.mobile_filling_label_sources : []
  const sources = new Map(), ids = [...new Set(proofs.filter(p=>!fillingPrintTime({filling_time:p.filling_time}) && typeof p.filling_id==='string').map(p=>p.filling_id))]
  for (let offset=0;offset<ids.length;offset+=50) {
   const result = await db.collection('crm_fillings').where({_id:db.command.in(ids.slice(offset,offset+50))}).limit(50)
-   .field({_id:true,operation_id:true,source_version:true,bottle_no:true,filling_time:true,date:true,'reweigh.label':true}).get()
+   .field({_id:true,operation_id:true,source_version:true,bottle_no:true,filling_time:true,date:true,entry_source:true,'reweigh.original_ble_capture':true,'reweigh.capture':true,'reweigh.capture_method':true,'reweigh.label':true}).get()
   if (!Array.isArray(result.data)) throw new Error('原灌装时间读取失败，请重试打印')
   for (const row of result.data) sources.set(row._id,row)
  }

@@ -20,7 +20,7 @@ export function usePdaFillingPrinter({ enabled, active, entries }) {
    if (!options.shouldContinue()) throw new Error('打印已取消')
    const result = await issueFillingLabel({ filling_id:entry.receipt.fillingId, operation_id:entry.operationId }, options)
    if (result?.code !== 0 || !result.data?.qr_url) throw new Error(result?.msg || '标签网址暂不可用，请稍后补打')
-   return { ...result.data, filling_time: response.data.filling_time || response.data.date || '' }
+   return { ...result.data, filling_time: result.data.filling_time || response.data.filling_time || response.data.date || '' }
   },
 		report: (id, text) => { messages.value = { ...messages.value, [id]: text } } })
 	async function connect() {

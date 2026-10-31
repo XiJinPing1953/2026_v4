@@ -151,7 +151,7 @@
     "cloud": {
       "version": "2026.10.31-reweigh-light.1",
       "output": "release/cloud",
-      "acceptance": "Candidate only, not deployed: confirmed saved reweighs may end/archive rounds; unknown saves retain original operation IDs and conflicts remain guarded. Processing details/retry are on records query, without an automatic per-record status sweep. PDA opts into durable source-save acknowledgement followed by existing server timer continuation. Preserve 3000ms weighing; isolate BLE cleanup and reject stale connect callbacks. Add native-text company watermarks and original filling business times to labels/receipts. Existing two-copy/signature/feed rules retained. Actual device latency, screen-off reconnection and physical print/QR acceptance remain unverified.",
+      "acceptance": "User authorized release on 2026-10-31: confirmed saved reweighs may end/archive rounds; unknown saves retain original operation IDs and conflicts remain guarded. Processing details/retry are on records query, without an automatic per-record status sweep. PDA opts into durable source-save acknowledgement followed by existing server timer continuation. Preserve 3000ms weighing; isolate BLE cleanup and reject stale connect callbacks. Add native-text company watermarks and original filling business times to minute precision when supported by original capture evidence (never reprint/correction time) to labels/receipts. Existing two-copy/signature/feed rules retained. Actual device latency, screen-off reconnection and physical print/QR acceptance remain unverified.",
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
@@ -177,8 +177,12 @@
           "src/services/pda/reweighHistory.js",
           "src/services/pda/reweighWorkStore.js",
           "src/services/pda/salePrint.js",
+          "uniCloud-alipay/cloudfunctions/common/fillingPrintTime.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/fillingLabels.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/fillingOperations.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/fillingPrintTimeLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/fillingPrintTime.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/fillingPrintTimeLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/pdaSaleRecords.js"
         ],
@@ -246,7 +250,7 @@
     "pda": {
       "version": "1.0.54",
       "output": "release/pda",
-      "acceptance": "Candidate only, not deployed: confirmed saved reweighs may end/archive rounds; unknown saves retain original operation IDs and conflicts remain guarded. Processing details/retry are on records query, without an automatic per-record status sweep. PDA opts into durable source-save acknowledgement followed by existing server timer continuation. Preserve 3000ms weighing; isolate BLE cleanup and reject stale connect callbacks. Add native-text company watermarks and original filling business times to labels/receipts. Existing two-copy/signature/feed rules retained. Actual device latency, screen-off reconnection and physical print/QR acceptance remain unverified.",
+      "acceptance": "User authorized release on 2026-10-31: confirmed saved reweighs may end/archive rounds; unknown saves retain original operation IDs and conflicts remain guarded. Processing details/retry are on records query, without an automatic per-record status sweep. PDA opts into durable source-save acknowledgement followed by existing server timer continuation. Preserve 3000ms weighing; isolate BLE cleanup and reject stale connect callbacks. Add native-text company watermarks and original filling business times to minute precision when supported by original capture evidence (never reprint/correction time) to labels/receipts. Existing two-copy/signature/feed rules retained. Actual device latency, screen-off reconnection and physical print/QR acceptance remain unverified.",
       "deploymentScope": {
         "functions": [
           "crm-filling",
@@ -271,8 +275,12 @@
           "src/services/pda/reweighHistory.js",
           "src/services/pda/reweighWorkStore.js",
           "src/services/pda/salePrint.js",
+          "uniCloud-alipay/cloudfunctions/common/fillingPrintTime.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/fillingLabels.js",
           "uniCloud-alipay/cloudfunctions/crm-filling/fillingOperations.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/fillingPrintTimeLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/fillingPrintTime.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/fillingPrintTimeLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/pdaSaleRecords.js"
         ],
