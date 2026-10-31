@@ -159,21 +159,20 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.41",
+      "version": "1.0.42",
       "output": "release/pda",
-      "acceptance": "PDA 1.0.41: native in-memory immutable auth snapshots with account/late-response isolation; deduplicated reweigh cleanup and unchanged-draft persistence; immediate PDA navigation and button feedback. WGT only; crm-filling is an unchanged runtime dependency, no cloud/schema deployment. Preserve all saved/pending records, scanner/weighing and printing rules. i6310 Pro responsiveness requires device acceptance.",
+      "acceptance": "PDA 1.0.42: recover reweigh drafts/history asynchronously in bounded batches after the lightweight page shell mounts. Block editing until full validation; timeout/read failure cannot become an empty draft, and late account/root changes refuse recovery. Keep 1.0.41 native snapshots and immediate navigation, saved/pending operations and scanner/weighing/printing rules. WGT only; crm-filling remains an unchanged dependency, no cloud/schema deployment. Device entry responsiveness requires field acceptance.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "d49678eca18a18868a884ea46e66cd50fdec180f",
+        "baseCommit": "4f08a8447699a11adeeebbab5cdaeea4c3475e2d",
         "sourceFiles": [
-          "src/components/domain/pda/pdaCompact.scss",
+          "src/components/domain/pda/PdaReweighView.vue",
           "src/composables/pda/usePdaReweigh.js",
           "src/manifest.json",
-          "src/pages.json",
-          "src/services/auth.js",
+          "src/services/pda/asyncStorage.js",
           "src/services/pda/reweighDraft.js"
         ]
       },

@@ -1,3 +1,4 @@
+import { readPdaStorage } from '@/services/pda/asyncStorage'
 import { sameWeighDisplay } from '@/services/pda/weighStatus'
 import { createAutoReweighWeight } from '@/services/pda/autoReturnWeight'
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
@@ -45,6 +46,8 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	const message = ref('请连接吊秤，再按扫描键选瓶。')
 	const error = ref('')
 	const storageError = ref('')
+	const draftLoading = ref(typeof uni.getStorage === 'function')
+	let restorePromise = null
 	const busy = ref(false)
 	const active = ref(false)
 	const scannerReady = ref(false)
@@ -64,11 +67,11 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	// Explicit wrappers also work with uni-app's statically injected storage APIs.
 	const store = createReweighDraftStore(ownerId, {
 		getStorageSync: key => uni.getStorageSync(key),
+		getStorage: key => readPdaStorage(uni, key),
 		setStorageSync: (key, value) => uni.setStorageSync(key, value),
 		removeStorageSync: key => uni.removeStorageSync(key)
 	}, () => String(getUser()?._id || ''), mode)
-	try {
-		const saved = store.load()
+	function restoreSaved(saved) {
 		if (saved) {
 			current.value = saved.current; history.value = saved.history
 			round.value = saved.metadata?.round || null; pendingRound.value = saved.metadata?.pendingRound || null
@@ -77,8 +80,15 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 			localRoundEnded.value = saved.metadata?.localRoundEnded === true; lastEndedRound.value = saved.metadata?.lastEndedRound || null
 			message.value = '已恢复上次记录，已称重量保留；没称好的请连接吊秤后继续。'
 		}
-	} catch (cause) { unreadable = true; storageError.value = cause.message }
-	const locked = computed(() => unreadable || !ownerMatches() || Boolean(current.value.frozen) || Boolean(pendingRound.value) || Boolean(pendingEndRound.value))
+	}
+	function restoreFailed(cause) { unreadable = true; storageError.value = cause.message }
+	function restoreDraft() {
+		if (!draftLoading.value) return Promise.resolve()
+		if (!restorePromise) restorePromise = store.loadAsync().then(restoreSaved).catch(restoreFailed).finally(() => { draftLoading.value = false })
+		return restorePromise
+	}
+	if (!draftLoading.value) { try { restoreSaved(store.load()) } catch (cause) { restoreFailed(cause) } }
+	const locked = computed(() => draftLoading.value || unreadable || !ownerMatches() || Boolean(current.value.frozen) || Boolean(pendingRound.value) || Boolean(pendingEndRound.value))
 	const canCreate = computed(() => canPageAction(pagePath, 'create'))
 	const canNext = computed(() => !busy.value && current.value.receipt?.saved === true)
 	const entryRoundId = entry => entry.roundId || entry.frozen?.payload?.round_id || ''
@@ -93,7 +103,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	const recoveryHistory = computed(() => history.value.filter(item => !item.receipt?.complete && entryRoundId(item) !== round.value?._id))
 	function fail(text) { error.value = text; return false }
 	function persist() {
-		if (unreadable) return false
+		if (draftLoading.value || unreadable) return false
 		try { history.value = store.save(current.value, history.value, { round: round.value, pendingRound: pendingRound.value, pendingEndRound: pendingEndRound.value, localRoundEnded: localRoundEnded.value, lastEndedRound: lastEndedRound.value, ...(isReturn ? { historySyncMeta } : {}) }); storageError.value = ''; return true }
 		catch (cause) { storageError.value = cause.message; return false }
 	}
@@ -473,7 +483,10 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		const version = ++lifecycleVersion
 		await stopping
 		if (version !== lifecycleVersion) return false
+		await restoreDraft()
+		if (version !== lifecycleVersion) return false
 		active.value = true
+		if (unreadable) return false
 		if (!nativeSupported) return fail('请在 PDA 应用中打开复秤')
 		if (isReturn) { roundReady.value = false; await refreshRound({ refreshHistory: false }) }
 		else if (!round.value && !localRoundEnded.value && !unreadable && ownerMatches()) {
@@ -502,6 +515,6 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		await stopping
 	}
 	onBeforeUnmount(() => { unsubscribe(); void deactivate() })
-	return { captureMinimum, current, history, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, startRound, endRound, refreshRound,
+	return { draftLoading, captureMinimum, current, history, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, startRound, endRound, refreshRound,
 		selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText }
 }

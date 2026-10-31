@@ -119,21 +119,52 @@ export function createReweighDraftStore(ownerId, storage, currentOwner = () => o
 			throw cause
 		}
 	}
+	function finishLoad(raw, source = storage) {
+		expected = storageToken(raw)
+		if (!raw) return null
+		const data = readReweighDraft(ownerId, source, mode, raw)
+		const valid = entry => entry && typeof entry.operationId === 'string' && entry.operationId && typeof entry.bottleNo === 'string'
+			&& (!entry.frozen || (['create', 'correct'].includes(entry.frozen.mode) && entry.frozen.payload?.operation_id === entry.operationId && entry.frozen.payload?.bottle_no === entry.bottleNo))
+		if (!valid(data.current) || !data.history.every(valid)) throw new Error('复秤草稿无法读取或识别，原数据已保留')
+		// Loaded records and history replacements are immutable snapshots.
+		const result = cloneReweigh(data)
+		chunks = result.historyChunks || []; previousHistory = result.version === 2 ? result.history : null
+		lastContent = result.version === 2 ? contentToken(result, chunks) : null
+		return pruneReweighHistory(result.history).length !== result.history.length ? write(result) : result
+	}
+	function assertOwner() {
+		if (!ownerId || currentOwner() !== ownerId) throw new Error('登录账号已变化，请使用原账号恢复复秤草稿')
+	}
 	return {
 		load() {
-			if (!ownerId || currentOwner() !== ownerId) throw new Error('请先登录')
-			const raw = storage.getStorageSync(key)
-			expected = storageToken(raw)
-			if (!raw) return null
-			const data = readReweighDraft(ownerId, storage, mode, raw)
-			const valid = entry => entry && typeof entry.operationId === 'string' && entry.operationId && typeof entry.bottleNo === 'string'
-				&& (!entry.frozen || (['create', 'correct'].includes(entry.frozen.mode) && entry.frozen.payload?.operation_id === entry.operationId && entry.frozen.payload?.bottle_no === entry.bottleNo))
-			if (!valid(data.current) || !data.history.every(valid)) throw new Error('复秤草稿无法读取或识别，原数据已保留')
-			// Loaded records and history replacements are immutable snapshots.
-			const result = cloneReweigh(data)
-			chunks = result.historyChunks || []; previousHistory = result.version === 2 ? result.history : null
-			lastContent = result.version === 2 ? contentToken(result, chunks) : null
-			return pruneReweighHistory(result.history).length !== result.history.length ? write(result) : result
+			assertOwner()
+			return finishLoad(storage.getStorageSync(key))
+		},
+		async loadAsync() {
+			assertOwner()
+			const raw = await storage.getStorage(key)
+			const source = new Map([[key, raw]])
+			if (raw) {
+				const head = typeof raw === 'string' ? JSON.parse(raw) : raw
+				if (![1, 2].includes(head?.version) || head.ownerId !== ownerId) throw new Error('复秤草稿无法读取或识别，原数据已保留')
+				if (head.version === 2) {
+					if (!Array.isArray(head.historyChunks)) throw new Error('复秤历史索引无法读取，原数据已保留')
+					const prefix = `${key}:history:`
+					for (const chunk of head.historyChunks) {
+						if (typeof chunk.key !== 'string' || !chunk.key.startsWith(prefix) || !Number.isInteger(chunk.count) || chunk.count < 1 || chunk.count > HISTORY_CHUNK_SIZE) throw new Error('复秤历史索引无法读取，原数据已保留')
+					}
+					// Bound native requests and yield between batches; all records are kept.
+					for (let offset = 0; offset < head.historyChunks.length; offset += 4) {
+						assertOwner()
+						await Promise.all(head.historyChunks.slice(offset, offset + 4).map(async chunk => source.set(chunk.key, await storage.getStorage(chunk.key))))
+					}
+				}
+			}
+			// Another page/account may change while async reads are in flight.
+			const latest = await storage.getStorage(key)
+			assertOwner()
+			if (storageToken(latest) !== storageToken(raw)) throw new Error('复秤草稿已在另一页面更新，请重新进入并恢复最新内容')
+			return finishLoad(raw, { getStorageSync: name => source.get(name) })
 		},
 		save(current, history, metadata = null) {
 			return write({ ownerId, savedAt: Date.now(), current, history, metadata }).history

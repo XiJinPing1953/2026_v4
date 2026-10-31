@@ -93,3 +93,27 @@ test('unchanged drafts still reject a different account',()=>{
  owner='u2';f.reset();assert.throws(()=>store.save(restored.current,restored.history,restored.metadata),/登录账号/)
  assert.equal(f.stats.writes.length,0)
 })
+
+test('async recovery reads all 2000 rows without sync storage reads and bounds concurrent native work',async()=>{
+ const f=fixture(),state=f.store.load();f.store.save(state.current,state.history,state.metadata)
+ let active=0,max=0,sync=0;const storage={...f.storage,getStorageSync(){sync++;throw Error('unexpected sync read')},async getStorage(key){active++;max=Math.max(max,active);await new Promise(r=>setImmediate(r));active--;return f.map.get(key)}}
+ const store=createReweighDraftStore('u1',storage);const loaded=await store.loadAsync()
+ assert.equal(sync,0);assert.equal(max,4);assert.equal(loaded.history.length,2000);assert.equal(loaded.current.operationId,state.current.operationId)
+})
+test('async recovery rejects changes in root, account or missing chunk without writing',async()=>{
+ for(const fault of ['root','owner','chunk']){
+  const f=fixture('return',90),old=f.store.load();f.store.save(old.current,old.history,old.metadata);const root=f.map.get(f.key)
+  let owner='u1',reads=0
+  const storage={...f.storage,async getStorage(key){const turn=++reads;await Promise.resolve();if(turn===2){if(fault==='root')f.map.set(f.key,root+' ');if(fault==='owner')owner='u2';if(fault==='chunk')f.map.delete(JSON.parse(root).historyChunks[0].key)}return f.map.get(key)}}
+  const store=createReweighDraftStore('u1',storage,()=>owner,'return');f.reset()
+  await assert.rejects(store.loadAsync(),fault==='root'?/另一页面/:fault==='owner'?/登录账号/:/分段/)
+  assert.equal(f.stats.writes.length,0)
+ }
+})
+test('async legacy and empty reads keep the original snapshot until an explicit save',async()=>{
+ for(const exists of [true,false]){
+  const f=fixture('return',60);if(!exists)f.map.clear();const before=f.map.get(f.key)
+  const store=createReweighDraftStore('u1',{...f.storage,getStorage:async key=>f.map.get(key)},()=> 'u1','return');f.reset()
+  const state=await store.loadAsync();assert.equal(state?.history.length,exists?60:undefined);assert.equal(f.map.get(f.key),before);assert.equal(f.stats.writes.length,0)
+ }
+})

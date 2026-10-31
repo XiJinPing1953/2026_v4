@@ -10,6 +10,7 @@ function load(file, names, globals = {}) {
 	const source = fs.readFileSync(file, 'utf8').replace(/^import[\s\S]*?\bfrom\s+['"][^'"]+['"]\s*\n/gm, '').replace(/^export /gm, '')
 	return vm.runInNewContext(`${source}\n;({${names.join(',')}})`, { Date, Math, Promise, console, ...globals })
 }
+const asyncStorage = load('src/services/pda/asyncStorage.js', ['readPdaStorage'], { setTimeout, clearTimeout })
 const display = load('src/services/pda/weighStatus.js', ['sameWeighDisplay'])
 const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight'])
 const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt'])
@@ -42,7 +43,7 @@ function harness(t, options = {}) {
 	}
 	const onDestroy = []
 	const stateModule = load('src/composables/pda/usePdaReweigh.js', ['usePdaReweigh', 'reweighChangeText'], {
-		...display, ...draft, ...autoWeight, Date: TestDate, ref: vue.ref, shallowRef: vue.shallowRef, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
+		...asyncStorage, ...display, ...draft, ...autoWeight, Date: TestDate, ref: vue.ref, shallowRef: vue.shallowRef, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
 		getUser: () => ({ _id: owner }), canPageAction: () => options.canCreate !== false,
 		getPdaBleScaleCapabilities: () => ({ transport: options.web ? 'web' : 'native', supported: true }),
 		createPdaBleScaleSession: profile => { assert.equal(profile.preserveMeasurementOnReadTimeout, true); weightFrame = profile.onWeightFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
@@ -78,6 +79,7 @@ function harness(t, options = {}) {
 		},
 		getReturnReweighV1: options.query || (async () => ({ code: 404, msg: '操作未找到' })),
 		uni: {
+			...(options.asyncStorage ? { getStorage: options.asyncStorage, getStorageInfo: p => p.success({ keys: [...storage.keys()] }) } : {}),
 			getStorageSync: key => storage.get(key), setStorageSync: (key, value) => { if (options.storageFails) throw new Error('quota'); storage.set(key, value) },
 			showModal: params => { confirmations.push({ title: params.title, content: params.content }); params.success({ confirm: modalResults.length ? modalResults.shift() : true }) },
 			showActionSheet: params => params.success({ tapIndex: 0 })
@@ -631,4 +633,27 @@ test('hide/unload/unmount share cleanup, while reactivation still stops the next
  await Promise.all([h.form.deactivate(),h.form.deactivate(),h.form.deactivate()])
  assert.equal(h.stopped(),1)
  await h.start();await h.form.deactivate();assert.equal(h.stopped(),2)
+})
+
+
+test('leaving during async recovery never writes an empty draft or activates a hidden scanner', async t => {
+ const first=harness(t);await first.measure('101',120);await first.form.submit();await first.form.deactivate()
+ const original=new Map(first.storage),reads=[]
+ const h=harness(t,{storage:first.storage,asyncStorage:options=>reads.push(options)})
+ assert.equal(h.form.draftLoading.value,true)
+ const starting=h.start();await tick()
+ assert.equal(h.form.active.value,false);assert.equal(h.form.locked.value,true)
+ await h.form.deactivate()
+ while(h.form.draftLoading.value){while(reads.length){const r=reads.shift();r.success({data:h.storage.get(r.key)})}await tick()}
+ await starting
+ assert.equal(h.form.active.value,false);assert.equal(h.form.current.value.bottleNo,'101')
+ assert.equal(h.form.current.value.receipt.saved,true);assert.deepEqual(h.storage,original)
+ const again=h.start();await again;assert.equal(h.form.active.value,true)
+})
+
+test('async recovery completes before round initialization and preserves pending operation id', async t => {
+ const first=harness(t,{send:async()=>{throw Error('offline')}});await first.measure();await first.form.submit();await first.form.deactivate()
+ const id=first.form.current.value.operationId
+ const h=harness(t,{storage:first.storage,asyncStorage:options=>setImmediate(()=>options.success({data:first.storage.get(options.key)}))})
+ await h.start();assert.equal(h.form.draftLoading.value,false);assert.equal(h.form.current.value.operationId,id);assert.ok(h.form.current.value.frozen);assert.equal(h.form.locked.value,true)
 })

@@ -3,6 +3,7 @@
 		<AppSection v-if="!nativeSupported" title="请使用原生 PDA">
 			<text class="hint">本模块使用 PDA 扫描头和 NVK 蓝牙吊秤，请在 PDA 应用中打开。</text>
 		</AppSection>
+		<AppSection v-else-if="draftLoading" title="正在恢复本机记录"><text class="hint" role="status">正在读取已保存的称重记录…</text></AppSection>
 		<template v-else>
 			<text v-if="!canCreate" class="notice notice--error">当前账号没有复秤保存权限。</text>
 			<text v-if="storageError" class="notice notice--error">草稿未能保存：{{ storageError }}。请保留本页，恢复本机存储后再试。</text>
@@ -151,7 +152,7 @@ const props = defineProps({ mode: { type: String, default: 'filling' } })
 const isReturn = props.mode === 'return'
 const printer = usePdaFillingPrinter({ enabled: !isReturn, active: () => form?.active.value && form.nativeSupported, entries: () => [...form.history.value.filter(item => item.operationId !== form.current.value.operationId), form.current.value] })
 const form = usePdaReweigh({ mode: props.mode, printing: isReturn ? null : printer })
-const { captureMinimum, current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, startRound, refreshRound,
+const { draftLoading, captureMinimum, current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, startRound, refreshRound,
 	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText, endRound } = form
 const historyGroups = computed(() => [
 	{ title: '本轮已保存记录', items: roundHistory.value },
