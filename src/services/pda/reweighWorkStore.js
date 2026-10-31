@@ -1,5 +1,4 @@
 import { createReweighDraftStore, createReweighId, validReweighEntry, readReweighDraft, readReweighDraftAsync, reweighDraftKey } from './reweighDraft'
-import { startPerformanceSpan } from '@/services/performanceTrace'
 
 // Native work chunks are immutable UUID snapshots. Keep only a small, short-lived
 // raw-text cache; roots are always read from storage and checked again by the core.
@@ -35,10 +34,10 @@ function workStorage(owner, mode, storage, reuseChunks = false) {
   getStorageSync(name) { const path = physical(name), value = storage.getStorageSync(path); if (cacheable(path)) rememberChunk(path, value); return value },
   async getStorage(name) {
    const path = physical(name), cached = cacheable(path) && chunkCache.get(path)
-   if (cached && cached.until > Date.now()) { startPerformanceSpan('work_chunk_cache_hit')(); return cached.value }
+   if (cached && cached.until > Date.now()) return cached.value
    forgetChunk(path)
-   const finish = startPerformanceSpan(path === key ? 'work_root_read' : 'work_chunk_read')
-   try { const value = await storage.getStorage(path); if (cacheable(path)) rememberChunk(path, value, false); return value } finally { finish() }
+
+   const value = await storage.getStorage(path); if (cacheable(path)) rememberChunk(path, value, false); return value
   },
   setStorageSync(name, value) { const path = physical(name); forgetChunk(path); storage.setStorageSync(path, value) },
   removeStorageSync(name) { const path = physical(name); forgetChunk(path); storage.removeStorageSync?.(path) }
@@ -114,12 +113,10 @@ export function createReweighWorkStore(owner, storage, currentOwner = () => owne
   async loadAsync() {
    const existing = await core.loadAsync()
    if (existing) return accept(existing)
-   const finish = startPerformanceSpan('legacy_migration')
-   try {
-    const raw = await storage.getStorage(legacyKey)
-    const data = await readReweighDraftAsync(owner, storage, mode, () => currentOwner() === owner, raw)
-    return migrate(data, raw)
-   } finally { finish() }
+
+   const raw = await storage.getStorage(legacyKey)
+   const data = await readReweighDraftAsync(owner, storage, mode, () => currentOwner() === owner, raw)
+   return migrate(data, raw)
   },
   save
  }

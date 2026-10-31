@@ -1,5 +1,4 @@
 import { readPdaStorage } from '@/services/pda/asyncStorage'
-import { markPageTrace, startRenderSpan, startPerformanceSpan } from '@/services/performanceTrace'
 import { createLocalFillingRoundsReader } from '@/services/pda/reweighHistory'
 import { listReturnReweighRoundRecordsV1 } from '@/services/api/reweigh'
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
@@ -80,7 +79,6 @@ export function usePdaReweighRecords() {
 			const readerOwner = owner, historyGeneration = historyVersion
 			// Loading another cloud page does not invalidate the independent round picker.
 			const isCurrent = () => active && readerOwner === currentOwner() && historyGeneration === historyVersion
-			const finish = startPerformanceSpan('local_rounds_read')
 			localReady = (async () => {
 				try {
 					const loaded = await readLocalRounds(readerOwner, localStorage, isCurrent)
@@ -90,7 +88,7 @@ export function usePdaReweighRecords() {
 				} catch (cause) {
 					if (isCurrent()) historyError.value = cause.message || '本机历史读取失败，请重新查询'
 					return false
-				} finally { finish() }
+				}
 			})()
 		}
 		if (!append && snapshot.type === 'filling' && snapshot.round_id) {
@@ -100,10 +98,8 @@ export function usePdaReweighRecords() {
 			if (!loaded) return
 			const group = localRounds.find(item => item.id === snapshot.round_id)
 			if (!group) { error.value = '本机未找到此轮次'; return }
-			const finishRender = startRenderSpan('records_list', 'records_render')
 			rows.value = group.rows.filter(item => !snapshot.bottle_no || item.bottle_no === snapshot.bottle_no)
 			summary.value = { record_count: rows.value.length, bottle_count: new Set(rows.value.map(item => item.bottle_no)).size }
-			markPageTrace('records_ready'); void finishRender()
 			return
 		}
 		// Date records are independent of the local archive; fetch them immediately.
@@ -115,7 +111,6 @@ export function usePdaReweighRecords() {
 			if (!validOwner() || version !== queryVersion) return
 			if (response?.code !== 0) throw new Error(response?.msg || '复秤记录查询失败')
 			if (!Array.isArray(response.data?.rows) || (response.data.has_more && !response.data.next_cursor)) throw new Error('复秤记录响应不完整，请重新查询')
-			const finishRender = startRenderSpan('records_list', append ? '' : 'records_render')
 			if (!append) {
 				summary.value = response.data.summary || null
 				if (!snapshot.round_id) rounds.value = snapshot.type === 'filling' ? localRounds : (response.data.summary?.rounds || [])
@@ -124,8 +119,6 @@ export function usePdaReweighRecords() {
 			rows.value = Array.from(new Map([...(append ? rows.value : []), ...incoming].map(item => [item.id, item])).values())
 			cursor = response.data?.next_cursor || null
 			hasMore.value = Boolean(response.data?.has_more && cursor)
-			if (!append) markPageTrace('records_ready')
-			void finishRender()
 		} catch (cause) {
 			if (validOwner() && version === queryVersion) error.value = cause.message || '复秤记录查询失败'
 		} finally {

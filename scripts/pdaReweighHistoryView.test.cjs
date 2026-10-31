@@ -8,7 +8,7 @@ const script = compiler.compileScript(descriptor, { id: 'history-test', inlineTe
 const code = esbuild.transformSync(script.content, { format: 'cjs' }).code
 const Button = { props: ['disabled'], emits: ['click'], setup: (props, { slots, emit }) => () => vue.h('button', { disabled: props.disabled, onClick: () => { if (!props.disabled) emit('click') } }, slots.default?.()) }
 const Section = { props: ['title'], setup: (props, { slots }) => () => vue.h('section', [vue.h('header', props.title), ...(slots.actions?.() || []), ...(slots.default?.() || [])]) }
-const context = { module: { exports: {} }, require: id => id === 'vue' ? vue : id.includes('performanceTrace') ? { startRenderSpan: () => () => {} } : id.includes('useRecordPageScroll') ? { useRecordPageScroll: () => () => {} } : id.includes('AppButton') ? Button : id.includes('AppSection') ? Section : { reweighHistoryTime: () => '2026-10-31' } }
+const context = { module: { exports: {} }, require: id => id === 'vue' ? vue : id.includes('useRecordPageScroll') ? { useRecordPageScroll: () => () => {} } : id.includes('AppButton') ? Button : id.includes('AppSection') ? Section : { reweighHistoryTime: () => '2026-10-31' } }
 vm.runInNewContext(code, context)
 function mount(isReturn = false) {
  const create = (type, text = '') => ({ type, text, children: [], props: {} })

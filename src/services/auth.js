@@ -1,5 +1,4 @@
 // 统一 Auth 存储与清理
-import { startCloudTrace, finishCloudTrace } from './performanceTrace'
 
 const TOKEN_KEY = 'crm_token'
 const USER_KEY = 'crm_user'
@@ -88,7 +87,6 @@ export async function syncCurrentUser(options = {}) {
 
 	const request = { version: sessionVersion, token }
 	const requestId = generateRequestId()
-	const timing = startCloudTrace('crm-auth', 'check', requestId)
 	const isCurrent = () => request.version === sessionVersion && token === getToken()
 	request.promise = uniCloud
 		.callFunction({
@@ -96,13 +94,11 @@ export async function syncCurrentUser(options = {}) {
 			data: {
 				action: 'check',
 				token,
-				request_id: requestId,
-				...(timing ? { _performance_trace: timing.id } : {})
+				request_id: requestId
 			},
 			timeout: 15000
 		})
 		.then((res) => {
-			finishCloudTrace(timing, res?.result)
 			if (!isCurrent()) return { code: -1, stale: true, msg: '登录账号已变化，请重新进入' }
 			const result = res?.result || {}
 			if (result.code === 0) {
@@ -113,7 +109,7 @@ export async function syncCurrentUser(options = {}) {
 			}
 			return result
 		})
-		.catch((err) => { finishCloudTrace(timing, null, true); return { code: -1, msg: err?.message || '登录态同步失败' } })
+		.catch((err) => ({ code: -1, msg: err?.message || '登录态同步失败' }))
 		.finally(() => {
 			if (syncPending === request) syncPending = null
 		})

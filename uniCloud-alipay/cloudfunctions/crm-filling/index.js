@@ -1,5 +1,4 @@
 'use strict'
-const { wrapDatabase, withPerformanceTrace } = require('./performanceTraceLocal')
 const { authorizeMobileSaleEffect } = require('./mobileSaleEffectsLocal')
 
 const { inventoryTon, kgToTon } = require('./gasInventoryPrecisionLocal')
@@ -14,7 +13,7 @@ const confirmedFillLoss = require('./confirmedFillLossLocal')
 
 const crypto = require('crypto')
 const { createFillingOperations, operationKey, VERSION } = require('./fillingOperations')
-const db = wrapDatabase(uniCloud.database())
+const db = uniCloud.database()
 const dbCmd = db.command
 const { readComplete } = require('./financialReadLocal')
 const {
@@ -4602,4 +4601,3 @@ exports.main = async (event, context) => {
 }
 
 // Explicit diagnostic requests only; ordinary requests keep the original response.
-exports.main = withPerformanceTrace(exports.main)

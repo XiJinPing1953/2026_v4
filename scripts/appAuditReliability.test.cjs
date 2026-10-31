@@ -67,7 +67,7 @@ test('suggestions invalidate old responses immediately on typing, selection and 
 })
 test('shared query isolates accounts, rejects cancelled work and does not throttle different filters', async () => {
  let token = 'A', epoch = 0; const jobs = []
- const { useQuery } = load('src/composables/useQuery.js', 'useQuery', { startCloudTrace: () => null, finishCloudTrace() {}, getToken: () => token, getQueryEpoch: () => epoch })
+ const { useQuery } = load('src/composables/useQuery.js', 'useQuery', { getToken: () => token, getQueryEpoch: () => epoch })
  const scope = vue.effectScope(); const api = scope.run(() => useQuery(key => { const job = deferred(); jobs.push(job); return job.promise }, { immediate: false, cacheKey: key => key, cacheTTL: 30000, throttleMs: 500 }))
  const a = api.run('one'), b = api.run('two'); assert.equal(jobs.length, 2)
  jobs[1].resolve(['new']); await b; jobs[0].resolve(['old']); assert.equal(await a, undefined); assert.equal(api.data.value[0], 'new')
@@ -79,7 +79,7 @@ test('shared query isolates accounts, rejects cancelled work and does not thrott
 })
 test('a late response from a previous login never opens auth alerts or logs out the new account', async () => {
  let token = 'old'; const jobs = [], alerts = []
- const { callCloud } = load('src/services/api/callCloud.js', 'callCloud', { startCloudTrace: () => null, finishCloudTrace() {}, getToken: () => token, handle401: () => alerts.push('401'), handle403: () => alerts.push('403'), console: { info() {} }, uniCloud: { callFunction: () => { const job = deferred(); jobs.push(job); return job.promise } } })
+ const { callCloud } = load('src/services/api/callCloud.js', 'callCloud', { getToken: () => token, handle401: () => alerts.push('401'), handle403: () => alerts.push('403'), console: { info() {} }, uniCloud: { callFunction: () => { const job = deferred(); jobs.push(job); return job.promise } } })
  const old = callCloud('crm-customer', { action: 'listV1' }); token = 'new'; jobs[0].resolve({ result: { code: 401 } })
  assert.equal((await old).code, 499); assert.equal(alerts.length, 0)
  const active = callCloud('crm-customer', { action: 'listV1' }); jobs[1].resolve({ result: { code: 403 } }); await active; assert.deepEqual(alerts, ['403'])
@@ -111,7 +111,7 @@ test('customer suggestions omit unused summary and bottle scans while customer q
 })
 test('caller-specific cancellation never cancels another identical cloud query', async () => {
  const jobs = []; let firstCurrent = true
- const { callCloud } = load('src/services/api/callCloud.js', 'callCloud', { startCloudTrace: () => null, finishCloudTrace() {}, getToken: () => 'same', handle401() {}, handle403() {}, console: { info() {} }, uniCloud: { callFunction: () => { const job = deferred(); jobs.push(job); return job.promise } } })
+ const { callCloud } = load('src/services/api/callCloud.js', 'callCloud', { getToken: () => 'same', handle401() {}, handle403() {}, console: { info() {} }, uniCloud: { callFunction: () => { const job = deferred(); jobs.push(job); return job.promise } } })
  const a = callCloud('crm-filling', { action: 'listV1', isResponseCurrent: () => firstCurrent })
  const b = callCloud('crm-filling', { action: 'listV1', isResponseCurrent: () => true })
  assert.equal(jobs.length, 2); firstCurrent = false

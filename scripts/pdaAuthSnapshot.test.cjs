@@ -9,7 +9,6 @@ function harness(native = true) {
  let source = fs.readFileSync('src/services/auth.js', 'utf8').replace(/^import .*\n/gm, '').replace(/^export /gm, '')
  if (!native) source = source.replace(/\/\/ #ifdef APP-PLUS[\s\S]*?\/\/ #endif/g, '')
  const api = vm.runInNewContext(source + '\n;({getToken,getUser,setToken,setUser,clearAuth,syncCurrentUser})', {
-  startCloudTrace: () => null, finishCloudTrace() {},
   uni: { getStorageSync(k) { stats.reads++; return clone(map.get(k)) }, setStorageSync(k,v) { if(failWrite)throw Error('storage failed');map.set(k,clone(v)) }, removeStorageSync:k=>map.delete(k) },
   uniCloud: { callFunction() { stats.checks++; return new Promise(resolve=>pending.push(resolve)) } }
  })

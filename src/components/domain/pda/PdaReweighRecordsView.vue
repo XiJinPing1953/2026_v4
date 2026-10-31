@@ -73,14 +73,13 @@ import { formatWeight } from '@/services/pda/shared'
 import { usePdaReweighRecords } from '@/composables/pda/usePdaReweighRecords'
 
 import { useRecordPageScroll } from '@/composables/pda/useRecordPageScroll'
-import { startRenderSpan } from '@/services/performanceTrace'
 import { historyPrintEntry } from '@/services/pda/reweighHistory'
 import { usePdaFillingPrinter } from '@/composables/pda/usePdaFillingPrinter'
 defineEmits(['back'])
 const form = usePdaReweighRecords()
 const { historyError, summary, rounds, roundId, pageActive, types, type, typeLabel, date, bottleNo, rows, loading, scannerReady, error, hasMore, setFilter, search, loadMore } = form
 const scrollToRecords = useRecordPageScroll('.records-page-start')
-function changeDisplayPage(value) { const finish = startRenderSpan('records_page'); displayPage.value = value; void finish(); void scrollToRecords() }
+function changeDisplayPage(value) { displayPage.value = value; void scrollToRecords() }
 const PAGE_SIZE = 10
 const displayPage = ref(1)
 const displayPages = computed(() => Math.max(1, Math.ceil(rows.value.length / PAGE_SIZE)))

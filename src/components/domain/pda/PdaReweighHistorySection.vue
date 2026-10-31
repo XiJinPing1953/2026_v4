@@ -33,13 +33,12 @@ import { computed, ref } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import { useRecordPageScroll } from '@/composables/pda/useRecordPageScroll'
-import { startRenderSpan } from '@/services/performanceTrace'
 import { reweighHistoryTime } from '@/services/pda/reweighDraft'
 
 const props = defineProps({ title: String, items: { type: Array, required: true }, isReturn: Boolean, busy: Boolean, printer: { type: Object, required: true } })
 defineEmits(['query'])
 const scrollToRecords = useRecordPageScroll('.history-page-start')
-function changePage(value) { const finish = startRenderSpan('history_page'); page.value = value; void finish(); void scrollToRecords() }
+function changePage(value) { page.value = value; void scrollToRecords() }
 const PAGE_SIZE = 10
 const expanded = ref(false), page = ref(1)
 const pageCount = computed(() => Math.max(1, Math.ceil(props.items.length / PAGE_SIZE)))
@@ -50,7 +49,7 @@ const visibleItems = computed(() => {
  const end = Math.max(0, props.items.length - (currentPage.value - 1) * PAGE_SIZE)
  return props.items.slice(Math.max(0, end - PAGE_SIZE), end).reverse()
 })
-function toggle() { const finish = startRenderSpan(expanded.value ? 'history_collapse' : 'history_expand'); page.value = 1; expanded.value = !expanded.value; void finish() }
+function toggle() { page.value = 1; expanded.value = !expanded.value }
 const weight = value => value == null || value === '' || !Number.isFinite(Number(value)) ? '—' : Number(value).toFixed(1)
 const receiptTitle = receipt => receipt?.complete ? '已保存' : receipt?.saved ? '记录已保存，还有信息待核对' : '还没确认是否保存成功'
 // Keep formatting/label validation out of unrelated busy/message rerenders.

@@ -42,7 +42,7 @@ function printView(options = {}) {
  const sends = [], closeCalls = []
  const printer = { busy: ref(false), connected: ref(true), reason: () => '', close: () => { closeCalls.push(true) }, reprint: async item => { sends.push(item.operationId); return options.send ? options.send(item) : true } }
  const source = fs.readFileSync('src/components/domain/pda/PdaReweighRecordsView.vue', 'utf8').match(/<script setup>([\s\S]*?)<\/script>/)[1].replace(/^import.*\n/gm, '')
- const view = vm.runInNewContext(`${source}\n;({printRound,stopBatch,batchBusy,batchMessage,deactivate,visibleRows,displayPage})`, { ...vue, startRenderSpan: () => () => {}, useRecordPageScroll: () => () => {}, watch: () => {}, defineExpose: () => {}, defineEmits: () => {}, usePdaReweighRecords: () => form,
+ const view = vm.runInNewContext(`${source}\n;({printRound,stopBatch,batchBusy,batchMessage,deactivate,visibleRows,displayPage})`, { ...vue, useRecordPageScroll: () => () => {}, watch: () => {}, defineExpose: () => {}, defineEmits: () => {}, usePdaReweighRecords: () => form,
   historyPrintEntry, usePdaFillingPrinter: () => printer, uni: { showModal: params => { assert.ok(params.content.includes(`${rows.length} 张`)); params.success({ confirm: options.confirm !== false }) } } })
  return { view, sends, closeCalls }
 }
@@ -73,7 +73,7 @@ test('batch failure stops without retry and explicit stop closes connection and 
 
 test('async round browsing retains all chunks, reuses an unchanged root and never migrates or writes', async () => {
  const draft = load('src/services/pda/reweighDraft.js', 'reweighDraftKey,readReweighDraftAsync')
- const work = load('src/services/pda/reweighWorkStore.js', 'readReweighHistoryRoot,readReweighHistorySnapshot', { ...draft, startPerformanceSpan: () => () => {} })
+ const work = load('src/services/pda/reweighWorkStore.js', 'readReweighHistoryRoot,readReweighHistorySnapshot', { ...draft, })
  const { createLocalFillingRoundsReader } = load('src/services/pda/reweighHistory.js', 'createLocalFillingRoundsReader', { ...draft, ...work, reweighHistoryTime, savedLabel, supersededOperationIds })
  const key = draft.reweighDraftKey('owner'), map = new Map(), parts = []
  for (let i = 0; i < 50; i++) {

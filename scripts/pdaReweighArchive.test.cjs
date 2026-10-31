@@ -1,7 +1,7 @@
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm')
 const load = (file, names, globals = {}) => vm.runInNewContext(fs.readFileSync(file, 'utf8').replace(/^import .*\n/gm, '').replace(/^export /gm, '') + `;({${names}})`, globals)
 const draft = load('src/services/pda/reweighDraft.js', 'createReweighDraftStore,createReweighId,validReweighEntry,readReweighDraft,readReweighDraftAsync,reweighDraftKey')
-const work = load('src/services/pda/reweighWorkStore.js', 'createReweighWorkStore,readReweighHistoryRoot,readReweighHistorySnapshot', { ...draft, startPerformanceSpan: () => () => {} })
+const work = load('src/services/pda/reweighWorkStore.js', 'createReweighWorkStore,readReweighHistoryRoot,readReweighHistorySnapshot', { ...draft, })
 const row = (id, round = 'old', complete = true) => ({ operationId: `op-${id}`, bottleNo: String(id), roundId: round, date: '2026-10-31 08:00:00',
  receipt: { saved: true, complete, fillingId: `fill-${id}` }, frozen: { mode: 'create', payload: { operation_id: `op-${id}`, bottle_no: String(id) }, label: { bottle_no: String(id), gross_weight: 150, tare_weight: 100, net_weight: 50 } } })
 const empty = () => ({ operationId: 'empty', bottleNo: '' })
@@ -28,7 +28,7 @@ test('native cache only reuses immutable chunks: roots stay fresh, writes invali
 
 test('native chunk reuse is bounded and expires; it never turns missing storage into an empty history', async () => {
  let time=1000;class Clock extends Date {static now(){return time}}
- const cached=load('src/services/pda/reweighWorkStore.js','createReweighWorkStore',{...draft,Date:Clock,startPerformanceSpan:()=>()=>{}})
+ const cached=load('src/services/pda/reweighWorkStore.js','createReweighWorkStore',{...draft,Date:Clock,})
  const f=fixture(),create=()=>cached.createReweighWorkStore('u',f.storage,()=> 'u','filling',{reuseImmutableChunks:true})
  f.seed(Array.from({length:45},(_,i)=>row(i,'active')));await create().loadAsync();time+=60001;f.calls.length=0
  await create().loadAsync();assert.equal(f.calls.filter(x=>x[0]==='async').length,4)
@@ -46,7 +46,7 @@ function fixture(mode = 'filling') {
   owner(value) { owner = value }, fail(value) { fail = value }, seed(history, metadata = { round: { _id: 'active' } }, current = empty()) { map.set(key, JSON.stringify({ version: 1, ownerId: 'u', current, history, metadata })) } }
 }
 test('a round larger than the cache still reuses a bounded subset on repeated sequential scans', async () => {
- const cached = load('src/services/pda/reweighWorkStore.js', 'createReweighWorkStore,cacheState:()=>({units:cacheUnits,size:chunkCache.size})', { ...draft, startPerformanceSpan: () => () => {} })
+ const cached = load('src/services/pda/reweighWorkStore.js', 'createReweighWorkStore,cacheState:()=>({units:cacheUnits,size:chunkCache.size})', { ...draft, })
  const f = fixture(), create = () => cached.createReweighWorkStore('u', f.storage, () => 'u', 'filling', { reuseImmutableChunks: true })
  f.seed(Array.from({ length: 340 }, (_, i) => ({ ...row(i, 'active'), remark: 'x'.repeat(1800) })))
  await create().loadAsync()

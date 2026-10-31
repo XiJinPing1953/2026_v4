@@ -3,7 +3,6 @@
 </template>
 
 <script setup>
-import { markPageAfterRender } from '@/services/performanceTrace'
 import { nextTick, ref } from 'vue'
 import { onHide, onShow, onUnload } from '@dcloudio/uni-app'
 import PdaReweighView from '@/components/domain/pda/PdaReweighView.vue'
@@ -15,7 +14,7 @@ onShow(async () => {
 	visible = true
 	const current = ++version
 	await nextTick()
-	if (visible && current === version) { await viewRef.value?.activate(); if (visible && current === version) void markPageAfterRender() }
+	if (visible && current === version) await viewRef.value?.activate()
 })
 function deactivate() {
 	visible = false

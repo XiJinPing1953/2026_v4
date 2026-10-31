@@ -14,7 +14,7 @@ const asyncStorage = load('src/services/pda/asyncStorage.js', ['readPdaStorage']
 const display = load('src/services/pda/weighStatus.js', ['sameWeighDisplay'])
 const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight'])
 const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt', 'validReweighEntry', 'readReweighDraft', 'readReweighDraftAsync', 'reweighDraftKey'])
-const work = load('src/services/pda/reweighWorkStore.js', ['createReweighWorkStore', 'readReweighHistorySnapshot'], { ...draft, startPerformanceSpan: () => () => {} })
+const work = load('src/services/pda/reweighWorkStore.js', ['createReweighWorkStore', 'readReweighHistorySnapshot'], { ...draft, })
 function harness(t, options = {}) {
 	let clock = Date.now(), weightFrame
 	class TestDate extends Date { static now() { return clock } }
@@ -44,7 +44,7 @@ function harness(t, options = {}) {
 	}
 	const onDestroy = []
 	const stateModule = load('src/composables/pda/usePdaReweigh.js', ['usePdaReweigh', 'reweighChangeText'], {
-		startPerformanceSpan: () => () => {}, markPageTrace: () => {}, ...asyncStorage, ...display, ...draft, ...work, ...autoWeight, Date: TestDate, ref: vue.ref, shallowRef: vue.shallowRef, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
+		...asyncStorage, ...display, ...draft, ...work, ...autoWeight, Date: TestDate, ref: vue.ref, shallowRef: vue.shallowRef, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
 		getUser: () => ({ _id: owner }), canPageAction: () => options.canCreate !== false,
 		getPdaBleScaleCapabilities: () => ({ transport: options.web ? 'web' : 'native', supported: true }),
 		createPdaBleScaleSession: profile => { assert.equal(profile.preserveMeasurementOnReadTimeout, true); weightFrame = profile.onWeightFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
@@ -391,7 +391,7 @@ test('回瓶起吊中途稳定后继续上升，再卸瓶时提交最终悬重',
 
 test('filling uses continuous stable frames, updates both weights without network busy, and preserves unloading result', async t => {
 	const h = harness(t); await h.start(); await h.form.selectBottle('97')
-	h.frames(4, 4000); h.frames(150, 2800)
+	h.frames(4, 4000); h.frames(150, 1800)
 	assert.equal(h.form.current.value.capture, null)
 	h.frames(148)
 	assert.equal(h.form.current.value.grossWeight, 148)
@@ -660,4 +660,15 @@ test('async recovery completes before round initialization and preserves pending
  const id=first.form.current.value.operationId
  const h=harness(t,{storage:first.storage,asyncStorage:options=>setImmediate(()=>options.success({data:first.storage.get(options.key)}))})
  await h.start();assert.equal(h.form.draftLoading.value,false);assert.equal(h.form.current.value.operationId,id);assert.ok(h.form.current.value.frozen);assert.equal(h.form.locked.value,true)
+})
+
+for (const returnMode of [false, true]) test(`${returnMode ? '回瓶' : '罐装'}：2秒只回填，不自动保存；后续完整稳定悬重可修正`, async t => {
+ const h = harness(t, { returnMode }); await h.start(); await h.form.selectBottle('97')
+ h.frames(125, 1900); assert.equal(h.form.current.value.capture, null)
+ h.frames(125, 0); assert.equal(h.form.current.value.grossWeight, 125)
+ assert.equal(h.requests.length, 0, '提前回填不自动生成业务记录')
+ h.frames(148, 1900); assert.equal(h.form.current.value.grossWeight, 125)
+ h.frames(148, 0); assert.equal(h.form.current.value.grossWeight, 148)
+ h.frames(125); assert.equal(h.form.current.value.grossWeight, 148)
+ await h.form.submit(); assert.equal(h.requests[0].payload.gross_weight, 148)
 })

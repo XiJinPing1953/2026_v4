@@ -1,4 +1,3 @@
-import { startPerformanceSpan, markPageTrace } from '@/services/performanceTrace'
 import { readPdaStorage } from '@/services/pda/asyncStorage'
 import { sameWeighDisplay } from '@/services/pda/weighStatus'
 import { createAutoReweighWeight } from '@/services/pda/autoReturnWeight'
@@ -56,7 +55,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	const scannerReady = ref(false)
 	const pendingSession = ref('')
 	const snapshot = ref(createEmptyPdaBleScaleSnapshot())
-	const autoWeight = createAutoReweighWeight()
+	const autoWeight = createAutoReweighWeight({ stableWindowMs: 2000 })
 	const captureMinimum = ref(0)
 	let autoSession = '', autoSequence = 0, autoStartedAt = 0
 	let epoch = 0
@@ -485,14 +484,12 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		const version = ++lifecycleVersion
 		await stopping
 		if (version !== lifecycleVersion) return false
-		const finishRestore = startPerformanceSpan('restore_work')
 		await restoreDraft()
-		finishRestore()
 		if (version !== lifecycleVersion) return false
 		active.value = true
 		if (unreadable) return false
 		if (!nativeSupported) return fail('请在 PDA 应用中打开复秤')
-		if (isReturn) { const finishRound = startPerformanceSpan('round_status'); roundReady.value = false; await refreshRound({ refreshHistory: false }); finishRound() }
+		if (isReturn) { roundReady.value = false; await refreshRound({ refreshHistory: false }) }
 		else if (!round.value && !localRoundEnded.value && !unreadable && ownerMatches()) {
 			round.value = newLocalRound()
 			// Legacy frozen submissions predate this local round; never back-count them.
@@ -501,12 +498,9 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		}
 		if (!active.value || version !== lifecycleVersion || !ownerMatches()) return false
 		try {
-			const finishScanner = startPerformanceSpan('scanner_init')
 			const result = await enterBarcodeSession({ page, onResult: scan, activeTarget: { page, target: 'reweigh.bottleNo', label: isReturn ? '回瓶复秤瓶号' : '复秤瓶号', scope: 'reweigh', field: 'bottleNo' } })
 			if (!active.value || version !== lifecycleVersion || !ownerMatches()) { await leaveBarcodeSession({ page }); return false }
-			finishScanner()
 			scannerReady.value = result?.code === 0
-			markPageTrace('work_ready')
 			if (!scannerReady.value) fail(result?.msg || '扫描键暂不可用，请手输瓶号')
 		} catch (cause) { fail(cause.message || '扫描头初始化失败') }
 	}

@@ -1,4 +1,3 @@
-const { wrapDatabase, withPerformanceTrace } = require('./performanceTraceLocal')
 const { readComplete } = require('./financialReadLocal')
 'use strict'
 
@@ -10,7 +9,7 @@ try {
 	console.warn('[crm-customer] fallback to local pageAcl helpers', err && err.message)
 	;({ ensureActionAcl, isSuperAdmin } = require('./pageAclLocal'))
 }
-const db = wrapDatabase(uniCloud.database())
+const db = uniCloud.database()
 const dbCmd = db.command
 const {
 	normalizeVisibility,
@@ -916,4 +915,3 @@ exports.main = async (event, context) => {
 }
 
 // Explicit diagnostic requests only; ordinary requests keep the original response.
-exports.main = withPerformanceTrace(exports.main)

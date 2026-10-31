@@ -32,7 +32,7 @@ function setup({ powered = true, invalidMode = false, setterFails = false, openC
 		}
 	}
 	const context = { plus: { os: { name: 'Android' }, android }, uni: { requireNativePlugin() { pluginLoads++; return null } },
-		startPerformanceSpan: () => () => {}, normalizeText: value => value == null ? '' : String(value).trim(), setTimeout: (fn, ms) => { delays.push(ms); return setTimeout(fn, Math.min(ms, 5)) }, clearTimeout }
+		normalizeText: value => value == null ? '' : String(value).trim(), setTimeout: (fn, ms) => { delays.push(ms); return setTimeout(fn, Math.min(ms, 5)) }, clearTimeout }
 	const api = vm.runInNewContext(driverSource + '\n' + source + '\n;({ enterBarcodeSession, leaveBarcodeSession, restoreScannerProfile, setActiveBarcodeTarget, getScannerState, teardownPdaCapture })', context)
 	const enter = (page = 'return', onResult = result => scans.push(result)) => api.enterBarcodeSession({ page, onResult, activeTarget: { page, target: 'bottle' } })
 	const broadcast = text => receiver.onReceive(null, { getAction: () => 'android.intent.ACTION_DECODE_DATA', getStringExtra: key => key === 'barcode_string' ? text : '', getByteArrayExtra: () => null })

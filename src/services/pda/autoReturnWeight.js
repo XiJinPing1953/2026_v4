@@ -1,5 +1,5 @@
 // 回瓶与罐装复秤共用的自动候选；不改变秤协议、提交规则或持久化格式。
-export function createAutoReweighWeight() {
+export function createAutoReweighWeight({ stableWindowMs = 3000 } = {}) {
  let anchor = null, accepted = null, candidate = null, since = 0, previous = 0
  function interrupt() { candidate = null; since = 0; previous = 0 }
  function reset() { anchor = null; accepted = null; interrupt() }
@@ -14,7 +14,7 @@ export function createAutoReweighWeight() {
   // 锚点仅随更高的有效悬重上移，不随小幅下降移动，防止阶梯式卸瓶绕过保护。
   if (w <= 0 || w < minimumWeight(tare)) { candidate = null; since = 0; return null }
   if (candidate !== w) { candidate = w; since = t }
-  if (t - since < 3000 || accepted === w) return null
+  if (t - since < stableWindowMs || accepted === w) return null
   if (anchor === null || w > anchor) anchor = w
   accepted = w
   return w

@@ -1,5 +1,4 @@
 'use strict'
-const { wrapDatabase, withPerformanceTrace } = require('./performanceTraceLocal')
 const { authorizeMobileSaleEffect } = require('./mobileSaleEffectsLocal')
 const { isSettlementFeeReceipt, isOpeningPrepayReceipt, isDepositTransferReceipt, isNonCashPrepayReceipt, isOffsetCreditReceipt, isCashReceipt } = require('./receiptSource')
 const { isConfirmedOpeningPrepay, isConfirmedPrepayWriteoff } = require('./confirmedPrepayWriteoff')
@@ -40,7 +39,7 @@ const cashierIntake = require('./cashierIntake')
 const cashierIntakeConfig = require('./cashierIntakeConfig.json')
 const depositModel = require('./depositModel')
 const depositTransactionLocal = require('./depositTransactionLocal')
-const db = wrapDatabase(uniCloud.database())
+const db = uniCloud.database()
 const dbCmd = db.command
 const {
 	visibleCustomerWhere,
@@ -10221,4 +10220,3 @@ exports.main = async (event, context) => {
 }
 
 // Explicit diagnostic requests only; ordinary requests keep the original response.
-exports.main = withPerformanceTrace(exports.main)
