@@ -13,7 +13,7 @@ function harness(t, options = {}) {
 	const source = fs.readFileSync('src/composables/pda/usePdaReweighRecords.js', 'utf8').replace(/^import.*\n/gm, '').replace(/^export /gm, '')
 	const request = type => async data => { requests.push({ type, ...data }); return options.request ? options.request(data, requests.length, type) : response([type]) }
 	const module = vm.runInNewContext(`${source}\n;({usePdaReweighRecords})`, {
-		Date, String, Boolean, Array, Map, Promise, beginPageTrace() {}, markPageTrace() {}, markPageAfterRender() {}, ...vue, onBeforeUnmount: fn => hooks.push(fn),
+		Date, String, Boolean, Array, Map, Promise, beginPageTrace() {}, markPageTrace() {}, markPageAfterRender() {}, startPerformanceSpan: () => () => {}, ...vue, onBeforeUnmount: fn => hooks.push(fn),
 		getUser: () => ({ _id: owner }), canViewPage: url => !options.onlyFilling || url === '/pages/pda/reweigh',
 		isPdaAppMode: () => true, normalizeBottleNo: value => String(value || '').trim().toUpperCase(),
 		createLocalFillingRoundsReader: () => async () => { options.onLocalRead?.(); return options.localRead ? options.localRead() : options.localRounds || [] }, readPdaStorage: () => null, uni: {},
@@ -172,4 +172,38 @@ test('return query never reads local filling history; filling load is asynchrono
  assert.equal(h.form.rounds.value.length, 0)
  assert.equal(h.form.rows.value[0].id, 'return')
  assert.equal(h.form.loading.value, false)
+})
+
+test('date records display before local archives finish; pagination does not discard the round picker', async t => {
+ const local = deferred()
+ const h = harness(t, { onlyFilling: true, localRead: () => local.promise,
+  request: (_data, count) => count === 1 ? response(['first'], 'cursor') : response(['second']) })
+ await h.form.activate(); await tick()
+ assert.equal(h.requests.length, 1, 'cloud query must not wait for local archives')
+ assert.equal(h.form.rows.value[0].id, 'first'); assert.equal(h.form.loading.value, false)
+ await h.form.loadMore()
+ local.resolve([{ id: 'old-round', bottle_count: 1, rows: [{ id: 'local', bottle_no: '1' }] }]); await tick()
+ assert.equal(h.form.rounds.value[0].id, 'old-round')
+ assert.deepEqual(Array.from(h.form.rows.value, row => row.id), ['first', 'second'])
+ h.form.setFilter('round', 'old-round'); await h.form.search()
+ assert.equal(h.requests.length, 2); assert.equal(h.form.rows.value[0].id, 'local')
+})
+
+test('identical pending searches share one request; a later explicit refresh still queries again', async t => {
+ const first = deferred()
+ const h = harness(t, { request: (_data, count) => count === 1 ? first.promise : response(['refreshed']) })
+ await h.form.activate()
+ const a = h.form.search(), b = h.form.search()
+ assert.equal(h.requests.length, 1)
+ first.resolve(response(['first'])); await Promise.all([a, b])
+ await h.form.search(); assert.equal(h.requests.length, 2)
+ assert.equal(h.form.rows.value[0].id, 'refreshed')
+})
+
+test('failed local archives leave cloud date records usable and reject a selected local round', async t => {
+ const h = harness(t, { onlyFilling: true, localRead: async () => { throw Error('archive unavailable') } })
+ await h.form.activate(); await tick()
+ assert.equal(h.form.rows.value[0].id, 'filling'); assert.equal(h.form.historyError.value, 'archive unavailable')
+ h.form.setFilter('round', 'old-round'); await h.form.search()
+ assert.equal(h.requests.length, 1); assert.equal(h.form.rows.value.length, 0); assert.equal(h.form.loading.value, false)
 })

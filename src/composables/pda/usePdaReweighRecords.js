@@ -1,5 +1,5 @@
 import { readPdaStorage } from '@/services/pda/asyncStorage'
-import { markPageTrace, markPageAfterRender } from '@/services/performanceTrace'
+import { markPageTrace, markPageAfterRender, startPerformanceSpan } from '@/services/performanceTrace'
 import { createLocalFillingRoundsReader } from '@/services/pda/reweighHistory'
 import { listReturnReweighRoundRecordsV1 } from '@/services/api/reweigh'
 import { computed, onBeforeUnmount, ref } from 'vue'
@@ -28,11 +28,11 @@ export function usePdaReweighRecords() {
 	const hasMore = ref(false)
 	const typeLabel = computed(() => types.value.find(item => item.value === type.value)?.label || '复秤')
 	const page = 'pda-reweigh-records'
-	let active = false, lifecycle = 0, queryVersion = 0, scanVersion = 0
+	let active = false, lifecycle = 0, queryVersion = 0, scanVersion = 0, historyVersion = 0, pendingSearch = null
 	let owner = '', cursor = null, searched = null, stopping = Promise.resolve()
 	const currentOwner = () => String(getUser()?._id || '')
 	function invalidate() {
-		queryVersion++; scanVersion++; loading.value = false; error.value = ''
+		queryVersion++; scanVersion++; historyVersion++; loading.value = false; error.value = ''
 		rows.value = []; summary.value = null; hasMore.value = false; cursor = null; searched = null
 	}
 	function validOwner() {
@@ -50,7 +50,18 @@ export function usePdaReweighRecords() {
 		if (field === 'bottle') bottleNo.value = String(value || '')
 		if (field === 'type' && types.value.some(item => item.value === value)) type.value = value
 	}
-	async function search(append = false) {
+	function search(append = false) {
+		if (append) return runSearch(true)
+		if (!validOwner()) return Promise.resolve()
+		const key = JSON.stringify([owner, type.value, date.value, normalizeBottleNo(bottleNo.value), roundId.value])
+		if (pendingSearch?.key === key && pendingSearch.version === queryVersion) return pendingSearch.promise
+		const promise = runSearch(false)
+		const pending = { key, version: queryVersion, promise: null }
+		pending.promise = promise.finally(() => { if (pendingSearch === pending) pendingSearch = null })
+		pendingSearch = pending
+		return pending.promise
+	}
+	async function runSearch(append = false) {
 		if (!validOwner()) return
 		if (append && (loading.value || !hasMore.value || !searched)) return
 		scanVersion++
@@ -60,31 +71,39 @@ export function usePdaReweighRecords() {
 			searched = { type: type.value, date: date.value, bottle_no: normalizeBottleNo(bottleNo.value), round_id: roundId.value }
 		}
 		const version = ++queryVersion
+		const snapshot = { ...searched }
+		let localReady
 		if (!append && searched.type === 'filling') {
 			loading.value = true
-			const readerOwner = owner
-			const isCurrent = () => active && readerOwner === currentOwner() && version === queryVersion
-			try {
-				const loaded = await readLocalRounds(readerOwner, localStorage, isCurrent)
-				if (!isCurrent()) return
-				localRounds = loaded; rounds.value = loaded; historyError.value = ''
-			} catch (cause) {
-				if (!isCurrent()) return
-				historyError.value = cause.message || '本机历史读取失败，请重新查询'
-				// Keep a failed local read distinct from an empty history; date queries remain usable.
-				if (searched.round_id) { loading.value = false; return }
-			}
+			const readerOwner = owner, historyGeneration = historyVersion
+			// Loading another cloud page does not invalidate the independent round picker.
+			const isCurrent = () => active && readerOwner === currentOwner() && historyGeneration === historyVersion
+			const finish = startPerformanceSpan('local_rounds_read')
+			localReady = (async () => {
+				try {
+					const loaded = await readLocalRounds(readerOwner, localStorage, isCurrent)
+					if (!isCurrent()) return false
+					localRounds = loaded; rounds.value = loaded; historyError.value = ''
+					return true
+				} catch (cause) {
+					if (isCurrent()) historyError.value = cause.message || '本机历史读取失败，请重新查询'
+					return false
+				} finally { finish() }
+			})()
 		}
-		if (!append && searched.type === 'filling' && searched.round_id) {
+		if (!append && snapshot.type === 'filling' && snapshot.round_id) {
+			const loaded = await localReady
+			if (!validOwner() || version !== queryVersion) return
 			loading.value = false
-			const group = localRounds.find(item => item.id === searched.round_id)
+			if (!loaded) return
+			const group = localRounds.find(item => item.id === snapshot.round_id)
 			if (!group) { error.value = '本机未找到此轮次'; return }
-			rows.value = group.rows.filter(item => !searched.bottle_no || item.bottle_no === searched.bottle_no)
+			rows.value = group.rows.filter(item => !snapshot.bottle_no || item.bottle_no === snapshot.bottle_no)
 			summary.value = { record_count: rows.value.length, bottle_count: new Set(rows.value.map(item => item.bottle_no)).size }
 			markPageTrace('records_ready'); void markPageAfterRender('records_render')
 			return
 		}
-		const snapshot = { ...searched }
+		// Date records are independent of the local archive; fetch them immediately.
 		const requestCursor = append ? cursor : null
 		loading.value = true; error.value = ''
 		try {

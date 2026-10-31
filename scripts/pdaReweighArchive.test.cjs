@@ -45,6 +45,22 @@ function fixture(mode = 'filling') {
  return { key, map, calls, writes, storage, mode, store: () => work.createReweighWorkStore('u', storage, () => owner, mode),
   owner(value) { owner = value }, fail(value) { fail = value }, seed(history, metadata = { round: { _id: 'active' } }, current = empty()) { map.set(key, JSON.stringify({ version: 1, ownerId: 'u', current, history, metadata })) } }
 }
+test('a round larger than the cache still reuses a bounded subset on repeated sequential scans', async () => {
+ const cached = load('src/services/pda/reweighWorkStore.js', 'createReweighWorkStore,cacheState:()=>({units:cacheUnits,size:chunkCache.size})', { ...draft, startPerformanceSpan: () => () => {} })
+ const f = fixture(), create = () => cached.createReweighWorkStore('u', f.storage, () => 'u', 'filling', { reuseImmutableChunks: true })
+ f.seed(Array.from({ length: 340 }, (_, i) => ({ ...row(i, 'active'), remark: 'x'.repeat(1800) })))
+ await create().loadAsync()
+ for (let visit = 0; visit < 3; visit++) {
+  f.calls.length = 0
+  const loaded = await create().loadAsync()
+  const reads = f.calls.filter(([kind, key]) => kind === 'async' && key.includes(':history:')).length
+  assert.equal(loaded.history.length, 340)
+  assert.ok(reads < 9, `visit ${visit}: all ${reads} chunks were read again`)
+  assert.equal(f.calls.filter(([kind, key]) => kind === 'async' && key.endsWith(':work-v3')).length, 2)
+  assert.ok(cached.cacheState().units <= 256 * 1024)
+  assert.ok(cached.cacheState().size <= 32)
+ }
+})
 for (const mode of ['filling', 'return']) test(`${mode}: archived 2000 rows never enter working recovery; query still contains every label`, async () => {
  const f = fixture(mode), old = Array.from({ length: 2000 }, (_, i) => row(i)), active = [row('current', 'active')], pending = row('unknown', 'old', false)
  f.seed([...old, ...active, pending]); const original = f.map.get(f.key)

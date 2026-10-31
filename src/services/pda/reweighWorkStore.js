@@ -7,9 +7,13 @@ const chunkCache = new Map()
 const CACHE_UNITS = 256 * 1024
 let cacheOwner = '', cacheUnits = 0
 function forgetChunk(key) { const entry = chunkCache.get(key); if (entry) { cacheUnits -= entry.value.length; chunkCache.delete(key) } }
-function rememberChunk(key, value) {
+function rememberChunk(key, value, replace = true) {
  forgetChunk(key)
  if (typeof value !== 'string' || value.length > CACHE_UNITS) return
+ for (const [name, entry] of chunkCache) if (entry.until <= Date.now()) forgetChunk(name)
+ // A large sequential restore must not evict the later chunks it is about to
+ // read. Admit misses only into spare space; verified writes can replace old data.
+ if (!replace && (cacheUnits + value.length > CACHE_UNITS || chunkCache.size >= 32)) return
  while (chunkCache.size && (cacheUnits + value.length > CACHE_UNITS || chunkCache.size >= 32)) forgetChunk(chunkCache.keys().next().value)
  chunkCache.set(key, { value, until: Date.now() + 60000 }); cacheUnits += value.length
 }
@@ -31,10 +35,10 @@ function workStorage(owner, mode, storage, reuseChunks = false) {
   getStorageSync(name) { const path = physical(name), value = storage.getStorageSync(path); if (cacheable(path)) rememberChunk(path, value); return value },
   async getStorage(name) {
    const path = physical(name), cached = cacheable(path) && chunkCache.get(path)
-   if (cached && cached.until > Date.now()) return cached.value
+   if (cached && cached.until > Date.now()) { startPerformanceSpan('work_chunk_cache_hit')(); return cached.value }
    forgetChunk(path)
    const finish = startPerformanceSpan(path === key ? 'work_root_read' : 'work_chunk_read')
-   try { const value = await storage.getStorage(path); if (cacheable(path)) rememberChunk(path, value); return value } finally { finish() }
+   try { const value = await storage.getStorage(path); if (cacheable(path)) rememberChunk(path, value, false); return value } finally { finish() }
   },
   setStorageSync(name, value) { const path = physical(name); forgetChunk(path); storage.setStorageSync(path, value) },
   removeStorageSync(name) { const path = physical(name); forgetChunk(path); storage.removeStorageSync?.(path) }

@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.31-round-archive.2",
+      "version": "2026.10.31-read-performance.1",
       "output": "dist/build/web",
-      "acceptance": "Move completed reweigh rounds to query-only archives; preserve active/pending recovery and label facts. Add bottom pagination and scroll to page start. Explicit ten-minute segmented timing only; preserve deployed business/ACL helpers and native compatibility. Device timing and acceptance recorded separately.",
+      "acceptance": "Bounded native chunk reuse must survive oversized sequential scans without raising the memory limit. Cloud date records load independently of local round history; identical pending searches share one request, while refresh after completion remains fresh. Preserve archive integrity, active/pending recovery, ownership, labels and full-round printing. Existing cloud scope is compatibility verification only: this batch uploads no cloud functions, schemas or indexes. Device timing remains separate from synthetic tests.",
       "deploymentScope": {
         "functions": [
           "crm-auth",
@@ -365,9 +365,9 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.47",
+      "version": "1.0.48",
       "output": "release/pda",
-      "acceptance": "Move completed reweigh rounds to query-only archives; preserve active/pending recovery and label facts. Add bottom pagination and scroll to page start. Explicit ten-minute segmented timing only; preserve deployed business/ACL helpers and native compatibility. Device timing and acceptance recorded separately. Reuse immutable native work chunks for at most 60 seconds and 512 KiB, always verify live roots and clear on owner change; report local root/chunk reads and one-time migration separately.",
+      "acceptance": "Bounded native chunk reuse must survive oversized sequential scans without raising the memory limit. Cloud date records load independently of local round history; identical pending searches share one request, while refresh after completion remains fresh. Preserve archive integrity, active/pending recovery, ownership, labels and full-round printing. Existing cloud scope is compatibility verification only: this batch uploads no cloud functions, schemas or indexes. Device timing remains separate from synthetic tests.",
       "deploymentScope": {
         "functions": [
           "crm-auth",
