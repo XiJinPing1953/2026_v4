@@ -159,22 +159,19 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.43",
+      "version": "1.0.44",
       "output": "release/pda",
-      "acceptance": "PDA 1.0.43: approved bordered round/work/history layout on both reweigh pages, with filling printer inside the round card. Native-only route and dashboard compilation reduces the PDA WGT; keep all PDA, inspection, public label and shared bottle timeline entries. Preserve weighing/scanning/printing, complete local history and pending-operation recovery. WGT only; crm-filling is unchanged, no cloud/schema/H5/APK deployment. Field layout/responsiveness acceptance remains separate.",
+      "acceptance": "PDA 1.0.44: unify explicit round detail expansion and compact refresh layout in both reweigh pages. Isolate history rendering and show 20 rows per page while retaining all records, original operation IDs, reprints and recovery controls. Preserve 1.0.43 native bundle trimming and existing scanning/weighing rules. WGT only; crm-filling remains unchanged, no cloud/schema/H5/APK deployment. Device expansion acceptance is separate.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "f3c43ad6dc16b121c5e1c94d4af08c5d31f5d2b2",
+        "baseCommit": "d88a71bfc52f5ee862a4de1d15b5ad0a3cbc9a62",
         "sourceFiles": [
           "src/components/domain/pda/PdaReweighView.vue",
-          "src/components/domain/pda/PdaWeighScale.vue",
-          "src/manifest.json",
-          "src/pages.json",
-          "src/pages/index/index.vue",
-          "src/services/pda/entry.js"
+          "src/components/domain/pda/PdaReweighHistorySection.vue",
+          "src/manifest.json"
         ]
       },
       "integrityScope": "deployment"

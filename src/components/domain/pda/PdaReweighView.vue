@@ -20,11 +20,12 @@
 			</view>
 			<text v-if="pendingEndRound" class="notice">结束结果还未确认，请点“重试结束本轮”；已保存记录保留。</text>
 			<text v-if="pendingRound" class="notice">还没确认新一轮是否开始，请点“重试开始本轮”。</text>
-			<view v-if="roundDetails || !round || pendingRound" class="facts">
-				<view class="actions">
-					<AppButton v-if="isReturn" kind="neutral" :disabled="busy" @click="refreshRound">刷新瓶数</AppButton>
+			<view v-if="roundDetails" class="round-details">
+				<view class="round-detail-text">
+					<text class="hint">同瓶重称只算一瓶</text>
+					<text class="hint">{{ isReturn ? '本轮回瓶统计' : '本机、本账号统计' }} · {{ roundTime }}</text>
 				</view>
-				<text class="hint">{{ isReturn ? '同瓶重称只算一瓶' : '本机、本账号统计，同瓶只算一瓶' }}{{ round ? ' · ' + roundTime : '' }}</text>
+				<AppButton kind="neutral" size="sm" :disabled="busy" @click="refreshRound">刷新瓶数</AppButton>
 			</view>
 			<text v-if="historySyncing" class="hint">正在读取本轮记录…</text>
 			<text v-if="historySyncError" class="notice notice--error">{{ historySyncError }}</text>
@@ -120,26 +121,7 @@
 
 			</view>
 
-			<AppSection :class="['history-section', !showHistory && 'history-section--closed']" v-for="group in historyGroups" :key="group.title" :title="group.title + ' ' + group.items.length + ' 条'">
-				<template #actions><AppButton size="sm" kind="ghost" @click="showHistory = !showHistory">{{ showHistory ? '收起 ⌃' : '展开 ⌄' }}</AppButton></template>
-				<view v-if="showHistory">
-				<view v-for="item in group.items.slice().reverse()" :key="item.operationId" class="history-row">
-					<text>{{ item.bottleNo }} 号瓶 · {{ isReturn ? '回瓶毛重' : '本次灌装量' }} {{ weight(isReturn ? item.grossWeight : item.preview?.fill_weight) }} kg</text>
-					<text :class="['hint', !item.receipt?.complete ? 'pending' : '']">{{ receiptTitle(item.receipt) }}</text>
-					<view v-if="!isReturn && item.receipt?.saved" class="print-result">
-						<text v-if="printer.messages.value[item.operationId]">{{ printer.messages.value[item.operationId] }}</text>
-						<text v-if="printer.reason(item)" class="hint">{{ printer.reason(item) }}</text>
-						<AppButton v-else kind="outline" :disabled="printer.busy.value" @click="printer.reprint(item)">补打标签</AppButton>
-					</view>
-					<text class="history-time">{{ reweighHistoryTime(item) }}</text>
-					<text v-if="!item.receipt?.complete" class="hint">{{ item.receipt?.message }}</text>
-					<view v-if="!item.receipt?.complete" class="actions">
-						<AppButton size="sm" kind="neutral" :disabled="busy" @click="query(item.operationId)">查询状态</AppButton>
-						<AppButton size="sm" kind="neutral" :disabled="busy" @click="query(item.operationId, true)">重试处理</AppButton>
-					</view>
-				</view>
-				</view>
-			</AppSection>
+			<PdaReweighHistorySection v-for="group in historyGroups" :key="group.title" :title="group.title" :items="group.items" :is-return="isReturn" :busy="busy" :printer="printer" @query="query" />
 		</template>
 	</AppPage>
 </template>
@@ -152,9 +134,10 @@ import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import { usePdaFillingPrinter } from '@/composables/pda/usePdaFillingPrinter'
 import PdaWeighScale from './PdaWeighScale.vue'
+import PdaReweighHistorySection from './PdaReweighHistorySection.vue'
 import PdaBottleSuggestField from '@/components/domain/pda/PdaBottleSuggestField.vue'
 import { reweighChangeText, usePdaReweigh } from '@/composables/pda/usePdaReweigh'
-import { reweighHistoryTime, reweighPreviousNotice } from '@/services/pda/reweighDraft'
+import { reweighPreviousNotice } from '@/services/pda/reweighDraft'
 
 const props = defineProps({ mode: { type: String, default: 'filling' } })
 const isReturn = props.mode === 'return'
@@ -169,13 +152,13 @@ const historyGroups = computed(() => [
 const readyForBottle = computed(() => Boolean(round.value?._id) && !pendingEndRound.value && (!isReturn || roundReady.value))
 const previousNotice = computed(() => reweighPreviousNotice(current.value.preview, isReturn))
 const roundTime = computed(() => {
-	const timestamp = Number(round.value?.created_at)
+	const timestamp = Number(round.value?.created_at || lastEndedRound.value?.created_at)
 	if (!Number.isFinite(timestamp) || timestamp <= 0) return '—'
 	return new Date(timestamp + 8 * 60 * 60 * 1000).toISOString().slice(0, 16).replace('T', ' ')
 })
 const bottleKeyword = ref('')
 const roundDetails = ref(false), factsOpen = ref(false), manualOpen = ref(false), keyboardOpen = ref(false)
-const showRemark = ref(false), showReceiptDetails = ref(false), showHistory = ref(false)
+const showRemark = ref(false), showReceiptDetails = ref(false)
 const weight = value => value == null || value === '' || !Number.isFinite(Number(value)) ? '—' : Number(value).toFixed(1)
 const receiptTitle = receipt => receipt?.complete ? '已保存' : receipt?.saved ? '记录已保存，还有信息待核对' : '还没确认是否保存成功'
 async function selectManual(value) { const accepted = await selectBottle(value); if (accepted) uni.hideKeyboard(); return accepted }
@@ -201,16 +184,14 @@ defineExpose({ activate, deactivate })
 .round-card, .work-card { background:#fff; border:1px solid #cbd5e1; border-radius:8px; }
 .round-card { padding:12px; }
 .round-main { flex:1; min-width:0; }
+.round-details { display:flex; align-items:center; justify-content:space-between; gap:8px; border-top:1px solid #e2e8f0; padding-top:8px; margin-top:4px; }
+.round-detail-text { flex:1; min-width:0; }
 .reweigh-page .round-main .detail-link { justify-content:flex-start; padding:0; min-height:44px; height:44px; }
 .work-card { overflow:hidden; }
 .work-card > .work-section { border:0; border-top:1px solid #e2e8f0; border-radius:0; }
 .reweigh-page .work-section :deep(.section__header) { border-bottom:0; padding:12px 12px 0; }
 .reweigh-page .work-section :deep(.section__body) { padding:8px 12px; }
 .reweigh-page .work-section .manual-toggle { margin:4px 0 0; padding-left:0; justify-content:flex-start; min-height:44px; height:44px; }
-.reweigh-page .history-section { border:1px solid #cbd5e1; border-radius:8px; }
-.reweigh-page .history-section :deep(.section__header) { padding:6px 12px; }
-.reweigh-page .history-section--closed :deep(.section__header) { border-bottom:0; }
-.reweigh-page .history-section--closed :deep(.section__body) { display:none; }
 .weigh-label { display: block; font-size: 18px; font-weight: 700; margin: 8px 0; }
 .weigh-label--ready { color: #166534; }
 .weigh-label--pending { color: #b42318; }
@@ -239,10 +220,6 @@ defineExpose({ activate, deactivate })
 .correction { margin: 20rpx 0; padding: 20rpx; background: #fff7ed; border-radius: var(--crm-radius-sm); }
 .difference { display: block; white-space: pre-line; font-size: 16px; line-height: 1.8; padding: 14rpx 0; }
 .identifier { display: block; overflow-wrap: anywhere; font-size: 23rpx; color: var(--crm-text-muted); margin-top: 12rpx; }
-.history-row { padding: 20rpx 0; border-bottom: 1rpx solid var(--crm-border); font-size: 16px; }
-.history-row:last-child { border-bottom: 0; }
-.history-time { display: block; margin-top: 8rpx; font-size: 16px; font-weight: 700; }
-.pending { color: #9a3412; }
 /* Compact only this PDA workflow; leave shared and Chrome sales pages unchanged. */
 .reweigh-page :deep(.page__body--padded) { gap: 14rpx; padding: 0 18rpx; }
 .reweigh-page :deep(.page__header) { padding: 16rpx 20rpx 0; margin-bottom: 14rpx; }
