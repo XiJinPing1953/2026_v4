@@ -72,6 +72,8 @@ export function usePdaSuggestions(options = {}) {
 	function schedule(keyword) {
 		clearDebounceTimer()
 		clearBlurTimer()
+		requestId += 1
+		resetState()
 		if (!meetsThreshold(keyword)) {
 			requestId += 1
 			resetState()
@@ -87,6 +89,7 @@ export function usePdaSuggestions(options = {}) {
 	}
 
 	function handleFocus(keyword) {
+		clearDebounceTimer()
 		clearBlurTimer()
 		if (!meetsThreshold(keyword)) {
 			if (!normalizeKeyword(keyword)) resetState()
@@ -98,14 +101,12 @@ export function usePdaSuggestions(options = {}) {
 	function handleBlur() {
 		clearBlurTimer()
 		blurTimer = setTimeout(() => {
-			visible.value = false
+			clear()
 		}, hideDelayMs)
 	}
 
 	function handleSelect(item) {
-		clearDebounceTimer()
-		clearBlurTimer()
-		visible.value = false
+		clear()
 		return item
 	}
 

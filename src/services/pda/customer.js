@@ -1,3 +1,4 @@
+import { getToken } from '@/services/auth'
 import { getCustomerV1, listCustomersV1, resolveCustomerQrCodeV1 } from '@/services/customer'
 import { normalizeQrCode, normalizeText, toNumber } from './shared'
 
@@ -16,10 +17,13 @@ function readCache(cache, key) {
 
 function writeCache(cache, key, data, ttlMs) {
 	if (!key || !data) return data
+	for (const [savedKey, item] of cache) if (item.expireAt <= Date.now()) cache.delete(savedKey)
+	cache.delete(key)
 	cache.set(key, {
 		data,
 		expireAt: Date.now() + Math.max(Number(ttlMs) || 0, 1000)
 	})
+	if (cache.size > 100) cache.delete(cache.keys().next().value)
 	return data
 }
 
@@ -65,6 +69,8 @@ export async function listPdaCustomers(params = {}) {
 		page,
 		pageSize,
 		isActive: params.isActive ?? true,
+		includeSummary: false,
+		includeDeposit: params.includeDeposit !== false,
 		summaryIgnoreActive: true
 	})
 	return {
@@ -89,15 +95,18 @@ export async function getPdaCustomerById(id) {
 export async function resolvePdaCustomerByQrCode(qrCode) {
 	const normalized = normalizeQrCode(qrCode)
 	if (!normalized) return { code: 400, msg: '客户二维码必填', data: null }
-	const cached = readCache(customerQrCache, normalized)
+	const token = getToken()
+	const cacheKey = JSON.stringify([token, normalized])
+	const cached = readCache(customerQrCache, cacheKey)
 	if (cached) return { code: 0, msg: '', data: cached }
 	const res = await resolveCustomerQrCodeV1({ qr_code: normalized })
+	if (token !== getToken()) return { code: 499, msg: '登录账号已变化，请重新查询', data: null }
 	if (res?.code !== 0) return { code: res?.code ?? -1, msg: res?.msg || '客户扫码失败', data: null }
 	const summary = normalizePdaCustomerSummary(res?.data?.customer || null)
 	return {
 		code: 0,
 		msg: '',
-		data: writeCache(customerQrCache, normalized, summary, CUSTOMER_QR_CACHE_TTL_MS)
+		data: writeCache(customerQrCache, cacheKey, summary, CUSTOMER_QR_CACHE_TTL_MS)
 	}
 }
 

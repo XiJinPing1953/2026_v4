@@ -121,6 +121,7 @@ const { loading, run: fetchList } = useQuery(
 
 async function onSearch() {
 	const data = await fetchList()
+	if (data === undefined) return
 	list.value = data || []
 }
 

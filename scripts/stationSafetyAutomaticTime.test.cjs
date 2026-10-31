@@ -8,6 +8,7 @@ function harness({ edit = false, draft, fail = false } = {}) {
   let now = Date.parse('2026-10-16T23:59:40+08:00'), storage = draft, calls = []
   const opened = now, ref = value => ({ value })
   const context = {
+    clearTimeout, draftTimer: null, draftError: ref(''),
     Date: class extends Date { static now() { return now } }, Number, String, Math, Map,
     pageOpenedAt: opened, automaticStartedAt: ref(opened), automaticEndedAt: ref(0),
     startedDate: ref(''), startedTime: ref(''), endedDate: ref(''), endedTime: ref(''),

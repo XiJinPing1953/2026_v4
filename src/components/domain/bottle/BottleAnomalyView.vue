@@ -655,6 +655,7 @@ const hasLoaded = ref(false)
 const visibleLoading = computed(() => loading.value && !hasLoaded.value)
 
 function applyResult(payload) {
+	if (payload === undefined) return
 	const data = payload || {}
 	list.value = Array.isArray(data.items) ? data.items : []
 	const paging = data.paging || {}

@@ -11,6 +11,7 @@
 			<button class="retry-button" type="button" @click="load">重新加载</button>
 		</view>
 		<view v-else class="form-stack">
+			<view v-if="draftError" class="state-card state-card--error">{{ draftError }}</view>
 			<view class="wizard-card">
 				<view class="phase-row">
 					<view
@@ -333,6 +334,7 @@ const customerPickerOpen = ref(false)
 const customerKeyword = ref('')
 const customerOptions = ref([])
 const draftReady = ref(false)
+const draftError = ref('')
 const draftRestored = ref(false)
 const submitted = ref(false)
 const initialProgressFingerprint = ref('')
@@ -1242,7 +1244,8 @@ function buildDraft() {
 }
 
 function saveDraft() {
-	if (!draftReady.value || submitted.value || !template.value) return
+	clearTimeout(draftTimer)
+	if (!draftReady.value || submitted.value || !template.value) return false
 	try {
 		if (
 			!draftRestored.value &&
@@ -1250,11 +1253,15 @@ function saveDraft() {
 			progressFingerprint() === initialProgressFingerprint.value
 		) {
 			uni.removeStorageSync(draftStorageKey.value)
-			return
+			draftError.value = ''
+			return true
 		}
 		uni.setStorageSync(draftStorageKey.value, buildDraft())
+		draftError.value = ''
+		return true
 	} catch (_) {
-		// Storage failure must not block the field inspection.
+		draftError.value = '草稿未能保存到本机，请勿直接关闭页面；可重试或提交巡检。'
+		return false
 	}
 }
 
@@ -1297,12 +1304,15 @@ function progressFingerprint() {
 }
 
 function confirmLeave() {
+	const draftSaved = saveDraft()
 	return new Promise((resolve) => {
 		uni.showModal({
 			title: hasPendingLocalPhotos.value
 				? '照片尚未上传完成'
 				: '退出巡检',
-			content: hasPendingLocalPhotos.value
+			content: !draftSaved
+				? '草稿保存失败，退出会丢失尚未保存的填写内容。仍要退出吗？'
+				: hasPendingLocalPhotos.value
 				? '未上传成功的临时照片无法在刷新后恢复。建议先重试上传，仍要退出吗？'
 				: '已填写内容已保存为草稿，下次进入可继续填写。确认退出吗？',
 			confirmText: '退出',

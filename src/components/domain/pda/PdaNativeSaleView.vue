@@ -131,10 +131,13 @@ const mapDelivery = item => ({ key: item._id, title: item.name, raw: item })
 const mapVehicle = item => ({ key: item._id, title: item.plate_no, raw: item })
 async function searchCustomers(keyword) {
 	try {
-		const result = await listPdaCustomers({ keyword, page: 1, pageSize: 12, isActive: true })
+		const result = await listPdaCustomers({ keyword, page: 1, pageSize: 12, isActive: true, includeDeposit: false })
 		if (result?.code !== 0) throw new Error(result?.msg || '客户查询失败')
 		return result.data || []
-	} catch (cause) { error.value = cause.message || '客户查询失败，请重试'; return [] }
+	} catch (cause) {
+		if (step.value === 1 && !selectedCustomer.value && keyword === customerKeyword.value) error.value = cause.message || '客户查询失败，请重试'
+		return []
+	}
 }
 async function searchDeliveries(keyword) { const result = await listPdaDeliveries({ keyword, page: 1, pageSize: 12, isActive: true }); return result?.code === 0 ? result.data || [] : [] }
 async function searchVehicles(keyword) { const result = await listPdaVehicles({ keyword, page: 1, pageSize: 12, isActive: true }); return result?.code === 0 ? result.data || [] : [] }

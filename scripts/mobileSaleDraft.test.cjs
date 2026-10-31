@@ -10,7 +10,7 @@ function load(file, names, globals = {}, transform = source => source) {
 		.replace(/^import[\s\S]*?\bfrom\s+['"][^'"]+['"]\s*\n/gm, '')
 		.replace(/export\s+(?=(?:async\s+)?function|const |let |class )/g, '')
 		.replace(/export\s*\{[^}]*\}\s*;?/g, '')
-	return vm.runInNewContext(`${source}\n;({${names.join(',')}})`, { Date, Math, console, ...globals })
+	return vm.runInNewContext(`${source}\n;({${names.join(',')}})`, { Date, Math, console, setTimeout, clearTimeout, ...globals })
 }
 
 function compileH5UniApis(source, file) {
@@ -129,6 +129,7 @@ test('draft restore keeps edited delivery and vehicle; discard and next sale use
 	first.form.form.value.delivery1 = '临时配送员'
 	first.form.form.value.delivery2 = ''
 	first.form.form.value.vehicleNo = '测B67890'
+	first.form.persistDraft()
 	const restored = harness(t, { storage: first.storage, defaults })
 	assert.equal(restored.form.restoreDraft(), true)
 	assert.equal(restored.form.form.value.delivery1, '临时配送员')
@@ -227,7 +228,7 @@ test('storage failure during an uncertain retry never unlocks or loses the origi
 })
 
 test('reload while request is in flight exposes recovery actions even before a receipt exists', async t => {
-	const h = harness(t); h.fill()
+	const h = harness(t); h.fill(); h.form.persistDraft()
 	const [key, raw] = [...h.storage.entries()][0]
 	const saved = JSON.parse(raw)
 	saved.submission = { operationId: 'sale-in-flight', payload: sale.buildMobileSalePayload(h.form.form.value), attempted: true }
@@ -288,7 +289,7 @@ test('a failed progress query preserves the known saved sale and its number', as
 })
 
 test('another tab restoring the same draft cannot create a second operation or overwrite newer state', async t => {
-	const one = harness(t); one.fill()
+	const one = harness(t); one.fill(); one.form.persistDraft()
 	const draftId = JSON.parse([...one.storage.values()][0]).draftId
 	const two = harness(t, { storage: one.storage }); two.form.restoreDraft()
 	await two.form.submit()
@@ -406,4 +407,23 @@ test('mobile payload keeps scan and BLE evidence and rejects duplicate bottle be
 	assert.equal(payload.base.paymentMethod, 'on_account')
 	h.form.form.value.outItems.push({ ...row, rowId: 'other' })
 	assert.equal(sale.validatePdaBottleSaleForm(h.form.form.value, customerDoc).ok, false)
+})
+
+
+test('ordinary keystrokes coalesce disk writes; explicit leave flushes and unchanged saves verify without rewrite', async t => {
+ let reads = 0, writes = 0
+ class CountingStorage extends Map {
+  get(key) { reads++; return super.get(key) }
+  set(key, value) { writes++; return super.set(key, value) }
+ }
+ const h = harness(t, { storage: new CountingStorage() })
+ reads = 0
+ for (let i = 0; i < 20; i++) { h.form.form.value.remark += '字'; await vue.nextTick() }
+ assert.equal(writes, 0)
+ await new Promise(resolve => setTimeout(resolve, 350))
+ assert.equal(writes, 1); assert.equal(reads, 2)
+ assert.equal(h.form.persistDraft(), true); assert.equal(writes, 1)
+ h.form.form.value.remark += '离页'
+ assert.equal(h.form.persistDraft(), true); assert.equal(writes, 2)
+ assert.equal(JSON.parse([...h.storage.values()][0]).form.remark, '字'.repeat(20) + '离页')
 })

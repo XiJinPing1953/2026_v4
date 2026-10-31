@@ -64,6 +64,43 @@ export function readReweighDraft(ownerId, storage, mode = 'filling', raw = stora
 	return { ...data, history }
 }
 
+async function readDraftSnapshot(ownerId, storage, mode, shouldContinue, initialRaw) {
+	const key = reweighDraftKey(ownerId, mode)
+	function assertCurrentReader() {
+		if (!ownerId || !shouldContinue()) throw new Error('页面或账号已变化，请重新查询本机记录')
+	}
+
+	assertCurrentReader()
+	const raw = initialRaw === undefined ? await storage.getStorage(key) : initialRaw
+	const source = new Map([[key, raw]])
+	if (raw) {
+		const head = typeof raw === 'string' ? JSON.parse(raw) : raw
+		if (![1, 2].includes(head?.version) || head.ownerId !== ownerId) throw new Error('复秤草稿无法读取或识别，原数据已保留')
+		if (head.version === 2) {
+			if (!Array.isArray(head.historyChunks)) throw new Error('复秤历史索引无法读取，原数据已保留')
+			const prefix = `${key}:history:`
+			for (const chunk of head.historyChunks) {
+				if (typeof chunk.key !== 'string' || !chunk.key.startsWith(prefix) || !Number.isInteger(chunk.count) || chunk.count < 1 || chunk.count > HISTORY_CHUNK_SIZE) throw new Error('复秤历史索引无法读取，原数据已保留')
+			}
+			// Bound native requests and yield between batches; all records are kept.
+			for (let offset = 0; offset < head.historyChunks.length; offset += 4) {
+				assertCurrentReader()
+				await Promise.all(head.historyChunks.slice(offset, offset + 4).map(async chunk => source.set(chunk.key, await storage.getStorage(chunk.key))))
+			}
+		}
+	}
+	// Another page/account may change while async reads are in flight.
+	const latest = await storage.getStorage(key)
+	assertCurrentReader()
+	if (storageToken(latest) !== storageToken(raw)) throw new Error('复秤草稿已在另一页面更新，请重新进入并恢复最新内容')
+	return { raw, source: { getStorageSync: name => source.get(name) } }
+}
+
+export async function readReweighDraftAsync(ownerId, storage, mode = 'filling', shouldContinue = () => true, initialRaw) {
+	const { raw, source } = await readDraftSnapshot(ownerId, storage, mode, shouldContinue, initialRaw)
+	return readReweighDraft(ownerId, source, mode, raw)
+}
+
 export function createReweighDraftStore(ownerId, storage, currentOwner = () => ownerId, mode = 'filling') {
 	const key = reweighDraftKey(ownerId, mode)
 	let expected = null, previousHistory = null, chunks = [], lastContent = null
@@ -142,29 +179,8 @@ export function createReweighDraftStore(ownerId, storage, currentOwner = () => o
 		},
 		async loadAsync() {
 			assertOwner()
-			const raw = await storage.getStorage(key)
-			const source = new Map([[key, raw]])
-			if (raw) {
-				const head = typeof raw === 'string' ? JSON.parse(raw) : raw
-				if (![1, 2].includes(head?.version) || head.ownerId !== ownerId) throw new Error('复秤草稿无法读取或识别，原数据已保留')
-				if (head.version === 2) {
-					if (!Array.isArray(head.historyChunks)) throw new Error('复秤历史索引无法读取，原数据已保留')
-					const prefix = `${key}:history:`
-					for (const chunk of head.historyChunks) {
-						if (typeof chunk.key !== 'string' || !chunk.key.startsWith(prefix) || !Number.isInteger(chunk.count) || chunk.count < 1 || chunk.count > HISTORY_CHUNK_SIZE) throw new Error('复秤历史索引无法读取，原数据已保留')
-					}
-					// Bound native requests and yield between batches; all records are kept.
-					for (let offset = 0; offset < head.historyChunks.length; offset += 4) {
-						assertOwner()
-						await Promise.all(head.historyChunks.slice(offset, offset + 4).map(async chunk => source.set(chunk.key, await storage.getStorage(chunk.key))))
-					}
-				}
-			}
-			// Another page/account may change while async reads are in flight.
-			const latest = await storage.getStorage(key)
-			assertOwner()
-			if (storageToken(latest) !== storageToken(raw)) throw new Error('复秤草稿已在另一页面更新，请重新进入并恢复最新内容')
-			return finishLoad(raw, { getStorageSync: name => source.get(name) })
+			const { raw, source } = await readDraftSnapshot(ownerId, storage, mode, () => { assertOwner(); return true })
+			return finishLoad(raw, source)
 		},
 		save(current, history, metadata = null) {
 			return write({ ownerId, savedAt: Date.now(), current, history, metadata }).history

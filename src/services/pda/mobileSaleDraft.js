@@ -13,6 +13,7 @@ export function cloneMobileSale(value) {
 export function createMobileSaleDraftStore(ownerId, storage, currentOwner = () => ownerId) {
 	const key = `crm_mobile_sale_draft_v${MOBILE_SALE_DRAFT_VERSION}:${ownerId}`
 	let expected = null
+	let lastContent = null
 	const token = (raw) => raw ? (typeof raw === 'string' ? raw : JSON.stringify(raw)) : null
 	function assertOwner() {
 		if (!ownerId || currentOwner() !== ownerId) throw new Error('登录账号已变化，请使用原账号恢复草稿')
@@ -25,6 +26,7 @@ export function createMobileSaleDraftStore(ownerId, storage, currentOwner = () =
 			assertOwner()
 			const raw = storage.getStorageSync(key)
 			expected = token(raw)
+			lastContent = null
 			if (!raw) return null
 			const value = typeof raw === 'string' ? JSON.parse(raw) : raw
 			if (value.version !== MOBILE_SALE_DRAFT_VERSION || value.ownerId !== ownerId || !value.form) {
@@ -32,21 +34,25 @@ export function createMobileSaleDraftStore(ownerId, storage, currentOwner = () =
 			}
 			return cloneMobileSale(value)
 		},
-		save(draft) {
+		save(draft, options = {}) {
 			assertOwner()
 			assertCurrent()
-			const value = { ...cloneMobileSale(draft), version: MOBILE_SALE_DRAFT_VERSION, ownerId, savedAt: Date.now() }
+			const content = JSON.stringify(draft)
+			if (!options.force && content === lastContent) return JSON.parse(expected)
+			const value = { ...JSON.parse(content), version: MOBILE_SALE_DRAFT_VERSION, ownerId, savedAt: Date.now() }
 			const serialized = JSON.stringify(value)
 			storage.setStorageSync(key, serialized)
 			expected = serialized
 			if (storage.getStorageSync(key) !== serialized) throw new Error('草稿写入后核对失败')
+			lastContent = content
 			return value
 		},
 		remove() {
 			assertOwner()
 			assertCurrent()
-			storage.removeStorageSync(key)
+			if (expected !== null) storage.removeStorageSync(key)
 			expected = null
+			lastContent = null
 		}
 	}
 }

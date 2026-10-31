@@ -300,6 +300,7 @@ const { loading, run: fetchList } = useQuery(
 )
 
 function applyResult(payload) {
+	if (payload === undefined) return
 	const data = payload || {}
 	list.value = Array.isArray(data.items) ? data.items : []
 	const paging = data.paging || {}

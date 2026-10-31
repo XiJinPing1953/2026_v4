@@ -40,12 +40,13 @@
 					</template>
 				</AppListItem>
 			</AppList>
+			<AppButton v-if="paging.hasMore" kind="neutral" :disabled="loading" @click="loadMore">加载更多</AppButton>
 		</AppSection>
 	</AppPage>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onBeforeUnmount } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import AppList from '@/components/base/AppList.vue'
@@ -56,32 +57,44 @@ import AppTag from '@/components/base/AppTag.vue'
 import { buildPdaSaleCreateUrl, listPdaCustomers } from '@/services/pda/customer'
 import { formatMoney } from '@/services/pda/shared'
 
+let queryVersion = 0
+onBeforeUnmount(() => { queryVersion += 1 })
 const keyword = ref('')
 const loading = ref(false)
 const list = ref([])
 const paging = ref({ page: 1, pageSize: 20, total: 0, hasMore: false })
 
-async function runSearch() {
+let searched = null
+function runSearch() { return readPage(false) }
+function loadMore() { return readPage(true) }
+async function readPage(append) {
+	if (append && (loading.value || !paging.value.hasMore || !searched)) return
+	const version = ++queryVersion
+	if (!append) {
+		searched = { keyword: keyword.value, isActive: true }
+		list.value = []
+		paging.value = { page: 1, pageSize: 20, total: 0, hasMore: false }
+	}
+	const page = append ? paging.value.page + 1 : 1
 	loading.value = true
 	try {
-		const res = await listPdaCustomers({
-			keyword: keyword.value,
-			page: 1,
-			pageSize: 20,
-			isActive: true
-		})
-		if (res?.code !== 0) {
-			uni.showToast({ title: res?.msg || '查询失败', icon: 'none' })
-			return
-		}
-		list.value = res.data || []
-		paging.value = res.paging || paging.value
+		const res = await listPdaCustomers({ ...searched, page, pageSize: 20 })
+		if (version !== queryVersion) return
+		if (res?.code !== 0) throw new Error(res?.msg || '查询失败')
+		const incoming = Array.isArray(res.data) ? res.data : []
+		list.value = append ? [...list.value, ...incoming] : incoming
+		paging.value = { page, pageSize: 20, total: list.value.length, hasMore: false, ...res.paging }
+	} catch (error) {
+		if (version === queryVersion) uni.showToast({ title: error.message || '查询失败', icon: 'none' })
 	} finally {
-		loading.value = false
+		if (version === queryVersion) loading.value = false
 	}
 }
 
 function resetSearch() {
+	searched = null
+	queryVersion += 1
+	loading.value = false
 	keyword.value = ''
 	list.value = []
 	paging.value = { page: 1, pageSize: 20, total: 0, hasMore: false }

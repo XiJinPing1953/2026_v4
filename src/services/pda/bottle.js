@@ -1,3 +1,4 @@
+import { getToken } from '@/services/auth'
 import { parseFillingLabel } from './fillingLabel'
 import { getBottleV1, resolveBottleNoV1, resolveBottlePdaQrCodeV1, searchBottlesV1 } from '@/services/bottle'
 import { normalizeBottleNo, normalizeQrCode, normalizeText } from './shared'
@@ -18,10 +19,13 @@ function readCache(cache, key) {
 
 function writeCache(cache, key, data, ttlMs) {
 	if (!key || !data) return data
+	for (const [savedKey, item] of cache) if (item.expireAt <= Date.now()) cache.delete(savedKey)
+	cache.delete(key)
 	cache.set(key, {
 		data,
 		expireAt: Date.now() + Math.max(Number(ttlMs) || 0, 1000)
 	})
+	if (cache.size > 100) cache.delete(cache.keys().next().value)
 	return data
 }
 
@@ -97,12 +101,15 @@ export async function getPdaBottleById(id) {
 export async function findPdaBottleByNo(bottleNo, options = {}) {
 	const normalized = normalizeBottleNo(bottleNo)
 	if (!normalized) return { code: 400, msg: '瓶号必填', data: null }
-	const cached = options.fresh ? null : readCache(bottleNoCache, normalized)
+	const token = getToken()
+	const cacheKey = JSON.stringify([token, normalized])
+	const cached = options.fresh ? null : readCache(bottleNoCache, cacheKey)
 	if (cached) return { code: 0, msg: '', data: cached }
 	const res = await resolveBottleNoV1({ bottle_no: normalized })
+	if (token !== getToken()) return { code: 499, msg: '登录账号已变化，请重新查询', data: null }
 	if (res?.code !== 0) return { code: res?.code ?? -1, msg: res?.msg || '钢瓶查询失败', data: null }
 	const summary = normalizePdaBottleSummary(res?.data?.bottle || null)
-	if (summary?.bottle_no) writeCache(bottleNoCache, summary.bottle_no, summary, BOTTLE_CACHE_TTL_MS)
+	if (summary?.bottle_no) writeCache(bottleNoCache, JSON.stringify([token, summary.bottle_no]), summary, BOTTLE_CACHE_TTL_MS)
 	return { code: 0, msg: '', data: summary }
 }
 
@@ -111,16 +118,19 @@ export async function resolvePdaBottleByQrCode(qrCode) {
  if (label) return findPdaBottleByNo(label.bottle_no, { fresh: true })
 	const normalized = normalizeQrCode(qrCode)
 	if (!normalized) return { code: 400, msg: '钢瓶PDA二维码必填', data: null }
-	const cached = readCache(bottleQrCache, normalized)
+	const token = getToken()
+	const cacheKey = JSON.stringify([token, normalized])
+	const cached = readCache(bottleQrCache, cacheKey)
 	if (cached) return { code: 0, msg: '', data: cached }
 	const res = await resolveBottlePdaQrCodeV1({ pda_qr_code: normalized })
+	if (token !== getToken()) return { code: 499, msg: '登录账号已变化，请重新查询', data: null }
 	if (res?.code !== 0) return { code: res?.code ?? -1, msg: res?.msg || '钢瓶PDA扫码失败', data: null }
 	const summary = normalizePdaBottleSummary(res?.data?.bottle || null)
-	if (summary?.bottle_no) writeCache(bottleNoCache, summary.bottle_no, summary, BOTTLE_CACHE_TTL_MS)
+	if (summary?.bottle_no) writeCache(bottleNoCache, JSON.stringify([token, summary.bottle_no]), summary, BOTTLE_CACHE_TTL_MS)
 	return {
 		code: 0,
 		msg: '',
-		data: writeCache(bottleQrCache, normalized, summary, BOTTLE_CACHE_TTL_MS)
+		data: writeCache(bottleQrCache, cacheKey, summary, BOTTLE_CACHE_TTL_MS)
 	}
 }
 

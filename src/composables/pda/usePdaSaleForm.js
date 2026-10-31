@@ -92,6 +92,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 	let replacingDraft = false
 	let revalidationCandidate = null
 	let asyncRevision = 0
+	let draftTimer = null
 	function invalidateAsyncWork() { asyncRevision += 1 }
 	try {
 		availableDraft = store.load()
@@ -103,7 +104,9 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 
 	function ownerMatches() { return Boolean(ownerId && currentOwner() === ownerId) }
 	function canEdit() { return ownerMatches() && !submissionLocked.value }
-	function persistDraft() {
+	function persistDraft(options = {}) {
+		clearTimeout(draftTimer)
+		draftTimer = null
 		if (unreadableDraft || replacingDraft || draftStatus.value.available) return false
 		try {
 			const hasContent = form.value.customerId || form.value.remark || form.value.delivery1 || form.value.delivery2 || form.value.vehicleNo
@@ -113,7 +116,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 				draftStatus.value = { ...draftStatus.value, state: 'ready', message: '' }
 				return true
 			}
-			store.save({ draftId, form: form.value, customer: selectedCustomer.value, step: draftStep.value, ...(pdaStep.value ? { pdaStep: pdaStep.value } : {}), submission: frozenSubmission.value, receipt: receipt.value })
+			store.save({ draftId, form: form.value, customer: selectedCustomer.value, step: draftStep.value, ...(pdaStep.value ? { pdaStep: pdaStep.value } : {}), submission: frozenSubmission.value, receipt: receipt.value }, { force: options.force === true })
 			draftStatus.value = { ...draftStatus.value, state: 'saved', message: '草稿已保存到当前浏览器' }
 			return true
 		} catch (error) {
@@ -181,7 +184,11 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		return true
 	}
 
-	watch([form, selectedCustomer, draftStep, pdaStep, frozenSubmission, receipt], persistDraft, { deep: true, flush: 'sync' })
+	// Ordinary edits share one disk write. Submission and page leave still flush synchronously.
+	watch([form, selectedCustomer, draftStep, pdaStep, frozenSubmission, receipt], () => {
+		clearTimeout(draftTimer)
+		draftTimer = setTimeout(persistDraft, 300)
+	}, { deep: true })
 	if (typeof window !== 'undefined') window.addEventListener('pagehide', persistDraft)
 	onBeforeUnmount(() => {
 		persistDraft()
@@ -229,6 +236,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 			keyword: text,
 			page: 1,
 			pageSize: 12,
+			includeDeposit: false,
 			isActive: true
 		})
 	}
@@ -444,6 +452,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 			}
 		}
 		markDepositDirty()
+		persistDraft()
 		return {
 			code: 0,
 			msg: '',
@@ -609,7 +618,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 				receipt.value = mobileSaleReceipt({ msg: '正在保存本次提交，请勿另建相同单据' }, frozenSubmission.value.operationId)
 			}
 			const previouslyAttempted = Boolean(frozenSubmission.value.attempted)
-			if (!persistDraft()) {
+			if (!persistDraft({ force: true })) {
 				if (!previouslyAttempted) {
 					frozenSubmission.value = null
 					receipt.value = mobileSaleReceipt({ code: 507, msg: '草稿存储失败，销售单尚未发送', data: { source_saved: false } }, '')
@@ -617,7 +626,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 				return { code: 507, msg: previouslyAttempted ? '存储失败，原提交结果仍待确认；请查询原操作，不能另建单据' : '草稿未能保存，尚未发送销售单；请先恢复浏览器存储后重试' }
 			}
 			frozenSubmission.value.attempted = true
-			if (!persistDraft()) {
+			if (!persistDraft({ force: true })) {
 				if (!previouslyAttempted) {
 					frozenSubmission.value = null
 					receipt.value = mobileSaleReceipt({ code: 507, msg: '提交凭据未保存，销售单尚未发送', data: { source_saved: false } }, '')

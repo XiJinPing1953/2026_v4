@@ -58,6 +58,7 @@
 					</template>
 				</AppListItem>
 			</AppList>
+			<AppButton v-if="paging.hasMore" kind="neutral" :disabled="loading" @click="loadMore">加载更多</AppButton>
 		</AppSection>
 	</view>
 </template>
@@ -126,27 +127,26 @@ watch(
 	{ immediate: true }
 )
 
-async function runSearch() {
+let searched = null
+function runSearch() { return readPage(false) }
+function loadMore() { return readPage(true) }
+async function readPage(append) {
+	if (append && (loading.value || !paging.value.hasMore || !searched)) return
 	const version = ++queryVersion
+	if (!append) {
+		searched = { bottleNo: normalizeBottleNo(filters.bottleNo), type: typeOptions[filters.typeIndex]?.value || '', sourceType: sourceOptions[filters.sourceIndex]?.value || '', dateStart: filters.dateStart, dateEnd: filters.dateEnd }
+		list.value = []
+		paging.value = { page: 1, pageSize: 20, total: 0, hasMore: false }
+	}
+	const page = append ? paging.value.page + 1 : 1
 	loading.value = true
-	list.value = []
 	try {
-		const res = await listBottleMovementsV1({
-			bottleNo: normalizeBottleNo(filters.bottleNo),
-			type: typeOptions[filters.typeIndex]?.value || '',
-			sourceType: sourceOptions[filters.sourceIndex]?.value || '',
-			dateStart: filters.dateStart,
-			dateEnd: filters.dateEnd,
-			page: 1,
-			pageSize: 20
-		})
+		const res = await listBottleMovementsV1({ ...searched, page, pageSize: 20 })
 		if (version !== queryVersion) return
-		if (res?.code !== 0) {
-			uni.showToast({ title: res?.msg || '查询失败', icon: 'none' })
-			return
-		}
-		list.value = Array.isArray(res?.data) ? res.data : []
-		paging.value = res?.paging || paging.value
+		if (res?.code !== 0) throw new Error(res?.msg || '查询失败')
+		const incoming = Array.isArray(res.data) ? res.data : []
+		list.value = append ? [...list.value, ...incoming] : incoming
+		paging.value = { page, pageSize: 20, total: list.value.length, hasMore: false, ...res.paging }
 	} catch (error) {
 		if (version === queryVersion) uni.showToast({ title: error.message || '查询失败', icon: 'none' })
 	} finally {
@@ -155,6 +155,7 @@ async function runSearch() {
 }
 
 function resetSearch() {
+	searched = null
 	queryVersion += 1
 	loading.value = false
 	filters.bottleNo = ''

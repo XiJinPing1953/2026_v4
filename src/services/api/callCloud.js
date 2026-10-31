@@ -12,8 +12,9 @@ function generateRequestId() {
 // - 统一处理 401
 // - 返回 { code, msg, data, ... }
 async function invokeCloud(name, { action, data = {}, token, timeout, isResponseCurrent } = {}) {
-	const t = token != null ? token : getToken()
-	const responseCurrent = () => !isResponseCurrent || (isResponseCurrent() && (getToken() || '') === (t || ''))
+	const accountToken = getToken() || ''
+	const t = token != null ? token : accountToken
+	const responseCurrent = () => (getToken() || '') === accountToken && (!isResponseCurrent || isResponseCurrent())
 	if (!responseCurrent()) return { code: 499, msg: '查询已取消' }
 	const payload = { action, data }
 	if (t) payload.token = t
@@ -82,6 +83,8 @@ export function callCloud(name, options = {}) {
    readEpoch += 1
   })
  }
+ // A caller-specific cancellation guard must never cancel another subscriber.
+ if (options.isResponseCurrent) return invokeCloud(name, { ...options, token })
  const key = JSON.stringify([readEpoch, token, name, options.action, options.timeout, stableKey(options.data || {})])
  if (pendingReads.has(key)) return pendingReads.get(key)
  const pending = invokeCloud(name, { ...options, token }).finally(() => {

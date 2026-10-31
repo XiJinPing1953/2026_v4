@@ -12,6 +12,7 @@
 		</view>
 		<view v-else-if="workflowMode" class="form-stack"><SafetyInspectionWorkflowEditor ref="workflowEditor" :inspection-id="savedId || workflowId" @dirty="workflowDirty=$event" /><button class="minor-button" @click="openSavedRecord">查看已保存36项巡检</button></view>
 		<view v-else class="form-stack">
+			<view v-if="draftError" class="state-card state-card--error">{{ draftError }}</view>
 				<view v-if="submitted" class="review-card">
 					<text>巡检单已保存。{{ dailyNavigationError || '请继续填写当日日管控。' }}</text>
 					<button class="minor-button" type="button" @click="openSavedDaily">继续日管控</button>
@@ -225,6 +226,7 @@ const savedId = ref(''); const savedDate = ref(''); const dailyNavigationError =
 const isCurrentTemplate = computed(() => Number(template.value.template_version) >= 3)
 const hazardReferenceOptions = [{ value: 'new', label: '首次发现新问题' }, { value: 'linked', label: '未关闭隐患再次发现' }, { value: 'recurrence', label: '已关闭隐患再次发生' }]
 const dirty = ref(false)
+const draftError = ref('')
 const submitted = ref(false)
 const signatureRefs = new Map()
 const uploadTasks = new Map()
@@ -352,7 +354,7 @@ function replaceSignature(item) { item.responsible_signature_file_id = ''; item.
 
 async function saveSignature(item) {
 	const signature = signatureRefs.get(item.item_code)
-	if (!signature?.hasInk?.value) return uni.showToast({ title: '请先手写签名', icon: 'none' })
+	if (!signature?.hasInk) return uni.showToast({ title: '请先手写签名', icon: 'none' })
 	item.signature_uploading = true
 	try {
 		const localPath = await signature.exportFile()
@@ -477,7 +479,8 @@ function restoreDraft() {
 }
 
 function saveDraft() {
-	if (editMode.value || submitted.value || !template.value.template_code) return
+	clearTimeout(draftTimer)
+	if (editMode.value || submitted.value || !template.value.template_code) return false
 	try {
 		uni.setStorageSync(draftKey.value, {
 			template_code: template.value.template_code,
@@ -503,7 +506,12 @@ function saveDraft() {
 			})),
 			saved_at: Date.now()
 		})
-	} catch (_) { /* storage quota is non-fatal */ }
+		draftError.value = ''
+		return true
+	} catch (_) {
+		draftError.value = '草稿未能保存到本机，请勿直接关闭页面；可重试或提交巡检。'
+		return false
+	}
 }
 
 async function load() {
@@ -624,11 +632,11 @@ async function handleBack() {
 		return new Promise(resolve => uni.showModal({ title: '七类核对尚未保存', content: '原36项已保存；此处未保存的编辑退出后不会保留。请先暂存，或确认退出。', success: result => { allowNextBack=Boolean(result.confirm); resolve(Boolean(result.confirm)) }, fail: () => resolve(false) }))
 	}
 	if (!dirty.value || submitted.value) { allowNextBack = true; return true }
-	if (!editMode.value) saveDraft()
+	const draftSaved = !editMode.value && saveDraft()
 	return new Promise((resolve) => {
 		uni.showModal({
 			title: '退出巡检',
-			content: editMode.value ? '尚有修改未保存，确认退出吗？' : '已自动保存草稿，下次可继续填写。确认退出吗？',
+			content: editMode.value ? '尚有修改未保存，确认退出吗？' : draftSaved ? '已自动保存草稿，下次可继续填写。确认退出吗？' : '草稿保存失败，退出会丢失尚未保存的填写内容。仍要退出吗？',
 			success: (res) => { allowNextBack = Boolean(res.confirm); resolve(Boolean(res.confirm)) },
 			fail: () => resolve(false)
 		})

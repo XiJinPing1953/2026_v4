@@ -170,9 +170,9 @@ test('unavailable counts and cross-collection updates reject totals, including v
 		if (name === 'crm_fillings' || name === 'crm_sale_records') assert.equal(result.data.cash.complete, true)
 	}
 	const tables = setup()
-	let changed = false
-	const db = makeDb(tables, { get: (name, rows, options) => {
-		if (name === 'crm_customer_receipts' && !changed) { tables.crm_sale_records[0].updated_at = Date.now() + 1; changed = true }
+	const db = makeDb(tables, { get: async (name, rows, options) => {
+		// Keep changing across the reader's fresh primary-range fallback too; a stable retry may legitimately succeed.
+		if (name === 'crm_customer_receipts') { await new Promise(resolve => setTimeout(resolve, 2)); tables.crm_sale_records[0].updated_at = Date.now() }
 		return { data: structuredClone(rows) }
 	} })
 	const result = await run(db)

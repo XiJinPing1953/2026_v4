@@ -773,6 +773,7 @@ const { loading, run: fetchList } = useQuery(
 	)
 
 function applyResult(payload) {
+	if (payload === undefined) return
 	const data = payload || {}
 	const rows = Array.isArray(data.items) ? data.items : []
 	list.value = [...rows].sort((a, b) => compareBottleNoNatural(a?.bottle_no, b?.bottle_no))

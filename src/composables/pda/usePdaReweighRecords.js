@@ -1,4 +1,5 @@
-import { localFillingRounds } from '@/services/pda/reweighHistory'
+import { readPdaStorage } from '@/services/pda/asyncStorage'
+import { createLocalFillingRoundsReader } from '@/services/pda/reweighHistory'
 import { listReturnReweighRoundRecordsV1 } from '@/services/api/reweigh'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { getUser } from '@/services/auth'
@@ -18,6 +19,8 @@ export function usePdaReweighRecords() {
 	const historyError = ref('')
 	const summary = ref(null), rounds = ref([]), roundId = ref(''), pageActive = ref(false)
 	let localRounds = []
+	const readLocalRounds = createLocalFillingRoundsReader()
+	const localStorage = { getStorage: key => readPdaStorage({ getStorage: options => uni.getStorage(options), getStorageInfo: options => uni.getStorageInfo(options) }, key) }
 	const loading = ref(false)
 	const scannerReady = ref(false)
 	const error = ref('')
@@ -55,14 +58,30 @@ export function usePdaReweighRecords() {
 			if (!types.value.some(item => item.value === type.value)) { error.value = '无复秤记录查询权限'; return }
 			searched = { type: type.value, date: date.value, bottle_no: normalizeBottleNo(bottleNo.value), round_id: roundId.value }
 		}
+		const version = ++queryVersion
+		if (!append && searched.type === 'filling') {
+			loading.value = true
+			const readerOwner = owner
+			const isCurrent = () => active && readerOwner === currentOwner() && version === queryVersion
+			try {
+				const loaded = await readLocalRounds(readerOwner, localStorage, isCurrent)
+				if (!isCurrent()) return
+				localRounds = loaded; rounds.value = loaded; historyError.value = ''
+			} catch (cause) {
+				if (!isCurrent()) return
+				historyError.value = cause.message || '本机历史读取失败，请重新查询'
+				// Keep a failed local read distinct from an empty history; date queries remain usable.
+				if (searched.round_id) { loading.value = false; return }
+			}
+		}
 		if (!append && searched.type === 'filling' && searched.round_id) {
+			loading.value = false
 			const group = localRounds.find(item => item.id === searched.round_id)
 			if (!group) { error.value = '本机未找到此轮次'; return }
 			rows.value = group.rows.filter(item => !searched.bottle_no || item.bottle_no === searched.bottle_no)
 			summary.value = { record_count: rows.value.length, bottle_count: new Set(rows.value.map(item => item.bottle_no)).size }
 			return
 		}
-		const version = ++queryVersion
 		const snapshot = { ...searched }
 		const requestCursor = append ? cursor : null
 		loading.value = true; error.value = ''
@@ -104,8 +123,7 @@ export function usePdaReweighRecords() {
 		const generation = ++lifecycle
 		active = true; pageActive.value = true; owner = currentOwner(); invalidate(); roundId.value = ''
 		historyError.value = ''
-		try { localRounds = localFillingRounds(owner, { getStorageSync: key => uni.getStorageSync(key) }) }
-		catch (cause) { localRounds = []; historyError.value = cause.message }
+		localRounds = []; rounds.value = []
 		types.value = [
 			{ value: 'return', label: '回瓶复秤', url: '/pages/pda/return-reweigh' },
 			{ value: 'filling', label: '罐装复秤', url: '/pages/pda/reweigh' }

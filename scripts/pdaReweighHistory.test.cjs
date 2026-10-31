@@ -64,3 +64,25 @@ test('batch failure stops without retry and explicit stop closes connection and 
  resolve(true); await task; assert.deepEqual(stopped.sends, ['one'])
  const declined = printView({ confirm: false }); await declined.view.printRound(); assert.deepEqual(declined.sends, [])
 })
+
+test('async round browsing retains all chunks, reuses an unchanged root and never migrates or writes', async () => {
+ const draft = load('src/services/pda/reweighDraft.js', 'reweighDraftKey,readReweighDraftAsync')
+ const { createLocalFillingRoundsReader } = load('src/services/pda/reweighHistory.js', 'createLocalFillingRoundsReader', { ...draft, reweighHistoryTime, savedLabel, supersededOperationIds })
+ const key = draft.reweighDraftKey('owner'), map = new Map(), parts = []
+ for (let i = 0; i < 50; i++) {
+  const name = `${key}:history:${i}`; parts.push({ key: name, count: 40 })
+  map.set(name, JSON.stringify(Array.from({ length: 40 }, (_, j) => entry(`${i}-${j}`))))
+ }
+ map.set(key, JSON.stringify({ version: 2, ownerId: 'owner', historyChunks: parts, current: entry('current') }))
+ let reads = 0, active = 0, max = 0, valid = true
+ const storage = { async getStorage(name) { reads++; active++; max = Math.max(active,max); await new Promise(r => setImmediate(r)); active--; return map.get(name) }, getStorageSync() { assert.fail('sync read') }, setStorageSync() { assert.fail('write') } }
+ const reader = createLocalFillingRoundsReader()
+ const first = await reader('owner', storage, () => valid)
+ assert.equal(first[0].rows.length, 2001); assert.ok(max <= 4); assert.equal(reads, 52)
+ reads = 0; assert.equal(await reader('owner', storage), first); assert.equal(reads, 1)
+ map.set(key, JSON.stringify({ version: 2, ownerId: 'owner', historyChunks: parts, current: entry('new-current') }))
+ const changed = await reader('owner', storage); assert.notEqual(changed, first)
+ valid = false; await assert.rejects(reader('owner', storage, () => valid), /账号/)
+ map.delete(parts[0].key); map.set(key, JSON.stringify({ version: 2, ownerId: 'owner', historyChunks: parts, current: entry('third-current') }))
+ await assert.rejects(reader('owner', storage), /分段无法读取/)
+})

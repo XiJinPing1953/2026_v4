@@ -269,6 +269,7 @@ function initDateRange() {
 }
 
 function applyResult(payload) {
+	if (payload === undefined) return
 	const data = payload || {}
 	list.value = Array.isArray(data.items) ? data.items : []
 	const paging = data.paging || {}
@@ -383,6 +384,7 @@ function onOpenTask(item) {
 async function onSearchOwners() {
 	const currentOwnerId = ownerOptions.value[filters.ownerIndex]?.value || ''
 	const data = await fetchUsers()
+	if (data === undefined) return
 	users.value = data || []
 	const idx = ownerOptions.value.findIndex((item) => item.value === currentOwnerId)
 	filters.ownerIndex = idx >= 0 ? idx : 0

@@ -35,7 +35,12 @@
 			<text v-if="historyError && type === 'filling'" class="error">{{ historyError }}</text>
 			<text v-if="error" class="error">{{ error }}</text>
 			<text v-else-if="!loading && !rows.length" class="hint">暂无符合条件的记录</text>
-			<view v-for="item in rows" :key="item.id" class="record">
+			<view v-if="displayPages > 1" class="top-row">
+				<AppButton kind="neutral" :disabled="displayPage <= 1" @click="displayPage--">上一页</AppButton>
+				<text class="hint">{{ displayPage }}/{{ displayPages }} 页</text>
+				<AppButton kind="neutral" :disabled="displayPage >= displayPages" @click="displayPage++">下一页</AppButton>
+			</view>
+			<view v-for="item in visibleRows" :key="item.id" class="record">
 				<view class="record-head"><text class="bottle">{{ item.bottle_no }} 号瓶</text><text class="hint">{{ item.status === 'complete' ? '已完成' : item.status === 'pending' ? '处理中' : '待核对' }}</text></view>
 				<text class="record-time">{{ item.time_label || '称重时间' }} {{ item.weighed_at || '时间未记录' }}</text>
 				<view class="weights">
@@ -71,6 +76,13 @@ import { usePdaFillingPrinter } from '@/composables/pda/usePdaFillingPrinter'
 defineEmits(['back'])
 const form = usePdaReweighRecords()
 const { historyError, summary, rounds, roundId, pageActive, types, type, typeLabel, date, bottleNo, rows, loading, scannerReady, error, hasMore, setFilter, search, loadMore } = form
+const displayPage = ref(1)
+const displayPages = computed(() => Math.max(1, Math.ceil(rows.value.length / 30)))
+const visibleRows = computed(() => rows.value.slice((displayPage.value - 1) * 30, displayPage.value * 30))
+watch(rows, (value, previous) => {
+ if (!previous?.length || value[0]?.id !== previous[0]?.id || value.length < previous.length) displayPage.value = 1
+ displayPage.value = Math.min(displayPage.value, displayPages.value)
+})
 const typeIndex = computed(() => Math.max(0, types.value.findIndex(item => item.value === type.value)))
 function changeType(event) { setFilter('type', types.value[Number(event.detail.value)]?.value) }
 const printEntry = historyPrintEntry

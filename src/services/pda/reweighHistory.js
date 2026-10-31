@@ -1,9 +1,11 @@
 import { savedLabel, supersededOperationIds } from './fillingPrint'
-import { reweighHistoryTime, readReweighDraft } from './reweighDraft'
+import { reweighHistoryTime, readReweighDraft, readReweighDraftAsync, reweighDraftKey } from './reweighDraft'
 
 // Read only: never call the draft store's migration/save path while browsing history.
 export function localFillingRounds(owner, storage) {
- const data = readReweighDraft(owner, storage)
+ return groupFillingRounds(readReweighDraft(owner, storage))
+}
+function groupFillingRounds(data) {
  if (!data) return []
  const entries = [...new Map([...data.history, data.current].filter(Boolean).map(row => [row.operationId, row])).values()]
  const superseded = supersededOperationIds(entries)
@@ -29,4 +31,19 @@ export function historyPrintEntry(row) {
  return { operationId: row.operation_id, bottleNo: row.bottle_no,
   receipt: { saved: true, fillingId: row.id }, frozen: { mode: 'create', label: row.label,
    payload: { operation_id: row.operation_id, bottle_no: row.bottle_no, gross_weight: row.gross_weight } } }
+}
+
+// One reader per page; unchanged roots reuse grouping without re-reading every chunk.
+export function createLocalFillingRoundsReader() {
+ let cachedOwner = '', cachedToken, cachedRounds = []
+ return async (owner, storage, shouldContinue = () => true) => {
+  const raw = await storage.getStorage(reweighDraftKey(owner))
+  if (!shouldContinue()) throw new Error('页面或账号已变化，请重新查询本机记录')
+  const token = typeof raw === 'string' ? raw : JSON.stringify(raw ?? null)
+  if (owner === cachedOwner && token === cachedToken) return cachedRounds
+  const data = await readReweighDraftAsync(owner, storage, 'filling', shouldContinue, raw)
+  const rounds = groupFillingRounds(data)
+  cachedOwner = owner; cachedToken = token; cachedRounds = rounds
+  return rounds
+ }
 }

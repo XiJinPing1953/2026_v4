@@ -16,7 +16,7 @@ function harness(t, options = {}) {
 		Date, String, Boolean, Array, Map, Promise, ...vue, onBeforeUnmount: fn => hooks.push(fn),
 		getUser: () => ({ _id: owner }), canViewPage: url => !options.onlyFilling || url === '/pages/pda/reweigh',
 		isPdaAppMode: () => true, normalizeBottleNo: value => String(value || '').trim().toUpperCase(),
-		localFillingRounds: () => options.localRounds || [], uni: { getStorageSync: () => '' },
+		createLocalFillingRoundsReader: () => async () => { options.onLocalRead?.(); return options.localRead ? options.localRead() : options.localRounds || [] }, readPdaStorage: () => null, uni: {},
 		listReturnReweighRoundRecordsV1: request('round'),
 		listReturnReweighRecordsV1: request('return'), listFillingReweighRecordsV1: request('filling'),
 		resolvePdaBottleByQrCode: options.resolveQr || (async rawText => ({ code: 0, data: { bottle_no: rawText } })),
@@ -157,4 +157,19 @@ test('return historical round uses server round scope and full summary rather th
  h.form.setFilter('round', 'old-round'); await h.form.search()
  assert.equal(h.requests[1].type, 'round'); assert.equal(h.requests[1].round_id, 'old-round')
  assert.equal(h.form.summary.value.record_count, 57)
+})
+
+
+test('return query never reads local filling history; filling load is asynchronous and late results are discarded', async t => {
+ let reads = 0
+ const delayed = deferred()
+ const h = harness(t, { onLocalRead: () => reads++, localRead: () => delayed.promise })
+ await h.form.activate(); await tick(); assert.equal(reads, 0)
+ h.form.setFilter('type', 'filling'); const pending = h.form.search()
+ assert.equal(reads, 1); assert.equal(h.form.loading.value, true)
+ h.form.setFilter('type', 'return'); await h.form.search()
+ delayed.resolve([{ id: 'late', rows: [] }]); await pending
+ assert.equal(h.form.rounds.value.length, 0)
+ assert.equal(h.form.rows.value[0].id, 'return')
+ assert.equal(h.form.loading.value, false)
 })

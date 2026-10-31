@@ -386,6 +386,7 @@ function syncTaskForm(doc) {
 async function onRefresh() {
 	if (!taskId.value) return
 	const [taskDoc, followRows, userRows] = await Promise.all([fetchTask(), fetchFollowups(), fetchUsers()])
+	if ([taskDoc, followRows, userRows].some(value => value === undefined)) return
 	task.value = taskDoc || null
 	followupList.value = followRows || []
 	users.value = userRows || []
@@ -395,6 +396,7 @@ async function onRefresh() {
 async function onSearchOwners() {
 	const currentOwnerId = ownerOptions.value[taskForm.ownerIndex]?.value || normalizeId(task.value?.owner_id)
 	const data = await fetchUsers()
+	if (data === undefined) return
 	users.value = data || []
 	const idx = ownerOptions.value.findIndex((item) => item.value === currentOwnerId)
 	taskForm.ownerIndex = idx >= 0 ? idx : 0

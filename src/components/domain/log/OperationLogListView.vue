@@ -450,6 +450,7 @@ async function runSearch({ resetPage } = {}) {
 	if (!authorized.value) return
 	if (resetPage) paging.page = 1
 	const result = await fetchList()
+	if (result === undefined) return
 	list.value = result?.list || []
 	paging.page = Number(result?.paging?.page || paging.page || 1)
 	paging.total = Number(result?.paging?.total || 0)
