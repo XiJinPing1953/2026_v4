@@ -6,7 +6,7 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.31-round-archive.1",
+      "version": "2026.10.31-round-archive.2",
       "output": "dist/build/web",
       "acceptance": "Move completed reweigh rounds to query-only archives; preserve active/pending recovery and label facts. Add bottom pagination and scroll to page start. Explicit ten-minute segmented timing only; preserve deployed business/ACL helpers and native compatibility. Device timing and acceptance recorded separately.",
       "deploymentScope": {
@@ -32,6 +32,7 @@
           "src/components/domain/pda/PdaReweighRecordsView.vue",
           "src/components/domain/pda/PdaReweighView.vue",
           "src/composables/pda/usePdaReweigh.js",
+          "src/composables/pda/usePdaReweighRecords.js",
           "src/composables/pda/useRecordPageScroll.js",
           "src/main.js",
           "src/manifest.json",
@@ -188,6 +189,7 @@
           "src/components/domain/pda/PdaReweighRecordsView.vue",
           "src/components/domain/pda/PdaReweighView.vue",
           "src/composables/pda/usePdaReweigh.js",
+          "src/composables/pda/usePdaReweighRecords.js",
           "src/composables/pda/useRecordPageScroll.js",
           "src/main.js",
           "src/manifest.json",
@@ -363,9 +365,9 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.46",
+      "version": "1.0.47",
       "output": "release/pda",
-      "acceptance": "Move completed reweigh rounds to query-only archives; preserve active/pending recovery and label facts. Add bottom pagination and scroll to page start. Explicit ten-minute segmented timing only; preserve deployed business/ACL helpers and native compatibility. Device timing and acceptance recorded separately.",
+      "acceptance": "Move completed reweigh rounds to query-only archives; preserve active/pending recovery and label facts. Add bottom pagination and scroll to page start. Explicit ten-minute segmented timing only; preserve deployed business/ACL helpers and native compatibility. Device timing and acceptance recorded separately. Reuse immutable native work chunks for at most 60 seconds and 512 KiB, always verify live roots and clear on owner change; report local root/chunk reads and one-time migration separately.",
       "deploymentScope": {
         "functions": [
           "crm-auth",
@@ -389,6 +391,7 @@
           "src/components/domain/pda/PdaReweighRecordsView.vue",
           "src/components/domain/pda/PdaReweighView.vue",
           "src/composables/pda/usePdaReweigh.js",
+          "src/composables/pda/usePdaReweighRecords.js",
           "src/composables/pda/useRecordPageScroll.js",
           "src/main.js",
           "src/manifest.json",

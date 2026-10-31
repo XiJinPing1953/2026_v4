@@ -67,7 +67,7 @@ test('batch failure stops without retry and explicit stop closes connection and 
 
 test('async round browsing retains all chunks, reuses an unchanged root and never migrates or writes', async () => {
  const draft = load('src/services/pda/reweighDraft.js', 'reweighDraftKey,readReweighDraftAsync')
- const work = load('src/services/pda/reweighWorkStore.js', 'readReweighHistoryRoot,readReweighHistorySnapshot', draft)
+ const work = load('src/services/pda/reweighWorkStore.js', 'readReweighHistoryRoot,readReweighHistorySnapshot', { ...draft, startPerformanceSpan: () => () => {} })
  const { createLocalFillingRoundsReader } = load('src/services/pda/reweighHistory.js', 'createLocalFillingRoundsReader', { ...draft, ...work, reweighHistoryTime, savedLabel, supersededOperationIds })
  const key = draft.reweighDraftKey('owner'), map = new Map(), parts = []
  for (let i = 0; i < 50; i++) {

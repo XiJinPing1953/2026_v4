@@ -73,7 +73,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		getStorage: key => readPdaStorage(uni, key),
 		setStorageSync: (key, value) => uni.setStorageSync(key, value),
 		removeStorageSync: key => uni.removeStorageSync(key)
-	}, () => String(getUser()?._id || ''), mode)
+	}, () => String(getUser()?._id || ''), mode, { reuseImmutableChunks: nativeSupported })
 	function restoreSaved(saved) {
 		if (saved) {
 			current.value = saved.current; history.value = saved.history

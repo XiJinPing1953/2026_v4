@@ -71,8 +71,8 @@ async function activate() {
 	visible = true
 	const version = ++lifecycle
 	await nextTick()
-	if (visible && version === lifecycle && showRecords.value) { await recordsRef.value?.activate(); markPageTrace('data_ready'); void markPageAfterRender() }
-	if (visible && version === lifecycle && showSales.value) { await salesRef.value?.activate(); markPageTrace('data_ready'); void markPageAfterRender() }
+	if (visible && version === lifecycle && showRecords.value) { await recordsRef.value?.activate(); markPageTrace('activation_complete'); void markPageAfterRender() }
+	if (visible && version === lifecycle && showSales.value) { await salesRef.value?.activate(); markPageTrace('activation_complete'); void markPageAfterRender() }
 }
 function deactivate() { printerRef.value?.close(); visible = false; lifecycle++; return Promise.all([recordsRef.value?.deactivate(), salesRef.value?.deactivate()]) }
 async function openRecords() {
@@ -83,7 +83,7 @@ async function openRecords() {
 	showRecords.value = true
 	const version = ++lifecycle
 	await nextTick()
-	if (visible && version === lifecycle && showRecords.value) { await recordsRef.value?.activate(); markPageTrace('data_ready'); void markPageAfterRender() }
+	if (visible && version === lifecycle && showRecords.value) { await recordsRef.value?.activate(); markPageTrace('activation_complete'); void markPageAfterRender() }
 }
 async function openSales() {
 	if (!canSales || showSales.value) return
@@ -93,7 +93,7 @@ async function openSales() {
 	salesOpened.value = true; showSales.value = true
 	const version = ++lifecycle
 	await nextTick()
-	if (visible && version === lifecycle && showSales.value) { await salesRef.value?.activate(); markPageTrace('data_ready'); void markPageAfterRender() }
+	if (visible && version === lifecycle && showSales.value) { await salesRef.value?.activate(); markPageTrace('activation_complete'); void markPageAfterRender() }
 }
 function closeSales() {
 	if (!showSales.value) return false

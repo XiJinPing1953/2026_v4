@@ -1,4 +1,5 @@
 import { readPdaStorage } from '@/services/pda/asyncStorage'
+import { markPageTrace, markPageAfterRender } from '@/services/performanceTrace'
 import { createLocalFillingRoundsReader } from '@/services/pda/reweighHistory'
 import { listReturnReweighRoundRecordsV1 } from '@/services/api/reweigh'
 import { computed, onBeforeUnmount, ref } from 'vue'
@@ -80,6 +81,7 @@ export function usePdaReweighRecords() {
 			if (!group) { error.value = '本机未找到此轮次'; return }
 			rows.value = group.rows.filter(item => !searched.bottle_no || item.bottle_no === searched.bottle_no)
 			summary.value = { record_count: rows.value.length, bottle_count: new Set(rows.value.map(item => item.bottle_no)).size }
+			markPageTrace('records_ready'); void markPageAfterRender('records_render')
 			return
 		}
 		const snapshot = { ...searched }
@@ -99,6 +101,7 @@ export function usePdaReweighRecords() {
 			rows.value = Array.from(new Map([...(append ? rows.value : []), ...incoming].map(item => [item.id, item])).values())
 			cursor = response.data?.next_cursor || null
 			hasMore.value = Boolean(response.data?.has_more && cursor)
+			if (!append) { markPageTrace('records_ready'); void markPageAfterRender('records_render') }
 		} catch (cause) {
 			if (validOwner() && version === queryVersion) error.value = cause.message || '复秤记录查询失败'
 		} finally {

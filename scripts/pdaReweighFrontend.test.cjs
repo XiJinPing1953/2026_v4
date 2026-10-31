@@ -14,7 +14,7 @@ const asyncStorage = load('src/services/pda/asyncStorage.js', ['readPdaStorage']
 const display = load('src/services/pda/weighStatus.js', ['sameWeighDisplay'])
 const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight'])
 const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt', 'validReweighEntry', 'readReweighDraft', 'readReweighDraftAsync', 'reweighDraftKey'])
-const work = load('src/services/pda/reweighWorkStore.js', ['createReweighWorkStore', 'readReweighHistorySnapshot'], draft)
+const work = load('src/services/pda/reweighWorkStore.js', ['createReweighWorkStore', 'readReweighHistorySnapshot'], { ...draft, startPerformanceSpan: () => () => {} })
 function harness(t, options = {}) {
 	let clock = Date.now(), weightFrame
 	class TestDate extends Date { static now() { return clock } }

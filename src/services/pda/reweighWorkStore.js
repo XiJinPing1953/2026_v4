@@ -1,4 +1,18 @@
 import { createReweighDraftStore, createReweighId, validReweighEntry, readReweighDraft, readReweighDraftAsync, reweighDraftKey } from './reweighDraft'
+import { startPerformanceSpan } from '@/services/performanceTrace'
+
+// Native work chunks are immutable UUID snapshots. Keep only a small, short-lived
+// raw-text cache; roots are always read from storage and checked again by the core.
+const chunkCache = new Map()
+const CACHE_UNITS = 256 * 1024
+let cacheOwner = '', cacheUnits = 0
+function forgetChunk(key) { const entry = chunkCache.get(key); if (entry) { cacheUnits -= entry.value.length; chunkCache.delete(key) } }
+function rememberChunk(key, value) {
+ forgetChunk(key)
+ if (typeof value !== 'string' || value.length > CACHE_UNITS) return
+ while (chunkCache.size && (cacheUnits + value.length > CACHE_UNITS || chunkCache.size >= 32)) forgetChunk(chunkCache.keys().next().value)
+ chunkCache.set(key, { value, until: Date.now() + 60000 }); cacheUnits += value.length
+}
 
 // Working records and immutable archives have separate roots. The original v1/v2
 // snapshot remains untouched during migration; switching the work root commits it.
@@ -8,18 +22,26 @@ const workKey = (owner, mode) => `${reweighDraftKey(owner, mode)}:work-v3`
 const entryRound = entry => entry?.roundId || entry?.frozen?.payload?.round_id || ''
 const cleanMetadata = metadata => ({ ...metadata, ...(!metadata?.pendingEndRound ? { lastEndedRound: null } : {}) })
 
-function workStorage(owner, mode, storage) {
+function workStorage(owner, mode, storage, reuseChunks = false) {
  const base = reweighDraftKey(owner, mode), key = workKey(owner, mode)
+ if (reuseChunks && cacheOwner !== owner) { chunkCache.clear(); cacheUnits = 0; cacheOwner = owner }
  const physical = name => name === base || name.startsWith(`${base}:`) ? key + name.slice(base.length) : name
+ const cacheable = name => reuseChunks && cacheOwner === owner && name.startsWith(`${key}:history:`)
  return {
-  getStorageSync: name => storage.getStorageSync(physical(name)),
-  getStorage: name => storage.getStorage(physical(name)),
-  setStorageSync: (name, value) => storage.setStorageSync(physical(name), value),
-  removeStorageSync: name => storage.removeStorageSync?.(physical(name))
+  getStorageSync(name) { const path = physical(name), value = storage.getStorageSync(path); if (cacheable(path)) rememberChunk(path, value); return value },
+  async getStorage(name) {
+   const path = physical(name), cached = cacheable(path) && chunkCache.get(path)
+   if (cached && cached.until > Date.now()) return cached.value
+   forgetChunk(path)
+   const finish = startPerformanceSpan(path === key ? 'work_root_read' : 'work_chunk_read')
+   try { const value = await storage.getStorage(path); if (cacheable(path)) rememberChunk(path, value); return value } finally { finish() }
+  },
+  setStorageSync(name, value) { const path = physical(name); forgetChunk(path); storage.setStorageSync(path, value) },
+  removeStorageSync(name) { const path = physical(name); forgetChunk(path); storage.removeStorageSync?.(path) }
  }
 }
 
-export function createReweighWorkStore(owner, storage, currentOwner = () => owner, mode = 'filling') {
+export function createReweighWorkStore(owner, storage, currentOwner = () => owner, mode = 'filling', { reuseImmutableChunks = false } = {}) {
  const key = workKey(owner, mode), legacyKey = reweighDraftKey(owner, mode)
  let archiveHead = null, lastHistory = null, lastRound = null, migrationToken
  const mapped = workStorage(owner, mode, {
@@ -28,7 +50,7 @@ export function createReweighWorkStore(owner, storage, currentOwner = () => owne
    if (name === key && migrationToken !== undefined && tokenOf(storage.getStorageSync(legacyKey)) !== migrationToken) throw new Error('复秤草稿已在另一页面更新，请重新进入并恢复最新内容')
    storage.setStorageSync(name, value)
   }
- })
+ }, reuseImmutableChunks)
  const core = createReweighDraftStore(owner, mapped, currentOwner, mode)
  function writeArchive(rows) {
   if (currentOwner() !== owner) throw new Error('登录账号已变化，请使用原账号恢复复秤草稿')
@@ -88,9 +110,12 @@ export function createReweighWorkStore(owner, storage, currentOwner = () => owne
   async loadAsync() {
    const existing = await core.loadAsync()
    if (existing) return accept(existing)
-   const raw = await storage.getStorage(legacyKey)
-   const data = await readReweighDraftAsync(owner, storage, mode, () => currentOwner() === owner, raw)
-   return migrate(data, raw)
+   const finish = startPerformanceSpan('legacy_migration')
+   try {
+    const raw = await storage.getStorage(legacyKey)
+    const data = await readReweighDraftAsync(owner, storage, mode, () => currentOwner() === owner, raw)
+    return migrate(data, raw)
+   } finally { finish() }
   },
   save
  }

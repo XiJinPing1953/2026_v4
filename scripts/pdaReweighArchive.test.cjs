@@ -1,10 +1,42 @@
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm')
 const load = (file, names, globals = {}) => vm.runInNewContext(fs.readFileSync(file, 'utf8').replace(/^import .*\n/gm, '').replace(/^export /gm, '') + `;({${names}})`, globals)
 const draft = load('src/services/pda/reweighDraft.js', 'createReweighDraftStore,createReweighId,validReweighEntry,readReweighDraft,readReweighDraftAsync,reweighDraftKey')
-const work = load('src/services/pda/reweighWorkStore.js', 'createReweighWorkStore,readReweighHistoryRoot,readReweighHistorySnapshot', draft)
+const work = load('src/services/pda/reweighWorkStore.js', 'createReweighWorkStore,readReweighHistoryRoot,readReweighHistorySnapshot', { ...draft, startPerformanceSpan: () => () => {} })
 const row = (id, round = 'old', complete = true) => ({ operationId: `op-${id}`, bottleNo: String(id), roundId: round, date: '2026-10-31 08:00:00',
  receipt: { saved: true, complete, fillingId: `fill-${id}` }, frozen: { mode: 'create', payload: { operation_id: `op-${id}`, bottle_no: String(id) }, label: { bottle_no: String(id), gross_weight: 150, tare_weight: 100, net_weight: 50 } } })
 const empty = () => ({ operationId: 'empty', bottleNo: '' })
+test('native cache only reuses immutable chunks: roots stay fresh, writes invalidate and owner changes clear it', async () => {
+ const f = fixture(), create = () => work.createReweighWorkStore('u', f.storage, () => 'u', 'filling', { reuseImmutableChunks: true })
+ f.seed(Array.from({length:85}, (_, i) => row(i,'active')))
+ const first = create(); await first.loadAsync()
+ f.calls.length = 0
+ const second = create(), loaded = await second.loadAsync()
+ assert.equal(loaded.history.length,85)
+ assert.equal(f.calls.filter(x=>x[0]==='async').length,2)
+ assert.ok(f.calls.every(x=>x[1].endsWith(':work-v3')))
+ second.save(empty(),[...loaded.history,row('new','active')],loaded.metadata)
+ assert.equal((await create().loadAsync()).history.length,86)
+ // A changed root referencing a new missing chunk cannot be satisfied by old cached chunks.
+ const key=f.key+':work-v3', before=f.map.get(key), head=JSON.parse(before)
+ head.historyChunks[0].key=f.key+':history:missing';f.map.set(key,JSON.stringify(head))
+ await assert.rejects(create().loadAsync(),/分段/)
+ f.map.set(key,before)
+ work.createReweighWorkStore('another',f.storage,()=> 'another','filling',{reuseImmutableChunks:true})
+ f.calls.length=0;await create().loadAsync()
+ assert.equal(f.calls.filter(x=>x[0]==='async').length,5)
+})
+
+test('native chunk reuse is bounded and expires; it never turns missing storage into an empty history', async () => {
+ let time=1000;class Clock extends Date {static now(){return time}}
+ const cached=load('src/services/pda/reweighWorkStore.js','createReweighWorkStore',{...draft,Date:Clock,startPerformanceSpan:()=>()=>{}})
+ const f=fixture(),create=()=>cached.createReweighWorkStore('u',f.storage,()=> 'u','filling',{reuseImmutableChunks:true})
+ f.seed(Array.from({length:45},(_,i)=>row(i,'active')));await create().loadAsync();time+=60001;f.calls.length=0
+ await create().loadAsync();assert.equal(f.calls.filter(x=>x[0]==='async').length,4)
+ const large=Array.from({length:80},(_,i)=>({...row(i,'active'),remark:'x'.repeat(8000)}))
+ const store=create();const loaded=await store.loadAsync();store.save(empty(),large,loaded.metadata);f.calls.length=0
+ assert.equal((await create().loadAsync()).history.length,80)
+ assert.equal(f.calls.filter(x=>x[0]==='async').length,4)
+})
 function fixture(mode = 'filling') {
  const key = draft.reweighDraftKey('u', mode), map = new Map(), calls = [], writes = []
  let owner = 'u', fail = null
