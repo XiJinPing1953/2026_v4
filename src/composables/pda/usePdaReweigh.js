@@ -55,7 +55,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	const scannerReady = ref(false)
 	const pendingSession = ref('')
 	const snapshot = ref(createEmptyPdaBleScaleSnapshot())
-	const autoWeight = createAutoReweighWeight({ stableWindowMs: 2000 })
+	const autoWeight = createAutoReweighWeight()
 	const captureMinimum = ref(0)
 	let autoSession = '', autoSequence = 0, autoStartedAt = 0
 	let epoch = 0

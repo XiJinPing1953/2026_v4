@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.31-no-trace-2s.1",
+      "version": "2026.10.31-no-trace.1",
       "output": "dist/build/web",
-      "acceptance": "Candidate only; wait for explicit user publication approval. Remove temporary segmented performance sampling UI, frontend hooks, native logs and database/handler proxies from the 11 listed cloud functions. Reweigh-only continuous display stability candidate is 2000ms; native sale remains 3000ms. Preserve all weighing freshness, interruption, session, unloading, save and printing rules. A 2-3s partial-lift plateau may be accepted earlier; physical-scale reliability is not yet verified. No schema/index/native APK changes.",
+      "acceptance": "Candidate only; wait for explicit user publication approval. The only runtime change from 1.0.49 is removal of temporary segmented performance sampling UI, frontend hooks, native logs and database/handler proxies from the 11 listed cloud functions. Return/filling reweigh and native sale all retain their original 3000ms stability behavior. No floor-scale candidate, schema/index or native APK changes. Preserve all weighing, saving, printing and pagination behavior.",
       "deploymentScope": {
         "functions": [
           "crm-auth",
@@ -40,7 +40,6 @@
           "src/pages/pda/sale-create.vue",
           "src/services/api/callCloud.js",
           "src/services/auth.js",
-          "src/services/pda/autoReturnWeight.js",
           "src/services/pda/capture/index.js",
           "src/services/pda/reweighWorkStore.js",
           "src/services/performanceTrace.js",
@@ -150,9 +149,9 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.31-no-trace-2s.1",
+      "version": "2026.10.31-no-trace.1",
       "output": "release/cloud",
-      "acceptance": "Candidate only; wait for explicit user publication approval. Remove temporary segmented performance sampling UI, frontend hooks, native logs and database/handler proxies from the 11 listed cloud functions. Reweigh-only continuous display stability candidate is 2000ms; native sale remains 3000ms. Preserve all weighing freshness, interruption, session, unloading, save and printing rules. A 2-3s partial-lift plateau may be accepted earlier; physical-scale reliability is not yet verified. No schema/index/native APK changes.",
+      "acceptance": "Candidate only; wait for explicit user publication approval. The only runtime change from 1.0.49 is removal of temporary segmented performance sampling UI, frontend hooks, native logs and database/handler proxies from the 11 listed cloud functions. Return/filling reweigh and native sale all retain their original 3000ms stability behavior. No floor-scale candidate, schema/index or native APK changes. Preserve all weighing, saving, printing and pagination behavior.",
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
@@ -185,7 +184,6 @@
           "src/pages/pda/sale-create.vue",
           "src/services/api/callCloud.js",
           "src/services/auth.js",
-          "src/services/pda/autoReturnWeight.js",
           "src/services/pda/capture/index.js",
           "src/services/pda/reweighWorkStore.js",
           "src/services/performanceTrace.js",
@@ -343,7 +341,7 @@
     "pda": {
       "version": "1.0.50",
       "output": "release/pda",
-      "acceptance": "Candidate only; wait for explicit user publication approval. Remove temporary segmented performance sampling UI, frontend hooks, native logs and database/handler proxies from the 11 listed cloud functions. Reweigh-only continuous display stability candidate is 2000ms; native sale remains 3000ms. Preserve all weighing freshness, interruption, session, unloading, save and printing rules. A 2-3s partial-lift plateau may be accepted earlier; physical-scale reliability is not yet verified. No schema/index/native APK changes.",
+      "acceptance": "Candidate only; wait for explicit user publication approval. The only runtime change from 1.0.49 is removal of temporary segmented performance sampling UI, frontend hooks, native logs and database/handler proxies from the 11 listed cloud functions. Return/filling reweigh and native sale all retain their original 3000ms stability behavior. No floor-scale candidate, schema/index or native APK changes. Preserve all weighing, saving, printing and pagination behavior.",
       "deploymentScope": {
         "functions": [
           "crm-auth",
@@ -375,7 +373,6 @@
           "src/pages/pda/sale-create.vue",
           "src/services/api/callCloud.js",
           "src/services/auth.js",
-          "src/services/pda/autoReturnWeight.js",
           "src/services/pda/capture/index.js",
           "src/services/pda/reweighWorkStore.js",
           "src/services/performanceTrace.js",

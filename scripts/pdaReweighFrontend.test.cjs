@@ -391,7 +391,7 @@ test('回瓶起吊中途稳定后继续上升，再卸瓶时提交最终悬重',
 
 test('filling uses continuous stable frames, updates both weights without network busy, and preserves unloading result', async t => {
 	const h = harness(t); await h.start(); await h.form.selectBottle('97')
-	h.frames(4, 4000); h.frames(150, 1800)
+	h.frames(4, 4000); h.frames(150, 2800)
 	assert.equal(h.form.current.value.capture, null)
 	h.frames(148)
 	assert.equal(h.form.current.value.grossWeight, 148)
@@ -662,12 +662,12 @@ test('async recovery completes before round initialization and preserves pending
  await h.start();assert.equal(h.form.draftLoading.value,false);assert.equal(h.form.current.value.operationId,id);assert.ok(h.form.current.value.frozen);assert.equal(h.form.locked.value,true)
 })
 
-for (const returnMode of [false, true]) test(`${returnMode ? '回瓶' : '罐装'}：2秒只回填，不自动保存；后续完整稳定悬重可修正`, async t => {
+for (const returnMode of [false, true]) test(`${returnMode ? '回瓶' : '罐装'}：保持原3秒回填，不自动保存；后续完整稳定悬重可修正`, async t => {
  const h = harness(t, { returnMode }); await h.start(); await h.form.selectBottle('97')
- h.frames(125, 1900); assert.equal(h.form.current.value.capture, null)
+ h.frames(125, 2900); assert.equal(h.form.current.value.capture, null)
  h.frames(125, 0); assert.equal(h.form.current.value.grossWeight, 125)
- assert.equal(h.requests.length, 0, '提前回填不自动生成业务记录')
- h.frames(148, 1900); assert.equal(h.form.current.value.grossWeight, 125)
+ assert.equal(h.requests.length, 0, '回填不自动生成业务记录')
+ h.frames(148, 2900); assert.equal(h.form.current.value.grossWeight, 125)
  h.frames(148, 0); assert.equal(h.form.current.value.grossWeight, 148)
  h.frames(125); assert.equal(h.form.current.value.grossWeight, 148)
  await h.form.submit(); assert.equal(h.requests[0].payload.gross_weight, 148)
