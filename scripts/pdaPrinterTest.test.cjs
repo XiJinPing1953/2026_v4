@@ -93,21 +93,24 @@ test('normal filling label sends larger text with kg on each weight; long values
  assert.equal(l.fontSize,32);assert.deepEqual(Array.from(l.lines,x=>x.text),['瓶号:87','皮重:124.0kg','毛重:185.5kg','净重:61.5kg'])
  const calls=[],plugin=new Proxy({}, {get:(o,k)=>(...args)=>{calls.push([k,...args])}})
  m.writeLabel(plugin,label);const text=calls.filter(x=>x[0]==='setText'&&x[1]===40)
- assert.equal(text.length,4);assert.ok(text.every(x=>x[1]===40&&x[3]==='TSS32.BF2'))
+ const weights=text.filter(x=>/^瓶号:|^皮重:|^毛重:|^净重:/.test(x.at(-1)))
+ assert.equal(weights.length,4);assert.ok(weights.every(x=>x[1]===40&&x[3]==='TSS32.BF2'))
+ const titles=calls.filter(x=>x[0]==='setText'&&x.at(-1).includes('新拓能源'))
+ assert.deepEqual(titles,[['setText',176,16,'TSS32.BF2',1,1,'新拓能源']])
  for(const value of [{...label,bottle_no:'A'.repeat(48)},{...label,tare_weight:111111.1,gross_weight:999999.9,net_weight:888888.8}]){
   for(const test of [false,true]){const x=m.labelLayout(value,test);assert.equal(x.fontSize,24);assert.ok(x.lines.every(row=>row.x+[...row.text].reduce((n,c)=>n+(c.charCodeAt(0)>127?24:12),0)<=x.qrX-x.quiet&&row.y+24<=(test?272:304)))}
  }
 })
 
-test('brand and original filling time stay outside the QR and retain the source precision',()=>{
+test('original filling time stays above the bottom margin and outside the QR, retaining source precision',()=>{
  const m=modules(),{qrUrl}=require('../uniCloud-alipay/cloudfunctions/crm-filling/fillingLabels')
  for(const source of ['2026-10-29-09','2026-10-29 09','2026-10-29',undefined,'2026-02-30-09','2026-10-29-24']){
   const label={...m.TEST_LABEL,bottle_no:'A'.repeat(48),filling_time:source}
   const l=m.labelLayout({...label,qr_url:qrUrl({_id:'a'.repeat(48),snapshot:label})})
   const w=[...l.footer.text].reduce((n,c)=>n+(c.charCodeAt(0)>127?24:12),0)
-  assert.ok(l.footer.x>=16&&l.footer.x+w<=464&&l.footer.y+24<=304)
+  assert.ok(l.footer.x>=16&&l.footer.x+w<=464&&l.footer.y+24<=288)
   assert.ok(l.qrY+l.qrWidth+l.quiet<l.footer.y)
-  assert.match(l.footer.text,/^新拓能源 灌装:/)
+  assert.match(l.footer.text,/^时间:/)
  }
  assert.equal(m.formatFillingPrintTime('2026-10-29 09'),'2026-10-29 09时')
  assert.equal(m.formatFillingPrintTime('2026-10-29-09'),'2026-10-29 09时')
