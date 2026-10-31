@@ -5,6 +5,7 @@ let session = null
 let sequence = 0
 let installed = false
 let activePage = null
+let renderSequence = 0
 const visits = new Map()
 const clock = () => typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()
 const routePath = value => String(value || '').split(/[?#]/)[0].replace(/^\//, '')
@@ -67,6 +68,30 @@ export function startPerformanceSpan(stage) {
  if (!enabled()) return () => {}
  const trace = activePage, start = clock(), sessionId = session.id
  return () => { if (enabled() && session?.id === sessionId) emit({ kind: 'local_span', page_id: trace?.id, route: trace?.route, stage, duration_ms: round(clock() - start) }) }
+}
+// Action-relative list timing. The native selector callback is a bridge/render
+// acknowledgement, not a physical display-frame measurement. No extra probe runs
+// outside an explicit sampling session; expired/hidden page results are discarded.
+export function startRenderSpan(stage, pageStage = '') {
+ if (!enabled() || !activePage) return () => {}
+ const trace = activePage, sessionId = session.id, start = clock(), renderId = ++renderSequence
+ const valid = () => enabled() && session?.id === sessionId && activePage === trace && !trace.hidden && renderId === renderSequence
+ return async () => {
+  await nextTick()
+  if (!valid()) return
+  const updateMs = round(clock() - start)
+  try {
+   const pages = getCurrentPages(), page = pages[pages.length - 1]
+   uni.createSelectorQuery().in(page?.$vm).select('.page').boundingClientRect(rect => {
+    if (!valid()) return
+    const duration = round(clock() - start)
+    emit({ kind: 'local_span', page_id: trace.id, route: trace.route, stage: stage + '_update', duration_ms: updateMs })
+    if (!rect) { markPageTrace('render_probe_unavailable', trace); return }
+    emit({ kind: 'local_span', page_id: trace.id, route: trace.route, stage: stage + '_render', duration_ms: duration })
+    if (pageStage) markPageTrace(pageStage, trace)
+   }).exec()
+  } catch (_) { if (valid()) markPageTrace('render_probe_unavailable', trace) }
+ }
 }
 export function startCloudTrace(name, action, requestId) {
  if (!enabled()) return null

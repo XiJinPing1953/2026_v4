@@ -6,9 +6,9 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.31-read-performance.1",
+      "version": "2026.10.31-scan-render.1",
       "output": "dist/build/web",
-      "acceptance": "Bounded native chunk reuse survives oversized sequential scans without raising memory limits. Cloud date records load independently of local round history; identical pending searches share one request. crm-filling reuses a complete first page for its summary, with complete keyset summary for larger scopes. Preserve ownership, pending recovery, archive/label facts and full-round printing. Actual cloud upload is crm-filling only; other listed cloud dependencies are compatibility verification. No schema/index changes. Device timings are separate from synthetic tests.",
+      "acceptance": "Confirm scanner readiness immediately after open; keep original bounded settling/retry and restore behavior when not ready. Render 10 display records per page with bottom-only pagination; preserve full result/round printing and frozen source facts. Cache display projections and shallow query snapshots. Add opt-in scanner substeps and action-relative Vue/render acknowledgements. All existing cloud function scope entries are compatibility verification only; no cloud, schema, index or native APK upload in this release. Real-device timing must distinguish remaining runtime initialization from observed gains.",
       "deploymentScope": {
         "functions": [
           "crm-auth",
@@ -42,6 +42,7 @@
           "src/pages/pda/sale-create.vue",
           "src/services/api/callCloud.js",
           "src/services/auth.js",
+          "src/services/pda/capture/index.js",
           "src/services/pda/reweighDraft.js",
           "src/services/pda/reweighHistory.js",
           "src/services/pda/reweighWorkStore.js",
@@ -200,6 +201,7 @@
           "src/pages/pda/sale-create.vue",
           "src/services/api/callCloud.js",
           "src/services/auth.js",
+          "src/services/pda/capture/index.js",
           "src/services/pda/reweighDraft.js",
           "src/services/pda/reweighHistory.js",
           "src/services/pda/reweighWorkStore.js",
@@ -367,9 +369,9 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.48",
+      "version": "1.0.49",
       "output": "release/pda",
-      "acceptance": "Bounded native chunk reuse survives oversized sequential scans without raising memory limits. Cloud date records load independently of local round history; identical pending searches share one request. crm-filling reuses a complete first page for its summary, with complete keyset summary for larger scopes. Preserve ownership, pending recovery, archive/label facts and full-round printing. Actual cloud upload is crm-filling only; other listed cloud dependencies are compatibility verification. No schema/index changes. Device timings are separate from synthetic tests.",
+      "acceptance": "Confirm scanner readiness immediately after open; keep original bounded settling/retry and restore behavior when not ready. Render 10 display records per page with bottom-only pagination; preserve full result/round printing and frozen source facts. Cache display projections and shallow query snapshots. Add opt-in scanner substeps and action-relative Vue/render acknowledgements. All existing cloud function scope entries are compatibility verification only; no cloud, schema, index or native APK upload in this release. Real-device timing must distinguish remaining runtime initialization from observed gains.",
       "deploymentScope": {
         "functions": [
           "crm-auth",
@@ -403,6 +405,7 @@
           "src/pages/pda/sale-create.vue",
           "src/services/api/callCloud.js",
           "src/services/auth.js",
+          "src/services/pda/capture/index.js",
           "src/services/pda/reweighDraft.js",
           "src/services/pda/reweighHistory.js",
           "src/services/pda/reweighWorkStore.js",

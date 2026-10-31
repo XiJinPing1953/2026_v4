@@ -36,24 +36,19 @@
 			<text v-if="error" class="error">{{ error }}</text>
 			<text v-else-if="!loading && !rows.length" class="hint">暂无符合条件的记录</text>
 			<view class="records-page-start" />
-			<view v-if="displayPages > 1" class="top-row records-pager">
-				<AppButton kind="neutral" :disabled="displayPage <= 1" @click="changeDisplayPage(displayPage - 1)">上一页</AppButton>
-				<text class="hint">{{ displayPage }}/{{ displayPages }} 页</text>
-				<AppButton kind="neutral" :disabled="displayPage >= displayPages" @click="changeDisplayPage(displayPage + 1)">下一页</AppButton>
-			</view>
-			<view v-for="item in visibleRows" :key="item.id" class="record">
-				<view class="record-head"><text class="bottle">{{ item.bottle_no }} 号瓶</text><text class="hint">{{ item.status === 'complete' ? '已完成' : item.status === 'pending' ? '处理中' : '待核对' }}</text></view>
-				<text class="record-time">{{ item.time_label || '称重时间' }} {{ item.weighed_at || '时间未记录' }}</text>
+			<view v-for="item in displayRows" :key="item.id" class="record">
+				<view class="record-head"><text class="bottle">{{ item.bottleNo }} 号瓶</text><text class="hint">{{ item.statusText }}</text></view>
+				<text class="record-time">{{ item.timeText }}</text>
 				<view class="weights">
-					<text>毛重 {{ formatWeight(item.gross_weight) }} kg</text>
-					<text>皮重 {{ formatWeight(item.tare_weight) }} kg</text>
-					<text>净重 {{ formatWeight(item.net_weight) }} kg</text>
-					<text v-if="type === 'filling'">罐装量 {{ formatWeight(item.fill_weight) }} kg</text>
+					<text>毛重 {{ item.grossText }} kg</text>
+					<text>皮重 {{ item.tareText }} kg</text>
+					<text>净重 {{ item.netText }} kg</text>
+					<text v-if="type === 'filling'">罐装量 {{ item.fillText }} kg</text>
 				</view>
 				<template v-if="type === 'filling'">
-					<AppButton v-if="printEntry(item) && !printer.reason(printEntry(item))" kind="neutral" :disabled="batchBusy || printer.busy.value" @click="printer.reprint(printEntry(item))">补打标签</AppButton>
+					<AppButton v-if="item.canPrint" kind="neutral" :disabled="batchBusy || printer.busy.value" @click="reprintRow(item.id)">补打标签</AppButton>
 					<text v-else class="hint">缺少原标签资料或记录已更正，不能补打</text>
-					<text class="hint">{{ printer.messages.value[printEntry(item)?.operationId] || '' }}</text>
+					<text class="hint">{{ printer.messages.value[item.operationId] || '' }}</text>
 				</template>
 			</view>
 			<view v-if="displayPages > 1" class="top-row records-pager">
@@ -78,24 +73,35 @@ import { formatWeight } from '@/services/pda/shared'
 import { usePdaReweighRecords } from '@/composables/pda/usePdaReweighRecords'
 
 import { useRecordPageScroll } from '@/composables/pda/useRecordPageScroll'
+import { startRenderSpan } from '@/services/performanceTrace'
 import { historyPrintEntry } from '@/services/pda/reweighHistory'
 import { usePdaFillingPrinter } from '@/composables/pda/usePdaFillingPrinter'
 defineEmits(['back'])
 const form = usePdaReweighRecords()
 const { historyError, summary, rounds, roundId, pageActive, types, type, typeLabel, date, bottleNo, rows, loading, scannerReady, error, hasMore, setFilter, search, loadMore } = form
 const scrollToRecords = useRecordPageScroll('.records-page-start')
-function changeDisplayPage(value) { displayPage.value = value; void scrollToRecords() }
+function changeDisplayPage(value) { const finish = startRenderSpan('records_page'); displayPage.value = value; void finish(); void scrollToRecords() }
+const PAGE_SIZE = 10
 const displayPage = ref(1)
-const displayPages = computed(() => Math.max(1, Math.ceil(rows.value.length / 30)))
-const visibleRows = computed(() => rows.value.slice((displayPage.value - 1) * 30, displayPage.value * 30))
+const displayPages = computed(() => Math.max(1, Math.ceil(rows.value.length / PAGE_SIZE)))
+const visibleRows = computed(() => rows.value.slice((displayPage.value - 1) * PAGE_SIZE, displayPage.value * PAGE_SIZE))
 watch(rows, (value, previous) => {
  if (!previous?.length || value[0]?.id !== previous[0]?.id || value.length < previous.length) displayPage.value = 1
  displayPage.value = Math.min(displayPage.value, displayPages.value)
 })
 const typeIndex = computed(() => Math.max(0, types.value.findIndex(item => item.value === type.value)))
 function changeType(event) { setFilter('type', types.value[Number(event.detail.value)]?.value) }
-const printEntry = historyPrintEntry
-const printer = usePdaFillingPrinter({ enabled: true, active: () => pageActive.value && type.value === 'filling', entries: () => rows.value.map(printEntry).filter(Boolean) })
+const printEntries = computed(() => new Map(rows.value.map(row => [row.id, historyPrintEntry(row)])))
+const printer = usePdaFillingPrinter({ enabled: true, active: () => pageActive.value && type.value === 'filling', entries: () => [...printEntries.value.values()].filter(Boolean) })
+const displayRows = computed(() => visibleRows.value.map(row => {
+ const entry = type.value === 'filling' ? printEntries.value.get(row.id) : null
+ return { id: row.id, bottleNo: row.bottle_no,
+  statusText: row.status === 'complete' ? '已完成' : row.status === 'pending' ? '处理中' : '待核对',
+  timeText: `${row.time_label || '称重时间'} ${row.weighed_at || '时间未记录'}`,
+  grossText: formatWeight(row.gross_weight), tareText: formatWeight(row.tare_weight), netText: formatWeight(row.net_weight), fillText: formatWeight(row.fill_weight),
+  operationId: entry?.operationId, canPrint: Boolean(entry && !printer.reason(entry)) }
+}))
+function reprintRow(id) { const entry = printEntries.value.get(id); if (entry) return printer.reprint(entry) }
 const roundOptions = computed(() => [{ id: '', label: '按日期查询全部' }, ...rounds.value.map(item => ({ id: item.id, label: `${item.first_time || '时间未记录'} · ${item.bottle_count} 瓶${type.value === 'return' ? '（所选日期）' : ''}` }))])
 const roundIndex = computed(() => Math.max(0, roundOptions.value.findIndex(item => item.id === roundId.value)))
 function changeRound(event) { setFilter('round', roundOptions.value[Number(event.detail.value)]?.id); void search() }
@@ -104,7 +110,7 @@ let batchVersion = 0
 function stopBatch() { batchVersion++; printer.close(); batchMessage.value = '已停止；已发送的标签请查看出纸' }
 async function printRound() {
  if (batchBusy.value || printer.busy.value || !roundId.value || !rows.value.length) return
- const items = rows.value.map(printEntry)
+ const items = rows.value.map(row => printEntries.value.get(row.id))
  if (items.some(item => !item || printer.reason(item))) { batchMessage.value = '部分记录不能补打，请逐条查看'; return }
  if (!printer.connected.value) { batchMessage.value = '请先连接打印机'; return }
  const version = ++batchVersion

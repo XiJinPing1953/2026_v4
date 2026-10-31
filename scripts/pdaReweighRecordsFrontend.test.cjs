@@ -13,7 +13,7 @@ function harness(t, options = {}) {
 	const source = fs.readFileSync('src/composables/pda/usePdaReweighRecords.js', 'utf8').replace(/^import.*\n/gm, '').replace(/^export /gm, '')
 	const request = type => async data => { requests.push({ type, ...data }); return options.request ? options.request(data, requests.length, type) : response([type]) }
 	const module = vm.runInNewContext(`${source}\n;({usePdaReweighRecords})`, {
-		Date, String, Boolean, Array, Map, Promise, beginPageTrace() {}, markPageTrace() {}, markPageAfterRender() {}, startPerformanceSpan: () => () => {}, ...vue, onBeforeUnmount: fn => hooks.push(fn),
+		Date, String, Boolean, Array, Map, Promise, beginPageTrace() {}, markPageTrace() {}, markPageAfterRender() {}, startRenderSpan: () => () => {}, startPerformanceSpan: () => () => {}, ...vue, onBeforeUnmount: fn => hooks.push(fn),
 		getUser: () => ({ _id: owner }), canViewPage: url => !options.onlyFilling || url === '/pages/pda/reweigh',
 		isPdaAppMode: () => true, normalizeBottleNo: value => String(value || '').trim().toUpperCase(),
 		createLocalFillingRoundsReader: () => async () => { options.onLocalRead?.(); return options.localRead ? options.localRead() : options.localRounds || [] }, readPdaStorage: () => null, uni: {},
@@ -206,4 +206,13 @@ test('failed local archives leave cloud date records usable and reject a selecte
  assert.equal(h.form.rows.value[0].id, 'filling'); assert.equal(h.form.historyError.value, 'archive unavailable')
  h.form.setFilter('round', 'old-round'); await h.form.search()
  assert.equal(h.requests.length, 1); assert.equal(h.form.rows.value.length, 0); assert.equal(h.form.loading.value, false)
+})
+test('cloud and local print snapshots remain shallow; whole-result replacements still refresh rows', async t => {
+ const localRounds = [{ id: 'old-round', rows: [{ id: 'local', bottle_no: '1', print_entry: { frozen: { label: { gross_weight: 150 } } } }] }]
+ const h = harness(t, { onlyFilling: true, localRounds })
+ await h.form.activate(); await tick()
+ assert.equal(vue.isReactive(h.form.rows.value[0]), false)
+ assert.equal(vue.isReactive(h.form.rounds.value[0].rows[0].print_entry), false)
+ h.form.setFilter('round', 'old-round'); await h.form.search()
+ assert.equal(h.form.rows.value[0], localRounds[0].rows[0]); assert.equal(vue.isReactive(h.form.rows.value[0]), false)
 })

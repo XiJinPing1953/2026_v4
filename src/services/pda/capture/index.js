@@ -1,5 +1,6 @@
 import { normalizeText } from '@/services/pda/shared'
 import { createSystemScannerDriver } from './scannerDriver'
+import { startPerformanceSpan } from '@/services/performanceTrace'
 
 const PLATFORM_PLUGIN_NAME = 'TH-PlatformSDK'
 const DEFAULT_BROADCAST_ACTION = 'android.intent.ACTION_DECODE_DATA'
@@ -628,9 +629,16 @@ async function ensureScannerPoweredForSession() {
 		}
 	}
 	runtimeState.scannerProfile.openedBySession = true
-	await delay(SCANNER_OPEN_SETTLE_MS)
-	const verifyRes = await callPluginGetter('getScannerState')
+	// Some ScanManager implementations finish opening synchronously. Confirm the
+	// real state first; retain the existing settle/retry path while it is not ready.
+	let verifyRes = await callPluginGetter('getScannerState')
 	let verifyState = verifyRes.ok ? normalizeScannerPowerState(pickParameterValue(verifyRes.value, 'scannerState')) : null
+	const readyWithoutWait = verifyState === true
+	if (verifyState !== true) {
+		await delay(SCANNER_OPEN_SETTLE_MS)
+		verifyRes = await callPluginGetter('getScannerState')
+		verifyState = verifyRes.ok ? normalizeScannerPowerState(pickParameterValue(verifyRes.value, 'scannerState')) : null
+	}
 	if (verifyState === false) {
 		await delay(SCANNER_PROFILE_RETRY_DELAY_MS)
 		const retryVerifyRes = await callPluginGetter('getScannerState')
@@ -643,11 +651,17 @@ async function ensureScannerPoweredForSession() {
 		}
 	}
 	const warning = verifyRes.ok ? '' : summarizePluginResult('getScannerState', verifyRes)
-	return { ok: true, warning }
+	return { ok: true, warning, readyWithoutWait }
 }
 
-async function captureScannerProfileSnapshotWithRetry() {
+async function captureScannerProfileSnapshotWithRetry(openedWithoutWait = false) {
 	let snapshot = await captureScannerProfileSnapshot('before-enter')
+	// Power may report ready before its configuration becomes readable. In that
+	// case retain the original settle window before the existing profile retry.
+	if (openedWithoutWait && (isBroadcastProfileMissing(snapshot) || normalizeOutputMode(snapshot.outputMode) == null)) {
+		await delay(SCANNER_OPEN_SETTLE_MS)
+		snapshot = await captureScannerProfileSnapshot('before-enter-settled')
+	}
 	if (!isBroadcastProfileMissing(snapshot)) return snapshot
 	await delay(SCANNER_PROFILE_RETRY_DELAY_MS)
 	const retrySnapshot = await captureScannerProfileSnapshot('before-enter-retry')
@@ -681,12 +695,16 @@ async function applyScannerProfileSnapshot() {
 	}
 	if (!runtimeState.scannerProfile.active) {
 		runtimeState.scannerProfile.defaultedBroadcastProfile = false
+		const finishPower = startPerformanceSpan('scanner_power_ready')
 		const powerResult = await ensureScannerPoweredForSession()
+		finishPower()
 		if (!powerResult.ok) {
 			runtimeState.scannerProfile.lastError = powerResult.msg || ''
 			return { ok: false, msg: powerResult.msg || '扫描头打开失败' }
 		}
-		runtimeState.scannerProfile.before = applyDefaultBroadcastProfileSnapshot(await captureScannerProfileSnapshotWithRetry())
+		const finishRead = startPerformanceSpan('scanner_profile_read')
+		try { runtimeState.scannerProfile.before = applyDefaultBroadcastProfileSnapshot(await captureScannerProfileSnapshotWithRetry(powerResult.readyWithoutWait)) }
+		finally { finishRead() }
 	}
 	const before = runtimeState.scannerProfile.before
 	if (normalizeOutputMode(before?.outputMode) == null) {
@@ -753,13 +771,17 @@ async function ensureSharedCaptureReady() {
 	let warning = ''
 	const profileResult = await applyScannerProfileSnapshot()
 	if (!profileResult.ok) return { ok: false, msg: profileResult.msg || '设置扫码模式失败' }
+	const finishApply = startPerformanceSpan('scanner_broadcast_apply')
 	const broadcastResult = applyBroadcastProfile()
+	finishApply()
 	if (!broadcastResult.ok) {
 		await releaseScanProfile()
 		return { ok: false, msg: broadcastResult.msg || '设置扫码广播参数失败' }
 	}
 	runtimeState.scannerProfile.applied = { label: 'apply-requested', at: Date.now(), outputMode: SCANNER_BROADCAST_OUTPUT_MODE, verified: false }
+	const finishReceiver = startPerformanceSpan('scanner_receiver_register')
 	const receiverResult = registerBroadcastReceiver()
+	finishReceiver()
 	if (!receiverResult.ok) return { ok: false, msg: receiverResult.msg || '注册扫码广播失败' }
 	return { ok: true, warning }
 }
@@ -779,7 +801,9 @@ export async function enterBarcodeSession(options = {}) {
 	return withScannerHardware(async () => {
 		const cancelled = () => ({ code: 499, msg: '扫码页面已切换', data: null })
 		if (desiredSession !== session) return cancelled()
+		const finishRuntime = startPerformanceSpan('scanner_runtime_create')
 		const ready = ensureRuntimeReady()
+		finishRuntime()
 		if (!ready.ok) return { code: 501, msg: ready.msg, data: null }
 		const prepare = await ensureSharedCaptureReady()
 		if (desiredSession !== session) return cancelled()

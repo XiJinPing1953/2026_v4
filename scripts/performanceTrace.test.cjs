@@ -57,3 +57,19 @@ test('frontend tracing is opt-in, expires, correlates exact requests and preserv
  assert.ok(!JSON.stringify(events).includes('not-logged'))
  time += 600000; assert.equal(api.startCloudTrace('fn', 'read', 'r'), null)
 })
+test('list timing separates Vue flush and render acknowledgement, and discards hidden/superseded probes', async () => {
+ const fs = require('node:fs'), vm = require('node:vm'); let time = 100000, probes = []
+ class Clock extends Date { static now() { return time } }
+ const query = { in() { return this }, select() { return this }, boundingClientRect(fn) { probes.push(fn); return this }, exec() {} }
+ const source = fs.readFileSync('src/services/performanceTrace.js', 'utf8').replace(/^import.*\n/gm, '').replace(/^export /gm, '')
+ const api = vm.runInNewContext(source + ';({startPerformanceSession,beginPageTrace,startRenderSpan,readPerformanceEvents})', { Date: Clock, Math, nextTick: async () => {}, getCurrentPages: () => [{ $vm: {} }], uni: { createSelectorQuery: () => query }, console: { info() {} } })
+ await api.startRenderSpan('history_expand')(); assert.equal(probes.length, 0)
+ api.startPerformanceSession(); const page = api.beginPageTrace('/pages/pda/reweigh', 'tap')
+ const finish = api.startRenderSpan('history_expand'); time += 10; await finish()
+ time += 35; probes.shift()({ height: 100 })
+ const spans = api.readPerformanceEvents().filter(x => x.kind === 'local_span')
+ assert.deepEqual(Array.from(spans, x => [x.stage, x.duration_ms]), [['history_expand_update', 10], ['history_expand_render', 45]])
+ await api.startRenderSpan('history_page')(); await api.startRenderSpan('history_page')()
+ const before = api.readPerformanceEvents().length; probes.shift()({}); assert.equal(api.readPerformanceEvents().length, before)
+ page.hidden = true; probes.shift()({}); assert.equal(api.readPerformanceEvents().length, before)
+})

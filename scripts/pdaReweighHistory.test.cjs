@@ -37,13 +37,13 @@ test('remote print entry requires authoritative label plus operation, never infe
 
 function printView(options = {}) {
  const vue = require('vue'), { ref } = vue
- const rows = [entry('one'), entry('two')].map(item => ({ id: item.operationId, print_entry: item }))
+ const rows = (options.count ? Array.from({ length: options.count }, (_, i) => entry(String(i))) : [entry('one'), entry('two')]).map(item => ({ id: item.operationId, print_entry: item }))
  const form = { types: ref([]), type: ref('filling'), typeLabel: ref('罐装复秤'), date: ref('2026-10-22'), bottleNo: ref(''), rows: ref(rows), loading: ref(false), rounds: ref([]), roundId: ref('round'), pageActive: ref(true), activate() {}, deactivate() { this.pageActive.value = false } }
  const sends = [], closeCalls = []
  const printer = { busy: ref(false), connected: ref(true), reason: () => '', close: () => { closeCalls.push(true) }, reprint: async item => { sends.push(item.operationId); return options.send ? options.send(item) : true } }
  const source = fs.readFileSync('src/components/domain/pda/PdaReweighRecordsView.vue', 'utf8').match(/<script setup>([\s\S]*?)<\/script>/)[1].replace(/^import.*\n/gm, '')
- const view = vm.runInNewContext(`${source}\n;({printRound,stopBatch,batchBusy,batchMessage,deactivate})`, { ...vue, useRecordPageScroll: () => () => {}, watch: () => {}, defineExpose: () => {}, defineEmits: () => {}, usePdaReweighRecords: () => form,
-  historyPrintEntry, usePdaFillingPrinter: () => printer, uni: { showModal: params => { assert.match(params.content, /2 张/); params.success({ confirm: options.confirm !== false }) } } })
+ const view = vm.runInNewContext(`${source}\n;({printRound,stopBatch,batchBusy,batchMessage,deactivate,visibleRows,displayPage})`, { ...vue, startRenderSpan: () => () => {}, useRecordPageScroll: () => () => {}, watch: () => {}, defineExpose: () => {}, defineEmits: () => {}, usePdaReweighRecords: () => form,
+  historyPrintEntry, usePdaFillingPrinter: () => printer, uni: { showModal: params => { assert.ok(params.content.includes(`${rows.length} 张`)); params.success({ confirm: options.confirm !== false }) } } })
  return { view, sends, closeCalls }
 }
 test('explicit round confirmation sends each label once and repeated clicks cannot create a second batch', async () => {
@@ -53,6 +53,12 @@ test('explicit round confirmation sends each label once and repeated clicks cann
  await h.view.printRound(); assert.deepEqual(h.sends, ['one'])
  resolve(true); await new Promise(done => setImmediate(done)); assert.deepEqual(h.sends, ['one', 'two'])
  resolve(true); await task; assert.equal(h.view.batchBusy.value, false)
+})
+test('10-row display pages do not truncate whole-round printing', async () => {
+ const h = printView({ count: 25 })
+ assert.equal(h.view.visibleRows.value.length, 10)
+ h.view.displayPage.value = 3; assert.equal(h.view.visibleRows.value.length, 5)
+ await h.view.printRound(); assert.deepEqual(h.sends, Array.from({ length: 25 }, (_, i) => String(i)))
 })
 test('batch failure stops without retry and explicit stop closes connection and cancels remaining labels', async () => {
  const failed = printView({ send: async () => false }); await failed.view.printRound()

@@ -1,8 +1,8 @@
 import { readPdaStorage } from '@/services/pda/asyncStorage'
-import { markPageTrace, markPageAfterRender, startPerformanceSpan } from '@/services/performanceTrace'
+import { markPageTrace, startRenderSpan, startPerformanceSpan } from '@/services/performanceTrace'
 import { createLocalFillingRoundsReader } from '@/services/pda/reweighHistory'
 import { listReturnReweighRoundRecordsV1 } from '@/services/api/reweigh'
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { getUser } from '@/services/auth'
 import { canViewPage } from '@/services/pageAcl'
 import { listReturnReweighRecordsV1, listFillingReweighRecordsV1 } from '@/services/api/reweigh'
@@ -16,9 +16,11 @@ export function usePdaReweighRecords() {
 	const type = ref('return')
 	const date = ref(new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10))
 	const bottleNo = ref('')
-	const rows = ref([])
+	// Read-only result snapshots are replaced as a whole, including local rounds.
+	// Do not proxy every frozen print/capture field in the retained history.
+	const rows = shallowRef([])
 	const historyError = ref('')
-	const summary = ref(null), rounds = ref([]), roundId = ref(''), pageActive = ref(false)
+	const summary = ref(null), rounds = shallowRef([]), roundId = ref(''), pageActive = ref(false)
 	let localRounds = []
 	const readLocalRounds = createLocalFillingRoundsReader()
 	const localStorage = { getStorage: key => readPdaStorage({ getStorage: options => uni.getStorage(options), getStorageInfo: options => uni.getStorageInfo(options) }, key) }
@@ -98,9 +100,10 @@ export function usePdaReweighRecords() {
 			if (!loaded) return
 			const group = localRounds.find(item => item.id === snapshot.round_id)
 			if (!group) { error.value = '本机未找到此轮次'; return }
+			const finishRender = startRenderSpan('records_list', 'records_render')
 			rows.value = group.rows.filter(item => !snapshot.bottle_no || item.bottle_no === snapshot.bottle_no)
 			summary.value = { record_count: rows.value.length, bottle_count: new Set(rows.value.map(item => item.bottle_no)).size }
-			markPageTrace('records_ready'); void markPageAfterRender('records_render')
+			markPageTrace('records_ready'); void finishRender()
 			return
 		}
 		// Date records are independent of the local archive; fetch them immediately.
@@ -112,6 +115,7 @@ export function usePdaReweighRecords() {
 			if (!validOwner() || version !== queryVersion) return
 			if (response?.code !== 0) throw new Error(response?.msg || '复秤记录查询失败')
 			if (!Array.isArray(response.data?.rows) || (response.data.has_more && !response.data.next_cursor)) throw new Error('复秤记录响应不完整，请重新查询')
+			const finishRender = startRenderSpan('records_list', append ? '' : 'records_render')
 			if (!append) {
 				summary.value = response.data.summary || null
 				if (!snapshot.round_id) rounds.value = snapshot.type === 'filling' ? localRounds : (response.data.summary?.rounds || [])
@@ -120,7 +124,8 @@ export function usePdaReweighRecords() {
 			rows.value = Array.from(new Map([...(append ? rows.value : []), ...incoming].map(item => [item.id, item])).values())
 			cursor = response.data?.next_cursor || null
 			hasMore.value = Boolean(response.data?.has_more && cursor)
-			if (!append) { markPageTrace('records_ready'); void markPageAfterRender('records_render') }
+			if (!append) markPageTrace('records_ready')
+			void finishRender()
 		} catch (cause) {
 			if (validOwner() && version === queryVersion) error.value = cause.message || '复秤记录查询失败'
 		} finally {
