@@ -3,8 +3,8 @@ import { createLocalFillingRoundsReader } from '@/services/pda/reweighHistory'
 import { listReturnReweighRoundRecordsV1 } from '@/services/api/reweigh'
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { getUser } from '@/services/auth'
-import { canViewPage } from '@/services/pageAcl'
-import { listReturnReweighRecordsV1, listFillingReweighRecordsV1 } from '@/services/api/reweigh'
+import { canViewPage, canPageAction } from '@/services/pageAcl'
+import { listReturnReweighRecordsV1, listFillingReweighRecordsV1, getReweighOperationV1, retryReweighOperationV1 } from '@/services/api/reweigh'
 import { enterBarcodeSession, leaveBarcodeSession } from '@/services/pda/capture'
 import { resolvePdaBottleByQrCode } from '@/services/pda/bottle'
 import { normalizeBottleNo } from '@/services/pda/shared'
@@ -27,13 +27,15 @@ export function usePdaReweighRecords() {
 	const scannerReady = ref(false)
 	const error = ref('')
 	const hasMore = ref(false)
+	const processingId = ref('')
+	const canRetryProcessing = computed(() => canPageAction('/pages/pda/reweigh', 'create'))
 	const typeLabel = computed(() => types.value.find(item => item.value === type.value)?.label || '复秤')
 	const page = 'pda-reweigh-records'
-	let active = false, lifecycle = 0, queryVersion = 0, scanVersion = 0, historyVersion = 0, pendingSearch = null
+	let active = false, lifecycle = 0, queryVersion = 0, scanVersion = 0, historyVersion = 0, processingVersion = 0, pendingSearch = null
 	let owner = '', cursor = null, searched = null, stopping = Promise.resolve()
 	const currentOwner = () => String(getUser()?._id || '')
 	function invalidate() {
-		queryVersion++; scanVersion++; historyVersion++; loading.value = false; error.value = ''
+		queryVersion++; scanVersion++; historyVersion++; processingVersion++; processingId.value = ''; loading.value = false; error.value = ''
 		rows.value = []; summary.value = null; hasMore.value = false; cursor = null; searched = null
 	}
 	function validOwner() {
@@ -125,6 +127,35 @@ export function usePdaReweighRecords() {
 			if (version === queryVersion) loading.value = false
 		}
 	}
+	// Explicit per-record recovery belongs to queries. No entry-time sweep or polling.
+	async function checkProcessing(id, retry = false) {
+		if (!validOwner() || type.value !== 'filling' || processingId.value || (retry && !canRetryProcessing.value)) return false
+		const row = rows.value.find(item => item.id === id)
+		const operationId = row?.operation_id || row?.print_entry?.operationId
+		if (!operationId) return false
+		const version = queryVersion, requestOwner = owner, processingToken = ++processingVersion
+		const isCurrent = () => active && requestOwner === currentOwner() && version === queryVersion && type.value === 'filling'
+		processingId.value = id
+		try {
+			let response = await getReweighOperationV1(operationId)
+			if (!isCurrent()) return false
+			const matched = value => value?.code === 0 && value.data?.operation_id === operationId
+			if (!matched(response)) throw new Error(response?.msg || '处理状态暂未确认，请重新查询')
+			const conflict = response.data.source_records?.some(item => item.version_matches === false)
+			if (retry && !response.data.complete && !conflict) {
+				response = await retryReweighOperationV1(operationId)
+				if (!isCurrent()) return false
+				if (!matched(response)) throw new Error(response?.msg || '重试结果未确认，请重新查询状态')
+			}
+			const status = conflict ? 'conflict' : response.data.complete ? 'complete' : response.data.status === 'failed' ? 'failed' : 'pending'
+			rows.value = rows.value.map(item => item.id === id ? { ...item, status, processing_checked: true,
+				processing_message: conflict ? '原记录已变化，请核对该瓶；旧操作不会覆盖新记录。' : response.data.last_error || (status === 'complete' ? '后台处理已完成' : '记录已保存，后台处理中，可继续其他作业。') } : item)
+			return true
+		} catch (cause) {
+			if (isCurrent()) rows.value = rows.value.map(item => item.id === id ? { ...item, processing_message: cause.message || '查询失败，请重试' } : item)
+			return false
+		} finally { if (processingToken === processingVersion) processingId.value = '' }
+	}
 	async function scan(payload) {
 		if (!validOwner()) return
 		invalidate()
@@ -167,5 +198,5 @@ export function usePdaReweighRecords() {
 		return stopping
 	}
 	onBeforeUnmount(deactivate)
-	return { historyError, summary, rounds, roundId, pageActive, types, type, typeLabel, date, bottleNo, rows, loading, scannerReady, error, hasMore, setFilter, search, loadMore: () => search(true), activate, deactivate }
+	return { processingId, canRetryProcessing, checkProcessing, historyError, summary, rounds, roundId, pageActive, types, type, typeLabel, date, bottleNo, rows, loading, scannerReady, error, hasMore, setFilter, search, loadMore: () => search(true), activate, deactivate }
 }

@@ -5,15 +5,15 @@
    <view class="history-page-start" />
    <view v-for="item in displayItems" :key="item.operationId" class="history-row">
     <text>{{ item.bottleNo }} 号瓶 · {{ isReturn ? '回瓶毛重' : '本次灌装量' }} {{ item.weightText }} kg</text>
-    <text :class="['hint', !item.complete && 'pending']">{{ item.receiptText }}</text>
+    <text :class="['hint', !item.saved && 'pending']">{{ item.receiptText }}</text>
     <view v-if="!isReturn && item.saved" class="print-result">
      <text v-if="printer.messages.value[item.operationId]">{{ printer.messages.value[item.operationId] }}</text>
      <text v-if="item.printReason" class="hint">{{ item.printReason }}</text>
      <AppButton v-else kind="outline" :disabled="printer.busy.value" @click="reprint(item.operationId)">补打标签</AppButton>
     </view>
     <text class="history-time">{{ item.timeText }}</text>
-    <text v-if="!item.complete" class="hint">{{ item.message }}</text>
-    <view v-if="!item.complete" class="actions">
+    <text v-if="!item.saved" class="hint">{{ item.message }}</text>
+    <view v-if="!item.saved" class="actions">
      <AppButton size="sm" kind="neutral" :disabled="busy" @click="$emit('query', item.operationId)">查询状态</AppButton>
      <AppButton size="sm" kind="neutral" :disabled="busy" @click="$emit('query', item.operationId, true)">重试处理</AppButton>
     </view>
@@ -51,7 +51,7 @@ const visibleItems = computed(() => {
 })
 function toggle() { page.value = 1; expanded.value = !expanded.value }
 const weight = value => value == null || value === '' || !Number.isFinite(Number(value)) ? '—' : Number(value).toFixed(1)
-const receiptTitle = receipt => receipt?.complete ? '已保存' : receipt?.saved ? '记录已保存，还有信息待核对' : '还没确认是否保存成功'
+const receiptTitle = receipt => receipt?.saved ? '已保存' : '还没确认是否保存成功'
 // Keep formatting/label validation out of unrelated busy/message rerenders.
 const displayItems = computed(() => visibleItems.value.map(item => ({
  operationId: item.operationId, bottleNo: item.bottleNo,

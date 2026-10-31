@@ -65,3 +65,10 @@ test('return history never displays a print action; shrinking records clamps the
  h.props.busy = false; await vue.nextTick(); await h.click('查询状态')
  assert.deepEqual(h.queries, [['op-0']]); h.app.unmount()
 })
+
+test('saved records show saved without backend warning or retry actions on the work page', async () => {
+ const h=mount();h.props.items=[{operationId:'saved-pending',bottleNo:'21',preview:{fill_weight:45},receipt:{saved:true,complete:false,message:'后台处理中'}}]
+ await h.click('展开 ⌄');const content=h.text(h.rows()[0])
+ assert.match(content,/已保存/);assert.doesNotMatch(content,/后台处理中|重试处理|查询状态|待核对/)
+ await h.click('补打标签');assert.equal(h.printed[0].operationId,'saved-pending');h.app.unmount()
+})

@@ -78,7 +78,7 @@ export function createReweighWorkStore(owner, storage, currentOwner = () => owne
   if (history !== lastHistory || roundId !== lastRound) {
    kept = []
    for (const row of history) {
-    if (row?.receipt?.complete === true && (!roundId || entryRound(row) !== roundId)) archived.push(row)
+    if (row?.receipt?.saved === true && (!roundId || entryRound(row) !== roundId)) archived.push(row)
     else kept.push(row)
    }
    if (!archived.length) kept = history
@@ -94,7 +94,12 @@ export function createReweighWorkStore(owner, storage, currentOwner = () => owne
   if (!data) return null
   archiveHead = data.metadata?.archiveHead || null
   lastHistory = data.history; lastRound = data.metadata?.round?._id || ''
-  return { ...data, metadata: cleanMetadata(data.metadata) }
+  // Upgrade existing work roots once: saved old rounds belong to query history,
+  // even when downstream work is pending. Unknown saves stay in the work root.
+  const roundId = data.metadata?.round?._id || data.metadata?.pendingEndRound?.round_id || ''
+  const history = data.history.some(row => row?.receipt?.saved === true && (!roundId || entryRound(row) !== roundId))
+   ? save(data.current, [...data.history], data.metadata) : data.history
+  return { ...data, history, metadata: { ...cleanMetadata(data.metadata), archiveHead } }
  }
  function migrate(data, raw) {
   if (!data) return null

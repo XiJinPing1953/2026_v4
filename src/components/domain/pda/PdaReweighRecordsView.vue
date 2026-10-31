@@ -46,6 +46,11 @@
 					<text v-if="type === 'filling'">罐装量 {{ item.fillText }} kg</text>
 				</view>
 				<template v-if="type === 'filling'">
+					<text v-if="item.processingMessage" class="hint">{{ item.processingMessage }}</text>
+					<view v-if="item.canCheck" class="processing-actions">
+						<AppButton kind="neutral" :disabled="Boolean(processingId)" @click="checkProcessing(item.id)">查看处理状态</AppButton>
+						<AppButton v-if="item.canRetry && canRetryProcessing" kind="neutral" :disabled="Boolean(processingId)" @click="checkProcessing(item.id, true)">重试处理</AppButton>
+					</view>
 					<AppButton v-if="item.canPrint" kind="neutral" :disabled="batchBusy || printer.busy.value" @click="reprintRow(item.id)">补打标签</AppButton>
 					<text v-else class="hint">缺少原标签资料或记录已更正，不能补打</text>
 					<text class="hint">{{ printer.messages.value[item.operationId] || '' }}</text>
@@ -77,7 +82,7 @@ import { historyPrintEntry } from '@/services/pda/reweighHistory'
 import { usePdaFillingPrinter } from '@/composables/pda/usePdaFillingPrinter'
 defineEmits(['back'])
 const form = usePdaReweighRecords()
-const { historyError, summary, rounds, roundId, pageActive, types, type, typeLabel, date, bottleNo, rows, loading, scannerReady, error, hasMore, setFilter, search, loadMore } = form
+const { processingId, canRetryProcessing, checkProcessing, historyError, summary, rounds, roundId, pageActive, types, type, typeLabel, date, bottleNo, rows, loading, scannerReady, error, hasMore, setFilter, search, loadMore } = form
 const scrollToRecords = useRecordPageScroll('.records-page-start')
 function changeDisplayPage(value) { displayPage.value = value; void scrollToRecords() }
 const PAGE_SIZE = 10
@@ -95,7 +100,9 @@ const printer = usePdaFillingPrinter({ enabled: true, active: () => pageActive.v
 const displayRows = computed(() => visibleRows.value.map(row => {
  const entry = type.value === 'filling' ? printEntries.value.get(row.id) : null
  return { id: row.id, bottleNo: row.bottle_no,
-  statusText: row.status === 'complete' ? '已完成' : row.status === 'pending' ? '处理中' : '待核对',
+  statusText: ({ complete: '已保存', pending: '已保存 · 后台处理中', failed: '已保存 · 处理失败', conflict: '记录有变化', unverified: '已保存 · 处理状态待查询' })[row.status] || '已保存',
+  processingMessage: row.processing_message || '', canCheck: type.value === 'filling' && row.status !== 'complete' && Boolean(row.operation_id || row.print_entry?.operationId),
+  canRetry: row.processing_checked && ['pending', 'failed'].includes(row.status),
   timeText: `${row.time_label || '称重时间'} ${row.weighed_at || '时间未记录'}`,
   grossText: formatWeight(row.gross_weight), tareText: formatWeight(row.tare_weight), netText: formatWeight(row.net_weight), fillText: formatWeight(row.fill_weight),
   operationId: entry?.operationId, canPrint: Boolean(entry && !printer.reason(entry)) }
@@ -132,6 +139,7 @@ defineExpose({ activate, deactivate })
 </script>
 
 <style scoped>
+.processing-actions { display:flex; flex-wrap:wrap; gap:12rpx; margin:12rpx 0; }
 .records-pager { padding:12px 0; }
 .print-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12rpx; margin-bottom: 12rpx; }
 .top-row, .record-head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }

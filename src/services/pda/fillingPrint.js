@@ -78,7 +78,7 @@ export function createFillingPrintController({ ownerId, currentOwner, storage, v
 			// Durable lock precedes every native write. Never infer paper delivery from SDK return.
 			record(id, 'attempted', label)
 			if (!allowed() || version !== generation) return false
-			await connection.print({ ...label, ...(verified?.qr_url ? { qr_url: verified.qr_url } : {}) })
+			await connection.print({ ...label, filling_time: verified?.filling_time || '', ...(verified?.qr_url ? { qr_url: verified.qr_url } : {}) })
 			notify('标签已发送，请查看出纸')
 			return true
 		} catch (error) { notify(`记录已保存，${error.message || '标签发送结果不明'}；请查看出纸后再补打`); return false }

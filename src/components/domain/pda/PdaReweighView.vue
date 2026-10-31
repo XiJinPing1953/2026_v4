@@ -3,7 +3,7 @@
 		<AppSection v-if="!nativeSupported" title="请使用原生 PDA">
 			<text class="hint">本模块使用 PDA 扫描头和 NVK 蓝牙吊秤，请在 PDA 应用中打开。</text>
 		</AppSection>
-		<AppSection v-else-if="draftLoading" title="正在恢复当前作业"><text class="hint" role="status">正在读取当前轮次和待处理记录…</text></AppSection>
+		<AppSection v-else-if="draftLoading" title="正在恢复当前作业"><text class="hint" role="status">正在读取当前轮次和未确认保存的记录…</text></AppSection>
 		<template v-else>
 			<text v-if="!canCreate" class="notice notice--error">当前账号没有复秤保存权限。</text>
 			<text v-if="storageError" class="notice notice--error">草稿未能保存：{{ storageError }}。请保留本页，恢复本机存储后再试。</text>
@@ -101,7 +101,7 @@
 
 			<AppSection class="work-section" v-if="current.frozen" :title="submitting ? '正在保存' : receiptTitle(current.receipt)">
 				<text v-if="error" class="notice notice--error" role="alert">{{ error }}</text>
-				<text class="hint">{{ submitting ? '正在提交并确认保存结果，请稍候。' : current.receipt?.message || '还没确认是否保存成功，请点查询保存结果。' }}</text>
+				<text class="hint">{{ submitting ? '正在提交并确认保存结果，请稍候。' : current.receipt?.saved ? '记录已保存，可以继续下一瓶；处理详情可到复秤记录查询。' : current.receipt?.message || '还没确认是否保存成功，请点查询保存结果。' }}</text>
 				<view v-if="!isReturn && current.receipt?.saved" class="print-result">
 					<text>{{ printer.messages.value[current.operationId] || '可补打这笔记录的标签' }}</text>
 					<text v-if="printer.reason(current)" class="hint">{{ printer.reason(current) }}</text>
@@ -112,8 +112,8 @@
 				<text v-if="showReceiptDetails && current.receipt?.fillingId" class="identifier">{{ isReturn ? '回瓶复秤记录' : '灌装单' }}：{{ current.receipt.fillingId }}</text>
 				<text v-if="showReceiptDetails" class="identifier">操作编号：{{ current.operationId }}</text>
 				<view class="actions">
-					<AppButton size="sm" kind="neutral" :disabled="busy" @click="query()">查询保存结果</AppButton>
-					<AppButton v-if="!current.receipt?.complete" size="sm" kind="neutral" :disabled="busy" @click="query(current.operationId, true)">重试保存</AppButton>
+					<AppButton v-if="!current.receipt?.saved" size="sm" kind="neutral" :disabled="busy" @click="query()">查询保存结果</AppButton>
+					<AppButton v-if="!current.receipt?.saved" size="sm" kind="neutral" :disabled="busy" @click="query(current.operationId, true)">重试保存</AppButton>
 					<AppButton :disabled="!canNext" @click="onNext">下一瓶</AppButton>
 				</view>
 				<text v-if="!submitting && !current.receipt?.saved" class="hint">还没确认是否保存成功，请查询或重试这笔记录。</text>
@@ -147,7 +147,7 @@ const { draftLoading, captureMinimum, current, roundHistory, recoveryHistory, hi
 	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText, endRound } = form
 const historyGroups = computed(() => [
 	{ title: '本轮称重记录', items: roundHistory.value },
-	{ title: '其他轮次待处理记录', items: recoveryHistory.value }
+	{ title: '其他轮次未确认保存的记录', items: recoveryHistory.value }
 ].filter(group => group.items.length))
 const readyForBottle = computed(() => Boolean(round.value?._id) && !pendingEndRound.value && (!isReturn || roundReady.value))
 const previousNotice = computed(() => reweighPreviousNotice(current.value.preview, isReturn))
@@ -160,7 +160,7 @@ const bottleKeyword = ref('')
 const roundDetails = ref(false), factsOpen = ref(false), manualOpen = ref(false), keyboardOpen = ref(false)
 const showRemark = ref(false), showReceiptDetails = ref(false)
 const weight = value => value == null || value === '' || !Number.isFinite(Number(value)) ? '—' : Number(value).toFixed(1)
-const receiptTitle = receipt => receipt?.complete ? '已保存' : receipt?.saved ? '记录已保存，还有信息待核对' : '还没确认是否保存成功'
+const receiptTitle = receipt => receipt?.saved ? '已保存' : '还没确认是否保存成功'
 async function selectManual(value) { const accepted = await selectBottle(value); if (accepted) uni.hideKeyboard(); return accepted }
 function onBottleSelected(bottle) { return selectManual(bottle?.bottle_no || bottleKeyword.value) }
 function onSelectKeyword() { return selectManual(bottleKeyword.value) }

@@ -14,9 +14,10 @@ function harness(t, options = {}) {
 	const request = type => async data => { requests.push({ type, ...data }); return options.request ? options.request(data, requests.length, type) : response([type]) }
 	const module = vm.runInNewContext(`${source}\n;({usePdaReweighRecords})`, {
 		Date, String, Boolean, Array, Map, Promise, ...vue, onBeforeUnmount: fn => hooks.push(fn),
-		getUser: () => ({ _id: owner }), canViewPage: url => !options.onlyFilling || url === '/pages/pda/reweigh',
+		getUser: () => ({ _id: owner }), canPageAction: () => options.canRetry !== false, canViewPage: url => !options.onlyFilling || url === '/pages/pda/reweigh',
 		isPdaAppMode: () => true, normalizeBottleNo: value => String(value || '').trim().toUpperCase(),
 		createLocalFillingRoundsReader: () => async () => { options.onLocalRead?.(); return options.localRead ? options.localRead() : options.localRounds || [] }, readPdaStorage: () => null, uni: {},
+		getReweighOperationV1: options.status || (async () => ({ code:404 })), retryReweighOperationV1: options.retry || (async () => ({ code:500 })),
 		listReturnReweighRoundRecordsV1: request('round'),
 		listReturnReweighRecordsV1: request('return'), listFillingReweighRecordsV1: request('filling'),
 		resolvePdaBottleByQrCode: options.resolveQr || (async rawText => ({ code: 0, data: { bottle_no: rawText } })),
@@ -215,4 +216,36 @@ test('cloud and local print snapshots remain shallow; whole-result replacements 
  assert.equal(vue.isReactive(h.form.rounds.value[0].rows[0].print_entry), false)
  h.form.setFilter('round', 'old-round'); await h.form.search()
  assert.equal(h.form.rows.value[0], localRounds[0].rows[0]); assert.equal(vue.isReactive(h.form.rows.value[0]), false)
+})
+
+test('saved history status/retry is explicit, uses the original id and never polls on entry', async t => {
+ let reads=0,retries=0
+ const h=harness(t,{onlyFilling:true,request:()=>({code:0,data:{rows:[{id:'f1',operation_id:'op1',status:'pending'}]}}),
+ status:async id=>{reads++;assert.equal(id,'op1');return {code:0,data:{operation_id:id,status:'pending',saved_total:1,source_records:[{saved:true,version_matches:true}]}}},
+ retry:async id=>{retries++;return {code:0,data:{operation_id:id,complete:true}}}})
+ await h.form.activate();await tick();assert.equal(reads,0)
+ await h.form.checkProcessing('f1');assert.equal(h.form.rows.value[0].status,'pending');assert.equal(retries,0)
+ await h.form.checkProcessing('f1',true);assert.equal(h.form.rows.value[0].status,'complete');assert.equal(retries,1)
+})
+test('conflicting history refuses retry and stale status cannot update a changed filter', async t => {
+ let retries=0;const waiting=deferred();let slow=false
+ const h=harness(t,{onlyFilling:true,request:()=>({code:0,data:{rows:[{id:'f1',operation_id:'op1',status:'pending'}]}}),
+ status:async()=>slow?waiting.promise:{code:0,data:{operation_id:'op1',saved_total:1,source_records:[{version_matches:false}]}},
+ retry:async()=>{retries++;return {code:0}}})
+ await h.form.activate();await tick();await h.form.checkProcessing('f1',true)
+ assert.equal(h.form.rows.value[0].status,'conflict');assert.equal(retries,0)
+ slow=true;const query=h.form.checkProcessing('f1',true);h.form.setFilter('bottle','different')
+ waiting.resolve({code:0,data:{operation_id:'op1',complete:true}});await query
+ assert.equal(h.form.rows.value.length,0);assert.equal(retries,0)
+})
+
+test('filter changes release old status UI and late completion cannot unlock the next request', async t=>{
+ const first=deferred(),second=deferred();let calls=0
+ const h=harness(t,{onlyFilling:true,request:()=>({code:0,data:{rows:[{id:'f1',operation_id:'op1',status:'pending'}]}}),status:()=>++calls===1?first.promise:second.promise})
+ await h.form.activate();await tick();const old=h.form.checkProcessing('f1')
+ h.form.setFilter('bottle','1');assert.equal(h.form.processingId.value,'');await h.form.search()
+ const current=h.form.checkProcessing('f1');first.resolve({code:0,data:{operation_id:'op1',complete:true}});await old
+ assert.equal(h.form.processingId.value,'f1');assert.equal(h.form.rows.value[0].status,'pending')
+ second.resolve({code:0,data:{operation_id:'op1',complete:true}});await current
+ assert.equal(h.form.processingId.value,'');assert.equal(h.form.rows.value[0].status,'complete')
 })

@@ -20,7 +20,7 @@ function groupFillingRounds(data) {
   let label = null
   try { label = savedLabel(entry) } catch (_) {}
   group.rows.push({ id: entry.operationId, bottle_no: entry.bottleNo, weighed_at: time, time_label: '称重时间',
-   status: entry.receipt.complete ? 'complete' : 'pending', gross_weight: label?.gross_weight ?? entry.grossWeight,
+   operation_id: entry.operationId, status: entry.receipt.complete ? 'complete' : 'unverified', gross_weight: label?.gross_weight ?? entry.grossWeight,
    tare_weight: label?.tare_weight ?? null, net_weight: label?.net_weight ?? null, print_entry: entry })
  }
  return [...rounds.values()].map(group => ({ ...group, bottle_count: new Set(group.rows.map(row => row.bottle_no)).size }))

@@ -62,7 +62,7 @@ test('a round larger than the cache still reuses a bounded subset on repeated se
  }
 })
 for (const mode of ['filling', 'return']) test(`${mode}: archived 2000 rows never enter working recovery; query still contains every label`, async () => {
- const f = fixture(mode), old = Array.from({ length: 2000 }, (_, i) => row(i)), active = [row('current', 'active')], pending = row('unknown', 'old', false)
+ const f = fixture(mode), old = Array.from({ length: 2000 }, (_, i) => row(i, 'old', i % 2 === 0)), active = [row('current', 'active')], pending = { ...row('unknown', 'old', false), receipt: { saved: false, complete: false } }
  f.seed([...old, ...active, pending]); const original = f.map.get(f.key)
  const loaded = await f.store().loadAsync()
  assert.equal(loaded.history.length, 2); assert.equal(f.map.get(f.key), original)
@@ -115,4 +115,17 @@ test('migration rejects corrupt rows, changed legacy roots and foreign accounts'
  f.storage.setStorageSync = (key, value) => { nativeSet(key, value); if (key.endsWith(':index')) f.map.set(f.key, f.map.get(f.key) + ' ') }
  await assert.rejects(f.store().loadAsync(), /另一页面/); assert.equal(f.map.has(f.key + ':work-v3'), false)
  const other = fixture(); other.seed([row('a')]); other.owner('different'); await assert.rejects(other.store().loadAsync(), /登录账号/)
+})
+
+test('saved pending old rounds migrate from existing work root once and remain available only in queries', async () => {
+ const f = fixture(); f.seed([row('a', 'active', false), row('b', 'active', false)])
+ const store = f.store(), first = await store.loadAsync()
+ const rootKey=f.key+':work-v3', root=JSON.parse(f.map.get(rootKey)); root.metadata.round=null; root.metadata.localRoundEnded=true
+ f.map.set(rootKey,JSON.stringify(root)); f.calls.length=0
+ const migrated=await f.store().loadAsync(); assert.equal(migrated.history.length,0)
+ const history=await work.readReweighHistorySnapshot('u',f.storage)
+ assert.equal(history.history.length,2); assert.ok(history.history.every(x=>x.receipt.saved&&!x.receipt.complete))
+ f.calls.length=0;f.writes.length=0;await f.store().loadAsync()
+ assert.equal(f.writes.length,0);assert.equal(f.calls.length,2)
+ assert.ok(f.calls.every(x=>!x[1].includes(':archive:')))
 })

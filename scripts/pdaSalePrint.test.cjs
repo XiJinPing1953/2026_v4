@@ -1,9 +1,10 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm')
 function load(path,names,context={}){let code=fs.readFileSync(path,'utf8').replace(/^import .*$/gm,'').replace(/export /g,'');const c={...context};vm.createContext(c);vm.runInContext(code+'\nthis.api={'+names.join(',')+'}',c);return c.api}
+const {formatFillingPrintTime}=load('src/services/pda/printBusinessTime.js',['formatFillingPrintTime'])
 const {buildDepositPreviewRows}=load('src/services/pda/shared.js',['buildDepositPreviewRows'])
 const {receiptPrinterHarness}=require('./lib/receiptPrinterHarness.cjs')
 const {writeReceiptText,RECEIPT_TAIL_DOTS}=load('src/services/pda/receiptPrinter.js',['writeReceiptText','RECEIPT_TAIL_DOTS'])
-const {salePrintPages,writeSalePage}=load('src/services/pda/salePrint.js',['salePrintPages','writeSalePage'],{buildDepositPreviewRows,writeReceiptText,RECEIPT_TAIL_DOTS})
+const {salePrintPages,writeSalePage}=load('src/services/pda/salePrint.js',['salePrintPages','writeSalePage'],{buildDepositPreviewRows,writeReceiptText,RECEIPT_TAIL_DOTS,formatFillingPrintTime})
 const sale={_id:'s',biz_mode:'bottle',price_unit:'kg',unit_price:5,should_receive:50,total_net_weight:10,customer_name:'客户',out_items:[{bottle_no:'1',net:12}],back_items:[{bottle_no:'2',net:2}],deposit_rows:[{bottle_no:'1'}]}
 test('long continuous receipts keep every bottle, repeat table headers, and preserve the source',()=>{
  const doc={...sale,out_items:Array.from({length:80},(_,i)=>({bottle_no:`B${i}`,net:12})),should_receive:4790,total_net_weight:958}
@@ -60,7 +61,7 @@ test('line wrapping preserves bottle number and decimal weight tokens',()=>{
 })
 
 test('legacy PDA runtime without Array.at can paginate deposits and send all pages',()=>{
- const c={writeReceiptText,RECEIPT_TAIL_DOTS};vm.createContext(c);vm.runInContext('Array.prototype.at = undefined',c)
+ const c={writeReceiptText,RECEIPT_TAIL_DOTS,formatFillingPrintTime};vm.createContext(c);vm.runInContext('Array.prototype.at = undefined',c)
  const code=fs.readFileSync('src/services/pda/shared.js','utf8').replace(/export /g,'')+'\n'+fs.readFileSync('src/services/pda/salePrint.js','utf8').replace(/^import .*$/gm,'').replace(/export /g,'')
  vm.runInContext(code+'\nthis.api={salePrintPages,writeSalePage}',c)
  const doc={...sale,deposit_rows:Array.from({length:300},(_,i)=>({bottle_no:'BOTTLE'+i}))}
@@ -99,7 +100,7 @@ function assertBounds(pages){
 }
 test('four outgoing then four returning fit one variable-length receipt including settlement and corrected deposits',()=>{
  const before=JSON.stringify(fourEach),pages=salePrintPages(fourEach)
- assert.equal(pages.length,1);assert.ok(pages[0].heightMm>50&&pages[0].heightMm<130)
+ assert.equal(pages.length,1);assert.ok(pages[0].heightMm>50&&pages[0].heightMm<170)
  const rows=pages[0].rows.join('');assert.match(rows,/计费: 260kg  单价: 8元\/kg/);assert.match(rows,/\(280-20\)×8=2080.00元/);assert.match(rows,/存瓶\(5瓶\): 55、90、91、92、93/)
  assert.ok(pages[0].commands.find(c=>c.text.startsWith('回瓶 4瓶')).y>pages[0].commands.find(c=>c.text==='93').y)
  for(const items of [fourEach.out_items,fourEach.back_items])for(const item of items){
@@ -202,4 +203,18 @@ test('late authorized detail after leaving never sends either copy',async()=>{
  let resolve;const pending=new Promise(done=>{resolve=done})
  const h=printerHarness({getSale:()=>pending});await h.p.connect();const print=h.p.print('s');h.disable()
  resolve({code:0,data:sale});await print;assert.equal(h.sends,0)
+})
+
+test('receipt filling time stays with each bottle and never falls back to the sale or print date',()=>{
+ const doc={...fourEach,date:'2026-10-31',out_items:fourEach.out_items.map((r,i)=>({...r,filling_time:['2026-10-29-09','2026-10-30-15','2026-10-28',undefined][i]})),back_items:fourEach.back_items}
+ const before=JSON.stringify(doc),pages=salePrintPages(doc),commands=pages.flatMap(p=>p.commands)
+ for(const [no,expected] of [['90','灌装:2026-10-29 09时'],['91','灌装:2026-10-30 15时'],['92','灌装:2026-10-28（仅日期）'],['93','灌装:未记录'],['190','灌装:未记录']]){
+  const index=commands.findIndex(c=>c.x===16&&c.text===no)
+  assert.ok(index>=0)
+  assert.ok(commands.slice(index+1,index+5).some(c=>c.text===expected&&c.y===commands[index].y+28),no)
+ }
+ assert.equal(commands.filter(c=>c.text.startsWith('灌装:')).length,8)
+ assert.equal(commands.filter(c=>c.text==='· 新拓能源 ·').length,pages.length)
+ assert.ok(!commands.some(c=>c.text.startsWith('灌装:2026-10-31')))
+ assert.equal(JSON.stringify(doc),before);assertBounds(pages)
 })

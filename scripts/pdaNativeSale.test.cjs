@@ -65,7 +65,7 @@ async function harness(t, options = {}) {
 	const printNative = require('./lib/receiptPrinterHarness.cjs').receiptPrinterHarness(), printReads = []
 	if (options.printing) {
 		const receiptApi = load('src/services/pda/receiptPrinter.js', ['writeReceiptText', 'RECEIPT_TAIL_DOTS'])
-		Object.assign(runtime, load('src/services/pda/salePrint.js', ['salePrintPages', 'writeSalePage'], { ...shared, ...receiptApi }))
+		Object.assign(runtime, load('src/services/pda/salePrint.js', ['salePrintPages', 'writeSalePage'], { ...shared, ...receiptApi, ...load('src/services/pda/printBusinessTime.js', ['formatFillingPrintTime']) }))
 		Object.assign(runtime, {
 			plus: { android: printNative.android }, setInterval: () => 0, clearInterval() {},
 			selectPairedPrinter: async () => ({ name: 'HL30-AA20', address: printNative.address }), rememberPrinter() {},

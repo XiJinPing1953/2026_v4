@@ -1,3 +1,4 @@
+import { formatFillingPrintTime } from './printBusinessTime'
 const copy = value => JSON.parse(JSON.stringify(value))
 export const TEST_LABEL = Object.freeze({ company: '新拓能源', bottle_no: 'TEST001', tare_weight: 110, gross_weight: 185.5, net_weight: 75.5 })
 export function normalizePrintLabel(label) {
@@ -21,7 +22,7 @@ export function labelQrText(value) {
 }
 export function labelLayout(value, test = false) {
  const l = normalizePrintLabel(value), qr = labelQrText(value)
- const textX = 40, textRight = 240, bodyTop = 80, bodyBottom = test ? 272 : 304
+ const textX = 40, textRight = 240, bodyTop = 48, bodyBottom = 272
  const weights = [`皮重:${l.tare_weight.toFixed(1)}kg`, `毛重:${l.gross_weight.toFixed(1)}kg`, `净重:${l.net_weight.toFixed(1)}kg`]
  const makeText = size => {
   const width = s => [...s].reduce((n, c) => n + (c.charCodeAt(0) > 127 ? size : size / 2), 0)
@@ -48,14 +49,17 @@ export function labelLayout(value, test = false) {
  const qrX = 240 + Math.floor((224 - qrWidth) / 2)
  const qrY = bodyTop + Math.floor((bodyBottom - bodyTop - qrWidth) / 2)
  const textTop = bodyTop + Math.floor((bodyBottom - bodyTop - text.height) / 2)
- return { label: l, qr, qrX, qrY, qrWidth, quiet, moduleSize, fontSize: text.size, lines: text.lines.map((value, i) => ({ text: value, x: textX, y: textTop + i * text.lineHeight })), test }
+ // A native-text brand watermark fits the thermal printer without a raster image
+ // or a second transport. Reserve a separate band outside the QR quiet zone.
+ const footer = { x: 16, y: 280, text: test ? '测试标签 勿贴实瓶' : `新拓能源 灌装:${formatFillingPrintTime(value.filling_time)}` }
+ return { label: l, qr, qrX, qrY, qrWidth, quiet, moduleSize, fontSize: text.size, lines: text.lines.map((value, i) => ({ text: value, x: textX, y: textTop + i * text.lineHeight })), footer, test }
 }
 export function writeLabel(plugin, label, test = false) {
  const layout = labelLayout(label, test)
  plugin.clear(); plugin.setSize(60,40); plugin.setCls(); plugin.setDirection(0); plugin.setReference(0,0)
- plugin.setText(144,16,'TSS24.BF2',2,2,'新拓能源')
+ plugin.setText(192,16,'TSS24.BF2',1,1,'新拓能源')
  for (const row of layout.lines) plugin.setText(row.x,row.y,`TSS${layout.fontSize}.BF2`,1,1,row.text)
- if (test) plugin.setText(16,280,'TSS24.BF2',1,1,'测试标签 勿贴实瓶')
+ plugin.setText(layout.footer.x,layout.footer.y,'TSS24.BF2',1,1,layout.footer.text)
  plugin.setQR(layout.qrX,layout.qrY,'M',layout.moduleSize,'A',layout.qr)
  plugin.setPagePrint(); return plugin.startPrint()
 }

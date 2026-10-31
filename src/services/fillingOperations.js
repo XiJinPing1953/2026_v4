@@ -17,6 +17,17 @@ const removeOperation = (operation_id, owner) => {
 }
 const trustedReceipt = (result, operation_id) => result?.code === 0 &&
 	result?.data?.operation_id === operation_id && result?.data?.rule_version === FILLING_OPERATION_VERSION
+// Release local submission slots only after an identified saved receipt. Durable
+// operation data remains on the server and the PDA keeps its frozen draft/archive.
+const settledReceipt = result => result.data.complete === true ||
+	(['reweigh_create', 'reweigh_correct'].includes(result.data.operation_kind) &&
+	 (Number(result.data.saved_total) === 1 || Number(result.data.source_saved_total) === 1))
+export function forgetSavedReweighOperations(ids) {
+	if (!ids.length) return
+	const owner = currentOwner(), saved = entries(owner), confirmed = new Set(ids)
+	const kept = saved.filter(entry => !confirmed.has(entry.operation_id))
+	if (kept.length !== saved.length) { assertOwner(owner); uni.setStorageSync(storageKey(owner), kept) }
+}
 const signatureOf = (data) => {
 	const { operation_id, preview, ignore_bottle_flow_warning, ignoreBottleFlowWarning, ...input } = data || {}
 	const text = JSON.stringify(Object.keys(input).sort().map((key) => [key, input[key]]))
@@ -55,7 +66,7 @@ async function requestFillingOperation(operation_id, action, owner = currentOwne
 	const result = await callCloud('crm-filling', { action, data: { operation_id } })
 	assertOwner(owner)
 	// Recovery aliases share this path, so confirmed operations also release their draft slots.
-	if (trustedReceipt(result, operation_id) && result.data.complete === true) removeOperation(operation_id, owner)
+	if (trustedReceipt(result, operation_id) && settledReceipt(result)) removeOperation(operation_id, owner)
 	return result
 }
 export function getFillingOperationV1(operation_id) {
@@ -120,7 +131,7 @@ export async function submitBatchFillingOperation(data, action = 'batchCreateV1'
 			throw new Error('后台未返回可信的灌装操作凭据')
 		}
 		if (result?.data?.rejected === true) removeOperation(operation_id, owner)
-		if (trustedReceipt(result, operation_id) && result.data.complete === true) removeOperation(operation_id, owner)
+		if (trustedReceipt(result, operation_id) && settledReceipt(result)) removeOperation(operation_id, owner)
 		return result
 	} catch (error) {
 		capabilityCache = null

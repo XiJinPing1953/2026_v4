@@ -1,3 +1,4 @@
+import { forgetSavedReweighOperations } from '@/services/fillingOperations'
 import { readPdaStorage } from '@/services/pda/asyncStorage'
 import { sameWeighDisplay } from '@/services/pda/weighStatus'
 import { createAutoReweighWeight } from '@/services/pda/autoReturnWeight'
@@ -52,7 +53,6 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	let restorePromise = null
 	const busy = ref(false)
 	const submitting = ref(false)
-	let receiptRefresh = null
 	const active = ref(false)
 	const scannerReady = ref(false)
 	const pendingSession = ref('')
@@ -82,6 +82,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 			historySyncMeta = saved.metadata?.historySyncMeta || null
 			pendingEndRound.value = saved.metadata?.pendingEndRound || null
 			localRoundEnded.value = saved.metadata?.localRoundEnded === true; lastEndedRound.value = saved.metadata?.lastEndedRound || null
+			if (!isReturn) { try { forgetSavedReweighOperations([current.value, ...history.value].filter(item => item.receipt?.saved).map(item => item.operationId)) } catch (_) { /* Optional submission-slot cleanup cannot invalidate the durable draft. */ } }
 			message.value = localRoundEnded.value && !round.value ? '本轮已结束，历史请到复秤记录查询。点击“开始新一轮”后继续。' : '已恢复当前作业；未完成的称重可连接吊秤后继续。'
 		}
 	}
@@ -104,7 +105,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		return rows.filter(item => item.receipt?.saved && entryRoundId(item) === visibleRoundId)
 	})
 	// A remotely changed return round must not hide unfinished older operations.
-	const recoveryHistory = computed(() => history.value.filter(item => !item.receipt?.complete && entryRoundId(item) !== round.value?._id))
+	const recoveryHistory = computed(() => history.value.filter(item => !item.receipt?.saved && entryRoundId(item) !== round.value?._id))
 	function fail(text) { error.value = text; return false }
 	function persist() {
 		if (draftLoading.value || unreadable) return false
@@ -293,7 +294,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 			}
 			const payload = { operation_id: current.value.operationId, bottle_no: current.value.bottleNo, date: preview.date, gross_weight: current.value.grossWeight, context_hash: preview.context_hash,
 				capture_method: 'ble', capture: cloneReweigh(current.value.capture), remark: current.value.remark,
-				...(isReturn ? { round_id: current.value.roundId } : {}),
+				...(isReturn ? { round_id: current.value.roundId } : { return_after_save: true }),
 				...(preview.mode === 'correct' ? { filling_id: preview.filling._id, expected_source_version: preview.filling.source_version, reason: current.value.reason } : {}) }
 			current.value = { ...current.value, preview, previousBasis: null, frozen: { mode: preview.mode, payload, ...(!isReturn ? { label: cloneReweigh(preview.label) } : {}) } }
 			if (!isReturn) { try { printing?.arm(current.value) } catch (_) {} }
@@ -320,30 +321,6 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 			return response?.code === 0
 		} catch (cause) { applyReceipt({ msg: cause.message || '查询失败，这笔记录已保留，请重试查询' }, operationId, target); return false }
 		finally { busy.value = false }
-	}
-	function refreshPendingReceipts() {
-		if (receiptRefresh?.lifecycle === lifecycleVersion) return receiptRefresh.promise
-		if (!active.value || !ownerMatches() || unreadable || !nativeSupported) return Promise.resolve()
-		const lifecycle = lifecycleVersion
-		const valid = () => active.value && ownerMatches() && !unreadable && lifecycle === lifecycleVersion
-		const ids = [...new Set([current.value, ...history.value].filter(item => item.frozen && item.receipt?.saved && !item.receipt?.complete).map(item => item.operationId))]
-		// One bounded read-only pass. Never resubmit, print, or trust elapsed time as completion.
-		const task = { lifecycle, promise: null }
-		receiptRefresh = task
-		task.promise = (async () => {
-			for (let offset = 0; offset < ids.length && valid(); offset += 2) {
-				await Promise.all(ids.slice(offset, offset + 2).map(async id => {
-					try {
-						const response = await (isReturn ? getReturnReweighV1 : getReweighOperationV1)(id)
-						if (!valid() || response?.code !== 0 || response.data?.operation_id !== id) return
-						const target = current.value.operationId === id ? current.value : history.value.find(item => item.operationId === id)
-						if (!target?.frozen || target.receipt?.complete) return
-						applyReceipt(response, id, target, false, false)
-					} catch (_) { /* Keep the original credential available for explicit query/retry. */ }
-				}))
-			}
-		})().finally(() => { if (receiptRefresh === task) receiptRefresh = null })
-		return task.promise
 	}
 	async function nextBottle() {
 		if (busy.value || unreadable || !ownerMatches() || !active.value) return false
@@ -433,12 +410,9 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	async function startRound() {
 		if (pendingEndRound.value) return fail('请先确认上轮结束结果')
 		if (!nativeSupported || busy.value || !active.value || !ownerMatches() || unreadable || !canCreate.value) return false
-		const checkVersion = epoch
-		await refreshPendingReceipts()
-		if (!sameWork(checkVersion) || busy.value) return false
-		if (current.value.frozen && !current.value.receipt?.complete) return fail('请先确认本瓶保存完成，再开始新一轮')
-		if (current.value.bottleNo && !current.value.receipt?.complete) return fail('请先保存或放弃这瓶，再开始新一轮')
-		if (history.value.some(item => item.frozen && !item.receipt?.complete)) return fail('还有记录没处理完，请先查询保存结果')
+		if (current.value.frozen && !current.value.receipt?.saved) return fail('请先确认本瓶保存完成，再开始新一轮')
+		if (current.value.bottleNo && !current.value.receipt?.saved) return fail('请先保存或放弃这瓶，再开始新一轮')
+		if (history.value.some(item => item.frozen && !item.receipt?.saved)) return fail('还有记录未确认保存，请先查询保存结果')
 		const version = epoch
 		if (!isReturn) {
 			if (round.value && (!await confirm('开始新一轮罐装复秤', `本轮已保存 ${round.value.bottle_count} 瓶。只重新计算本机本账号的瓶数，已保存记录保留。`) || !sameWork(version) || busy.value)) return false
@@ -477,11 +451,8 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	async function endRound() {
 
 		if ((!round.value && !pendingEndRound.value) || !nativeSupported || busy.value || !active.value || !ownerMatches() || unreadable || !canCreate.value || pendingRound.value) return false
-		const checkVersion = epoch
-		await refreshPendingReceipts()
-		if (!sameWork(checkVersion) || busy.value) return false
-		if (current.value.bottleNo && !current.value.receipt?.complete) return fail('请先保存或放弃这瓶，再结束本轮')
-		if (history.value.some(item => item.frozen && !item.receipt?.complete)) return fail('还有记录没处理完，请先查询保存结果')
+		if (current.value.bottleNo && !current.value.receipt?.saved) return fail('请先保存或放弃这瓶，再结束本轮')
+		if (history.value.some(item => item.frozen && !item.receipt?.saved)) return fail('还有记录未确认保存，请先查询保存结果')
 		const version = epoch
 		if (!pendingEndRound.value && (!await confirm(isReturn ? '结束本轮回瓶复秤' : '结束本轮罐装复秤', `本轮已保存 ${round.value.bottle_count} 瓶。结束后保留记录，点击“开始新一轮”后继续称重。`) || !sameWork(version) || busy.value)) return false
 		if (isReturn && !pendingEndRound.value) {
@@ -535,7 +506,6 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 			scannerReady.value = result?.code === 0
 			if (!scannerReady.value) fail(result?.msg || '扫描键暂不可用，请手输瓶号')
 		} catch (cause) { fail(cause.message || '扫描头初始化失败') }
-		if (active.value && version === lifecycleVersion) void refreshPendingReceipts()
 	}
 	async function deactivate() {
 		if (deactivated) return stopping

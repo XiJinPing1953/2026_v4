@@ -15,11 +15,12 @@ export function usePdaFillingPrinter({ enabled, active, entries }) {
 	const control = createFillingPrintController({ ownerId, currentOwner, storage, valid, entries, printer: () => session,
 		verify: async entry => {
    const ticket = generation, options = { shouldContinue: () => valid() && ticket === generation }
-   verifyCurrentLabel(entry, await getFillingV1({ _id: entry.receipt.fillingId }, options))
+   const response = await getFillingV1({ _id: entry.receipt.fillingId }, options)
+   verifyCurrentLabel(entry, response)
    if (!options.shouldContinue()) throw new Error('打印已取消')
    const result = await issueFillingLabel({ filling_id:entry.receipt.fillingId, operation_id:entry.operationId }, options)
    if (result?.code !== 0 || !result.data?.qr_url) throw new Error(result?.msg || '标签网址暂不可用，请稍后补打')
-   return result.data
+   return { ...result.data, filling_time: response.data.filling_time || response.data.date || '' }
   },
 		report: (id, text) => { messages.value = { ...messages.value, [id]: text } } })
 	async function connect() {

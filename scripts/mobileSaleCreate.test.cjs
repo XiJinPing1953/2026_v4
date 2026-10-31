@@ -534,11 +534,11 @@ test('filling label source is verified again at submit; correction or newer-fill
    }
    return {result:{code:0,data:{job_id:'test-job',done:true,status:'completed',applied_amount:0,unresolved_count:0}}}
   }})
-  h.tables.crm_fillings=[{_id:'fill-1',operation_id:'fill-op-1',source_version:1,bottle_no:'B1',created_at:100}]
+  h.tables.crm_fillings=[{_id:'fill-1',operation_id:'fill-op-1',source_version:1,bottle_no:'B1',created_at:100,filling_time:'2026-10-29-09'}]
   const input=h.input();Object.assign(input.payload.outRows[0],{weight_source:'filling_reweigh',filling_label_token:proof.label_token})
   const response=await h.invoke('createMobileV1',input)
   if(race) {assert.notEqual(response.code,0);assert.equal(h.tables.crm_sale_records.length,0);assert.equal(h.tables[M.OPERATIONS].length,0)}
-  else {assert.equal(response.code,0);assert.equal(h.tables.crm_sale_records[0].mobile_filling_label_sources[0].label_token,proof.label_token)}
+  else {assert.equal(response.code,0);assert.equal(h.tables.crm_sale_records[0].mobile_filling_label_sources[0].label_token,proof.label_token);assert.equal(h.tables.crm_sale_records[0].mobile_filling_label_sources[0].filling_time,'2026-10-29-09')}
  }
  const h=harness({cloud:async()=>({result:{code:409,msg:'已更正'}})})
  const input=h.input();Object.assign(input.payload.outRows[0],{weight_source:'filling_reweigh',filling_label_token:'a'.repeat(48)})

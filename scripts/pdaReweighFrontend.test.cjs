@@ -45,7 +45,7 @@ function harness(t, options = {}) {
 	const onDestroy = []
 	const stateModule = load('src/composables/pda/usePdaReweigh.js', ['usePdaReweigh', 'reweighChangeText'], {
 		...asyncStorage, ...display, ...draft, ...work, ...autoWeight, Date: TestDate, ref: vue.ref, shallowRef: vue.shallowRef, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
-		getUser: () => ({ _id: owner }), canPageAction: () => options.canCreate !== false,
+		forgetSavedReweighOperations: () => {}, getUser: () => ({ _id: owner }), canPageAction: () => options.canCreate !== false,
 		getPdaBleScaleCapabilities: () => ({ transport: options.web ? 'web' : 'native', supported: true }),
 		createPdaBleScaleSession: profile => { assert.equal(profile.preserveMeasurementOnReadTimeout, true); weightFrame = profile.onWeightFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
 		ensurePdaBleRuntimePermission: async () => ({ code: 0 }), quantizeBleScaleWeightKg: value => Math.round(value * 2) / 2,
@@ -464,12 +464,13 @@ for (const returnMode of [false, true]) test(`${returnMode ? 'return' : 'filling
  const restored=harness(t,{returnMode,storage:h.storage,round:copy(h.form.round.value)});await restored.start()
  assert.deepEqual(copy(restored.form.roundHistory.value.map(r=>r.bottleNo)),['99'])
 })
-test('return externally changed round keeps previous pending receipt recoverable without mixing round list', async t => {
+test('return externally changed round archives previously saved receipt without mixing round list', async t => {
  const h=harness(t,{returnMode:true,send:payload=>({code:0,data:{operation_id:payload.operation_id,saved_total:1,complete:false}})})
  await h.measure('130');await h.form.submit();await h.form.nextBottle()
  const restored=harness(t,{returnMode:true,storage:h.storage,round:{_id:'another-round'}});await restored.start()
  assert.equal(restored.form.roundHistory.value.length,0)
- assert.equal(restored.form.recoveryHistory.value[0].bottleNo,'130')
+ assert.equal(restored.form.recoveryHistory.value.length,0)
+ assert.equal((await work.readReweighHistorySnapshot('u1',{getStorage:async key=>h.storage.get(key)},'return')).history[0].bottleNo,'130')
 })
 
 function restoredRoundRow(i) {
@@ -611,7 +612,7 @@ for (const returnMode of [false, true]) test(`${returnMode ? 'return' : 'filling
  const h = harness(t, { returnMode }); await h.measure()
  const id = h.form.round.value._id
  assert.equal(await h.form.endRound(), false); assert.equal(h.form.round.value._id, id)
- h.form.current.value = { ...h.form.current.value, frozen: { payload: { operation_id: h.form.current.value.operationId } }, receipt: { saved: true, complete: false } }
+ h.form.current.value = { ...h.form.current.value, frozen: { payload: { operation_id: h.form.current.value.operationId } }, receipt: { saved: false, complete: false } }
  assert.equal(await h.form.endRound(), false); assert.equal(h.form.round.value._id, id)
 })
 test('uncertain return end persists original round key, blocks new work and recovers after restart', async t => {
@@ -691,24 +692,28 @@ test('保存回瓶时只对本轮重复称重弹窗，取消不会提交', async
  assert.equal(accept.requests.length, 1)
 })
 
-for (const returnMode of [false, true]) test(`pending receipts refresh across 24 hours without a write or blocking scan (${returnMode})`, async t => {
- let resolved = false, queries = 0
+for (const returnMode of [false, true]) test(`saved pending records permit ending after 24 hours without any status query (${returnMode})`, async t => {
+ let queries = 0
  const h = harness(t, { returnMode, send: async p => ({ code: 0, data: { operation_id: p.operation_id, saved_total: 1, complete: false } }),
-  query: async id => { queries++; return { code: 0, data: { operation_id: id, saved_total: 1, complete: resolved } } } })
+  query: async () => { queries++; throw new Error('offline') } })
  await h.measure(); await h.form.submit(); await h.form.nextBottle(); await h.form.deactivate()
- resolved = true; h.pause(25 * 3600000); await h.form.activate(); await tick()
- assert.equal(h.form.history.value[0].receipt.complete, true)
- assert.equal(h.form.busy.value, false); assert.equal(h.requests.length, 1); assert.ok(queries > 0)
+ h.pause(25 * 3600000); await h.form.activate(); await tick()
+ assert.equal(h.form.history.value[0].receipt.complete, false)
  assert.equal(await h.form.endRound(), true)
+ assert.equal(h.form.history.value.length, 0); assert.equal(h.requests.length, 1); assert.equal(queries, 0)
+ const archived = await work.readReweighHistorySnapshot('u1', { getStorage: async key => h.storage.get(key) }, returnMode ? 'return' : 'filling')
+ assert.equal(archived.history.length, 1); assert.equal(archived.history[0].receipt.saved, true); assert.equal(archived.history[0].receipt.complete, false)
 })
-test('ending a round rechecks stale pending receipts but preserves real failures', async t => {
- let complete = false
- const h = harness(t, { send: async p => ({ code: 0, data: { operation_id: p.operation_id, saved_total: 1, complete: false } }), query: async id => ({ code: 0, data: { operation_id: id, saved_total: 1, complete } }) })
- await h.measure(); await h.form.submit(); await h.form.nextBottle()
- assert.equal(await h.form.endRound(), false)
- complete = true
- assert.equal(await h.form.endRound(), true)
- assert.equal(h.requests.length, 1)
+test('ending directly from saved current bottle archives it; unknown current/history still block without resubmission', async t => {
+ const h = harness(t, { send: async p => ({ code: 0, data: { operation_id: p.operation_id, saved_total: 1, complete: false } }) })
+ await h.measure(); await h.form.submit(); assert.equal(await h.form.endRound(), true)
+ assert.equal(h.form.current.value.frozen, null); assert.equal(h.form.history.value.length, 0)
+ const unknown = harness(t, { send: () => { throw Error('timeout') } }); await unknown.measure(); await unknown.form.submit()
+ const original = unknown.form.current.value.operationId
+ assert.equal(await unknown.form.endRound(), false); assert.equal(await unknown.form.startRound(), false)
+ assert.equal(unknown.form.current.value.operationId, original); assert.equal(unknown.requests.length, 1)
+ unknown.form.history.value = [copy(unknown.form.current.value)]; unknown.form.current.value = { operationId: 'empty', bottleNo: '' }
+ assert.equal(await unknown.form.endRound(), false); assert.match(unknown.form.error.value, /未确认保存/)
 })
 test('late pending receipt never downgrades confirmed completion and foreign receipts cannot save', () => {
  const old = { saved: true, complete: true, status: 'complete', fillingId: 'f1' }
@@ -717,13 +722,11 @@ test('late pending receipt never downgrades confirmed completion and foreign rec
  assert.equal(draft.reweighReceipt({code:0,data:{operation_id:'other',saved_total:1,complete:true}}, 'op').saved, false)
 })
 
-test('background receipt refresh cannot print or apply after page hide/account change', async t => {
- for(const change of ['hide','owner']) {
-  let finish, printed=0
-  const h=harness(t,{send:async p=>({code:0,data:{operation_id:p.operation_id,saved_total:1,complete:false}}),query:id=>new Promise(resolve=>{finish=()=>resolve({code:0,data:{operation_id:id,saved_total:1,complete:true}})}),printing:{arm(){},confirmed(){printed++},close(){}}})
-  await h.measure();await h.form.submit();await h.form.nextBottle();await h.form.deactivate();await h.form.activate();await tick()
-  assert.equal(h.form.busy.value,false)
-  if(change==='hide')await h.form.deactivate();else h.setOwner('another')
-  finish();await tick();assert.equal(h.form.history.value[0].receipt.complete,false);assert.equal(printed,1)
- }
+test('reentering a saved pending round neither prints nor polls the backlog', async t => {
+ let printed = 0, queries = 0
+ const h = harness(t, { send: async p => ({ code: 0, data: { operation_id:p.operation_id, saved_total:1, complete:false } }),
+  query: async () => { queries++; throw Error('must not poll') }, printing: {arm(){},confirmed(){printed++},close(){}} })
+ await h.measure(); await h.form.submit(); await h.form.nextBottle(); await h.form.deactivate()
+ await h.form.activate(); await tick()
+ assert.equal(h.form.busy.value,false); assert.equal(queries,0); assert.equal(printed,1)
 })

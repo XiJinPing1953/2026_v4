@@ -160,3 +160,20 @@ test('capability success expires after one minute; failures are never cached', a
  await env.api.createReweighV1({bottle_no:'2'})
  assert.equal(env.calls.filter(r=>r.action==='capabilitiesV1').length,4)
 })
+
+test('confirmed saved reweighs do not fill 100 pending slots while backend work continues', async () => {
+ const env=service((_,r)=>r.action==='capabilitiesV1'?capabilities:{code:0,data:{operation_id:r.data.operation_id,rule_version:version,operation_kind:'reweigh_create',saved_total:1,complete:false}})
+ for(let i=0;i<125;i++) await env.api.createReweighV1({operation_id:'saved_'+i,bottle_no:String(i),return_after_save:true})
+ assert.equal(env.storage.get(key('A')).length,0)
+ assert.equal(env.calls.filter(r=>r.action==='capabilitiesV1').length,1)
+ assert.equal(env.calls.filter(r=>r.action==='getOperationV1').length,0)
+})
+test('releasing known saved work slots preserves unknown original ids and other accounts', () => {
+ const env=service(()=>null)
+ env.context.rememberBatchFillingOperation({operation_id:'saved-op',bottle_no:'1'})
+ env.context.rememberBatchFillingOperation({operation_id:'unknown-op',bottle_no:'2'})
+ env.context.forgetSavedReweighOperations(['saved-op'])
+ assert.deepEqual(Array.from(env.storage.get(key('A')),r=>r.operation_id),['unknown-op'])
+ env.switchOwner('B');env.context.forgetSavedReweighOperations(['unknown-op'])
+ assert.deepEqual(Array.from(env.storage.get(key('A')),r=>r.operation_id),['unknown-op'])
+})

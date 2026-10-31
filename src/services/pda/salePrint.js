@@ -1,5 +1,6 @@
 import { buildDepositPreviewRows } from './shared'
 import { writeReceiptText, RECEIPT_TAIL_DOTS } from './receiptPrinter'
+import { formatFillingPrintTime } from './printBusinessTime'
 
 const text = value => String(value ?? '').replace(/[\x00-\x1f\x7f]/g, ' ').trim()
 const finite = value => value !== null && value !== '' && Number.isFinite(Number(value))
@@ -7,7 +8,7 @@ const width = value => [...value].reduce((n, c) => n + (c.charCodeAt(0) > 127 ? 
 // 80 mm continuous stock; keep commands inside a 576-dot (72 mm) print head.
 // Long receipts use bounded buffers; 50 mm is the roll diameter, not a page height.
 const LEFT = 16, RIGHT = 560, TOP = 52, LINE = 28, FONT_HEIGHT = 24
-const MAX_HEIGHT_MM = 200, LAST_Y = MAX_HEIGHT_MM * 8 - RECEIPT_TAIL_DOTS - FONT_HEIGHT
+const MAX_HEIGHT_MM = 200, LAST_Y = MAX_HEIGHT_MM * 8 - RECEIPT_TAIL_DOTS - FONT_HEIGHT - LINE
 const COLUMN_ENDS = [160, 292, 424, 560]
 
 function wrap(value, limit = RIGHT - LEFT) {
@@ -70,7 +71,9 @@ export function salePrintPages(sale) {
       const number = wrap(text(item.bottle_no || item.bottleNo), 144)
       // Original saved weights only. Never substitute today's bottle profile.
       const columns = ['tare', 'gross', 'net'].map(key => wrap(finite(item[key]) ? Number(item[key]).toFixed(1) : '未记录', 120))
-      const height = Math.max(number.length, ...columns.map(column => column.length)) * LINE
+      const weightHeight = Math.max(number.length, ...columns.map(column => column.length)) * LINE
+      const fillingTime = wrap('灌装:' + formatFillingPrintTime(item.filling_time))
+      const height = weightHeight + fillingTime.length * LINE
       if (y + (needsHeader ? 16 + 2 * LINE : 0) + height - LINE > LAST_Y) {
         page(section); needsHeader = true
       }
@@ -78,6 +81,7 @@ export function salePrintPages(sale) {
       if (needsHeader) { separator(); header(section); needsHeader = false }
       number.forEach((line, i) => put(LEFT, line, y + i * LINE))
       columns.forEach((column, j) => column.forEach((line, i) => put(COLUMN_ENDS[j + 1] - width(line), line, y + i * LINE)))
+      fillingTime.forEach((line, i) => put(LEFT, line, y + weightHeight + i * LINE))
       y += height
     }
     lines((direction === '出瓶' ? '出瓶净重' : '回瓶余气') + '合计: ' + total + ' kg', section)
@@ -109,6 +113,13 @@ export function salePrintPages(sale) {
   y += 64
   lines('客户签名: ____________________', '签名')
 
+  // Small native-text watermark on every sheet. It does not cover weights or
+  // the handwriting area, and adds no bitmap decode or per-bottle network call.
+  for (const p of pages) {
+    const brand = '· 新拓能源 ·', at = Math.max(16, ...p.commands.map(row => row.y)) + LINE
+    p.commands.push({ x: Math.floor((LEFT + RIGHT - width(brand)) / 2), y: at, text: brand })
+    p.rows.push(brand)
+  }
   return pages.map((p, i) => ({ ...p, page: i + 1, total: pages.length,
     heightMm: Math.ceil((Math.max(40, ...p.commands.map(row => row.y + FONT_HEIGHT)) + RECEIPT_TAIL_DOTS) / 8)
   }))

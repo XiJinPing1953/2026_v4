@@ -58,9 +58,9 @@ function createFillingOperations({ db, saveRow, synchronizeRow, scanTarget, now 
 			throw error
 		}
 		// Processing only starts after the durable intent exists. No fire-and-forget promises.
-		return response(await run(op.operation_id, { maxMs: 6000 }))
+		return response(await run(op.operation_id, { maxMs: 6000, stopAfterSave: input.return_after_save === true && ['reweigh_create', 'reweigh_correct'].includes(summary?.operation_kind) }))
 	}
-	async function run(id, { maxMs = 40000, maxSteps = 200 } = {}) {
+	async function run(id, { maxMs = 40000, maxSteps = 200, stopAfterSave = false } = {}) {
 		let op = await get(id)
 		if (!op || op.status === 'complete' || op.status === 'failed') return op
 		const leaseId = crypto.randomBytes(16).toString('hex')
@@ -86,6 +86,12 @@ function createFillingOperations({ db, saveRow, synchronizeRow, scanTarget, now 
 					const row = op.rows[op.row_cursor]
 					const saved = await saveRow(row, op, actor)
 					await checkpoint({ saved_cursor: op.row_cursor + 1, ...(saved ? { last_transaction_ms: saved.transaction_ms } : {}) })
+					// The source transaction and saved checkpoint are durable. PDA can continue;
+					// the existing timer resumes synchronization/checks using this same operation.
+					if (stopAfterSave && op.saved_cursor === op.rows.length) {
+						await checkpoint({ status: 'pending', lease_id: '', lease_until: 0 })
+						return get(id)
+					}
 					await synchronizeRow(row, op, actor)
 					await checkpoint({ row_cursor: op.row_cursor + 1, attempts: 0, last_error: '' })
 				} else if (op.target_cursor < op.targets.length) {

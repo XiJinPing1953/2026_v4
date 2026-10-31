@@ -826,6 +826,8 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 				const incomingDeviceId = normalizeText(res?.deviceId)
 				if (incomingDeviceId && deviceId && !isSameBleDeviceId(incomingDeviceId, deviceId)) return
 				if (res?.connected === false) {
+					// A late successful create/notify callback cannot revive this GATT attempt.
+					if (connectionClaim) connectionClaim.disconnected = true
 					connected = false
 					resetRuntimeStats()
 					emit(
@@ -912,7 +914,11 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 		if (connecting) return { code: 409, msg: '吊秤连接进行中' }
 		connecting = true
 		const epoch = ++operationEpoch
-		const checkActive = () => { if (epoch !== operationEpoch) throw new Error('connection_cancelled') }
+		const superseded = () => epoch !== operationEpoch || (attemptClaim && runtimeLinks.owners.get(attemptClaim.key) !== attemptClaim)
+		const checkActive = () => {
+			if (superseded()) throw new Error('connection_cancelled')
+			if (attemptClaim?.disconnected) throw new Error('吊秤连接已中断，请重新连接')
+		}
 		resetReconnectTimer()
 		const preferredDeviceId = normalizeText(options.preferredDeviceId || options.preferred_device_id)
 		const hasPreferredDevice = Boolean(preferredDeviceId)
@@ -992,7 +998,7 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 				}
 			}
 		} catch (error) {
-			if (epoch !== operationEpoch) {
+			if (superseded()) {
 				await closeConnectionQuietly(attemptClaim)
 				return { code: 499, msg: '吊秤连接已取消', data: null }
 			}

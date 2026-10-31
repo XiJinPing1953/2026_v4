@@ -569,3 +569,50 @@ test('native reconnect closes its own stale GATT handle before opening another',
  assert.equal(f.stats.connects.length,2);assert.equal(f.stats.closes,1);assert.equal(f.session.getSnapshot().is_connected,true)
  await f.session.stop()
 })
+
+
+test('native connection cannot revive after another page takes ownership during its delayed create callback', async () => {
+ const { context, time } = load(), connections = new Set()
+ let pendingCreate, creates = 0, closes = 0
+ const runtime = {
+  openBluetoothAdapter: p => p.success({}),
+  createBLEConnection(p) { creates++; if (creates === 1) pendingCreate = p; else p.success({}) },
+  notifyBLECharacteristicValueChange: p => p.success({}), closeBLEConnection(p) { closes++; p.success({}) },
+  onBLEConnectionStateChange: f => connections.add(f), offBLEConnectionStateChange: f => connections.delete(f),
+  onBLECharacteristicValueChange() {}, offBLECharacteristicValueChange() {}
+ }
+ const old = context.createBleScaleCoreSession({ deviceId: 'AA:BB:CC:DD:EE:FF' }, runtime)
+ const current = context.createBleScaleCoreSession({ deviceId: 'AA:BB:CC:DD:EE:FF' }, runtime)
+ const first = old.connect(); await flush()
+ assert.equal((await current.connect()).code, 0)
+ pendingCreate.success({})
+ assert.equal((await first).code, 499)
+ assert.equal(old.getSnapshot().is_connected, false)
+ assert.equal(current.getSnapshot().is_connected, true)
+ assert.equal(closes, 0)
+ await old.stop(); await current.stop()
+ assert.equal(time.count(), 0)
+})
+
+test('native disconnect during notification setup cannot be overwritten by a late success callback', async () => {
+ const { context, time } = load()
+ let onConnection, notify, closes = 0
+ const runtime = {
+  openBluetoothAdapter: p => p.success({}), createBLEConnection: p => p.success({}),
+  notifyBLECharacteristicValueChange: p => { notify = p },
+  closeBLEConnection(p) { closes++; p.success({}) },
+  onBLEConnectionStateChange: f => { onConnection = f }, offBLEConnectionStateChange() {},
+  onBLECharacteristicValueChange() {}, offBLECharacteristicValueChange() {}
+ }
+ const session = context.createBleScaleCoreSession({ deviceId: 'AA:BB:CC:DD:EE:FF' }, runtime)
+ const pending = session.connect(); await flush()
+ onConnection({ deviceId: 'AA:BB:CC:DD:EE:FF', connected: false })
+ notify.success({})
+ assert.notEqual((await pending).code, 0)
+ assert.equal(session.getSnapshot().is_connected, false)
+ assert.equal(session.getSnapshot().weight_kg, null)
+ assert.equal(session.getSnapshot().last_stable_weight_kg, null)
+ assert.equal(closes, 1)
+ await session.stop()
+ assert.equal(time.count(), 0)
+})
