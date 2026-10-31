@@ -13,7 +13,7 @@ function load(file, names, globals = {}) {
 const asyncStorage = load('src/services/pda/asyncStorage.js', ['readPdaStorage'], { setTimeout, clearTimeout })
 const display = load('src/services/pda/weighStatus.js', ['sameWeighDisplay'])
 const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight'])
-const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt', 'validReweighEntry', 'readReweighDraft', 'readReweighDraftAsync', 'reweighDraftKey'])
+const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt', 'validReweighEntry', 'readReweighDraft', 'readReweighDraftAsync', 'reweighDraftKey', 'isSameReturnReweighRound'])
 const work = load('src/services/pda/reweighWorkStore.js', ['createReweighWorkStore', 'readReweighHistorySnapshot'], { ...draft, })
 function harness(t, options = {}) {
 	let clock = Date.now(), weightFrame
@@ -275,7 +275,7 @@ test('return reweigh saves signed net with its server round and server distinct-
 })
 
 test('return repeat weighing requires explicit previous/new weight confirmation before saving', async t => {
-	const h = harness(t, { returnMode: true, previous: { gross_weight: 101, net_weight: 1 }, modalResults: [false, true] })
+	const h = harness(t, { returnMode: true, previous: { round_id: 'round-1', gross_weight: 101, net_weight: 1 }, modalResults: [false, true] })
 	await h.measure('282', 100)
 	assert.equal(await h.form.submit(), false); assert.equal(h.requests.length, 0)
 	assert.match(h.confirmations[0].content, /101\.0 kg → 100\.0 kg/)
@@ -671,4 +671,22 @@ for (const returnMode of [false, true]) test(`${returnMode ? '回瓶' : '罐装'
  h.frames(148, 0); assert.equal(h.form.current.value.grossWeight, 148)
  h.frames(125); assert.equal(h.form.current.value.grossWeight, 148)
  await h.form.submit(); assert.equal(h.requests[0].payload.gross_weight, 148)
+})
+
+test('保存回瓶时只对本轮重复称重弹窗，取消不会提交', async t => {
+ for (const previous of [null, { round_id: 'old-round', gross_weight: 110, net_weight: 10 }, { gross_weight: 110, net_weight: 10 }]) {
+  const h = harness(t, { returnMode: true, previous }); await h.measure('101', 120)
+  assert.equal(await h.form.submit(), true)
+  assert.equal(h.confirmations.some(item => item.title === '确认再次回瓶复秤'), false)
+  assert.equal(h.requests.length, 1)
+ }
+ const previous = { round_id: 'round-1', gross_weight: 110, net_weight: 10 }
+ const cancel = harness(t, { returnMode: true, previous, modalResults: [false] }); await cancel.measure('101', 120)
+ assert.equal(await cancel.form.submit(), false)
+ assert.equal(cancel.confirmations.filter(item => item.title === '确认再次回瓶复秤').length, 1)
+ assert.equal(cancel.requests.length, 0)
+ const accept = harness(t, { returnMode: true, previous }); await accept.measure('101', 120)
+ assert.equal(await accept.form.submit(), true)
+ assert.equal(accept.confirmations.filter(item => item.title === '确认再次回瓶复秤').length, 1)
+ assert.equal(accept.requests.length, 1)
 })

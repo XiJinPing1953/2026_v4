@@ -339,18 +339,19 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.51",
+      "version": "1.0.52",
       "output": "release/pda",
-      "acceptance": "Filling reweigh 60x40 label text column shifts right by 16 dots; QR and other behavior remain unchanged. Physical printing remains to be accepted on site.",
+      "acceptance": "Confirm repeat return reweigh only when the prior record is in the same round; preserve save, history and other behavior. Onsite acceptance remains pending.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "9c049c8f858f7a84abcc415591d7a506e1878545",
+        "baseCommit": "a218fb8",
         "sourceFiles": [
           "src/manifest.json",
-          "src/services/pda/labelPrinter.js"
+          "src/composables/pda/usePdaReweigh.js",
+          "src/services/pda/reweighDraft.js"
         ]
       },
       "integrityScope": "deployment"

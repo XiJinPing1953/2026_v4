@@ -10,7 +10,7 @@ import { createPdaBleScaleSession, createEmptyPdaBleScaleSnapshot, ensurePdaBleR
 import { resolvePdaBottleByQrCode } from '@/services/pda/bottle'
 import { enterBarcodeSession, leaveBarcodeSession } from '@/services/pda/capture'
 import { normalizeBottleNo } from '@/services/pda/shared'
-import { cloneReweigh, createReweighId, reweighReceipt } from '@/services/pda/reweighDraft'
+import { cloneReweigh, createReweighId, reweighReceipt, isSameReturnReweighRound } from '@/services/pda/reweighDraft'
 
 import { createReweighWorkStore } from '@/services/pda/reweighWorkStore'
 
@@ -284,7 +284,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 					: `皮重或上次回瓶重量有变化，请核对。\n皮重：${weightText(old?.bottle?.tare_weight)} → ${weightText(preview.bottle.tare_weight)}\n回瓶毛重：${weightText(old?.basis?.gross_weight)} → ${weightText(preview.basis.gross_weight)}\n标签净重：${weightText(old?.net_weight)} → ${weightText(preview.net_weight)}\n本次灌装量：${weightText(old?.fill_weight)} → ${weightText(preview.fill_weight)}`
 				if (!await confirm('称重资料有变化', text) || !sameWork(version)) return false
 			}
-			if (isReturn && preview.previous && (!await confirm('确认再次回瓶复秤', `此瓶已有回瓶复秤记录。\n毛重：${weightText(preview.previous.gross_weight)} → ${weightText(preview.gross_weight)}\n净重：${weightText(preview.previous.net_weight)} → ${weightText(preview.net_weight)}\n保存后使用本次称重作为回瓶依据，原称重保留。相同瓶号本轮只统计一次。`) || !sameWork(version))) return false
+			if (isReturn && isSameReturnReweighRound(preview) && (!await confirm('确认再次回瓶复秤', `此瓶已有回瓶复秤记录。\n毛重：${weightText(preview.previous.gross_weight)} → ${weightText(preview.gross_weight)}\n净重：${weightText(preview.previous.net_weight)} → ${weightText(preview.net_weight)}\n保存后使用本次称重作为回瓶依据，原称重保留。相同瓶号本轮只统计一次。`) || !sameWork(version))) return false
 			if (preview.mode === 'correct') {
 				if (!String(current.value.reason || '').trim()) return fail('请填写更正原因')
 				if (!await confirm('确认更正原灌装记录', `${reweighChangeText(preview)}\n原因：${current.value.reason}\n确认后更新原记录，不新增灌装。`) || !sameWork(version)) return false

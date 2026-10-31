@@ -189,12 +189,15 @@ export function createReweighDraftStore(ownerId, storage, currentOwner = () => o
 	}
 }
 
+export function isSameReturnReweighRound(preview) {
+	const previousRound = preview?.previous?.round_id
+	const currentRound = preview?.round?._id
+	return Boolean(previousRound && currentRound && previousRound === currentRound)
+}
+
 export function reweighPreviousNotice(preview, isReturn) {
 	if (!isReturn) return preview?.mode === 'correct' ? '这瓶已有罐装记录，保存后更正原记录' : ''
-	if (!preview?.previous) return ''
-	const previousRound = preview.previous.round_id
-	const currentRound = preview.round?._id
-	return previousRound && currentRound && previousRound === currentRound
+	return isSameReturnReweighRound(preview)
 		? '这瓶本轮已称过，保存后采用本次重量'
 		: ''
 }
