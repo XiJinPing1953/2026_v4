@@ -13,7 +13,7 @@ function harness(t, options = {}) {
 	const source = fs.readFileSync('src/composables/pda/usePdaReweighRecords.js', 'utf8').replace(/^import.*\n/gm, '').replace(/^export /gm, '')
 	const request = type => async data => { requests.push({ type, ...data }); return options.request ? options.request(data, requests.length, type) : response([type]) }
 	const module = vm.runInNewContext(`${source}\n;({usePdaReweighRecords})`, {
-		Date, String, Boolean, Array, Map, Promise, ...vue, onBeforeUnmount: fn => hooks.push(fn),
+		Date, String, Boolean, Array, Map, Promise, beginPageTrace() {}, markPageTrace() {}, markPageAfterRender() {}, ...vue, onBeforeUnmount: fn => hooks.push(fn),
 		getUser: () => ({ _id: owner }), canViewPage: url => !options.onlyFilling || url === '/pages/pda/reweigh',
 		isPdaAppMode: () => true, normalizeBottleNo: value => String(value || '').trim().toUpperCase(),
 		createLocalFillingRoundsReader: () => async () => { options.onLocalRead?.(); return options.localRead ? options.localRead() : options.localRounds || [] }, readPdaStorage: () => null, uni: {},
@@ -113,7 +113,7 @@ test('malformed successful responses are reported as read failures rather than a
 function homeHarness() {
 	const source = fs.readFileSync('src/components/domain/pda/PdaHomeView.vue', 'utf8').match(/<script setup>([\s\S]*?)<\/script>/)[1].replace(/^import.*\n/gm, '')
 	return vm.runInNewContext(`${source}\n;({activate,deactivate,openRecords,closeRecords,showRecords,recordsOpened,recordsRef})`, {
-		...vue, onBeforeUnmount: () => {}, defineExpose: () => {},
+		beginPageTrace() {}, markPageTrace() {}, markPageAfterRender() {}, ...vue, onBeforeUnmount: () => {}, defineExpose: () => {},
 		getUser: () => ({ _id: 'u1' }), isPdaAppMode: () => true, canViewPage: () => true, canPageAction: () => true
 	})
 }

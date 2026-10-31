@@ -1,10 +1,11 @@
 'use strict'
+const { wrapDatabase, withPerformanceTrace } = require('./performanceTraceLocal')
 
 const { readComplete, withFinancialEvidence } = require('./financialReadLocal')
 const flowRules = require('./bottleFlowRulesLocal')
 const { createClosureReader } = require('./closureRead')
 
-const db = uniCloud.database()
+const db = wrapDatabase(uniCloud.database())
 const dbCmd = db.command
 const closureReader = createClosureReader(db)
 const {
@@ -2291,3 +2292,6 @@ const main = async (event, context) => {
 }
 
 exports.main = withFinancialEvidence(main, 'customer-loss/2026-09-19.1')
+
+// Explicit diagnostic requests only; ordinary requests keep the original response.
+exports.main = withPerformanceTrace(exports.main)

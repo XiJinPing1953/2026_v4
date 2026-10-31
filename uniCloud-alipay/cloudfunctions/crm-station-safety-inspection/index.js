@@ -1,4 +1,5 @@
 'use strict'
+const { wrapDatabase, withPerformanceTrace } = require('./performanceTraceLocal')
 
 let aclHelpers = null
 try {
@@ -30,7 +31,7 @@ const {
 } = require('./hazardPolicy')
 const { allocateInspectionNumber } = require('./inspectionNumber')
 
-const db = uniCloud.database()
+const db = wrapDatabase(uniCloud.database())
 const dbCmd = db.command
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
@@ -735,3 +736,6 @@ exports.main = async (event, context) => {
 		return { code: error?.code === 409 ? 409 : 500, msg: error?.message || '厂站安全巡检服务异常' }
 	}
 }
+
+// Explicit diagnostic requests only; ordinary requests keep the original response.
+exports.main = withPerformanceTrace(exports.main)

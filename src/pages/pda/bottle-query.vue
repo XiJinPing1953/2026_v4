@@ -3,6 +3,7 @@
 </template>
 
 <script setup>
+import { markPageAfterRender } from '@/services/performanceTrace'
 import { nextTick, ref } from 'vue'
 import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import PdaBottleQueryView from '@/components/domain/pda/PdaBottleQueryView.vue'
@@ -15,7 +16,7 @@ onShow(async () => {
 	visible = true
 	const current = ++version
 	await nextTick()
-	if (visible && current === version) await viewRef.value?.activate()
+	if (visible && current === version) { await viewRef.value?.activate(); if (visible && current === version) void markPageAfterRender() }
 })
 function deactivate() { visible = false; version += 1; void viewRef.value?.deactivate() }
 onHide(deactivate)

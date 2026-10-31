@@ -1,8 +1,9 @@
 'use strict'
+const { wrapDatabase, withPerformanceTrace } = require('./performanceTraceLocal')
 
 const { inventoryTon, kgToTon } = require('./gasInventoryPrecisionLocal')
 
-const db = uniCloud.database()
+const db = wrapDatabase(uniCloud.database())
 const dbCmd = db.command
 
 const users = db.collection('crm_users')
@@ -2311,3 +2312,6 @@ exports.main = async (event, context) => {
 		if (action === 'listV1' || action === 'getCurrentInventoryV1') console.info('[crm-gas-in] read complete', { action, request_id: requestId, elapsed_ms: Date.now() - startedAt })
 	}
 }
+
+// Explicit diagnostic requests only; ordinary requests keep the original response.
+exports.main = withPerformanceTrace(exports.main)

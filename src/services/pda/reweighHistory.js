@@ -1,3 +1,4 @@
+import { readReweighHistoryRoot, readReweighHistorySnapshot } from './reweighWorkStore'
 import { savedLabel, supersededOperationIds } from './fillingPrint'
 import { reweighHistoryTime, readReweighDraft, readReweighDraftAsync, reweighDraftKey } from './reweighDraft'
 
@@ -37,11 +38,12 @@ export function historyPrintEntry(row) {
 export function createLocalFillingRoundsReader() {
  let cachedOwner = '', cachedToken, cachedRounds = []
  return async (owner, storage, shouldContinue = () => true) => {
-  const raw = await storage.getStorage(reweighDraftKey(owner))
+  const control = await readReweighHistoryRoot(owner, storage)
+  const raw = control.raw
   if (!shouldContinue()) throw new Error('页面或账号已变化，请重新查询本机记录')
-  const token = typeof raw === 'string' ? raw : JSON.stringify(raw ?? null)
+  const token = control.key + ':' + (typeof raw === 'string' ? raw : JSON.stringify(raw ?? null))
   if (owner === cachedOwner && token === cachedToken) return cachedRounds
-  const data = await readReweighDraftAsync(owner, storage, 'filling', shouldContinue, raw)
+  const data = await readReweighHistorySnapshot(owner, storage, 'filling', shouldContinue, control)
   const rounds = groupFillingRounds(data)
   cachedOwner = owner; cachedToken = token; cachedRounds = rounds
   return rounds

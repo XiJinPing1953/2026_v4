@@ -2,6 +2,8 @@
 
 const fs = require('fs')
 const path = require('path')
+const { execFileSync } = require('child_process')
+const { createHash } = require('crypto')
 
 function registry(root) {
 	return JSON.parse(fs.readFileSync(path.join(root, 'config/domain-contracts.json'), 'utf8'))
@@ -81,7 +83,10 @@ function sync(root, write = false, scope = null) {
 	if (scope && write) throw new Error('范围发布检查只读；生成副本须使用全仓同步')
 	const changed = ensurePromotedSchemas(root, write, scope)
 	for (const pair of contractPairs(root, scope)) {
-		const source = fs.readFileSync(path.join(root, pair.source), 'utf8')
+		const revision = scope?.contractCanonicalRevisions?.[pair.target]
+		if (revision && revision.source !== pair.source) throw new Error(`领域历史来源不匹配：${pair.target}`)
+		const source = revision ? execFileSync('git', ['show', `${revision.commit}:${pair.source}`], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) : fs.readFileSync(path.join(root, pair.source), 'utf8')
+		if (revision && createHash('sha256').update(source).digest('hex') !== revision.sha256) throw new Error(`领域历史来源哈希不匹配：${pair.target}`)
 		const targetPath = path.join(root, pair.target)
 		const target = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, 'utf8') : ''
 		const equal = pair.json && target ? JSON.stringify(JSON.parse(source)) === JSON.stringify(JSON.parse(target)) : source === target

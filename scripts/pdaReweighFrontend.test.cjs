@@ -13,7 +13,8 @@ function load(file, names, globals = {}) {
 const asyncStorage = load('src/services/pda/asyncStorage.js', ['readPdaStorage'], { setTimeout, clearTimeout })
 const display = load('src/services/pda/weighStatus.js', ['sameWeighDisplay'])
 const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight'])
-const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt'])
+const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt', 'validReweighEntry', 'readReweighDraft', 'readReweighDraftAsync', 'reweighDraftKey'])
+const work = load('src/services/pda/reweighWorkStore.js', ['createReweighWorkStore', 'readReweighHistorySnapshot'], draft)
 function harness(t, options = {}) {
 	let clock = Date.now(), weightFrame
 	class TestDate extends Date { static now() { return clock } }
@@ -43,7 +44,7 @@ function harness(t, options = {}) {
 	}
 	const onDestroy = []
 	const stateModule = load('src/composables/pda/usePdaReweigh.js', ['usePdaReweigh', 'reweighChangeText'], {
-		...asyncStorage, ...display, ...draft, ...autoWeight, Date: TestDate, ref: vue.ref, shallowRef: vue.shallowRef, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
+		startPerformanceSpan: () => () => {}, markPageTrace: () => {}, ...asyncStorage, ...display, ...draft, ...work, ...autoWeight, Date: TestDate, ref: vue.ref, shallowRef: vue.shallowRef, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
 		getUser: () => ({ _id: owner }), canPageAction: () => options.canCreate !== false,
 		getPdaBleScaleCapabilities: () => ({ transport: options.web ? 'web' : 'native', supported: true }),
 		createPdaBleScaleSession: profile => { assert.equal(profile.preserveMeasurementOnReadTimeout, true); weightFrame = profile.onWeightFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
@@ -229,7 +230,7 @@ test('code zero accepted but zero saved is not saved; definitive rejection retir
 	assert.equal(rejected.form.current.value.frozen, null); assert.equal(rejected.form.current.value.grossWeight, 120)
 	const nextId = rejected.form.current.value.operationId
 	assert.notEqual(nextId, rejected.requests[0].payload.operation_id)
-	assert.equal(JSON.parse(rejected.storage.get('crm_pda_reweigh_v1:u1')).current.operationId, nextId)
+	assert.equal(JSON.parse(rejected.storage.get('crm_pda_reweigh_v1:u1:work-v3')).current.operationId, nextId)
 	assert.equal(await rejected.form.submit(), true)
 	assert.equal(rejected.requests[1].payload.operation_id, nextId)
 	assert.equal(rejected.form.current.value.receipt.complete, true)
@@ -311,7 +312,7 @@ test('return uncertain save freezes round switching, survives reload, and 404 re
 
 test('return new round confirms completed count and does not alter existing filling draft storage', async t => {
 	const filling = harness(t); await filling.measure('100')
-	const fillingSaved = filling.storage.get('crm_pda_reweigh_v1:u1')
+	const fillingSaved = filling.storage.get('crm_pda_reweigh_v1:u1:work-v3')
 	const h = harness(t, { returnMode: true, storage: filling.storage, modalResults: [false, true] }); await h.measure('282'); await h.form.submit()
 	assert.equal(await h.form.startRound(), false); assert.equal(h.roundRequests.length, 0)
 	assert.match(h.confirmations[0].content, /本轮已复秤 1 瓶/)
@@ -319,8 +320,9 @@ test('return new round confirms completed count and does not alter existing fill
 	assert.equal(h.roundRequests[0].expected_round_id, 'round-1')
 	assert.equal(h.form.current.value.bottleNo, '')
 	assert.equal(h.form.round.value.bottle_count, 0)
-	assert.equal(h.form.history.value.length, 1)
-	assert.equal(filling.storage.get('crm_pda_reweigh_v1:u1'), fillingSaved)
+	assert.equal(h.form.history.value.length, 0)
+	assert.equal((await work.readReweighHistorySnapshot('u1', {getStorage: async key => h.storage.get(key)}, 'return')).history.length, 1)
+	assert.equal(filling.storage.get('crm_pda_reweigh_v1:u1:work-v3'), fillingSaved)
 })
 
 test('local filling round counts confirmed distinct bottles without a history count cap and survives restart', async t => {
@@ -455,7 +457,8 @@ for (const returnMode of [false, true]) test(`${returnMode ? 'return' : 'filling
  assert.equal(h.form.roundHistory.value.length,16)
  assert.equal(await h.form.startRound(),true)
  assert.equal(h.form.roundHistory.value.length,0)
- assert.equal(h.form.history.value.length,16)
+ assert.equal(h.form.history.value.length,0)
+ assert.equal((await work.readReweighHistorySnapshot('u1', {getStorage: async key => h.storage.get(key)}, returnMode ? 'return' : 'filling')).history.length,16)
  await h.measure('99'); await h.form.submit()
  assert.deepEqual(copy(h.form.roundHistory.value.map(r=>r.bottleNo)),['99'])
  const restored=harness(t,{returnMode,storage:h.storage,round:copy(h.form.round.value)});await restored.start()
@@ -593,15 +596,16 @@ for (const returnMode of [false, true]) test(`${returnMode ? 'return' : 'filling
  const h = harness(t, { returnMode }); await h.measure(); await h.form.submit()
  const id = h.form.round.value._id
  assert.equal(await h.form.endRound(), true)
- assert.equal(h.form.round.value, null); assert.equal(h.form.roundHistory.value.length, 1)
- assert.equal(h.form.lastEndedRound.value._id, id)
+ assert.equal(h.form.round.value, null); assert.equal(h.form.roundHistory.value.length, 0)
+ assert.equal(h.form.lastEndedRound.value, null)
  assert.equal(await h.form.selectBottle('102'), false)
  await h.form.deactivate()
  const restored = harness(t, { returnMode, storage: h.storage, round: null }); await restored.start()
- assert.equal(restored.form.round.value, null); assert.equal(restored.form.roundHistory.value.length, 1)
+ assert.equal(restored.form.round.value, null); assert.equal(restored.form.roundHistory.value.length, 0)
  assert.equal(await restored.form.startRound(), true)
  assert.notEqual(restored.form.round.value._id, id); assert.equal(restored.form.round.value.bottle_count, 0)
- assert.equal(restored.form.history.value.length, 1)
+ assert.equal(restored.form.history.value.length, 0)
+ assert.equal((await work.readReweighHistorySnapshot('u1', {getStorage: async key => h.storage.get(key)}, returnMode ? 'return' : 'filling')).history.length, 1)
 })
 for (const returnMode of [false, true]) test(`${returnMode ? 'return' : 'filling'} unfinished bottle or uncertain save prevents end`, async t => {
  const h = harness(t, { returnMode }); await h.measure()

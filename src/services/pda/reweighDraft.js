@@ -101,6 +101,9 @@ export async function readReweighDraftAsync(ownerId, storage, mode = 'filling', 
 	return readReweighDraft(ownerId, source, mode, raw)
 }
 
+export const validReweighEntry = entry => entry && typeof entry.operationId === 'string' && entry.operationId && typeof entry.bottleNo === 'string'
+ && (!entry.frozen || (['create', 'correct'].includes(entry.frozen.mode) && entry.frozen.payload?.operation_id === entry.operationId && entry.frozen.payload?.bottle_no === entry.bottleNo))
+
 export function createReweighDraftStore(ownerId, storage, currentOwner = () => ownerId, mode = 'filling') {
 	const key = reweighDraftKey(ownerId, mode)
 	let expected = null, previousHistory = null, chunks = [], lastContent = null
@@ -160,9 +163,7 @@ export function createReweighDraftStore(ownerId, storage, currentOwner = () => o
 		expected = storageToken(raw)
 		if (!raw) return null
 		const data = readReweighDraft(ownerId, source, mode, raw)
-		const valid = entry => entry && typeof entry.operationId === 'string' && entry.operationId && typeof entry.bottleNo === 'string'
-			&& (!entry.frozen || (['create', 'correct'].includes(entry.frozen.mode) && entry.frozen.payload?.operation_id === entry.operationId && entry.frozen.payload?.bottle_no === entry.bottleNo))
-		if (!valid(data.current) || !data.history.every(valid)) throw new Error('复秤草稿无法读取或识别，原数据已保留')
+		if (!validReweighEntry(data.current) || !data.history.every(validReweighEntry)) throw new Error('复秤草稿无法读取或识别，原数据已保留')
 		// Loaded records and history replacements are immutable snapshots.
 		const result = cloneReweigh(data)
 		chunks = result.historyChunks || []; previousHistory = result.version === 2 ? result.history : null

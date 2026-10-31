@@ -3,7 +3,7 @@
 		<AppSection v-if="!nativeSupported" title="请使用原生 PDA">
 			<text class="hint">本模块使用 PDA 扫描头和 NVK 蓝牙吊秤，请在 PDA 应用中打开。</text>
 		</AppSection>
-		<AppSection v-else-if="draftLoading" title="正在恢复本机记录"><text class="hint" role="status">正在读取已保存的称重记录…</text></AppSection>
+		<AppSection v-else-if="draftLoading" title="正在恢复当前作业"><text class="hint" role="status">正在读取当前轮次和待处理记录…</text></AppSection>
 		<template v-else>
 			<text v-if="!canCreate" class="notice notice--error">当前账号没有复秤保存权限。</text>
 			<text v-if="storageError" class="notice notice--error">草稿未能保存：{{ storageError }}。请保留本页，恢复本机存储后再试。</text>
@@ -12,15 +12,15 @@
 			<view class="round-card">
 			<view class="round-summary">
 				<view class="round-main">
-				<text class="round-count">{{ round ? '本轮已保存 ' + (roundReady ? round.bottle_count : '—') + ' 瓶' : lastEndedRound ? '本轮已结束 · ' + lastEndedRound.bottle_count + ' 瓶' : '本轮尚未开始' }}</text>
-				<AppButton class="detail-link" kind="ghost" size="sm" @click="roundDetails = !roundDetails">{{ roundDetails ? '收起本轮详情 ⌃' : '本轮详情 ›' }}</AppButton>
+				<text class="round-count">{{ round ? '本轮已保存 ' + (roundReady ? round.bottle_count : '—') + ' 瓶' : localRoundEnded ? '本轮已结束' : '本轮尚未开始' }}</text>
+				<AppButton v-if="round" class="detail-link" kind="ghost" size="sm" @click="roundDetails = !roundDetails">{{ roundDetails ? '收起本轮详情 ⌃' : '本轮详情 ›' }}</AppButton>
 				</view>
 				<AppButton kind="outline" v-if="(round || pendingEndRound) && !pendingRound" :disabled="busy || !canCreate" @click="onEndRound">{{ pendingEndRound ? '重试结束本轮' : '结束本轮' }}</AppButton>
 				<AppButton kind="outline" v-else :disabled="busy || !canCreate || Boolean(pendingEndRound)" @click="onStartRound">{{ pendingRound ? '重试开始本轮' : '开始新一轮' }}</AppButton>
 			</view>
 			<text v-if="pendingEndRound" class="notice">结束结果还未确认，请点“重试结束本轮”；已保存记录保留。</text>
 			<text v-if="pendingRound" class="notice">还没确认新一轮是否开始，请点“重试开始本轮”。</text>
-			<view v-if="roundDetails" class="round-details">
+			<view v-if="round && roundDetails" class="round-details">
 				<view class="round-detail-text">
 					<text class="hint">同瓶重称只算一瓶</text>
 					<text class="hint">{{ isReturn ? '本轮回瓶统计' : '本机、本账号统计' }} · {{ roundTime }}</text>
@@ -143,16 +143,16 @@ const props = defineProps({ mode: { type: String, default: 'filling' } })
 const isReturn = props.mode === 'return'
 const printer = usePdaFillingPrinter({ enabled: !isReturn, active: () => form?.active.value && form.nativeSupported, entries: () => [...form.history.value.filter(item => item.operationId !== form.current.value.operationId), form.current.value] })
 const form = usePdaReweigh({ mode: props.mode, printing: isReturn ? null : printer })
-const { draftLoading, captureMinimum, current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, startRound, refreshRound,
+const { draftLoading, captureMinimum, current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, localRoundEnded, startRound, refreshRound,
 	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText, endRound } = form
 const historyGroups = computed(() => [
-	{ title: '称重记录', items: roundHistory.value },
+	{ title: '本轮称重记录', items: roundHistory.value },
 	{ title: '其他轮次待处理记录', items: recoveryHistory.value }
 ].filter(group => group.items.length))
 const readyForBottle = computed(() => Boolean(round.value?._id) && !pendingEndRound.value && (!isReturn || roundReady.value))
 const previousNotice = computed(() => reweighPreviousNotice(current.value.preview, isReturn))
 const roundTime = computed(() => {
-	const timestamp = Number(round.value?.created_at || lastEndedRound.value?.created_at)
+	const timestamp = Number(round.value?.created_at)
 	if (!Number.isFinite(timestamp) || timestamp <= 0) return '—'
 	return new Date(timestamp + 8 * 60 * 60 * 1000).toISOString().slice(0, 16).replace('T', ' ')
 })
@@ -166,7 +166,7 @@ function onBottleSelected(bottle) { return selectManual(bottle?.bottle_no || bot
 function onSelectKeyword() { return selectManual(bottleKeyword.value) }
 async function onNext() { if (await nextBottle()) { bottleKeyword.value = ''; factsOpen.value = false; manualOpen.value = false; showRemark.value = false; showReceiptDetails.value = false } }
 async function onStartRound() { if (await startRound()) bottleKeyword.value = '' }
-async function onEndRound() { if (await endRound()) { bottleKeyword.value = ''; manualOpen.value = false; showReceiptDetails.value = false } }
+async function onEndRound() { if (await endRound()) { bottleKeyword.value = ''; manualOpen.value = false; roundDetails.value = false; showReceiptDetails.value = false } }
 function keyboardChanged(event) { keyboardOpen.value = Number(event.height) > 0 }
 if (typeof uni.onKeyboardHeightChange === 'function') uni.onKeyboardHeightChange(keyboardChanged)
 onBeforeUnmount(() => { if (typeof uni.offKeyboardHeightChange === 'function') uni.offKeyboardHeightChange(keyboardChanged) })

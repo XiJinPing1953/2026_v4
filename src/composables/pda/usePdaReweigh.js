@@ -1,3 +1,4 @@
+import { startPerformanceSpan, markPageTrace } from '@/services/performanceTrace'
 import { readPdaStorage } from '@/services/pda/asyncStorage'
 import { sameWeighDisplay } from '@/services/pda/weighStatus'
 import { createAutoReweighWeight } from '@/services/pda/autoReturnWeight'
@@ -10,7 +11,9 @@ import { createPdaBleScaleSession, createEmptyPdaBleScaleSnapshot, ensurePdaBleR
 import { resolvePdaBottleByQrCode } from '@/services/pda/bottle'
 import { enterBarcodeSession, leaveBarcodeSession } from '@/services/pda/capture'
 import { normalizeBottleNo } from '@/services/pda/shared'
-import { cloneReweigh, createReweighId, createReweighDraftStore, reweighReceipt } from '@/services/pda/reweighDraft'
+import { cloneReweigh, createReweighId, reweighReceipt } from '@/services/pda/reweighDraft'
+
+import { createReweighWorkStore } from '@/services/pda/reweighWorkStore'
 
 const weightText = (value) => value == null ? '—' : `${Number(value).toFixed(1)} kg`
 export function reweighChangeText(preview) {
@@ -65,7 +68,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	try { boundDevice = uni.getStorageSync('pda_ble_scale_bound_device_v1') || null; if (typeof boundDevice === 'string') boundDevice = JSON.parse(boundDevice) } catch (_) {}
 	const scale = createPdaBleScaleSession({ preserveMeasurementOnReadTimeout: true, onWeightFrame: acceptWeightFrame, deviceId: boundDevice?.deviceId || '', deviceNamePrefix: 'NVK', divisionStepKg: 0.5, displayDecimals: 1 })
 	// Explicit wrappers also work with uni-app's statically injected storage APIs.
-	const store = createReweighDraftStore(ownerId, {
+	const store = createReweighWorkStore(ownerId, {
 		getStorageSync: key => uni.getStorageSync(key),
 		getStorage: key => readPdaStorage(uni, key),
 		setStorageSync: (key, value) => uni.setStorageSync(key, value),
@@ -78,7 +81,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 			historySyncMeta = saved.metadata?.historySyncMeta || null
 			pendingEndRound.value = saved.metadata?.pendingEndRound || null
 			localRoundEnded.value = saved.metadata?.localRoundEnded === true; lastEndedRound.value = saved.metadata?.lastEndedRound || null
-			message.value = '已恢复上次记录，已称重量保留；没称好的请连接吊秤后继续。'
+			message.value = localRoundEnded.value && !round.value ? '本轮已结束，历史请到复秤记录查询。点击“开始新一轮”后继续。' : '已恢复当前作业；未完成的称重可连接吊秤后继续。'
 		}
 	}
 	function restoreFailed(cause) { unreadable = true; storageError.value = cause.message }
@@ -93,7 +96,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	const canNext = computed(() => !busy.value && current.value.receipt?.saved === true)
 	const entryRoundId = entry => entry.roundId || entry.frozen?.payload?.round_id || ''
 	const roundHistory = computed(() => {
-		const visibleRoundId = round.value?._id || lastEndedRound.value?._id
+		const visibleRoundId = round.value?._id
 		if (!visibleRoundId) return []
 		const rows = history.value.filter(item => item.operationId !== current.value.operationId)
 		if (current.value.receipt?.saved) rows.push(current.value)
@@ -450,7 +453,6 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		if (history.value.some(item => item.frozen && !item.receipt?.complete)) return fail('还有记录没处理完，请先查询保存结果')
 		const version = epoch
 		if (!pendingEndRound.value && (!await confirm(isReturn ? '结束本轮回瓶复秤' : '结束本轮罐装复秤', `本轮已保存 ${round.value.bottle_count} 瓶。结束后保留记录，点击“开始新一轮”后继续称重。`) || !sameWork(version) || busy.value)) return false
-		const finished = round.value || lastEndedRound.value
 		if (isReturn && !pendingEndRound.value) {
 			pendingEndRound.value = { round_id: round.value._id }
 		}
@@ -466,7 +468,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 			}
 			const previous = { round: round.value, current: current.value, history: history.value, ended: localRoundEnded.value, last: lastEndedRound.value, pending: pendingEndRound.value }
 			if (current.value.frozen) history.value = [...history.value.filter(item => item.operationId !== current.value.operationId), cloneReweigh(current.value)]
-			round.value = nextRound; current.value = emptyDraft(); localRoundEnded.value = true; lastEndedRound.value = finished; pendingEndRound.value = null
+			round.value = nextRound; current.value = emptyDraft(); localRoundEnded.value = true; lastEndedRound.value = null; pendingEndRound.value = null
 			if (!persist()) {
 				round.value = previous.round; current.value = previous.current; history.value = previous.history; localRoundEnded.value = previous.ended; lastEndedRound.value = previous.last; pendingEndRound.value = previous.pending
 				return false
@@ -483,12 +485,14 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		const version = ++lifecycleVersion
 		await stopping
 		if (version !== lifecycleVersion) return false
+		const finishRestore = startPerformanceSpan('restore_work')
 		await restoreDraft()
+		finishRestore()
 		if (version !== lifecycleVersion) return false
 		active.value = true
 		if (unreadable) return false
 		if (!nativeSupported) return fail('请在 PDA 应用中打开复秤')
-		if (isReturn) { roundReady.value = false; await refreshRound({ refreshHistory: false }) }
+		if (isReturn) { const finishRound = startPerformanceSpan('round_status'); roundReady.value = false; await refreshRound({ refreshHistory: false }); finishRound() }
 		else if (!round.value && !localRoundEnded.value && !unreadable && ownerMatches()) {
 			round.value = newLocalRound()
 			// Legacy frozen submissions predate this local round; never back-count them.
@@ -497,9 +501,12 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		}
 		if (!active.value || version !== lifecycleVersion || !ownerMatches()) return false
 		try {
+			const finishScanner = startPerformanceSpan('scanner_init')
 			const result = await enterBarcodeSession({ page, onResult: scan, activeTarget: { page, target: 'reweigh.bottleNo', label: isReturn ? '回瓶复秤瓶号' : '复秤瓶号', scope: 'reweigh', field: 'bottleNo' } })
 			if (!active.value || version !== lifecycleVersion || !ownerMatches()) { await leaveBarcodeSession({ page }); return false }
+			finishScanner()
 			scannerReady.value = result?.code === 0
+			markPageTrace('work_ready')
 			if (!scannerReady.value) fail(result?.msg || '扫描键暂不可用，请手输瓶号')
 		} catch (cause) { fail(cause.message || '扫描头初始化失败') }
 	}
@@ -515,6 +522,6 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		await stopping
 	}
 	onBeforeUnmount(() => { unsubscribe(); void deactivate() })
-	return { draftLoading, captureMinimum, current, history, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, startRound, endRound, refreshRound,
+	return { draftLoading, captureMinimum, current, history, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, localRoundEnded, startRound, endRound, refreshRound,
 		selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText }
 }

@@ -20,6 +20,13 @@ function resolveReleaseScope(root, product, requested) {
 		if (!/^[a-zA-Z0-9_-]+\.(schema|index)\.json$/.test(name) || !fs.existsSync(path.join(root, 'uniCloud-alipay/database', name))) throw new Error(`无效数据库范围：${name}`)
 	}
 	const aclRevisions = scope.aclCanonicalRevisions || {}
+	const contractRevisions = scope.contractCanonicalRevisions || {}
+	if (!contractRevisions || typeof contractRevisions !== 'object' || Array.isArray(contractRevisions)) throw new Error('领域历史来源必须按副本路径声明')
+	const pairs = Object.keys(contractRevisions).length ? (JSON.parse(fs.readFileSync(path.join(root, 'config/domain-contracts.json'), 'utf8')).copies || []) : []
+	for (const [target, revision] of Object.entries(contractRevisions)) {
+		const pair = pairs.find(pair => pair.source === revision?.source && pair.targets.includes(target))
+		if (!pair || !scope.functions.some(name => target.startsWith(`uniCloud-alipay/cloudfunctions/${name}/`)) || !fs.existsSync(path.join(root, target)) || !/^[0-9a-f]{40}$/.test(revision.commit || '') || !/^[0-9a-f]{64}$/.test(revision.sha256 || '')) throw new Error(`领域历史来源无效：${target}`)
+	}
 	if (typeof aclRevisions !== 'object' || Array.isArray(aclRevisions)) throw new Error('ACL 历史来源必须按函数声明')
 	for (const [name, versions] of Object.entries(aclRevisions)) {
 		if (!scope.functions.includes(name)) throw new Error(`ACL 兼容版本超出发布函数范围：${name}`)
@@ -55,6 +62,6 @@ function resolveReleaseScope(root, product, requested) {
 			}
 		}
 	}
-	return { functions: [...scope.functions], databaseFiles: [...scope.databaseFiles], ...(scope.baseCommit ? { baseCommit: scope.baseCommit, sourceFiles: [...scope.sourceFiles] } : {}), ...(Object.keys(aclRevisions).length ? { aclCanonicalRevisions: aclRevisions } : {}) }
+	return { functions: [...scope.functions], databaseFiles: [...scope.databaseFiles], ...(scope.baseCommit ? { baseCommit: scope.baseCommit, sourceFiles: [...scope.sourceFiles] } : {}), ...(Object.keys(aclRevisions).length ? { aclCanonicalRevisions: aclRevisions } : {}), ...(Object.keys(contractRevisions).length ? { contractCanonicalRevisions: contractRevisions } : {}) }
 }
 module.exports = { resolveReleaseScope }

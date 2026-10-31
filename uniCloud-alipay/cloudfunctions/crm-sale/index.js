@@ -1,4 +1,5 @@
 'use strict'
+const { wrapDatabase, withPerformanceTrace } = require('./performanceTraceLocal')
 const { assertCustomerAdjustmentSourceMutable } = require('./customerAdjustmentGuardLocal')
 const { writeSaleSource } = require('./saleSourceWrite')
 const { assertOffsetSourceEditable, financialIdentity } = require('./saleOffsetGuard')
@@ -8,7 +9,7 @@ const { inventoryTon, kgToTon } = require('./gasInventoryPrecisionLocal')
 const saleAccounting = require('./saleAccountingLocal')
 const { readComplete, withFinancialEvidence, FinancialReadError } = require('./financialReadLocal')
 
-const db = uniCloud.database()
+const db = wrapDatabase(uniCloud.database())
 const dbCmd = db.command
 const { createService: createMobileSaleService } = require('./mobileSaleCreate')
 const mobileSaleService = createMobileSaleService({ db, createSale: createV2, verifyFillingLabel: (data, token) => uniCloud.callFunction({ name:'crm-filling', data:{ action:'resolveFillingLabelV1', data, token } }) })
@@ -5633,3 +5634,6 @@ const main = async (event, context) => {
 }
 
 exports.main = withFinancialEvidence(main, saleAccounting.RULE_VERSION)
+
+// Explicit diagnostic requests only; ordinary requests keep the original response.
+exports.main = withPerformanceTrace(exports.main)

@@ -32,7 +32,7 @@ test('more than one page remains complete and original scoped/void semantics are
 })
 test('in-flight sharing is account scoped, cleared on failure and never combines writes',async()=>{
  let token='a',calls=[]
- const context={getToken:()=>token,handle401(){},handle403(){},console:{info(){}},Date,Math,Map,Set,Promise,
+ const context={startCloudTrace:()=>null,finishCloudTrace(){},getToken:()=>token,handle401(){},handle403(){},console:{info(){}},Date,Math,Map,Set,Promise,
  uniCloud:{callFunction:opts=>new Promise((resolve,reject)=>calls.push({opts,resolve,reject}))}}
  let code=fs.readFileSync('src/services/api/callCloud.js','utf8').replace(/^import .*\n/gm,'').replace(/export /g,'')+'\nthis.call=callCloud'
  vm.runInNewContext(code,context)
@@ -84,7 +84,7 @@ test('quick dashboard status never reads sales, fillings or financial histories'
  assert.equal(db.writes.length,0)
 })
 test('post-save refresh cannot join a read started before the write committed',async()=>{
- const calls=[],context={getToken:()=> 'same-account',handle401(){},handle403(){},console:{info(){}},Date,Math,Map,Set,Promise,
+ const calls=[],context={startCloudTrace:()=>null,finishCloudTrace(){},getToken:()=> 'same-account',handle401(){},handle403(){},console:{info(){}},Date,Math,Map,Set,Promise,
  uniCloud:{callFunction:opts=>new Promise(resolve=>calls.push({opts,resolve}))}}
  vm.runInNewContext(fs.readFileSync('src/services/api/callCloud.js','utf8').replace(/^import .*\n/gm,'').replace(/export /g,'')+'\nthis.call=callCloud',context)
  const write=context.call('crm-customer-settlement',{action:'saveReceiptIntakeV2'})

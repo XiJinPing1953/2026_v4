@@ -1,4 +1,5 @@
 'use strict'
+const { wrapDatabase, withPerformanceTrace } = require('./performanceTraceLocal')
 
 const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
@@ -9,7 +10,7 @@ const {
 	sanitizeUser,
 	isSuperAdmin
 } = require('./pageAclLocal')
-const db = uniCloud.database()
+const db = wrapDatabase(uniCloud.database())
 const users = db.collection('crm_users')
 const logs = db.collection('crm_operation_logs')
 
@@ -350,3 +351,6 @@ exports.main = async (event, context) => {
 
 	return { code: 400, msg: '未知 action' }
 }
+
+// Explicit diagnostic requests only; ordinary requests keep the original response.
+exports.main = withPerformanceTrace(exports.main)

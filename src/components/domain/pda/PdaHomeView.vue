@@ -41,6 +41,7 @@
 </template>
 
 <script setup>
+import { beginPageTrace, markPageTrace, markPageAfterRender } from '@/services/performanceTrace'
 import { nextTick, onBeforeUnmount, ref } from 'vue'
 import PdaSaleRecordsView from './PdaSaleRecordsView.vue'
 import PdaReweighRecordsView from './PdaReweighRecordsView.vue'
@@ -70,27 +71,29 @@ async function activate() {
 	visible = true
 	const version = ++lifecycle
 	await nextTick()
-	if (visible && version === lifecycle && showRecords.value) await recordsRef.value?.activate()
-	if (visible && version === lifecycle && showSales.value) await salesRef.value?.activate()
+	if (visible && version === lifecycle && showRecords.value) { await recordsRef.value?.activate(); markPageTrace('data_ready'); void markPageAfterRender() }
+	if (visible && version === lifecycle && showSales.value) { await salesRef.value?.activate(); markPageTrace('data_ready'); void markPageAfterRender() }
 }
 function deactivate() { printerRef.value?.close(); visible = false; lifecycle++; return Promise.all([recordsRef.value?.deactivate(), salesRef.value?.deactivate()]) }
 async function openRecords() {
 	printerRef.value?.close()
 	if (!canRecords || showRecords.value) return
+	beginPageTrace('pages/pda/records', 'tap')
 	recordsOpened.value = true
 	showRecords.value = true
 	const version = ++lifecycle
 	await nextTick()
-	if (visible && version === lifecycle && showRecords.value) await recordsRef.value?.activate()
+	if (visible && version === lifecycle && showRecords.value) { await recordsRef.value?.activate(); markPageTrace('data_ready'); void markPageAfterRender() }
 }
 async function openSales() {
 	if (!canSales || showSales.value) return
+	beginPageTrace('pages/pda/sale-records', 'tap')
 	printerRef.value?.close()
 	await recordsRef.value?.deactivate()
 	salesOpened.value = true; showSales.value = true
 	const version = ++lifecycle
 	await nextTick()
-	if (visible && version === lifecycle && showSales.value) await salesRef.value?.activate()
+	if (visible && version === lifecycle && showSales.value) { await salesRef.value?.activate(); markPageTrace('data_ready'); void markPageAfterRender() }
 }
 function closeSales() {
 	if (!showSales.value) return false
@@ -115,6 +118,7 @@ const actions = [
 ].filter((item) => (!item.nativeOnly || isNative) && (!item.webOnly || !isNative) && canViewPage(item.url) && (!(item.createRequired || item.url === '/pages/pda/sale-create') || canPageAction(item.url, 'create')))
 
 async function go(url) {
+	beginPageTrace(url, 'tap')
 	await deactivate()
 	uni.navigateTo({ url })
 }

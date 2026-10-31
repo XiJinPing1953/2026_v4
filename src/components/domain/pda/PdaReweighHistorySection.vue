@@ -2,10 +2,11 @@
  <AppSection :class="['history-panel', !expanded && 'history-panel--closed']" :title="title + ' ' + items.length + ' 条'">
   <template #actions><AppButton size="sm" kind="ghost" @click="toggle">{{ expanded ? '收起 ⌃' : '展开 ⌄' }}</AppButton></template>
   <template v-if="expanded">
+   <view class="history-page-start" />
    <view v-if="pageCount > 1" class="history-pager">
-    <AppButton size="sm" kind="outline" :disabled="currentPage <= 1" @click="page = currentPage - 1">上一页</AppButton>
+    <AppButton size="sm" kind="outline" :disabled="currentPage <= 1" @click="changePage(currentPage - 1)">上一页</AppButton>
     <text class="hint">{{ currentPage }} / {{ pageCount }} 页</text>
-    <AppButton size="sm" kind="outline" :disabled="currentPage >= pageCount" @click="page = currentPage + 1">下一页</AppButton>
+    <AppButton size="sm" kind="outline" :disabled="currentPage >= pageCount" @click="changePage(currentPage + 1)">下一页</AppButton>
    </view>
    <view v-for="item in visibleItems" :key="item.operationId" class="history-row">
     <text>{{ item.bottleNo }} 号瓶 · {{ isReturn ? '回瓶毛重' : '本次灌装量' }} {{ weight(isReturn ? item.grossWeight : item.preview?.fill_weight) }} kg</text>
@@ -22,6 +23,12 @@
      <AppButton size="sm" kind="neutral" :disabled="busy" @click="$emit('query', item.operationId, true)">重试处理</AppButton>
     </view>
    </view>
+
+   <view v-if="pageCount > 1" class="history-pager">
+    <AppButton size="sm" kind="outline" :disabled="currentPage <= 1" @click="changePage(currentPage - 1)">上一页</AppButton>
+    <text class="hint">{{ currentPage }} / {{ pageCount }} 页</text>
+    <AppButton size="sm" kind="outline" :disabled="currentPage >= pageCount" @click="changePage(currentPage + 1)">下一页</AppButton>
+   </view>
   </template>
  </AppSection>
 </template>
@@ -30,10 +37,13 @@
 import { computed, ref } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppSection from '@/components/base/AppSection.vue'
+import { useRecordPageScroll } from '@/composables/pda/useRecordPageScroll'
 import { reweighHistoryTime } from '@/services/pda/reweighDraft'
 
 const props = defineProps({ title: String, items: { type: Array, required: true }, isReturn: Boolean, busy: Boolean, printer: { type: Object, required: true } })
 defineEmits(['query'])
+const scrollToRecords = useRecordPageScroll('.history-page-start')
+function changePage(value) { page.value = value; void scrollToRecords() }
 const PAGE_SIZE = 20
 const expanded = ref(false), page = ref(1)
 const pageCount = computed(() => Math.max(1, Math.ceil(props.items.length / PAGE_SIZE)))
@@ -55,7 +65,7 @@ const receiptTitle = receipt => receipt?.complete ? '已保存' : receipt?.saved
 .history-panel--closed.history-panel :deep(.section__header) { border-bottom:0; }
 .history-panel--closed :deep(.section__body) { display:none; }
 .history-panel :deep(.btn) { min-height:48px; font-size:16px; }
-.history-pager { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.history-pager { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 0; }
 .history-pager :deep(.btn) { padding:0 12px; }
 .history-row { padding:12px 0; border-bottom:1px solid #e2e8f0; font-size:16px; }
 .history-row:last-child { border-bottom:0; }

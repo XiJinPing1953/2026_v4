@@ -42,7 +42,7 @@ function printView(options = {}) {
  const sends = [], closeCalls = []
  const printer = { busy: ref(false), connected: ref(true), reason: () => '', close: () => { closeCalls.push(true) }, reprint: async item => { sends.push(item.operationId); return options.send ? options.send(item) : true } }
  const source = fs.readFileSync('src/components/domain/pda/PdaReweighRecordsView.vue', 'utf8').match(/<script setup>([\s\S]*?)<\/script>/)[1].replace(/^import.*\n/gm, '')
- const view = vm.runInNewContext(`${source}\n;({printRound,stopBatch,batchBusy,batchMessage,deactivate})`, { ...vue, watch: () => {}, defineExpose: () => {}, defineEmits: () => {}, usePdaReweighRecords: () => form,
+ const view = vm.runInNewContext(`${source}\n;({printRound,stopBatch,batchBusy,batchMessage,deactivate})`, { ...vue, useRecordPageScroll: () => () => {}, watch: () => {}, defineExpose: () => {}, defineEmits: () => {}, usePdaReweighRecords: () => form,
   historyPrintEntry, usePdaFillingPrinter: () => printer, uni: { showModal: params => { assert.match(params.content, /2 张/); params.success({ confirm: options.confirm !== false }) } } })
  return { view, sends, closeCalls }
 }
@@ -67,7 +67,8 @@ test('batch failure stops without retry and explicit stop closes connection and 
 
 test('async round browsing retains all chunks, reuses an unchanged root and never migrates or writes', async () => {
  const draft = load('src/services/pda/reweighDraft.js', 'reweighDraftKey,readReweighDraftAsync')
- const { createLocalFillingRoundsReader } = load('src/services/pda/reweighHistory.js', 'createLocalFillingRoundsReader', { ...draft, reweighHistoryTime, savedLabel, supersededOperationIds })
+ const work = load('src/services/pda/reweighWorkStore.js', 'readReweighHistoryRoot,readReweighHistorySnapshot', draft)
+ const { createLocalFillingRoundsReader } = load('src/services/pda/reweighHistory.js', 'createLocalFillingRoundsReader', { ...draft, ...work, reweighHistoryTime, savedLabel, supersededOperationIds })
  const key = draft.reweighDraftKey('owner'), map = new Map(), parts = []
  for (let i = 0; i < 50; i++) {
   const name = `${key}:history:${i}`; parts.push({ key: name, count: 40 })
@@ -78,8 +79,8 @@ test('async round browsing retains all chunks, reuses an unchanged root and neve
  const storage = { async getStorage(name) { reads++; active++; max = Math.max(active,max); await new Promise(r => setImmediate(r)); active--; return map.get(name) }, getStorageSync() { assert.fail('sync read') }, setStorageSync() { assert.fail('write') } }
  const reader = createLocalFillingRoundsReader()
  const first = await reader('owner', storage, () => valid)
- assert.equal(first[0].rows.length, 2001); assert.ok(max <= 4); assert.equal(reads, 52)
- reads = 0; assert.equal(await reader('owner', storage), first); assert.equal(reads, 1)
+ assert.equal(first[0].rows.length, 2001); assert.ok(max <= 4); assert.equal(reads, 53)
+ reads = 0; assert.equal(await reader('owner', storage), first); assert.equal(reads, 2)
  map.set(key, JSON.stringify({ version: 2, ownerId: 'owner', historyChunks: parts, current: entry('new-current') }))
  const changed = await reader('owner', storage); assert.notEqual(changed, first)
  valid = false; await assert.rejects(reader('owner', storage, () => valid), /账号/)

@@ -15,6 +15,7 @@ import PdaSaleCreateView from '@/components/domain/pda/PdaSaleCreateView.vue'
 import PdaNativeSaleView from '@/components/domain/pda/PdaNativeSaleView.vue'
 import { isPdaAppMode } from '@/services/pda/entry'
 import { restoreScannerProfile } from '@/services/pda/capture'
+import { markPageAfterRender } from '@/services/performanceTrace'
 
 const initialCustomerId = ref('')
 const isNative = isPdaAppMode()
@@ -38,10 +39,11 @@ function activateSession() {
 	if (activateTimer) clearTimeout(activateTimer)
 	nextTick(() => {
 		if (!pageVisible || version !== activationVersion) return
-		activateTimer = setTimeout(() => {
+		activateTimer = setTimeout(async () => {
 			activateTimer = null
 			if (!pageVisible || version !== activationVersion) return
-			viewRef.value?.activateBarcodeSession?.()
+			await viewRef.value?.activateBarcodeSession?.()
+			if (pageVisible && version === activationVersion) markPageAfterRender()
 		}, 180)
 	})
 }

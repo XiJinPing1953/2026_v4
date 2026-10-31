@@ -1,3 +1,4 @@
+import { startCloudTrace, finishCloudTrace } from '../performanceTrace'
 import { getToken } from '../auth'
 import { handle401, handle403 } from '../navigation'
 
@@ -20,6 +21,8 @@ async function invokeCloud(name, { action, data = {}, token, timeout, isResponse
 	if (t) payload.token = t
 	const requestId = generateRequestId()
 	payload.request_id = requestId
+	const trace = startCloudTrace(name, action, requestId)
+	if (trace) payload._performance_trace = trace.id
 
 	const invokeOptions = {
 		name,
@@ -34,6 +37,7 @@ async function invokeCloud(name, { action, data = {}, token, timeout, isResponse
 	try {
 		res = await uniCloud.callFunction(invokeOptions)
 	} catch (err) {
+		finishCloudTrace(trace, null, true)
 		const error = err instanceof Error ? err : new Error(String(err || 'Cloud function request failed'))
 		error.cloudFunction = name
 		error.action = action
@@ -50,6 +54,7 @@ async function invokeCloud(name, { action, data = {}, token, timeout, isResponse
 	}
 
 	const result = res.result || {}
+	finishCloudTrace(trace, result)
 	if (!responseCurrent()) return { code: 499, msg: '查询已取消' }
 	console.info('[crm-query]', JSON.stringify({ name, action, request_id: requestId, elapsed_ms: Date.now() - started, code: result.code, server: result.query_performance, response_chars: JSON.stringify(result).length }))
 	if (result.code === 401) {

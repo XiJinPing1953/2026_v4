@@ -10,6 +10,24 @@ const { execFileSync } = require('node:child_process')
 
 const RELEASE_TREE = path.resolve(__dirname, '..')
 const { resolveReleaseScope } = require(path.join(RELEASE_TREE, 'scripts/lib/releaseScope.cjs'))
+const { sync } = require('./syncDomainContracts.cjs')
+
+test('historical domain copies require a registered canonical source, exact commit and hash, and an existing matching copy', t => {
+ const { root, write, git } = fixture(t)
+ const source = 'uniCloud-alipay/cloudfunctions/common/rule.js', target = 'uniCloud-alipay/cloudfunctions/crm-target/ruleLocal.js'
+ write(source, 'module.exports = 1\n'); write(target, 'module.exports = 1\n')
+ write('config/domain-contracts.json', JSON.stringify({ copies: [{ source, targets: [target] }], promotedSchemas: [] }))
+ git('add', '.'); git('-c', 'user.name=Release Test', '-c', 'user.email=release-test@example.invalid', 'commit', '-m', 'canonical rule')
+ const revision = { source, commit: git('rev-parse', 'HEAD'), sha256: crypto.createHash('sha256').update('module.exports = 1\n').digest('hex') }
+ write(source, 'module.exports = 2\n')
+ const scope = { functions: ['crm-target'], databaseFiles: [], contractCanonicalRevisions: { [target]: revision } }
+ const configure = () => write('config/release-products.json', JSON.stringify({products:{cloud:{integrityScope:'deployment',deploymentScope:scope}}}))
+ configure(); assert.deepEqual(sync(root, false, resolveReleaseScope(root, 'cloud')), [])
+ assert.throws(() => sync(root), /不一致/)
+ revision.sha256 = '0'.repeat(64); configure(); assert.throws(() => sync(root, false, resolveReleaseScope(root, 'cloud')), /哈希不匹配/)
+ revision.source = 'uniCloud-alipay/cloudfunctions/common/unregistered.js'; configure(); assert.throws(() => resolveReleaseScope(root, 'cloud'), /来源无效/)
+ revision.source = source; configure(); fs.rmSync(path.join(root,target)); assert.throws(() => resolveReleaseScope(root, 'cloud'), /来源无效/)
+})
 
 function fixture(t) {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-scope-counterexample-'))

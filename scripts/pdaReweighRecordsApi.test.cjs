@@ -81,7 +81,7 @@ test('save requests do not gain automatic retries', async () => {
 
 function realCloudHarness() {
  let token='old-login',active=true,cleared=0;const calls=[],modals=[]
- const context={getToken:()=>token,clearAuth:()=>{cleared++;token=''},getCurrentPages:()=>[],
+ const context={startCloudTrace:()=>null,finishCloudTrace(){},getToken:()=>token,clearAuth:()=>{cleared++;token=''},getCurrentPages:()=>[],
   uni:{showModal:modal=>modals.push(modal),showToast(){},removeStorageSync(){},setStorageSync(){},reLaunch:async()=>{}},
   uniCloud:{callFunction:options=>new Promise(resolve=>calls.push({options,resolve}))},console:{info(){}},setTimeout,
   submitBatchFillingOperation(){},getFillingOperationV1(){},retryFillingOperationV1(){}}

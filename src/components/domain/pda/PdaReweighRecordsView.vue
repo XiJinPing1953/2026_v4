@@ -35,10 +35,11 @@
 			<text v-if="historyError && type === 'filling'" class="error">{{ historyError }}</text>
 			<text v-if="error" class="error">{{ error }}</text>
 			<text v-else-if="!loading && !rows.length" class="hint">暂无符合条件的记录</text>
-			<view v-if="displayPages > 1" class="top-row">
-				<AppButton kind="neutral" :disabled="displayPage <= 1" @click="displayPage--">上一页</AppButton>
+			<view class="records-page-start" />
+			<view v-if="displayPages > 1" class="top-row records-pager">
+				<AppButton kind="neutral" :disabled="displayPage <= 1" @click="changeDisplayPage(displayPage - 1)">上一页</AppButton>
 				<text class="hint">{{ displayPage }}/{{ displayPages }} 页</text>
-				<AppButton kind="neutral" :disabled="displayPage >= displayPages" @click="displayPage++">下一页</AppButton>
+				<AppButton kind="neutral" :disabled="displayPage >= displayPages" @click="changeDisplayPage(displayPage + 1)">下一页</AppButton>
 			</view>
 			<view v-for="item in visibleRows" :key="item.id" class="record">
 				<view class="record-head"><text class="bottle">{{ item.bottle_no }} 号瓶</text><text class="hint">{{ item.status === 'complete' ? '已完成' : item.status === 'pending' ? '处理中' : '待核对' }}</text></view>
@@ -54,6 +55,11 @@
 					<text v-else class="hint">缺少原标签资料或记录已更正，不能补打</text>
 					<text class="hint">{{ printer.messages.value[printEntry(item)?.operationId] || '' }}</text>
 				</template>
+			</view>
+			<view v-if="displayPages > 1" class="top-row records-pager">
+				<AppButton kind="neutral" :disabled="displayPage <= 1" @click="changeDisplayPage(displayPage - 1)">上一页</AppButton>
+				<text class="hint">{{ displayPage }}/{{ displayPages }} 页</text>
+				<AppButton kind="neutral" :disabled="displayPage >= displayPages" @click="changeDisplayPage(displayPage + 1)">下一页</AppButton>
 			</view>
 			<text v-if="loading" class="hint">正在查询…</text>
 			<AppButton v-if="hasMore" kind="neutral" :disabled="loading" @click="loadMore">加载更多</AppButton>
@@ -71,11 +77,14 @@ import AppSection from '@/components/base/AppSection.vue'
 import { formatWeight } from '@/services/pda/shared'
 import { usePdaReweighRecords } from '@/composables/pda/usePdaReweighRecords'
 
+import { useRecordPageScroll } from '@/composables/pda/useRecordPageScroll'
 import { historyPrintEntry } from '@/services/pda/reweighHistory'
 import { usePdaFillingPrinter } from '@/composables/pda/usePdaFillingPrinter'
 defineEmits(['back'])
 const form = usePdaReweighRecords()
 const { historyError, summary, rounds, roundId, pageActive, types, type, typeLabel, date, bottleNo, rows, loading, scannerReady, error, hasMore, setFilter, search, loadMore } = form
+const scrollToRecords = useRecordPageScroll('.records-page-start')
+function changeDisplayPage(value) { displayPage.value = value; void scrollToRecords() }
 const displayPage = ref(1)
 const displayPages = computed(() => Math.max(1, Math.ceil(rows.value.length / 30)))
 const visibleRows = computed(() => rows.value.slice((displayPage.value - 1) * 30, displayPage.value * 30))
@@ -118,6 +127,7 @@ defineExpose({ activate, deactivate })
 </script>
 
 <style scoped>
+.records-pager { padding:12px 0; }
 .print-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12rpx; margin-bottom: 12rpx; }
 .top-row, .record-head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
 .filter-grid, .weights { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }

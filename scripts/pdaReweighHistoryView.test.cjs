@@ -8,7 +8,7 @@ const script = compiler.compileScript(descriptor, { id: 'history-test', inlineTe
 const code = esbuild.transformSync(script.content, { format: 'cjs' }).code
 const Button = { props: ['disabled'], emits: ['click'], setup: (props, { slots, emit }) => () => vue.h('button', { disabled: props.disabled, onClick: () => { if (!props.disabled) emit('click') } }, slots.default?.()) }
 const Section = { props: ['title'], setup: (props, { slots }) => () => vue.h('section', [vue.h('header', props.title), ...(slots.actions?.() || []), ...(slots.default?.() || [])]) }
-const context = { module: { exports: {} }, require: id => id === 'vue' ? vue : id.includes('AppButton') ? Button : id.includes('AppSection') ? Section : { reweighHistoryTime: () => '2026-10-31' } }
+const context = { module: { exports: {} }, require: id => id === 'vue' ? vue : id.includes('useRecordPageScroll') ? { useRecordPageScroll: () => () => {} } : id.includes('AppButton') ? Button : id.includes('AppSection') ? Section : { reweighHistoryTime: () => '2026-10-31' } }
 vm.runInNewContext(code, context)
 function mount(isReturn = false) {
  const create = (type, text = '') => ({ type, text, children: [], props: {} })
@@ -27,7 +27,7 @@ function mount(isReturn = false) {
  const text = node => node.type === 'comment' ? '' : node.text + node.children.map(text).join('')
  const all = (node = host) => [node, ...node.children.flatMap(child => all(child))]
  const rows = () => all().filter(node => node.props.class === 'history-row')
- const click = async label => { const button = all().find(node => node.type === 'button' && text(node) === label); assert.ok(button, label); button.props.onClick(); await vue.nextTick() }
+ const click = async (label, bottom = false) => { const buttons = all().filter(node => node.type === 'button' && text(node) === label); const button = bottom ? buttons[buttons.length - 1] : buttons[0]; if (bottom) assert.equal(buttons.length, 2); assert.ok(button, label); button.props.onClick(); await vue.nextTick() }
  return { app, props, items, rows, text, click, queries, printed }
 }
 test('323 records render at most 20 at once, remain complete in newest-first order and collapse without row nodes', async () => {
@@ -38,7 +38,7 @@ test('323 records render at most 20 at once, remain complete in newest-first ord
  for (let page = 1; page <= 17; page++) {
   assert.ok(h.rows().length <= 20)
   seen.push(...h.rows().map(node => Number(h.text(node).match(/^(\d+) 号瓶/)[1])))
-  if (page < 17) await h.click('下一页')
+  if (page < 17) await h.click('下一页', true)
  }
  assert.deepEqual(seen, Array.from({ length: 323 }, (_, i) => 322 - i))
  await h.click('查询状态'); await h.click('重试处理')

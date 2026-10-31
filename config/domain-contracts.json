@@ -154,6 +154,22 @@
         "uniCloud-alipay/cloudfunctions/crm-customer-settlement/customerBalanceLocal.js",
         "uniCloud-alipay/cloudfunctions/crm-dashboard/customerBalanceLocal.js"
       ]
+    },
+    {
+      "source": "uniCloud-alipay/cloudfunctions/common/performanceTrace.js",
+      "targets": [
+        "uniCloud-alipay/cloudfunctions/crm-filling/performanceTraceLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-bottle/performanceTraceLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-customer/performanceTraceLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-sale/performanceTraceLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-auth/performanceTraceLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-bottle-movement/performanceTraceLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-dashboard/performanceTraceLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-gas-in/performanceTraceLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-customer-settlement/performanceTraceLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/performanceTraceLocal.js",
+        "uniCloud-alipay/cloudfunctions/crm-safety-management/performanceTraceLocal.js"
+      ]
     }
   ],
   "promotedSchemas": [

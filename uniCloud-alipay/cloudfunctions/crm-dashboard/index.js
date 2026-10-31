@@ -1,4 +1,5 @@
 'use strict'
+const { wrapDatabase, withPerformanceTrace } = require('./performanceTraceLocal')
 
 const saleAccounting = require('./saleAccountingLocal')
 const { readComplete, withFinancialEvidence } = require('./financialReadLocal')
@@ -12,7 +13,7 @@ try {
 	console.warn('[crm-dashboard] fallback to local pageAcl helpers', err && err.message)
 	;({ ensureActionAcl } = require('./pageAclLocal'))
 }
-const db = uniCloud.database()
+const db = wrapDatabase(uniCloud.database())
 const dbCmd = db.command
 const tankTelemetryCore = require('./tankTelemetry')
 const {
@@ -857,3 +858,6 @@ exports.main = async (event, context) => {
 	}
 	return result
 }
+
+// Explicit diagnostic requests only; ordinary requests keep the original response.
+exports.main = withPerformanceTrace(exports.main)
