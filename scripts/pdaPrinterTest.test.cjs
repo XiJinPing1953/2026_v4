@@ -80,7 +80,7 @@ test('filling text and QR have matching vertical centers and 16-dot safe margins
   const first=l.lines[0],last=l.lines[l.lines.length-1]
   assert.ok(Math.abs((first.y+last.y+24)/2-(q.top+q.bottom)/2)<=1)
   assert.equal(last.text,'单位: kg')
-  for(const row of l.lines){const w=[...row.text].reduce((n,c)=>n+(c.charCodeAt(0)>127?24:12),0);assert.ok(row.x>=16&&row.x+w<=220&&row.y>=80&&row.y+24<=304)}
+  for(const row of l.lines){const w=[...row.text].reduce((n,c)=>n+(c.charCodeAt(0)>127?24:12),0);assert.equal(row.x,32);assert.ok(row.x+w<=q.left&&row.y>=80&&row.y+24<=304)}
   const QRCode=require('qrcode-terminal/vendor/QRCode'),Level=require('qrcode-terminal/vendor/QRCode/QRErrorCorrectLevel')
   const qr=new QRCode(-1,Level.M);qr.addData(url);qr.make();assert.equal(qr.getModuleCount()*l.moduleSize,l.qrWidth)
  }

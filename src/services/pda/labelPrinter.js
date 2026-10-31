@@ -42,7 +42,7 @@ export function labelLayout(value, test = false) {
  const textHeight = (lines.length - 1) * 28 + 24
  if (textHeight > bodyBottom - bodyTop || lines.some(s => width(s) > 204)) throw new Error('标签文字过长，暂不能按当前标签打印')
  const textTop = bodyTop + Math.floor((bodyBottom - bodyTop - textHeight) / 2)
- return { label: l, qr, qrX, qrY, qrWidth, quiet, moduleSize, lines: lines.map((text, i) => ({ text, x: 16, y: textTop + i * 28 })), test }
+ return { label: l, qr, qrX, qrY, qrWidth, quiet, moduleSize, lines: lines.map((text, i) => ({ text, x: 32, y: textTop + i * 28 })), test }
 }
 export function writeLabel(plugin, label, test = false) {
  const layout = labelLayout(label, test)
