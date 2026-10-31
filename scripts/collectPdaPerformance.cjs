@@ -4,12 +4,12 @@ const fs = require('node:fs'), path = require('node:path'), { spawn } = require(
 function summarize(events) {
  const pages = new Map()
  for (const event of events) {
-  if (event.kind === 'page_start') pages.set(event.page_id, { session: event.session, page_id: event.page_id, route: event.route, visit: event.visit, source: event.source, stages_ms: {}, local_spans: [], cloud_calls: [] })
+  if (event.kind === 'page_start') pages.set(event.page_id, { session: event.session, page_id: event.page_id, route: event.route, visit: event.visit, source: event.source, started_at: event.at, stages_ms: {}, stage_occurrences: [], local_spans: [], cloud_calls: [] })
   const page = pages.get(event.page_id)
   if (!page) continue
-  if (event.kind === 'page_stage') page.stages_ms[event.stage] = event.elapsed_ms
+  if (event.kind === 'page_stage') { if (page.stages_ms[event.stage] == null) page.stages_ms[event.stage] = event.elapsed_ms; page.stage_occurrences.push({ stage: event.stage, elapsed_ms: event.elapsed_ms }) }
   if (event.kind === 'local_span') page.local_spans.push({ stage: event.stage, duration_ms: event.duration_ms })
-  if (event.kind === 'cloud') page.cloud_calls.push({ name: event.name, action: event.action, request_id: event.request_id, roundtrip_ms: event.elapsed_ms,
+  if (event.kind === 'cloud') page.cloud_calls.push({ name: event.name, action: event.action, request_id: event.request_id, roundtrip_ms: event.elapsed_ms, completed_after_entry_ms: event.at - page.started_at,
    code: event.code, function_ms: event.server?.function_ms ?? null, db_wall_ms: event.server?.db?.wall_ms ?? null,
    db_sum_ms: event.server?.db?.sum_ms ?? null, db_count: event.server?.db?.count ?? null,
    first_instance_invocation: event.server?.first_instance_invocation ?? null, database_reads: event.server?.db?.calls || [] })

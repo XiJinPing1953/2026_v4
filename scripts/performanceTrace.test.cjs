@@ -1,6 +1,12 @@
 const test = require('node:test'), assert = require('node:assert/strict')
 const { wrapDatabase, withPerformanceTrace } = require('../uniCloud-alipay/cloudfunctions/common/performanceTrace')
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+test('collector preserves first-render timing when a later manual query repeats the stage', () => {
+ const { summarize } = require('./collectPdaPerformance.cjs')
+ const result = summarize([{kind:'page_start',page_id:'p',at:1000},{kind:'page_stage',page_id:'p',stage:'records_ready',elapsed_ms:220},{kind:'page_stage',page_id:'p',stage:'records_ready',elapsed_ms:9800}])
+ assert.equal(result.pages[0].stages_ms.records_ready,220)
+ assert.deepEqual(result.pages[0].stage_occurrences.map(x=>x.elapsed_ms),[220,9800])
+})
 function database() {
  const calls = [], command = {}, tx = { collection: name => collection(name), commit: () => 'committed' }
  function collection(name) { return { where() { return this }, doc() { return this }, field() { return this }, orderBy() { return this }, limit() { return this }, skip() { return this },
