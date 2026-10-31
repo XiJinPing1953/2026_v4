@@ -8,7 +8,7 @@
     "web": {
       "version": "2026.10.31-no-trace.1",
       "output": "dist/build/web",
-      "acceptance": "Candidate only; wait for explicit user publication approval. The only runtime change from 1.0.49 is removal of temporary segmented performance sampling UI, frontend hooks, native logs and database/handler proxies from the 11 listed cloud functions. Return/filling reweigh and native sale all retain their original 3000ms stability behavior. No floor-scale candidate, schema/index or native APK changes. Preserve all weighing, saving, printing and pagination behavior.",
+      "acceptance": "User approved the trace-only 1.0.50 release on 2026-10-31; deployed artifacts and physical acceptance status are recorded in state/handoffs/2026-10-31-no-trace-only.md. The only runtime change from 1.0.49 is removal of temporary segmented performance sampling UI, frontend hooks, native logs and database/handler proxies from the 11 listed cloud functions. Return/filling reweigh and native sale all retain their original 3000ms stability behavior. No floor-scale candidate, schema/index or native APK changes. Preserve all weighing, saving, printing and pagination behavior.",
       "deploymentScope": {
         "functions": [
           "crm-auth",
@@ -151,7 +151,7 @@
     "cloud": {
       "version": "2026.10.31-no-trace.1",
       "output": "release/cloud",
-      "acceptance": "Candidate only; wait for explicit user publication approval. The only runtime change from 1.0.49 is removal of temporary segmented performance sampling UI, frontend hooks, native logs and database/handler proxies from the 11 listed cloud functions. Return/filling reweigh and native sale all retain their original 3000ms stability behavior. No floor-scale candidate, schema/index or native APK changes. Preserve all weighing, saving, printing and pagination behavior.",
+      "acceptance": "User approved the trace-only 1.0.50 release on 2026-10-31; deployed artifacts and physical acceptance status are recorded in state/handoffs/2026-10-31-no-trace-only.md. The only runtime change from 1.0.49 is removal of temporary segmented performance sampling UI, frontend hooks, native logs and database/handler proxies from the 11 listed cloud functions. Return/filling reweigh and native sale all retain their original 3000ms stability behavior. No floor-scale candidate, schema/index or native APK changes. Preserve all weighing, saving, printing and pagination behavior.",
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
@@ -341,7 +341,7 @@
     "pda": {
       "version": "1.0.50",
       "output": "release/pda",
-      "acceptance": "Candidate only; wait for explicit user publication approval. The only runtime change from 1.0.49 is removal of temporary segmented performance sampling UI, frontend hooks, native logs and database/handler proxies from the 11 listed cloud functions. Return/filling reweigh and native sale all retain their original 3000ms stability behavior. No floor-scale candidate, schema/index or native APK changes. Preserve all weighing, saving, printing and pagination behavior.",
+      "acceptance": "User approved the trace-only 1.0.50 release on 2026-10-31; deployed artifacts and physical acceptance status are recorded in state/handoffs/2026-10-31-no-trace-only.md. The only runtime change from 1.0.49 is removal of temporary segmented performance sampling UI, frontend hooks, native logs and database/handler proxies from the 11 listed cloud functions. Return/filling reweigh and native sale all retain their original 3000ms stability behavior. No floor-scale candidate, schema/index or native APK changes. Preserve all weighing, saving, printing and pagination behavior.",
       "deploymentScope": {
         "functions": [
           "crm-auth",
