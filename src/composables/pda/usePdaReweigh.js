@@ -51,6 +51,8 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	const draftLoading = ref(typeof uni.getStorage === 'function')
 	let restorePromise = null
 	const busy = ref(false)
+	const submitting = ref(false)
+	let receiptRefresh = null
 	const active = ref(false)
 	const scannerReady = ref(false)
 	const pendingSession = ref('')
@@ -224,7 +226,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	async function disconnect() { pendingSession.value = ''; await scale.disconnect(); message.value = '吊秤已断开，已称重量保留。' }
 	function stopMeasurement() { autoSession = ''; autoWeight.reset(); captureMinimum.value = 0; pendingSession.value = '' }
 	function cancelMeasurement() { stopMeasurement(); message.value = '已停止取重，点本瓶称重可继续。' }
-	function applyReceipt(response, operationId, target = current.value, directResponse = false) {
+	function applyReceipt(response, operationId, target = current.value, directResponse = false, allowPrint = true) {
 		const receipt = reweighReceipt(response, operationId, target?.receipt)
 		// A direct pre-write rejection may omit its ID. Queries must explicitly identify the original operation.
 		const matched = response?.data?.operation_id === operationId || (directResponse && !response?.data?.operation_id)
@@ -249,7 +251,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		else history.value = history.value.map(item => item.operationId === operationId ? { ...item, receipt } : item)
 		if (current.value.operationId === operationId && receipt.saved) stopMeasurement()
 		const persisted = persist()
-		if (!isReturn && persisted && active.value && ownerMatches()) {
+		if (allowPrint && !isReturn && persisted && active.value && ownerMatches()) {
 			const entry = current.value.operationId === operationId ? current.value : history.value.find(item => item.operationId === operationId)
 			try { printing?.confirmed(entry, response?.data?.operation_id === operationId) } catch (_) { /* Printing never changes save outcome. */ }
 		}
@@ -270,7 +272,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	async function submit() {
 		autoWeight.interrupt()
 		if (!editable() || !current.value.capture) return fail('请先完成本瓶稳定称重')
-		busy.value = true; error.value = ''
+		busy.value = true; submitting.value = true; error.value = ''
 		const version = epoch
 		try {
 			const response = await previewRequest(previewArgs())
@@ -297,7 +299,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 			if (!isReturn) { try { printing?.arm(current.value) } catch (_) {} }
 			return await sendFrozen()
 		} catch (cause) { return fail(cause.message || '提交前核算失败') }
-		finally { busy.value = false }
+		finally { submitting.value = false; busy.value = false }
 	}
 	async function query(operationId = current.value.operationId, retry = false) {
 		if (busy.value || !nativeSupported || !active.value || !ownerMatches() || unreadable || !canCreate.value) return false
@@ -318,6 +320,30 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 			return response?.code === 0
 		} catch (cause) { applyReceipt({ msg: cause.message || '查询失败，这笔记录已保留，请重试查询' }, operationId, target); return false }
 		finally { busy.value = false }
+	}
+	function refreshPendingReceipts() {
+		if (receiptRefresh?.lifecycle === lifecycleVersion) return receiptRefresh.promise
+		if (!active.value || !ownerMatches() || unreadable || !nativeSupported) return Promise.resolve()
+		const lifecycle = lifecycleVersion
+		const valid = () => active.value && ownerMatches() && !unreadable && lifecycle === lifecycleVersion
+		const ids = [...new Set([current.value, ...history.value].filter(item => item.frozen && item.receipt?.saved && !item.receipt?.complete).map(item => item.operationId))]
+		// One bounded read-only pass. Never resubmit, print, or trust elapsed time as completion.
+		const task = { lifecycle, promise: null }
+		receiptRefresh = task
+		task.promise = (async () => {
+			for (let offset = 0; offset < ids.length && valid(); offset += 2) {
+				await Promise.all(ids.slice(offset, offset + 2).map(async id => {
+					try {
+						const response = await (isReturn ? getReturnReweighV1 : getReweighOperationV1)(id)
+						if (!valid() || response?.code !== 0 || response.data?.operation_id !== id) return
+						const target = current.value.operationId === id ? current.value : history.value.find(item => item.operationId === id)
+						if (!target?.frozen || target.receipt?.complete) return
+						applyReceipt(response, id, target, false, false)
+					} catch (_) { /* Keep the original credential available for explicit query/retry. */ }
+				}))
+			}
+		})().finally(() => { if (receiptRefresh === task) receiptRefresh = null })
+		return task.promise
 	}
 	async function nextBottle() {
 		if (busy.value || unreadable || !ownerMatches() || !active.value) return false
@@ -407,6 +433,9 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	async function startRound() {
 		if (pendingEndRound.value) return fail('请先确认上轮结束结果')
 		if (!nativeSupported || busy.value || !active.value || !ownerMatches() || unreadable || !canCreate.value) return false
+		const checkVersion = epoch
+		await refreshPendingReceipts()
+		if (!sameWork(checkVersion) || busy.value) return false
 		if (current.value.frozen && !current.value.receipt?.complete) return fail('请先确认本瓶保存完成，再开始新一轮')
 		if (current.value.bottleNo && !current.value.receipt?.complete) return fail('请先保存或放弃这瓶，再开始新一轮')
 		if (history.value.some(item => item.frozen && !item.receipt?.complete)) return fail('还有记录没处理完，请先查询保存结果')
@@ -448,6 +477,9 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 	async function endRound() {
 
 		if ((!round.value && !pendingEndRound.value) || !nativeSupported || busy.value || !active.value || !ownerMatches() || unreadable || !canCreate.value || pendingRound.value) return false
+		const checkVersion = epoch
+		await refreshPendingReceipts()
+		if (!sameWork(checkVersion) || busy.value) return false
 		if (current.value.bottleNo && !current.value.receipt?.complete) return fail('请先保存或放弃这瓶，再结束本轮')
 		if (history.value.some(item => item.frozen && !item.receipt?.complete)) return fail('还有记录没处理完，请先查询保存结果')
 		const version = epoch
@@ -503,6 +535,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 			scannerReady.value = result?.code === 0
 			if (!scannerReady.value) fail(result?.msg || '扫描键暂不可用，请手输瓶号')
 		} catch (cause) { fail(cause.message || '扫描头初始化失败') }
+		if (active.value && version === lifecycleVersion) void refreshPendingReceipts()
 	}
 	async function deactivate() {
 		if (deactivated) return stopping
@@ -516,6 +549,6 @@ export function usePdaReweigh({ mode = 'filling', printing = null } = {}) {
 		await stopping
 	}
 	onBeforeUnmount(() => { unsubscribe(); void deactivate() })
-	return { draftLoading, captureMinimum, current, history, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, localRoundEnded, startRound, endRound, refreshRound,
+	return { draftLoading, captureMinimum, current, history, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, submitting, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, localRoundEnded, startRound, endRound, refreshRound,
 		selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText }
 }

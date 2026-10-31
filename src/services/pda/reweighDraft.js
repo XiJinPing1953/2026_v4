@@ -204,9 +204,10 @@ export function reweighPreviousNotice(preview, isReturn) {
 
 export function reweighReceipt(response, operationId, previous = null) {
 	const data = response?.data || {}
-	const matched = !data.operation_id || data.operation_id === operationId
+	const matched = response?.code === 0 && data.operation_id === operationId
 	const savedSource = (data.source_records || []).find((row) => row.saved === true)
 	const saved = matched && (data.complete === true || Number(data.saved_total) > 0 || Boolean(savedSource))
+	if (previous?.complete) return { ...previous }
 	if (!saved && previous?.saved) return { ...previous, message: response?.msg || '状态暂未更新，已确认的保存结果保留' }
 	return {
 		operationId,

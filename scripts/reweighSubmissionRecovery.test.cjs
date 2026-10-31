@@ -17,7 +17,7 @@ function service(call) {
 	const storage = new Map()
 	let owner = 'A'
 	const calls = []
-	const context = vm.createContext({ getUser: () => ({ _id: owner }), callCloud: async (name, request) => {
+	const context = vm.createContext({ getUser: () => ({ _id: owner }), getToken: () => `token-${owner}`, callCloud: async (name, request) => {
 		calls.push({ ...request, owner })
 		return call(name, request)
 	}, uni: { getStorageSync: (name) => storage.get(name), setStorageSync: (name, value) => storage.set(name, value) } })
@@ -138,4 +138,25 @@ test('list acknowledgement after account switch does not read or clear the new a
 	await assert.rejects(request, /登录账号已变更/)
 	assert.equal(JSON.stringify([...env.storage]), before)
 	assert.equal(env.calls.length, 1)
+})
+
+test('continuous reweigh saves reuse successful capability check; account changes require a new check', async () => {
+ const env=service((_,r)=>r.action==='capabilitiesV1'?capabilities:receipt(r.data.operation_id))
+ await env.api.createReweighV1({bottle_no:'1'});await env.api.createReweighV1({bottle_no:'2'})
+ assert.equal(env.calls.filter(r=>r.action==='capabilitiesV1').length,1)
+ assert.equal(env.calls.filter(r=>r.action==='createReweighV1').length,2)
+ env.switchOwner('B');await env.api.createReweighV1({bottle_no:'3'})
+ assert.equal(env.calls.filter(r=>r.action==='capabilitiesV1').length,2)
+})
+
+test('capability success expires after one minute; failures are never cached', async () => {
+ let supported=false
+ const env=service((_,r)=>r.action==='capabilitiesV1'?(supported?capabilities:{code:503,msg:'unavailable'}):receipt(r.data.operation_id))
+ for(let i=0;i<2;i++)await assert.rejects(env.api.createReweighV1({bottle_no:'1'}))
+ assert.equal(env.calls.filter(r=>r.action==='capabilitiesV1').length,2)
+ supported=true;vm.runInContext('Date.now = () => 10000',env.context)
+ await env.api.createReweighV1({bottle_no:'1'})
+ vm.runInContext('Date.now = () => 70000',env.context)
+ await env.api.createReweighV1({bottle_no:'2'})
+ assert.equal(env.calls.filter(r=>r.action==='capabilitiesV1').length,4)
 })

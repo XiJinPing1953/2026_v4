@@ -532,3 +532,40 @@ for (const suspended of [false, true]) test(`native automatic weighing keeps bot
  assert.notEqual(f.session.getSnapshot().session_id, id)
  await f.session.stop()
 })
+
+function sharedNativeFixture() {
+ const { context, time } = load(), connections = new Set(), values = new Set(), closed = []
+ let closeFinish, holdClose = false, adapterCloses = 0
+ const runtime = {
+  openBluetoothAdapter: p => p.success({}), createBLEConnection: p => p.success({}), notifyBLECharacteristicValueChange: p => p.success({}),
+  closeBLEConnection(p) { closed.push(p.deviceId); const finish=()=>{ for(const fn of connections) fn({deviceId:p.deviceId,connected:false});p.success({}) }; if(holdClose) closeFinish=finish; else finish() },
+  closeBluetoothAdapter(p) { adapterCloses++;for(const fn of connections) fn({deviceId:'AA:BB:CC:DD:EE:FF',connected:false});p.success({}) },
+  onBLEConnectionStateChange: f=>connections.add(f),offBLEConnectionStateChange:f=>connections.delete(f),
+  onBLECharacteristicValueChange:f=>values.add(f),offBLECharacteristicValueChange:f=>values.delete(f)
+ }
+ return { create:()=>context.createBleScaleCoreSession({deviceId:'AA:BB:CC:DD:EE:FF'},runtime), closed, time, hold:()=>{holdClose=true}, release:()=>{holdClose=false;closeFinish()}, adapterCloses:()=>adapterCloses }
+}
+test('stopping an unused or old native page cannot close a new page connection or its adapter', async () => {
+ const f=sharedNativeFixture(),old=f.create(),current=f.create()
+ await current.connect();await old.stop()
+ assert.equal(current.getSnapshot().is_connected,true);assert.equal(f.closed.length,0);assert.equal(f.adapterCloses(),0)
+ await current.stop()
+})
+test('a reconnect waits for previous stop cleanup before creating its connection', async () => {
+ const f=sharedNativeFixture(),s=f.create();await s.connect();f.hold()
+ const stop=s.stop();await flush();const connection=s.connect();await flush();f.release();await stop
+ assert.equal((await connection).code,0);assert.equal(s.getSnapshot().is_connected,true);assert.equal(f.adapterCloses(),0)
+ await s.stop()
+})
+
+test('late cleanup from a previously connected page leaves a newer same-device session alive', async () => {
+ const f=sharedNativeFixture(),old=f.create(),current=f.create()
+ await old.connect();await current.connect();await old.stop()
+ assert.equal(current.getSnapshot().is_connected,true);assert.equal(f.closed.length,0);assert.equal(f.adapterCloses(),0)
+ await current.stop()
+})
+test('native reconnect closes its own stale GATT handle before opening another', async () => {
+ const f=nativeFixture();await f.session.connect();f.lost();await f.time.advance(1000)
+ assert.equal(f.stats.connects.length,2);assert.equal(f.stats.closes,1);assert.equal(f.session.getSnapshot().is_connected,true)
+ await f.session.stop()
+})

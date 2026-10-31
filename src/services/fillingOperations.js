@@ -1,5 +1,5 @@
 import { callCloud } from '@/services/api'
-import { getUser } from '@/services/auth'
+import { getUser, getToken } from '@/services/auth'
 
 export const FILLING_OPERATION_VERSION = 'filling-consistency-2026-09-08-v2'
 const currentOwner = () => getUser()?._id || 'anonymous'
@@ -89,9 +89,21 @@ export async function listFillingOperationsV1() {
 export function retryFillingOperationV1(operation_id) {
 	return requestFillingOperation(operation_id, 'retryOperationV1')
 }
+// Capabilities are a protocol check, not authorization. Actual writes still authenticate
+// and verify their receipt version. Reuse only a successful, same-login check for one minute.
+let capabilityCache = null
+async function fillingCapabilities(owner) {
+	const token = getToken()
+	const at = Date.now()
+	if (capabilityCache?.owner === owner && capabilityCache.token === token && at >= capabilityCache.at && at - capabilityCache.at < 60000) return capabilityCache.result
+	const result = await callCloud('crm-filling', { action: 'capabilitiesV1' })
+	assertOwner(owner)
+	if (getToken() === token && result?.code === 0 && result.data?.durable_operations === true && result.data?.reweigh_durable === true && result.data?.rule_version === FILLING_OPERATION_VERSION) capabilityCache = { owner, token, at, result }
+	return result
+}
 export async function submitBatchFillingOperation(data, action = 'batchCreateV1') {
 	const owner = currentOwner()
-	const capabilities = await callCloud('crm-filling', { action: 'capabilitiesV1' })
+	const capabilities = await fillingCapabilities(owner)
 	assertOwner(owner)
 	if (['createReweighV1', 'correctReweighV1'].includes(action) && capabilities?.code === 0 && capabilities?.data?.reweigh_durable !== true) {
 		return { code: 409, msg: '复秤后台尚未升级，请稍后重试', data: { rejected: true } }
@@ -111,6 +123,7 @@ export async function submitBatchFillingOperation(data, action = 'batchCreateV1'
 		if (trustedReceipt(result, operation_id) && result.data.complete === true) removeOperation(operation_id, owner)
 		return result
 	} catch (error) {
+		capabilityCache = null
 		assertOwner(owner)
 		try {
 			const status = await requestFillingOperation(operation_id, 'getOperationV1', owner)

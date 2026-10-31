@@ -7,7 +7,7 @@ const vm = require('node:vm')
 function service(call) {
 	const storage = new Map()
 	const code = fs.readFileSync('src/services/fillingOperations.js', 'utf8').replace(/^import .*$/gm, '').replace(/^export /gm, '')
-	const context = vm.createContext({ callCloud: call, getUser: () => ({ _id: 'operator' }), uni: {
+	const context = vm.createContext({ callCloud: call, getToken: () => 'token', getUser: () => ({ _id: 'operator' }), uni: {
 		getStorageSync: (key) => storage.get(key), setStorageSync: (key, value) => storage.set(key, value)
 	} })
 	vm.runInContext(code, context)

@@ -99,9 +99,9 @@
 				</view>
 			</AppSection>
 
-			<AppSection class="work-section" v-if="current.frozen" :title="receiptTitle(current.receipt)">
+			<AppSection class="work-section" v-if="current.frozen" :title="submitting ? '正在保存' : receiptTitle(current.receipt)">
 				<text v-if="error" class="notice notice--error" role="alert">{{ error }}</text>
-				<text class="hint">{{ current.receipt?.message || '还没确认是否保存成功，请点查询保存结果。' }}</text>
+				<text class="hint">{{ submitting ? '正在提交并确认保存结果，请稍候。' : current.receipt?.message || '还没确认是否保存成功，请点查询保存结果。' }}</text>
 				<view v-if="!isReturn && current.receipt?.saved" class="print-result">
 					<text>{{ printer.messages.value[current.operationId] || '可补打这笔记录的标签' }}</text>
 					<text v-if="printer.reason(current)" class="hint">{{ printer.reason(current) }}</text>
@@ -116,7 +116,7 @@
 					<AppButton v-if="!current.receipt?.complete" size="sm" kind="neutral" :disabled="busy" @click="query(current.operationId, true)">重试保存</AppButton>
 					<AppButton :disabled="!canNext" @click="onNext">下一瓶</AppButton>
 				</view>
-				<text v-if="!current.receipt?.saved" class="hint">还没确认是否保存成功，请查询或重试这笔记录。</text>
+				<text v-if="!submitting && !current.receipt?.saved" class="hint">还没确认是否保存成功，请查询或重试这笔记录。</text>
 			</AppSection>
 
 			</view>
@@ -143,7 +143,7 @@ const props = defineProps({ mode: { type: String, default: 'filling' } })
 const isReturn = props.mode === 'return'
 const printer = usePdaFillingPrinter({ enabled: !isReturn, active: () => form?.active.value && form.nativeSupported, entries: () => [...form.history.value.filter(item => item.operationId !== form.current.value.operationId), form.current.value] })
 const form = usePdaReweigh({ mode: props.mode, printing: isReturn ? null : printer })
-const { draftLoading, captureMinimum, current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, localRoundEnded, startRound, refreshRound,
+const { draftLoading, captureMinimum, current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, submitting, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, localRoundEnded, startRound, refreshRound,
 	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText, endRound } = form
 const historyGroups = computed(() => [
 	{ title: '本轮称重记录', items: roundHistory.value },

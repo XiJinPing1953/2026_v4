@@ -476,6 +476,12 @@ async function discoverDevicesByPrefix(profile, runtime) {
 }
 
 let measurementSessionCounter = 0
+// Native uni BLE is shared by cached pages. A page may close only its own link.
+const bleRuntimeConnections = new WeakMap()
+function runtimeConnections(runtime) {
+	if (!bleRuntimeConnections.has(runtime)) bleRuntimeConnections.set(runtime, { owners: new Map(), closing: new Map() })
+	return bleRuntimeConnections.get(runtime)
+}
 
 export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 	let profile = normalizeBleScaleProfile(inputProfile)
@@ -490,6 +496,10 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 	let reconnectTimer = null
 	let staleTimer = null
 	let operationEpoch = 0
+	let connectionClaim = null
+	let cleanupPromise = Promise.resolve()
+	let stopPromise = null
+	const runtimeLinks = runtimeConnections(runtime)
 	let sessionId = ''
 	let measurementStartedAt = null
 	let connectedAt = 0
@@ -776,7 +786,7 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 	}
 
 	function handleCharacteristicValueChange(res = {}) {
-		if (!connected) return
+		if (!connected || runtimeLinks.owners.get(connectionClaim?.key) !== connectionClaim) return
 		const incomingUuid = normalizeUuidText(res?.characteristicId)
 		if (incomingUuid && !matchUuid(incomingUuid, notifyCharacteristicId)) return
 		const incomingDeviceId = normalizeText(res?.deviceId)
@@ -806,9 +816,13 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 	}
 
 	function bindBleListeners() {
-		if (!charHandlerBound) charHandlerBound = (res) => handleCharacteristicValueChange(res)
+		if (!charHandlerBound) {
+			const handler = res => { if (charHandlerBound === handler && bleListenersAttached) handleCharacteristicValueChange(res) }
+			charHandlerBound = handler
+		}
 		if (!connHandlerBound) {
-			connHandlerBound = (res) => {
+			const handler = (res) => {
+				if (connHandlerBound !== handler || !bleListenersAttached || (connectionClaim && runtimeLinks.owners.get(connectionClaim.key) !== connectionClaim)) return
 				const incomingDeviceId = normalizeText(res?.deviceId)
 				if (incomingDeviceId && deviceId && !isSameBleDeviceId(incomingDeviceId, deviceId)) return
 				if (res?.connected === false) {
@@ -829,6 +843,7 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 					if (!connecting) scheduleReconnect('connection_lost')
 				}
 			}
+			connHandlerBound = handler
 		}
 		if (bleListenersAttached) return
 		if (typeof runtime?.onBLECharacteristicValueChange === 'function') runtime.onBLECharacteristicValueChange(charHandlerBound)
@@ -872,11 +887,17 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 		}, 500)
 	}
 
-	async function closeConnectionQuietly() {
-		if (!deviceId) return
-		try {
-			await callRuntime(runtime, 'closeBLEConnection', { deviceId })
-		} catch (error) {
+	async function closeConnectionQuietly(claim = connectionClaim) {
+		if (!claim) return
+		const owner = runtimeLinks.owners.get(claim.key)
+		if (owner && owner !== claim) return
+		const pending = runtimeLinks.closing.get(claim.key)
+		if (pending) { await pending; return }
+		const closing = callRuntime(runtime, 'closeBLEConnection', { deviceId: claim.deviceId }).catch(() => {})
+		runtimeLinks.closing.set(claim.key, closing)
+		try { await closing } finally {
+			if (runtimeLinks.owners.get(claim.key) === claim) runtimeLinks.owners.delete(claim.key)
+			if (runtimeLinks.closing.get(claim.key) === closing) runtimeLinks.closing.delete(claim.key)
 		}
 	}
 
@@ -898,8 +919,11 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 		const boundDeviceId = hasPreferredDevice ? '' : normalizeText(profile.deviceId || deviceId)
 		const connectMode = hasPreferredDevice ? 'preferred' : boundDeviceId ? 'bound' : 'discover'
 		let targetDeviceId = hasPreferredDevice ? preferredDeviceId : boundDeviceId
+		let attemptClaim = null
 
 		try {
+			await (stopPromise || cleanupPromise)
+			checkActive()
 			await callRuntime(runtime, 'openBluetoothAdapter')
 			checkActive()
 			bindBleListeners()
@@ -907,10 +931,24 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 			checkActive()
 			if (!targetDeviceId) throw new Error(buildMissingDeviceMessage(profile.deviceNamePrefix))
 
+			const targetKey = normalizeBleDeviceId(targetDeviceId)
+			await runtimeLinks.closing.get(targetKey)
+			checkActive()
+			const owner = runtimeLinks.owners.get(targetKey)
+			if (options.automatic && owner && owner !== connectionClaim) { keepAlive = false; return { code: 499, msg: '吊秤已由新页面连接' } }
+			// Release the old GATT handle before reconnecting; do not stack same-device clients.
+			if (connectionClaim && owner === connectionClaim) {
+				connected = false; resetStaleTimer()
+				await closeConnectionQuietly(connectionClaim)
+				checkActive()
+			}
 			deviceId = targetDeviceId
 			serviceId = profile.serviceId
 			notifyCharacteristicId = profile.notifyCharacteristicId
 			writeCharacteristicId = profile.writeCharacteristicId
+			attemptClaim = { key: targetKey, deviceId }
+			connectionClaim = attemptClaim
+			runtimeLinks.owners.set(targetKey, attemptClaim)
 			await callRuntime(runtime, 'createBLEConnection', { deviceId })
 			checkActive()
 			await callRuntime(runtime, 'notifyBLECharacteristicValueChange', {
@@ -955,14 +993,14 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 			}
 		} catch (error) {
 			if (epoch !== operationEpoch) {
-				await closeConnectionQuietly()
+				await closeConnectionQuietly(attemptClaim)
 				return { code: 499, msg: '吊秤连接已取消', data: null }
 			}
 			connected = false
 			resetRuntimeStats()
 			const message = normalizeText(error?.errMsg || error?.message) || '吊秤连接失败'
 			const errorCode = parseBleErrorCode(error) || 'connect_failed'
-			await closeConnectionQuietly()
+			await closeConnectionQuietly(attemptClaim)
 			if (connectMode === 'bound' && !options.automatic) {
 				keepAlive = false
 				emit(
@@ -1022,16 +1060,22 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 				error_message: options.error_message || '吊秤已断开'
 			})
 		)
-		await closeConnectionQuietly()
+		cleanupPromise = Promise.allSettled([cleanupPromise, closeConnectionQuietly()])
+		await cleanupPromise
 		return { code: 0, msg: '', data: null }
 	}
 
-	async function stop() {
-		await disconnect({ error_code: 'stopped', error_message: '吊秤会话已停止' })
-		await unbindBleListeners()
-		await closeAdapterQuietly()
-		clearSnapshotEmitTimer()
-		return { code: 0, msg: '', data: null }
+	function stop() {
+		if (stopPromise) return stopPromise
+		stopPromise = (async () => {
+			await disconnect({ error_code: 'stopped', error_message: '吊秤会话已停止' })
+			await unbindBleListeners()
+			// Native adapter belongs to the app, not this page; closing it kills newer links.
+			if (runtime.transport === 'web') await closeAdapterQuietly()
+			clearSnapshotEmitTimer()
+			return { code: 0, msg: '', data: null }
+		})().finally(() => { stopPromise = null })
+		return stopPromise
 	}
 
 	async function connect(options = {}) {

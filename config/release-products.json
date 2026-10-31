@@ -339,18 +339,22 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.53",
+      "version": "1.0.54",
       "output": "release/pda",
-      "acceptance": "Filling 60x40 label places kg after each weight, enlarges and shifts the left column right; long values fall back to 24-dot font. Actual TSS32 printer support and label output require onsite acceptance.",
+      "acceptance": "Candidate: refresh saved pending reweigh receipts by original operation ID without replay/printing; show saving during dispatch; reuse successful same-login capabilities for 60 seconds; isolate native BLE link ownership and await stop cleanup before reconnect. Preserve 3-second weighing and all save/print rules. Device timing and sleep/reconnect require field acceptance.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "f380e21",
+        "baseCommit": "6d944be",
         "sourceFiles": [
           "src/manifest.json",
-          "src/services/pda/labelPrinter.js"
+          "src/components/domain/pda/PdaReweighView.vue",
+          "src/composables/pda/usePdaReweigh.js",
+          "src/services/fillingOperations.js",
+          "src/services/pda/bleScaleCore.js",
+          "src/services/pda/reweighDraft.js"
         ]
       },
       "integrityScope": "deployment"

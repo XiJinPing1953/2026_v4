@@ -690,3 +690,40 @@ test('保存回瓶时只对本轮重复称重弹窗，取消不会提交', async
  assert.equal(accept.confirmations.filter(item => item.title === '确认再次回瓶复秤').length, 1)
  assert.equal(accept.requests.length, 1)
 })
+
+for (const returnMode of [false, true]) test(`pending receipts refresh across 24 hours without a write or blocking scan (${returnMode})`, async t => {
+ let resolved = false, queries = 0
+ const h = harness(t, { returnMode, send: async p => ({ code: 0, data: { operation_id: p.operation_id, saved_total: 1, complete: false } }),
+  query: async id => { queries++; return { code: 0, data: { operation_id: id, saved_total: 1, complete: resolved } } } })
+ await h.measure(); await h.form.submit(); await h.form.nextBottle(); await h.form.deactivate()
+ resolved = true; h.pause(25 * 3600000); await h.form.activate(); await tick()
+ assert.equal(h.form.history.value[0].receipt.complete, true)
+ assert.equal(h.form.busy.value, false); assert.equal(h.requests.length, 1); assert.ok(queries > 0)
+ assert.equal(await h.form.endRound(), true)
+})
+test('ending a round rechecks stale pending receipts but preserves real failures', async t => {
+ let complete = false
+ const h = harness(t, { send: async p => ({ code: 0, data: { operation_id: p.operation_id, saved_total: 1, complete: false } }), query: async id => ({ code: 0, data: { operation_id: id, saved_total: 1, complete } }) })
+ await h.measure(); await h.form.submit(); await h.form.nextBottle()
+ assert.equal(await h.form.endRound(), false)
+ complete = true
+ assert.equal(await h.form.endRound(), true)
+ assert.equal(h.requests.length, 1)
+})
+test('late pending receipt never downgrades confirmed completion and foreign receipts cannot save', () => {
+ const old = { saved: true, complete: true, status: 'complete', fillingId: 'f1' }
+ assert.equal(draft.reweighReceipt({code:0,data:{operation_id:'op',saved_total:1,complete:false}}, 'op', old).complete, true)
+ assert.equal(draft.reweighReceipt({code:500,data:{operation_id:'op',saved_total:1,complete:true}}, 'op').saved, false)
+ assert.equal(draft.reweighReceipt({code:0,data:{operation_id:'other',saved_total:1,complete:true}}, 'op').saved, false)
+})
+
+test('background receipt refresh cannot print or apply after page hide/account change', async t => {
+ for(const change of ['hide','owner']) {
+  let finish, printed=0
+  const h=harness(t,{send:async p=>({code:0,data:{operation_id:p.operation_id,saved_total:1,complete:false}}),query:id=>new Promise(resolve=>{finish=()=>resolve({code:0,data:{operation_id:id,saved_total:1,complete:true}})}),printing:{arm(){},confirmed(){printed++},close(){}}})
+  await h.measure();await h.form.submit();await h.form.nextBottle();await h.form.deactivate();await h.form.activate();await tick()
+  assert.equal(h.form.busy.value,false)
+  if(change==='hide')await h.form.deactivate();else h.setOwner('another')
+  finish();await tick();assert.equal(h.form.history.value[0].receipt.complete,false);assert.equal(printed,1)
+ }
+})
