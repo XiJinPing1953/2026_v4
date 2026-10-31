@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm')
 function modules(globals={}) {
  const source=fs.readFileSync('src/services/pda/labelPrinter.js','utf8').replace(/^export /gm,'')+'\n'+fs.readFileSync('src/services/pda/fillingPrint.js','utf8').replace(/^import .*\n/gm,'').replace(/^export /gm,'')
- return vm.runInNewContext(source+'\n;({TEST_LABEL,labelLayout,createLabelPrinterSession,getPairedPrinters,createFillingPrintController,savedLabel,isSuperseded,verifyCurrentLabel})',{setTimeout,clearTimeout,Date,...globals})
+ return vm.runInNewContext(source+'\n;({TEST_LABEL,labelLayout,writeLabel,createLabelPrinterSession,getPairedPrinters,createFillingPrintController,savedLabel,isSuperseded,verifyCurrentLabel})',{setTimeout,clearTimeout,Date,...globals})
 }
 const entry=(id='op1')=>({operationId:id,bottleNo:'0015',preview:{context_hash:'v',label:{company:'新拓能源',bottle_no:'0015',tare_weight:110,gross_weight:185.5,net_weight:75.5}},frozen:{mode:'create',payload:{operation_id:id,bottle_no:'0015',gross_weight:185.5,context_hash:'v'}},receipt:{saved:true,fillingId:'fill1'}})
 function harness(options={}) {
@@ -41,7 +41,7 @@ test('missing or mutable label never falls back to current bottle master',()=>{
  e.preview.context_hash='changed';assert.throws(()=>m.savedLabel(e));delete e.preview.label;assert.throws(()=>m.savedLabel(e))
 })
 test('layout contains only five fields, centered title and bounded long bottle lines',()=>{
- const m=modules();for(const bottle of ['0015','X046','A'.repeat(48)]){const l=m.labelLayout({...m.TEST_LABEL,bottle_no:bottle});assert.ok(l.lines.every(x=>x.x>=16 && x.y+24<=304));assert.ok(l.qrX-l.quiet>=240 && l.qrX+l.qrWidth+l.quiet<=464 && l.qrY-l.quiet>=80 && l.qrY+l.qrWidth+l.quiet<=304);assert.doesNotMatch(l.qr,/回瓶|灌装量/);assert.match(l.qr,/皮重：110.0 kg/)}
+ const m=modules();for(const bottle of ['0015','X046','A'.repeat(48)]){const l=m.labelLayout({...m.TEST_LABEL,bottle_no:bottle});assert.ok(l.lines.every(x=>x.x>=16 && x.y+l.fontSize<=304));assert.ok(l.qrX-l.quiet>=240 && l.qrX+l.qrWidth+l.quiet<=464 && l.qrY-l.quiet>=80 && l.qrY+l.qrWidth+l.quiet<=304);assert.doesNotMatch(l.qr,/回瓶|灌装量/);assert.match(l.qr,/皮重：110.0 kg/)}
  assert.throws(()=>m.labelLayout({...m.TEST_LABEL,bottle_no:'bad"\nPRINT'}))
 })
 test('native ownership is exclusive, closed late callbacks cannot reconnect or touch scale',async()=>{
@@ -78,12 +78,23 @@ test('filling text and QR have matching vertical centers and 16-dot safe margins
   const q={left:l.qrX-l.quiet,right:l.qrX+l.qrWidth+l.quiet,top:l.qrY-l.quiet,bottom:l.qrY+l.qrWidth+l.quiet}
   assert.ok(q.left>=240&&q.right<=464&&q.top>=80&&q.bottom<=304)
   const first=l.lines[0],last=l.lines[l.lines.length-1]
-  assert.ok(Math.abs((first.y+last.y+24)/2-(q.top+q.bottom)/2)<=1)
-  assert.equal(last.text,'单位: kg')
-  for(const row of l.lines){const w=[...row.text].reduce((n,c)=>n+(c.charCodeAt(0)>127?24:12),0);assert.equal(row.x,32);assert.ok(row.x+w<=q.left&&row.y>=80&&row.y+24<=304)}
+  assert.ok(Math.abs((first.y+last.y+l.fontSize)/2-(q.top+q.bottom)/2)<=1)
+  assert.match(last.text,/^净重:.*kg$/)
+  for(const row of l.lines){const w=[...row.text].reduce((n,c)=>n+(c.charCodeAt(0)>127?l.fontSize:l.fontSize/2),0);assert.equal(row.x,40);assert.ok(row.x+w<=q.left&&row.y>=80&&row.y+l.fontSize<=304)}
   const QRCode=require('qrcode-terminal/vendor/QRCode'),Level=require('qrcode-terminal/vendor/QRCode/QRErrorCorrectLevel')
   const qr=new QRCode(-1,Level.M);qr.addData(url);qr.make();assert.equal(qr.getModuleCount()*l.moduleSize,l.qrWidth)
  }
  const testLabel=m.labelLayout(m.TEST_LABEL,true)
- assert.ok(testLabel.lines.every(row=>row.y+24<=272));assert.ok(testLabel.qrY+testLabel.qrWidth+testLabel.quiet<=272)
+ assert.ok(testLabel.lines.every(row=>row.y+testLabel.fontSize<=272));assert.ok(testLabel.qrY+testLabel.qrWidth+testLabel.quiet<=272)
+})
+
+test('normal filling label sends larger text with kg on each weight; long values fit safely',()=>{
+ const m=modules(),label={...m.TEST_LABEL,bottle_no:'87',tare_weight:124,gross_weight:185.5,net_weight:61.5},l=m.labelLayout(label)
+ assert.equal(l.fontSize,32);assert.deepEqual(Array.from(l.lines,x=>x.text),['瓶号:87','皮重:124.0kg','毛重:185.5kg','净重:61.5kg'])
+ const calls=[],plugin=new Proxy({}, {get:(o,k)=>(...args)=>{calls.push([k,...args])}})
+ m.writeLabel(plugin,label);const text=calls.filter(x=>x[0]==='setText').slice(1)
+ assert.equal(text.length,4);assert.ok(text.every(x=>x[1]===40&&x[3]==='TSS32.BF2'))
+ for(const value of [{...label,bottle_no:'A'.repeat(48)},{...label,tare_weight:111111.1,gross_weight:999999.9,net_weight:888888.8}]){
+  for(const test of [false,true]){const x=m.labelLayout(value,test);assert.equal(x.fontSize,24);assert.ok(x.lines.every(row=>row.x+[...row.text].reduce((n,c)=>n+(c.charCodeAt(0)>127?24:12),0)<=x.qrX-x.quiet&&row.y+24<=(test?272:304)))}
+ }
 })

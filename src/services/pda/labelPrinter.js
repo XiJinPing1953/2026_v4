@@ -21,34 +21,40 @@ export function labelQrText(value) {
 }
 export function labelLayout(value, test = false) {
  const l = normalizePrintLabel(value), qr = labelQrText(value)
- const width = s => [...s].reduce((n, c) => n + (c.charCodeAt(0) > 127 ? 24 : 12), 0)
- const lines = []; let line = ''
- // 204-dot text column and a separate 224-dot QR region; never overlap.
- for (const ch of `瓶号: ${l.bottle_no}`) {
-  if (width(line + ch) > 204) { lines.push(line); line = '' }
-  line += ch
+ const textX = 40, textRight = 240, bodyTop = 80, bodyBottom = test ? 272 : 304
+ const weights = [`皮重:${l.tare_weight.toFixed(1)}kg`, `毛重:${l.gross_weight.toFixed(1)}kg`, `净重:${l.net_weight.toFixed(1)}kg`]
+ const makeText = size => {
+  const width = s => [...s].reduce((n, c) => n + (c.charCodeAt(0) > 127 ? size : size / 2), 0)
+  const lines = []; let line = ''
+  for (const ch of `瓶号:${l.bottle_no}`) {
+   if (width(line + ch) > textRight - textX) { lines.push(line); line = '' }
+   line += ch
+  }
+  lines.push(line, ...weights)
+  const lineHeight = size + 4, height = (lines.length - 1) * lineHeight + size
+  return lines.every(s => width(s) <= textRight - textX) && height <= bodyBottom - bodyTop
+   ? { lines, size, lineHeight, height } : null
  }
- lines.push(line, `皮重: ${l.tare_weight.toFixed(1)}`, `毛重: ${l.gross_weight.toFixed(1)}`, `净重: ${l.net_weight.toFixed(1)}`, '单位: kg')
+ // Fall back to the known 24-dot font for long values, without clipping the QR quiet zone.
+ const text = makeText(32) || makeText(24)
+ if (!text) throw new Error('标签文字过长，暂不能按当前标签打印')
  const bytes = [...qr].reduce((n, ch) => n + (ch.charCodeAt(0) > 127 ? 2 : 1), 0)
  const version = [14,26,42,62,84,106,122,152,180,213,251,287,331,362,412,450,504].findIndex(capacity => bytes <= capacity) + 1
  if (!version) throw new Error('标签内容过长，暂不能打印')
- const bodyTop = 80, bodyBottom = test ? 272 : 304
  const side = Math.min(224, bodyBottom - bodyTop)
  const moduleSize = Math.min(4, Math.floor(side / (25 + version * 4)))
  if (moduleSize < 3) throw new Error('二维码内容过长，请使用新标签网址')
  const qrWidth = (17 + version * 4) * moduleSize, quiet = 4 * moduleSize
  const qrX = 240 + Math.floor((224 - qrWidth) / 2)
  const qrY = bodyTop + Math.floor((bodyBottom - bodyTop - qrWidth) / 2)
- const textHeight = (lines.length - 1) * 28 + 24
- if (textHeight > bodyBottom - bodyTop || lines.some(s => width(s) > 204)) throw new Error('标签文字过长，暂不能按当前标签打印')
- const textTop = bodyTop + Math.floor((bodyBottom - bodyTop - textHeight) / 2)
- return { label: l, qr, qrX, qrY, qrWidth, quiet, moduleSize, lines: lines.map((text, i) => ({ text, x: 32, y: textTop + i * 28 })), test }
+ const textTop = bodyTop + Math.floor((bodyBottom - bodyTop - text.height) / 2)
+ return { label: l, qr, qrX, qrY, qrWidth, quiet, moduleSize, fontSize: text.size, lines: text.lines.map((value, i) => ({ text: value, x: textX, y: textTop + i * text.lineHeight })), test }
 }
 export function writeLabel(plugin, label, test = false) {
  const layout = labelLayout(label, test)
  plugin.clear(); plugin.setSize(60,40); plugin.setCls(); plugin.setDirection(0); plugin.setReference(0,0)
  plugin.setText(144,16,'TSS24.BF2',2,2,'新拓能源')
- for (const row of layout.lines) plugin.setText(row.x,row.y,'TSS24.BF2',1,1,row.text)
+ for (const row of layout.lines) plugin.setText(row.x,row.y,`TSS${layout.fontSize}.BF2`,1,1,row.text)
  if (test) plugin.setText(16,280,'TSS24.BF2',1,1,'测试标签 勿贴实瓶')
  plugin.setQR(layout.qrX,layout.qrY,'M',layout.moduleSize,'A',layout.qr)
  plugin.setPagePrint(); return plugin.startPrint()

@@ -339,19 +339,18 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.52",
+      "version": "1.0.53",
       "output": "release/pda",
-      "acceptance": "Confirm repeat return reweigh only when the prior record is in the same round; preserve save, history and other behavior. Onsite acceptance remains pending.",
+      "acceptance": "Filling 60x40 label places kg after each weight, enlarges and shifts the left column right; long values fall back to 24-dot font. Actual TSS32 printer support and label output require onsite acceptance.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "a218fb8",
+        "baseCommit": "f380e21",
         "sourceFiles": [
           "src/manifest.json",
-          "src/composables/pda/usePdaReweigh.js",
-          "src/services/pda/reweighDraft.js"
+          "src/services/pda/labelPrinter.js"
         ]
       },
       "integrityScope": "deployment"
