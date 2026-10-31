@@ -159,21 +159,22 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.42",
+      "version": "1.0.43",
       "output": "release/pda",
-      "acceptance": "PDA 1.0.42: recover reweigh drafts/history asynchronously in bounded batches after the lightweight page shell mounts. Block editing until full validation; timeout/read failure cannot become an empty draft, and late account/root changes refuse recovery. Keep 1.0.41 native snapshots and immediate navigation, saved/pending operations and scanner/weighing/printing rules. WGT only; crm-filling remains an unchanged dependency, no cloud/schema deployment. Device entry responsiveness requires field acceptance.",
+      "acceptance": "PDA 1.0.43: approved bordered round/work/history layout on both reweigh pages, with filling printer inside the round card. Native-only route and dashboard compilation reduces the PDA WGT; keep all PDA, inspection, public label and shared bottle timeline entries. Preserve weighing/scanning/printing, complete local history and pending-operation recovery. WGT only; crm-filling is unchanged, no cloud/schema/H5/APK deployment. Field layout/responsiveness acceptance remains separate.",
       "deploymentScope": {
         "functions": [
           "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "4f08a8447699a11adeeebbab5cdaeea4c3475e2d",
+        "baseCommit": "f3c43ad6dc16b121c5e1c94d4af08c5d31f5d2b2",
         "sourceFiles": [
           "src/components/domain/pda/PdaReweighView.vue",
-          "src/composables/pda/usePdaReweigh.js",
+          "src/components/domain/pda/PdaWeighScale.vue",
           "src/manifest.json",
-          "src/services/pda/asyncStorage.js",
-          "src/services/pda/reweighDraft.js"
+          "src/pages.json",
+          "src/pages/index/index.vue",
+          "src/services/pda/entry.js"
         ]
       },
       "integrityScope": "deployment"

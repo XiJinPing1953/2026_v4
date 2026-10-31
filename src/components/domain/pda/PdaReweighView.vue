@@ -9,13 +9,16 @@
 			<text v-if="storageError" class="notice notice--error">草稿未能保存：{{ storageError }}。请保留本页，恢复本机存储后再试。</text>
 
 
+			<view class="round-card">
 			<view class="round-summary">
+				<view class="round-main">
 				<text class="round-count">{{ round ? '本轮已保存 ' + (roundReady ? round.bottle_count : '—') + ' 瓶' : lastEndedRound ? '本轮已结束 · ' + lastEndedRound.bottle_count + ' 瓶' : '本轮尚未开始' }}</text>
-				<AppButton v-if="(round || pendingEndRound) && !pendingRound" :disabled="busy || !canCreate" @click="onEndRound">{{ pendingEndRound ? '重试结束本轮' : '结束本轮' }}</AppButton>
-				<AppButton v-else :disabled="busy || !canCreate || Boolean(pendingEndRound)" @click="onStartRound">{{ pendingRound ? '重试开始本轮' : '开始新一轮' }}</AppButton>
+				<AppButton class="detail-link" kind="ghost" size="sm" @click="roundDetails = !roundDetails">{{ roundDetails ? '收起本轮详情 ⌃' : '本轮详情 ›' }}</AppButton>
+				</view>
+				<AppButton kind="outline" v-if="(round || pendingEndRound) && !pendingRound" :disabled="busy || !canCreate" @click="onEndRound">{{ pendingEndRound ? '重试结束本轮' : '结束本轮' }}</AppButton>
+				<AppButton kind="outline" v-else :disabled="busy || !canCreate || Boolean(pendingEndRound)" @click="onStartRound">{{ pendingRound ? '重试开始本轮' : '开始新一轮' }}</AppButton>
 			</view>
 			<text v-if="pendingEndRound" class="notice">结束结果还未确认，请点“重试结束本轮”；已保存记录保留。</text>
-			<AppButton kind="ghost" size="sm" @click="roundDetails = !roundDetails">{{ roundDetails ? '收起本轮详情' : '本轮详情' }}</AppButton>
 			<text v-if="pendingRound" class="notice">还没确认新一轮是否开始，请点“重试开始本轮”。</text>
 			<view v-if="roundDetails || !round || pendingRound" class="facts">
 				<view class="actions">
@@ -27,14 +30,17 @@
 			<text v-if="historySyncError" class="notice notice--error">{{ historySyncError }}</text>
 			<view v-if="!isReturn" class="printer-strip">
 				<text>{{ printer.status.value }}</text>
-				<AppButton kind="outline" size="sm" :disabled="printer.connecting.value || printer.busy.value" @click="printer.connect">{{ printer.connected.value ? '重连打印机' : '连接打印机' }}</AppButton>
+				<AppButton kind="outline" size="sm" :disabled="printer.connecting.value || printer.busy.value" @click="printer.connect">{{ printer.connected.value ? '重连' : '连接' }}</AppButton>
 			</view>
-			<PdaWeighScale :minimum-weight="captureMinimum" :snapshot="snapshot" :selected="Boolean(current.bottleNo)" :captured="Boolean(current.capture)" :gross="current.grossWeight" :tare="current.preview?.bottle?.tare_weight" :busy="busy" @connect="connect" @disconnect="disconnect" />
-			<AppSection v-if="!current.frozen" :title="current.bottleNo ? current.bottleNo + ' 号瓶' : '请扫码选瓶'">
+			</view>
+			<view class="work-card">
+			<PdaWeighScale embedded :minimum-weight="captureMinimum" :snapshot="snapshot" :selected="Boolean(current.bottleNo)" :captured="Boolean(current.capture)" :gross="current.grossWeight" :tare="current.preview?.bottle?.tare_weight" :busy="busy" @connect="connect" @disconnect="disconnect" />
+			<AppSection class="work-section" v-if="!current.frozen" :title="current.bottleNo ? current.bottleNo + ' 号瓶' : '请扫码选瓶'">
 				<text v-if="error" class="notice notice--error" role="alert">{{ error }}</text>
 				<text v-else-if="message && !current.capture" class="hint" role="status">{{ message }}</text>
+				<text v-if="!current.bottleNo && !message && !error" class="hint">按扫描键选择钢瓶</text>
 				<text v-if="current.bottleNo" :class="['weigh-label', current.capture ? 'weigh-label--ready' : 'weigh-label--pending']">{{ current.capture ? '已称好' : '还没称好' }}</text>
-				<AppButton v-if="!current.bottleNo" kind="ghost" @click="manualOpen = !manualOpen">手输瓶号 {{ manualOpen ? '收起' : '展开' }}</AppButton>
+				<AppButton class="detail-link manual-toggle" v-if="!current.bottleNo" kind="ghost" @click="manualOpen = !manualOpen">手输瓶号 {{ manualOpen ? '收起 ⌃' : '›' }}</AppButton>
 				<view v-if="!current.bottleNo && (manualOpen || !scannerReady)">
 				<PdaBottleSuggestField
 					:model-value="current.bottleNo || bottleKeyword" label="瓶号" placeholder="按 PDA 扫码键，或输入瓶号"
@@ -92,7 +98,7 @@
 				</view>
 			</AppSection>
 
-			<AppSection v-if="current.frozen" :title="receiptTitle(current.receipt)">
+			<AppSection class="work-section" v-if="current.frozen" :title="receiptTitle(current.receipt)">
 				<text v-if="error" class="notice notice--error" role="alert">{{ error }}</text>
 				<text class="hint">{{ current.receipt?.message || '还没确认是否保存成功，请点查询保存结果。' }}</text>
 				<view v-if="!isReturn && current.receipt?.saved" class="print-result">
@@ -112,8 +118,10 @@
 				<text v-if="!current.receipt?.saved" class="hint">还没确认是否保存成功，请查询或重试这笔记录。</text>
 			</AppSection>
 
-			<AppSection v-for="group in historyGroups" :key="group.title" :title="group.title">
-				<template #actions><AppButton size="sm" kind="ghost" @click="showHistory = !showHistory">{{ showHistory ? '收起' : '展开' }}（{{ group.items.length }}）</AppButton></template>
+			</view>
+
+			<AppSection :class="['history-section', !showHistory && 'history-section--closed']" v-for="group in historyGroups" :key="group.title" :title="group.title + ' ' + group.items.length + ' 条'">
+				<template #actions><AppButton size="sm" kind="ghost" @click="showHistory = !showHistory">{{ showHistory ? '收起 ⌃' : '展开 ⌄' }}</AppButton></template>
 				<view v-if="showHistory">
 				<view v-for="item in group.items.slice().reverse()" :key="item.operationId" class="history-row">
 					<text>{{ item.bottleNo }} 号瓶 · {{ isReturn ? '回瓶毛重' : '本次灌装量' }} {{ weight(isReturn ? item.grossWeight : item.preview?.fill_weight) }} kg</text>
@@ -155,7 +163,7 @@ const form = usePdaReweigh({ mode: props.mode, printing: isReturn ? null : print
 const { draftLoading, captureMinimum, current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, startRound, refreshRound,
 	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText, endRound } = form
 const historyGroups = computed(() => [
-	{ title: '本轮已保存记录', items: roundHistory.value },
+	{ title: '称重记录', items: roundHistory.value },
 	{ title: '其他轮次待处理记录', items: recoveryHistory.value }
 ].filter(group => group.items.length))
 const readyForBottle = computed(() => Boolean(round.value?._id) && !pendingEndRound.value && (!isReturn || roundReady.value))
@@ -183,12 +191,26 @@ defineExpose({ activate, deactivate })
 </script>
 
 <style scoped>
-.printer-strip { display:flex; flex-wrap:wrap; align-items:center; gap:12px; font-size:16px; margin:8px 0; }
+.printer-strip { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:16px; padding-top:8px; margin-top:4px; border-top:1px solid #e2e8f0; }
+.printer-strip > text { min-width:0; overflow-wrap:anywhere; }
 .print-result { display:flex; flex-direction:column; gap:8px; margin:12px 0; font-size:16px; }
 .printer-strip :deep(.btn), .print-result :deep(.btn) { min-height:48px; font-size:16px; }
 .reweigh-page { font-size: 16px; }
 .reweigh-page--editing { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
-.round-count { font-size: 18px; font-weight: 700; }
+.round-count { display:block; font-size:18px; font-weight:700; line-height:1.5; }
+.round-card, .work-card { background:#fff; border:1px solid #cbd5e1; border-radius:8px; }
+.round-card { padding:12px; }
+.round-main { flex:1; min-width:0; }
+.reweigh-page .round-main .detail-link { justify-content:flex-start; padding:0; min-height:44px; height:44px; }
+.work-card { overflow:hidden; }
+.work-card > .work-section { border:0; border-top:1px solid #e2e8f0; border-radius:0; }
+.reweigh-page .work-section :deep(.section__header) { border-bottom:0; padding:12px 12px 0; }
+.reweigh-page .work-section :deep(.section__body) { padding:8px 12px; }
+.reweigh-page .work-section .manual-toggle { margin:4px 0 0; padding-left:0; justify-content:flex-start; min-height:44px; height:44px; }
+.reweigh-page .history-section { border:1px solid #cbd5e1; border-radius:8px; }
+.reweigh-page .history-section :deep(.section__header) { padding:6px 12px; }
+.reweigh-page .history-section--closed :deep(.section__header) { border-bottom:0; }
+.reweigh-page .history-section--closed :deep(.section__body) { display:none; }
 .weigh-label { display: block; font-size: 18px; font-weight: 700; margin: 8px 0; }
 .weigh-label--ready { color: #166534; }
 .weigh-label--pending { color: #b42318; }
@@ -201,7 +223,8 @@ defineExpose({ activate, deactivate })
 .notice { display: block; padding: 12rpx 16rpx; margin-bottom: 0; border-radius: var(--crm-radius-sm); background: #eff6ff; color: #1e40af; font-size: 16px; line-height: 1.6; }
 .notice--error { background: #fff7ed; color: #9a3412; }
 .scale-strip, .actions, .result-secondary { display: flex; flex-wrap: wrap; align-items: center; gap: 16rpx; }
-.round-summary { padding: 18rpx 0; display: flex; align-items: center; justify-content: space-between; gap: 12rpx; flex-wrap: wrap; }
+.round-summary { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.round-summary > :deep(.btn) { padding:0 12px; }
 .round-summary .actions { margin: 0; }
 .scale-strip { justify-content: space-between; margin-bottom: 12rpx; }
 .live-weight { font-size: 32px; font-weight: 700; }

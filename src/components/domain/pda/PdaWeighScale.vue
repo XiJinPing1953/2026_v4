@@ -1,9 +1,13 @@
 <template>
- <view :class="['pda-scale', 'pda-scale--' + status.tone]">
-  <view class="reading"><text class="number">{{ weight }}</text><text>kg</text><text class="status" role="status">{{ status.text }}</text></view>
-  <AppButton v-if="snapshot.is_connected && !connectionIssue" kind="ghost" :disabled="busy || disabled" @click="settings = !settings">吊秤设置 {{ settings ? '收起' : '展开' }}</AppButton>
-  <view v-if="!snapshot.is_connected || connectionIssue || settings" class="controls">
-   <AppButton :loading="busy" :disabled="busy || disabled" @click="$emit('connect', false)">{{ snapshot.is_connected ? '重连吊秤' : '连接吊秤' }}</AppButton>
+ <view :class="['pda-scale', 'pda-scale--' + status.tone, embedded && 'pda-scale--embedded']">
+  <view v-if="embedded" class="scale-heading">
+   <view class="scale-weight"><view class="reading"><text class="number">{{ weight }}</text><text>kg</text></view><text class="scale-status" role="status">{{ status.text }}</text></view>
+   <AppButton v-if="!snapshot.is_connected || connectionIssue" :loading="busy" :disabled="busy || disabled" @click="$emit('connect', false)">{{ snapshot.is_connected ? '重连吊秤' : '连接吊秤' }}</AppButton>
+  </view>
+  <view v-else class="reading"><text class="number">{{ weight }}</text><text>kg</text><text class="status" role="status">{{ status.text }}</text></view>
+  <AppButton v-if="embedded || (snapshot.is_connected && !connectionIssue)" kind="ghost" :disabled="busy || disabled" @click="settings = !settings">吊秤设置 {{ settings ? (embedded ? '收起 ⌃' : '收起') : embedded ? '›' : '展开' }}</AppButton>
+  <view v-if="embedded ? settings : (!snapshot.is_connected || connectionIssue || settings)" class="controls">
+   <AppButton v-if="!embedded || (snapshot.is_connected && !connectionIssue)" :loading="busy" :disabled="busy || disabled" @click="$emit('connect', false)">{{ snapshot.is_connected ? '重连吊秤' : '连接吊秤' }}</AppButton>
    <AppButton kind="outline" :disabled="busy || disabled" @click="$emit('connect', true)">更换吊秤</AppButton>
    <AppButton v-if="snapshot.is_connected" kind="ghost" :disabled="busy || disabled" @click="$emit('disconnect')">断开</AppButton>
   </view>
@@ -13,7 +17,7 @@
 import { computed, ref } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
 import { pdaWeighStatus } from '@/services/pda/weighStatus'
-const props = defineProps({ snapshot: { type: Object, required: true }, selected: Boolean, captured: Boolean, gross: { default: null }, tare: { default: null }, positiveNet: Boolean, minimumWeight: { type: Number, default: 0 }, busy: Boolean, disabled: Boolean })
+const props = defineProps({ snapshot: { type: Object, required: true }, selected: Boolean, captured: Boolean, gross: { default: null }, tare: { default: null }, positiveNet: Boolean, minimumWeight: { type: Number, default: 0 }, busy: Boolean, disabled: Boolean, embedded: Boolean })
 defineEmits(['connect', 'disconnect'])
 const settings = ref(false)
 const status = computed(() => pdaWeighStatus(props.snapshot, props))
@@ -29,4 +33,9 @@ const weight = computed(() => props.snapshot.is_connected && props.snapshot.is_o
 .status { flex: 1; min-width: 80px; text-align: right; font-weight: 700; }
 .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .pda-scale :deep(.btn) { min-height: 48px; font-size: 16px; }
+.pda-scale--embedded { border:0; border-radius:0; background:#fff; padding:12px; }
+.scale-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.scale-weight { flex:1; min-width:0; }
+.scale-status { display:block; font-size:14px; line-height:1.5; }
+.pda-scale.pda-scale--embedded > :deep(.btn--ghost) { padding:0; justify-content:flex-start; min-height:44px; height:44px; }
 </style>

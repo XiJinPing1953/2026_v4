@@ -159,6 +159,7 @@
 				"app-plus": { "animationType": "none", "animationDuration": 0 }
 			}
 		},
+		// #ifndef APP-PLUS
 		{
 			"path": "pages/sale/list",
 			"style": {
@@ -231,12 +232,14 @@
 				"navigationBarTitleText": "流转记录"
 			}
 		},
+		// #endif
 		{
 			"path": "pages/bottle/timeline",
 			"style": {
 				"navigationBarTitleText": "单瓶时间线"
 			}
 		},
+		// #ifndef APP-PLUS
 		{
 			"path": "pages/bottle/loss",
 			"style": {
@@ -392,6 +395,7 @@
 				"navigationBarTitleText": "用户管理"
 			}
 		}
+		// #endif
 	],
 
 	"globalStyle": {

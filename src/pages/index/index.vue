@@ -1,11 +1,15 @@
 <template>
+	<!-- #ifndef APP-PLUS -->
 	<DashboardHome v-if="!redirecting" />
+	<!-- #endif -->
 </template>
 
 <script setup>
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+// #ifndef APP-PLUS
 import DashboardHome from '@/components/domain/dashboard/DashboardHome.vue'
+// #endif
 import { reLaunchOnce } from '@/services/navigation'
 import { getUser } from '@/services/auth'
 import { DEFAULT_HOME_PATH, isPdaAppMode, resolveHomePath } from '@/services/pda/entry'

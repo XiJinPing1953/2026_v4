@@ -8,6 +8,43 @@ export const STATION_SAFETY_INSPECTION_HOME_PATH = '/pages/station-safety-inspec
 export const DEFAULT_HOME_PATH = '/pages/index/index'
 export const LOGIN_PATH = '/pages/login/login'
 
+// Kept in sync with the APP-PLUS routes by pdaLightPackage.test.cjs.
+const NATIVE_PAGE_PATHS = new Set([
+	'/pages/index/index',
+	'/pages/public/filling-label',
+	'/pages/login/login',
+	'/pages/safety-management/home',
+	'/pages/safety-management/daily',
+	'/pages/safety-management/weekly',
+	'/pages/safety-management/monthly',
+	'/pages/safety-management/settings',
+	'/pages/safety-management/print',
+	'/pages/safety-inspection/home',
+	'/pages/station-safety-inspection/home',
+	'/pages/station-safety-inspection/form',
+	'/pages/station-safety-inspection/history',
+	'/pages/station-safety-inspection/detail',
+	'/pages/station-safety-inspection/hazards',
+	'/pages/station-safety-inspection/export',
+	'/pages/home-safety-inspection/home',
+	'/pages/home-safety-inspection/form',
+	'/pages/home-safety-inspection/history',
+	'/pages/home-safety-inspection/detail',
+	'/pages/home-safety-inspection/export',
+	'/pages/pda/home',
+	'/pages/pda/bottle-query',
+	'/pages/pda/movement-query',
+	'/pages/pda/customer-query',
+	'/pages/pda/return-reweigh',
+	'/pages/pda/reweigh',
+	'/pages/pda/sale-create',
+	'/pages/bottle/timeline'
+])
+
+export function isNativeAppPagePath(value) {
+	return NATIVE_PAGE_PATHS.has(normalizeAppPagePath(value))
+}
+
 const SAFETY_MANAGEMENT_PAGE_PATHS = new Set([
 	'/pages/safety-management/home',
 	'/pages/safety-management/daily',
@@ -81,6 +118,7 @@ export function resolveHomePath(userLike) {
 export function resolveLoginRedirectForRuntime(redirectUrl, userLike) {
 	const normalizedUrl = normalizeAppPageUrl(redirectUrl)
 	if (!normalizedUrl) return ''
+	if (isPdaAppMode() && !isNativeAppPagePath(normalizedUrl)) return ''
 	if (isSafetyInspectorRole(userLike)) {
 		return isSafetyInspectionPagePath(normalizedUrl) ? normalizedUrl : ''
 	}
@@ -95,6 +133,7 @@ export function shouldRedirectToPreferredHome(pagePath, userLike) {
 	const currentPath = normalizeAppPagePath(pagePath)
 	const targetPath = resolveHomePath(userLike)
 	if (!currentPath || !targetPath || currentPath === targetPath) return false
+	if (isPdaAppMode() && !isNativeAppPagePath(currentPath)) return true
 	if (isSafetyInspectorRole(userLike)) {
 		return currentPath !== LOGIN_PATH && !isSafetyInspectionPagePath(currentPath)
 	}
