@@ -1,0 +1,15 @@
+const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm')
+const source = fs.readFileSync('src/services/pda/floorScaleCalibration.js', 'utf8').replace(/export /g, '')
+const { floorScaleZeroCommand, floorScaleMassCommand, floorScaleKilogramsToGrams } = vm.runInThisContext(`${source}\n;({floorScaleZeroCommand,floorScaleMassCommand,floorScaleKilogramsToGrams})`)
+const hex = bytes => Buffer.from(bytes).toString('hex').toUpperCase()
+test('zero command matches the supplied protocol example', () => assert.equal(hex(floorScaleZeroCommand()), 'AA010308A6010700'))
+test('500 g and 20 kg calibration commands use grams and XOR', () => {
+	assert.equal(hex(floorScaleMassCommand('0.500')), 'AA01030C5D050900000001F4')
+	const command = floorScaleMassCommand('20')
+	assert.deepEqual([...command.slice(8)], [0, 0, 0x4e, 0x20])
+	assert.equal([...command].reduce((a, b) => a ^ b, 0), 0)
+})
+test('standard weights are exact positive grams inside the 32-bit field', () => {
+	assert.equal(floorScaleKilogramsToGrams('4294967.295'), 0xffffffff)
+	for (const input of ['', '0', '-1', '1.0001', '1e3', 'Infinity', '4294967.296']) assert.throws(() => floorScaleKilogramsToGrams(input))
+})

@@ -110,6 +110,7 @@ defineExpose({ activate, deactivate, closeRecords })
 const actions = [
 	{ title: '钢瓶查询', desc: '看瓶号、流向、空瓶重、检验日期', url: '/pages/pda/bottle-query' },
 	{ title: '罐装复秤', desc: '称罐装后的瓶子', url: '/pages/pda/reweigh', nativeOnly: true, createRequired: true },
+	{ title: '地秤罐装复秤', desc: '用蓝牙地秤称重', url: '/pages/pda/floor-reweigh', nativeOnly: true, createRequired: true },
 	{ title: '回瓶复秤', desc: '称回来的瓶子', url: '/pages/pda/return-reweigh', nativeOnly: true, createRequired: true },
 	{ title: isNative ? '称重销售' : '手机称重销售', desc: isNative ? '选客户，称瓶，保存' : '摄像头扫码、吊秤称重、提交瓶装 kg 销售', url: '/pages/pda/sale-create' }
 ].filter((item) => (!item.nativeOnly || isNative) && (!item.webOnly || !isNative) && canViewPage(item.url) && (!(item.createRequired || item.url === '/pages/pda/sale-create') || canPageAction(item.url, 'create')))

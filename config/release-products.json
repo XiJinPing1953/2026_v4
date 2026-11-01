@@ -217,22 +217,32 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.57",
+      "version": "1.0.58",
       "output": "release/pda",
-      "acceptance": "Fix three verified 1.0.56 regressions: resumable bounded discovery that does not starve queued jobs, one shared external request deadline, in-place daily-temperature retry with readback after unknown save, and caller-scoped guards before global auth UI. Preserve CRM weighing, saving, printing and no automatic repost after attempting. No schema, historical source data, native plugin or floor-scale changes. Device installation and real submission remain field acceptance.",
+      "acceptance": "Floor-scale commissioning and calibration only. Separate device binding, draft and round storage; no floor-scale business weight submission. Preserve existing hanging-scale and return reweigh, 3-second capture, saved receipts, printing and Hebei submission. PDA WGT only; no cloud functions, database, H5 or native changes. User installs and physically verifies calibration. Publishing does not auto-install or restart active work. The unchanged crm-hebei-filling entry is retained for existing backend dependency validation only and is not uploaded in this WGT-only release.",
       "deploymentScope": {
         "functions": [
           "crm-hebei-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "4475c1e10567d5d346b8327617c07057079ac6c3",
+        "baseCommit": "0a81b23a86fcebaa577f24cc1b60a96a658cf7a3",
         "sourceFiles": [
-          "src/components/domain/pda/PdaDailyTemperature.vue",
-          "src/components/domain/pda/PdaHebeiSubmissionStatus.vue",
-          "src/services/api/hebeiFilling.js",
+          "src/components/domain/pda/PdaFloorCalibration.vue",
+          "src/components/domain/pda/PdaFloorScale.vue",
+          "src/components/domain/pda/PdaHomeView.vue",
+          "src/components/domain/pda/PdaReweighView.vue",
+          "src/composables/pda/usePdaReweigh.js",
           "src/manifest.json",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/worker.js",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/protocol.js"
+          "src/pages.json",
+          "src/pages/pda/floor-reweigh.vue",
+          "src/services/pageAcl.js",
+          "src/services/pda/entry.js",
+          "src/services/pda/floorScaleCalibration.js",
+          "src/services/pda/floorScaleCalibrationController.js",
+          "src/services/pda/floorScaleDiagnostic.js",
+          "src/services/pda/floorScaleProtocol.js",
+          "src/services/pda/floorScaleSession.js",
+          "src/services/pda/reweighDraft.js"
         ]
       },
       "integrityScope": "deployment"

@@ -153,6 +153,12 @@
 			}
 		},
 		{
+			"path": "pages/pda/floor-reweigh",
+			"style": {
+				"navigationBarTitleText": "地秤罐装复秤"
+			}
+		},
+		{
 			"path": "pages/pda/sale-create",
 			"style": {
 				"navigationBarTitleText": "手机称重销售",

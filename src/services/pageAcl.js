@@ -10,8 +10,9 @@ const SAFETY_EXPORT_PATHS = new Set([
 export function normalizePagePath(value) {
 	const text = String(value || '').trim()
 	if (!text) return ''
-	if (text.startsWith('/')) return text
-	return `/${text}`
+	const path = text.startsWith('/') ? text : `/${text}`
+	// 地秤复秤复用罐装复秤权限及其云端写入权限，不创建更宽的权限入口。
+	return path === '/pages/pda/floor-reweigh' ? '/pages/pda/reweigh' : path
 }
 
 export function normalizePagePermissions(rawPermissions, roleTemplate) {

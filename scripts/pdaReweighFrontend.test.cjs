@@ -14,7 +14,9 @@ const asyncStorage = load('src/services/pda/asyncStorage.js', ['readPdaStorage']
 const display = load('src/services/pda/weighStatus.js', ['sameWeighDisplay'])
 const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight'])
 const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt', 'validReweighEntry', 'readReweighDraft', 'readReweighDraftAsync', 'reweighDraftKey', 'isSameReturnReweighRound'])
-const work = load('src/services/pda/reweighWorkStore.js', ['createReweighWorkStore', 'readReweighHistorySnapshot'], { ...draft, })
+const work = load('src/services/pda/reweighWorkStore.js', ['createReweighWorkStore', 'readReweighHistorySnapshot'], { ...draft })
+const calibrationProtocol = load('src/services/pda/floorScaleCalibration.js', ['floorScaleZeroCommand', 'floorScaleMassCommand', 'floorScaleKilogramsToGrams'])
+const calibrationController = load('src/services/pda/floorScaleCalibrationController.js', ['createFloorScaleCalibrationController'], { ...calibrationProtocol, setTimeout, clearTimeout })
 function harness(t, options = {}) {
 	let clock = Date.now(), weightFrame
 	class TestDate extends Date { static now() { return clock } }
@@ -32,6 +34,8 @@ function harness(t, options = {}) {
 		async stop() { stopped++; emit({ is_connected: false, is_online: false, session_id: `stopped-${++sequence}` }) },
 		async disconnect() { emit({ is_connected: false, is_online: false, session_id: `stopped-${++sequence}` }) },
 		updateProfile() {}, async connect() { emit({ is_connected: true }); return { code: 0 } },
+		getSnapshot() { return { ...latest } },
+		async writeCalibrationCommand(bytes, id) { options.calibrationWrites?.push({ bytes: [...bytes], id }) },
 		async discoverDevices() { return { code: 0, data: [{ deviceId: 'AA:BB:CC:DD:EE:FF', name: 'NVK' }] } }
 	}
 	function preview(params) {
@@ -48,6 +52,8 @@ function harness(t, options = {}) {
 		forgetSavedReweighOperations: () => {}, getUser: () => ({ _id: owner }), canPageAction: () => options.canCreate !== false,
 		getPdaBleScaleCapabilities: () => ({ transport: options.web ? 'web' : 'native', supported: true }),
 		createPdaBleScaleSession: profile => { assert.equal(profile.preserveMeasurementOnReadTimeout, true); weightFrame = profile.onWeightFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
+		createFloorScaleSession: () => scale,
+		createFloorScaleCalibrationController: options.realFloorCalibration ? calibrationController.createFloorScaleCalibrationController : () => ({ subscribe(fn) { fn({ pending: null, requiresReview: false, error: '', running: false }); return () => {} } }),
 		ensurePdaBleRuntimePermission: async () => ({ code: 0 }), quantizeBleScaleWeightKg: value => Math.round(value * 2) / 2,
 		normalizeBottleNo: value => String(value || '').trim().toUpperCase(),
 		enterBarcodeSession: async ({ onResult }) => { scanner = onResult; return { code: 0 } }, leaveBarcodeSession: async () => {},
@@ -86,9 +92,9 @@ function harness(t, options = {}) {
 			showActionSheet: params => params.success({ tapIndex: 0 })
 		}
 	})
-	const form = stateModule.usePdaReweigh({ mode: options.returnMode ? 'return' : 'filling', printing: options.printing })
+	const form = stateModule.usePdaReweigh({ mode: options.returnMode ? 'return' : 'filling', printing: options.printing, scaleMode: options.floor ? 'floor' : 'hanging' })
 	t.after(() => onDestroy.forEach(fn => fn()))
-	async function start() { await form.activate(); emit({ is_connected: true }) }
+	async function start() { await form.activate(); emit({ is_connected: true, ...(options.floor ? { is_online: true, sampled_at: Date.now(), device_id: 'floor-1', connection_key: 'connection-1', can_calibrate: true } : {}) }) }
 	function frames(weight, duration = 3100) { for (let i = 0; i <= duration; i += 100) { clock += 100; weightFrame({ session_id: latest.session_id, sampled_at: clock, display_kg: Math.round(weight * 2) / 2, device_id: 'NVK-1', raw: String(weight) }) } }
 	async function measure(bottle = '101', gross = 120) {
 		await start(); await form.selectBottle(bottle)
@@ -98,6 +104,70 @@ function harness(t, options = {}) {
 	}
 	return { pause: ms => { clock += ms; emit({ is_online: false, is_stable: false, weight_kg: null, error_code: 'read_timeout' }) }, frames, form, storage, requests, previews, confirmations, roundRequests, emit, start, measure, module: stateModule, scan: text => scanner({ rawText: text }), setOwner: value => { owner = value }, stopped: () => stopped }
 }
+
+test('回瓶和罐装复秤都在连续3秒同重量后采集', async t => {
+	for (const returnMode of [true, false]) {
+		const h = harness(t, { returnMode }); await h.start(); await h.form.selectBottle('101')
+		h.frames(120, 2900); assert.equal(h.form.current.value.capture, null)
+		h.frames(120, 0); assert.equal(h.form.current.value.grossWeight, 120)
+		assert.equal(h.form.current.value.capture.stable, true)
+	}
+})
+
+test('floor round ends visibly, persists across restart, and stays separate from hanging drafts', async t => {
+	const h = harness(t, { floor: true }); await h.start()
+	const id = h.form.round.value._id
+	h.form.current.value = { ...h.form.current.value, bottleNo: '101', roundId: id,
+		frozen: { mode: 'create', payload: { operation_id: h.form.current.value.operationId, bottle_no: '101' } },
+		receipt: { saved: true, complete: true } }
+	h.form.round.value = { ...h.form.round.value, bottle_count: 1, bottle_nos: ['101'] }
+	assert.equal(await h.form.endRound(), true)
+	assert.equal(h.form.round.value, null); assert.equal(h.form.history.value.length, 1)
+	assert.ok(h.storage.has('crm_pda_floor_reweigh_v1:u1')); assert.equal(h.storage.has('crm_pda_reweigh_v1:u1'), false)
+	await h.form.deactivate()
+	const restored = harness(t, { floor: true, storage: h.storage }); await restored.start()
+	assert.equal(restored.form.round.value, null); assert.equal(restored.form.history.value.length, 1)
+	assert.equal(await restored.form.selectBottle('102'), false)
+	assert.equal(await restored.form.startRound(), true)
+	assert.ok(restored.form.round.value._id); assert.equal(restored.form.round.value.bottle_count, 0)
+})
+test('floor cannot end a round with an unfinished bottle', async t => {
+	const h = harness(t, { floor: true }); await h.start(); await h.form.selectBottle('101')
+	const id = h.form.round.value._id
+	assert.equal(await h.form.endRound(), false); assert.equal(h.form.round.value._id, id)
+	assert.match(h.form.error.value, /保存或放弃/)
+})
+test('floor commissioning never submits business weight even if a draft contains capture data', async t => {
+	const h = harness(t, { floor: true }); await h.start(); await h.form.selectBottle('101')
+	h.form.current.value.capture = { stable: true, sampled_at: Date.now(), device_id: 'floor-1' }
+	h.form.current.value.grossWeight = 120
+	assert.equal(await h.form.submit(), false)
+	assert.equal(h.requests.length, 0)
+	assert.match(h.form.error.value, /尚未开放业务称重保存/)
+})
+test('floor end preserves round and pending operation on failure or uncertain save', async t => {
+	const options = { floor: true }, h = harness(t, options); await h.start()
+	const id = h.form.round.value._id
+	h.form.current.value = { ...h.form.current.value, bottleNo: '101', roundId: id, frozen: { mode: 'create', payload: { operation_id: h.form.current.value.operationId, bottle_no: '101' } }, receipt: { saved: false, complete: false } }
+	assert.equal(await h.form.endRound(), false); assert.equal(h.form.round.value._id, id)
+	h.form.current.value = { ...h.form.current.value, receipt: { saved: true, complete: true } }
+	options.storageFails = true
+	assert.equal(await h.form.endRound(), false); assert.equal(h.form.round.value._id, id); assert.equal(h.form.current.value.bottleNo, '101')
+})
+test('floor calibration blocks bottle operations and requires explicit confirmation for each command', async t => {
+	const writes = [], h = harness(t, { floor: true, realFloorCalibration: true, calibrationWrites: writes, modalResults: [false, true, true, true, true] })
+	await h.start(); assert.equal(h.form.setFloorCalibrationOpen(true), true)
+	assert.equal(await h.form.selectBottle('101'), false)
+	assert.equal(await h.form.sendFloorCalibration('zero'), false); assert.equal(writes.length, 0)
+	assert.equal(await h.form.sendFloorCalibration('zero'), true); assert.equal(writes.length, 1)
+	assert.equal(h.form.floorCalibrationState.value.pending.kind, 'zero')
+	assert.equal(await h.form.resolveFloorCalibration(true), true)
+	assert.equal(await h.form.sendFloorCalibration('mass', '0.500'), true); assert.equal(writes.length, 2)
+	assert.equal(await h.form.resolveFloorCalibration(true), true)
+	assert.equal(h.form.floorCalibrationState.value.requiresReview, false)
+	assert.equal(h.form.setFloorCalibrationOpen(false), true)
+	assert.equal(await h.form.selectBottle('101'), true)
+})
 
 test('one bottle gets its own window, half-kilogram gross and two distinct weights revalidated by server', async t => {
 	const h = harness(t); await h.measure('101', 120.1)
@@ -571,6 +641,24 @@ test('return notice distinguishes saved rounds without guessing for old drafts',
  assert.equal(notice({ mode: 'create' }, false), '')
 })
 
+test('保存回瓶时只对本轮重复称重弹窗，取消不会提交', async t => {
+ for (const previous of [null, { round_id: 'old-round', gross_weight: 110, net_weight: 10 }, { gross_weight: 110, net_weight: 10 }]) {
+  const h = harness(t, { returnMode: true, previous }); await h.measure('101', 120)
+  assert.equal(await h.form.submit(), true)
+  assert.equal(h.confirmations.some(item => item.title === '确认再次回瓶复秤'), false)
+  assert.equal(h.requests.length, 1)
+ }
+ const previous = { round_id: 'round-1', gross_weight: 110, net_weight: 10 }
+ const cancel = harness(t, { returnMode: true, previous, modalResults: [false] }); await cancel.measure('101', 120)
+ assert.equal(await cancel.form.submit(), false)
+ assert.equal(cancel.confirmations.filter(item => item.title === '确认再次回瓶复秤').length, 1)
+ assert.equal(cancel.requests.length, 0)
+ const accept = harness(t, { returnMode: true, previous }); await accept.measure('101', 120)
+ assert.equal(await accept.form.submit(), true)
+ assert.equal(accept.confirmations.filter(item => item.title === '确认再次回瓶复秤').length, 1)
+ assert.equal(accept.requests.length, 1)
+})
+
 for (const returnMode of [false, true]) test(`${returnMode ? 'return' : 'filling'} continuous save/next supports both scanner and manual entry; idle raw data does not rerender or rewrite`, async t => {
  const h = harness(t, { returnMode }); await h.start()
  for (let i = 0; i < 60; i++) {
@@ -672,24 +760,6 @@ for (const returnMode of [false, true]) test(`${returnMode ? '回瓶' : '罐装'
  h.frames(148, 0); assert.equal(h.form.current.value.grossWeight, 148)
  h.frames(125); assert.equal(h.form.current.value.grossWeight, 148)
  await h.form.submit(); assert.equal(h.requests[0].payload.gross_weight, 148)
-})
-
-test('保存回瓶时只对本轮重复称重弹窗，取消不会提交', async t => {
- for (const previous of [null, { round_id: 'old-round', gross_weight: 110, net_weight: 10 }, { gross_weight: 110, net_weight: 10 }]) {
-  const h = harness(t, { returnMode: true, previous }); await h.measure('101', 120)
-  assert.equal(await h.form.submit(), true)
-  assert.equal(h.confirmations.some(item => item.title === '确认再次回瓶复秤'), false)
-  assert.equal(h.requests.length, 1)
- }
- const previous = { round_id: 'round-1', gross_weight: 110, net_weight: 10 }
- const cancel = harness(t, { returnMode: true, previous, modalResults: [false] }); await cancel.measure('101', 120)
- assert.equal(await cancel.form.submit(), false)
- assert.equal(cancel.confirmations.filter(item => item.title === '确认再次回瓶复秤').length, 1)
- assert.equal(cancel.requests.length, 0)
- const accept = harness(t, { returnMode: true, previous }); await accept.measure('101', 120)
- assert.equal(await accept.form.submit(), true)
- assert.equal(accept.confirmations.filter(item => item.title === '确认再次回瓶复秤').length, 1)
- assert.equal(accept.requests.length, 1)
 })
 
 for (const returnMode of [false, true]) test(`saved pending records permit ending after 24 hours without any status query (${returnMode})`, async t => {
