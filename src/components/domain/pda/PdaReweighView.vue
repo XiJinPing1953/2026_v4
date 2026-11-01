@@ -33,6 +33,7 @@
 				<text>{{ printer.status.value }}</text>
 				<AppButton kind="outline" size="sm" :disabled="printer.connecting.value || printer.busy.value" @click="printer.connect">{{ printer.connected.value ? '重连' : '连接' }}</AppButton>
 			</view>
+			<PdaDailyTemperature v-if="!isReturn && props.scaleMode !== 'floor'" :active="form.active.value" :disabled="busy || !canCreate" />
 			</view>
 			<view class="work-card">
 			<PdaWeighScale embedded :minimum-weight="captureMinimum" :snapshot="snapshot" :selected="Boolean(current.bottleNo)" :captured="Boolean(current.capture)" :gross="current.grossWeight" :tare="current.preview?.bottle?.tare_weight" :busy="busy" @connect="connect" @disconnect="disconnect" />
@@ -102,6 +103,7 @@
 			<AppSection class="work-section" v-if="current.frozen" :title="submitting ? '正在保存' : receiptTitle(current.receipt)">
 				<text v-if="error" class="notice notice--error" role="alert">{{ error }}</text>
 				<text class="hint">{{ submitting ? '正在提交并确认保存结果，请稍候。' : current.receipt?.saved ? '记录已保存，可以继续下一瓶；处理详情可到复秤记录查询。' : current.receipt?.message || '还没确认是否保存成功，请点查询保存结果。' }}</text>
+				<PdaHebeiSubmissionStatus v-if="!isReturn && current.receipt?.saved" :active="form.active.value" :filling-id="current.receipt.fillingId" />
 				<view v-if="!isReturn && current.receipt?.saved" class="print-result">
 					<text>{{ printer.messages.value[current.operationId] || '可补打这笔记录的标签' }}</text>
 					<text v-if="printer.reason(current)" class="hint">{{ printer.reason(current) }}</text>
@@ -134,6 +136,8 @@ import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import { usePdaFillingPrinter } from '@/composables/pda/usePdaFillingPrinter'
 import PdaWeighScale from './PdaWeighScale.vue'
+import PdaDailyTemperature from './PdaDailyTemperature.vue'
+import PdaHebeiSubmissionStatus from './PdaHebeiSubmissionStatus.vue'
 import PdaReweighHistorySection from './PdaReweighHistorySection.vue'
 import PdaBottleSuggestField from '@/components/domain/pda/PdaBottleSuggestField.vue'
 import { reweighChangeText, usePdaReweigh } from '@/composables/pda/usePdaReweigh'

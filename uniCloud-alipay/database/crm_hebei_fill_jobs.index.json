@@ -1,0 +1,40 @@
+[
+  {
+    "IndexName": "hebei_filling_unique",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "filling_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": true,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "hebei_state_next",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "state",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "next_at",
+          "Direction": "1",
+          "Type": "double"
+        },
+        {
+          "Name": "created_at",
+          "Direction": "1",
+          "Type": "double"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  }
+]

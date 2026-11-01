@@ -149,27 +149,40 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.11.01-dashboard-bottle-assets.1",
+      "version": "2026.11.01-hebei-filling.1",
       "output": "release/cloud",
-      "acceptance": "User requested correct homepage at-customer/in-station cylinder counts on 2026-11-01: count only active actual cylinder assets; exclude zero placeholders, TRUCK vehicles and PDA test fixtures/test equipment. Quick and full summaries use one predicate, preserve customer visibility and inspection behavior. Only crm-dashboard is deployed; no H5, PDA or schema deployment. User also confirmed active X cylinders are at the existing Zhoushan Jinye customer; current archive corrections use crm-bottle.updateV1 with full backups/readback, without inventing historical shipment records.",
+      "acceptance": "Hebei background submission for newly saved PDA filling reweigh records, using 853 verified existing CRM identities. Daily temperature is entered manually once and reused for that China calendar day. Preserve original CRM save, weighing, print and stock behavior. Only new bridge function and its two dedicated collections, plus PDA temperature/status components. No historical upload or fabricated production test fill; real first-fill acceptance is tracked separately. Unpublished floor-scale changes are excluded.",
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
-          "crm-dashboard"
+          "crm-hebei-filling"
         ],
-        "databaseFiles": [],
-        "baseCommit": "a1a4c323e33692ef5cf81b2a0d34c6ebad01a044",
+        "databaseFiles": [
+          "crm_hebei_bridge_state.schema.json",
+          "crm_hebei_fill_jobs.schema.json",
+          "crm_hebei_fill_jobs.index.json"
+        ],
+        "baseCommit": "41c72671b501e6c01c94d3001af3ab7189a2b8c9",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-dashboard": {
-            "registry": {
-              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
-              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
-            }
-          }
-        }
+          "src/components/domain/pda/PdaDailyTemperature.vue",
+          "src/components/domain/pda/PdaHebeiSubmissionStatus.vue",
+          "src/components/domain/pda/PdaReweighView.vue",
+          "src/manifest.json",
+          "src/services/api/hebeiFilling.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/.gitignore",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/package.json",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/pageAclLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/personnel.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/plan.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/protocol.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/worker.js",
+          "uniCloud-alipay/database/crm_hebei_bridge_state.schema.json",
+          "uniCloud-alipay/database/crm_hebei_fill_jobs.index.json",
+          "uniCloud-alipay/database/crm_hebei_fill_jobs.schema.json"
+        ]
       }
     },
     "tank-gateway": {
@@ -220,18 +233,38 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.55",
+      "version": "1.0.56",
       "output": "release/pda",
-      "acceptance": "User approved direct release on 2026-10-31: filling label only. Enlarge the centered company title from 24 to 32 dots (smaller than the earlier 48-dot title), remove the bottom company name, rename the filling time caption to 时间 and raise it by 16 dots with a 32-dot bottom margin. Original minute filling time, weights, QR content, printing flow, sale receipts and 3000ms stability remain unchanged. crm-filling is checked as an existing dependency; no cloud function or database deployment in this release.",
+      "acceptance": "Hebei background submission for newly saved PDA filling reweigh records, using 853 verified existing CRM identities. Daily temperature is entered manually once and reused for that China calendar day. Preserve original CRM save, weighing, print and stock behavior. Only new bridge function and its two dedicated collections, plus PDA temperature/status components. No historical upload or fabricated production test fill; real first-fill acceptance is tracked separately. Unpublished floor-scale changes are excluded.",
       "deploymentScope": {
         "functions": [
-          "crm-filling"
+          "crm-hebei-filling"
         ],
-        "databaseFiles": [],
-        "baseCommit": "38a36835d7f695ff4962c41454b1d7c7e54ca6f1",
+        "databaseFiles": [
+          "crm_hebei_bridge_state.schema.json",
+          "crm_hebei_fill_jobs.schema.json",
+          "crm_hebei_fill_jobs.index.json"
+        ],
+        "baseCommit": "41c72671b501e6c01c94d3001af3ab7189a2b8c9",
         "sourceFiles": [
+          "src/components/domain/pda/PdaDailyTemperature.vue",
+          "src/components/domain/pda/PdaHebeiSubmissionStatus.vue",
+          "src/components/domain/pda/PdaReweighView.vue",
           "src/manifest.json",
-          "src/services/pda/labelPrinter.js"
+          "src/services/api/hebeiFilling.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/.gitignore",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/package.json",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/pageAclLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/personnel.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/plan.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/protocol.js",
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/worker.js",
+          "uniCloud-alipay/database/crm_hebei_bridge_state.schema.json",
+          "uniCloud-alipay/database/crm_hebei_fill_jobs.index.json",
+          "uniCloud-alipay/database/crm_hebei_fill_jobs.schema.json"
         ]
       },
       "integrityScope": "deployment"

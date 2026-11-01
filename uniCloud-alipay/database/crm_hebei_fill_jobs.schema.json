@@ -1,0 +1,6 @@
+{
+  "bsonType":"object",
+  "description":"以CRM灌装单为唯一来源的河北提交与回执台账；请求结果未知不得自动重发",
+  "permission":{"read":false,"create":false,"update":false,"delete":false},
+  "properties":{"_id":{"bsonType":"string"},"filling_id":{"bsonType":"string"},"state":{"bsonType":"string"},"source_hash":{"bsonType":"string"}}
+}

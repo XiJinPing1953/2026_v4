@@ -54,6 +54,7 @@ const cloudFunctionDirs = fs
 	.filter((entry) => !functionScope || functionScope.includes(entry.name))
 	.map((entry) => path.join(cloudFunctionsRoot, entry.name))
 const forceSyncedCloudFunctions = new Set([
+	'crm-hebei-filling',
 	'crm-home-safety-inspection',
 	'crm-home-safety-export',
 	'crm-station-safety-inspection',

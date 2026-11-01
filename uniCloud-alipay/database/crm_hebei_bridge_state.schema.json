@@ -1,0 +1,6 @@
+{
+  "bsonType":"object",
+  "description":"河北后台充装提交配置、每日人工参考温度及工作锁",
+  "permission":{"read":false,"create":false,"update":false,"delete":false},
+  "properties":{"_id":{"bsonType":"string"}}
+}
