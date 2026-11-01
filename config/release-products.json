@@ -149,52 +149,24 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.31-reweigh-light.1",
+      "version": "2026.11.01-dashboard-bottle-assets.1",
       "output": "release/cloud",
-      "acceptance": "User authorized release on 2026-10-31: confirmed saved reweighs may end/archive rounds; unknown saves retain original operation IDs and conflicts remain guarded. Processing details/retry are on records query, without an automatic per-record status sweep. PDA opts into durable source-save acknowledgement followed by existing server timer continuation. Preserve 3000ms weighing; isolate BLE cleanup and reject stale connect callbacks. Add native-text company watermarks and original filling business times to minute precision when supported by original capture evidence (never reprint/correction time) to labels/receipts. Existing two-copy/signature/feed rules retained. Actual device latency, screen-off reconnection and physical print/QR acceptance remain unverified.",
+      "acceptance": "User requested correct homepage at-customer/in-station cylinder counts on 2026-11-01: count only active actual cylinder assets; exclude zero placeholders, TRUCK vehicles and PDA test fixtures/test equipment. Quick and full summaries use one predicate, preserve customer visibility and inspection behavior. Only crm-dashboard is deployed; no H5, PDA or schema deployment. User also confirmed active X cylinders are at the existing Zhoushan Jinye customer; current archive corrections use crm-bottle.updateV1 with full backups/readback, without inventing historical shipment records.",
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
-          "crm-filling",
-          "crm-sale"
+          "crm-dashboard"
         ],
         "databaseFiles": [],
-        "baseCommit": "6d944bec8a306071ce45a9ae073d5b2497a0f482",
+        "baseCommit": "a1a4c323e33692ef5cf81b2a0d34c6ebad01a044",
         "sourceFiles": [
-          "src/components/domain/pda/PdaReweighHistorySection.vue",
-          "src/components/domain/pda/PdaReweighRecordsView.vue",
-          "src/components/domain/pda/PdaReweighView.vue",
-          "src/composables/pda/usePdaFillingPrinter.js",
-          "src/composables/pda/usePdaReweigh.js",
-          "src/composables/pda/usePdaReweighRecords.js",
-          "src/manifest.json",
-          "src/services/fillingOperations.js",
-          "src/services/pda/bleScaleCore.js",
-          "src/services/pda/fillingPrint.js",
-          "src/services/pda/labelPrinter.js",
-          "src/services/pda/printBusinessTime.js",
-          "src/services/pda/reweighDraft.js",
-          "src/services/pda/reweighHistory.js",
-          "src/services/pda/reweighWorkStore.js",
-          "src/services/pda/salePrint.js",
-          "uniCloud-alipay/cloudfunctions/common/fillingPrintTime.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/fillingLabels.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/fillingOperations.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/fillingPrintTimeLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/fillingPrintTime.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/fillingPrintTimeLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/pdaSaleRecords.js"
+          "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js"
         ],
         "aclCanonicalRevisions": {
-          "crm-sale": {
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            },
+          "crm-dashboard": {
             "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
+              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
             }
           }
         }

@@ -384,14 +384,25 @@ async function getTankTelemetryDebugV1(user, data, requestId) {
 	return { code: 0, data: row }
 }
 
+function buildBottleAssetStatusWhere(status, hiddenWhere = null) {
+	// Vehicle/placeholder numbers and the dedicated PDA test fixtures are not cylinder assets.
+	const where = {
+		status,
+		is_active: true,
+		bottle_no: db.RegExp({ regexp: '^(?!0+$)(?!TRUCK-)(?!PDA-SCALE-)[A-Z0-9]', options: 'i' }),
+		equipment_type: dbCmd.neq('测试气瓶')
+	}
+	return mergeVisibilityWhere(dbCmd, where, hiddenWhere)
+}
+
 async function quickStatusV1() {
 	const hidden = await fetchHiddenCustomerIds(customers)
 	const bottleHiddenWhere = buildNotHiddenCustomerFieldsWhere(dbCmd, hidden, ['current_customer_id'])
 	const today = formatDateCN(getCNDate()), end = addDaysDateCN(today, 60)
 	const [anomaly, atCustomer, inStation, tank] = await Promise.all([
 		anomalies.where({ status: 'open' }).count(),
-		bottles.where(mergeVisibilityWhere(dbCmd, { status: 'at_customer' }, bottleHiddenWhere)).count(),
-		bottles.where({ status: 'in_station' }).count(), getTankTelemetrySummary()
+		bottles.where(buildBottleAssetStatusWhere('at_customer', bottleHiddenWhere)).count(),
+		bottles.where(buildBottleAssetStatusWhere('in_station')).count(), getTankTelemetrySummary()
 	])
 	const [bottle, gauge, valve] = await Promise.all([
 		countInspectionDueByField('bottle_next_check_date', today, end, bottleHiddenWhere),
@@ -452,8 +463,8 @@ async function summaryV1(user, data, requestId) {
 	const anomalyCountRes = await anomalies.where({ status: 'open' }).count()
 	const anomalyOpen = anomalyCountRes.total || 0
 
-	const atCustomerRes = await bottles.where(mergeVisibilityWhere(dbCmd, { status: 'at_customer' }, bottleHiddenWhere)).count()
-	const inStationRes = await bottles.where({ status: 'in_station' }).count()
+	const atCustomerRes = await bottles.where(buildBottleAssetStatusWhere('at_customer', bottleHiddenWhere)).count()
+	const inStationRes = await bottles.where(buildBottleAssetStatusWhere('in_station')).count()
 
 	const weekDateWhere = dbCmd.and([{ date: dbCmd.gte(weekStart) }, { date: dbCmd.lte(weekEnd) }])
 	const weekSaleWhere = mergeVisibilityWhere(
