@@ -39,25 +39,33 @@ function createService({db,transport,index,now=()=>Date.now()}) {
   return {enterprise_id:'6739',mapping_count:index.records.length,personnel,lookup:{tag:target.tag,product_no:target.product_no,enterprise_id:target.enterprise_id},temperature:await temperature(),config:await getConfig()}
  }
  async function discover(config,deadline) {
-  // Rescan today's created/changed sources, without advancing a timestamp watermark.
-  // Older-day jobs already in the ledger remain visible and are never backdated/re-sent.
-  let cursor='',scanned=0
-  const midnight=Date.parse(day(now())+'T00:00:00+08:00')
-  while(now()<deadline){
-   const where=cmd.and({entry_source:'pda_reweigh',created_at:cmd.gte(config.activation_at),...(cursor?{_id:cmd.gt(cursor)}:{})},cmd.or({created_at:cmd.gte(midnight)},{updated_at:cmd.gte(midnight)}))
-   const rows=(await fillings.where(where).orderBy('_id','asc').limit(100).get()).data||[]
-   const previous=rows.length?(await jobs.where({filling_id:cmd.in(rows.map(r=>r._id))}).limit(100).get()).data||[]:[]
-   const byId=new Map(previous.map(j=>[j.filling_id,j]))
-   for(const r of rows){
-    const id=key(r._id),prev=byId.get(r._id),fingerprint=sourceHash(r)
-    if(!prev){try{await jobs.add({_id:id,filling_id:r._id,bottle_no:r.bottle_no,source_hash:fingerprint,source_version:r.source_version,state:'pending',next_at:0,created_at:now(),updated_at:now()})}catch(e){if(!first(await jobs.doc(id).get()))throw e}}
-    else if(prev.source_hash!==fingerprint&&prev.state!=='requires_review')await jobs.doc(id).update({state:'requires_review',previous_state:prev.state,reason:'CRM原记录已更正或改变，需核对已报内容',updated_at:now()})
-    scanned++
+  // Persist only successfully reconciled rows. An interrupted pass resumes its original
+  // day window (also across midnight); a complete pass starts over to catch corrections.
+  const saved=first(await states.doc('discovery').get())
+  const resume=saved?.activation_at===config.activation_at&&saved.date&&(saved.complete===false||saved.cursor)
+  let cursor=resume?saved.cursor:'',scanned=0,complete=false
+  const date=resume?saved.date:day(now()),midnight=Date.parse(date+'T00:00:00+08:00')
+  try{
+   while(now()<deadline-3000&&scanned<500){
+    const where=cmd.and({entry_source:'pda_reweigh',created_at:cmd.gte(config.activation_at),...(cursor?{_id:cmd.gt(cursor)}:{})},cmd.or({created_at:cmd.gte(midnight)},{updated_at:cmd.gte(midnight)}))
+    const rows=(await fillings.where(where).orderBy('_id','asc').limit(100).get()).data||[]
+    if(!rows.length){complete=true;break}
+    if(now()>=deadline-3000)break
+    const previous=(await jobs.where({filling_id:cmd.in(rows.map(r=>r._id))}).limit(100).get()).data||[]
+    const byId=new Map(previous.map(j=>[j.filling_id,j]))
+    for(const r of rows){
+     if(now()>=deadline-3000)return {scanned,complete:false}
+     const id=key(r._id),prev=byId.get(r._id),fingerprint=sourceHash(r)
+     if(!prev){try{await jobs.add({_id:id,filling_id:r._id,bottle_no:r.bottle_no,source_hash:fingerprint,source_version:r.source_version,state:'pending',next_at:0,created_at:now(),updated_at:now()})}catch(e){if(!first(await jobs.doc(id).get()))throw e}}
+     else if(prev.source_hash!==fingerprint&&prev.state!=='requires_review')await jobs.doc(id).update({state:'requires_review',previous_state:prev.state,reason:'CRM原记录已更正或改变，需核对已报内容',updated_at:now()})
+     cursor=r._id;scanned++
+    }
+    if(rows.length<100){complete=true;break}
    }
-   if(rows.length<100)return {scanned,complete:true}
-   cursor=rows[rows.length-1]._id
+   return {scanned,complete}
+  }finally{
+   await states.doc('discovery').set({_id:'discovery',activation_at:config.activation_at,date,complete,cursor:complete?'':cursor,updated_at:now()})
   }
-  return {scanned,complete:false}
  }
  async function acquire() {
   const lease=crypto.randomBytes(16).toString('hex'),time=now(),tx=await db.startTransaction()
@@ -67,24 +75,27 @@ function createService({db,transport,index,now=()=>Date.now()}) {
  }
  async function own(lease){const l=first(await states.doc('worker').get());if(l?.lease!==lease||l.until<=now())throw new Error('后台处理锁已失效');return true}
  async function checkSource(job){const r=first(await fillings.doc(job.filling_id).get());if(sourceHash(r)!==job.source_hash)throw new Error('CRM原记录已变化');return r}
- async function verify(job) {
-  const receipt=matchReceipt(job,await transport.records(day(JSON.parse(job.payload.czStr).cztime)))
+ async function verify(job,deadline) {
+  const receipt=matchReceipt(job,await transport.records(day(JSON.parse(job.payload.czStr).cztime),{deadline}))
   if(!receipt)return false
   await checkSource(job)
   await jobs.where({_id:job._id,state:cmd.in(['attempting','unknown','accepted_pending_verify'])}).update({state:'confirmed',receipt,confirmed_at:now(),updated_at:now(),reason:''})
   return true
  }
  async function run() {
+  const deadline=now()+45000
   const config=await getConfig()
   if(config.mode!=='enabled')return {mode:config.mode,processed:0}
   const lease=await acquire();if(!lease)return {busy:true}
-  const deadline=now()+45000,summary={processed:0,confirmed:0,waiting:0,blocked:0}
+  const summary={processed:0,confirmed:0,waiting:0,blocked:0}
   try{
-   const discovery=await discover(config,deadline);summary.discovery=discovery
-   if(!discovery.complete)return summary
+   // Discovery gets a small independent slice; an incomplete scan never starves jobs.
+   try{summary.discovery=await discover(config,Math.min(deadline-20000,now()+8000))}
+   catch(_){summary.discovery={complete:false,error:'发现任务暂未完成，下轮续查'}}
+   if(now()>deadline-12000)return summary
    const candidates=(await jobs.where({state:cmd.in(['pending','waiting','preparing','attempting','unknown','accepted_pending_verify']),next_at:cmd.lte(now())}).orderBy('next_at','asc').orderBy('created_at','asc').limit(10).get()).data||[]
    if(!candidates.length)return summary
-   await transport.authenticate()
+   await transport.authenticate({deadline})
    let people=null
    for(const job of candidates){
     if(now()>deadline-12000)break
@@ -93,7 +104,7 @@ function createService({db,transport,index,now=()=>Date.now()}) {
     try{
      const record=await checkSource(job)
      if(['attempting','unknown','accepted_pending_verify'].includes(job.state)){
-      const ok=await verify(job);if(ok)summary.confirmed++;else await jobs.doc(job._id).update({next_at:now()+300000,reason:'尚未找到唯一对应回执，只核验、不重发'})
+      const ok=await verify(job,deadline);if(ok)summary.confirmed++;else await jobs.doc(job._id).update({next_at:now()+300000,reason:'尚未找到唯一对应回执，只核验、不重发'})
       summary.processed++;continue
      }
      if(record.consistency_status!=='complete') {await jobs.doc(job._id).update({state:'waiting',next_at:now()+60000,reason:'等待CRM后台处理完成'});summary.waiting++;continue}
@@ -102,9 +113,9 @@ function createService({db,transport,index,now=()=>Date.now()}) {
      const found=(await bottles.where({bottle_no:record.bottle_no}).limit(2).get()).data||[]
      if(found.length!==1)throw new Error('CRM瓶档不唯一')
      const plan=prepare({record,bottle:found[0],index,weather:temp,policy:POLICY,now:now()})
-     if(!people)people=await transport.personnel()
-     const target=await transport.lookup(plan.content.expected_bottle.tag)
-     const baseline=await transport.records(day(now()))
+     if(!people)people=await transport.personnel({deadline})
+     const target=await transport.lookup(plan.content.expected_bottle.tag,{deadline})
+     const baseline=await transport.records(day(now()),{deadline})
      if(now()>deadline-12000)break
      const at=now(),payload=buildPayload(plan,target,people,at)
      if(day(at)!==temp.reference_date)throw new Error('日期已变化，等待填写当天温度')
@@ -116,19 +127,19 @@ function createService({db,transport,index,now=()=>Date.now()}) {
      if(changed.updated!==1)continue
      Object.assign(job,attempted)
      let response
-     try{response=await transport.submit(payload)}catch(_){await jobs.doc(job._id).update({state:'unknown',reason:'请求结果未知，需核验河北回执'});summary.processed++;continue}
+     try{response=await transport.submit(payload,{deadline})}catch(_){await jobs.doc(job._id).update({state:'unknown',reason:'请求结果未知，需核验河北回执'});summary.processed++;continue}
      const accepted=String(response?.code)==='0'
      // A server error is not proof of no commit. Preserve its digest; do not auto-retry.
      await jobs.doc(job._id).update({state:accepted?'accepted_pending_verify':'unknown',response_hash:hash(response),response_code:response?.code??null,reason:accepted?'等待河北记录回读':'河北未返回明确成功，需核验回执'})
      job.state=accepted?'accepted_pending_verify':'unknown'
-     if(now()<deadline-4000&&await verify(job))summary.confirmed++
+     if(now()<deadline-4000&&await verify(job,deadline))summary.confirmed++
      summary.processed++
     }catch(error){
      const current=first(await jobs.doc(job._id).get())
      if(!current)throw error
      if(sourceHash(first(await fillings.doc(job.filling_id).get()))!==job.source_hash){await jobs.doc(job._id).update({state:'requires_review',previous_state:current.state,reason:'CRM原记录已变化，需核对河北结果'});summary.blocked++}
      else if(['attempting','unknown','accepted_pending_verify'].includes(current.state))await jobs.doc(job._id).update({next_at:now()+300000,reason:'回执核验暂未完成，只核验、不重发'})
-     else if(/网络|查询失败|登录失败|分页|响应|HTTP/.test(error.message))await jobs.doc(job._id).update({state:'waiting',next_at:now()+60000,reason:error.message})
+     else if(error.code==='HEBEI_BUDGET'||/网络|查询失败|登录失败|分页|响应|HTTP/.test(error.message))await jobs.doc(job._id).update({state:'waiting',next_at:now()+60000,reason:error.message})
      else{await jobs.doc(job._id).update({state:'blocked',reason:error.message,updated_at:now()});summary.blocked++}
     }
    }

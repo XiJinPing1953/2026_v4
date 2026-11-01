@@ -29,41 +29,43 @@ function buildPayload(plan,target,personnel,at) {
 }
 function createTransport({request,config,now=()=>Date.now()}) {
  const allowed={sydw:['login'],gygas:['getCzPersonList','getGasCzRecordPage'],gygasgroup:['getGasGroupOrGasForCz'],fillgasinspect:['saveGyCzrecord']}
- async function call(service,method,data) {
+ async function call(service,method,data,{deadline=now()+45000}={}) {
   if(!allowed[service]?.includes(method))throw new Error('接口不在本次允许范围')
+  const timeout=Math.min(8000,deadline-now()-1000)
+  if(timeout<=0){const e=new Error('河北查询预算已用完，稍后继续核验');e.code='HEBEI_BUDGET';throw e}
   let result
-  try {result=await request('https://hbnew.qiping.org.cn/ws/'+service,{method:'POST',data:envelope(method,data,now()),headers:{'Content-Type':'text/xml; charset=utf-8',SOAPAction:'""'},timeout:8000,dataType:'text'})}
+  try {result=await request('https://hbnew.qiping.org.cn/ws/'+service,{method:'POST',data:envelope(method,data,now()),headers:{'Content-Type':'text/xml; charset=utf-8',SOAPAction:'""'},timeout,dataType:'text'})}
   catch(_){throw new Error('河北接口网络异常')}
   if(Number(result.status)!==200)throw new Error('河北接口HTTP异常')
   return parseSoap(Buffer.isBuffer(result.data)?result.data.toString('utf8'):result.data)
  }
- async function authenticate() {
+ async function authenticate(options) {
   if(!config.username||!config.password)throw new Error('未配置河北企业账号')
-  const r=await call('sydw','login',{uname:config.username,pwd:config.password})
+  const r=await call('sydw','login',{uname:config.username,pwd:config.password},options)
   if(String(r.code)!=='0')throw new Error('河北企业登录失败')
   const x=decode(r.data)
   if(String(x.id)!=='6739'||String(x.sydwBelt)!=='130130')throw new Error('河北企业身份不匹配')
   return {enterprise_id:'6739'}
  }
- async function personnel() {
-  const r=await call('gygas','getCzPersonList',{sydwId:'6739',sydwBelt:'130130'})
+ async function personnel(options) {
+  const r=await call('gygas','getCzPersonList',{sydwId:'6739',sydwBelt:'130130'},options)
   if(String(r.code)!=='0')throw new Error('河北人员查询失败')
   const people=decode(r.data)
   if(!Array.isArray(people))throw new Error('人员响应格式异常')
   return resolvePersonnel({roster:{enterprise_id:'6739',people},assignment:config.assignment,enterpriseId:'6739',now:now()})
  }
- async function lookup(tag) {
-  const r=await call('gygasgroup','getGasGroupOrGasForCz',{sydwId:'6739',qrCode:tag})
+ async function lookup(tag,options) {
+  const r=await call('gygasgroup','getGasGroupOrGasForCz',{sydwId:'6739',qrCode:tag},options)
   if(String(r.code)!=='0'||String(r.data)!=='1')throw new Error('河北未返回唯一单瓶')
   const x=decode(r.data2)
   return {tag:text(x.qrcode),product_no:text(x.originid),inner_no:text(x.innerid),medium:text(x.media),next_inspection:text(x.nextcheckdate).slice(0,10),status:text(x.gasstate),enterprise_id:String(x.sydwid),appid:x.appid,volume:x.realvolume}
  }
- async function records(date) {
+ async function records(date,{deadline=now()+45000}={}) {
   const end=new Date(Date.parse(date+'T00:00:00+08:00')+86400000)
   const endDay=day(end.getTime()), result=[],ids=new Set()
   let total=null,pages=null
   for(let page=1;page<=100;page++) {
-   const r=await call('gygas','getGasCzRecordPage',{sydwId:'6739',startDay:date,endDay,pageNo:String(page)})
+   const r=await call('gygas','getGasCzRecordPage',{sydwId:'6739',startDay:date,endDay,pageNo:String(page)},{deadline})
    if(String(r.code)!=='0')throw new Error('河北充装回查失败')
    const p=decode(r.data)
    if(!Array.isArray(p.records)||!Number.isInteger(p.total)||!Number.isInteger(p.pages)||Number(p.current)!==page)throw new Error('河北分页响应异常')
@@ -74,7 +76,7 @@ function createTransport({request,config,now=()=>Date.now()}) {
   }
   throw new Error('河北记录分页超过本次上限')
  }
- async function submit(payload) {return call('fillgasinspect','saveGyCzrecord',payload)}
+ async function submit(payload,options) {return call('fillgasinspect','saveGyCzrecord',payload,options)}
  return {authenticate,personnel,lookup,records,submit}
 }
 function matchReceipt(job,records) {

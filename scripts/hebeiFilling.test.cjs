@@ -77,3 +77,65 @@ test('source changes during target lookup prevent upload',async()=>{
 test('preview does not establish an activation date for later historical catchup',async()=>{
  const h=setup();h.db.data(STATES).delete('config');await h.svc.setMode('preview',{_id:'admin'});assert.equal((await h.svc.getConfig()).activation_at,null);h.clock.time+=10000;await h.svc.setMode('enabled',{_id:'admin'});assert.equal((await h.svc.getConfig()).activation_at,time+10000)
 })
+
+function slowService(h,latency){
+ const collection=h.db.collection.bind(h.db)
+ const wrap=q=>new Proxy(q,{get(t,k){const fn=t[k];if(typeof fn!=='function')return fn
+  if(['get','count','add','set','update','remove'].includes(k))return async(...a)=>{h.clock.time+=latency;return fn.apply(t,a)}
+  return(...a)=>wrap(fn.apply(t,a))}})
+ h.db.collection=n=>wrap(collection(n))
+ return createService({db:h.db,transport:h.transport,index:h.index,now:()=>h.clock.time})
+}
+test('5000-row slow discovery advances its cursor and never starves an existing pending job',async()=>{
+ const h=setup();await h.temp();h.db.data('crm_fillings').clear()
+ const {sourceHash}=require('../uniCloud-alipay/cloudfunctions/crm-hebei-filling/worker')
+ for(let i=0;i<5000;i++){
+  const r={...structuredClone(h.r),_id:'fill-'+String(i).padStart(6,'0')};h.db.data('crm_fillings').set(r._id,r)
+  h.db.data(JOBS).set(key(r._id),{_id:key(r._id),filling_id:r._id,bottle_no:r.bottle_no,source_hash:sourceHash(r),state:i===0?'pending':'confirmed',next_at:0,created_at:time})
+ }
+ const svc=slowService(h,500),cursors=[]
+ for(let i=0;i<3;i++){const start=h.clock.time,result=await svc.run();assert.equal(result.discovery.complete,false);assert.ok(h.clock.time-start<45000);cursors.push(h.db.data(STATES).get('discovery').cursor);h.clock.time+=60000}
+ assert.ok(cursors[0]<cursors[1]&&cursors[1]<cursors[2]);assert.equal(h.counts.sent,1)
+})
+test('slow new ledger writes stay bounded and resume without skipping rows',async()=>{
+ const h=setup();h.db.data('crm_fillings').clear()
+ for(let i=0;i<1000;i++){const r={...structuredClone(h.r),_id:'fill-'+String(i).padStart(6,'0')};h.db.data('crm_fillings').set(r._id,r)}
+ const svc=slowService(h,750);let previous=0
+ for(let i=0;i<3;i++){
+  const start=h.clock.time;await svc.run();assert.ok(h.clock.time-start<45000)
+  const count=h.db.data(JOBS).size;assert.ok(count>previous);previous=count;h.clock.time+=60000
+ }
+ assert.equal(h.counts.sent,0)
+ // Run the same resumable scanner to completion without a job loop. Every identity survives.
+ for(let i=0;i<600;i++){const result=await svc.discover(await svc.getConfig(),h.clock.time+8000);if(result.complete)break}
+ assert.equal(h.db.data(JOBS).size,1000);assert.equal(h.db.data(STATES).get('discovery').cursor,'')
+})
+test('unfinished discovery survives midnight; a completed pass catches lower-id corrections',async()=>{
+ const h=setup();h.db.data('crm_fillings').clear()
+ for(let i=0;i<600;i++){const r={...structuredClone(h.r),_id:'fill-'+String(i).padStart(6,'0')};h.db.data('crm_fillings').set(r._id,r)}
+ let result=await h.svc.discover(await h.svc.getConfig(),time+8000);assert.equal(result.scanned,500);assert.equal(result.complete,false)
+ h.clock.time+=86400000
+ result=await h.svc.discover(await h.svc.getConfig(),h.clock.time+8000);assert.equal(result.complete,true);assert.equal(h.db.data(JOBS).size,600)
+ const changed=h.db.data('crm_fillings').get('fill-000000');changed.updated_at=h.clock.time;changed.source_version++
+ await h.svc.discover(await h.svc.getConfig(),h.clock.time+8000);assert.equal(h.db.data(JOBS).get(key(changed._id)).state,'requires_review')
+})
+test('failed discovery write never advances past an unpersisted source',async()=>{
+ const h=setup();h.db.setFault((name,method)=>{if(name===JOBS&&method==='add')throw Error('db unavailable')})
+ await assert.rejects(h.svc.discover(await h.svc.getConfig(),time+8000));assert.equal(h.db.data(STATES).get('discovery').cursor,'')
+ h.db.setFault(null);await h.svc.run();assert.ok(h.job())
+})
+test('external pagination shares one deadline and never returns a partial receipt set',async()=>{
+ const {createTransport}=require('../uniCloud-alipay/cloudfunctions/crm-hebei-filling/protocol')
+ let clock=time,calls=0;const timeouts=[]
+ const transport=createTransport({config:{},now:()=>clock,request:async(url,options)=>{
+  calls++;timeouts.push(options.timeout);clock+=2000
+  return {status:200,data:'<return>'+JSON.stringify({code:0,data:{current:calls,pages:100,total:100,records:[{id:calls}]}})+'</return>'}
+ }})
+ await assert.rejects(transport.records('2026-11-01',{deadline:time+5000}),e=>e.code==='HEBEI_BUDGET')
+ assert.equal(calls,2);assert.deepEqual(timeouts,[4000,2000])
+})
+test('a first-row discovery failure before midnight retains its unfinished day window',async()=>{
+ const h=setup();h.db.setFault((name,method)=>{if(name===JOBS&&method==='add')throw Error('temporary')})
+ await assert.rejects(h.svc.discover(await h.svc.getConfig(),time+8000));h.db.setFault(null);h.clock.time+=86400000
+ await h.svc.discover(await h.svc.getConfig(),h.clock.time+8000);assert.ok(h.job());assert.equal(h.db.data(STATES).get('discovery').complete,true)
+})

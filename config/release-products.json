@@ -149,39 +149,23 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.11.01-hebei-filling.1",
+      "version": "2026.11.01-hebei-stability.1",
       "output": "release/cloud",
-      "acceptance": "Hebei background submission for newly saved PDA filling reweigh records, using 853 verified existing CRM identities. Daily temperature is entered manually once and reused for that China calendar day. Preserve original CRM save, weighing, print and stock behavior. Only new bridge function and its two dedicated collections, plus PDA temperature/status components. No historical upload or fabricated production test fill; real first-fill acceptance is tracked separately. Unpublished floor-scale changes are excluded.",
+      "acceptance": "Fix three verified 1.0.56 regressions: resumable bounded discovery that does not starve queued jobs, one shared external request deadline, in-place daily-temperature retry with readback after unknown save, and caller-scoped guards before global auth UI. Preserve CRM weighing, saving, printing and no automatic repost after attempting. No schema, historical source data, native plugin or floor-scale changes. Device installation and real submission remain field acceptance.",
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
           "crm-hebei-filling"
         ],
-        "databaseFiles": [
-          "crm_hebei_bridge_state.schema.json",
-          "crm_hebei_fill_jobs.schema.json",
-          "crm_hebei_fill_jobs.index.json"
-        ],
-        "baseCommit": "41c72671b501e6c01c94d3001af3ab7189a2b8c9",
+        "databaseFiles": [],
+        "baseCommit": "4475c1e10567d5d346b8327617c07057079ac6c3",
         "sourceFiles": [
           "src/components/domain/pda/PdaDailyTemperature.vue",
           "src/components/domain/pda/PdaHebeiSubmissionStatus.vue",
-          "src/components/domain/pda/PdaReweighView.vue",
-          "src/manifest.json",
           "src/services/api/hebeiFilling.js",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/.gitignore",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/pageAclLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/personnel.js",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/plan.js",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/protocol.js",
+          "src/manifest.json",
           "uniCloud-alipay/cloudfunctions/crm-hebei-filling/worker.js",
-          "uniCloud-alipay/database/crm_hebei_bridge_state.schema.json",
-          "uniCloud-alipay/database/crm_hebei_fill_jobs.index.json",
-          "uniCloud-alipay/database/crm_hebei_fill_jobs.schema.json"
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/protocol.js"
         ]
       }
     },
@@ -233,38 +217,22 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.56",
+      "version": "1.0.57",
       "output": "release/pda",
-      "acceptance": "Hebei background submission for newly saved PDA filling reweigh records, using 853 verified existing CRM identities. Daily temperature is entered manually once and reused for that China calendar day. Preserve original CRM save, weighing, print and stock behavior. Only new bridge function and its two dedicated collections, plus PDA temperature/status components. No historical upload or fabricated production test fill; real first-fill acceptance is tracked separately. Unpublished floor-scale changes are excluded.",
+      "acceptance": "Fix three verified 1.0.56 regressions: resumable bounded discovery that does not starve queued jobs, one shared external request deadline, in-place daily-temperature retry with readback after unknown save, and caller-scoped guards before global auth UI. Preserve CRM weighing, saving, printing and no automatic repost after attempting. No schema, historical source data, native plugin or floor-scale changes. Device installation and real submission remain field acceptance.",
       "deploymentScope": {
         "functions": [
           "crm-hebei-filling"
         ],
-        "databaseFiles": [
-          "crm_hebei_bridge_state.schema.json",
-          "crm_hebei_fill_jobs.schema.json",
-          "crm_hebei_fill_jobs.index.json"
-        ],
-        "baseCommit": "41c72671b501e6c01c94d3001af3ab7189a2b8c9",
+        "databaseFiles": [],
+        "baseCommit": "4475c1e10567d5d346b8327617c07057079ac6c3",
         "sourceFiles": [
           "src/components/domain/pda/PdaDailyTemperature.vue",
           "src/components/domain/pda/PdaHebeiSubmissionStatus.vue",
-          "src/components/domain/pda/PdaReweighView.vue",
-          "src/manifest.json",
           "src/services/api/hebeiFilling.js",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/.gitignore",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/pageAclLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/personnel.js",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/plan.js",
-          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/protocol.js",
+          "src/manifest.json",
           "uniCloud-alipay/cloudfunctions/crm-hebei-filling/worker.js",
-          "uniCloud-alipay/database/crm_hebei_bridge_state.schema.json",
-          "uniCloud-alipay/database/crm_hebei_fill_jobs.index.json",
-          "uniCloud-alipay/database/crm_hebei_fill_jobs.schema.json"
+          "uniCloud-alipay/cloudfunctions/crm-hebei-filling/protocol.js"
         ]
       },
       "integrityScope": "deployment"

@@ -9,7 +9,7 @@ let version=0,timer=null
 async function refresh(){
  const v=++version,id=props.fillingId;clearTimeout(timer);loading.value=true
  try{
-  const r=await getHebeiFillingStatus(id)
+  const r=await getHebeiFillingStatus(id,{isResponseCurrent:()=>v===version&&props.active&&props.fillingId===id})
   if(v!==version||!props.active||props.fillingId!==id)return
   if(r?.code!==0)throw Error(r?.msg||'暂未查到提交结果')
   const s=r.data.state
