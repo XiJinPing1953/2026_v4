@@ -1,4 +1,5 @@
 'use strict'
+const { fillingPrintTime } = require('./fillingPrintTime')
 
 // Permanent creation receipt, deliberately not a side-effect retry queue.
 const crypto = require('crypto')
@@ -294,8 +295,9 @@ function createService({ db, createSale, verifyFillingLabel }) {
             if (!source || source.operation_id !== proof.operation_id || Number(source.source_version || 0) !== proof.source_version) fail('充装记录已变化，请重新扫码或称重',409,'FILLING_LABEL_INVALID')
             const newer = first(await tx.collection('crm_fillings').where({ bottle_no:proof.bottle_no, created_at:db.command.gt(source.created_at) }).limit(1).get())
             if (newer) fail('这只瓶已有新的充装，请重新扫码或称重',409,'FILLING_LABEL_INVALID')
+            proof.filling_time = fillingPrintTime(source)
           }
-          if (labelChecks.length) doc.mobile_filling_label_sources = labelChecks.map(proof => ({ filling_id:proof.filling_id, operation_id:proof.operation_id, source_version:proof.source_version, label_token:proof.label_token, bottle_no:proof.bottle_no, tare_weight:proof.tare_weight, gross_weight:proof.gross_weight, net_weight:proof.net_weight }))
+          if (labelChecks.length) doc.mobile_filling_label_sources = labelChecks.map(proof => ({ filling_time:proof.filling_time, filling_id:proof.filling_id, operation_id:proof.operation_id, source_version:proof.source_version, label_token:proof.label_token, bottle_no:proof.bottle_no, tare_weight:proof.tare_weight, gross_weight:proof.gross_weight, net_weight:proof.net_weight }))
           await tx.collection(OPERATIONS).add(operation)
           await tx.collection(SALES).add(doc)
           await tx.commit()

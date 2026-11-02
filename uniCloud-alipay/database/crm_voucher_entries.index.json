@@ -1,0 +1,73 @@
+[
+  {
+    "IndexName": "idx_voucher_id",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "voucher_id",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_account_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "account_code",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "date",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_period",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "period",
+          "Direction": "1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  },
+  {
+    "IndexName": "idx_account_customer_date",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [
+        {
+          "Name": "account_code",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "aux.customer_id",
+          "Direction": "1",
+          "Type": "varchar"
+        },
+        {
+          "Name": "date",
+          "Direction": "-1",
+          "Type": "varchar"
+        }
+      ],
+      "MgoIsUnique": false,
+      "MgoIsSparse": false
+    }
+  }
+]

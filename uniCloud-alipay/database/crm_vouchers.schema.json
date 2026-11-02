@@ -1,0 +1,48 @@
+{
+  "bsonType": "object",
+  "description": "Accounting vouchers (header)",
+  "additionalProperties": false,
+  "required": [
+    "date",
+    "period",
+    "voucher_no",
+    "summary",
+    "status",
+    "total_debit",
+    "total_credit",
+    "created_at",
+    "created_by",
+    "updated_at",
+    "source"
+  ],
+  "properties": {
+    "_id": { "bsonType": "string" },
+    "date": { "bsonType": "string" },
+    "period": { "bsonType": "string" },
+    "voucher_no": { "bsonType": "string" },
+    "summary": { "bsonType": "string" },
+    "status": { "bsonType": "string", "enum": ["draft", "posted"] },
+    "total_debit": { "bsonType": "number" },
+    "total_credit": { "bsonType": "number" },
+    "created_at": { "bsonType": "number" },
+    "created_by": { "bsonType": ["string", "null"] },
+    "created_by_name": { "bsonType": "string" },
+    "updated_at": { "bsonType": "number" },
+    "posted_at": { "bsonType": ["number", "null"] },
+    "posted_by": { "bsonType": ["string", "null"] },
+    "posted_by_name": { "bsonType": "string" },
+    "source": { "bsonType": "string" }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "indexes": [
+    { "key": { "voucher_no": 1 }, "name": "uniq_voucher_no", "unique": true },
+    { "key": { "date": -1, "created_at": -1 }, "name": "idx_date_created_at" },
+    { "key": { "status": 1, "date": -1 }, "name": "idx_status_date" },
+    { "key": { "period": 1, "status": 1 }, "name": "idx_period_status" }
+  ]
+}

@@ -17,6 +17,7 @@
     "source"
   ],
   "properties": {
+    "web_save_operation_key": { "bsonType": "string", "description": "Permanent web save receipt committed with source" },
     "_id": {
       "bsonType": "string"
     },

@@ -23,7 +23,15 @@
 				</view>
 			</AppCard>
 
-			<view class="form-body">
+			<AppCard v-if="pendingWebSave" padding="24rpx">
+				<text>上次销售保存结果尚未确认，原内容已保留，请先查询原操作。</text>
+				<AppButton size="sm" kind="primary" :loading="submitting" @click="recoverWebSave">查询并继续原保存</AppButton>
+			</AppCard>
+			<AppCard v-if="webSaveReview?.pending" padding="24rpx">
+				<text>{{ webSaveReview.message }}</text>
+				<AppButton size="sm" kind="neutral" @click="loadDetail(recordId, { force: true })">刷新处理状态</AppButton>
+			</AppCard>
+			<view class="form-body" :class="{ 'save-locked': pendingWebSave || savedThisPage || webSaveReview?.pending }">
 					<AppSection title="基础信息" class="section-popover-host" :class="{ 'section-readonly': !canEditBusinessContent }">
 						<SaleBasicInfoCard v-model="form" size="sm" />
 					</AppSection>
@@ -186,7 +194,8 @@
 </template>
 
 <script setup>
-import { computed, ref, toRef, watch } from 'vue'
+import { computed, onMounted, ref, toRef, watch } from 'vue'
+import { webSaleRecovery } from '@/services/webSaleSave'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import AppCard from '@/components/base/AppCard.vue'
@@ -271,6 +280,10 @@ const depositRows = ref([])
 const agentSaleRows = ref([])
 const submitting = ref(false)
 const submittingMode = ref('')
+const pendingWebSave = ref(false)
+const webSaveReview = ref(null)
+const savedThisPage = ref(false)
+onMounted(refreshPendingWebSave)
 const originBottleSnapshot = ref({ out: [], back: [], deposit: [] })
 const ticketImages = ref([])
 const offsetCreditLoading = ref(false)
@@ -661,6 +674,7 @@ async function loadDetail(id, options = {}) {
 	const data = await fetchDetail(id, { force: options.force === true })
 	if (!data || recordId.value !== id) return
 	const doc = data
+	webSaveReview.value = doc.web_save_review || null
 	externalReceiptRounding.value = Math.max(toNumber(doc.receipt_rounding_amount, 0), 0)
 	form.value = {
 		date: doc.date || '',
@@ -828,8 +842,44 @@ function syncSettlementStatusForSubmit() {
 	}
 }
 
+function refreshPendingWebSave() {
+	try { pendingWebSave.value = Boolean(webSaleRecovery.read(recordId.value)) }
+	catch (_) { pendingWebSave.value = true }
+}
+
+function acknowledgeWebSave(result) {
+	try { webSaleRecovery.acknowledge(recordId.value, result?.data?.operation_id) } catch (_) { /* retain original recovery record */ }
+	refreshPendingWebSave()
+}
+
+async function recoverWebSave() {
+	if (submitting.value || savedThisPage.value) return
+	submitting.value = true
+	try {
+		const original = webSaleRecovery.read(recordId.value)
+		const result = await webSaleRecovery.resume(recordId.value)
+		if (result.code !== 0) {
+			await uni.showModal({ title: '原保存结果待确认', content: result.msg || '请稍后查询原操作，勿重新录入', showCancel: false })
+			return
+		}
+		uni.setStorageSync(SALE_LIST_REFRESH_KEY, String(Date.now()))
+		await uni.showModal({ title: '已确认原单保存成功', content: result.data?.warning || (result.data?.background_pending ? '单据已保存，关联处理由后台继续，请勿重复录入。' : '原单已保存，无需再次录入。'), showCancel: false })
+		if (original?.action === 'updateSettlementV1') {
+			acknowledgeWebSave(result)
+			await loadDetail(recordId.value, { force: true, showRecovery: false })
+		} else {
+			savedThisPage.value = true
+			acknowledgeWebSave(result)
+			navigateAfterSave()
+		}
+	} catch (error) {
+		await uni.showModal({ title: '原保存结果待确认', content: error.message || '查询失败，请稍后再查', showCancel: false })
+	} finally { submitting.value = false; refreshPendingWebSave() }
+}
+
 async function onSubmitBusiness() {
-	if (submitting.value || !canSaveBusiness.value) return
+	if (submitting.value || savedThisPage.value || webSaveReview.value?.pending || !canSaveBusiness.value) return
+	if (pendingWebSave.value) return recoverWebSave()
 	if (!form.value.date) {
 		uni.showToast({ title: '请选择销售日期', icon: 'none' })
 		return
@@ -881,6 +931,8 @@ async function onSubmitBusiness() {
 		} else {
 			uni.showToast({ title: savedWithOverride ? '已核对并保存' : '保存成功', icon: 'success' })
 		}
+		savedThisPage.value = true
+		acknowledgeWebSave(result)
 		navigateAfterSave()
 	} catch (err) {
 		const failure = resolveSubmitFailure(err)
@@ -905,11 +957,13 @@ async function onSubmitBusiness() {
 	} finally {
 		submitting.value = false
 		submittingMode.value = ''
+		refreshPendingWebSave()
 	}
 }
 
 async function onSubmitSettlement() {
-	if (submitting.value || !canSaveSettlement.value || !recordId.value) return
+	if (submitting.value || savedThisPage.value || webSaveReview.value?.pending || !canSaveSettlement.value || !recordId.value) return
+	if (pendingWebSave.value) return recoverWebSave()
 	syncSettlementStatusForSubmit()
 	const validation = validateSettlement()
 	if (!validation.ok) {
@@ -919,6 +973,7 @@ async function onSubmitSettlement() {
 
 	submittingMode.value = 'settlement'
 	submitting.value = true
+	let sourceSaved = false
 	try {
 		const result = await submitSaleSettlement()
 		if (result?.code !== 0) {
@@ -934,6 +989,7 @@ async function onSubmitSettlement() {
 		} catch (_) {
 			// ignore storage failures
 		}
+		sourceSaved = true
 		const warning = saleSaveWarning(result)
 		const reminder = warning ? '' : buildOverCollectionReminder()
 		if (warning) {
@@ -948,8 +1004,13 @@ async function onSubmitSettlement() {
 		} else {
 			uni.showToast({ title: '结算保存成功', icon: 'success' })
 		}
-		if (result.data?.offset_use?.status === 'completed') await loadDetail(recordId.value, { force: true, showRecovery: false })
+		await loadDetail(recordId.value, { force: true, showRecovery: false })
+		acknowledgeWebSave(result)
 	} catch (err) {
+		if (sourceSaved) {
+			await uni.showModal({ title: '结算已保存', content: '页面刷新未完成，请刷新查看原单；不要重复保存。', showCancel: false })
+			return
+		}
 		const failure = resolveSubmitFailure(err)
 		console.error('save settlement failed', failure, err)
 		if (failure.message && failure.message !== '保存失败') {
@@ -965,6 +1026,7 @@ async function onSubmitSettlement() {
 	} finally {
 		submitting.value = false
 		submittingMode.value = ''
+		refreshPendingWebSave()
 	}
 }
 
@@ -1067,8 +1129,8 @@ async function submitSale(ignoreBottleFlowWarning = false) {
 	}
 	try {
 		const result = await (recordId.value
-			? updateSaleV2({ _id: recordId.value, draft: payload, ignoreBottleFlowWarning })
-			: createSaleV2(payload, { ignoreBottleFlowWarning }))
+			? updateSaleV2({ _id: recordId.value, draft: payload, ignoreBottleFlowWarning, webOperation: true })
+			: createSaleV2(payload, { ignoreBottleFlowWarning, webOperation: true }))
 		return result
 	} catch (err) {
 		const wrapped = new Error('云函数调用失败')
@@ -1081,6 +1143,7 @@ async function submitSale(ignoreBottleFlowWarning = false) {
 async function submitSaleSettlement() {
 	try {
 		return await updateSaleSettlementV1({
+			webOperation: true,
 			_id: recordId.value,
 			settlement: settlement.value
 		})
@@ -1713,4 +1776,5 @@ function buildBottleFlowWarningContent(result) {
  .edit-header-info { grid-template-columns:minmax(0,1fr); min-width:0; }
 }
 /* #endif */
+.save-locked { pointer-events: none; opacity: 0.65; }
 </style>

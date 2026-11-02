@@ -1,4 +1,5 @@
 'use strict'
+const { withFillingPrintTimes } = require('./fillingPrintTime')
 const text = v => String(v || '').trim()
 function createService({ db, isAdmin, hiddenIds, amounts, mentionsHidden, project = doc => doc }) {
   async function scope(user) {
@@ -36,7 +37,8 @@ function createService({ db, isAdmin, hiddenIds, amounts, mentionsHidden, projec
     // Project the exact authorized snapshot. Do not call getV2: it may reconcile
     // background processing and re-read a sale whose vehicle changed meanwhile.
     const calculated = amounts(doc)
-    return { code: 0, data: { ...project(doc), accounting: calculated.accounting, ...calculated.amounts } }
+    const printable = await withFillingPrintTimes(project(doc), db)
+    return { code: 0, data: { ...printable, accounting: calculated.accounting, ...calculated.amounts } }
   }
   return { list, get }
 }

@@ -6,80 +6,46 @@
   },
   "products": {
     "web": {
-      "version": "2026.10.31-no-trace.1",
+      "version": "2026.11.02-web-sale-save.1",
       "output": "dist/build/web",
-      "acceptance": "Candidate only; wait for explicit user publication approval. The only runtime change from 1.0.49 is removal of temporary segmented performance sampling UI, frontend hooks, native logs and database/handler proxies from the 11 listed cloud functions. Return/filling reweigh and native sale all retain their original 3000ms stability behavior. No floor-scale candidate, schema/index or native APK changes. Preserve all weighing, saving, printing and pagination behavior.",
+      "acceptance": "Web sale fixed operation ID, atomic source/receipt, result recovery and resumable idempotent follow-ups. Add missing voucher collections and permanent operation receipts only. No historical accounting repair, backfill, balance sweep or PDA update. H5 starts from the actual deployed 9c049c8 baseline; existing live crm-sale printing helpers are preserved unchanged.",
       "deploymentScope": {
         "functions": [
-          "crm-auth",
-          "crm-bottle",
-          "crm-bottle-movement",
-          "crm-customer",
-          "crm-customer-settlement",
-          "crm-dashboard",
-          "crm-filling",
-          "crm-gas-in",
-          "crm-safety-management",
-          "crm-sale",
-          "crm-station-safety-inspection"
+          "crm-sale"
         ],
-        "databaseFiles": [],
-        "baseCommit": "61ff1c634e7363f820345e900ca5de6a1104ebe9",
+        "databaseFiles": [
+          "crm_sale_records.schema.json",
+          "crm_web_sale_operations.schema.json",
+          "crm_web_sale_operations.index.json",
+          "crm_vouchers.schema.json",
+          "crm_vouchers.index.json",
+          "crm_voucher_entries.schema.json",
+          "crm_voucher_entries.index.json"
+        ],
+        "baseCommit": "9c049c8f858f7a84abcc415591d7a506e1878545",
         "sourceFiles": [
-          "src/components/domain/pda/PdaAppUpdate.vue",
-          "src/components/domain/pda/PdaHomeView.vue",
-          "src/components/domain/pda/PdaReweighHistorySection.vue",
-          "src/components/domain/pda/PdaReweighRecordsView.vue",
-          "src/composables/pda/usePdaReweigh.js",
-          "src/composables/pda/usePdaReweighRecords.js",
-          "src/main.js",
-          "src/manifest.json",
-          "src/pages/pda/bottle-query.vue",
-          "src/pages/pda/return-reweigh.vue",
-          "src/pages/pda/reweigh.vue",
-          "src/pages/pda/sale-create.vue",
-          "src/services/api/callCloud.js",
-          "src/services/auth.js",
-          "src/services/pda/capture/index.js",
-          "src/services/pda/reweighWorkStore.js",
-          "src/services/performanceTrace.js",
-          "uniCloud-alipay/cloudfunctions/common/performanceTrace.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/performanceTraceLocal.js",
+          "src/components/domain/sale/SaleEditView.vue",
+          "src/services/models/webSaleRecovery.js",
+          "src/services/sale.js",
+          "src/services/webSaleSave.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/fillingPrintTime.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/fillingPrintTimeLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/performanceTraceLocal.js"
+          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/package.json",
+          "uniCloud-alipay/cloudfunctions/crm-sale/pdaSaleRecords.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/saleSourceWrite.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/webSaleSave.js",
+          "uniCloud-alipay/database/crm_sale_records.schema.json",
+          "uniCloud-alipay/database/crm_voucher_entries.index.json",
+          "uniCloud-alipay/database/crm_voucher_entries.schema.json",
+          "uniCloud-alipay/database/crm_vouchers.index.json",
+          "uniCloud-alipay/database/crm_vouchers.schema.json",
+          "uniCloud-alipay/database/crm_web_sale_operations.index.json",
+          "uniCloud-alipay/database/crm_web_sale_operations.schema.json",
+          "uniCloud-alipay/database/schema/crm_sale_records.schema.json"
         ],
         "aclCanonicalRevisions": {
-          "crm-dashboard": {
-            "registry": {
-              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
-              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
-            }
-          },
-          "crm-customer": {
-            "registry": {
-              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
-              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
-            }
-          },
           "crm-sale": {
             "helper": {
               "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
@@ -89,141 +55,53 @@
               "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
               "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
             }
-          },
-          "crm-bottle-movement": {
-            "registry": {
-              "commit": "9372e14084883e4835d740cdac86b5802b39126e",
-              "sha256": "d726e8977410952bd92570496bcd8226772e7b0eb6126e99a6a2c741355e6b7e"
-            }
-          },
-          "crm-bottle": {
-            "registry": {
-              "commit": "b334c9da11936983d6b1514da2ee95b786d42f71",
-              "sha256": "01ceeccab063663d13b505fcec00017891af9105f250a1b141daf2c643f050c3"
-            }
-          },
-          "crm-safety-management": {
-            "registry": {
-              "commit": "01638f67599f12aa1582aac0a581f4ef63d83f8a",
-              "sha256": "ca5875fb6017b01bb08fad39895cc7bc9d3f17fe3cc23f7e9fb84af18b209e4f"
-            }
-          },
-          "crm-auth": {
-            "registry": {
-              "commit": "b334c9da11936983d6b1514da2ee95b786d42f71",
-              "sha256": "01ceeccab063663d13b505fcec00017891af9105f250a1b141daf2c643f050c3"
-            }
-          },
-          "crm-station-safety-inspection": {
-            "registry": {
-              "commit": "01638f67599f12aa1582aac0a581f4ef63d83f8a",
-              "sha256": "ca5875fb6017b01bb08fad39895cc7bc9d3f17fe3cc23f7e9fb84af18b209e4f"
-            }
-          },
-          "crm-customer-settlement": {
-            "registry": {
-              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
-              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
-            }
-          },
-          "crm-gas-in": {
-            "registry": {
-              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
-              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
-            }
-          }
-        },
-        "contractCanonicalRevisions": {
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankTelemetryLocal.js": {
-            "commit": "e7814cfe26dc1c974d95928f4e105a482d2a4b5d",
-            "sha256": "0c8e0bbf931ce2e6a37195ee95178cea6bc8779f8b8b2c288685596620a8fa6a",
-            "source": "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js"
-          },
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js": {
-            "commit": "e7814cfe26dc1c974d95928f4e105a482d2a4b5d",
-            "sha256": "0c8e0bbf931ce2e6a37195ee95178cea6bc8779f8b8b2c288685596620a8fa6a",
-            "source": "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js"
           }
         }
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.10.31-no-trace.1",
+      "version": "2026.11.02-web-sale-save.1",
       "output": "release/cloud",
-      "acceptance": "Candidate only; wait for explicit user publication approval. The only runtime change from 1.0.49 is removal of temporary segmented performance sampling UI, frontend hooks, native logs and database/handler proxies from the 11 listed cloud functions. Return/filling reweigh and native sale all retain their original 3000ms stability behavior. No floor-scale candidate, schema/index or native APK changes. Preserve all weighing, saving, printing and pagination behavior.",
+      "acceptance": "Web sale fixed operation ID, atomic source/receipt, result recovery and resumable idempotent follow-ups. Add missing voucher collections and permanent operation receipts only. No historical accounting repair, backfill, balance sweep or PDA update. H5 starts from the actual deployed 9c049c8 baseline; existing live crm-sale printing helpers are preserved unchanged.",
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
-          "crm-auth",
-          "crm-bottle",
-          "crm-bottle-movement",
-          "crm-customer",
-          "crm-customer-settlement",
-          "crm-dashboard",
-          "crm-filling",
-          "crm-gas-in",
-          "crm-safety-management",
-          "crm-sale",
-          "crm-station-safety-inspection"
+          "crm-sale"
         ],
-        "databaseFiles": [],
-        "baseCommit": "61ff1c634e7363f820345e900ca5de6a1104ebe9",
+        "databaseFiles": [
+          "crm_sale_records.schema.json",
+          "crm_web_sale_operations.schema.json",
+          "crm_web_sale_operations.index.json",
+          "crm_vouchers.schema.json",
+          "crm_vouchers.index.json",
+          "crm_voucher_entries.schema.json",
+          "crm_voucher_entries.index.json"
+        ],
+        "baseCommit": "9c049c8f858f7a84abcc415591d7a506e1878545",
         "sourceFiles": [
-          "src/components/domain/pda/PdaAppUpdate.vue",
-          "src/components/domain/pda/PdaHomeView.vue",
-          "src/components/domain/pda/PdaReweighHistorySection.vue",
-          "src/components/domain/pda/PdaReweighRecordsView.vue",
-          "src/composables/pda/usePdaReweigh.js",
-          "src/composables/pda/usePdaReweighRecords.js",
-          "src/main.js",
-          "src/manifest.json",
-          "src/pages/pda/bottle-query.vue",
-          "src/pages/pda/return-reweigh.vue",
-          "src/pages/pda/reweigh.vue",
-          "src/pages/pda/sale-create.vue",
-          "src/services/api/callCloud.js",
-          "src/services/auth.js",
-          "src/services/pda/capture/index.js",
-          "src/services/pda/reweighWorkStore.js",
-          "src/services/performanceTrace.js",
-          "uniCloud-alipay/cloudfunctions/common/performanceTrace.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/performanceTraceLocal.js",
+          "src/components/domain/sale/SaleEditView.vue",
+          "src/services/models/webSaleRecovery.js",
+          "src/services/sale.js",
+          "src/services/webSaleSave.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/fillingPrintTime.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/fillingPrintTimeLocal.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/performanceTraceLocal.js"
+          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/package.json",
+          "uniCloud-alipay/cloudfunctions/crm-sale/pdaSaleRecords.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/saleSourceWrite.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/webSaleSave.js",
+          "uniCloud-alipay/database/crm_sale_records.schema.json",
+          "uniCloud-alipay/database/crm_voucher_entries.index.json",
+          "uniCloud-alipay/database/crm_voucher_entries.schema.json",
+          "uniCloud-alipay/database/crm_vouchers.index.json",
+          "uniCloud-alipay/database/crm_vouchers.schema.json",
+          "uniCloud-alipay/database/crm_web_sale_operations.index.json",
+          "uniCloud-alipay/database/crm_web_sale_operations.schema.json",
+          "uniCloud-alipay/database/schema/crm_sale_records.schema.json"
         ],
         "aclCanonicalRevisions": {
-          "crm-dashboard": {
-            "registry": {
-              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
-              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
-            }
-          },
-          "crm-customer": {
-            "registry": {
-              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
-              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
-            }
-          },
           "crm-sale": {
             "helper": {
               "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
@@ -233,60 +111,6 @@
               "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
               "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
             }
-          },
-          "crm-bottle-movement": {
-            "registry": {
-              "commit": "9372e14084883e4835d740cdac86b5802b39126e",
-              "sha256": "d726e8977410952bd92570496bcd8226772e7b0eb6126e99a6a2c741355e6b7e"
-            }
-          },
-          "crm-bottle": {
-            "registry": {
-              "commit": "b334c9da11936983d6b1514da2ee95b786d42f71",
-              "sha256": "01ceeccab063663d13b505fcec00017891af9105f250a1b141daf2c643f050c3"
-            }
-          },
-          "crm-safety-management": {
-            "registry": {
-              "commit": "01638f67599f12aa1582aac0a581f4ef63d83f8a",
-              "sha256": "ca5875fb6017b01bb08fad39895cc7bc9d3f17fe3cc23f7e9fb84af18b209e4f"
-            }
-          },
-          "crm-auth": {
-            "registry": {
-              "commit": "b334c9da11936983d6b1514da2ee95b786d42f71",
-              "sha256": "01ceeccab063663d13b505fcec00017891af9105f250a1b141daf2c643f050c3"
-            }
-          },
-          "crm-station-safety-inspection": {
-            "registry": {
-              "commit": "01638f67599f12aa1582aac0a581f4ef63d83f8a",
-              "sha256": "ca5875fb6017b01bb08fad39895cc7bc9d3f17fe3cc23f7e9fb84af18b209e4f"
-            }
-          },
-          "crm-customer-settlement": {
-            "registry": {
-              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
-              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
-            }
-          },
-          "crm-gas-in": {
-            "registry": {
-              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
-              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
-            }
-          }
-        },
-        "contractCanonicalRevisions": {
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankTelemetryLocal.js": {
-            "commit": "e7814cfe26dc1c974d95928f4e105a482d2a4b5d",
-            "sha256": "0c8e0bbf931ce2e6a37195ee95178cea6bc8779f8b8b2c288685596620a8fa6a",
-            "source": "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js"
-          },
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js": {
-            "commit": "e7814cfe26dc1c974d95928f4e105a482d2a4b5d",
-            "sha256": "0c8e0bbf931ce2e6a37195ee95178cea6bc8779f8b8b2c288685596620a8fa6a",
-            "source": "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js"
           }
         }
       }
@@ -339,145 +163,24 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.50",
+      "version": "1.0.60",
       "output": "release/pda",
-      "acceptance": "Candidate only; wait for explicit user publication approval. The only runtime change from 1.0.49 is removal of temporary segmented performance sampling UI, frontend hooks, native logs and database/handler proxies from the 11 listed cloud functions. Return/filling reweigh and native sale all retain their original 3000ms stability behavior. No floor-scale candidate, schema/index or native APK changes. Preserve all weighing, saving, printing and pagination behavior.",
+      "acceptance": "Floor diagnostic robustness: signed legacy/current frames, first notification retention, finite native waits, accurate missing/invalid/stale states, bounded raw diagnostics and 4 Hz view updates. Reuse verified immutable history dates to reduce large-round next-bottle CPU cost; storage format, unknown-operation recovery and existing cutoff policy retained. No cloud/schema/native deployment; crm-hebei-filling is an unchanged dependency. Floor business submission remains disabled; delivered-device readings and calibration await field verification.",
       "deploymentScope": {
         "functions": [
-          "crm-auth",
-          "crm-bottle",
-          "crm-bottle-movement",
-          "crm-customer",
-          "crm-customer-settlement",
-          "crm-dashboard",
-          "crm-filling",
-          "crm-gas-in",
-          "crm-safety-management",
-          "crm-sale",
-          "crm-station-safety-inspection"
+          "crm-hebei-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "61ff1c634e7363f820345e900ca5de6a1104ebe9",
+        "baseCommit": "2d1900f0d3179f6f83421904b490ee2d94ef6cb7",
         "sourceFiles": [
-          "src/components/domain/pda/PdaAppUpdate.vue",
-          "src/components/domain/pda/PdaHomeView.vue",
-          "src/components/domain/pda/PdaReweighHistorySection.vue",
-          "src/components/domain/pda/PdaReweighRecordsView.vue",
-          "src/composables/pda/usePdaReweigh.js",
-          "src/composables/pda/usePdaReweighRecords.js",
-          "src/main.js",
+          "src/components/domain/pda/PdaFloorScale.vue",
           "src/manifest.json",
-          "src/pages/pda/bottle-query.vue",
-          "src/pages/pda/return-reweigh.vue",
-          "src/pages/pda/reweigh.vue",
-          "src/pages/pda/sale-create.vue",
-          "src/services/api/callCloud.js",
-          "src/services/auth.js",
-          "src/services/pda/capture/index.js",
-          "src/services/pda/reweighWorkStore.js",
-          "src/services/performanceTrace.js",
-          "uniCloud-alipay/cloudfunctions/common/performanceTrace.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-bottle/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer-settlement/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-customer/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-dashboard/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-safety-management/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/performanceTraceLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-station-safety-inspection/performanceTraceLocal.js"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-dashboard": {
-            "registry": {
-              "commit": "df4c4cbe38a5afc9ad92e1520a4d141991b5e055",
-              "sha256": "7025381e8ed80ac6205cf1208784f8690414791b1a9791be12c54754dd6f3cd4"
-            }
-          },
-          "crm-customer": {
-            "registry": {
-              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
-              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
-            }
-          },
-          "crm-sale": {
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            },
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            }
-          },
-          "crm-bottle-movement": {
-            "registry": {
-              "commit": "9372e14084883e4835d740cdac86b5802b39126e",
-              "sha256": "d726e8977410952bd92570496bcd8226772e7b0eb6126e99a6a2c741355e6b7e"
-            }
-          },
-          "crm-bottle": {
-            "registry": {
-              "commit": "b334c9da11936983d6b1514da2ee95b786d42f71",
-              "sha256": "01ceeccab063663d13b505fcec00017891af9105f250a1b141daf2c643f050c3"
-            }
-          },
-          "crm-safety-management": {
-            "registry": {
-              "commit": "01638f67599f12aa1582aac0a581f4ef63d83f8a",
-              "sha256": "ca5875fb6017b01bb08fad39895cc7bc9d3f17fe3cc23f7e9fb84af18b209e4f"
-            }
-          },
-          "crm-auth": {
-            "registry": {
-              "commit": "b334c9da11936983d6b1514da2ee95b786d42f71",
-              "sha256": "01ceeccab063663d13b505fcec00017891af9105f250a1b141daf2c643f050c3"
-            }
-          },
-          "crm-station-safety-inspection": {
-            "registry": {
-              "commit": "01638f67599f12aa1582aac0a581f4ef63d83f8a",
-              "sha256": "ca5875fb6017b01bb08fad39895cc7bc9d3f17fe3cc23f7e9fb84af18b209e4f"
-            }
-          },
-          "crm-customer-settlement": {
-            "registry": {
-              "commit": "a1163058634aea177b7140dd3aed39d34896016d",
-              "sha256": "370723ae79e35179450acd1d336b256ed16beeda192a9dd0203a165704844477"
-            }
-          },
-          "crm-gas-in": {
-            "registry": {
-              "commit": "1d3c9b4335c0afc1df787bff7dd9e74cb3672ad8",
-              "sha256": "2feb03820918c5f08340a690efaed39388c5927007639ca4cbb2a34628b84756"
-            }
-          }
-        },
-        "contractCanonicalRevisions": {
-          "uniCloud-alipay/cloudfunctions/crm-bottle-movement/tankTelemetryLocal.js": {
-            "commit": "e7814cfe26dc1c974d95928f4e105a482d2a4b5d",
-            "sha256": "0c8e0bbf931ce2e6a37195ee95178cea6bc8779f8b8b2c288685596620a8fa6a",
-            "source": "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js"
-          },
-          "uniCloud-alipay/cloudfunctions/crm-gas-in/tankTelemetryLocal.js": {
-            "commit": "e7814cfe26dc1c974d95928f4e105a482d2a4b5d",
-            "sha256": "0c8e0bbf931ce2e6a37195ee95178cea6bc8779f8b8b2c288685596620a8fa6a",
-            "source": "uniCloud-alipay/cloudfunctions/common/tankTelemetry.js"
-          }
-        }
+          "src/services/pda/floorScaleCalibrationController.js",
+          "src/services/pda/floorScaleDiagnostic.js",
+          "src/services/pda/floorScaleProtocol.js",
+          "src/services/pda/floorScaleSession.js",
+          "src/services/pda/reweighDraft.js"
+        ]
       },
       "integrityScope": "deployment"
     }

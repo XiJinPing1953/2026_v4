@@ -1,0 +1,88 @@
+{
+  "bsonType": "object",
+  "additionalProperties": false,
+  "description": "Permanent web sale operation receipts and bounded follow-up jobs. Only created by explicit new save requests; never seed from historical sales.",
+  "required": [
+    "operation_id",
+    "payload_digest",
+    "sale_id",
+    "created_by",
+    "status",
+    "after",
+    "created_at"
+  ],
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "operation_id": {
+      "bsonType": "string"
+    },
+    "payload_digest": {
+      "bsonType": "string"
+    },
+    "sale_id": {
+      "bsonType": "string"
+    },
+    "save_action": {
+      "bsonType": "string"
+    },
+    "created_by": {
+      "bsonType": "string"
+    },
+    "request_id": {
+      "bsonType": "string"
+    },
+    "rule_version": {
+      "bsonType": "string"
+    },
+    "status": {
+      "bsonType": "string"
+    },
+    "lease_id": {
+      "bsonType": "string"
+    },
+    "last_error": {
+      "bsonType": "string"
+    },
+    "lease_until": {
+      "bsonType": "number"
+    },
+    "attempts": {
+      "bsonType": "number"
+    },
+    "next_retry_at": {
+      "bsonType": "number"
+    },
+    "created_at": {
+      "bsonType": "number"
+    },
+    "updated_at": {
+      "bsonType": "number"
+    },
+    "completed_at": {
+      "bsonType": "number"
+    },
+    "before": {
+      "bsonType": [
+        "object",
+        "null"
+      ]
+    },
+    "after": {
+      "bsonType": "object"
+    },
+    "completed_steps": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "string"
+      }
+    }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  }
+}

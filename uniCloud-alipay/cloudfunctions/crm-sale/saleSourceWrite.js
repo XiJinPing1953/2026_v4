@@ -1,6 +1,7 @@
 'use strict'
 
 const { touchBottleSources } = require('./bottleSourceGuardLocal')
+const { context: webSaveContext } = require('./webSaleSave')
 const numbers = doc => ['out_items', 'back_items', 'agent_sale_items'].flatMap(field => (doc?.[field] || []).map(row => row.bottle_no))
 
 async function guardSaleSource(database, command, before, after) {
@@ -10,8 +11,10 @@ async function guardSaleSource(database, command, before, after) {
 // Only the source write belongs here; existing accounting/flow follow-up keeps
 // its existing recovery semantics. Mobile creation supplies its own transaction.
 async function writeSaleSource(db, before, after, write) {
+	const webSave = webSaveContext.getStore()
 	const tx = await db.startTransaction()
 	try {
+		if (webSave) await webSave.prepare(tx, before, after)
 		if (before) {
 			const result = await tx.collection('crm_sale_records').doc(before._id).get()
 			const current = Array.isArray(result.data) ? result.data[0] : result.data
@@ -24,7 +27,9 @@ async function writeSaleSource(db, before, after, write) {
 		}
 		await guardSaleSource(tx, db.command, before, after)
 		const result = await write(tx)
+		if (webSave) await webSave.record(tx, before, after, result)
 		await tx.commit()
+		if (webSave) webSave.saved = true
 		return result
 	} catch (error) {
 		await tx.rollback().catch(() => {})

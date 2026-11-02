@@ -1,4 +1,5 @@
 import { callCloud } from '@/services/api'
+import { webSaleRecovery } from '@/services/webSaleSave'
 import { normalizeSaleDraft, validateSaleDraftForCreate } from '@/services/models'
 
 export async function retrySaleOffsetSyncV1(saleId, operationId) {
@@ -62,6 +63,7 @@ export async function createSaleV2(draft, options = {}) {
 	const data = { ...normalized }
 	if (options.ignoreBottleFlowWarning) data.ignore_bottle_flow_warning = true
 
+	if (options.webOperation) return webSaleRecovery.submit('', 'createV2', data)
 	return callCloud('crm-sale', {
 		action: 'createV2',
 		data,
@@ -123,6 +125,7 @@ export async function updateSaleV2(params) {
 	}
 	if (params.ignoreBottleFlowWarning) data.ignore_bottle_flow_warning = true
 
+	if (params.webOperation) return webSaleRecovery.submit(recordId, 'updateV2', data)
 	return callCloud('crm-sale', {
 		action: 'updateV2',
 		data,
@@ -136,9 +139,7 @@ export async function updateSaleSettlementV1(params = {}) {
 	const settlement = params.settlement && typeof params.settlement === 'object'
 		? params.settlement
 		: {}
-	return callCloud('crm-sale', {
-		action: 'updateSettlementV1',
-		data: {
+	const data = {
 			recordId,
 			settlement: {
 				paymentStatus: settlement.paymentStatus ?? settlement.payment_status ?? '',
@@ -149,9 +150,9 @@ export async function updateSaleSettlementV1(params = {}) {
 				offsetEnabled: settlement.offsetEnabled ?? settlement.offset_enabled ?? false,
 				paymentNote: settlement.paymentNote ?? settlement.payment_note ?? ''
 			}
-		},
-		timeout: SALE_SAVE_TIMEOUT_MS
-	})
+	}
+	if (params.webOperation) return webSaleRecovery.submit(recordId, 'updateSettlementV1', data)
+	return callCloud('crm-sale', { action: 'updateSettlementV1', data, timeout: SALE_SAVE_TIMEOUT_MS })
 }
 
 export async function listSalesV2(filters) {
