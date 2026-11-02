@@ -1,10 +1,10 @@
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm')
-const source = ['floorScaleProtocol', 'floorScaleDiagnostic', 'floorScaleSession', 'floorScaleCalibration', 'floorScaleCalibrationController']
+const source = ['floorScaleDisplay', 'autoReturnWeight', 'floorScaleProtocol', 'floorScaleDiagnostic', 'floorScaleSession', 'floorScaleCalibration', 'floorScaleCalibrationController']
  .map(name => fs.readFileSync(`src/services/pda/${name}.js`, 'utf8').replace(/^import .*\n/gm, '').replace(/export /g, '')).join('\n')
 function setup(options = {}) {
  let time = Date.now(), tick, timers = 0
  class Clock extends Date { static now() { return time } }
- const api = vm.runInNewContext(`${source}\n;({createFloorScaleDiagnostic,createFloorScaleSession,createFloorScaleCalibrationController,createFloorScaleFrameDecoder,floorScaleCandidateKg,FLOOR_SCALE_SERVICE_ID,FLOOR_SCALE_NOTIFY_ID,FLOOR_SCALE_WRITE_ID})`, {
+ const api = vm.runInNewContext(`${source}\n;({createAutoReweighWeight,createFloorScaleDiagnostic,createFloorScaleSession,createFloorScaleCalibrationController,createFloorScaleFrameDecoder,floorScaleCandidateKg,FLOOR_SCALE_SERVICE_ID,FLOOR_SCALE_NOTIFY_ID,FLOOR_SCALE_WRITE_ID})`, {
   Date: Clock, Number, Math, ArrayBuffer, Uint8Array, Set, Map, WeakMap, parseInt, Promise, setTimeout, clearTimeout,
   setInterval: fn => { tick = fn; timers++; return timers }, clearInterval: () => { timers-- }
  })
@@ -106,4 +106,31 @@ test('wrong module cannot be calibrated; silent command write is never retried',
  h.notify(frame());assert.equal((await c.issueZero()).sent,false);assert.equal(sent,1)
  delayed.success({});await Promise.resolve();assert.equal(c.getState().pending.needsReconnect,true)
  await assert.rejects(c.issueZero(),/待核对/);assert.equal(sent,1);await s.stop()
+})
+
+test('floor TTL bytes require empty transition per bottle; interruptions break 3s stability', async () => {
+ const h = setup(), accepted = [], gate = h.createAutoReweighWeight()
+ const s = h.createFloorScaleSession(h.runtime, {
+  onWeightFrame(f) { const w = gate.feed(f, 100, f.sampled_at); if (w !== null) accepted.push([f.session_id, w]) },
+  onInterrupted: gate.interrupt
+ })
+ await s.connect({preferredDeviceId:'a'})
+ let stamp = 0
+ function samples(mg, count, opts = {}) {
+  for (let i = 0; i < count; i++) {
+   const b = frame(BigInt(mg), opts.legacy); b[7] = opts.module || 0; b[b.length-3] = opts.status || 0
+   if (!opts.repeat) stamp++
+   b[b.length-2]=stamp>>8; b[b.length-1]=stamp&255; b[4]=0; b[4]=b.reduce((a,v)=>a^v,0) ^ (opts.bad ? 1 : 0)
+   h.advance(100); h.notify(b)
+  }
+ }
+ const id = s.beginMeasurement()
+ samples(120187000,35); samples(487000,10); samples(120187000,35); assert.deepEqual(accepted,[])
+ samples(0,5); samples(120187000,28); samples(120187000,1,{bad:true}); samples(120187000,10)
+ samples(120187000,35,{status:1}); samples(120187000,35,{module:2}); samples(120000,35,{legacy:true})
+ samples(120187000,35,{repeat:true}); samples(1001000000,35); assert.deepEqual(accepted,[])
+ samples(120187000,32); assert.deepEqual(accepted,[[id,120]])
+ gate.reset(); const next = s.beginMeasurement(); samples(120187000,40); assert.equal(accepted.length,1)
+ samples(0,5); samples(120187000,32); assert.deepEqual(accepted,[[id,120],[next,120]])
+ await s.stop()
 })

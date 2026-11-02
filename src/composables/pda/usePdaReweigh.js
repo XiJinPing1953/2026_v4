@@ -14,7 +14,7 @@ import { createFloorScaleCalibrationController } from '@/services/pda/floorScale
 import { resolvePdaBottleByQrCode } from '@/services/pda/bottle'
 import { enterBarcodeSession, leaveBarcodeSession } from '@/services/pda/capture'
 import { normalizeBottleNo } from '@/services/pda/shared'
-import { createReweighDraftStore, cloneReweigh, createReweighId, reweighReceipt, isSameReturnReweighRound } from '@/services/pda/reweighDraft'
+import { cloneReweigh, createReweighId, reweighReceipt, isSameReturnReweighRound } from '@/services/pda/reweighDraft'
 
 import { createReweighWorkStore } from '@/services/pda/reweighWorkStore'
 
@@ -75,9 +75,12 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 	let boundDevice = null
 	const boundKey = isFloor ? 'pda_floor_scale_bound_device_v1' : 'pda_ble_scale_bound_device_v1'
 	try { boundDevice = uni.getStorageSync(boundKey) || null; if (typeof boundDevice === 'string') boundDevice = JSON.parse(boundDevice) } catch (_) {}
-	const scale = isFloor ? createFloorScaleSession(createFloorScaleNativeRuntime(uni)) : createPdaBleScaleSession({ preserveMeasurementOnReadTimeout: true, onWeightFrame: acceptWeightFrame, deviceId: boundDevice?.deviceId || '', deviceNamePrefix: 'NVK', divisionStepKg: 0.5, displayDecimals: 1 })
+	const scale = isFloor ? createFloorScaleSession(createFloorScaleNativeRuntime(uni), {
+		onWeightFrame: acceptWeightFrame, onInterrupted: () => autoWeight.interrupt(),
+		onEmpty: id => { if (autoSession === id) message.value = '空台已确认，请将本瓶平稳放在地秤上。' }
+	}) : createPdaBleScaleSession({ preserveMeasurementOnReadTimeout: true, onWeightFrame: acceptWeightFrame, deviceId: boundDevice?.deviceId || '', deviceNamePrefix: 'NVK', divisionStepKg: 0.5, displayDecimals: 1 })
 	// Explicit wrappers also work with uni-app's statically injected storage APIs.
-	const store = (isFloor ? createReweighDraftStore : createReweighWorkStore)(ownerId, {
+	const store = createReweighWorkStore(ownerId, {
 		getStorageSync: key => uni.getStorageSync(key),
 		getStorage: key => readPdaStorage(uni, key),
 		setStorageSync: (key, value) => uni.setStorageSync(key, value),
@@ -89,7 +92,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 			round.value = saved.metadata?.round || null; pendingRound.value = saved.metadata?.pendingRound || null
 			historySyncMeta = saved.metadata?.historySyncMeta || null
 			pendingEndRound.value = saved.metadata?.pendingEndRound || null
-			localRoundEnded.value = saved.metadata?.localRoundEnded === true; lastEndedRound.value = saved.metadata?.lastEndedRound || null
+			localRoundEnded.value = saved.metadata?.localRoundEnded === true || (isFloor && saved.metadata?.floorRoundEnded === true); lastEndedRound.value = saved.metadata?.lastEndedRound || null
 			floorRoundEnded.value = isFloor && saved.metadata?.floorRoundEnded === true
 			if (!isReturn) { try { forgetSavedReweighOperations([current.value, ...history.value].filter(item => item.receipt?.saved).map(item => item.operationId)) } catch (_) { /* Optional submission-slot cleanup cannot invalidate the durable draft. */ } }
 			message.value = localRoundEnded.value && !round.value ? '本轮已结束，历史请到复秤记录查询。点击“开始新一轮”后继续。' : `已恢复当前作业；未完成的称重可连接${scaleLabel}后继续。`
@@ -114,7 +117,9 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		send: (command, deviceId) => scale.writeCalibrationCommand(command, deviceId)
 	}) : null
 	const unsubscribeFloorCalibration = floorCalibration?.subscribe(value => { floorCalibrationState.value = value }) || (() => {})
-	const calibrationBlocksReweigh = computed(() => isFloor && Boolean(floorCalibrationOpen.value || floorCalibrationState.value?.pending || floorCalibrationState.value?.requiresReview || floorCalibrationState.value?.error))
+	const calibrationBlocksReweigh = computed(() => isFloor && Boolean(floorCalibrationOpen.value || floorCalibrationState.value?.pending || floorCalibrationState.value?.requiresReview || floorCalibrationState.value?.error ||
+		(snapshot.value.is_connected && (floorCalibrationState.value?.lastVerified?.kind !== 'mass' ||
+			floorCalibrationState.value.lastVerified.deviceId !== snapshot.value.device_id))))
 	const canNext = computed(() => !busy.value && current.value.receipt?.saved === true)
 	const entryRoundId = entry => entry.roundId || entry.frozen?.payload?.round_id || ''
 	const roundHistory = computed(() => {
@@ -219,7 +224,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		autoWeight.reset(); captureMinimum.value = 0; autoSession = ''; autoSequence = 0
 		pendingSession.value = scale.beginMeasurement()
 		autoSession = pendingSession.value; autoStartedAt = Date.now()
-		message.value = isFloor ? '等待地秤实测验证，目前不能保存称重。' : '等待称重，请把瓶子完全吊起。'
+		message.value = isFloor ? '请先保持秤台空载，显示 0.0 kg；看到空台确认后再放本瓶。' : '等待称重，请把瓶子完全吊起。'
 		return true
 	}
 	function acceptWeightFrame(frame) {
@@ -228,7 +233,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		const weight = autoWeight.feed(frame, current.value.preview?.bottle?.tare_weight, Date.now())
 		captureMinimum.value = autoWeight.minimumWeight(current.value.preview?.bottle?.tare_weight)
 		if (weight === null) return
-		const capture = { sampled_at: frame.sampled_at, device_id: frame.device_id, stable_seq: ++autoSequence, measurement_id: frame.session_id, stable: true, raw: frame.raw || '' }
+		const capture = { sampled_at: frame.sampled_at, device_id: frame.device_id, stable_seq: ++autoSequence, measurement_id: frame.session_id, stable: true, raw: frame.raw || '', ...(isFloor ? { scale_type: 'floor', bottle_no: current.value.bottleNo, gross_kg: weight } : {}) }
 		pendingSession.value = ''
 		const preview = current.value.preview
 		const subtract = value => value != null && Number.isFinite(Number(value)) ? Math.round((weight - Number(value)) * 10) / 10 : null
@@ -275,7 +280,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		finally { busy.value = false }
 	}
 	async function disconnect() { pendingSession.value = ''; await scale.disconnect(); message.value = `${scaleLabel}已断开，已称重量保留。` }
-	function stopMeasurement() { autoSession = ''; autoWeight.reset(); captureMinimum.value = 0; pendingSession.value = '' }
+	function stopMeasurement() { if (isFloor) scale.endMeasurement?.(); autoSession = ''; autoWeight.reset(); captureMinimum.value = 0; pendingSession.value = '' }
 	function cancelMeasurement() { stopMeasurement(); message.value = '已停止取重，点本瓶称重可继续。' }
 	function applyReceipt(response, operationId, target = current.value, directResponse = false, allowPrint = true) {
 		const receipt = reweighReceipt(response, operationId, target?.receipt)
@@ -321,7 +326,12 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		} catch (cause) { applyReceipt({ msg: cause.message || '网络中断，还没确认是否保存成功' }, frozen.payload.operation_id); return false }
 	}
 	async function submit() {
-		if (isFloor) return fail('地秤连接测试版尚未开放业务称重保存')
+		if (isFloor) {
+			const c = current.value.capture, verified = floorCalibrationState.value?.lastVerified
+			if (!c || c.scale_type !== 'floor' || !c.stable || !c.measurement_id || c.bottle_no !== current.value.bottleNo ||
+				c.gross_kg !== current.value.grossWeight || !verified || verified.kind !== 'mass' || verified.deviceId !== c.device_id)
+				return fail('请使用已复核校准的地秤重新称量本瓶')
+		}
 		autoWeight.interrupt()
 		if (!editable() || !current.value.capture) return fail('请先完成本瓶稳定称重')
 		busy.value = true; submitting.value = true; error.value = ''
@@ -468,10 +478,11 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		if (!isReturn) {
 			if (round.value && (!await confirm('开始新一轮罐装复秤', `本轮已保存 ${round.value.bottle_count} 瓶。只重新计算本机本账号的瓶数，已保存记录保留。`) || !sameWork(version) || busy.value)) return false
 			if (isFloor) {
+				const wasLocalEnded = localRoundEnded.value
 				const previous = { round: round.value, current: current.value, history: history.value, ended: floorRoundEnded.value }
 				if (current.value.frozen) history.value = [...history.value.filter(item => item.operationId !== current.value.operationId), cloneReweigh(current.value)]
-				round.value = newLocalRound(); floorRoundEnded.value = false; current.value = emptyDraft()
-				if (!persist()) { round.value = previous.round; current.value = previous.current; history.value = previous.history; floorRoundEnded.value = previous.ended; return false }
+				round.value = newLocalRound(); floorRoundEnded.value = false; localRoundEnded.value = false; current.value = emptyDraft()
+				if (!persist()) { round.value = previous.round; current.value = previous.current; history.value = previous.history; floorRoundEnded.value = previous.ended; localRoundEnded.value = wasLocalEnded; return false }
 				pendingSession.value = ''; autoSession = ''; autoWeight.reset(); epoch += 1
 				message.value = '新一轮已开始，同瓶只算一瓶。'
 				return true
@@ -516,8 +527,8 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		if (!await confirm('结束本轮地秤复秤', `本轮已保存 ${round.value.bottle_count} 瓶。结束后保留记录，开始新一轮才能继续称重。`) || !sameWork(version) || busy.value) return false
 		const previous = { round: round.value, current: current.value, history: history.value, ended: floorRoundEnded.value }
 		if (current.value.frozen) history.value = [...history.value.filter(item => item.operationId !== current.value.operationId), cloneReweigh(current.value)]
-		round.value = null; current.value = emptyDraft(); floorRoundEnded.value = true
-		if (!persist()) { round.value = previous.round; current.value = previous.current; history.value = previous.history; floorRoundEnded.value = previous.ended; return false }
+		round.value = null; current.value = emptyDraft(); floorRoundEnded.value = true; localRoundEnded.value = true
+		if (!persist()) { round.value = previous.round; current.value = previous.current; history.value = previous.history; floorRoundEnded.value = previous.ended; localRoundEnded.value = previous.ended; return false }
 		epoch += 1; pendingSession.value = ''; autoSession = ''; autoWeight.reset(); error.value = ''
 		message.value = '本轮已结束。开始新一轮后继续复秤。'
 		return true

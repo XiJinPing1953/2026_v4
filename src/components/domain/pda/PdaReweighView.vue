@@ -20,7 +20,7 @@
 			</view>
 			<text v-if="pendingEndRound" class="notice">结束结果还未确认，请点“重试结束本轮”；已保存记录保留。</text>
 			<text v-if="pendingRound" class="notice">还没确认新一轮是否开始，请点“重试开始本轮”。</text>
-			<view v-if="!isFloor && round && roundDetails" class="round-details">
+			<view v-if="round && roundDetails" class="round-details">
 				<view class="round-detail-text">
 					<text class="hint">同瓶重称只算一瓶</text>
 					<text class="hint">{{ isReturn ? '本轮回瓶统计' : '本机、本账号统计' }} · {{ roundTime }}</text>
@@ -33,14 +33,13 @@
 				<text>{{ printer.status.value }}</text>
 				<AppButton kind="outline" size="sm" :disabled="printer.connecting.value || printer.busy.value" @click="printer.connect">{{ printer.connected.value ? '重连' : '连接' }}</AppButton>
 			</view>
-			<PdaDailyTemperature v-if="!isReturn && props.scaleMode !== 'floor'" :active="form.active.value" :disabled="busy || !canCreate" />
+			<PdaDailyTemperature v-if="!isReturn" :active="form.active.value" :disabled="busy || !canCreate" />
 			</view>
 			<view class="work-card">
 			<PdaFloorScale v-if="isFloor" :snapshot="snapshot" :busy="busy || Boolean(floorCalibrationState?.running)" @connect="connect" @disconnect="disconnect" />
 			<PdaWeighScale embedded v-else :minimum-weight="captureMinimum" :snapshot="snapshot" :selected="Boolean(current.bottleNo)" :captured="Boolean(current.capture)" :gross="current.grossWeight" :tare="current.preview?.bottle?.tare_weight" :busy="busy" @connect="connect" @disconnect="disconnect" />
-			<text v-if="isFloor" class="notice">地秤连接测试版：读数仅供核对，设备实测通过前不能保存称重。</text>
 			<AppButton v-if="isFloor && !floorCalibrationOpen" kind="outline" :disabled="busy || !canCalibrate" @click="setFloorCalibrationOpen(true)">校准地秤</AppButton>
-			<text v-if="isFloor && !floorCalibrationOpen && calibrationBlocksReweigh" class="notice notice--error">地秤校准尚待核对，请进入“校准地秤”处理。</text>
+			<text v-if="isFloor && !floorCalibrationOpen && calibrationBlocksReweigh" class="notice notice--error">当前地秤尚未完成砝码复核，请进入“校准地秤”处理。</text>
 			<PdaFloorCalibration v-if="isFloor && floorCalibrationOpen" :snapshot="snapshot" :state="floorCalibrationState" :error="error" :disabled="busy || !canCalibrate" @zero="sendFloorCalibration('zero')" @mass="sendFloorCalibration('mass', $event)" @resolve="resolveFloorCalibration" @close="setFloorCalibrationOpen(false)" />
 			<AppSection class="work-section" v-if="!floorCalibrationOpen && !current.frozen" :title="current.bottleNo ? current.bottleNo + ' 号瓶' : '请扫码选瓶'">
 				<text v-if="error" class="notice notice--error" role="alert">{{ error }}</text>
@@ -160,8 +159,7 @@ const { draftLoading, captureMinimum, current, roundHistory, recoveryHistory, hi
 	canCalibrate, floorCalibrationOpen, floorCalibrationState, calibrationBlocksReweigh, setFloorCalibrationOpen, sendFloorCalibration, resolveFloorCalibration } = form
 const historyGroups = computed(() => [
 	{ title: '本轮称重记录', items: roundHistory.value },
-	{ title: '其他轮次未确认保存的记录', items: recoveryHistory.value },
-	...(isFloor ? [{ title: '已结束轮次记录', items: form.history.value.filter(item => item.receipt?.saved && item.roundId !== round.value?._id) }] : [])
+	{ title: '其他轮次未确认保存的记录', items: recoveryHistory.value }
 ].filter(group => group.items.length))
 const readyForBottle = computed(() => Boolean(round.value?._id) && !pendingEndRound.value && (!isReturn || roundReady.value) && !calibrationBlocksReweigh.value)
 const previousNotice = computed(() => reweighPreviousNotice(current.value.preview, isReturn))

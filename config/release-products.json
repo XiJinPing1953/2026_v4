@@ -155,19 +155,23 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.62",
+      "version": "1.0.63",
       "output": "release/pda",
-      "acceptance": "Floor App display increment 0.5 kg, signed raw diagnostic weight retained, bounded manual 45 minute empty-platform observation. No zero correction, sensor parameter writes or business capture. APK for the field PDA only; global WGT pointer unchanged.",
+      "acceptance": "Field PDA floor filling reweigh: verified scale, fresh empty-to-loaded capture, shared save/correction/recovery/printing and rounds. Field APK only; no backend or global WGT change.",
       "deploymentScope": {
         "functions": [
           "crm-hebei-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "05be2327691b999ac0d79e316263d9dc8128a1e2",
+        "baseCommit": "ed58a6409d962d9e80ff838046e89936a1f19e5e",
         "sourceFiles": [
+          "src/components/domain/pda/PdaReweighView.vue",
+          "src/composables/pda/usePdaReweigh.js",
           "src/manifest.json",
-          "src/components/domain/pda/PdaFloorScale.vue",
-          "src/services/pda/floorScaleDisplay.js"
+          "src/services/pda/floorScaleDiagnostic.js",
+          "src/services/pda/floorScaleDisplay.js",
+          "src/services/pda/floorScaleSession.js",
+          "src/services/pda/reweighHistory.js"
         ]
       },
       "integrityScope": "deployment"

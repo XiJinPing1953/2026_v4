@@ -35,7 +35,7 @@ function call(runtime, method, options = {}, timeoutMs = 6000, onLateSuccess) {
 	})
 }
 
-export function createFloorScaleDiagnostic(runtime, { now = Date.now, staleMs = 3000, callTimeoutMs = 6000, closeTimeoutMs = 1500, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
+export function createFloorScaleDiagnostic(runtime, { onFrame, onInterrupted, now = Date.now, staleMs = 3000, callTimeoutMs = 6000, closeTimeoutMs = 1500, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
 	const decoder = createFloorScaleFrameDecoder()
 	let epoch = 0, connecting = false, scanning = false, attached = false, deviceId = '', lastFrame = null, lastAt = 0, lastChunkAt = 0
 	let receiving = false, chunks = 0, receivedBytes = 0, validFrames = 0, lastRaw = new Uint8Array(0)
@@ -66,7 +66,7 @@ export function createFloorScaleDiagnostic(runtime, { now = Date.now, staleMs = 
 		// Native timestamps are captured before any UI/bridge queue. A delayed
 		// notification must never make an old weight fresh enough to calibrate.
 		if (!Number.isFinite(time) || time > current || current - time > staleMs || (lastChunkAt && time < lastChunkAt)) {
-			decoder.reset(); lastFrame = null; lastAt = 0
+			decoder.reset(); lastFrame = null; lastAt = 0; onInterrupted?.()
 			if (status === 'connected') emit(false)
 			return
 		}
@@ -76,10 +76,16 @@ export function createFloorScaleDiagnostic(runtime, { now = Date.now, staleMs = 
 		try {
 			const bytes = event.value instanceof ArrayBuffer ? new Uint8Array(event.value) : ArrayBuffer.isView(event.value) ? new Uint8Array(event.value.buffer, event.value.byteOffset, event.value.byteLength) : Uint8Array.from(event.value || [])
 			chunks++; receivedBytes += bytes.byteLength; lastRaw = bytes.slice(0, 46)
+			const before = decoder.getStats()
 			frames = decoder.push(bytes)
-		} catch (_) { decoder.reset(); return }
+			const after = decoder.getStats()
+			if (after.checksumErrors !== before.checksumErrors || after.formatErrors !== before.formatErrors) { onInterrupted?.(); frames = [] }
+		} catch (_) { decoder.reset(); onInterrupted?.(); return }
 		if (frames.length) { validFrames += frames.length; lastFrame = frames[frames.length - 1]; lastAt = time }
-		if (status === 'connected') emit(false)
+		if (status === 'connected') {
+			for (const frame of frames) onFrame?.(frame, time, deviceId)
+			emit(false)
+		}
 	}
 	function onConnection(event) {
 		if (normal(event?.deviceId) !== normal(deviceId) || event.connected !== false) return

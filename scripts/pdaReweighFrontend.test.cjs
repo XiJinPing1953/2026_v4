@@ -52,8 +52,8 @@ function harness(t, options = {}) {
 		forgetSavedReweighOperations: () => {}, getUser: () => ({ _id: owner }), canPageAction: () => options.canCreate !== false,
 		getPdaBleScaleCapabilities: () => ({ transport: options.web ? 'web' : 'native', supported: true }),
 		createPdaBleScaleSession: profile => { assert.equal(profile.preserveMeasurementOnReadTimeout, true); weightFrame = profile.onWeightFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
-		createFloorScaleNativeRuntime: runtime => runtime, createFloorScaleSession: () => scale,
-		createFloorScaleCalibrationController: options.realFloorCalibration ? calibrationController.createFloorScaleCalibrationController : () => ({ subscribe(fn) { fn({ pending: null, requiresReview: false, error: '', running: false }); return () => {} } }),
+		createFloorScaleNativeRuntime: runtime => runtime, createFloorScaleSession: (runtime, callbacks) => { weightFrame = callbacks.onWeightFrame; return scale },
+		createFloorScaleCalibrationController: options.realFloorCalibration ? calibrationController.createFloorScaleCalibrationController : () => ({ subscribe(fn) { fn({ pending: null, requiresReview: false, error: '', running: false, lastVerified: { kind: 'mass', deviceId: 'floor-1' } }); return () => {} } }),
 		ensurePdaBleRuntimePermission: async () => ({ code: 0 }), quantizeBleScaleWeightKg: value => Math.round(value * 2) / 2,
 		normalizeBottleNo: value => String(value || '').trim().toUpperCase(),
 		enterBarcodeSession: async ({ onResult }) => { scanner = onResult; return { code: 0 } }, leaveBarcodeSession: async () => {},
@@ -95,7 +95,7 @@ function harness(t, options = {}) {
 	const form = stateModule.usePdaReweigh({ mode: options.returnMode ? 'return' : 'filling', printing: options.printing, scaleMode: options.floor ? 'floor' : 'hanging' })
 	t.after(() => onDestroy.forEach(fn => fn()))
 	async function start() { await form.activate(); emit({ is_connected: true, ...(options.floor ? { is_online: true, sampled_at: Date.now(), device_id: 'floor-1', connection_key: 'connection-1', can_calibrate: true } : {}) }) }
-	function frames(weight, duration = 3100) { for (let i = 0; i <= duration; i += 100) { clock += 100; weightFrame({ session_id: latest.session_id, sampled_at: clock, display_kg: Math.round(weight * 2) / 2, device_id: 'NVK-1', raw: String(weight) }) } }
+	function frames(weight, duration = 3100) { for (let i = 0; i <= duration; i += 100) { clock += 100; weightFrame({ session_id: latest.session_id, sampled_at: clock, display_kg: Math.round(weight * 2) / 2, device_id: options.floor ? 'floor-1' : 'NVK-1', raw: String(weight) }) } }
 	async function measure(bottle = '101', gross = 120) {
 		await start(); await form.selectBottle(bottle)
 		emit({ weight_kg: gross, sampled_at: Date.now(), is_connected: true, is_online: true, is_stable: true, stable_seq: 1, device_id: 'NVK-1', frame_raw: 'ST,+01200kg' })
@@ -122,11 +122,11 @@ test('floor round ends visibly, persists across restart, and stays separate from
 		receipt: { saved: true, complete: true } }
 	h.form.round.value = { ...h.form.round.value, bottle_count: 1, bottle_nos: ['101'] }
 	assert.equal(await h.form.endRound(), true)
-	assert.equal(h.form.round.value, null); assert.equal(h.form.history.value.length, 1)
-	assert.ok(h.storage.has('crm_pda_floor_reweigh_v1:u1')); assert.equal(h.storage.has('crm_pda_reweigh_v1:u1'), false)
+	assert.equal(h.form.round.value, null); assert.equal(h.form.history.value.length, 0)
+	assert.ok(h.storage.has('crm_pda_floor_reweigh_v1:u1:work-v3')); assert.ok([...h.storage.keys()].some(key => key.includes('floor_reweigh_v1:u1:work-v3:archive:'))); assert.equal(h.storage.has('crm_pda_reweigh_v1:u1'), false)
 	await h.form.deactivate()
 	const restored = harness(t, { floor: true, storage: h.storage }); await restored.start()
-	assert.equal(restored.form.round.value, null); assert.equal(restored.form.history.value.length, 1)
+	assert.equal(restored.form.round.value, null); assert.equal(restored.form.history.value.length, 0)
 	assert.equal(await restored.form.selectBottle('102'), false)
 	assert.equal(await restored.form.startRound(), true)
 	assert.ok(restored.form.round.value._id); assert.equal(restored.form.round.value.bottle_count, 0)
@@ -137,13 +137,26 @@ test('floor cannot end a round with an unfinished bottle', async t => {
 	assert.equal(await h.form.endRound(), false); assert.equal(h.form.round.value._id, id)
 	assert.match(h.form.error.value, /保存或放弃/)
 })
-test('floor commissioning never submits business weight even if a draft contains capture data', async t => {
+test('floor rejects legacy drafts without a bottle-specific floor capture', async t => {
 	const h = harness(t, { floor: true }); await h.start(); await h.form.selectBottle('101')
 	h.form.current.value.capture = { stable: true, sampled_at: Date.now(), device_id: 'floor-1' }
 	h.form.current.value.grossWeight = 120
 	assert.equal(await h.form.submit(), false)
 	assert.equal(h.requests.length, 0)
-	assert.match(h.form.error.value, /尚未开放业务称重保存/)
+	assert.match(h.form.error.value, /重新称量本瓶/)
+})
+test('floor scan, stable weight, create or correct, arm printing and dedicated count', async t => {
+	for (const mode of ['create', 'correct']) {
+		const armed = [], printing = { arm: entry => armed.push(entry.operationId), close() {} }
+		const h = harness(t, { floor: true, mode, printing }); await h.start()
+		await h.scan('101'); h.frames(120.19, 2800); assert.equal(h.form.current.value.capture, null)
+		h.frames(120.19, 200); assert.equal(h.form.current.value.grossWeight, 120)
+		assert.equal(await h.form.submit(), true); assert.equal(h.requests.length, 1)
+		const { payload } = h.requests[0]; assert.equal(h.requests[0].mode, mode)
+		assert.equal(payload.capture.scale_type, 'floor'); assert.equal(payload.capture.bottle_no, '101')
+		assert.equal(payload.capture.gross_kg, payload.gross_weight); assert.deepEqual(armed, [payload.operation_id])
+		assert.equal(h.form.round.value.bottle_count, 1)
+	}
 })
 test('floor end preserves round and pending operation on failure or uncertain save', async t => {
 	const options = { floor: true }, h = harness(t, options); await h.start()

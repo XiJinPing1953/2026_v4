@@ -38,13 +38,21 @@ export function historyPrintEntry(row) {
 export function createLocalFillingRoundsReader() {
  let cachedOwner = '', cachedToken, cachedRounds = []
  return async (owner, storage, shouldContinue = () => true) => {
-  const control = await readReweighHistoryRoot(owner, storage)
-  const raw = control.raw
+  const modes = ['filling', 'floor']
+  const controls = await Promise.all(modes.map(mode => readReweighHistoryRoot(owner, storage, mode)))
   if (!shouldContinue()) throw new Error('页面或账号已变化，请重新查询本机记录')
-  const token = control.key + ':' + (typeof raw === 'string' ? raw : JSON.stringify(raw ?? null))
+  const token = JSON.stringify(controls.map(c => [c.key, c.raw ?? null]))
   if (owner === cachedOwner && token === cachedToken) return cachedRounds
-  const data = await readReweighHistorySnapshot(owner, storage, 'filling', shouldContinue, control)
-  const rounds = groupFillingRounds(data)
+  const entries = []
+  for (let i = 0; i < modes.length; i++) {
+   if (!controls[i].raw) continue
+   const data = await readReweighHistorySnapshot(owner, storage, modes[i], shouldContinue, controls[i])
+   if (data) { for (const row of data.history) entries.push(row); entries.push(data.current) }
+  }
+  if (!shouldContinue()) throw new Error('页面或账号已变化，请重新查询本机记录')
+  // A later correction may have been made with the other scale.
+  entries.sort((a, b) => (a?.capture?.sampled_at || 0) - (b?.capture?.sampled_at || 0))
+  const rounds = groupFillingRounds({ history: entries })
   cachedOwner = owner; cachedToken = token; cachedRounds = rounds
   return rounds
  }

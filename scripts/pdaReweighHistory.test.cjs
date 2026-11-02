@@ -85,10 +85,14 @@ test('async round browsing retains all chunks, reuses an unchanged root and neve
  const storage = { async getStorage(name) { reads++; active++; max = Math.max(active,max); await new Promise(r => setImmediate(r)); active--; return map.get(name) }, getStorageSync() { assert.fail('sync read') }, setStorageSync() { assert.fail('write') } }
  const reader = createLocalFillingRoundsReader()
  const first = await reader('owner', storage, () => valid)
- assert.equal(first[0].rows.length, 2001); assert.ok(max <= 4); assert.equal(reads, 53)
- reads = 0; assert.equal(await reader('owner', storage), first); assert.equal(reads, 2)
+ assert.equal(first[0].rows.length, 2001); assert.ok(max <= 4); assert.equal(reads, 55)
+ reads = 0; assert.equal(await reader('owner', storage), first); assert.equal(reads, 4)
  map.set(key, JSON.stringify({ version: 2, ownerId: 'owner', historyChunks: parts, current: entry('new-current') }))
  const changed = await reader('owner', storage); assert.notEqual(changed, first)
+ const floorEntry = { ...entry('floor-current'), roundId: 'floor-round' }
+ map.set(draft.reweighDraftKey('owner', 'floor'), JSON.stringify({ version: 2, ownerId: 'owner', historyChunks: [], current: floorEntry }))
+ const all = await reader('owner', storage)
+ assert.equal(all.find(r => r.id === 'floor-round').rows[0].id, 'floor-current')
  valid = false; await assert.rejects(reader('owner', storage, () => valid), /账号/)
  map.delete(parts[0].key); map.set(key, JSON.stringify({ version: 2, ownerId: 'owner', historyChunks: parts, current: entry('third-current') }))
  await assert.rejects(reader('owner', storage), /分段无法读取/)
