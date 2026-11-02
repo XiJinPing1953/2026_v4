@@ -1,0 +1,10 @@
+{
+  "name": "crm-sale",
+  "version": "1.0.0",
+  "main": "index.js",
+  "cloudfunction-config": {
+    "memorySize": 512,
+    "timeout": 60,
+    "triggers": [{ "name": "web_sale_resume", "type": "timer", "config": "47 * * * * * *" }]
+  }
+}

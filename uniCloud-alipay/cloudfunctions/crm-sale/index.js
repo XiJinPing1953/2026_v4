@@ -1,6 +1,7 @@
 'use strict'
 const { assertCustomerAdjustmentSourceMutable } = require('./customerAdjustmentGuardLocal')
 const { writeSaleSource } = require('./saleSourceWrite')
+const webSave = require('./webSaleSave')
 const { assertOffsetSourceEditable, financialIdentity } = require('./saleOffsetGuard')
 
 const { inventoryTon, kgToTon } = require('./gasInventoryPrecisionLocal')
@@ -47,6 +48,8 @@ const APPLY_OFFSET_CREDIT_PAGE = '/pages/sale/apply-offset-credit'
 const AGENT_SALE_BACKFILL_ROLES = new Set(['superadmin'])
 const AGENT_SALE_BACKFILL_CONFIRM_TEXT = 'BACKFILL_AGENT_SALE_BOTTLE_MOVEMENTS'
 const PAGE_ACTION_RULES = {
+	saveWebV1: [{ pagePath: '/pages/sale/edit', action: 'create' }, { pagePath: '/pages/sale/edit', action: 'update' }, { pagePath: '/pages/sale/settlement', action: 'update' }],
+	getWebSaveResultV1: [{ pagePath: '/pages/sale/edit', action: 'create' }, { pagePath: '/pages/sale/edit', action: 'update' }, { pagePath: '/pages/sale/settlement', action: 'update' }],
 	listPdaV1: [{ pagePath: "/pages/pda/sale-create", action: "view" }],
 	getPdaV1: [{ pagePath: "/pages/pda/sale-create", action: "view" }],
 	createMobileV1: [{ pagePath: '/pages/pda/sale-create', action: 'create' }],
@@ -149,9 +152,9 @@ function buildSaleMovementDoc({
 	return doc
 }
 
-async function appendMovementRecords(user, saleDoc, outRows, backRows) {
+async function appendMovementRecords(user, saleDoc, outRows, backRows, sink = movements, savedAt = Date.now()) {
 	const date = normalizeString(saleDoc.date)
-	const now = Date.now()
+	const now = savedAt
 	const eventDay = normalizeEventDay(date, now)
 	const eventAt = parseEventAt(date, now)
 
@@ -192,7 +195,7 @@ async function appendMovementRecords(user, saleDoc, outRows, backRows) {
 	})
 
 	if (!inserts.length) return
-	await movements.add(inserts)
+	await sink.add(inserts)
 }
 
 function normalizeString(value) {
@@ -1199,10 +1202,10 @@ async function appendAgentSaleMovementRecords(user, saleDoc, agentRows = []) {
 	await movements.add(docs)
 }
 
-async function buildAgentSaleMovementDocs(user, saleDoc, agentRows = [], linkedMeta = null) {
+async function buildAgentSaleMovementDocs(user, saleDoc, agentRows = [], linkedMeta = null, savedAt = Date.now()) {
 	const rows = Array.isArray(agentRows) ? agentRows : []
 	if (!rows.length) return []
-	const now = Date.now()
+	const now = savedAt
 	const rowsWithSaleDate = rows.map((row) => ({ ...row, sale_date: saleDoc && saleDoc.date }))
 	const {
 		fillMovementById,
@@ -2493,7 +2496,9 @@ function buildSaleVoucherEntries(saleDoc, shouldReceive, amountReceived) {
 	return entries
 }
 
-async function syncSaleVoucher(user, saleDoc, amounts, requestId) {
+async function syncSaleVoucher(user, saleDoc, amounts, requestId, database = db, audit = true) {
+	const vouchers = database.collection('crm_vouchers')
+	const voucherEntries = database.collection('crm_voucher_entries')
 	const shouldReceive = resolveEffectiveShouldReceive(
 		toNumber(amounts.should_receive, 0),
 		toNumber(amounts.rounding_amount, 0)
@@ -2521,7 +2526,7 @@ async function syncSaleVoucher(user, saleDoc, amounts, requestId) {
 	const exist = (existRes.data && existRes.data[0]) || null
 	if (exist && exist.status === 'posted') return
 
-	const voucherNo = exist?.voucher_no || generateVoucherNo(saleDoc.date)
+	const voucherNo = exist?.voucher_no || (audit ? generateVoucherNo(saleDoc.date) : `XS-${saleDoc.date.replace(/-/g, '')}-${saleDoc._id}`)
 	const header = {
 		date: saleDoc.date,
 		period,
@@ -2545,11 +2550,12 @@ async function syncSaleVoucher(user, saleDoc, amounts, requestId) {
 		await vouchers.doc(voucherId).update(header)
 		await voucherEntries.where({ voucher_id: voucherId }).remove()
 	} else {
-		const res = await vouchers.add(header)
+		const res = await vouchers.add({ ...header, _id: webSave.hash(['sale-voucher', source]).slice(0, 24) })
 		voucherId = res.id
 	}
 
-	const entryDocs = entriesRows.map((row) => ({
+	const entryDocs = entriesRows.map((row, index) => ({
+		_id: webSave.hash(['sale-voucher-entry', voucherId, index]).slice(0, 24),
 		voucher_id: voucherId,
 		voucher_no: voucherNo,
 		date: saleDoc.date,
@@ -2569,7 +2575,7 @@ async function syncSaleVoucher(user, saleDoc, amounts, requestId) {
 	}))
 
 	if (entryDocs.length) await voucherEntries.add(entryDocs)
-	await recordLog(user, 'sale_voucher_sync_v1', { sale_id: saleDoc._id, voucher_id: voucherId }, requestId)
+	if (audit) await recordLog(user, 'sale_voucher_sync_v1', { sale_id: saleDoc._id, voucher_id: voucherId }, requestId)
 }
 
 async function triggerAnomalyTouchV2(user, token, bottleNosOrPayload, requestId, mobileCapability = null) {
@@ -2706,7 +2712,7 @@ function withTimeout(promise, timeoutMs, message) {
 	})
 }
 
-async function enqueueRegBridge(action, data, token, requestId, user, logAction = '') {
+async function enqueueRegBridge(action, data, token, requestId, user, logAction = '', awaitResult = false) {
 	const normalizedAction = normalizeString(action)
 	if (!normalizedAction) return ''
 	try {
@@ -2720,7 +2726,7 @@ async function enqueueRegBridge(action, data, token, requestId, user, logAction 
 			}
 		})
 		const timeoutMs = resolveRegBridgeTimeoutMs()
-		const res = await withTimeout(callPromise, timeoutMs, `crm-reg-bridge ${normalizedAction} timeout`)
+		const res = awaitResult ? await callPromise : await withTimeout(callPromise, timeoutMs, `crm-reg-bridge ${normalizedAction} timeout`)
 		const result = res && res.result ? res.result : {}
 		if (Number(result.code) === 0) return ''
 		const warning = normalizeString(result.msg) || '监管同步入队失败'
@@ -3094,6 +3100,7 @@ async function createV2(user, payload, requestId, token, options = {}) {
 	const res = options.insertSource ? await options.insertSource(doc)
 		: await writeSaleSource(db, null, doc, tx => tx.collection('crm_sale_records').add(doc))
 	const saleDoc = { ...doc, _id: res.id }
+	if (webSave.context.getStore()?.saved) return { code: 0, data: { _id: res.id } }
 	const mobileCapability = options.getSideEffectCapability?.() || null
 	await appendSaleMovementRecords(user, saleDoc, {
 		bizMode,
@@ -4216,6 +4223,7 @@ async function getV2(user, data) {
 		data: {
 			...applyRemarkMetaToDoc(doc),
 			mobile_create_review: await mobileSaleService.review(doc),
+			web_save_review: await webSaleService.review(doc),
 			accounting,
 			out_net_total: amounts.out_net_total,
 			back_net_total: amounts.back_net_total,
@@ -4317,6 +4325,7 @@ async function quickReceiveV1(user, data, requestId, token) {
 	const doc = (res.data && res.data[0]) || null
 	if (!doc) return { code: 404, msg: '记录不存在' }
 	if (saleMentionsHiddenCustomer(doc, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
+	try { await webSaleService.guard(doc) } catch (error) { return { code: error.code || 409, msg: error.message } }
 	const mobileGuard = await mobileSaleService.guardMutation(doc)
 	if (mobileGuard) return mobileGuard
 	if (saleAccounting.resolveSettlementMode(doc) === 'customer_flow') {
@@ -4733,6 +4742,7 @@ async function updateV2(user, data, requestId, token) {
 	const existing = (existingRes.data && existingRes.data[0]) || null
 	if (!existing) return { code: 404, msg: '记录不存在' }
 	if (saleMentionsHiddenCustomer(existing, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
+	try { await webSaleService.guard(existing) } catch (error) { return { code: error.code || 409, msg: error.message } }
 	const mobileGuard = await mobileSaleService.guardMutation(existing)
 	if (mobileGuard) return mobileGuard
 	try { await assertCustomerAdjustmentSourceMutable({ db, command: dbCmd, readComplete, customerId: existing.customer_id, targetType: 'sale', targetId: recordId }) }
@@ -4985,6 +4995,7 @@ async function updateV2(user, data, requestId, token) {
 		if (!ensureRes.ok) return { code: 400, msg: ensureRes.msg }
 	}
 	await writeSaleSource(db, existing, { ...existing, ...updateDoc }, tx => tx.collection('crm_sale_records').doc(recordId).update(updateDoc))
+	if (webSave.context.getStore()?.saved) return { code: 0, data: { _id: recordId } }
 	await movements
 		.where({ source_type: 'sale', source_id: recordId })
 		.remove()
@@ -5180,6 +5191,7 @@ async function updateSettlementV1(user, data, requestId, token) {
 	const existing = (existingRes.data && existingRes.data[0]) || null
 	if (!existing) return { code: 404, msg: '记录不存在' }
 	if (saleMentionsHiddenCustomer(existing, await fetchHiddenCustomerIds(customers))) return { code: 404, msg: '记录不存在' }
+	try { await webSaleService.guard(existing) } catch (error) { return { code: error.code || 409, msg: error.message } }
 	const mobileGuard = await mobileSaleService.guardMutation(existing)
 	if (mobileGuard) return mobileGuard
 	try { await assertCustomerAdjustmentSourceMutable({ db, command: dbCmd, readComplete, customerId: existing.customer_id, targetType: 'sale', targetId: recordId }) }
@@ -5266,6 +5278,7 @@ async function updateSettlementV1(user, data, requestId, token) {
 		updateDoc.offset_use_error = ''
 	}
 	await writeSaleSource(db, existing, { ...existing, ...updateDoc }, tx => tx.collection('crm_sale_records').doc(recordId).update(updateDoc))
+	if (webSave.context.getStore()?.saved) return { code: 0, data: { _id: recordId } }
 	const sideWarnings = []
 	try {
 		await syncSaleVoucher(user, { ...existing, ...updateDoc, _id: recordId }, amounts, requestId)
@@ -5322,6 +5335,7 @@ async function removeV2(user, data, requestId, token) {
 	if (!saleDoc) return { code: 404, msg: '记录不存在' }
 	const hiddenCustomerIds = await fetchHiddenCustomerIds(customers)
 	if (saleMentionsHiddenCustomer(saleDoc, hiddenCustomerIds)) return { code: 404, msg: '记录不存在' }
+	try { await webSaleService.guard(saleDoc) } catch (error) { return { code: error.code || 409, msg: error.message } }
 	const mobileGuard = await mobileSaleService.guardMutation(saleDoc)
 	if (mobileGuard) return mobileGuard
 
@@ -5590,8 +5604,102 @@ async function cleanupPaymentMethodV1(user, data, requestId) {
 
 const pdaSaleRecords = require('./pdaSaleRecords').createService({ db, mentionsHidden: saleMentionsHiddenCustomer, project: applyRemarkMetaToDoc, amounts: doc => computeSaleAmountsForDoc(doc, { allowUnresolved: true }), isAdmin: user => isSuperAdmin(user), hiddenIds: () => fetchHiddenCustomerIds(customers) })
 
+// Each derived replacement is atomic and keeps deterministic IDs on a retry.
+// Only operations committed by saveWebV1 enter this queue; no historical sweep.
+async function webDerivedTransaction(op, task) {
+	const tx = await db.startTransaction()
+	try {
+		const result = await tx.collection('crm_sale_records').where({ _id: op.sale_id }).limit(1).get()
+		const source = Array.isArray(result.data) ? result.data[0] : result.data
+		if (!source || source.web_save_operation_key !== op._id) throw new Error('源单版本已变化')
+		await task(tx, source)
+		await tx.commit()
+	} catch (error) { await tx.rollback().catch(() => {}); throw error }
+}
+
+function webFollowupSteps(op) {
+	const before = op.before || {}, after = op.after
+	const business = op.save_action !== 'updateSettlementV1'
+	const touched = [...new Set([...collectSaleBottleNosFromDoc(before), ...collectSaleBottleNosFromDoc(after)])]
+	const backs = [...new Set([...collectSaleBackBottleNosFromDoc(before), ...collectSaleBackBottleNosFromDoc(after)])]
+	const trucks = [...new Set([...collectSaleTruckNosFromDoc(before), ...collectSaleTruckNosFromDoc(after)])]
+	const financialChanged = !op.before || financialIdentity(before) !== financialIdentity(after)
+	const list = []
+	const add = (name, label, run) => list.push({ name, run: async args => {
+		try { await run(args) } catch (error) {
+			await recordLog(args.user, 'sale_web_followup_failed', { operation_id: op.operation_id, sale_id: op.sale_id, step: name, error: String(error.message || error).slice(0, 1000) }, op.request_id)
+			throw new Error(`${label}暂未完成`)
+		}
+	} })
+	if (business) {
+		add('movements', '钢瓶流转同步', async ({ source, user }) => {
+			let rows = []
+			if (source.biz_mode === 'bottle') await appendMovementRecords(user, source, source.out_items || [], source.back_items || [], { add: async docs => { rows = docs } }, op.created_at)
+			if (source.biz_mode === 'agent_sale') rows = await buildAgentSaleMovementDocs(user, source, source.agent_sale_items || [], null, op.created_at)
+			await webDerivedTransaction(op, async tx => {
+				const collection = tx.collection('crm_bottle_movements')
+				await collection.where({ source_type: 'sale', source_id: source._id }).remove()
+				if (rows.length) await collection.add(rows.map((row, index) => ({ ...row, _id: webSave.hash(['sale-movement', source._id, index]).slice(0, 24) })))
+			})
+		})
+		add('bottle_status', '钢瓶状态同步', () => syncBottleCurrentStatusByBottleNos(touched))
+		add('deposit_snapshot', '存瓶归属同步', () => reconcileBottleCurrentCustomerByDepositSnapshot({
+			customerIds: [...new Set([...collectSaleCustomerIdsFromDoc(before), ...collectSaleCustomerIdsFromDoc(after)])], bottleNos: touched
+		}))
+		add('inventory', '库存流水同步', ({ user }) => webDerivedTransaction(op, async (tx, source) => {
+			const collection = tx.collection('crm_gas_inventory_movements')
+			const payload = buildSaleGasMovementPayload({ sourceId: source._id, saleDoc: source, bizMode: source.biz_mode,
+				amounts: computeSaleAmountsForDoc(source).amounts, now: op.created_at, user })
+			await collection.where({ source_type: 'sale', source_id: source._id }).remove()
+			if (payload) await collection.add({ ...payload, _id: webSave.hash(['sale-inventory', source._id]).slice(0, 24) })
+		}))
+	}
+	if (after.offset_sync_revision && after.offset_sync_revision !== before.offset_sync_revision) {
+		add('offset_sync', '本单冲抵来源同步', async ({ source, token }) => {
+			const result = await syncOffsetCreditForSale(source, token, op.request_id)
+			if (result.status !== 'completed') throw new Error(result.warning || '冲抵同步待确认')
+		})
+	}
+	if (after.offset_use_revision && after.offset_use_revision !== before.offset_use_revision) {
+		add('offset_use', '本单使用冲抵', async ({ source, user, token }) => {
+			const result = await applyOffsetUseForSale(source, user, token, op.request_id)
+			if (result.status !== 'completed') throw new Error(result.warning || '使用冲抵待确认')
+		})
+	}
+	if (financialChanged && after.settlement_mode !== 'customer_flow') {
+		add('balance', '客户汇总刷新', async ({ source, token }) => {
+			// This mode never allocates new money; explicit offset use has its own original operation above.
+			const result = await callCustomerSettlement('autoApplyPrepayToSaleV1', { sale_id: source._id, exclude_offset_credit: true }, token, op.request_id)
+			if (result.code !== 0) throw new Error(result.msg)
+		})
+	}
+	add('voucher', '凭证同步', ({ user }) => webDerivedTransaction(op, (tx, source) => syncSaleVoucher(user, source, computeSaleAmountsForDoc(source).amounts, op.request_id, tx, false)))
+	if (business) {
+		if (backs.length) add('start_loss', '灌装上秤差处理', async ({ user, token }) => {
+			const result = await syncFillingStartLossAdjustments(user, token, backs, op.request_id, 'sale_web_start_loss_failed')
+			if (!result.ok) throw new Error(result.warning)
+		})
+		if (touched.length || trucks.length) add('anomaly', '异常刷新排队', async ({ user, token }) => {
+			const result = await triggerAnomalyTouchV2(user, token, { bottleNos: touched, truckNos: trucks }, `web-sale-${op._id}`)
+			// Accepted queued scans are not save failures; the anomaly worker owns completion.
+			if (!result.ok) throw new Error(result.warning)
+		})
+		if (touched.length) add('regulator', '监管事件排队', async ({ user, token }) => {
+			const warning = await enqueueRegBridge('enqueueEventV1', { source_type: 'sale', source_id: op.sale_id, event_type: '',
+				bottle_nos: touched, event_at: op.created_at, enqueue_snapshot: true }, token, op.request_id, user, 'sale_web_reg_enqueue_failed', true)
+			if (warning) throw new Error(warning)
+		})
+	}
+	return list
+}
+
+const webSaleService = webSave.createService({ db, handlers: { createV2, updateV2, updateSettlementV1 }, steps: webFollowupSteps,
+	authorize: (user, action, requestId) => ensureActionAcl(user, action, PAGE_ACTION_RULES, SUPERADMIN_ONLY_ACTIONS, { recordLog, requestId, cloudFunction: 'crm-sale' }),
+	actor: async id => { const result = await users.where({ _id: id }).limit(1).get(); return result.data?.[0] }
+})
+
 const main = async (event, context) => {
-	void context
+	if (context?.SOURCE === 'timing') return webSaleService.drain()
 	const { action, data = {}, token } = event
 	const requestId =
 		normalizeString(event.request_id || event.requestId || context?.requestId || context?.request_id || '') ||
@@ -5606,6 +5714,8 @@ const main = async (event, context) => {
 	})
 	if (!acl.ok) return { code: acl.code || 403, msg: acl.msg || '无权限执行该操作' }
 
+	if (action === 'saveWebV1') return webSaleService.submit(user, data, requestId, token)
+	if (action === 'getWebSaveResultV1') return webSaleService.getResult(user, data)
 	if (action === 'listPdaV1') return pdaSaleRecords.list(user, data)
 	if (action === 'getPdaV1') return pdaSaleRecords.get(user, data)
 	if (action === 'createMobileV1') return mobileSaleService.create(user, data, requestId, token)

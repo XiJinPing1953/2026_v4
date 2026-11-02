@@ -119,7 +119,7 @@ test('sales save warning is shown instead of the plain success toast or promise 
 		const from = vue.indexOf(`async function ${name}()`), to = vue.indexOf('\nfunction ', from)
 		const source = name === 'onSubmitBusiness' ? vue.slice(from, vue.indexOf('\nasync function onSubmitSettlement()', from)) : vue.slice(from, to)
 		const modal = [], toasts = []
-		const context = vm.createContext({ saleSaveWarning, submitting: { value: false }, submittingMode: { value: '' }, canSaveBusiness: { value: true }, canSaveSettlement: { value: true }, recordId: { value: 'sale' },
+		const context = vm.createContext({ saleSaveWarning, webSaveReview: { value: null }, savedThisPage: { value: false }, pendingWebSave: { value: false }, refreshPendingWebSave() {}, acknowledgeWebSave() {}, loadDetail: async () => {}, submitting: { value: false }, submittingMode: { value: '' }, canSaveBusiness: { value: true }, canSaveSettlement: { value: true }, recordId: { value: 'sale' },
 			form: { value: { date: '2026-10-30', customerId: 'customer' } }, showSettlementBlocks: { value: true }, syncSettlementStatusForSubmit() {}, validateSettlement: () => ({ ok: true }),
 			submitSale: async () => ({ code: 0, data: { warning: '冲抵款同步失败' } }), submitSaleSettlement: async () => ({ code: 0, data: { warning: '冲抵款同步失败' } }),
 			isBottleFlowWarningResult: () => false, SALE_LIST_REFRESH_KEY: 'refresh', navigateAfterSave() {}, buildOverCollectionReminder: () => { throw Error('must not promise credit on failed sync') },
