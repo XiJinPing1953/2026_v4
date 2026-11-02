@@ -1,6 +1,7 @@
 # 当前状态
 更新时间：2026-11-02。工程契约见[RULES](docs/RULES.md)，按需选择[领域](state/INDEX.md)。本页只维护当前任务、生产版本和继续条件。
 ## 当前任务
+- 2026-11-02 网页销售防重/恢复修复已发布：H5 `1793590218813-b2ea947f`、crm-sale、4个schema和10个索引；316项测试、20云文件/双域各217资源及定时续办回读通过。固定操作号同事务回执，已保存后的故障后台续办；历史账务未改，旧网页须刷新。见[核查与发布](state/handoffs/2026-11-02-sale-save-errors.md)。
 - 2026-11-02 地秤/PDA **1.0.60（161）已发布**：595项回归及包/清单回读通过，源码`921e441`已推main；无读数现场根因待原始通知，业务保存仍关闭，见[修复与风险](state/handoffs/2026-11-02-floor-robustness.md)。厂家App2.0.1已装PDA且回读匹配，11组原函数回放及原生层对照完成；厂家初始/断线显示可能不是实时重量，见[深度剖析](state/handoffs/2026-11-02-vendor-scale-app.md)。
 - 2026-11-01 河北气瓶：1013档更新、853条后台映射，82条暂不新增。稳定性3项反例已修复并发布PDA **1.0.57（158）**及河北函数：577项回归通过，云文件/WGT/更新指针回读一致，定时任务已运行；当日温度未填，无测试充装，真机安装与首笔实际提交待验收，附加索引部署仍未核实。见[修复与发布](state/handoffs/2026-11-01-hebei-stability-fix.md)、[核查](state/handoffs/2026-11-01-pda-stability-audit.md)、[原对接](state/handoffs/2026-11-01-hebei-filling-bridge.md)、[档案](state/handoffs/2026-11-01-hebei-cylinder-archives.md)。
 - 2026-11-01 首页钢瓶资产口径已发布：排除停用、车辆/占位及测试档案，快速/完整接口与正式页面均为在户325、在站193；按用户确认通过既有档案入口修正55个启用X瓶当前归属，70个启用X瓶均在指定客户。7项检查、19云文件及1029档前后核对通过；源码`0f88256`，见[交接](state/handoffs/2026-11-01-dashboard-bottle-assets.md)。
@@ -143,9 +144,7 @@
 - 部分历史内嵌收款仍缺到账依据，按客户逐项核实；通用规则通过不等于全部客户账务已核清。[账务领域](state/domains/accounting.md)。
 - 全仓schema存在入户巡检双份差异，单批范围检查不代表全仓一致；不夹带修正。销售持久写入等后续范围见[里程碑](docs/SYSTEM_MAINLINE.md)。
 - 聚力特、浩诺已确认结果与历史截止范围见[汇总交接](state/handoffs/2026-09-08-customer-period-summary.md)、[浩诺重建](state/handoffs/2026-09-08-haonuo-rebuild.md)。不强迫后续当前余额等于历史截止余额。
-
 ## 证据与保护
-
 - 私有原始资料、回退包与验收证据位于本机`outputs/trust-audit/`对应日期/任务目录，具体位置见交接；不进入Git。接口投影不冒充原始数据库快照。
 - 原有本地`alarm.cjs`、储罐遥测及其他无关未跟踪文件保留，不随本次调整提交。
 - 旧STATE原文及校验见[历史索引](state/history/INDEX.md)；旧工作区保护见[基线](state/baselines/2026-09-05.json)。四项改进指标见[可靠性记录](docs/SYSTEM_RELIABILITY.md)，没有测量不能写成零。
