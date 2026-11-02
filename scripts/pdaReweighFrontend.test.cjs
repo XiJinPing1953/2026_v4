@@ -158,6 +158,16 @@ test('floor scan, stable weight, create or correct, arm printing and dedicated c
 		assert.equal(h.form.round.value.bottle_count, 1)
 	}
 })
+test('floor operator inherits only completed scale calibration; saved follow-ups do not trap the round', async t => {
+	const storage = new Map([['crm_pda_floor_calibration_v1', JSON.stringify({version:1, ownerId:'technician', zeroFor:'', pending:null, requiresReview:false, lastVerified:{kind:'mass',deviceId:'floor-1'}})]])
+	const h = harness(t, { storage, floor: true, realFloorCalibration: true,
+		send: async p => ({code:0, data:{operation_id:p.operation_id,saved_total:1,complete:false}}) })
+	await h.start(); await h.scan('101'); h.frames(120); assert.equal(await h.form.submit(),true)
+	assert.equal(await h.form.endRound(),true); assert.equal(h.form.localRoundEnded.value,true)
+	const restored = harness(t, {storage,floor:true,realFloorCalibration:true}); await restored.start()
+	assert.equal(restored.form.round.value,null); assert.equal(await restored.form.startRound(),true)
+	assert.equal(restored.form.localRoundEnded.value,false)
+})
 test('floor end preserves round and pending operation on failure or uncertain save', async t => {
 	const options = { floor: true }, h = harness(t, options); await h.start()
 	const id = h.form.round.value._id

@@ -168,6 +168,7 @@
           "src/components/domain/pda/PdaReweighView.vue",
           "src/composables/pda/usePdaReweigh.js",
           "src/manifest.json",
+          "src/services/pda/floorScaleCalibrationController.js",
           "src/services/pda/floorScaleDiagnostic.js",
           "src/services/pda/floorScaleDisplay.js",
           "src/services/pda/floorScaleSession.js",

@@ -16,6 +16,10 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 				(parsed.pending && (!['zero', 'mass'].includes(parsed.pending.kind) || !parsed.pending.deviceId || !parsed.pending.connectionKey || typeof parsed.pending.needsReconnect !== 'boolean'))) throw new Error('校准状态无法识别，请保留原数据')
 			if (parsed.ownerId !== ownerId && (parsed.pending || parsed.requiresReview)) throw new Error('其他账号有待核对的校准，请使用原账号处理')
 			if (parsed.ownerId === ownerId) state = { ...state, ...parsed }
+			// A completed physical calibration belongs to this device. An operator
+			// may weigh with it but cannot resolve someone else's pending action.
+			else if (!parsed.pending && !parsed.requiresReview && parsed.lastVerified?.kind === 'mass')
+				state.lastVerified = parsed.lastVerified
 		}
 	} catch (error) { broken = error.message || '校准状态读取失败' }
 	const getState = () => ({ ...state, pending: state.pending ? { ...state.pending } : null, running, error: broken })
