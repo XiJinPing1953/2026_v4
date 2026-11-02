@@ -36,7 +36,7 @@
 			<PdaDailyTemperature v-if="!isReturn" :active="form.active.value" :disabled="busy || !canCreate" />
 			</view>
 			<view class="work-card">
-			<PdaFloorScale v-if="isFloor" :snapshot="snapshot" :busy="busy || Boolean(floorCalibrationState?.running)" @connect="connect" @disconnect="disconnect" />
+			<PdaFloorScale v-if="isFloor" :snapshot="snapshot" :show-zero="readyForBottle && !current.capture && !locked && canCreate" @zero="form.temporaryZero" :busy="busy || Boolean(floorCalibrationState?.running)" @connect="connect" @disconnect="disconnect" />
 			<PdaWeighScale embedded v-else :minimum-weight="captureMinimum" :snapshot="snapshot" :selected="Boolean(current.bottleNo)" :captured="Boolean(current.capture)" :gross="current.grossWeight" :tare="current.preview?.bottle?.tare_weight" :busy="busy" @connect="connect" @disconnect="disconnect" />
 			<AppButton v-if="isFloor && !floorCalibrationOpen" kind="outline" :disabled="busy || !canCalibrate" @click="setFloorCalibrationOpen(true)">校准地秤</AppButton>
 			<text v-if="isFloor && !floorCalibrationOpen && calibrationBlocksReweigh" class="notice notice--error">当前地秤尚未完成砝码复核，请进入“校准地秤”处理。</text>

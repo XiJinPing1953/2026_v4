@@ -11,7 +11,7 @@ export function floorScaleDisplayWeight(snapshot, { raw = false } = {}) {
 	if (!Number.isFinite(value)) return '—'
 	if (raw) return value.toFixed(3)
 	// Symmetric half-step rounding; keep negative readings and normalize only -0.
-	const rounded = floorScaleDivisionKg(value)
+	const rounded = floorScaleDivisionKg(value - (snapshot.offset_kg || 0))
 	return (rounded === 0 ? 0 : rounded).toFixed(1)
 }
 

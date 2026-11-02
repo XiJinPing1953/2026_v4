@@ -155,24 +155,24 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.63",
+      "version": "1.0.64",
       "output": "release/pda",
-      "acceptance": "Field PDA floor filling reweigh: verified scale, fresh empty-to-loaded capture, shared save/correction/recovery/printing and rounds. Field APK only; no backend or global WGT change.",
+      "acceptance": "Field PDA: scan before or after loading, 1.5s floor stability and confirmed single-load temporary zero with frozen raw evidence.",
       "deploymentScope": {
         "functions": [
           "crm-hebei-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "ed58a6409d962d9e80ff838046e89936a1f19e5e",
+        "baseCommit": "87ac693dc4fce13f796dd7ab69726aa69e571455",
         "sourceFiles": [
+          "src/components/domain/pda/PdaFloorScale.vue",
           "src/components/domain/pda/PdaReweighView.vue",
           "src/composables/pda/usePdaReweigh.js",
           "src/manifest.json",
-          "src/services/pda/floorScaleCalibrationController.js",
-          "src/services/pda/floorScaleDiagnostic.js",
+          "src/services/pda/autoReturnWeight.js",
           "src/services/pda/floorScaleDisplay.js",
-          "src/services/pda/floorScaleSession.js",
-          "src/services/pda/reweighHistory.js"
+          "src/services/pda/floorScaleLoad.js",
+          "src/services/pda/floorScaleSession.js"
         ]
       },
       "integrityScope": "deployment"

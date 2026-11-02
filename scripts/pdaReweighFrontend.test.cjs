@@ -95,7 +95,7 @@ function harness(t, options = {}) {
 	const form = stateModule.usePdaReweigh({ mode: options.returnMode ? 'return' : 'filling', printing: options.printing, scaleMode: options.floor ? 'floor' : 'hanging' })
 	t.after(() => onDestroy.forEach(fn => fn()))
 	async function start() { await form.activate(); emit({ is_connected: true, ...(options.floor ? { is_online: true, sampled_at: Date.now(), device_id: 'floor-1', connection_key: 'connection-1', can_calibrate: true } : {}) }) }
-	function frames(weight, duration = 3100) { for (let i = 0; i <= duration; i += 100) { clock += 100; weightFrame({ session_id: latest.session_id, sampled_at: clock, display_kg: Math.round(weight * 2) / 2, device_id: options.floor ? 'floor-1' : 'NVK-1', raw: String(weight) }) } }
+	function frames(weight, duration = 3100, evidence = {}) { for (let i = 0; i <= duration; i += 100) { clock += 100; weightFrame({ session_id: latest.session_id, sampled_at: clock, display_kg: Math.round(weight * 2) / 2, device_id: options.floor ? 'floor-1' : 'NVK-1', raw: String(weight), ...evidence }) } }
 	async function measure(bottle = '101', gross = 120) {
 		await start(); await form.selectBottle(bottle)
 		emit({ weight_kg: gross, sampled_at: Date.now(), is_connected: true, is_online: true, is_stable: true, stable_seq: 1, device_id: 'NVK-1', frame_raw: 'ST,+01200kg' })
@@ -149,7 +149,7 @@ test('floor scan, stable weight, create or correct, arm printing and dedicated c
 	for (const mode of ['create', 'correct']) {
 		const armed = [], printing = { arm: entry => armed.push(entry.operationId), close() {} }
 		const h = harness(t, { floor: true, mode, printing }); await h.start()
-		await h.scan('101'); h.frames(120.19, 2800); assert.equal(h.form.current.value.capture, null)
+		await h.scan('101'); h.frames(120.19, 1400); assert.equal(h.form.current.value.capture, null)
 		h.frames(120.19, 200); assert.equal(h.form.current.value.grossWeight, 120)
 		assert.equal(await h.form.submit(), true); assert.equal(h.requests.length, 1)
 		const { payload } = h.requests[0]; assert.equal(h.requests[0].mode, mode)
@@ -822,4 +822,17 @@ test('reentering a saved pending round neither prints nor polls the backlog', as
  await h.measure(); await h.form.submit(); await h.form.nextBottle(); await h.form.deactivate()
  await h.form.activate(); await tick()
  assert.equal(h.form.busy.value,false); assert.equal(queries,0); assert.equal(printed,1)
+})
+
+test('floor corrected weight, raw frame and offset stay frozen after timeout and restart', async t => {
+ const h = harness(t,{floor:true, send:()=>{throw Error('timeout')}})
+ await h.start(); await h.scan('101'); h.frames(120,1600,{raw:'AA0123',raw_kg:120.487,offset_kg:0.487})
+ assert.equal(await h.form.submit(),false)
+ const original=h.requests[0].payload
+ assert.equal(original.gross_weight,120)
+ assert.deepEqual(JSON.parse(original.capture.raw),{ttl:'AA0123',raw_kg:120.487,offset_kg:0.487})
+ await h.form.deactivate()
+ const restored=harness(t,{floor:true,storage:h.storage})
+ await restored.start(); await restored.form.query(original.operation_id,true)
+ assert.deepEqual(restored.requests[0].payload,original)
 })

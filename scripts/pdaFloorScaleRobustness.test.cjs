@@ -1,5 +1,5 @@
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm')
-const source = ['floorScaleDisplay', 'autoReturnWeight', 'floorScaleProtocol', 'floorScaleDiagnostic', 'floorScaleSession', 'floorScaleCalibration', 'floorScaleCalibrationController']
+const source = ['floorScaleLoad', 'floorScaleDisplay', 'autoReturnWeight', 'floorScaleProtocol', 'floorScaleDiagnostic', 'floorScaleSession', 'floorScaleCalibration', 'floorScaleCalibrationController']
  .map(name => fs.readFileSync(`src/services/pda/${name}.js`, 'utf8').replace(/^import .*\n/gm, '').replace(/export /g, '')).join('\n')
 function setup(options = {}) {
  let time = Date.now(), tick, timers = 0
@@ -108,8 +108,8 @@ test('wrong module cannot be calibrated; silent command write is never retried',
  await assert.rejects(c.issueZero(),/待核对/);assert.equal(sent,1);await s.stop()
 })
 
-test('floor TTL bytes require empty transition per bottle; interruptions break 3s stability', async () => {
- const h = setup(), accepted = [], gate = h.createAutoReweighWeight()
+test('floor TTL bytes require empty transition per bottle; interruptions break 1.5s stability', async () => {
+ const h = setup(), accepted = [], gate = h.createAutoReweighWeight(1500)
  const s = h.createFloorScaleSession(h.runtime, {
   onWeightFrame(f) { const w = gate.feed(f, 100, f.sampled_at); if (w !== null) accepted.push([f.session_id, w]) },
   onInterrupted: gate.interrupt
@@ -126,11 +126,64 @@ test('floor TTL bytes require empty transition per bottle; interruptions break 3
  }
  const id = s.beginMeasurement()
  samples(120187000,35); samples(487000,10); samples(120187000,35); assert.deepEqual(accepted,[])
- samples(0,5); samples(120187000,28); samples(120187000,1,{bad:true}); samples(120187000,10)
+ samples(0,5); samples(120187000,14); samples(120187000,1,{bad:true}); samples(120187000,10)
  samples(120187000,35,{status:1}); samples(120187000,35,{module:2}); samples(120000,35,{legacy:true})
  samples(120187000,35,{repeat:true}); samples(1001000000,35); assert.deepEqual(accepted,[])
- samples(120187000,32); assert.deepEqual(accepted,[[id,120]])
+ // A long interval without trustworthy frames invalidates the load identity.
+ const recovered = s.beginMeasurement(); samples(0,5)
+ samples(120187000,32); assert.deepEqual(accepted,[[recovered,120]])
  gate.reset(); const next = s.beginMeasurement(); samples(120187000,40); assert.equal(accepted.length,1)
- samples(0,5); samples(120187000,32); assert.deepEqual(accepted,[[id,120],[next,120]])
+ samples(0,5); samples(120187000,32); assert.deepEqual(accepted,[[recovered,120],[next,120]])
  await s.stop()
+})
+
+async function field() {
+ const h=setup(), capture=[], gate=h.createAutoReweighWeight(1500)
+ const s=h.createFloorScaleSession(h.runtime,{onWeightFrame(f){
+  const gross=gate.feed(f,20,f.sampled_at)
+  if(gross!==null)capture.push({gross,offset:f.offset_kg,raw:f.raw_kg})
+ },onInterrupted:gate.interrupt})
+ await s.connect({preferredDeviceId:'a'})
+ let seq=0
+ function send(kg,n=1){for(let i=0;i<n;i++){
+  const b=frame(BigInt(Math.round(kg*1e6))); seq++; b[20]=0;b[21]=seq>>8;b[22]=seq&255;b[4]=0;b[4]=b.reduce((a,b)=>a^b,0)
+  h.advance(100);h.notify(b)
+ }}
+ function scan(id,ticket=s.orderTicket(id)){gate.reset();s.beginMeasurement(id,ticket)}
+ return {h,s,send,scan,capture}
+}
+test('loaded before scan: fresh 1.5s, same-division decimals, one load per operation, lookup swap',async()=>{
+ const {s,send,scan,capture}=await field()
+ send(0,4);send(.45);send(20.187,30);scan('A');send(20.187,8);send(20.21,7);assert.equal(capture.length,0)
+ send(20.21);assert.equal(capture[0].gross,20)
+ s.endMeasurement(false);scan('B');send(20.21,25);assert.equal(capture.length,1)
+ send(0,4);send(20.21,16);assert.equal(capture.length,2)
+ s.endMeasurement();send(0,4);send(20);const ticket=s.orderTicket('C')
+ send(0,4);send(20);scan('C',ticket);send(20,20);assert.equal(capture.length,2)
+ await s.stop()
+})
+test('manual single-load zero is signed, bounded, fresh, cancels on raw zero and never writes',async()=>{
+ for(const sign of [-1,1]){
+  const {h,s,send,scan,capture}=await field();const offset=sign*0.487
+  send(sign*0.501,20);assert.equal(s.getSnapshot().zero_offer,null)
+  send(sign*0.38,10);send(offset,8);assert.equal(s.getSnapshot().zero_offer,null)
+  send(offset,8);const expired=s.getSnapshot().zero_offer;assert.ok(expired)
+  h.advance(400);assert.equal(s.applyTemporaryZero(expired),false)
+  send(offset,16);assert.equal(s.applyTemporaryZero(s.getSnapshot().zero_offer),true)
+  send(0,5);assert.equal(s.getSnapshot().offset_kg,0)
+  send(offset,16);assert.equal(s.applyTemporaryZero(s.getSnapshot().zero_offer),true)
+  send(20+offset,10);scan('A');send(20+offset,16)
+  assert.deepEqual(capture,[{gross:20,raw:20+offset,offset}])
+  s.endMeasurement(false);send(offset,5);assert.equal(s.getSnapshot().offset_kg,0)
+  assert.equal(h.writes.length,0);await s.stop()
+ }
+})
+test('abandon clears a pending offset; a reconnect under load cannot use old empty evidence',async()=>{
+ const {s,send,scan,capture}=await field()
+ send(.487,16);s.applyTemporaryZero(s.getSnapshot().zero_offer);s.endMeasurement()
+ assert.equal(s.getSnapshot().offset_kg,0)
+ send(0,4);await s.disconnect();await s.connect({preferredDeviceId:'a'})
+ send(20,16);scan('B');send(20,16);assert.equal(capture.length,0)
+ send(0,4);send(20.24,15);send(20.26,15);assert.equal(capture.length,0)
+ send(20.26);assert.equal(capture[0].gross,20.5);await s.stop()
 })

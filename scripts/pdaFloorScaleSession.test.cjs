@@ -1,4 +1,5 @@
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm')
+const load = fs.readFileSync('src/services/pda/floorScaleLoad.js','utf8').replace(/export /g,'')
 const protocol = fs.readFileSync('src/services/pda/floorScaleProtocol.js', 'utf8').replace(/export /g, '')
 const session = fs.readFileSync('src/services/pda/floorScaleSession.js', 'utf8').replace(/^import .*\n/gm, '').replace(/export /g, '')
 test('candidate readings remain display-only and are invalidated on disconnection', async () => {
@@ -9,7 +10,7 @@ test('candidate readings remain display-only and are invalidated on disconnectio
 		connect: async () => { state = { status: 'connected', deviceId: 'floor' }; push(state); return { code: 0 } },
 		disconnect: async () => { state = { status: 'disconnected' }; push(state) }
 	}
-	const { createFloorScaleSession } = vm.runInNewContext(`${protocol}\n${session}\n;({createFloorScaleSession})`, {
+	const { createFloorScaleSession } = vm.runInNewContext(`${load}\n${protocol}\n${session}\n;({createFloorScaleSession})`, {
 		Date, Number, ArrayBuffer, Uint8Array, parseInt, Set,
 		createFloorScaleDiagnostic: () => diagnostic,
 		setInterval: fn => { interval = fn; return 1 }, clearInterval: () => {}

@@ -4,6 +4,9 @@
   <view class="reading"><text class="number">{{ weight }}</text><text>kg</text></view>
   <text class="hint">显示分度：0.5 kg（App端）</text>
   <text class="hint">原始读数：{{ rawWeight }} kg</text>
+  <text v-if="snapshot.offset_kg" class="hint">本瓶临时修正：扣除 {{ signed(snapshot.offset_kg) }} kg</text>
+  <text v-if="snapshot.is_online && snapshot.needs_clear" class="hint">请清台确认空秤；偏差稳定在一个分度内时可使用本瓶临时置零。</text>
+  <AppButton v-if="showZero && snapshot.is_connected" kind="outline" :disabled="busy || !snapshot.zero_offer || observing" @click="$emit('zero')">{{ snapshot.zero_offer ? '本瓶临时置零（扣除 ' + signed(snapshot.zero_offer.kg) + ' kg）' : '本瓶临时置零' }}</AppButton>
   <text class="hint">{{ snapshot.error_message || '连接后查看地秤数据' }}</text>
   <view class="controls">
    <AppButton :loading="busy" :disabled="busy" @click="$emit('connect', false)">{{ snapshot.is_connected ? '重连地秤' : '连接地秤' }}</AppButton>
@@ -33,8 +36,9 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
 import { floorScaleDisplayWeight, floorZeroObservation } from '@/services/pda/floorScaleDisplay'
-const props = defineProps({ snapshot: { type: Object, required: true }, busy: Boolean })
-defineEmits(['connect', 'disconnect'])
+const props = defineProps({ snapshot: { type: Object, required: true }, busy: Boolean, showZero: Boolean })
+defineEmits(['connect', 'disconnect', 'zero'])
+const signed = kg => (kg >= 0 ? '+' : '') + kg.toFixed(3)
 const weight = computed(() => floorScaleDisplayWeight(props.snapshot))
 const rawWeight = computed(() => floorScaleDisplayWeight(props.snapshot, { raw: true }))
 const showDetail = ref(false)

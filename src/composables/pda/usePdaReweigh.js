@@ -63,7 +63,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 	const scannerReady = ref(false)
 	const pendingSession = ref('')
 	const snapshot = ref(createEmptyPdaBleScaleSnapshot())
-	const autoWeight = createAutoReweighWeight()
+	const autoWeight = createAutoReweighWeight(isFloor ? 1500 : 3000)
 	const captureMinimum = ref(0)
 	let autoSession = '', autoSequence = 0, autoStartedAt = 0
 	let epoch = 0
@@ -136,6 +136,16 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		catch (cause) { storageError.value = cause.message; return false }
 	}
 	function editable() { return nativeSupported && active.value && canCreate.value && !locked.value && !busy.value && !calibrationBlocksReweigh.value && Boolean(round.value?._id) && (!isReturn || roundReady.value) && (!isFloor || Boolean(round.value?._id)) }
+	async function temporaryZero() {
+		if (!isFloor || !editable() || current.value.capture) return false
+		const expected = scale.getSnapshot().zero_offer, version = epoch, key = snapshot.value.connection_key
+		if (!expected) return fail('空台原始偏差须在 ±0.500 kg 内，并保持稳定 1.5 秒')
+		const signed = (expected.kg >= 0 ? '+' : '') + expected.kg.toFixed(3)
+		if (!await confirm('本瓶临时置零', `请确认秤台已清空。本瓶扣除 ${signed} kg，卸瓶即清除。`)) return false
+		if (!sameWork(version) || !editable() || current.value.capture || key !== snapshot.value.connection_key ||
+			!scale.applyTemporaryZero(expected)) return fail('空台读数或作业已变化，请重新核对')
+		error.value = ''; message.value = '本瓶临时置零已生效，可放瓶称重。'; return true
+	}
 	function sameWork(version) { return active.value && ownerMatches() && epoch === version }
 	function confirm(title, content) {
 		return new Promise(resolve => uni.showModal({ title, content, confirmText: '确认', cancelText: '取消', success: result => resolve(Boolean(result.confirm)), fail: () => resolve(false) }))
@@ -144,6 +154,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		if (!isFloor || !active.value || !ownerMatches()) return false
 		if (floorCalibrationState.value?.running) return fail('校准指令正在处理，请稍候')
 		if (value && (!canCalibrate.value || busy.value || current.value.bottleNo || locked.value)) return fail('请先完成或放弃当前钢瓶，并确认账号有校准权限')
+		if (isFloor) scale.resetLoad?.()
 		floorCalibrationOpen.value = Boolean(value); error.value = ''
 		return true
 	}
@@ -178,8 +189,9 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		if (isReturn) return { bottle_no: draft.bottleNo, round_id: draft.roundId || round.value?._id, ...(grossWeight != null ? { gross_weight: grossWeight } : {}) }
 		return { bottle_no: draft.bottleNo, ...(draft.date ? { date: draft.date } : {}), ...(draft.preview?.filling?._id ? { filling_id: draft.preview.filling._id } : {}), ...(grossWeight != null ? { gross_weight: grossWeight } : {}) }
 	}
-	async function selectBottle(bottleNo, fillingId = '') {
+	async function selectBottle(bottleNo, fillingId = '', scanTicket = null) {
 		if (!editable()) return false
+		const ticket = scanTicket || (isFloor && scale.orderTicket?.(current.value.operationId))
 		const normalized = normalizeBottleNo(bottleNo)
 		if (!normalized) return fail('请扫描或输入瓶号')
 		if (current.value.bottleNo) return fail(current.value.bottleNo === normalized ? '已选这瓶，需要重称请点重新称重' : '请先保存这瓶，或点放弃这瓶')
@@ -194,7 +206,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 			if (!persist()) return false
 		} catch (cause) { if (sameWork(version)) fail(cause.message || '瓶档读取失败'); return false }
 		finally { busy.value = false }
-		return startMeasurement()
+		return startMeasurement(ticket)
 	}
 	async function scan(payload = {}) {
 		if (!editable()) return
@@ -202,15 +214,16 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		if (!snapshot.value.is_connected) return fail(`请先连接${scaleLabel}`)
 		busy.value = true
 		const version = ++epoch
+		const ticket = isFloor && scale.orderTicket?.(current.value.operationId)
 		let result
 		try { result = await resolvePdaBottleByQrCode(payload.rawText) }
 		catch (cause) { if (sameWork(version)) fail(cause.message || '扫码查瓶失败') }
 		finally { busy.value = false }
 		if (!sameWork(version)) return
 		if (result?.code !== 0) return fail(result?.msg || '钢瓶二维码未匹配')
-		return selectBottle(result.data.bottle_no)
+		return selectBottle(result.data.bottle_no, '', ticket)
 	}
-	async function startMeasurement() {
+	async function startMeasurement(ticket) {
 		if (!editable() || !current.value.bottleNo) return false
 		if (!snapshot.value.is_connected) return fail(`请先连接${scaleLabel}，再点击本瓶称重`)
 		const version = epoch
@@ -220,9 +233,9 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		if (!persist()) return false
 		error.value = ''
 		autoWeight.reset(); captureMinimum.value = 0; autoSession = ''; autoSequence = 0
-		pendingSession.value = scale.beginMeasurement()
+		pendingSession.value = isFloor ? scale.beginMeasurement(current.value.operationId, ticket?.cycle != null ? ticket : scale.orderTicket?.(current.value.operationId)) : scale.beginMeasurement()
 		autoSession = pendingSession.value; autoStartedAt = Date.now()
-		message.value = isFloor ? '请先保持秤台空载，显示 0.0 kg；看到空台确认后再放本瓶。' : '等待称重，请把瓶子完全吊起。'
+		message.value = isFloor ? '已选瓶，等候本瓶稳定 1.5 秒。如提示清台，请先移开瓶子。' : '等待称重，请把瓶子完全吊起。'
 		return true
 	}
 	function acceptWeightFrame(frame) {
@@ -232,6 +245,12 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		captureMinimum.value = autoWeight.minimumWeight(current.value.preview?.bottle?.tare_weight)
 		if (weight === null) return
 		const capture = { sampled_at: frame.sampled_at, device_id: frame.device_id, stable_seq: ++autoSequence, measurement_id: frame.session_id, stable: true, raw: frame.raw || '', ...(isFloor ? { scale_type: 'floor', bottle_no: current.value.bottleNo, gross_kg: weight } : {}) }
+		if (isFloor && frame.offset_kg) {
+			capture.raw_kg = frame.raw_kg; capture.offset_kg = frame.offset_kg
+			// The deployed cloud record retains capture.raw. Preserve the exact
+			// TTL frame and applied offset there as well as in the frozen draft.
+			capture.raw = JSON.stringify({ ttl: frame.raw, raw_kg: frame.raw_kg, offset_kg: frame.offset_kg })
+		}
 		pendingSession.value = ''
 		const preview = current.value.preview
 		const subtract = value => value != null && Number.isFinite(Number(value)) ? Math.round((weight - Number(value)) * 10) / 10 : null
@@ -248,7 +267,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 	const unsubscribe = scale.onSnapshot(next => {
 		if (isFloor || !sameWeighDisplay(snapshot.value, next)) snapshot.value = next
 		if (autoSession && (next.session_id !== autoSession || !next.is_connected)) { autoSession = ''; autoWeight.reset(); captureMinimum.value = 0 }
-		if (pendingSession.value && (next.session_id !== pendingSession.value || !next.is_connected)) { pendingSession.value = ''; message.value = `${scaleLabel}已断开，请连接后点本瓶称重。` }
+		if (pendingSession.value && (next.session_id !== pendingSession.value || !next.is_connected)) { pendingSession.value = ''; message.value = isFloor && next.is_connected ? '放瓶过程已变化，请核对当前瓶后点本瓶称重。' : `${scaleLabel}已断开，请连接后点本瓶称重。` }
 	})
 	async function connect(forcePick = false) {
 		if (!nativeSupported || !active.value || busy.value) return false
@@ -278,7 +297,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		finally { busy.value = false }
 	}
 	async function disconnect() { pendingSession.value = ''; await scale.disconnect(); message.value = `${scaleLabel}已断开，已称重量保留。` }
-	function stopMeasurement() { if (isFloor) scale.endMeasurement?.(); autoSession = ''; autoWeight.reset(); captureMinimum.value = 0; pendingSession.value = '' }
+	function stopMeasurement(clearOffset = true) { if (isFloor) scale.endMeasurement?.(clearOffset); autoSession = ''; autoWeight.reset(); captureMinimum.value = 0; pendingSession.value = '' }
 	function cancelMeasurement() { stopMeasurement(); message.value = '已停止取重，点本瓶称重可继续。' }
 	function applyReceipt(response, operationId, target = current.value, directResponse = false, allowPrint = true) {
 		const receipt = reweighReceipt(response, operationId, target?.receipt)
@@ -303,7 +322,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 			fail(receipt.message)
 		} else if (current.value.operationId === operationId) current.value = { ...current.value, receipt }
 		else history.value = history.value.map(item => item.operationId === operationId ? { ...item, receipt } : item)
-		if (current.value.operationId === operationId && receipt.saved) stopMeasurement()
+		if (current.value.operationId === operationId && receipt.saved) stopMeasurement(false)
 		const persisted = persist()
 		if (allowPrint && !isReturn && persisted && active.value && ownerMatches()) {
 			const entry = current.value.operationId === operationId ? current.value : history.value.find(item => item.operationId === operationId)
@@ -392,7 +411,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		if (old.frozen) history.value = [...history.value.filter(item => item.operationId !== old.operationId), cloneReweigh(old)]
 		current.value = emptyDraft()
 		if (!persist()) { current.value = old; history.value = previousHistory; return false }
-		epoch += 1; stopMeasurement(); error.value = ''; message.value = '请扫描下一瓶。'
+		epoch += 1; stopMeasurement(!old.receipt?.saved); error.value = ''; message.value = '请扫描下一瓶。'
 		return true
 	}
 	function newLocalRound() {
@@ -580,5 +599,5 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 	onBeforeUnmount(() => { unsubscribe(); unsubscribeFloorCalibration(); void deactivate() })
 	return { draftLoading, captureMinimum, current, history, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, submitting, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, localRoundEnded, startRound, endRound, refreshRound,
 		selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText,
-		canCalibrate, floorCalibrationOpen, floorCalibrationState, calibrationBlocksReweigh, setFloorCalibrationOpen, sendFloorCalibration, resolveFloorCalibration }
+		temporaryZero, canCalibrate, floorCalibrationOpen, floorCalibrationState, calibrationBlocksReweigh, setFloorCalibrationOpen, sendFloorCalibration, resolveFloorCalibration }
 }
