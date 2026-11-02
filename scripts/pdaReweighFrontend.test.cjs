@@ -52,7 +52,7 @@ function harness(t, options = {}) {
 		forgetSavedReweighOperations: () => {}, getUser: () => ({ _id: owner }), canPageAction: () => options.canCreate !== false,
 		getPdaBleScaleCapabilities: () => ({ transport: options.web ? 'web' : 'native', supported: true }),
 		createPdaBleScaleSession: profile => { assert.equal(profile.preserveMeasurementOnReadTimeout, true); weightFrame = profile.onWeightFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
-		createFloorScaleSession: () => scale,
+		createFloorScaleNativeRuntime: runtime => runtime, createFloorScaleSession: () => scale,
 		createFloorScaleCalibrationController: options.realFloorCalibration ? calibrationController.createFloorScaleCalibrationController : () => ({ subscribe(fn) { fn({ pending: null, requiresReview: false, error: '', running: false }); return () => {} } }),
 		ensurePdaBleRuntimePermission: async () => ({ code: 0 }), quantizeBleScaleWeightKg: value => Math.round(value * 2) / 2,
 		normalizeBottleNo: value => String(value || '').trim().toUpperCase(),

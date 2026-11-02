@@ -62,7 +62,14 @@ export function createFloorScaleDiagnostic(runtime, { now = Date.now, staleMs = 
 		if (!receiving || normal(event?.deviceId) !== normal(deviceId) ||
 			normal(event?.characteristicId) !== normal(FLOOR_SCALE_NOTIFY_ID) ||
 			(event?.serviceId && normal(event.serviceId) !== normal(FLOOR_SCALE_SERVICE_ID))) return
-		const time = now()
+		const current = now(), time = event.receivedAt == null ? current : Number(event.receivedAt)
+		// Native timestamps are captured before any UI/bridge queue. A delayed
+		// notification must never make an old weight fresh enough to calibrate.
+		if (!Number.isFinite(time) || time > current || current - time > staleMs || (lastChunkAt && time < lastChunkAt)) {
+			decoder.reset(); lastFrame = null; lastAt = 0
+			if (status === 'connected') emit(false)
+			return
+		}
 		if (lastChunkAt && (time < lastChunkAt || time - lastChunkAt > staleMs)) decoder.reset()
 		lastChunkAt = time
 		let frames

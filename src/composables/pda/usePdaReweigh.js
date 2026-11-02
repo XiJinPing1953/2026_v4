@@ -9,6 +9,7 @@ import { previewReweighV1, createReweighV1, correctReweighV1, getReweighOperatio
 import { getReturnReweighRoundV1, startReturnReweighRoundV1, endReturnReweighRoundV1, previewReturnReweighV1, saveReturnReweighV1, getReturnReweighV1, listReturnReweighRoundRecordsV1 } from '@/services/api/reweigh'
 import { createPdaBleScaleSession, createEmptyPdaBleScaleSnapshot, ensurePdaBleRuntimePermission, getPdaBleScaleCapabilities } from '@/services/pda/bleScale'
 import { createFloorScaleSession } from '@/services/pda/floorScaleSession'
+import { createFloorScaleNativeRuntime } from '@/services/pda/floorScaleNativeRuntime'
 import { createFloorScaleCalibrationController } from '@/services/pda/floorScaleCalibrationController'
 import { resolvePdaBottleByQrCode } from '@/services/pda/bottle'
 import { enterBarcodeSession, leaveBarcodeSession } from '@/services/pda/capture'
@@ -74,7 +75,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 	let boundDevice = null
 	const boundKey = isFloor ? 'pda_floor_scale_bound_device_v1' : 'pda_ble_scale_bound_device_v1'
 	try { boundDevice = uni.getStorageSync(boundKey) || null; if (typeof boundDevice === 'string') boundDevice = JSON.parse(boundDevice) } catch (_) {}
-	const scale = isFloor ? createFloorScaleSession(uni) : createPdaBleScaleSession({ preserveMeasurementOnReadTimeout: true, onWeightFrame: acceptWeightFrame, deviceId: boundDevice?.deviceId || '', deviceNamePrefix: 'NVK', divisionStepKg: 0.5, displayDecimals: 1 })
+	const scale = isFloor ? createFloorScaleSession(createFloorScaleNativeRuntime(uni)) : createPdaBleScaleSession({ preserveMeasurementOnReadTimeout: true, onWeightFrame: acceptWeightFrame, deviceId: boundDevice?.deviceId || '', deviceNamePrefix: 'NVK', divisionStepKg: 0.5, displayDecimals: 1 })
 	// Explicit wrappers also work with uni-app's statically injected storage APIs.
 	const store = (isFloor ? createReweighDraftStore : createReweighWorkStore)(ownerId, {
 		getStorageSync: key => uni.getStorageSync(key),

@@ -155,23 +155,21 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.60",
+      "version": "1.0.61",
       "output": "release/pda",
-      "acceptance": "Floor diagnostic robustness: signed legacy/current frames, first notification retention, finite native waits, accurate missing/invalid/stale states, bounded raw diagnostics and 4 Hz view updates. Reuse verified immutable history dates to reduce large-round next-bottle CPU cost; storage format, unknown-operation recovery and existing cutoff policy retained. No cloud/schema/native deployment; crm-hebei-filling is an unchanged dependency. Floor business submission remains disabled; delivered-device readings and calibration await field verification.",
+      "acceptance": "Floor-only owned native GATT: release failed/timed-out connections, wait for CCCD acknowledgement, isolate stale callbacks and bound queued notifications with original receive time. Requires APK with XintuoFloorScale-1.aar; do not distribute as WGT to old APKs. Hanging scale, scanner, printer, business data and cloud deployments are unchanged. Hardware link-timeout root cause and physical acceptance remain pending.",
       "deploymentScope": {
         "functions": [
           "crm-hebei-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "2d1900f0d3179f6f83421904b490ee2d94ef6cb7",
+        "baseCommit": "d863b945b64d05490a843c7747783b60c2cb82f0",
         "sourceFiles": [
-          "src/components/domain/pda/PdaFloorScale.vue",
           "src/manifest.json",
-          "src/services/pda/floorScaleCalibrationController.js",
+          "src/composables/pda/usePdaReweigh.js",
           "src/services/pda/floorScaleDiagnostic.js",
-          "src/services/pda/floorScaleProtocol.js",
-          "src/services/pda/floorScaleSession.js",
-          "src/services/pda/reweighDraft.js"
+          "src/services/pda/floorScaleNativeRuntime.js",
+          "nativeplugins/TH-PlatformSDK/android/XintuoFloorScale-1.aar"
         ]
       },
       "integrityScope": "deployment"
