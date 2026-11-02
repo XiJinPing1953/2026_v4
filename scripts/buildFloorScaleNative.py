@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix='floor-native-') as temp:
     jar = archive({str(p.relative_to(classes)): p.read_bytes() for p in classes.rglob('*.class')})
     aar = archive({
         'classes.jar': jar,
-        'AndroidManifest.xml': b'<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.xintuo.scale"><uses-sdk android:minSdkVersion="23"/></manifest>',
+        'AndroidManifest.xml': b'<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.xintuo.scale"><uses-sdk android:minSdkVersion="21"/></manifest>',
         'proguard.txt': b'-keep class com.xintuo.scale.** { *; }\n',
         'R.txt': b'',
     })

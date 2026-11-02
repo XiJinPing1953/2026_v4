@@ -7,6 +7,7 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Bundle;
+import android.os.Build;
 import java.lang.ref.WeakReference;
 import java.util.ArrayDeque;
 import org.json.JSONObject;
@@ -130,7 +131,10 @@ public final class FloorScaleGatt {
                 BluetoothManager manager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
                 BluetoothAdapter adapter = manager == null ? null : manager.getAdapter();
                 if (adapter == null || !adapter.isEnabled()) throw new IllegalStateException("Bluetooth unavailable");
-                BluetoothGatt gatt = adapter.getRemoteDevice(address).connectGatt(context, false, callback(a), BluetoothDevice.TRANSPORT_LE);
+                BluetoothDevice device = adapter.getRemoteDevice(address);
+                BluetoothGatt gatt = Build.VERSION.SDK_INT >= 23
+                    ? device.connectGatt(context, false, callback(a), BluetoothDevice.TRANSPORT_LE)
+                    : device.connectGatt(context, false, callback(a));
                 a.lease.assign(gatt);
                 if (gatt == null) throw new IllegalStateException("connectGatt returned null");
             } catch (Exception failure) { terminate(a, "connect: " + failure.getMessage(), -1); }

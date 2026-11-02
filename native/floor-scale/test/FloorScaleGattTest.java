@@ -25,6 +25,7 @@ public final class FloorScaleGattTest {
     }
     private static void resetProcess() throws Exception {
         Handler.reset();
+        android.os.Build.VERSION.SDK_INT = 31;
         for (String name : new String[]{"owner", "poisoned"}) {
             Field field = FloorScaleGatt.class.getDeclaredField(name); field.setAccessible(true);
             if (name.equals("poisoned")) field.setBoolean(null, false); else field.set(null, null);
@@ -84,6 +85,13 @@ public final class FloorScaleGattTest {
     }
 
     public static void main(String[] args) throws Exception {
+        test("API 21/22 use the supported connect overload and release normally", () -> {
+            for (int api : new int[]{21, 22}) {
+                android.os.Build.VERSION.SDK_INT = api;
+                Fixture f = new Fixture(); BluetoothGatt gatt = f.subscribed();
+                f.close(); f.released(gatt);
+            }
+        });
         test("50 connection failures close each GATT without accumulating clients", () -> {
             Fixture f = new Fixture();
             for (int id = 1; id <= 50; id++) {
