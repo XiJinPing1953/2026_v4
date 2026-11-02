@@ -5699,7 +5699,11 @@ const webSaleService = webSave.createService({ db, handlers: { createV2, updateV
 })
 
 const main = async (event, context) => {
-	if (context?.SOURCE === 'timing') return webSaleService.drain()
+	if (context?.SOURCE === 'timing') {
+		const result = await webSaleService.drain()
+		console.log('[crm-sale] web_sale_resume', JSON.stringify(result.data))
+		return result
+	}
 	const { action, data = {}, token } = event
 	const requestId =
 		normalizeString(event.request_id || event.requestId || context?.requestId || context?.request_id || '') ||
