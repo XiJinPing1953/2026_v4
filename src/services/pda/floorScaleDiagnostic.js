@@ -2,6 +2,28 @@ import { createFloorScaleFrameDecoder, FLOOR_SCALE_SERVICE_ID, FLOOR_SCALE_NOTIF
 
 // Independent commissioning session; it never closes the shared BLE adapter.
 const normal = value => String(value || '').trim().toUpperCase()
+// App-Plus exposes onBLE* but not offBLE*. Keep one dispatcher per runtime
+// and event there; retired pages release their callbacks from its subscriber set.
+// Never remove all BLE listeners: hanging scales may share the same runtime.
+const floorEventHubs = new WeakMap()
+function subscribeRuntimeEvent(runtime, onName, offName, listener) {
+	let hubs = floorEventHubs.get(runtime)
+	if (!hubs) { hubs = new Map(); floorEventHubs.set(runtime, hubs) }
+	let hub = hubs.get(onName)
+	if (!hub) {
+		const subscribers = new Set()
+		const dispatch = event => { for (const fn of subscribers) fn(event) }
+		runtime[onName](dispatch)
+		hub = { subscribers, dispatch }; hubs.set(onName, hub)
+	}
+	hub.subscribers.add(listener)
+	return () => {
+		if (!hub.subscribers.delete(listener) || hub.subscribers.size) return
+		if (typeof runtime[offName] === 'function') {
+			try { runtime[offName](hub.dispatch); hubs.delete(onName) } catch (_) { /* Reuse the empty dispatcher if native removal is unavailable. */ }
+		}
+	}
+}
 function call(runtime, method, options = {}) {
 	return new Promise((resolve, reject) => {
 		if (typeof runtime?.[method] !== 'function') return reject(new Error(`蓝牙接口不可用：${method}`))
@@ -14,6 +36,7 @@ export function createFloorScaleDiagnostic(runtime, { now = Date.now, staleMs = 
 	let epoch = 0, connecting = false, scanning = false, attached = false, deviceId = '', lastFrame = null, lastAt = 0, lastChunkAt = 0
 	let status = 'idle', reason = '', writeType = '', sessionKey = ''
 	const listeners = new Set()
+	let unbindEvents = []
 	function snapshot() {
 		const current = now()
 		const fresh = status === 'connected' && lastAt > 0 && current >= lastAt && current - lastAt <= staleMs
@@ -39,13 +62,18 @@ export function createFloorScaleDiagnostic(runtime, { now = Date.now, staleMs = 
 	}
 	function attach() {
 		if (attached) return
-		if (typeof runtime?.onBLECharacteristicValueChange !== 'function' || typeof runtime?.onBLEConnectionStateChange !== 'function' ||
-			typeof runtime?.offBLECharacteristicValueChange !== 'function' || typeof runtime?.offBLEConnectionStateChange !== 'function') throw new Error('蓝牙监听接口不可用')
-		runtime.onBLECharacteristicValueChange(onValue); runtime.onBLEConnectionStateChange(onConnection); attached = true
+		for (const name of ['onBLECharacteristicValueChange', 'onBLEConnectionStateChange']) {
+			if (typeof runtime?.[name] !== 'function') throw new Error(`蓝牙监听接口不可用：${name}`)
+		}
+		try {
+			unbindEvents.push(subscribeRuntimeEvent(runtime, 'onBLECharacteristicValueChange', 'offBLECharacteristicValueChange', onValue))
+			unbindEvents.push(subscribeRuntimeEvent(runtime, 'onBLEConnectionStateChange', 'offBLEConnectionStateChange', onConnection))
+			attached = true
+		} catch (error) { detach(); throw error }
 	}
 	function detach() {
-		if (!attached) return
-		runtime.offBLECharacteristicValueChange(onValue); runtime.offBLEConnectionStateChange(onConnection); attached = false
+		for (const unbind of unbindEvents) unbind()
+		unbindEvents = []; attached = false
 	}
 	async function close(id) { if (id) { try { await call(runtime, 'closeBLEConnection', { deviceId: id }) } catch (_) {} } }
 	async function discover() {

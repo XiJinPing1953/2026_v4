@@ -20,6 +20,64 @@ function mock() {
 	runtime.offBLEConnectionStateChange = cb => { if (events.connection === cb) delete events.connection }
 	return runtime
 }
+function nativeMock() {
+	const r = mock(), values = new Set(), connections = new Set()
+	delete r.offBLECharacteristicValueChange; delete r.offBLEConnectionStateChange
+	r.onBLECharacteristicValueChange = fn => { r.calls.push('onValue'); values.add(fn) }
+	r.onBLEConnectionStateChange = fn => { r.calls.push('onConnection'); connections.add(fn) }
+	r.pushValue = event => { for (const fn of values) fn(event) }
+	r.pushConnection = event => { for (const fn of connections) fn(event) }
+	return r
+}
+test('App-Plus without offBLE APIs connects, reconnects and drops retired page listeners', async () => {
+	const r = nativeMock(), event = { deviceId: 'a', characteristicId: FLOOR_SCALE_NOTIFY_ID, value: frame() }
+	let retiredEvents = 0
+	for (let i = 0; i < 12; i++) {
+		const d = createFloorScaleDiagnostic(r)
+		assert.equal((await d.connect('a')).code, 0)
+		let events = 0; d.subscribe(() => events++)
+		const before = events; r.pushValue(event)
+		assert.equal(events, before + 1); assert.ok(d.getSnapshot().frame)
+		await d.disconnect(); const after = events
+		r.pushValue(event); r.pushConnection({ deviceId: 'a', connected: false })
+		assert.equal(events, after); assert.equal(d.getSnapshot().frame, null)
+		if (!i) d.subscribe(() => retiredEvents++)
+	}
+	assert.equal(retiredEvents, 1)
+	assert.equal(r.calls.filter(x => x === 'onValue').length, 1)
+	assert.equal(r.calls.filter(x => x === 'onConnection').length, 1)
+})
+test('no-off runtime preserves other BLE consumers and removes only departing floor subscribers', async () => {
+	const r = nativeMock(); let outside = 0
+	r.onBLECharacteristicValueChange(() => outside++)
+	const a = createFloorScaleDiagnostic(r), b = createFloorScaleDiagnostic(r)
+	assert.equal((await a.connect('a')).code, 0); assert.equal((await b.connect('b')).code, 0)
+	await a.disconnect()
+	r.pushValue({ deviceId: 'b', characteristicId: FLOOR_SCALE_NOTIFY_ID, value: frame() })
+	assert.equal(outside, 1); assert.ok(b.getSnapshot().frame); assert.equal(a.getSnapshot().frame, null)
+	r.pushConnection({ deviceId: 'a', connected: false }); assert.equal(b.getSnapshot().status, 'connected')
+	r.pushConnection({ deviceId: 'b', connected: false }); assert.equal(b.getSnapshot().status, 'disconnected'); assert.equal(b.getSnapshot().frame, null)
+	await b.disconnect()
+	assert.equal(r.calls.includes('closeBluetoothAdapter'), false)
+})
+test('missing required on API reports its name before opening GATT', async () => {
+	const r = nativeMock(); delete r.onBLEConnectionStateChange
+	const d = createFloorScaleDiagnostic(r), result = await d.connect('a')
+	assert.equal(result.code, 500); assert.match(result.msg, /onBLEConnectionStateChange/)
+	assert.equal(r.calls.includes('createBLEConnection'), false)
+})
+test('partial listener registration failure is retryable without stale subscribers', async () => {
+	const r = nativeMock(), register = r.onBLEConnectionStateChange
+	r.onBLEConnectionStateChange = () => { throw Error('registration failed') }
+	const d = createFloorScaleDiagnostic(r)
+	assert.equal((await d.connect('a')).code, 500)
+	r.onBLEConnectionStateChange = register
+	assert.equal((await d.connect('a')).code, 0)
+	let count = 0; d.subscribe(() => count++); const before = count
+	r.pushValue({ deviceId: 'a', characteristicId: FLOOR_SCALE_NOTIFY_ID, value: frame() })
+	assert.equal(count, before + 1); await d.disconnect()
+	assert.equal(r.calls.filter(x => x === 'onValue').length, 1)
+})
 test('connection filters devices and reassembles notifications without writing', async () => {
 	let t = 10000; const r = mock(), d = createFloorScaleDiagnostic(r, { now: () => t })
 	assert.equal((await d.connect('device-a')).code, 0)
