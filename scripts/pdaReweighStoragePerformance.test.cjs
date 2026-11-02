@@ -117,3 +117,17 @@ test('async legacy and empty reads keep the original snapshot until an explicit 
   const state=await store.loadAsync();assert.equal(state?.history.length,exists?60:undefined);assert.equal(f.map.get(f.key),before);assert.equal(f.stats.writes.length,0)
  }
 })
+test('appending to a large immutable round rechecks only new records while retaining cutoff and unknown-operation rules', () => {
+ const f=fixture('filling',20000),loaded=f.store.load();let history=f.store.save(loaded.current,loaded.history,loaded.metadata)
+ const old={...entry('old'),date:'2026-10-20 10:00:00',capture:null,frozen:null}
+ const uncertain={...old,operationId:'uncertain',receipt:{complete:false}}
+ history=f.store.save(loaded.current,[...history,old,uncertain],loaded.metadata)
+ assert.equal(history.length,20001);assert.equal(history.at(-1).operationId,'uncertain')
+ // Replacing a retained record must re-evaluate it; migration must not skip old rows.
+ const changed=history.map((row,i)=>i===100?{...old,operationId:row.operationId}:row)
+ history=f.store.save(loaded.current,changed,loaded.metadata);assert.equal(history.length,20000)
+ const raw=JSON.parse(f.map.get(f.key));const chunk=JSON.parse(f.map.get(raw.historyChunks[0].key));chunk[0]=old
+ f.map.set(raw.historyChunks[0].key,JSON.stringify(chunk))
+ const recovered=createReweighDraftStore('u1',f.storage).load();assert.equal(recovered.history.length,19999)
+ assert.equal(recovered.history.at(-1).operationId,'uncertain')
+})

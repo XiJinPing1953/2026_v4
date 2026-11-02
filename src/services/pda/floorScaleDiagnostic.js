@@ -24,41 +24,59 @@ function subscribeRuntimeEvent(runtime, onName, offName, listener) {
 		}
 	}
 }
-function call(runtime, method, options = {}) {
+function call(runtime, method, options = {}, timeoutMs = 6000, onLateSuccess) {
 	return new Promise((resolve, reject) => {
 		if (typeof runtime?.[method] !== 'function') return reject(new Error(`蓝牙接口不可用：${method}`))
-		try { runtime[method]({ ...options, success: resolve, fail: reject }) } catch (error) { reject(error) }
+		let settled = false, timedOut = false
+		const finish = (callback, value) => { if (settled) return; settled = true; clearTimeout(timer); callback(value) }
+		const timer = setTimeout(() => { timedOut = true; finish(reject, new Error(`蓝牙操作超时：${method}，请重新连接`)) }, timeoutMs)
+		try { runtime[method]({ ...options, success: value => { if (settled) { if (timedOut) { timedOut = false; onLateSuccess?.() }; return }; finish(resolve, value) }, fail: error => finish(reject, error) }) }
+		catch (error) { finish(reject, error) }
 	})
 }
 
-export function createFloorScaleDiagnostic(runtime, { now = Date.now, staleMs = 3000, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
+export function createFloorScaleDiagnostic(runtime, { now = Date.now, staleMs = 3000, callTimeoutMs = 6000, closeTimeoutMs = 1500, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
 	const decoder = createFloorScaleFrameDecoder()
 	let epoch = 0, connecting = false, scanning = false, attached = false, deviceId = '', lastFrame = null, lastAt = 0, lastChunkAt = 0
+	let receiving = false, chunks = 0, receivedBytes = 0, validFrames = 0, lastRaw = new Uint8Array(0)
+	const invoke = (method, options = {}, timeout = callTimeoutMs) => call(runtime, method, options, timeout)
+	let emittedAt = null, emittedFresh = false
 	let status = 'idle', reason = '', writeType = '', sessionKey = ''
 	const listeners = new Set()
 	let unbindEvents = []
 	function snapshot() {
 		const current = now()
 		const fresh = status === 'connected' && lastAt > 0 && current >= lastAt && current - lastAt <= staleMs
-		return { status, reason, deviceId, sessionKey, frame: fresh ? lastFrame : null, sampledAt: fresh ? lastAt : null, fresh, canWriteCalibration: status === 'connected' && Boolean(writeType), verifiedForCapture: false }
+		const communication = { chunks, receivedBytes, validFrames, ...decoder.getStats(), lastChunkAt: lastChunkAt || null,
+			lastRawHex: Array.from(lastRaw, byte => byte.toString(16).padStart(2, '0')).join('').toUpperCase() }
+		return { communication, status, reason, deviceId, sessionKey, frame: fresh ? lastFrame : null, sampledAt: fresh ? lastAt : null, fresh, canWriteCalibration: status === 'connected' && Boolean(writeType), verifiedForCapture: false }
 	}
-	function emit() { const state = snapshot(); for (const listener of listeners) listener(state) }
-	function clearData() { decoder.reset(); lastFrame = null; lastAt = 0; lastChunkAt = 0 }
+	function emit(force = true) {
+		const time = now(), fresh = status === 'connected' && lastAt > 0 && time >= lastAt && time - lastAt <= staleMs
+		if (!force && fresh === emittedFresh && emittedAt !== null && time >= emittedAt && time - emittedAt < 250) return
+		emittedAt = time; emittedFresh = fresh
+		const state = snapshot(); for (const listener of listeners) listener(state)
+	}
+	function clearData() { decoder.reset(); lastFrame = null; lastAt = 0; lastChunkAt = 0; chunks = 0; receivedBytes = 0; validFrames = 0; lastRaw = new Uint8Array(0) }
 	function onValue(event) {
-		if (status !== 'connected' || normal(event?.deviceId) !== normal(deviceId) ||
+		if (!receiving || normal(event?.deviceId) !== normal(deviceId) ||
 			normal(event?.characteristicId) !== normal(FLOOR_SCALE_NOTIFY_ID) ||
 			(event?.serviceId && normal(event.serviceId) !== normal(FLOOR_SCALE_SERVICE_ID))) return
 		const time = now()
 		if (lastChunkAt && (time < lastChunkAt || time - lastChunkAt > staleMs)) decoder.reset()
 		lastChunkAt = time
 		let frames
-		try { frames = decoder.push(event.value) } catch (_) { decoder.reset(); return }
-		if (!frames.length) return
-		lastFrame = frames[frames.length - 1]; lastAt = time; emit()
+		try {
+			const bytes = event.value instanceof ArrayBuffer ? new Uint8Array(event.value) : ArrayBuffer.isView(event.value) ? new Uint8Array(event.value.buffer, event.value.byteOffset, event.value.byteLength) : Uint8Array.from(event.value || [])
+			chunks++; receivedBytes += bytes.byteLength; lastRaw = bytes.slice(0, 46)
+			frames = decoder.push(bytes)
+		} catch (_) { decoder.reset(); return }
+		if (frames.length) { validFrames += frames.length; lastFrame = frames[frames.length - 1]; lastAt = time }
+		if (status === 'connected') emit(false)
 	}
 	function onConnection(event) {
 		if (normal(event?.deviceId) !== normal(deviceId) || event.connected !== false) return
-		epoch++; clearData(); writeType = ''; sessionKey = ''; status = 'disconnected'; reason = '蓝牙连接中断'; emit()
+		epoch++; receiving = false; clearData(); writeType = ''; sessionKey = ''; status = 'disconnected'; reason = '蓝牙连接中断'; detach(); emit()
 	}
 	function attach() {
 		if (attached) return
@@ -75,18 +93,20 @@ export function createFloorScaleDiagnostic(runtime, { now = Date.now, staleMs = 
 		for (const unbind of unbindEvents) unbind()
 		unbindEvents = []; attached = false
 	}
-	async function close(id) { if (id) { try { await call(runtime, 'closeBLEConnection', { deviceId: id }) } catch (_) {} } }
+	async function close(id) { if (id) { try { await invoke('closeBLEConnection', { deviceId: id }, closeTimeoutMs) } catch (_) {} } }
 	async function discover() {
 		if (connecting || scanning || status === 'connected') return { code: 409, msg: '请先断开地秤连接', data: [] }
 		scanning = true; const ticket = ++epoch
 		let started = false
 		try {
-			await call(runtime, 'openBluetoothAdapter')
+			await invoke('openBluetoothAdapter')
 			if (ticket !== epoch) return { code: 499, msg: '扫描已取消', data: [] }
-			await call(runtime, 'startBluetoothDevicesDiscovery', { allowDuplicatesKey: false }); started = true
+			started = true
+			await invoke('startBluetoothDevicesDiscovery', { allowDuplicatesKey: false })
+			if (ticket !== epoch) return { code: 499, msg: '扫描已取消', data: [] }
 			await wait(5000)
 			if (ticket !== epoch) return { code: 499, msg: '扫描已取消', data: [] }
-			const result = await call(runtime, 'getBluetoothDevices')
+			const result = await invoke('getBluetoothDevices')
 			if (ticket !== epoch) return { code: 499, msg: '扫描已取消', data: [] }
 			const seen = new Set(), devices = []
 			for (const item of result?.devices || []) {
@@ -98,7 +118,7 @@ export function createFloorScaleDiagnostic(runtime, { now = Date.now, staleMs = 
 		} catch (error) {
 			return { code: ticket !== epoch ? 499 : 500, msg: ticket !== epoch ? '扫描已取消' : String(error?.errMsg || error?.message || '扫描失败'), data: [] }
 		} finally {
-			if (started) { try { await call(runtime, 'stopBluetoothDevicesDiscovery') } catch (_) {} }
+			if (started) { try { await invoke('stopBluetoothDevicesDiscovery') } catch (_) {} }
 			scanning = false
 		}
 	}
@@ -111,20 +131,27 @@ export function createFloorScaleDiagnostic(runtime, { now = Date.now, staleMs = 
 		let opened = false
 		const check = () => { if (ticket !== epoch) throw new Error('connection_cancelled') }
 		try {
-			await call(runtime, 'openBluetoothAdapter'); check(); attach()
-			await call(runtime, 'createBLEConnection', { deviceId: target }); opened = true; check()
-			const services = await call(runtime, 'getBLEDeviceServices', { deviceId: target }); check()
+			await invoke('openBluetoothAdapter'); check(); attach()
+			opened = true
+			await call(runtime, 'createBLEConnection', { deviceId: target, timeout: callTimeoutMs }, callTimeoutMs, () => {
+				// A timed-out native connection can still complete. Clean it only if
+				// no newer attempt owns the same peripheral.
+				if (ticket === epoch || normal(deviceId) !== normal(target) || (!connecting && status !== 'connected')) void close(target)
+			}); check()
+			const services = await invoke('getBLEDeviceServices', { deviceId: target }); check()
 			const service = (services?.services || []).find(item => normal(item.uuid) === normal(FLOOR_SCALE_SERVICE_ID))
 			if (!service) throw new Error('未找到地秤蓝牙服务')
-			const chars = await call(runtime, 'getBLEDeviceCharacteristics', { deviceId: target, serviceId: service.uuid }); check()
+			const chars = await invoke('getBLEDeviceCharacteristics', { deviceId: target, serviceId: service.uuid }); check()
 			const characteristic = (chars?.characteristics || []).find(item => normal(item.uuid) === normal(FLOOR_SCALE_NOTIFY_ID))
 			if (!characteristic || !(characteristic.properties?.notify || characteristic.properties?.indicate)) throw new Error('未找到地秤通知特征')
 			const writable = (chars?.characteristics || []).find(item => normal(item.uuid) === normal(FLOOR_SCALE_WRITE_ID))
 			writeType = writable?.properties?.writeNoResponse ? 'writeNoResponse' : writable?.properties?.write ? 'write' : ''
-			await call(runtime, 'notifyBLECharacteristicValueChange', { deviceId: target, serviceId: service.uuid, characteristicId: characteristic.uuid, state: true }); check()
+			receiving = true
+			await invoke('notifyBLECharacteristicValueChange', { deviceId: target, serviceId: service.uuid, characteristicId: characteristic.uuid, state: true }); check()
 			sessionKey = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 			status = 'connected'; reason = ''; emit(); return { code: 0, msg: '已连接，等待数据' }
 		} catch (error) {
+			receiving = false
 			if (opened) await close(target)
 			if (ticket !== epoch) return { code: 499, msg: '地秤连接已取消' }
 			detach(); clearData(); writeType = ''; status = 'disconnected'; reason = String(error?.errMsg || error?.message || '连接失败'); emit()
@@ -132,7 +159,7 @@ export function createFloorScaleDiagnostic(runtime, { now = Date.now, staleMs = 
 		} finally { connecting = false }
 	}
 	async function disconnect() {
-		const target = deviceId; epoch++; clearData(); writeType = ''; sessionKey = ''; status = 'disconnected'; reason = ''; detach(); emit()
+		const target = deviceId; epoch++; receiving = false; clearData(); writeType = ''; sessionKey = ''; status = 'disconnected'; reason = ''; detach(); emit()
 		await close(target)
 	}
 	async function writeCalibrationCommand(command, expectedDeviceId) {
@@ -144,7 +171,7 @@ export function createFloorScaleDiagnostic(runtime, { now = Date.now, staleMs = 
 		if (!valid) throw new Error('校准指令格式不正确')
 		const ticket = epoch, target = deviceId, mode = writeType
 		clearData(); emit()
-		await call(runtime, 'writeBLECharacteristicValue', { deviceId: target, serviceId: FLOOR_SCALE_SERVICE_ID,
+		await invoke('writeBLECharacteristicValue', { deviceId: target, serviceId: FLOOR_SCALE_SERVICE_ID,
 			characteristicId: FLOOR_SCALE_WRITE_ID, value: Uint8Array.from(bytes).buffer, writeType: mode })
 		if (ticket !== epoch || status !== 'connected' || normal(target) !== normal(deviceId)) throw new Error('指令发送结果待核对')
 	}

@@ -34,7 +34,9 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 		const current = connection()
 		if (!current?.is_connected || !current.device_id || !current.connection_key) throw new Error('请先连接地秤')
 		const age = Date.now() - Number(current.sampled_at)
-		if (requireFresh && (!current.is_online || !Number.isFinite(age) || age < 0 || age > 3000)) throw new Error('地秤数据已中断或过期，请等待新读数')
+		if (requireFresh && (!current.is_online || !Number.isFinite(age) || age < 0 || age > 3000)) throw new Error(current.error_message || '地秤数据已中断或过期，请等待新读数')
+		if (requireFresh && current.error_code === 'unreadable_weight') throw new Error(current.error_message)
+		if (requireFresh && current.diagnostic_frame && current.diagnostic_frame.moduleId !== 0) throw new Error('当前数据不是单地秤通道，请核对设备')
 		return current
 	}
 	async function issue(kind, inputKg = '') {

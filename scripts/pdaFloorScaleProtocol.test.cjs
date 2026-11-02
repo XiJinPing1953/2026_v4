@@ -35,7 +35,7 @@ test('disconnect reset discards old fragments', () => {
 	assert.equal(d.push(f.slice(10)).length, 0)
 	assert.equal(d.push(f).length, 1)
 })
-test('candidate milligram conversion is unsigned, precise and remains unverified', () => {
+test('candidate signed conversion rejects unsafe magnitudes and remains unverified', () => {
 	const d = createFloorScaleFrameDecoder()
 	const [f] = d.push(frame([0, 0, 0, 0, 0, 15, 66, 64]))
 	assert.equal(floorScaleCandidateKg(f), 1)
