@@ -44,6 +44,16 @@ function workStorage(owner, mode, storage, reuseChunks = false) {
  }
 }
 
+// Maintenance never opens a round, migrates a draft or rewrites business history.
+export function floorCalibrationWorkIdle(owner, storage) {
+	if (!owner) return false
+	const raw = storage.getStorageSync(workKey(owner, 'floor')) || storage.getStorageSync(reweighDraftKey(owner, 'floor'))
+	if (!raw) return true
+	const head = typeof raw === 'string' ? JSON.parse(raw) : raw
+	if (![1, 2].includes(head?.version) || head.ownerId !== owner || !validReweighEntry(head.current)) throw new Error('地秤草稿无法读取，先返回复秤页核对')
+	return !head.current.bottleNo && !head.current.frozen && !head.metadata?.pendingRound && !head.metadata?.pendingEndRound
+}
+
 export function createReweighWorkStore(owner, storage, currentOwner = () => owner, mode = 'filling', { reuseImmutableChunks = false } = {}) {
  const key = workKey(owner, mode), legacyKey = reweighDraftKey(owner, mode)
  let archiveHead = null, lastHistory = null, lastRound = null, migrationToken

@@ -14,3 +14,9 @@ test('floor route uses exactly existing filling reweigh view and create permissi
 	user.page_permissions['/pages/pda/reweigh'].view = false
 	assert.equal(acl.canViewPage('/pages/pda/floor-reweigh', user), false)
 })
+test('standalone calibration inherits the existing update permission on reweigh', () => {
+ const user={role:'pda_operator',page_permissions:{'/pages/pda/reweigh':{view:true,create:true,update:false}}}
+ assert.equal(acl.canPageAction('/pages/pda/floor-calibration','update',user),false)
+ user.page_permissions['/pages/pda/reweigh'].update=true
+ assert.equal(acl.canPageAction('/pages/pda/floor-calibration','update',user),true)
+})

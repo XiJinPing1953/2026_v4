@@ -12,7 +12,7 @@ export function normalizePagePath(value) {
 	if (!text) return ''
 	const path = text.startsWith('/') ? text : `/${text}`
 	// 地秤复秤复用罐装复秤权限及其云端写入权限，不创建更宽的权限入口。
-	return path === '/pages/pda/floor-reweigh' ? '/pages/pda/reweigh' : path
+	return ['/pages/pda/floor-reweigh', '/pages/pda/floor-calibration'].includes(path) ? '/pages/pda/reweigh' : path
 }
 
 export function normalizePagePermissions(rawPermissions, roleTemplate) {

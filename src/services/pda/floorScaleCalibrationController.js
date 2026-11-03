@@ -2,7 +2,7 @@ import { floorScaleMassCommand, floorScaleZeroCommand, floorScaleKilogramsToGram
 
 // One persistent, account-scoped in-flight operation. A transport success only
 // means that bytes were submitted, not that the board calibrated successfully.
-export function createFloorScaleCalibrationController({ ownerId, storage, ownerMatches, connection, canStart, send, timeoutMs = 8000 }) {
+export function createFloorScaleCalibrationController({ ownerId, storage, ownerMatches, connection, canStart, send, stableReading, now = Date.now, timeoutMs = 8000 }) {
 	// A pending command blocks other accounts on this PDA from silently replacing it.
 	const key = 'crm_pda_floor_calibration_v1'
 	const token = value => value ? (typeof value === 'string' ? value : JSON.stringify(value)) : null
@@ -37,11 +37,20 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 		if (!ownerId || !ownerMatches()) throw new Error('账号已变化，请使用原账号处理校准')
 		const current = connection()
 		if (!current?.is_connected || !current.device_id || !current.connection_key) throw new Error('请先连接地秤')
-		const age = Date.now() - Number(current.sampled_at)
+		const age = now() - Number(current.sampled_at)
 		if (requireFresh && (!current.is_online || !Number.isFinite(age) || age < 0 || age > 3000)) throw new Error(current.error_message || '地秤数据已中断或过期，请等待新读数')
-		if (requireFresh && current.error_code === 'unreadable_weight') throw new Error(current.error_message)
 		if (requireFresh && current.diagnostic_frame && current.diagnostic_frame.moduleId !== 0) throw new Error('当前数据不是单地秤通道，请核对设备')
+		if (requireFresh && current.error_code !== 'reading') throw new Error(current.error_message || '重量帧无效')
 		return current
+	}
+	function sample(current, after = null) {
+		const point = stableReading?.(current.connection_key)
+		if (!point?.stable || point.connectionKey !== current.connection_key || !Number.isFinite(point.kg) ||
+			!Number.isFinite(point.ad) || !Number.isFinite(point.from) || !Number.isFinite(point.at) ||
+			now() - point.at > 500 || point.at > now() || (after !== null && point.from <= after)) {
+			throw new Error('请保持载荷，等待读数稳定后再操作')
+		}
+		return { kg: point.kg, ad: point.ad, at: point.at }
 	}
 	async function issue(kind, inputKg = '') {
 		if (broken) throw new Error(broken)
@@ -52,7 +61,9 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 		if (kind === 'mass' && state.zeroFor !== current.device_id) throw new Error('请先在当前地秤完成空秤归零复核')
 		const command = kind === 'zero' ? floorScaleZeroCommand() : floorScaleMassCommand(inputKg)
 		const grams = kind === 'mass' ? floorScaleKilogramsToGrams(inputKg) : null
-		const pending = { kind, deviceId: current.device_id, connectionKey: current.connection_key, needsReconnect: true, grams, startedAt: Date.now() }
+		if (grams > 1000000) throw new Error('这台秤最大 1000 kg，放 200 kg 请输入 200')
+		const before = sample(current)
+		const pending = { kind, before, deviceId: current.device_id, connectionKey: current.connection_key, needsReconnect: true, grams, startedAt: now() }
 		// Persist before any side effect; app termination must never trigger a retry.
 		save({ ...state, zeroFor: kind === 'zero' ? '' : state.zeroFor, pending, requiresReview: true })
 		running = true; notify()
@@ -60,6 +71,8 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 		try {
 			const again = requireConnection()
 			if (!canStart() || again.device_id !== current.device_id || again.connection_key !== current.connection_key) throw new Error('连接或作业状态变化')
+			const latest = sample(again)
+			if (Math.abs(latest.kg - before.kg) > 0.1) throw new Error('载荷已变化，请核对')
 			await Promise.race([
 				Promise.resolve().then(() => send(command, current.device_id)),
 				new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('发送结果未确认')), timeoutMs) })
@@ -75,16 +88,36 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 			return { sent: false, msg: '结果未确认，请重新连接原地秤并核对' }
 		} finally { if (timeout) clearTimeout(timeout); running = false; notify() }
 	}
-	function resolvePending(verified) {
-		if (running) throw new Error('指令仍在处理，请稍候')
-		if (!state.pending) throw new Error('没有待核对的校准')
-		if (!canStart()) throw new Error('请先完成或放弃当前钢瓶，再核对校准')
-		const current = requireConnection(), pending = state.pending
+	function pendingForReview(requireFresh = true) {
+		if (running || !state.pending) throw new Error(running ? '指令仍在处理，请稍候' : '没有待核对的校准')
+		if (!canStart()) throw new Error('请先结束当前作业，再核对校准')
+		const current = requireConnection(requireFresh), pending = state.pending
 		if (current.device_id !== pending.deviceId) throw new Error('请连接原来的地秤后核对')
 		if (pending.needsReconnect && current.connection_key === pending.connectionKey) throw new Error('发送结果不明确，请先断开并重新连接原地秤')
+		return { current, pending }
+	}
+	function confirmLoad() {
+		const { current, pending } = pendingForReview()
+		if (pending.kind !== 'mass' || pending.loaded) throw new Error('当前不需要核对加载点')
+		const point = sample(current, pending.startedAt), reference = pending.grams / 1000
+		if (Math.abs(point.kg - reference) > Math.min(0.25, reference * 0.01)) throw new Error('示值与砝码不符，保留现状或记录异常')
+		save({ ...state, pending: { ...pending, loaded: point } })
+	}
+	function resolvePending(verified) {
+		const { current, pending } = pendingForReview(verified)
+		let empty = null
+		if (verified) {
+			if (pending.kind === 'mass' && !pending.loaded) throw new Error('先核对台上的砝码，再卸空')
+			empty = sample(current, pending.loaded?.at ?? pending.startedAt)
+			if (Math.abs(empty.kg) >= 0.25) throw new Error('空台尚未回到零分度，请保留读数并检查')
+		}
 		const zeroFor = verified && pending.kind === 'zero' ? current.device_id : ''
-		save({ ...state, pending: null, zeroFor, requiresReview: !(verified && pending.kind === 'mass'), lastVerified: verified ? { kind: pending.kind, deviceId: pending.deviceId, grams: pending.grams, verifiedAt: Date.now() } : state.lastVerified })
+		save({ ...state, pending: null, zeroFor, requiresReview: !(verified && pending.kind === 'mass'),
+			lastVerified: verified ? { kind: pending.kind, deviceId: pending.deviceId, grams: pending.grams,
+				before: pending.before, loaded: pending.loaded, empty,
+				...(pending.kind === 'mass' && state.lastVerified?.kind === 'zero' && state.lastVerified.deviceId === pending.deviceId
+					? { zero: state.lastVerified.empty } : {}), verifiedAt: now() } : state.lastVerified })
 	}
 	function subscribe(listener) { listeners.add(listener); listener(getState()); return () => listeners.delete(listener) }
-	return { getState, subscribe, issueZero: () => issue('zero'), issueMass: input => issue('mass', input), resolvePending }
+	return { getState, subscribe, issueZero: () => issue('zero'), issueMass: input => issue('mass', input), confirmLoad, resolvePending }
 }

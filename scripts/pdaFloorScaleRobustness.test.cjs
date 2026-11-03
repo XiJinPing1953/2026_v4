@@ -1,10 +1,10 @@
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm')
-const source = ['floorScaleLoad', 'floorScaleDisplay', 'autoReturnWeight', 'floorScaleProtocol', 'floorScaleDiagnostic', 'floorScaleSession', 'floorScaleCalibration', 'floorScaleCalibrationController']
+const source = ['floorScaleLoad', 'floorScaleDisplay', 'autoReturnWeight', 'floorScaleProtocol', 'floorScaleDiagnostic', 'floorScaleSession', 'floorCalibrationReading', 'floorScaleCalibration', 'floorScaleCalibrationController']
  .map(name => fs.readFileSync(`src/services/pda/${name}.js`, 'utf8').replace(/^import .*\n/gm, '').replace(/export /g, '')).join('\n')
 function setup(options = {}) {
  let time = Date.now(), tick, timers = 0
  class Clock extends Date { static now() { return time } }
- const api = vm.runInNewContext(`${source}\n;({createAutoReweighWeight,createFloorScaleDiagnostic,createFloorScaleSession,createFloorScaleCalibrationController,createFloorScaleFrameDecoder,floorScaleCandidateKg,FLOOR_SCALE_SERVICE_ID,FLOOR_SCALE_NOTIFY_ID,FLOOR_SCALE_WRITE_ID})`, {
+ const api = vm.runInNewContext(`${source}\n;({createCalibrationWindow,createAutoReweighWeight,createFloorScaleDiagnostic,createFloorScaleSession,createFloorScaleCalibrationController,createFloorScaleFrameDecoder,floorScaleCandidateKg,FLOOR_SCALE_SERVICE_ID,FLOOR_SCALE_NOTIFY_ID,FLOOR_SCALE_WRITE_ID})`, {
   Date: Clock, Number, Math, ArrayBuffer, Uint8Array, Set, Map, WeakMap, parseInt, Promise, setTimeout, clearTimeout,
   setInterval: fn => { tick = fn; timers++; return timers }, clearInterval: () => { timers-- }
  })
@@ -16,7 +16,7 @@ function setup(options = {}) {
  runtime.onBLEConnectionStateChange = fn => events.connection = fn
  runtime.writeBLECharacteristicValue = o => { writes.push([...new Uint8Array(o.value)]); o.success({}) }
  const notify = bytes => events.value({ deviceId: 'a', serviceId: api.FLOOR_SCALE_SERVICE_ID, characteristicId: api.FLOOR_SCALE_NOTIFY_ID, value: Uint8Array.from(bytes).buffer })
- return { ...api, runtime, events, writes, notify, advance(ms) { time += ms }, tick() { tick?.() }, timers: () => timers }
+ return { ...api, runtime, events, writes, notify, now:()=>time, advance(ms) { time += ms }, tick() { tick?.() }, timers: () => timers }
 }
 function frame(value = 1000000n, legacy = false) {
  const count = legacy ? 4 : 8, bytes = [0xaa,3,1,legacy ? 19 : 23,0,legacy ? 12 : 16,legacy ? 6 : 34,0,0,0,0,0]
@@ -68,15 +68,26 @@ test('silent native callback times out and close cannot keep page stopping forev
  h.runtime.getBLEDeviceServices=o=>o.success({services:[{uuid:h.FLOOR_SCALE_SERVICE_ID}]})
  assert.equal((await d.connect('a')).code,0); await d.disconnect()
 })
+function calibrationSamples(h,s) {
+ const w=h.createCalibrationWindow();let stamp=0
+ return {stableReading:k=>w.read(h.now(),k), feed(value) {
+  for(let i=0;i<18;i++){
+   const b=frame(value); b[b.length-3]=0; b[b.length-1]=++stamp; b[4]=0; b[4]=b.reduce((a,v)=>a^v,0)
+   h.advance(100);h.notify(b);const snap=s.getSnapshot()
+   w.observe(snap.diagnostic_frame,snap.sampled_at,snap.connection_key)
+  }
+ } }
+}
 test('negative fresh raw reading can zero, missing data cannot; write is not calibration success', async () => {
  const h=setup(), s=h.createFloorScaleSession(h.runtime), data=new Map()
  await s.connect({preferredDeviceId:'a'})
- const c=h.createFloorScaleCalibrationController({ownerId:'test',storage:{getStorageSync:k=>data.get(k),setStorageSync:(k,v)=>data.set(k,v)},ownerMatches:()=>true,canStart:()=>true,connection:()=>s.getSnapshot(),send:(...args)=>s.writeCalibrationCommand(...args)})
+ const points=calibrationSamples(h,s)
+ const c=h.createFloorScaleCalibrationController({stableReading:points.stableReading,ownerId:'test',storage:{getStorageSync:k=>data.get(k),setStorageSync:(k,v)=>data.set(k,v)},ownerMatches:()=>true,canStart:()=>true,connection:()=>s.getSnapshot(),send:(...args)=>s.writeCalibrationCommand(...args)})
  await assert.rejects(c.issueZero(),/尚未收到/); assert.equal(h.writes.length,0)
- h.notify(frame(-1000n)); assert.equal(s.getSnapshot().weight_kg,-0.001)
+ points.feed(-1000n); assert.equal(s.getSnapshot().weight_kg,-0.001)
  assert.equal((await c.issueZero()).sent,true); assert.equal(h.writes.length,1)
  assert.ok(c.getState().pending); assert.throws(()=>c.resolvePending(true),/尚未收到|新读数/)
- h.notify(frame(0n)); c.resolvePending(true); assert.equal(c.getState().zeroFor,'a')
+ points.feed(0n); c.resolvePending(true); assert.equal(c.getState().zeroFor,'a')
  assert.equal(c.getState().requiresReview,true); await s.stop()
 })
 test('late timed-out native connection is closed without closing a newer same-device session', async () => {
@@ -99,11 +110,12 @@ test('garbage stream is bounded and decoder recovers without retaining a raw his
 })
 test('wrong module cannot be calibrated; silent command write is never retried', async () => {
  const h=setup(),s=h.createFloorScaleSession(h.runtime),data=new Map(); await s.connect({preferredDeviceId:'a'})
- const c=h.createFloorScaleCalibrationController({ownerId:'test',storage:{getStorageSync:k=>data.get(k),setStorageSync:(k,v)=>data.set(k,v)},ownerMatches:()=>true,canStart:()=>true,connection:()=>s.getSnapshot(),send:(...args)=>s.writeCalibrationCommand(...args),timeoutMs:10})
+ const points=calibrationSamples(h,s)
+ const c=h.createFloorScaleCalibrationController({stableReading:points.stableReading,ownerId:'test',storage:{getStorageSync:k=>data.get(k),setStorageSync:(k,v)=>data.set(k,v)},ownerMatches:()=>true,canStart:()=>true,connection:()=>s.getSnapshot(),send:(...args)=>s.writeCalibrationCommand(...args),timeoutMs:10})
  const wrong=frame(); wrong[7]=1;wrong[4]^=1;h.notify(wrong)
  await assert.rejects(c.issueZero(),/单地秤/);assert.equal(h.writes.length,0)
  let delayed, sent=0;h.runtime.writeBLECharacteristicValue=o=>{sent++;delayed=o}
- h.notify(frame());assert.equal((await c.issueZero()).sent,false);assert.equal(sent,1)
+ points.feed(1000000n);assert.equal((await c.issueZero()).sent,false);assert.equal(sent,1)
  delayed.success({});await Promise.resolve();assert.equal(c.getState().pending.needsReconnect,true)
  await assert.rejects(c.issueZero(),/待核对/);assert.equal(sent,1);await s.stop()
 })

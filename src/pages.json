@@ -159,6 +159,10 @@
 			}
 		},
 		{
+			"path": "pages/pda/floor-calibration",
+			"style": { "navigationBarTitleText": "秤台校准" }
+		},
+		{
 			"path": "pages/pda/sale-create",
 			"style": {
 				"navigationBarTitleText": "手机称重销售",

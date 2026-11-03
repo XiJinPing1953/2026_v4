@@ -46,7 +46,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 	const round = ref(null)
 	const pendingRound = ref(null)
 	const pendingEndRound = ref(null), localRoundEnded = ref(false), lastEndedRound = ref(null)
-	const floorCalibrationOpen = ref(false), floorCalibrationState = ref(null)
+	const floorCalibrationState = ref(null)
 	const roundReady = ref(!isReturn)
 	const history = shallowRef([])
 	const historySyncing = ref(false), historySyncError = ref('')
@@ -105,17 +105,14 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 	if (!draftLoading.value) { try { restoreSaved(store.load()) } catch (cause) { restoreFailed(cause) } }
 	const locked = computed(() => draftLoading.value || unreadable || !ownerMatches() || Boolean(current.value.frozen) || Boolean(pendingRound.value) || Boolean(pendingEndRound.value))
 	const canCreate = computed(() => canPageAction(pagePath, 'create'))
-	const canCalibrate = computed(() => isFloor && canPageAction(pagePath, 'update'))
-	const floorCalibration = isFloor ? createFloorScaleCalibrationController({
-		ownerId,
-		storage: { getStorageSync: key => uni.getStorageSync(key), setStorageSync: (key, value) => uni.setStorageSync(key, value) },
-		ownerMatches,
-		connection: () => scale.getSnapshot(),
-		canStart: () => active.value && ownerMatches() && canCalibrate.value && floorCalibrationOpen.value && !busy.value && !current.value.bottleNo && !locked.value,
-		send: (command, deviceId) => scale.writeCalibrationCommand(command, deviceId)
-	}) : null
-	const unsubscribeFloorCalibration = floorCalibration?.subscribe(value => { floorCalibrationState.value = value }) || (() => {})
-	const calibrationBlocksReweigh = computed(() => isFloor && Boolean(floorCalibrationOpen.value || floorCalibrationState.value?.pending || floorCalibrationState.value?.requiresReview || floorCalibrationState.value?.error ||
+	// Business pages only read the last commissioning result, including after returning from maintenance.
+	function refreshCalibration() {
+		if (!isFloor) return
+		const record = createFloorScaleCalibrationController({ ownerId, ownerMatches,
+			storage: { getStorageSync: key => uni.getStorageSync(key) } })
+		floorCalibrationState.value = record.getState()
+	}
+	const calibrationBlocksReweigh = computed(() => isFloor && Boolean(floorCalibrationState.value?.pending || floorCalibrationState.value?.requiresReview || floorCalibrationState.value?.error ||
 		(snapshot.value.is_connected && (floorCalibrationState.value?.lastVerified?.kind !== 'mass' ||
 			floorCalibrationState.value.lastVerified.deviceId !== snapshot.value.device_id))))
 	const canNext = computed(() => !busy.value && current.value.receipt?.saved === true)
@@ -150,36 +147,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 	function confirm(title, content) {
 		return new Promise(resolve => uni.showModal({ title, content, confirmText: '确认', cancelText: '取消', success: result => resolve(Boolean(result.confirm)), fail: () => resolve(false) }))
 	}
-	function setFloorCalibrationOpen(value) {
-		if (!isFloor || !active.value || !ownerMatches()) return false
-		if (floorCalibrationState.value?.running) return fail('校准指令正在处理，请稍候')
-		if (value && (!canCalibrate.value || busy.value || current.value.bottleNo || locked.value)) return fail('请先完成或放弃当前钢瓶，并确认账号有校准权限')
-		if (isFloor) scale.resetLoad?.()
-		floorCalibrationOpen.value = Boolean(value); error.value = ''
-		return true
-	}
-	async function sendFloorCalibration(kind, massKg = '') {
-		if (!isFloor || !floorCalibrationOpen.value || !canCalibrate.value || !active.value || !ownerMatches()) return false
-		const text = kind === 'zero' ? '请确认秤台已清空，且地秤连接正确。操作将改变地秤零点。' : `请确认秤台已放好 ${massKg} kg 标准砝码，输入正确且不超过秤台量程。操作将改变地秤标定。`
-		if (!await confirm(kind === 'zero' ? '确认空秤归零' : '确认砝码标定', text)) return false
-		if (!active.value || !ownerMatches() || !floorCalibrationOpen.value || !canCalibrate.value) return false
-		try {
-			const result = kind === 'zero' ? await floorCalibration.issueZero() : await floorCalibration.issueMass(massKg)
-			message.value = result.msg
-			return result.sent
-		} catch (cause) { return fail(cause.message || '校准操作未执行') }
-	}
-	async function resolveFloorCalibration(verified) {
-		const pending = floorCalibrationState.value?.pending
-		if (!isFloor || !floorCalibrationOpen.value || !pending || !canCalibrate.value || !active.value || !ownerMatches()) return false
-		const details = verified
-			? pending.kind === 'zero' ? '请确认已用可靠方式核对空秤归零结果。确认后可进行砝码标定。' : `请确认已核对 ${pending.grams / 1000} kg 标准砝码的读数，并核对移走砝码后回零。`
-			: '请确认已检查地秤；本次结果按异常处理，后续必须重新完成归零和标定。'
-		if (!await confirm(verified ? '确认现场复核结果' : '标记校准异常', details)) return false
-		if (!active.value || !ownerMatches() || !floorCalibrationOpen.value || !canCalibrate.value) return false
-		try { floorCalibration.resolvePending(Boolean(verified)); message.value = verified ? '复核结果已记录。' : '已记录异常，请重新完成校准。'; error.value = ''; return true }
-		catch (cause) { return fail(cause.message || '复核状态未保存') }
-	}
+
 	function setText(key, value) {
 		if (!editable() || !['remark', 'reason'].includes(key)) return
 		current.value = { ...current.value, [key]: String(value || '') }; persist()
@@ -487,7 +455,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 	}
 	async function startRound() {
 		if (pendingEndRound.value) return fail('请先确认上轮结束结果')
-		if (!nativeSupported || busy.value || !active.value || !ownerMatches() || unreadable || !canCreate.value || (isFloor && floorCalibrationOpen.value)) return false
+		if (!nativeSupported || busy.value || !active.value || !ownerMatches() || unreadable || !canCreate.value) return false
 		if (current.value.frozen && !current.value.receipt?.saved) return fail('请先确认本瓶保存完成，再开始新一轮')
 		if (current.value.bottleNo && !current.value.receipt?.saved) return fail('请先保存或放弃这瓶，再开始新一轮')
 		if (history.value.some(item => item.frozen && !item.receipt?.saved)) return fail('还有记录未确认保存，请先查询保存结果')
@@ -527,7 +495,6 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		finally { busy.value = false }
 	}
 	async function endRound() {
-		if (isFloor && floorCalibrationOpen.value) return false
 		if ((!round.value && !pendingEndRound.value) || !nativeSupported || busy.value || !active.value || !ownerMatches() || unreadable || !canCreate.value || pendingRound.value) return false
 		if (current.value.bottleNo && !current.value.receipt?.saved) return fail('请先保存或放弃这瓶，再结束本轮')
 		if (history.value.some(item => item.frozen && !item.receipt?.saved)) return fail('还有记录未确认保存，请先查询保存结果')
@@ -568,6 +535,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		await restoreDraft()
 		if (version !== lifecycleVersion) return false
 		active.value = true
+		refreshCalibration()
 		if (unreadable) return false
 		if (!nativeSupported) return fail('请在 PDA 应用中打开复秤')
 		if (isReturn) { roundReady.value = false; await refreshRound({ refreshHistory: false }) }
@@ -596,8 +564,8 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		stopping = Promise.allSettled([stopping, scale.stop(), leaveBarcodeSession({ page, reason: 'page-hidden' })])
 		await stopping
 	}
-	onBeforeUnmount(() => { unsubscribe(); unsubscribeFloorCalibration(); void deactivate() })
+	onBeforeUnmount(() => { unsubscribe(); void deactivate() })
 	return { draftLoading, captureMinimum, current, history, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, submitting, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, localRoundEnded, startRound, endRound, refreshRound,
 		selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText,
-		temporaryZero, canCalibrate, floorCalibrationOpen, floorCalibrationState, calibrationBlocksReweigh, setFloorCalibrationOpen, sendFloorCalibration, resolveFloorCalibration }
+		temporaryZero, calibrationBlocksReweigh }
 }

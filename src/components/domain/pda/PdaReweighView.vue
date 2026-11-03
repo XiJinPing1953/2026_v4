@@ -15,8 +15,8 @@
 				<text class="round-count">{{ round ? '本轮已保存 ' + (roundReady ? round.bottle_count : '—') + ' 瓶' : localRoundEnded ? '本轮已结束' : '本轮尚未开始' }}</text>
 				<AppButton v-if="round" class="detail-link" kind="ghost" size="sm" @click="roundDetails = !roundDetails">{{ roundDetails ? '收起本轮详情 ⌃' : '本轮详情 ›' }}</AppButton>
 				</view>
-				<AppButton kind="outline" v-if="(round || pendingEndRound) && !pendingRound" :disabled="busy || !canCreate || floorCalibrationOpen" @click="onEndRound">{{ pendingEndRound ? '重试结束本轮' : '结束本轮' }}</AppButton>
-				<AppButton kind="outline" v-else :disabled="busy || !canCreate || Boolean(pendingEndRound) || floorCalibrationOpen" @click="onStartRound">{{ pendingRound ? '重试开始本轮' : '开始新一轮' }}</AppButton>
+				<AppButton kind="outline" v-if="(round || pendingEndRound) && !pendingRound" :disabled="busy || !canCreate" @click="onEndRound">{{ pendingEndRound ? '重试结束本轮' : '结束本轮' }}</AppButton>
+				<AppButton kind="outline" v-else :disabled="busy || !canCreate || Boolean(pendingEndRound)" @click="onStartRound">{{ pendingRound ? '重试开始本轮' : '开始新一轮' }}</AppButton>
 			</view>
 			<text v-if="pendingEndRound" class="notice">结束结果还未确认，请点“重试结束本轮”；已保存记录保留。</text>
 			<text v-if="pendingRound" class="notice">还没确认新一轮是否开始，请点“重试开始本轮”。</text>
@@ -36,12 +36,10 @@
 			<PdaDailyTemperature v-if="!isReturn" :active="form.active.value" :disabled="busy || !canCreate" />
 			</view>
 			<view class="work-card">
-			<PdaFloorScale v-if="isFloor" :snapshot="snapshot" :show-zero="readyForBottle && !current.capture && !locked && canCreate" @zero="form.temporaryZero" :busy="busy || Boolean(floorCalibrationState?.running)" @connect="connect" @disconnect="disconnect" />
+			<PdaFloorScale v-if="isFloor" :snapshot="snapshot" :show-zero="readyForBottle && !current.capture && !locked && canCreate" @zero="form.temporaryZero" :busy="busy" @connect="connect" @disconnect="disconnect" />
 			<PdaWeighScale embedded v-else :minimum-weight="captureMinimum" :snapshot="snapshot" :selected="Boolean(current.bottleNo)" :captured="Boolean(current.capture)" :gross="current.grossWeight" :tare="current.preview?.bottle?.tare_weight" :busy="busy" @connect="connect" @disconnect="disconnect" />
-			<AppButton v-if="isFloor && !floorCalibrationOpen" kind="outline" :disabled="busy || !canCalibrate" @click="setFloorCalibrationOpen(true)">校准地秤</AppButton>
-			<text v-if="isFloor && !floorCalibrationOpen && calibrationBlocksReweigh" class="notice notice--error">当前地秤尚未完成砝码复核，请进入“校准地秤”处理。</text>
-			<PdaFloorCalibration v-if="isFloor && floorCalibrationOpen" :snapshot="snapshot" :state="floorCalibrationState" :error="error" :disabled="busy || !canCalibrate" @zero="sendFloorCalibration('zero')" @mass="sendFloorCalibration('mass', $event)" @resolve="resolveFloorCalibration" @close="setFloorCalibrationOpen(false)" />
-			<AppSection class="work-section" v-if="!floorCalibrationOpen && !current.frozen" :title="current.bottleNo ? current.bottleNo + ' 号瓶' : '请扫码选瓶'">
+			<text v-if="isFloor && calibrationBlocksReweigh" class="notice notice--error">当前地秤尚未完成砝码复核，请到 PDA 首页的“秤台校准”复核。</text>
+			<AppSection class="work-section" v-if="!current.frozen" :title="current.bottleNo ? current.bottleNo + ' 号瓶' : '请扫码选瓶'">
 				<text v-if="error" class="notice notice--error" role="alert">{{ error }}</text>
 				<text v-else-if="message && !current.capture" class="hint" role="status">{{ message }}</text>
 				<text v-if="!current.bottleNo && !message && !error" class="hint">按扫描键选择钢瓶</text>
@@ -104,7 +102,7 @@
 				</view>
 			</AppSection>
 
-			<AppSection class="work-section" v-if="!floorCalibrationOpen && current.frozen" :title="submitting ? '正在保存' : receiptTitle(current.receipt)">
+			<AppSection class="work-section" v-if="current.frozen" :title="submitting ? '正在保存' : receiptTitle(current.receipt)">
 				<text v-if="error" class="notice notice--error" role="alert">{{ error }}</text>
 				<text class="hint">{{ submitting ? '正在提交并确认保存结果，请稍候。' : current.receipt?.saved ? '记录已保存，可以继续下一瓶；处理详情可到复秤记录查询。' : current.receipt?.message || '还没确认是否保存成功，请点查询保存结果。' }}</text>
 				<PdaHebeiSubmissionStatus v-if="!isReturn && current.receipt?.saved" :active="form.active.value" :filling-id="current.receipt.fillingId" />
@@ -127,7 +125,7 @@
 
 			</view>
 
-			<PdaReweighHistorySection v-for="group in floorCalibrationOpen ? [] : historyGroups" :key="group.title" :title="group.title" :items="group.items" :is-return="isReturn" :busy="busy" :printer="printer" @query="query" />
+			<PdaReweighHistorySection v-for="group in historyGroups" :key="group.title" :title="group.title" :items="group.items" :is-return="isReturn" :busy="busy" :printer="printer" @query="query" />
 		</template>
 	</AppPage>
 </template>
@@ -143,7 +141,6 @@ import PdaWeighScale from './PdaWeighScale.vue'
 import PdaDailyTemperature from './PdaDailyTemperature.vue'
 import PdaHebeiSubmissionStatus from './PdaHebeiSubmissionStatus.vue'
 import PdaFloorScale from './PdaFloorScale.vue'
-import PdaFloorCalibration from './PdaFloorCalibration.vue'
 import PdaReweighHistorySection from './PdaReweighHistorySection.vue'
 import PdaBottleSuggestField from '@/components/domain/pda/PdaBottleSuggestField.vue'
 import { reweighChangeText, usePdaReweigh } from '@/composables/pda/usePdaReweigh'
@@ -156,7 +153,7 @@ const printer = usePdaFillingPrinter({ enabled: !isReturn, active: () => form?.a
 const form = usePdaReweigh({ mode: props.mode, printing: isReturn ? null : printer, scaleMode: props.scaleMode })
 const { draftLoading, captureMinimum, current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, submitting, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, localRoundEnded, startRound, refreshRound,
 	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText, endRound,
-	canCalibrate, floorCalibrationOpen, floorCalibrationState, calibrationBlocksReweigh, setFloorCalibrationOpen, sendFloorCalibration, resolveFloorCalibration } = form
+	calibrationBlocksReweigh } = form
 const historyGroups = computed(() => [
 	{ title: '本轮称重记录', items: roundHistory.value },
 	{ title: '其他轮次未确认保存的记录', items: recoveryHistory.value }

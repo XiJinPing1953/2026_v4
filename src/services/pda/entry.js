@@ -38,6 +38,7 @@ const NATIVE_PAGE_PATHS = new Set([
 	'/pages/pda/return-reweigh',
 	'/pages/pda/reweigh',
 	'/pages/pda/floor-reweigh',
+	'/pages/pda/floor-calibration',
 	'/pages/pda/sale-create',
 	'/pages/bottle/timeline'
 ])
