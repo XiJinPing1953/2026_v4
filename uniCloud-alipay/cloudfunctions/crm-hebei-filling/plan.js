@@ -51,7 +51,8 @@ function prepare({record,bottle,index,weather,policy,now=Date.now()}) {
  if (!/^\d{4}-\d{2}-\d{2}$/.test(mapping.next_inspection) || mapping.next_inspection<today) throw new Error('缺少有效检验日期或已过检验期');
  if (record.date!==today || day(record.reweigh?.measured_at)!==today) throw new Error('跨日记录不得按当前时间自动补报');
  const rw=record.reweigh, gross=number(rw.gross_weight,'灌后毛重'), basis=number(rw.basis?.gross_weight,'回瓶毛重'), tare=number(rw.tare_weight,'皮重'), fill=number(record.fill_weight,'本次灌装量');
- if (!text(rw.basis?.return_reweigh_id) || gross<tare || basis<tare || tare<=0 || Math.abs(tare-number(bottle.tare_weight,'当前皮重'))>0.001) throw new Error('回瓶依据或皮重异常');
+ if (!text(rw.basis?.return_reweigh_id) || basis<=0) throw new Error('缺少有效回瓶复秤依据');
+ if (gross<tare || tare<=0 || Math.abs(tare-number(bottle.tare_weight,'当前皮重'))>0.001) throw new Error('灌后毛重或皮重异常');
  if (day(record.created_at)!==today || rw.measured_at>now+60000) throw new Error('保存或称重时间异常');
  if (!(fill>0) || Math.abs((gross-basis)-fill)>0.051) throw new Error('本次灌装量与实测依据不符');
  if (Math.abs((gross-tare)-number(rw.net_weight,'瓶内净重'))>0.051) throw new Error('瓶内净重与实测依据不符');

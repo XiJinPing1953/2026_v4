@@ -139,3 +139,27 @@ test('a first-row discovery failure before midnight retains its unfinished day w
  await assert.rejects(h.svc.discover(await h.svc.getConfig(),time+8000));h.db.setFault(null);h.clock.time+=86400000
  await h.svc.discover(await h.svc.getConfig(),h.clock.time+8000);assert.ok(h.job());assert.equal(h.db.data(STATES).get('discovery').complete,true)
 })
+
+test('a valid return below tare reports the incremental fill exactly once (bottle 68 weights)', async () => {
+ const h = setup()
+ h.b.tare_weight = 124
+ Object.assign(h.r.reweigh, { tare_weight: 124, gross_weight: 183.5, net_weight: 59.5 })
+ h.r.reweigh.basis.gross_weight = 122
+ h.r.fill_weight = 61.5
+ await h.temp()
+ await h.svc.run()
+ await h.svc.run()
+ assert.equal(h.job().state, 'confirmed')
+ assert.equal(JSON.parse(h.job().payload.jcStr).chzl, '61.5')
+ assert.equal(h.counts.sent, 1)
+})
+
+test('a nonpositive return gross cannot be used even when both derived weights reconcile', async () => {
+ const h = setup()
+ h.r.reweigh.basis.gross_weight = 0
+ h.r.fill_weight = h.r.reweigh.gross_weight
+ await h.temp()
+ await h.svc.run()
+ assert.equal(h.job().state, 'blocked')
+ assert.equal(h.counts.sent, 0)
+})
