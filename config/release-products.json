@@ -159,7 +159,9 @@
       "output": "release/pda",
       "acceptance": "Independent DSX calibration on native 1.0.63; verify known load, return to zero and decreasing weights using the physical platform.",
       "deploymentScope": {
-        "functions": [],
+        "functions": [
+          "crm-hebei-filling"
+        ],
         "databaseFiles": [],
         "baseCommit": "efd82deeabf2b0d26955bcee2dadef827a4ce024",
         "sourceFiles": [
