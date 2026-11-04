@@ -2,18 +2,14 @@
 const { withFillingPrintTimes } = require('./fillingPrintTime')
 const text = v => String(v || '').trim()
 function createService({ db, isAdmin, hiddenIds, amounts, mentionsHidden, project = doc => doc }) {
-  async function scope(user) {
-    if (isAdmin(user)) return null
+  function canReadHistory(user) {
     const defaults = user.mobile_sale_defaults || {}
-    if (!text(defaults.vehicle_id) || !text(defaults.vehicle_no)) throw new Error('账号尚未绑定车辆，请联系管理员')
-    // Persisted plate is the historical association; never accept client vehicle filters.
-    return { car_no: text(defaults.vehicle_no) }
+    return isAdmin(user) || Boolean(text(defaults.vehicle_id) && text(defaults.vehicle_no))
   }
   async function list(user, data) {
-    let owned
-    try { owned = await scope(user) } catch (e) { return { code: 403, msg: e.message } }
+    if (!canReadHistory(user)) return { code: 403, msg: '账号尚未绑定车辆，请联系管理员' }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(data.date || '')) return { code: 400, msg: '请选择日期' }
-    const conditions = [{ date: data.date }, ...(owned ? [owned] : [])]
+    const conditions = [{ date: data.date }]
     const hidden = await hiddenIds()
     if (hidden.length) conditions.push({ customer_id: db.command.nin(hidden) }, { delivery_customer_id: db.command.nin(hidden) })
     const keyword = text(data.customer).slice(0, 80)
@@ -26,16 +22,15 @@ function createService({ db, isAdmin, hiddenIds, amounts, mentionsHidden, projec
     return { code: 0, data: { rows: res.data.slice(0,20).map(r => ({ id: r._id, date: r.date, customer: r.delivery_customer_name || r.customer_name, vehicle: r.car_no, out_count: (r.out_items || []).length, back_count: (r.back_items || []).length, created_at: r.created_at, amount: amounts(r).amounts.effective_should_receive })), has_more: res.data.length > 20 } }
   }
   async function get(user, data) {
-    let owned
-    try { owned = await scope(user) } catch(e) { return { code: 403, msg:e.message } }
+    if (!canReadHistory(user)) return { code: 403, msg: '账号尚未绑定车辆，请联系管理员' }
     const id = text(data.id)
     if (!id || id.length > 160) return { code: 400, msg: '缺少销售记录' }
     const found = await db.collection('crm_sale_records').doc(id).get()
     const doc = found.data[0]
-    if (!doc || (owned && doc.car_no !== owned.car_no)) return { code:404, msg:'没有找到本车销售记录' }
+    if (!doc) return { code:404, msg:'记录不存在' }
     if (mentionsHidden(doc, await hiddenIds())) return { code:404, msg:'记录不存在' }
     // Project the exact authorized snapshot. Do not call getV2: it may reconcile
-    // background processing and re-read a sale whose vehicle changed meanwhile.
+    // background processing and re-read a sale whose customer changed meanwhile.
     const calculated = amounts(doc)
     const printable = await withFillingPrintTimes(project(doc), db)
     return { code: 0, data: { ...printable, accounting: calculated.accounting, ...calculated.amounts } }

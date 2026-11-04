@@ -19,7 +19,7 @@
 			<view class="action-grid">
 				<view v-if="canSales" class="action-card" @click="openSales">
 					<text class="action-card__title">销售记录</text>
-					<text class="action-card__desc">查销售、打印销售单</text>
+					<text class="action-card__desc">{{ isNative ? '查销售、打印销售单' : '按日期和客户查看销售明细' }}</text>
 				</view>
 				<view v-if="canRecords" class="action-card" @click="openRecords">
 					<text class="action-card__title">复秤记录</text>
@@ -58,7 +58,7 @@ const currentUser = getUser() || {}
 const isNative = isPdaAppMode()
 const roleLabel = ({ superadmin: '超级管理员', admin: '管理员', finance: '财务', pda_operator: '现场操作员', safety_inspector: '安全巡检员', user: '普通用户' })[currentUser.role_template || currentUser.role] || '其他角色'
 const canRecords = isNative && (canViewPage('/pages/pda/return-reweigh') || canViewPage('/pages/pda/reweigh'))
-const canSales = isNative && canViewPage('/pages/pda/sale-create')
+const canSales = canViewPage('/pages/pda/sale-create')
 const salesOpened = ref(false), showSales = ref(false), salesRef = ref(null)
 const showRecords = ref(false)
 const recordsOpened = ref(false)
