@@ -8,6 +8,7 @@ import { createFloorScaleCalibrationController } from '@/services/pda/floorScale
 import { floorScaleKilogramsToGrams } from '@/services/pda/floorScaleCalibration'
 import { createCalibrationWindow } from '@/services/pda/floorCalibrationReading'
 import { floorCalibrationWorkIdle } from '@/services/pda/reweighWorkStore'
+import { createFloorScaleZero, floorScaleAssistEnabled, setFloorScaleAssist } from '@/services/pda/floorScaleZero'
 import { floorScaleDivisionKg } from '@/services/pda/floorScaleDisplay'
 
 const acl = () => canPageAction('/pages/pda/reweigh', 'update')
@@ -19,12 +20,16 @@ export function useFloorCalibrationBench() {
 	let owner = '', epoch = 0, active = false, diagnostic = null, controller = null, timer = null
 	let closing = Promise.resolve()
 	const window = createCalibrationWindow()
-	const display = computed(() => point.value ? floorScaleDivisionKg(point.value.kg).toFixed(1) : '—')
+	const zero = createFloorScaleZero()
+	let zeroKey = ''
+	const assist = ref(false)
+	const display = computed(() => point.value?.workingReady ? floorScaleDivisionKg(point.value.kg - point.value.offset).toFixed(1) : '—')
 	const activeOwner = () => active && authorized.value && owner === String(getUser()?._id || '') && acl()
 	const key = () => 'pda_floor_bench_points_v1:' + owner
 	function refresh() {
 		raw.value = diagnostic?.getSnapshot() || null
-		point.value = raw.value?.fresh ? window.read(Date.now(), raw.value.sessionKey) : null
+		const reading = raw.value?.fresh ? window.read(Date.now(), raw.value.sessionKey) : null
+		point.value = reading ? { ...reading, stable: zero.ready && reading.stable, workingReady: zero.ready, offset: assist.value ? zero.offset : 0 } : null
 		state.value = controller?.getState() || null
 	}
 	function connection() {
@@ -41,11 +46,20 @@ export function useFloorCalibrationBench() {
 		state.value = null; records.value = []; error.value = ''; note.value = ''; mass.value = ''; expected.value = ''
 		if (!authorized.value) { error.value = '当前账号没有秤台校准权限'; return }
 		const d = createFloorScaleDiagnostic(createFloorScaleNativeRuntime(uni), {
-			onFrame(frame, at) { window.observe(frame, at, d.getSnapshot().sessionKey) }, onInterrupted:window.clear })
+			onFrame(frame, at) {
+				const {sessionKey:key, deviceId} = d.getSnapshot()
+				if (key !== zeroKey) { zero.reset(); zeroKey = key; assist.value = floorScaleAssistEnabled(deviceId, store) }
+				const reading = window.observe(frame, at, key)
+				if (reading) zero.observe(reading.kg, at)
+				else zero.interrupt()
+			}, onInterrupted() { window.clear(); zero.interrupt() } })
 		diagnostic = d
 		controller = createFloorScaleCalibrationController({ ownerId:owner, ownerMatches:activeOwner, storage:store,
 			connection, canStart:() => activeOwner() && floorCalibrationWorkIdle(owner, store),
-			stableReading:k => window.read(Date.now(), k), send:(command,id) => d.writeCalibrationCommand(command,id) })
+			stableReading:k => zero.ready ? window.read(Date.now(), k) : null, send:(command,id) => {
+				zero.reset(); window.clear()
+				return d.writeCalibrationCommand(command,id)
+			} })
 		try { const list = store.getStorageSync(key()); if(list) {
 			const saved = typeof list === 'string' ? JSON.parse(list) : list
 			if (!Array.isArray(saved)) throw new Error()
@@ -56,7 +70,7 @@ export function useFloorCalibrationBench() {
 	function deactivate() {
 		active = false; authorized.value = false; epoch++; busy.value = false
 		if (timer) clearInterval(timer)
-		timer = null; window.clear(); point.value = null; raw.value = null
+		timer = null; zeroKey = ''; assist.value = false; zero.reset(); window.clear(); point.value = null; raw.value = null
 		const d = diagnostic; diagnostic = null; controller = null
 		closing = Promise.allSettled([closing, d?.disconnect()])
 		return closing
@@ -82,10 +96,17 @@ export function useFloorCalibrationBench() {
 		if (valid() && result.code !== 0) throw new Error(result.msg || '连接失败')
 	})
 	const disconnect = () => act(async () => { window.clear(); await diagnostic.disconnect() })
+	const toggleAssist = () => act(async () => {
+		const s = diagnostic.getSnapshot()
+		if (s.status !== 'connected' || !s.deviceId || state.value?.pending || !floorCalibrationWorkIdle(owner,store)) throw new Error('请连接秤台并完成当前操作')
+		setFloorScaleAssist(s.deviceId, !assist.value, store)
+		assist.value = floorScaleAssistEnabled(s.deviceId, store)
+		zero.reset(); window.clear()
+	})
 	const issue = kind => act(async valid => {
 		if (!floorCalibrationWorkIdle(owner, store)) throw new Error('请先完成或放弃复秤页的当前钢瓶')
 		const s = diagnostic.getSnapshot(), before = window.read(Date.now(),s.sessionKey)
-		if (!before?.stable) throw new Error('请等读数稳定后再操作')
+		if (!zero.ready || !before?.stable) throw new Error('请等读数稳定后再操作')
 		const grams = kind === 'mass' ? floorScaleKilogramsToGrams(mass.value) : null
 		if (grams > 1000000) throw new Error('最大称量 1000 kg，放 200 kg 请填 200')
 		const message = kind === 'zero' ? '请确认秤台确实已清空。当前原始 ' + before.kg.toFixed(3) + ' kg，将写入仪表零点。' : '确认台上实际放了 ' + grams/1000 + ' kg 砝码，将写入仪表标定值。'
@@ -103,7 +124,7 @@ export function useFloorCalibrationBench() {
 	})
 	const record = label => act(async () => {
 		const s = diagnostic.getSnapshot(), p = window.read(Date.now(),s.sessionKey)
-		if (!p?.stable) throw new Error('请等待稳定后记录')
+		if (!zero.ready || !p?.stable) throw new Error('请等待稳定后记录')
 		const old = store.getStorageSync(key())
 		const rows = old ? (typeof old === 'string' ? JSON.parse(old) : old) : []
 		if (!Array.isArray(rows)) throw new Error('复核记录无法读取，原记录已保留')
@@ -114,5 +135,5 @@ export function useFloorCalibrationBench() {
 		if (store.getStorageSync(key()) !== text) throw new Error('记录保存未确认，请重新进入核对')
 		records.value = next; note.value = '已在本机记录' + label
 	})
-	return { raw, point, state, display, error, note, records, mass, expected, busy, authorized, activate, deactivate, connect, disconnect, issue, review, record }
+	return { assist, toggleAssist, raw, point, state, display, error, note, records, mass, expected, busy, authorized, activate, deactivate, connect, disconnect, issue, review, record }
 }

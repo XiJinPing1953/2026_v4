@@ -7,7 +7,7 @@ export function createCalibrationWindow() {
 	function observe(frame, at, connectionKey) {
 		const kg = floorScaleCandidateKg(frame)
 		if (frame?.format !== 'milligrams' || frame.moduleId !== 0 || frame.status !== 0 ||
-			kg == null || !Number.isFinite(at) || !connectionKey || !/^[0-9A-F]{8}$/.test(frame.adcHex)) { clear(); return }
+			kg == null || Math.abs(kg) > 1000 || !Number.isFinite(at) || !connectionKey || !/^[0-9A-F]{8}$/.test(frame.adcHex)) { clear(); return }
 		if (session !== connectionKey) clear()
 		if (previous?.stamp === frame.timestampHex) return
 		if (previous && (at < previous.at || at - previous.at > 500)) clear()
@@ -17,6 +17,7 @@ export function createCalibrationWindow() {
 		rows.push(previous)
 		while (rows.length > 1 && rows[1].at <= at - 1500) rows.shift()
 		if (rows.length > 256) rows.shift()
+		return previous
 	}
 	function read(now, key) {
 		if (!previous || session !== key || now < previous.at || now - previous.at > 500) return null

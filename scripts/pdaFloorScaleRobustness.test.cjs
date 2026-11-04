@@ -1,5 +1,5 @@
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm')
-const source = ['floorScaleLoad', 'floorScaleDisplay', 'autoReturnWeight', 'floorScaleProtocol', 'floorScaleDiagnostic', 'floorScaleSession', 'floorCalibrationReading', 'floorScaleCalibration', 'floorScaleCalibrationController']
+const source = ['floorScaleZero', 'floorScaleLoad', 'floorScaleDisplay', 'autoReturnWeight', 'floorScaleProtocol', 'floorScaleDiagnostic', 'floorScaleSession', 'floorCalibrationReading', 'floorScaleCalibration', 'floorScaleCalibrationController']
  .map(name => fs.readFileSync(`src/services/pda/${name}.js`, 'utf8').replace(/^import .*\n/gm, '').replace(/export /g, '')).join('\n')
 function setup(options = {}) {
  let time = Date.now(), tick, timers = 0
@@ -149,9 +149,9 @@ test('floor TTL bytes require empty transition per bottle; interruptions break 1
  await s.stop()
 })
 
-async function field() {
+async function field(assist) {
  const h=setup(), capture=[], gate=h.createAutoReweighWeight(1500)
- const s=h.createFloorScaleSession(h.runtime,{onWeightFrame(f){
+ const s=h.createFloorScaleSession(h.runtime,{...(assist === undefined ? {} : {assistForDevice:()=>assist}), onWeightFrame(f){
   const gross=gate.feed(f,20,f.sampled_at)
   if(gross!==null)capture.push({gross,offset:f.offset_kg,raw:f.raw_kg})
  },onInterrupted:gate.interrupt})
@@ -198,4 +198,45 @@ test('abandon clears a pending offset; a reconnect under load cannot use old emp
  send(20,16);scan('B');send(20,16);assert.equal(capture.length,0)
  send(0,4);send(20.24,15);send(20.26,15);assert.equal(capture.length,0)
  send(20.26);assert.equal(capture[0].gross,20.5);await s.stop()
+})
+
+test('handheld startup rejects the observed DSX transient and applies only a sub-division working zero', async () => {
+ const {s,h,send,scan,capture}=await field(true)
+ send(-77.4809,3)
+ assert.equal(s.getSnapshot().warming,true)
+ assert.equal(s.getSnapshot().weight_kg,-77.4809)
+ send(.15,23)
+ assert.equal(s.getSnapshot().warming,false)
+ assert.equal(s.getSnapshot().offset_kg,.15)
+ scan('A');send(20.15,23)
+ assert.deepEqual(capture,[{gross:20,raw:20.15,offset:.15}])
+ for (let kg=185;kg>=165;kg-=.1) { send(kg+.15);assert.equal(s.getSnapshot().offset_kg,.15) }
+ await s.disconnect();await s.connect({preferredDeviceId:'a'})
+ send(3.7,25);assert.equal(s.getSnapshot().warming,false);assert.equal(s.getSnapshot().offset_kg,0)
+ assert.equal(s.getSnapshot().weight_kg,3.7);assert.equal(h.writes.length,0)
+ await s.stop()
+})
+test('empty tracking is rate limited, bounded and relinquishes the correction when DSX finds zero',async()=>{
+ const {s,send}=await field(true)
+ send(0,24);send(.14,25)
+ const partial=s.getSnapshot().offset_kg;assert.ok(partial>0 && partial<.02)
+ send(.14,350);assert.equal(s.getSnapshot().offset_kg,.14)
+ send(.4,100);assert.equal(s.getSnapshot().offset_kg,.14)
+ send(.5,30);assert.equal(s.getSnapshot().offset_kg,.14)
+ send(0,30);assert.equal(s.getSnapshot().offset_kg,0)
+ await s.stop()
+})
+
+test('board is the default source: no extra offset on loaded display or captured weight',async()=>{
+ const {s,send,scan,capture}=await field()
+ send(.15,30); assert.equal(s.getSnapshot().auto_offset_kg,0)
+ scan('A');send(20.27,35)
+ assert.deepEqual(capture,[{gross:20.5,raw:20.27,offset:0}]);await s.stop()
+})
+test('handheld assistance is opt-in per device and saved with readback',()=>{
+ const api=vm.runInNewContext(source+';({floorScaleAssistEnabled,setFloorScaleAssist})',{})
+ const m=new Map(),store={getStorageSync:k=>m.get(k),setStorageSync:(k,v)=>m.set(k,v)}
+ assert.equal(api.floorScaleAssistEnabled('A',store),false);api.setFloorScaleAssist('A',true,store)
+ assert.equal(api.floorScaleAssistEnabled('A',store),true);assert.equal(api.floorScaleAssistEnabled('B',store),false)
+ api.setFloorScaleAssist('A',false,store);assert.equal(api.floorScaleAssistEnabled('A',store),false)
 })

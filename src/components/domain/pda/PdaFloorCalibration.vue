@@ -1,9 +1,9 @@
 <template>
 	<AppPage title="秤台校准" icon="scale" hideBottleQuery>
 		<view class="readout" :class="{stable:point?.stable}">
-			<view class="row"><text>{{ raw?.deviceId || '未连接地秤' }}</text><text>{{ !point ? '等待读数' : point.stable ? '稳定' : '称重中' }}</text></view>
+			<view class="row"><text>{{ raw?.deviceId || '未连接地秤' }}</text><text>{{ !point ? '等待读数' : !point.workingReady ? '开机核零中' : point.stable ? '稳定' : '称重中' }}</text></view>
 			<view class="weight">{{ display }} <text>kg</text></view>
-			<text class="raw">原始 {{ point ? point.kg.toFixed(3) + ' kg' : '—' }}　·　AD {{ point?.ad ?? '—' }}</text>
+			<text class="raw">主板原始 {{ point ? point.kg.toFixed(3) + ' kg' : '—' }}　·　AD {{ point?.ad ?? '—' }}</text>
 		</view>
 		<view v-if="authorized" class="action">
 			<AppButton v-if="raw?.status !== 'connected'" :disabled="busy" @click="connect">连接地秤</AppButton>
@@ -39,6 +39,10 @@
 					<text class="hint">{{shortTime(row.at)}} · {{row.device.slice(-5)}} · AD {{row.ad}} · 差 {{(row.kg-row.nominal).toFixed(3)}} kg</text>
 				</view>
 			</AppSection>
+			<AppSection title="零点来源">
+				<text class="hint">{{ assist ? '本 PDA 辅助：仅修正零附近小于 0.25 kg 的稳定偏差，加载时保留修正量。' : '跟随主板：PDA 按主板重量显示，每格 0.5 kg。' }}</text>
+				<AppButton kind="outline" :disabled="busy || raw?.status !== 'connected' || !!state.pending" @click="toggleAssist">{{ assist ? '改为跟随主板' : '启用本 PDA 辅助取零' }}</AppButton>
+			</AppSection>
 		</template>
 	</AppPage>
 </template>
@@ -48,7 +52,7 @@ import AppPage from '@/components/base/AppPage.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import { useFloorCalibrationBench } from '@/composables/pda/useFloorCalibrationBench'
-const {raw,point,state,display,error,note,records,mass,expected,busy,authorized,activate,deactivate,connect,disconnect,issue,review,record} = useFloorCalibrationBench()
+const {assist,toggleAssist,raw,point,state,display,error,note,records,mass,expected,busy,authorized,activate,deactivate,connect,disconnect,issue,review,record} = useFloorCalibrationBench()
 const writable = computed(() => raw.value?.canWriteCalibration && point.value?.stable && !busy.value && !state.value?.error)
 const shortTime = at => new Date(at).toLocaleString()
 onBeforeUnmount(deactivate)
