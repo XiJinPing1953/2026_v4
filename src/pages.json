@@ -155,12 +155,13 @@
 		{
 			"path": "pages/pda/floor-reweigh",
 			"style": {
-				"navigationBarTitleText": "地秤罐装复秤"
+				"navigationBarTitleText": "地秤罐装复秤",
+				"app-plus": { "animationType": "none", "animationDuration": 0 }
 			}
 		},
 		{
 			"path": "pages/pda/floor-calibration",
-			"style": { "navigationBarTitleText": "秤台校准" }
+			"style": { "navigationBarTitleText": "秤台校准", "app-plus": { "animationType": "none", "animationDuration": 0 } }
 		},
 		{
 			"path": "pages/pda/sale-create",
