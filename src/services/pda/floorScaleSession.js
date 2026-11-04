@@ -1,12 +1,16 @@
 import { createFloorScaleDiagnostic } from './floorScaleDiagnostic'
 import { floorScaleCandidateKg } from './floorScaleProtocol'
 
+import { createFloorScaleZero, floorScaleAssistEnabled } from './floorScaleZero'
 import { createFloorLoadTracker } from './floorScaleLoad'
 import { floorScaleDivisionKg } from './floorScaleDisplay'
-export function createFloorScaleSession(runtime, { onWeightFrame, onInterrupted, onEmpty } = {}) {
+export function createFloorScaleSession(runtime, { onWeightFrame, onInterrupted, onEmpty, assistForDevice = floorScaleAssistEnabled } = {}) {
 	const load = createFloorLoadTracker()
+	const zero = createFloorScaleZero()
+	let assistKey = '', assist = false, lastQualified = false
+	const autoOffset = () => assist ? zero.offset : 0
 	let expectedCycle = null, started = 0, previous = 0, stamp = '', operation = '', claimedCycle = null
-	function interrupt() { load.interrupt(); onInterrupted?.() }
+	function interrupt() { lastQualified = false; load.interrupt(); zero.interrupt(); onInterrupted?.() }
 	const diagnostic = createFloorScaleDiagnostic(runtime, { onInterrupted: interrupt, onFrame(frame, time, deviceId) {
 		const kg = floorScaleCandidateKg(frame)
 		// Only the on-site single-channel 0x22 profile is qualified for filling.
@@ -16,8 +20,11 @@ export function createFloorScaleSession(runtime, { onWeightFrame, onInterrupted,
 		if (previous && (time < previous || time - previous > 300)) interrupt()
 		if (previous && time - previous > 3000 && claimedCycle !== null) sessionId = ''
 		previous = time
+		lastQualified = true
+		if (assistKey !== deviceId) { assistKey = deviceId; assist = assistForDevice(deviceId) }
 		const before = load.phase
-		load.observe(kg, time)
+		zero.observe(kg, time, !load.offset)
+		load.observe(kg - autoOffset(), time)
 		if (!sessionId || time < started) return
 		if (before !== 'empty' && load.phase === 'empty') onEmpty?.(sessionId)
 		if (expectedCycle !== null && expectedCycle !== load.cycle) {
@@ -25,13 +32,15 @@ export function createFloorScaleSession(runtime, { onWeightFrame, onInterrupted,
 			return
 		}
 		if (claimedCycle !== null && claimedCycle !== load.cycle) return
+		if (!zero.ready) { onInterrupted?.(); return }
 		const cycle = load.claim(operation)
 		if (cycle === null) { onInterrupted?.(); return }
 		claimedCycle = cycle
-		const corrected = kg - load.offset
+		const totalOffset = autoOffset() + load.offset
+		const corrected = kg - totalOffset
 		if (corrected > 1000) { onInterrupted?.(); return }
 		onWeightFrame?.({ session_id: sessionId, sampled_at: time, device_id: deviceId,
-			display_kg: floorScaleDivisionKg(corrected), raw: frame.rawHex, offset_kg: load.offset, raw_kg: kg })
+			display_kg: floorScaleDivisionKg(corrected), raw: frame.rawHex, offset_kg: totalOffset, raw_kg: kg })
 	} })
 	let sessionId = '', sequence = 0, timer = null, publishedKey = '', listeners = new Set()
 	function getSnapshot(state = diagnostic.getSnapshot()) {
@@ -47,11 +56,14 @@ export function createFloorScaleSession(runtime, { onWeightFrame, onInterrupted,
 			else if (communication.chunks) { code = 'invalid_frame'; message = communication.checksumErrors ? '已收到地秤数据，但校验未通过，请查看通信详情' : '已收到数据，尚未解析到完整重量帧，请查看通信详情' }
 			else { code = 'no_data'; message = '蓝牙已连接，尚未收到地秤数据，请检查地秤并查看通信详情' }
 		}
-		return { is_connected: connected, is_online: connected && Boolean(state.fresh),
+		const warming = connected && code === 'reading' && !zero.ready
+		const qualifiedFrame = lastQualified && state.sampledAt === previous && stamp === state.frame?.timestampHex
+		if (warming) message = '正在核对首次读数'
+		return { warming, qualified_frame: qualifiedFrame, auto_offset_kg: autoOffset(), temporary_offset_kg: load.offset, is_connected: connected, is_online: connected && Boolean(state.fresh),
 			is_stable: false, weight_kg: value, sampled_at: state.sampledAt,
 			device_id: state.deviceId, session_id: sessionId, connection_key: state.sessionKey || '',
 			diagnostic_frame: state.fresh ? state.frame : null, communication,
-			load_phase: load.phase, needs_clear: load.phase === 'unknown' || (load.phase === 'loaded' && !!load.owner && load.owner !== operation), offset_kg: load.offset, zero_offer: connected && state.fresh ? load.offer : null,
+			load_phase: load.phase, needs_clear: load.phase === 'unknown' || (load.phase === 'loaded' && !!load.owner && load.owner !== operation), offset_kg: autoOffset() + load.offset, zero_offer: connected && state.fresh && Math.abs(value) <= 0.5 ? load.offer : null,
 			can_calibrate: Boolean(state.canWriteCalibration), error_code: code, error_message: message }
 	}
 	function publish(state) {
@@ -66,7 +78,7 @@ export function createFloorScaleSession(runtime, { onWeightFrame, onInterrupted,
 	let lastStatus = '', lastFresh = false
 	const unsubscribe = diagnostic.subscribe(state => {
 		// Connection changes, first data and invalidation remain immediate.
-		if (state.status !== 'connected') { clearTimer(); sessionId = ''; load.reset(); previous = 0; stamp = '' }
+		if (state.status !== 'connected') { clearTimer(); assistKey = ''; assist = false; lastQualified = false; sessionId = ''; load.reset(); zero.reset(); previous = 0; stamp = '' }
 		if (state.status !== lastStatus || Boolean(state.fresh) !== lastFresh) publish(state)
 		lastStatus = state.status; lastFresh = Boolean(state.fresh)
 	})
@@ -89,10 +101,10 @@ export function createFloorScaleSession(runtime, { onWeightFrame, onInterrupted,
 			publish(); return sessionId
 		},
 		applyTemporaryZero(expected) {
-			if (!diagnostic.getSnapshot().fresh || !load.acceptOffer(expected, Date.now())) return false
+			if (!getSnapshot().zero_offer || !load.acceptOffer(expected, Date.now())) return false
 			publish(); return true
 		},
-		resetLoad() { load.reset(); interrupt(); sessionId = ''; publish() },
+		resetLoad() { zero.reset(); load.reset(); interrupt(); sessionId = ''; publish() },
 		endMeasurement(clearOffset = true) { sessionId = ''; if (clearOffset) load.end(); publish() }, updateProfile() {}, disconnect, async stop() { await disconnect() },
 		onSnapshot(listener) { listeners.add(listener); listener(getSnapshot()); return () => listeners.delete(listener) },
 		// User actions read current data, independently of the display refresh rate.

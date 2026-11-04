@@ -1,5 +1,5 @@
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm')
-const load = fs.readFileSync('src/services/pda/floorScaleLoad.js','utf8').replace(/export /g,'')
+const load = ['floorScaleZero', 'floorScaleLoad'].map(n => fs.readFileSync('src/services/pda/' + n + '.js','utf8').replace(/export /g,'')).join('\n')
 const protocol = fs.readFileSync('src/services/pda/floorScaleProtocol.js', 'utf8').replace(/export /g, '')
 const session = fs.readFileSync('src/services/pda/floorScaleSession.js', 'utf8').replace(/^import .*\n/gm, '').replace(/export /g, '')
 test('candidate readings remain display-only and are invalidated on disconnection', async () => {

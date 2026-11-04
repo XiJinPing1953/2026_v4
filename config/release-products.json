@@ -155,29 +155,24 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.65",
+      "version": "1.0.66",
       "output": "release/pda",
-      "acceptance": "Independent DSX calibration on native 1.0.63; verify known load, return to zero and decreasing weights using the physical platform.",
+      "acceptance": "DSX first readings, optional per-device volatile zero, live slow unloading and overnight cold start; native 1.0.63.",
       "deploymentScope": {
         "functions": [
           "crm-hebei-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "efd82deeabf2b0d26955bcee2dadef827a4ce024",
+        "baseCommit": "68781d8fbf9a37ee1763272d647ef6f6e82f5e95",
         "sourceFiles": [
           "src/components/domain/pda/PdaFloorCalibration.vue",
-          "src/components/domain/pda/PdaHomeView.vue",
-          "src/components/domain/pda/PdaReweighView.vue",
+          "src/components/domain/pda/PdaFloorScale.vue",
           "src/composables/pda/useFloorCalibrationBench.js",
-          "src/composables/pda/usePdaReweigh.js",
           "src/manifest.json",
-          "src/pages.json",
-          "src/pages/pda/floor-calibration.vue",
-          "src/services/pageAcl.js",
-          "src/services/pda/entry.js",
           "src/services/pda/floorCalibrationReading.js",
-          "src/services/pda/floorScaleCalibrationController.js",
-          "src/services/pda/reweighWorkStore.js"
+          "src/services/pda/floorScaleDisplay.js",
+          "src/services/pda/floorScaleSession.js",
+          "src/services/pda/floorScaleZero.js"
         ]
       },
       "integrityScope": "deployment"

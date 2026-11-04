@@ -4,7 +4,8 @@
   <view class="reading"><text class="number">{{ weight }}</text><text>kg</text></view>
   <text class="hint">显示分度：0.5 kg（App端）</text>
   <text class="hint">原始读数：{{ rawWeight }} kg</text>
-  <text v-if="snapshot.offset_kg" class="hint">本瓶临时修正：扣除 {{ signed(snapshot.offset_kg) }} kg</text>
+  <text v-if="snapshot.auto_offset_kg" class="hint">本次连接零点：{{ signed(snapshot.auto_offset_kg) }} kg</text>
+  <text v-if="snapshot.temporary_offset_kg" class="hint">本瓶临时修正：{{ signed(snapshot.temporary_offset_kg) }} kg</text>
   <text v-if="snapshot.is_online && snapshot.needs_clear" class="hint">请清台确认空秤；偏差稳定在一个分度内时可使用本瓶临时置零。</text>
   <AppButton v-if="showZero && snapshot.is_connected" kind="outline" :disabled="busy || !snapshot.zero_offer || observing" @click="$emit('zero')">{{ snapshot.zero_offer ? '本瓶临时置零（扣除 ' + signed(snapshot.zero_offer.kg) + ' kg）' : '本瓶临时置零' }}</AppButton>
   <text class="hint">{{ snapshot.error_message || '连接后查看地秤数据' }}</text>
