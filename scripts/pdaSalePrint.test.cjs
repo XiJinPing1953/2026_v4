@@ -32,11 +32,31 @@ test('sales use ESC/POS receipt commands, bounded tail feed and preserve origina
  assert.throws(()=>salePrintPages({...sale,total_net_weight:99}));assert.throws(()=>salePrintPages({...sale,out_items:[{bottle_no:'1',net:null}]}))
 })
 const {createService}=require('../uniCloud-alipay/cloudfunctions/crm-sale/pdaSaleRecords')
-test('PDA detail uses server vehicle binding and fails closed when missing',async()=>{let read=0;const db={collection:()=>({doc:()=>({get:async()=>({data:[{car_no:'A'}]})})})};const svc=createService({db,isAdmin:u=>u.admin,hiddenIds:async()=>[],mentionsHidden:()=>false,amounts:()=>{read++;return{amounts:{}}}});assert.equal((await svc.get({_id:'u'},{id:'s',vehicle_no:'A'})).code,403);assert.equal((await svc.get({mobile_sale_defaults:{vehicle_id:'b',vehicle_no:'B'}},{id:'s',vehicle_no:'A'})).code,404);assert.equal(read,0);assert.equal((await svc.get({mobile_sale_defaults:{vehicle_id:'a',vehicle_no:'A'}},{id:'s'})).code,0);assert.equal(read,1)})
+test('bound vehicle account reads another vehicle detail; client input cannot replace an account binding',async()=>{
+ const db={collection:()=>({doc:()=>({get:async()=>({data:[{car_no:'B'}]})})})}
+ const svc=createService({db,isAdmin:()=>false,hiddenIds:async()=>[],mentionsHidden:()=>false,amounts:()=>({amounts:{}})})
+ assert.equal((await svc.get({}, {id:'s',vehicle_no:'B'})).code,403)
+ const result=await svc.get({mobile_sale_defaults:{vehicle_id:'a',vehicle_no:'A'}},{id:'s'})
+ assert.equal(result.code,0);assert.equal(result.data.car_no,'B')
+})
 function printerHarness(options={}){let user={_id:'u'},active=true,callback,sends=0;const native=receiptPrinterHarness(),store=new Map();const session={connected:true,close(){},connect(){callback({connected:true,message:'ok'})},sendDocument:async writer=>{writer({});sends++;await options.afterSend?.(sends)}};const api=load('src/composables/pda/usePdaSalePrinter.js',['usePdaSalePrinter'],{ref:v=>({value:v}),onBeforeUnmount(){},getUser:()=>user,ensurePdaBleRuntimePermission:async()=>({code:0}),selectPairedPrinter:async()=>({name:'HL30-AA20',address:native.address}),rememberPrinter:(ui,device)=>ui.setStorageSync('pda_label_printer_bound_v1',device),plus:{android:native.android},uni:{getStorageSync:k=>store.get(k),setStorageSync:(k,v)=>store.set(k,v),requireNativePlugin:()=>({})},createLabelPrinterSession:(_,cb)=>{callback=cb;return session},getPdaSale:options.getSale|| (async()=>({code:0,data:options.sale||sale})),salePrintPages,writeSalePage,setInterval:()=>0,clearInterval(){}});const p=api.usePdaSalePrinter(()=>active);return{p,store,native,session,get sends(){return sends},setUser:v=>user=v,disable:()=>active=false}}
 test('sales automatic print deduplicates and old records never auto print; explicit reprint allowed',async()=>{const h=printerHarness();await h.p.connect();const r={sourceSaved:true,saleId:'s',operationId:'op'};await h.p.confirmed(r);assert.equal(h.sends,0);h.p.arm('op');await Promise.all([h.p.confirmed(r),h.p.confirmed(r)]);assert.equal(h.sends,salePrintPages(sale).length*2);h.p.arm('op');await h.p.confirmed(r);assert.equal(h.sends,salePrintPages(sale).length*2);await h.p.print('s');assert.equal(h.sends,salePrintPages(sale).length*4);h.setUser({_id:'other'});await h.p.print('s');assert.equal(h.sends,salePrintPages(sale).length*4)})
 test('disconnected save consumes automatic attempt and reconnect does not send',async()=>{const h=printerHarness();const r={sourceSaved:true,saleId:'s',operationId:'op'};h.p.arm('op');await h.p.confirmed(r);assert.equal(h.sends,0);await h.p.connect();await h.p.confirmed(r);assert.equal(h.sends,0);await h.p.print('s');assert.equal(h.sends,salePrintPages(sale).length*2)})
-test('list binds account vehicle and ignores forged client vehicle filter',async()=>{let where;const chain={where:v=>(where=v,chain),orderBy:()=>chain,skip:()=>chain,limit:()=>chain,get:async()=>({data:[]})};const db={command:{and:v=>v,or:v=>v,nin:v=>v},collection:()=>chain};const svc=createService({db,isAdmin:()=>false,hiddenIds:async()=>[],amounts:()=>({amounts:{}})});assert.equal((await svc.list({mobile_sale_defaults:{vehicle_id:'a',vehicle_no:'A'}},{date:'2026-10-22',vehicle_no:'B'})).code,0);assert.ok(where.some(c=>c.car_no==='A'));assert.ok(!where.some(c=>c.car_no==='B'))})
+test('vehicle history includes other vehicles but keeps date and both hidden-customer filters',async()=>{
+ const date='2026-11-04', rows=[
+  {_id:'1',date,car_no:'A'}, {_id:'2',date,car_no:'B'}, {_id:'3',date,car_no:'B',customer_id:'hidden'},
+  {_id:'4',date,delivery_customer_id:'hidden'}, {_id:'5',date:'2026-11-03',car_no:'A'}
+ ]
+ let conditions
+ const chain={where:v=>(conditions=v,chain),orderBy:()=>chain,skip:()=>chain,limit:()=>chain,
+  get:async()=>({data:rows.filter(r=>conditions.every(c=>Object.entries(c).every(([key,v])=>typeof v==='function'?v(r[key]):v===r[key])))})}
+ const db={command:{and:v=>v,nin:ids=>v=>!ids.includes(v)},collection:()=>chain}
+ const svc=createService({db,isAdmin:()=>false,hiddenIds:async()=>['hidden'],amounts:()=>({amounts:{}})})
+ const data={date,vehicle_no:'A'}
+ assert.equal((await svc.list({},data)).code,403)
+ const result=await svc.list({mobile_sale_defaults:{vehicle_id:'a',vehicle_no:'A'}},data)
+ assert.deepEqual(result.data.rows.map(r=>r.id),['1','2'])
+})
 test('local print ledger failure prevents automatic send without touching saved sale',async()=>{const h=printerHarness();await h.p.connect();h.p.arm('op');h.store.set=()=>{throw Error('storage full')};await h.p.confirmed({sourceSaved:true,saleId:'s',operationId:'op'});assert.equal(h.sends,0);assert.match(h.p.status.value,/storage full/);await h.p.print('s');assert.equal(h.sends,salePrintPages(sale).length*2)})
 test('detail returns only the same authorized snapshot with no re-read or reconciliation writes', async () => {
  let reads=0,writes=0

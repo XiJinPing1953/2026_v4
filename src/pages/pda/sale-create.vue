@@ -1,6 +1,5 @@
 <template>
-	<component
-		:is="isNative ? PdaNativeSaleView : PdaSaleCreateView"
+	<SaleCreateView
 		ref="viewRef"
 		:initial-customer-id="initialCustomerId"
 		:initial-customer-name="initialCustomerName"
@@ -11,8 +10,12 @@
 <script setup>
 import { nextTick, ref } from 'vue'
 import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
-import PdaSaleCreateView from '@/components/domain/pda/PdaSaleCreateView.vue'
-import PdaNativeSaleView from '@/components/domain/pda/PdaNativeSaleView.vue'
+// #ifdef APP-PLUS
+import SaleCreateView from '@/components/domain/pda/PdaNativeSaleView.vue'
+// #endif
+// #ifndef APP-PLUS
+import SaleCreateView from '@/components/domain/pda/PdaSaleCreateView.vue'
+// #endif
 import { isPdaAppMode } from '@/services/pda/entry'
 import { restoreScannerProfile } from '@/services/pda/capture'
 

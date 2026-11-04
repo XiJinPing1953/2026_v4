@@ -23,8 +23,8 @@ test('legacy sales read only exact associated filling; unrelated or changed orig
  }
  assert.equal((await withFillingPrintTimes({...sale,mobile_filling_label_sources:[]},db([source]))).out_items[0].filling_time,'')
 })
-test('time enrichment happens only after existing vehicle/hidden-customer authorization',async()=>{
- const database=db(),svc=createService({db:database,isAdmin:()=>false,hiddenIds:async()=>[],mentionsHidden:()=>false,amounts:()=>({amounts:{}})})
+test('hidden cross-vehicle sales never trigger filling-time enrichment',async()=>{
+ const database=db([], {...sale,customer_id:"hidden"}),svc=createService({db:database,isAdmin:()=>false,hiddenIds:async()=>["hidden"],mentionsHidden:(r,ids)=>ids.includes(r.customer_id),amounts:()=>({amounts:{}})})
  assert.equal((await svc.get({mobile_sale_defaults:{vehicle_id:'other',vehicle_no:'B'}},{id:'s1'})).code,404)
  assert.equal(database.reads(),0)
 })

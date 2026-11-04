@@ -58,6 +58,8 @@ export async function callCloud(name, options={}) {
   if(action==='listHazardsV1'||action==='listRevisionsV1') return ok([],{paging:{total:0,hasMore:false}});
  }
  if(name==='crm-dashboard'&&action==='summaryV1') return dashboardFixture(data) || ok({section:data.section,kpi:{sales_month:1234567.89,anomaly_open:3,at_customer:135,in_station:120},daily_report:{rows:[]},receivable:{rows:[],total_receivable:1234567.89,total_received:100000,gap_amount:1134567.89,collection_rate:8.1}});
+ if(name==='crm-sale'&&action==='listPdaV1') return ok({rows:data.page===1&&longName.includes(data.customer||'')?[{id:sale._id,date:data.date,customer:longName,vehicle:'测试车',out_count:1,back_count:1,amount:sale.should_receive}]:[],has_more:false})
+ if(name==='crm-sale'&&action==='getPdaV1'&&data.id===sale._id) return ok({...sale,car_no:'测试车',effective_should_receive:sale.should_receive})
  if(name==='crm-sale'&&action==='listV2'&&data.include_summary===false&&data.dateStart&&data.dateEnd) {
   const row={...sale,date:data.dateStart,accounting:{status:'resolved',complete:true}};
   return ok(data.page===1?[row]:[],{sale_list_status_version:'refund-status/1',paging:{page:data.page,pageSize:data.pageSize,total:1,hasMore:false}});
