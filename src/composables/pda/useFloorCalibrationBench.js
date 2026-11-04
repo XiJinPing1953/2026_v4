@@ -18,7 +18,7 @@ export function useFloorCalibrationBench() {
 	const raw = shallowRef(null), point = shallowRef(null), state = shallowRef(null), error = ref(''), note = ref('')
 	const mass = ref(''), expected = ref(''), busy = ref(false), records = ref([]), authorized = ref(false)
 	let owner = '', epoch = 0, active = false, diagnostic = null, controller = null, timer = null
-	let closing = Promise.resolve()
+	let closing = Promise.resolve(), offDiagnostic, offController
 	const window = createCalibrationWindow()
 	const zero = createFloorScaleZero()
 	let zeroKey = ''
@@ -27,10 +27,13 @@ export function useFloorCalibrationBench() {
 	const activeOwner = () => active && authorized.value && owner === String(getUser()?._id || '') && acl()
 	const key = () => 'pda_floor_bench_points_v1:' + owner
 	function refresh() {
-		raw.value = diagnostic?.getSnapshot() || null
-		const reading = raw.value?.fresh ? window.read(Date.now(), raw.value.sessionKey) : null
-		point.value = reading ? { ...reading, stable: zero.ready && reading.stable, workingReady: zero.ready, offset: assist.value ? zero.offset : 0 } : null
-		state.value = controller?.getState() || null
+		const snap = diagnostic?.getSnapshot()
+		if (!snap) return
+		// This view only renders connection fields. Counters and raw packets are not UI state here.
+		if (!raw.value || ['status','deviceId','canWriteCalibration','sessionKey'].some(k => raw.value[k] !== snap[k])) raw.value = snap
+		const reading = snap.fresh ? window.read(Date.now(), snap.sessionKey) : null
+		const next = reading ? {kg:reading.kg, ad:reading.ad, stable:zero.ready && reading.stable, workingReady:zero.ready, offset:assist.value ? zero.offset : 0} : null
+		if ((!next && point.value) || (next && (!point.value || Object.keys(next).some(k => next[k] !== point.value[k])))) point.value = next
 	}
 	function connection() {
 		const s = diagnostic?.getSnapshot(), live = s?.fresh && window.read(Date.now(), s.sessionKey)
@@ -65,11 +68,19 @@ export function useFloorCalibrationBench() {
 			if (!Array.isArray(saved)) throw new Error()
 			records.value = saved
 		} } catch (_) { error.value = '本机复核记录读取失败，原记录已保留' }
-		refresh(); timer = setInterval(refresh, 250)
+		offController = controller.subscribe(value => { state.value = value })
+		offDiagnostic = d.subscribe(s => {
+			if (s.status === 'connected' && timer === null) { timer = setInterval(refresh, 250); refresh() }
+			else if (s.status !== 'connected') {
+				if (timer !== null) clearInterval(timer)
+				timer = null; refresh()
+			}
+		})
 	}
 	function deactivate() {
 		active = false; authorized.value = false; epoch++; busy.value = false
-		if (timer) clearInterval(timer)
+		offDiagnostic?.(); offController?.(); offDiagnostic = offController = null
+		if (timer !== null) clearInterval(timer)
 		timer = null; zeroKey = ''; assist.value = false; zero.reset(); window.clear(); point.value = null; raw.value = null
 		const d = diagnostic; diagnostic = null; controller = null
 		closing = Promise.allSettled([closing, d?.disconnect()])

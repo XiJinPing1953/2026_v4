@@ -155,24 +155,21 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.66",
+      "version": "1.0.67",
       "output": "release/pda",
-      "acceptance": "DSX first readings, optional per-device volatile zero, live slow unloading and overnight cold start; native 1.0.63.",
+      "acceptance": "Verify taps, scrolling and route entry on the native 1.0.63 test PDA with scale disconnected.",
       "deploymentScope": {
         "functions": [
           "crm-hebei-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "68781d8fbf9a37ee1763272d647ef6f6e82f5e95",
+        "baseCommit": "e4e66afb34ef4404ead14bbd187ec82bd2b53956",
         "sourceFiles": [
-          "src/components/domain/pda/PdaFloorCalibration.vue",
-          "src/components/domain/pda/PdaFloorScale.vue",
+          "src/components/base/AppButton.vue",
           "src/composables/pda/useFloorCalibrationBench.js",
           "src/manifest.json",
-          "src/services/pda/floorCalibrationReading.js",
-          "src/services/pda/floorScaleDisplay.js",
-          "src/services/pda/floorScaleSession.js",
-          "src/services/pda/floorScaleZero.js"
+          "src/pages.json",
+          "src/services/pageAcl.js"
         ]
       },
       "integrityScope": "deployment"

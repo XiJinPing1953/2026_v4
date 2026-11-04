@@ -15,23 +15,27 @@ export function normalizePagePath(value) {
 	return ['/pages/pda/floor-reweigh', '/pages/pda/floor-calibration'].includes(path) ? '/pages/pda/reweigh' : path
 }
 
+// Role defaults are static. User-specific overrides are always read on each check.
+const roleDefaults = new Map()
+function defaultsFor(role) {
+	if (!roleDefaults.has(role)) roleDefaults.set(role, buildRoleTemplatePermissions(role))
+	return roleDefaults.get(role)
+}
+function resolvedEntry(item, defaults, source, role) {
+	const base = defaults[item.pagePath]
+	if (role === 'safety_inspector' && !SAFETY_EXPORT_PATHS.has(item.pagePath)) return { ...base }
+	const raw = source?.[item.pagePath]
+	return ACTIONS.reduce((entry, action) => {
+		const value = (raw && typeof raw === 'object' ? raw[action] : undefined) ?? base?.[action]
+		entry[action] = Boolean((action === 'view' || item.supports[action]) && value)
+		return entry
+	}, {})
+}
 export function normalizePagePermissions(rawPermissions, roleTemplate) {
-	const base = buildRoleTemplatePermissions(roleTemplate)
-	const source = rawPermissions && typeof rawPermissions === 'object' ? rawPermissions : {}
-	const isSafetyInspector = normalizeRoleTemplate(roleTemplate) === 'safety_inspector'
+	const role = normalizeRoleTemplate(roleTemplate)
+	const defaults = defaultsFor(role)
 	return PAGE_REGISTRY.reduce((acc, item) => {
-		const rawEntry = source[item.pagePath] && typeof source[item.pagePath] === 'object' ? source[item.pagePath] : {}
-		if (isSafetyInspector && !SAFETY_EXPORT_PATHS.has(item.pagePath)) {
-			acc[item.pagePath] = { ...(base[item.pagePath] || {}) }
-			return acc
-		}
-		acc[item.pagePath] = ACTIONS.reduce((entry, action) => {
-			entry[action] =
-				action === 'view'
-					? Boolean(rawEntry[action] ?? base[item.pagePath]?.[action])
-					: Boolean(item.supports[action] && (rawEntry[action] ?? base[item.pagePath]?.[action]))
-			return entry
-		}, {})
+		acc[item.pagePath] = resolvedEntry(item, defaults, rawPermissions, role)
 		return acc
 	}, {})
 }
@@ -46,8 +50,12 @@ export function getResolvedPagePermissions(user = getUser()) {
 export function canPageAction(pagePath, action = 'view', user = getUser()) {
 	const normalizedPagePath = normalizePagePath(pagePath)
 	const normalizedAction = ACTIONS.includes(action) ? action : 'view'
-	const permissions = getResolvedPagePermissions(user)
-	return Boolean(permissions[normalizedPagePath]?.[normalizedAction])
+	const item = PAGE_REGISTRY_MAP[normalizedPagePath]
+	if (!item || !item.supports) return false
+	const role = normalizeRoleTemplate(user?.role_template || user?.role || 'user')
+	const defaults = defaultsFor(role)
+	if (!user || role === 'superadmin') return Boolean(defaults[normalizedPagePath]?.[normalizedAction])
+	return Boolean(resolvedEntry(item, defaults, user.page_permissions, role)[normalizedAction])
 }
 
 export function canViewPage(pagePath, user = getUser()) {

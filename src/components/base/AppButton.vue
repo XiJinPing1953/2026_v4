@@ -4,10 +4,6 @@
 		:class="[kindClass, sizeClass]"
 		:disabled="disabled || loading"
 		@click="onClick"
-		@longpress="onLongpress"
-		@touchstart="onPressStart"
-		@touchend="onPressEnd"
-		@touchcancel="onPressEnd"
 	>
 		<view class="btn__inner">
 			<AppIcon v-if="icon" :name="icon" size="28rpx" class="btn__icon" />
@@ -29,7 +25,7 @@ const props = defineProps({
 	icon: { type: String, default: '' }
 })
 
-const emit = defineEmits(['click', 'longpress', 'pressstart', 'pressend'])
+const emit = defineEmits(['click'])
 
 const kindClass = computed(() => `btn--${props.kind}`)
 const sizeClass = computed(() => `btn--${props.size}`)
@@ -38,17 +34,6 @@ function onClick(event) {
 	emit('click', event)
 }
 
-function onLongpress(event) {
-	emit('longpress', event)
-}
-
-function onPressStart(event) {
-	emit('pressstart', event)
-}
-
-function onPressEnd(event) {
-	emit('pressend', event)
-}
 </script>
 
 <style scoped>
