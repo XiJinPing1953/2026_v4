@@ -12,7 +12,7 @@ export function floorScaleDisplayWeight(snapshot, { raw = false, tare = null } =
 	if (raw) return value.toFixed(3)
 	if (snapshot.warming || snapshot.qualified_frame === false || snapshot.error_code === 'unsupported_capture') return '—'
 	// Symmetric half-step rounding; keep negative readings and normalize only -0.
-	const offset = tare?.deviceId === snapshot.device_id && (tare.connectionKey || '') === (snapshot.connection_key || '') && Number.isFinite(tare?.kg) ? tare.kg : 0
+	const offset = tare && tare.deviceId === snapshot.device_id && (tare.connectionKey || '') === (snapshot.connection_key || '') && Number.isFinite(tare.kg) ? tare.kg : 0
 	const rounded = floorScaleDivisionKg(value - offset)
 	return (rounded === 0 ? 0 : rounded).toFixed(1)
 }
