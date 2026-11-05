@@ -33,9 +33,9 @@ function emptyDraft() {
 
 export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = 'hanging' } = {}) {
 	const isReturn = mode === 'return'
-	const isFloor = scaleMode === 'floor' && !isReturn
+	const isFloor = scaleMode === 'floor'
 	const scaleLabel = isFloor ? '地秤' : '吊秤'
-	const page = isReturn ? 'pda-return-reweigh' : isFloor ? 'pda-floor-reweigh' : 'pda-reweigh'
+	const page = isFloor ? (isReturn ? 'pda-floor-return-reweigh' : 'pda-floor-reweigh') : isReturn ? 'pda-return-reweigh' : 'pda-reweigh'
 	const pagePath = isReturn ? '/pages/pda/return-reweigh' : '/pages/pda/reweigh'
 	const previewRequest = isReturn ? previewReturnReweighV1 : previewReweighV1
 	const ownerId = String(getUser()?._id || '')
@@ -84,7 +84,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		getStorage: key => readPdaStorage(uni, key),
 		setStorageSync: (key, value) => uni.setStorageSync(key, value),
 		removeStorageSync: key => uni.removeStorageSync(key)
-	}, () => String(getUser()?._id || ''), isFloor ? 'floor' : mode, { reuseImmutableChunks: nativeSupported })
+	}, () => String(getUser()?._id || ''), isFloor ? (isReturn ? 'floor-return' : 'floor') : mode, { reuseImmutableChunks: nativeSupported })
 	function restoreSaved(saved) {
 		if (saved) {
 			current.value = saved.current; history.value = saved.history
@@ -454,7 +454,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 			if (response?.code !== 0) return fail(response?.msg || '本轮统计读取失败，请重试')
 			if (!pendingEndRound.value) round.value = response.data?.round || null
 			roundReady.value = true
-			if (!round.value && !pendingRound.value) message.value = '请先开始本轮回瓶复秤，再连接吊秤、扫码称重。'
+			if (!round.value && !pendingRound.value) message.value = `请先开始本轮回瓶复秤，再连接${scaleLabel}、扫码称重。`
 			const saved = persist()
 			if (saved) void restoreRoundHistory({ force: refreshHistory })
 			return saved
@@ -497,7 +497,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 			historySyncVersion++; historySyncing.value = false; historySyncError.value = ''
 			if (current.value.frozen) history.value = [...history.value.filter(item => item.operationId !== current.value.operationId), cloneReweigh(current.value)]
 			current.value = emptyDraft(); pendingSession.value = ''; epoch += 1
-			message.value = '本轮已开始，请连接吊秤并扫描回瓶。'
+			message.value = `本轮已开始，请连接${scaleLabel}并扫描回瓶。`
 			return persist()
 		} catch (cause) { if (sameWork(version)) fail(`${cause.message || '网络中断'}；还没确认新一轮是否开始，请点重试开始本轮`); return false }
 		finally { busy.value = false }

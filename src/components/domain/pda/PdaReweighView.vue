@@ -1,5 +1,5 @@
 <template>
-	<AppPage :class="['reweigh-page pda-compact-page pda-compact-page--inner', !current.frozen && 'reweigh-page--editing']" :title="isFloor ? '地秤罐装复秤' : isReturn ? '回瓶复秤' : '罐装复秤'" :subtitle="isFloor ? '蓝牙地秤 · 逐瓶核算' : isReturn ? '蓝牙吊秤 · 回瓶称重' : '蓝牙吊秤 · 逐瓶核算'" icon="bottle" hideBottleQuery>
+	<AppPage :class="['reweigh-page pda-compact-page pda-compact-page--inner', !current.frozen && 'reweigh-page--editing']" :title="isFloor ? (isReturn ? '地秤回瓶复秤' : '地秤罐装复秤') : isReturn ? '回瓶复秤' : '罐装复秤'" :subtitle="isFloor ? '蓝牙地秤 · 逐瓶核算' : isReturn ? '蓝牙吊秤 · 回瓶称重' : '蓝牙吊秤 · 逐瓶核算'" icon="bottle" hideBottleQuery>
 		<AppSection v-if="!nativeSupported" title="请使用原生 PDA">
 			<text class="hint">本模块使用 PDA 扫描头和蓝牙秤，请在 PDA 应用中打开。</text>
 		</AppSection>
@@ -36,7 +36,7 @@
 			<PdaDailyTemperature v-if="!isReturn" :active="form.active.value" :disabled="busy || !canCreate" />
 			</view>
 			<view class="work-card">
-			<PdaFloorScale v-if="isFloor" :snapshot="snapshot" :busy="busy" @connect="connect" @disconnect="disconnect" />
+			<PdaFloorScale v-if="isFloor" :snapshot="snapshot" :busy="busy" :active="form.active.value" @connect="connect" @disconnect="disconnect" />
 			<PdaWeighScale embedded v-else :minimum-weight="captureMinimum" :snapshot="snapshot" :selected="Boolean(current.bottleNo)" :captured="Boolean(current.capture)" :gross="current.grossWeight" :tare="current.preview?.bottle?.tare_weight" :busy="busy" @connect="connect" @disconnect="disconnect" />
 			<text v-if="isFloor && calibrationBlocksReweigh" class="notice notice--error">当前地秤尚未完成砝码复核，请到 PDA 首页的“秤台校准”复核。</text>
 			<AppSection class="work-section" v-if="!current.frozen" :title="current.bottleNo ? current.bottleNo + ' 号瓶' : '请扫码选瓶'">
@@ -148,7 +148,7 @@ import { reweighPreviousNotice } from '@/services/pda/reweighDraft'
 
 const props = defineProps({ mode: { type: String, default: 'filling' }, scaleMode: { type: String, default: 'hanging' } })
 const isReturn = props.mode === 'return'
-const isFloor = props.scaleMode === 'floor' && !isReturn
+const isFloor = props.scaleMode === 'floor'
 const printer = usePdaFillingPrinter({ enabled: !isReturn, active: () => form?.active.value && form.nativeSupported, entries: () => [...form.history.value.filter(item => item.operationId !== form.current.value.operationId), form.current.value] })
 const form = usePdaReweigh({ mode: props.mode, printing: isReturn ? null : printer, scaleMode: props.scaleMode })
 const { draftLoading, captureMinimum, current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, submitting, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, localRoundEnded, startRound, refreshRound,

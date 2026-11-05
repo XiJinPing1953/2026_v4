@@ -160,6 +160,10 @@
 			}
 		},
 		{
+			"path": "pages/pda/floor-return-reweigh",
+			"style": { "navigationBarTitleText": "地秤回瓶复秤", "app-plus": { "animationType": "none", "animationDuration": 0 } }
+		},
+		{
 			"path": "pages/pda/floor-calibration",
 			"style": { "navigationBarTitleText": "秤台校准", "app-plus": { "animationType": "none", "animationDuration": 0 } }
 		},

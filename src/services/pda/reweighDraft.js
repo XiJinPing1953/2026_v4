@@ -42,7 +42,7 @@ export function pruneReweighHistory(history, alreadyKept = null) {
 const HISTORY_CHUNK_SIZE = 40
 const storageToken = raw => raw ? (typeof raw === 'string' ? raw : JSON.stringify(raw)) : null
 export function reweighDraftKey(ownerId, mode = 'filling') {
-	return `${mode === 'return' ? 'crm_pda_return_reweigh_v1' : mode === 'floor' ? 'crm_pda_floor_reweigh_v1' : 'crm_pda_reweigh_v1'}:${ownerId}`
+	return `${mode === 'return' ? 'crm_pda_return_reweigh_v1' : mode === 'floor-return' ? 'crm_pda_floor_return_reweigh_v1' : mode === 'floor' ? 'crm_pda_floor_reweigh_v1' : 'crm_pda_reweigh_v1'}:${ownerId}`
 }
 
 // Shared read-only decoder: record queries must also understand the chunked format.

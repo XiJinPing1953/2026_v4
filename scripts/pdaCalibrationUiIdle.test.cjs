@@ -8,7 +8,7 @@ function bench() {
  const ui=vm.runInNewContext(code+';useFloorCalibrationBench()',{
  ref,shallowRef:ref,computed:fn=>({get value(){return fn()}}),Date:class extends Date{static now(){return now}},
  setInterval:fn=>{timers.add(fn);return fn},clearInterval:fn=>timers.delete(fn),getUser:()=>({_id:'u'}),canPageAction:()=>true,
- createCalibrationWindow:()=>({read:()=>({kg:0,ad:8,stable:true}),clear(){}}),createFloorScaleZero:()=>({ready:true,reset(){},offset:0}),
+ createCalibrationWindow:()=>({read:()=>({kg:0,ad:8,stable:true}),clear(){}}),
  createFloorScaleNativeRuntime:()=>({}),createFloorScaleDiagnostic:()=>diag,createFloorScaleCalibrationController:()=>ctrl,
  uni:{getStorageSync(){}},floorScaleDivisionKg:v=>v
  })

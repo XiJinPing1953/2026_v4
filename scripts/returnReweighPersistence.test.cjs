@@ -103,6 +103,26 @@ test('zero and negative signed return net are preserved, and filling uses actual
 	}
 })
 
+test('floor return gross survives retry and record lookup and becomes the actual filling basis', async () => {
+	const app = fixture(); await start(app)
+	const payload = await request(app, 'floor_return_operation_001')
+	Object.assign(payload.capture, { device_id: 'DSX-floor-01', scale_type: 'floor', bottle_no: 'B1', gross_kg: 120, raw: 'DSX TTL 0x22' })
+	const saved = await app.invoke('saveReturnReweighV1', payload)
+	assert.equal(saved.code, 0, saved.msg)
+	assert.equal(saved.data.complete, true)
+	assert.equal(saved.data.gross_weight, 120)
+	assert.equal(saved.data.net_weight, 20)
+	assert.equal((await app.invoke('saveReturnReweighV1', payload)).data._id, saved.data._id)
+	const restored = await app.invoke('getReturnReweighV1', { operation_id: payload.operation_id })
+	assert.equal(restored.data._id, saved.data._id)
+	assert.equal(restored.data.gross_weight, 120)
+	assert.equal(rows(app, 'crm_return_reweighs').length, 1)
+	const filling = await fill(app)
+	assert.equal(filling.fill_weight, 50)
+	assert.equal(filling.reweigh.net_weight, 70)
+	assert.equal(filling.reweigh.basis.return_reweigh_id, saved.data._id)
+})
+
 test('consumed baseline cannot be replaced, even with a new count round or a preview from before filling', async () => {
 	const app = fixture(); await start(app); await save(app)
 	const stale = await request(app, 'return_stale_after_fill')

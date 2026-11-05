@@ -25,4 +25,9 @@ test('maintenance excludes active and unreadable work, possibly stored in a lega
  rows.set(key+':work-v3',JSON.stringify(head));assert.equal(floorCalibrationWorkIdle('u',store),true)
  rows.set(key+':work-v3',JSON.stringify({...head,metadata:{pendingEndRound:{}}}));assert.equal(floorCalibrationWorkIdle('u',store),false)
  rows.set(key+':work-v3','invalid');assert.throws(()=>floorCalibrationWorkIdle('u',store))
+ rows.clear()
+ const returnKey='crm_pda_floor_return_reweigh_v1:u:work-v3'
+ rows.set(returnKey,JSON.stringify({...head,current:{...head.current,bottleNo:'123'}}));assert.equal(floorCalibrationWorkIdle('u',store),false)
+ rows.set(returnKey,JSON.stringify(head));assert.equal(floorCalibrationWorkIdle('u',store),true)
+ rows.set(returnKey,JSON.stringify({...head,metadata:{pendingEndRound:{}}}));assert.equal(floorCalibrationWorkIdle('u',store),false)
 })

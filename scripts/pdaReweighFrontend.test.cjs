@@ -883,3 +883,45 @@ test('floor read-only check qualifies the device for weighing without another sp
  await h.start(); await h.scan('101'); h.frames(120,1600)
  assert.equal(await h.form.submit(),true)
 })
+
+test('floor return saves live half-kilogram gross to return API; its draft stays separate and no label prints',async t=>{
+ let printed=0
+ const h=harness(t,{floor:true,returnMode:true,printing:{confirmed(){printed++},arm(){printed++},close(){}}})
+ await h.start(); await h.scan('101'); h.frames(185,1600)
+ h.frames(165,1600); assert.equal(h.form.current.value.grossWeight,165)
+ assert.equal(await h.form.submit(),true)
+ const p=h.requests[0].payload
+ assert.equal(h.requests[0].mode,'return');assert.equal(p.capture.scale_type,'floor')
+ assert.equal(p.capture.gross_kg,165);assert.equal(p.gross_weight,165);assert.equal(p.round_id,'round-1')
+ assert.equal(h.form.current.value.preview.net_weight,65);assert.equal(printed,0)
+ assert.ok(h.storage.has('crm_pda_floor_return_reweigh_v1:u1:work-v3'))
+ assert.equal(h.storage.has('crm_pda_return_reweigh_v1:u1:work-v3'),false)
+ assert.equal(h.storage.has('crm_pda_floor_reweigh_v1:u1:work-v3'),false)
+ assert.equal(await h.form.nextBottle(),true);await h.scan('102');h.frames(165,1600)
+ assert.equal(await h.form.submit(),true);assert.equal(h.requests[1].payload.bottle_no,'102')
+ assert.equal(await h.form.endRound(),true);assert.equal(h.form.round.value,null)
+})
+
+test('floor return reconnect and lost-save recovery preserve bottle and frozen operation',async t=>{
+ const h=harness(t,{floor:true,returnMode:true,send:()=>{throw Error('timeout')}})
+ await h.start();await h.scan('101');h.frames(120,1600)
+ h.emit({is_connected:false,is_online:false});assert.equal(h.form.current.value.grossWeight,null)
+ assert.equal(await h.form.connect(),true);h.frames(121,1600)
+ assert.equal(await h.form.submit(),false);const original=h.requests[0].payload
+ await h.form.deactivate()
+ const restored=harness(t,{floor:true,returnMode:true,storage:h.storage});await restored.start()
+ await restored.form.query(original.operation_id,true)
+ assert.deepEqual(restored.requests[0].payload,original)
+})
+
+test('display-only tare cannot change a business gross or filling/return payload',async t=>{
+ const {floorDisplayTarePoint,floorScaleDisplayWeight}=load('src/services/pda/floorScaleDisplay.js',['floorDisplayTarePoint','floorScaleDisplayWeight'])
+ for(const returnMode of [false,true]){
+  const h=harness(t,{floor:true,returnMode});await h.start();await h.scan('101');h.frames(185,1600)
+  const snapshot=Object.freeze(copy(h.form.snapshot.value)),tare=floorDisplayTarePoint(snapshot,snapshot.sampled_at)
+  assert.equal(floorScaleDisplayWeight(snapshot,{tare}),'0.0')
+  assert.equal(h.form.current.value.grossWeight,185)
+  assert.equal(await h.form.submit(),true);assert.equal(h.requests[0].payload.gross_weight,185)
+  assert.equal(h.requests[0].payload.capture.gross_kg,185)
+ }
+})

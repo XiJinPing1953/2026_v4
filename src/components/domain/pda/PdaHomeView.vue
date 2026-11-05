@@ -110,6 +110,7 @@ defineExpose({ activate, deactivate, closeRecords })
 const actions = [
 	{ title: '钢瓶查询', desc: '看瓶号、流向、空瓶重、检验日期', url: '/pages/pda/bottle-query' },
 	{ title: '罐装复秤', desc: '称罐装后的瓶子', url: '/pages/pda/reweigh', nativeOnly: true, createRequired: true },
+	{ title: '地秤回瓶复秤', desc: '用地秤称回来的瓶子', url: '/pages/pda/floor-return-reweigh', nativeOnly: true, createRequired: true },
 	{ title: '地秤罐装复秤', desc: '用蓝牙地秤称重', url: '/pages/pda/floor-reweigh', nativeOnly: true, createRequired: true },
 	{ title: '秤台校准', desc: '看实时重量、标定和复核', url: '/pages/pda/floor-calibration', nativeOnly: true, updateRequired: true },
 	{ title: '回瓶复秤', desc: '称回来的瓶子', url: '/pages/pda/return-reweigh', nativeOnly: true, createRequired: true },

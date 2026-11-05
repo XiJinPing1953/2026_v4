@@ -1,5 +1,5 @@
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm')
-const source = ['floorScaleZero', 'floorScaleLoad', 'floorScaleDisplay', 'autoReturnWeight', 'floorScaleProtocol', 'floorScaleDiagnostic', 'floorScaleSession', 'floorCalibrationReading', 'floorScaleCalibration', 'floorScaleCalibrationController']
+const source = ['floorScaleDisplay', 'autoReturnWeight', 'floorScaleProtocol', 'floorScaleDiagnostic', 'floorScaleSession', 'floorCalibrationReading', 'floorScaleCalibration', 'floorScaleCalibrationController']
  .map(name => fs.readFileSync(`src/services/pda/${name}.js`, 'utf8').replace(/^import .*\n/gm, '').replace(/export /g, '')).join('\n')
 function setup(options = {}) {
  let time = Date.now(), tick, timers = 0
