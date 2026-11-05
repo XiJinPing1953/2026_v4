@@ -159,7 +159,9 @@
       "output": "release/pda",
       "acceptance": "Floor filling and floor return weigh and save independently of all local calibration records, including missing, pending, failed, corrupt or other-device records. Calibration remains a standalone tool. Keep 0.5 kg display, display-only tare and valid live-weight/business-save checks. WGT-only release; no board firmware or cloud changes.",
       "deploymentScope": {
-        "functions": [],
+        "functions": [
+          "crm-hebei-filling"
+        ],
         "databaseFiles": [],
         "baseCommit": "96ce2c04b6dad4e610691d42c3a74c284bd8f68a",
         "sourceFiles": [
