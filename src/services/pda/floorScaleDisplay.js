@@ -12,7 +12,7 @@ export function floorScaleDisplayWeight(snapshot, { raw = false, tare = null } =
 	if (raw) return value.toFixed(3)
 	if (snapshot.warming || snapshot.qualified_frame === false || snapshot.error_code === 'unsupported_capture') return '—'
 	// Symmetric half-step rounding; keep negative readings and normalize only -0.
-	const offset = tare?.deviceId === snapshot.device_id && Number.isFinite(tare?.kg) ? tare.kg : 0
+	const offset = tare?.deviceId === snapshot.device_id && (tare.connectionKey || '') === (snapshot.connection_key || '') && Number.isFinite(tare?.kg) ? tare.kg : 0
 	const rounded = floorScaleDivisionKg(value - offset)
 	return (rounded === 0 ? 0 : rounded).toFixed(1)
 }
@@ -21,5 +21,5 @@ export function floorScaleDisplayWeight(snapshot, { raw = false, tare = null } =
 export function floorDisplayTarePoint(snapshot, now = Date.now()) {
 	const age = now - Number(snapshot?.sampled_at)
 	if (!snapshot?.device_id || !Number.isFinite(age) || age < 0 || age > 3000 || floorScaleDisplayWeight(snapshot) === '—') return null
-	return { deviceId: snapshot.device_id, kg: Number(snapshot.weight_kg) }
+	return { deviceId: snapshot.device_id, connectionKey: snapshot.connection_key || '', kg: Number(snapshot.weight_kg) }
 }

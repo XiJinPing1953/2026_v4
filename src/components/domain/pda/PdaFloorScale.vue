@@ -35,6 +35,12 @@ function takeTare() {
 }
 watch(() => props.active, active => { if (!active) { tare.value = null; showConnection.value = false } })
 watch(() => props.snapshot.device_id, id => { if (id && tare.value && id !== tare.value.deviceId) tare.value = null })
+// The board can choose a new zero on reboot while the PDA page stays open.
+// A tare is valid only for the connection and zero origin where it was taken.
+watch(() => [props.snapshot.connection_key, props.snapshot.is_connected, props.snapshot.boot_zero_state],
+ ([key, connected, boot], [previousKey] = []) => {
+  if (!connected || boot || key !== previousKey) tare.value = null
+ }, { flush:'sync' })
 </script>
 <style scoped>
 .floor-scale{padding:14px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;color:#334155}.heading,.reading,.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.heading{justify-content:space-between;font-size:14px}.reading{align-items:baseline;margin:8px 0}.number{font-size:46px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}.hint{display:block;color:#526773;font-size:13px;line-height:1.5;margin-top:8px}.controls{margin-top:10px}.controls :deep(.btn){min-height:44px;font-size:16px}
