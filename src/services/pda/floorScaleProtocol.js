@@ -77,3 +77,15 @@ export function floorScaleCandidateKg(frame) {
 	if (!Number.isSafeInteger(magnitude)) return null
 	return (negative ? -magnitude : magnitude) / (legacy ? 1000 : 1000000)
 }
+
+// DSX bench06 keeps the 0x22 frame layout and normal OEM status. These three
+// non-ready values are emitted explicitly by the board, never inferred from a
+// weight being near zero or from how long the PDA has been connected.
+const bootStatuses = {
+	224: { code: 'boot_zero_pending', label: '正在取零', message: '正在开机取零，请保持秤台稳定。', canZero: false },
+	226: { code: 'boot_zero_timeout', label: '未取零', message: '开机取零未完成。清空秤台，稳定后到“秤台校准”点“空台归零”。', canZero: true },
+	227: { code: 'boot_calibration_invalid', label: '标定无效', message: '主板标定系数无效，暂不能称重。请恢复有效标定参数。', canZero: false }
+}
+export function floorScaleBootStatus(frame) {
+	return frame?.format === 'milligrams' && frame.moduleId === 0 ? bootStatuses[frame.status] || null : null
+}

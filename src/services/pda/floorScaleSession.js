@@ -1,5 +1,5 @@
 import { createFloorScaleDiagnostic } from './floorScaleDiagnostic'
-import { floorScaleCandidateKg } from './floorScaleProtocol'
+import { floorScaleCandidateKg, floorScaleBootStatus } from './floorScaleProtocol'
 
 import { floorScaleDivisionKg } from './floorScaleDisplay'
 
@@ -23,24 +23,26 @@ export function createFloorScaleSession(runtime, { onWeightFrame, onInterrupted 
 	function getSnapshot(state = diagnostic.getSnapshot()) {
 		const connected = state.status === 'connected'
 		const value = state.fresh ? floorScaleCandidateKg(state.frame) : null
+		const boot = state.fresh ? floorScaleBootStatus(state.frame) : null
 		const communication = state.communication || {}
 		let code = state.status, message = state.reason || '地秤未连接'
 		if (connected) {
-			if (state.fresh && value !== null && (state.frame?.format !== 'milligrams' || state.frame.moduleId !== 0 || state.frame.status !== 0 || Math.abs(value) > 1000)) {
+			if (boot) { code = boot.code; message = boot.message }
+			else if (state.fresh && value !== null && (state.frame?.format !== 'milligrams' || state.frame.moduleId !== 0 || state.frame.status !== 0 || Math.abs(value) > 1000)) {
 				code = 'unsupported_capture'; message = '当前帧的通道、状态、格式或量程不符，不能取重'
 			} else if (state.fresh) { code = value === null ? 'unreadable_weight' : 'reading'; message = value === null ? '已收到数据，重量超出可解析范围，请查看通信详情' : '地秤正在接收实时重量' }
 			else if (communication.validFrames) { code = 'stale'; message = '地秤读数已过期，请等待新读数' }
 			else if (communication.chunks) { code = 'invalid_frame'; message = communication.checksumErrors ? '已收到地秤数据，但校验未通过，请查看通信详情' : '已收到数据，尚未解析到完整重量帧，请查看通信详情' }
 			else { code = 'no_data'; message = '蓝牙已连接，尚未收到地秤数据，请检查地秤并查看通信详情' }
 		}
-		const warming = false
+		const warming = boot?.code === 'boot_zero_pending'
 		const qualifiedFrame = lastQualified && state.sampledAt === previous && stamp === state.frame?.timestampHex
 
 		return { warming, qualified_frame: qualifiedFrame, is_connected: connected, is_online: connected && Boolean(state.fresh),
 			is_stable: false, weight_kg: value, sampled_at: state.sampledAt,
 			device_id: state.deviceId, session_id: sessionId, connection_key: state.sessionKey || '',
 			diagnostic_frame: state.fresh ? state.frame : null, communication,
-			can_calibrate: Boolean(state.canWriteCalibration), error_code: code, error_message: message }
+			can_calibrate: Boolean(state.canWriteCalibration), boot_zero_state: boot?.code || '', error_code: code, error_message: message }
 	}
 	function publish(state) {
 		const snapshot = getSnapshot(state)

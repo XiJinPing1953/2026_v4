@@ -157,7 +157,7 @@
     "pda": {
       "version": "1.0.70",
       "output": "release/pda",
-      "acceptance": "Make actual zero/span calibration the primary flow; automatically verify fresh post-command readings, allow exit from read-only checks, and keep failed or unknown calibration unverified. Completed reweigh records do not block maintenance. Includes formal 1.0.69 floor tare/return features. Hardware startup drift and 200 kg accuracy remain separately unverified.",
+      "acceptance": "Floor calibration writes are explicit; read-only reference checks can exit. DSX bench06 boot readiness reaches all floor pages, timeout allows explicit zero only. Keep 0.5 kg display and display-only tare, floor return workflow. WGT does not update board firmware; physical weighing acceptance remains separate.",
       "deploymentScope": {
         "functions": [
           "crm-hebei-filling"
@@ -166,9 +166,13 @@
         "baseCommit": "42ca78232644ef48682f8a333405004ca18ab6d9",
         "sourceFiles": [
           "src/components/domain/pda/PdaFloorCalibration.vue",
+          "src/components/domain/pda/PdaFloorScale.vue",
           "src/composables/pda/useFloorCalibrationBench.js",
           "src/manifest.json",
+          "src/services/pda/floorCalibrationReading.js",
           "src/services/pda/floorScaleCalibrationController.js",
+          "src/services/pda/floorScaleProtocol.js",
+          "src/services/pda/floorScaleSession.js",
           "src/services/pda/reweighWorkStore.js"
         ]
       },

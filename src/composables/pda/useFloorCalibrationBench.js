@@ -9,22 +9,26 @@ import { floorScaleKilogramsToGrams } from '@/services/pda/floorScaleCalibration
 import { createCalibrationWindow } from '@/services/pda/floorCalibrationReading'
 import { floorCalibrationWorkIdle } from '@/services/pda/reweighWorkStore'
 import { floorScaleDivisionKg } from '@/services/pda/floorScaleDisplay'
+import { floorScaleBootStatus } from '@/services/pda/floorScaleProtocol'
 
 const acl = () => canPageAction('/pages/pda/reweigh', 'update')
 const store = { getStorageSync: k => uni.getStorageSync(k), setStorageSync: (k,v) => uni.setStorageSync(k,v) }
 const confirm = (title, content) => new Promise(resolve => uni.showModal({ title, content, confirmText:'确认', success: r => resolve(r.confirm), fail: () => resolve(false) }))
 export function useFloorCalibrationBench() {
 	const raw = shallowRef(null), point = shallowRef(null), state = shallowRef(null), error = ref(''), note = ref('')
+	const bootStatus = shallowRef(null)
 	const mass = ref(''), expected = ref(''), busy = ref(false), records = ref([]), authorized = ref(false)
 	let owner = '', epoch = 0, active = false, diagnostic = null, controller = null, timer = null
 	let closing = Promise.resolve(), offDiagnostic, offController
-	const window = createCalibrationWindow()
-	const display = computed(() => point.value ? floorScaleDivisionKg(point.value.kg).toFixed(1) : '—')
+	const window = createCalibrationWindow({ allowUnzeroed: true })
+	const display = computed(() => point.value && !bootStatus.value ? floorScaleDivisionKg(point.value.kg).toFixed(1) : '—')
 	const activeOwner = () => active && authorized.value && owner === String(getUser()?._id || '') && acl()
 	const key = () => 'pda_floor_bench_points_v1:' + owner
 	function refresh() {
 		const snap = diagnostic?.getSnapshot()
 		if (!snap) return
+		const boot = snap.fresh ? floorScaleBootStatus(snap.frame) : null
+		if (bootStatus.value?.code !== boot?.code) bootStatus.value = boot
 		// This view only renders connection fields. Counters and raw packets are not UI state here.
 		if (!raw.value || ['status','deviceId','canWriteCalibration','sessionKey'].some(k => raw.value[k] !== snap[k])) raw.value = snap
 		const reading = snap.fresh ? window.read(Date.now(), snap.sessionKey) : null
@@ -42,9 +46,10 @@ export function useFloorCalibrationBench() {
 	}
 	function connection() {
 		const s = diagnostic?.getSnapshot(), live = s?.fresh && window.read(Date.now(), s.sessionKey)
-		return { is_connected:s?.status === 'connected', is_online:Boolean(live), error_code:live?'reading':'stale',
+		const boot = s?.fresh ? floorScaleBootStatus(s.frame) : null
+		return { is_connected:s?.status === 'connected', is_online:Boolean(live), error_code:boot?.code || (live?'reading':'stale'),
 			sampled_at:live?.at, device_id:s?.deviceId, connection_key:s?.sessionKey, can_calibrate:s?.canWriteCalibration,
-			error_message:'请连接原秤，等待有效重量' }
+			error_message:boot?.message || '请连接原秤，等待有效重量' }
 	}
 	async function activate() {
 		const ticket = ++epoch
@@ -82,7 +87,7 @@ export function useFloorCalibrationBench() {
 		active = false; authorized.value = false; epoch++; busy.value = false
 		offDiagnostic?.(); offController?.(); offDiagnostic = offController = null
 		if (timer !== null) clearInterval(timer)
-		timer = null; window.clear(); point.value = null; raw.value = null
+		timer = null; window.clear(); point.value = null; raw.value = null; bootStatus.value = null
 		const d = diagnostic; diagnostic = null; controller = null
 		closing = Promise.allSettled([closing, d?.disconnect()])
 		return closing
@@ -145,5 +150,5 @@ export function useFloorCalibrationBench() {
 		if (store.getStorageSync(key()) !== text) throw new Error('记录保存未确认，请重新进入核对')
 		records.value = next; note.value = '已在本机记录' + label
 	})
-	return { beginCheck, cancelCheck, raw, point, state, display, error, note, records, mass, expected, busy, authorized, activate, deactivate, connect, disconnect, issue, review, record }
+	return { beginCheck, cancelCheck, raw, point, state, bootStatus, display, error, note, records, mass, expected, busy, authorized, activate, deactivate, connect, disconnect, issue, review, record }
 }

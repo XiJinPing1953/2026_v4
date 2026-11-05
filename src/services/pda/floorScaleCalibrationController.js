@@ -33,14 +33,14 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 		if (token(storage.getStorageSync(key)) !== raw) { broken = '校准状态写入无法确认，请保留原数据'; throw new Error(broken) }
 		expected = raw; state = next; notify()
 	}
-	function requireConnection(requireFresh = true) {
+	function requireConnection(requireFresh = true, allowUnzeroed = false) {
 		if (!ownerId || !ownerMatches()) throw new Error('账号已变化，请使用原账号处理校准')
 		const current = connection()
 		if (!current?.is_connected || !current.device_id || !current.connection_key) throw new Error('请先连接地秤')
 		const age = now() - Number(current.sampled_at)
 		if (requireFresh && (!current.is_online || !Number.isFinite(age) || age < 0 || age > 3000)) throw new Error(current.error_message || '地秤数据已中断或过期，请等待新读数')
 		if (requireFresh && current.diagnostic_frame && current.diagnostic_frame.moduleId !== 0) throw new Error('当前数据不是单地秤通道，请核对设备')
-		if (requireFresh && current.error_code !== 'reading') throw new Error(current.error_message || '重量帧无效')
+		if (requireFresh && current.error_code !== 'reading' && !(allowUnzeroed && current.error_code === 'boot_zero_timeout')) throw new Error(current.error_message || '重量帧无效')
 		return current
 	}
 	function sample(current, after = null) {
@@ -56,7 +56,7 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 		if (broken) throw new Error(broken)
 		if (running || state.pending) throw new Error('上次校准结果待核对，请先处理')
 		if (!canStart()) throw new Error('请先完成或放弃当前钢瓶，再进行校准')
-		const current = requireConnection()
+		const current = requireConnection(true, kind === 'zero')
 		if (!current.can_calibrate) throw new Error('未发现地秤校准写入接口')
 		if (kind === 'mass' && state.zeroFor !== current.device_id) throw new Error('请先在当前地秤完成空秤归零复核')
 		const command = kind === 'zero' ? floorScaleZeroCommand() : floorScaleMassCommand(inputKg)
@@ -69,7 +69,7 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 		running = true; notify()
 		let timeout
 		try {
-			const again = requireConnection()
+			const again = requireConnection(true, kind === 'zero')
 			if (!canStart() || again.device_id !== current.device_id || again.connection_key !== current.connection_key) throw new Error('连接或作业状态变化')
 			const latest = sample(again)
 			if (Math.abs(latest.kg - before.kg) > 0.1) throw new Error('载荷已变化，请核对')

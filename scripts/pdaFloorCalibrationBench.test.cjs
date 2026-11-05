@@ -33,3 +33,10 @@ test('maintenance excludes active and unreadable work, possibly stored in a lega
  rows.set(returnKey,JSON.stringify({...head,current:{...head.current,bottleNo:'123',frozen:{mode:'create',payload:{operation_id:'o',bottle_no:'123'}},receipt:{saved:true}}}));assert.equal(floorCalibrationWorkIdle('u',store),true)
  rows.set(returnKey,JSON.stringify({...head,current:{...head.current,bottleNo:'123',frozen:{mode:'create',payload:{operation_id:'o',bottle_no:'123'}},receipt:{saved:false}}}));assert.equal(floorCalibrationWorkIdle('u',store),false)
 })
+test('only the calibration recovery window accepts timeout references and restarts stability when zero becomes ready',()=>{
+ const ordinary=createCalibrationWindow(), recovery=createCalibrationWindow({allowUnzeroed:true})
+ for(let n=0;n<20;n++){const f=frame(1,n,{status:0xe2});ordinary.observe(f,10000+n*100,'A');recovery.observe(f,10000+n*100,'A')}
+ assert.equal(ordinary.read(11900,'A'),null);assert.equal(recovery.read(11900,'A').stable,true)
+ recovery.observe(frame(0,21,{status:0}),12000,'A');assert.equal(recovery.read(12000,'A').stable,false)
+ for(const status of [0xe0,0xe3,1]){recovery.observe(frame(0,22,{status}),12100,'A');assert.equal(recovery.read(12100,'A'),null)}
+})

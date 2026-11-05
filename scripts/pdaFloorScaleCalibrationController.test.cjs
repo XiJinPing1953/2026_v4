@@ -127,3 +127,17 @@ test('cancel only applies to a local check and never bypasses unknown write revi
  unknown.session('s2');assert.equal(unknown.c.reviewWhenReady(),'zero')
  assert.equal(unknown.sent.length,1)
 })
+
+test('boot-zero timeout permits only explicit zero; pending/invalid states cannot write and recovery needs ready samples',async()=>{
+ const records=new Map();let code='boot_zero_timeout',clock=10000,kg=1;const sent=[]
+ const c=createFloorScaleCalibrationController({ownerId:'u',ownerMatches:()=>true,canStart:()=>true,now:()=>clock,
+  storage:{getStorageSync:k=>records.get(k),setStorageSync:(k,v)=>records.set(k,v)},
+  connection:()=>({is_connected:true,is_online:true,sampled_at:clock,error_code:code,error_message:code,device_id:'A',connection_key:'s',can_calibrate:true}),
+  stableReading:()=>({kg,ad:100,stable:true,connectionKey:'s',from:clock-1500,at:clock}),send:async command=>sent.push(command)})
+ await assert.rejects(c.issueMass('200'),/boot_zero_timeout/);assert.throws(()=>c.beginCheck('200'),/boot_zero_timeout/)
+ for(const invalid of ['boot_zero_pending','boot_calibration_invalid']){code=invalid;await assert.rejects(c.issueZero(),new RegExp(invalid))}
+ assert.equal(sent.length,0);code='boot_zero_timeout';assert.equal((await c.issueZero()).sent,true)
+ assert.equal(sent.length,1);assert.equal(sent[0][6],7);clock+=2000;kg=0
+ assert.equal(c.reviewWhenReady(),null);assert.equal(c.getState().pending.kind,'zero')
+ code='reading';assert.equal(c.reviewWhenReady(),'zero');assert.equal(c.getState().zeroFor,'A')
+})

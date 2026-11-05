@@ -1,10 +1,11 @@
 <template>
 	<AppPage title="秤台校准" icon="scale" hideBottleQuery>
-		<view class="readout" :class="{stable:point?.stable}">
-			<view class="row"><text>{{ raw?.deviceId || '未连接地秤' }}</text><text>{{ !point ? '等待读数' : point.stable ? '稳定' : '称重中' }}</text></view>
+		<view class="readout" :class="{stable:point?.stable && !bootStatus}">
+			<view class="row"><text>{{ raw?.deviceId || '未连接地秤' }}</text><text>{{ bootStatus?.label || (!point ? '等待读数' : point.stable ? '稳定' : '称重中') }}</text></view>
 			<view class="weight">{{ display }} <text>kg</text></view>
-			<text class="raw">主板原始 {{ point ? point.kg.toFixed(3) + ' kg' : '—' }}　·　AD {{ point?.ad ?? '—' }}</text>
+			<text class="raw">{{ bootStatus ? '未取零参考' : '主板原始' }} {{ point ? point.kg.toFixed(3) + ' kg' : '—' }}　·　AD {{ point?.ad ?? '—' }}</text>
 		</view>
+		<text v-if="bootStatus" class="alert">{{ bootStatus.canZero ? '开机取零未完成。请清空秤台，稳定后点下方“空台归零”。' : bootStatus.message }}</text>
 		<view v-if="authorized" class="action">
 			<AppButton v-if="raw?.status !== 'connected'" :disabled="busy" @click="connect">连接地秤</AppButton>
 			<AppButton v-else kind="outline" :disabled="busy" @click="disconnect">断开连接</AppButton>
@@ -19,7 +20,7 @@
 					<text v-if="state.zeroFor === raw?.deviceId && !state.pending" class="hint">空台零点已记录，可以放砝码。</text>
 					<text class="step">2 · 放上标准砝码，填写实际重量</text>
 					<view class="entry"><input v-model="mass" type="digit" placeholder="放 200 kg 就填 200" :disabled="busy || Boolean(state.pending)"/><text>kg</text></view>
-					<AppButton :disabled="!writable || Boolean(state.pending) || !mass || state.zeroFor !== raw?.deviceId" @click="issue('mass')">{{ mass ? '标定到 ' + mass + ' kg' : '标定砝码重量' }}</AppButton>
+					<AppButton :disabled="!writable || Boolean(bootStatus) || Boolean(state.pending) || !mass || state.zeroFor !== raw?.deviceId" @click="issue('mass')">{{ mass ? '标定到 ' + mass + ' kg' : '标定砝码重量' }}</AppButton>
 					<text v-if="!state.pending && state.zeroFor !== raw?.deviceId" class="hint">先完成第 1 步。标定会调整主板换算系数；日常归零不会。</text>
 				</view>
 				<view v-if="state.pending && state.pending.kind !== 'check'" class="group pending">
@@ -65,10 +66,10 @@ import AppPage from '@/components/base/AppPage.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppSection from '@/components/base/AppSection.vue'
 import { useFloorCalibrationBench } from '@/composables/pda/useFloorCalibrationBench'
-const {beginCheck,cancelCheck,raw,point,state,display,error,note,records,mass,expected,busy,authorized,activate,deactivate,connect,disconnect,issue,review,record} = useFloorCalibrationBench()
+const {beginCheck,cancelCheck,raw,point,state,bootStatus,display,error,note,records,mass,expected,busy,authorized,activate,deactivate,connect,disconnect,issue,review,record} = useFloorCalibrationBench()
 const showCheck = ref(false), showRecords = ref(false)
 async function leaveCheck() { await cancelCheck(); showCheck.value = false }
-const writable = computed(() => raw.value?.canWriteCalibration && point.value?.stable && !busy.value && !state.value?.error)
+const writable = computed(() => raw.value?.canWriteCalibration && point.value?.stable && !busy.value && !state.value?.error && (!bootStatus.value || bootStatus.value.canZero))
 const shortTime = at => new Date(at).toLocaleString()
 onBeforeUnmount(deactivate)
 defineExpose({activate,deactivate})

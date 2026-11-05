@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
 const source = fs.readFileSync('src/services/pda/floorScaleProtocol.js', 'utf8').replace(/export /g, '')
-const { createFloorScaleFrameDecoder, floorScaleCandidateKg } = vm.runInThisContext(`${source}\n;({createFloorScaleFrameDecoder, floorScaleCandidateKg})`)
+const { createFloorScaleFrameDecoder, floorScaleCandidateKg, floorScaleBootStatus } = vm.runInThisContext(`${source}\n;({createFloorScaleFrameDecoder, floorScaleCandidateKg, floorScaleBootStatus})`)
 
 function frame(weight = [0, 0, 0, 0, 0, 0, 0, 1]) {
 	const bytes = [0xaa, 3, 1, 23, 0, 16, 0x22, 0, 1, 2, 3, 4, ...weight, 1, 0, 42]
@@ -43,4 +43,14 @@ test('candidate signed conversion rejects unsafe magnitudes and remains unverifi
 	assert.equal(floorScaleCandidateKg({ weightHex: '8000000000000000' }), null)
 	assert.equal(floorScaleCandidateKg({ weightHex: '0020000000000000' }), null)
 	assert.equal(floorScaleCandidateKg({ weightHex: 'invalid' }), null)
+})
+test('only explicit boot status bytes identify waiting or failed zero; normal and OEM faults stay distinct', () => {
+	for (const [status,code] of [[0xe0,'boot_zero_pending'],[0xe2,'boot_zero_timeout'],[0xe3,'boot_calibration_invalid']]) {
+		const bytes=frame();bytes[20]=status;bytes[4]=0;bytes[4]=bytes.reduce((a,b)=>a^b,0)
+		const [received]=createFloorScaleFrameDecoder().push(bytes)
+		assert.equal(floorScaleBootStatus(received).code,code)
+		assert.equal(floorScaleBootStatus(received).canZero,status===0xe2)
+	}
+	for(const status of [0,1,4,0xe1,0xff])assert.equal(floorScaleBootStatus({format:'milligrams',moduleId:0,status}),null)
+	assert.equal(floorScaleBootStatus({format:'legacy-grams',moduleId:0,status:0xe2}),null)
 })

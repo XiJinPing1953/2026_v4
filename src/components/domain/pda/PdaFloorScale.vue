@@ -2,6 +2,7 @@
  <view class="floor-scale">
   <view class="heading"><text>{{ tare ? '净重（已去皮）' : '地秤重量' }}</text><text>{{ snapshot.is_connected ? (snapshot.is_online ? '已连接' : '等待读数') : '未连接' }}</text></view>
   <view class="reading"><text class="number">{{ weight }}</text><text>kg</text></view>
+  <text v-if="snapshot.boot_zero_state" class="hint">{{ snapshot.error_message }}</text>
   <text v-if="tare" class="hint">去皮 {{ tareText }} kg · 复秤毛重 {{ gross }} kg</text>
   <view class="controls">
    <AppButton :disabled="busy || !canTare" kind="outline" @click="takeTare">去皮</AppButton>
