@@ -1,0 +1,497 @@
+[
+  {
+    "bottle_no": "85",
+    "filling_id": "fill_5a998992f92d9bc1db5821bfa22912679220427f",
+    "basis": {
+      "date": "2026-11-01 15:46:51",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519211402,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 123,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_988e9e3dc576d3757ebc7a55a4cc36d685d1b0a8a293c4f188fae31447c533a4"
+    }
+  },
+  {
+    "bottle_no": "137",
+    "filling_id": "fill_93ffab7dba1ec3cddafb7e8cff10db2865ad1b2c",
+    "basis": {
+      "date": "2026-11-01 15:55:56",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519756545,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 120,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_b81cde8b76cce26c927f74e3a21b270651321b8e841c9aabad7eff238dcf9dc1"
+    }
+  },
+  {
+    "bottle_no": "102",
+    "filling_id": "fill_a0d6ee17b413fe0aadc325ee302184570f061338",
+    "basis": {
+      "date": "2026-11-01 15:53:11",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519591792,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 123,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_a418d0958ebf9510d111c34da12450c44cf557a5df4ebaabfe38bfc0d6ffe28f"
+    }
+  },
+  {
+    "bottle_no": "248",
+    "filling_id": "fill_2dd34b99044ba7ad643baafc33c20189f7d3398e",
+    "basis": {
+      "date": "2026-11-01 15:45:30",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519130406,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 118.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_31a7f1aa8ab51b817262a78b1c90119aa42f0002b4e851ed87312e8c1d5891a0"
+    }
+  },
+  {
+    "bottle_no": "111",
+    "filling_id": "fill_e0efe42d3123aca7758d68041c3fe9b8adb8233e",
+    "basis": {
+      "date": "2026-11-01 15:32:10",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793518330860,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 122.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_d9fe1f1b748e3fe2d41ee14706fa142a6446fbc92e90f860cfe9a3e952ef8ca3"
+    }
+  },
+  {
+    "bottle_no": "148",
+    "filling_id": "fill_b68c2f2faf474edd722bef66b9c9842c59550e89",
+    "basis": {
+      "date": "2026-11-01 15:28:48",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793518128991,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 120,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_9394202d794f9e670b9715e11d20ddb3f12279667f45337c77dac31363b44197"
+    }
+  },
+  {
+    "bottle_no": "24",
+    "filling_id": "fill_f1f8b2931aa729e56057f316a48ca2cd9f47f8fc",
+    "basis": {
+      "date": "2026-11-01 15:47:26",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519246038,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 123,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_86f562882bde516d25732ed39964b576fd90420e0909ad6dc86e2f6037b44276"
+    }
+  },
+  {
+    "bottle_no": "219",
+    "filling_id": "fill_43b3e610de64fbfc07febf59661c67893cece8a4",
+    "basis": {
+      "date": "2026-11-01 15:46:12",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519172987,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 120,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_1356e5137b5160c62e77943dd521f8c991cd8da9681ae3989690f9f16876325f"
+    }
+  },
+  {
+    "bottle_no": "96",
+    "filling_id": "fill_dccf5b444a000d19143a905aa76ca9d792fa7f10",
+    "basis": {
+      "date": "2026-11-01 15:51:44",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519504848,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 123,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_43d98ec1e33f68e796fa7734e3431ff365be17b405457729ecd9c53fef4a07de"
+    }
+  },
+  {
+    "bottle_no": "262",
+    "filling_id": "fill_53177b588727b8d28e94f0e69bf6f5b337cb6b93",
+    "basis": {
+      "date": "2026-11-01 15:30:27",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793518227176,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 119.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_d0a31d28f07d812704c8b348b202783af9ac2767df331790694c6d701db09cb9"
+    }
+  },
+  {
+    "bottle_no": "21",
+    "filling_id": "fill_d2bff05e039a641abcd93fb8332baf257279320f",
+    "basis": {
+      "date": "2026-11-01 15:53:46",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519626486,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 124.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_a43af6ccc8320e2b6af9e443fd722e19adf7de27074a87c0cb7da5c1ad9050c7"
+    }
+  },
+  {
+    "bottle_no": "125",
+    "filling_id": "fill_06944aa583d0477f820efca30b52c4131e0cb0e9",
+    "basis": {
+      "date": "2026-11-01 15:48:51",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519331067,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 120,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_d027df9abf67e072ddc50a97f5807b787e1a5318b7b6247a09aff36603937a97"
+    }
+  },
+  {
+    "bottle_no": "201",
+    "filling_id": "fill_119fdd7d863c1aca32c4f79a9fff23121e220670",
+    "basis": {
+      "date": "2026-11-01 15:44:00",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519040871,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 120,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_b172091950ef6e2bb019dad7069aef444b2af43d0b95489e4f87980abb2b89f9"
+    }
+  },
+  {
+    "bottle_no": "168",
+    "filling_id": "fill_7adfa59e016eca2079237e43fb1e3d9951d5e9e5",
+    "basis": {
+      "date": "2026-11-01 15:54:36",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519676095,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 119.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_47bf8dc92353fb1a3d66da7c1377b1f07faf84878a5f4d23c1346e183077e62e"
+    }
+  },
+  {
+    "bottle_no": "175",
+    "filling_id": "fill_b7a3450b381ac06f48ca08dae498b96201f701e7",
+    "basis": {
+      "date": "2026-11-01 16:04:39",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793520279356,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 119.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_c20a8569cc42265a48e7e5d8401c4bc4bb81ec16cc15abfce2baf480a32a025d"
+    }
+  },
+  {
+    "bottle_no": "382",
+    "filling_id": "fill_70bffca09e0a1bf423372a2cba456949732c06df",
+    "basis": {
+      "date": "2026-11-01 15:31:33",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793518293757,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 132.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_efa86536cb8b1c83fb25c4841e1e8ef04ec6f520a2b4f001f0f8a7fa5a11aba6"
+    }
+  },
+  {
+    "bottle_no": "160",
+    "filling_id": "fill_b89cb77095eee75ccb426f79294bcf18aeb17592",
+    "basis": {
+      "date": "2026-11-01 15:27:56",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793518076270,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 119.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_32551ddaff11e63072018335affe943d34bfff248b33fbc3260526f5fd365a6f"
+    }
+  },
+  {
+    "bottle_no": "113",
+    "filling_id": "fill_83c364a6066ba11d7a3c118b826569fe87b18238",
+    "basis": {
+      "date": "2026-11-01 15:55:23",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519723057,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 122,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_79f06177f4fd1bc7d484e07f6e02d2cee5d2cbd7b1324bad5919164164516a93"
+    }
+  },
+  {
+    "bottle_no": "65",
+    "filling_id": "fill_23ef32529d2a34d591e29064f10c8324602ee07d",
+    "basis": {
+      "date": "2026-11-01 16:05:20",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793520320393,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 123,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_6e480910e2d33db5efa01f26e6c3fd5b37cb941a19274cd472ddbcc63b16045a"
+    }
+  },
+  {
+    "bottle_no": "33",
+    "filling_id": "fill_1bcc654ec5516babf5494f17422218ef2f121e99",
+    "basis": {
+      "date": "2026-11-01 16:06:54",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793520414144,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 128.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_c015cb978586580dc8ef137275d535c16acbf8cdedd10fb5322cb4989a8ef186"
+    }
+  },
+  {
+    "bottle_no": "145",
+    "filling_id": "fill_b09af2518932f55a824310b6114ac2fed3e98797",
+    "basis": {
+      "date": "2026-11-01 15:27:05",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793518025931,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 122.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_53f33b60ee315dbadbac721252c7f598da7fd7302ce0f2039bc823e610520996"
+    }
+  },
+  {
+    "bottle_no": "441",
+    "filling_id": "fill_a9e2e71f8f661f86b8d8eceaf322f40426fdf546",
+    "basis": {
+      "date": "2026-11-01 15:33:08",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793518388058,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 109,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_d6ec03e136c7a4ed00b01e2a48f1fc77a5d83244b06ce0263f5d30140f4166cf"
+    }
+  },
+  {
+    "bottle_no": "367",
+    "filling_id": "fill_b346f7f9c93af022e50008f4d2893903430ae10c",
+    "basis": {
+      "date": "2026-11-01 15:56:25",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519785911,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 133.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_a30a5659aee23172e3e2fbf49fe9d34ab7afc32991bf9c3bf4110f3b13e8df3e"
+    }
+  },
+  {
+    "bottle_no": "276",
+    "filling_id": "fill_32c552ce432b8bf60a1efa7a018a609a32fcfca2",
+    "basis": {
+      "date": "2026-11-01 15:51:01",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519461232,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 119.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_7ed17131b30b17a50b7edc1558011b3be95ed4159d2cda0b663dde112f2180d0"
+    }
+  },
+  {
+    "bottle_no": "156",
+    "filling_id": "fill_91e52410904a8b998f771552936de2269a24f5d1",
+    "basis": {
+      "date": "2026-11-01 15:49:32",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519372504,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 119,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_c482a1d9065a0d10d5bdec2c9f702dec7c7bb3c180c9ab58d1444671a32b1e58"
+    }
+  },
+  {
+    "bottle_no": "52",
+    "filling_id": "fill_fb17739872a795c38f28c0fda2fe050085deca8b",
+    "basis": {
+      "date": "2026-11-01 16:07:56",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793520476541,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 104,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_c226e14de436fd75a3e59683ba21d238f29902ddd92771d84e561bc120a4a4f5"
+    }
+  },
+  {
+    "bottle_no": "115",
+    "filling_id": "fill_2b91c9e3f1c358c4c0d0c978dfa4a028ab0b2b0a",
+    "basis": {
+      "date": "2026-11-01 15:29:36",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793518176099,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 115.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_a579351d7f3d8e928213a98eb13321f208c6cdb7771a66725d71bf2c8c7bbea1"
+    }
+  },
+  {
+    "bottle_no": "233",
+    "filling_id": "fill_5f29b3ad093e57c0308f31f99b0c99d550206f75",
+    "basis": {
+      "date": "2026-11-01 15:58:07",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519887950,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 120.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_8e09ae4b9acd4b625ce783f66ef9ef0fc9306af51da2181347beb8c22efbd5cf"
+    }
+  },
+  {
+    "bottle_no": "246",
+    "filling_id": "fill_9ce066d4d6d1398fc245ac996f886e75ffdbe7b6",
+    "basis": {
+      "date": "2026-11-01 15:50:11",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519411861,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 120,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_13fcadc01dea98638e9622ae04ea8b18a11fafdff0d86bd3ec09c84a44625cc7"
+    }
+  },
+  {
+    "bottle_no": "277",
+    "filling_id": "fill_14a1159abdcf58ae29136c520ebaa4d642f3a5b0",
+    "basis": {
+      "date": "2026-11-01 16:03:24",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793520204122,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 119.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_029513dfb714e54f6f5df7ec0ff67e416b1573dd0db6f0f879f37859787fe979"
+    }
+  },
+  {
+    "bottle_no": "23",
+    "filling_id": "fill_a9239c4e53747aa0daade8ee1efced42c8d2ceae",
+    "basis": {
+      "date": "2026-11-01 15:57:01",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519821106,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 122,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_bd1c6c16530219cfcd161f71d684c9463d45d47f931d5078c9ea8e12627ae75a"
+    }
+  },
+  {
+    "bottle_no": "56",
+    "filling_id": "fill_b5871067e3e396419f684df461314f5e463cd548",
+    "basis": {
+      "date": "2026-11-01 15:57:33",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793519853244,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 116,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_914db40680c23a2a7363a79cfd67fe0908008ca190900138ad19ed5339127b66"
+    }
+  },
+  {
+    "bottle_no": "437",
+    "filling_id": "fill_d6cdfaae7e0b5efbee1d8195d966fcf63f059bfa",
+    "basis": {
+      "date": "2026-11-01 16:04:00",
+      "round_id": "reweigh-mvxiatdk-rb0k3ekcjk-wirj2hp4s8",
+      "business_at": 1793520240292,
+      "source_type": "pda_return_reweigh",
+      "gross_weight": 109.5,
+      "weight_source": "return_reweigh_gross",
+      "source_version": 1,
+      "time_precision": "millisecond",
+      "return_reweigh_id": "return_d01a85e01bd875ef10d366adadba026acd15c2e4b4bfb1ac4a3dabf22938cf65"
+    }
+  }
+]
