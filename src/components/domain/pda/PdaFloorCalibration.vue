@@ -17,7 +17,7 @@
 				<view class="group">
 					<text class="step">1 · 清空秤台，归零</text>
 					<AppButton :disabled="!writable || Boolean(state.pending)" @click="issue('zero')">空台归零</AppButton>
-					<text v-if="state.zeroFor === raw?.deviceId && !state.pending" class="hint">空台零点已记录，可以放砝码。</text>
+					<text v-if="!bootStatus && state.zeroFor === raw?.deviceId && !state.pending" class="hint">空台零点已记录，可以放砝码。</text>
 					<text class="step">2 · 放上标准砝码，填写实际重量</text>
 					<view class="entry"><input v-model="mass" type="digit" placeholder="放 200 kg 就填 200" :disabled="busy || Boolean(state.pending)"/><text>kg</text></view>
 					<AppButton :disabled="!writable || Boolean(bootStatus) || Boolean(state.pending) || !mass || state.zeroFor !== raw?.deviceId" @click="issue('mass')">{{ mass ? '标定到 ' + mass + ' kg' : '标定砝码重量' }}</AppButton>
