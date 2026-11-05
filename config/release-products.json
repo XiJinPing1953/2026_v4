@@ -155,18 +155,18 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.71",
+      "version": "1.0.72",
       "output": "release/pda",
-      "acceptance": "Floor filling and floor return weigh and save independently of all local calibration records, including missing, pending, failed, corrupt or other-device records. Calibration remains a standalone tool. Keep 0.5 kg display, display-only tare and valid live-weight/business-save checks. WGT-only release; no board firmware or cloud changes.",
+      "acceptance": "Independent floor calibration: invalidate prior empty-zero step on page/connection/board restart, reject zero effective AD or no detectable added mass before writing calibration. Floor reweigh pages remain independent of local calibration, 0.5 kg display and display-only tare unchanged. WGT only; firmware candidate remains offline.",
       "deploymentScope": {
         "functions": [
           "crm-hebei-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "96ce2c04b6dad4e610691d42c3a74c284bd8f68a",
+        "baseCommit": "fc66b94960054fc78b2fd62c02bd0b1850f847ce",
         "sourceFiles": [
-          "src/components/domain/pda/PdaReweighView.vue",
-          "src/composables/pda/usePdaReweigh.js",
+          "src/composables/pda/useFloorCalibrationBench.js",
+          "src/services/pda/floorScaleCalibrationController.js",
           "src/manifest.json"
         ]
       },
