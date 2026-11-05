@@ -15,8 +15,6 @@ const display = load('src/services/pda/weighStatus.js', ['sameWeighDisplay'])
 const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight', 'createFloorReweighWeight'])
 const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt', 'validReweighEntry', 'readReweighDraft', 'readReweighDraftAsync', 'reweighDraftKey', 'isSameReturnReweighRound'])
 const work = load('src/services/pda/reweighWorkStore.js', ['createReweighWorkStore', 'readReweighHistorySnapshot'], { ...draft })
-const calibrationProtocol = load('src/services/pda/floorScaleCalibration.js', ['floorScaleZeroCommand', 'floorScaleMassCommand', 'floorScaleKilogramsToGrams'])
-const calibrationController = load('src/services/pda/floorScaleCalibrationController.js', ['createFloorScaleCalibrationController'], { ...calibrationProtocol, setTimeout, clearTimeout })
 function harness(t, options = {}) {
 	let clock = Date.now(), weightFrame
 	class TestDate extends Date { static now() { return clock } }
@@ -53,7 +51,6 @@ function harness(t, options = {}) {
 		getPdaBleScaleCapabilities: () => ({ transport: options.web ? 'web' : 'native', supported: true }),
 		createPdaBleScaleSession: profile => { assert.equal(profile.preserveMeasurementOnReadTimeout, true); weightFrame = profile.onWeightFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
 		createFloorScaleNativeRuntime: runtime => runtime, createFloorScaleSession: (runtime, callbacks) => { weightFrame = callbacks.onWeightFrame; return scale },
-		createFloorScaleCalibrationController: options.realFloorCalibration ? calibrationController.createFloorScaleCalibrationController : () => ({ getState() { return { pending: null, requiresReview: false, error: '', lastVerified: { kind: 'mass', deviceId: 'floor-1' } } } }),
 		ensurePdaBleRuntimePermission: async () => ({ code: 0 }), quantizeBleScaleWeightKg: value => Math.round(value * 2) / 2,
 		normalizeBottleNo: value => String(value || '').trim().toUpperCase(),
 		enterBarcodeSession: async ({ onResult }) => { scanner = onResult; return { code: 0 } }, leaveBarcodeSession: async () => {},
@@ -87,7 +84,7 @@ function harness(t, options = {}) {
 		getReturnReweighV1: options.query || (async () => ({ code: 404, msg: '操作未找到' })),
 		uni: {
 			...(options.asyncStorage ? { getStorage: options.asyncStorage, getStorageInfo: p => p.success({ keys: [...storage.keys()] }) } : {}),
-			getStorageSync: key => storage.get(key), setStorageSync: (key, value) => { if (options.storageFails) throw new Error('quota'); storage.set(key, value) },
+			getStorageSync: key => { options.onStorageRead?.(key); return storage.get(key) }, setStorageSync: (key, value) => { if (options.storageFails) throw new Error('quota'); storage.set(key, value) },
 			showModal: params => { confirmations.push({ title: params.title, content: params.content }); params.success({ confirm: modalResults.length ? modalResults.shift() : true }) },
 			showActionSheet: params => params.success({ tapIndex: 0 })
 		}
@@ -143,7 +140,7 @@ test('floor rejects legacy drafts without a bottle-specific floor capture', asyn
 	h.form.current.value.grossWeight = 120
 	assert.equal(await h.form.submit(), false)
 	assert.equal(h.requests.length, 0)
-	assert.match(h.form.error.value, /重新称量本瓶/)
+	assert.match(h.form.error.value, /有效地秤重量/)
 })
 test('floor scan, stable weight, create or correct, arm printing and dedicated count', async t => {
 	for (const mode of ['create', 'correct']) {
@@ -158,13 +155,13 @@ test('floor scan, stable weight, create or correct, arm printing and dedicated c
 		assert.equal(h.form.round.value.bottle_count, 1)
 	}
 })
-test('floor operator inherits only completed scale calibration; saved follow-ups do not trap the round', async t => {
+test('floor saved follow-ups do not trap the round or change independent calibration records', async t => {
 	const storage = new Map([['crm_pda_floor_calibration_v1', JSON.stringify({version:1, ownerId:'technician', zeroFor:'', pending:null, requiresReview:false, lastVerified:{kind:'mass',deviceId:'floor-1'}})]])
-	const h = harness(t, { storage, floor: true, realFloorCalibration: true,
+	const h = harness(t, { storage, floor: true,
 		send: async p => ({code:0, data:{operation_id:p.operation_id,saved_total:1,complete:false}}) })
 	await h.start(); await h.scan('101'); h.frames(120); assert.equal(await h.form.submit(),true)
 	assert.equal(await h.form.endRound(),true); assert.equal(h.form.localRoundEnded.value,true)
-	const restored = harness(t, {storage,floor:true,realFloorCalibration:true}); await restored.start()
+	const restored = harness(t, {storage,floor:true}); await restored.start()
 	assert.equal(restored.form.round.value,null); assert.equal(await restored.form.startRound(),true)
 	assert.equal(restored.form.localRoundEnded.value,false)
 })
@@ -176,17 +173,6 @@ test('floor end preserves round and pending operation on failure or uncertain sa
 	h.form.current.value = { ...h.form.current.value, receipt: { saved: true, complete: true } }
 	options.storageFails = true
 	assert.equal(await h.form.endRound(), false); assert.equal(h.form.round.value._id, id); assert.equal(h.form.current.value.bottleNo, '101')
-})
-test('floor weighing reads commissioning results on entry and cannot issue calibration commands', async t => {
-	const key = 'crm_pda_floor_calibration_v1', storage = new Map()
-	const h = harness(t, {floor:true, storage, realFloorCalibration:true})
-	await h.start(); assert.equal(h.form.calibrationBlocksReweigh.value,true)
-	assert.equal(await h.form.selectBottle('101'),false)
-	assert.equal(h.form.sendFloorCalibration, undefined)
-	const record = {version:1,ownerId:'tech',pending:null,requiresReview:false,zeroFor:'',lastVerified:{kind:'mass',deviceId:'floor-1'}}
-	await h.form.deactivate(); storage.set(key,JSON.stringify(record)); await h.start()
-	assert.equal(h.form.calibrationBlocksReweigh.value,false)
-	assert.equal(await h.form.selectBottle('101'),true)
 })
 
 test('one bottle gets its own window, half-kilogram gross and two distinct weights revalidated by server', async t => {
@@ -877,12 +863,6 @@ test('floor long steady reading uses newest sample at save and freezes that clic
  assert.equal(h.requests[0].payload.capture.sampled_at,clickStamp)
 })
 
-test('floor read-only check qualifies the device for weighing without another span calibration',async t=>{
- const storage=new Map([['crm_pda_floor_calibration_v1',JSON.stringify({version:1,ownerId:'tech',zeroFor:'',pending:null,requiresReview:false,lastVerified:{kind:'check',deviceId:'floor-1',grams:20000}})]])
- const h=harness(t,{floor:true,storage,realFloorCalibration:true})
- await h.start(); await h.scan('101'); h.frames(120,1600)
- assert.equal(await h.form.submit(),true)
-})
 
 test('floor return saves live half-kilogram gross to return API; its draft stays separate and no label prints',async t=>{
  let printed=0
@@ -923,5 +903,37 @@ test('display-only tare cannot change a business gross or filling/return payload
   assert.equal(h.form.current.value.grossWeight,185)
   assert.equal(await h.form.submit(),true);assert.equal(h.requests[0].payload.gross_weight,185)
   assert.equal(h.requests[0].payload.capture.gross_kg,185)
+ }
+})
+
+
+test('floor filling and return never depend on local calibration records when selecting or saving', async t => {
+ const key = 'crm_pda_floor_calibration_v1'
+ const record = values => JSON.stringify({version:1,ownerId:'u1',zeroFor:'',pending:null,requiresReview:false,lastVerified:null,...values})
+ const cases = [
+  ['missing', undefined], ['corrupt', '{broken'],
+  ['completed', record({lastVerified:{kind:'check',deviceId:'floor-1'}})],
+  ['review_failed', record({requiresReview:true})],
+  ['pending_check', record({pending:{kind:'check',deviceId:'floor-1',connectionKey:'old',needsReconnect:false}})],
+  ['pending_mass_unknown', record({pending:{kind:'mass',deviceId:'floor-1',connectionKey:'old',needsReconnect:true},requiresReview:true})],
+  ['other_device', record({lastVerified:{kind:'mass',deviceId:'floor-other'}})],
+  ['other_owner', record({ownerId:'other',requiresReview:true})]
+ ]
+ for(const returnMode of [false,true]) for(const [name,value] of cases) {
+  let calibrationReads=0
+  const storage=new Map(value === undefined ? [] : [[key,value]]), writes=[]
+  const h=harness(t,{floor:true,returnMode,storage,calibrationWrites:writes,onStorageRead:k=>{if(k===key)calibrationReads++}})
+  await h.start(); await h.scan('101')
+  assert.equal(h.form.current.value.bottleNo,'101',`${returnMode?'return':'filling'}: ${name}`)
+  h.frames(120.26,1600)
+  assert.equal(h.form.current.value.grossWeight,120.5)
+  assert.equal(await h.form.submit(),true,`${name}: save`)
+  assert.equal(h.requests.length,1)
+  assert.equal(h.requests[0].payload.gross_weight,120.5)
+  assert.equal(h.requests[0].payload.capture.gross_kg,120.5)
+  assert.equal(h.requests[0].mode,returnMode?'return':'create')
+  assert.equal(calibrationReads,0,`${name}: local calibration must not be read`)
+  assert.equal(storage.get(key),value,`${name}: independent calibration record must be preserved`)
+  assert.equal(writes.length,0)
  }
 })

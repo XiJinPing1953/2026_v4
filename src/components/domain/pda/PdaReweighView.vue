@@ -38,7 +38,6 @@
 			<view class="work-card">
 			<PdaFloorScale v-if="isFloor" :snapshot="snapshot" :busy="busy" :active="form.active.value" @connect="connect" @disconnect="disconnect" />
 			<PdaWeighScale embedded v-else :minimum-weight="captureMinimum" :snapshot="snapshot" :selected="Boolean(current.bottleNo)" :captured="Boolean(current.capture)" :gross="current.grossWeight" :tare="current.preview?.bottle?.tare_weight" :busy="busy" @connect="connect" @disconnect="disconnect" />
-			<text v-if="isFloor && calibrationBlocksReweigh" class="notice notice--error">当前地秤尚未完成砝码复核，请到 PDA 首页的“秤台校准”复核。</text>
 			<AppSection class="work-section" v-if="!current.frozen" :title="current.bottleNo ? current.bottleNo + ' 号瓶' : '请扫码选瓶'">
 				<text v-if="error" class="notice notice--error" role="alert">{{ error }}</text>
 				<text v-else-if="message && !current.capture" class="hint" role="status">{{ message }}</text>
@@ -152,13 +151,12 @@ const isFloor = props.scaleMode === 'floor'
 const printer = usePdaFillingPrinter({ enabled: !isReturn, active: () => form?.active.value && form.nativeSupported, entries: () => [...form.history.value.filter(item => item.operationId !== form.current.value.operationId), form.current.value] })
 const form = usePdaReweigh({ mode: props.mode, printing: isReturn ? null : printer, scaleMode: props.scaleMode })
 const { draftLoading, captureMinimum, current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, submitting, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, localRoundEnded, startRound, refreshRound,
-	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText, endRound,
-	calibrationBlocksReweigh } = form
+	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText, endRound } = form
 const historyGroups = computed(() => [
 	{ title: '本轮称重记录', items: roundHistory.value },
 	{ title: '其他轮次未确认保存的记录', items: recoveryHistory.value }
 ].filter(group => group.items.length))
-const readyForBottle = computed(() => Boolean(round.value?._id) && !pendingEndRound.value && (!isReturn || roundReady.value) && !calibrationBlocksReweigh.value)
+const readyForBottle = computed(() => Boolean(round.value?._id) && !pendingEndRound.value && (!isReturn || roundReady.value))
 const previousNotice = computed(() => reweighPreviousNotice(current.value.preview, isReturn))
 const roundTime = computed(() => {
 	const timestamp = Number(round.value?.created_at)

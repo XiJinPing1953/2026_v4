@@ -10,7 +10,6 @@ import { getReturnReweighRoundV1, startReturnReweighRoundV1, endReturnReweighRou
 import { createPdaBleScaleSession, createEmptyPdaBleScaleSnapshot, ensurePdaBleRuntimePermission, getPdaBleScaleCapabilities } from '@/services/pda/bleScale'
 import { createFloorScaleSession } from '@/services/pda/floorScaleSession'
 import { createFloorScaleNativeRuntime } from '@/services/pda/floorScaleNativeRuntime'
-import { createFloorScaleCalibrationController } from '@/services/pda/floorScaleCalibrationController'
 import { resolvePdaBottleByQrCode } from '@/services/pda/bottle'
 import { enterBarcodeSession, leaveBarcodeSession } from '@/services/pda/capture'
 import { normalizeBottleNo } from '@/services/pda/shared'
@@ -46,7 +45,6 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 	const round = ref(null)
 	const pendingRound = ref(null)
 	const pendingEndRound = ref(null), localRoundEnded = ref(false), lastEndedRound = ref(null)
-	const floorCalibrationState = ref(null)
 	const roundReady = ref(!isReturn)
 	const history = shallowRef([])
 	const historySyncing = ref(false), historySyncError = ref('')
@@ -105,16 +103,6 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 	if (!draftLoading.value) { try { restoreSaved(store.load()) } catch (cause) { restoreFailed(cause) } }
 	const locked = computed(() => draftLoading.value || unreadable || !ownerMatches() || Boolean(current.value.frozen) || Boolean(pendingRound.value) || Boolean(pendingEndRound.value))
 	const canCreate = computed(() => canPageAction(pagePath, 'create'))
-	// Business pages only read the last commissioning result, including after returning from maintenance.
-	function refreshCalibration() {
-		if (!isFloor) return
-		const record = createFloorScaleCalibrationController({ ownerId, ownerMatches,
-			storage: { getStorageSync: key => uni.getStorageSync(key) } })
-		floorCalibrationState.value = record.getState()
-	}
-	const calibrationBlocksReweigh = computed(() => isFloor && Boolean(floorCalibrationState.value?.pending || floorCalibrationState.value?.requiresReview || floorCalibrationState.value?.error ||
-		(snapshot.value.is_connected && (!['mass', 'check'].includes(floorCalibrationState.value?.lastVerified?.kind) ||
-			floorCalibrationState.value.lastVerified.deviceId !== snapshot.value.device_id))))
 	const canNext = computed(() => !busy.value && current.value.receipt?.saved === true)
 	const entryRoundId = entry => entry.roundId || entry.frozen?.payload?.round_id || ''
 	const roundHistory = computed(() => {
@@ -132,7 +120,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		try { history.value = store.save(current.value, history.value, { round: round.value, pendingRound: pendingRound.value, pendingEndRound: pendingEndRound.value, localRoundEnded: localRoundEnded.value, lastEndedRound: lastEndedRound.value, ...(isReturn ? { historySyncMeta } : {}) }); storageError.value = ''; return true }
 		catch (cause) { storageError.value = cause.message; return false }
 	}
-	function editable() { return nativeSupported && active.value && canCreate.value && !locked.value && !busy.value && !calibrationBlocksReweigh.value && Boolean(round.value?._id) && (!isReturn || roundReady.value) && (!isFloor || Boolean(round.value?._id)) }
+	function editable() { return nativeSupported && active.value && canCreate.value && !locked.value && !busy.value && Boolean(round.value?._id) && (!isReturn || roundReady.value) && (!isFloor || Boolean(round.value?._id)) }
 	function invalidateFloorReading() {
 		autoWeight.interrupt(); floorLastFrame = null
 		if (!isFloor || !active.value || busy.value || current.value.frozen || (!current.value.capture && current.value.grossWeight == null)) return
@@ -318,10 +306,10 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 	}
 	async function submit() {
 		if (isFloor) {
-			const c = current.value.capture, verified = floorCalibrationState.value?.lastVerified
+			const c = current.value.capture
 			if (!c || c.scale_type !== 'floor' || !c.stable || !c.measurement_id || c.bottle_no !== current.value.bottleNo ||
-				c.gross_kg !== current.value.grossWeight || !verified || !['mass', 'check'].includes(verified.kind) || verified.deviceId !== c.device_id)
-				return fail('请使用已复核校准的地秤重新称量本瓶')
+				c.gross_kg !== current.value.grossWeight)
+				return fail('请先取得当前钢瓶的有效地秤重量')
 			if (!floorCanSave()) return fail('请等待当前有效重量稳定后保存')
 			current.value = { ...current.value, capture: { ...c, sampled_at: floorLastFrame.sampled_at, raw: floorLastFrame.raw || '' } }
 		}
@@ -543,7 +531,6 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		await restoreDraft()
 		if (version !== lifecycleVersion) return false
 		active.value = true
-		refreshCalibration()
 		if (unreadable) return false
 		if (!nativeSupported) return fail('请在 PDA 应用中打开复秤')
 		if (isReturn) { roundReady.value = false; await refreshRound({ refreshHistory: false }) }
@@ -575,5 +562,5 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 	onBeforeUnmount(() => { unsubscribe(); void deactivate() })
 	return { draftLoading, captureMinimum, current, history, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, submitting, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, localRoundEnded, startRound, endRound, refreshRound,
 		selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText,
-		readingReady, calibrationBlocksReweigh }
+		readingReady }
 }
