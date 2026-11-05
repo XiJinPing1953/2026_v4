@@ -12,7 +12,7 @@ function load(file, names, globals = {}) {
 }
 const asyncStorage = load('src/services/pda/asyncStorage.js', ['readPdaStorage'], { setTimeout, clearTimeout })
 const display = load('src/services/pda/weighStatus.js', ['sameWeighDisplay'])
-const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight'])
+const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight', 'createFloorReweighWeight'])
 const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt', 'validReweighEntry', 'readReweighDraft', 'readReweighDraftAsync', 'reweighDraftKey', 'isSameReturnReweighRound'])
 const work = load('src/services/pda/reweighWorkStore.js', ['createReweighWorkStore', 'readReweighHistorySnapshot'], { ...draft })
 const calibrationProtocol = load('src/services/pda/floorScaleCalibration.js', ['floorScaleZeroCommand', 'floorScaleMassCommand', 'floorScaleKilogramsToGrams'])
@@ -95,7 +95,7 @@ function harness(t, options = {}) {
 	const form = stateModule.usePdaReweigh({ mode: options.returnMode ? 'return' : 'filling', printing: options.printing, scaleMode: options.floor ? 'floor' : 'hanging' })
 	t.after(() => onDestroy.forEach(fn => fn()))
 	async function start() { await form.activate(); emit({ is_connected: true, ...(options.floor ? { is_online: true, sampled_at: Date.now(), device_id: 'floor-1', connection_key: 'connection-1', can_calibrate: true } : {}) }) }
-	function frames(weight, duration = 3100, evidence = {}) { for (let i = 0; i <= duration; i += 100) { clock += 100; weightFrame({ session_id: latest.session_id, sampled_at: clock, display_kg: Math.round(weight * 2) / 2, device_id: options.floor ? 'floor-1' : 'NVK-1', raw: String(weight), ...evidence }) } }
+	function frames(weight, duration = 3100, evidence = {}) { for (let i = 0; i <= duration; i += 100) { clock += 100; if(options.floor) emit({is_online:true,qualified_frame:true,weight_kg:weight,sampled_at:clock}); weightFrame({ session_id: latest.session_id, sampled_at: clock, display_kg: Math.round(weight * 2) / 2, device_id: options.floor ? 'floor-1' : 'NVK-1', raw: String(weight), ...evidence }) } }
 	async function measure(bottle = '101', gross = 120) {
 		await start(); await form.selectBottle(bottle)
 		emit({ weight_kg: gross, sampled_at: Date.now(), is_connected: true, is_online: true, is_stable: true, stable_seq: 1, device_id: 'NVK-1', frame_raw: 'ST,+01200kg' })
@@ -149,7 +149,7 @@ test('floor scan, stable weight, create or correct, arm printing and dedicated c
 	for (const mode of ['create', 'correct']) {
 		const armed = [], printing = { arm: entry => armed.push(entry.operationId), close() {} }
 		const h = harness(t, { floor: true, mode, printing }); await h.start()
-		await h.scan('101'); h.frames(120.19, 1400); assert.equal(h.form.current.value.capture, null)
+		await h.scan('101'); h.frames(120.19, 1400); assert.equal(h.form.current.value.capture.stable, false)
 		h.frames(120.19, 200); assert.equal(h.form.current.value.grossWeight, 120)
 		assert.equal(await h.form.submit(), true); assert.equal(h.requests.length, 1)
 		const { payload } = h.requests[0]; assert.equal(h.requests[0].mode, mode)
@@ -821,15 +821,65 @@ test('reentering a saved pending round neither prints nor polls the backlog', as
  assert.equal(h.form.busy.value,false); assert.equal(queries,0); assert.equal(printed,1)
 })
 
-test('floor corrected weight, raw frame and offset stay frozen after timeout and restart', async t => {
+test('floor board weight and raw frame stay frozen after timeout and restart', async t => {
  const h = harness(t,{floor:true, send:()=>{throw Error('timeout')}})
  await h.start(); await h.scan('101'); h.frames(120,1600,{raw:'AA0123',raw_kg:120.487,offset_kg:0.487})
  assert.equal(await h.form.submit(),false)
  const original=h.requests[0].payload
  assert.equal(original.gross_weight,120)
- assert.deepEqual(JSON.parse(original.capture.raw),{ttl:'AA0123',raw_kg:120.487,offset_kg:0.487})
+ assert.equal(original.capture.raw,'AA0123')
  await h.form.deactivate()
  const restored=harness(t,{floor:true,storage:h.storage})
  await restored.start(); await restored.form.query(original.operation_id,true)
  assert.deepEqual(restored.requests[0].payload,original)
+})
+
+test('floor follows slow decrease 185 to 165, zero and negative; only stable positive current weight is saved', async t => {
+ const h=harness(t,{floor:true}); await h.start(); await h.scan('101'); h.frames(185)
+ assert.equal(h.form.readingReady.value,true)
+ for(let i=1;i<=200;i++) {
+  const kg=185-i/10; h.frames(kg,0)
+  assert.equal(h.form.current.value.grossWeight,Math.round(kg*2)/2)
+ }
+ assert.equal(h.form.current.value.grossWeight,165)
+ assert.equal(h.form.current.value.preview.net_weight,65)
+ h.frames(165,1600); assert.equal(h.form.readingReady.value,true)
+ h.frames(0,1600); assert.equal(h.form.current.value.grossWeight,0)
+ assert.equal(h.form.readingReady.value,false); assert.equal(await h.form.submit(),false)
+ h.frames(-20,1600); assert.equal(h.form.current.value.grossWeight,-20)
+ assert.equal(h.form.readingReady.value,false); assert.equal(await h.form.submit(),false)
+ h.frames(165,1600); assert.equal(await h.form.submit(),true)
+ assert.equal(h.requests[0].payload.gross_weight,165)
+ h.frames(120); assert.equal(h.form.current.value.grossWeight,165)
+ assert.equal(h.form.current.value.frozen.payload.gross_weight,165)
+})
+
+test('floor disconnect clears only live reading; reconnect resumes selected bottle without unloading',async t=>{
+ const h=harness(t,{floor:true}); await h.start(); await h.scan('101'); h.frames(185)
+ h.emit({is_connected:false,is_online:false})
+ assert.equal(h.form.current.value.bottleNo,'101'); assert.equal(h.form.current.value.grossWeight,null)
+ assert.equal(h.form.current.value.capture,null); assert.equal(h.form.readingReady.value,false)
+ assert.equal(await h.form.connect(),true); h.frames(165,1600)
+ assert.equal(h.form.current.value.bottleNo,'101'); assert.equal(h.form.current.value.grossWeight,165)
+ assert.equal(await h.form.submit(),true); assert.equal(h.requests[0].payload.gross_weight,165)
+})
+
+test('floor long steady reading uses newest sample at save and freezes that click during server preview',async t=>{
+ let releasePreview
+ const h=harness(t,{floor:true, preview:(_p,n,result)=> n===2 ? new Promise(resolve=>{releasePreview=()=>resolve(result)}) : result})
+ await h.start(); await h.scan('101'); h.frames(185,1600)
+ const oldStamp=h.form.current.value.capture.sampled_at
+ h.frames(185,10000); const clickStamp=h.form.snapshot.value.sampled_at
+ assert.ok(clickStamp-oldStamp>9000)
+ const saving=h.form.submit(); await tick()
+ h.frames(165,1600); releasePreview(); assert.equal(await saving,true)
+ assert.equal(h.requests[0].payload.gross_weight,185)
+ assert.equal(h.requests[0].payload.capture.sampled_at,clickStamp)
+})
+
+test('floor read-only check qualifies the device for weighing without another span calibration',async t=>{
+ const storage=new Map([['crm_pda_floor_calibration_v1',JSON.stringify({version:1,ownerId:'tech',zeroFor:'',pending:null,requiresReview:false,lastVerified:{kind:'check',deviceId:'floor-1',grams:20000}})]])
+ const h=harness(t,{floor:true,storage,realFloorCalibration:true})
+ await h.start(); await h.scan('101'); h.frames(120,1600)
+ assert.equal(await h.form.submit(),true)
 })

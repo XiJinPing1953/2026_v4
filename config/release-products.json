@@ -155,21 +155,26 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.67",
+      "version": "1.0.68",
       "output": "release/pda",
-      "acceptance": "Verify taps, scrolling and route entry on the native 1.0.63 test PDA with scale disconnected.",
+      "acceptance": "Ordinary floor scale: live signed weight at 0.5 kg increments, slow decrease, reconnect without unload, click-time saved weight; daily zero preserves span verification, read-only reference check. WGT on native 1.0.63; device acceptance recorded separately.",
       "deploymentScope": {
         "functions": [
           "crm-hebei-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "e4e66afb34ef4404ead14bbd187ec82bd2b53956",
+        "baseCommit": "ff26b52766b7f718ba04c09299f30b062ebf6791",
         "sourceFiles": [
-          "src/components/base/AppButton.vue",
+          "src/components/domain/pda/PdaFloorCalibration.vue",
+          "src/components/domain/pda/PdaFloorScale.vue",
+          "src/components/domain/pda/PdaReweighView.vue",
           "src/composables/pda/useFloorCalibrationBench.js",
+          "src/composables/pda/usePdaReweigh.js",
           "src/manifest.json",
-          "src/pages.json",
-          "src/services/pageAcl.js"
+          "src/services/pda/autoReturnWeight.js",
+          "src/services/pda/floorScaleCalibrationController.js",
+          "src/services/pda/floorScaleDisplay.js",
+          "src/services/pda/floorScaleSession.js"
         ]
       },
       "integrityScope": "deployment"

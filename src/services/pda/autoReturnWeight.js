@@ -21,3 +21,20 @@ export function createAutoReweighWeight(stableMs = 3000) {
  }
  return { feed, reset, interrupt, minimumWeight }
 }
+
+// Floor-scale display follows every valid signed sample. Stability qualifies
+// saving only; it never holds the displayed weight or imposes a minimum load.
+export function createFloorReweighWeight(stableMs = 1500) {
+ let candidate = null, since = 0, previous = 0, stable = false
+ function interrupt() { candidate = null; since = previous = 0; stable = false }
+ function feed(frame, _tare, now = Date.now()) {
+  const t = Number(frame.sampled_at), w = Number(frame.display_kg)
+  if (!Number.isFinite(w) || !Number.isFinite(t) || t <= 0 || t > now || now - t > 3000) { interrupt(); return null }
+  if (previous && (t <= previous || t - previous > 300)) interrupt()
+  previous = t
+  if (candidate !== w) { candidate = w; since = t }
+  stable = t - since >= stableMs
+  return w
+ }
+ return { feed, interrupt, reset: interrupt, minimumWeight: () => 0, get stable() { return stable } }
+}

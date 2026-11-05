@@ -36,14 +36,14 @@
 			<PdaDailyTemperature v-if="!isReturn" :active="form.active.value" :disabled="busy || !canCreate" />
 			</view>
 			<view class="work-card">
-			<PdaFloorScale v-if="isFloor" :snapshot="snapshot" :show-zero="readyForBottle && !current.capture && !locked && canCreate" @zero="form.temporaryZero" :busy="busy" @connect="connect" @disconnect="disconnect" />
+			<PdaFloorScale v-if="isFloor" :snapshot="snapshot" :busy="busy" @connect="connect" @disconnect="disconnect" />
 			<PdaWeighScale embedded v-else :minimum-weight="captureMinimum" :snapshot="snapshot" :selected="Boolean(current.bottleNo)" :captured="Boolean(current.capture)" :gross="current.grossWeight" :tare="current.preview?.bottle?.tare_weight" :busy="busy" @connect="connect" @disconnect="disconnect" />
 			<text v-if="isFloor && calibrationBlocksReweigh" class="notice notice--error">当前地秤尚未完成砝码复核，请到 PDA 首页的“秤台校准”复核。</text>
 			<AppSection class="work-section" v-if="!current.frozen" :title="current.bottleNo ? current.bottleNo + ' 号瓶' : '请扫码选瓶'">
 				<text v-if="error" class="notice notice--error" role="alert">{{ error }}</text>
 				<text v-else-if="message && !current.capture" class="hint" role="status">{{ message }}</text>
 				<text v-if="!current.bottleNo && !message && !error" class="hint">按扫描键选择钢瓶</text>
-				<text v-if="current.bottleNo" :class="['weigh-label', current.capture ? 'weigh-label--ready' : 'weigh-label--pending']">{{ current.capture ? '已称好' : '还没称好' }}</text>
+				<text v-if="current.bottleNo" :class="['weigh-label', (isFloor ? current.capture?.stable : current.capture) ? 'weigh-label--ready' : 'weigh-label--pending']">{{ isFloor ? (current.capture?.stable ? '重量稳定' : '称重中') : current.capture ? '已称好' : '还没称好' }}</text>
 				<AppButton class="detail-link manual-toggle" v-if="!current.bottleNo" kind="ghost" @click="manualOpen = !manualOpen">手输瓶号 {{ manualOpen ? '收起 ⌃' : '›' }}</AppButton>
 				<view v-if="!current.bottleNo && (manualOpen || !scannerReady)">
 				<PdaBottleSuggestField
@@ -84,7 +84,7 @@
 
 					</template>
 				</view>
-				<view v-if="current.bottleNo && !current.frozen" class="actions">
+				<view v-if="!isFloor && current.bottleNo && !current.frozen" class="actions">
 					<AppButton kind="neutral" :disabled="busy || !snapshot.is_connected || Boolean(pendingSession) || !canCreate" @click="startMeasurement">{{ current.capture ? '重新称重' : '本瓶称重' }}</AppButton>
 					<AppButton v-if="pendingSession" kind="ghost" @click="cancelMeasurement">停止取重</AppButton>
 				</view>
@@ -98,7 +98,7 @@
 				<AppInput v-if="current.bottleNo && (showRemark || current.remark)" :model-value="current.remark" label="备注（可选）" :disabled="locked || busy" @update:modelValue="value => setText('remark', value)" />
 				<AppButton v-if="current.bottleNo" kind="ghost" :disabled="busy" @click="onNext">放弃这瓶</AppButton>
 				<view :class="['weigh-footer', keyboardOpen && 'weigh-footer--keyboard']">
-					<AppButton :loading="busy" :disabled="busy || !current.capture || !canCreate || locked || !readyForBottle" @click="submit">{{ isReturn ? '保存回瓶复秤' : current.preview?.mode === 'correct' ? '确认更正记录' : '保存罐装复秤' }}</AppButton>
+					<AppButton :loading="busy" :disabled="busy || !current.capture || !canCreate || locked || !readyForBottle || (isFloor && !form.readingReady.value)" @click="submit">{{ isReturn ? '保存回瓶复秤' : current.preview?.mode === 'correct' ? '确认更正记录' : '保存罐装复秤' }}</AppButton>
 				</view>
 			</AppSection>
 

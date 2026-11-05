@@ -75,3 +75,26 @@ test('200 kg, tenfold wrong units, false success and 18 kg residual are distingu
 	assert.equal(r.c.getState().lastVerified.loaded.kg,200)
 	assert.equal(r.c.getState().lastVerified.empty.kg,0)
 })
+
+test('daily zero keeps an existing verified span and does not require recalibration', async () => {
+ const records=new Map(), r=rig({records}); await r.c.issueZero();r.weigh(0);r.c.resolvePending(true)
+ await r.c.issueMass('20');r.weigh(20);r.c.confirmLoad();r.weigh(0);r.c.resolvePending(true)
+ const span=JSON.stringify(r.c.getState().lastVerified), before=r.sent.length
+ await r.c.issueZero();r.weigh(0.02);r.c.resolvePending(true)
+ assert.equal(r.c.getState().requiresReview,false);assert.equal(JSON.stringify(r.c.getState().lastVerified),span)
+ assert.equal(r.c.getState().lastZero.empty.kg,0.02);assert.equal(r.sent.length,before+1)
+ assert.equal(r.sent.at(-1)[0][6],7)
+})
+test('independent reference check certifies empty/load/unload without sending any command',()=>{
+ const r=rig();r.c.beginCheck('20');assert.equal(r.sent.length,0)
+ r.weigh(0);assert.throws(()=>r.c.confirmLoad(),/不符/)
+ r.weigh(20.04);r.c.confirmLoad();r.weigh(-0.02);r.c.resolvePending(true)
+ assert.equal(r.sent.length,0);assert.equal(r.c.getState().lastVerified.kind,'check')
+ assert.equal(r.c.getState().lastVerified.grams,20000);assert.equal(r.c.getState().requiresReview,false)
+ const b=rig({records:r.records,owner:'operator'});assert.equal(b.c.getState().lastVerified.kind,'check')
+})
+test('failed reference check stays unverified; a daily zero cannot hide that result',async()=>{
+ const r=rig();r.c.beginCheck('20');r.c.resolvePending(false)
+ await r.c.issueZero();r.weigh(0);r.c.resolvePending(true)
+ assert.equal(r.c.getState().requiresReview,true);assert.equal(r.c.getState().lastVerified,null)
+})

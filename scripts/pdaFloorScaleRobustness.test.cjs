@@ -4,7 +4,7 @@ const source = ['floorScaleZero', 'floorScaleLoad', 'floorScaleDisplay', 'autoRe
 function setup(options = {}) {
  let time = Date.now(), tick, timers = 0
  class Clock extends Date { static now() { return time } }
- const api = vm.runInNewContext(`${source}\n;({createCalibrationWindow,createAutoReweighWeight,createFloorScaleDiagnostic,createFloorScaleSession,createFloorScaleCalibrationController,createFloorScaleFrameDecoder,floorScaleCandidateKg,FLOOR_SCALE_SERVICE_ID,FLOOR_SCALE_NOTIFY_ID,FLOOR_SCALE_WRITE_ID})`, {
+ const api = vm.runInNewContext(`${source}\n;({createCalibrationWindow,createAutoReweighWeight,createFloorReweighWeight,createFloorScaleDiagnostic,createFloorScaleSession,createFloorScaleCalibrationController,createFloorScaleFrameDecoder,floorScaleCandidateKg,FLOOR_SCALE_SERVICE_ID,FLOOR_SCALE_NOTIFY_ID,FLOOR_SCALE_WRITE_ID})`, {
   Date: Clock, Number, Math, ArrayBuffer, Uint8Array, Set, Map, WeakMap, parseInt, Promise, setTimeout, clearTimeout,
   setInterval: fn => { tick = fn; timers++; return timers }, clearInterval: () => { timers-- }
  })
@@ -88,7 +88,7 @@ test('negative fresh raw reading can zero, missing data cannot; write is not cal
  assert.equal((await c.issueZero()).sent,true); assert.equal(h.writes.length,1)
  assert.ok(c.getState().pending); assert.throws(()=>c.resolvePending(true),/尚未收到|新读数/)
  points.feed(0n); c.resolvePending(true); assert.equal(c.getState().zeroFor,'a')
- assert.equal(c.getState().requiresReview,true); await s.stop()
+ assert.equal(c.getState().requiresReview,false); assert.equal(c.getState().lastVerified,null); await s.stop()
 })
 test('late timed-out native connection is closed without closing a newer same-device session', async () => {
  const h=setup(), callbacks=[]; let closes=0
@@ -120,123 +120,54 @@ test('wrong module cannot be calibrated; silent command write is never retried',
  await assert.rejects(c.issueZero(),/待核对/);assert.equal(sent,1);await s.stop()
 })
 
-test('floor TTL bytes require empty transition per bottle; interruptions break 1.5s stability', async () => {
- const h = setup(), accepted = [], gate = h.createAutoReweighWeight(1500)
- const s = h.createFloorScaleSession(h.runtime, {
-  onWeightFrame(f) { const w = gate.feed(f, 100, f.sampled_at); if (w !== null) accepted.push([f.session_id, w]) },
-  onInterrupted: gate.interrupt
- })
- await s.connect({preferredDeviceId:'a'})
- let stamp = 0
- function samples(mg, count, opts = {}) {
-  for (let i = 0; i < count; i++) {
-   const b = frame(BigInt(mg), opts.legacy); b[7] = opts.module || 0; b[b.length-3] = opts.status || 0
-   if (!opts.repeat) stamp++
-   b[b.length-2]=stamp>>8; b[b.length-1]=stamp&255; b[4]=0; b[4]=b.reduce((a,v)=>a^v,0) ^ (opts.bad ? 1 : 0)
-   h.advance(100); h.notify(b)
-  }
- }
- const id = s.beginMeasurement()
- samples(120187000,35); samples(487000,10); samples(120187000,35); assert.deepEqual(accepted,[])
- samples(0,5); samples(120187000,14); samples(120187000,1,{bad:true}); samples(120187000,10)
- samples(120187000,35,{status:1}); samples(120187000,35,{module:2}); samples(120000,35,{legacy:true})
- samples(120187000,35,{repeat:true}); samples(1001000000,35); assert.deepEqual(accepted,[])
- // A long interval without trustworthy frames invalidates the load identity.
- const recovered = s.beginMeasurement(); samples(0,5)
- samples(120187000,32); assert.deepEqual(accepted,[[recovered,120]])
- gate.reset(); const next = s.beginMeasurement(); samples(120187000,40); assert.equal(accepted.length,1)
- samples(0,5); samples(120187000,32); assert.deepEqual(accepted,[[recovered,120],[next,120]])
- await s.stop()
-})
 
-async function field(assist) {
- const h=setup(), capture=[], gate=h.createAutoReweighWeight(1500)
- const s=h.createFloorScaleSession(h.runtime,{...(assist === undefined ? {} : {assistForDevice:()=>assist}), onWeightFrame(f){
-  const gross=gate.feed(f,20,f.sampled_at)
-  if(gross!==null)capture.push({gross,offset:f.offset_kg,raw:f.raw_kg})
+async function field() {
+ const h=setup(), frames=[], gate=h.createFloorReweighWeight(1500)
+ const s=h.createFloorScaleSession(h.runtime,{assistForDevice:()=>true,onWeightFrame(f){
+  const gross=gate.feed(f,100,f.sampled_at)
+  if(gross!==null)frames.push({gross,stable:gate.stable,session:f.session_id,raw:f.raw_kg})
  },onInterrupted:gate.interrupt})
  await s.connect({preferredDeviceId:'a'})
  let seq=0
- function send(kg,n=1){for(let i=0;i<n;i++){
-  const b=frame(BigInt(Math.round(kg*1e6))); seq++; b[20]=0;b[21]=seq>>8;b[22]=seq&255;b[4]=0;b[4]=b.reduce((a,b)=>a^b,0)
-  h.advance(100);h.notify(b)
+ function send(kg,n=1,opts={}){for(let i=0;i<n;i++){
+  const b=frame(BigInt(Math.round(kg*1e6)),opts.legacy); if(!opts.repeat)seq++
+  b[7]=opts.module||0;b[b.length-3]=opts.status||0;b[b.length-2]=seq>>8;b[b.length-1]=seq&255
+  b[4]=0;b[4]=b.reduce((a,b)=>a^b,0)^(opts.bad?1:0);h.advance(100);h.notify(b)
  }}
- function scan(id,ticket=s.orderTicket(id)){gate.reset();s.beginMeasurement(id,ticket)}
- return {h,s,send,scan,capture}
+ const scan=()=>{gate.reset();return s.beginMeasurement()}
+ return {h,s,send,scan,frames,gate}
 }
-test('loaded before scan: fresh 1.5s, same-division decimals, one load per operation, lookup swap',async()=>{
- const {s,send,scan,capture}=await field()
- send(0,4);send(.45);send(20.187,30);scan('A');send(20.187,8);send(20.21,7);assert.equal(capture.length,0)
- send(20.21);assert.equal(capture[0].gross,20)
- s.endMeasurement(false);scan('B');send(20.21,25);assert.equal(capture.length,1)
- send(0,4);send(20.21,16);assert.equal(capture.length,2)
- s.endMeasurement();send(0,4);send(20);const ticket=s.orderTicket('C')
- send(0,4);send(20);scan('C',ticket);send(20,20);assert.equal(capture.length,2)
+test('floor accepts loaded connection and same-weight next measurement without empty transitions',async()=>{
+ const {s,send,scan,frames}=await field();const first=scan();send(120.187,16)
+ assert.equal(frames.at(-1).gross,120);assert.equal(frames.at(-1).stable,true)
+ s.endMeasurement();const next=scan();send(120.187,16)
+ assert.notEqual(first,next);assert.equal(frames.at(-1).session,next);assert.equal(frames.at(-1).stable,true)
  await s.stop()
 })
-test('manual single-load zero is signed, bounded, fresh, cancels on raw zero and never writes',async()=>{
- for(const sign of [-1,1]){
-  const {h,s,send,scan,capture}=await field();const offset=sign*0.487
-  send(sign*0.501,20);assert.equal(s.getSnapshot().zero_offer,null)
-  send(sign*0.38,10);send(offset,8);assert.equal(s.getSnapshot().zero_offer,null)
-  send(offset,8);const expired=s.getSnapshot().zero_offer;assert.ok(expired)
-  h.advance(400);assert.equal(s.applyTemporaryZero(expired),false)
-  send(offset,16);assert.equal(s.applyTemporaryZero(s.getSnapshot().zero_offer),true)
-  send(0,5);assert.equal(s.getSnapshot().offset_kg,0)
-  send(offset,16);assert.equal(s.applyTemporaryZero(s.getSnapshot().zero_offer),true)
-  send(20+offset,10);scan('A');send(20+offset,16)
-  assert.deepEqual(capture,[{gross:20,raw:20+offset,offset}])
-  s.endMeasurement(false);send(offset,5);assert.equal(s.getSnapshot().offset_kg,0)
-  assert.equal(h.writes.length,0);await s.stop()
+test('signed half-kg readings follow slow 185 to 165 and unloading to zero with no offset',async()=>{
+ const {s,send,scan,frames}=await field();scan();send(185,16)
+ for(let i=1;i<=2000;i++){const kg=185-i/100;send(kg);assert.equal(frames.at(-1).gross,Math.round(kg*2)/2)}
+ send(165,16);assert.equal(frames.at(-1).gross,165);assert.equal(frames.at(-1).stable,true)
+ send(0,16);assert.equal(frames.at(-1).gross,0);send(-20,16);assert.equal(frames.at(-1).gross,-20)
+ assert.equal(s.getSnapshot().weight_kg,-20);assert.equal(s.getSnapshot().offset_kg,undefined);await s.stop()
+})
+test('invalid packets interrupt stability, valid data resumes automatically in same measurement',async()=>{
+ const {s,send,scan,frames,gate}=await field();const id=scan();send(120,16);assert.equal(gate.stable,true)
+ for(const opts of [{bad:true},{module:2},{status:1},{repeat:true},{legacy:true}]){
+  const count=frames.length;send(120,1,opts);assert.equal(frames.length,count);assert.equal(gate.stable,false)
+  send(120,16);assert.equal(gate.stable,true);assert.equal(frames.at(-1).session,id)
  }
-})
-test('abandon clears a pending offset; a reconnect under load cannot use old empty evidence',async()=>{
- const {s,send,scan,capture}=await field()
- send(.487,16);s.applyTemporaryZero(s.getSnapshot().zero_offer);s.endMeasurement()
- assert.equal(s.getSnapshot().offset_kg,0)
- send(0,4);await s.disconnect();await s.connect({preferredDeviceId:'a'})
- send(20,16);scan('B');send(20,16);assert.equal(capture.length,0)
- send(0,4);send(20.24,15);send(20.26,15);assert.equal(capture.length,0)
- send(20.26);assert.equal(capture[0].gross,20.5);await s.stop()
-})
-
-test('handheld startup rejects the observed DSX transient and applies only a sub-division working zero', async () => {
- const {s,h,send,scan,capture}=await field(true)
- send(-77.4809,3)
- assert.equal(s.getSnapshot().warming,true)
- assert.equal(s.getSnapshot().weight_kg,-77.4809)
- send(.15,23)
- assert.equal(s.getSnapshot().warming,false)
- assert.equal(s.getSnapshot().offset_kg,.15)
- scan('A');send(20.15,23)
- assert.deepEqual(capture,[{gross:20,raw:20.15,offset:.15}])
- for (let kg=185;kg>=165;kg-=.1) { send(kg+.15);assert.equal(s.getSnapshot().offset_kg,.15) }
- await s.disconnect();await s.connect({preferredDeviceId:'a'})
- send(3.7,25);assert.equal(s.getSnapshot().warming,false);assert.equal(s.getSnapshot().offset_kg,0)
- assert.equal(s.getSnapshot().weight_kg,3.7);assert.equal(h.writes.length,0)
  await s.stop()
 })
-test('empty tracking is rate limited, bounded and relinquishes the correction when DSX finds zero',async()=>{
- const {s,send}=await field(true)
- send(0,24);send(.14,25)
- const partial=s.getSnapshot().offset_kg;assert.ok(partial>0 && partial<.02)
- send(.14,350);assert.equal(s.getSnapshot().offset_kg,.14)
- send(.4,100);assert.equal(s.getSnapshot().offset_kg,.14)
- send(.5,30);assert.equal(s.getSnapshot().offset_kg,.14)
- send(0,30);assert.equal(s.getSnapshot().offset_kg,0)
- await s.stop()
+test('lost connection clears freshness and reconnect under load resumes without unloading or rearming',async()=>{
+ const {h,s,send,scan,frames}=await field();const id=scan();send(120,16)
+ h.events.connection({deviceId:'a',connected:false});assert.equal(s.getSnapshot().is_online,false)
+ await s.connect({preferredDeviceId:'a'});send(165,16)
+ assert.equal(frames.at(-1).session,id);assert.equal(frames.at(-1).gross,165);assert.equal(frames.at(-1).stable,true)
+ assert.equal(h.writes.length,0);await s.stop()
 })
-
-test('board is the default source: no extra offset on loaded display or captured weight',async()=>{
- const {s,send,scan,capture}=await field()
- send(.15,30); assert.equal(s.getSnapshot().auto_offset_kg,0)
- scan('A');send(20.27,35)
- assert.deepEqual(capture,[{gross:20.5,raw:20.27,offset:0}]);await s.stop()
-})
-test('handheld assistance is opt-in per device and saved with readback',()=>{
- const api=vm.runInNewContext(source+';({floorScaleAssistEnabled,setFloorScaleAssist})',{})
- const m=new Map(),store={getStorageSync:k=>m.get(k),setStorageSync:(k,v)=>m.set(k,v)}
- assert.equal(api.floorScaleAssistEnabled('A',store),false);api.setFloorScaleAssist('A',true,store)
- assert.equal(api.floorScaleAssistEnabled('A',store),true);assert.equal(api.floorScaleAssistEnabled('B',store),false)
- api.setFloorScaleAssist('A',false,store);assert.equal(api.floorScaleAssistEnabled('A',store),false)
+test('old assist preference cannot adjust current floor-scale weight',async()=>{
+ const {s,send,scan,frames,h}=await field();scan();send(0.15,60);assert.equal(s.getSnapshot().weight_kg,0.15)
+ send(20.27,16);assert.equal(frames.at(-1).gross,20.5);assert.equal(frames.at(-1).raw,20.27)
+ assert.equal(h.writes.length,0);await s.stop()
 })

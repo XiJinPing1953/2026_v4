@@ -13,12 +13,12 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 		if (raw) {
 			const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
 			if (parsed?.version !== 1 || !parsed.ownerId || typeof parsed.zeroFor !== 'string' ||
-				(parsed.pending && (!['zero', 'mass'].includes(parsed.pending.kind) || !parsed.pending.deviceId || !parsed.pending.connectionKey || typeof parsed.pending.needsReconnect !== 'boolean'))) throw new Error('校准状态无法识别，请保留原数据')
+				(parsed.pending && (!['zero', 'mass', 'check'].includes(parsed.pending.kind) || !parsed.pending.deviceId || !parsed.pending.connectionKey || typeof parsed.pending.needsReconnect !== 'boolean'))) throw new Error('校准状态无法识别，请保留原数据')
 			if (parsed.ownerId !== ownerId && (parsed.pending || parsed.requiresReview)) throw new Error('其他账号有待核对的校准，请使用原账号处理')
 			if (parsed.ownerId === ownerId) state = { ...state, ...parsed }
 			// A completed physical calibration belongs to this device. An operator
 			// may weigh with it but cannot resolve someone else's pending action.
-			else if (!parsed.pending && !parsed.requiresReview && parsed.lastVerified?.kind === 'mass')
+			else if (!parsed.pending && !parsed.requiresReview && ['mass', 'check'].includes(parsed.lastVerified?.kind))
 				state.lastVerified = parsed.lastVerified
 		}
 	} catch (error) { broken = error.message || '校准状态读取失败' }
@@ -63,7 +63,7 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 		const grams = kind === 'mass' ? floorScaleKilogramsToGrams(inputKg) : null
 		if (grams > 1000000) throw new Error('这台秤最大 1000 kg，放 200 kg 请输入 200')
 		const before = sample(current)
-		const pending = { kind, before, deviceId: current.device_id, connectionKey: current.connection_key, needsReconnect: true, grams, startedAt: now() }
+		const pending = { kind, before, deviceId: current.device_id, connectionKey: current.connection_key, needsReconnect: true, grams, priorRequiresReview: state.requiresReview, startedAt: now() }
 		// Persist before any side effect; app termination must never trigger a retry.
 		save({ ...state, zeroFor: kind === 'zero' ? '' : state.zeroFor, pending, requiresReview: true })
 		running = true; notify()
@@ -88,6 +88,18 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 			return { sent: false, msg: '结果未确认，请重新连接原地秤并核对' }
 		} finally { if (timeout) clearTimeout(timeout); running = false; notify() }
 	}
+	function beginCheck(inputKg) {
+		if (broken) throw new Error(broken)
+		if (running || state.pending) throw new Error('请先完成当前操作')
+		if (!canStart()) throw new Error('请先完成或放弃当前钢瓶')
+		const current = requireConnection(), before = sample(current)
+		if (Math.abs(before.kg) >= 0.25) throw new Error('请先清空秤台，归零后再做砝码复核')
+		const grams = floorScaleKilogramsToGrams(inputKg)
+		if (grams > 1000000) throw new Error('最大称量 1000 kg')
+		save({ ...state, pending: { kind: 'check', deviceId: current.device_id, connectionKey: current.connection_key,
+			needsReconnect: false, grams, before, startedAt: now() }, requiresReview: true })
+	}
+
 	function pendingForReview(requireFresh = true) {
 		if (running || !state.pending) throw new Error(running ? '指令仍在处理，请稍候' : '没有待核对的校准')
 		if (!canStart()) throw new Error('请先结束当前作业，再核对校准')
@@ -98,7 +110,7 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 	}
 	function confirmLoad() {
 		const { current, pending } = pendingForReview()
-		if (pending.kind !== 'mass' || pending.loaded) throw new Error('当前不需要核对加载点')
+		if (!['mass', 'check'].includes(pending.kind) || pending.loaded) throw new Error('当前不需要核对加载点')
 		const point = sample(current, pending.startedAt), reference = pending.grams / 1000
 		if (Math.abs(point.kg - reference) > Math.min(0.25, reference * 0.01)) throw new Error('示值与砝码不符，保留现状或记录异常')
 		save({ ...state, pending: { ...pending, loaded: point } })
@@ -107,17 +119,23 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 		const { current, pending } = pendingForReview(verified)
 		let empty = null
 		if (verified) {
-			if (pending.kind === 'mass' && !pending.loaded) throw new Error('先核对台上的砝码，再卸空')
+			if (['mass', 'check'].includes(pending.kind) && !pending.loaded) throw new Error('先核对台上的砝码，再卸空')
 			empty = sample(current, pending.loaded?.at ?? pending.startedAt)
 			if (Math.abs(empty.kg) >= 0.25) throw new Error('空台尚未回到零分度，请保留读数并检查')
 		}
-		const zeroFor = verified && pending.kind === 'zero' ? current.device_id : ''
-		save({ ...state, pending: null, zeroFor, requiresReview: !(verified && pending.kind === 'mass'),
+		if (pending.kind === 'zero') {
+			// A daily zero does not overwrite the scale's verified span record.
+			save({ ...state, pending: null, zeroFor: verified ? current.device_id : '',
+				requiresReview: verified ? Boolean(pending.priorRequiresReview) : true,
+				lastZero: verified ? { deviceId: current.device_id, empty, verifiedAt: now() } : state.lastZero })
+			return
+		}
+		save({ ...state, pending: null, zeroFor: '', requiresReview: !verified,
 			lastVerified: verified ? { kind: pending.kind, deviceId: pending.deviceId, grams: pending.grams,
 				before: pending.before, loaded: pending.loaded, empty,
-				...(pending.kind === 'mass' && state.lastVerified?.kind === 'zero' && state.lastVerified.deviceId === pending.deviceId
-					? { zero: state.lastVerified.empty } : {}), verifiedAt: now() } : state.lastVerified })
+				zero: pending.kind === 'check' ? pending.before : state.lastZero?.empty,
+				verifiedAt: now() } : state.lastVerified })
 	}
 	function subscribe(listener) { listeners.add(listener); listener(getState()); return () => listeners.delete(listener) }
-	return { getState, subscribe, issueZero: () => issue('zero'), issueMass: input => issue('mass', input), confirmLoad, resolvePending }
+	return { getState, subscribe, issueZero: () => issue('zero'), issueMass: input => issue('mass', input), beginCheck, confirmLoad, resolvePending }
 }
