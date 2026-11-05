@@ -4,16 +4,37 @@ const controller = fs.readFileSync('src/services/pda/floorScaleCalibrationContro
 const { createFloorScaleCalibrationController } = vm.runInThisContext(`${protocol}\n${controller}\n;({createFloorScaleCalibrationController})`)
 function rig(options = {}) {
 	const records = options.records || new Map(), sent = []
-	let clock = 100000, kg = 0
-	const weigh = value => { kg = value; clock += 2000 }
+	let clock = 100000, kg = 0, ad = 0
+	const weigh = (value, counts = Math.round(value / .002)) => { kg = value; ad = counts; clock += 2000 }
 	let owner = options.owner || 'u1', device = 'A', session = 's1', connected = true, permitted = true
 	const storage = { getStorageSync: k => records.get(k), setStorageSync: (k, v) => { if (options.failStore) throw new Error('quota'); records.set(k, v) } }
 	const c = createFloorScaleCalibrationController({ ownerId: owner, storage, ownerMatches: () => owner === (options.owner || 'u1'),
 		connection: () => ({ is_connected: connected, is_online: connected, sampled_at: clock, error_code:'reading', device_id: device, connection_key: session, can_calibrate: true }), canStart: () => permitted,
-		now:()=>clock, stableReading: () => ({ kg, ad:100, stable:true, connectionKey:session, from:clock-1500, at:clock }),
+		now:()=>clock, stableReading: () => ({ kg, ad, stable:true, connectionKey:session, from:clock-1500, at:clock }),
 		send: async (...args) => { sent.push(args); if (options.send) return options.send(...args) }, timeoutMs: options.timeoutMs || 100 })
 	return { c, records, sent, weigh, owner: x => owner = x, device: x => device = x, session: x => session = x, connected: x => connected = x, permit: x => permitted = x }
 }
+test('empty or zero effective AD cannot send a mass command or create a pending write',async()=>{
+ const r=rig();await r.c.issueZero();r.weigh(0);r.c.resolvePending(true)
+ for(const [kg,ad] of [[0,0],[.13,65],[201,0]]){
+  r.weigh(kg,ad);await assert.rejects(r.c.issueMass('200'),/放上砝码|有效 AD/)
+  assert.equal(r.sent.length,1);assert.equal(r.c.getState().pending,null)
+ }
+ r.weigh(201,100500);assert.equal((await r.c.issueMass('200')).sent,true)
+})
+test('a prior empty-zero result cannot authorize mass calibration after reconnect or page restart',async()=>{
+ const r=rig();await r.c.issueZero();r.weigh(0);r.c.resolvePending(true)
+ r.session('s2');r.weigh(201);await assert.rejects(r.c.issueMass('200'),/归零/)
+ const restored=rig({records:r.records});restored.weigh(201)
+ await assert.rejects(restored.c.issueMass('200'),/归零/)
+ assert.equal(restored.sent.length,0)
+})
+test('board startup on the same BLE connection invalidates the empty-zero step',async()=>{
+ const r=rig();await r.c.issueZero();r.weigh(0);r.c.resolvePending(true)
+ r.c.observeConnection({is_connected:true,device_id:'A',connection_key:'s1',error_code:'boot_zero_pending'})
+ r.weigh(201);await assert.rejects(r.c.issueMass('200'),/归零/)
+ assert.equal(r.sent.length,1)
+})
 test('persists before sending, requires explicit review, and completes both steps', async () => {
 	let recordAtSend; const records = new Map()
 	const r = rig({ records, send: () => { recordAtSend = JSON.parse(records.get('crm_pda_floor_calibration_v1')) } })
@@ -22,6 +43,7 @@ test('persists before sending, requires explicit review, and completes both step
 	assert.equal(r.c.getState().pending.needsReconnect, false); assert.equal(r.c.getState().requiresReview, true)
 	await assert.rejects(r.c.issueZero(), /待核对/)
 	r.weigh(0); r.c.resolvePending(true); assert.equal(r.c.getState().zeroFor, 'A')
+	r.weigh(.5)
 	assert.equal((await r.c.issueMass('0.500')).sent, true); assert.equal(r.c.getState().pending.grams, 500)
 	r.weigh(0.5); r.c.confirmLoad(); r.weigh(0); r.c.resolvePending(true); assert.equal(r.c.getState().requiresReview, false); assert.equal(r.c.getState().zeroFor, '')
 	assert.equal(r.c.getState().lastVerified.kind, 'mass'); assert.equal(r.sent.length, 2)
@@ -65,6 +87,7 @@ test('requires fresh readings before a command and again before operator review'
 test('200 kg, tenfold wrong units, false success and 18 kg residual are distinguished', async () => {
 	const r = rig(); await r.c.issueZero(); r.weigh(0); r.c.resolvePending(true)
 	await assert.rejects(r.c.issueMass('200000'), /1000 kg/)
+	r.weigh(201)
 	await r.c.issueMass('200')
 	assert.deepEqual(Array.from(r.sent[1][0]).slice(-4),[0,3,13,64])
 	r.weigh(0.2); assert.throws(()=>r.c.confirmLoad(),/实读/)
@@ -78,7 +101,7 @@ test('200 kg, tenfold wrong units, false success and 18 kg residual are distingu
 
 test('daily zero keeps an existing verified span and does not require recalibration', async () => {
  const records=new Map(), r=rig({records}); await r.c.issueZero();r.weigh(0);r.c.resolvePending(true)
- await r.c.issueMass('20');r.weigh(20);r.c.confirmLoad();r.weigh(0);r.c.resolvePending(true)
+ r.weigh(20);await r.c.issueMass('20');r.weigh(20);r.c.confirmLoad();r.weigh(0);r.c.resolvePending(true)
  const span=JSON.stringify(r.c.getState().lastVerified), before=r.sent.length
  await r.c.issueZero();r.weigh(0.02);r.c.resolvePending(true)
  assert.equal(r.c.getState().requiresReview,false);assert.equal(JSON.stringify(r.c.getState().lastVerified),span)

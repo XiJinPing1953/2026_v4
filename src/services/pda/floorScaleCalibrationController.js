@@ -6,7 +6,7 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 	// A pending command blocks other accounts on this PDA from silently replacing it.
 	const key = 'crm_pda_floor_calibration_v1'
 	const token = value => value ? (typeof value === 'string' ? value : JSON.stringify(value)) : null
-	let expected = null, running = false, broken = '', listeners = new Set()
+	let expected = null, running = false, broken = '', listeners = new Set(), zeroConnection = ''
 	let state = { version: 1, ownerId, zeroFor: '', pending: null, lastVerified: null, requiresReview: false }
 	try {
 		const raw = storage.getStorageSync(key); expected = token(raw)
@@ -22,8 +22,17 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 				state.lastVerified = parsed.lastVerified
 		}
 	} catch (error) { broken = error.message || '校准状态读取失败' }
+	// A saved zero is history, not proof of the board's current power session.
+	// The board may have auto-zeroed under a load while this page was closed.
+	state.zeroFor = ''
 	const getState = () => ({ ...state, pending: state.pending ? { ...state.pending } : null, running, error: broken })
 	function notify() { const value = getState(); for (const fn of listeners) fn(value) }
+	function observeConnection(current) {
+		if (state.zeroFor && (!current?.is_connected || current.device_id !== state.zeroFor ||
+			current.connection_key !== zeroConnection || String(current.error_code).startsWith('boot_'))) {
+			zeroConnection = ''; state = { ...state, zeroFor: '' }; notify()
+		}
+	}
 	function save(next) {
 		if (broken) throw new Error(broken)
 		if (!ownerId || !ownerMatches()) throw new Error('账号已变化，请使用原账号处理校准')
@@ -36,6 +45,7 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 	function requireConnection(requireFresh = true, allowUnzeroed = false) {
 		if (!ownerId || !ownerMatches()) throw new Error('账号已变化，请使用原账号处理校准')
 		const current = connection()
+		observeConnection(current)
 		if (!current?.is_connected || !current.device_id || !current.connection_key) throw new Error('请先连接地秤')
 		const age = now() - Number(current.sampled_at)
 		if (requireFresh && (!current.is_online || !Number.isFinite(age) || age < 0 || age > 3000)) throw new Error(current.error_message || '地秤数据已中断或过期，请等待新读数')
@@ -63,6 +73,11 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 		const grams = kind === 'mass' ? floorScaleKilogramsToGrams(inputKg) : null
 		if (grams > 1000000) throw new Error('这台秤最大 1000 kg，放 200 kg 请输入 200')
 		const before = sample(current)
+		if (kind === 'mass') {
+			if (before.ad === 0) throw new Error('有效 AD 为零，请放上砝码并等待稳定，不能在零点标定重量')
+			if (!state.lastZero?.empty || Math.abs(before.kg - state.lastZero.empty.kg) < 0.25)
+				throw new Error('请放上砝码，重量相对空台至少变化半格后再标定')
+		}
 		const pending = { kind, before, deviceId: current.device_id, connectionKey: current.connection_key, needsReconnect: true, grams, priorRequiresReview: state.requiresReview, startedAt: now() }
 		// Persist before any side effect; app termination must never trigger a retry.
 		save({ ...state, zeroFor: kind === 'zero' ? '' : state.zeroFor, pending, requiresReview: true })
@@ -128,6 +143,7 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 		}
 		if (pending.kind === 'zero') {
 			// A daily zero does not overwrite the scale's verified span record.
+			zeroConnection = verified ? current.connection_key : ''
 			save({ ...state, pending: null, zeroFor: verified ? current.device_id : '',
 				requiresReview: verified ? Boolean(pending.priorRequiresReview) : true,
 				lastZero: verified ? { deviceId: current.device_id, empty, verifiedAt: now() } : state.lastZero })
@@ -170,5 +186,5 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 		resolvePending(true); return 'complete'
 	}
 	function subscribe(listener) { listeners.add(listener); listener(getState()); return () => listeners.delete(listener) }
-	return { getState, subscribe, issueZero: () => issue('zero'), issueMass: input => issue('mass', input), beginCheck, cancelCheck, reviewWhenReady, confirmLoad, resolvePending }
+	return { getState, subscribe, observeConnection, issueZero: () => issue('zero'), issueMass: input => issue('mass', input), beginCheck, cancelCheck, reviewWhenReady, confirmLoad, resolvePending }
 }

@@ -28,6 +28,8 @@ export function useFloorCalibrationBench() {
 		const snap = diagnostic?.getSnapshot()
 		if (!snap) return
 		const boot = snap.fresh ? floorScaleBootStatus(snap.frame) : null
+		controller?.observeConnection({ is_connected:snap.status === 'connected', device_id:snap.deviceId,
+			connection_key:snap.sessionKey, error_code:boot?.code || '' })
 		if (bootStatus.value?.code !== boot?.code) bootStatus.value = boot
 		// This view only renders connection fields. Counters and raw packets are not UI state here.
 		if (!raw.value || ['status','deviceId','canWriteCalibration','sessionKey'].some(k => raw.value[k] !== snap[k])) raw.value = snap
@@ -61,6 +63,10 @@ export function useFloorCalibrationBench() {
 		const d = createFloorScaleDiagnostic(createFloorScaleNativeRuntime(uni), {
 			onFrame(frame, at) {
 				window.observe(frame, at, d.getSnapshot().sessionKey)
+				// Observe boot frames at reception; a UI refresh can miss a brief restart.
+				const s = d.getSnapshot()
+				controller?.observeConnection({ is_connected:true, device_id:s.deviceId,
+					connection_key:s.sessionKey, error_code:floorScaleBootStatus(frame)?.code || '' })
 			}, onInterrupted() { window.clear() } })
 		diagnostic = d
 		controller = createFloorScaleCalibrationController({ ownerId:owner, ownerMatches:activeOwner, storage:store,
