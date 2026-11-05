@@ -30,4 +30,6 @@ test('maintenance excludes active and unreadable work, possibly stored in a lega
  rows.set(returnKey,JSON.stringify({...head,current:{...head.current,bottleNo:'123'}}));assert.equal(floorCalibrationWorkIdle('u',store),false)
  rows.set(returnKey,JSON.stringify(head));assert.equal(floorCalibrationWorkIdle('u',store),true)
  rows.set(returnKey,JSON.stringify({...head,metadata:{pendingEndRound:{}}}));assert.equal(floorCalibrationWorkIdle('u',store),false)
+ rows.set(returnKey,JSON.stringify({...head,current:{...head.current,bottleNo:'123',frozen:{mode:'create',payload:{operation_id:'o',bottle_no:'123'}},receipt:{saved:true}}}));assert.equal(floorCalibrationWorkIdle('u',store),true)
+ rows.set(returnKey,JSON.stringify({...head,current:{...head.current,bottleNo:'123',frozen:{mode:'create',payload:{operation_id:'o',bottle_no:'123'}},receipt:{saved:false}}}));assert.equal(floorCalibrationWorkIdle('u',store),false)
 })

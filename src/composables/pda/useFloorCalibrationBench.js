@@ -30,6 +30,15 @@ export function useFloorCalibrationBench() {
 		const reading = snap.fresh ? window.read(Date.now(), snap.sessionKey) : null
 		const next = reading ? {kg:reading.kg, ad:reading.ad, stable:reading.stable} : null
 		if ((!next && point.value) || (next && (!point.value || Object.keys(next).some(k => next[k] !== point.value[k])))) point.value = next
+		if (activeOwner() && !busy.value && state.value?.pending && !state.value?.error) {
+			try {
+				const result = controller?.reviewWhenReady()
+				if (result) {
+					error.value = ''
+					note.value = result === 'zero' ? '空台归零完成。需要标定时，放上砝码并填写实际公斤数。' : result === 'loaded' ? '加载示值已核对。请取下砝码，回零后自动完成。' : '标定完成，加载和卸空示值均已核对。'
+				}
+			} catch (cause) { error.value = cause.message || '核对状态保存失败' }
+		}
 	}
 	function connection() {
 		const s = diagnostic?.getSnapshot(), live = s?.fresh && window.read(Date.now(), s.sessionKey)
@@ -103,6 +112,7 @@ export function useFloorCalibrationBench() {
 		controller.beginCheck(expected.value)
 		note.value = '请放上填写重量的砝码，稳定后核对；此次复核不改标定。'
 	})
+	const cancelCheck = () => act(async () => { controller.cancelCheck(); note.value = '已退出只读复核，主板参数未改变。需要调整时使用上方标定。' })
 	const issue = kind => act(async valid => {
 		if (!floorCalibrationWorkIdle(owner, store)) throw new Error('请先完成或放弃复秤页的当前钢瓶')
 		const s = diagnostic.getSnapshot(), before = window.read(Date.now(),s.sessionKey)
@@ -135,5 +145,5 @@ export function useFloorCalibrationBench() {
 		if (store.getStorageSync(key()) !== text) throw new Error('记录保存未确认，请重新进入核对')
 		records.value = next; note.value = '已在本机记录' + label
 	})
-	return { beginCheck, raw, point, state, display, error, note, records, mass, expected, busy, authorized, activate, deactivate, connect, disconnect, issue, review, record }
+	return { beginCheck, cancelCheck, raw, point, state, display, error, note, records, mass, expected, busy, authorized, activate, deactivate, connect, disconnect, issue, review, record }
 }

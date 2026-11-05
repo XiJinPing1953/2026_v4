@@ -52,7 +52,8 @@ export function floorCalibrationWorkIdle(owner, storage) {
 		if (!raw) continue
 		const head = typeof raw === 'string' ? JSON.parse(raw) : raw
 		if (![1, 2].includes(head?.version) || head.ownerId !== owner || !validReweighEntry(head.current)) throw new Error('地秤草稿无法读取，先返回复秤页核对')
-		if (head.current.bottleNo || head.current.frozen || head.metadata?.pendingRound || head.metadata?.pendingEndRound) return false
+		const unfinished = (head.current.bottleNo || head.current.frozen) && head.current.receipt?.saved !== true
+		if (unfinished || head.metadata?.pendingRound || head.metadata?.pendingEndRound) return false
 	}
 	return true
 }

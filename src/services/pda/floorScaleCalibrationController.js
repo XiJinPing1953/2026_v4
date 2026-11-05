@@ -97,7 +97,7 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 		const grams = floorScaleKilogramsToGrams(inputKg)
 		if (grams > 1000000) throw new Error('最大称量 1000 kg')
 		save({ ...state, pending: { kind: 'check', deviceId: current.device_id, connectionKey: current.connection_key,
-			needsReconnect: false, grams, before, startedAt: now() }, requiresReview: true })
+			needsReconnect: false, grams, before, priorRequiresReview: state.requiresReview, startedAt: now() }, requiresReview: true })
 	}
 
 	function pendingForReview(requireFresh = true) {
@@ -112,7 +112,10 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 		const { current, pending } = pendingForReview()
 		if (!['mass', 'check'].includes(pending.kind) || pending.loaded) throw new Error('当前不需要核对加载点')
 		const point = sample(current, pending.startedAt), reference = pending.grams / 1000
-		if (Math.abs(point.kg - reference) > Math.min(0.25, reference * 0.01)) throw new Error('示值与砝码不符，保留现状或记录异常')
+		if (Math.abs(point.kg - reference) > Math.min(0.25, reference * 0.01)) {
+			if (pending.kind === 'check') save({ ...state, pending: { ...pending, mismatch: point } })
+			throw new Error(`实读 ${point.kg.toFixed(3)} kg，砝码 ${reference} kg，相差 ${(point.kg-reference).toFixed(3)} kg。${pending.kind === 'check' ? '这次只检查，尚未执行标定；可退出复核后重新标定。' : '标定后的示值未通过，请保留读数。'}`)
+		}
 		save({ ...state, pending: { ...pending, loaded: point } })
 	}
 	function resolvePending(verified) {
@@ -136,6 +139,36 @@ export function createFloorScaleCalibrationController({ ownerId, storage, ownerM
 				zero: pending.kind === 'check' ? pending.before : state.lastZero?.empty,
 				verifiedAt: now() } : state.lastVerified })
 	}
+	function cancelCheck() {
+		if (broken) throw new Error(broken)
+		if (running || state.pending?.kind !== 'check') throw new Error('只能退出只读复核，标定指令仍须核对结果')
+		const pending = state.pending
+		// No board command occurred. Keep failed/legacy checks unverified; a new
+		// check abandoned without a mismatch may restore its previous review state.
+		save({ ...state, pending: null, requiresReview: pending.mismatch || typeof pending.priorRequiresReview !== 'boolean' ? true : pending.priorRequiresReview,
+			lastCheck: { deviceId: pending.deviceId, grams: pending.grams, result: pending.mismatch ? 'mismatch' : 'cancelled', reading: pending.mismatch || pending.loaded || null, endedAt: now() } })
+	}
+	function reviewWhenReady() {
+		if (broken || running || !['zero', 'mass'].includes(state.pending?.kind)) return null
+		let current, pending, point
+		try {
+			({ current, pending } = pendingForReview())
+			point = sample(current, pending.loaded?.at ?? pending.startedAt)
+		} catch (_) { return null }
+		if (pending.kind === 'zero') {
+			if (Math.abs(point.kg) >= 0.25) return null
+			resolvePending(true); return 'zero'
+		}
+		const reference = pending.grams / 1000
+		if (!pending.loaded) {
+			if (Math.abs(point.kg-reference) > Math.min(0.25, reference*0.01)) return null
+			confirmLoad(); return 'loaded'
+		}
+		// A tiny reference may itself round to zero; require explicit unloading
+		// review in that case instead of treating it as an automatically empty pan.
+		if (reference < 0.5 || Math.abs(point.kg) >= 0.25) return null
+		resolvePending(true); return 'complete'
+	}
 	function subscribe(listener) { listeners.add(listener); listener(getState()); return () => listeners.delete(listener) }
-	return { getState, subscribe, issueZero: () => issue('zero'), issueMass: input => issue('mass', input), beginCheck, confirmLoad, resolvePending }
+	return { getState, subscribe, issueZero: () => issue('zero'), issueMass: input => issue('mass', input), beginCheck, cancelCheck, reviewWhenReady, confirmLoad, resolvePending }
 }
