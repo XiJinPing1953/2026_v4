@@ -37,7 +37,7 @@ function call(runtime, method, options = {}, timeoutMs = 6000, onLateSuccess) {
 
 export function createFloorScaleDiagnostic(runtime, { onFrame, onInterrupted, now = Date.now, staleMs = 3000, callTimeoutMs = 6000, closeTimeoutMs = 1500, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
 	const decoder = createFloorScaleFrameDecoder()
-	let epoch = 0, connecting = false, scanning = false, attached = false, deviceId = '', lastFrame = null, lastAt = 0, lastChunkAt = 0
+	let epoch = 0, connecting = false, scanning = false, attached = false, deviceId = '', lastFrame = null, lastAt = 0, lastChunkAt = 0, lastFrameDispatchAt = 0
 	let receiving = false, chunks = 0, receivedBytes = 0, validFrames = 0, lastRaw = new Uint8Array(0)
 	const invoke = (method, options = {}, timeout = callTimeoutMs) => call(runtime, method, options, timeout)
 	let emittedAt = null, emittedFresh = false
@@ -57,7 +57,7 @@ export function createFloorScaleDiagnostic(runtime, { onFrame, onInterrupted, no
 		emittedAt = time; emittedFresh = fresh
 		const state = snapshot(); for (const listener of listeners) listener(state)
 	}
-	function clearData() { decoder.reset(); lastFrame = null; lastAt = 0; lastChunkAt = 0; chunks = 0; receivedBytes = 0; validFrames = 0; lastRaw = new Uint8Array(0) }
+	function clearData() { decoder.reset(); lastFrame = null; lastAt = 0; lastChunkAt = 0; lastFrameDispatchAt = 0; chunks = 0; receivedBytes = 0; validFrames = 0; lastRaw = new Uint8Array(0) }
 	function onValue(event) {
 		if (!receiving || normal(event?.deviceId) !== normal(deviceId) ||
 			normal(event?.characteristicId) !== normal(FLOOR_SCALE_NOTIFY_ID) ||
@@ -81,9 +81,25 @@ export function createFloorScaleDiagnostic(runtime, { onFrame, onInterrupted, no
 			const after = decoder.getStats()
 			if (after.checksumErrors !== before.checksumErrors || after.formatErrors !== before.formatErrors) { onInterrupted?.(); frames = [] }
 		} catch (_) { decoder.reset(); onInterrupted?.(); return }
-		if (frames.length) { validFrames += frames.length; lastFrame = frames[frames.length - 1]; lastAt = time }
+		if (frames.length) {
+			validFrames += frames.length
+			// A native notification can contain multiple complete frames. Giving all
+			// of them the same timestamp makes the downstream stability gate treat
+			// the second frame as a time reversal. Preserve receive time for the
+			// first frame and add a 1 ms monotonic step for coalesced frames.
+			let dispatchAt = Math.max(time, lastFrameDispatchAt || 0)
+			for (const frame of frames) {
+				if (dispatchAt <= lastFrameDispatchAt) dispatchAt = lastFrameDispatchAt + 1
+				if (status === 'connected') onFrame?.(frame, dispatchAt, deviceId)
+				lastFrameDispatchAt = dispatchAt
+				dispatchAt += 1
+			}
+			lastFrame = frames[frames.length - 1]
+			// Freshness is based on the notification receive time, not the
+			// synthetic 1 ms steps used only for downstream monotonic ordering.
+			lastAt = time
+		}
 		if (status === 'connected') {
-			for (const frame of frames) onFrame?.(frame, time, deviceId)
 			emit(false)
 		}
 	}

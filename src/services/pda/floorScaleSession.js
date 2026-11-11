@@ -11,7 +11,11 @@ export function createFloorScaleSession(runtime, { onWeightFrame, onInterrupted 
 	const diagnostic = createFloorScaleDiagnostic(runtime, { onInterrupted: interrupt, onFrame(frame, time, deviceId) {
 		const kg = floorScaleCandidateKg(frame)
 		if (frame.format !== 'milligrams' || frame.moduleId !== 0 || frame.status !== 0 ||
-			kg == null || Math.abs(kg) > 1000 || stamp === frame.timestampHex) { interrupt(); return }
+			kg == null || Math.abs(kg) > 1000) { interrupt(); return }
+		// Repeated board timestamps are duplicate samples, not a movement or a
+		// communication break. Ignore them so one duplicated BLE notification
+		// cannot make a steady 185 kg reading flash unstable.
+		if (stamp === frame.timestampHex) return
 		stamp = frame.timestampHex
 		if (previous && (time < previous || time - previous > 300)) interrupt()
 		previous = time; lastQualified = true

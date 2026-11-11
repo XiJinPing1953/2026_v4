@@ -155,21 +155,19 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.72",
+      "version": "1.0.73",
       "output": "release/pda",
-      "acceptance": "Independent floor calibration: invalidate prior empty-zero step on page/connection/board restart, reject zero effective AD or no detectable added mass before writing calibration. Floor reweigh pages remain independent of local calibration, 0.5 kg display and display-only tare unchanged. WGT only; firmware candidate remains offline. Clear display tare when board restarts or BLE connection changes to avoid subtracting the prior zero twice.",
+      "acceptance": "PDA WGT only: floor-scale stable status must not flash on duplicate or coalesced BLE frames while live weight remains current; real bad frames, disconnects and read timeouts still clear stability. Independent floor calibration, local-calibration-independent floor reweigh, 0.5 kg display and display-only tare remain unchanged. No McgsPro MCP, DSX firmware, APK, cloud function or database changes.",
       "deploymentScope": {
         "functions": [
           "crm-hebei-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "fc66b94960054fc78b2fd62c02bd0b1850f847ce",
+        "baseCommit": "ae7b2d8b73d6f86beba73ca0277bd1d5ae42469c",
         "sourceFiles": [
-          "src/composables/pda/useFloorCalibrationBench.js",
-          "src/services/pda/floorScaleCalibrationController.js",
           "src/manifest.json",
-          "src/components/domain/pda/PdaFloorScale.vue",
-          "src/services/pda/floorScaleDisplay.js"
+          "src/services/pda/floorScaleDiagnostic.js",
+          "src/services/pda/floorScaleSession.js"
         ]
       },
       "integrityScope": "deployment"

@@ -151,12 +151,20 @@ test('signed half-kg readings follow slow 185 to 165 and unloading to zero with 
  send(0,16);assert.equal(frames.at(-1).gross,0);send(-20,16);assert.equal(frames.at(-1).gross,-20)
  assert.equal(s.getSnapshot().weight_kg,-20);assert.equal(s.getSnapshot().offset_kg,undefined);await s.stop()
 })
-test('invalid packets interrupt stability, valid data resumes automatically in same measurement',async()=>{
+test('invalid packets interrupt stability, while duplicate notifications do not',async()=>{
  const {s,send,scan,frames,gate}=await field();const id=scan();send(120,16);assert.equal(gate.stable,true)
- for(const opts of [{bad:true},{module:2},{status:1},{repeat:true},{legacy:true}]){
+ for(const opts of [{bad:true},{module:2},{status:1},{legacy:true}]){
   const count=frames.length;send(120,1,opts);assert.equal(frames.length,count);assert.equal(gate.stable,false)
   send(120,16);assert.equal(gate.stable,true);assert.equal(frames.at(-1).session,id)
  }
+ const beforeDuplicate = frames.length; send(120,1,{repeat:true}); assert.equal(frames.length,beforeDuplicate); assert.equal(gate.stable,true)
+ await s.stop()
+})
+test('coalesced BLE notifications receive monotonic sample times and do not flash unstable', async()=>{
+ const {h,s,scan,gate}=await field();scan();let sequence=0
+ const packet=value=>{const b=frame(BigInt(Math.round(value*1e6)));b[7]=0;b[b.length-3]=0;b[b.length-2]=(++sequence)>>8;b[b.length-1]=sequence&255;b[4]=0;b[4]=b.reduce((a,v)=>a^v,0);return b}
+ for(let i=0;i<16;i++){h.advance(100);h.notify([...packet(185),...packet(185)])}
+ assert.equal(gate.stable,true)
  await s.stop()
 })
 test('lost connection clears freshness and reconnect under load resumes without unloading or rearming',async()=>{
