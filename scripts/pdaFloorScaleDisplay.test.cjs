@@ -2,7 +2,6 @@ const test = require('node:test'), assert = require('node:assert/strict'), fs = 
 const source = fs.readFileSync('src/services/pda/floorScaleDisplay.js', 'utf8').replace(/export /g, '')
 const { floorScaleDisplayWeight: display } = vm.runInNewContext(source + '\n;({floorScaleDisplayWeight})')
 const frame = weight_kg => ({ is_connected: true, is_online: true, weight_kg })
-const { floorDisplayTarePoint } = vm.runInNewContext(source + '\n;({floorDisplayTarePoint})')
 
 test('half-kilogram display preserves signed raw values without zero correction', () => {
 	for (const [value, expected] of [[200, '200.0'], [200.249, '200.0'], [200.25, '200.5'], [-0.249, '0.0'], [-0.25, '-0.5'], [-0.5, '-0.5'], [7.148, '7.0']]) {
@@ -19,15 +18,18 @@ test('stale, disconnected and invalid values cannot become a zero reading', () =
 	}
 })
 
-test('display tare follows addition and removal without changing raw or saved gross', () => {
- const s=Object.freeze({...frame(20.123),device_id:'A',sampled_at:10000})
- const tare=floorDisplayTarePoint(s,10000)
- assert.equal(display(s,{tare}),'0.0');assert.equal(display(s),'20.0');assert.equal(s.weight_kg,20.123)
- assert.equal(display({...s,weight_kg:185.123},{tare}),'165.0')
- assert.equal(display({...s,weight_kg:0.123},{tare}),'-20.0')
- assert.equal(display({...s,weight_kg:185.123},{tare:null}),'185.0')
- assert.equal(display({...s,device_id:'B'},{tare}),'20.0')
- assert.equal(display({...s,is_online:false},{tare}),'—')
- assert.equal(floorDisplayTarePoint(s,13001),null)
- assert.equal(floorDisplayTarePoint({...s,qualified_frame:false},10000),null)
+test('session display weight is authoritative and raw weight remains inspectable', () => {
+ const s=Object.freeze({...frame(184.76),display_kg:184.5})
+ assert.equal(display(s),'184.5')
+ assert.equal(display(s,{raw:true}),'184.760')
+ assert.equal(s.weight_kg,184.76)
+ for(const value of [null,undefined,NaN,Infinity]) assert.equal(display({...s,display_kg:value}),'185.0')
+ for(const invalid of [{is_online:false},{is_connected:false},{qualified_frame:false},{warming:true}]) assert.equal(display({...s,...invalid}),'—')
+})
+
+test('old display tare options no longer subtract from live gross', () => {
+ const s={...frame(185.123),device_id:'A',connection_key:'s1'}
+ assert.equal(display(s,{tare:{kg:20,deviceId:'A',connectionKey:'s1'}}),'185.0')
+ assert.equal(display({...s,weight_kg:0}),'0.0')
+ assert.equal(display({...s,weight_kg:-20}),'-20.0')
 })

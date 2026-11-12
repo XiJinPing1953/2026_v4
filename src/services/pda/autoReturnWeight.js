@@ -22,19 +22,28 @@ export function createAutoReweighWeight(stableMs = 3000) {
  return { feed, reset, interrupt, minimumWeight }
 }
 
-// Floor-scale display follows every valid signed sample. Stability qualifies
-// saving only; it never holds the displayed weight or imposes a minimum load.
-export function createFloorReweighWeight(stableMs = 1500) {
- let candidate = null, since = 0, previous = 0, stable = false
- function interrupt() { candidate = null; since = previous = 0; stable = false }
+// Candidate engineering limits; field loaded-noise acceptance remains separate.
+export const FLOOR_REWEIGH_POLICY = Object.freeze({ stableMs: 1500, rangeKg: 0.1, maxGapMs: 500, freshMs: 500, minimumSamples: 3, hysteresisKg: 0.03 })
+
+// Raw samples qualify stability independently of the half-kg displayed value.
+export function createFloorReweighWeight(stableMs = FLOOR_REWEIGH_POLICY.stableMs, options = {}) {
+ const policy = { ...FLOOR_REWEIGH_POLICY, ...options, stableMs }
+ let rows = [], previous = 0, stable = false
+ function interrupt() { rows = []; previous = 0; stable = false }
+ function suspend() { stable = false }
  function feed(frame, _tare, now = Date.now()) {
-  const t = Number(frame.sampled_at), w = Number(frame.display_kg)
-  if (!Number.isFinite(w) || !Number.isFinite(t) || t <= 0 || t > now || now - t > 3000) { interrupt(); return null }
-  if (previous && (t <= previous || t - previous > 300)) interrupt()
+  const t = Number(frame.sampled_at), w = Number(frame.display_kg), raw = Number(frame.raw_kg)
+  if (frame.raw_kg == null || !Number.isFinite(raw) || !Number.isFinite(w) || !Number.isFinite(t) || t <= 0 || t > now || now - t > policy.freshMs) { interrupt(); return null }
+  if (previous && (t < previous || t - previous > policy.maxGapMs)) interrupt()
   previous = t
-  if (candidate !== w) { candidate = w; since = t }
-  stable = t - since >= stableMs
+  rows.push({ t, raw })
+  // Keep the sample at/before the window boundary, as the calibration window does.
+  while (rows.length > 1 && rows[1].t <= t - policy.stableMs) rows.shift()
+  if (rows.length > 256) rows.shift()
+  const values = rows.map(row => row.raw)
+  stable = rows.length >= policy.minimumSamples && t - rows[0].t >= policy.stableMs &&
+   Math.max(...values) - Math.min(...values) <= policy.rangeKg + 0.000001
   return w
  }
- return { feed, interrupt, reset: interrupt, minimumWeight: () => 0, get stable() { return stable } }
+ return { feed, interrupt, suspend, reset: interrupt, minimumWeight: () => 0, get stable() { return stable } }
 }

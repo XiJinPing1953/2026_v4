@@ -57,54 +57,26 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.11.02-web-sale-save.1",
+      "version": "2026.11.12-return-minimum.1",
       "output": "release/cloud",
-      "acceptance": "Web sale fixed operation ID, atomic source/receipt, result recovery and resumable idempotent follow-ups. Add missing voucher collections and permanent operation receipts only. No historical accounting repair, backfill, balance sweep or PDA update. H5 starts from the actual deployed 9c049c8 baseline; existing live crm-sale printing helpers are preserved unchanged.",
+      "acceptance": "Candidate only, not deployed: floor BLE real receive times, duplicate freshness, raw 1.5s/0.1kg stability, 500ms freshness/gap, 0.03kg boundary hysteresis, no display tare; floor and hanging return saves require gross >= exact tare * 0.5. Preserve continuous signed readings, calibration independence and frozen submission/idempotent recovery. WGT and crm-filling only; no APK/native/firmware/schema/H5 or historical data changes. Loaded-noise and physical accuracy acceptance pending.",
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
-          "crm-sale"
+          "crm-filling"
         ],
-        "databaseFiles": [
-          "crm_sale_records.schema.json",
-          "crm_web_sale_operations.schema.json",
-          "crm_web_sale_operations.index.json",
-          "crm_vouchers.schema.json",
-          "crm_vouchers.index.json",
-          "crm_voucher_entries.schema.json",
-          "crm_voucher_entries.index.json"
-        ],
-        "baseCommit": "2d1900f0d3179f6f83421904b490ee2d94ef6cb7",
+        "databaseFiles": [],
+        "baseCommit": "2b6a43a0aad8e483477ea16da26620916008e0a0",
         "sourceFiles": [
-          "src/components/domain/sale/SaleEditView.vue",
-          "src/services/models/webSaleRecovery.js",
-          "src/services/sale.js",
-          "src/services/webSaleSave.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/package.json",
-          "uniCloud-alipay/cloudfunctions/crm-sale/saleSourceWrite.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/webSaleSave.js",
-          "uniCloud-alipay/database/crm_sale_records.schema.json",
-          "uniCloud-alipay/database/crm_voucher_entries.index.json",
-          "uniCloud-alipay/database/crm_voucher_entries.schema.json",
-          "uniCloud-alipay/database/crm_vouchers.index.json",
-          "uniCloud-alipay/database/crm_vouchers.schema.json",
-          "uniCloud-alipay/database/crm_web_sale_operations.index.json",
-          "uniCloud-alipay/database/crm_web_sale_operations.schema.json",
-          "uniCloud-alipay/database/schema/crm_sale_records.schema.json"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-sale": {
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            },
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            }
-          }
-        }
+          "src/manifest.json",
+          "src/components/domain/pda/PdaFloorScale.vue",
+          "src/composables/pda/usePdaReweigh.js",
+          "src/services/pda/autoReturnWeight.js",
+          "src/services/pda/floorScaleDiagnostic.js",
+          "src/services/pda/floorScaleDisplay.js",
+          "src/services/pda/floorScaleSession.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js"
+        ]
       }
     },
     "tank-gateway": {
@@ -155,19 +127,24 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.73",
+      "version": "1.0.74",
       "output": "release/pda",
-      "acceptance": "PDA WGT only: floor-scale stable status must not flash on duplicate or coalesced BLE frames while live weight remains current; real bad frames, disconnects and read timeouts still clear stability. Independent floor calibration, local-calibration-independent floor reweigh, 0.5 kg display and display-only tare remain unchanged. No McgsPro MCP, DSX firmware, APK, cloud function or database changes.",
+      "acceptance": "Candidate only, not deployed: floor BLE real receive times, duplicate freshness, raw 1.5s/0.1kg stability, 500ms freshness/gap, 0.03kg boundary hysteresis, no display tare; floor and hanging return saves require gross >= exact tare * 0.5. Preserve continuous signed readings, calibration independence and frozen submission/idempotent recovery. WGT and crm-filling only; no APK/native/firmware/schema/H5 or historical data changes. Loaded-noise and physical accuracy acceptance pending.",
       "deploymentScope": {
         "functions": [
-          "crm-hebei-filling"
+          "crm-filling"
         ],
         "databaseFiles": [],
-        "baseCommit": "ae7b2d8b73d6f86beba73ca0277bd1d5ae42469c",
+        "baseCommit": "2b6a43a0aad8e483477ea16da26620916008e0a0",
         "sourceFiles": [
           "src/manifest.json",
+          "src/components/domain/pda/PdaFloorScale.vue",
+          "src/composables/pda/usePdaReweigh.js",
+          "src/services/pda/autoReturnWeight.js",
           "src/services/pda/floorScaleDiagnostic.js",
-          "src/services/pda/floorScaleSession.js"
+          "src/services/pda/floorScaleDisplay.js",
+          "src/services/pda/floorScaleSession.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js"
         ]
       },
       "integrityScope": "deployment"

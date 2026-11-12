@@ -262,6 +262,57 @@ test('invalid scale weights and unstable evidence never create measurements', as
 	assert.equal(rows(app, 'crm_return_reweighs').length, 0)
 })
 
+test('return gross below half of tare is rejected in preview and save without source or count writes', async () => {
+	for (const floor of [false, true]) {
+		const app = fixture(); await start(app)
+		app.db.data('crm_bottles').get('b1').tare_weight = 117
+		const payload = await request(app, `return_minimum_${floor ? 'floor' : 'hanging'}`)
+		const collections = ['crm_bottles', 'crm_return_reweighs', 'crm_return_reweigh_state', 'crm_return_reweigh_rounds', 'crm_fillings', 'crm_bottle_movements', 'crm_gas_inventory_movements']
+		const before = collections.map(name => plain(rows(app, name)))
+		const writes = []
+		app.db.setFault(async (name, action) => writes.push({ name, action }))
+		for (const gross of [0.5, 58]) {
+			const rejected = await app.invoke('previewReturnReweighV1', { round_id: roundId, bottle_no: 'B1', gross_weight: gross })
+			assert.equal(rejected.code, 400); assert.match(rejected.msg, /皮重.*50%/)
+			const capture = { ...payload.capture, ...(floor ? { scale_type: 'floor', device_id: 'DSX-floor-01', bottle_no: 'B1', gross_kg: gross } : {}) }
+			const saved = await app.invoke('saveReturnReweighV1', { ...payload, gross_weight: gross, capture })
+			assert.equal(saved.code, 400); assert.match(saved.msg, /皮重.*50%/)
+		}
+		assert.deepEqual(writes, [])
+		assert.deepEqual(collections.map(name => plain(rows(app, name))), before)
+	}
+})
+
+test('return half-tare boundary is inclusive, uses unrounded tare, and preserves near-tare measurements', async () => {
+	for (const [tare, gross] of [[117, 58.5], [132, 66], [117.1, 59], [124, 123.5]]) {
+		const app = fixture(); await start(app)
+		app.db.data('crm_bottles').get('b1').tare_weight = tare
+		if (tare === 117.1) {
+			const below = await app.invoke('previewReturnReweighV1', { round_id: roundId, bottle_no: 'B1', gross_weight: 58.5 })
+			assert.equal(below.code, 400)
+		}
+		const { result, payload } = await save(app, 'return_minimum_boundary', { gross_weight: gross })
+		assert.equal(result.data.gross_weight, gross)
+		assert.equal((await app.invoke('saveReturnReweighV1', payload)).data._id, result.data._id)
+		assert.equal(rows(app, 'crm_return_reweighs').length, 1)
+	}
+})
+
+test('previously saved low return measurements remain readable and idempotently recoverable', async () => {
+	const app = fixture(); await start(app)
+	const { payload, result } = await save(app, 'return_legacy_low_record')
+	const { fingerprint } = require('../uniCloud-alipay/cloudfunctions/crm-filling/fillingPayloadLocal')
+	// Seed the immutable pre-rule result; the new rule governs new saves only.
+	payload.gross_weight = 0.5
+	const row = app.db.data('crm_return_reweighs').get(result.data._id)
+	Object.assign(row, { input_hash: fingerprint(payload), gross_weight: 0.5, net_weight: -99.5, capture: { ...row.capture, gross_weight: 0.5 } })
+	const before = plain(rows(app, 'crm_return_reweighs'))
+	const recovered = await app.invoke('saveReturnReweighV1', payload)
+	assert.equal(recovered.code, 0); assert.equal(recovered.data.gross_weight, 0.5)
+	assert.equal((await app.invoke('getReturnReweighV1', { operation_id: payload.operation_id })).data.gross_weight, 0.5)
+	assert.deepEqual(plain(rows(app, 'crm_return_reweighs')), before)
+})
+
 
 test('concurrent distinct bottles retain both count entries; concurrent same-bottle previews cannot overwrite', async () => {
 	const app = fixture(); await start(app)

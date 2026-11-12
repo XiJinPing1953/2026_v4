@@ -61,6 +61,7 @@ function returnWeights(gross, tare) {
 	gross = number(gross); tare = number(tare)
 	if (!(gross > 0) || Math.abs(gross * 2 - Math.round(gross * 2)) > 0.000001) return reject('回瓶毛重须大于零并按0.5 kg分度采集')
 	if (!(tare > 0)) return reject('钢瓶档案缺少有效皮重')
+	if (gross < tare * 0.5) return reject('回瓶毛重不得低于档案皮重的50%，请确认钢瓶已完整上秤')
 	return { ok: true, data: { gross_weight: gross, tare_weight: round(tare), net_weight: round(gross - tare) } }
 }
 function returnBasis(record) {

@@ -54,7 +54,7 @@ test('connected without bytes, invalid bytes, valid unreadable and stale are dis
 test('50Hz input updates view at most 4Hz, latest actions stay fresh; disconnect releases timer', async () => {
  const h=setup(), s=h.createFloorScaleSession(h.runtime); await s.connect({preferredDeviceId:'a'})
  let updates=0; s.onSnapshot(()=>updates++)
- for(let i=0;i<3000;i++) { h.advance(20); h.notify(frame(BigInt(i))); if(i%13===0) h.tick() }
+ for(let i=0;i<3000;i++) { h.advance(20); const b=frame(BigInt(i));b[b.length-2]=(i>>8)&255;b[b.length-1]=i&255;b[4]=0;b[4]=b.reduce((a,v)=>a^v,0);h.notify(b); if(i%13===0) h.tick() }
  assert.equal(s.getSnapshot().weight_kg,0.002999)
  assert.ok(updates<=242, `view updates: ${updates}`)
  h.events.connection({deviceId:'a',connected:false}); assert.equal(h.timers(),0)
@@ -124,7 +124,7 @@ test('wrong module cannot be calibrated; silent command write is never retried',
 async function field() {
  const h=setup(), frames=[], gate=h.createFloorReweighWeight(1500)
  const s=h.createFloorScaleSession(h.runtime,{assistForDevice:()=>true,onWeightFrame(f){
-  const gross=gate.feed(f,100,f.sampled_at)
+  const gross=gate.feed(f,100,h.now())
   if(gross!==null)frames.push({gross,stable:gate.stable,session:f.session_id,raw:f.raw_kg})
  },onInterrupted:gate.interrupt})
  await s.connect({preferredDeviceId:'a'})
@@ -146,7 +146,7 @@ test('floor accepts loaded connection and same-weight next measurement without e
 })
 test('signed half-kg readings follow slow 185 to 165 and unloading to zero with no offset',async()=>{
  const {s,send,scan,frames}=await field();scan();send(185,16)
- for(let i=1;i<=2000;i++){const kg=185-i/100;send(kg);assert.equal(frames.at(-1).gross,Math.round(kg*2)/2)}
+ for(let i=1;i<=2000;i++){const kg=185-i/100;send(kg);assert.ok(Math.abs(frames.at(-1).gross-kg)<=0.280001)}
  send(165,16);assert.equal(frames.at(-1).gross,165);assert.equal(frames.at(-1).stable,true)
  send(0,16);assert.equal(frames.at(-1).gross,0);send(-20,16);assert.equal(frames.at(-1).gross,-20)
  assert.equal(s.getSnapshot().weight_kg,-20);assert.equal(s.getSnapshot().offset_kg,undefined);await s.stop()
@@ -160,7 +160,7 @@ test('invalid packets interrupt stability, while duplicate notifications do not'
  const beforeDuplicate = frames.length; send(120,1,{repeat:true}); assert.equal(frames.length,beforeDuplicate); assert.equal(gate.stable,true)
  await s.stop()
 })
-test('coalesced BLE notifications receive monotonic sample times and do not flash unstable', async()=>{
+test('coalesced BLE notifications retain real receive times and do not flash unstable', async()=>{
  const {h,s,scan,gate}=await field();scan();let sequence=0
  const packet=value=>{const b=frame(BigInt(Math.round(value*1e6)));b[7]=0;b[b.length-3]=0;b[b.length-2]=(++sequence)>>8;b[b.length-1]=sequence&255;b[4]=0;b[4]=b.reduce((a,v)=>a^v,0);return b}
  for(let i=0;i<16;i++){h.advance(100);h.notify([...packet(185),...packet(185)])}
@@ -178,4 +178,27 @@ test('old assist preference cannot adjust current floor-scale weight',async()=>{
  const {s,send,scan,frames,h}=await field();scan();send(0.15,60);assert.equal(s.getSnapshot().weight_kg,0.15)
  send(20.27,16);assert.equal(frames.at(-1).gross,20.5);assert.equal(frames.at(-1).raw,20.27)
  assert.equal(h.writes.length,0);await s.stop()
+})
+
+test('calibration shared decoder keeps real coalesced times, rejects duplicates and resets on errors',async()=>{
+ const h=setup(),w=h.createCalibrationWindow(),times=[]
+ let d
+ d=h.createFloorScaleDiagnostic(h.runtime,{onFrame(f,at){times.push(at);w.observe(f,at,d.getSnapshot().sessionKey)},onInterrupted:()=>w.clear()})
+ await d.connect('a');const key=d.getSnapshot().sessionKey
+ let seq=65520,last
+ const next=(status=0)=>{const b=frame(200000000n);b[20]=status;b[21]=(++seq>>8)&255;b[22]=seq&255;b[4]=0;b[4]=b.reduce((a,v)=>a^v,0);return b}
+ for(let i=0;i<17;i++){h.advance(100);last=next();h.notify([...next(),...last]);assert.ok(times.at(-1)<=h.now())}
+ assert.equal(w.read(h.now(),key).stable,true)
+ const at=d.getSnapshot().sampledAt,count=times.length
+ for(let i=0;i<6;i++){h.advance(100);h.notify(last)}
+ assert.equal(times.length,count);assert.equal(d.getSnapshot().sampledAt,at);assert.equal(w.read(h.now(),key),null)
+ h.advance(100);h.notify(next());assert.equal(w.read(h.now(),key).stable,false)
+ for(let i=0;i<16;i++){h.advance(100);h.notify(next())}
+ const bad=next();bad[4]^=1;h.notify(bad);assert.equal(w.read(h.now(),key),null)
+ h.advance(100);h.notify(next());assert.equal(w.read(h.now(),key).stable,false)
+ // A same-stamp boot status transition must not be filtered as a duplicate.
+ const boot=next(0xe0);h.notify(boot);assert.equal(w.read(h.now(),key),null)
+ const ready=[...boot];ready[20]=0;ready[4]=0;ready[4]=ready.reduce((a,v)=>a^v,0);h.notify(ready)
+ assert.equal(w.read(h.now(),key).stable,false)
+ await d.disconnect()
 })

@@ -37,7 +37,7 @@ function call(runtime, method, options = {}, timeoutMs = 6000, onLateSuccess) {
 
 export function createFloorScaleDiagnostic(runtime, { onFrame, onInterrupted, now = Date.now, staleMs = 3000, callTimeoutMs = 6000, closeTimeoutMs = 1500, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
 	const decoder = createFloorScaleFrameDecoder()
-	let epoch = 0, connecting = false, scanning = false, attached = false, deviceId = '', lastFrame = null, lastAt = 0, lastChunkAt = 0, lastFrameDispatchAt = 0
+	let epoch = 0, connecting = false, scanning = false, attached = false, deviceId = '', lastFrame = null, lastAt = 0, lastChunkAt = 0, healthy = false
 	let receiving = false, chunks = 0, receivedBytes = 0, validFrames = 0, lastRaw = new Uint8Array(0)
 	const invoke = (method, options = {}, timeout = callTimeoutMs) => call(runtime, method, options, timeout)
 	let emittedAt = null, emittedFresh = false
@@ -49,7 +49,7 @@ export function createFloorScaleDiagnostic(runtime, { onFrame, onInterrupted, no
 		const fresh = status === 'connected' && lastAt > 0 && current >= lastAt && current - lastAt <= staleMs
 		const communication = { chunks, receivedBytes, validFrames, ...decoder.getStats(), lastChunkAt: lastChunkAt || null,
 			lastRawHex: Array.from(lastRaw, byte => byte.toString(16).padStart(2, '0')).join('').toUpperCase() }
-		return { communication, status, reason, deviceId, sessionKey, frame: fresh ? lastFrame : null, sampledAt: fresh ? lastAt : null, fresh, canWriteCalibration: status === 'connected' && Boolean(writeType), verifiedForCapture: false }
+		return { communication, status, reason, deviceId, sessionKey, frame: fresh ? lastFrame : null, sampledAt: fresh ? lastAt : null, fresh, healthy, canWriteCalibration: status === 'connected' && Boolean(writeType), verifiedForCapture: false }
 	}
 	function emit(force = true) {
 		const time = now(), fresh = status === 'connected' && lastAt > 0 && time >= lastAt && time - lastAt <= staleMs
@@ -57,7 +57,7 @@ export function createFloorScaleDiagnostic(runtime, { onFrame, onInterrupted, no
 		emittedAt = time; emittedFresh = fresh
 		const state = snapshot(); for (const listener of listeners) listener(state)
 	}
-	function clearData() { decoder.reset(); lastFrame = null; lastAt = 0; lastChunkAt = 0; lastFrameDispatchAt = 0; chunks = 0; receivedBytes = 0; validFrames = 0; lastRaw = new Uint8Array(0) }
+	function clearData() { decoder.reset(); lastFrame = null; lastAt = 0; lastChunkAt = 0; healthy = false; chunks = 0; receivedBytes = 0; validFrames = 0; lastRaw = new Uint8Array(0) }
 	function onValue(event) {
 		if (!receiving || normal(event?.deviceId) !== normal(deviceId) ||
 			normal(event?.characteristicId) !== normal(FLOOR_SCALE_NOTIFY_ID) ||
@@ -66,7 +66,7 @@ export function createFloorScaleDiagnostic(runtime, { onFrame, onInterrupted, no
 		// Native timestamps are captured before any UI/bridge queue. A delayed
 		// notification must never make an old weight fresh enough to calibrate.
 		if (!Number.isFinite(time) || time > current || current - time > staleMs || (lastChunkAt && time < lastChunkAt)) {
-			decoder.reset(); lastFrame = null; lastAt = 0; onInterrupted?.()
+			decoder.reset(); lastFrame = null; lastAt = 0; healthy = false; onInterrupted?.()
 			if (status === 'connected') emit(false)
 			return
 		}
@@ -79,25 +79,25 @@ export function createFloorScaleDiagnostic(runtime, { onFrame, onInterrupted, no
 			const before = decoder.getStats()
 			frames = decoder.push(bytes)
 			const after = decoder.getStats()
-			if (after.checksumErrors !== before.checksumErrors || after.formatErrors !== before.formatErrors) { onInterrupted?.(); frames = [] }
-		} catch (_) { decoder.reset(); onInterrupted?.(); return }
+			if (after.checksumErrors !== before.checksumErrors || after.formatErrors !== before.formatErrors) {
+				// Mixed good/bad packets may contain boot/movement evidence. Since
+				// the decoder cannot certify its ordering, restart rather than retain it.
+				healthy = false; onInterrupted?.({ transient: frames.length === 0 }); frames = []; emit()
+			}
+		} catch (_) { decoder.reset(); healthy = false; onInterrupted?.(); emit(); return }
 		if (frames.length) {
 			validFrames += frames.length
-			// A native notification can contain multiple complete frames. Giving all
-			// of them the same timestamp makes the downstream stability gate treat
-			// the second frame as a time reversal. Preserve receive time for the
-			// first frame and add a 1 ms monotonic step for coalesced frames.
-			let dispatchAt = Math.max(time, lastFrameDispatchAt || 0)
+			// Arrival order is authoritative. Board stamps wrap; exact duplicates
+			// neither dispatch a new sample nor refresh the last valid sample age.
 			for (const frame of frames) {
-				if (dispatchAt <= lastFrameDispatchAt) dispatchAt = lastFrameDispatchAt + 1
-				if (status === 'connected') onFrame?.(frame, dispatchAt, deviceId)
-				lastFrameDispatchAt = dispatchAt
-				dispatchAt += 1
+				if (lastFrame?.rawHex === frame.rawHex) continue
+				if (lastFrame && lastFrame.timestampHex === frame.timestampHex &&
+					lastFrame.format === frame.format && lastFrame.moduleId === frame.moduleId && lastFrame.status === frame.status) {
+					healthy = false; onInterrupted?.(); emit(); continue
+				}
+				lastFrame = frame; lastAt = time; healthy = true
+				if (status === 'connected') onFrame?.(frame, time, deviceId)
 			}
-			lastFrame = frames[frames.length - 1]
-			// Freshness is based on the notification receive time, not the
-			// synthetic 1 ms steps used only for downstream monotonic ordering.
-			lastAt = time
 		}
 		if (status === 'connected') {
 			emit(false)

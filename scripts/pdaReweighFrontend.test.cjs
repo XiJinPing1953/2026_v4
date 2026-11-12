@@ -12,7 +12,7 @@ function load(file, names, globals = {}) {
 }
 const asyncStorage = load('src/services/pda/asyncStorage.js', ['readPdaStorage'], { setTimeout, clearTimeout })
 const display = load('src/services/pda/weighStatus.js', ['sameWeighDisplay'])
-const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight', 'createFloorReweighWeight'])
+const autoWeight = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight', 'createFloorReweighWeight', 'FLOOR_REWEIGH_POLICY'])
 const draft = load('src/services/pda/reweighDraft.js', ['createReweighDraftStore', 'createReweighId', 'cloneReweigh', 'reweighReceipt', 'validReweighEntry', 'readReweighDraft', 'readReweighDraftAsync', 'reweighDraftKey', 'isSameReturnReweighRound'])
 const work = load('src/services/pda/reweighWorkStore.js', ['createReweighWorkStore', 'readReweighHistorySnapshot'], { ...draft })
 function harness(t, options = {}) {
@@ -26,7 +26,7 @@ function harness(t, options = {}) {
 	let latest = { is_connected: false, is_online: false, is_stable: false, weight_kg: null, session_id: '', stable_seq: 0 }
 	const modalResults = [...(options.modalResults || [])]
 	const emit = value => { latest = { ...latest, ...value }; listener?.(latest) }
-	const scale = {
+	let scale = {
 		onSnapshot(fn) { listener = fn; fn(latest); return () => { listener = null } },
 		beginMeasurement() { const id = `sample-${++sequence}`; emit({ session_id: id, measurement_started_at: Date.now() - 10, stable_seq: 0, is_stable: false, is_online: false }); return id },
 		async stop() { stopped++; emit({ is_connected: false, is_online: false, session_id: `stopped-${++sequence}` }) },
@@ -44,13 +44,26 @@ function harness(t, options = {}) {
 			gross_weight: gross, net_weight: gross == null ? null : gross - 100, fill_weight: gross == null ? null : gross - 105,
 			label: gross == null ? null : { company: '新拓能源', bottle_no: params.bottle_no, tare_weight: 100, gross_weight: gross, net_weight: gross - 100 } } }
 	}
+	let displayTick, bleEvent, connectionEvent
+	const realSources = ['floorScaleDisplay','autoReturnWeight','floorScaleProtocol','floorScaleDiagnostic','floorScaleSession'].map(name => fs.readFileSync(`src/services/pda/${name}.js`, 'utf8').replace(/^import .*\n/gm,'').replace(/^export /gm,'')).join('\n')
+	const real = options.realFloor ? vm.runInNewContext(realSources + '\n;({createFloorScaleSession,FLOOR_SCALE_SERVICE_ID,FLOOR_SCALE_NOTIFY_ID,FLOOR_SCALE_WRITE_ID})', {
+		Date: TestDate, setTimeout, clearTimeout, ArrayBuffer, Uint8Array,
+		setInterval: fn => { displayTick = fn; return 1 }, clearInterval: () => { displayTick = null }
+	}) : null
+	const ble = real ? {
+		openBluetoothAdapter: o=>o.success({}), createBLEConnection:o=>o.success({}),closeBLEConnection:o=>o.success({}),notifyBLECharacteristicValueChange:o=>o.success({}),
+		getBLEDeviceServices:o=>o.success({services:[{uuid:real.FLOOR_SCALE_SERVICE_ID}]}),
+		getBLEDeviceCharacteristics:o=>o.success({characteristics:[{uuid:real.FLOOR_SCALE_NOTIFY_ID,properties:{notify:true}}]}),
+		onBLECharacteristicValueChange:fn=>{bleEvent=fn},onBLEConnectionStateChange:fn=>{connectionEvent=fn}
+	} : {}
+	if (real) storage.set('pda_floor_scale_bound_device_v1',{deviceId:'floor-1'})
 	const onDestroy = []
 	const stateModule = load('src/composables/pda/usePdaReweigh.js', ['usePdaReweigh', 'reweighChangeText'], {
 		...asyncStorage, ...display, ...draft, ...work, ...autoWeight, Date: TestDate, ref: vue.ref, shallowRef: vue.shallowRef, computed: vue.computed, onBeforeUnmount: fn => onDestroy.push(fn),
 		forgetSavedReweighOperations: () => {}, getUser: () => ({ _id: owner }), canPageAction: () => options.canCreate !== false,
 		getPdaBleScaleCapabilities: () => ({ transport: options.web ? 'web' : 'native', supported: true }),
 		createPdaBleScaleSession: profile => { assert.equal(profile.preserveMeasurementOnReadTimeout, true); weightFrame = profile.onWeightFrame; return scale }, createEmptyPdaBleScaleSnapshot: () => ({ ...latest }),
-		createFloorScaleNativeRuntime: runtime => runtime, createFloorScaleSession: (runtime, callbacks) => { weightFrame = callbacks.onWeightFrame; return scale },
+		createFloorScaleNativeRuntime: runtime => runtime, createFloorScaleSession: (runtime, callbacks) => { weightFrame = callbacks.onWeightFrame; if(real) scale = real.createFloorScaleSession(runtime,callbacks); return scale },
 		ensurePdaBleRuntimePermission: async () => ({ code: 0 }), quantizeBleScaleWeightKg: value => Math.round(value * 2) / 2,
 		normalizeBottleNo: value => String(value || '').trim().toUpperCase(),
 		enterBarcodeSession: async ({ onResult }) => { scanner = onResult; return { code: 0 } }, leaveBarcodeSession: async () => {},
@@ -83,6 +96,7 @@ function harness(t, options = {}) {
 		},
 		getReturnReweighV1: options.query || (async () => ({ code: 404, msg: '操作未找到' })),
 		uni: {
+			...ble,
 			...(options.asyncStorage ? { getStorage: options.asyncStorage, getStorageInfo: p => p.success({ keys: [...storage.keys()] }) } : {}),
 			getStorageSync: key => { options.onStorageRead?.(key); return storage.get(key) }, setStorageSync: (key, value) => { if (options.storageFails) throw new Error('quota'); storage.set(key, value) },
 			showModal: params => { confirmations.push({ title: params.title, content: params.content }); params.success({ confirm: modalResults.length ? modalResults.shift() : true }) },
@@ -91,15 +105,20 @@ function harness(t, options = {}) {
 	})
 	const form = stateModule.usePdaReweigh({ mode: options.returnMode ? 'return' : 'filling', printing: options.printing, scaleMode: options.floor ? 'floor' : 'hanging' })
 	t.after(() => onDestroy.forEach(fn => fn()))
-	async function start() { await form.activate(); emit({ is_connected: true, ...(options.floor ? { is_online: true, sampled_at: Date.now(), device_id: 'floor-1', connection_key: 'connection-1', can_calibrate: true } : {}) }) }
-	function frames(weight, duration = 3100, evidence = {}) { for (let i = 0; i <= duration; i += 100) { clock += 100; if(options.floor) emit({is_online:true,qualified_frame:true,weight_kg:weight,sampled_at:clock}); weightFrame({ session_id: latest.session_id, sampled_at: clock, display_kg: Math.round(weight * 2) / 2, device_id: options.floor ? 'floor-1' : 'NVK-1', raw: String(weight), ...evidence }) } }
+	async function start() { await form.activate(); if(real) { assert.equal(await form.connect(),true); return }; emit({ is_connected: true, ...(options.floor ? { is_online: true, sampled_at: Date.now(), device_id: 'floor-1', connection_key: 'connection-1', can_calibrate: true } : {}) }) }
+	function frames(weight, duration = 3100, evidence = {}) { for (let i = 0; i <= duration; i += 100) { clock += 100; if(options.floor) emit({is_online:true,qualified_frame:true,weight_kg:weight,sampled_at:clock}); weightFrame({ session_id: latest.session_id, sampled_at: clock, display_kg: Math.round(weight * 2) / 2, raw_kg: weight, device_id: options.floor ? 'floor-1' : 'NVK-1', raw: String(weight), ...evidence }) } }
 	async function measure(bottle = '101', gross = 120) {
 		await start(); await form.selectBottle(bottle)
 		emit({ weight_kg: gross, sampled_at: Date.now(), is_connected: true, is_online: true, is_stable: true, stable_seq: 1, device_id: 'NVK-1', frame_raw: 'ST,+01200kg' })
 		frames(gross)
 		await tick()
 	}
-	return { pause: ms => { clock += ms; emit({ is_online: false, is_stable: false, weight_kg: null, error_code: 'read_timeout' }) }, frames, form, storage, requests, previews, confirmations, roundRequests, emit, start, measure, module: stateModule, scan: text => scanner({ rawText: text }), setOwner: value => { owner = value }, stopped: () => stopped }
+	function packet(kg, stamp, status=0) {
+		const b=[0xaa,3,1,23,0,16,34,0,0,0,0,0], w=Array(8);let n=BigInt.asUintN(64,BigInt(Math.round(kg*1e6)))
+		for(let i=7;i>=0;i--){w[i]=Number(n&255n);n>>=8n};b.push(...w,status,(stamp>>8)&255,stamp&255);b[4]=b.reduce((a,v)=>a^v,0);return b
+	}
+	function bytes(value, ms=100, receivedAt) { clock+=ms;bleEvent({deviceId:'floor-1',serviceId:real.FLOOR_SCALE_SERVICE_ID,characteristicId:real.FLOOR_SCALE_NOTIFY_ID,value:Uint8Array.from(value).buffer,receivedAt:receivedAt ?? clock}) }
+	return { packet, bytes, viewTick:()=>displayTick?.(), advance:ms=>{clock+=ms}, now:()=>clock, disconnectNative:()=>connectionEvent({deviceId:'floor-1',connected:false}), pause: ms => { clock += ms; emit({ is_online: false, is_stable: false, weight_kg: null, error_code: 'read_timeout' }) }, frames, form, storage, requests, previews, confirmations, roundRequests, emit, start, measure, module: stateModule, scan: text => scanner({ rawText: text }), setOwner: value => { owner = value }, stopped: () => stopped }
 }
 
 test('回瓶和罐装复秤都在连续3秒同重量后采集', async t => {
@@ -894,12 +913,12 @@ test('floor return reconnect and lost-save recovery preserve bottle and frozen o
  assert.deepEqual(restored.requests[0].payload,original)
 })
 
-test('display-only tare cannot change a business gross or filling/return payload',async t=>{
- const {floorDisplayTarePoint,floorScaleDisplayWeight}=load('src/services/pda/floorScaleDisplay.js',['floorDisplayTarePoint','floorScaleDisplayWeight'])
+test('display and filling/return payload share gross without display tare',async t=>{
+ const {floorScaleDisplayWeight}=load('src/services/pda/floorScaleDisplay.js',['floorScaleDisplayWeight','floorScaleDivisionKg'])
  for(const returnMode of [false,true]){
   const h=harness(t,{floor:true,returnMode});await h.start();await h.scan('101');h.frames(185,1600)
-  const snapshot=Object.freeze(copy(h.form.snapshot.value)),tare=floorDisplayTarePoint(snapshot,snapshot.sampled_at)
-  assert.equal(floorScaleDisplayWeight(snapshot,{tare}),'0.0')
+  const snapshot=Object.freeze(copy(h.form.snapshot.value))
+  assert.equal(floorScaleDisplayWeight(snapshot),'185.0')
   assert.equal(h.form.current.value.grossWeight,185)
   assert.equal(await h.form.submit(),true);assert.equal(h.requests[0].payload.gross_weight,185)
   assert.equal(h.requests[0].payload.capture.gross_kg,185)
@@ -935,5 +954,94 @@ test('floor filling and return never depend on local calibration records when se
   assert.equal(calibrationReads,0,`${name}: local calibration must not be read`)
   assert.equal(storage.get(key),value,`${name}: independent calibration record must be preserved`)
   assert.equal(writes.length,0)
+ }
+})
+
+// Full transport integration: real bytes -> decoder -> session -> raw stability -> Vue form.
+async function floorStream(t, returnMode = false, extra = {}) {
+ const h = harness(t, { floor:true, realFloor:true, returnMode, ...extra }); await h.start(); await h.form.selectBottle('101')
+ let seq=0
+ return {...h, send(kg, ms=100, opts={}) { const b=h.packet(kg,opts.repeat?seq:++seq,opts.status||0);if(opts.bad)b[4]^=1;h.bytes(b,ms);return b },
+  coalesce(kg){h.bytes([...h.packet(kg,++seq),...h.packet(kg,++seq)])}}
+}
+test('real BLE duplicate and coalesced frames preserve stable captures in both pages',async t=>{
+ for(const mode of [true,false]) {
+  const h=await floorStream(t,mode)
+  for(let i=0;i<20;i++)h.send(185.1)
+  assert.equal(h.form.readingReady.value,true)
+  h.send(185.1,40,{repeat:true});h.viewTick()
+  assert.equal(h.form.current.value.grossWeight,185);assert.equal(h.form.readingReady.value,true)
+  for(let i=0;i<20;i++){h.coalesce(185.1);h.viewTick();assert.equal(h.form.readingReady.value,true)}
+  assert.equal(await h.form.submit(),true);assert.equal(h.requests[0].payload.gross_weight,185)
+ }
+})
+test('real BLE duplicates never renew freshness or recover a bad packet',async t=>{
+ const h=await floorStream(t);for(let i=0;i<20;i++)h.send(185)
+ for(let i=0;i<6;i++)h.send(185,100,{repeat:true})
+ h.viewTick();assert.equal(h.form.current.value.capture,null);assert.equal(await h.form.submit(),false)
+ h.send(185);assert.equal(h.form.current.value.capture.stable,false)
+ for(let i=0;i<16;i++)h.send(185)
+ h.send(185,100,{bad:true});h.viewTick();assert.equal(h.form.current.value.capture,null)
+ h.send(185,100,{repeat:true});h.viewTick();assert.equal(h.form.readingReady.value,true) // corrupt packet was never accepted; valid retransmission is new
+ const last=h.send(185);const bad=[...last];bad[4]^=1;h.bytes(bad,100);h.bytes(last,100);h.viewTick()
+ assert.equal(h.form.current.value.capture,null);assert.equal(h.form.readingReady.value,false)
+})
+test('real BLE isolated bad packet suspends save, long silence or boot restarts stability',async t=>{
+ const h=await floorStream(t);for(let i=0;i<20;i++)h.send(185)
+ h.send(185,100,{bad:true});assert.equal(await h.form.submit(),false)
+ h.send(185);assert.equal(h.form.readingReady.value,true)
+ h.advance(501);assert.equal(await h.form.submit(),false) // action checks real clock before UI timer
+ h.viewTick();assert.equal(h.form.current.value.grossWeight,null)
+ h.send(185);assert.equal(h.form.current.value.capture.stable,false)
+ for(let i=0;i<16;i++)h.send(185)
+ h.send(0,100,{status:0xe0});assert.equal(h.form.current.value.capture,null)
+ h.send(185);assert.equal(h.form.current.value.capture.stable,false)
+})
+test('real BLE raw boundary noise stabilises, display/save agree and slow changes still follow',async t=>{
+ for(const initial of [184.7,184.8]) {
+  const h=await floorStream(t);h.send(initial)
+  for(let i=0;i<40;i++)h.send(184.75+(i%2?0.02:-0.02))
+  assert.equal(h.form.readingReady.value,true)
+  const shown=h.form.snapshot.value.display_kg;assert.equal(h.form.current.value.grossWeight,shown)
+  assert.equal(await h.form.submit(),true);assert.equal(h.requests[0].payload.gross_weight,shown)
+ }
+ const h=await floorStream(t);for(let i=0;i<20;i++)h.send(185)
+ for(let i=1;i<=100;i++)h.send(185-i*0.01)
+ assert.equal(h.form.current.value.capture.stable,false);assert.equal(h.form.current.value.grossWeight,184)
+ for(let i=1;i<=100;i++)h.send(184-i*0.005)
+ assert.equal(h.form.current.value.capture.stable,true);assert.equal(h.form.current.value.grossWeight,183.5)
+ h.send(0);assert.equal(h.form.current.value.grossWeight,0);assert.equal(h.form.readingReady.value,false)
+ h.send(-20);assert.equal(h.form.current.value.grossWeight,-20)
+})
+test('same receive time cannot manufacture elapsed stability; stamps wrap and reconnect safely',async t=>{
+ const h=await floorStream(t)
+ for(let i=0;i<30;i++)h.bytes(h.packet(185,65520+i),0)
+ assert.equal(h.form.current.value.capture.stable,false)
+ for(let i=0;i<20;i++)h.send(185)
+ assert.equal(h.form.readingReady.value,true)
+ h.disconnectNative();assert.equal(h.form.current.value.capture,null)
+ assert.equal(await h.form.connect(),true);h.send(185);assert.equal(h.form.current.value.capture.stable,false)
+})
+test('real return minimum keeps low live display but blocks submission until half tare',async t=>{
+ const h=await floorStream(t,true);for(let i=0;i<20;i++)h.send(0.4)
+ assert.equal(h.form.current.value.grossWeight,0.5);assert.equal(h.form.readingReady.value,false)
+ assert.equal(await h.form.submit(),false);assert.match(h.form.error.value,/50%/);assert.equal(h.requests.length,0)
+ for(let i=0;i<20;i++)h.send(50)
+ assert.equal(h.form.readingReady.value,true);assert.equal(await h.form.submit(),true)
+})
+test('real BLE unload while preview is pending preserves the clicked gross snapshot',async t=>{
+ let release
+ const h=await floorStream(t,false,{preview:(params,count,result)=> count===2?new Promise(resolve=>{release=()=>resolve(result)}):result})
+ for(let i=0;i<20;i++)h.send(185)
+ const pending=h.form.submit();assert.equal(typeof release,'function')
+ h.send(0);h.disconnectNative();release()
+ assert.equal(await pending,true);assert.equal(h.requests[0].payload.gross_weight,185);assert.equal(h.requests[0].payload.capture.gross_kg,185)
+})
+test('mixed valid boot/movement and corrupt packet cannot preserve old stability',async t=>{
+ for(const [kg,status] of [[0,0xe0],[160,0]]) {
+  const h=await floorStream(t);for(let i=0;i<20;i++)h.send(185)
+  const bad=h.packet(185,22);bad[4]^=1
+  h.bytes([...h.packet(kg,21,status),...bad]);assert.equal(h.form.current.value.capture,null)
+  h.bytes(h.packet(185,23));assert.equal(h.form.current.value.capture.stable,false);assert.equal(h.form.readingReady.value,false)
  }
 })

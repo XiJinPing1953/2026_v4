@@ -4,13 +4,13 @@ function bench() {
  let state={status:'idle',fresh:false,sessionKey:'',deviceId:''},controllerUpdates,diagnosticUpdates,now=10000,reads=0
  const timers=new Set(), ref=value=>({value})
  const diag={getSnapshot(){reads++;return state},subscribe(fn){diagnosticUpdates=fn;fn(state);return()=>{diagnosticUpdates=null}},disconnect:async()=>{}}
- const ctrl={getState:()=>({}),subscribe(fn){controllerUpdates=fn;fn({});return()=>{controllerUpdates=null}}}
+ const ctrl={observeConnection(){},getState:()=>({}),subscribe(fn){controllerUpdates=fn;fn({});return()=>{controllerUpdates=null}}}
  const ui=vm.runInNewContext(code+';useFloorCalibrationBench()',{
  ref,shallowRef:ref,computed:fn=>({get value(){return fn()}}),Date:class extends Date{static now(){return now}},
  setInterval:fn=>{timers.add(fn);return fn},clearInterval:fn=>timers.delete(fn),getUser:()=>({_id:'u'}),canPageAction:()=>true,
  createCalibrationWindow:()=>({read:()=>({kg:0,ad:8,stable:true}),clear(){}}),
  createFloorScaleNativeRuntime:()=>({}),createFloorScaleDiagnostic:()=>diag,createFloorScaleCalibrationController:()=>ctrl,
- uni:{getStorageSync(){}},floorScaleDivisionKg:v=>v
+ uni:{getStorageSync(){}},floorScaleBootStatus:()=>null,floorScaleDivisionKg:v=>v
  })
  return {ui,reads:()=>reads,timers,change(s){state=s;diagnosticUpdates?.(s)},tick(n){for(let i=0;i<n;i++){now+=250;for(const fn of timers)fn()}},subscribed:()=>Boolean(controllerUpdates||diagnosticUpdates)}
 }

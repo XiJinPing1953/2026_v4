@@ -1,7 +1,7 @@
 import { forgetSavedReweighOperations } from '@/services/fillingOperations'
 import { readPdaStorage } from '@/services/pda/asyncStorage'
 import { sameWeighDisplay } from '@/services/pda/weighStatus'
-import { createAutoReweighWeight, createFloorReweighWeight } from '@/services/pda/autoReturnWeight'
+import { createAutoReweighWeight, createFloorReweighWeight, FLOOR_REWEIGH_POLICY } from '@/services/pda/autoReturnWeight'
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { getUser } from '@/services/auth'
 import { canPageAction } from '@/services/pageAcl'
@@ -121,19 +121,20 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		catch (cause) { storageError.value = cause.message; return false }
 	}
 	function editable() { return nativeSupported && active.value && canCreate.value && !locked.value && !busy.value && Boolean(round.value?._id) && (!isReturn || roundReady.value) && (!isFloor || Boolean(round.value?._id)) }
-	function invalidateFloorReading() {
-		autoWeight.interrupt(); floorLastFrame = null
+	function invalidateFloorReading(event = {}) {
+		if (event.transient) autoWeight.suspend(); else autoWeight.interrupt(); floorLastFrame = null
 		if (!isFloor || !active.value || busy.value || current.value.frozen || (!current.value.capture && current.value.grossWeight == null)) return
 		current.value = { ...current.value, grossWeight: null, capture: null,
 			preview: current.value.preview ? { ...current.value.preview, gross_weight: null, net_weight: null, fill_weight: null, label: null } : null }
 		persist()
 	}
+	function returnMinimum() { return isReturn ? Number(current.value.preview?.bottle?.tare_weight) * 0.5 : 0 }
 	function floorCanSave() {
 		if (!isFloor) return Boolean(current.value.capture)
-		const f = floorLastFrame, c = current.value.capture, age = Date.now() - Number(f?.sampled_at)
-		return Boolean(c?.stable && autoWeight.stable && c.gross_kg > 0 && f && f.session_id === autoSession &&
-			f.display_kg === c.gross_kg && f.device_id === c.device_id && age >= 0 && age <= 3000 &&
-			snapshot.value.is_connected && snapshot.value.is_online && snapshot.value.qualified_frame !== false)
+		const f = floorLastFrame, c = current.value.capture, age = Date.now() - Number(f?.sampled_at), live = scale.getSnapshot()
+		return Boolean(c?.stable && autoWeight.stable && c.gross_kg > 0 && c.gross_kg >= returnMinimum() && f && f.session_id === autoSession &&
+			f.display_kg === c.gross_kg && f.device_id === c.device_id && age >= 0 && age <= FLOOR_REWEIGH_POLICY.freshMs &&
+			live.is_connected && live.is_online && live.qualified_frame !== false)
 	}
 	const readingReady = computed(() => { snapshot.value.sampled_at; return floorCanSave() })
 
@@ -203,9 +204,10 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		if (!editable() || !current.value.bottleNo) { autoWeight.interrupt(); return }
 		const weight = autoWeight.feed(frame, current.value.preview?.bottle?.tare_weight, Date.now())
 		if (isFloor) floorLastFrame = weight === null ? null : frame
-		captureMinimum.value = autoWeight.minimumWeight(current.value.preview?.bottle?.tare_weight)
+		captureMinimum.value = Math.max(returnMinimum(), autoWeight.minimumWeight(current.value.preview?.bottle?.tare_weight))
 		if (weight === null) { if (isFloor) invalidateFloorReading(); return }
 		const stable = !isFloor || autoWeight.stable
+		if (isFloor && (snapshot.value.display_kg !== frame.display_kg || current.value.capture?.stable !== stable || snapshot.value.qualified_frame === false)) snapshot.value = scale.getSnapshot()
 		if (isFloor && current.value.grossWeight === weight && current.value.capture?.stable === stable && current.value.capture?.device_id === frame.device_id) return
 		const capture = { sampled_at: frame.sampled_at, device_id: frame.device_id, stable_seq: ++autoSequence, measurement_id: frame.session_id, stable, raw: frame.raw || '', ...(isFloor ? { scale_type: 'floor', bottle_no: current.value.bottleNo, gross_kg: weight } : {}) }
 		pendingSession.value = ''
@@ -218,12 +220,12 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 			...(!isReturn ? { fill_weight: subtract(preview?.basis?.gross_weight), label: null } : {})
 		} }
 		persist()
-		message.value = stable ? '重量稳定，可以保存。' : '重量实时更新中。'
+		message.value = isReturn && weight < returnMinimum() ? `回瓶毛重须达到档案皮重的50%（至少 ${returnMinimum().toFixed(2)} kg）` : weight <= 0 ? '当前毛重须大于零才能保存。' : stable ? '重量稳定，可以保存。' : '重量实时更新中。'
 	}
 
 	const unsubscribe = scale.onSnapshot(next => {
 		if (isFloor || !sameWeighDisplay(snapshot.value, next)) snapshot.value = next
-		if (isFloor && (!next.is_connected || !next.is_online || next.qualified_frame === false)) invalidateFloorReading()
+		if (isFloor && (!next.is_connected || !next.is_online || next.qualified_frame === false)) invalidateFloorReading({ transient: next.is_connected && next.is_online && next.interruption_transient })
 		if (autoSession && (next.session_id !== autoSession || (!isFloor && !next.is_connected))) { autoSession = ''; autoWeight.reset(); captureMinimum.value = 0 }
 		if (pendingSession.value && (next.session_id !== pendingSession.value || (!isFloor && !next.is_connected))) { pendingSession.value = ''; message.value = isFloor ? '等待地秤实时读数。' : `${scaleLabel}已断开，请连接后点本瓶称重。` }
 	})
@@ -305,6 +307,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		} catch (cause) { applyReceipt({ msg: cause.message || '网络中断，还没确认是否保存成功' }, frozen.payload.operation_id); return false }
 	}
 	async function submit() {
+		if (isReturn && current.value.grossWeight != null && current.value.grossWeight < returnMinimum()) return fail(`回瓶毛重须达到档案皮重的50%（至少 ${returnMinimum().toFixed(2)} kg）`)
 		if (isFloor) {
 			const c = current.value.capture
 			if (!c || c.scale_type !== 'floor' || !c.stable || !c.measurement_id || c.bottle_no !== current.value.bottleNo ||
