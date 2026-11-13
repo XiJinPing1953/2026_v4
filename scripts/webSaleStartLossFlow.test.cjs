@@ -93,4 +93,3 @@ test('并发补算时过期计算不覆盖新结果（stale basis race regressio
 	assert.ok(allOps.some((o) => o.operation_id === 'op002-valid-012' && o.status === 'complete'),
 		`op2 should be complete: ${JSON.stringify(allOps.map(o => ({ id: o.operation_id, status: o.status })))}`)
 })
-

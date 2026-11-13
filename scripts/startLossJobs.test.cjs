@@ -250,4 +250,3 @@ test('时限预算为 recordLog 预留开销（timing instrumentation regression
 	assert.ok(slow.data.elapsed_ms < slow.data.wall_elapsed_ms, `work elapsed should be less than wall elapsed: ${slow.data.elapsed_ms} vs ${slow.data.wall_elapsed_ms}`)
 	assert.ok(slow.data.wall_elapsed_ms >= 2000, `wall elapsed should include recordLog: ${slow.data.wall_elapsed_ms}`)
 })
-
