@@ -57,26 +57,43 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.11.12-return-minimum.1",
+      "version": "2026.11.13-start-loss-resume.1",
       "output": "release/cloud",
-      "acceptance": "Candidate only, not deployed: floor BLE real receive times, duplicate freshness, raw 1.5s/0.1kg stability, 500ms freshness/gap, 0.03kg boundary hysteresis, no display tare; floor and hanging return saves require gross >= exact tare * 0.5. Preserve continuous signed readings, calibration independence and frozen submission/idempotent recovery. WGT and crm-filling only; no APK/native/firmware/schema/H5 or historical data changes. Loaded-noise and physical accuracy acceptance pending.",
+      "acceptance": "Bounded resumable web-sale start-loss follow-up, date-qualified basis, atomic idempotent adjustments and caller latency telemetry. Preserve deployed filling 1.0.74 return minimum and sale visibility rollback. Only two functions and two schemas; no H5/PDA deployment or historical missing-row repair. Verify task progress, derived integrity and full-day billing separately.",
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
-          "crm-filling"
+          "crm-filling",
+          "crm-sale"
         ],
-        "databaseFiles": [],
-        "baseCommit": "2b6a43a0aad8e483477ea16da26620916008e0a0",
+        "databaseFiles": [
+          "crm_filling_start_loss_jobs.schema.json",
+          "crm_web_sale_operations.schema.json"
+        ],
+        "baseCommit": "a68a4f76bd79a08fbdb7f51b0135e8029d5c9ae0",
         "sourceFiles": [
-          "src/manifest.json",
-          "src/components/domain/pda/PdaFloorScale.vue",
-          "src/composables/pda/usePdaReweigh.js",
-          "src/services/pda/autoReturnWeight.js",
-          "src/services/pda/floorScaleDiagnostic.js",
-          "src/services/pda/floorScaleDisplay.js",
-          "src/services/pda/floorScaleSession.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js"
-        ]
+          "uniCloud-alipay/cloudfunctions/crm-filling/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/startLossJobs.js",
+          "uniCloud-alipay/cloudfunctions/crm-filling/startLossScope.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/pdaSaleRecords.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/webSaleSave.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/webStartLossScope.js",
+          "uniCloud-alipay/database/crm_filling_start_loss_jobs.schema.json",
+          "uniCloud-alipay/database/crm_web_sale_operations.schema.json"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          }
+        }
       }
     },
     "tank-gateway": {

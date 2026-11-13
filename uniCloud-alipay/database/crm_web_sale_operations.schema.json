@@ -37,7 +37,8 @@
       "bsonType": "string"
     },
     "status": {
-      "bsonType": "string"
+      "bsonType": "string",
+      "description": "pending | processing | complete | blocked"
     },
     "lease_id": {
       "bsonType": "string"
@@ -77,6 +78,18 @@
       "items": {
         "bsonType": "string"
       }
+    },
+    "failure_streak": {
+      "bsonType": "number",
+      "description": "Consecutive technical failures; reset by progress or completion. At MAX the job becomes blocked."
+    },
+    "blocked_at": {
+      "bsonType": "number",
+      "description": "Time automation stopped; resumed only by resumeWebSaleOperationV1."
+    },
+    "resume_count": {
+      "bsonType": "number",
+      "description": "Explicit superadmin resumes; forwarded as the start-loss job resume token."
     }
   },
   "permission": {

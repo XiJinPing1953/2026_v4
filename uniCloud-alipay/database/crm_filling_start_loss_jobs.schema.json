@@ -1,0 +1,129 @@
+{
+  "bsonType": "object",
+  "additionalProperties": false,
+  "description": "Durable, bounded start-loss re-sync jobs (crm-filling syncStartLossJobV1). One per caller operation and frozen scope; holds the stable _id cursor, per-row retry state, business review items and the final completion. Server only; never seeded from history.",
+  "required": [
+    "rule_version",
+    "scope_digest",
+    "bottle_nos",
+    "status",
+    "phase",
+    "created_at"
+  ],
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "rule_version": {
+      "bsonType": "string"
+    },
+    "scope_digest": {
+      "bsonType": "string"
+    },
+    "bottle_nos": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "string"
+      }
+    },
+    "date_from": {
+      "bsonType": "string"
+    },
+    "created_by": {
+      "bsonType": "string"
+    },
+    "request_id": {
+      "bsonType": "string"
+    },
+    "status": {
+      "bsonType": "string",
+      "enum": [
+        "running",
+        "complete",
+        "complete_with_review",
+        "blocked"
+      ]
+    },
+    "phase": {
+      "bsonType": "string",
+      "enum": [
+        "retry",
+        "main",
+        "guard",
+        "done"
+      ]
+    },
+    "chunk": {
+      "bsonType": "number"
+    },
+    "cursor": {
+      "bsonType": "string"
+    },
+    "retry_queue": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "string"
+      }
+    },
+    "retry_only": {
+      "bsonType": "bool"
+    },
+    "row_error": {
+      "bsonType": [
+        "object",
+        "null"
+      ]
+    },
+    "blocked_ids": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "string"
+      }
+    },
+    "blocked_errors": {
+      "bsonType": "object"
+    },
+    "resume_token": {
+      "bsonType": "number"
+    },
+    "counts": {
+      "bsonType": "object"
+    },
+    "review_total": {
+      "bsonType": "number"
+    },
+    "review_items": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "object"
+      }
+    },
+    "calls": {
+      "bsonType": "number"
+    },
+    "elapsed_ms_total": {
+      "bsonType": "number"
+    },
+    "lease_id": {
+      "bsonType": "string"
+    },
+    "lease_until": {
+      "bsonType": "number"
+    },
+    "created_at": {
+      "bsonType": "number"
+    },
+    "updated_at": {
+      "bsonType": "number"
+    },
+    "completed_at": {
+      "bsonType": "number"
+    }
+  },
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  }
+}

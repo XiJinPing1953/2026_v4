@@ -90,15 +90,54 @@ test('warning rows beyond the old display limit are prioritized without losing i
 test('post-save incomplete history remains recoverable and never updates bottle status',async()=>{
  const { makeApp } = require('./lib/fillingIntegrationHarness.cjs')
  const app = makeApp()
- app.db.setFault((name,action)=>{
-  if(name==='crm_bottle_movements' && action==='get' && app.db.data('crm_fillings').size) throw Error('history unavailable')
+ const beforeBottle=structuredClone(app.db.data('crm_bottles').get('b1'))
+ let historyFaults=0
+ app.db.setFault((name,action,filter)=>{
+  // Target the unbounded bottle-history read after source commit. Start-loss
+  // cleanup also reads movements first, but is a different failure boundary.
+  if(name==='crm_bottle_movements' && action==='get' && app.db.data('crm_fillings').size &&
+   Object.keys(filter).length===1 && filter.bottle_no?.__condition==='in' && filter.bottle_no.value.includes('B1')) {
+   historyFaults++; throw Error('history unavailable')
+  }
  })
  const r=await app.filling('createV1',{operation_id:'warning-create-test-002',date:'2026-09-01',bottle_no:'B1',fill_weight:66})
  assert.equal(r.code,0);assert.equal(r.data.saved_total,1);assert.equal(r.data.complete,false)
  assert.match(r.data.last_error,/核查未完成/)
+ assert.equal(historyFaults,1,'failure must occur in post-save full-history read')
+ assert.deepEqual(app.db.data('crm_bottles').get('b1'),beforeBottle)
  assert.equal(app.db.data('crm_fillings').size,1)
  const source=[...app.db.data('crm_fillings').values()][0]
  assert.notEqual(source.consistency_status,'complete')
  const status=await app.filling('getOperationV1',{operation_id:'warning-create-test-002'})
  assert.equal(status.data.source_saved_total,1)
+ app.db.setFault(null)
+ const recovered=await app.filling('retryOperationV1',{operation_id:'warning-create-test-002'})
+ assert.equal(recovered.code,0);assert.equal(recovered.data.complete,true)
+ assert.equal(app.db.data('crm_fillings').size,1,'retry must reuse the saved source')
+ assert.equal(app.db.data('crm_fillings').get(source._id).consistency_status,'complete')
+ assert.equal(app.db.data('crm_bottles').get('b1').status,'in_station')
+})
+test('post-save start-loss lookup failure remains recoverable before bottle status projection',async()=>{
+ const { makeApp } = require('./lib/fillingIntegrationHarness.cjs')
+ const app=makeApp()
+ const beforeBottle=structuredClone(app.db.data('crm_bottles').get('b1'))
+ let lookupFaults=0
+ app.db.setFault((name,action,filter)=>{
+  if(name==='crm_bottle_movements' && action==='get' && filter.source_type==='manual_fix' &&
+   filter.adjust_reason==='filling_start_weight_loss' && app.db.data('crm_fillings').has(filter.source_id)) {
+   lookupFaults++; throw Error('start-loss lookup unavailable')
+  }
+ })
+ const operation_id='warning-start-loss-lookup-001'
+ const r=await app.filling('createV1',{operation_id,date:'2026-09-01',bottle_no:'B1',fill_weight:66})
+ assert.equal(r.code,0);assert.equal(r.data.saved_total,1);assert.equal(r.data.complete,false)
+ assert.equal(r.data.last_error,'start-loss lookup unavailable')
+ assert.equal(lookupFaults,1)
+ assert.deepEqual(app.db.data('crm_bottles').get('b1'),beforeBottle)
+ app.db.setFault(null)
+ const recovered=await app.filling('retryOperationV1',{operation_id})
+ assert.equal(recovered.code,0);assert.equal(recovered.data.complete,true)
+ assert.equal(app.db.data('crm_fillings').size,1)
+ assert.equal([...app.db.data('crm_fillings').values()][0].consistency_status,'complete')
+ assert.equal(app.db.data('crm_bottles').get('b1').status,'in_station')
 })

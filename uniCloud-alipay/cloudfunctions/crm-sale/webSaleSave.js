@@ -10,6 +10,13 @@ const keyFor = (user, id) => hash([VERSION, user._id, id]).slice(0, 24)
 const validId = id => typeof id === 'string' && /^[a-zA-Z0-9_-]{12,100}$/.test(id)
 const actions = new Set(['createV2', 'updateV2', 'updateSettlementV1'])
 const pending = op => op && op.status !== 'complete'
+// Consecutive technical failures before automation stops and the job waits for an
+// explicit superadmin resume (~6 h with the 15 min backoff). Progress resets it.
+const MAX_FAILURE_STREAK = 30
+// Step errors may carry: deferral 'progress' (bounded work done, continue soon),
+// 'yield' (no time left in this run), 'busy' (another worker owns the sub-job),
+// or blocked (needs review).
+const stepSignal = error => ({ deferral: error && error.deferral, blocked: Boolean(error && error.blocked) })
 function savedResult(op) {
   return { code: 0, msg: op.status === 'complete' ? '保存成功' : '单据已保存，关联处理后台继续', data: {
     _id: op.sale_id, sale_id: op.sale_id, operation_id: op.operation_id, source_saved: true,
@@ -108,17 +115,47 @@ function createService({ db, handlers, steps, authorize, actor, now = Date.now }
         if (now() - started >= maxMs) break
         const source = await one(SALES, op.sale_id)
         if (!source || source.web_save_operation_key !== key) throw new Error('源单已变化，原任务停止，需核对')
-        await step.run({ op, source, user, token: user.token })
-        await checkpoint({ completed_steps: [...op.completed_steps, step.name], last_error: '', attempts: 0 })
+        await step.run({ op, source, user, token: user.token, deadline: started + maxMs, now })
+        await checkpoint({ completed_steps: [...op.completed_steps, step.name], last_error: '', attempts: 0, failure_streak: 0 })
       }
       const complete = steps(op).every(step => op.completed_steps.includes(step.name))
       await checkpoint({ status: complete ? 'complete' : 'pending', lease_id: '', lease_until: 0, next_retry_at: 0, ...(complete ? { completed_at: now() } : {}) })
     } catch (error) {
-      const attempts = op.attempts + 1
-      await checkpoint({ status: 'pending', attempts, last_error: String(error.message || error).slice(0, 220),
-        lease_id: '', lease_until: 0, next_retry_at: now() + Math.min(60000 * 2 ** Math.min(attempts - 1, 4), 900000) })
+      const message = String(error.message || error).slice(0, 220)
+      const signal = stepSignal(error)
+      const release = { lease_id: '', lease_until: 0, last_error: message }
+      if (signal.deferral === 'progress') {
+        // Bounded work was done and checkpointed by the callee: not a failure.
+        await checkpoint({ ...release, status: 'pending', attempts: 0, failure_streak: 0, next_retry_at: now() })
+      } else if (signal.deferral === 'yield' || signal.deferral === 'busy') {
+        // Not enough time left in this run / sub-job owned by another worker: counters unchanged.
+        await checkpoint({ ...release, status: 'pending', next_retry_at: now() + (signal.deferral === 'busy' ? 60000 : 0) })
+      } else {
+        const attempts = (op.attempts || 0) + 1
+        const streak = (op.failure_streak || 0) + 1
+        if (signal.blocked || streak >= MAX_FAILURE_STREAK) {
+          // Keep the job and all completed steps; automation stops until an explicit resume.
+          await checkpoint({ ...release, status: 'blocked', attempts, failure_streak: streak, blocked_at: now(), next_retry_at: 0 })
+        } else {
+          await checkpoint({ ...release, status: 'pending', attempts, failure_streak: streak,
+            next_retry_at: now() + Math.min(60000 * 2 ** Math.min(attempts - 1, 4), 900000) })
+        }
+      }
     }
     return op
+  }
+  // Superadmin only (enforced by the caller's ACL): move one blocked job back to the queue.
+  async function resume(user, data = {}) {
+    const key = typeof data.operation_key === 'string' ? data.operation_key : ''
+    if (!/^[a-f0-9]{24}$/.test(key)) return { code: 400, msg: '任务号无效' }
+    const op = await one(TABLE, key)
+    if (!op) return { code: 404, msg: '任务不存在' }
+    if (op.status !== 'blocked') return { code: 409, msg: '仅已停止的任务可恢复', data: { status: op.status } }
+    const changed = await db.collection(TABLE).where({ _id: key, status: 'blocked' }).update({ status: 'pending',
+      failure_streak: 0, attempts: 0, next_retry_at: 0, resume_count: (op.resume_count || 0) + 1,
+      last_error: `已人工恢复，原因：${op.last_error || ''}`.slice(0, 220), updated_at: now() })
+    if (Number(changed.updated) !== 1) return { code: 409, msg: '任务状态已变化，请刷新' }
+    return { code: 0, data: { operation_key: key, status: 'pending', resume_count: (op.resume_count || 0) + 1 } }
   }
   async function drain() {
     const started = now()
@@ -133,9 +170,11 @@ function createService({ db, handlers, steps, authorize, actor, now = Date.now }
   async function review(source) {
     if (!source?.web_save_operation_key) return null
     const op = await one(TABLE, source.web_save_operation_key)
-    return { pending: !op || pending(op), message: op?.status === 'complete' ? '' :
-      `本单已保存，${op?.last_error || '关联处理正在后台继续'}。完成前暂不能修改，请稍后刷新查看。` }
+    return { pending: !op || pending(op), status: op?.status || '', operation_key: source.web_save_operation_key,
+      message: op?.status === 'complete' ? '' : op?.status === 'blocked'
+        ? `本单已保存，后台关联处理已停止，需管理员核对后恢复：${op.last_error || ''}`
+        : `本单已保存，${op?.last_error || '关联处理正在后台继续'}。完成前暂不能修改，请稍后刷新查看。` }
   }
-  return { submit, getResult, guard, run, drain, review }
+  return { submit, getResult, guard, run, drain, review, resume }
 }
-module.exports = { createService, context, keyFor, TABLE, VERSION, hash, savedResult }
+module.exports = { createService, context, keyFor, TABLE, VERSION, hash, savedResult, MAX_FAILURE_STREAK }

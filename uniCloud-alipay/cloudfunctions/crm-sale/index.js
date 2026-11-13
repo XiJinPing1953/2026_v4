@@ -2,6 +2,7 @@
 const { assertCustomerAdjustmentSourceMutable } = require('./customerAdjustmentGuardLocal')
 const { writeSaleSource } = require('./saleSourceWrite')
 const webSave = require('./webSaleSave')
+const { webStartLossDateFrom, webStartLossJobKey, runStartLossStep } = require('./webStartLossScope')
 const { assertOffsetSourceEditable, financialIdentity } = require('./saleOffsetGuard')
 
 const { inventoryTon, kgToTon } = require('./gasInventoryPrecisionLocal')
@@ -74,6 +75,7 @@ const PAGE_ACTION_RULES = {
 	]
 }
 const SUPERADMIN_ONLY_ACTIONS = [
+	'resumeWebSaleOperationV1',
 	'classifyLegacyM3SettlementV1',
 	'backfillAgentSaleBottleMovementsV1',
 	'backfillTruckGrossDiffV1',
@@ -2670,9 +2672,15 @@ async function syncFillingStartLossAdjustments(user, token, bottleNos = [], requ
 			}
 		})
 		const result = res && res.result ? res.result : {}
-		if (result.code === 0) return { ok: true, warning: '', data: result.data || null }
-		const warning = normalizeString(result.msg) || '灌装上秤差自动补算失败'
-		await recordLog(user, logAction, { bottle_nos: normalizedBottleNos, msg: warning }, requestId)
+		// Older crm-filling builds return no completion; newer ones report partial/error explicitly.
+		const completion = normalizeString(result.data && result.data.completion)
+		if (result.code === 0 && (!completion || completion === 'complete' || completion === 'complete_with_review')) {
+			return { ok: true, warning: '', data: result.data || null }
+		}
+		const warning = result.code === 0
+			? `灌装上秤差补算未全部完成（${completion}）`
+			: normalizeString(result.msg) || '灌装上秤差自动补算失败'
+		await recordLog(user, logAction, { bottle_nos: normalizedBottleNos, msg: warning, completion }, requestId)
 		return { ok: false, warning }
 	} catch (err) {
 		const warning = normalizeString(err && err.message) || '灌装上秤差自动补算失败'
@@ -5627,8 +5635,12 @@ function webFollowupSteps(op) {
 	const list = []
 	const add = (name, label, run) => list.push({ name, run: async args => {
 		try { await run(args) } catch (error) {
-			await recordLog(args.user, 'sale_web_followup_failed', { operation_id: op.operation_id, sale_id: op.sale_id, step: name, error: String(error.message || error).slice(0, 1000) }, op.request_id)
-			throw new Error(`${label}暂未完成`)
+			// Deferrals (bounded progress / no time left / sub-job busy) are not failures; keep their signal.
+			if (error && (error.deferral === 'progress' || error.deferral === 'yield' || error.deferral === 'busy')) {
+				throw Object.assign(new Error(String(error.message || `${label}后台继续`).slice(0, 200)), { deferral: error.deferral })
+			}
+			await recordLog(args.user, 'sale_web_followup_failed', { operation_id: op.operation_id, sale_id: op.sale_id, step: name, error: String(error.message || error).slice(0, 1000), blocked: Boolean(error && error.blocked) }, op.request_id)
+			throw Object.assign(new Error(error && error.blocked ? String(error.message).slice(0, 200) : `${label}暂未完成`), { blocked: Boolean(error && error.blocked) })
 		}
 	} })
 	if (business) {
@@ -5675,9 +5687,22 @@ function webFollowupSteps(op) {
 	}
 	add('voucher', '凭证同步', ({ user }) => webDerivedTransaction(op, (tx, source) => syncSaleVoucher(user, source, computeSaleAmountsForDoc(source).amounts, op.request_id, tx, false)))
 	if (business) {
-		if (backs.length) add('start_loss', '灌装上秤差处理', async ({ user, token }) => {
-			const result = await syncFillingStartLossAdjustments(user, token, backs, op.request_id, 'sale_web_start_loss_failed')
-			if (!result.ok) throw new Error(result.warning)
+		if (backs.length) add('start_loss', '灌装上秤差处理', async ({ user, token, deadline, now }) => {
+			const bottleNos = [...new Set(backs.map(item => normalizeBottleNoForCreate(item)).filter(Boolean))].sort()
+			const dateFrom = webStartLossDateFrom([op.before, after], collectSaleBackBottleNosFromDoc)
+			const data = await runStartLossStep({
+				jobKey: webStartLossJobKey(op._id, bottleNos, dateFrom), bottleNos, dateFrom,
+				resumeToken: op.resume_count || 0, deadline, now,
+				recordCall: timing => recordLog(user, 'sale_web_start_loss_call_v1', {
+					operation_id: op.operation_id, sale_id: op.sale_id, ...timing
+				}, op.request_id),
+				call: async payload => (await uniCloud.callFunction({ name: 'crm-filling',
+					data: { action: 'syncStartLossJobV1', token, request_id: op.request_id, data: payload } }))?.result
+			})
+			if (data.review_total) {
+				await recordLog(user, 'sale_web_start_loss_review', { operation_id: op.operation_id, sale_id: op.sale_id,
+					job_key: data.job_key, review_total: data.review_total, review_items: data.review_items }, op.request_id)
+			}
 		})
 		if (touched.length || trucks.length) add('anomaly', '异常刷新排队', async ({ user, token }) => {
 			const result = await triggerAnomalyTouchV2(user, token, { bottleNos: touched, truckNos: trucks }, `web-sale-${op._id}`)
@@ -5720,6 +5745,11 @@ const main = async (event, context) => {
 
 	if (action === 'saveWebV1') return webSaleService.submit(user, data, requestId, token)
 	if (action === 'getWebSaveResultV1') return webSaleService.getResult(user, data)
+	if (action === 'resumeWebSaleOperationV1') {
+		const result = await webSaleService.resume(user, data)
+		await recordLog(user, 'sale_web_operation_resume', { operation_key: data.operation_key, code: result.code, msg: result.msg || '' }, requestId)
+		return result
+	}
 	if (action === 'listPdaV1') return pdaSaleRecords.list(user, data)
 	if (action === 'getPdaV1') return pdaSaleRecords.get(user, data)
 	if (action === 'createMobileV1') return mobileSaleService.create(user, data, requestId, token)

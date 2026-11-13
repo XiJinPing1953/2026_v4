@@ -10,6 +10,7 @@ const { createReweighRecordsService } = require('./reweighRecords')
 
 const flowRules = require('./bottleFlowRulesLocal')
 const confirmedFillLoss = require('./confirmedFillLossLocal')
+const { createStartLossJobs } = require('./startLossJobs')
 
 const crypto = require('crypto')
 const { createFillingOperations, operationKey, VERSION } = require('./fillingOperations')
@@ -107,6 +108,11 @@ const PAGE_ACTION_RULES = {
 		{ pagePath: '/pages/filling/list', action: 'create' },
 		{ pagePath: '/pages/filling/edit', action: 'update' },
 		{ pagePath: '/pages/filling/list', action: 'delete' }
+	],
+	// Web-sale follow-up only (crm-sale calls it with the original operator's token).
+	syncStartLossJobV1: [
+		{ pagePath: '/pages/sale/edit', action: 'create' },
+		{ pagePath: '/pages/sale/edit', action: 'update' }
 	]
 }
 const SUPERADMIN_ONLY_ACTIONS = [
@@ -2006,7 +2012,11 @@ async function fetchSaleDocsByIds(saleIds = []) {
 	return map
 }
 
-function pickBasisFromSaleDocByBottleNo(saleDoc = {}, normalizedBottleNo = '') {
+function pickBasisFromSaleDocByBottleNo(saleDoc = {}, normalizedBottleNo = '', fillingDate = '') {
+	// Re-check the source sale, not only its movement: a sale date edit can make
+	// this return ineligible before the associated movement has been updated.
+	const saleDate = normalizeFillingDate(saleDoc.date)
+	if (fillingDate && (!saleDate || saleDate > fillingDate)) return null
 	const backItems = Array.isArray(saleDoc.back_items) ? saleDoc.back_items : []
 	for (let i = 0; i < backItems.length; i += 1) {
 		const item = backItems[i] || {}
@@ -2017,7 +2027,8 @@ function pickBasisFromSaleDocByBottleNo(saleDoc = {}, normalizedBottleNo = '') {
 			value: basis.value,
 			source: basis.source,
 			ref: normalizeString(saleDoc._id),
-			date: normalizeString(saleDoc.date)
+			date: normalizeString(saleDoc.date),
+			generation: Math.max(Number(saleDoc.updated_at || 0), Number(saleDoc.created_at || 0))
 		}
 	}
 	return null
@@ -2039,21 +2050,23 @@ async function findLatestBackBasisByBottleNoFromMovements(normalizedBottleNo, no
 		.get()
 	const movementRows = Array.isArray(res.data) ? res.data : []
 	if (!movementRows.length) return null
-	const sourceIds = []
-	const seen = new Set()
+	const movementBySource = new Map()
 	for (let i = 0; i < movementRows.length; i += 1) {
 		const sourceId = normalizeString((movementRows[i] || {}).source_id)
-		if (!sourceId || seen.has(sourceId)) continue
-		seen.add(sourceId)
-		sourceIds.push(sourceId)
+		if (!sourceId || movementBySource.has(sourceId)) continue
+		movementBySource.set(sourceId, movementRows[i])
 	}
-	if (!sourceIds.length) return null
+	if (!movementBySource.size) return null
+	const sourceIds = [...movementBySource.keys()]
 	const saleMap = await fetchSaleDocsByIds(sourceIds)
 	for (let i = 0; i < sourceIds.length; i += 1) {
 		const saleDoc = saleMap.get(sourceIds[i])
 		if (!saleDoc) continue
-		const basis = pickBasisFromSaleDocByBottleNo(saleDoc, normalizedBottleNo)
-		if (basis) return basis
+		const basis = pickBasisFromSaleDocByBottleNo(saleDoc, normalizedBottleNo, normalizedDate)
+		if (!basis) continue
+		const mv = movementBySource.get(sourceIds[i])
+		const movGen = mv ? Math.max(Number(mv.updated_at || 0), Number(mv.created_at || 0)) : 0
+		return { ...basis, generation: Math.max(basis.generation || 0, movGen) }
 	}
 	return null
 }
@@ -2073,7 +2086,7 @@ async function findLatestBackBasisByBottleNoFromSales(normalizedBottleNo, normal
 		.get()
 	const rows = Array.isArray(res.data) ? res.data : []
 	for (let i = 0; i < rows.length; i += 1) {
-		const basis = pickBasisFromSaleDocByBottleNo(rows[i] || {}, normalizedBottleNo)
+		const basis = pickBasisFromSaleDocByBottleNo(rows[i] || {}, normalizedBottleNo, normalizedDate)
 		if (basis) return basis
 	}
 	return null
@@ -2093,7 +2106,7 @@ async function findLatestBackBasisByBottleNoByRecentScan(normalizedBottleNo, nor
 		.get()
 	const rows = Array.isArray(res.data) ? res.data : []
 	for (let i = 0; i < rows.length; i += 1) {
-		const basis = pickBasisFromSaleDocByBottleNo(rows[i] || {}, normalizedBottleNo)
+		const basis = pickBasisFromSaleDocByBottleNo(rows[i] || {}, normalizedBottleNo, normalizedDate)
 		if (basis) return basis
 	}
 	return null
@@ -2249,7 +2262,9 @@ function buildFillingStartLossAdjustDoc({ fillingDoc = {}, basis = null, lossWei
 			basis_value: basis ? basis.value : null,
 			basis_source: basis ? basis.source : '',
 			basis_ref: basis ? basis.ref : '',
-			basis_date: basis ? basis.date : ''
+			basis_date: basis ? basis.date : '',
+			basis_generation: basis ? (basis.generation || 0) : 0,
+			filling_generation: Math.max(Number(fillingDoc.updated_at || 0), Number(fillingDoc.created_at || 0))
 		},
 		created_at: now,
 		created_by: user?._id || fillingDoc.created_by || null,
@@ -2257,9 +2272,20 @@ function buildFillingStartLossAdjustDoc({ fillingDoc = {}, basis = null, lossWei
 	}
 }
 
-async function findConfirmedStartLossBasis(fillingDoc) {
-	const rows = await readComplete(db.collection('crm_bottle_anomalies'), { bottle_no: fillingDoc.bottle_no,
+// `ctx` is a per-call cache; anomaly approvals for one bottle are read once per call
+// instead of once per filling. Never share it across calls.
+async function findConfirmedStartLossBasis(fillingDoc, ctx = null) {
+	const load = () => readComplete(db.collection('crm_bottle_anomalies'), { bottle_no: fillingDoc.bottle_no,
 		anomaly_type: 'continuous_fill' }, { command: dbCmd, source: 'confirmed_start_loss' })
+	let rows
+	if (ctx) {
+		if (!ctx.anomalies) ctx.anomalies = new Map()
+		if (!ctx.anomalies.has(fillingDoc.bottle_no)) {
+			// A failed read is not cached: the next filling retries it.
+			ctx.anomalies.set(fillingDoc.bottle_no, load().catch((error) => { ctx.anomalies.delete(fillingDoc.bottle_no); throw error }))
+		}
+		rows = await ctx.anomalies.get(fillingDoc.bottle_no)
+	} else rows = await load()
 	const approvalRows = rows.filter(row => row.context?.confirmed_fill_loss?.facts?.next?.id === fillingDoc._id)
 	if (!approvalRows.length) return null
 	const history = await readComplete(movements, { bottle_no: fillingDoc.bottle_no }, { command: dbCmd, source: 'confirmed_start_loss_history' })
@@ -2268,41 +2294,219 @@ async function findConfirmedStartLossBasis(fillingDoc) {
 		if (evidence) return { value: evidence.previous.weight_end, source: 'confirmed_previous_fill_end',
 			ref: evidence.previous._id, date: evidence.previous.date }
 	}
-	throw new Error('人工确认的灌装损耗依据已变化，请复核后再同步')
+	throw Object.assign(new Error('人工确认的灌装损耗依据已变化，请复核后再同步'), { code: 'CONFIRMED_BASIS_CHANGED' })
 }
 
-async function replaceFillingStartLossAdjustmentForDoc(fillingDoc = {}, user = null) {
+// One derived start-loss adjustment per filling, under a deterministic ID.
+function startLossAdjustId(fillingId) {
+	return `fsl_${crypto.createHash('sha256').update(`filling-start-loss|${fillingId}`).digest('hex').slice(0, 32)}`
+}
+
+const START_LOSS_COMPARE_FIELDS = ['bottle_no', 'type', 'date', 'event_day', 'event_at', 'type_order', 'source_type',
+	'source_id', 'customer_id', 'customer_name', 'net_weight', 'loss_weight', 'adjust_reason', 'note']
+const START_LOSS_CONTEXT_FIELDS = ['source', 'filling_id', 'weight_start', 'weight_end', 'fill_weight', 'basis_value',
+	'basis_source', 'basis_ref', 'basis_date']
+
+function sameStartLossAdjustment(existing = {}, desired = {}) {
+	const same = (a, b) => (a == null && b == null) || a === b
+	if (!START_LOSS_COMPARE_FIELDS.every((key) => same(existing[key], desired[key]))) return false
+	const left = existing.context || {}
+	const right = desired.context || {}
+	return START_LOSS_CONTEXT_FIELDS.every((key) => same(left[key], right[key]))
+}
+
+// Converge the stored adjustment(s) of one filling to `desired` (null = none).
+// Unchanged derivations write nothing. Otherwise removal and creation commit in one
+// transaction: a failed write leaves the previous adjustment in place, and two
+// concurrent writers collide on the deterministic ID or the removal count instead
+// of both appending.
+async function writeFillingStartLossAdjustment(fillingId, desired, guard = null) {
+	if (!desired) {
+		// Deletion path: must be guarded the same way as the write path to prevent
+		// a stale zero-diff computation from removing a newer correct adjustment.
+		if (!guard) {
+			const removed = await movements
+				.where({ source_type: 'manual_fix', source_id: fillingId, adjust_reason: FILLING_START_LOSS_ADJUST_REASON })
+				.remove()
+			const count = Number(removed && removed.deleted) || 0
+			return { write: count ? 'removed' : 'unchanged', docs_removed: count, docs_created: 0 }
+		}
+		const tx = await db.startTransaction()
+		let existingInTx = []
+		try {
+			const collection = tx.collection('crm_bottle_movements')
+			existingInTx = (await collection
+				.where({ source_type: 'manual_fix', source_id: fillingId, adjust_reason: FILLING_START_LOSS_ADJUST_REASON })
+				.limit(50).get()).data || []
+			if (existingInTx.length > 0) {
+				// Same three guards as write path: filling version, then basis.
+				const fillingsCollection = tx.collection('crm_fillings')
+				const currentFilling = (await fillingsCollection.doc(fillingId).get()).data || []
+				const fillingInDb = Array.isArray(currentFilling) ? currentFilling[0] : currentFilling
+				if (fillingInDb) {
+					const dbFillingGen = Math.max(Number(fillingInDb.updated_at || 0), Number(fillingInDb.created_at || 0))
+					if (dbFillingGen > guard.fillingGen) {
+						await tx.commit()
+						return { write: 'unchanged', docs_removed: 0, docs_created: 0, stale: true, reason: 'filling_input_stale' }
+					}
+				}
+				const existingFillingGen = Number(existingInTx[0].context?.filling_generation || 0)
+				// The source filling is authoritative. Derived metadata can itself be
+				// corrupt (for example a copied adjustment) and must not block repair
+				// when the transaction has confirmed this input is still current.
+				if (!fillingInDb && existingFillingGen > guard.fillingGen) {
+					await tx.commit()
+					return { write: 'unchanged', docs_removed: 0, docs_created: 0, stale: true }
+				}
+				const existingBasisGen = Number(existingInTx[0].context?.basis_generation || 0)
+				const existingBasisRef = String(existingInTx[0].context?.basis_ref || '')
+				if (existingBasisGen > guard.basisGen && existingBasisRef && guard.bottleNo) {
+					const saleRes = (await tx.collection('crm_sale_records').doc(existingBasisRef).get()).data || []
+					const saleDoc = Array.isArray(saleRes) ? saleRes[0] : saleRes
+					const basisStillValid = saleDoc && saleDoc._id &&
+						pickBasisFromSaleDocByBottleNo(saleDoc, normalizeBottleNo(guard.bottleNo), guard.fillingDate) != null
+					if (basisStillValid) {
+						await tx.commit()
+						return { write: 'unchanged', docs_removed: 0, docs_created: 0, stale: true }
+					}
+				}
+			}
+			for (const row of existingInTx) {
+				const removed = await collection.doc(row._id).remove()
+				if (Number(removed && removed.deleted) !== 1) throw new Error('上秤差派生流水已被并发修改，稍后重试')
+			}
+			await tx.commit()
+		} catch (error) {
+			await tx.rollback().catch(() => {})
+			throw error
+		}
+		const count = existingInTx.length
+		return { write: count ? 'removed' : 'unchanged', docs_removed: count, docs_created: 0 }
+	}
+	const existing = (await movements
+		.where({ source_type: 'manual_fix', source_id: fillingId, adjust_reason: FILLING_START_LOSS_ADJUST_REASON })
+		.limit(50)
+		.get()).data || []
+	if (!desired && !existing.length) return { write: 'unchanged', docs_removed: 0, docs_created: 0 }
+	if (desired && existing.length === 1 && sameStartLossAdjustment(existing[0], desired)) {
+		return { write: 'unchanged', docs_removed: 0, docs_created: 0, adjust_id: existing[0]._id }
+	}
+	const id = startLossAdjustId(fillingId)
+	const keep = desired ? existing.find((row) => row._id === id) : null
+	const tx = await db.startTransaction()
+	let existingInTx = []
+	try {
+		const collection = tx.collection('crm_bottle_movements')
+		const fillingsCollection = tx.collection('crm_fillings')
+		// Atomically re-check existing within the transaction and reject stale writes.
+		existingInTx = (await collection
+			.where({ source_type: 'manual_fix', source_id: fillingId, adjust_reason: FILLING_START_LOSS_ADJUST_REASON })
+			.limit(50).get()).data || []
+		// Guard against stale inputs. Must run inside the transaction for atomicity.
+		if (guard && desired) {
+			const desiredBasisGen = Number(desired.context?.basis_generation || 0)
+			const desiredFillingGen = Number(desired.context?.filling_generation || 0)
+			// 1. If the filling doc in DB is newer than what this caller observed, reject.
+			const currentFilling = (await fillingsCollection.doc(fillingId).get()).data || []
+			const fillingInDb = Array.isArray(currentFilling) ? currentFilling[0] : currentFilling
+			if (fillingInDb) {
+				const dbFillingGen = Math.max(Number(fillingInDb.updated_at || 0), Number(fillingInDb.created_at || 0))
+				if (dbFillingGen > desiredFillingGen) {
+					await tx.commit()
+					return { write: 'unchanged', docs_removed: 0, docs_created: 0, stale: true, reason: 'filling_input_stale' }
+				}
+			}
+			// 2. Use derived generation only if the source filling is unavailable;
+			//    otherwise the transactional source check above is authoritative.
+			if (existingInTx.length === 1) {
+				const existingFillingGen = Number(existingInTx[0].context?.filling_generation || 0)
+				if (!fillingInDb && existingFillingGen > desiredFillingGen) {
+					await tx.commit()
+					return { write: 'unchanged', docs_removed: 0, docs_created: 0, adjust_id: existingInTx[0]._id, stale: true }
+				}
+				// 3. Same filling: existing has newer basis. Check if that basis still has
+				//    a date-eligible back_item for this bottle.
+				//    - If back_item still valid → concurrent update, we're stale → reject
+				//    - If return removed or moved after filling day → allow fallback
+				const existingBasisGen = Number(existingInTx[0].context?.basis_generation || 0)
+				const existingBasisRef = String(existingInTx[0].context?.basis_ref || '')
+				if (existingFillingGen === desiredFillingGen && existingBasisGen > desiredBasisGen && existingBasisRef && guard.bottleNo) {
+					const saleRes = (await tx.collection('crm_sale_records').doc(existingBasisRef).get()).data || []
+					const saleDoc = Array.isArray(saleRes) ? saleRes[0] : saleRes
+					const basisStillValid = saleDoc && saleDoc._id &&
+						pickBasisFromSaleDocByBottleNo(saleDoc, normalizeBottleNo(guard.bottleNo), guard.fillingDate) != null
+					if (basisStillValid) {
+						await tx.commit()
+						return { write: 'unchanged', docs_removed: 0, docs_created: 0, adjust_id: existingInTx[0]._id, stale: true }
+					}
+					// The previous return is no longer eligible; allow recalculation.
+				}
+			}
+		}
+		for (const row of existingInTx) {
+			if (keep && row._id === keep._id) continue
+			const removed = await collection.doc(row._id).remove()
+			if (Number(removed && removed.deleted) !== 1) throw new Error('上秤差派生流水已被并发修改，稍后重试')
+		}
+		if (keep) {
+			const { _id, ...patch } = desired
+			const changed = await collection.doc(id).update({ ...patch, context: dbCmd.set(desired.context) })
+			if (Number(changed && changed.updated) !== 1) throw new Error('上秤差派生流水已被并发修改，稍后重试')
+		} else if (desired) {
+			await collection.add({ ...desired, _id: id })
+		}
+		await tx.commit()
+	} catch (error) {
+		await tx.rollback().catch(() => {})
+		throw error
+	}
+	const removedCount = existingInTx.length - (keep ? 1 : 0)
+	return {
+		write: !desired ? 'removed' : existingInTx.length ? 'replaced' : 'created',
+		docs_removed: removedCount,
+		docs_created: desired && !keep ? 1 : 0,
+		adjust_id: desired ? id : ''
+	}
+}
+
+async function replaceFillingStartLossAdjustmentForDoc(fillingDoc = {}, user = null, ctx = null) {
 	const fillingId = normalizeString(fillingDoc && fillingDoc._id)
 	if (!fillingId) return { status: 'skipped', reason: 'missing_filling_id' }
 	const recordType = normalizeRecordType(fillingDoc && fillingDoc.record_type, DEFAULT_RECORD_TYPE)
 	const bottleNo = normalizeBottleNo(fillingDoc && fillingDoc.bottle_no)
 	const date = normalizeFillingDate(fillingDoc && fillingDoc.date, fillingDoc && fillingDoc.created_at)
 	const weightStart = toNumber(fillingDoc && fillingDoc.weight_start, null)
-	// Validate an existing human decision before removing its adjustment; all
+	const fillingGen = Math.max(Number(fillingDoc.updated_at || 0), Number(fillingDoc.created_at || 0))
+	// Validate an existing human decision before touching its adjustment; all
 	// unconfirmed source changes retain the established cleanup behavior.
 	const confirmedBasis = isInventoryLinkedRecordType(recordType) && bottleNo && date && weightStart > 0
-		? await findConfirmedStartLossBasis(fillingDoc) : null
-	await removeFillingStartLossAdjustments(fillingId)
-	if (!isInventoryLinkedRecordType(recordType)) return { status: 'skipped', reason: 'record_type_not_inventory_linked' }
-	if (!bottleNo || !date) return { status: 'skipped', reason: 'missing_bottle_or_date' }
+		? await findConfirmedStartLossBasis(fillingDoc, ctx) : null
+	// build guard: captures the filling version and the basis version the caller observed.
+	// For matched_zero (deletion), observedBasisGen is the basis used to compute zero diff,
+	// so the deletion guard can detect if a newer basis appeared concurrently.
+	const makeGuard = (observedBasisGen = 0) => ({ fillingGen, basisGen: observedBasisGen, bottleNo, fillingDate: date })
+	const finish = async (result, desired = null, observedBasisGen = 0) => {
+		return { ...result, ...(await writeFillingStartLossAdjustment(fillingId, desired, makeGuard(observedBasisGen))) }
+	}
+	if (!isInventoryLinkedRecordType(recordType)) return finish({ status: 'skipped', reason: 'record_type_not_inventory_linked' })
+	if (!bottleNo || !date) return finish({ status: 'skipped', reason: 'missing_bottle_or_date' })
 	if (!(typeof weightStart === 'number' && Number.isFinite(weightStart) && weightStart > 0)) {
-		return { status: 'skipped', reason: 'missing_weight_start' }
+		return finish({ status: 'skipped', reason: 'missing_weight_start' })
 	}
 	const basis = confirmedBasis || await findLatestBackBasisByBottleNo(bottleNo, date)
-	if (!basis) return { status: 'pending', reason: 'missing_back_basis', bottle_no: bottleNo }
+	if (!basis) return finish({ status: 'pending', reason: 'missing_back_basis', bottle_no: bottleNo })
 	const lossWeight = resolveStartLossWeightFromFillingDoc(fillingDoc, basis)
-	if (lossWeight == null) return { status: 'skipped', reason: 'invalid_weight' }
-	if (lossWeight === 0) {
-		return {
-			status: 'matched_zero',
-			bottle_no: bottleNo,
-			basis_value: basis.value,
-			basis_source: basis.source,
-			basis_ref: basis.ref,
-			basis_date: basis.date,
-			loss_weight: 0
-		}
+	if (lossWeight == null) return finish({ status: 'skipped', reason: 'invalid_weight' })
+	const basisFields = {
+		bottle_no: bottleNo,
+		basis_value: basis.value,
+		basis_source: basis.source,
+		basis_ref: basis.ref,
+		basis_date: basis.date,
+		basis_generation: basis.generation || 0,
+		filling_generation: Math.max(Number(fillingDoc.updated_at || 0), Number(fillingDoc.created_at || 0))
 	}
+	if (lossWeight === 0) return finish({ status: 'matched_zero', ...basisFields, loss_weight: 0 }, null, basis.generation || 0)
 	const adjustDoc = buildFillingStartLossAdjustDoc({
 		fillingDoc,
 		basis,
@@ -2310,18 +2514,8 @@ async function replaceFillingStartLossAdjustmentForDoc(fillingDoc = {}, user = n
 		now: Date.now(),
 		user
 	})
-	if (!adjustDoc) return { status: 'skipped', reason: 'adjust_doc_invalid' }
-	const res = await movements.add(adjustDoc)
-	return {
-		status: 'matched',
-		adjust_id: res && res.id,
-		bottle_no: bottleNo,
-		basis_value: basis.value,
-		basis_source: basis.source,
-		basis_ref: basis.ref,
-		basis_date: basis.date,
-		loss_weight: lossWeight
-	}
+	if (!adjustDoc) return finish({ status: 'skipped', reason: 'adjust_doc_invalid' }, null, basis.generation || 0)
+	return finish({ status: 'matched', ...basisFields, loss_weight: lossWeight }, adjustDoc)
 }
 
 function normalizeUniqueBottleNos(rawBottleNos = []) {
@@ -2369,8 +2563,16 @@ function isStartLossSyncCandidate(row = {}) {
 	)
 }
 
+const START_LOSS_SCAN_ROW_GUARD = 20000
+
+// Legacy synchronous sync (PDA/mobile/old sale entry points). It is bounded by
+// `limit`; when more candidates exist it reports `scan_truncated` and completion
+// `partial` instead of claiming the whole scope was processed. The web-sale
+// follow-up uses the resumable syncStartLossJobV1 instead.
 async function fetchStartLossSyncCandidateFillings(payload = {}) {
 	const rows = []
+	const want = payload.limit + 1
+	let truncated = false
 	const field = {
 		_id: true,
 		date: true,
@@ -2382,18 +2584,19 @@ async function fetchStartLossSyncCandidateFillings(payload = {}) {
 		weight_end: true,
 		actual_net_weight: true,
 		created_at: true,
+		updated_at: true,
 		created_by: true,
 		created_by_name: true
 	}
 	const appendRows = (list = []) => {
 		for (let i = 0; i < list.length; i += 1) {
-			if (rows.length >= payload.limit) return
+			if (rows.length >= want) return
 			const row = list[i] || {}
 			if (isStartLossSyncCandidate(row)) rows.push(row)
 		}
 	}
 	if (payload.fillingIds.length) {
-		for (let i = 0; i < payload.fillingIds.length; i += 100) {
+		for (let i = 0; i < payload.fillingIds.length && rows.length < want; i += 100) {
 			const chunk = payload.fillingIds.slice(i, i + 100)
 			const res = await fillings
 				.where({ _id: dbCmd.in(chunk) })
@@ -2401,69 +2604,89 @@ async function fetchStartLossSyncCandidateFillings(payload = {}) {
 				.limit(chunk.length)
 				.get()
 			appendRows(Array.isArray(res.data) ? res.data : [])
-			if (rows.length >= payload.limit) break
 		}
-		return rows
-	}
-	for (let i = 0; i < payload.bottleNos.length; i += 100) {
-		const chunk = payload.bottleNos.slice(i, i + 100)
-		let skip = 0
-		while (rows.length < payload.limit) {
-			const res = await fillings
-				.where({ bottle_no: dbCmd.in(chunk), weight_start: dbCmd.gt(0) })
-				.field(field)
-				.orderBy('date', 'asc')
-				.orderBy('created_at', 'asc')
-				.skip(skip)
-				.limit(300)
-				.get()
-			const current = Array.isArray(res.data) ? res.data : []
-			appendRows(current)
-			if (current.length < 300) break
-			skip += current.length
-			if (skip > payload.limit) break
+	} else {
+		for (let i = 0; i < payload.bottleNos.length && rows.length < want && !truncated; i += 100) {
+			const chunk = payload.bottleNos.slice(i, i + 100)
+			let skip = 0
+			while (rows.length < want) {
+				const res = await fillings
+					.where({ bottle_no: dbCmd.in(chunk), weight_start: dbCmd.gt(0) })
+					.field(field)
+					.orderBy('date', 'asc')
+					.orderBy('created_at', 'asc')
+					.skip(skip)
+					.limit(300)
+					.get()
+				const current = Array.isArray(res.data) ? res.data : []
+				appendRows(current)
+				if (current.length < 300) break
+				skip += current.length
+				if (skip >= START_LOSS_SCAN_ROW_GUARD) {
+					truncated = true
+					break
+				}
+			}
 		}
-		if (rows.length >= payload.limit) break
 	}
-	return rows
+	if (rows.length > payload.limit) truncated = true
+	return { rows: rows.slice(0, payload.limit), truncated }
+}
+
+function startLossCompletion(summary) {
+	if (summary.error_total > 0) return 'error'
+	if (summary.scan_truncated) return 'partial'
+	if (summary.review_total > 0) return 'complete_with_review'
+	return 'complete'
 }
 
 async function syncStartLossAdjustmentsV1(user, data, requestId) {
+	const started = Date.now()
 	const payload = normalizeStartLossSyncPayload(data)
 	if (!payload.bottleNos.length && !payload.fillingIds.length) {
 		return { code: 400, msg: '缺少补算瓶号或灌装记录 ID' }
 	}
-	const candidateRows = await fetchStartLossSyncCandidateFillings(payload)
+	const { rows: candidateRows, truncated } = await fetchStartLossSyncCandidateFillings(payload)
+	const ctx = {}
 	const results = []
 	const summary = {
+		scan_truncated: truncated,
 		scanned_total: candidateRows.length,
 		matched_total: 0,
 		pending_total: 0,
 		zero_total: 0,
+		review_total: 0,
 		skipped_total: 0,
-		adjust_created_total: 0,
-		adjust_removed_total: candidateRows.length
+		error_total: 0,
+		adjust_unchanged_total: 0,
+		// Actual documents removed/created (not candidate counts).
+		adjust_removed_total: 0,
+		adjust_created_total: 0
 	}
 	for (let i = 0; i < candidateRows.length; i += 1) {
 		const row = candidateRows[i] || {}
 		try {
-			const result = await replaceFillingStartLossAdjustmentForDoc(row, user)
+			const result = await replaceFillingStartLossAdjustmentForDoc(row, user, ctx)
 			const status = normalizeString(result && result.status)
 			if (status === 'matched') {
 				summary.matched_total += 1
-				summary.adjust_created_total += 1
 			} else if (status === 'pending') {
 				summary.pending_total += 1
+				summary.review_total += 1
 			} else if (status === 'matched_zero') {
 				summary.matched_total += 1
 				summary.zero_total += 1
 			} else {
 				summary.skipped_total += 1
 			}
+			if (result.write === 'unchanged') summary.adjust_unchanged_total += 1
+			summary.adjust_removed_total += Number(result.docs_removed) || 0
+			summary.adjust_created_total += Number(result.docs_created) || 0
 			results.push({
 				filling_id: normalizeString(row._id),
 				bottle_no: normalizeBottleNo(row.bottle_no),
 				status,
+				write: result.write,
 				loss_weight: result && result.loss_weight,
 				basis_value: result && result.basis_value,
 				basis_source: result && result.basis_source,
@@ -2472,15 +2695,19 @@ async function syncStartLossAdjustmentsV1(user, data, requestId) {
 				reason: normalizeString(result && result.reason)
 			})
 		} catch (err) {
-			summary.skipped_total += 1
+			const review = err && err.code === 'CONFIRMED_BASIS_CHANGED'
+			if (review) summary.review_total += 1
+			else summary.error_total += 1
 			results.push({
 				filling_id: normalizeString(row._id),
 				bottle_no: normalizeBottleNo(row.bottle_no),
-				status: 'error',
-				reason: normalizeString(err && err.message) || '补算失败'
+				status: review ? 'review' : 'error',
+				reason: review ? 'confirmed_basis_changed' : normalizeString(err && err.message) || '补算失败'
 			})
 		}
 	}
+	summary.completion = startLossCompletion(summary)
+	summary.elapsed_ms = Date.now() - started
 	await recordLog(
 		user,
 		'filling_start_loss_sync_v1',
@@ -2496,10 +2723,21 @@ async function syncStartLossAdjustmentsV1(user, data, requestId) {
 		msg: 'ok',
 		data: {
 			...summary,
-			items: results.slice(0, 100)
+			items: results.filter((item) => item.status === 'error' || item.status === 'review').slice(0, 50)
+				.concat(results.filter((item) => item.status !== 'error' && item.status !== 'review')).slice(0, 100)
 		}
 	}
 }
+
+const startLossJobs = createStartLossJobs({
+	db,
+	fillings,
+	processRow: replaceFillingStartLossAdjustmentForDoc,
+	isCandidate: isStartLossSyncCandidate,
+	normalizeBottleNo,
+	normalizeFillingDate,
+	recordLog
+})
 
 function isMissingCollectionError(err) {
 	const msg = normalizeString(err && err.message).toLowerCase()
@@ -4070,10 +4308,11 @@ async function batchUpdateDateV1(user, data, requestId, token) {
 					continue
 				}
 			}
+			const updatedAt = Date.now()
 			await fillings.doc(rowId).update({
 				date: payload.new_date,
 				filling_time: payload.filling_time,
-				updated_at: Date.now()
+				updated_at: updatedAt
 			})
 			if (inventoryLinked) {
 				await movements.where({ source_id: rowId, type: 'fill' }).update({
@@ -4084,7 +4323,7 @@ async function batchUpdateDateV1(user, data, requestId, token) {
 			} else {
 				await movements.where({ source_id: rowId, type: 'fill' }).remove()
 			}
-			await replaceFillingStartLossAdjustmentForDoc({ ...row, date: payload.new_date, filling_time: payload.filling_time, _id: rowId }, user)
+			await replaceFillingStartLossAdjustmentForDoc({ ...row, date: payload.new_date, filling_time: payload.filling_time, updated_at: updatedAt, _id: rowId }, user)
 			await updateGasInventoryMovementDateForFilling({
 				sourceId: rowId,
 				date: payload.filling_time || payload.new_date,
@@ -4214,6 +4453,8 @@ async function normalizeDatesV1(user, data, requestId, token) {
 	}
 
 	const executeCandidates = normalizeCandidates.slice(0, maxUpdates)
+	// Candidates are preview summaries; recalculation needs the full source facts.
+	const sourceRowsById = new Map(rows.map((row) => [normalizeString(row._id), row]))
 	const pendingTotal = Math.max(normalizeCandidates.length - executeCandidates.length, 0)
 	let success = 0
 	const failedItems = []
@@ -4254,7 +4495,7 @@ async function normalizeDatesV1(user, data, requestId, token) {
 				event_day: normalizeEventDay(row.new_date, now),
 				event_at: parseEventAt(row.new_date, now)
 			})
-			await replaceFillingStartLossAdjustmentForDoc({ ...row, date: row.new_date }, user)
+			await replaceFillingStartLossAdjustmentForDoc({ ...sourceRowsById.get(row._id), date: row.new_date, updated_at: now }, user)
 			await updateGasInventoryMovementDateForFilling({
 				sourceId: row._id,
 				date: row.new_date,
@@ -4583,6 +4824,7 @@ async function dispatch(event, context) {
 	if (action === 'batchUpdateDateV1') return batchUpdateDateV1(user, data, requestId, token)
 	if (action === 'batchUpdateOperatorV1') return batchUpdateOperatorV1(user, data, requestId)
 	if (action === 'syncStartLossAdjustmentsV1') return syncStartLossAdjustmentsV1(user, data, requestId, token)
+	if (action === 'syncStartLossJobV1') return startLossJobs.run(user, data, requestId)
 	if (action === 'cleanupOrphanFillMovementsV1') return cleanupOrphanFillMovementsV1(user, data, requestId, token)
 	if (action === 'cleanupNoSaleMovementsV1') return cleanupNoSaleMovementsV1(user, data, requestId, token)
 	if (action === 'normalizeDatesV1') return normalizeDatesV1(user, data, requestId, token)
