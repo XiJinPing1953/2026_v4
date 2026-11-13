@@ -41,6 +41,24 @@ test('subscription waits for descriptor acknowledgement and retains an early not
  h.emit(pending.d,{type:'result',id:pending.id,ok:true});assert.equal((await connecting).code,0)
  await d.disconnect()
 })
+for(const failedMethod of ['connect','subscribe']) {
+ test(`native ${failedMethod} result followed by disconnection preserves the failure through cleanup`,async()=>{
+  const h=setup(), invoke=h.android.invoke
+  h.android.invoke=(driver,method,...args)=>{
+   if(method!==failedMethod)return invoke(driver,method,...args)
+   if(method==='connect')driver.address=args[0]
+   driver.active=false
+   // FloorScaleGatt.terminate emits the pending result before disconnected.
+   h.emit(driver,{type:'result',id:args.at(-1),ok:false,message:`${method} failed, status=62`})
+   h.emit(driver,{type:'disconnected',deviceId:driver.address,status:62,reason:'connection ended'})
+  }
+  const d=api.createFloorScaleDiagnostic(h.bridge),result=await d.connect('AA')
+  assert.equal(result.code,500);assert.equal(result.msg,`地秤蓝牙操作失败：${failedMethod} failed, status=62`)
+  assert.equal(d.getSnapshot().reason,result.msg);assert.equal(d.getSnapshot().fresh,false)
+  h.android.invoke=invoke
+  assert.equal((await d.connect('AA')).code,0);await d.disconnect()
+ })
+}
 test('bridge cancellation clears old request watchdogs before a later connection',async()=>{
  const h=setup(), invoke=h.android.invoke;let abandoned
  h.android.invoke=(d,m,...args)=>{if(m==='connect'&&!abandoned)abandoned={d,id:args.at(-1)};else invoke(d,m,...args)}

@@ -38,6 +38,9 @@ function call(runtime, method, options = {}, timeoutMs = 6000, onLateSuccess) {
 export function createFloorScaleDiagnostic(runtime, { onFrame, onInterrupted, now = Date.now, staleMs = 3000, callTimeoutMs = 6000, closeTimeoutMs = 1500, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
 	const decoder = createFloorScaleFrameDecoder()
 	let epoch = 0, connecting = false, scanning = false, attached = false, deviceId = '', lastFrame = null, lastAt = 0, lastChunkAt = 0, healthy = false
+	// Link loss invalidates epoch too; only an explicit disconnect cancels the
+	// caller's attempt. Native failures must keep their original error message.
+	let cancellation = 0
 	let receiving = false, chunks = 0, receivedBytes = 0, validFrames = 0, lastRaw = new Uint8Array(0)
 	const invoke = (method, options = {}, timeout = callTimeoutMs) => call(runtime, method, options, timeout)
 	let emittedAt = null, emittedFresh = false
@@ -155,10 +158,10 @@ export function createFloorScaleDiagnostic(runtime, { onFrame, onInterrupted, no
 		const target = String(id || '').trim()
 		if (!target) return { code: 400, msg: '请选择地秤设备' }
 		if (connecting || scanning || status === 'connected') return { code: 409, msg: '已有地秤连接或扫描任务，请先结束' }
-		connecting = true; const ticket = ++epoch
+		connecting = true; const ticket = ++epoch, cancelTicket = cancellation
 		deviceId = target; clearData(); status = 'connecting'; reason = ''; emit()
 		let opened = false
-		const check = () => { if (ticket !== epoch) throw new Error('connection_cancelled') }
+		const check = () => { if (ticket !== epoch) throw new Error(reason || '蓝牙连接中断') }
 		try {
 			await invoke('openBluetoothAdapter'); check(); attach()
 			opened = true
@@ -180,15 +183,17 @@ export function createFloorScaleDiagnostic(runtime, { onFrame, onInterrupted, no
 			sessionKey = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 			status = 'connected'; reason = ''; emit(); return { code: 0, msg: '已连接，等待数据' }
 		} catch (error) {
-			receiving = false
+			// close may synchronously emit disconnected. Retire this observer first
+			// so cleanup cannot replace the failure with a cancellation.
+			receiving = false; detach()
 			if (opened) await close(target)
-			if (ticket !== epoch) return { code: 499, msg: '地秤连接已取消' }
-			detach(); clearData(); writeType = ''; status = 'disconnected'; reason = String(error?.errMsg || error?.message || '连接失败'); emit()
+			if (cancelTicket !== cancellation) return { code: 499, msg: '地秤连接已取消' }
+			clearData(); writeType = ''; sessionKey = ''; status = 'disconnected'; reason = String(error?.errMsg || error?.message || '连接失败'); emit()
 			return { code: 500, msg: reason }
 		} finally { connecting = false }
 	}
 	async function disconnect() {
-		const target = deviceId; epoch++; receiving = false; clearData(); writeType = ''; sessionKey = ''; status = 'disconnected'; reason = ''; detach(); emit()
+		const target = deviceId; epoch++; cancellation++; receiving = false; clearData(); writeType = ''; sessionKey = ''; status = 'disconnected'; reason = ''; detach(); emit()
 		await close(target)
 	}
 	async function writeCalibrationCommand(command, expectedDeviceId) {

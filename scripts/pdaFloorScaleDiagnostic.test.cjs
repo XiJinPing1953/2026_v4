@@ -104,6 +104,55 @@ test('missing service closes the connection and unregisters listeners', async ()
 	const d = createFloorScaleDiagnostic(r); assert.equal((await d.connect('a')).code, 500)
 	assert.equal(d.getSnapshot().status, 'disconnected'); assert.ok(r.calls.includes('closeBLEConnection')); assert.equal(r.events.value, undefined)
 })
+test('failure cleanup disconnect cannot replace the original error or remove other BLE consumers', async () => {
+	const r = nativeMock(); let outsideDisconnects = 0
+	r.onBLEConnectionStateChange(() => outsideDisconnects++)
+	r.getBLEDeviceServices = o => o.success({ services: [] })
+	r.closeBLEConnection = o => { r.pushConnection({ deviceId: 'a', connected: false }); o.success({}) }
+	const d = createFloorScaleDiagnostic(r), result = await d.connect('a')
+	assert.equal(result.code, 500); assert.equal(result.msg, '未找到地秤蓝牙服务')
+	assert.equal(d.getSnapshot().reason, result.msg); assert.equal(d.getSnapshot().status, 'disconnected')
+	assert.equal(outsideDisconnects, 1)
+	r.pushValue({ deviceId: 'a', characteristicId: FLOOR_SCALE_NOTIFY_ID, value: frame() })
+	assert.equal(d.getSnapshot().communication.chunks, 0)
+})
+for (const order of ['failure-then-disconnect', 'disconnect-then-failure']) {
+	test(`native ${order} reports the connection error, not user cancellation`, async () => {
+		const r = nativeMock()
+		r.createBLEConnection = o => {
+			const fail = () => o.fail({ errMsg: 'native connection ended, status=62' })
+			const disconnected = () => r.pushConnection({ deviceId: 'a', connected: false, status: 62 })
+			if (order === 'failure-then-disconnect') { fail(); disconnected() } else { disconnected(); fail() }
+		}
+		const d = createFloorScaleDiagnostic(r), result = await d.connect('a')
+		assert.equal(result.code, 500); assert.equal(result.msg, 'native connection ended, status=62')
+		assert.equal(d.getSnapshot().reason, result.msg); assert.equal(d.getSnapshot().frame, null)
+		r.createBLEConnection = o => o.success({})
+		assert.equal((await d.connect('a')).code, 0); await d.disconnect()
+	})
+}
+test('a connection lost before the success continuation cannot subscribe or be labelled user cancellation', async () => {
+	const r = nativeMock()
+	r.createBLEConnection = o => { o.success({}); r.pushConnection({ deviceId: 'a', connected: false }) }
+	const d = createFloorScaleDiagnostic(r), result = await d.connect('a')
+	assert.equal(result.code, 500); assert.match(result.msg, /连接中断/)
+	assert.equal(r.calls.includes('notifyBLECharacteristicValueChange'), false)
+	assert.equal(d.getSnapshot().status, 'disconnected')
+})
+test('explicit cancellation during failure cleanup remains cancelled and cannot restore the failed attempt', async () => {
+	const r = nativeMock(); let closeCalls = 0, finishCleanup, signalCleanup
+	const cleaning = new Promise(resolve => { signalCleanup = resolve })
+	r.getBLEDeviceServices = o => o.fail({ errMsg: 'service lookup failed' })
+	r.closeBLEConnection = o => {
+		if (++closeCalls === 1) { finishCleanup = () => o.success({}); signalCleanup() } else o.success({})
+	}
+	const d = createFloorScaleDiagnostic(r), pending = d.connect('a')
+	await cleaning; await d.disconnect(); finishCleanup()
+	assert.equal((await pending).code, 499); assert.equal(d.getSnapshot().reason, '')
+	assert.equal(d.getSnapshot().status, 'disconnected'); assert.equal(d.getSnapshot().frame, null)
+	r.getBLEDeviceServices = o => o.success({ services: [{ uuid: FLOOR_SCALE_SERVICE_ID }] })
+	assert.equal((await d.connect('a')).code, 0); await d.disconnect()
+})
 test('discovers only named floor scales and stops scanning', async () => {
 	const r = mock()
 	r.startBluetoothDevicesDiscovery = o => { r.calls.push('startScan'); o.success({}) }

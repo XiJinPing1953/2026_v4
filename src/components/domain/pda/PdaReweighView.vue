@@ -40,9 +40,10 @@
 			<PdaWeighScale embedded v-else :minimum-weight="captureMinimum" :snapshot="snapshot" :selected="Boolean(current.bottleNo)" :captured="Boolean(current.capture)" :gross="current.grossWeight" :tare="current.preview?.bottle?.tare_weight" :busy="busy" @connect="connect" @disconnect="disconnect" />
 			<AppSection class="work-section" v-if="!current.frozen" :title="current.bottleNo ? current.bottleNo + ' 号瓶' : '请扫码选瓶'">
 				<text v-if="error" class="notice notice--error" role="alert">{{ error }}</text>
+				<text v-else-if="isFloor && weightProblem" class="hint" role="status">{{ weightProblem }}</text>
 				<text v-else-if="message && !current.capture" class="hint" role="status">{{ message }}</text>
 				<text v-if="!current.bottleNo && !message && !error" class="hint">按扫描键选择钢瓶</text>
-				<text v-if="current.bottleNo" :class="['weigh-label', (isFloor ? current.capture?.stable : current.capture) ? 'weigh-label--ready' : 'weigh-label--pending']">{{ isFloor ? (current.capture?.stable ? '重量稳定' : '称重中') : current.capture ? '已称好' : '还没称好' }}</text>
+				<text v-if="current.bottleNo" :class="['weigh-label', (isFloor ? form.readingReady.value : current.capture) ? 'weigh-label--ready' : 'weigh-label--pending']">{{ isFloor ? (current.capture?.stable ? '重量稳定' : current.capture ? '称重中' : '等待读数') : current.capture ? '已称好' : '还没称好' }}</text>
 				<AppButton class="detail-link manual-toggle" v-if="!current.bottleNo" kind="ghost" @click="manualOpen = !manualOpen">手输瓶号 {{ manualOpen ? '收起 ⌃' : '›' }}</AppButton>
 				<view v-if="!current.bottleNo && (manualOpen || !scannerReady)">
 				<PdaBottleSuggestField
@@ -52,9 +53,9 @@
 				/>
 				<AppButton v-if="!current.bottleNo" size="sm" kind="neutral" :disabled="locked || busy || !snapshot.is_connected || !canCreate || !readyForBottle" @click="onSelectKeyword">确认瓶号</AppButton>
 				</view>
-				<text v-if="current.preview && !current.capture" class="hint">皮重 {{ weight(current.preview.bottle.tare_weight) }} kg</text>
+				<text v-if="!isFloor && current.preview && !current.capture" class="hint">皮重 {{ weight(current.preview.bottle.tare_weight) }} kg</text>
 				<text v-if="previousNotice" class="notice">{{ previousNotice }}</text>
-				<view v-if="current.capture" class="result">
+				<view v-if="current.capture || (isFloor && current.bottleNo && current.preview)" :class="['result', isFloor && !current.capture && 'result--unavailable']">
 					<text class="result-label">{{ isReturn ? '回瓶毛重' : '本次灌装量' }}</text>
 					<text class="result-value">{{ weight(isReturn ? current.grossWeight : current.preview?.fill_weight) }} <text class="unit">kg</text></text>
 					<text v-if="!isReturn && factsOpen" class="hint">罐装量 = 本次毛重 − 上次回瓶毛重</text>
@@ -88,7 +89,7 @@
 					<AppButton v-if="pendingSession" kind="ghost" @click="cancelMeasurement">停止取重</AppButton>
 				</view>
 
-				<view v-if="current.capture && current.preview?.mode === 'correct'" class="correction">
+				<view v-if="(current.capture || (isFloor && current.bottleNo)) && current.preview?.mode === 'correct'" class="correction">
 					<text class="result-label">原记录与本次称重</text>
 					<text class="difference">{{ reweighChangeText(current.preview) }}</text>
 					<AppInput :model-value="current.reason" label="更正原因" :disabled="locked || busy" @update:modelValue="value => setText('reason', value)" />
@@ -150,7 +151,7 @@ const isReturn = props.mode === 'return'
 const isFloor = props.scaleMode === 'floor'
 const printer = usePdaFillingPrinter({ enabled: !isReturn, active: () => form?.active.value && form.nativeSupported, entries: () => [...form.history.value.filter(item => item.operationId !== form.current.value.operationId), form.current.value] })
 const form = usePdaReweigh({ mode: props.mode, printing: isReturn ? null : printer, scaleMode: props.scaleMode })
-const { draftLoading, captureMinimum, current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, submitting, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, localRoundEnded, startRound, refreshRound,
+const { draftLoading, captureMinimum, current, roundHistory, recoveryHistory, historySyncing, historySyncError, message, weightProblem, error, storageError, busy, submitting, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, localRoundEnded, startRound, refreshRound,
 	selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText, endRound } = form
 const historyGroups = computed(() => [
 	{ title: '本轮称重记录', items: roundHistory.value },
@@ -221,6 +222,8 @@ defineExpose({ activate, deactivate })
 .actions { margin: 12rpx 0; }
 .facts { display: flex; flex-direction: column; align-items: flex-start; gap: 8rpx; padding: 12rpx 0; font-size: 16px; }
 .result { margin: 12rpx 0; padding: 16rpx; border: 2rpx solid #86d3a2; border-radius: var(--crm-radius-sm); background: #ecfdf3; }
+.result--unavailable { border-color: #cbd5e1; background: #f8fafc; }
+.result--unavailable .result-value { color: #64748b; }
 .result-label { display: block; font-size: 18px; font-weight: 600; }
 .result-value { display: block; margin: 8rpx 0; font-size: 32px; font-weight: 800; color: #166534; }
 .result-secondary { margin: 12rpx 0 6rpx; font-size: 16px; }

@@ -83,9 +83,17 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		setStorageSync: (key, value) => uni.setStorageSync(key, value),
 		removeStorageSync: key => uni.removeStorageSync(key)
 	}, () => String(getUser()?._id || ''), isFloor ? (isReturn ? 'floor-return' : 'floor') : mode, { reuseImmutableChunks: nativeSupported })
+	// A live floor reading is valid only in its active connection. Persist the
+	// selected bottle/basis, but keep weights in memory until a submission freezes
+	// them. This also prevents old drafts presenting a previous live measurement.
+	function durableDraft(draft) {
+		if (!isFloor || draft.frozen || draft.receipt?.saved) return draft
+		return { ...draft, grossWeight: null, capture: null,
+			preview: draft.preview ? { ...draft.preview, gross_weight: null, net_weight: null, fill_weight: null, label: null } : null }
+	}
 	function restoreSaved(saved) {
 		if (saved) {
-			current.value = saved.current; history.value = saved.history
+			current.value = durableDraft(saved.current); history.value = saved.history
 			round.value = saved.metadata?.round || null; pendingRound.value = saved.metadata?.pendingRound || null
 			historySyncMeta = saved.metadata?.historySyncMeta || null
 			pendingEndRound.value = saved.metadata?.pendingEndRound || null
@@ -117,7 +125,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 	function fail(text) { error.value = text; return false }
 	function persist() {
 		if (draftLoading.value || unreadable) return false
-		try { history.value = store.save(current.value, history.value, { round: round.value, pendingRound: pendingRound.value, pendingEndRound: pendingEndRound.value, localRoundEnded: localRoundEnded.value, lastEndedRound: lastEndedRound.value, ...(isReturn ? { historySyncMeta } : {}) }); storageError.value = ''; return true }
+		try { history.value = store.save(durableDraft(current.value), history.value, { round: round.value, pendingRound: pendingRound.value, pendingEndRound: pendingEndRound.value, localRoundEnded: localRoundEnded.value, lastEndedRound: lastEndedRound.value, ...(isReturn ? { historySyncMeta } : {}) }); storageError.value = ''; return true }
 		catch (cause) { storageError.value = cause.message; return false }
 	}
 	function editable() { return nativeSupported && active.value && canCreate.value && !locked.value && !busy.value && Boolean(round.value?._id) && (!isReturn || roundReady.value) && (!isFloor || Boolean(round.value?._id)) }
@@ -126,13 +134,28 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		if (!isFloor || !active.value || busy.value || current.value.frozen || (!current.value.capture && current.value.grossWeight == null)) return
 		current.value = { ...current.value, grossWeight: null, capture: null,
 			preview: current.value.preview ? { ...current.value.preview, gross_weight: null, net_weight: null, fill_weight: null, label: null } : null }
-		persist()
+		message.value = '等待地秤有效读数，恢复稳定后可保存。'
 	}
 	function returnMinimum() { return isReturn ? Number(current.value.preview?.bottle?.tare_weight) * 0.5 : 0 }
+	function floorWeightProblem() {
+		const gross = current.value.grossWeight, preview = current.value.preview
+		const tare = Number(preview?.bottle?.tare_weight), basis = Number(preview?.basis?.gross_weight)
+		if (gross == null || !Number.isFinite(gross)) return '请等待有效地秤读数'
+		if (!(tare > 0) || !Number.isFinite(tare)) return '钢瓶档案缺少有效皮重，请核对档案'
+		if (isReturn && gross < returnMinimum()) return `回瓶毛重须达到档案皮重的50%（至少 ${returnMinimum().toFixed(2)} kg）`
+		if (gross <= 0) return '当前毛重须大于零才能保存。'
+		if (!isReturn) {
+			if (!(Math.round((gross - tare + Number.EPSILON) * 10) / 10 > 0)) return '复秤净重须大于零，当前重量不能保存。'
+			if (!(basis > 0) || !Number.isFinite(basis)) return '回瓶依据缺少有效毛重，请重新核对'
+			if (!(Math.round((gross - basis + Number.EPSILON) * 10) / 10 > 0)) return '本次灌装量须大于零，当前重量不能保存。'
+		}
+		return ''
+	}
+	const weightProblem = computed(() => isFloor && current.value.capture ? floorWeightProblem() : '')
 	function floorCanSave() {
 		if (!isFloor) return Boolean(current.value.capture)
 		const f = floorLastFrame, c = current.value.capture, age = Date.now() - Number(f?.sampled_at), live = scale.getSnapshot()
-		return Boolean(c?.stable && autoWeight.stable && c.gross_kg > 0 && c.gross_kg >= returnMinimum() && f && f.session_id === autoSession &&
+		return Boolean(c?.stable && autoWeight.stable && !floorWeightProblem() && f && f.session_id === autoSession &&
 			f.display_kg === c.gross_kg && f.device_id === c.device_id && age >= 0 && age <= FLOOR_REWEIGH_POLICY.freshMs &&
 			live.is_connected && live.is_online && live.qualified_frame !== false)
 	}
@@ -219,8 +242,10 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 			...preview, gross_weight: weight, net_weight: subtract(preview?.bottle?.tare_weight),
 			...(!isReturn ? { fill_weight: subtract(preview?.basis?.gross_weight), label: null } : {})
 		} }
-		persist()
-		message.value = isReturn && weight < returnMinimum() ? `回瓶毛重须达到档案皮重的50%（至少 ${returnMinimum().toFixed(2)} kg）` : weight <= 0 ? '当前毛重须大于零才能保存。' : stable ? '重量稳定，可以保存。' : '重量实时更新中。'
+		// No native storage calls in the continuous receive/invalidation path.
+		// Frozen submissions still use the verified durable store before sending.
+		if (!isFloor) persist()
+		message.value = isFloor && floorWeightProblem() || (isReturn && weight < returnMinimum() ? `回瓶毛重须达到档案皮重的50%（至少 ${returnMinimum().toFixed(2)} kg）` : weight <= 0 ? '当前毛重须大于零才能保存。' : stable ? '重量稳定，可以保存。' : '重量实时更新中。')
 	}
 
 	const unsubscribe = scale.onSnapshot(next => {
@@ -313,6 +338,7 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 			if (!c || c.scale_type !== 'floor' || !c.stable || !c.measurement_id || c.bottle_no !== current.value.bottleNo ||
 				c.gross_kg !== current.value.grossWeight)
 				return fail('请先取得当前钢瓶的有效地秤重量')
+			if (floorWeightProblem()) return fail(floorWeightProblem())
 			if (!floorCanSave()) return fail('请等待当前有效重量稳定后保存')
 			current.value = { ...current.value, capture: { ...c, sampled_at: floorLastFrame.sampled_at, raw: floorLastFrame.raw || '' } }
 		}
@@ -556,7 +582,9 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 		deactivated = true
 		if (!isReturn) printing?.close()
 		historySyncVersion++; historySyncing.value = false; historySyncError.value = ''
-		autoSession = ''; autoWeight.reset(); captureMinimum.value = 0
+		autoSession = ''; autoWeight.reset(); floorLastFrame = null; captureMinimum.value = 0
+		if (isFloor && !current.value.frozen && !current.value.receipt?.saved) message.value = '请连接地秤，等待当前钢瓶的新读数。'
+		current.value = durableDraft(current.value)
 		active.value = false; epoch += 1; lifecycleVersion += 1; pendingSession.value = ''; scannerReady.value = false
 		persist()
 		stopping = Promise.allSettled([stopping, scale.stop(), leaveBarcodeSession({ page, reason: 'page-hidden' })])
@@ -565,5 +593,5 @@ export function usePdaReweigh({ mode = 'filling', printing = null, scaleMode = '
 	onBeforeUnmount(() => { unsubscribe(); void deactivate() })
 	return { draftLoading, captureMinimum, current, history, roundHistory, recoveryHistory, historySyncing, historySyncError, message, error, storageError, busy, submitting, active, scannerReady, pendingSession, snapshot, nativeSupported, locked, canCreate, canNext, round, roundReady, pendingRound, pendingEndRound, lastEndedRound, localRoundEnded, startRound, endRound, refreshRound,
 		selectBottle, startMeasurement, cancelMeasurement, connect, disconnect, submit, query, nextBottle, activate, deactivate, setText,
-		readingReady }
+		readingReady, weightProblem }
 }

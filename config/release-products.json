@@ -144,24 +144,18 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.74",
+      "version": "1.0.75",
       "output": "release/pda",
-      "acceptance": "Candidate only, not deployed: floor BLE real receive times, duplicate freshness, raw 1.5s/0.1kg stability, 500ms freshness/gap, 0.03kg boundary hysteresis, no display tare; floor and hanging return saves require gross >= exact tare * 0.5. Preserve continuous signed readings, calibration independence and frozen submission/idempotent recovery. WGT and crm-filling only; no APK/native/firmware/schema/H5 or historical data changes. Loaded-noise and physical accuracy acceptance pending.",
+      "acceptance": "Candidate only, not deployed: remove synchronous draft storage from live floor weighing; preserve frozen submission durability; block nonpositive filling net/fill; show return minimum and missing-reading state; keep original connection errors. WGT only, no cloud/APK/native/firmware/schema/H5 deployment. Field post-fix acceptance pending;1d firmware is a separate candidate.",
       "deploymentScope": {
-        "functions": [
-          "crm-filling"
-        ],
+        "functions": [],
         "databaseFiles": [],
-        "baseCommit": "2b6a43a0aad8e483477ea16da26620916008e0a0",
+        "baseCommit": "b410b489106c1c19f9143e76d84ae0b3af1fb136",
         "sourceFiles": [
           "src/manifest.json",
-          "src/components/domain/pda/PdaFloorScale.vue",
+          "src/components/domain/pda/PdaReweighView.vue",
           "src/composables/pda/usePdaReweigh.js",
-          "src/services/pda/autoReturnWeight.js",
-          "src/services/pda/floorScaleDiagnostic.js",
-          "src/services/pda/floorScaleDisplay.js",
-          "src/services/pda/floorScaleSession.js",
-          "uniCloud-alipay/cloudfunctions/crm-filling/returnReweighRules.js"
+          "src/services/pda/floorScaleDiagnostic.js"
         ]
       },
       "integrityScope": "deployment"

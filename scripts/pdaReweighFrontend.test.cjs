@@ -98,7 +98,7 @@ function harness(t, options = {}) {
 		uni: {
 			...ble,
 			...(options.asyncStorage ? { getStorage: options.asyncStorage, getStorageInfo: p => p.success({ keys: [...storage.keys()] }) } : {}),
-			getStorageSync: key => { options.onStorageRead?.(key); return storage.get(key) }, setStorageSync: (key, value) => { if (options.storageFails) throw new Error('quota'); storage.set(key, value) },
+			getStorageSync: key => { clock += options.storageDelayMs || 0; options.onStorageRead?.(key); return storage.get(key) }, setStorageSync: (key, value) => { clock += options.storageDelayMs || 0; options.onStorageWrite?.(key); if (options.storageFails) throw new Error('quota'); storage.set(key, value) },
 			showModal: params => { confirmations.push({ title: params.title, content: params.content }); params.success({ confirm: modalResults.length ? modalResults.shift() : true }) },
 			showActionSheet: params => params.success({ tapIndex: 0 })
 		}
@@ -1043,5 +1043,80 @@ test('mixed valid boot/movement and corrupt packet cannot preserve old stability
   const bad=h.packet(185,22);bad[4]^=1
   h.bytes([...h.packet(kg,21,status),...bad]);assert.equal(h.form.current.value.capture,null)
   h.bytes(h.packet(185,23));assert.equal(h.form.current.value.capture.stable,false);assert.equal(h.form.readingReady.value,false)
+ }
+})
+
+test('captured unloading bytes never perform synchronous draft storage in the receive path', async t => {
+ const fixture=JSON.parse(fs.readFileSync('scripts/fixtures/floor-field-unload-20261113.json','utf8'))
+ for(const returnMode of [true,false]) {
+  let reads=0,writes=0
+  const options={floor:true,realFloor:true,returnMode,onStorageRead:()=>reads++,onStorageWrite:()=>writes++}
+  const h=harness(t,options);await h.start();await h.form.selectBottle('101')
+  reads=0;writes=0;options.storageDelayMs=200 // injected stress, not a measured field latency
+  const start=h.now()+1
+  for(const row of fixture.frames) {
+   const receivedAt=start+row.at_ms
+   h.bytes([...Buffer.from(row.hex,'hex')],Math.max(0,receivedAt-h.now()),receivedAt);h.viewTick()
+   assert.notEqual(h.form.current.value.capture,null,'continuous valid input must stay readable')
+  }
+  assert.equal(reads,0);assert.equal(writes,0)
+  const root=JSON.parse(h.storage.get(`crm_pda_floor${returnMode?'_return':''}_reweigh_v1:u1:work-v3`))
+  assert.equal(root.current.bottleNo,'101');assert.equal(root.current.capture,null)
+  assert.equal(root.current.grossWeight,null)
+ }
+})
+
+test('floor live weights do not revive from drafts while frozen submissions remain durable', async t => {
+ const h=await floorStream(t,true);for(let i=0;i<20;i++)h.send(124)
+ h.form.setText('remark','保留瓶号和备注')
+ const root=JSON.parse(h.storage.get('crm_pda_floor_return_reweigh_v1:u1:work-v3'))
+ assert.equal(root.current.capture,null);assert.equal(root.current.grossWeight,null)
+ assert.equal(root.current.remark,'保留瓶号和备注');assert.equal(root.current.preview.gross_weight,null)
+ const restarted=harness(t,{floor:true,returnMode:true,storage:new Map(h.storage)});await restarted.start()
+ assert.equal(restarted.form.current.value.bottleNo,'101');assert.equal(restarted.form.current.value.capture,null)
+ assert.equal(restarted.form.readingReady.value,false)
+ assert.equal(await h.form.submit(),true)
+ const saved=JSON.parse(h.storage.get('crm_pda_floor_return_reweigh_v1:u1:work-v3'))
+ assert.equal(saved.current.frozen.payload.gross_weight,124)
+})
+
+test('floor filling create and correction reject nonpositive net or fill before preview', async t => {
+ for(const mode of ['create','correct']) {
+  const h=await floorStream(t,false,{mode})
+  for(const [kg,reason] of [[0.5,/净重/],[100,/净重/],[103,/灌装量/],[105,/灌装量/]]) {
+   for(let i=0;i<20;i++)h.send(kg)
+   assert.equal(h.form.readingReady.value,false)
+   const before=h.previews.length
+   assert.equal(await h.form.submit(),false);assert.match(h.form.error.value,reason)
+   assert.equal(h.previews.length,before);assert.equal(h.requests.length,0)
+  }
+  for(let i=0;i<20;i++)h.send(105.5)
+  assert.equal(h.form.readingReady.value,true);assert.equal(await h.form.submit(),true)
+ }
+})
+
+test('floor same-page hide and show clears only unsubmitted live readings', async t => {
+ for(const returnMode of [true,false]) {
+  const h=await floorStream(t,returnMode);for(let i=0;i<20;i++)h.send(124)
+  h.form.setText('remark','保留');await h.form.deactivate();await h.form.activate()
+  assert.equal(h.form.current.value.bottleNo,'101');assert.equal(h.form.current.value.remark,'保留')
+  assert.equal(h.form.current.value.capture,null);assert.equal(h.form.current.value.grossWeight,null)
+  assert.equal(h.form.readingReady.value,false)
+  assert.match(h.form.message.value,/请连接地秤/)
+  assert.equal(await h.form.connect(),true);for(let i=0;i<20;i++)h.send(124)
+  assert.equal(await h.form.submit(),true)
+  const frozen=copy(h.form.current.value.frozen)
+  await h.form.deactivate();await h.form.activate()
+  assert.deepEqual(copy(h.form.current.value.frozen),frozen);assert.equal(h.form.current.value.grossWeight,124)
+ }
+})
+
+test('floor missing readings never retain the ready-to-save message',async t=>{
+ for(const disconnect of [true,false]) {
+  const h=await floorStream(t);for(let i=0;i<20;i++)h.send(124)
+  assert.match(h.form.message.value,/可以保存/)
+  if(disconnect) h.disconnectNative();else { h.advance(501);h.viewTick() }
+  assert.equal(h.form.current.value.capture,null);assert.equal(h.form.readingReady.value,false)
+  assert.doesNotMatch(h.form.message.value,/可以保存/);assert.match(h.form.message.value,/等待地秤有效读数/)
  }
 })
