@@ -68,6 +68,22 @@ function writeScope(write, { baseCommit, sourceFiles }) {
 	}))
 }
 
+test('PDA WGT-only scope requires an exact frontend allowlist and never admits cloud changes', t => {
+ const {root,write,baseCommit}=fixture(t)
+ const scope={functions:[],databaseFiles:[],baseCommit,sourceFiles:['src/accounting.js']}
+ const configure=product=>write('config/release-products.json',JSON.stringify({products:{[product]:{integrityScope:'deployment',deploymentScope:scope}}}))
+ write('src/accounting.js','export const version = 2\n');configure('pda')
+ assert.deepEqual(resolveReleaseScope(root,'pda'),scope)
+ write('uniCloud-alipay/cloudfunctions/crm-other/index.js','exports.main = () => 1\n')
+ assert.throws(()=>resolveReleaseScope(root,'pda'),/清单外/)
+ scope.sourceFiles.push('uniCloud-alipay/cloudfunctions/crm-other/index.js');configure('pda')
+ assert.throws(()=>resolveReleaseScope(root,'pda'),/必须明确/)
+ scope.sourceFiles=['src/accounting.js'];configure('cloud')
+ assert.throws(()=>resolveReleaseScope(root,'cloud'),/必须明确/)
+ delete scope.baseCommit;configure('pda')
+ assert.throws(()=>resolveReleaseScope(root,'pda'),/必须明确/)
+})
+
 test('exact deployment source scope rejects smuggling, omissions, retained-package edits and a wrong base', (t) => {
 	const { root, write, git, baseCommit } = fixture(t)
 	write('src/accounting.js', 'export const version = 2\n')
