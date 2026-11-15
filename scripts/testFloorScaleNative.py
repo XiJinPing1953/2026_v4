@@ -13,9 +13,9 @@ jdk = Path(os.environ.get('FLOOR_JAVA_HOME', '/Applications/HBuilderX.app/Conten
 source = root / 'native/floor-scale/src/com/xintuo/scale'
 tests = root / 'native/floor-scale/test'
 sources = [source / 'OwnedResource.java', source / 'FloorScaleGatt.java',
-           tests / 'OwnedResourceTest.java', tests / 'FloorScaleGattTest.java',
+           tests / 'OwnedResourceTest.java', tests / 'FloorScaleGattTest.java', tests / 'HangingScaleGattTest.java',
            *sorted((tests / 'stubs').rglob('*.java'))]
 with tempfile.TemporaryDirectory(prefix='floor-gatt-test-') as temporary:
     subprocess.run([str(jdk / 'bin/javac'), '--release', '8', '-Xlint:all', '-d', temporary, *map(str, sources)], check=True)
-    for test in ['com.xintuo.scale.OwnedResourceTest', 'com.xintuo.scale.FloorScaleGattTest']:
+    for test in ['com.xintuo.scale.OwnedResourceTest', 'com.xintuo.scale.FloorScaleGattTest', 'com.xintuo.scale.HangingScaleGattTest']:
         subprocess.run([str(jdk / 'bin/java'), '-ea', '-cp', temporary, test], check=True, timeout=30)

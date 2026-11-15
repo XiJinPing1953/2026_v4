@@ -431,7 +431,7 @@ function nativeFixture({ failAttempts = [], holdAttempt = 0, profile = {} } = {}
 		onBLEConnectionStateChange: fn => { onConnection = fn }, offBLEConnectionStateChange() { onConnection = null }
 	}
 	const session = context.createBleScaleCoreSession({ ...profile, deviceId }, native)
-	const send = (text = 'UT,NT,+120.0kg\r\n') => onValue({ deviceId, characteristicId: 'FFE1', value: Uint8Array.from(Buffer.from(text)).buffer })
+	const send = (text = 'UT,NT,+120.0kg\r\n', receivedAt) => onValue({ deviceId, characteristicId: 'FFE1', value: Uint8Array.from(Buffer.from(text)).buffer, receivedAt })
 	return { time, session, stats, send, lost, finishConnect: () => heldConnection.success({}) }
 }
 
@@ -510,6 +510,26 @@ test('native initial bound-device failure retains manual error without backgroun
 	await f.session.stop()
 })
 
+test('silent selected-device connect times out and returns control without retrying in background', async()=>{
+ const f=nativeFixture({holdAttempt:1})
+ const result=f.session.connect({preferredDeviceId:'AA:BB:CC:DD:EE:FF'})
+ await flush();await f.time.advance(10000)
+ assert.equal((await result).code,500)
+ assert.match(f.session.getSnapshot().error_message,/createBLEConnection/)
+ await f.time.advance(15000);assert.equal(f.stats.connects.length,1)
+ assert.equal((await f.session.connect({preferredDeviceId:'AA:BB:CC:DD:EE:FF'})).code,0)
+ f.finishConnect();await flush();assert.equal(f.session.getSnapshot().is_connected,true)
+ await f.session.stop();assert.equal(f.time.count(),0)
+})
+test('native delayed notifications keep original time and cannot revive stale weight', async()=>{
+ const f=nativeFixture();await f.session.connect()
+ f.send(undefined,f.time.Date.now());assert.equal(f.session.getSnapshot().is_online,true)
+ await f.time.advance(4000);f.send(undefined,f.time.Date.now()-4000)
+ assert.equal(f.session.getSnapshot().is_online,false);assert.equal(f.session.getSnapshot().weight_kg,null)
+ f.send(undefined,f.time.Date.now());assert.equal(f.session.getSnapshot().is_online,true)
+ await f.session.stop()
+})
+
 for (const suspended of [false, true]) test(`native automatic weighing keeps bottle binding across silence (suspended timers: ${suspended})`, async () => {
  const f = nativeFixture({ profile: { preserveMeasurementOnReadTimeout: true } })
  await f.session.connect()
@@ -556,6 +576,22 @@ test('a reconnect waits for previous stop cleanup before creating its connection
  const stop=s.stop();await flush();const connection=s.connect();await flush();f.release();await stop
  assert.equal((await connection).code,0);assert.equal(s.getSnapshot().is_connected,true);assert.equal(f.adapterCloses(),0)
  await s.stop()
+})
+test('changing hanging scales closes the previous selected address first',async()=>{
+ const f=sharedNativeFixture(),s=f.create();await s.connect()
+ s.updateProfile({deviceId:'11:22:33:44:55:66'})
+ assert.equal((await s.connect({preferredDeviceId:'11:22:33:44:55:66'})).code,0)
+ assert.deepEqual(f.closed,['AA:BB:CC:DD:EE:FF'])
+ await s.stop();assert.deepEqual(f.closed,['AA:BB:CC:DD:EE:FF','11:22:33:44:55:66'])
+})
+test('a missing close callback cannot indefinitely block a later page connection',async()=>{
+ const f=sharedNativeFixture(),s=f.create();await s.connect();f.hold()
+ const stop=s.stop();await flush();await f.time.advance(10000);await stop
+ // Release the old platform request before retry; the owned driver itself
+ // releases at its earlier native deadline, independently tested in Java.
+ f.release();await flush()
+ assert.equal((await s.connect()).code,0);await s.stop()
+ assert.equal(f.time.count(),0)
 })
 
 test('late cleanup from a previously connected page leaves a newer same-device session alive', async () => {

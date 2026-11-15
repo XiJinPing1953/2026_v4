@@ -1,6 +1,7 @@
 import { createBleScaleCoreSession } from './bleScaleCore'
 import { createWebBleScaleSession, getWebBleScaleCapabilities } from './webBleScale'
 import { normalizeText } from './shared'
+import { createHangingScaleNativeRuntime } from './floorScaleNativeRuntime'
 
 export {
 	PDA_BLE_SCALE_BAUD_RATE, PDA_BLE_SCALE_DATA_BITS, PDA_BLE_SCALE_STOP_BITS,
@@ -26,7 +27,7 @@ export function getPdaBleScaleCapabilities() {
 }
 
 export function createPdaBleScaleSession(profile = {}) {
-	return isNativeRuntime() ? createBleScaleCoreSession(profile, uni) : createWebBleScaleSession(profile)
+	return isNativeRuntime() ? createBleScaleCoreSession(profile, createHangingScaleNativeRuntime(uni)) : createWebBleScaleSession(profile)
 }
 
 function runOnAppPlusAndroid(handler, fallback = null) {
