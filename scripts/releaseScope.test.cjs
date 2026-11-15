@@ -246,3 +246,23 @@ test('PDA APK admits exactly listed native plugins without admitting cloud chang
  scope.sourceFiles.push('uniCloud-alipay/cloudfunctions/crm-other/index.js');configure('apk')
  assert.throws(()=>resolveReleaseScope(root,'pda'),/必须明确/)
 })
+
+
+test('PDA APK compiler upgrade requires exact DCloud dependency changes and the lockfile', t => {
+ const {root,write,git}=fixture(t)
+ const from='3.0.0-5000620260331001', to='3.0.0-5000720260410001'
+ write('package.json',JSON.stringify({dependencies:{'@dcloudio/uni-app':from,example:'1'}}))
+ git('add','.');git('-c','user.name=Release Test','-c','user.email=release-test@example.invalid','commit','-m','compiler baseline')
+ const scope={functions:[],databaseFiles:[],baseCommit:git('rev-parse','HEAD'),sourceFiles:['package-lock.json'],dependencyChanges:{'dependencies.@dcloudio/uni-app':{from,to}}}
+ const configure=()=>write('config/release-products.json',JSON.stringify({products:{pda:{artifactType:'apk',integrityScope:'deployment',deploymentScope:scope}}}))
+ write('package.json',JSON.stringify({dependencies:{'@dcloudio/uni-app':to,example:'1'}}));write('package-lock.json','{"updated":true}');configure()
+ assert.deepEqual(resolveReleaseScope(root,'pda'),scope)
+ write('package.json',JSON.stringify({dependencies:{'@dcloudio/uni-app':to,example:'2'}}))
+ assert.throws(()=>resolveReleaseScope(root,'pda'),/未授权变更依赖/)
+ write('package.json',JSON.stringify({dependencies:{'@dcloudio/uni-app':to,example:'1'}}))
+ scope.dependencyChanges['dependencies.@dcloudio/uni-app'].from='wrong';configure()
+ assert.throws(()=>resolveReleaseScope(root,'pda'),/未授权变更依赖/)
+ scope.dependencyChanges['dependencies.@dcloudio/uni-app'].from=from
+ scope.dependencyChanges['dependencies.@dcloudio/not-changed']={from,to};configure()
+ assert.throws(()=>resolveReleaseScope(root,'pda'),/无效项/)
+})

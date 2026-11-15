@@ -144,20 +144,99 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.76",
+      "version": "1.0.77",
       "output": "release/pda",
-      "acceptance": "Full signed APK for connected PDA only: native owned NVK hanging-scale GATT lifecycle, bounded connection and cleanup, free device selection. Preserve floor-scale, print, scan and weighing business behavior. No WGT pointer, H5, cloud function or schema deployment. Physical connection and weight acceptance recorded separately.",
+      "acceptance": "Full APK on connected PDA a9a16858: align pinned uni-app compiler 5.07 with cloud native SDK 5.07; keep compatibility warning enabled. Preserve validated 1.0.76 hanging-scale native lifecycle and all existing business behavior. No WGT/H5/cloud/schema deployment. Verify real cold starts and retain login/data.",
       "deploymentScope": {
         "functions": [],
         "databaseFiles": [],
-        "baseCommit": "d8056cede46ae750b15c57b043f8690fb163db7a",
+        "baseCommit": "64f1fdd7d3d1a859517310b3e612f1ea5aca6b22",
         "sourceFiles": [
           "src/manifest.json",
-          "src/services/pda/floorScaleNativeRuntime.js",
-          "src/services/pda/bleScale.js",
-          "src/services/pda/bleScaleCore.js",
-          "nativeplugins/TH-PlatformSDK/android/XintuoFloorScale-1.aar"
-        ]
+          "package-lock.json"
+        ],
+        "dependencyChanges": {
+          "dependencies.@dcloudio/uni-app": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "dependencies.@dcloudio/uni-app-harmony": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "dependencies.@dcloudio/uni-app-plus": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "dependencies.@dcloudio/uni-components": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "dependencies.@dcloudio/uni-h5": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "dependencies.@dcloudio/uni-mp-alipay": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "dependencies.@dcloudio/uni-mp-baidu": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "dependencies.@dcloudio/uni-mp-harmony": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "dependencies.@dcloudio/uni-mp-jd": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "dependencies.@dcloudio/uni-mp-kuaishou": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "dependencies.@dcloudio/uni-mp-lark": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "dependencies.@dcloudio/uni-mp-qq": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "dependencies.@dcloudio/uni-mp-toutiao": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "dependencies.@dcloudio/uni-mp-weixin": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "dependencies.@dcloudio/uni-mp-xhs": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "dependencies.@dcloudio/uni-quickapp-webview": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "devDependencies.@dcloudio/uni-automator": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "devDependencies.@dcloudio/uni-cli-shared": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "devDependencies.@dcloudio/uni-stacktracey": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          },
+          "devDependencies.@dcloudio/vite-plugin-uni": {
+            "from": "3.0.0-5000620260331001",
+            "to": "3.0.0-5000720260410001"
+          }
+        }
       },
       "integrityScope": "deployment",
       "artifactType": "apk"

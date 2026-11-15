@@ -15,7 +15,7 @@ function resolveReleaseScope(root, product, requested) {
 	// the exact baseline/source checks below; other products retain their guard.
 	const pdaResourcesOnly = product === 'pda' && Array.isArray(scope?.functions) && scope.functions.length === 0 &&
 		Array.isArray(scope.databaseFiles) && scope.databaseFiles.length === 0 && scope.baseCommit &&
-		Array.isArray(scope.sourceFiles) && scope.sourceFiles.length > 0 && scope.sourceFiles.every(file => typeof file === 'string' && (file.startsWith('src/') || (config.products?.pda?.artifactType === 'apk' && file.startsWith('nativeplugins/'))))
+		Array.isArray(scope.sourceFiles) && scope.sourceFiles.length > 0 && scope.sourceFiles.every(file => typeof file === 'string' && (file.startsWith('src/') || (config.products?.pda?.artifactType === 'apk' && (file.startsWith('nativeplugins/') || (file === 'package-lock.json' && scope.dependencyChanges)))))
 	if ((!scope?.functions?.length && !pdaResourcesOnly) || !Array.isArray(scope.databaseFiles)) throw new Error('范围检查必须明确函数和数据库清单')
 	if (new Set(scope.functions).size !== scope.functions.length || new Set(scope.databaseFiles).size !== scope.databaseFiles.length) throw new Error('发布范围存在重复项')
 	for (const name of scope.functions) {
@@ -48,9 +48,20 @@ function resolveReleaseScope(root, product, requested) {
 		if (fs.existsSync(path.join(root, 'package.json'))) {
 			const previous = JSON.parse(git(['show', `${scope.baseCommit}:package.json`]))
 			const current = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
+			const declared = scope.dependencyChanges || {}
+			const actualChanges = {}
 			for (const key of ['dependencies', 'devDependencies', 'optionalDependencies', 'overrides', 'resolutions', 'engines', 'packageManager']) {
-				if (JSON.stringify(previous[key]) !== JSON.stringify(current[key])) throw new Error(`独立发布未授权变更依赖：package.json.${key}`)
+				if (JSON.stringify(previous[key]) === JSON.stringify(current[key])) continue
+				if (!(product === 'pda' && config.products?.pda?.artifactType === 'apk' && ['dependencies', 'devDependencies'].includes(key))) throw new Error(`独立发布未授权变更依赖：package.json.${key}`)
+				for (const name of new Set([...Object.keys(previous[key] || {}), ...Object.keys(current[key] || {})])) {
+					if (previous[key]?.[name] === current[key]?.[name]) continue
+					const id = `${key}.${name}`, change = declared[id]
+					if (!name.startsWith('@dcloudio/') || !change || change.from !== previous[key]?.[name] || change.to !== current[key]?.[name] || !/^3\.0\.0-\d+$/.test(change.to)) throw new Error(`独立发布未授权变更依赖：package.json.${id}`)
+					actualChanges[id] = change
+				}
 			}
+			if (Object.keys(declared).length !== Object.keys(actualChanges).length) throw new Error('依赖变更清单存在未变化或无效项')
+			if (Object.keys(actualChanges).length && !scope.sourceFiles.includes('package-lock.json')) throw new Error('依赖升级必须列入锁文件')
 		}
 		const changed = git(['diff', '--name-only', scope.baseCommit, '--', ...RUNTIME_ROOTS]).split('\n').filter(Boolean)
 		const untracked = git(['ls-files', '--others', '--exclude-standard', '--', ...RUNTIME_ROOTS]).split('\n').filter(Boolean)
@@ -67,6 +78,6 @@ function resolveReleaseScope(root, product, requested) {
 			}
 		}
 	}
-	return { functions: [...scope.functions], databaseFiles: [...scope.databaseFiles], ...(scope.baseCommit ? { baseCommit: scope.baseCommit, sourceFiles: [...scope.sourceFiles] } : {}), ...(Object.keys(aclRevisions).length ? { aclCanonicalRevisions: aclRevisions } : {}), ...(Object.keys(contractRevisions).length ? { contractCanonicalRevisions: contractRevisions } : {}) }
+	return { functions: [...scope.functions], databaseFiles: [...scope.databaseFiles], ...(scope.dependencyChanges ? { dependencyChanges: scope.dependencyChanges } : {}), ...(scope.baseCommit ? { baseCommit: scope.baseCommit, sourceFiles: [...scope.sourceFiles] } : {}), ...(Object.keys(aclRevisions).length ? { aclCanonicalRevisions: aclRevisions } : {}), ...(Object.keys(contractRevisions).length ? { contractCanonicalRevisions: contractRevisions } : {}) }
 }
 module.exports = { resolveReleaseScope }
