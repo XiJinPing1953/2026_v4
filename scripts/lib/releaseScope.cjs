@@ -11,11 +11,11 @@ function resolveReleaseScope(root, product, requested) {
 	if (mode === 'all') return null
 	if (mode !== 'deployment') throw new Error(`未知发布检查范围：${mode}`)
 	const scope = config.products?.[product]?.deploymentScope || config.products?.cloud?.deploymentScope
-	// A WGT-only PDA release has an explicit empty cloud list. It still needs
+	// A PDA-only release has an explicit empty cloud list. It still needs
 	// the exact baseline/source checks below; other products retain their guard.
 	const pdaResourcesOnly = product === 'pda' && Array.isArray(scope?.functions) && scope.functions.length === 0 &&
 		Array.isArray(scope.databaseFiles) && scope.databaseFiles.length === 0 && scope.baseCommit &&
-		Array.isArray(scope.sourceFiles) && scope.sourceFiles.length > 0 && scope.sourceFiles.every(file => typeof file === 'string' && file.startsWith('src/'))
+		Array.isArray(scope.sourceFiles) && scope.sourceFiles.length > 0 && scope.sourceFiles.every(file => typeof file === 'string' && (file.startsWith('src/') || (config.products?.pda?.artifactType === 'apk' && file.startsWith('nativeplugins/'))))
 	if ((!scope?.functions?.length && !pdaResourcesOnly) || !Array.isArray(scope.databaseFiles)) throw new Error('范围检查必须明确函数和数据库清单')
 	if (new Set(scope.functions).size !== scope.functions.length || new Set(scope.databaseFiles).size !== scope.databaseFiles.length) throw new Error('发布范围存在重复项')
 	for (const name of scope.functions) {

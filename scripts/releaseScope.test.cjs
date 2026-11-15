@@ -231,3 +231,18 @@ test('declared database schema includes only an identical generated legacy copy'
  write(sourceFiles[1],'{"indexes":["unapproved"]}')
  assert.throws(()=>resolveReleaseScope(root,'cloud'),/生成副本与根源不一致/)
 })
+
+
+test('PDA APK admits exactly listed native plugins without admitting cloud changes or WGT native changes', t => {
+ const {root,write,baseCommit}=fixture(t)
+ const scope={functions:[],databaseFiles:[],baseCommit,sourceFiles:['src/accounting.js','nativeplugins/Scale/android/Scale.aar']}
+ const configure=(artifactType)=>write('config/release-products.json',JSON.stringify({products:{pda:{artifactType,integrityScope:'deployment',deploymentScope:scope}}}))
+ write('src/accounting.js','export const version = 2\n')
+ write('nativeplugins/Scale/android/Scale.aar','native fixture')
+ configure('apk'); assert.deepEqual(resolveReleaseScope(root,'pda'),scope)
+ configure('wgt'); assert.throws(()=>resolveReleaseScope(root,'pda'),/必须明确/)
+ configure('apk'); write('nativeplugins/Other/android/Other.aar','unexpected')
+ assert.throws(()=>resolveReleaseScope(root,'pda'),/清单外/)
+ scope.sourceFiles.push('uniCloud-alipay/cloudfunctions/crm-other/index.js');configure('apk')
+ assert.throws(()=>resolveReleaseScope(root,'pda'),/必须明确/)
+})

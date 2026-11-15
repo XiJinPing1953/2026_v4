@@ -153,18 +153,14 @@
         "baseCommit": "d8056cede46ae750b15c57b043f8690fb163db7a",
         "sourceFiles": [
           "src/manifest.json",
-          "native/floor-scale/src/com/xintuo/scale/FloorScaleGatt.java",
           "src/services/pda/floorScaleNativeRuntime.js",
           "src/services/pda/bleScale.js",
           "src/services/pda/bleScaleCore.js",
-          "scripts/mobileSaleScale.test.cjs",
-          "scripts/pdaFloorScaleNativeRuntime.test.cjs",
-          "scripts/testFloorScaleNative.py",
-          "native/floor-scale/test/HangingScaleGattTest.java",
           "nativeplugins/TH-PlatformSDK/android/XintuoFloorScale-1.aar"
         ]
       },
-      "integrityScope": "deployment"
+      "integrityScope": "deployment",
+      "artifactType": "apk"
     }
   }
 }
