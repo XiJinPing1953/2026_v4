@@ -13,7 +13,7 @@ const { readComplete, withFinancialEvidence, FinancialReadError } = require('./f
 const db = uniCloud.database()
 const dbCmd = db.command
 const { createService: createMobileSaleService } = require('./mobileSaleCreate')
-const mobileSaleService = createMobileSaleService({ db, createSale: createV2, verifyFillingLabel: (data, token) => uniCloud.callFunction({ name:'crm-filling', data:{ action:'resolveFillingLabelV1', data, token } }) })
+const mobileSaleService = createMobileSaleService({ db, createSale: createV2, resolveCustomerRefs: resolveSaleCustomerRefs, resolvePricing: resolveSaleDefaultPricing, isAdmin: user => isSuperAdmin(user), verifyFillingLabel: (data, token) => uniCloud.callFunction({ name:'crm-filling', data:{ action:'resolveFillingLabelV1', data, token } }) })
 const {
 	fetchHiddenCustomerIds,
 	docIsHiddenCustomer
@@ -1976,11 +1976,12 @@ async function collectSaleBottleFlowWarnings({
 	return warningItems
 }
 
-async function getCustomerById(customerId) {
+async function getCustomerById(customerId, database = db) {
 	const id = normalizeString(customerId)
 	if (!id) return null
-	const res = await customers.doc(id).get()
-	const doc = (res.data && res.data[0]) || null
+	const res = await database.collection('crm_customers').doc(id).get()
+	// uniCloud transaction doc().get() may return a single object, unlike ordinary reads.
+	const doc = (Array.isArray(res.data) ? res.data[0] : res.data) || null
 	if (docIsHiddenCustomer(doc)) return null
 	return doc
 }
@@ -2001,25 +2002,27 @@ function buildHiddenCustomerIdSet(hiddenCustomerIds = []) {
 		: new Set((hiddenCustomerIds || []).map((item) => normalizeString(item)).filter(Boolean))
 }
 
-async function resolveSaleCustomerRefs(selectedCustomerId) {
-	const deliveryCustomer = await getCustomerById(selectedCustomerId)
+async function resolveSaleCustomerRefs(selectedCustomerId, database = db) {
+	const deliveryCustomer = await getCustomerById(selectedCustomerId, database)
 	if (!deliveryCustomer) return { ok: false, code: 400, msg: '客户不存在' }
 
 	let billingCustomer = deliveryCustomer
+	const chain = [deliveryCustomer]
 	const visited = new Set([normalizeString(deliveryCustomer._id)])
 	let parentId = normalizeString(deliveryCustomer.settlement_customer_id)
 	for (let depth = 0; parentId && parentId !== normalizeString(billingCustomer._id) && depth < 10; depth += 1) {
 		if (visited.has(parentId)) return { ok: false, code: 400, msg: '结算客户绑定存在循环' }
 		visited.add(parentId)
-		const parent = await getCustomerById(parentId)
+		const parent = await getCustomerById(parentId, database)
 		if (!parent) return { ok: false, code: 400, msg: '结算客户不存在' }
 		billingCustomer = parent
+		chain.push(parent)
 		parentId = normalizeString(parent.settlement_customer_id)
 	}
 	if (parentId && parentId !== normalizeString(billingCustomer._id)) {
 		return { ok: false, code: 400, msg: '结算客户绑定层级过深' }
 	}
-	return { ok: true, billingCustomer, deliveryCustomer }
+	return { ok: true, billingCustomer, deliveryCustomer, chain }
 }
 
 function normalizeSalePriceUnit(value) {

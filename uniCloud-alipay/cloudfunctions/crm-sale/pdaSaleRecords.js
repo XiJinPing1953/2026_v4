@@ -1,13 +1,16 @@
 'use strict'
 const { withFillingPrintTimes } = require('./fillingPrintTime')
 const text = v => String(v || '').trim()
+function vehicleScope(user, isAdmin) {
+  if (isAdmin(user)) return null
+  const defaults = user.mobile_sale_defaults || {}
+  if (!text(defaults.vehicle_id) || !text(defaults.vehicle_no)) throw new Error('账号尚未绑定车辆，请联系管理员')
+  return { car_no: text(defaults.vehicle_no) }
+}
 function createService({ db, isAdmin, hiddenIds, amounts, mentionsHidden, project = doc => doc }) {
   async function scope(user) {
-    if (isAdmin(user)) return null
-    const defaults = user.mobile_sale_defaults || {}
-    if (!text(defaults.vehicle_id) || !text(defaults.vehicle_no)) throw new Error('账号尚未绑定车辆，请联系管理员')
     // Persisted plate is the historical association; never accept client vehicle filters.
-    return { car_no: text(defaults.vehicle_no) }
+    return vehicleScope(user, isAdmin)
   }
   async function list(user, data) {
     let owned
@@ -42,4 +45,4 @@ function createService({ db, isAdmin, hiddenIds, amounts, mentionsHidden, projec
   }
   return { list, get }
 }
-module.exports = { createService }
+module.exports = { createService, vehicleScope }

@@ -57,20 +57,37 @@
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.11.17-sale-price.1",
+      "version": "2026.11.17-pda-sale-guards.1",
       "output": "release/cloud",
-      "acceptance": "Protected kg sale price corrections, existing cash and allocations preserved; unused negative-sale credit, draft vouchers and customer defaults updated atomically. Per-batch rollback, source hashes and exact readback required. Only crm-accounting-correction; no schemas or frontend.",
+      "acceptance": "PDA sale label/BLE contract, current price/tare/settlement/vehicle validation and real transaction conflicts; preserve permanent legacy receipts and current live accounting. Paired PDA/H5 clients. No native/schema/history changes.",
       "integrityScope": "deployment",
       "deploymentScope": {
         "functions": [
-          "crm-accounting-correction"
+          "crm-sale"
         ],
         "databaseFiles": [],
-        "baseCommit": "d8056cede46ae750b15c57b043f8690fb163db7a",
+        "baseCommit": "f7946f6074fd2dadc09b72cbfaf4a62639f6569d",
         "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-accounting-correction/priceCorrection.js"
-        ]
+          "src/manifest.json",
+          "src/services/pda/sale.js",
+          "src/composables/pda/usePdaSaleForm.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleMasters.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/pdaSaleRecords.js"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          }
+        }
       }
     },
     "tank-gateway": {
@@ -121,17 +138,36 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.78",
+      "version": "1.0.79",
       "output": "release/pda",
-      "acceptance": "WGT only: accept observed NK signed kilogram UART frames; retain head/fixed formats, local stability, 0.5kg quantization and stale rejection. Requires native APK 1.0.76 through 1.0.77 with owned hanging GATT and runtime 5.07. No cloud/H5/schema/native changes.",
+      "acceptance": "PDA sale label/BLE contract, current price/tare/settlement/vehicle validation and real transaction conflicts; preserve permanent legacy receipts and current live accounting. Paired PDA/H5 clients. No native/schema/history changes.",
       "deploymentScope": {
-        "functions": [],
+        "functions": [
+          "crm-sale"
+        ],
         "databaseFiles": [],
-        "baseCommit": "0f9fa64874e07bed2422afa512a1283add3fd404",
+        "baseCommit": "f7946f6074fd2dadc09b72cbfaf4a62639f6569d",
         "sourceFiles": [
           "src/manifest.json",
-          "src/services/pda/bleScaleCore.js"
-        ]
+          "src/services/pda/sale.js",
+          "src/composables/pda/usePdaSaleForm.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleMasters.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/pdaSaleRecords.js"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          }
+        }
       },
       "integrityScope": "deployment",
       "artifactType": "wgt"

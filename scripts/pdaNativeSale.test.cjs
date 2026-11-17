@@ -31,7 +31,7 @@ async function harness(t, options = {}) {
   resolveFillingLabel: options.resolveLabel || (async () => ({ code:409, msg:'标签已失效' })),
 		ref: vue.ref, computed: vue.computed, watch: vue.watch, onBeforeUnmount() {},
 		Date: class extends Date { static now() { return now } },
-		getUser: () => ({ _id: owner }), canPageAction: () => true,
+		getUser: () => ({ _id: owner, role: options.role || 'superadmin', mobile_sale_defaults: options.defaults }), canPageAction: () => true,
 		uni: {
 			getStorageSync: key => storage.get(key), setStorageSync: (key, value) => storage.set(key, value), removeStorageSync: key => storage.delete(key),
 			showActionSheet: ({ success }) => success({ tapIndex: 0 }),
@@ -235,7 +235,7 @@ test('verified filling QR fills out row without scale and duplicate does not ove
  assert.equal(await h.scan(labelUrl),true)
  assert.equal(h.panel.outRows.value.length,1);assert.equal(h.panel.outRows.value[0].weightSource,'filling_reweigh');assert.equal(h.panel.outRows.value[0].gross,'185.5')
  await h.scan(labelUrl);assert.equal(h.panel.outRows.value.length,1)
- const payload=sales.buildMobileSalePayload(h.panel.sale.form.value);assert.equal(payload.outRows[0].filling_label_token,'a'.repeat(48));assert.equal(payload.outRows[0].scale_session_id,'')
+ const payload=sales.buildMobileSalePayload(h.panel.sale.form.value);assert.equal(payload.outRows[0].filling_label_token,'a'.repeat(48));assert.equal('scale_session_id' in payload.outRows[0],false);assert.equal('scale_stable_seq' in payload.outRows[0],false)
  await h.panel.go(3);assert.equal(await h.scan(labelUrl),false);assert.match(h.panel.error.value,/连接吊秤/)
 })
 test('invalid or late filling QR verification cannot add a bottle',async t=>{

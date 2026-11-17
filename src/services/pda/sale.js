@@ -313,13 +313,17 @@ export function buildMobileSalePayload(form, options = {}) {
 		outItems: draft.outItems, backItems: draft.backItems, depositRows: draft.depositRows,
 		agentSaleRows: []
 	})
+	if (options.customer) payload.base.settlementCustomerId = normalizeText(options.customer.effective_settlement_customer_id || options.customer.settlement_customer_id || options.customer._id)
 	for (const [key, rows] of [['outRows', form.outItems], ['backRows', form.backItems]]) {
 		payload[key] = payload[key].map((row) => {
 			const source = rows.find((item) => normalizeBottleNo(item.bottleNo) === row.bottle_no)
+			// Labels use the verified filling proof, not BLE session/sample placeholders.
+			if (source?.weightSource === 'filling_reweigh') return {
+				...row, weight_source: 'filling_reweigh', filling_label_token: source.fillingLabelToken || ''
+			}
 			return {
 				...row,
 				weight_source: source?.weightSource || '',
-    filling_label_token: source?.weightSource === 'filling_reweigh' ? source?.fillingLabelToken || '' : '',
 				weight_sampled_at: source?.weightSampledAt || null,
 				scale_session_id: source?.scaleSessionId || '',
 				scale_stable_seq: Number(source?.scaleStableSeq || 0)

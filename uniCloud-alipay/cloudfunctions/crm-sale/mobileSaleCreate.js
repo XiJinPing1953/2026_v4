@@ -5,6 +5,7 @@ const { fillingPrintTime } = require('./fillingPrintTime')
 const crypto = require('crypto')
 const { newToken, tokenHash } = require('./mobileSaleEffectsLocal')
 const { guardSaleSource } = require('./saleSourceWrite')
+const { createGuard } = require('./mobileSaleMasters')
 const OPERATIONS = 'crm_mobile_sale_operations', SALES = 'crm_sale_records'
 const SOURCE = 'mobile-sale-v1'
 const text = value => String(value == null ? '' : value).trim()
@@ -65,6 +66,9 @@ function rows(raw, direction) {
     }
     for (const [field, alias] of [['weight_sampled_at', 'weightSampledAt'], ['scale_stable_seq', 'scaleStableSeq']]) {
       const value = row[field] ?? row[alias]
+      // Old native label drafts carry a BLE sequence placeholder of zero.
+      // Labels use their verified filling proof, never a fabricated BLE sample.
+      if (field === 'scale_stable_seq' && result.weight_source === 'filling_reweigh' && Number(value) === 0) continue
       if (value != null) result[field] = number(value, '称重采集时间或序号')
     }
     return result
@@ -86,6 +90,7 @@ function normalizePayload(raw = {}) {
   const depositRows = (raw.depositRows || []).map(row => ({ bottle_no: text(row.bottle_no ?? row.bottleNo).toUpperCase().replace(/\s+/g, ''), bottle_id: text(row.bottle_id ?? row.bottleId) || null }))
   if (depositRows.some(row => !row.bottle_no) || new Set(depositRows.map(row => row.bottle_no)).size !== depositRows.length) fail('存瓶明细瓶号为空或重复')
   return { base: { date, customerId: text(base.customerId), customerName: text(base.customerName), delivery1: text(base.delivery1),
+    ...(base.settlementCustomerId != null ? { settlementCustomerId: text(base.settlementCustomerId) } : {}),
     delivery2: text(base.delivery2), vehicleId: text(base.vehicleId), carNo: text(base.carNo), remark: text(base.remark),
     bizMode: 'bottle', priceUnit: 'kg', settlementMode: 'sale', unitPrice: number(base.unitPrice, '单价'),
     paymentStatus: 'unpaid', paymentMethod: 'on_account', amountReceived: 0, roundingAmount: 0, applyOffsetCredit: false, offsetEnabled: false,
@@ -108,7 +113,8 @@ function processingGuard(doc, now = Date.now()) {
     msg: '手机销售正在保存关联内容，请稍后重试；可在销售单详情查看处理状态',
     data: { sale_id: doc._id, source_saved: true, processing_state: 'processing', retry_after_seconds: Math.ceil(remaining / 1000) } }
 }
-function createService({ db, createSale, verifyFillingLabel }) {
+function createService({ db, createSale, verifyFillingLabel, resolveCustomerRefs, resolvePricing, isAdmin }) {
+  const masters = createGuard({ db, resolveCustomerRefs, resolvePricing, isAdmin })
   const one = async (table, id) => first(await db.collection(table).where({ _id: id }).limit(1).get())
   async function writeState(operation, state, warnings, extra = {}) {
     let tx
@@ -230,19 +236,22 @@ function createService({ db, createSale, verifyFillingLabel }) {
     }
     return null
   }
-  async function assertBottles(payload) {
+  async function assertBottles(payload, database = db) {
     const checked = new Map()
     for (const row of [...payload.outRows, ...payload.backRows, ...payload.depositRows]) {
       const key = row.bottle_id || `no:${row.bottle_no}`
       if (!checked.has(key)) {
-        const result = row.bottle_id ? await db.collection('crm_bottles').where({ _id: row.bottle_id }).limit(1).get()
-          : await db.collection('crm_bottles').where({ bottle_no: row.bottle_no }).limit(2).get()
+        const result = row.bottle_id ? await database.collection('crm_bottles').where({ _id: row.bottle_id }).limit(1).get()
+          : await database.collection('crm_bottles').where({ bottle_no: row.bottle_no }).limit(2).get()
         const found = Array.isArray(result?.data) ? result.data : result?.data ? [result.data] : []
         if (found.length !== 1) fail(`钢瓶 ${row.bottle_no} 未唯一匹配已有档案`)
         checked.set(key, found[0])
       }
       const bottle = checked.get(key)
       if (text(bottle.bottle_no).toUpperCase().replace(/\s+/g, '') !== row.bottle_no || bottle.is_active === false) fail(`钢瓶 ${row.bottle_no} 档案已变化或停用，请重新扫码`)
+      if (row.tare != null && (bottle.tare_weight == null || bottle.tare_weight === '' || !Number.isFinite(Number(bottle.tare_weight)) || Number(bottle.tare_weight) !== row.tare)) {
+        fail(`钢瓶 ${row.bottle_no} 皮重已变化或无效，请重新扫码称重`, 409, 'MOBILE_SALE_MASTER_CHANGED')
+      }
     }
   }
   const unknown = id => ({ code: 503, error_code: 'MOBILE_SALE_RESULT_UNKNOWN', msg: '销售提交结果尚未确认，请查询原操作，勿换号重建',
@@ -271,7 +280,15 @@ function createService({ db, createSale, verifyFillingLabel }) {
       const fingerprint = digest(payload)
       if (existing) return await existingResult(existing, user, fingerprint)
       uncertain = false
+      for (const row of [...payload.outRows, ...payload.backRows]) {
+        if (row.weight_source === 'filling_reweigh') continue
+        if (!['web_ble', 'ble_scale'].includes(row.weight_source) || !row.scale_session_id
+          || !(row.weight_sampled_at > 0) || !Number.isSafeInteger(row.scale_stable_seq) || row.scale_stable_seq <= 0) {
+          fail(`钢瓶 ${row.bottle_no} 缺少有效称重来源或采集依据，请重新称重`)
+        }
+      }
       await assertBottles(payload)
+      const masterSignature = await masters.capture(user, payload)
       const labelChecks = []
       for (const row of payload.outRows.filter(row => row.weight_source === 'filling_reweigh')) {
         if (!verifyFillingLabel) fail('充装标签核对服务不可用',503,'FILLING_LABEL_INVALID')
@@ -289,6 +306,8 @@ function createService({ db, createSale, verifyFillingLabel }) {
           side_effect_token_hash: tokenHash(effectToken), side_effect_claims: [] }
         Object.assign(doc, { _id: key, mobile_create_operation_key: key, mobile_create_state: 'processing' })
         try {
+          await masters.lock(tx, user, payload, masterSignature, doc)
+          await assertBottles(payload, tx)
           await guardSaleSource(tx, db.command, null, doc)
           for (const proof of labelChecks) {
             const source = first(await tx.collection('crm_fillings').doc(proof.filling_id).get())

@@ -79,15 +79,17 @@ function database(tables, hooks = {}) {
   return { db, writes, calls }
 }
 function payload() {
-  return { base: { date:'2026-10-15', customerId:'customer-1', customerName:'Synthetic customer', delivery1:'Driver', delivery2:'', vehicleId:'', carNo:'TEST', remark:'',
+  return { base: { date:'2026-10-15', customerId:'customer-1', settlementCustomerId:'customer-1', customerName:'Synthetic customer', delivery1:'Driver', delivery2:'', vehicleId:'', carNo:'TEST', remark:'',
     bizMode:'bottle', priceUnit:'kg', settlementMode:'sale', unitPrice:5, paymentStatus:'unpaid', paymentMethod:'on_account', amountReceived:0, roundingAmount:0, applyOffsetCredit:false, offsetEnabled:false },
     outRows:[{bottle_no:'B1',bottle_id:'bottle-1',gross:12.5,tare:2,net:10.5,weight_source:'web_ble',weight_sampled_at:1792000000000,scale_session_id:'session-1',scale_stable_seq:2,
       scan_location:{status:'failed',captured_at:1792000000000,source:'mobile_bottle_scan',error_code:'permission_denied',error_message:'定位被拒绝'}}],
     backRows:[], depositRows:[{bottle_no:'B1'}], agentSaleRows:[] }
 }
 function harness(hooks = {}) {
-  const tables = { crm_users:[{_id:'operator-1',token:'operator',role:'pda_operator'}, {_id:'admin',token:'admin',role:'superadmin'},
+  const tables = { crm_users:[{_id:'operator-1',token:'operator',role:'pda_operator',mobile_sale_defaults:{vehicle_id:'vehicle-test',vehicle_no:'TEST'}}, {_id:'admin',token:'admin',role:'superadmin'},
     {_id:'other',token:'other',role:'pda_operator'}, {_id:'reader',token:'reader',role:'user',page_permissions:{'/pages/pda/sale-create':{view:true,create:false}}}],
+    crm_accounts:['1122','6001','1001'].map(code=>({_id:'account-'+code,code,name:'Synthetic '+code,type:code==='6001'?'revenue':'asset',direction:code==='6001'?'credit':'debit',level:1,parent_code:null,is_active:true,version:1})),
+    crm_periods:[{_id:'period-2026-10',period:'2026-10',status:'open',version:1,revision:1}],
     crm_customers:[{_id:'customer-1',name:'Synthetic customer',default_price_unit:'kg',default_unit_price:5,is_active:true}],
     crm_bottles:[{_id:'bottle-1',bottle_no:'B1',tare_weight:2,is_active:true,status:'in_station'}], crm_sale_records:[], [M.OPERATIONS]:[] }
   const h=database(tables,hooks), filename=path.join(ROOT,'uniCloud-alipay/cloudfunctions/crm-sale/index.js')
@@ -180,7 +182,7 @@ test('minimal account traverses real downstream ACLs without gaining direct fina
   }})
   h.tables.crm_bottles.push({_id:'bottle-2',bottle_no:'B2',tare_weight:2,is_active:true,status:'at_customer',current_customer_id:'customer-1'})
   const input=h.input();input.payload.outRows=[];input.payload.depositRows=[]
-  input.payload.backRows=[{bottle_no:'B2',bottle_id:'bottle-2',gross:2.5,tare:2,net:0.5}]
+  input.payload.backRows=[{...payload().outRows[0],bottle_no:'B2',bottle_id:'bottle-2',gross:2.5,tare:2,net:0.5}]
   input.payload.ignore_bottle_flow_warning=true
   const response=await h.invoke('createMobileV1',input)
   assert.equal(response.data.source_saved,true,JSON.stringify(response))
@@ -280,7 +282,7 @@ test('signed and return-only weights match desktop accounting and retain same-op
     const mobile=harness(),desktop=harness(),input=mobile.input()
     for(const h of [mobile,desktop]) h.tables.crm_bottles.push({_id:'bottle-2',bottle_no:'B2',tare_weight:2,is_active:true,status:'at_customer',current_customer_id:'customer-1'})
     if(!outNet) { input.payload.outRows=[];input.payload.depositRows=[] }
-    input.payload.backRows=[{bottle_no:'B2',bottle_id:'bottle-2',gross:2+net,tare:2,net}]
+    input.payload.backRows=[{...payload().outRows[0],bottle_no:'B2',bottle_id:'bottle-2',gross:2+net,tare:2,net}]
     if(!outNet) {
       const warning=await mobile.invoke('createMobileV1',input),ordinaryWarning=await desktop.invoke('createV2',clone(input.payload),'admin')
       assert.equal(warning.code,409);assert.equal(warning.data.confirmable,true);assert.equal(warning.data.source_saved,false)
@@ -314,7 +316,7 @@ test('signed return net still requires registered bottle, finite tenths and cons
   for(const patch of [{net:null},{net:NaN},{net:-Infinity},{net:-0.51},{net:-0.6},
     {gross:0,tare:0.5},{gross:1,tare:-0.5,net:1.5},{bottle_id:'missing'},{bottle_no:'wrong'}]) {
     const h=harness(),input=h.input()
-    input.payload.backRows=[{bottle_no:'B1',bottle_id:'bottle-1',gross:1.5,tare:2,net:-0.5,...patch}]
+    input.payload.backRows=[{...payload().outRows[0],bottle_no:'B1',bottle_id:'bottle-1',gross:1.5,tare:2,net:-0.5,...patch}]
     const result=await h.invoke('createMobileV1',input)
     assert.equal(result.code,400,JSON.stringify(result));assert.equal(result.data.source_saved,false)
     assert.equal(h.writes.length,0);assert.equal(h.calls.length,0)
