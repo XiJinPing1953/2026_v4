@@ -652,3 +652,42 @@ test('native disconnect during notification setup cannot be overwritten by a lat
  await session.stop()
  assert.equal(time.count(), 0)
 })
+
+
+test('NK kilograms parse explicit sign, zero, integer and decimal without implicit scaling or stability', () => {
+ const {context}=load()
+ for (const [raw,kg] of [['NK+0.0kg',0],['NK-1.5kg',-1.5],['NK+9.0kg',9],['NK+120kg',120],['NK+120.25kg',120.25]]) {
+  const value=context.parsePdaBleScaleLine(raw+'\r\n');assert.equal(value.weightKg,kg);assert.equal(value.headStable,null)
+ }
+ for (const raw of ['NK2.0kg','NK+2.0g','NK+2.0','NK+2..0kg','NK+NaNkg','NK+Infinitykg','junkNK+2.0kg','NK+2.0kgjunk','NK+2\0.0kg','NK+1e3kg']) assert.equal(context.parsePdaBleScaleLine(raw),null,raw)
+})
+
+test('NK native stream handles every split boundary and coalesced frames exactly once', async () => {
+ const frame='NK-1.5kg\r\n'
+ for(let i=1;i<frame.length;i++) {
+  const f=nativeFixture();await f.session.connect();f.send(frame.slice(0,i));f.send(frame.slice(i))
+  assert.equal(f.session.getSnapshot().weight_kg,-1.5);assert.equal(f.session.getSnapshot().frame_parse_ok_count,1)
+  f.send('NK+0.0kg\r\nNK+9.0kg\r\n');assert.equal(f.session.getSnapshot().weight_kg,9);assert.equal(f.session.getSnapshot().frame_parse_ok_count,3)
+  await f.session.stop()
+ }
+})
+
+test('NK readings retain existing local stability, quantization, stale invalidation and fresh recovery', async () => {
+ const f=nativeFixture();await f.session.connect();f.session.beginMeasurement()
+ for(let i=0;i<5;i++)f.send('NK+120.1kg\r\n')
+ assert.equal(f.session.getSnapshot().is_stable,false)
+ await f.time.advance(1200);f.send('NK+120.1kg\r\n');assert.equal(f.session.getSnapshot().is_stable,true);assert.equal(f.session.getSnapshot().weight_kg,120)
+ f.send('NK+120.5kg\r\n');assert.equal(f.session.getSnapshot().is_stable,false)
+ await f.time.advance(3500);assert.equal(f.session.getSnapshot().weight_kg,null)
+ f.send('NK+0.0kg\r\n');assert.equal(f.session.getSnapshot().weight_kg,0);assert.equal(f.session.getSnapshot().is_stable,false)
+ await f.session.stop()
+})
+
+test('NK incomplete and corrupt frames do not refresh old weight or become a valid measurement', async () => {
+ const f=nativeFixture();await f.session.connect();f.send('NK+2.0kg\r\n');await f.time.advance(2500)
+ f.send('NK+7.0');assert.equal(f.session.getSnapshot().weight_kg,2)
+ f.send('oops\r\nNK+3\0.0kg\r\n');assert.equal(f.session.getSnapshot().frame_parse_ok_count,1)
+ await f.time.advance(1000);assert.equal(f.session.getSnapshot().weight_kg,null)
+ f.send('NK-1.0kg\r\n');assert.equal(f.session.getSnapshot().weight_kg,-1)
+ await f.session.stop()
+})

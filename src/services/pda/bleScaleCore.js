@@ -176,8 +176,17 @@ function parseFixedWeightFrame(rawLine, profile = {}) {
 	}
 }
 
+function parseNkWeightFrame(rawLine) {
+	// NVK variants send explicit kilograms, e.g. NK-1.5kg\r\n. NK does
+	// not claim stability; these readings must pass the existing local window.
+	const matched = String(rawLine || '').replace(/[\r\n]+$/, '').match(/^NK([+-]\d+(?:\.\d+)?)kg$/)
+	if (!matched) return null
+	const weightKg = Number(matched[1])
+	return Number.isFinite(weightKg) ? { frameMode: 'nk', weightKg, unit: 'kg', headStable: null } : null
+}
+
 export function parsePdaBleScaleLine(rawLine, profile = {}) {
-	return parseHeadFrame(rawLine, profile) || parseFixedWeightFrame(rawLine, profile)
+	return parseHeadFrame(rawLine, profile) || parseFixedWeightFrame(rawLine, profile) || parseNkWeightFrame(rawLine)
 }
 
 function splitLines(source = '') {
@@ -780,15 +789,15 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 		frameParseFailCount += Number(fixed.frameFail || 0)
 		fixed.frames.forEach((item) => handleParsedFrame(item.rawLine, item.parsed, sampledAt))
 
-		lineBuffer += source
+		lineBuffer += String(text || '')
 		const { lines, rest } = splitLines(lineBuffer)
 		lineBuffer = rest.slice(-512)
 		lines.forEach((line) => {
 			const rawLine = String(line || '').replace(/\u0000/g, '')
 			const normalized = normalizeText(rawLine)
-			if (!normalized || !/^(ST|UT)\s*,/i.test(normalized)) return
+			if (!normalized || !/^(?:(ST|UT)\s*,|NK)/i.test(normalized)) return
 			frameRxCount += 1
-			const parsed = parseHeadFrame(rawLine, profile)
+			const parsed = parseHeadFrame(rawLine, profile) || parseNkWeightFrame(line)
 			if (!parsed) {
 				frameParseFailCount += 1
 				return
