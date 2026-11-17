@@ -121,21 +121,20 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.75",
+      "version": "1.0.78",
       "output": "release/pda",
-      "acceptance": "Candidate only, not deployed: remove synchronous draft storage from live floor weighing; preserve frozen submission durability; block nonpositive filling net/fill; show return minimum and missing-reading state; keep original connection errors. WGT only, no cloud/APK/native/firmware/schema/H5 deployment. Field post-fix acceptance pending;1d firmware is a separate candidate.",
+      "acceptance": "WGT only: accept observed NK signed kilogram UART frames; retain head/fixed formats, local stability, 0.5kg quantization and stale rejection. Requires native APK 1.0.76 through 1.0.77 with owned hanging GATT and runtime 5.07. No cloud/H5/schema/native changes.",
       "deploymentScope": {
         "functions": [],
         "databaseFiles": [],
-        "baseCommit": "3b2946cf52f58438552d090952e432af710d2ce4",
+        "baseCommit": "0f9fa64874e07bed2422afa512a1283add3fd404",
         "sourceFiles": [
           "src/manifest.json",
-          "src/components/domain/pda/PdaReweighView.vue",
-          "src/composables/pda/usePdaReweigh.js",
-          "src/services/pda/floorScaleDiagnostic.js"
+          "src/services/pda/bleScaleCore.js"
         ]
       },
-      "integrityScope": "deployment"
+      "integrityScope": "deployment",
+      "artifactType": "wgt"
     }
   }
 }

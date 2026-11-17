@@ -13,17 +13,19 @@ import java.util.ArrayDeque;
 import org.json.JSONObject;
 import java.util.UUID;
 
-/** Floor-scale-only GATT owner. Never changes the adapter or other clients. */
+/** Owned scale GATT. The original constructor remains floor-only for existing APK bridges. */
 public final class FloorScaleGatt {
     public interface Listener { void onEvent(String json); }
-    private static final UUID SERVICE = UUID.fromString("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
-    private static final UUID NOTIFY = UUID.fromString("6e400003-b5a3-f393-e0a9-e50e24dcca9e");
-    private static final UUID WRITE = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca9e");
+    private final UUID SERVICE, NOTIFY, WRITE;
+    private final boolean hanging;
     private static final UUID CCCD = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
     private static final int TIMEOUT = 6000;
-    // Accessed only on the main looper; prevents two floor pages owning GATT at once.
+    // Accessed only on the main looper; one owner per scale protocol. Floor and
+    // hanging sessions cannot close or poison each other's native resources.
     private static FloorScaleGatt owner;
     private static boolean poisoned;
+    private static FloorScaleGatt hangingOwner;
+    private static boolean hangingPoisoned;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Context context;
     private Listener listener;
@@ -65,12 +67,23 @@ public final class FloorScaleGatt {
     }
 
     public FloorScaleGatt(Activity activity, Listener callback) {
+        this(activity, callback, false);
+    }
+    public FloorScaleGatt(Activity activity, Listener callback, boolean hanging) {
+        this.hanging = hanging;
+        SERVICE = UUID.fromString(hanging ? "0000ffe0-0000-1000-8000-00805f9b34fb" : "6e400001-b5a3-f393-e0a9-e50e24dcca9e");
+        NOTIFY = UUID.fromString(hanging ? "0000ffe1-0000-1000-8000-00805f9b34fb" : "6e400003-b5a3-f393-e0a9-e50e24dcca9e");
+        WRITE = UUID.fromString(hanging ? "0000ffe1-0000-1000-8000-00805f9b34fb" : "6e400002-b5a3-f393-e0a9-e50e24dcca9e");
         context = activity.getApplicationContext();
         this.activity = new WeakReference<>(activity);
         application = activity.getApplication();
         listener = callback;
     }
     public static int apiVersion() { return 1; }
+    public static int hangingApiVersion() { return 1; }
+    private FloorScaleGatt currentOwner() { return hanging ? hangingOwner : owner; }
+    private void setOwner(FloorScaleGatt value) { if (hanging) hangingOwner = value; else owner = value; }
+    private boolean isPoisoned() { return hanging ? hangingPoisoned : poisoned; }
     private void emit(JSONObject event) {
         try { if (listener != null) listener.onEvent(event.toString()); }
         catch (Exception ignored) { /* A retired JS page cannot prevent native cleanup. */ }
@@ -104,11 +117,11 @@ public final class FloorScaleGatt {
         if (attempt != a) return;
         attempt = null;
         synchronized (a) { a.closed = true; a.queue.clear(); }
-        if (owner == this) owner = null;
+        if (currentOwner() == this) setOwner(null);
         if (watchingLifecycle) { application.unregisterActivityLifecycleCallbacks(lifecycle); watchingLifecycle = false; }
         // Release BEFORE reporting failure: a retry cannot overwrite a still-owned GATT.
         try { a.lease.release(); }
-        catch (Exception failure) { poisoned = true; reason += "; resource close failed; restart app required"; }
+        catch (Exception failure) { if (hanging) hangingPoisoned = true; else poisoned = true; reason += "; resource close failed; restart app required"; }
         complete(a, false, reason, null);
         JSONObject out = event("disconnected");
         try { out.put("deviceId", a.address); out.put("status", status); out.put("reason", reason); }
@@ -121,10 +134,10 @@ public final class FloorScaleGatt {
             if (host == null || host.isDestroyed() || host.isFinishing()) {
                 result(id, false, "activity is no longer available", null); return;
             }
-            if (poisoned || attempt != null || (owner != null && owner != this)) {
-                result(id, false, poisoned ? "native resource close failed; restart app required" : "floor connection already active", null); return;
+            if (isPoisoned() || attempt != null || (currentOwner() != null && currentOwner() != this)) {
+                result(id, false, isPoisoned() ? "native resource close failed; restart app required" : "scale connection already active", null); return;
             }
-            Attempt a = new Attempt(address); attempt = a; owner = this;
+            Attempt a = new Attempt(address); attempt = a; setOwner(this);
             application.registerActivityLifecycleCallbacks(lifecycle); watchingLifecycle = true;
             pending(a, id, "connect");
             try {
@@ -162,7 +175,7 @@ public final class FloorScaleGatt {
                     a.notify = service == null ? null : service.getCharacteristic(NOTIFY);
                     a.write = service == null ? null : service.getCharacteristic(WRITE);
                     if (a.notify == null || (a.notify.getProperties() & (BluetoothGattCharacteristic.PROPERTY_NOTIFY | BluetoothGattCharacteristic.PROPERTY_INDICATE)) == 0) {
-                        terminate(a, "floor notification characteristic missing", -1); return;
+                        terminate(a, "scale notification characteristic missing", -1); return;
                     }
                     a.ready = true;
                     JSONObject data = new JSONObject();
@@ -237,6 +250,7 @@ public final class FloorScaleGatt {
     }
     public void write(final String hex, final int id) {
         handler.post(() -> {
+            if (hanging) { result(id, false, "hanging scale is read only", null); return; }
             Attempt a = attempt;
             if (a == null || !a.subscribed || a.write == null || a.pending != 0) { result(id, false, "connection not ready or busy", null); return; }
             // The bridge cannot write arbitrary parameters or firmware commands.
@@ -261,7 +275,7 @@ public final class FloorScaleGatt {
     public void close(final int id) {
         handler.post(() -> {
             if (attempt != null) terminate(attempt, "closed by page", 0);
-            result(id, !poisoned, poisoned ? "resource close failed; restart app required" : "closed", null);
+            result(id, !isPoisoned(), isPoisoned() ? "resource close failed; restart app required" : "closed", null);
         });
     }
 }

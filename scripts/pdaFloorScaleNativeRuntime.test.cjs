@@ -1,14 +1,14 @@
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm')
 const source = ['floorScaleProtocol', 'floorScaleNativeRuntime', 'floorScaleDiagnostic'].map(name => fs.readFileSync(`src/services/pda/${name}.js`, 'utf8').replace(/^import .*\n/gm, '').replace(/export /g, '')).join('\n')
-const api = vm.runInThisContext(`${source}\n;({createFloorScaleNativeRuntime,createFloorScaleDiagnostic,FLOOR_SCALE_SERVICE_ID,FLOOR_SCALE_NOTIFY_ID,FLOOR_SCALE_WRITE_ID})`)
+const api = vm.runInThisContext(`${source}\n;({createFloorScaleNativeRuntime,createHangingScaleNativeRuntime,createFloorScaleDiagnostic,FLOOR_SCALE_SERVICE_ID,FLOOR_SCALE_NOTIFY_ID,FLOOR_SCALE_WRITE_ID})`)
 function setup(implementation=api) {
  const calls = [], drivers = [], shared = []
  const runtime = Object.fromEntries(['openBluetoothAdapter','startBluetoothDevicesDiscovery','stopBluetoothDevicesDiscovery','getBluetoothDevices'].map(name => [name, o => {shared.push(name);o.success({devices:[]})}]))
  runtime.createBLEConnection = () => {throw Error('must not use shared GATT')}
  runtime.closeBluetoothAdapter = () => {throw Error('must not reset shared adapter')}
  const android = {
-  importClass: () => ({apiVersion:()=>1}), runtimeMainActivity:()=>({}), implements:(_,methods)=>methods,
-  newObject:(_,activity,listener)=>{const d={listener,address:'',active:false};drivers.push(d);return d},
+  importClass: () => ({apiVersion:()=>1,hangingApiVersion:()=>1}), runtimeMainActivity:()=>({}), implements:(_,methods)=>methods,
+  newObject:(_,activity,listener,hanging=false)=>{const d={listener,address:'',active:false,hanging};drivers.push(d);return d},
   invoke(d,method,...args) {
    const id=args.at(-1); calls.push({d,method,args})
    if(method==='connect') {d.address=args[0];d.active=true;emit(d,{type:'result',id,ok:true,data:{notifyProperties:16,writeProperties:4}})}
@@ -21,6 +21,29 @@ function setup(implementation=api) {
  return {android,bridge,calls,drivers,shared,emit,runtime}
 }
 const request = (r, method, options={}) => new Promise((resolve,reject)=>r[method]({...options,success:resolve,fail:reject}))
+test('hanging bridge uses owned NVK notifications for any selected address and rejects writes', async()=>{
+ const h=setup(), bridge=api.createHangingScaleNativeRuntime(h.runtime,h.android), values=[]
+ bridge.onBLECharacteristicValueChange(event=>values.push(event))
+ for(const deviceId of ['98:DA:C0:00:75:28','98:DA:C0:00:74:67']) {
+  await request(bridge,'createBLEConnection',{deviceId})
+  const driver=h.drivers[0]; assert.equal(driver.hanging,true)
+  await request(bridge,'notifyBLECharacteristicValueChange',{deviceId,state:true,characteristicId:'0000FFE1-0000-1000-8000-00805F9B34FB'})
+  h.emit(driver,{type:'value',deviceId,hex:'53542C4E542C2B3132302E306B670D0A',receivedAt:12345})
+  assert.equal(values.at(-1).deviceId,deviceId);assert.equal(values.at(-1).receivedAt,12345)
+  assert.equal(values.at(-1).serviceId,'0000FFE0-0000-1000-8000-00805F9B34FB')
+  await assert.rejects(request(bridge,'writeBLECharacteristicValue',{deviceId,value:new Uint8Array([1]).buffer}),e=>/仅接收重量/.test(e.errMsg))
+  await request(bridge,'closeBLEConnection',{deviceId})
+ }
+ assert.deepEqual(h.calls.map(x=>x.method),['connect','subscribe','close','connect','subscribe','close'])
+})
+test('existing floor APK remains usable for floor but explicitly rejects the new hanging driver',async()=>{
+ const h=setup();h.android.importClass=()=>({apiVersion:()=>1})
+ const hanging=api.createHangingScaleNativeRuntime(h.runtime,h.android)
+ await assert.rejects(request(hanging,'createBLEConnection',{deviceId:'AA'}),e=>/吊秤.*新版 APK/.test(e.errMsg))
+ assert.equal(h.drivers.length,0)
+ await request(h.bridge,'createBLEConnection',{deviceId:'BB'})
+ await request(h.bridge,'closeBLEConnection',{deviceId:'BB'})
+})
 test('floor connects and subscribes through owned native GATT, preserving shared discovery', async()=>{
  const h=setup(), d=api.createFloorScaleDiagnostic(h.bridge)
  assert.equal((await d.connect('aa')).code,0)

@@ -3,9 +3,21 @@ import { FLOOR_SCALE_SERVICE_ID, FLOOR_SCALE_NOTIFY_ID, FLOOR_SCALE_WRITE_ID } f
 // Each page owns its native driver. Discovery still uses the existing shared
 // adapter; connections, notifications and writes never enter uni's GATT map.
 export function createFloorScaleNativeRuntime(runtime, android = typeof plus !== 'undefined' ? plus.android : null) {
+	return createOwnedScaleNativeRuntime(runtime, android, false)
+}
+
+export function createHangingScaleNativeRuntime(runtime, android = typeof plus !== 'undefined' ? plus.android : null) {
+	return createOwnedScaleNativeRuntime(runtime, android, true)
+}
+
+function createOwnedScaleNativeRuntime(runtime, android, hanging) {
+	const label = hanging ? '吊秤' : '地秤'
+	const serviceId = hanging ? '0000FFE0-0000-1000-8000-00805F9B34FB' : FLOOR_SCALE_SERVICE_ID
+	const notifyId = hanging ? '0000FFE1-0000-1000-8000-00805F9B34FB' : FLOOR_SCALE_NOTIFY_ID
+	const writeId = hanging ? notifyId : FLOOR_SCALE_WRITE_ID
 	const values = new Set(), connections = new Set(), requests = new Map()
 	let driver = null, listener = null, sequence = 0, generation = 0, deviceId = '', properties = null
-	const fail = (options, message) => options.fail?.({ errMsg: message })
+	const fail = (options, message) => options.fail?.({ errMsg: message.replace(/地秤/g, label) })
 	function cancelPending() {
 		for (const [id, request] of requests) {
 			if (request.method === 'close') continue
@@ -29,7 +41,7 @@ export function createFloorScaleNativeRuntime(runtime, android = typeof plus !==
 		} else if (event.type === 'value' && event.deviceId === deviceId && typeof event.hex === 'string' && event.hex.length <= 1024 && /^(?:[0-9A-F]{2})*$/.test(event.hex)) {
 			const bytes = new Uint8Array(event.hex.length / 2)
 			for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(event.hex.slice(i * 2, i * 2 + 2), 16)
-			for (const fn of values) fn({ deviceId, serviceId: FLOOR_SCALE_SERVICE_ID, characteristicId: FLOOR_SCALE_NOTIFY_ID, value: bytes.buffer, receivedAt: event.receivedAt })
+			for (const fn of values) fn({ deviceId, serviceId, characteristicId: notifyId, value: bytes.buffer, receivedAt: event.receivedAt })
 		}
 	}
 	function ensureDriver() {
@@ -38,8 +50,11 @@ export function createFloorScaleNativeRuntime(runtime, android = typeof plus !==
 		try {
 			const Driver = android.importClass('com.xintuo.scale.FloorScaleGatt')
 			if (Number(Driver.apiVersion()) !== 1) throw new Error('native API mismatch')
+			if (hanging && Number(Driver.hangingApiVersion()) !== 1) throw new Error('hanging native API missing')
 			listener = android.implements('com.xintuo.scale.FloorScaleGatt$Listener', { onEvent: receive })
-			driver = android.newObject('com.xintuo.scale.FloorScaleGatt', android.runtimeMainActivity(), listener)
+			driver = hanging
+				? android.newObject('com.xintuo.scale.FloorScaleGatt', android.runtimeMainActivity(), listener, true)
+				: android.newObject('com.xintuo.scale.FloorScaleGatt', android.runtimeMainActivity(), listener)
 		} catch (_) { throw new Error('当前 APK 缺少地秤连接修复模块，请安装新版 APK；热更新无法补齐') }
 	}
 	function request(method, args, options) {
@@ -58,6 +73,7 @@ export function createFloorScaleNativeRuntime(runtime, android = typeof plus !==
 	}
 	const selected = options => properties && String(options.deviceId).toUpperCase() === deviceId.toUpperCase()
 	return {
+		transport: hanging ? 'native-owned' : 'native-floor',
 		openBluetoothAdapter: options => runtime.openBluetoothAdapter(options),
 		startBluetoothDevicesDiscovery: options => runtime.startBluetoothDevicesDiscovery(options),
 		stopBluetoothDevicesDiscovery: options => runtime.stopBluetoothDevicesDiscovery(options),
@@ -74,20 +90,21 @@ export function createFloorScaleNativeRuntime(runtime, android = typeof plus !==
 		},
 		getBLEDeviceServices(options) {
 			if (!selected(options)) return fail(options, '地秤连接已变化')
-			options.success?.({ services: [{ uuid: FLOOR_SCALE_SERVICE_ID }] })
+			options.success?.({ services: [{ uuid: serviceId }] })
 		},
 		getBLEDeviceCharacteristics(options) {
 			if (!selected(options)) return fail(options, '地秤连接已变化')
 			options.success?.({ characteristics: [
-				{ uuid: FLOOR_SCALE_NOTIFY_ID, properties: { notify: Boolean(properties.notifyProperties & 16), indicate: Boolean(properties.notifyProperties & 32) } },
-				{ uuid: FLOOR_SCALE_WRITE_ID, properties: { write: Boolean(properties.writeProperties & 8), writeNoResponse: Boolean(properties.writeProperties & 4) } }
+				{ uuid: notifyId, properties: { notify: Boolean(properties.notifyProperties & 16), indicate: Boolean(properties.notifyProperties & 32) } },
+				...(!hanging ? [{ uuid: writeId, properties: { write: Boolean(properties.writeProperties & 8), writeNoResponse: Boolean(properties.writeProperties & 4) } }] : [])
 			] })
 		},
 		notifyBLECharacteristicValueChange(options) {
-			if (!selected(options) || options.state !== true || String(options.characteristicId).toUpperCase() !== FLOOR_SCALE_NOTIFY_ID.toUpperCase()) return fail(options, '地秤订阅目标已变化')
+			if (!selected(options) || options.state !== true || String(options.characteristicId).toUpperCase() !== notifyId.toUpperCase()) return fail(options, '地秤订阅目标已变化')
 			request('subscribe', [], options)
 		},
 		writeBLECharacteristicValue(options) {
+			if (hanging) return fail(options, '吊秤连接仅接收重量，不发送校准指令')
 			if (!selected(options) || String(options.characteristicId).toUpperCase() !== FLOOR_SCALE_WRITE_ID.toUpperCase()) return fail(options, '地秤写入目标已变化')
 			const hex = Array.from(new Uint8Array(options.value), byte => byte.toString(16).padStart(2, '0')).join('')
 			request('write', [hex], options)

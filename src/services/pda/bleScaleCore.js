@@ -176,8 +176,17 @@ function parseFixedWeightFrame(rawLine, profile = {}) {
 	}
 }
 
+function parseNkWeightFrame(rawLine) {
+	// NVK variants send explicit kilograms, e.g. NK-1.5kg\r\n. NK does
+	// not claim stability; these readings must pass the existing local window.
+	const matched = String(rawLine || '').replace(/[\r\n]+$/, '').match(/^NK([+-]\d+(?:\.\d+)?)kg$/)
+	if (!matched) return null
+	const weightKg = Number(matched[1])
+	return Number.isFinite(weightKg) ? { frameMode: 'nk', weightKg, unit: 'kg', headStable: null } : null
+}
+
 export function parsePdaBleScaleLine(rawLine, profile = {}) {
-	return parseHeadFrame(rawLine, profile) || parseFixedWeightFrame(rawLine, profile)
+	return parseHeadFrame(rawLine, profile) || parseFixedWeightFrame(rawLine, profile) || parseNkWeightFrame(rawLine)
 }
 
 function splitLines(source = '') {
@@ -299,11 +308,24 @@ function callRuntime(runtime, method, options = {}) {
 			reject(new Error(`runtime.${method} 不可用`))
 			return
 		}
-		runtime[method]({
-			...options,
-			success: (res) => resolve(res || {}),
-			fail: (error) => reject(error || new Error(`${method} failed`))
-		})
+		// Android callbacks can be lost, including cancellation before a link is
+		// established. Never leave the page or the per-device cleanup queue blocked.
+		// The owned native driver closes its GATT at 6s; its bridge settles at 8s.
+		let settled = false, timer = null
+		const finish = (callback, value) => {
+			if (settled) return
+			settled = true
+			if (timer != null) clearTimeout(timer)
+			callback(value)
+		}
+		if (runtime.transport !== 'web') timer = setTimeout(() => finish(reject, new Error(`蓝牙操作超时：${method}，请重新连接或更换吊秤`)), 10000)
+		try {
+			runtime[method]({
+				...options,
+				success: (res) => finish(resolve, res || {}),
+				fail: (error) => finish(reject, error || new Error(`${method} failed`))
+			})
+		} catch (error) { finish(reject, error) }
 	})
 }
 
@@ -767,15 +789,15 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 		frameParseFailCount += Number(fixed.frameFail || 0)
 		fixed.frames.forEach((item) => handleParsedFrame(item.rawLine, item.parsed, sampledAt))
 
-		lineBuffer += source
+		lineBuffer += String(text || '')
 		const { lines, rest } = splitLines(lineBuffer)
 		lineBuffer = rest.slice(-512)
 		lines.forEach((line) => {
 			const rawLine = String(line || '').replace(/\u0000/g, '')
 			const normalized = normalizeText(rawLine)
-			if (!normalized || !/^(ST|UT)\s*,/i.test(normalized)) return
+			if (!normalized || !/^(?:(ST|UT)\s*,|NK)/i.test(normalized)) return
 			frameRxCount += 1
-			const parsed = parseHeadFrame(rawLine, profile)
+			const parsed = parseHeadFrame(rawLine, profile) || parseNkWeightFrame(line)
 			if (!parsed) {
 				frameParseFailCount += 1
 				return
@@ -792,7 +814,13 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 		const incomingDeviceId = normalizeText(res?.deviceId)
 		if (incomingDeviceId && deviceId && !isSameBleDeviceId(incomingDeviceId, deviceId)) return
 
-		const sampledAt = nowMs()
+		const current = nowMs()
+		const sampledAt = res?.receivedAt == null ? current : Number(res.receivedAt)
+		if (!Number.isFinite(sampledAt) || sampledAt > current || current - sampledAt > profile.staleAfterMs || (lastNotifyAt && sampledAt < lastNotifyAt)) {
+			invalidateStaleReadings()
+			emit(withDiagnostics({ is_online: false, is_stable: false, weight_kg: null, sampled_at: null, error_code: 'read_timeout', error_message: '吊秤数据已过期，等待新数据' }))
+			return
+		}
 		if (lastFrameAt && sampledAt - lastFrameAt > profile.staleAfterMs) invalidateStaleReadings()
 		lastNotifyAt = sampledAt
 		notifyRxCount += 1
@@ -943,7 +971,7 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 			const owner = runtimeLinks.owners.get(targetKey)
 			if (options.automatic && owner && owner !== connectionClaim) { keepAlive = false; return { code: 499, msg: '吊秤已由新页面连接' } }
 			// Release the old GATT handle before reconnecting; do not stack same-device clients.
-			if (connectionClaim && owner === connectionClaim) {
+			if (connectionClaim && runtimeLinks.owners.get(connectionClaim.key) === connectionClaim) {
 				connected = false; resetStaleTimer()
 				await closeConnectionQuietly(connectionClaim)
 				checkActive()
@@ -1037,6 +1065,8 @@ export function createBleScaleCoreSession(inputProfile = {}, runtime = {}) {
 					error_message: message
 				})
 			)
+			// An unsuccessful explicit selection must return control to the chooser.
+			if (!options.automatic) keepAlive = false
 			if (keepAlive) scheduleReconnect('connect_failed')
 			return {
 				code: 500,
