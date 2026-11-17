@@ -62,7 +62,7 @@
                 <AppSection title="灌装作业信息">
 					<view class="form-grid">
 						<view class="form-item span-2">
-							<AppInput v-if="isReweigh" :model-value="form.date" label="灌装日期" readonly size="sm" />
+							<AppInput v-if="isReweigh" :model-value="dateSummary" label="灌装日期" readonly size="sm" />
 							<FillingTimePicker v-else :model-value="form.date" label="灌装日期" @update:modelValue="value => onDateChange({ detail: { value } })" />
 							</view>
 							<view class="form-item">
@@ -108,6 +108,7 @@ import AppCard from '@/components/base/AppCard.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import FillingTimePicker from './FillingTimePicker.vue'
+import { formatFillingTime } from '@/services/mappers/filling'
 import { createFillingV1, getFillingV1, updateFillingV1 } from '@/services/filling'
 import { searchDeliveriesV1 } from '@/services/delivery'
 import { useAuthGuard } from '@/composables/useAuthGuard'
@@ -195,7 +196,7 @@ const pageSubtitle = computed(() => (isEditMode.value ? 'FILLING EDIT' : 'FILLIN
 const submitText = computed(() => (isReweigh.value ? '保存备注' : isEditMode.value ? '保存修改' : '保存灌装记录'))
 
 const recordTypeOptions = computed(() => RECORD_TYPE_OPTIONS)
-const dateSummary = computed(() => String(form.date || '').trim() || '未选择')
+const dateSummary = computed(() => formatFillingTime({ date: form.date }) || '未选择')
 const bottleSummary = computed(() => String(form.bottle_no || '').trim() || '未填写')
 const recordTypeLabel = computed(() => {
 	const current = normalizeRecordType(form.record_type)
