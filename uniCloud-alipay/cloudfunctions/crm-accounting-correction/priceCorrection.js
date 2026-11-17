@@ -23,7 +23,8 @@ async function priceSnapshot(db, id) {
   await union('crm_voucher_entries', 'voucher_id', t.crm_vouchers.map(r => r._id))
   await union('crm_web_sale_operations', '_id', t.crm_sale_records.map(r => r.web_save_operation_key).filter(Boolean))
   await union('crm_mobile_sale_operations', '_id', t.crm_sale_records.map(r => r.mobile_create_operation_key).filter(Boolean))
-  await union('crm_periods', 'period', [...new Set(t.crm_sale_records.map(r => r.date.slice(0, 7)))])
+  try { await union('crm_periods', 'period', [...new Set(t.crm_sale_records.map(r => r.date.slice(0, 7)))]) }
+  catch (error) { if (String(error.message).trim() !== 'not found collection') throw error; s.absent_collections.push('crm_periods') }
   const receiptIds = new Set(t.crm_customer_receipts.map(r => r._id)), saleIds = new Set(t.crm_sale_records.map(r => r._id))
   const refunds = await read('crm_customer_receipts', { source_type: 'customer_cash_refund' })
   assert(!refunds.some(r => r.customer_id !== id && (r.refund_sources || []).some(x => receiptIds.has(x.id))), '存在跨户退款关联')
