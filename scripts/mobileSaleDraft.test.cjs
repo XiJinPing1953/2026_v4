@@ -54,7 +54,7 @@ function harness(t, options = {}) {
 	const module = load('src/composables/pda/usePdaSaleForm.js', ['usePdaSaleForm', 'resolveUsableBleScaleWeight'], {
 		...state, ...shared, ...customer, ...location, ...sale,
 		ref: vue.ref, computed: vue.computed, watch: vue.watch, onBeforeUnmount: () => {},
-		getUser: () => ({ _id: owner, mobile_sale_defaults: options.defaults }),
+		getUser: () => ({ _id: owner, role: options.role || 'superadmin', mobile_sale_defaults: options.defaults }),
 		uni: options.h5TreeShaking ? {} : storageApis, navigator: { onLine: true },
 		$inject_uni_getStorageSync: storageApis.getStorageSync,
 		$inject_uni_setStorageSync: storageApis.setStorageSync,
@@ -240,6 +240,8 @@ test('reload while request is in flight exposes recovery actions even before a r
 	assert.equal(restored.form.receipt.value.operationId, 'sale-in-flight')
 	await restored.form.submit()
 	assert.equal(restored.requests[0].id, 'sale-in-flight')
+	assert.deepEqual(restored.requests[0].payload, copy(saved.submission.payload))
+	assert.equal('settlementCustomerId' in restored.requests[0].payload.base, false)
 })
 
 test('pre-write warning rejection unlocks, explicit confirmation creates a new frozen version', async t => {

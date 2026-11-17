@@ -512,6 +512,13 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 	function sortedDeposit(rows) { return (rows || []).map((r) => normalizeBottleNo(r.bottle_no || r.bottleNo)).filter(Boolean).sort().join('|') }
 
 	async function revalidateBeforeSubmit() {
+		const user = getUser() || {}
+		const admin = [user.role, user.role_template].some(role => normalizeText(role).toLowerCase() === 'superadmin')
+		if (!admin) {
+			const defaults = user.mobile_sale_defaults || {}
+			if (!normalizeText(defaults.vehicle_id) || !normalizeText(defaults.vehicle_no)) return { code: 409, msg: '账号尚未绑定车辆，请联系管理员' }
+			if (normalizeText(form.value.vehicleNo) !== normalizeText(defaults.vehicle_no)) return { code: 409, msg: '销售车辆与账号绑定车辆不一致，请使用本车录单' }
+		}
 		const signature = JSON.stringify(form.value)
 		const snapshot = cloneMobileSale(form.value)
 		const rows = [...snapshot.outItems, ...snapshot.backItems].filter((r) => r.bottleNo)
@@ -544,7 +551,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 			return { code: 409, error_code: 'MOBILE_SALE_REVALIDATION_CHANGED', msg: '档案或存瓶有变化，请确认后重新预览', data: { changes } }
 		}
 		revalidationCandidate = null
-		return { code: 0 }
+		return { code: 0, customer: customerRes.data }
 	}
 
 	function applyRevalidationChanges() {
@@ -614,7 +621,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 				if (!validation.ok) return { code: 400, msg: validation.msg }
 				const checked = await revalidateBeforeSubmit()
 				if (checked.code !== 0) return checked
-				frozenSubmission.value = { operationId: draftId, payload: cloneMobileSale(buildMobileSalePayload(form.value, options)), attempted: false }
+				frozenSubmission.value = { operationId: draftId, payload: cloneMobileSale(buildMobileSalePayload(form.value, { ...options, customer: checked.customer })), attempted: false }
 				receipt.value = mobileSaleReceipt({ msg: '正在保存本次提交，请勿另建相同单据' }, frozenSubmission.value.operationId)
 			}
 			const previouslyAttempted = Boolean(frozenSubmission.value.attempted)
