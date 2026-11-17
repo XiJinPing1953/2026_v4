@@ -55,3 +55,11 @@ test('不同客户反向分配及退款不被遗漏', async () => {
     await assert.rejects(priceSnapshot(mutableDb(tables), cid), /反向关联|跨户退款/)
   }
 })
+test('仅平台确认不存在的旧账期集合可缺省，其他读取错误必须停止', async () => {
+  for (const message of ['not found collection', 'network timeout']) {
+    const { tables } = fixture(), db = mutableDb(tables), collection = db.collection
+    db.collection = name => { if (name === 'crm_periods') throw Error(message); return collection(name) }
+    if (message === 'not found collection') assert.ok((await priceSnapshot(db, cid)).absent_collections.includes('crm_periods'))
+    else await assert.rejects(priceSnapshot(db, cid), /network timeout/)
+  }
+})
