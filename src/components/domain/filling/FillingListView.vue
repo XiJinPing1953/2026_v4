@@ -2156,7 +2156,7 @@ async function onBatchCreateExecute() {
 			})
 			: await uni.showModal({
 				title: '确认批量新增',
-				content: `将新增 ${total} 条灌装记录（日期 ${previewData.filling_time || previewData.date}，类型 ${batchCreateRecordTypeLabel.value}，操作人 ${batchCreateOperatorLabel.value}），确认执行吗？`,
+				content: `将新增 ${total} 条灌装记录（日期 ${formatFillingTime(previewData)}，类型 ${batchCreateRecordTypeLabel.value}，操作人 ${batchCreateOperatorLabel.value}），确认执行吗？`,
 				showCancel: true
 			})
 		if (!confirmRes.confirm) return
@@ -2552,7 +2552,7 @@ async function onBatchExecute() {
 		}
 		const confirmRes = await uni.showModal({
 			title: '确认批量改日期',
-			content: `将把 ${total} 条灌装记录日期统一改为 ${previewData.filling_time || previewData.new_date}，确认执行吗？`,
+			content: `将把 ${total} 条灌装记录日期统一改为 ${formatFillingTime({ filling_time: previewData.filling_time, date: previewData.new_date })}，确认执行吗？`,
 			showCancel: true
 		})
 		if (!confirmRes.confirm) return
