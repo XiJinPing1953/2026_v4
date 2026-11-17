@@ -8,37 +8,7 @@
     "web": {
       "version": "2026.11.17-pda-sale-guards.1",
       "output": "dist/build/web",
-      "acceptance": "Preserve reconstructed November 11 live web baseline (220 assets matched after import-hash and IDE diagnostic normalization); only mobile sale payload and preflight changed. Cloud deployed from separate verified 515bd8a candidate.",
-      "deploymentScope": {
-        "functions": [
-          "crm-sale"
-        ],
-        "databaseFiles": [],
-        "baseCommit": "c3e63e76857d2950f88bd473212d691f12e34e68",
-        "sourceFiles": [
-          "src/services/pda/sale.js",
-          "src/composables/pda/usePdaSaleForm.js"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-sale": {
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            },
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            }
-          }
-        }
-      },
-      "integrityScope": "deployment"
-    },
-    "cloud": {
-      "version": "2026.11.17-pda-sale-guards.1",
-      "output": "release/cloud",
-      "acceptance": "PDA sale label/BLE contract, current price/tare/settlement/vehicle validation and real transaction conflicts; preserve permanent legacy receipts and current live accounting. Paired PDA/H5 clients. No native/schema/history changes.",
-      "integrityScope": "deployment",
+      "acceptance": "Merged source scope includes the recovered already-live November 11 filling picker. Actual published H5 is frozen at publishedSourceCommit with original 5.06 dependencies; see 2026-11-17-pda-sale-release handoff before rebuilding from integrated main. Only mobile sale payload/preflight changed on that live baseline.",
       "deploymentScope": {
         "functions": [
           "crm-sale"
@@ -46,9 +16,12 @@
         "databaseFiles": [],
         "baseCommit": "f7946f6074fd2dadc09b72cbfaf4a62639f6569d",
         "sourceFiles": [
+          "src/components/domain/filling/FillingEditView.vue",
+          "src/components/domain/filling/FillingListView.vue",
+          "src/components/domain/filling/FillingTimePicker.vue",
+          "src/composables/pda/usePdaSaleForm.js",
           "src/manifest.json",
           "src/services/pda/sale.js",
-          "src/composables/pda/usePdaSaleForm.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleMasters.js",
@@ -66,7 +39,47 @@
             }
           }
         }
-      }
+      },
+      "integrityScope": "deployment",
+      "publishedSourceCommit": "b3bf6800d93a261a22a79c7532aac876d991f4e6"
+    },
+    "cloud": {
+      "version": "2026.11.17-pda-sale-guards.1",
+      "output": "release/cloud",
+      "acceptance": "PDA sale label/BLE contract, current price/tare/settlement/vehicle validation and real transaction conflicts; preserve permanent legacy receipts and current live accounting. Paired PDA/H5 clients. No native/schema/history changes.",
+      "integrityScope": "deployment",
+      "deploymentScope": {
+        "functions": [
+          "crm-sale"
+        ],
+        "databaseFiles": [],
+        "baseCommit": "f7946f6074fd2dadc09b72cbfaf4a62639f6569d",
+        "sourceFiles": [
+          "src/components/domain/filling/FillingEditView.vue",
+          "src/components/domain/filling/FillingListView.vue",
+          "src/components/domain/filling/FillingTimePicker.vue",
+          "src/composables/pda/usePdaSaleForm.js",
+          "src/manifest.json",
+          "src/services/pda/sale.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleMasters.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/pdaSaleRecords.js"
+        ],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          }
+        }
+      },
+      "publishedSourceCommit": "515bd8a76779dda24be528c5bbfc0eed76744ef8"
     },
     "tank-gateway": {
       "version": "1.0.3",
@@ -126,9 +139,12 @@
         "databaseFiles": [],
         "baseCommit": "f7946f6074fd2dadc09b72cbfaf4a62639f6569d",
         "sourceFiles": [
+          "src/components/domain/filling/FillingEditView.vue",
+          "src/components/domain/filling/FillingListView.vue",
+          "src/components/domain/filling/FillingTimePicker.vue",
+          "src/composables/pda/usePdaSaleForm.js",
           "src/manifest.json",
           "src/services/pda/sale.js",
-          "src/composables/pda/usePdaSaleForm.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
           "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleMasters.js",
@@ -148,7 +164,8 @@
         }
       },
       "integrityScope": "deployment",
-      "artifactType": "wgt"
+      "artifactType": "wgt",
+      "publishedSourceCommit": "515bd8a76779dda24be528c5bbfc0eed76744ef8"
     }
   }
 }
