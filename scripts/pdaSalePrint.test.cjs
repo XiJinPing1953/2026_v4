@@ -39,7 +39,33 @@ test('bound vehicle account cannot read another vehicle detail or spoof its bind
  const result=await svc.get({mobile_sale_defaults:{vehicle_id:'a',vehicle_no:'A'}},{id:'s'})
  assert.equal(result.code,404)
 })
-function printerHarness(options={}){let user={_id:'u'},active=true,callback,sends=0;const native=receiptPrinterHarness(),store=new Map();const session={connected:true,close(){},connect(){callback({connected:true,message:'ok'})},sendDocument:async writer=>{writer({});sends++;await options.afterSend?.(sends)}};const api=load('src/composables/pda/usePdaSalePrinter.js',['usePdaSalePrinter'],{ref:v=>({value:v}),onBeforeUnmount(){},getUser:()=>user,ensurePdaBleRuntimePermission:async()=>({code:0}),selectPairedPrinter:async()=>({name:'HL30-AA20',address:native.address}),rememberPrinter:(ui,device)=>ui.setStorageSync('pda_label_printer_bound_v1',device),plus:{android:native.android},uni:{getStorageSync:k=>store.get(k),setStorageSync:(k,v)=>store.set(k,v),requireNativePlugin:()=>({})},createLabelPrinterSession:(_,cb)=>{callback=cb;return session},getPdaSale:options.getSale|| (async()=>({code:0,data:options.sale||sale})),salePrintPages,writeSalePage,setInterval:()=>0,clearInterval(){}});const p=api.usePdaSalePrinter(()=>active);return{p,store,native,session,get sends(){return sends},setUser:v=>user=v,disable:()=>active=false}}
+function printerHarness(options = {}) {
+ let active = true, callback, sends = 0, opens = 0, closes = 0
+ const native = receiptPrinterHarness(), store = new Map()
+ const uni = {
+  getStorageSync:key=>store.get(key), setStorageSync:(key,value)=>store.set(key,value),
+  removeStorageSync:key=>store.delete(key), requireNativePlugin:()=>({})
+ }
+ const auth = load('src/services/auth.js',['getUser','setUser','clearAuth','onAuthIdentityChange'],{uni})
+ auth.setUser({_id:'u'})
+ const session = {
+  connected: true, close(){closes++},
+  connect(){opens++; if (!options.silent) callback({connected:true,message:'ok'})},
+  async sendDocument(writer){writer({}); sends++; await options.afterSend?.(sends)}
+ }
+ const api = load('src/composables/pda/usePdaSalePrinter.js',['usePdaSalePrinter'],{
+  ref:v=>({value:v}), onBeforeUnmount(){}, ...auth, uni, plus:{android:native.android},
+  ensurePdaBleRuntimePermission:options.permission || (async()=>({code:0})),
+  selectPairedPrinter:options.select || (async()=>({name:'HL30-AA20',address:native.address})),
+  rememberPrinter:(ui,device)=>ui.setStorageSync('pda_label_printer_bound_v1',device),
+  createLabelPrinterSession:(_,cb)=>{callback=cb;return session},
+  getPdaSale:options.getSale || (async()=>({code:0,data:options.sale||sale})),
+  salePrintPages,writeSalePage,setInterval:()=>0,clearInterval(){}
+ })
+ const p = api.usePdaSalePrinter(()=>active)
+ return {p, store, native, session, notify:state=>callback(state), get sends(){return sends},
+  get opens(){return opens}, get closes(){return closes}, setUser:auth.setUser, disable:()=>active=false}
+}
 test('sales automatic print deduplicates and old records never auto print; explicit reprint allowed',async()=>{const h=printerHarness();await h.p.connect();const r={sourceSaved:true,saleId:'s',operationId:'op'};await h.p.confirmed(r);assert.equal(h.sends,0);h.p.arm('op');await Promise.all([h.p.confirmed(r),h.p.confirmed(r)]);assert.equal(h.sends,salePrintPages(sale).length*2);h.p.arm('op');await h.p.confirmed(r);assert.equal(h.sends,salePrintPages(sale).length*2);await h.p.print('s');assert.equal(h.sends,salePrintPages(sale).length*4);h.setUser({_id:'other'});await h.p.print('s');assert.equal(h.sends,salePrintPages(sale).length*4)})
 test('disconnected save consumes automatic attempt and reconnect does not send',async()=>{const h=printerHarness();const r={sourceSaved:true,saleId:'s',operationId:'op'};h.p.arm('op');await h.p.confirmed(r);assert.equal(h.sends,0);await h.p.connect();await h.p.confirmed(r);assert.equal(h.sends,0);await h.p.print('s');assert.equal(h.sends,salePrintPages(sale).length*2)})
 test('vehicle history keeps own vehicle, date and both hidden-customer filters',async()=>{
@@ -238,3 +264,60 @@ test('receipt filling time stays with each bottle and never falls back to the sa
  assert.ok(!commands.some(c=>c.text.startsWith('灌装:2026-10-31')))
  assert.equal(JSON.stringify(doc),before);assertBounds(pages)
 })
+
+test('stopping after the first send preserves disconnection feedback and cancels remaining pages', async () => {
+ const h = printerHarness({ afterSend: async () => {
+  h.p.stop()
+  h.session.connected = false
+  h.notify({ connected:false, connecting:false, message:'打印机已断开，请重连' })
+ } })
+ await h.p.connect()
+ await h.p.print('s')
+ assert.equal(h.sends, 1)
+ assert.equal(h.p.busy.value, false)
+ assert.equal(h.p.connected.value, false)
+ assert.match(h.p.status.value, /已断开/)
+})
+
+test('disconnect before stop during first-page cooldown keeps both the disconnect warning and paper check', async () => {
+ const h = printerHarness({afterSend:() => {
+  h.session.connected = false
+  h.notify({connected:false,connecting:false,message:'打印机已断开，请重连'})
+  h.p.stop()
+ }})
+ await h.p.connect()
+ await h.p.print('s')
+ assert.equal(h.sends, 1)
+ assert.equal(h.p.connected.value, false)
+ assert.equal(h.p.busy.value, false)
+ assert.match(h.p.status.value, /已断开.*已停止.*出纸/)
+})
+
+for (const phase of ['permission','select','native']) {
+ test('account switch invalidates printer connection during '+phase+' even after switching back', async () => {
+  let release
+  const blocked = new Promise(resolve => { release = resolve })
+  const h = printerHarness({[phase]:() => blocked, silent:true})
+  const pending = h.p.connect()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(h.p.connecting.value, true)
+  h.setUser({_id:'u', name:'updated'})
+  assert.equal(h.p.connecting.value, true)
+  h.setUser({_id:'other'})
+  assert.equal(h.p.connecting.value, false)
+  assert.equal(h.p.connected.value, false)
+  h.setUser({_id:'u'})
+  release(phase === 'permission' ? {code:0} : {name:'old',address:h.native.address})
+  if (phase === 'native') h.notify({connected:true})
+  await pending
+  assert.equal(h.p.connecting.value, false)
+  assert.equal(h.store.has('pda_label_printer_bound_v1'), false)
+  assert.equal(h.opens, phase === 'native' ? 1 : 0)
+  assert.equal(h.closes, phase === 'native' ? 1 : 0)
+  assert.equal(h.p.status.value, '打印机未连接')
+  await h.p.connect()
+  h.notify({connected:true})
+  assert.equal(h.p.connected.value, true)
+  h.p.close()
+ })
+}

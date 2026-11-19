@@ -44,7 +44,12 @@ function resolveReleaseScope(root, product, requested) {
 		if (!/^[0-9a-f]{40}$/.test(scope.baseCommit || '') || !Array.isArray(scope.sourceFiles) || !scope.sourceFiles.length) throw new Error('独立发布必须同时指定完整基线提交和源码清单')
 		if (new Set(scope.sourceFiles).size !== scope.sourceFiles.length || scope.sourceFiles.some((file) => typeof file !== 'string' || file.includes('..') || path.isAbsolute(file))) throw new Error('独立发布源码清单无效')
 		const git = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
-		git(['merge-base', '--is-ancestor', scope.baseCommit, 'HEAD'])
+		try {
+			git(['merge-base', '--is-ancestor', scope.baseCommit, 'HEAD'])
+		} catch (error) {
+			if (error.status !== 1) throw error
+			throw new Error(`${product} 发布基线 ${scope.baseCommit} 不是当前提交 ${git(['rev-parse', '--short', 'HEAD'])} 的祖先，请在包含该基线的候选工作区核验。`)
+		}
 		if (fs.existsSync(path.join(root, 'package.json'))) {
 			const previous = JSON.parse(git(['show', `${scope.baseCommit}:package.json`]))
 			const current = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))

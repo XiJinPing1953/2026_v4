@@ -239,22 +239,44 @@ test('void records require a reason, retain source amount/date, and call only th
 	assert.equal(h.panel.voidTarget.value.biz_date, source.biz_date)
 })
 
-test('deposit and opening sources expose allocation without ordinary source editing or deletion', () => {
+test('deposit and opening sources expose allocation without ordinary source editing or deletion', async () => {
 	const source = fs.readFileSync('src/components/domain/customer/statement/CustomerStatementModule.vue', 'utf8')
 	const helpers = source.slice(source.indexOf('function isCashierReceiptSourceType('), source.indexOf('\nfunction receiptAllocationText('))
-	const context = vm.createContext({ normalizeString: value => String(value || '').trim(), fix2: value => value, toNumber: (value, fallback) => Number(value ?? fallback) })
+	const actions = ['onEditReceipt', 'onRemoveReceipt', 'onBeginOffsetAdjustment', 'onRemoveOffsetAllocation']
+	const confirmations = []
+	const context = vm.createContext({
+		normalizeString: value => String(value || '').trim(), fix2: value => value,
+		toNumber: (value, fallback) => Number(value ?? fallback), fixCurrentMoney: Number, formatMoney: String,
+		recordId: { value: 'c1' }, offsetAllocating: { value: false }, isOffsetAdjustmentActive: { value: false },
+		offsetPendingRelease: { value: null }, offsetPendingBatch: { value: null }, offsetRecoveryError: { value: '' },
+		offsetAdjustingReceiptId: { value: '' }, offsetRecoveryKey: id => id, restoreOffsetAllocation() {},
+		uni: { showToast() {} },
+		showConfirmModal: async options => { confirmations.push(options.title); return false }
+	})
 	vm.runInContext(helpers, context)
+	for (const name of actions) {
+		const start = source.indexOf(`async function ${name}(`)
+		assert.notEqual(start, -1, name)
+		vm.runInContext(source.slice(start, source.indexOf('\n}', start) + 2), context)
+	}
+	const row = { _id: 'receipt', source_version: 'v1', allocated_amount: 10, unallocated_amount: 20 }
 	for (const sourceType of ['deposit_transfer', 'opening_prepay']) {
-		const row = { source_type: sourceType, allocated_amount: 10, unallocated_amount: 20 }
-		assert.equal(context.canEditReceiptAllocation(row), false)
-		assert.equal(context.canContinuePrepayReceipt(row), true)
-		assert.equal(context.isManualPrepayReceiptRow(row), true)
-		assert.equal(context.receiptAmountLabel(row), '转入')
-		for (const name of ['onEditReceipt', 'onRemoveReceipt', 'onBeginOffsetAdjustment', 'onRemoveOffsetAllocation']) {
-			const start = source.indexOf(`async function ${name}(`)
-			const next = source.indexOf('\nasync function ', start + 1)
-			const action = source.slice(start, next === -1 ? source.length : next)
-			assert.match(action, /if \(isOpeningPrepayReceipt\(row\) \|\| isDepositTransferReceipt\(row\)\)/, name)
+		for (const origin of [{ source_type: sourceType }, { meta: { source_type: sourceType } }]) {
+			const protectedRow = { ...row, ...origin }
+			assert.equal(context.canEditReceiptAllocation(protectedRow), false)
+			assert.equal(context.canContinuePrepayReceipt(protectedRow), true)
+			assert.equal(context.isManualPrepayReceiptRow(protectedRow), true)
+			assert.equal(context.receiptAmountLabel(protectedRow), '转入')
+			for (const name of actions) {
+				await context[name](protectedRow)
+				assert.equal(confirmations.length, 0, name)
+			}
 		}
+	}
+	// Make sure every handler reached its source guard with otherwise actionable data.
+	for (const name of actions) {
+		await context[name]({ ...row, source_type: name.includes('Offset') ? 'offset_credit' : 'customer_prepay_manual' })
+		assert.equal(confirmations.length, 1, name)
+		confirmations.pop()
 	}
 })

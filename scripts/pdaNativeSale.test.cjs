@@ -34,7 +34,7 @@ async function harness(t, options = {}) {
 		getUser: () => ({ _id: owner, role: options.role || 'superadmin', mobile_sale_defaults: options.defaults }), canPageAction: () => true,
 		uni: {
 			getStorageSync: key => storage.get(key), setStorageSync: (key, value) => storage.set(key, value), removeStorageSync: key => storage.delete(key),
-			showActionSheet: ({ success }) => success({ tapIndex: 0 }),
+			showActionSheet: options.pick || (({ success }) => success({ tapIndex: 0 })),
 			showModal: ({ title, success }) => { confirmations.push(title); success({ confirm: options.confirm !== false }) }
 		},
 		getPdaCustomerById: async () => ({ code: 0, data: customer }),
@@ -46,7 +46,7 @@ async function harness(t, options = {}) {
 		getPdaBottleScanLocation: async () => ({ status: 'failed' }),
 		createMobileSale: async (id, payload) => { requests.push({ id, payload }); return options.send ? options.send(id, payload) : { code: 0, data: { operation_id: id, source_saved: true, processing_state: 'completed', sale_id: 's1' } } },
 		getMobileSaleCreateResult: options.query || (async id => ({ code: 0, data: { operation_id: id, source_saved: true, processing_state: 'completed', sale_id: 's1' } })),
-		ensurePdaBleRuntimePermission: async () => ({ code: 0 }),
+		ensurePdaBleRuntimePermission: options.permission || (async () => ({ code: 0 })),
 		enterBarcodeSession: async ({ onResult }) => { scanner = onResult; return { code: 0 } }, leaveBarcodeSession: async () => {},
 		createPdaBleScaleSession: ({ onWeightFrame, preserveMeasurementOnReadTimeout }) => {
 			assert.equal(preserveMeasurementOnReadTimeout, true)
@@ -54,8 +54,8 @@ async function harness(t, options = {}) {
 			return {
 				onSnapshot: callback => { onSnapshot = callback; callback(core.createEmptyPdaBleScaleSnapshot()); return () => {} },
 				beginMeasurement: () => { session++; emit(); return `session${session}` },
-				discoverDevices: async () => ({ code: 0, data: [{ deviceId: 'scale1', name: 'NVK' }] }), updateProfile() {},
-				connect: async () => { connected = true; emit(); return { code: 0 } },
+				discoverDevices: async () => ({ code: 0, data: options.devices || [{ deviceId: 'scale1', name: 'NVK' }] }), updateProfile() {},
+				connect: async ({ preferredDeviceId }) => { if (options.rejectDevice?.(preferredDeviceId)) return { code: 500 }; connected = true; emit(); return { code: 0 } },
 				stop: async () => { if (options.stop) await options.stop(); connected = false; emit() }
 			}
 		}
@@ -67,7 +67,7 @@ async function harness(t, options = {}) {
 		const receiptApi = load('src/services/pda/receiptPrinter.js', ['writeReceiptText', 'RECEIPT_TAIL_DOTS'])
 		Object.assign(runtime, load('src/services/pda/salePrint.js', ['salePrintPages', 'writeSalePage'], { ...shared, ...receiptApi, ...load('src/services/pda/printBusinessTime.js', ['formatFillingPrintTime']) }))
 		Object.assign(runtime, {
-			plus: { android: printNative.android }, setInterval: () => 0, clearInterval() {},
+			onAuthIdentityChange: () => () => {}, plus: { android: printNative.android }, setInterval: () => 0, clearInterval() {},
 			selectPairedPrinter: async () => ({ name: 'HL30-AA20', address: printNative.address }), rememberPrinter() {},
 			createLabelPrinterSession: (_, callback) => ({ connected: true, close() {}, connect() { callback({ connected: true }) }, async sendDocument(writer) { writer({}); await options.afterPrint?.() } }),
 			getPdaSale: async id => {
@@ -268,4 +268,74 @@ test('preview with unknown save result sends no copy until the original operatio
 	await h.panel.query(); await new Promise(resolve => setImmediate(resolve))
 	assert.equal(h.requests.length, 1); assert.equal(h.printNative.sends.length, 2)
 	await h.panel.query(); await new Promise(resolve => setImmediate(resolve)); assert.equal(h.printNative.sends.length, 2)
+})
+
+test('permission timeout releases the sale page and a late grant cannot complete the retry', async t => {
+	const pending = [], timers = new Map()
+	const permissionSource = fs.readFileSync('src/services/pda/bleScale.js', 'utf8')
+		.split('function runOnAppPlusAndroid')[1].replace(/^export /gm, '')
+	const permission = vm.runInNewContext('function runOnAppPlusAndroid' + permissionSource + '\n;ensurePdaBleRuntimePermission', {
+		plus: { os: { name: 'Android' }, android: {
+			importClass: () => ({ VERSION: { SDK_INT: 31 } }),
+			requestPermissions: (_, success) => pending.push(success)
+		} },
+		setTimeout: (fn, ms) => { assert.equal(ms, 15000); timers.set(fn, fn); return fn },
+		clearTimeout: id => timers.delete(id)
+	})
+	const h = await harness(t, { permission })
+	const first = h.panel.connect()
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h.panel.busy.value, true)
+	const expire = [...timers.values()][0]
+	timers.delete(expire)
+	expire()
+	assert.equal(await first, false)
+	assert.match(h.panel.error.value, /权限请求超时/)
+	assert.equal(h.panel.busy.value, false)
+	const retry = h.panel.connect()
+	await new Promise(resolve => setImmediate(resolve))
+	pending[0]({})
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h.panel.busy.value, true)
+	pending[1]({})
+	assert.equal(await retry, true)
+	assert.equal(timers.size, 0)
+})
+
+test('same-name scales distinguish addresses and mark only the last successful selection', async t => {
+	const devices = ['01:02:03:04:75:28','01:02:03:04:74:67'].map(deviceId => ({ deviceId, name:'NVK-K02' }))
+	const storage = new Map([['pda_ble_scale_bound_device_v1', devices[0]]])
+	const lists = []
+	let reject = true
+	const h = await harness(t, { storage, devices, rejectDevice: id => reject && id === devices[1].deviceId,
+		pick: ({itemList, success}) => { lists.push(Array.from(itemList)); success({tapIndex:1}) } })
+	assert.equal(await h.panel.connect(true), false)
+	reject = false
+	assert.equal(await h.panel.connect(true), true)
+	assert.equal(await h.panel.connect(true), true)
+	assert.deepEqual(lists[0], ['上次 · NVK-K02 (047528)', 'NVK-K02 (047467)'])
+	assert.deepEqual(lists[1], lists[0])
+	assert.deepEqual(lists[2], ['NVK-K02 (047528)', '上次 · NVK-K02 (047467)'])
+	assert.equal(storage.get('pda_ble_scale_bound_device_v1').deviceId, devices[1].deviceId)
+})
+
+test('returning before permission resolves can reconnect immediately without an old callback unlocking the new request', async t => {
+ const old = deferred(), fresh = deferred()
+ let requests = 0
+ const h = await harness(t, { permission: () => (++requests === 1 ? old : fresh).promise })
+ const first = h.panel.connect(true)
+ await new Promise(resolve => setImmediate(resolve))
+ await h.panel.deactivate()
+ await h.panel.activate()
+ assert.equal(h.panel.busy.value, false)
+ const next = h.panel.connect(true)
+ await new Promise(resolve => setImmediate(resolve))
+ assert.equal(requests, 2)
+ old.resolve({code:0})
+ assert.equal(await first, false)
+ assert.equal(h.panel.busy.value, true)
+ assert.equal(h.storage.has('pda_ble_scale_bound_device_v1'), false)
+ fresh.resolve({code:0})
+ assert.equal(await next, true)
+ assert.equal(h.panel.busy.value, false)
 })

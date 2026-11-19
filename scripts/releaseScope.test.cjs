@@ -123,7 +123,7 @@ test('exact deployment source scope rejects smuggling, omissions, retained-packa
 	}).trim()
 	assert.match(wrongBase, /^[0-9a-f]{40}$/)
 	writeScope(write, { baseCommit: wrongBase, sourceFiles: ['src/accounting.js'] })
-	assert.throws(() => resolveReleaseScope(root, 'cloud'))
+	assert.throws(() => resolveReleaseScope(root, 'cloud'), /cloud 发布基线 .*不是当前提交 .* 的祖先/)
 })
 
 test('web release uses its own source scope without changing the cloud release scope', (t) => {
