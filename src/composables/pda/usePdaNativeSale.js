@@ -49,6 +49,7 @@ export function usePdaNativeSale() {
 	let epoch = 0
 	let lifecycle = 0
 	let stopping = Promise.resolve()
+	let permissionTicket = null
 	let measurement = null
 	let boundDevice = null
 	const autoWeight = createAutoReweighWeight()
@@ -246,25 +247,38 @@ export function usePdaNativeSale() {
 		try {
 			await stopping
 			if (!same(ticket)) return false
+			permissionTicket = ticket
 			const permission = await ensurePdaBleRuntimePermission()
+			if (permissionTicket === ticket) permissionTicket = null
 			if (!same(ticket)) return false
 			if (permission?.code !== 0) return fail(permission?.msg || '请允许蓝牙权限')
-			if (forcePick || !boundDevice?.deviceId) {
+			let selectedDevice = boundDevice
+			if (forcePick || !selectedDevice?.deviceId) {
 				const found = await scale.discoverDevices()
 				if (!same(ticket)) return false
 				if (found?.code !== 0 || !found.data?.length) return fail(found?.msg || '没有找到吊秤，请检查电源')
-				const index = await new Promise(resolve => uni.showActionSheet({ itemList: found.data.map(item => item.name || item.localName || 'NVK 吊秤'), success: result => resolve(result.tapIndex), fail: () => resolve(-1) }))
+				const itemList = found.data.map(device => {
+					const last = device.deviceId.toUpperCase() === boundDevice?.deviceId?.toUpperCase()
+					const suffix = device.deviceId.replace(/[:-]/g, '').slice(-6).toUpperCase()
+					return `${last ? '上次 · ' : ''}${device.name || device.localName || 'NVK 吊秤'} (${suffix})`
+				})
+				const index = await new Promise(resolve => uni.showActionSheet({ itemList, success: result => resolve(result.tapIndex), fail: () => resolve(-1) }))
 				if (!same(ticket) || index < 0) return false
-				boundDevice = found.data[index]; scale.updateProfile({ deviceId: boundDevice.deviceId })
+				selectedDevice = found.data[index]
 			}
-			const result = await scale.connect({ preferredDeviceId: boundDevice.deviceId })
+			const result = await scale.connect({ preferredDeviceId: selectedDevice.deviceId })
 			if (!same(ticket)) { await scale.stop(); return false }
 			if (result?.code !== 0) return fail(`${result?.msg || '连接失败'}；可点更换吊秤重新选择`)
+			boundDevice = selectedDevice
+			scale.updateProfile({ deviceId: boundDevice.deviceId })
 			try { uni.setStorageSync('pda_ble_scale_bound_device_v1', boundDevice) } catch (_) {}
 			message.value = '吊秤已连接，请扫码；未称好的瓶可点重新称重'
 			return true
 		} catch (cause) { if (same(ticket)) fail(cause.message || '连接失败'); return false }
-		finally { busy.value = false }
+		finally {
+			if (permissionTicket === ticket) permissionTicket = null
+			if (!ticket.cancelled) busy.value = false
+		}
 	}
 	async function disconnect() {
 		if (!editable()) return
@@ -336,6 +350,13 @@ export function usePdaNativeSale() {
 		} catch (cause) { if (active.value) fail(cause.message || '扫描头初始化失败') }
 	}
 	async function deactivate() {
+		if (permissionTicket) {
+			// No GATT operation has started for this attempt. A late permission reply
+			// must neither connect nor release the busy flag of the next page visit.
+			permissionTicket.cancelled = true
+			permissionTicket = null
+			busy.value = false
+		}
 		printer.close(); active.value = false; lifecycle++; invalidate(); sale.persistDraft()
 		stopping = Promise.allSettled([stopping, scale.stop(), leaveBarcodeSession({ page: 'pda-native-sale', reason: 'page-hidden' })])
 		await stopping

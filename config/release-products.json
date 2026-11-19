@@ -138,36 +138,20 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.79",
+      "version": "1.0.81",
       "output": "release/pda",
-      "acceptance": "PDA sale label/BLE contract, current price/tare/settlement/vehicle validation and real transaction conflicts; preserve permanent legacy receipts and current live accounting. Paired PDA/H5 clients. No native/schema/history changes.",
+      "acceptance": "Sales BLE permission timeout and return, scale selection by address, stop and disconnect ordering, printer account isolation. WGT for native 1.0.76 through 1.0.77.",
       "deploymentScope": {
-        "functions": [
-          "crm-sale"
-        ],
+        "functions": [],
         "databaseFiles": [],
-        "baseCommit": "f7946f6074fd2dadc09b72cbfaf4a62639f6569d",
+        "baseCommit": "515bd8a76779dda24be528c5bbfc0eed76744ef8",
         "sourceFiles": [
+          "src/composables/pda/usePdaNativeSale.js",
+          "src/composables/pda/usePdaSalePrinter.js",
           "src/manifest.json",
-          "src/services/pda/sale.js",
-          "src/composables/pda/usePdaSaleForm.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleMasters.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/pdaSaleRecords.js"
-        ],
-        "aclCanonicalRevisions": {
-          "crm-sale": {
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            },
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            }
-          }
-        }
+          "src/services/auth.js",
+          "src/services/pda/bleScale.js"
+        ]
       },
       "integrityScope": "deployment",
       "artifactType": "wgt"

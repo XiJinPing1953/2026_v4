@@ -2,6 +2,19 @@
 
 const TOKEN_KEY = 'crm_token'
 const USER_KEY = 'crm_user'
+const identityListeners = new Set()
+
+export function onAuthIdentityChange(listener) {
+	identityListeners.add(listener)
+	return () => identityListeners.delete(listener)
+}
+
+function notifyIdentity(user) {
+	for (const listener of identityListeners) {
+		try { listener(user) } catch (error) { console.warn('账号切换清理失败', error) }
+	}
+}
+
 let syncPending = null
 let sessionVersion = 0
 // APP-PLUS has one service context and all auth writes pass through this module.
@@ -49,12 +62,18 @@ export function setToken(token) {
 	cache.set(TOKEN_KEY, token || '')
 	cache.delete(USER_KEY)
 	invalidateSession()
+	notifyIdentity(null)
 }
 
 export function clearAuth() {
-	cache.clear()
 	invalidateSession()
-	try { uni.removeStorageSync(TOKEN_KEY) } finally { uni.removeStorageSync(USER_KEY) }
+	try {
+		try { uni.removeStorageSync(TOKEN_KEY) } finally { uni.removeStorageSync(USER_KEY) }
+	} finally {
+		cache.set(TOKEN_KEY, '')
+		cache.set(USER_KEY, null)
+		notifyIdentity(null)
+	}
 }
 
 export function getUser() {
@@ -64,6 +83,7 @@ export function getUser() {
 export function setUser(user) {
 	uni.setStorageSync(USER_KEY, user || null)
 	if (nativeSnapshot) cache.set(USER_KEY, immutableUser(user))
+	notifyIdentity(user)
 }
 
 export function getRoleTemplate() {

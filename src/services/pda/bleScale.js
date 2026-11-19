@@ -65,21 +65,25 @@ export async function ensurePdaBleRuntimePermission() {
 				]
 
 	const permissionResult = await new Promise((resolve) => {
-		runOnAppPlusAndroid(() => {
-			try {
-				plus.android.requestPermissions(
-					permissions,
-					(result) => resolve({ ok: true, data: result || {} }),
-					(error) => resolve({ ok: false, error: normalizeText(error?.message) || 'permission_request_failed' })
-				)
-			} catch (error) {
-				resolve({ ok: false, error: normalizeText(error?.message) || 'permission_request_failed' })
-			}
-			return null
-		})
+		const timer = setTimeout(() => resolve({
+			ok: false, code: 408, error: '蓝牙权限请求超时，请重试'
+		}), 15000)
+		function finish(result) {
+			clearTimeout(timer)
+			resolve(result)
+		}
+		try {
+			plus.android.requestPermissions(
+				permissions,
+				result => finish({ ok: true, data: result || {} }),
+				error => finish({ ok: false, error: normalizeText(error?.message) || 'permission_request_failed' })
+			)
+		} catch (error) {
+			finish({ ok: false, error: normalizeText(error?.message) || 'permission_request_failed' })
+		}
 	})
 
-	if (!permissionResult.ok) return { code: 500, msg: permissionResult.error || '蓝牙权限申请失败', data: { granted: [] } }
+	if (!permissionResult.ok) return { code: permissionResult.code || 500, msg: permissionResult.error || '蓝牙权限申请失败', data: { granted: [] } }
 	const resultData = permissionResult.data || {}
 	const denied = [...(resultData.deniedPresent || []), ...(resultData.deniedAlways || [])].filter(Boolean)
 	if (denied.length > 0) {

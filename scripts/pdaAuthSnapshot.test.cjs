@@ -8,7 +8,7 @@ function harness(native = true) {
  let failWrite = false
  let source = fs.readFileSync('src/services/auth.js', 'utf8').replace(/^import .*\n/gm, '').replace(/^export /gm, '')
  if (!native) source = source.replace(/\/\/ #ifdef APP-PLUS[\s\S]*?\/\/ #endif/g, '')
- const api = vm.runInNewContext(source + '\n;({getToken,getUser,setToken,setUser,clearAuth,syncCurrentUser})', {
+ const api = vm.runInNewContext(source + '\n;({getToken,getUser,setToken,setUser,clearAuth,syncCurrentUser,onAuthIdentityChange})', {
   uni: { getStorageSync(k) { stats.reads++; return clone(map.get(k)) }, setStorageSync(k,v) { if(failWrite)throw Error('storage failed');map.set(k,clone(v)) }, removeStorageSync:k=>map.delete(k) },
   uniCloud: { callFunction() { stats.checks++; return new Promise(resolve=>pending.push(resolve)) } }
  })
@@ -54,3 +54,18 @@ test('logout/relogin with same token still invalidates the previous response',as
  const h=harness(),old=h.api.syncCurrentUser();h.api.clearAuth();h.api.setToken('session-1');h.api.setUser({_id:'u1',role:'new'})
  h.pending[0]({result:{code:401}});assert.equal((await old).stale,true);assert.equal(h.api.getUser().role,'new')
 })
+
+for (const native of [true, false]) {
+ test((native ? 'APP' : 'H5') + ' logout observers see cleared credentials during and after notification', () => {
+  const { api } = harness(native)
+  assert.equal(api.getUser()._id, 'u1')
+  assert.equal(api.getToken(), 'session-1')
+  const observed = []
+  const unsubscribe = api.onAuthIdentityChange(user => observed.push([user, api.getUser(), api.getToken()]))
+  api.clearAuth()
+  unsubscribe()
+  assert.deepEqual(observed, [[null, null, '']])
+  assert.equal(api.getUser(), null)
+  assert.equal(api.getToken(), '')
+ })
+}
