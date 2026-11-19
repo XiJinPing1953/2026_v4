@@ -1,6 +1,5 @@
 import { buildDepositPreviewRows } from './shared'
 import { writeReceiptText, RECEIPT_TAIL_DOTS } from './receiptPrinter'
-import { formatFillingPrintTime } from './printBusinessTime'
 
 const text = value => String(value ?? '').replace(/[\x00-\x1f\x7f]/g, ' ').trim()
 const finite = value => value !== null && value !== '' && Number.isFinite(Number(value))
@@ -71,9 +70,7 @@ export function salePrintPages(sale) {
       const number = wrap(text(item.bottle_no || item.bottleNo), 144)
       // Original saved weights only. Never substitute today's bottle profile.
       const columns = ['tare', 'gross', 'net'].map(key => wrap(finite(item[key]) ? Number(item[key]).toFixed(1) : '未记录', 120))
-      const weightHeight = Math.max(number.length, ...columns.map(column => column.length)) * LINE
-      const fillingTime = wrap('灌装:' + formatFillingPrintTime(item.filling_time))
-      const height = weightHeight + fillingTime.length * LINE
+      const height = Math.max(number.length, ...columns.map(column => column.length)) * LINE
       if (y + (needsHeader ? 16 + 2 * LINE : 0) + height - LINE > LAST_Y) {
         page(section); needsHeader = true
       }
@@ -81,7 +78,6 @@ export function salePrintPages(sale) {
       if (needsHeader) { separator(); header(section); needsHeader = false }
       number.forEach((line, i) => put(LEFT, line, y + i * LINE))
       columns.forEach((column, j) => column.forEach((line, i) => put(COLUMN_ENDS[j + 1] - width(line), line, y + i * LINE)))
-      fillingTime.forEach((line, i) => put(LEFT, line, y + weightHeight + i * LINE))
       y += height
     }
     lines((direction === '出瓶' ? '出瓶净重' : '回瓶余气') + '合计: ' + total + ' kg', section)

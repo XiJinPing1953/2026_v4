@@ -1,10 +1,9 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm')
 function load(path,names,context={}){let code=fs.readFileSync(path,'utf8').replace(/^import .*$/gm,'').replace(/export /g,'');const c={...context};vm.createContext(c);vm.runInContext(code+'\nthis.api={'+names.join(',')+'}',c);return c.api}
-const {formatFillingPrintTime}=load('src/services/pda/printBusinessTime.js',['formatFillingPrintTime'])
 const {buildDepositPreviewRows}=load('src/services/pda/shared.js',['buildDepositPreviewRows'])
 const {receiptPrinterHarness}=require('./lib/receiptPrinterHarness.cjs')
 const {writeReceiptText,RECEIPT_TAIL_DOTS}=load('src/services/pda/receiptPrinter.js',['writeReceiptText','RECEIPT_TAIL_DOTS'])
-const {salePrintPages,writeSalePage}=load('src/services/pda/salePrint.js',['salePrintPages','writeSalePage'],{buildDepositPreviewRows,writeReceiptText,RECEIPT_TAIL_DOTS,formatFillingPrintTime})
+const {salePrintPages,writeSalePage}=load('src/services/pda/salePrint.js',['salePrintPages','writeSalePage'],{buildDepositPreviewRows,writeReceiptText,RECEIPT_TAIL_DOTS})
 const sale={_id:'s',biz_mode:'bottle',price_unit:'kg',unit_price:5,should_receive:50,total_net_weight:10,customer_name:'客户',out_items:[{bottle_no:'1',net:12}],back_items:[{bottle_no:'2',net:2}],deposit_rows:[{bottle_no:'1'}]}
 test('long continuous receipts keep every bottle, repeat table headers, and preserve the source',()=>{
  const doc={...sale,out_items:Array.from({length:80},(_,i)=>({bottle_no:`B${i}`,net:12})),should_receive:4790,total_net_weight:958}
@@ -107,7 +106,7 @@ test('line wrapping preserves bottle number and decimal weight tokens',()=>{
 })
 
 test('legacy PDA runtime without Array.at can paginate deposits and send all pages',()=>{
- const c={writeReceiptText,RECEIPT_TAIL_DOTS,formatFillingPrintTime};vm.createContext(c);vm.runInContext('Array.prototype.at = undefined',c)
+ const c={writeReceiptText,RECEIPT_TAIL_DOTS};vm.createContext(c);vm.runInContext('Array.prototype.at = undefined',c)
  const code=fs.readFileSync('src/services/pda/shared.js','utf8').replace(/export /g,'')+'\n'+fs.readFileSync('src/services/pda/salePrint.js','utf8').replace(/^import .*$/gm,'').replace(/export /g,'')
  vm.runInContext(code+'\nthis.api={salePrintPages,writeSalePage}',c)
  const doc={...sale,deposit_rows:Array.from({length:300},(_,i)=>({bottle_no:'BOTTLE'+i}))}
@@ -251,18 +250,28 @@ test('late authorized detail after leaving never sends either copy',async()=>{
  resolve({code:0,data:sale});await print;assert.equal(h.sends,0)
 })
 
-test('receipt filling time stays with each bottle and never falls back to the sale or print date',()=>{
- const doc={...fourEach,date:'2026-10-31',out_items:fourEach.out_items.map((r,i)=>({...r,filling_time:['2026-10-29-09','2026-10-30-15','2026-10-28',undefined][i]})),back_items:fourEach.back_items}
- const before=JSON.stringify(doc),pages=salePrintPages(doc),commands=pages.flatMap(p=>p.commands)
- for(const [no,expected] of [['90','灌装:2026-10-29 09时'],['91','灌装:2026-10-30 15时'],['92','灌装:2026-10-28（仅日期）'],['93','灌装:未记录'],['190','灌装:未记录']]){
-  const index=commands.findIndex(c=>c.x===16&&c.text===no)
-  assert.ok(index>=0)
-  assert.ok(commands.slice(index+1,index+5).some(c=>c.text===expected&&c.y===commands[index].y+28),no)
+test('both sale receipt copies omit filling times and use consecutive bottle rows', () => {
+ const times = ['2026-10-29 09:35', '2026-10-30-15', '2026-10-28', undefined]
+ const withTimes = rows => rows.map((row, index) => ({ ...row, filling_time: times[index] }))
+ const doc = { ...fourEach, out_items: withTimes(fourEach.out_items), back_items: withTimes(fourEach.back_items) }
+ const before = JSON.stringify(doc)
+ const pages = salePrintPages(doc)
+ assert.equal(pages.length, 1)
+ const [page] = pages
+ for (const group of [doc.out_items, doc.back_items]) {
+  const positions = group.map(row => page.commands.find(c => c.x === 16 && c.text === row.bottle_no).y)
+  for (let i = 1; i < positions.length; i++) assert.equal(positions[i] - positions[i - 1], 28)
  }
- assert.equal(commands.filter(c=>c.text.startsWith('灌装:')).length,8)
- assert.equal(commands.filter(c=>c.text==='· 新拓能源 ·').length,pages.length)
- assert.ok(!commands.some(c=>c.text.startsWith('灌装:2026-10-31')))
- assert.equal(JSON.stringify(doc),before);assertBounds(pages)
+ for (const copy of ['留底联', '客户联']) {
+  const h = receiptPrinterHarness()
+  writeSalePage(h.android, page, h.address, copy)
+  const printed = h.operations.filter(op => op[0] === 'addText').map(op => op[1])
+  assert.ok(printed.includes(copy))
+  assert.ok(printed.includes('· 新拓能源 ·'))
+  assert.ok(!printed.some(line => /灌装|2026-10-2[89]|2026-10-30/.test(line)))
+ }
+ assert.equal(JSON.stringify(doc), before)
+ assertBounds(pages)
 })
 
 test('stopping after the first send preserves disconnection feedback and cancels remaining pages', async () => {
