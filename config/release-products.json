@@ -138,19 +138,16 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.81",
+      "version": "1.0.82",
       "output": "release/pda",
-      "acceptance": "Sales BLE permission timeout and return, scale selection by address, stop and disconnect ordering, printer account isolation. WGT for native 1.0.76 through 1.0.77.",
+      "acceptance": "Both copies of every PDA sales receipt omit the filling time for outgoing and returned bottles.",
       "deploymentScope": {
         "functions": [],
         "databaseFiles": [],
-        "baseCommit": "515bd8a76779dda24be528c5bbfc0eed76744ef8",
+        "baseCommit": "f353dd5dc199764d7595c32db5f7cebb8a7bea87",
         "sourceFiles": [
-          "src/composables/pda/usePdaNativeSale.js",
-          "src/composables/pda/usePdaSalePrinter.js",
           "src/manifest.json",
-          "src/services/auth.js",
-          "src/services/pda/bleScale.js"
+          "src/services/pda/salePrint.js"
         ]
       },
       "integrityScope": "deployment",
