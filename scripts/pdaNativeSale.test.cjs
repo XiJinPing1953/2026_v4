@@ -39,6 +39,10 @@ async function harness(t, options = {}) {
 			showActionSheet: options.pick || (({ success }) => success({ tapIndex: 0 })),
 			showModal: ({ title, success }) => { confirmations.push(title); success({ confirm: options.confirm !== false }) }
 		},
+		watchMobileSaleContext: options.watchContext || (async (id, version) => version ? new Promise(() => {}) : ({ code: 0, data: {
+			customerId: id, customer: id ? customer : null, bound: (options.role || 'superadmin') !== 'superadmin',
+			vehicleId: options.defaults?.vehicle_id || '', vehicleNo: options.defaults?.vehicle_no || '', version: '1' } })),
+		setMobileSaleVehicleTicket: options.vehicleTicket || (async () => ({ code: 0 })),
 		getPdaCustomerById: async () => ({ code: 0, data: customer }),
 		resolvePdaCustomerByQrCode: async () => ({ code: 0, data: customer }),
 		listPdaCustomers: async () => ({ code: 0, data: [customer] }),
@@ -47,6 +51,7 @@ async function harness(t, options = {}) {
 		previewPdaDepositRows: async () => ({ code: 0, data: { depositRows: [], baseCount: 0, raw: '' } }),
 		getPdaBottleScanLocation: async () => ({ status: 'failed' }),
 		createMobileSale: async (id, payload) => { requests.push({ id, payload }); return options.send ? options.send(id, payload) : { code: 0, data: { operation_id: id, source_saved: true, processing_state: 'completed', sale_id: 's1' } } },
+		closeMissingMobileSale: options.closeMissing || (async id => ({ code:409, error_code:'MOBILE_SALE_CLOSED_UNSAVED',data:{source_saved:false,operation_id:id} })),
 		getMobileSaleCreateResult: options.query || (async id => ({ code: 0, data: { operation_id: id, source_saved: true, processing_state: 'completed', sale_id: 's1' } })),
 		ensurePdaBleRuntimePermission: options.permission || (async () => ({ code: 0 })),
 		enterBarcodeSession: async ({ onResult }) => { scanner = onResult; return { code: 0 } }, leaveBarcodeSession: async () => {},
@@ -87,7 +92,7 @@ async function harness(t, options = {}) {
 	const module = load('src/composables/pda/usePdaNativeSale.js', ['usePdaNativeSale', 'isNativeSaleRowWeighed'], runtime)
 	const scope = vue.effectScope()
 	const panel = scope.run(() => module.usePdaNativeSale())
-	t.after(() => scope.stop())
+	t.after(() => { panel.sale.setForeground(false); scope.stop() })
 	await panel.activate()
 	async function start(step = 2) { panel.selectCustomer(customer); await panel.go(2); if (step === 3) await panel.go(3); await panel.connect() }
 	function frames(weight, duration = 3200, oldSession) {
@@ -98,6 +103,61 @@ async function harness(t, options = {}) {
 	}
 	return { printNative, printReads, pause: ms => { now += ms; onSnapshot({ ...core.createEmptyPdaBleScaleSnapshot(), is_connected: connected, session_id: `session${session}`, error_code: 'read_timeout' }) }, panel, start, frames, storage, requests, confirmations, scan: value => scanner({ rawText: value }), setOwner: value => { owner = value }, session: () => `session${session}` }
 }
+
+test('a selected customer is mandatory and a bottle can only occupy one direction in a sale', async t => {
+	for (const start of [2, 3]) {
+		const h = await harness(t)
+		h.panel.sale.form.value.customerName = '仅输入了名称'
+		assert.equal(await h.panel.go(2), false)
+		await h.start(start)
+		await h.scan('55')
+		h.frames(120)
+		assert.equal(await h.panel.go(start === 2 ? 3 : 2), true)
+		assert.equal(await h.panel.chooseBottle('55'), false)
+		assert.match(h.panel.error.value, /不能重复登记/)
+		assert.equal(h.panel.outRows.value.length + h.panel.backRows.value.length, 1)
+	}
+})
+
+test('late live customer responses cannot overwrite another customer or a hidden screen', async t => {
+	const delayed = deferred(), answered = deferred()
+	const h = await harness(t, {watchContext: async (id,version) => {
+		if (version) return new Promise(() => {})
+		if (id === 'old') { answered.resolve(); return delayed.promise }
+		return {code:0,data:{version:'current', customerId:id, bound:false, customer:id ? {...customer,_id:id,default_unit_price:17} : null}}
+	}})
+	h.panel.selectCustomer({...customer,_id:'old'})
+	await answered.promise
+	h.panel.selectCustomer({...customer,_id:'new'})
+	await new Promise(resolve=>setImmediate(resolve))
+	assert.equal(h.panel.sale.form.value.unitPrice,'17')
+	delayed.resolve({code:0,data:{customerId:'old',version:'old',bound:false,customer:{...customer,_id:'old',default_unit_price:3}}})
+	await new Promise(resolve=>setImmediate(resolve))
+	assert.equal(h.panel.sale.selectedCustomer.value._id,'new')
+	assert.equal(h.panel.sale.form.value.unitPrice,'17')
+	await h.panel.deactivate()
+})
+
+test('submit uses latest settlement and price and keeps the captured truck and weight', async t => {
+	let price = 8
+	const h = await harness(t, {
+		role: 'pda_operator', defaults: { vehicle_id:'v1', vehicle_no:'TEST' },
+		watchContext: async (id, version) => version ? new Promise(() => {}) : ({ code: 0, data: {
+			version: String(price), customerId:id, bound:true, vehicleId:'v1', vehicleNo:'TEST',
+			customer: id ? {...customer, default_unit_price:price, effective_settlement_customer_id:'parent-' + price} : null } })
+	})
+	await h.start()
+	await h.scan('66'); h.frames(120)
+	await h.panel.go(3); await h.panel.go(4)
+	price = 11
+	assert.equal(await h.panel.save(), true)
+	const payload = h.requests[0].payload
+	assert.equal(payload.base.unitPrice, 11)
+	assert.equal(payload.base.settlementCustomerId, 'parent-11')
+	assert.equal(payload.base.vehicleId, 'v1')
+	assert.ok(payload.base.vehicleTicket)
+	assert.equal(payload.outRows[0].net, 20)
+})
 
 test('PDA continuous weighing waits through swing, corrects current weight and freezes previous bottle', async t => {
 	const h = await harness(t); await h.start(); await h.scan('101')
@@ -193,6 +253,21 @@ test('PDA drafts restore return step and weights; legacy preview stays preview a
 	const frozen = await harness(t, { storage: h.storage }); assert.equal(frozen.panel.sale.draftStatus.value.available, false)
 	assert.equal(frozen.panel.step.value, 4); assert.equal(frozen.panel.locked.value, true)
 	await frozen.panel.query(); assert.equal(frozen.panel.sale.receipt.value.status, 'saved')
+})
+
+test('missing original only reopens after durable proof and automatically submits the preserved weighing', async t => {
+	let attempts=0
+	const h=await harness(t,{query:async id=>({code:404,error_code:'MOBILE_SALE_OPERATION_NOT_FOUND',data:{operation_id:id,source_saved:null}}),
+		send:async id=>++attempts===1 ? {code:503,data:{source_saved:null}} : {code:0,data:{operation_id:id,source_saved:true,sale_id:'saved'}}})
+	await h.start();await h.scan('101');h.frames(120);await h.panel.go(3);await h.panel.go(4);await h.panel.save()
+	await h.panel.sale.recoverSubmission()
+	assert.equal(h.requests.length,1)
+	h.pause(31000)
+	await h.panel.sale.recoverSubmission()
+	assert.equal(h.requests.length,2)
+	assert.notEqual(h.requests[0].id,h.requests[1].id)
+	assert.deepEqual(h.requests[0].payload.outRows,h.requests[1].payload.outRows)
+	assert.equal(h.panel.sale.receipt.value.sourceSaved,true)
 })
 
 test('unknown submission stays frozen and retries the original operation and payload', async t => {
@@ -377,7 +452,7 @@ test('driver receipt guidance distinguishes a saved sale from an unknown result 
 	assert.equal(feedback.driverSaleWarning({ message: raw }, ''), '')
 	assert.equal(feedback.driverSaleWarning({ bottle_no: 'A12', message: '请核对钢瓶归属' }, ''), 'A12 号瓶 · 请核对钢瓶归属')
 	assert.match(feedback.driverReceiptSummary({ status: 'pending', sourceSaved: true, message: raw }), /开下一单/)
-	assert.match(feedback.driverReceiptSummary({ status: 'unknown', sourceSaved: null, message: raw }), /先查询原单/)
+	assert.match(feedback.driverReceiptSummary({ status: 'unknown', sourceSaved: null, message: raw }), /自动确认原单/)
 	assert.match(feedback.driverReceiptSummary({ status: 'failed', sourceSaved: false, message: raw }), /未保存/)
 })
 
@@ -409,7 +484,7 @@ test('the native receipt renders the next action for saved, unknown and rejected
 	assert.match(saved, /销售单已保存/); assert.match(saved, /开下一单/); assert.match(saved, /补打两联/)
 	assert.doesNotMatch(saved, /enqueueEvent|timeout|流转|刷新处理状态|待核对|管理员核查|重试这单|放弃草稿/)
 	const unknown = await screen(null, 'unknown')
-	assert.match(unknown, /查询保存结果/); assert.match(unknown, /重试这单/)
+	assert.match(unknown, /自动确认原单/); assert.doesNotMatch(unknown, /重试这单|查询保存结果/)
 	assert.doesNotMatch(unknown, /开下一单|补打两联|销售单已保存|enqueueEvent|timeout/)
 	const rejected = await screen(false, 'failed')
 	assert.match(rejected, /本单未保存/); assert.doesNotMatch(rejected, /开下一单|销售单已保存|enqueueEvent|timeout/)

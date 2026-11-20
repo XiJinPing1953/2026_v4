@@ -157,7 +157,7 @@ test('native vehicle preflight refuses mismatched or unbound accounts before sen
     const okay=mode==='own'||mode==='admin'
     assert.equal(await client.panel.save(),okay,mode)
     assert.equal(client.requests.length,okay?1:0,mode)
-    if(!okay)assert.match(client.panel.error.value,/车辆/)
+    if(!okay)assert.match(client.panel.sale.contextIssue.value || client.panel.error.value,/车辆/)
   }
 })
 

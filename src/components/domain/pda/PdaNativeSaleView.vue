@@ -1,6 +1,8 @@
 <template>
 	<AppPage class="pda-compact-page pda-compact-page--inner native-sale" hideBottleQuery>
 		<text v-if="sale.crewNotice.value" class="warning-text">{{ sale.crewNotice.value }}</text>
+		<text v-if="sale.contextIssue.value || sale.vehicleNotice.value" class="warning-text">{{ sale.contextIssue.value || sale.vehicleNotice.value }}</text>
+		<AppButton v-if="sale.vehicleRevoked.value && !submissionLocked" kind="outline" :disabled="busy" @click="discard">放弃本单草稿</AppButton>
 		<view class="printer-bar">
 			<text class="printer-status">{{ driverSaleFeedback(printer.status.value, '打印机连接异常，请重新连接。') }}</text>
 			<AppButton kind="ghost" :disabled="printer.busy.value || printer.connecting.value" @click="printer.connect">{{ printer.connecting.value ? '连接中…' : printer.connected.value ? '更换打印机' : '连接打印机' }}</AppButton>
@@ -22,8 +24,6 @@
 			<text v-for="(warning, index) in driverReceiptWarnings(receipt)" :key="index" class="error">{{ warning }}</text>
 			<view class="receipt-actions">
 				<AppButton v-if="receipt.sourceSaved === true" :disabled="submitting || printer.busy.value" @click="openNext">开下一单</AppButton>
-				<AppButton v-if="!submitting && submissionLocked && receipt.sourceSaved !== true" :loading="submitting" @click="query">查询保存结果</AppButton>
-				<AppButton v-if="!submitting && receipt.status === 'unknown'" kind="outline" :disabled="submitting" @click="save(true)">重试这单</AppButton>
 				<AppButton v-if="receipt.sourceSaved === true && receipt.sourceExists !== false && receipt.saleId" kind="outline" :disabled="printer.busy.value" @click="printer.print(receipt.saleId)">补打两联</AppButton>
 			</view>
 		</view>
@@ -42,6 +42,8 @@
 						<text v-if="selectedCustomer.contact || selectedCustomer.phone">{{ selectedCustomer.contact }} {{ selectedCustomer.phone }}</text>
 						<text>单价 {{ form.unitPrice || '未设置' }} 元/kg</text>
 					</view>
+					<text v-if="!selectedCustomer" class="customer-line">请先选择档案客户</text>
+					<text v-if="sale.termsNotice.value" class="customer-line">{{ sale.termsNotice.value }}</text>
 					<text v-if="pricingWarning" class="error">{{ pricingWarning }}</text>
 				</AppSection>
 				<AppButton kind="outline" :disabled="busy || locked" @click="otherOpen = !otherOpen">其他信息 {{ otherOpen ? '收起' : '展开' }}</AppButton>
@@ -49,7 +51,8 @@
 					<text>销售日期</text>
 					<picker mode="date" :value="form.date" :disabled="busy || locked" @change="form.date = $event.detail.value"><view class="date-field">{{ form.date }}</view></picker>
 					<PdaLookupSuggestField v-for="slot in ['delivery1', 'delivery2']" :key="slot" v-model="form[slot]" :label="slot === 'delivery1' ? '配送员一' : '配送员二'" :disabled="busy || locked" :fetcher="searchDeliveries" :map-item="mapDelivery" @select="sale.applyDeliverySelection(slot, $event)" />
-					<PdaLookupSuggestField v-model="form.vehicleNo" label="车辆" :disabled="busy || locked" :fetcher="searchVehicles" :map-item="mapVehicle" @select="sale.applyVehicleSelection" />
+					<text v-if="sale.boundVehicleOnly.value">车辆：{{ form.vehicleNo || '尚未绑定' }}</text>
+					<PdaLookupSuggestField v-else v-model="form.vehicleNo" label="车辆" :disabled="busy || locked" :fetcher="searchVehicles" :map-item="mapVehicle" @select="sale.applyVehicleSelection" />
 					<AppInput v-model="form.remark" label="备注（选填）" :disabled="busy || locked" />
 				</view>
 			</template>
@@ -80,7 +83,7 @@
 				</view>
 			</template>
 			<template v-else>
-				<view class="customer"><text class="strong">{{ form.customerName }}</text><text>出瓶 {{ outRows.length }} 瓶 · 回瓶 {{ backRows.length }} 瓶</text><text>单价 {{ form.unitPrice }} 元/kg</text></view>
+				<view class="customer"><text class="strong">{{ form.customerName }}</text><text>出瓶 {{ outRows.length }} 瓶 · 回瓶 {{ backRows.length }} 瓶</text><text v-if="sale.termsNotice.value">{{ sale.termsNotice.value }}</text><text>结算客户：{{ selectedCustomer?.effective_settlement_customer_name || form.customerName }}</text><text>单价 {{ form.unitPrice }} 元/kg · 预计气款 {{ previewAmount }} 元</text></view>
 				<text>保存后直接打印两联：留底联、客户联，底部可签名。</text>
 				<view v-for="group in previewGroups" :key="group.title" class="details">
 					<text class="strong">{{ group.title }} {{ group.rows.length }} 瓶</text>
@@ -95,8 +98,8 @@
 			</template>
 			<view :class="['sale-footer', (keyboardOpen || manualOpen) && 'sale-footer--keyboard']">
 				<AppButton v-if="step > 1" kind="outline" :disabled="busy || locked" @click="previous">上一步</AppButton>
-				<AppButton v-if="step < 4" :loading="busy" :disabled="locked || pendingManual || (step === 3 && !rows.length && !outRows.length)" @click="advance">{{ nextLabel }}</AppButton>
-				<AppButton v-else :loading="submitting" :disabled="busy || locked || printer.busy.value" @click="save(false)">保存并打印两联</AppButton>
+				<AppButton v-if="step < 4" :loading="busy" :disabled="locked || !!sale.contextIssue.value || pendingManual || (step === 1 ? !form.customerId || !selectedCustomer || selectedCustomer.is_active === false || !!pricingWarning : rows.some(row => !weighed(row))) || (step === 3 && !rows.length && !outRows.length)" @click="advance">{{ nextLabel }}</AppButton>
+				<AppButton v-else :loading="submitting" :disabled="busy || locked || !!sale.contextIssue.value || printer.busy.value" @click="save(false)">保存并打印两联</AppButton>
 			</view>
 		</view>
 	</AppPage>
@@ -140,6 +143,10 @@ function previous() { return changeStep(step.value - 1) }
 const directionLabel = computed(() => direction.value === 'back' ? '回瓶' : '出瓶')
 const completeCount = computed(() => rows.value.filter(weighed).length)
 const pricingWarning = computed(() => selectedCustomer.value ? resolvePdaCustomerPricing(selectedCustomer.value).msg || '' : '')
+const previewAmount = computed(() => {
+	const sum = rows => rows.reduce((total, row) => total + Number(row.net || 0), 0)
+	return ((sum(outRows.value) - sum(backRows.value)) * Number(form.value.unitPrice || 0)).toFixed(2)
+})
 const previewGroups = computed(() => [{ title: '出瓶', rows: outRows.value }, { title: '回瓶', rows: backRows.value }])
 const nextLabel = computed(() => step.value === 1 ? '下一步：出瓶' : step.value === 2 ? (rows.value.length ? '下一步：回瓶' : '没有出瓶，跳过') : rows.value.length ? '下一步：确认' : outRows.value.length ? '没有回瓶，跳过' : '请先称一只瓶')
 const mapCustomer = item => ({ key: item._id, title: item.name, subtitle: [item.contact, item.phone, item.address].filter(Boolean).join(' · '), raw: item })
