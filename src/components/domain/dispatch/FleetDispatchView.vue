@@ -127,8 +127,22 @@ function begin(mode){return work(async()=>{
 })}
 function clearPending(){uni.removeStorageSync(key);pending.value=null;retryable.value=false}
 async function finished(note){
+  // Provisioning only touches accounts. Carry unsaved crew choices across its readback.
+  const edits = {}
+  if (pending.value?.mode==='accounts' && board.value) {
+    for (const row of board.value.rows) {
+      if (JSON.stringify(crew.value[row.plate])!==JSON.stringify(row.suggested)) {
+        edits[row.plate]={baseline:row.assigned.slice(),selection:crew.value[row.plate].slice()}
+      }
+    }
+  }
   clearPending();password.value='';message.value=note
   await fetchBoard()
+  if (!current()) return
+  for(const row of board.value.rows){
+    const edit=edits[row.plate]
+    if(edit && JSON.stringify(row.assigned)===JSON.stringify(edit.baseline)) crew.value[row.plate]=edit.selection
+  }
 }
 async function transmit(){
   const p=pending.value
@@ -155,7 +169,7 @@ onMounted(()=>work(async()=>{pending.value=uni.getStorageSync(key)||null;await f
 onBeforeUnmount(()=>{alive=false;password.value=''})
 </script>
 <style scoped>
-.dispatch{max-width:1100px;margin:auto;color:#17312e;padding:24px 16px 60px;font-family:inherit}
+.dispatch{box-sizing:border-box;width:100%;max-width:1100px;margin:auto;color:#17312e;padding:24px 16px 60px;font-family:inherit}
 .heading,.tools{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.heading{justify-content:space-between;margin-bottom:20px}
 .title{display:block;font-weight:700;font-size:23px}.muted,.hint{display:block;color:#566d69;font-size:13px;margin-top:4px}
 .sheet,.history{border:1px solid #d5dfdc;border-radius:10px;background:white;overflow:hidden}
