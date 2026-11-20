@@ -368,6 +368,8 @@ async function backfillPermissionsV1(user, requestId) {
 	return { code: 0, msg: `已回填 ${updated} 个用户`, data: { updated } }
 }
 
+const fleetDispatch = require('./fleetDispatch').service(db, aclHelpers, buildUserDoc, hashPassword)
+
 exports.main = async (event, context) => {
 	try {
 		const { action, data = {}, token } = event || {}
@@ -380,6 +382,7 @@ exports.main = async (event, context) => {
 			return { code: 403, msg: '巡检员账号无权访问用户管理' }
 		}
 
+		if (['fleetBoardV1','fleetResultV1','fleetSaveV1','fleetProvisionV1'].includes(action)) return fleetDispatch(user, action, data)
 		if (action === 'listV1') return listV1(user, data, requestId)
 		if (action === 'listManageV1') return listManageV1(user, requestId)
 		if (action === 'createV1') return createV1(user, data, requestId)

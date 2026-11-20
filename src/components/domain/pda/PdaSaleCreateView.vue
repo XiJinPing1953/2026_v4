@@ -4,6 +4,7 @@
 				<text class="capture-hint">安全连接：{{ captureCapabilities.secure ? '可用' : '请使用 HTTPS 地址' }} · 摄像头：{{ captureCapabilities.camera ? '可用' : '不可用' }} · 蓝牙：{{ scaleCapabilities.supported ? '可用' : '不可用' }}</text>
 				<text v-if="!captureCapabilities.camera || !scaleCapabilities.supported" class="warning-text">{{ scaleCapabilities.reason || '当前浏览器缺少摄像头能力。' }} 安卓请用 Chrome，iPhone 请用 Bluefy 打开本页；微信内请复制地址到这些浏览器。实际能否使用以本页能力检测为准。</text>
 			</AppSection>
+			<text v-if="crewNotice" class="warning-text">{{ crewNotice }}</text>
 			<AppSection v-if="draftStatus?.available && !draftStatus?.restored" title="未完成销售草稿">
 				<text class="capture-hint">{{ draftStatus.message || '此账号在本机有未完成草稿，可恢复后继续。' }}</text>
 				<view class="item-actions"><AppButton @click="onRestoreDraft">恢复草稿</AppButton><AppButton kind="neutral" @click="onDiscardDraft">放弃草稿</AppButton></view>
@@ -534,6 +535,7 @@ const {
 	clearScaleWeightFromRow,
 	refreshDepositRows,
 	submit,
+	crewNotice,
 	draftStatus,
 	draftStep: currentStep,
 	receipt,
@@ -1906,7 +1908,7 @@ async function onStartNewSale() {
 	if (receipt.value?.status === 'failed' && !await confirmAction('新建下一单', '当前销售单尚未保存，确认放弃并新建？', '新建')) return
 	closeCamera()
 	clearPendingScaleApply()
-	await startNewSale()
+	if (!await startNewSale()) return
 	revalidationChanges.value = []
 	recentBottleScanMap.clear()
 }

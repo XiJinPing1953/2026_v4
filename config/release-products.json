@@ -6,90 +6,72 @@
   },
   "products": {
     "web": {
-      "version": "2026.11.17-pda-sale-guards.1",
+      "version": "2026.11.20-fleet-dispatch.1",
       "output": "dist/build/web",
-      "acceptance": "Merged source scope includes the recovered already-live November 11 filling picker. Actual published H5 is frozen at publishedSourceCommit with original 5.06 dependencies; see 2026-11-17-pda-sale-release handoff before rebuilding from integrated main. Only mobile sale payload/preflight changed on that live baseline.",
+      "acceptance": "五车调度整批保存、账号预检、权限隔离和新单同步；正式账号验收不造业务单。",
       "deploymentScope": {
-        "functions": [
-          "crm-sale"
-        ],
-        "databaseFiles": [],
-        "baseCommit": "f7946f6074fd2dadc09b72cbfaf4a62639f6569d",
+        "baseCommit": "de1c97e830812d7ffec02032e82c28c46449bc5a",
         "sourceFiles": [
-          "src/components/domain/filling/FillingEditView.vue",
-          "src/components/domain/filling/FillingListView.vue",
-          "src/components/domain/filling/FillingTimePicker.vue",
+          "src/components/domain/dashboard/DashboardHome.vue",
+          "src/components/domain/dispatch/FleetDispatchView.vue",
+          "src/components/domain/pda/PdaNativeSaleView.vue",
+          "src/components/domain/pda/PdaSaleCreateView.vue",
           "src/composables/pda/usePdaNativeSale.js",
           "src/composables/pda/usePdaSaleForm.js",
-          "src/composables/pda/usePdaSalePrinter.js",
           "src/manifest.json",
-          "src/services/auth.js",
-          "src/services/pda/bleScale.js",
-          "src/services/pda/sale.js",
-          "src/services/pda/salePrint.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleMasters.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/pdaSaleRecords.js"
+          "src/pages.json",
+          "src/pages/vehicle/dispatch.vue",
+          "src/services/api/fleetDispatch.js",
+          "src/services/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/fleetDispatch.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js"
         ],
-        "aclCanonicalRevisions": {
-          "crm-sale": {
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            },
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            }
-          }
-        }
+        "databaseFiles": [],
+        "functions": [
+          "crm-auth",
+          "crm-user"
+        ]
       },
-      "integrityScope": "deployment",
-      "publishedSourceCommit": "b3bf6800d93a261a22a79c7532aac876d991f4e6"
+      "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.11.17-pda-sale-guards.1",
+      "version": "2026.11.20-fleet-dispatch.1",
       "output": "release/cloud",
-      "acceptance": "PDA sale label/BLE contract, current price/tare/settlement/vehicle validation and real transaction conflicts; preserve permanent legacy receipts and current live accounting. Paired PDA/H5 clients. No native/schema/history changes.",
+      "acceptance": "五车调度整批保存、账号预检、权限隔离和新单同步；正式账号验收不造业务单。",
       "integrityScope": "deployment",
       "deploymentScope": {
-        "functions": [
-          "crm-sale"
-        ],
-        "databaseFiles": [],
-        "baseCommit": "f7946f6074fd2dadc09b72cbfaf4a62639f6569d",
+        "baseCommit": "de1c97e830812d7ffec02032e82c28c46449bc5a",
         "sourceFiles": [
-          "src/components/domain/filling/FillingEditView.vue",
-          "src/components/domain/filling/FillingListView.vue",
-          "src/components/domain/filling/FillingTimePicker.vue",
+          "src/components/domain/dashboard/DashboardHome.vue",
+          "src/components/domain/dispatch/FleetDispatchView.vue",
+          "src/components/domain/pda/PdaNativeSaleView.vue",
+          "src/components/domain/pda/PdaSaleCreateView.vue",
           "src/composables/pda/usePdaNativeSale.js",
           "src/composables/pda/usePdaSaleForm.js",
-          "src/composables/pda/usePdaSalePrinter.js",
           "src/manifest.json",
-          "src/services/auth.js",
-          "src/services/pda/bleScale.js",
-          "src/services/pda/sale.js",
-          "src/services/pda/salePrint.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleMasters.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/pdaSaleRecords.js"
+          "src/pages.json",
+          "src/pages/vehicle/dispatch.vue",
+          "src/services/api/fleetDispatch.js",
+          "src/services/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/fleetDispatch.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js"
         ],
-        "aclCanonicalRevisions": {
-          "crm-sale": {
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            },
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            }
-          }
-        }
-      },
-      "publishedSourceCommit": "515bd8a76779dda24be528c5bbfc0eed76744ef8"
+        "databaseFiles": [],
+        "functions": [
+          "crm-auth",
+          "crm-user"
+        ]
+      }
     },
     "tank-gateway": {
       "version": "1.0.3",
@@ -139,21 +121,39 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.82",
+      "version": "1.0.83",
       "output": "release/pda",
-      "acceptance": "Both copies of every PDA sales receipt omit the filling time for outgoing and returned bottles.",
+      "acceptance": "五车调度整批保存、账号预检、权限隔离和新单同步；正式账号验收不造业务单。",
       "deploymentScope": {
-        "functions": [],
-        "databaseFiles": [],
-        "baseCommit": "ab87cf6648252378c9887985eec39ea099efd59c",
+        "baseCommit": "de1c97e830812d7ffec02032e82c28c46449bc5a",
         "sourceFiles": [
+          "src/components/domain/dashboard/DashboardHome.vue",
+          "src/components/domain/dispatch/FleetDispatchView.vue",
+          "src/components/domain/pda/PdaNativeSaleView.vue",
+          "src/components/domain/pda/PdaSaleCreateView.vue",
+          "src/composables/pda/usePdaNativeSale.js",
+          "src/composables/pda/usePdaSaleForm.js",
           "src/manifest.json",
-          "src/services/pda/salePrint.js"
+          "src/pages.json",
+          "src/pages/vehicle/dispatch.vue",
+          "src/services/api/fleetDispatch.js",
+          "src/services/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/fleetDispatch.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js"
+        ],
+        "databaseFiles": [],
+        "functions": [
+          "crm-auth",
+          "crm-user"
         ]
       },
       "integrityScope": "deployment",
-      "artifactType": "wgt",
-      "publishedSourceCommit": "7ed16c748e0c6decdb4422dded0d5e8fe1882d7a"
+      "artifactType": "wgt"
     }
   }
 }

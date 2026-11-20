@@ -1,5 +1,6 @@
 <template>
 	<AppPage class="pda-compact-page pda-compact-page--inner native-sale" hideBottleQuery>
+		<text v-if="sale.crewNotice.value" class="warning-text">{{ sale.crewNotice.value }}</text>
 		<view class="buttons"><text>{{ printer.status.value }}</text><AppButton :disabled="printer.busy.value || printer.connecting.value" @click="printer.connect">连接打印机</AppButton><AppButton v-if="printer.busy.value" @click="printer.stop">停止打印</AppButton></view>
 		<view class="sale-steps" aria-label="销售步骤">
 			<view v-for="(title, index) in titles" :key="title" :class="['sale-step', step === index + 1 && 'sale-step--active']">
@@ -143,7 +144,7 @@ async function searchDeliveries(keyword) { const result = await listPdaDeliverie
 async function searchVehicles(keyword) { const result = await listPdaVehicles({ keyword, page: 1, pageSize: 12, isActive: true }); return result?.code === 0 ? result.data || [] : [] }
 async function addManualBottle() { if (await chooseBottle(bottleInput.value)) { bottleInput.value = ''; uni.hideKeyboard() } }
 async function selectManualBottle(bottle) { if (bottle?.bottle_no && await chooseBottle(bottle.bottle_no)) { bottleInput.value = ''; uni.hideKeyboard() } }
-function openNext() { if (nextSale()) { manualOpen.value = false; recordsOpen.value = false; bottleInput.value = ''; otherOpen.value = false; previewDetailsOpen.value = false } }
+async function openNext() { if (await nextSale()) { manualOpen.value = false; recordsOpen.value = false; bottleInput.value = ''; otherOpen.value = false; previewDetailsOpen.value = false } }
 function keyboardChanged(event) { keyboardOpen.value = Number(event.height) > 0 }
 if (typeof uni.onKeyboardHeightChange === 'function') uni.onKeyboardHeightChange(keyboardChanged)
 onBeforeUnmount(() => { if (typeof uni.offKeyboardHeightChange === 'function') uni.offKeyboardHeightChange(keyboardChanged) })

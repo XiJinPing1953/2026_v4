@@ -31,6 +31,7 @@ async function harness(t, options = {}) {
   resolveFillingLabel: options.resolveLabel || (async () => ({ code:409, msg:'标签已失效' })),
 		ref: vue.ref, computed: vue.computed, watch: vue.watch, onBeforeUnmount() {},
 		Date: class extends Date { static now() { return now } },
+		syncCurrentUser: options.syncCurrentUser || (async () => ({ code: 0 })),
 		getUser: () => ({ _id: owner, role: options.role || 'superadmin', mobile_sale_defaults: options.defaults }), canPageAction: () => true,
 		uni: {
 			getStorageSync: key => storage.get(key), setStorageSync: (key, value) => storage.set(key, value), removeStorageSync: key => storage.delete(key),
@@ -196,7 +197,7 @@ test('PDA drafts restore return step and weights; legacy preview stays preview a
 test('unknown submission stays frozen and retries the original operation and payload', async t => {
 	const h = await harness(t, { send: async () => { throw new Error('timeout') } }); await h.start()
 	await h.scan('101'); h.frames(120); await h.panel.go(3); await h.panel.go(4); await h.panel.save()
-	assert.equal(h.panel.sale.receipt.value.status, 'unknown'); assert.equal(h.panel.nextSale(), false)
+	assert.equal(h.panel.sale.receipt.value.status, 'unknown'); assert.equal(await h.panel.nextSale(), false)
 	await h.panel.save(true)
 	assert.equal(h.requests.length, 2); assert.equal(h.requests[0].id, h.requests[1].id)
 	assert.deepEqual(h.requests[0].payload, h.requests[1].payload)
@@ -252,13 +253,13 @@ test('preview save submits once then sends two signed copies; next sale waits fo
 	await Promise.all([h.panel.save(), h.panel.save()])
 	assert.equal(h.requests.length, 1); assert.equal(h.panel.sale.receipt.value.status, 'saved')
 	assert.deepEqual(h.printReads, ['s1']); assert.equal(h.printNative.sends.length, 1)
-	assert.equal(h.panel.nextSale(), false); assert.equal(await h.panel.save(), false)
+	assert.equal(await h.panel.nextSale(), false); assert.equal(await h.panel.save(), false)
 	hold.resolve(); await new Promise(resolve => setImmediate(resolve))
 	assert.equal(h.printNative.sends.length, 2)
 	const texts = h.printNative.operations.filter(row => row[0] === 'addText').map(row => row[1])
 	assert.equal(texts.filter(s => s === '留底联').length, 1); assert.equal(texts.filter(s => s === '客户联').length, 1)
 	assert.equal(texts.filter(s => s.startsWith('客户签名:')).length, 2)
-	assert.equal(h.panel.printer.busy.value, false); assert.equal(h.panel.nextSale(), true)
+	assert.equal(h.panel.printer.busy.value, false); assert.equal(await h.panel.nextSale(), true)
 })
 
 test('preview with unknown save result sends no copy until the original operation is confirmed', async t => {

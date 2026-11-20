@@ -261,6 +261,9 @@
 				"navigationBarTitleText": "损耗统计"
 			}
 		},
+		// #ifdef H5
+		{ "path": "pages/vehicle/dispatch", "style": { "navigationBarTitleText": "车辆调度" } },
+		// #endif
 		{
 			"path": "pages/vehicle/list",
 			"style": {

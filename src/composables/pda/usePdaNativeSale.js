@@ -328,13 +328,13 @@ export function usePdaNativeSale() {
 		busy.value = true
 		try {
 			if (await confirm('放弃未提交的草稿？', '草稿中的客户和称重记录将清空。') && same(ticket)) {
-				if (sale.discardDraft()) selectStep(1)
+				if (await sale.discardDraft()) selectStep(1)
 				else fail('这单已有提交记录，请继续这单并查询保存结果')
 			}
 		} finally { busy.value = false }
 	}
-	function nextSale() {
-		if (!active.value || busy.value || printer.busy.value || !sale.startNewSale()) return false
+	async function nextSale() {
+		if (!active.value || busy.value || printer.busy.value || !await sale.startNewSale()) return false
 		changes.value = []; selectStep(1)
 		return true
 	}

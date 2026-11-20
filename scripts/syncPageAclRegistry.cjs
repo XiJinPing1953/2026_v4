@@ -19,6 +19,15 @@ const historical = new Map()
 function canonicalContent(directory, canonicalFile) {
 	const kind = canonicalFile.name === 'pageAclLocal.js' ? 'helper' : 'registry'
 	const revision = compatibilityScope?.aclCanonicalRevisions?.[path.basename(directory)]?.[kind]
+	// The production login and user-management services still interpret these legacy
+	// permissions. Keep their deployed registry entries while adding current pages.
+	if (!revision && kind === 'registry' && ['crm-auth', 'crm-user'].includes(path.basename(directory))) {
+		const baseline = 'b334c9da11936983d6b1514da2ee95b786d42f71:uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js'
+		if (!historical.has(baseline)) historical.set(baseline, execFileSync('git', ['show', baseline], { cwd: repoRoot, encoding: 'utf8' }))
+		const legacy = historical.get(baseline).split('\n').filter(line => line.includes("pagePath: '/pages/pda/filling-"))
+		if (legacy.length !== 4) throw Error('认证历史权限来源不完整')
+		return canonicalFile.content.replace(/\t\/\/ 仅保留 C606[^\n]*\n\t\{ pagePath: '\/pages\/pda\/filling-create'[^\n]*/, legacy.join('\n'))
+	}
 	if (!revision) return canonicalFile.content
 	const sourcePath = `uniCloud-alipay/cloudfunctions/common/${kind === 'helper' ? 'pageAcl.js' : 'pageAclRegistry.js'}`
 	const key = `${revision.commit}:${sourcePath}`

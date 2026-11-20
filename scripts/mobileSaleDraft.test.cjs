@@ -54,6 +54,7 @@ function harness(t, options = {}) {
 	const module = load('src/composables/pda/usePdaSaleForm.js', ['usePdaSaleForm', 'resolveUsableBleScaleWeight'], {
 		...state, ...shared, ...customer, ...location, ...sale,
 		ref: vue.ref, computed: vue.computed, watch: vue.watch, onBeforeUnmount: () => {},
+		syncCurrentUser: options.syncCurrentUser || (async () => ({ code: 0 })),
 		getUser: () => ({ _id: owner, role: options.role || 'superadmin', mobile_sale_defaults: options.defaults }),
 		uni: options.h5TreeShaking ? {} : storageApis, navigator: { onLine: true },
 		$inject_uni_getStorageSync: storageApis.getStorageSync,
@@ -428,4 +429,27 @@ test('ordinary keystrokes coalesce disk writes; explicit leave flushes and uncha
  h.form.form.value.remark += '离页'
  assert.equal(h.form.persistDraft(), true); assert.equal(writes, 2)
  assert.equal(JSON.parse([...h.storage.values()][0]).form.remark, '字'.repeat(20) + '离页')
+})
+
+test('new fleet tickets refresh assignments without replacing the previous ticket or its frozen receipt', async t => {
+  const defaults = { vehicle_id:'truck', vehicle_no:'TEST', delivery1:'甲', delivery2:'乙' }
+  let release
+  const read = () => new Promise(resolve => { release = () => resolve({code:0}) })
+  const options = { role:'pda_operator', defaults, syncCurrentUser:read }
+  const h = harness(t,options)
+  defaults.delivery1='丙'
+  release()
+  await new Promise(resolve=>setImmediate(resolve))
+  assert.equal(h.form.form.value.delivery1,'丙')
+  h.form.form.value.delivery1='现场替班'
+  h.form.persistDraft({force:true})
+  const saved = harness(t,{...options,storage:h.storage})
+  assert.equal(saved.form.restoreDraft(),true)
+  assert.equal(saved.form.form.value.delivery1,'现场替班')
+  const next=saved.form.startNewSale()
+  assert.equal(saved.form.form.value.delivery1,'现场替班')
+  defaults.delivery1='丁';defaults.delivery2='戊';release()
+  assert.equal(await next,true)
+  assert.equal(saved.form.form.value.delivery1,'丁')
+  assert.equal(saved.form.form.value.delivery2,'戊')
 })
