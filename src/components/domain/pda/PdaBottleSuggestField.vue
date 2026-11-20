@@ -5,6 +5,7 @@
 			:label="label"
 			:placeholder="placeholder"
 			:type="type"
+			:focus="focus"
 			:confirm-type="confirmType"
 			confirm-hold
 			:readonly="readonly"
@@ -40,6 +41,7 @@ const props = defineProps({
 	placeholder: { type: String, default: '' },
 	type: { type: String, default: 'text' },
 	confirmType: { type: String, default: 'done' },
+	focus: Boolean,
 	readonly: { type: Boolean, default: false },
 	disabled: { type: Boolean, default: false },
 	size: { type: String, default: 'md' }
