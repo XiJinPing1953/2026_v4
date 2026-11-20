@@ -66,7 +66,8 @@
             }
           }
         }
-      }
+      },
+      "publishedSourceCommit": "45d1d447ba41a6d4d7e02627e9e35dd999c38b2a"
     },
     "tank-gateway": {
       "version": "1.0.3",
