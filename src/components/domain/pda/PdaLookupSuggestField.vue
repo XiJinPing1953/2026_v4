@@ -1,29 +1,37 @@
 <template>
 	<view class="lookup-field">
-		<AppInput
-			:model-value="modelValue"
-			:label="label"
-			:placeholder="placeholder"
-			:readonly="readonly"
-			:disabled="disabled"
-			:size="size"
-			@update:modelValue="onUpdateModelValue"
-			@input="onInput"
-			@focus="onFocus"
-			@blur="onBlur"
-			@confirm="emit('confirm', $event)"
-		/>
-		<PdaSuggestList :visible="visible" :loading="loading" :items="items" :empty-text="emptyText" @select="onSelect" />
+		<view :class="{ 'lookup-entry': confirmSearch }">
+			<AppInput
+				:model-value="modelValue"
+				:label="label"
+				:placeholder="placeholder"
+				:readonly="readonly"
+				:disabled="disabled"
+				:size="size"
+				@update:modelValue="onUpdateModelValue"
+				@input="onInput"
+				@focus="onFocus"
+				@blur="onBlur"
+				:confirm-type="confirmSearch ? 'search' : 'done'"
+				@confirm="onConfirm"
+			/>
+			<AppButton v-if="confirmSearch" kind="outline" :disabled="disabled || readonly || !modelValue.trim()" @click="onConfirm()">查找</AppButton>
+		</view>
+		<PdaSuggestList :select-label="confirmSearch ? '确定客户' : ''" :visible="visible" :loading="loading" :items="items" :empty-text="emptyText" @select="onSelect" />
 	</view>
 </template>
 
 <script setup>
+import { watch } from 'vue'
+import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import PdaSuggestList from '@/components/domain/pda/PdaSuggestList.vue'
 import { usePdaSuggestions } from '@/composables/pda/usePdaSuggestions'
 
 const props = defineProps({
 	modelValue: { type: String, default: '' },
+	confirmSearch: Boolean,
+	selectedId: { type: String, default: '' },
 	label: { type: String, default: '' },
 	placeholder: { type: String, default: '' },
 	readonly: { type: Boolean, default: false },
@@ -37,7 +45,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'input', 'focus', 'blur', 'confirm', 'select'])
 
-const { items, loading, visible, handleBlur, handleFocus, handleInput, handleSelect } = usePdaSuggestions({
+const { items, loading, visible, handleBlur, handleFocus, handleInput, handleSelect, clear } = usePdaSuggestions({
 	minLength: props.minLength,
 	debounceMs: 200,
 	hideDelayMs: 150,
@@ -50,6 +58,21 @@ const { items, loading, visible, handleBlur, handleFocus, handleInput, handleSel
 		return item
 	}
 })
+
+watch(() => props.selectedId, id => {
+	if (id) clear()
+})
+
+function onConfirm(event) {
+	if (props.disabled || props.readonly) return
+	if (!props.confirmSearch) { emit('confirm', event); return }
+	const value = event?.detail?.value ?? props.modelValue
+	if (value !== props.modelValue) emit('update:modelValue', value)
+	if (!value.trim()) { clear(); return }
+	clear()
+	handleFocus(value)
+	uni.hideKeyboard()
+}
 
 function onUpdateModelValue(value) {
 	emit('update:modelValue', value)
@@ -67,11 +90,14 @@ function onFocus(event) {
 
 function onBlur(event) {
 	emit('blur', event)
-	handleBlur()
+	// A driver can dismiss the handwriting pad before choosing a customer.
+	if (!props.confirmSearch) handleBlur()
 }
 
 function onSelect(item) {
+	if (props.disabled || props.readonly || (props.confirmSearch && !items.value.includes(item))) return
 	const picked = handleSelect(item)
+	if (props.confirmSearch) uni.hideKeyboard()
 	emit('select', picked?.raw || null)
 }
 </script>
@@ -80,5 +106,11 @@ function onSelect(item) {
 .lookup-field {
 	display: flex;
 	flex-direction: column;
+}
+.lookup-entry {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 8px;
+	align-items: end;
 }
 </style>

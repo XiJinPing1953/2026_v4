@@ -14,7 +14,10 @@
 				hover-class="suggest-item--active"
 				@click="emit('select', item)"
 			>
-				<text class="suggest-item__title">{{ item.title || '-' }}</text>
+				<view class="suggest-item__heading">
+					<text class="suggest-item__title">{{ item.title || '-' }}</text>
+					<text v-if="selectLabel" class="suggest-item__action">{{ selectLabel }}</text>
+				</view>
 				<text v-if="item.subtitle" class="suggest-item__subtitle">{{ item.subtitle }}</text>
 			</view>
 		</scroll-view>
@@ -24,6 +27,7 @@
 <script setup>
 defineProps({
 	visible: { type: Boolean, default: false },
+	selectLabel: { type: String, default: '' },
 	loading: { type: Boolean, default: false },
 	items: { type: Array, default: () => [] },
 	emptyText: { type: String, default: '暂无匹配结果' }
@@ -72,6 +76,13 @@ const emit = defineEmits(['select'])
 	background: #eff6ff;
 }
 
+.suggest-item__heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+.suggest-item__action { flex-shrink: 0; color: var(--crm-primary); font-size: 26rpx; }
 .suggest-item__title {
 	font-size: 28rpx;
 	font-weight: 700;

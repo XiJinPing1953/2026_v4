@@ -36,7 +36,7 @@
 		<view v-if="!draftStatus.available && receipt?.sourceSaved !== true" :class="['sale-content', locked && 'sale-content--locked']" :inert="locked || undefined">
 			<template v-if="step === 1">
 				<AppSection title="选客户">
-					<PdaLookupSuggestField :model-value="customerKeyword" label="客户名称" placeholder="输入名称，或按实体键扫客户码" :disabled="busy || locked" :fetcher="searchCustomers" :map-item="mapCustomer" @update:modelValue="sale.setCustomerKeyword" @select="selectCustomer" />
+					<PdaLookupSuggestField confirm-search :selected-id="form.customerId" :model-value="customerKeyword" label="客户名称" placeholder="手写客户名，或扫客户码" :disabled="busy || locked" :fetcher="searchCustomers" :map-item="mapCustomer" @update:modelValue="sale.setCustomerKeyword" @select="selectCustomer" />
 					<view v-if="selectedCustomer" class="customer">
 						<text class="strong">{{ selectedCustomer.name }}</text>
 						<text v-if="selectedCustomer.contact || selectedCustomer.phone">{{ selectedCustomer.contact }} {{ selectedCustomer.phone }}</text>
@@ -70,7 +70,7 @@
 				</view>
 				<view class="buttons"><AppButton kind="ghost" :disabled="busy || locked" @click="toggleManual">{{ manualOpen ? '取消手输' : '手输瓶号' }}</AppButton><AppButton v-if="rows.length" kind="outline" @click="recordsOpen = !recordsOpen">本单 {{ rows.length }} 瓶 {{ recordsOpen ? '收起' : '查看' }}</AppButton></view>
 				<view v-if="manualOpen" class="manual-bottle">
-					<PdaBottleSuggestField v-model="bottleInput" label="瓶号" placeholder="输入钢瓶编号" :disabled="busy || locked" @select="selectManualBottle" @confirm="addManualBottle">
+					<PdaBottleSuggestField v-model="bottleInput" focus label="瓶号" placeholder="输入钢瓶编号" :disabled="busy || locked" @select="selectManualBottle" @confirm="addManualBottle">
 						<template #action><AppButton :disabled="busy || locked || !bottleInput.trim()" @click="addManualBottle">确认瓶号</AppButton></template>
 					</PdaBottleSuggestField>
 				</view>
@@ -164,8 +164,16 @@ async function searchCustomers(keyword) {
 }
 async function searchDeliveries(keyword) { const result = await listPdaDeliveries({ keyword, page: 1, pageSize: 12, isActive: true }); return result?.code === 0 ? result.data || [] : [] }
 async function searchVehicles(keyword) { const result = await listPdaVehicles({ keyword, page: 1, pageSize: 12, isActive: true }); return result?.code === 0 ? result.data || [] : [] }
-async function addManualBottle() { if (await chooseBottle(bottleInput.value)) { bottleInput.value = ''; uni.hideKeyboard() } }
-async function selectManualBottle(bottle) { if (bottle?.bottle_no && await chooseBottle(bottle.bottle_no)) { bottleInput.value = ''; uni.hideKeyboard() } }
+async function confirmManualBottle(value) {
+	if (!manualOpen.value || busy.value || locked.value || !value?.trim()) return
+	if (await chooseBottle(value)) {
+		bottleInput.value = ''
+		manualOpen.value = false
+		uni.hideKeyboard()
+	}
+}
+function addManualBottle(event) { return confirmManualBottle(event?.detail?.value ?? bottleInput.value) }
+function selectManualBottle(bottle) { return confirmManualBottle(bottle?.bottle_no) }
 async function openNext() { if (await nextSale()) { manualOpen.value = false; recordsOpen.value = false; bottleInput.value = ''; otherOpen.value = false; previewDetailsOpen.value = false } }
 function keyboardChanged(event) { keyboardOpen.value = Number(event.height) > 0 }
 if (typeof uni.onKeyboardHeightChange === 'function') uni.onKeyboardHeightChange(keyboardChanged)
