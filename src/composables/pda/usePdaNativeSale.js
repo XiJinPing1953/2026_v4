@@ -46,7 +46,7 @@ export function usePdaNativeSale() {
 	const rows = computed(() => populated(direction.value))
 	const current = computed(() => rows.value.find(row => row.rowId === currentId.value) || null)
 	const weighed = row => isNativeSaleRowWeighed(row, direction.value)
-	const locked = computed(() => submissionLocked.value || !ownerMatches() || !canCreate.value)
+	const locked = computed(() => submissionLocked.value || sale.vehicleRevoked.value || !ownerMatches() || !canCreate.value)
 	let epoch = 0
 	let lifecycle = 0
 	let stopping = Promise.resolve()
@@ -62,8 +62,8 @@ export function usePdaNativeSale() {
 	const scale = createPdaBleScaleSession({ preserveMeasurementOnReadTimeout: true, deviceId: boundDevice?.deviceId || '', deviceNamePrefix: 'NVK', divisionStepKg: 0.5, displayDecimals: 1, onWeightFrame: acceptFrame })
 	const editable = () => active.value && !locked.value && !busy.value
 	const fail = text => { error.value = text; return false }
-	const context = () => ({ epoch, customerId: form.value.customerId, step: step.value })
-	const same = ticket => active.value && ownerMatches() && ticket.epoch === epoch && ticket.customerId === form.value.customerId && ticket.step === step.value
+	const context = () => ({ epoch, customerId: form.value.customerId, vehicleNo: form.value.vehicleNo, step: step.value })
+	const same = ticket => active.value && ownerMatches() && ticket.epoch === epoch && ticket.vehicleNo === form.value.vehicleNo && ticket.customerId === form.value.customerId && ticket.step === step.value
 	const confirm = (title, content) => new Promise(resolve => uni.showModal({ title, content, success: result => resolve(Boolean(result.confirm)), fail: () => resolve(false) }))
 	function freeze() { measurement = null; autoWeight.reset(); captureMinimum.value = 0 }
 	function invalidate() { epoch++; freeze(); sale.invalidateAsyncWork() }
@@ -214,8 +214,11 @@ export function usePdaNativeSale() {
 			if (!await confirm('删除这只瓶？', `删除 ${row.bottleNo} 号瓶的本单记录，其他瓶保留。`) || !same(ticket) || locked.value) return false
 			const index = rowsFor(direction.value).findIndex(item => item.rowId === row.rowId)
 			if (index < 0) return false
+			const last = outRows.value.length + backRows.value.length === 1
+			if (last && (!await sale.releaseVehicle() || !same(ticket))) return false
 			if (currentId.value === row.rowId) { freeze(); currentId.value = '' }
 			direction.value === 'back' ? sale.removeBackItem(index) : sale.removeOutItem(index)
+			if (last) sale.restartContext()
 			error.value = ''; message.value = '已删除，可继续扫码'
 			return true
 		} finally { busy.value = false }

@@ -185,6 +185,10 @@ export async function previewPdaDepositRows(form = {}) {
 	if (res?.code !== 0) {
 		return { code: res?.code ?? -1, msg: res?.msg || '存瓶查询失败', data: { depositRows: [], raw: '', baseCount: 0 } }
 	}
+	// Inventory belongs to the delivery site, even when its billing parent changes.
+	if (res.data?.customer_id && normalizeText(res.data.customer_id) !== customerId) {
+		return { code: 409, msg: '客户存瓶资料正在更新，请稍后重试' }
+	}
 	const baseBottleNos = Array.isArray(res?.data?.bottles) ? res.data.bottles : []
 	const depositRows = buildDepositPreviewRows({
 		baseBottleNos,
@@ -374,6 +378,10 @@ export async function createMobileSale(operationId, payload, current = () => tru
 		finished = true
 		clearTimeout(timer)
 	}
+}
+
+export function closeMissingMobileSale(operationId, isResponseCurrent) {
+	return callCloud('crm-sale', { action: 'closeMissingMobileV1', data: { operation_id: operationId }, isResponseCurrent })
 }
 
 export function watchMobileSaleContext(customerId, version = '', isResponseCurrent) {

@@ -2,6 +2,7 @@
 	<AppPage class="pda-compact-page pda-compact-page--inner native-sale" hideBottleQuery>
 		<text v-if="sale.crewNotice.value" class="warning-text">{{ sale.crewNotice.value }}</text>
 		<text v-if="sale.contextIssue.value || sale.vehicleNotice.value" class="warning-text">{{ sale.contextIssue.value || sale.vehicleNotice.value }}</text>
+		<AppButton v-if="sale.vehicleRevoked.value && !submissionLocked" kind="outline" :disabled="busy" @click="discard">放弃本单草稿</AppButton>
 		<view class="printer-bar">
 			<text class="printer-status">{{ driverSaleFeedback(printer.status.value, '打印机连接异常，请重新连接。') }}</text>
 			<AppButton kind="ghost" :disabled="printer.busy.value || printer.connecting.value" @click="printer.connect">{{ printer.connecting.value ? '连接中…' : printer.connected.value ? '更换打印机' : '连接打印机' }}</AppButton>
@@ -41,6 +42,8 @@
 						<text v-if="selectedCustomer.contact || selectedCustomer.phone">{{ selectedCustomer.contact }} {{ selectedCustomer.phone }}</text>
 						<text>单价 {{ form.unitPrice || '未设置' }} 元/kg</text>
 					</view>
+					<text v-if="!selectedCustomer" class="customer-line">请先选择档案客户</text>
+					<text v-if="sale.termsNotice.value" class="customer-line">{{ sale.termsNotice.value }}</text>
 					<text v-if="pricingWarning" class="error">{{ pricingWarning }}</text>
 				</AppSection>
 				<AppButton kind="outline" :disabled="busy || locked" @click="otherOpen = !otherOpen">其他信息 {{ otherOpen ? '收起' : '展开' }}</AppButton>
@@ -80,7 +83,7 @@
 				</view>
 			</template>
 			<template v-else>
-				<view class="customer"><text class="strong">{{ form.customerName }}</text><text>出瓶 {{ outRows.length }} 瓶 · 回瓶 {{ backRows.length }} 瓶</text><text>结算客户：{{ selectedCustomer?.effective_settlement_customer_name || form.customerName }}</text><text>单价 {{ form.unitPrice }} 元/kg · 预计气款 {{ previewAmount }} 元</text></view>
+				<view class="customer"><text class="strong">{{ form.customerName }}</text><text>出瓶 {{ outRows.length }} 瓶 · 回瓶 {{ backRows.length }} 瓶</text><text v-if="sale.termsNotice.value">{{ sale.termsNotice.value }}</text><text>结算客户：{{ selectedCustomer?.effective_settlement_customer_name || form.customerName }}</text><text>单价 {{ form.unitPrice }} 元/kg · 预计气款 {{ previewAmount }} 元</text></view>
 				<text>保存后直接打印两联：留底联、客户联，底部可签名。</text>
 				<view v-for="group in previewGroups" :key="group.title" class="details">
 					<text class="strong">{{ group.title }} {{ group.rows.length }} 瓶</text>
