@@ -129,25 +129,24 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.86",
+      "version": "1.0.87",
       "output": "release/pda",
-      "acceptance": "原生销售同瓶全单去重，未提交单实时同步，确认原保存结果后继续。",
+      "acceptance": "客户输入可查找并点选档案，手输瓶号自动唤起数字键盘；页面及键盘确认共用校验。",
       "deploymentScope": {
-        "baseCommit": "e29c34173db6a543246d12801912f871ffd41eaa",
+        "baseCommit": "e30ec45437182171e292590c0fb23c4d0bd9244a",
         "sourceFiles": [
+          "src/components/domain/pda/PdaBottleSuggestField.vue",
+          "src/components/domain/pda/PdaLookupSuggestField.vue",
           "src/components/domain/pda/PdaNativeSaleView.vue",
-          "src/composables/pda/usePdaNativeSale.js",
-          "src/composables/pda/usePdaSaleForm.js",
-          "src/manifest.json",
-          "src/services/pda/driverSaleFeedback.js",
-          "src/services/pda/sale.js"
+          "src/components/domain/pda/PdaSuggestList.vue",
+          "src/manifest.json"
         ],
         "databaseFiles": [],
         "functions": []
       },
       "integrityScope": "deployment",
       "artifactType": "wgt",
-      "publishedSourceCommit": "e30ec45437182171e292590c0fb23c4d0bd9244a"
+      "publishedSourceCommit": "82bed288b03e4f4b5b60a34260552864cd0ecd73"
     }
   }
 }
