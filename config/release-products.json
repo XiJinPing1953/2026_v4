@@ -138,17 +138,19 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.82",
+      "version": "1.0.83",
       "output": "release/pda",
-      "acceptance": "Both copies of every PDA sales receipt omit the filling time for outgoing and returned bottles.",
+      "acceptance": "车辆调度和新单人员刷新；旧单和草稿保留。",
       "deploymentScope": {
-        "functions": [],
-        "databaseFiles": [],
-        "baseCommit": "f353dd5dc199764d7595c32db5f7cebb8a7bea87",
+        "baseCommit": "7ed16c748e0c6decdb4422dded0d5e8fe1882d7a",
         "sourceFiles": [
-          "src/manifest.json",
-          "src/services/pda/salePrint.js"
-        ]
+          "src/components/domain/pda/PdaNativeSaleView.vue",
+          "src/composables/pda/usePdaNativeSale.js",
+          "src/composables/pda/usePdaSaleForm.js",
+          "src/manifest.json"
+        ],
+        "functions": [],
+        "databaseFiles": []
       },
       "integrityScope": "deployment",
       "artifactType": "wgt"

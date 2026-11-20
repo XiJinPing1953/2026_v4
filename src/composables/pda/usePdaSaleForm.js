@@ -1,5 +1,5 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { getUser } from '@/services/auth'
+import { getUser, syncCurrentUser } from '@/services/auth'
 import { findPdaBottleByNo } from '@/services/pda/bottle'
 import { getPdaCustomerById, listPdaCustomers, resolvePdaCustomerPricing } from '@/services/pda/customer'
 import {
@@ -102,6 +102,47 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		draftStatus.value = { available: false, restored: false, state: 'error', message: `无法读取草稿，原数据已保留，请检查原草稿后再录单：${error.message}` }
 	}
 
+	// Defaults belong to a new ticket. A resumed or edited ticket owns its crew.
+	let disposed = false
+	const crewSyncing = ref(false)
+	const crewNotice = ref('')
+	function vehicleAccount() {
+		return (getUser()?.role_template || getUser()?.role) === 'pda_operator' && !!getUser()?.mobile_sale_defaults?.vehicle_id
+	}
+	async function refreshCrew() {
+		if (crewSyncing.value) return false
+		crewSyncing.value = true
+		try {
+			const result = await syncCurrentUser({ force: true })
+			if (disposed || !ownerMatches()) return false
+			if (result.code !== 0) throw Error(result.msg)
+			crewNotice.value = ''
+			return true
+		} catch {
+			if (!disposed && ownerMatches()) crewNotice.value = '调度人员未刷新，请联网重试或在本单核对实际出车人员。'
+			return false
+		} finally { crewSyncing.value = false }
+	}
+	if (vehicleAccount() && !availableDraft && !unreadableDraft) {
+		const original = form.value, id = draftId, initialCrew = [original.delivery1, original.delivery2]
+		refreshCrew().then(ok => {
+			if (!ok || form.value !== original || draftId !== id || frozenSubmission.value || submitting.value || disposed) return
+			const defaults = getUser()?.mobile_sale_defaults || {}
+			for (const [i, field] of ['delivery1', 'delivery2'].entries()) {
+				if (!(field in initialValues) && form.value[field] === initialCrew[i]) form.value[field] = normalizeText(defaults[field])
+			}
+		})
+	}
+	function resetWithCurrentCrew() {
+		if (!vehicleAccount()) { resetDraft(); return true }
+		const id = draftId
+		return refreshCrew().then(ok => {
+			if (!ok || !ownerMatches() || disposed || id !== draftId || submitting.value) return false
+			resetDraft()
+			return true
+		})
+	}
+
 	function ownerMatches() { return Boolean(ownerId && currentOwner() === ownerId) }
 	function canEdit() { return ownerMatches() && !submissionLocked.value }
 	function persistDraft(options = {}) {
@@ -173,15 +214,13 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 	function discardDraft() {
 		if (unreadableDraft || !ownerMatches()) return false
 		if (availableDraft?.submission || frozenSubmission.value) return false
-		resetDraft()
-		return true
+		return resetWithCurrentCrew()
 	}
 
 	function startNewSale() {
 		if (unreadableDraft || !ownerMatches() || submitting.value || draftStatus.value.available) return false
 		if (frozenSubmission.value && receipt.value?.sourceSaved !== true) return false
-		resetDraft()
-		return true
+		return resetWithCurrentCrew()
 	}
 
 	// Ordinary edits share one disk write. Submission and page leave still flush synchronously.
@@ -651,6 +690,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 	}
 
 	return {
+		crewNotice, crewSyncing,
 		invalidateAsyncWork,
 		pdaStep,
 		draftStep,
