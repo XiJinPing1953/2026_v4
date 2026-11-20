@@ -117,39 +117,30 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.83",
+      "version": "1.0.84",
       "output": "release/pda",
-      "acceptance": "五车调度整批保存、账号预检、权限隔离和新单同步；正式账号验收不造业务单。",
+      "acceptance": "i6310 单机核验销售回执、草稿、手输瓶号和打印机切换。",
       "deploymentScope": {
-        "baseCommit": "de1c97e830812d7ffec02032e82c28c46449bc5a",
+        "baseCommit": "3ea282a5ccf04146c61a8929a2f6c73e251c4415",
         "sourceFiles": [
-          "src/components/domain/dashboard/DashboardHome.vue",
-          "src/components/domain/dispatch/FleetDispatchView.vue",
+          "src/components/domain/pda/PdaBottleInput.vue",
+          "src/components/domain/pda/PdaBottleSuggestField.vue",
           "src/components/domain/pda/PdaNativeSaleView.vue",
           "src/components/domain/pda/PdaSaleCreateView.vue",
+          "src/components/domain/pda/PdaSaleRecordsView.vue",
+          "src/components/domain/sale/SaleDetailView.vue",
           "src/composables/pda/usePdaNativeSale.js",
           "src/composables/pda/usePdaSaleForm.js",
+          "src/composables/pda/usePdaSalePrinter.js",
           "src/manifest.json",
-          "src/pages.json",
-          "src/pages/vehicle/dispatch.vue",
-          "src/services/api/fleetDispatch.js",
-          "src/services/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/fleetDispatch.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js"
+          "src/services/pda/driverSaleFeedback.js",
+          "src/services/pda/printerSelection.js"
         ],
         "databaseFiles": [],
-        "functions": [
-          "crm-auth",
-          "crm-user"
-        ]
+        "functions": []
       },
       "integrityScope": "deployment",
-      "artifactType": "wgt",
+      "artifactType": "apk",
       "publishedSourceCommit": "fe20d78615c62f5219ecd70ef8be070d751babf0"
     }
   }

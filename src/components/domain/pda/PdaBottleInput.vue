@@ -1,7 +1,10 @@
 <template>
  <view class="bottle-field" :class="$attrs.class" :style="$attrs.style">
+  <view :class="{ 'bottle-entry': $slots.action }">
   <AppInput v-bind="$attrs" :model-value="modelValue" :type="keyboardType" :inputmode="native ? (textMode ? 'text' : 'numeric') : undefined" :confirm-hold="native && confirmHold" :disabled="disabled" :readonly="readonly"
    @update:modelValue="value => emit('update:modelValue', value)" @input="value => emit('input', value)" @focus="event => emit('focus', event)" @blur="event => emit('blur', event)" @confirm="confirm" />
+  <slot name="action" />
+  </view>
   <AppButton v-if="native" class="bottle-mode" kind="ghost" :disabled="disabled || readonly || (textMode && hasLetters)" @click="letters = !textMode">{{ textMode ? '数字瓶号' : '带字母瓶号' }}</AppButton>
  </view>
 </template>
@@ -29,5 +32,6 @@ function confirm(event) {
 
 <style scoped>
 .bottle-field { min-width: 0; }
+.bottle-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-gap: 8px; align-items: end; }
 .bottle-mode { min-height: 48px; font-size: 16px; margin-left: auto; }
 </style>

@@ -1,5 +1,6 @@
 import { sameWeighDisplay } from '@/services/pda/weighStatus'
 import { parseFillingLabel, resolveFillingLabel } from '@/services/pda/fillingLabel'
+import { driverSaleWarning } from '@/services/pda/driverSaleFeedback'
 import { usePdaSalePrinter } from '@/composables/pda/usePdaSalePrinter'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { usePdaSaleForm } from '@/composables/pda/usePdaSaleForm'
@@ -299,7 +300,7 @@ export function usePdaNativeSale() {
 		if (result?.code === 409 && result?.data?.confirmable === true && warnings.length) {
 			busy.value = true
 			try {
-				const text = warnings.map(item => typeof item === 'string' ? item : `${item.bottle_no || item.bottleNo || ''} ${item.message || item.msg || item.warning_text || item.reason || '请核对流转'}`).join('\n')
+				const text = warnings.map(item => driverSaleWarning(item, '请核对钢瓶流转后再提交。')).join('\n')
 				if (await confirm('流转提醒', text) && same(ticket)) result = await sale.submit({ confirmedWarnings: true })
 			} finally { busy.value = false }
 		}
@@ -343,6 +344,7 @@ export function usePdaNativeSale() {
 		await stopping
 		if (version !== lifecycle) return false
 		active.value = true
+		void printer.resume()
 		try {
 			const result = await enterBarcodeSession({ page: 'pda-native-sale', onResult: scan, activeTarget: { page: 'pda-native-sale', target: 'sale.scan', label: '客户或钢瓶', scope: 'sale' } })
 			if (!active.value || version !== lifecycle) { await leaveBarcodeSession({ page: 'pda-native-sale' }); return false }

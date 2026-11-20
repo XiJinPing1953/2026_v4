@@ -122,6 +122,7 @@ const { resolveUsableBleScaleWeight } = vm.runInNewContext(`${usableWeightSource
 
 async function saleHarness(overrides = {}) {
 	const camera = await load()
+	const feedback = await import('data:text/javascript;base64,' + fs.readFileSync('src/services/pda/driverSaleFeedback.js').toString('base64'))
 	const events = [], writes = [], requests = []
 	const valueRef = overrides.reactive ? vue.ref : value => ({ value })
 	const scope = vue.effectScope()
@@ -151,7 +152,7 @@ async function saleHarness(overrides = {}) {
 	}
 	const suggestions = () => ({ items: valueRef([]), loading: valueRef(false), visible: valueRef(false), handleInput() {}, handleFocus() {}, handleBlur() {}, handleSelect: value => value, clear() {} })
 	const context = vm.createContext({
-		...camera, Date, Math, Promise, Number, String, Map, Boolean, Array, JSON,
+		...camera, ...feedback, Date, Math, Promise, Number, String, Map, Boolean, Array, JSON,
 		ref: valueRef, computed: overrides.reactive ? vue.computed : getter => ({ get value() { return getter() } }),
 		watch: overrides.reactive ? vue.watch : () => {}, onBeforeUnmount() {}, onMounted() {},
 		defineProps: () => ({}), defineExpose() {}, usePdaSaleForm: () => state, usePdaSuggestions: suggestions,

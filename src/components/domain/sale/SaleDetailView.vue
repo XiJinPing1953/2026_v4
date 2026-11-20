@@ -22,8 +22,8 @@
 			<AppSection v-if="detail.mobile_create_review" title="手机销售处理状态">
 				<view class="info-grid">
 					<view class="info-item span-3"><text class="info-value">{{ mobileCreateStatusText }}</text></view>
-					<view v-for="warning in detail.mobile_create_review.warnings" :key="warning" class="info-item span-3"><text class="info-value">{{ warning }}</text></view>
-					<view class="info-item span-3"><text class="info-label">{{ detail.mobile_create_review.mutation_blocked ? '原请求仍在执行，请稍后刷新再修改。' : '可按现有权限编辑、结算或删除；原创建告警保留，不自动重试关联处理。' }}</text></view>
+					<view v-for="warning in mobileReviewWarnings" :key="warning" class="info-item span-3"><text class="info-value">{{ warning }}</text></view>
+					<view v-if="getRoleTemplate() !== 'pda_operator'" class="info-item span-3"><text class="info-label">{{ detail.mobile_create_review.mutation_blocked ? '原请求仍在执行，请稍后刷新再修改。' : '可按现有权限编辑、结算或删除；原创建告警保留，不自动重试关联处理。' }}</text></view>
 					<view class="info-item span-3"><text class="info-label">核对本页出回瓶及金额，通过“客户对账”核对收款和余额；瓶流转异常在钢瓶档案中查看。</text></view>
 					<view class="info-item span-3"><text class="info-label">销售单号：{{ detail._id }}</text></view>
 				</view>
@@ -335,6 +335,8 @@
 </template>
 
 <script setup>
+import { getRoleTemplate } from '@/services/auth'
+import { driverSaleWarning } from '@/services/pda/driverSaleFeedback'
 import { computed, ref, toRef, watch } from 'vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
@@ -357,6 +359,10 @@ const canViewStatement = computed(() => canViewPage('/pages/customer/statement')
 
 const recordId = toRef(props, 'recordId')
 const detail = ref({})
+const mobileReviewWarnings = computed(() => {
+	const warnings = detail.value.mobile_create_review?.warnings || []
+	return getRoleTemplate() === 'pda_operator' ? warnings.map(w => driverSaleWarning(w, '')).filter(Boolean) : warnings
+})
 const mobileCreateStatusText = computed(() => ({ completed: '已保存，创建关联处理完成', processing: '已保存，关联处理中', pending_review: '已保存，关联处理待核' }[detail.value.mobile_create_review?.processing_state] || '已保存，处理状态待确认'))
 const accountingUnresolved = computed(() => detail.value?.accounting?.status === 'unresolved')
 const removing = ref(false)
