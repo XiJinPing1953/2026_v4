@@ -84,7 +84,7 @@ export function usePdaNativeSale() {
 	}
 	function acceptFrame(frame) {
 		const target = measurement
-		if (!target || !same(target) || locked.value || busy.value || frame.session_id !== target.sessionId
+		if (!target || !same(target) || locked.value || sale.contextIssue.value || busy.value || frame.session_id !== target.sessionId
 			|| frame.sampled_at < target.startedAt || !snapshot.value.is_connected) return
 		const index = rowsFor(target.type).findIndex(row => row.rowId === target.rowId && row.bottleNo === target.bottleNo)
 		if (index < 0 || currentId.value !== target.rowId) return freeze()
@@ -111,7 +111,7 @@ export function usePdaNativeSale() {
 	watch(submissionLocked, value => { if (value) freeze() }, { flush: 'sync' })
 
 	async function chooseBottle(value, scanned = false) {
-		if (!editable() || ![2, 3].includes(step.value)) return false
+		if (!editable() || ![2, 3].includes(step.value) || sale.contextIssue.value) return false
 		const unfinished = rows.value.find(row => !weighed(row))
 		if (unfinished) { currentId.value = unfinished.rowId; return fail(`请先称好 ${unfinished.bottleNo} 号瓶；不需要这瓶时可删除`) }
 		let label = null
@@ -134,6 +134,10 @@ export function usePdaNativeSale() {
 			const bottle = result.data
 			if (bottle.is_active === false) return fail('这只瓶已停用，请核查瓶号')
 			if (bottle.tare_weight == null || !Number.isFinite(Number(bottle.tare_weight)) || Number(bottle.tare_weight) < 0) return fail('这只瓶没有有效皮重，请先维护钢瓶档案')
+			const opposite = direction.value === 'out' ? 'back' : 'out'
+			if (populated(opposite).some(row => normalizeBottleNo(row.bottleNo) === normalizeBottleNo(bottle.bottle_no))) {
+				return fail(`${bottle.bottle_no} 号瓶已记为${opposite === 'out' ? '出瓶' : '回瓶'}，本单不能重复登记`)
+			}
 			const existing = rows.value.find(row => normalizeBottleNo(row.bottleNo) === normalizeBottleNo(bottle.bottle_no))
 			if (existing) {
 				if (existing.rowId !== currentId.value) freeze()
@@ -141,6 +145,9 @@ export function usePdaNativeSale() {
 				message.value = `${existing.bottleNo} 号：这瓶已称过，需要修改请点重新称重`
 				return true
 			}
+			const reservation = await sale.claimVehicle()
+			if (!same(ticket) || sale.contextIssue.value) return false
+			if (reservation.code !== 0) return fail(reservation.msg || '本车资料正在同步')
 			freeze()
 			const type = direction.value
 			let index = rowsFor(type).findIndex(row => !row.bottleNo)
@@ -216,9 +223,9 @@ export function usePdaNativeSale() {
 	async function go(next) {
 		if (!editable() || next < 1 || next > 4) return false
 		if (next < step.value) { selectStep(next); return true }
-		if (next !== step.value + 1) return false
+		if (next !== step.value + 1 || sale.contextIssue.value) return false
 		if (step.value === 1) {
-			if (!form.value.customerId) return fail('请先选择客户')
+			if (!form.value.customerId || selectedCustomer.value?._id !== form.value.customerId || selectedCustomer.value?.is_active === false) return fail('请先选择客户')
 			const pricing = resolvePdaCustomerPricing(selectedCustomer.value)
 			if (!pricing.ok) return fail(pricing.msg)
 		} else {
@@ -286,6 +293,9 @@ export function usePdaNativeSale() {
 		const ticket = context()
 		let result = await sale.submit()
 		if (!active.value || !ownerMatches()) return false
+		if (result?.error_code === 'MOBILE_SALE_PRICING_CHANGED' && result.data?.source_saved === false && same(ticket)) {
+			result = await sale.submit()
+		}
 		if (result?.error_code === 'MOBILE_SALE_REVALIDATION_CHANGED') changes.value = result.data?.changes || []
 		const warnings = result?.data?.warning_items || result?.data?.warnings || []
 		if (result?.code === 409 && result?.data?.confirmable === true && warnings.length) {
@@ -334,6 +344,7 @@ export function usePdaNativeSale() {
 		await stopping
 		if (version !== lifecycle) return false
 		active.value = true
+		sale.setForeground(true)
 		void printer.resume()
 		try {
 			const result = await enterBarcodeSession({ page: 'pda-native-sale', onResult: scan, activeTarget: { page: 'pda-native-sale', target: 'sale.scan', label: '客户或钢瓶', scope: 'sale' } })
@@ -349,6 +360,7 @@ export function usePdaNativeSale() {
 			permissionTicket = null
 			busy.value = false
 		}
+		sale.setForeground(false)
 		printer.close(); active.value = false; lifecycle++; invalidate(); sale.persistDraft()
 		stopping = Promise.allSettled([stopping, scale.stop(), leaveBarcodeSession({ page: 'pda-native-sale', reason: 'page-hidden' })])
 		await stopping

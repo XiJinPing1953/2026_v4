@@ -22,7 +22,7 @@ export function driverReceiptSummary(receipt) {
 	if (receipt.sourceSaved === true) {
 		return '可以继续开下一单。'
 	}
-	if (receipt.sourceSaved == null) return '暂时无法确认是否保存，请先查询原单。'
+	if (receipt.sourceSaved == null) return '系统正在自动确认原单，联网后会继续。'
 	return driverSaleFeedback(receipt.message, '本单未保存，请核对后再提交。')
 }
 

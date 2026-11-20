@@ -11,6 +11,8 @@ import {
 	buildMobileSalePayload,
 	createMobileSale,
 	getMobileSaleCreateResult,
+	watchMobileSaleContext,
+	setMobileSaleVehicleTicket,
 	validatePdaBottleSaleForm,
 	syncPdaBackRow
 } from '@/services/pda/sale'
@@ -57,6 +59,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 			...createPdaBottleSaleForm(),
 			delivery1: normalizeText(defaults.delivery1),
 			delivery2: normalizeText(defaults.delivery2),
+			vehicleId: normalizeText(defaults.vehicle_id),
 			vehicleNo: normalizeText(defaults.vehicle_no),
 			...values
 		}
@@ -71,7 +74,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 	const newForm = createNewForm()
 	let defaultsAtStart = draftDefaults(newForm)
 	function hasDraftInput(draft, defaults) {
-		if (draft.submission || draft.receipt || draft.customer) return true
+		if (draft.claimRequested || draft.submission || draft.receipt || draft.customer) return true
 		const data = draft.form
 		if (data.customerId || data.customerName || data.remark || data.unitPrice === 0 || data.unitPrice || data.depositRows?.length || data.depositRaw || data.depositCount) return true
 		if (Object.keys(defaults).some(key => data[key] != null && data[key] !== defaults[key])) return true
@@ -100,6 +103,17 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		removeStorageSync: key => uni.removeStorageSync(key)
 	}, currentOwner)
 	let draftId = createMobileSaleId()
+	let vehicleTicket = draftId
+	let claimRequested = false
+	let claimed = false
+	const boundVehicleOnly = ref(![getUser()?.role, getUser()?.role_template].includes('superadmin'))
+	const contextIssue = ref('')
+	const vehicleNotice = ref('')
+	let foreground = false
+	let contextEpoch = 0
+	let contextTimer
+	let recoveryTimer
+	let online = true
 	let unreadableDraft = false
 	const draftStatus = ref({ available: false, restored: false, state: 'ready', message: '' })
 	const submissionLocked = computed(() => unreadableDraft || submitting.value || Boolean(frozenSubmission.value) || draftStatus.value.available)
@@ -172,7 +186,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		draftTimer = null
 		if (unreadableDraft || replacingDraft || draftStatus.value.available) return false
 		try {
-			const draft = { draftId, defaultsAtStart, form: form.value, customer: selectedCustomer.value, step: draftStep.value, ...(pdaStep.value ? { pdaStep: pdaStep.value } : {}), submission: frozenSubmission.value, receipt: receipt.value }
+			const draft = { draftId, vehicleTicket, claimRequested, defaultsAtStart, form: form.value, customer: selectedCustomer.value, step: draftStep.value, ...(pdaStep.value ? { pdaStep: pdaStep.value } : {}), submission: frozenSubmission.value, receipt: receipt.value }
 			if (!hasDraftInput(draft, defaultsAtStart)) {
 				store.remove()
 				draftStatus.value = { ...draftStatus.value, state: 'ready', message: '' }
@@ -192,6 +206,9 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		invalidateAsyncWork()
 		replacingDraft = true
 		draftId = availableDraft.draftId || availableDraft.submission?.operationId || createMobileSaleId()
+		vehicleTicket = availableDraft.vehicleTicket || draftId
+		claimRequested = Boolean(availableDraft.claimRequested)
+		claimed = false
 		defaultsAtStart = availableDraft.defaultsAtStart || defaultsAtStart
 		form.value = cloneMobileSale(availableDraft.form)
 		for (const rows of [form.value.outItems, form.value.backItems]) {
@@ -207,6 +224,8 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 			receipt.value = mobileSaleReceipt({ msg: '已恢复原提交操作，请查询结果或重试原内容' }, frozenSubmission.value.operationId)
 		}
 		draftStatus.value = { available: false, restored: true, state: 'saved', message: '已恢复草稿；提交前会重新核对档案' }
+		if (printing && frozenSubmission.value?.attempted && receipt.value?.sourceSaved == null) printing.arm(frozenSubmission.value.operationId)
+		if (printing && !frozenSubmission.value && (!form.value.customerId || selectedCustomer.value?._id !== form.value.customerId)) { draftStep.value = 1; pdaStep.value = 1 }
 		availableDraft = null
 		replacingDraft = false
 		persistDraft()
@@ -217,6 +236,9 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		invalidateAsyncWork()
 		replacingDraft = true
 		draftId = createMobileSaleId()
+		vehicleTicket = draftId
+		claimRequested = claimed = false
+		contextIssue.value = vehicleNotice.value = ''
 		form.value = createNewForm()
 		defaultsAtStart = draftDefaults(form.value)
 		selectedCustomer.value = null
@@ -232,16 +254,30 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		persistDraft()
 	}
 
+	async function releaseThenReset() {
+		const id = availableDraft?.vehicleTicket || vehicleTicket
+		if (printing && (claimRequested || availableDraft?.claimRequested)) {
+			try {
+				const result = await setMobileSaleVehicleTicket('release', id)
+				if (result.code !== 0 || !ownerMatches() || disposed) throw Error()
+			} catch {
+				vehicleNotice.value = '暂时无法结束本车草稿，请联网重试。'
+				return false
+			}
+		}
+		return resetWithCurrentCrew()
+	}
+
 	function discardDraft() {
 		if (unreadableDraft || !ownerMatches()) return false
 		if (availableDraft?.submission || frozenSubmission.value) return false
-		return resetWithCurrentCrew()
+		return (claimRequested || availableDraft?.claimRequested) ? releaseThenReset() : resetWithCurrentCrew()
 	}
 
 	function startNewSale() {
 		if (unreadableDraft || !ownerMatches() || submitting.value || draftStatus.value.available) return false
 		if (frozenSubmission.value && receipt.value?.sourceSaved !== true) return false
-		return resetWithCurrentCrew()
+		return claimRequested ? releaseThenReset() : resetWithCurrentCrew()
 	}
 
 	// A native submission reopens its receipt directly and keeps its original operation ID.
@@ -258,6 +294,102 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		persistDraft()
 		if (typeof window !== 'undefined') window.removeEventListener('pagehide', persistDraft)
 	})
+
+	function applyCustomerTerms(customer) {
+		selectedCustomer.value = { ...selectedCustomer.value, ...customer }
+		form.value.customerName = customer.name
+		customerKeyword.value = customer.name
+		const pricing = resolvePdaCustomerPricing(customer)
+		form.value.unitPrice = pricing.ok ? String(pricing.unitPrice) : ''
+	}
+
+	function applyContext(data) {
+		boundVehicleOnly.value = data.bound
+		contextIssue.value = data.issue || ''
+		vehicleNotice.value = data.pendingVehicleNo ? '本单结束后换车：' + data.pendingVehicleNo : ''
+		if (data.bound) {
+			const hasBottles = [...form.value.outItems, ...form.value.backItems].some(row => row.bottleNo)
+			const changed = form.value.vehicleNo !== data.vehicleNo || (form.value.vehicleId && form.value.vehicleId !== data.vehicleId)
+			if ((hasBottles || claimed) && changed) contextIssue.value = '车辆绑定已变化，本单称重已保留，请联系办公室。'
+			else {
+				form.value.vehicleId = data.vehicleId
+				form.value.vehicleNo = defaultsAtStart.vehicleNo = data.vehicleNo
+			}
+			if (!data.vehicleId) contextIssue.value = '账号尚未绑定车辆，请联系办公室。'
+		}
+		if (data.customer && data.customerId === form.value.customerId) applyCustomerTerms(data.customer)
+		if (data.customerId && data.issue && !data.customer) {
+			selectedCustomer.value = { ...selectedCustomer.value, is_active: false }
+			form.value.unitPrice = ''
+			pdaStep.value = draftStep.value = 1
+		}
+	}
+
+	function restartContext() {
+		const epoch = ++contextEpoch
+		clearTimeout(contextTimer)
+		clearTimeout(recoveryTimer)
+		if (!printing || !foreground || !online || disposed || !ownerMatches()) return
+		if (frozenSubmission.value) {
+			if (receipt.value?.sourceSaved !== true && !submitting.value) {
+				const id = frozenSubmission.value.operationId
+				recoveryTimer = setTimeout(async () => {
+					if (epoch !== contextEpoch) return
+					const result = await querySubmission()
+					if (foreground && online && !disposed && ownerMatches() && frozenSubmission.value?.operationId === id && result.error_code === 'MOBILE_SALE_OPERATION_NOT_FOUND') {
+						await submit()
+					}
+				}, 4500)
+			}
+			return
+		}
+		if (!canEdit()) return
+		const original = form.value, id = draftId, customerId = original.customerId
+		const valid = () => epoch === contextEpoch && !disposed && canEdit() && form.value === original && draftId === id && original.customerId === customerId
+		async function poll(version = '') {
+			if (!valid()) return
+			let delay = 2000
+			try {
+				const result = await watchMobileSaleContext(customerId, version, valid)
+				if (!valid()) return
+				if (result.code === 0 && result.data?.customerId === customerId) {
+					if (!version || version !== result.data.version) applyContext(result.data)
+					version = result.data.version
+					delay = 100
+				} else if ([401, 403].includes(result.code)) {
+					version = ''
+					contextIssue.value = '销售权限已变化，本单称重已保留，请联系办公室。'
+				}
+			} catch { /* Resume this subscription after a temporary network failure. */ }
+			if (valid()) contextTimer = setTimeout(() => poll(version), delay)
+		}
+		void poll()
+	}
+	function networkChanged(state) { online = state.isConnected !== false; restartContext() }
+	function setForeground(value) {
+		if (foreground === value) return
+		foreground = value
+		if (value) { online = !isOffline(); uni.onNetworkStatusChange?.(networkChanged) }
+		else uni.offNetworkStatusChange?.(networkChanged)
+		restartContext()
+	}
+	if (printing) watch([() => form.value, () => form.value.customerId, submissionLocked, submitting], restartContext, { flush: 'post' })
+
+	async function claimVehicle() {
+		if (!printing || !boundVehicleOnly.value || claimed) return { code: 0 }
+		const original = form.value, ticket = vehicleTicket
+		claimRequested = true
+		// Persist the same ticket before sending. A lost reply can be retried or released.
+		if (!persistDraft({ force: true })) return { code: 507, msg: '本机暂时无法保存草稿，请稍后重试' }
+		const result = await setMobileSaleVehicleTicket('claim', ticket, original.vehicleId, original.vehicleNo)
+		if (original !== form.value || ticket !== vehicleTicket || !ownerMatches() || disposed) return { code: 499, msg: '已离开本单' }
+		if (result.code === 0) claimed = true
+		else if (result.code === 409 && ![...original.outItems,...original.backItems].some(row => row.bottleNo)) {
+			claimRequested = false
+			restartContext()
+		}
+		return result
+	}
 
 	function clearDepositPreview() {
 		form.value.depositRows = []
@@ -422,10 +554,11 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 	}
 
 	function applyVehicleSelection(vehicle) {
-		if (!canEdit()) return
+		if (!canEdit() || (printing && boundVehicleOnly.value)) return
 		const plateNo = normalizeText(vehicle?.plate_no || vehicle?.plateNo || vehicle)
 		if (!plateNo) return
 		form.value.vehicleNo = plateNo
+		form.value.vehicleId = normalizeText(vehicle?._id)
 	}
 
 	function formatScaleValue(value) {
@@ -532,7 +665,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 	async function revalidateBeforeSubmit() {
 		const user = getUser() || {}
 		const admin = [user.role, user.role_template].some(role => normalizeText(role).toLowerCase() === 'superadmin')
-		if (!admin) {
+		if (!admin && !printing) {
 			const defaults = user.mobile_sale_defaults || {}
 			if (!normalizeText(defaults.vehicle_id) || !normalizeText(defaults.vehicle_no)) return { code: 409, msg: '账号尚未绑定车辆，请联系管理员' }
 			if (normalizeText(form.value.vehicleNo) !== normalizeText(defaults.vehicle_no)) return { code: 409, msg: '销售车辆与账号绑定车辆不一致，请使用本车录单' }
@@ -541,7 +674,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		const snapshot = cloneMobileSale(form.value)
 		const rows = [...snapshot.outItems, ...snapshot.backItems].filter((r) => r.bottleNo)
 		const [customerRes, depositRes, ...bottleResults] = await Promise.all([
-			getPdaCustomerById(snapshot.customerId), previewPdaDepositRows(snapshot),
+			printing ? watchMobileSaleContext(snapshot.customerId, '', () => ownerMatches() && !disposed) : getPdaCustomerById(snapshot.customerId), previewPdaDepositRows(snapshot),
 			...rows.map((row) => findPdaBottleByNo(row.bottleNo, { fresh: true }))
 		])
 		if (disposed || !ownerMatches() || signature !== JSON.stringify(form.value)) return { code: 409, msg: '录单内容或账号已变化，请重新核对' }
@@ -549,12 +682,21 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		for (const result of [customerRes, ...bottleResults]) {
 			if (result?.code !== 0) return result || { code: 503, msg: '档案复核失败，请联网后重试' }
 		}
-		if (!customerRes.data || customerRes.data.is_active === false) return { code: 400, msg: '客户已停用或不可用，请重新选择客户' }
-		const pricing = resolvePdaCustomerPricing(customerRes.data)
+		if (printing) {
+			const data = customerRes.data
+			if (!data || data.customerId !== snapshot.customerId) return { code: 409, msg: '客户资料正在同步，请稍后再保存' }
+			applyContext(data)
+			if (contextIssue.value) return { code: 409, msg: contextIssue.value }
+			const reservation = await claimVehicle()
+			if (reservation.code !== 0) return reservation
+		}
+		const latestCustomer = printing ? customerRes.data.customer : customerRes.data
+		if (!latestCustomer || latestCustomer.is_active === false) return { code: 400, msg: '客户已停用或不可用，请重新选择客户' }
+		const pricing = resolvePdaCustomerPricing(latestCustomer)
 		if (!pricing.ok) return { code: 400, msg: pricing.msg }
 		const changes = []
-		if (Number(snapshot.unitPrice) !== pricing.unitPrice) changes.push(`客户单价由 ${snapshot.unitPrice} 变为 ${pricing.unitPrice} 元/kg`)
-		if (selectedCustomer.value?.effective_settlement_customer_id && selectedCustomer.value.effective_settlement_customer_id !== customerRes.data.effective_settlement_customer_id) changes.push('客户结算归属已变化')
+		if (!printing && Number(snapshot.unitPrice) !== pricing.unitPrice) changes.push(`客户单价由 ${snapshot.unitPrice} 变为 ${pricing.unitPrice} 元/kg`)
+		if (!printing && selectedCustomer.value?.effective_settlement_customer_id && selectedCustomer.value.effective_settlement_customer_id !== latestCustomer.effective_settlement_customer_id) changes.push('客户结算归属已变化')
 		const bottles = []
 		for (let index = 0; index < rows.length; index++) {
 			const row = rows[index]
@@ -566,11 +708,11 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		}
 		if (!Array.isArray(depositRes.data?.depositRows)) return { code: 503, msg: '暂时无法准备销售单，请稍后再保存。' }
 		if (changes.length) {
-			revalidationCandidate = { signature, customer: customerRes.data, deposit: depositRes.data, bottles }
+			revalidationCandidate = { signature: JSON.stringify(form.value), customer: latestCustomer, deposit: depositRes.data, bottles }
 			return { code: 409, error_code: 'MOBILE_SALE_REVALIDATION_CHANGED', msg: '现场开单资料有变化，请核对后保存', data: { changes } }
 		}
 		revalidationCandidate = null
-		return { code: 0, customer: customerRes.data, depositRows: depositRes.data.depositRows }
+		return { code: 0, customer: latestCustomer, depositRows: depositRes.data.depositRows }
 	}
 
 	function applyRevalidationChanges() {
@@ -618,10 +760,14 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		if (!ownerMatches()) return { code: 401, msg: '请使用原账号查询提交结果' }
 		if (!frozenSubmission.value) return { code: 400, msg: '没有待查询的提交操作' }
 		if (isOffline()) return { code: 503, msg: '当前离线，已保留原操作，请联网后查询' }
+		const id = frozenSubmission.value.operationId
+		const current = () => !disposed && ownerMatches() && frozenSubmission.value?.operationId === id
 		submitting.value = true
 		try {
-			return acceptResponse(await getMobileSaleCreateResult(frozenSubmission.value.operationId), true)
+			const result = await getMobileSaleCreateResult(id, current)
+			return current() ? acceptResponse(result, true) : { code: 499 }
 		} catch (error) {
+			if (!current()) return { code: 499 }
 			return acceptResponse({ code: 503, msg: '暂时无法确认结果，原提交内容已保留，请稍后查询', error_code: 'MOBILE_SALE_RESULT_UNKNOWN' }, true)
 		} finally { submitting.value = false }
 	}
@@ -640,7 +786,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 				if (!validation.ok) return { code: 400, msg: validation.msg }
 				const checked = await revalidateBeforeSubmit()
 				if (checked.code !== 0) return checked
-				frozenSubmission.value = { operationId: draftId, payload: cloneMobileSale(buildMobileSalePayload({ ...form.value, depositRows: checked.depositRows }, { ...options, customer: checked.customer })), attempted: false }
+				frozenSubmission.value = { operationId: draftId, payload: cloneMobileSale(buildMobileSalePayload({ ...form.value, depositRows: checked.depositRows }, { ...options, vehicleTicket: claimed ? vehicleTicket : '', customer: checked.customer })), attempted: false }
 				receipt.value = mobileSaleReceipt({ msg: '正在保存本次提交，请勿另建相同单据' }, frozenSubmission.value.operationId)
 			}
 			const previouslyAttempted = Boolean(frozenSubmission.value.attempted)
@@ -674,7 +820,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 	}
 
 	return {
-		crewNotice, crewSyncing,
+		crewNotice, crewSyncing, contextIssue, vehicleNotice, boundVehicleOnly, claimVehicle, setForeground,
 		invalidateAsyncWork,
 		pdaStep,
 		draftStep,

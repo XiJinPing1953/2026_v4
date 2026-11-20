@@ -259,6 +259,11 @@ export function validatePdaBottleSaleForm(form = {}, customer = null) {
 	if (!pricing.ok) return { ok: false, msg: pricing.msg }
 
 	const outRows = (form.outItems || []).filter((row) => normalizeBottleNo(row?.bottleNo || row?.bottle_no))
+	const outgoing = new Set(outRows.map(row => normalizeBottleNo(row.bottleNo)))
+	for (const row of form.backItems || []) {
+		const no = normalizeBottleNo(row.bottleNo)
+		if (no && outgoing.has(no)) return { ok: false, msg: `${no} 号瓶已记为出瓶，本单不能同时记为回瓶` }
+	}
 	for (const rows of [outRows, form.backItems || []]) {
 		const seen = new Set()
 		for (const row of rows) {
@@ -313,6 +318,8 @@ export function buildMobileSalePayload(form, options = {}) {
 		outItems: draft.outItems, backItems: draft.backItems, depositRows: draft.depositRows,
 		agentSaleRows: []
 	})
+	if (form.vehicleId) payload.base.vehicleId = form.vehicleId
+	if (options.vehicleTicket) payload.base.vehicleTicket = options.vehicleTicket
 	if (options.customer) payload.base.settlementCustomerId = normalizeText(options.customer.effective_settlement_customer_id || options.customer.settlement_customer_id || options.customer._id)
 	for (const [key, rows] of [['outRows', form.outItems], ['backRows', form.backItems]]) {
 		payload[key] = payload[key].map((row) => {
@@ -367,6 +374,14 @@ export async function createMobileSale(operationId, payload, current = () => tru
 		finished = true
 		clearTimeout(timer)
 	}
+}
+
+export function watchMobileSaleContext(customerId, version = '', isResponseCurrent) {
+	return callCloud('crm-sale', { action: 'watchMobileSaleContextV1', data: { customerId, version }, timeout: 22000, isResponseCurrent })
+}
+
+export function setMobileSaleVehicleTicket(mode, ticket, vehicleId, vehicleNo) {
+	return callCloud('crm-sale', { action: 'setMobileSaleVehicleTicketV1', data: { mode, ticket, vehicleId, vehicleNo } })
 }
 
 export function getMobileSaleCreateResult(operationId, isResponseCurrent) {
