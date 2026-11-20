@@ -4,7 +4,7 @@ const BOUND_KEY = 'pda_label_printer_bound_v1'
 
 export async function selectPairedPrinter({ android, ui, valid = () => true }) {
   if (!valid()) return null
-  const devices = getPairedPrinters(android)
+  const devices = getPairedPrinters(android).filter(device => !/^NVK[- ]?K02\b|吊秤|地秤/i.test(device.name))
   if (!devices.length) throw new Error('请先在系统蓝牙中配对打印机，再返回选择')
   let lastAddress = ''
   try { lastAddress = String(ui.getStorageSync(BOUND_KEY)?.address || '').toUpperCase() } catch (_) {}

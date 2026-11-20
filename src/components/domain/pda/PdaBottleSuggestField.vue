@@ -15,7 +15,9 @@
 			@focus="onFocus"
 			@blur="onBlur"
 			@confirm="emit('confirm', $event)"
-		/>
+		>
+			<template v-if="$slots.action" #action><slot name="action" /></template>
+		</PdaBottleInput>
 		<PdaSuggestList
 			:visible="visible"
 			:loading="loading"

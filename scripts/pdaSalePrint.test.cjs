@@ -330,3 +330,13 @@ for (const phase of ['permission','select','native']) {
   h.p.close()
  })
 }
+
+test('sale printer resumes the selected device across visits without printing and forgets it on logout', async () => {
+ const h = printerHarness()
+ await h.p.resume()
+ assert.equal(h.opens, 0)
+ await h.p.connect(); h.p.close(); await h.p.resume()
+ assert.equal(h.opens, 2); assert.equal(h.sends, 0)
+ h.p.close(); h.setUser(null); h.setUser({_id:'u'}); await h.p.resume()
+ assert.equal(h.opens, 2)
+})

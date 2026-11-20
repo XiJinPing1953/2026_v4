@@ -138,22 +138,30 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.83",
+      "version": "1.0.84",
       "output": "release/pda",
-      "acceptance": "车辆调度和新单人员刷新；旧单和草稿保留。",
+      "acceptance": "i6310 单机核验销售回执、草稿、手输瓶号和打印机切换。",
       "deploymentScope": {
-        "baseCommit": "7ed16c748e0c6decdb4422dded0d5e8fe1882d7a",
+        "baseCommit": "fe20d78615c62f5219ecd70ef8be070d751babf0",
         "sourceFiles": [
+          "src/components/domain/pda/PdaBottleInput.vue",
+          "src/components/domain/pda/PdaBottleSuggestField.vue",
           "src/components/domain/pda/PdaNativeSaleView.vue",
+          "src/components/domain/pda/PdaSaleCreateView.vue",
+          "src/components/domain/pda/PdaSaleRecordsView.vue",
+          "src/components/domain/sale/SaleDetailView.vue",
           "src/composables/pda/usePdaNativeSale.js",
           "src/composables/pda/usePdaSaleForm.js",
-          "src/manifest.json"
+          "src/composables/pda/usePdaSalePrinter.js",
+          "src/manifest.json",
+          "src/services/pda/driverSaleFeedback.js",
+          "src/services/pda/printerSelection.js"
         ],
-        "functions": [],
-        "databaseFiles": []
+        "databaseFiles": [],
+        "functions": []
       },
       "integrityScope": "deployment",
-      "artifactType": "wgt"
+      "artifactType": "apk"
     }
   }
 }

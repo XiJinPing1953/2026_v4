@@ -11,10 +11,10 @@
 			<text v-if="draftStatus?.state === 'error'" class="warning-text">{{ draftStatus.message }}</text>
 			<text v-else-if="draftStatus?.state === 'saved' && !draftStatus?.available" class="capture-hint">{{ draftStatus.message }}</text>
 			<AppSection v-if="receipt" :title="receiptTitle">
-				<text class="capture-hint">{{ receipt.message }}</text>
+				<text class="capture-hint">{{ driverReceiptSummary(receipt) }}</text>
 				<text v-if="receipt.saleId" class="capture-hint">销售单：{{ receipt.saleId }}</text>
 				<text v-if="receipt.operationId" class="capture-hint">操作编号：{{ receipt.operationId }}</text>
-				<text v-for="(warning, index) in receipt.warnings || []" :key="index" class="warning-text">{{ formatWarning(warning) }}</text>
+				<text v-for="(warning, index) in receiptWarnings" :key="index" class="warning-text">{{ warning }}</text>
 				<view class="item-actions">
 					<AppButton v-if="receipt.status === 'unknown' || receipt.status === 'pending' || (receipt.status === 'conflict' && submissionLocked)" :loading="submitting" kind="neutral" @click="onQuerySubmission">查询保存结果</AppButton>
 					<AppButton v-if="receipt.status === 'unknown'" :loading="submitting" @click="onSubmit">重试原销售单</AppButton>
@@ -420,6 +420,7 @@
 </template>
 
 <script setup>
+import { driverReceiptSummary, driverSaleFeedback, driverSaleWarning } from '@/services/pda/driverSaleFeedback'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppCard from '@/components/base/AppCard.vue'
@@ -547,7 +548,8 @@ const {
 	invalidateAsyncWork
 } = usePdaSaleForm()
 
-const receiptTitle = computed(() => ({ saved: '销售单已保存', pending: '销售单已保存，关联处理待完成', unknown: '保存结果待确认', conflict: '销售单需核对', failed: '销售单未保存' }[receipt.value?.status] || '保存结果'))
+const receiptWarnings = computed(() => (receipt.value?.warnings || []).map(w => driverSaleWarning(w, '')).filter(Boolean))
+const receiptTitle = computed(() => ({ saved: '销售单已保存', pending: '销售单已保存', unknown: '保存结果待确认', conflict: '销售单需核对', failed: '销售单未保存' }[receipt.value?.status] || '保存结果'))
 
 const {
 	items: customerSuggestItems,
@@ -1557,7 +1559,7 @@ watch(
 )
 
 function showToast(message) {
-	uni.showToast({ title: message, icon: 'none' })
+	uni.showToast({ title: driverSaleFeedback(message), icon: 'none' })
 }
 
 function formatBottlePreviewWeight(row = {}) {
@@ -1882,10 +1884,7 @@ function confirmAction(title, content, confirmText = '确认') {
 }
 
 function formatWarning(warning) {
-	if (typeof warning === 'string') return warning
-	const message = warning?.message || warning?.msg || warning?.warning_text || warning?.reason || '请核对关联处理结果'
-	const bottleNo = warning?.bottle_no || warning?.bottleNo
-	return bottleNo ? `${bottleNo}：${message}` : message
+	return driverSaleWarning(warning, '请核对钢瓶流转后再提交。')
 }
 
 async function onRestoreDraft() {

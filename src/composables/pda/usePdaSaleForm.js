@@ -61,7 +61,24 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 			...values
 		}
 	}
-	const form = ref(createNewForm(initialValues))
+	// Capture the settings used to seed this ticket. A later dispatch update must not
+	// turn those defaults into an edit, or erase a crew change made by the driver.
+	function draftDefaults(form) {
+		const fields = ['delivery1', 'delivery2', 'vehicleNo', 'date', 'priceUnit', 'settlementMode',
+			'paymentStatus', 'paymentMethod', 'amountReceived', 'roundingAmount', 'applyOffsetCredit', 'offsetEnabled']
+		return Object.fromEntries(fields.map(key => [key, form[key]]))
+	}
+	const newForm = createNewForm()
+	let defaultsAtStart = draftDefaults(newForm)
+	function hasDraftInput(draft, defaults) {
+		if (draft.submission || draft.receipt || draft.customer) return true
+		const data = draft.form
+		if (data.customerId || data.customerName || data.remark || data.unitPrice === 0 || data.unitPrice || data.depositRows?.length || data.depositRaw || data.depositCount) return true
+		if (Object.keys(defaults).some(key => data[key] != null && data[key] !== defaults[key])) return true
+		return [...(data.outItems || []), ...(data.backItems || [])].some(row =>
+			Object.entries(row).some(([key, value]) => key !== 'rowId' && value != null && value !== ''))
+	}
+	const form = ref({ ...newForm, ...initialValues })
 	if (!Array.isArray(form.value.outItems) || !form.value.outItems.length) form.value.outItems = [createPdaOutItem()]
 	if (!Array.isArray(form.value.backItems)) form.value.backItems = []
 	if (!Array.isArray(form.value.depositRows)) form.value.depositRows = []
@@ -96,6 +113,10 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 	function invalidateAsyncWork() { asyncRevision += 1 }
 	try {
 		availableDraft = store.load()
+		if (availableDraft && !hasDraftInput(availableDraft, availableDraft.defaultsAtStart || defaultsAtStart)) {
+			store.remove()
+			availableDraft = null
+		}
 		draftStatus.value.available = Boolean(availableDraft)
 	} catch (error) {
 		unreadableDraft = true
@@ -129,7 +150,10 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 			if (!ok || form.value !== original || draftId !== id || frozenSubmission.value || submitting.value || disposed) return
 			const defaults = getUser()?.mobile_sale_defaults || {}
 			for (const [i, field] of ['delivery1', 'delivery2'].entries()) {
-				if (!(field in initialValues) && form.value[field] === initialCrew[i]) form.value[field] = normalizeText(defaults[field])
+				if (!(field in initialValues) && form.value[field] === initialCrew[i]) {
+					form.value[field] = normalizeText(defaults[field])
+					defaultsAtStart[field] = form.value[field]
+				}
 			}
 		})
 	}
@@ -150,14 +174,13 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		draftTimer = null
 		if (unreadableDraft || replacingDraft || draftStatus.value.available) return false
 		try {
-			const hasContent = form.value.customerId || form.value.remark || form.value.delivery1 || form.value.delivery2 || form.value.vehicleNo
-				|| [...(form.value.outItems || []), ...(form.value.backItems || [])].some((row) => row.bottleNo)
-			if (!hasContent && !frozenSubmission.value && !receipt.value) {
+			const draft = { draftId, defaultsAtStart, form: form.value, customer: selectedCustomer.value, step: draftStep.value, ...(pdaStep.value ? { pdaStep: pdaStep.value } : {}), submission: frozenSubmission.value, receipt: receipt.value }
+			if (!hasDraftInput(draft, defaultsAtStart)) {
 				store.remove()
 				draftStatus.value = { ...draftStatus.value, state: 'ready', message: '' }
 				return true
 			}
-			store.save({ draftId, form: form.value, customer: selectedCustomer.value, step: draftStep.value, ...(pdaStep.value ? { pdaStep: pdaStep.value } : {}), submission: frozenSubmission.value, receipt: receipt.value }, { force: options.force === true })
+			store.save(draft, { force: options.force === true })
 			draftStatus.value = { ...draftStatus.value, state: 'saved', message: '草稿已保存到当前浏览器' }
 			return true
 		} catch (error) {
@@ -171,6 +194,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		invalidateAsyncWork()
 		replacingDraft = true
 		draftId = availableDraft.draftId || availableDraft.submission?.operationId || createMobileSaleId()
+		defaultsAtStart = availableDraft.defaultsAtStart || defaultsAtStart
 		form.value = cloneMobileSale(availableDraft.form)
 		for (const rows of [form.value.outItems, form.value.backItems]) {
 			for (const row of rows || []) row.rowId ||= createMobileSaleId('row')
@@ -197,6 +221,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		replacingDraft = true
 		draftId = createMobileSaleId()
 		form.value = createNewForm()
+		defaultsAtStart = draftDefaults(form.value)
 		selectedCustomer.value = null
 		customerKeyword.value = ''
 		frozenSubmission.value = null
@@ -222,6 +247,9 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		if (frozenSubmission.value && receipt.value?.sourceSaved !== true) return false
 		return resetWithCurrentCrew()
 	}
+
+	// A native submission reopens its receipt directly and keeps its original operation ID.
+	if (printing && (availableDraft?.submission || availableDraft?.receipt?.sourceSaved)) restoreDraft()
 
 	// Ordinary edits share one disk write. Submission and page leave still flush synchronously.
 	watch([form, selectedCustomer, draftStep, pdaStep, frozenSubmission, receipt], () => {

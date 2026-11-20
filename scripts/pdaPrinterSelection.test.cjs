@@ -20,8 +20,8 @@ test('remembered printer is only prioritized; AA20 can replace an old paired AA2
  ui.menus[0].success({tapIndex:1});const selected=await pending;assert.equal(selected.address,devices[1].address)
  assert.equal(ui.store.get('pda_label_printer_bound_v1'),devices[0]);rememberPrinter(ui,selected);assert.equal(ui.store.get('pda_label_printer_bound_v1').address,devices[1].address)
 })
-test('renamed, unremembered or sole devices still require an explicit selection; all devices remain listed',async()=>{
- for(const rows of [[devices[2]],[{...devices[0],name:'新名称'}],Array.from({length:12},(_,i)=>({name:'打印机',address:`00:11:22:33:CC:${String(i).padStart(2,'0')}`}))]){
+test('renamed, unremembered or sole devices still require an explicit selection; unknown printer brands remain listed',async()=>{
+ for(const rows of [[{...devices[0],name:'新名称'}],Array.from({length:12},(_,i)=>({name:'打印机',address:`00:11:22:33:CC:${String(i).padStart(2,'0')}`}))]){
   const ui=uiFor(),pending=selectPairedPrinter({android:androidFor(rows),ui});assert.equal(ui.menus[0].itemList.length,rows.length)
   ui.menus[0].success({tapIndex:rows.length-1});assert.equal((await pending).address,rows[rows.length-1].address)
  }
@@ -73,4 +73,14 @@ test('account change while choosing a sale printer cannot start a connection',as
 test('printer test retains the sent-result message after selecting and connecting',async()=>{
  const h=entryHarness('test'),pending=h.entry.connect();await tick();h.ui.menus[0].success({tapIndex:1});await pending
  h.state({connected:true,message:'打印机已连接'});await h.entry.print();assert.match(h.entry.message.value,/已发送一张/);h.entry.close()
+})
+
+test('known scales are excluded from the printer menu, including a remembered scale', async () => {
+ const scale = { ...devices[2], name: 'NVK-K02' }
+ const ui = uiFor(scale)
+ const picked = selectPairedPrinter({android:androidFor([...devices,scale]),ui})
+ assert.equal(ui.menus[0].itemList.length, 2)
+ assert.ok(ui.menus[0].itemList.every(label => !/吊秤|NVK/.test(label)))
+ ui.menus[0].fail(); await picked
+ await assert.rejects(selectPairedPrinter({android:androidFor([scale]),ui}), /配对打印机/)
 })

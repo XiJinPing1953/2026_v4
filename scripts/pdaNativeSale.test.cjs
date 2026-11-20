@@ -8,6 +8,7 @@ function load(file, names, globals = {}) {
 	const source = fs.readFileSync(file, 'utf8').replace(/^import[\s\S]*?\bfrom\s+['"][^'"]+['"]\s*\n/gm, '').replace(/^export /gm, '')
 	return vm.runInNewContext(`${source}\n;({${names.join(',')}})`, { Date, Math, console, setTimeout, clearTimeout, ...globals })
 }
+const feedback = load('src/services/pda/driverSaleFeedback.js', ['driverSaleWarning', 'driverReceiptSummary', 'driverSaleFeedback'])
 const display = load('src/services/pda/weighStatus.js', ['sameWeighDisplay'])
 const shared = load('src/services/pda/shared.js', ['normalizeText', 'normalizeBottleNo', 'toNumber', 'todayDate', 'buildDepositPreviewRows'])
 const draft = load('src/services/pda/mobileSaleDraft.js', ['createMobileSaleDraftStore', 'createMobileSaleId', 'cloneMobileSale', 'mobileSaleReceipt', 'canReleaseMobileSubmission'])
@@ -27,7 +28,7 @@ async function harness(t, options = {}) {
 	let now = 10000, owner = 'worker', onSnapshot, frameListener, scanner, session = 0, connected = false
 	const storage = options.storage || new Map(), requests = [], confirmations = []
 	const runtime = {
-		...display, ...shared, ...draft, ...pricing, ...location, ...core, ...auto, ...sales, ...labelParsing,
+		...feedback, ...display, ...shared, ...draft, ...pricing, ...location, ...core, ...auto, ...sales, ...labelParsing,
   resolveFillingLabel: options.resolveLabel || (async () => ({ code:409, msg:'标签已失效' })),
 		ref: vue.ref, computed: vue.computed, watch: vue.watch, onBeforeUnmount() {},
 		Date: class extends Date { static now() { return now } },
@@ -62,7 +63,7 @@ async function harness(t, options = {}) {
 		}
 	}
 	function emit() { onSnapshot({ ...core.createEmptyPdaBleScaleSnapshot(), is_connected: connected, session_id: `session${session}` }) }
-	runtime.usePdaSalePrinter = () => ({ busy: vue.ref(false), arm() {}, confirmed() {}, close() {} })
+	runtime.usePdaSalePrinter = () => ({ busy: vue.ref(false), arm() {}, confirmed() {}, close() {}, resume() {} })
 	const printNative = require('./lib/receiptPrinterHarness.cjs').receiptPrinterHarness(), printReads = []
 	if (options.printing) {
 		const receiptApi = load('src/services/pda/receiptPrinter.js', ['writeReceiptText', 'RECEIPT_TAIL_DOTS'])
@@ -189,7 +190,7 @@ test('PDA drafts restore return step and weights; legacy preview stays preview a
 	const legacy = JSON.parse(h.storage.get(key)); delete legacy.pdaStep; legacy.step = 3
 	legacy.submission = { operationId: 'original', payload: { outItems: ['original'] }, attempted: true }; legacy.receipt = null
 	h.storage.set(key, JSON.stringify(legacy))
-	const frozen = await harness(t, { storage: h.storage }); frozen.panel.restore()
+	const frozen = await harness(t, { storage: h.storage }); assert.equal(frozen.panel.sale.draftStatus.value.available, false)
 	assert.equal(frozen.panel.step.value, 4); assert.equal(frozen.panel.locked.value, true)
 	await frozen.panel.query(); assert.equal(frozen.panel.sale.receipt.value.status, 'saved')
 })
@@ -339,4 +340,43 @@ test('returning before permission resolves can reconnect immediately without an 
  fresh.resolve({code:0})
  assert.equal(await next, true)
  assert.equal(h.panel.busy.value, false)
+})
+
+test('legacy blank vehicle form opens directly, changed crew survives, and saved receipts open without another submission', async t => {
+	const defaults = { vehicle_no: 'TEST-01', delivery1: '原司机', delivery2: '搭档' }
+	const h = await harness(t, { defaults })
+	const sale = h.panel.sale
+	await h.panel.deactivate()
+	const key = 'crm_mobile_sale_draft_v1:worker'
+	assert.equal(h.storage.has(key), false)
+	const legacy = { version: 1, ownerId: 'worker', draftId: 'legacy', form: sale.form.value }
+	h.storage.set(key, JSON.stringify(legacy))
+	const blank = await harness(t, { storage: h.storage, defaults })
+	assert.equal(blank.panel.sale.draftStatus.value.available, false)
+	assert.equal(h.storage.has(key), false)
+	blank.panel.sale.form.value.delivery1 = '替班司机'
+	await blank.panel.deactivate()
+	const changed = await harness(t, { storage: h.storage, defaults })
+	assert.equal(changed.panel.sale.draftStatus.value.available, true)
+	changed.panel.restore()
+	assert.equal(changed.panel.sale.form.value.delivery1, '替班司机')
+	await changed.panel.deactivate()
+	const receipt = { status: 'pending', sourceSaved: true, operationId: 'original', saleId: 's1', warnings: ['crm-reg-bridge enqueueEventV1 timeout'] }
+	h.storage.set(key, JSON.stringify({ ...legacy, submission: { operationId: 'original' }, receipt }))
+	const saved = await harness(t, { storage: h.storage, defaults })
+	assert.equal(saved.panel.sale.draftStatus.value.available, false)
+	assert.equal(saved.panel.sale.receipt.value.saleId, 's1')
+	assert.equal(saved.requests.length, 0)
+	assert.equal(await saved.panel.nextSale(), true)
+	assert.equal(h.storage.has(key), false)
+})
+
+test('driver receipt guidance distinguishes a saved sale from an unknown result and keeps bottle-specific instructions', () => {
+	const raw = '监管处理：crm-reg-bridge enqueueEventV1 timeout'
+	assert.equal(feedback.driverSaleWarning(raw, ''), '')
+	assert.equal(feedback.driverSaleWarning({ message: raw }, ''), '')
+	assert.equal(feedback.driverSaleWarning({ bottle_no: 'A12', message: '请核对钢瓶归属' }, ''), 'A12 号瓶 · 请核对钢瓶归属')
+	assert.match(feedback.driverReceiptSummary({ status: 'pending', sourceSaved: true, message: raw }), /开下一单/)
+	assert.match(feedback.driverReceiptSummary({ status: 'unknown', sourceSaved: null, message: raw }), /先查询原单/)
+	assert.match(feedback.driverReceiptSummary({ status: 'failed', sourceSaved: false, message: raw }), /未保存/)
 })
