@@ -13,6 +13,8 @@ const { readComplete, withFinancialEvidence, FinancialReadError } = require('./f
 const db = uniCloud.database()
 const dbCmd = db.command
 const { createService: createMobileSaleService } = require('./mobileSaleCreate')
+const { createMobileSaleContext } = require('./mobileSaleContext')
+const mobileSaleContext = createMobileSaleContext({ db, resolveCustomerRefs: resolveSaleCustomerRefs, resolvePricing: resolveSaleDefaultPricing, hasPermission: (...args) => hasPagePermission(...args), isAdmin: user => isSuperAdmin(user) })
 const mobileSaleService = createMobileSaleService({ db, createSale: createV2, resolveCustomerRefs: resolveSaleCustomerRefs, resolvePricing: resolveSaleDefaultPricing, isAdmin: user => isSuperAdmin(user), verifyFillingLabel: (data, token) => uniCloud.callFunction({ name:'crm-filling', data:{ action:'resolveFillingLabelV1', data, token } }) })
 const {
 	fetchHiddenCustomerIds,
@@ -53,6 +55,9 @@ const PAGE_ACTION_RULES = {
 	getWebSaveResultV1: [{ pagePath: '/pages/sale/edit', action: 'create' }, { pagePath: '/pages/sale/edit', action: 'update' }, { pagePath: '/pages/sale/settlement', action: 'update' }],
 	listPdaV1: [{ pagePath: "/pages/pda/sale-create", action: "view" }],
 	getPdaV1: [{ pagePath: "/pages/pda/sale-create", action: "view" }],
+	closeMissingMobileV1: [{ pagePath: '/pages/pda/sale-create', action: 'create' }],
+	watchMobileSaleContextV1: [{ pagePath: '/pages/pda/sale-create', action: 'create' }],
+	setMobileSaleVehicleTicketV1: [{ pagePath: '/pages/pda/sale-create', action: 'create' }],
 	createMobileV1: [{ pagePath: '/pages/pda/sale-create', action: 'create' }],
 	getMobileCreateResultV1: [{ pagePath: '/pages/pda/sale-create', action: 'view' }],
 	listV2: [{ pagePath: '/pages/sale/list', action: 'view' }],
@@ -5740,7 +5745,12 @@ const main = async (event, context) => {
 		generateRequestId()
 
 	const user = await getUserByToken(token)
-	if (!user) return { code: 401, msg: '未登录或登录已过期' }
+	if (!user || user.is_active === false) return { code: 401, msg: '未登录或登录已过期' }
+	// An active owner who lost sale visibility can still confirm their own sent
+	// operation. The restricted reply contains neither a sale ID nor sale details.
+	if (action === 'getMobileCreateResultV1' && !hasPagePermission(user, '/pages/pda/sale-create', 'view')) {
+		return mobileSaleService.getResult(user, data, true)
+	}
 	const acl = await ensureActionAcl(user, action, PAGE_ACTION_RULES, SUPERADMIN_ONLY_ACTIONS, {
 		recordLog,
 		requestId,
@@ -5757,6 +5767,9 @@ const main = async (event, context) => {
 	}
 	if (action === 'listPdaV1') return pdaSaleRecords.list(user, data)
 	if (action === 'getPdaV1') return pdaSaleRecords.get(user, data)
+	if (action === 'closeMissingMobileV1') return mobileSaleService.closeMissing(user, data)
+	if (action === 'watchMobileSaleContextV1') return mobileSaleContext.watch(user, data)
+	if (action === 'setMobileSaleVehicleTicketV1') return mobileSaleContext.vehicleTicket(user, data)
 	if (action === 'createMobileV1') return mobileSaleService.create(user, data, requestId, token)
 	if (action === 'getMobileCreateResultV1') return mobileSaleService.getResult(user, data)
 	if (action === 'createV2') return createV2(user, data, requestId, token)

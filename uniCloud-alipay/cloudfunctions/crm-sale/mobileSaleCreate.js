@@ -91,6 +91,7 @@ function normalizePayload(raw = {}) {
   if (depositRows.some(row => !row.bottle_no) || new Set(depositRows.map(row => row.bottle_no)).size !== depositRows.length) fail('存瓶明细瓶号为空或重复')
   return { base: { date, customerId: text(base.customerId), customerName: text(base.customerName), delivery1: text(base.delivery1),
     ...(base.settlementCustomerId != null ? { settlementCustomerId: text(base.settlementCustomerId) } : {}),
+    ...(base.vehicleTicket ? { vehicleTicket: operationId(base.vehicleTicket) } : {}),
     delivery2: text(base.delivery2), vehicleId: text(base.vehicleId), carNo: text(base.carNo), remark: text(base.remark),
     bizMode: 'bottle', priceUnit: 'kg', settlementMode: 'sale', unitPrice: number(base.unitPrice, '单价'),
     paymentStatus: 'unpaid', paymentMethod: 'on_account', amountReceived: 0, roundingAmount: 0, applyOffsetCredit: false, offsetEnabled: false,
@@ -173,8 +174,29 @@ function createService({ db, createSale, verifyFillingLabel, resolveCustomerRefs
       return { ...operation, warnings: [...(operation.warnings || []), '异常刷新结果暂未核实，请稍后查询原操作'] }
     }
   }
+  const closedResult = operation => ({ code: 409, error_code: 'MOBILE_SALE_CLOSED_UNSAVED',
+    msg: '原请求已确认未保存', data: { operation_id: operation.operation_id, source_saved: false } })
+
+  // Reserve the same unique key used in the source transaction. Exactly one of
+  // closing the missing attempt and committing the sale can win, even if a
+  // create is delayed or its response was lost.
+  async function closeMissing(user, data) {
+    const id = operationId(data.operation_id), key = keyFor(user, id)
+    const found = await one(OPERATIONS, key)
+    if (found) return existingResult(found, user)
+    const now = Date.now()
+    const row = { _id: key, created_by: text(user._id), operation_id: id, sale_id: '', payload_digest: '',
+      processing_state: 'closed_unsaved', warnings: [], created_at: now, updated_at: now }
+    try { await db.collection(OPERATIONS).add(row); return closedResult(row) }
+    catch (_) {
+      const winner = await one(OPERATIONS, key)
+      return winner ? existingResult(winner, user) : unknown(id)
+    }
+  }
+
   async function existingResult(operation, user, fingerprint, idempotent = true) {
     if (operation.created_by !== text(user._id)) fail('无权查询该手机销售操作', 403, 'MOBILE_SALE_FORBIDDEN')
+    if (operation.processing_state === 'closed_unsaved') return closedResult(operation)
     if (fingerprint && fingerprint !== operation.payload_digest) fail('该操作号已用于不同内容，请查询原结果', 409, 'MOBILE_SALE_OPERATION_CONFLICT')
     const source = await one(SALES, operation.sale_id)
     if (operation.processing_state === 'processing' && operation.anomaly_refresh_job_id
@@ -256,10 +278,15 @@ function createService({ db, createSale, verifyFillingLabel, resolveCustomerRefs
   }
   const unknown = id => ({ code: 503, error_code: 'MOBILE_SALE_RESULT_UNKNOWN', msg: '销售提交结果尚未确认，请查询原操作，勿换号重建',
     data: { operation_id: id, source_saved: null, processing_state: 'unknown' } })
-  async function getResult(user, data) {
+  async function getResult(user, data, statusOnly = false) {
     try {
       const id = operationId(data.operation_id), operation = await one(OPERATIONS, keyFor(user, id))
       if (!operation) return { code: 404, error_code: 'MOBILE_SALE_OPERATION_NOT_FOUND', msg: '尚未查询到原操作，请保留原内容与操作号', data: { operation_id: id, source_saved: null, processing_state: 'unknown' } }
+      if (operation.processing_state === 'closed_unsaved' && operation.created_by === text(user._id)) return closedResult(operation)
+      if (statusOnly) {
+        if (operation.created_by !== text(user._id) || operation.operation_id !== id) return { code: 403, msg: '无权查看此回执' }
+        return { code: 0, data: { operation_id: id, source_saved: true, processing_state: 'saved' } }
+      }
       return await existingResult(operation, user)
     } catch (error) {
       return { code: typeof error.code === 'number' ? error.code : 503, error_code: error.error_code || 'MOBILE_SALE_RESULT_UNKNOWN', msg: error.message,
@@ -280,6 +307,10 @@ function createService({ db, createSale, verifyFillingLabel, resolveCustomerRefs
       const fingerprint = digest(payload)
       if (existing) return await existingResult(existing, user, fingerprint)
       uncertain = false
+      // Pre-existing receipts must remain readable and idempotent under the new rule.
+      const outgoing = new Set(payload.outRows.map(row => row.bottle_no))
+      const repeated = payload.backRows.find(row => outgoing.has(row.bottle_no))
+      if (repeated) fail(`${repeated.bottle_no} 号瓶不能在同一销售单既出又回`)
       for (const row of [...payload.outRows, ...payload.backRows]) {
         if (row.weight_source === 'filling_reweigh') continue
         if (!['web_ble', 'ble_scale'].includes(row.weight_source) || !row.scale_session_id
@@ -364,6 +395,6 @@ function createService({ db, createSale, verifyFillingLabel, resolveCustomerRefs
         warnings: [...new Set([...warnings, '处理回执未完整确认，请查询原操作，勿重复录入'])] } }
     }
   }
-  return { create, getResult, review, guardMutation }
+  return { create, getResult, closeMissing, review, guardMutation }
 }
 module.exports = { createService, processingGuard, normalizePayload, keyFor, OPERATIONS, SOURCE }

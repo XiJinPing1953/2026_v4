@@ -57,6 +57,7 @@
       "enum": [
         "processing",
         "completed",
+        "closed_unsaved",
         "pending_review"
       ]
     },

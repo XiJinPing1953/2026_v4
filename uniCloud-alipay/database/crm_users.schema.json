@@ -11,6 +11,8 @@
     "_id": {
       "description": "ID，系统自动生成"
     },
+    "mobile_sale_vehicle_ticket": { "bsonType": ["object", "null"], "description": "当前车辆销售草稿占用" },
+    "mobile_sale_pending_vehicle": { "bsonType": ["object", "null"], "description": "本单结束后生效的车辆绑定" },
     "mobile_sale_defaults": {
       "bsonType": "object",
       "description": "本账号新建手机称重销售的可修改默认配送员和车辆；已存草稿优先",

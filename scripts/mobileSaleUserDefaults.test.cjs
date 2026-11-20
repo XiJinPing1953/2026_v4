@@ -33,7 +33,7 @@ function harness() {
 		],
 		crm_vehicles: [{ _id: 'vehicle-1', plate_no: 'TEST38U7G', is_active: true }]
 	}
-	const db = makeDb(tables, { mutate: true })
+	const db = makeDb(tables, { mutate: true, transaction: true })
 	const filename = path.resolve(__dirname, '../uniCloud-alipay/cloudfunctions/crm-user/index.js')
 	const localRequire = createRequire(filename)
 	const context = { exports: {}, require: name => name === 'bcryptjs' ? { hash: async () => 'synthetic-hash' } : localRequire(name),
@@ -117,7 +117,7 @@ test('permission edits preserve omitted defaults and explicit null clears to sch
 	assert.deepEqual(target.mobile_sale_defaults, expectedDefaults)
 	assert.equal('mobile_sale_defaults' in h.writes.find(write => write.name === 'crm_users').data, false)
 	assert.equal((await h.invoke('savePermissionsV1', h.edit({ mobile_sale_defaults: null }))).code, 0)
-	assert.deepEqual(target.mobile_sale_defaults, {})
+	assert.deepEqual(h.tables.crm_users.find(row => row._id === 'target').mobile_sale_defaults, {})
 	assert.equal((await h.invoke('createV1', h.create({ mobile_sale_defaults: null }))).code, 0)
 	assert.deepEqual(h.tables.crm_users.find(row => row.username === 'mobile-new').mobile_sale_defaults, {})
 })
@@ -126,7 +126,26 @@ test('explicit defaults replace previous values using fresh registered labels on
 	const h = harness(), target = h.tables.crm_users.find(row => row._id === 'target')
 	h.tables.crm_delivery_men[1].name = '档案新姓名'
 	assert.equal((await h.invoke('savePermissionsV1', h.edit({ mobile_sale_defaults: { delivery1_id: 'driver-2', delivery1: '伪造姓名' } }))).code, 0)
-	assert.deepEqual(target.mobile_sale_defaults, { delivery1_id: 'driver-2', delivery1: '档案新姓名', delivery2_id: '', delivery2: '', vehicle_id: '', vehicle_no: '' })
+	assert.deepEqual(h.tables.crm_users.find(row => row._id === 'target').mobile_sale_defaults, { delivery1_id: 'driver-2', delivery1: '档案新姓名', delivery2_id: '', delivery2: '', vehicle_id: '', vehicle_no: '' })
+})
+
+test('office rebind defers on an occupied vehicle and explicit revocation clears the claim', async () => {
+	const h = harness(), account = () => h.tables.crm_users.find(row => row._id === 'target')
+	account().mobile_sale_vehicle_ticket = { id: 'active-ticket', vehicle_id: 'vehicle-1', saved: false }
+	h.tables.crm_vehicles.push({ _id:'v2', plate_no:'TEST2', is_active:true })
+	const changed = await h.invoke('savePermissionsV1', h.edit({ mobile_sale_defaults: { ...ids, vehicle_id:'v2' } }))
+	assert.equal(changed.code, 0)
+	assert.equal(account().mobile_sale_defaults.vehicle_id, 'vehicle-1')
+	assert.equal(account().mobile_sale_pending_vehicle.vehicle_id, 'v2')
+	const cancelled = await h.invoke('savePermissionsV1', h.edit({ mobile_sale_defaults:ids }))
+	assert.equal(cancelled.code,0)
+	assert.equal(account().mobile_sale_pending_vehicle,null)
+	assert.ok(account().mobile_sale_vehicle_ticket)
+	const revoked = await h.invoke('savePermissionsV1', h.edit({ mobile_sale_defaults:null }))
+	assert.equal(revoked.code, 0)
+	assert.equal(account().mobile_sale_vehicle_ticket, null)
+	assert.equal(account().mobile_sale_pending_vehicle, null)
+	assert.deepEqual(account().mobile_sale_defaults, {})
 })
 
 test('superadmin permission lock remains intact when defaults are supplied', async () => {

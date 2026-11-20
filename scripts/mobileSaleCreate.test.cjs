@@ -304,6 +304,85 @@ test('failed, missing, mismatched and incomplete refresh facts enter review with
   }
 })
 
+test('new mobile sales reject both directions sharing a normalized bottle before writes', async () => {
+  const h = harness(), input = h.input()
+  input.payload.backRows = [{ ...input.payload.outRows[0], bottle_no: ' b1 ' }]
+  const result = await h.invoke('createMobileV1', input)
+  assert.equal(result.data.source_saved, false)
+  assert.match(result.msg, /同一销售单既出又回/)
+  assert.equal(h.tables.crm_sale_records.length, 0)
+  assert.equal(h.tables[M.OPERATIONS].length, 0)
+})
+
+test('mobile context and reservations use actual ACL and transactional source confirmation', async () => {
+  const h = harness(), id = 'test-sale-ticket', input = h.input()
+  const action = 'setMobileSaleVehicleTicketV1'
+  const args = { mode:'claim', ticket:id, vehicleId:'vehicle-test', vehicleNo:'TEST' }
+  const read = await h.invoke('watchMobileSaleContextV1', { customerId: 'customer-1' })
+  assert.equal(read.data.customer.default_unit_price, 5)
+  assert.equal(read.data.vehicleNo, 'TEST')
+  assert.equal((await h.invoke(action, args, 'reader')).code, 403)
+  assert.equal((await h.invoke(action, args)).code, 0)
+  assert.equal((await h.invoke(action, {...args, ticket:'other-sale-ticket'})).code, 409)
+  input.payload.base.vehicleTicket = id
+  const result = await h.invoke('createMobileV1', input)
+  assert.equal(result.data.source_saved, true, result.msg)
+  const account = () => h.tables.crm_users.find(row => row.token === 'operator')
+  assert.equal(account().mobile_sale_vehicle_ticket.saved, true)
+  account().mobile_sale_pending_vehicle = { vehicle_id:'next', vehicle_no:'NEXT' }
+  assert.equal((await h.invoke(action, { mode:'release', ticket:id })).code, 0)
+  assert.equal(account().mobile_sale_defaults.vehicle_no, 'NEXT')
+  assert.equal((await h.invoke('createMobileV1', input)).data.sale_id, result.data.sale_id)
+  assert.equal(h.tables.crm_sale_records.length, 1)
+})
+
+test('revoked sales access can acknowledge only the original user’s operation without exposing the sale', async () => {
+  const h = harness(), input = h.input()
+  assert.equal((await h.invoke('createMobileV1', input)).data.source_saved, true)
+  const owner = h.tables.crm_users.find(row => row.token === 'operator')
+  owner.role = 'user'
+  owner.page_permissions = {'/pages/pda/sale-create': {view:false, create:false}}
+  const result = await h.invoke('getMobileCreateResultV1',{operation_id:input.operation_id})
+  assert.equal(result.data.source_saved,true)
+  assert.deepEqual(Object.keys(result.data).sort(),['operation_id','processing_state','source_saved'])
+  assert.equal((await h.invoke('createMobileV1',h.input('another-operation'))).code,403)
+})
+
+test('closing a missing operation wins against a delayed source commit or returns the actual winner', async () => {
+  const entered = deferred(), proceed = deferred()
+  const h = harness({beforeCommit: async journal => {
+    if (journal.some(x => x.name === M.OPERATIONS && x.kind === 'add')) {entered.resolve(); await proceed.promise}
+  }})
+  const input=h.input()
+  const sending=h.invoke('createMobileV1',input)
+  await entered.promise
+  const closed=await h.invoke('closeMissingMobileV1',{operation_id:input.operation_id})
+  assert.equal(closed.error_code,'MOBILE_SALE_CLOSED_UNSAVED')
+  proceed.resolve()
+  assert.equal((await sending).data.source_saved,false)
+  assert.equal((await h.invoke('createMobileV1',input)).data.source_saved,false)
+  assert.equal(h.tables.crm_sale_records.length,0)
+  const fresh=h.input('fresh-sale-operation')
+  const saved=await h.invoke('createMobileV1',fresh)
+  assert.equal(saved.data.source_saved,true)
+  assert.equal((await h.invoke('closeMissingMobileV1',{operation_id:fresh.operation_id})).data.sale_id,saved.data.sale_id)
+  assert.equal(h.tables.crm_sale_records.length,1)
+})
+
+test('changing billing parent never moves the delivery site’s physical bottle stock', async () => {
+  const h=harness()
+  h.tables.crm_customers.push({_id:'new-parent',name:'New billing parent',default_unit_price:9,default_price_unit:'kg'})
+  h.tables.crm_customers[0].settlement_customer_id='new-parent'
+  delete h.tables.crm_customers[0].default_unit_price
+  const ctx=await h.invoke('watchMobileSaleContextV1',{customerId:'customer-1'})
+  assert.equal(ctx.data.customer.effective_settlement_customer_id,'new-parent')
+  assert.equal(ctx.data.customer.default_unit_price,9)
+  h.tables.crm_sale_records.push({_id:'other-sale',customer_id:'new-parent',delivery_customer_id:'unrelated-site',date:'2026-10-01',out_items:[{bottle_no:'OTHER'}]})
+  const inventory=await h.invoke('getCustomerDepositV1',{customerId:'customer-1',date:'2026-10-29'})
+  assert.equal(inventory.data.customer_id,'customer-1')
+  assert.ok(!inventory.data.bottles.includes('OTHER'))
+})
+
 test('actual mobile handler saves sale and receipt, reuses accounting and preserves capture evidence',async()=>{
   const h=harness(),input=h.input(),res=await h.invoke('createMobileV1',input)
   assert.equal(res.code,0,res.msg);assert.equal(res.data.processing_state,'completed',JSON.stringify(res))

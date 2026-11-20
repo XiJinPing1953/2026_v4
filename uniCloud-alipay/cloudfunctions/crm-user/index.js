@@ -113,7 +113,7 @@ function escapeRegExp(value) {
 
 function stripSensitive(user) {
 	if (!user) return null
-	const { password_hash, token, ...rest } = user
+	const { password_hash, token, mobile_sale_vehicle_ticket, ...rest } = user
 	return sanitizeUser(rest)
 }
 
@@ -252,6 +252,7 @@ async function updateRoleV1(user, data, requestId) {
 		role: roleTemplate,
 		role_template: roleTemplate,
 		page_permissions: buildRoleTemplatePermissions(roleTemplate),
+		...(!aclHelpers.hasPagePermission({ role: roleTemplate }, '/pages/pda/sale-create', 'create') ? { mobile_sale_vehicle_ticket: null, mobile_sale_pending_vehicle: null } : {}),
 		updated_at: Date.now()
 	})
 	await recordLog(user, 'user_manage_update_role_v1', { target: userId, role_template: roleTemplate }, requestId)
@@ -327,21 +328,45 @@ async function savePermissionsV1(user, data, requestId) {
 	const nickname = hasNicknameField ? normalizeNickname(data.nickname) : ''
 	if (hasNicknameField && !nickname) return { code: 400, msg: '昵称必填' }
 	if (nickname.length > 20) return { code: 400, msg: '昵称最多20个字' }
-	await users.doc(userId).update({
-		role: roleTemplate,
-		role_template: roleTemplate,
-		page_permissions: pagePermissions,
-		...(hasNicknameField ? { nickname } : {}),
-		...defaults.patch,
-		updated_at: Date.now()
-	})
+	const tx = await db.startTransaction()
+	let scheduled = false
+	try {
+		const ref = tx.collection('crm_users').doc(userId)
+		const result = await ref.get()
+		const current = Array.isArray(result.data) ? result.data[0] : result.data
+		if (!current) throw Error('用户不存在')
+		const old = current.mobile_sale_defaults || {}
+		const requested = defaults.patch.mobile_sale_defaults
+		const patch = { role: roleTemplate, role_template: roleTemplate, page_permissions: pagePermissions,
+			...(hasNicknameField ? { nickname } : {}), ...defaults.patch, updated_at: Date.now() }
+		const canSell = aclHelpers.hasPagePermission(patch, '/pages/pda/sale-create', 'create')
+		if (!canSell || data.force_vehicle_change === true || (requested && !requested.vehicle_id)) {
+			patch.mobile_sale_vehicle_ticket = null
+			patch.mobile_sale_pending_vehicle = null
+		} else if (requested && requested.vehicle_id !== old.vehicle_id && current.mobile_sale_vehicle_ticket
+			&& (!current.mobile_sale_vehicle_ticket.saved || current.mobile_sale_vehicle_ticket.saved_at + 90000 > Date.now())) {
+			const prior = current.mobile_sale_pending_vehicle
+			const applyBy = prior?.vehicle_id === requested.vehicle_id && prior.apply_by ? prior.apply_by : Date.now() + 12 * 60 * 60 * 1000
+			patch.mobile_sale_pending_vehicle = { vehicle_id: requested.vehicle_id, vehicle_no: requested.vehicle_no, apply_by: current.mobile_sale_vehicle_ticket.saved ? Math.min(applyBy, current.mobile_sale_vehicle_ticket.saved_at + 90000) : applyBy }
+			patch.mobile_sale_defaults = { ...requested, vehicle_id: old.vehicle_id, vehicle_no: old.vehicle_no }
+			scheduled = true
+		} else if (requested) {
+			if (current.mobile_sale_pending_vehicle) patch.mobile_sale_pending_vehicle = null
+			if (requested.vehicle_id !== old.vehicle_id) patch.mobile_sale_vehicle_ticket = null
+		}
+		await ref.update(patch)
+		await tx.commit()
+	} catch (err) {
+		await tx.rollback()
+		return { code: 409, msg: '账号正在更新，请刷新后重试' }
+	}
 	await recordLog(
 		user,
 		'user_manage_save_permissions_v1',
 		{ target: userId, role_template: roleTemplate, ...(hasNicknameField ? { nickname } : {}) },
 		requestId
 	)
-	return { code: 0, msg: '权限已保存' }
+	return { code: 0, msg: scheduled ? '权限已保存，当前销售单结束后换车' : '权限已保存' }
 }
 
 async function backfillPermissionsV1(user, requestId) {
