@@ -5770,7 +5770,11 @@ const main = async (event, context) => {
 	if (action === 'closeMissingMobileV1') return mobileSaleService.closeMissing(user, data)
 	if (action === 'watchMobileSaleContextV1') return mobileSaleContext.watch(user, data)
 	if (action === 'setMobileSaleVehicleTicketV1') return mobileSaleContext.vehicleTicket(user, data)
-	if (action === 'createMobileV1') return mobileSaleService.create(user, data, requestId, token)
+	if (action === 'createMobileV1') {
+		const current = await mobileSaleContext.resolveDue(user)
+		if (!current || current.is_active === false || current.token !== token || !hasPagePermission(current, '/pages/pda/sale-create', 'create')) return { code: 403, msg: '销售权限已变化' }
+		return mobileSaleService.create(current, data, requestId, token)
+	}
 	if (action === 'getMobileCreateResultV1') return mobileSaleService.getResult(user, data)
 	if (action === 'createV2') return createV2(user, data, requestId, token)
 	if (action === 'updateV2') return updateV2(user, data, requestId, token)
