@@ -9,15 +9,15 @@
 				<view class="item-actions"><AppButton @click="onRestoreDraft">恢复草稿</AppButton><AppButton kind="neutral" @click="onDiscardDraft">放弃草稿</AppButton></view>
 			</AppSection>
 			<text v-if="draftStatus?.state === 'error'" class="warning-text">{{ draftStatus.message }}</text>
-			<text v-else-if="draftStatus?.state === 'saved' && !draftStatus?.available" class="capture-hint">{{ draftStatus.message }}</text>
-			<AppSection v-if="receipt" :title="receiptTitle">
-				<text class="capture-hint">{{ driverReceiptSummary(receipt) }}</text>
+			<text v-else-if="draftStatus?.state === 'saved' && !draftStatus?.available && !receipt?.sourceSaved" class="capture-hint">{{ draftStatus.message }}</text>
+			<AppSection v-if="receipt" :title="submitting && !receipt.sourceSaved ? '正在确认保存结果' : receiptTitle">
+				<text v-if="receipt.sourceSaved || !submitting" class="capture-hint">{{ driverReceiptSummary(receipt) }}</text>
 				<text v-if="receipt.saleId" class="capture-hint">销售单：{{ receipt.saleId }}</text>
-				<text v-if="receipt.operationId" class="capture-hint">操作编号：{{ receipt.operationId }}</text>
-				<text v-for="(warning, index) in receiptWarnings" :key="index" class="warning-text">{{ warning }}</text>
+				<text v-if="!receipt.sourceSaved && receipt.operationId" class="capture-hint">操作编号：{{ receipt.operationId }}</text>
+				<text v-for="(warning, index) in driverReceiptWarnings(receipt)" :key="index" class="warning-text">{{ warning }}</text>
 				<view class="item-actions">
-					<AppButton v-if="receipt.status === 'unknown' || receipt.status === 'pending' || (receipt.status === 'conflict' && submissionLocked)" :loading="submitting" kind="neutral" @click="onQuerySubmission">查询保存结果</AppButton>
-					<AppButton v-if="receipt.status === 'unknown'" :loading="submitting" @click="onSubmit">重试原销售单</AppButton>
+					<AppButton v-if="!submitting && (receipt.status === 'unknown' || (receipt.status === 'conflict' && submissionLocked))" :loading="submitting" kind="neutral" @click="onQuerySubmission">查询保存结果</AppButton>
+					<AppButton v-if="!submitting && receipt.status === 'unknown'" :loading="submitting" @click="onSubmit">重试原销售单</AppButton>
 					<AppButton v-if="receipt.sourceSaved || receipt.status === 'saved' || receipt.status === 'failed'" kind="neutral" @click="onStartNewSale">新建下一单</AppButton>
 				</view>
 			</AppSection>
@@ -25,7 +25,7 @@
 				<text v-for="(change, index) in revalidationChanges" :key="index" class="warning-text">{{ change }}</text>
 				<AppButton @click="onApplyRevalidationChanges">使用最新资料并返回明细核对</AppButton>
 			</AppSection>
-			<view class="sale-form" :class="{ 'sale-form--locked': submissionLocked }" :inert="submissionLocked ? true : undefined" :aria-disabled="submissionLocked">
+			<view v-if="receipt?.sourceSaved !== true" class="sale-form" :class="{ 'sale-form--locked': submissionLocked }" :inert="submissionLocked ? true : undefined" :aria-disabled="submissionLocked">
 		<view class="stepper">
 			<view
 				v-for="step in steps"
@@ -87,7 +87,6 @@
 						<text class="meta-text">应收 {{ formatMoney(selectedCustomer.receivable_balance) }}</text>
 						<text class="meta-text">预收 {{ formatMoney(selectedCustomer.prepay_balance) }}</text>
 						<text class="meta-text">净额 {{ formatMoney(selectedCustomer.net_balance) }}</text>
-						<text class="meta-text">存瓶 {{ Number(selectedCustomer.deposit_count || 0) }}</text>
 					</view>
 					<text class="selected-customer__price">默认单价 {{ form.unitPrice || '-' }} / kg</text>
 					<text v-if="customerPriceDifferenceHint" class="selected-customer__price selected-customer__price--hint">{{ customerPriceDifferenceHint }}</text>
@@ -180,10 +179,6 @@
 					<view class="summary-cell">
 						<text class="summary-label">单价</text>
 						<text class="summary-value">{{ form.unitPrice || '-' }}/kg</text>
-					</view>
-					<view class="summary-cell">
-						<text class="summary-label">存瓶基线</text>
-						<text class="summary-value">{{ form.depositCount || 0 }} 瓶</text>
 					</view>
 				</view>
 			</AppSection>
@@ -390,24 +385,6 @@
 				</view>
 			</AppSection>
 
-			<AppSection title="存瓶预览">
-				<view class="deposit-head">
-					<view class="deposit-summary">
-						<text class="deposit-summary__text">客户当前存瓶基线 {{ form.depositCount || 0 }} 瓶</text>
-						<text class="deposit-summary__text">提交后预览 {{ form.depositRows.length }} 瓶</text>
-					</view>
-					<AppButton size="sm" kind="neutral" :loading="depositLoading" @click="onRefreshDeposit">手动刷新</AppButton>
-				</view>
-				<text class="deposit-note">进入预览时会更新客户存瓶；提交前会再次核对。</text>
-				<text v-if="form.depositRaw" class="deposit-raw">当前基线：{{ form.depositRaw }}</text>
-				<text v-if="depositDirty" class="warning-text">当前明细已变化，进入本页或手动刷新后会重算存瓶预览；提交时仍会再次校验。</text>
-				<view v-if="form.depositRows.length > 0" class="deposit-tags">
-					<AppTag v-for="row in form.depositRows" :key="row.bottle_no" kind="soft">{{ row.bottle_no }}</AppTag>
-				</view>
-				<view v-else class="hint-box">
-					<text class="hint-text">暂无存瓶预览。</text>
-				</view>
-			</AppSection>
 
 			<view class="wizard-actions">
 				<AppButton kind="neutral" @click="goStep(2)">上一步：修改明细</AppButton>
@@ -420,7 +397,7 @@
 </template>
 
 <script setup>
-import { driverReceiptSummary, driverSaleFeedback, driverSaleWarning } from '@/services/pda/driverSaleFeedback'
+import { driverReceiptSummary, driverSaleFeedback, driverReceiptWarnings, driverBottleCheck } from '@/services/pda/driverSaleFeedback'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppCard from '@/components/base/AppCard.vue'
@@ -465,7 +442,7 @@ const BOTTLE_SCAN_DEDUP_MS = 3000
 const steps = [
 	{ value: 1, title: '客户', desc: '先选客户和基础信息' },
 	{ value: 2, title: '明细', desc: '录出瓶、回瓶' },
-	{ value: 3, title: '预览', desc: '看存瓶并提交' }
+	{ value: 3, title: '预览', desc: '核对出回瓶并提交' }
 ]
 
 const scaleCapabilities = getPdaBleScaleCapabilities()
@@ -511,10 +488,7 @@ const {
 	selectedCustomer,
 	customerKeyword,
 	resolvingBottleKey,
-	depositLoading,
-	depositDirty,
 	submitting,
-	markDepositDirty,
 	applySelectedCustomer,
 	applyBottleSelection,
 	attachBottleScanLocation,
@@ -533,7 +507,6 @@ const {
 	resolveBottle,
 	applyScaleWeightToRow,
 	clearScaleWeightFromRow,
-	refreshDepositRows,
 	submit,
 	draftStatus,
 	draftStep: currentStep,
@@ -548,7 +521,6 @@ const {
 	invalidateAsyncWork
 } = usePdaSaleForm()
 
-const receiptWarnings = computed(() => (receipt.value?.warnings || []).map(w => driverSaleWarning(w, '')).filter(Boolean))
 const receiptTitle = computed(() => ({ saved: '销售单已保存', pending: '销售单已保存', unknown: '保存结果待确认', conflict: '销售单需核对', failed: '销售单未保存' }[receipt.value?.status] || '保存结果'))
 
 const {
@@ -573,7 +545,7 @@ const {
 		title: item?.name || '-',
 		subtitle: [
 			item?.is_settlement_child ? `结算 ${item?.effective_settlement_customer_name || '-'}` : '',
-			`${item?.contact || '-'} · ${item?.phone || '-'} · 存瓶 ${Number(item?.deposit_count || 0)}`
+			`${item?.contact || '-'} · ${item?.phone || '-'}`
 		].filter(Boolean).join(' · '),
 		raw: item
 	})
@@ -1598,7 +1570,6 @@ function isEntityUsable(entity, label) {
 
 function onDateChange(event) {
 	form.value.date = event?.detail?.value || form.value.date
-	markDepositDirty()
 }
 
 function onCustomerKeywordInput(value) {
@@ -1610,7 +1581,6 @@ function onCustomerKeywordInput(value) {
 
 function onHeaderInput() {
 	closeCamera()
-	markDepositDirty()
 }
 
 function onCustomerFocus() {
@@ -1683,7 +1653,6 @@ function onBottleInput(type, index) {
 	row.weightSampledAt = null
 	row.scanLocation = null
 	clearPendingScaleApply(type, index)
-	markDepositDirty()
 }
 
 function onSelectBottleSuggestion(type, index, bottle) {
@@ -1833,11 +1802,6 @@ async function enterPreviewStep() {
 		showToast(validation.msg)
 		return
 	}
-	const res = await refreshDepositRows()
-	if (res?.code !== 0) {
-		showToast(res?.msg || '存瓶预览刷新失败')
-		return
-	}
 	clearPendingScaleApply()
 	currentStep.value = 3
 }
@@ -1856,11 +1820,6 @@ async function goStep(step) {
 	if (step === 3) await enterPreviewStep()
 }
 
-async function onRefreshDeposit() {
-	const res = await refreshDepositRows()
-	showToast(res?.code === 0 ? '存瓶预览已刷新' : res?.msg || '刷新失败')
-}
-
 async function onSubmit() {
 	if (submitting.value || !canCreateSale.value) return
 	closeCamera()
@@ -1872,8 +1831,7 @@ async function onSubmit() {
 	}
 	const warningItems = res?.data?.warning_items || res?.data?.warnings || []
 	if (res?.code === 409 && res?.data?.confirmable === true && warningItems.length) {
-		const warnings = warningItems.map(formatWarning)
-		const confirmed = await confirmAction('流转提醒', warnings.join('\n'), '确认提交')
+		const confirmed = await confirmAction('核对本次瓶号', driverBottleCheck(warningItems), '瓶号一致，保存')
 		if (confirmed) res = await submit({ confirmedWarnings: true })
 	}
 	if (res?.code !== 0) showToast(res?.msg || '请查看保存结果')
@@ -1881,10 +1839,6 @@ async function onSubmit() {
 
 function confirmAction(title, content, confirmText = '确认') {
 	return new Promise((resolve) => uni.showModal({ title, content, confirmText, success: (res) => resolve(Boolean(res.confirm)), fail: () => resolve(false) }))
-}
-
-function formatWarning(warning) {
-	return driverSaleWarning(warning, '请核对钢瓶流转后再提交。')
 }
 
 async function onRestoreDraft() {
@@ -2114,9 +2068,7 @@ onMounted(() => {
 .meta-text,
 .selected-customer__price,
 .hint-text,
-.capture-hint,
-.deposit-note,
-.deposit-raw {
+.capture-hint {
 	font-size: 22rpx;
 	line-height: 1.6;
 	color: var(--crm-text-muted);
@@ -2399,32 +2351,6 @@ onMounted(() => {
 	font-size: 22rpx;
 	color: #dc2626;
 	line-height: 1.6;
-}
-
-.deposit-head {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 12rpx;
-	align-items: center;
-	justify-content: space-between;
-}
-
-.deposit-summary {
-	display: flex;
-	flex-direction: column;
-	gap: 4rpx;
-}
-
-.deposit-summary__text {
-	font-size: 22rpx;
-	color: var(--crm-text-muted);
-}
-
-.deposit-tags {
-	margin-top: 10rpx;
-	display: flex;
-	flex-wrap: wrap;
-	gap: 10rpx;
 }
 
 @media (max-width: 680px) {

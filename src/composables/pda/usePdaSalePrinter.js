@@ -90,5 +90,5 @@ export function usePdaSalePrinter(active) {
  if(ticket===printEpoch)status.value=`已发送两联（留底联、客户联），共 ${sent} 页，请查看出纸`
  }catch(e){if(ticket===printEpoch)status.value=(sent?`已发送 ${sent} 页；`:'')+(e.message||'发送结果不明，请查看出纸后补打')}finally{busy.value=false}}
  onBeforeUnmount(close)
- return{status,busy,connecting,connected,connect,resume,close,stop,print,arm:id=>{if(id)eligible.add(id)},confirmed:r=>r?.sourceSaved&&r.saleId?print(r.saleId,{automatic:true,operationId:r.operationId}):null}
+ return{status,busy,connecting,connected,connect,resume,close,stop,print,arm:id=>{if(id)eligible.add(id)},confirmed:r=>r?.sourceSaved&&r.sourceExists!==false&&r.saleId?print(r.saleId,{automatic:true,operationId:r.operationId}):null}
 }

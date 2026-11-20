@@ -86,8 +86,6 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 	const selectedCustomer = ref(null)
 	const customerKeyword = ref(normalizeText(initialValues.customerName))
 	const resolvingBottleKey = ref('')
-	const depositLoading = ref(false)
-	const depositDirty = ref(true)
 	const submitting = ref(false)
 	const draftStep = ref(1)
 	const pdaStep = ref(null)
@@ -208,7 +206,6 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		if (frozenSubmission.value && receipt.value?.operationId !== frozenSubmission.value.operationId) {
 			receipt.value = mobileSaleReceipt({ msg: '已恢复原提交操作，请查询结果或重试原内容' }, frozenSubmission.value.operationId)
 		}
-		depositDirty.value = true
 		draftStatus.value = { available: false, restored: true, state: 'saved', message: '已恢复草稿；提交前会重新核对档案' }
 		availableDraft = null
 		replacingDraft = false
@@ -228,7 +225,6 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		receipt.value = null
 		draftStep.value = 1
 		pdaStep.value = null
-		depositDirty.value = true
 		availableDraft = null
 		draftStatus.value.available = false
 		revalidationCandidate = null
@@ -258,13 +254,10 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 	}, { deep: true })
 	if (typeof window !== 'undefined') window.addEventListener('pagehide', persistDraft)
 	onBeforeUnmount(() => {
+		disposed = true
 		persistDraft()
 		if (typeof window !== 'undefined') window.removeEventListener('pagehide', persistDraft)
 	})
-
-	function markDepositDirty() {
-		depositDirty.value = true
-	}
 
 	function clearDepositPreview() {
 		form.value.depositRows = []
@@ -280,7 +273,6 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		customerKeyword.value = normalizeText(customer?.name)
 		const pricing = resolvePdaCustomerPricing(customer)
 		form.value.unitPrice = pricing.ok ? String(pricing.unitPrice) : ''
-		markDepositDirty()
 	}
 
 	async function hydrateSelectedCustomer(customerId = '') {
@@ -319,7 +311,6 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		form.value.customerName = ''
 		form.value.unitPrice = ''
 		clearDepositPreview()
-		markDepositDirty()
 	}
 
 	function clearSelectedCustomer(options = {}) {
@@ -331,13 +322,11 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		form.value.unitPrice = ''
 		customerKeyword.value = keepKeyword
 		clearDepositPreview()
-		markDepositDirty()
 	}
 
 	function addOutItem() {
 		if (!canEdit()) return
 		form.value.outItems.push(createPdaOutItem())
-		markDepositDirty()
 	}
 
 	function removeOutItem(index) {
@@ -347,26 +336,22 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		} else {
 			form.value.outItems.splice(index, 1)
 		}
-		markDepositDirty()
 	}
 
 	function addBackItem() {
 		if (!canEdit()) return
 		form.value.backItems.push(createPdaBackItem())
-		markDepositDirty()
 	}
 
 	function removeBackItem(index) {
 		if (!canEdit()) return
 		form.value.backItems.splice(index, 1)
-		markDepositDirty()
 	}
 
 	function normalizeOutBottle(index) {
 		const row = form.value.outItems[index]
 		if (!row) return
 		row.bottleNo = normalizeBottleNo(row.bottleNo)
-		markDepositDirty()
 	}
 
 	function normalizeBackBottle(index) {
@@ -376,14 +361,12 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 			...row,
 			bottleNo: normalizeBottleNo(row.bottleNo)
 		})
-		markDepositDirty()
 	}
 
 	function syncBackRow(index) {
 		const row = form.value.backItems[index]
 		if (!row) return
 		form.value.backItems[index] = syncPdaBackRow(row)
-		markDepositDirty()
 	}
 
 	async function resolveBottle(type, index) {
@@ -405,7 +388,6 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 			}
 			if (res?.code === 0 && res.data) {
 				list[index] = applyBottleToSaleRow(row, res.data, { fillTare: type === 'back' })
-				markDepositDirty()
 			}
 			return res
 		} finally {
@@ -419,7 +401,6 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		const row = list[index]
 		if (!row || !bottle) return row
 		list[index] = applyBottleToSaleRow(row, bottle, { fillTare: type === 'back' })
-		markDepositDirty()
 		return list[index]
 	}
 
@@ -429,7 +410,6 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		const row = list[index]
 		if (!row) return null
 		row.scanLocation = normalizePdaScanLocation(location)
-		markDepositDirty()
 		return row
 	}
 
@@ -439,7 +419,6 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		if (!name) return
 		if (slot === 'delivery2') form.value.delivery2 = name
 		else form.value.delivery1 = name
-		markDepositDirty()
 	}
 
 	function applyVehicleSelection(vehicle) {
@@ -447,7 +426,6 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		const plateNo = normalizeText(vehicle?.plate_no || vehicle?.plateNo || vehicle)
 		if (!plateNo) return
 		form.value.vehicleNo = plateNo
-		markDepositDirty()
 	}
 
 	function formatScaleValue(value) {
@@ -518,7 +496,6 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 				net: formatScaleValue(netWeight)
 			}
 		}
-		markDepositDirty()
 		persistDraft()
 		return {
 			code: 0,
@@ -547,36 +524,10 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 			scaleStableSeq: 0
 		}
 		list[index] = type === 'back' ? syncPdaBackRow(next) : next
-		markDepositDirty()
 		return { code: 0, msg: '', data: list[index] }
 	}
 
-	async function refreshDepositRows(options = {}) {
-		if (frozenSubmission.value || !ownerMatches()) return { code: 409, msg: '提交内容已冻结，请查询原操作' }
-		if (!normalizeText(form.value.customerId)) {
-			clearDepositPreview()
-			return { code: 400, msg: '请先选择客户' }
-		}
-		depositLoading.value = true
-		const previewKey = JSON.stringify([form.value.customerId, form.value.date, form.value.outItems, form.value.backItems])
-		const revision = asyncRevision
-		try {
-			const res = await previewPdaDepositRows(form.value)
-			if (revision !== asyncRevision || !ownerMatches() || frozenSubmission.value || previewKey !== JSON.stringify([form.value.customerId, form.value.date, form.value.outItems, form.value.backItems])) return { code: 409, msg: '明细已变化，请重新预览存瓶' }
-			if (res?.code === 0) {
-				form.value.depositRows = res.data?.depositRows || []
-				form.value.depositRaw = res.data?.raw || ''
-				form.value.depositCount = Number(res.data?.baseCount || 0)
-				depositDirty.value = false
-			}
-			return res
-		} finally {
-			depositLoading.value = false
-		}
-	}
-
 	function isOffline() { return typeof navigator !== 'undefined' && navigator.onLine === false }
-	function sortedDeposit(rows) { return (rows || []).map((r) => normalizeBottleNo(r.bottle_no || r.bottleNo)).filter(Boolean).sort().join('|') }
 
 	async function revalidateBeforeSubmit() {
 		const user = getUser() || {}
@@ -593,8 +544,9 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 			getPdaCustomerById(snapshot.customerId), previewPdaDepositRows(snapshot),
 			...rows.map((row) => findPdaBottleByNo(row.bottleNo, { fresh: true }))
 		])
-		if (!ownerMatches() || signature !== JSON.stringify(form.value)) return { code: 409, msg: '录单内容或账号已变化，请重新核对' }
-		for (const result of [customerRes, depositRes, ...bottleResults]) {
+		if (disposed || !ownerMatches() || signature !== JSON.stringify(form.value)) return { code: 409, msg: '录单内容或账号已变化，请重新核对' }
+		if (depositRes?.code !== 0) return { code: depositRes?.code || 503, msg: '暂时无法准备销售单，已保留本次称重，请稍后再保存。' }
+		for (const result of [customerRes, ...bottleResults]) {
 			if (result?.code !== 0) return result || { code: 503, msg: '档案复核失败，请联网后重试' }
 		}
 		if (!customerRes.data || customerRes.data.is_active === false) return { code: 400, msg: '客户已停用或不可用，请重新选择客户' }
@@ -612,13 +564,13 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 			if (Number(row.tare) !== Number(bottle.tare_weight)) changes.push(`钢瓶 ${row.bottleNo} 皮重由 ${row.tare} 变为 ${bottle.tare_weight} kg，需重新称重`)
 			bottles.push({ rowId: row.rowId, bottle })
 		}
-		if (sortedDeposit(snapshot.depositRows) !== sortedDeposit(depositRes.data.depositRows)) changes.push('客户存瓶已变化，请重新核对存瓶预览')
+		if (!Array.isArray(depositRes.data?.depositRows)) return { code: 503, msg: '暂时无法准备销售单，请稍后再保存。' }
 		if (changes.length) {
 			revalidationCandidate = { signature, customer: customerRes.data, deposit: depositRes.data, bottles }
-			return { code: 409, error_code: 'MOBILE_SALE_REVALIDATION_CHANGED', msg: '档案或存瓶有变化，请确认后重新预览', data: { changes } }
+			return { code: 409, error_code: 'MOBILE_SALE_REVALIDATION_CHANGED', msg: '现场开单资料有变化，请核对后保存', data: { changes } }
 		}
 		revalidationCandidate = null
-		return { code: 0, customer: customerRes.data }
+		return { code: 0, customer: customerRes.data, depositRows: depositRes.data.depositRows }
 	}
 
 	function applyRevalidationChanges() {
@@ -688,7 +640,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 				if (!validation.ok) return { code: 400, msg: validation.msg }
 				const checked = await revalidateBeforeSubmit()
 				if (checked.code !== 0) return checked
-				frozenSubmission.value = { operationId: draftId, payload: cloneMobileSale(buildMobileSalePayload(form.value, { ...options, customer: checked.customer })), attempted: false }
+				frozenSubmission.value = { operationId: draftId, payload: cloneMobileSale(buildMobileSalePayload({ ...form.value, depositRows: checked.depositRows }, { ...options, customer: checked.customer })), attempted: false }
 				receipt.value = mobileSaleReceipt({ msg: '正在保存本次提交，请勿另建相同单据' }, frozenSubmission.value.operationId)
 			}
 			const previouslyAttempted = Boolean(frozenSubmission.value.attempted)
@@ -710,8 +662,12 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 			if (!ownerMatches()) return { code: 401, msg: '账号已变化，原提交未发送' }
 			const { operationId, payload } = frozenSubmission.value
 			if (!previouslyAttempted) printing?.arm(operationId)
-			return acceptResponse(await createMobileSale(operationId, cloneMobileSale(payload)))
+			const current = () => !disposed && ownerMatches() && frozenSubmission.value?.operationId === operationId
+			const result = await createMobileSale(operationId, cloneMobileSale(payload), current)
+			if (!current()) return { code: 499, msg: '已退出本单，原记录保留。' }
+			return acceptResponse(result)
 		} catch (error) {
+			if (disposed || !ownerMatches()) return { code: 499, msg: '已退出本单，原记录保留。' }
 			if (!frozenSubmission.value?.attempted) return { code: 503, msg: error?.message || '提交前核对失败，尚未发送销售单' }
 			return acceptResponse({ code: 503, error_code: 'MOBILE_SALE_RESULT_UNKNOWN', msg: '提交结果尚未确认。原内容已保留，请查询或重试原操作' })
 		} finally { submitting.value = false }
@@ -735,10 +691,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		selectedCustomer,
 		customerKeyword,
 		resolvingBottleKey,
-		depositLoading,
-		depositDirty,
 		submitting,
-		markDepositDirty,
 		applySelectedCustomer,
 		applyBottleSelection,
 		attachBottleScanLocation,
@@ -757,7 +710,6 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		applyScaleWeightToRow,
 		clearScaleWeightFromRow,
 		resolveBottle,
-		refreshDepositRows,
 		submit
 	}
 }

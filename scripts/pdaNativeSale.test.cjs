@@ -8,7 +8,7 @@ function load(file, names, globals = {}) {
 	const source = fs.readFileSync(file, 'utf8').replace(/^import[\s\S]*?\bfrom\s+['"][^'"]+['"]\s*\n/gm, '').replace(/^export /gm, '')
 	return vm.runInNewContext(`${source}\n;({${names.join(',')}})`, { Date, Math, console, setTimeout, clearTimeout, ...globals })
 }
-const feedback = load('src/services/pda/driverSaleFeedback.js', ['driverSaleWarning', 'driverReceiptSummary', 'driverSaleFeedback'])
+const feedback = load('src/services/pda/driverSaleFeedback.js', ['driverBottleCheck', 'driverReceiptWarnings', 'driverSaleWarning', 'driverReceiptSummary', 'driverSaleFeedback'])
 const display = load('src/services/pda/weighStatus.js', ['sameWeighDisplay'])
 const shared = load('src/services/pda/shared.js', ['normalizeText', 'normalizeBottleNo', 'toNumber', 'todayDate', 'buildDepositPreviewRows'])
 const draft = load('src/services/pda/mobileSaleDraft.js', ['createMobileSaleDraftStore', 'createMobileSaleId', 'cloneMobileSale', 'mobileSaleReceipt', 'canReleaseMobileSubmission'])
@@ -379,4 +379,38 @@ test('driver receipt guidance distinguishes a saved sale from an unknown result 
 	assert.match(feedback.driverReceiptSummary({ status: 'pending', sourceSaved: true, message: raw }), /开下一单/)
 	assert.match(feedback.driverReceiptSummary({ status: 'unknown', sourceSaved: null, message: raw }), /先查询原单/)
 	assert.match(feedback.driverReceiptSummary({ status: 'failed', sourceSaved: false, message: raw }), /未保存/)
+})
+
+test('the native receipt renders the next action for saved, unknown and rejected orders', async () => {
+	const { parse } = require('@vue/compiler-sfc')
+	const { compile, baseParse } = require('@vue/compiler-dom')
+	const { renderToString } = require('vue/server-renderer')
+	const source = fs.readFileSync('src/components/domain/pda/PdaNativeSaleView.vue', 'utf8')
+	const template = parse(source).descriptor.template.content
+	const receiptNode = baseParse(template).children[0].children.find(node =>
+		node.props?.some(prop => prop.name === 'if' && prop.exp?.content === 'receipt'))
+	const { code } = compile(receiptNode.loc.source, { prefixIdentifiers: true, isCustomElement: tag => ['view', 'text'].includes(tag) })
+	const render = new Function('Vue', code)(vue)
+	const raw = '关联处理：crm-reg-bridge enqueueEventV1 timeout'
+	async function screen(sourceSaved, status) {
+		const receipt = { status, sourceSaved, saleId: sourceSaved ? 's1' : '', message: raw, warnings: [raw, '关联异常刷新任务待管理员核查'] }
+		const page = vue.createSSRApp({
+			render,
+			setup: () => ({
+				...feedback, receipt,
+				printer: { busy: { value: false } }, submissionLocked: sourceSaved !== false, submitting: false,
+				openNext() {}, query() {}, save() {}
+			})
+		})
+		page.component('AppButton', { setup: (_, { slots }) => () => vue.h('button', slots.default?.()) })
+		return renderToString(page)
+	}
+	const saved = await screen(true, 'pending')
+	assert.match(saved, /销售单已保存/); assert.match(saved, /开下一单/); assert.match(saved, /补打两联/)
+	assert.doesNotMatch(saved, /enqueueEvent|timeout|流转|刷新处理状态|待核对|管理员核查|重试这单|放弃草稿/)
+	const unknown = await screen(null, 'unknown')
+	assert.match(unknown, /查询保存结果/); assert.match(unknown, /重试这单/)
+	assert.doesNotMatch(unknown, /开下一单|补打两联|销售单已保存|enqueueEvent|timeout/)
+	const rejected = await screen(false, 'failed')
+	assert.match(rejected, /本单未保存/); assert.doesNotMatch(rejected, /开下一单|销售单已保存|enqueueEvent|timeout/)
 })
