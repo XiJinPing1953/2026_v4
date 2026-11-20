@@ -117,31 +117,28 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.84",
+      "version": "1.0.85",
       "output": "release/pda",
-      "acceptance": "i6310 单机核验销售回执、草稿、手输瓶号和打印机切换。",
+      "acceptance": "手机销售核对实物出回瓶，原单落库即可打印及开下一单。后台流转告警由办公室查看。",
       "deploymentScope": {
-        "baseCommit": "3ea282a5ccf04146c61a8929a2f6c73e251c4415",
+        "baseCommit": "6b3ebec9c46e7b474f75375e80133a71d8c43214",
         "sourceFiles": [
-          "src/components/domain/pda/PdaBottleInput.vue",
-          "src/components/domain/pda/PdaBottleSuggestField.vue",
           "src/components/domain/pda/PdaNativeSaleView.vue",
           "src/components/domain/pda/PdaSaleCreateView.vue",
-          "src/components/domain/pda/PdaSaleRecordsView.vue",
           "src/components/domain/sale/SaleDetailView.vue",
           "src/composables/pda/usePdaNativeSale.js",
           "src/composables/pda/usePdaSaleForm.js",
           "src/composables/pda/usePdaSalePrinter.js",
           "src/manifest.json",
           "src/services/pda/driverSaleFeedback.js",
-          "src/services/pda/printerSelection.js"
+          "src/services/pda/sale.js"
         ],
         "databaseFiles": [],
         "functions": []
       },
       "integrityScope": "deployment",
-      "artifactType": "apk",
-      "publishedSourceCommit": "fe20d78615c62f5219ecd70ef8be070d751babf0"
+      "artifactType": "wgt",
+      "publishedSourceCommit": "e29c34173db6a543246d12801912f871ffd41eaa"
     }
   }
 }

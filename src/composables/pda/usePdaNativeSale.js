@@ -1,6 +1,6 @@
 import { sameWeighDisplay } from '@/services/pda/weighStatus'
 import { parseFillingLabel, resolveFillingLabel } from '@/services/pda/fillingLabel'
-import { driverSaleWarning } from '@/services/pda/driverSaleFeedback'
+import { driverBottleCheck } from '@/services/pda/driverSaleFeedback'
 import { usePdaSalePrinter } from '@/composables/pda/usePdaSalePrinter'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { usePdaSaleForm } from '@/composables/pda/usePdaSaleForm'
@@ -228,15 +228,6 @@ export function usePdaNativeSale() {
 		if (next === 4) {
 			const validation = validatePdaBottleSaleForm(form.value, selectedCustomer.value)
 			if (!validation.ok) return fail(validation.msg)
-			freeze()
-			const ticket = context()
-			busy.value = true
-			try {
-				const result = await sale.refreshDepositRows()
-				if (!same(ticket)) return false
-				if (result?.code !== 0) return fail(result?.msg || '存瓶核对失败，请重试')
-			} catch (cause) { if (same(ticket)) fail(cause.message || '存瓶核对失败'); return false }
-			finally { busy.value = false }
 		}
 		selectStep(next)
 		return true
@@ -300,8 +291,7 @@ export function usePdaNativeSale() {
 		if (result?.code === 409 && result?.data?.confirmable === true && warnings.length) {
 			busy.value = true
 			try {
-				const text = warnings.map(item => driverSaleWarning(item, '请核对钢瓶流转后再提交。')).join('\n')
-				if (await confirm('流转提醒', text) && same(ticket)) result = await sale.submit({ confirmedWarnings: true })
+				if (await confirm('核对本次瓶号', driverBottleCheck(warnings)) && same(ticket)) result = await sale.submit({ confirmedWarnings: true })
 			} finally { busy.value = false }
 		}
 		if (result?.code !== 0) fail(result?.msg || '保存结果待确认，请查询结果')

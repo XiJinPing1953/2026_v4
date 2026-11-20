@@ -63,7 +63,7 @@ function harness(t, options = {}) {
 		...scale,
 		getPdaCustomerById: async () => { reads++; return { code: 0, data: options.customer || customerDoc } },
 		findPdaBottleByNo: options.findBottle || (async (_, opts) => { assert.equal(opts?.fresh, true); return { code: 0, data: options.bottle || bottleDoc } }),
-		previewPdaDepositRows: async () => ({ code: 0, data: { depositRows: [{ bottle_no: '101' }], raw: '', baseCount: 0 } }),
+		previewPdaDepositRows: options.deposit || (async () => ({ code: 0, data: { depositRows: [{ bottle_no: '101' }], raw: '', baseCount: 0 } })),
 		createMobileSale: async (id, payload) => {
 			requests.push({ id, payload: copy(payload) })
 			return options.send ? options.send(id, payload, requests.length) : { code: 0, data: { operation_id: id, sale_id: 's1', source_saved: true, processing_state: 'completed', warnings: [] } }
@@ -452,4 +452,70 @@ test('new fleet tickets refresh assignments without replacing the previous ticke
   assert.equal(await next,true)
   assert.equal(saved.form.form.value.delivery1,'丁')
   assert.equal(saved.form.form.value.delivery2,'戊')
+})
+
+test('save uses the current inventory projection even when the previous draft preview differs', async t => {
+	const h = harness(t, { deposit: async () => ({ code: 0, data: { depositRows: [{ bottle_no: '500' }, { bottle_no: '101' }] } }) })
+	h.fill()
+	const result = await h.form.submit()
+	assert.equal(result.code, 0)
+	assert.deepEqual(h.requests[0].payload.depositRows.map(row => row.bottle_no), ['500', '101'])
+})
+
+test('a missing inventory projection never substitutes an empty or stale snapshot', async t => {
+	const h = harness(t, { deposit: async () => ({ code: 503 }) })
+	h.fill()
+	const result = await h.form.submit()
+	assert.equal(result.code, 503); assert.match(result.msg, /保留本次称重/)
+	assert.equal(h.requests.length, 0); assert.equal(h.form.form.value.outItems[0].gross, '120.0')
+})
+
+function delayedCreateHarness() {
+	const timers = new Map(), calls = [], reads = []
+	let serial = 0, completeCreate
+	const create = new Promise(resolve => { completeCreate = resolve })
+	const api = load('src/services/pda/sale.js', ['createMobileSale'], {
+		setTimeout(fn) { const id = ++serial; timers.set(id, fn); return id },
+		clearTimeout(id) { timers.delete(id) },
+		callCloud(_name, options) {
+			calls.push(options)
+			if (options.action === 'createMobileV1') return create
+			return Promise.resolve(reads.shift())
+		}
+	})
+	async function tick() {
+		const [id, run] = [...timers][0]
+		timers.delete(id)
+		await run()
+	}
+	return { api, reads, calls, timers, tick, completeCreate }
+}
+
+test('committed sales release before downstream completion, despite an early miss or a receipt for a different operation', async () => {
+	const h = delayedCreateHarness()
+	const id = 'test-sale-01'
+	const proof = { code: 0, data: { source_saved: true, source_exists: true, sale_id: 's1', operation_id: id, processing_state: 'processing' } }
+	const result = h.api.createMobileSale(id, { outRows: [] })
+	h.reads.push({ code: 404 }, { ...proof, data: { ...proof.data, operation_id: 'another' } }, { ...proof, data: { ...proof.data, source_exists: false } }, proof)
+	for (let i = 0; i < 4; i++) await h.tick()
+	assert.equal(await result, proof)
+	assert.equal(h.calls.filter(c => c.action === 'createMobileV1').length, 1)
+	assert.ok(h.calls.every(c => c.data.operation_id === id))
+	assert.equal(h.calls[0].isResponseCurrent(), false)
+	h.completeCreate({ code: 503, msg: 'later downstream failure' })
+	assert.equal(h.timers.size, 0)
+})
+
+test('pre-write rejections, unknown results and account changes never produce an early saved receipt', async () => {
+	for (const reply of [{ code: 409, data: { source_saved: false } }, { code: 503, data: { source_saved: null } }]) {
+		const h = delayedCreateHarness()
+		let current = true
+		const result = h.api.createMobileSale('same-op', {}, () => current)
+		current = false
+		await h.tick()
+		assert.equal(h.calls.length, 1)
+		h.completeCreate(reply)
+		assert.equal(await result, reply)
+		assert.equal(h.timers.size, 0)
+	}
 })

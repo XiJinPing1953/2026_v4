@@ -334,10 +334,41 @@ export function buildMobileSalePayload(form, options = {}) {
 	return payload
 }
 
-export function createMobileSale(operationId, payload) {
-	return callCloud('crm-sale', { action: 'createMobileV1', data: { operation_id: operationId, payload }, timeout: 120000 })
+// Source and operation are committed together before the create handler finishes its downstream work.
+// A confirmed read may release the driver early. The original request alone completes those effects.
+export async function createMobileSale(operationId, payload, current = () => true) {
+	let finished = false
+	let timer
+	const active = () => !finished && current()
+	const create = callCloud('crm-sale', {
+		action: 'createMobileV1', data: { operation_id: operationId, payload }, timeout: 120000, isResponseCurrent: active
+	})
+	const committed = new Promise(resolve => {
+		async function check() {
+			if (!active()) return
+			try {
+				const result = await getMobileSaleCreateResult(operationId, active)
+				const data = result?.data
+				if (active() && result?.code === 0 && data?.source_saved === true && data.source_exists === true
+					&& data.operation_id === operationId && data.sale_id) {
+					resolve(result)
+					return
+				}
+			} catch {
+				// A failed read cannot overrule either the original create or the frozen retry receipt.
+			}
+			if (active()) timer = setTimeout(check, 5000)
+		}
+		timer = setTimeout(check, 3000)
+	})
+	try {
+		return await Promise.race([create, committed])
+	} finally {
+		finished = true
+		clearTimeout(timer)
+	}
 }
 
-export function getMobileSaleCreateResult(operationId) {
-	return callCloud('crm-sale', { action: 'getMobileCreateResultV1', data: { operation_id: operationId } })
+export function getMobileSaleCreateResult(operationId, isResponseCurrent) {
+	return callCloud('crm-sale', { action: 'getMobileCreateResultV1', data: { operation_id: operationId }, isResponseCurrent })
 }

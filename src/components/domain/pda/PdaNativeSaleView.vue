@@ -17,15 +17,14 @@
 		</view>
 		<text v-if="draftStatus.state === 'error'" class="error">{{ driverSaleFeedback(draftStatus.message, '无法读取草稿，请联系办公室。') }}</text>
 		<view v-if="receipt" class="notice" aria-live="polite">
-			<text class="strong">{{ receipt.sourceSaved ? '销售单已保存' : receipt.sourceSaved === false ? '本单需核对' : '保存结果待确认' }}</text>
-			<text>{{ driverReceiptSummary(receipt) }}</text>
-			<text v-for="(warning, index) in receiptWarnings" :key="index" class="error">{{ warning }}</text>
+			<text class="strong">{{ receipt.sourceSaved ? '销售单已保存' : submitting ? '正在确认保存结果' : receipt.sourceSaved === false ? '本单需核对' : '保存结果待确认' }}</text>
+			<text v-if="receipt.sourceSaved || !submitting">{{ driverReceiptSummary(receipt) }}</text>
+			<text v-for="(warning, index) in driverReceiptWarnings(receipt)" :key="index" class="error">{{ warning }}</text>
 			<view class="receipt-actions">
 				<AppButton v-if="receipt.sourceSaved === true" :disabled="submitting || printer.busy.value" @click="openNext">开下一单</AppButton>
-				<AppButton v-if="submissionLocked && receipt.sourceSaved !== true" :loading="submitting" @click="query">查询保存结果</AppButton>
-				<AppButton v-if="receipt.status === 'unknown'" kind="outline" :disabled="submitting" @click="save(true)">重试这单</AppButton>
-				<AppButton v-if="receipt.sourceSaved === true && receipt.saleId" kind="outline" :disabled="printer.busy.value" @click="printer.print(receipt.saleId)">补打两联</AppButton>
-				<AppButton v-if="submissionLocked && receipt.sourceSaved && receipt.status !== 'saved'" kind="ghost" :disabled="submitting" @click="query">刷新处理状态</AppButton>
+				<AppButton v-if="!submitting && submissionLocked && receipt.sourceSaved !== true" :loading="submitting" @click="query">查询保存结果</AppButton>
+				<AppButton v-if="!submitting && receipt.status === 'unknown'" kind="outline" :disabled="submitting" @click="save(true)">重试这单</AppButton>
+				<AppButton v-if="receipt.sourceSaved === true && receipt.sourceExists !== false && receipt.saleId" kind="outline" :disabled="printer.busy.value" @click="printer.print(receipt.saleId)">补打两联</AppButton>
 			</view>
 		</view>
 		<view v-if="changes.length" class="notice">
@@ -88,12 +87,10 @@
 					<text v-if="!group.rows.length">本次没有{{ group.title }}</text>
 					<view v-for="row in group.rows" :key="row.rowId" class="preview-row"><text class="strong">{{ row.bottleNo }} 号</text><view class="weights"><text>毛重 {{ row.gross }}</text><text>皮重 {{ row.tare }}</text><text>净重 {{ row.net }} kg</text></view></view>
 				</view>
-				<AppButton kind="outline" @click="previewDetailsOpen = !previewDetailsOpen">其他信息和存瓶 {{ previewDetailsOpen ? '收起' : '展开' }}</AppButton>
+				<AppButton kind="outline" @click="previewDetailsOpen = !previewDetailsOpen">配送信息 {{ previewDetailsOpen ? '收起' : '展开' }}</AppButton>
 				<view v-if="previewDetailsOpen" class="details">
 					<text>日期：{{ form.date }}</text><text>配送员：{{ form.delivery1 || '未填写' }} {{ form.delivery2 }}</text><text>车辆：{{ form.vehicleNo || '未填写' }}</text>
 					<text v-if="form.remark">备注：{{ form.remark }}</text>
-					<text>原存瓶 {{ form.depositCount }} 瓶 · 本单后预计 {{ form.depositRows.length }} 瓶</text>
-					<text>瓶号：{{ form.depositRows.map(row => row.bottle_no).join('、') || '无' }}</text>
 				</view>
 			</template>
 			<view :class="['sale-footer', (keyboardOpen || manualOpen) && 'sale-footer--keyboard']">
@@ -107,7 +104,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { driverSaleFeedback, driverSaleWarning, driverReceiptSummary } from '@/services/pda/driverSaleFeedback'
+import { driverSaleFeedback, driverReceiptWarnings, driverReceiptSummary } from '@/services/pda/driverSaleFeedback'
 import PdaWeighScale from './PdaWeighScale.vue'
 import AppPage from '@/components/base/AppPage.vue'
 import AppSection from '@/components/base/AppSection.vue'
@@ -129,7 +126,6 @@ const otherOpen = ref(false)
 const previewDetailsOpen = ref(false)
 const bottleInput = ref('')
 const keyboardOpen = ref(false)
-const receiptWarnings = computed(() => (receipt.value?.warnings || []).map(warning => driverSaleWarning(warning, '')).filter(Boolean))
 const pendingManual = computed(() => manualOpen.value && Boolean(bottleInput.value.trim()))
 function toggleManual() {
 	manualOpen.value = !manualOpen.value
