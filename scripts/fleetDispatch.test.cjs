@@ -11,7 +11,7 @@ function fixture(hooks={}) {
   const run=service(db,acl,({username,nickname,passwordHash,roleTemplate})=>({username,nickname,password_hash:passwordHash,role:roleTemplate,role_template:roleTemplate}),async()=>'fake-testing-hash')
   const board=async()=>{const r=await run(admin,'fleetBoardV1');assert.equal(r.code,0);return r.data}
   const packet=(b,id)=>({batchId:'test-batch-'+id,revision:b.revision,versions:Object.fromEntries(b.rows.map(r=>[r.plate,r.version])),assignments:Object.fromEntries(b.rows.map(r=>[r.plate,r.suggested])),password:'test-only'})
-  return {admin,editor,tables,run,board,packet}
+  return {admin,editor,tables,db,run,board,packet}
 }
 test('known vehicles match their existing dedicated account; create missing accounts without changing the crew',async()=>{
   const h=fixture(),b=await h.board(),p=h.packet(b,'100')
@@ -61,4 +61,43 @@ test('conflicting account, duplicate name and inactive archive are visible; inte
   h.tables.crm_delivery_men.push({_id:'duplicate',name:NAMES[1],is_active:true});h.tables.crm_vehicles[2].is_active=false
   const conflict=await h.board();assert.ok(conflict.warnings.length);assert.equal(conflict.rows[0].status,'conflict');assert.equal(conflict.rows[2].status,'conflict')
   assert.equal((await h.run(h.admin,'fleetProvisionV1',h.packet(conflict,'131'))).code,422)
+})
+
+test('overlapping dispatch transactions report the winning rows and keep a single crew batch', async () => {
+  const h = fixture()
+  await h.run(h.admin, 'fleetProvisionV1', h.packet(await h.board(), '140'))
+  const initial = await h.board()
+  const first = h.packet(initial, '141')
+  const second = h.packet(initial, '142')
+  const plate = FLEET[0][0]
+  first.assignments[plate] = ['p5', 'p8']
+  second.assignments[plate] = ['p7', 'p6']
+
+  // Hold both snapshots at commit, modelling the provider's conflict on the shared version document.
+  const startTransaction = h.db.startTransaction
+  let arrivals = 0, release
+  const bothReady = new Promise(resolve => { release = resolve })
+  const revision = () => h.tables.crm_operation_logs.find(row => row.action === 'vehicle_dispatch_version').detail.revision
+  h.db.startTransaction = async () => {
+    const snapshot = revision()
+    const tx = await startTransaction()
+    return { ...tx, commit: async () => {
+      if (++arrivals === 2) release()
+      await bothReady
+      if (revision() !== snapshot) throw Error('transaction write conflict')
+      return tx.commit()
+    } }
+  }
+  const results = await Promise.all([
+    h.run(h.admin, 'fleetSaveV1', first),
+    h.run(h.editor, 'fleetSaveV1', second)
+  ])
+  assert.deepEqual(results.map(result => result.code).sort(), [0, 409])
+  const conflict = results.find(result => result.code === 409)
+  assert.ok(conflict.data.changed.includes(plate))
+  const final = await h.board()
+  const winner = results[0].code === 0 ? first : second
+  assert.equal(final.revision, initial.revision + 1)
+  assert.equal(final.history.filter(entry => entry.mode === 'crew').length, 1)
+  for (const row of final.rows) assert.deepEqual(row.assigned, winner.assignments[row.plate])
 })
