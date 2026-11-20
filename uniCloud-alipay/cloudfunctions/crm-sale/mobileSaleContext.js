@@ -111,6 +111,6 @@ function createMobileSaleContext({ db, resolveCustomerRefs, resolvePricing, hasP
       return { code: err.code === 403 ? 403 : 409, msg: err.message || '车辆资料正在更新，请稍后重试' }
     }
   }
-  return { watch, vehicleTicket }
+  return { watch, vehicleTicket, resolveDue }
 }
 module.exports = { createMobileSaleContext }

@@ -383,6 +383,21 @@ test('changing billing parent never moves the delivery site’s physical bottle 
   assert.ok(!inventory.data.bottles.includes('OTHER'))
 })
 
+test('legacy create after a reservation expires respects the due binding and clears the old draft claim', async () => {
+  for (const pending of [false,true]) {
+    const h=harness(), user=h.tables.crm_users[0], input=h.input()
+    user.mobile_sale_vehicle_ticket={id:'expired-ticket',vehicle_id:'vehicle-test',saved:false,expires_at:Date.now()-1}
+    if (pending) {
+      user.mobile_sale_pending_vehicle={vehicle_id:'new-v',vehicle_no:'NEW',apply_by:Date.now()-1}
+      const old=await h.invoke('createMobileV1',input)
+      assert.equal(old.data.source_saved,false)
+      input.payload.base.carNo='NEW';input.payload.base.vehicleId='new-v'
+    }
+    assert.equal((await h.invoke('createMobileV1',input)).data.source_saved,true)
+    assert.equal(h.tables.crm_users[0].mobile_sale_vehicle_ticket,null)
+  }
+})
+
 test('actual mobile handler saves sale and receipt, reuses accounting and preserves capture evidence',async()=>{
   const h=harness(),input=h.input(),res=await h.invoke('createMobileV1',input)
   assert.equal(res.code,0,res.msg);assert.equal(res.data.processing_state,'completed',JSON.stringify(res))

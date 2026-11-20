@@ -34,7 +34,8 @@ function createGuard({ db, resolveCustomerRefs, resolvePricing, isAdmin }) {
     const active = currentUser.mobile_sale_vehicle_ticket
     const scheduled = currentUser.mobile_sale_pending_vehicle
     if (scope && scheduled?.apply_by > 0 && scheduled.apply_by <= Date.now()) changed('换车已生效，本单称重已保留')
-    const reserved = active && (!active.saved || currentUser.mobile_sale_pending_vehicle)
+    const expired = active?.expires_at > 0 && active.expires_at <= Date.now()
+    const reserved = active && ((!active.saved && !expired) || scheduled)
     if (scope && (reserved || payload.base.vehicleTicket) && (active?.saved || !active || active.id !== payload.base.vehicleTicket || active.vehicle_id !== currentUser.mobile_sale_defaults?.vehicle_id)) {
       changed('本车销售草稿与当前绑定不一致，请联系办公室')
     }
@@ -63,6 +64,9 @@ function createGuard({ db, resolveCustomerRefs, resolvePricing, isAdmin }) {
           if (row.mobile_sale_pending_vehicle) patch.mobile_sale_pending_vehicle = {
             ...row.mobile_sale_pending_vehicle, apply_by: Math.min(row.mobile_sale_pending_vehicle.apply_by || Infinity, savedAt + 90000)
           }
+        }
+        if (table === 'crm_users' && !payload.base.vehicleTicket && row.mobile_sale_vehicle_ticket?.expires_at <= Date.now()) {
+          patch.mobile_sale_vehicle_ticket = null
         }
         const result = await tx.collection(table).doc(row._id).update(patch)
         if (Number(result.updated) !== 1) changed('档案在保存期间发生变化，请重新核对')
