@@ -4,6 +4,7 @@ const ACTIONS = ['view', 'create', 'update', 'delete']
 
 const GROUP_DEFAULTS = {
 	superadmin: {
+		fleetDispatch: { view: true, update: true },
 		dashboard: { view: true, create: false, update: false, delete: false },
 		sales: { view: true, create: true, update: true, delete: true },
 		salesSensitive: { view: true, create: false, update: true, delete: false },
@@ -151,6 +152,7 @@ const PAGE_REGISTRY = [
 	{ pagePath: '/pages/bottle/movement', label: '流转记录', group: 'bottles', supports: { view: true } },
 	{ pagePath: '/pages/bottle/timeline', label: '单瓶时间线', group: 'bottles', supports: { view: true } },
 	{ pagePath: '/pages/bottle/loss', label: '损耗统计', group: 'bottles', supports: { view: true } },
+	{ pagePath: '/pages/vehicle/dispatch', label: '车辆调度', group: 'fleetDispatch', supports: { view: true, update: true } },
 	{ pagePath: '/pages/vehicle/list', label: '车辆列表', group: 'vehicles', supports: { view: true, create: true, update: true, delete: true } },
 	{ pagePath: '/pages/vehicle/edit', label: '车辆录入', group: 'vehicles', supports: { view: true, create: true, update: true } },
 	{ pagePath: '/pages/rfid/sessions', label: 'RFID 门口盘点', group: 'rfid', supports: { view: true } },

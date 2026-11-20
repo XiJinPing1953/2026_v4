@@ -47,6 +47,10 @@
 							<AppIcon name="calendar" size="24rpx" />
 							<text>检验登记</text>
 						</view>
+						<view v-if="canView('/pages/vehicle/dispatch')" class="nav-item" @click="go('/pages/vehicle/dispatch')">
+							<AppIcon name="truck" size="24rpx" />
+							<text>车辆调度</text>
+						</view>
 						<view v-if="canView('/pages/vehicle/list')" class="nav-item" @click="go('/pages/vehicle/list')">
 							<AppIcon name="truck" size="24rpx" />
 							<text>车辆档案</text>
@@ -231,6 +235,10 @@
 							<view v-if="canView('/pages/bottle/inspection')" class="nav-grid-item" @click="go('/pages/bottle/inspection')">
 								<view class="nav-icon bg-asset"><AppIcon name="calendar" color="#fff" size="30rpx" /></view>
 								<text class="nav-text">检验登记</text>
+							</view>
+							<view v-if="canView('/pages/vehicle/dispatch')" class="nav-grid-item" @click="go('/pages/vehicle/dispatch')">
+								<view class="nav-icon bg-asset"><AppIcon name="truck" color="#fff" size="30rpx" /></view>
+								<text class="nav-text">车辆调度</text>
 							</view>
 							<view v-if="canView('/pages/vehicle/list')" class="nav-grid-item" @click="go('/pages/vehicle/list')">
 								<view class="nav-icon bg-asset"><AppIcon name="truck" color="#fff" size="30rpx" /></view>

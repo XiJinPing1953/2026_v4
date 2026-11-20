@@ -4,6 +4,7 @@ const ACTIONS = ['view', 'create', 'update', 'delete']
 
 const GROUP_DEFAULTS = {
 	superadmin: {
+		fleetDispatch: { view: true, update: true },
 		dashboard: { view: true, create: false, update: false, delete: false },
 		sales: { view: true, create: true, update: true, delete: true },
 		salesSensitive: { view: true, create: false, update: true, delete: false },
@@ -151,6 +152,7 @@ const PAGE_REGISTRY = [
 	{ pagePath: '/pages/bottle/movement', label: '流转记录', group: 'bottles', supports: { view: true } },
 	{ pagePath: '/pages/bottle/timeline', label: '单瓶时间线', group: 'bottles', supports: { view: true } },
 	{ pagePath: '/pages/bottle/loss', label: '损耗统计', group: 'bottles', supports: { view: true } },
+	{ pagePath: '/pages/vehicle/dispatch', label: '车辆调度', group: 'fleetDispatch', supports: { view: true, update: true } },
 	{ pagePath: '/pages/vehicle/list', label: '车辆列表', group: 'vehicles', supports: { view: true, create: true, update: true, delete: true } },
 	{ pagePath: '/pages/vehicle/edit', label: '车辆录入', group: 'vehicles', supports: { view: true, create: true, update: true } },
 	{ pagePath: '/pages/rfid/sessions', label: 'RFID 门口盘点', group: 'rfid', supports: { view: true } },
@@ -198,8 +200,10 @@ const PAGE_REGISTRY = [
 	{ pagePath: '/pages/pda/bottle-query', label: 'PDA 钢瓶查询', group: 'pda', supports: { view: true } },
 	{ pagePath: '/pages/pda/movement-query', label: 'PDA 流转查询', group: 'pda', supports: { view: true } },
 	{ pagePath: '/pages/pda/customer-query', label: 'PDA 客户查询', group: 'pda', supports: { view: true } },
-	// 仅保留 C606 快照服务的历史权限键；对应 PDA 页面和任务流程已退役。
-	{ pagePath: '/pages/pda/filling-create', label: 'C606 秤快照（兼容权限）', group: 'pda', supports: { view: true, create: true } },
+	{ pagePath: '/pages/pda/filling-board', label: 'PDA 灌装看板', group: 'pda', supports: { view: true, create: true, update: true } },
+	{ pagePath: '/pages/pda/filling-station', label: 'PDA 灌装工位', group: 'pda', supports: { view: true, create: true, update: true } },
+	{ pagePath: '/pages/pda/filling-create', label: 'PDA 扫瓶创建任务', group: 'pda', supports: { view: true, create: true } },
+	{ pagePath: '/pages/pda/filling-complete', label: 'PDA 灌装完成确认', group: 'pda', supports: { view: true, update: true } },
 	{ pagePath: '/pages/pda/reweigh', label: 'PDA 复秤', group: 'pda', supports: { view: true, create: true, update: true } },
 	{ pagePath: '/pages/pda/return-reweigh', label: 'PDA 回瓶复秤', group: 'pda', supports: { view: true, create: true } },
 	{ pagePath: '/pages/pda/sale-create', label: 'PDA 销售录入', group: 'pda', supports: { view: true, create: true } }

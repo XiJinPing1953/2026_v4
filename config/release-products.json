@@ -6,61 +6,65 @@
   },
   "products": {
     "web": {
-      "version": "2026.11.17-pda-sale-guards.1",
+      "version": "2026.11.20-fleet-dispatch.1",
       "output": "dist/build/web",
-      "acceptance": "Preserve reconstructed November 11 live web baseline (220 assets matched after import-hash and IDE diagnostic normalization); only mobile sale payload and preflight changed. Cloud deployed from separate verified 515bd8a candidate.",
+      "acceptance": "车辆调度和新单人员刷新；旧单和草稿保留。",
       "deploymentScope": {
-        "functions": [
-          "crm-sale"
-        ],
-        "databaseFiles": [],
-        "baseCommit": "c3e63e76857d2950f88bd473212d691f12e34e68",
+        "baseCommit": "b3bf6800d93a261a22a79c7532aac876d991f4e6",
         "sourceFiles": [
-          "src/services/pda/sale.js",
-          "src/composables/pda/usePdaSaleForm.js"
+          "src/components/domain/dashboard/DashboardHome.vue",
+          "src/components/domain/dispatch/FleetDispatchView.vue",
+          "src/components/domain/pda/PdaSaleCreateView.vue",
+          "src/composables/pda/usePdaSaleForm.js",
+          "src/pages.json",
+          "src/pages/vehicle/dispatch.vue",
+          "src/services/api/fleetDispatch.js",
+          "src/services/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/fleetDispatch.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js"
         ],
-        "aclCanonicalRevisions": {
-          "crm-sale": {
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            },
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            }
-          }
-        }
+        "functions": [
+          "crm-auth",
+          "crm-user"
+        ],
+        "databaseFiles": []
       },
       "integrityScope": "deployment"
     },
     "cloud": {
-      "version": "2026.11.02-web-sale-save.1",
+      "version": "2026.11.20-fleet-dispatch.1",
       "output": "release/cloud",
-      "acceptance": "Dependency validation scope for this H5-only source checkout. Production cloud deployment is built from the separate PDA sale release checkout.",
+      "acceptance": "车辆调度和新单人员刷新；旧单和草稿保留。",
       "integrityScope": "deployment",
       "deploymentScope": {
-        "functions": [
-          "crm-sale"
-        ],
-        "databaseFiles": [],
-        "baseCommit": "c3e63e76857d2950f88bd473212d691f12e34e68",
+        "baseCommit": "b3bf6800d93a261a22a79c7532aac876d991f4e6",
         "sourceFiles": [
-          "src/services/pda/sale.js",
-          "src/composables/pda/usePdaSaleForm.js"
+          "src/components/domain/dashboard/DashboardHome.vue",
+          "src/components/domain/dispatch/FleetDispatchView.vue",
+          "src/components/domain/pda/PdaSaleCreateView.vue",
+          "src/composables/pda/usePdaSaleForm.js",
+          "src/pages.json",
+          "src/pages/vehicle/dispatch.vue",
+          "src/services/api/fleetDispatch.js",
+          "src/services/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/fleetDispatch.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/index.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
+          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js"
         ],
-        "aclCanonicalRevisions": {
-          "crm-sale": {
-            "helper": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
-            },
-            "registry": {
-              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
-              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
-            }
-          }
-        }
+        "functions": [
+          "crm-auth",
+          "crm-user"
+        ],
+        "databaseFiles": []
       }
     },
     "tank-gateway": {
