@@ -37,7 +37,8 @@
           "crm-user"
         ]
       },
-      "integrityScope": "deployment"
+      "integrityScope": "deployment",
+      "publishedSourceCommit": "caef890a1e5ab846ed3241eab546ce7e09091749"
     },
     "cloud": {
       "version": "2026.11.20-fleet-dispatch.1",
@@ -71,7 +72,8 @@
           "crm-auth",
           "crm-user"
         ]
-      }
+      },
+      "publishedSourceCommit": "918d7be559e45eec0eefbb17acf4207b6fcd367f"
     },
     "tank-gateway": {
       "version": "1.0.3",
@@ -153,7 +155,8 @@
         ]
       },
       "integrityScope": "deployment",
-      "artifactType": "wgt"
+      "artifactType": "wgt",
+      "publishedSourceCommit": "fe20d78615c62f5219ecd70ef8be070d751babf0"
     }
   }
 }
