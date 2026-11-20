@@ -2739,7 +2739,7 @@ async function enqueueRegBridge(action, data, token, requestId, user, logAction 
 		const timeoutMs = resolveRegBridgeTimeoutMs()
 		const res = awaitResult ? await callPromise : await withTimeout(callPromise, timeoutMs, `crm-reg-bridge ${normalizedAction} timeout`)
 		const result = res && res.result ? res.result : {}
-		if (Number(result.code) === 0) return ''
+		if (result.code === 0 || result.code === '0') return ''
 		const warning = normalizeString(result.msg) || '监管同步入队失败'
 		await recordLog(
 			user,
@@ -3223,7 +3223,9 @@ async function createV2(user, payload, requestId, token, options = {}) {
 		token,
 		requestId,
 		user,
-		'sale_reg_enqueue_create_failed'
+		'sale_reg_enqueue_create_failed',
+		// The mobile source is already saved and queryable while this single enqueue is running.
+		options.mobile === true
 	)
 	if (regWarning) sideWarnings.push(regWarning)
 	await recordLog(

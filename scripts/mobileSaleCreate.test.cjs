@@ -103,6 +103,46 @@ function harness(hooks = {}) {
 }
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return{promise,resolve}}
 
+test('mobile sale keeps the original operation while waiting for a slow regulatory receipt', async () => {
+  const entered = deferred(), reply = deferred()
+  const h = harness({cloud: async request => {
+    if (request.name === 'crm-reg-bridge') {
+      entered.resolve()
+      await reply.promise
+    }
+    return {result:{code:0,data:{job_id:'test-job',done:true,status:'completed',applied_amount:0}}}
+  }})
+  const input = h.input()
+  const submission = h.invoke('createMobileV1', input)
+  await entered.promise
+  try {
+    await new Promise(resolve => setTimeout(resolve, 1350))
+    const pending = await h.invoke('getMobileCreateResultV1', {operation_id:input.operation_id})
+    assert.equal(pending.data.source_saved, true)
+    assert.equal(pending.data.processing_state, 'processing')
+  } finally { reply.resolve() }
+  const saved = await submission
+  assert.equal(saved.data.processing_state, 'completed')
+  assert.deepEqual(Array.from(saved.data.warnings), [])
+  const retry = await h.invoke('createMobileV1', input)
+  assert.equal(retry.data.sale_id, saved.data.sale_id)
+  assert.equal(h.tables.crm_sale_records.length, 1)
+  assert.equal(h.calls.filter(request => request.name === 'crm-reg-bridge').length, 1)
+})
+
+test('a regulatory rejection keeps the saved mobile sale in review and does not repeat the enqueue', async () => {
+  const h = harness({cloud: async request => request.name === 'crm-reg-bridge'
+    ? {result:{code:503,msg:'监管队列暂不可用'}}
+    : {result:{code:0,data:{job_id:'test-job',done:true,status:'completed',applied_amount:0}}}})
+  const input = h.input()
+  const receipt = await h.invoke('createMobileV1', input)
+  assert.equal(receipt.data.source_saved, true)
+  assert.equal(receipt.data.processing_state, 'pending_review')
+  assert.ok(receipt.data.warnings.includes('监管队列暂不可用'))
+  assert.equal((await h.invoke('createMobileV1', input)).data.sale_id, receipt.data.sale_id)
+  assert.equal(h.calls.filter(request => request.name === 'crm-reg-bridge').length, 1)
+})
+
 function loadDownstream(name, db) {
   const filename=path.join(ROOT,`uniCloud-alipay/cloudfunctions/${name}/index.js`)
   const context={exports:{},require:createRequire(filename),uniCloud:{database:()=>db},

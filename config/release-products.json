@@ -41,39 +41,32 @@
       "publishedSourceCommit": "caef890a1e5ab846ed3241eab546ce7e09091749"
     },
     "cloud": {
-      "version": "2026.11.20-fleet-dispatch.1",
+      "version": "2026.11.20-mobile-sale-reg-receipt.1",
       "output": "release/cloud",
-      "acceptance": "五车调度整批保存、账号预检、权限隔离和新单同步；正式账号验收不造业务单。",
+      "acceptance": "手机新建销售等候原监管入队回执，延迟成功、真实失败、原号重试分别验收。",
       "integrityScope": "deployment",
       "deploymentScope": {
-        "baseCommit": "de1c97e830812d7ffec02032e82c28c46449bc5a",
+        "baseCommit": "1f7b2b3eca34c8ddaf75b9c86f07abb96493d3aa",
         "sourceFiles": [
-          "src/components/domain/dashboard/DashboardHome.vue",
-          "src/components/domain/dispatch/FleetDispatchView.vue",
-          "src/components/domain/pda/PdaNativeSaleView.vue",
-          "src/components/domain/pda/PdaSaleCreateView.vue",
-          "src/composables/pda/usePdaNativeSale.js",
-          "src/composables/pda/usePdaSaleForm.js",
-          "src/manifest.json",
-          "src/pages.json",
-          "src/pages/vehicle/dispatch.vue",
-          "src/services/api/fleetDispatch.js",
-          "src/services/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/fleetDispatch.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js"
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js"
+        ],
+        "functions": [
+          "crm-sale"
         ],
         "databaseFiles": [],
-        "functions": [
-          "crm-auth",
-          "crm-user"
-        ]
-      },
-      "publishedSourceCommit": "918d7be559e45eec0eefbb17acf4207b6fcd367f"
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          }
+        }
+      }
     },
     "tank-gateway": {
       "version": "1.0.3",
