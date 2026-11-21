@@ -6,7 +6,7 @@
   },
   "products": {
     "web": {
-      "version": "2026.11.20-fleet-dispatch.1",
+      "version": "2026.11.21-sale-location.1",
       "output": "dist/build/web",
       "acceptance": "五车调度整批保存、账号预检、权限隔离和新单同步；正式账号验收不造业务单。",
       "deploymentScope": {
