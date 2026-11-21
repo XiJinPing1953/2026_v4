@@ -132,3 +132,70 @@ test('empty recovery queue does not scan or change historical source or accounti
   assert.equal(JSON.stringify(h.tables), snapshot); assert.equal(h.writes.length, 0)
   assert.deepEqual([...new Set(reads)], ['crm_web_sale_operations'])
 })
+
+test('updateV2 preserves authoritative row scan_location for legacy clients, respects managed omissions and clears on car change', async () => {
+  const origLoc = { status: 'ok', coordinate_type: 'wgs84', latitude: 31.230416, longitude: 121.473701, accuracy: 12, captured_at: 1792000000000, source: 'pda_bottle_scan' }
+  const h = make()
+  const baseInput = h.input('mobile-loc-0001')
+  baseInput.payload.outRows[0].scan_location = origLoc
+  const created = await h.invoke('createMobileV1', baseInput)
+  assert.equal(created.code, 0, JSON.stringify(created))
+  const saleId = created.data.sale_id
+  assert.deepEqual(h.tables.crm_sale_records[0].out_items[0].scan_location, origLoc)
+
+  const editPayload = () => {
+    const p = structuredClone(baseInput.payload)
+    delete p.outRows[0].scan_location
+    p.base.remark = '办公室补备注'
+    return p
+  }
+
+  // 1. Legacy client (no scan_location_managed) omits scan_location: updateV2 preserves original location on sale and movement
+  const legacyRes = await submit(h, {
+    operation_id: 'web-upd-legacy-0001',
+    save_action: 'updateV2',
+    payload: { recordId: saleId, ignore_bottle_flow_warning: true, payload: editPayload() }
+  })
+  assert.equal(legacyRes.code, 0, JSON.stringify(legacyRes))
+  assert.deepEqual(h.tables.crm_sale_records[0].out_items[0].scan_location, origLoc)
+  assert.deepEqual(h.tables.crm_bottle_movements[0].scan_location, origLoc)
+
+  // 2. Managed client signals intent to keep row location: server uses authoritative original coordinates, not client-tampered values
+  const managedKeepPayload = editPayload()
+  managedKeepPayload.outRows[0].scan_location = { ...origLoc, latitude: 1.111111, longitude: 2.222222 }
+  const managedKeepRes = await submit(h, {
+    operation_id: 'web-upd-keep-0002',
+    save_action: 'updateV2',
+    payload: { recordId: saleId, ignore_bottle_flow_warning: true, scan_location_managed: true, payload: managedKeepPayload }
+  })
+  assert.equal(managedKeepRes.code, 0, JSON.stringify(managedKeepRes))
+  assert.deepEqual(h.tables.crm_sale_records[0].out_items[0].scan_location, origLoc)
+  assert.deepEqual(h.tables.crm_bottle_movements[0].scan_location, origLoc)
+
+  // 3. Managed client omits scan_location (delete+re-add same bottleNo): updateV2 must NOT resurrect old GPS
+  const managedDropRes = await submit(h, {
+    operation_id: 'web-upd-drop-0003',
+    save_action: 'updateV2',
+    payload: { recordId: saleId, ignore_bottle_flow_warning: true, scan_location_managed: true, payload: editPayload() }
+  })
+  assert.equal(managedDropRes.code, 0, JSON.stringify(managedDropRes))
+  assert.equal(h.tables.crm_sale_records[0].out_items[0].scan_location, undefined)
+  assert.equal(h.tables.crm_bottle_movements[0].scan_location, undefined)
+
+  // 4. Changing carNo drops location even if client carries stale scan_location
+  const h2 = make()
+  const baseInput2 = h2.input('mobile-loc-0002')
+  baseInput2.payload.outRows[0].scan_location = origLoc
+  const created2 = await h2.invoke('createMobileV1', baseInput2)
+  assert.equal(created2.code, 0)
+  const carChangedPayload = structuredClone(baseInput2.payload)
+  carChangedPayload.base.carNo = '苏B99999'
+  const carRes = await submit(h2, {
+    operation_id: 'web-upd-car-0004',
+    save_action: 'updateV2',
+    payload: { recordId: created2.data.sale_id, ignore_bottle_flow_warning: true, scan_location_managed: true, payload: carChangedPayload }
+  })
+  assert.equal(carRes.code, 0, JSON.stringify(carRes))
+  assert.equal(h2.tables.crm_sale_records[0].out_items[0].scan_location, undefined)
+  assert.equal(h2.tables.crm_bottle_movements[0].scan_location, undefined)
+})

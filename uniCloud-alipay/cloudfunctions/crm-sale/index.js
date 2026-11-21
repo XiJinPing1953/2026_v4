@@ -526,33 +526,48 @@ function joinDelivery(delivery1, delivery2) {
 	return a || b || ''
 }
 
+function toFiniteLocationNumber(value) {
+	if (typeof value === 'number') return Number.isFinite(value) ? value : null
+	if (typeof value === 'string') {
+		const text = value.trim()
+		if (!text) return null
+		const num = Number(text)
+		return Number.isFinite(num) ? num : null
+	}
+	return null
+}
+
 function normalizeScanLocation(value) {
 	if (!value || typeof value !== 'object') return null
 	const status = normalizeString(value.status || (value.latitude != null && value.longitude != null ? 'ok' : 'failed')) || 'failed'
-	const capturedAt = toNumber(value.captured_at ?? value.capturedAt, null)
+	const rawCapturedAt = toFiniteLocationNumber(value.captured_at ?? value.capturedAt)
+	const capturedAt = rawCapturedAt != null && rawCapturedAt > 0 ? rawCapturedAt : Date.now()
 	const base = {
 		status,
 		coordinate_type: normalizeString(value.coordinate_type || value.coordinateType) || 'wgs84',
-		captured_at: capturedAt || Date.now(),
+		captured_at: capturedAt,
 		source: normalizeString(value.source) || 'pda_bottle_scan'
 	}
 	if (status === 'ok') {
-		const latitude = toNumber(value.latitude, null)
-		const longitude = toNumber(value.longitude, null)
-		if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+		const latitude = toFiniteLocationNumber(value.latitude)
+		const longitude = toFiniteLocationNumber(value.longitude)
+		if (
+			latitude == null || longitude == null
+			|| Math.abs(latitude) > 90 || Math.abs(longitude) > 180
+		) {
 			return {
 				...base,
 				status: 'failed',
 				error_code: 'invalid_location',
-				error_message: '定位结果缺少经纬度'
+				error_message: '定位坐标无效'
 			}
 		}
-		const accuracy = toNumber(value.accuracy, null)
+		const rawAccuracy = toFiniteLocationNumber(value.accuracy)
 		return {
 			...base,
 			latitude,
 			longitude,
-			accuracy: Number.isFinite(accuracy) ? accuracy : null
+			accuracy: rawAccuracy != null && rawAccuracy >= 0 ? rawAccuracy : null
 		}
 	}
 	return {
@@ -561,6 +576,58 @@ function normalizeScanLocation(value) {
 		error_code: normalizeString(value.error_code || value.errorCode) || 'get_location_failed',
 		error_message: normalizeString(value.error_message || value.errorMessage) || '定位失败'
 	}
+}
+
+function preserveExistingBottleLocationsForUpdate(nextRows = [], existingRows = [], options = {}) {
+	const list = Array.isArray(nextRows) ? nextRows : []
+	const strip = (row) => {
+		const { scan_location: _drop, ...rest } = row || {}
+		return rest
+	}
+	const existingCustomerId = normalizeString(options.existingDeliveryCustomerId)
+	const nextCustomerId = normalizeString(options.nextDeliveryCustomerId)
+	const existingCarNo = normalizeString(options.existingCarNo).toUpperCase()
+	const nextCarNo = normalizeString(options.nextCarNo).toUpperCase()
+	const sameContext = Boolean(
+		existingCustomerId && nextCustomerId && existingCustomerId === nextCustomerId
+		&& existingCarNo === nextCarNo
+	)
+	if (!sameContext) return list.map(strip)
+
+	const existingList = Array.isArray(existingRows) ? existingRows : []
+	const countByNo = (rows) => {
+		const counts = new Map()
+		for (const row of rows) {
+			const no = normalizeBottleNoForCreate(row?.bottle_no)
+			if (!no) continue
+			counts.set(no, (counts.get(no) || 0) + 1)
+		}
+		return counts
+	}
+	const existingCounts = countByNo(existingList)
+	const nextCounts = countByNo(list)
+	const uniqueExistingByNo = new Map()
+	for (const row of existingList) {
+		const no = normalizeBottleNoForCreate(row?.bottle_no)
+		if (!no || existingCounts.get(no) !== 1) continue
+		uniqueExistingByNo.set(no, row)
+	}
+	const clientManaged = options.clientManaged === true
+	return list.map((row) => {
+		const hadClientLocation = Boolean(row?.scan_location && typeof row.scan_location === 'object')
+		const clean = strip(row)
+		if (clientManaged && !hadClientLocation) return clean
+		const no = normalizeBottleNoForCreate(clean.bottle_no)
+		if (!no || nextCounts.get(no) !== 1) return clean
+		const origin = uniqueExistingByNo.get(no)
+		if (!origin) return clean
+		const originBottleId = normalizeString(origin.bottle_id)
+		const nextBottleId = normalizeString(clean.bottle_id)
+		if (originBottleId && nextBottleId && originBottleId !== nextBottleId) return clean
+		const preserved = normalizeScanLocation(origin.scan_location)
+		if (!preserved) return clean
+		return { ...clean, scan_location: preserved }
+	})
 }
 
 function normalizeBottleRows(rows = []) {
@@ -4756,6 +4823,7 @@ async function updateV2(user, data, requestId, token) {
 	const payload = data.payload
 	if (!payload) return { code: 400, msg: 'payload 必填' }
 	const ignoreBottleFlowWarning = toBoolean(data.ignore_bottle_flow_warning ?? data.ignoreBottleFlowWarning, false)
+	const scanLocationManaged = toBoolean(data.scan_location_managed ?? data.scanLocationManaged, false)
 	const existingRes = await sales.doc(recordId).get()
 	const existing = (existingRes.data && existingRes.data[0]) || null
 	if (!existing) return { code: 404, msg: '记录不存在' }
@@ -4768,8 +4836,8 @@ async function updateV2(user, data, requestId, token) {
 	saleAccounting.resolveSettlementMode(existing)
 
 	const base = payload.base || {}
-	const outRows = normalizeBottleRows(payload.outRows || [])
-	const backRows = normalizeBottleRows(payload.backRows || [])
+	let outRows = normalizeBottleRows(payload.outRows || [])
+	let backRows = normalizeBottleRows(payload.backRows || [])
 	let depositRows = normalizeDepositRows(payload.depositRows || [])
 	let agentRows = normalizeAgentRows(payload.agentSaleRows || [])
 
@@ -4786,6 +4854,17 @@ async function updateV2(user, data, requestId, token) {
 	const deliveryMan = joinDelivery(base.delivery1, base.delivery2)
 
 	const bizMode = inferBizMode(base, outRows, backRows, agentRows)
+	if (bizMode === 'bottle') {
+		const locationContext = {
+			existingDeliveryCustomerId: existing.delivery_customer_id || existing.customer_id,
+			nextDeliveryCustomerId: deliveryCustomer?._id || customer?._id,
+			existingCarNo: existing.car_no,
+			nextCarNo: base.carNo,
+			clientManaged: scanLocationManaged
+		}
+		outRows = preserveExistingBottleLocationsForUpdate(outRows, existing.out_items, locationContext)
+		backRows = preserveExistingBottleLocationsForUpdate(backRows, existing.back_items, locationContext)
+	}
 	const defaultPricing = resolveSaleDefaultPricing({ deliveryCustomer, billingCustomer: customer })
 	const priceUnit = normalizeSalePriceUnit(base.priceUnit) || defaultPricing.priceUnit || 'kg'
 	const settlementMode = priceUnit === 'm3'

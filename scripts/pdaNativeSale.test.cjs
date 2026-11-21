@@ -13,7 +13,19 @@ const display = load('src/services/pda/weighStatus.js', ['sameWeighDisplay'])
 const shared = load('src/services/pda/shared.js', ['normalizeText', 'normalizeBottleNo', 'toNumber', 'todayDate', 'buildDepositPreviewRows'])
 const draft = load('src/services/pda/mobileSaleDraft.js', ['createMobileSaleDraftStore', 'createMobileSaleId', 'cloneMobileSale', 'mobileSaleReceipt', 'canReleaseMobileSubmission'])
 const pricing = load('src/services/pda/customer.js', ['resolvePdaCustomerPricing'], shared)
-const location = load('src/services/pda/location.js', ['normalizePdaScanLocation'], shared)
+const location = load('src/services/pda/location.js', [
+	'PDA_SCAN_LOCATION_COORDINATE_TYPE',
+	'PDA_SCAN_LOCATION_SOURCE',
+	'PDA_FILLING_LABEL_LOCATION_SOURCE',
+	'PDA_MANUAL_LOCATION_SOURCE',
+	'PDA_LOCATION_ERROR_PENDING_AT_SUBMIT',
+	'PDA_LOCATION_ERROR_INTERRUPTED_BACKGROUND',
+	'PDA_LOCATION_ERROR_INTERRUPTED_CONTEXT_CHANGED',
+	'normalizePdaScanLocation',
+	'createPdaScanLocationPending',
+	'createPdaScanLocationFailure',
+	'formatSaleRowLocationText'
+], shared)
 const core = load('src/services/pda/bleScaleCore.js', ['createEmptyPdaBleScaleSnapshot', 'quantizeBleScaleWeightKg', 'PDA_BLE_SCALE_DISPLAY_DECIMALS', 'PDA_BLE_SCALE_DIVISION_STEP_KG'], shared)
 const auto = load('src/services/pda/autoReturnWeight.js', ['createAutoReweighWeight'])
 const settlement = load('src/services/models/settlement.js', ['normalizePaymentMethod', 'normalizePaymentStatus', 'normalizeSettlementMode'])
@@ -49,7 +61,7 @@ async function harness(t, options = {}) {
 		findPdaBottleByNo: options.findBottle || (async no => ({ code: 0, data: bottle(no) })),
 		resolvePdaBottleByQrCode: options.resolveQr || (async no => ({ code: 0, data: bottle(no) })),
 		previewPdaDepositRows: async () => ({ code: 0, data: { depositRows: [], baseCount: 0, raw: '' } }),
-		getPdaBottleScanLocation: async () => ({ status: 'failed' }),
+		getPdaBottleScanLocation: options.getLocation || (async opts => ({ status: 'failed', source: opts?.source, capturedAt: opts?.capturedAt })),
 		createMobileSale: async (id, payload) => { requests.push({ id, payload }); return options.send ? options.send(id, payload) : { code: 0, data: { operation_id: id, source_saved: true, processing_state: 'completed', sale_id: 's1' } } },
 		closeMissingMobileSale: options.closeMissing || (async id => ({ code:409, error_code:'MOBILE_SALE_CLOSED_UNSAVED',data:{source_saved:false,operation_id:id} })),
 		getMobileSaleCreateResult: options.query || (async id => ({ code: 0, data: { operation_id: id, source_saved: true, processing_state: 'completed', sale_id: 's1' } })),
@@ -488,4 +500,320 @@ test('the native receipt renders the next action for saved, unknown and rejected
 	assert.doesNotMatch(unknown, /开下一单|补打两联|销售单已保存|enqueueEvent|timeout/)
 	const rejected = await screen(false, 'failed')
 	assert.match(rejected, /本单未保存/); assert.doesNotMatch(rejected, /开下一单|销售单已保存|enqueueEvent|timeout/)
+})
+
+test('scan, filling label and manual entry all start location in parallel and tag distinct sources', async t => {
+	const calls = []
+	const lookupGate = deferred()
+	let gateUsed = false
+	const h = await harness(t, {
+		resolveQr: async no => {
+			if (!gateUsed) {
+				gateUsed = true
+				assert.equal(calls.length, 1, 'location should start in parallel before lookup settles')
+				await lookupGate.promise
+			}
+			return { code: 0, data: bottle(no) }
+		},
+		resolveLabel: async () => ({ code: 0, data: { bottle_no: '90', tare_weight: 100, gross_weight: 185.5, net_weight: 85.5, label_token: 'a'.repeat(48) } }),
+		getLocation: async opts => {
+			calls.push(opts)
+			return { status: 'ok', latitude: 31.2304, longitude: 121.4737, accuracy: 12, source: opts.source, capturedAt: opts.capturedAt }
+		}
+	})
+	await h.start()
+	const firstScan = h.scan('101')
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(calls.length, 1)
+	assert.equal(calls[0].source, 'pda_bottle_scan')
+	lookupGate.resolve()
+	await firstScan
+	h.frames(120)
+	await h.scan(labelUrl)
+	await h.panel.chooseBottle('103', false)
+	h.frames(130)
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(calls.length, 3)
+	assert.deepEqual(calls.map(c => c.source), ['pda_bottle_scan', 'pda_bottle_filling_label', 'pda_bottle_manual'])
+	assert.deepEqual(Array.from(h.panel.outRows.value.map(r => r.scanLocation.source)), ['pda_bottle_scan', 'pda_bottle_filling_label', 'pda_bottle_manual'])
+	assert.equal(h.panel.outRows.value.every(r => r.scanLocation.status === 'ok'), true)
+})
+
+test('late location callbacks survive step switches across out, back and confirm in the same draft', async t => {
+	const outLoc = deferred(), backLoc = deferred()
+	let seq = 0
+	const h = await harness(t, {
+		getLocation: opts => (++seq === 1 ? outLoc.promise : backLoc.promise).then(res => ({ ...res, source: opts.source, capturedAt: opts.capturedAt }))
+	})
+	await h.start()
+	await h.scan('201'); h.frames(120)
+	assert.equal(h.panel.outRows.value[0].scanLocation.status, 'pending')
+	assert.equal(await h.panel.go(3), true)
+	await h.panel.chooseBottle('202', false); h.frames(99.5)
+	assert.equal(h.panel.backRows.value[0].scanLocation.status, 'pending')
+	assert.equal(await h.panel.go(4), true)
+	outLoc.resolve({ status: 'ok', latitude: 31.111111, longitude: 121.111111, accuracy: 10 })
+	backLoc.resolve({ status: 'ok', latitude: 31.222222, longitude: 121.222222, accuracy: 15 })
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h.panel.outRows.value[0].scanLocation.status, 'ok')
+	assert.equal(h.panel.outRows.value[0].scanLocation.latitude, 31.111111)
+	assert.equal(h.panel.outRows.value[0].scanLocation.source, 'pda_bottle_scan')
+	assert.equal(h.panel.backRows.value[0].scanLocation.status, 'ok')
+	assert.equal(h.panel.backRows.value[0].scanLocation.latitude, 31.222222)
+	assert.equal(h.panel.backRows.value[0].scanLocation.source, 'pda_bottle_manual')
+	assert.equal(await h.panel.save(), true)
+	assert.equal(h.requests[0].payload.outRows[0].scan_location.latitude, 31.111111)
+	assert.equal(h.requests[0].payload.backRows[0].scan_location.latitude, 31.222222)
+})
+
+test('location callbacks isolate remove/re-add, customer/vehicle/account/order switch, background and frozen retry, and never overwrite ok', async t => {
+	const gates = []
+	const h = await harness(t, {
+		send: async () => { throw new Error('network timeout') },
+		getLocation: opts => {
+			const g = deferred()
+			gates.push({ g, opts })
+			return g.promise.then(res => ({ ...res, source: opts.source, capturedAt: opts.capturedAt }))
+		}
+	})
+	await h.start()
+
+	// 1. Delete and re-add same bottleNo: old rowId callback must not overwrite new row
+	await h.scan('301'); h.frames(120)
+	await h.panel.remove(h.panel.outRows.value[0])
+	await h.panel.chooseBottle('301', false); h.frames(120)
+	gates[0].g.resolve({ status: 'ok', latitude: 10, longitude: 20, accuracy: 5 })
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h.panel.outRows.value[0].scanLocation.status, 'pending')
+	gates[1].g.resolve({ status: 'ok', latitude: 30, longitude: 120, accuracy: 8 })
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h.panel.outRows.value[0].scanLocation.status, 'ok')
+	assert.equal(h.panel.outRows.value[0].scanLocation.latitude, 30)
+
+	// 2. Existing ok location cannot be overwritten by a failure
+	h.panel.sale.attachBottleScanLocation('out', 0, { status: 'failed', errorCode: 'timeout', errorMessage: '定位超时' })
+	assert.equal(h.panel.outRows.value[0].scanLocation.status, 'ok')
+	assert.equal(h.panel.outRows.value[0].scanLocation.latitude, 30)
+
+	// 3. Submit does not wait for pending GPS; records pending_at_submit and frozen retry ignores late GPS
+	await h.scan('302'); h.frames(125)
+	assert.equal(h.panel.outRows.value[1].scanLocation.status, 'pending')
+	await h.panel.go(3); await h.panel.go(4)
+	await h.panel.save()
+	assert.equal(h.requests.length, 1)
+	assert.equal(h.requests[0].payload.outRows[1].scan_location.status, 'failed')
+	assert.equal(h.requests[0].payload.outRows[1].scan_location.error_code, 'pending_at_submit')
+	assert.equal(h.requests[0].payload.outRows[1].scan_location.source, 'pda_bottle_scan')
+	// Late GPS resolves while frozen: must not mutate frozen payload or form
+	gates[2].g.resolve({ status: 'ok', latitude: 31.9, longitude: 121.9, accuracy: 5 })
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h.panel.outRows.value[1].scanLocation.status, 'pending')
+	await h.panel.save(true)
+	assert.equal(h.requests.length, 2)
+	assert.deepEqual(h.requests[0].payload, h.requests[1].payload)
+
+	// 4. Background deactivate marks pending as interrupted_background and rejects post-background callback
+	const h2 = await harness(t, {
+		getLocation: opts => {
+			const g = deferred()
+			gates.push({ g, opts })
+			return g.promise.then(res => ({ ...res, source: opts.source, capturedAt: opts.capturedAt }))
+		}
+	})
+	await h2.start()
+	await h2.scan('401'); h2.frames(120)
+	await h2.panel.deactivate()
+	assert.equal(h2.panel.outRows.value[0].scanLocation.status, 'failed')
+	assert.equal(h2.panel.outRows.value[0].scanLocation.errorCode, 'interrupted_background')
+	await h2.panel.activate()
+	gates[3].g.resolve({ status: 'ok', latitude: 39.9, longitude: 116.4, accuracy: 5 })
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h2.panel.outRows.value[0].scanLocation.status, 'failed')
+	assert.equal(h2.panel.outRows.value[0].scanLocation.errorCode, 'interrupted_background')
+
+	// 5. Customer / vehicle / account / draft switch drops stale callbacks
+	const h3 = await harness(t, {
+		getLocation: opts => {
+			const g = deferred()
+			gates.push({ g, opts })
+			return g.promise.then(res => ({ ...res, source: opts.source, capturedAt: opts.capturedAt }))
+		}
+	})
+	await h3.start()
+	await h3.scan('501'); h3.frames(120)
+	h3.panel.sale.form.value.vehicleNo = 'NEW-TRUCK'
+	assert.equal(h3.panel.outRows.value[0].scanLocation.errorCode, 'interrupted_context_changed')
+	gates[4].g.resolve({ status: 'ok', latitude: 35, longitude: 115, accuracy: 5 })
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h3.panel.outRows.value[0].scanLocation.status, 'failed')
+
+	await h3.scan('502'); h3.frames(120)
+	h3.panel.sale.form.value.customerId = 'another-customer'
+	assert.equal(h3.panel.outRows.value[1].scanLocation.errorCode, 'interrupted_context_changed')
+	gates[5].g.resolve({ status: 'ok', latitude: 36, longitude: 116, accuracy: 5 })
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h3.panel.outRows.value[1].scanLocation.status, 'failed')
+
+	await h3.panel.discard()
+	await h3.start()
+	await h3.scan('504'); h3.frames(120)
+	h3.setOwner('other-worker')
+	gates[6].g.resolve({ status: 'ok', latitude: 36.5, longitude: 116.5, accuracy: 5 })
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h3.panel.outRows.value[0].scanLocation.status, 'pending')
+	h3.setOwner('worker')
+
+	await h3.panel.discard()
+	await h3.start()
+	await h3.scan('503'); h3.frames(120)
+	const oldGate = gates[7]
+	await h3.panel.discard()
+	await h3.start()
+	await h3.scan('503'); h3.frames(120)
+	oldGate.g.resolve({ status: 'ok', latitude: 37, longitude: 117, accuracy: 5 })
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h3.panel.outRows.value[0].scanLocation.status, 'pending')
+
+	// 6. Restoring a draft that crashed while location was pending converts it to interrupted_background
+	const draftKey = 'crm_mobile_sale_draft_v1:worker'
+	const rawDraft = JSON.parse(h3.storage.get(draftKey) || JSON.stringify({
+		version: 1, ownerId: 'worker', draftId: 'crash-draft', form: h3.panel.sale.form.value, customer, step: 2, pdaStep: 2
+	}))
+	rawDraft.form.outItems[0].scanLocation = { status: 'pending', coordinateType: 'wgs84', capturedAt: 12345, source: 'pda_bottle_scan' }
+	h3.storage.set(draftKey, JSON.stringify(rawDraft))
+	const restored = await harness(t, { storage: h3.storage })
+	assert.equal(restored.panel.restore(), true)
+	assert.equal(restored.panel.outRows.value[0].scanLocation.status, 'failed')
+	assert.equal(restored.panel.outRows.value[0].scanLocation.errorCode, 'interrupted_background')
+	assert.equal(restored.panel.outRows.value[0].scanLocation.source, 'pda_bottle_scan')
+
+	// 7. shouldContinue turns false on background and after submit so fallback low-accuracy is never started
+	const guards = []
+	const h4 = await harness(t, {
+		getLocation: opts => {
+			guards.push(opts.shouldContinue)
+			return new Promise(() => {})
+		}
+	})
+	await h4.start()
+	await h4.scan('601'); h4.frames(120)
+	assert.equal(guards[0](), true)
+	await h4.panel.go(3); await h4.panel.go(4)
+	assert.equal(guards[0](), true)
+	await h4.panel.save()
+	assert.equal(guards[0](), false)
+
+	const h5 = await harness(t, {
+		getLocation: opts => {
+			guards.push(opts.shouldContinue)
+			return new Promise(() => {})
+		}
+	})
+	await h5.start()
+	await h5.scan('602'); h5.frames(120)
+	assert.equal(guards[1](), true)
+	await h5.panel.deactivate()
+	assert.equal(guards[1](), false)
+})
+
+test('location arriving during submit preflight enters first frozen payload without unlocking form, while frozen payload stays immutable', async t => {
+	const loc1 = deferred(), loc2 = deferred(), preflightGate = deferred(), preflightEntered = deferred()
+	let locSeq = 0
+	const h = await harness(t, {
+		send: async () => { throw new Error('network timeout') },
+		findBottle: async (no, opts) => {
+			if (opts?.fresh) {
+				preflightEntered.resolve()
+				await preflightGate.promise
+			}
+			return { code: 0, data: bottle(no) }
+		},
+		getLocation: opts => (++locSeq === 1 ? loc1 : loc2).promise.then(res => ({ ...res, source: opts.source, capturedAt: opts.capturedAt }))
+	})
+	await h.start()
+	await h.scan('701'); h.frames(120)
+	await h.scan('702'); h.frames(125)
+	await h.panel.go(3); await h.panel.go(4)
+
+	const saving = h.panel.save()
+	await preflightEntered.promise
+	assert.equal(h.panel.sale.submitting.value, true)
+	assert.equal(h.panel.locked.value, true)
+	// Form remains locked for edits during preflight
+	assert.equal(h.panel.sale.applyBottleSelection('out', 0, bottle('701')), null)
+	// loc1 arrives before freeze: accepted safely into row and included in first frozen payload
+	loc1.resolve({ status: 'ok', latitude: 31.456789, longitude: 121.456789, accuracy: 9 })
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h.panel.outRows.value[0].scanLocation.status, 'ok')
+	assert.equal(h.panel.outRows.value[0].scanLocation.latitude, 31.456789)
+
+	preflightGate.resolve()
+	await saving
+	assert.equal(h.requests.length, 1)
+	assert.equal(h.requests[0].payload.outRows[0].scan_location.status, 'ok')
+	assert.equal(h.requests[0].payload.outRows[0].scan_location.latitude, 31.456789)
+	assert.equal(h.requests[0].payload.outRows[1].scan_location.status, 'failed')
+	assert.equal(h.requests[0].payload.outRows[1].scan_location.error_code, 'pending_at_submit')
+
+	// loc2 arrives after freeze: must not mutate form or frozen payload on retry
+	loc2.resolve({ status: 'ok', latitude: 31.999999, longitude: 121.999999, accuracy: 5 })
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h.panel.outRows.value[1].scanLocation.status, 'pending')
+	await h.panel.save(true)
+	assert.equal(h.requests.length, 2)
+	assert.deepEqual(h.requests[0].payload, h.requests[1].payload)
+})
+
+test('customer A->B->A and vehicle V1->V2->V1 round-trips block stale location callbacks from overwriting interrupted_context_changed', async t => {
+	const custLoc = deferred(), vehLoc = deferred()
+	let seq = 0
+	const h = await harness(t, {
+		defaults: { vehicle_id: 'v1', vehicle_no: 'V1' },
+		getLocation: opts => (++seq === 1 ? custLoc : vehLoc).promise.then(res => ({ ...res, source: opts.source, capturedAt: opts.capturedAt }))
+	})
+	await h.start()
+	await h.scan('801'); h.frames(120)
+	const origCustomerId = h.panel.sale.form.value.customerId
+	h.panel.sale.form.value.customerId = 'customer-B'
+	assert.equal(h.panel.outRows.value[0].scanLocation.errorCode, 'interrupted_context_changed')
+	h.panel.sale.form.value.customerId = origCustomerId
+	custLoc.resolve({ status: 'ok', latitude: 31.1, longitude: 121.1, accuracy: 8 })
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h.panel.outRows.value[0].scanLocation.status, 'failed')
+	assert.equal(h.panel.outRows.value[0].scanLocation.errorCode, 'interrupted_context_changed')
+
+	await h.scan('802'); h.frames(125)
+	const origVehicleNo = h.panel.sale.form.value.vehicleNo
+	h.panel.sale.form.value.vehicleNo = 'V2'
+	assert.equal(h.panel.outRows.value[1].scanLocation.errorCode, 'interrupted_context_changed')
+	h.panel.sale.form.value.vehicleNo = origVehicleNo
+	vehLoc.resolve({ status: 'ok', latitude: 31.2, longitude: 121.2, accuracy: 8 })
+	await new Promise(resolve => setImmediate(resolve))
+	assert.equal(h.panel.outRows.value[1].scanLocation.status, 'failed')
+	assert.equal(h.panel.outRows.value[1].scanLocation.errorCode, 'interrupted_context_changed')
+})
+
+test('hiding during a failed presubmit check leaves an interrupted location on the retained draft', async t => {
+	const location = deferred(), checkStarted = deferred(), bottleCheck = deferred()
+	const h = await harness(t, {
+		getLocation: () => location.promise,
+		findBottle: async (no, options) => {
+			if (!options?.fresh) return { code: 0, data: bottle(no) }
+			checkStarted.resolve()
+			return bottleCheck.promise
+		}
+	})
+	await h.start()
+	await h.scan('803')
+	h.frames(120)
+	await h.panel.go(3)
+	await h.panel.go(4)
+	const saving = h.panel.save()
+	await checkStarted.promise
+	await h.panel.deactivate()
+	location.resolve({ status: 'ok', latitude: 30, longitude: 110 })
+	bottleCheck.resolve({ code: 503, msg: '临时断网' })
+	await saving
+	assert.equal(h.requests.length, 0)
+	assert.equal(h.panel.outRows.value[0].scanLocation.errorCode, 'interrupted_background')
 })

@@ -203,6 +203,7 @@ import AppButton from '@/components/base/AppButton.vue'
 import { useAuthGuard } from '@/composables/useAuthGuard'
 import { normalizeBottleNo } from '@/services/models'
 import { createSaleV2, getSaleV2, updateSaleV2, updateSaleSettlementV1, getCustomerDepositV1, retrySaleOffsetSyncV1, retrySaleOffsetUseV1 } from '@/services/sale'
+import { preserveEditedSaleRowLocations } from '@/services/pda/location'
 import { listOffsetCreditPoolV1 } from '@/services/customerSettlement'
 import { saleSaveWarning, pendingSaleOffsetActions } from '@/services/models/saleSaveWarning'
 import { useQuery } from '@/composables/useQuery'
@@ -285,6 +286,7 @@ const webSaveReview = ref(null)
 const savedThisPage = ref(false)
 onMounted(refreshPendingWebSave)
 const originBottleSnapshot = ref({ out: [], back: [], deposit: [] })
+const originLocationContext = ref(null)
 const ticketImages = ref([])
 const offsetCreditLoading = ref(false)
 const offsetCreditAvailable = ref(0)
@@ -537,7 +539,10 @@ watch(
 	() => recordId.value,
 	(id) => {
 		const normalized = String(id || '')
-		if (!normalized) return
+		if (!normalized) {
+			originLocationContext.value = null
+			return
+		}
 		loadDetail(normalized)
 	},
 	{ immediate: true }
@@ -732,24 +737,26 @@ async function loadDetail(id, options = {}) {
 	}
 
 	outItems.value = Array.isArray(doc.out_items)
-		? doc.out_items.map((row) => ({
+		? doc.out_items.map((row, index) => ({
 			bottle_no: row.bottle_no || '',
 			bottle_id: row.bottle_id || null,
 			gross: row.gross == null ? '' : String(row.gross),
 			tare: row.tare == null ? '' : String(row.tare),
 			net: row.net == null ? '' : String(row.net),
 			netManual: false,
+			originLocationKey: row?.scan_location && typeof row.scan_location === 'object' ? `${id}:out:${index}` : '',
 			suggestions: []
 		}))
 		: []
 	backItems.value = Array.isArray(doc.back_items)
-		? doc.back_items.map((row) => ({
+		? doc.back_items.map((row, index) => ({
 			bottle_no: row.bottle_no || '',
 			bottle_id: row.bottle_id || null,
 			gross: row.gross == null ? '' : String(row.gross),
 			tare: row.tare == null ? '' : String(row.tare),
 			net: row.net == null ? '' : String(row.net),
 			netManual: false,
+			originLocationKey: row?.scan_location && typeof row.scan_location === 'object' ? `${id}:back:${index}` : '',
 			suggestions: []
 		}))
 		: []
@@ -775,6 +782,27 @@ async function loadDetail(id, options = {}) {
 		out: extractBottleNos(outItems.value),
 		back: extractBottleNos(backItems.value),
 		deposit: extractBottleNos(depositRows.value)
+	}
+	originLocationContext.value = {
+		recordId: id,
+		deliveryCustomerId: normalizeIdValue(doc.delivery_customer_id || doc.customer_id),
+		carNo: String(doc.car_no || '').trim(),
+		out: Array.isArray(doc.out_items)
+			? doc.out_items.map((row, index) => ({
+				originLocationKey: row?.scan_location && typeof row.scan_location === 'object' ? `${id}:out:${index}` : '',
+				bottle_no: row?.bottle_no || '',
+				bottle_id: row?.bottle_id || null,
+				scan_location: row?.scan_location && typeof row.scan_location === 'object' ? { ...row.scan_location } : null
+			}))
+			: [],
+		back: Array.isArray(doc.back_items)
+			? doc.back_items.map((row, index) => ({
+				originLocationKey: row?.scan_location && typeof row.scan_location === 'object' ? `${id}:back:${index}` : '',
+				bottle_no: row?.bottle_no || '',
+				bottle_id: row?.bottle_id || null,
+				scan_location: row?.scan_location && typeof row.scan_location === 'object' ? { ...row.scan_location } : null
+			}))
+			: []
 	}
 	await applyTicketImages(Array.isArray(doc.ticket_images) ? doc.ticket_images : [doc.ticket_image || ''])
 	const pending = pendingSaleOffsetActions(doc)
@@ -1113,6 +1141,24 @@ function navigateAfterSave() {
 
 async function submitSale(ignoreBottleFlowWarning = false) {
 	const ticketImageIds = await ensureTicketImagesUploaded()
+	const preservedOutItems = recordId.value
+		? preserveEditedSaleRowLocations(outItems.value, {
+			direction: 'out',
+			originContext: originLocationContext.value,
+			currentRecordId: recordId.value,
+			currentDeliveryCustomerId: form.value.customerId,
+			currentCarNo: form.value.vehicleNo
+		})
+		: outItems.value
+	const preservedBackItems = recordId.value
+		? preserveEditedSaleRowLocations(backItems.value, {
+			direction: 'back',
+			originContext: originLocationContext.value,
+			currentRecordId: recordId.value,
+			currentDeliveryCustomerId: form.value.customerId,
+			currentCarNo: form.value.vehicleNo
+		})
+		: backItems.value
 	const payload = {
 		form: {
 			...form.value,
@@ -1122,14 +1168,14 @@ async function submitSale(ignoreBottleFlowWarning = false) {
 		flow: flow.value,
 		truck: truck.value,
 		settlement: recordId.value ? settlement.value : { ...settlement.value, applyOffsetCredit: false },
-		outItems: outItems.value,
-		backItems: backItems.value,
+		outItems: preservedOutItems,
+		backItems: preservedBackItems,
 		depositRows: depositRows.value,
 		agentSaleRows: agentSaleRows.value
 	}
 	try {
 		const result = await (recordId.value
-			? updateSaleV2({ _id: recordId.value, draft: payload, ignoreBottleFlowWarning, webOperation: true })
+			? updateSaleV2({ _id: recordId.value, draft: payload, ignoreBottleFlowWarning, scanLocationManaged: true, webOperation: true })
 			: createSaleV2(payload, { ignoreBottleFlowWarning, webOperation: true }))
 		return result
 	} catch (err) {
