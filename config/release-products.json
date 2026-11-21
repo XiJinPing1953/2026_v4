@@ -138,23 +138,22 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.88",
+      "version": "1.0.89",
       "output": "release/pda",
-      "acceptance": "出瓶、回瓶扫码或手输均按瓶定位；定位慢时可继续交单。",
+      "acceptance": "正式签名和高德 Android 配置回读，逐瓶网络定位同意、关闭和系统定位回退。",
       "deploymentScope": {
-        "baseCommit": "82bed288b03e4f4b5b60a34260552864cd0ecd73",
+        "baseCommit": "15a1b73445e8ca8cc57c971b828eaae46fda01b8",
         "sourceFiles": [
+          "src/components/domain/pda/PdaNativeSaleView.vue",
           "src/composables/pda/usePdaNativeSale.js",
-          "src/composables/pda/usePdaSaleForm.js",
           "src/manifest.json",
-          "src/services/models/sale.js",
-          "src/services/pda/location.js"
+          "src/services/pda/amapSaleLocation.js"
         ],
         "functions": [],
         "databaseFiles": []
       },
       "integrityScope": "deployment",
-      "artifactType": "wgt"
+      "artifactType": "apk"
     }
   }
 }

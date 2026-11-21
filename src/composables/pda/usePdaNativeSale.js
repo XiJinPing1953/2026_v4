@@ -33,7 +33,7 @@ export function isNativeSaleRowWeighed(row, type) {
 		&& Math.abs(Number(row.gross) - Number(row.tare) - Number(row.net)) < 0.001)
 }
 
-export function usePdaNativeSale() {
+export function usePdaNativeSale({ locate = getPdaBottleScanLocation, stopLocation } = {}) {
 	const active = ref(false)
 	const printer = usePdaSalePrinter(() => active.value)
 	const sale = usePdaSaleForm({}, printer)
@@ -191,7 +191,7 @@ export function usePdaNativeSale() {
 		}
 		let locationPromise
 		try {
-			locationPromise = Promise.resolve(getPdaBottleScanLocation({
+			locationPromise = Promise.resolve(locate({
 				source: locationSource,
 				capturedAt: locationStartedAt,
 				shouldContinue: shouldContinueLocation
@@ -492,6 +492,7 @@ export function usePdaNativeSale() {
 		} catch (cause) { if (active.value) fail(cause.message || '扫描头初始化失败') }
 	}
 	async function deactivate() {
+		stopLocation?.()
 		if (permissionTicket) {
 			// No GATT operation has started for this attempt. A late permission reply
 			// must neither connect nor release the busy flag of the next page visit.
