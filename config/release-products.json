@@ -141,8 +141,8 @@
           "src/components/domain/pda/PdaSuggestList.vue",
           "src/manifest.json"
         ],
-        "databaseFiles": [],
-        "functions": []
+        "functions": [],
+        "databaseFiles": []
       },
       "integrityScope": "deployment",
       "artifactType": "wgt",
