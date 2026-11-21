@@ -344,6 +344,7 @@ import { useAuthGuard } from '@/composables/useAuthGuard'
 import AppEmpty from '@/components/base/AppEmpty.vue'
 import AppStatCard from '@/components/base/AppStatCard.vue'
 import { getSaleV2, removeSaleV2 } from '@/services/sale'
+import { formatSaleRowLocationText } from '@/services/pda/location'
 import { useQuery } from '@/composables/useQuery'
 
 const props = defineProps({
@@ -375,8 +376,8 @@ const REMARK_TAG_LABELS = {
 	other: '其他备注'
 }
 
-const outRows = computed(() => normalizeBottleRows(detail.value?.out_items))
-const backRows = computed(() => normalizeBottleRows(detail.value?.back_items))
+const outRows = computed(() => normalizeBottleRows(detail.value?.out_items, detail.value))
+const backRows = computed(() => normalizeBottleRows(detail.value?.back_items, detail.value))
 const depositRows = computed(() => normalizeDepositRows(detail.value?.deposit_rows))
 const agentRows = computed(() => normalizeAgentRows(detail.value?.agent_sale_items))
 const deliveryVehicleText = computed(() =>
@@ -782,7 +783,7 @@ function buildOutstandingScenario(shouldReceive, amountReceived) {
 	return { label: '结清', amount: 0, kind: 'success', tip: '当前无应收应退。' }
 }
 
-function normalizeBottleRows(rows) {
+function normalizeBottleRows(rows, saleDoc = null) {
 	const source = Array.isArray(rows) ? rows : []
 	return source
 		.map((row, index) => ({
@@ -792,39 +793,9 @@ function normalizeBottleRows(rows) {
 			gross: toNumber(row?.gross ?? row?.gross_weight, 0),
 			tare: toNumber(row?.tare ?? row?.tare_weight, 0),
 			net: toNumber(row?.net ?? row?.net_weight, 0),
-			location_text: formatScanLocationText(row?.scan_location || row?.scanLocation)
+			location_text: formatSaleRowLocationText(row?.scan_location || row?.scanLocation, saleDoc)
 		}))
 		.filter((row) => row.bottle_no && row.bottle_no !== '-')
-}
-
-function formatScanLocationText(location) {
-	if (!location || typeof location !== 'object') return '未记录定位'
-	const status = normalizeString(location.status)
-	if (status === 'ok') {
-		const lat = toNumber(location.latitude, null)
-		const lng = toNumber(location.longitude, null)
-		if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '未记录定位'
-		const accuracy = toNumber(location.accuracy, null)
-		const accuracyText = Number.isFinite(accuracy) ? ` / 精度${Math.round(accuracy)}m` : ''
-		const capturedAt = location.captured_at || location.capturedAt
-		const timeText = capturedAt ? ` / ${formatDateTimeText(capturedAt)}` : ''
-		return `${lat.toFixed(6)}, ${lng.toFixed(6)}${accuracyText}${timeText}`
-	}
-	const errorText = normalizeString(location.error_message || location.errorMessage)
-	return errorText ? `定位失败：${errorText}` : '定位失败'
-}
-
-function formatDateTimeText(value) {
-	const num = typeof value === 'number' ? value : Number(value)
-	const date = Number.isFinite(num) ? new Date(num) : new Date(String(value || ''))
-	if (!date || Number.isNaN(date.getTime())) return normalizeString(value) || '-'
-	const y = date.getFullYear()
-	const m = String(date.getMonth() + 1).padStart(2, '0')
-	const d = String(date.getDate()).padStart(2, '0')
-	const hh = String(date.getHours()).padStart(2, '0')
-	const mm = String(date.getMinutes()).padStart(2, '0')
-	const ss = String(date.getSeconds()).padStart(2, '0')
-	return `${y}-${m}-${d} ${hh}:${mm}:${ss}`
 }
 
 function normalizeDepositRows(rows) {

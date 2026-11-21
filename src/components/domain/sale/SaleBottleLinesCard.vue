@@ -256,6 +256,7 @@ function onBottleInput(index, value) {
 	}
 	if (isBottleChanged) {
 		patch.tare = ''
+		patch.originLocationKey = ''
 		if (!row.netManual) patch.net = ''
 	}
 	patchRow(index, {
@@ -293,7 +294,7 @@ async function onBottleConfirm(index) {
 	if (!row) return
 	const keyword = normalizeBottleNo(row.bottle_no)
 	if (!keyword) {
-		patchRow(index, { bottle_no: '', bottle_id: null, suggestions: [] })
+		patchRow(index, { bottle_no: '', bottle_id: null, originLocationKey: '', suggestions: [] })
 		return
 	}
 	const list = await searchBottleSuggestions(keyword, { limit: 20 })
@@ -330,6 +331,9 @@ function selectSuggestion(index, item) {
 		bottle_id: item._id,
 		suggestions: [],
 		netManual: false
+	}
+	if (isBottleChanged || (row.bottle_id && item?._id && String(row.bottle_id) !== String(item._id))) {
+		next.originLocationKey = ''
 	}
 	const tareValue = extractTareWeight(item)
 	if (tareValue != null) {

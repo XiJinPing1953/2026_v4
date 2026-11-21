@@ -124,6 +124,7 @@ export async function updateSaleV2(params) {
 		payload: normalized
 	}
 	if (params.ignoreBottleFlowWarning) data.ignore_bottle_flow_warning = true
+	if (params.scanLocationManaged) data.scan_location_managed = true
 
 	if (params.webOperation) return webSaleRecovery.submit(recordId, 'updateV2', data)
 	return callCloud('crm-sale', {

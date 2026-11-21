@@ -6,33 +6,35 @@
   },
   "products": {
     "web": {
-      "version": "2026.11.20-fleet-dispatch.1",
+      "version": "2026.11.21-sale-location.1",
       "output": "dist/build/web",
-      "acceptance": "车辆调度和新单人员刷新；旧单和草稿保留。",
+      "acceptance": "销售详情逐瓶显示定位；办公室编辑保留原瓶坐标。",
       "deploymentScope": {
-        "baseCommit": "b3bf6800d93a261a22a79c7532aac876d991f4e6",
+        "baseCommit": "caef890a1e5ab846ed3241eab546ce7e09091749",
         "sourceFiles": [
-          "src/components/domain/dashboard/DashboardHome.vue",
-          "src/components/domain/dispatch/FleetDispatchView.vue",
-          "src/components/domain/pda/PdaSaleCreateView.vue",
-          "src/composables/pda/usePdaSaleForm.js",
-          "src/pages.json",
-          "src/pages/vehicle/dispatch.vue",
-          "src/services/api/fleetDispatch.js",
-          "src/services/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/fleetDispatch.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js"
+          "src/components/domain/sale/SaleBottleLinesCard.vue",
+          "src/components/domain/sale/SaleDetailView.vue",
+          "src/components/domain/sale/SaleEditView.vue",
+          "src/services/models/sale.js",
+          "src/services/pda/location.js",
+          "src/services/sale.js"
         ],
         "functions": [
-          "crm-auth",
-          "crm-user"
+          "crm-sale"
         ],
-        "databaseFiles": []
+        "databaseFiles": [],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          }
+        }
       },
       "integrityScope": "deployment"
     },
@@ -42,29 +44,31 @@
       "acceptance": "车辆调度和新单人员刷新；旧单和草稿保留。",
       "integrityScope": "deployment",
       "deploymentScope": {
-        "baseCommit": "b3bf6800d93a261a22a79c7532aac876d991f4e6",
+        "baseCommit": "caef890a1e5ab846ed3241eab546ce7e09091749",
         "sourceFiles": [
-          "src/components/domain/dashboard/DashboardHome.vue",
-          "src/components/domain/dispatch/FleetDispatchView.vue",
-          "src/components/domain/pda/PdaSaleCreateView.vue",
-          "src/composables/pda/usePdaSaleForm.js",
-          "src/pages.json",
-          "src/pages/vehicle/dispatch.vue",
-          "src/services/api/fleetDispatch.js",
-          "src/services/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/fleetDispatch.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js"
+          "src/components/domain/sale/SaleBottleLinesCard.vue",
+          "src/components/domain/sale/SaleDetailView.vue",
+          "src/components/domain/sale/SaleEditView.vue",
+          "src/services/models/sale.js",
+          "src/services/pda/location.js",
+          "src/services/sale.js"
         ],
         "functions": [
-          "crm-auth",
-          "crm-user"
+          "crm-sale"
         ],
-        "databaseFiles": []
+        "databaseFiles": [],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          }
+        }
       }
     },
     "tank-gateway": {
