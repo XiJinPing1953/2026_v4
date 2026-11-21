@@ -11,7 +11,17 @@ import { resolvePdaCustomerByQrCode, resolvePdaCustomerPricing } from '@/service
 import { createAutoReweighWeight } from '@/services/pda/autoReturnWeight'
 import { createPdaBleScaleSession, createEmptyPdaBleScaleSnapshot, ensurePdaBleRuntimePermission } from '@/services/pda/bleScale'
 import { enterBarcodeSession, leaveBarcodeSession } from '@/services/pda/capture'
-import { getPdaBottleScanLocation } from '@/services/pda/location'
+import {
+	PDA_FILLING_LABEL_LOCATION_SOURCE,
+	PDA_LOCATION_ERROR_INTERRUPTED_BACKGROUND,
+	PDA_LOCATION_ERROR_INTERRUPTED_CONTEXT_CHANGED,
+	PDA_MANUAL_LOCATION_SOURCE,
+	PDA_SCAN_LOCATION_SOURCE,
+	createPdaScanLocationFailure,
+	createPdaScanLocationPending,
+	getPdaBottleScanLocation,
+	normalizePdaScanLocation
+} from '@/services/pda/location'
 import { validatePdaBottleSaleForm } from '@/services/pda/sale'
 import { normalizeBottleNo } from '@/services/pda/shared'
 
@@ -49,6 +59,8 @@ export function usePdaNativeSale() {
 	const locked = computed(() => submissionLocked.value || sale.vehicleRevoked.value || !ownerMatches() || !canCreate.value)
 	let epoch = 0
 	let lifecycle = 0
+	let locationSession = 0
+	let locationContextGeneration = 0
 	let stopping = Promise.resolve()
 	let permissionTicket = null
 	let measurement = null
@@ -107,7 +119,32 @@ export function usePdaNativeSale() {
 			message.value = '吊秤已断开，已称重量保留；连接后可点重新称重'
 		}
 	})
-	watch(() => form.value.customerId, () => { invalidate(); currentId.value = '' }, { flush: 'sync' })
+	const isLocationFrozen = () => !ownerMatches() || !canCreate.value || sale.vehicleRevoked.value || sale.submissionFrozen.value || sale.draftStatus.value.available
+	function markPendingLocationsFailed(errorCode, errorMessage) {
+		if (isLocationFrozen()) return
+		for (const type of ['out', 'back']) {
+			const list = rowsFor(type)
+			for (let index = 0; index < list.length; index++) {
+				const row = list[index]
+				if (row?.scanLocation?.status === 'pending') {
+					sale.attachBottleScanLocation(type, index, createPdaScanLocationFailure(
+						{ code: errorCode, message: errorMessage, source: row.scanLocation.source },
+						row.scanLocation.capturedAt,
+						row.scanLocation.source
+					), { requirePending: true, allowDuringPreflight: true })
+				}
+			}
+		}
+	}
+	watch(() => form.value.customerId, () => {
+		locationContextGeneration++
+		markPendingLocationsFailed(PDA_LOCATION_ERROR_INTERRUPTED_CONTEXT_CHANGED, '定位未完成（客户或车辆已变更）')
+		invalidate(); currentId.value = ''
+	}, { flush: 'sync' })
+	watch(() => [form.value.vehicleId, form.value.vehicleNo], () => {
+		locationContextGeneration++
+		markPendingLocationsFailed(PDA_LOCATION_ERROR_INTERRUPTED_CONTEXT_CHANGED, '定位未完成（客户或车辆已变更）')
+	}, { flush: 'sync' })
 	watch(submissionLocked, value => { if (value) freeze() }, { flush: 'sync' })
 
 	async function chooseBottle(value, scanned = false) {
@@ -115,20 +152,63 @@ export function usePdaNativeSale() {
 		const unfinished = rows.value.find(row => !weighed(row))
 		if (unfinished) { currentId.value = unfinished.rowId; return fail(`请先称好 ${unfinished.bottleNo} 号瓶；不需要这瓶时可删除`) }
 		let label = null
-  try { label = scanned && direction.value === 'out' ? parseFillingLabel(value) : null } catch (cause) { return fail(cause.message) }
-  if (!label && !snapshot.value.is_connected) return fail('请先连接吊秤')
+		try { label = scanned && direction.value === 'out' ? parseFillingLabel(value) : null } catch (cause) { return fail(cause.message) }
+		if (!label && !snapshot.value.is_connected) return fail('请先连接吊秤')
 		autoWeight.interrupt()
 		const ticket = context()
+		const locationSource = scanned
+			? (label ? PDA_FILLING_LABEL_LOCATION_SOURCE : PDA_SCAN_LOCATION_SOURCE)
+			: PDA_MANUAL_LOCATION_SOURCE
+		const locationStartedAt = Date.now()
+		const locationSessionAtStart = locationSession
+		const contextGenerationAtStart = locationContextGeneration
+		const draftIdAtStart = sale.getDraftId()
+		const vehicleIdAtStart = form.value.vehicleId
+		let boundLocationRow = null
+		let lookupAborted = false
+		const shouldContinueLocation = () => {
+			if (lookupAborted) return false
+			if (
+				!active.value
+				|| isLocationFrozen()
+				|| locationSessionAtStart !== locationSession
+				|| contextGenerationAtStart !== locationContextGeneration
+				|| sale.getDraftId() !== draftIdAtStart
+				|| form.value.customerId !== ticket.customerId
+				|| form.value.vehicleId !== vehicleIdAtStart
+				|| form.value.vehicleNo !== ticket.vehicleNo
+			) {
+				return false
+			}
+			if (boundLocationRow) {
+				const target = rowsFor(boundLocationRow.type).find(
+					row => row.rowId === boundLocationRow.rowId
+						&& normalizeBottleNo(row.bottleNo) === normalizeBottleNo(boundLocationRow.bottleNo)
+				)
+				if (!target || target.scanLocation?.status !== 'pending') return false
+			}
+			return true
+		}
+		let locationPromise
+		try {
+			locationPromise = Promise.resolve(getPdaBottleScanLocation({
+				source: locationSource,
+				capturedAt: locationStartedAt,
+				shouldContinue: shouldContinueLocation
+			})).catch((cause) => createPdaScanLocationFailure(cause, locationStartedAt, locationSource))
+		} catch (cause) {
+			locationPromise = Promise.resolve(createPdaScanLocationFailure(cause, locationStartedAt, locationSource))
+		}
 		busy.value = true; error.value = ''
 		try {
 			let confirmed = null
-   if (label) {
-    const verified = await resolveFillingLabel(label, { shouldContinue: () => same(ticket) })
-    if (!same(ticket)) return false
-    if (verified?.code !== 0) return fail(verified?.msg || '无法核对充装信息，请重试或现场称重')
-    confirmed = verified.data
-   }
-   const result = await (scanned ? resolvePdaBottleByQrCode(value) : findPdaBottleByNo(value))
+			if (label) {
+				const verified = await resolveFillingLabel(label, { shouldContinue: () => same(ticket) })
+				if (!same(ticket)) return false
+				if (verified?.code !== 0) return fail(verified?.msg || '无法核对充装信息，请重试或现场称重')
+				confirmed = verified.data
+			}
+			const result = await (scanned ? resolvePdaBottleByQrCode(value) : findPdaBottleByNo(value))
 			if (!same(ticket)) return false
 			if (result?.code !== 0 || !result.data) return fail(result?.msg || '没有找到这个瓶号')
 			const bottle = result.data
@@ -155,24 +235,80 @@ export function usePdaNativeSale() {
 			const row = sale.applyBottleSelection(type, index, bottle)
 			if (!row) return false
 			if (confirmed) {
-    rowsFor(type)[index] = { ...row, gross:String(confirmed.gross_weight), tare:String(confirmed.tare_weight), net:String(confirmed.net_weight), grossMeasured:String(confirmed.gross_weight), tareSource:'filling_reweigh', weightSource:'filling_reweigh', fillingLabelToken:confirmed.label_token, weightSampledAt:null, scaleSessionId:'', scaleStableSeq:0 }
-    currentId.value = row.rowId; message.value = `${row.bottleNo} 号瓶：已用充装复秤重量`
-   } else {
-    if (!snapshot.value.is_connected) { currentId.value = row.rowId; return fail('吊秤已断开，请连接后重新称重') }
-    beginRow(row)
-   }
-			if (scanned) void recordLocation(ticket, type, row.rowId, row.bottleNo)
+				rowsFor(type)[index] = { ...row, gross:String(confirmed.gross_weight), tare:String(confirmed.tare_weight), net:String(confirmed.net_weight), grossMeasured:String(confirmed.gross_weight), tareSource:'filling_reweigh', weightSource:'filling_reweigh', fillingLabelToken:confirmed.label_token, weightSampledAt:null, scaleSessionId:'', scaleStableSeq:0 }
+			}
+			const locationTicket = {
+				session: locationSessionAtStart,
+				contextGeneration: contextGenerationAtStart,
+				draftId: sale.getDraftId(),
+				customerId: form.value.customerId,
+				vehicleId: form.value.vehicleId,
+				vehicleNo: form.value.vehicleNo,
+				type,
+				rowId: row.rowId,
+				bottleNo: row.bottleNo,
+				source: locationSource,
+				capturedAt: locationStartedAt
+			}
+			boundLocationRow = { type, rowId: row.rowId, bottleNo: row.bottleNo }
+			sale.attachBottleScanLocation(type, index, createPdaScanLocationPending({
+				source: locationSource,
+				capturedAt: locationStartedAt
+			}))
+			void recordLocation(locationTicket, locationPromise)
+			if (confirmed) {
+				currentId.value = row.rowId; message.value = `${row.bottleNo} 号瓶：已用充装复秤重量`
+			} else {
+				if (!snapshot.value.is_connected) { currentId.value = row.rowId; return fail('吊秤已断开，请连接后重新称重') }
+				beginRow(rowsFor(type)[index])
+			}
 			return true
 		} catch (cause) { if (same(ticket)) fail(cause.message || '查瓶失败，请重试'); return false }
-		finally { busy.value = false }
+		finally {
+			if (!boundLocationRow) lookupAborted = true
+			busy.value = false
+		}
 	}
-	async function recordLocation(ticket, type, rowId, bottleNo) {
+	function canAttachLocation(locationTicket) {
+		return active.value
+			&& !isLocationFrozen()
+			&& locationTicket.session === locationSession
+			&& locationTicket.contextGeneration === locationContextGeneration
+			&& sale.getDraftId() === locationTicket.draftId
+			&& form.value.customerId === locationTicket.customerId
+			&& form.value.vehicleId === locationTicket.vehicleId
+			&& form.value.vehicleNo === locationTicket.vehicleNo
+	}
+	async function recordLocation(locationTicket, locationPromise) {
 		try {
-			const location = await getPdaBottleScanLocation()
-			if (!same(ticket) || locked.value) return
-			const index = rowsFor(type).findIndex(row => row.rowId === rowId && row.bottleNo === bottleNo)
-			if (index >= 0) sale.attachBottleScanLocation(type, index, location)
-		} catch (_) {}
+			const raw = await locationPromise
+			if (!canAttachLocation(locationTicket)) return
+			const index = rowsFor(locationTicket.type).findIndex(
+				row => row.rowId === locationTicket.rowId && normalizeBottleNo(row.bottleNo) === normalizeBottleNo(locationTicket.bottleNo)
+			)
+			if (index < 0) return
+			const normalized = normalizePdaScanLocation({
+				...(raw && typeof raw === 'object' ? raw : {}),
+				source: raw?.source || locationTicket.source,
+				capturedAt: raw?.capturedAt ?? raw?.captured_at ?? locationTicket.capturedAt
+			})
+			sale.attachBottleScanLocation(locationTicket.type, index, normalized, {
+				allowDuringPreflight: true,
+				requirePending: true
+			})
+		} catch (cause) {
+			if (!canAttachLocation(locationTicket)) return
+			const index = rowsFor(locationTicket.type).findIndex(
+				row => row.rowId === locationTicket.rowId && normalizeBottleNo(row.bottleNo) === normalizeBottleNo(locationTicket.bottleNo)
+			)
+			if (index < 0) return
+			sale.attachBottleScanLocation(
+				locationTicket.type,
+				index,
+				createPdaScanLocationFailure(cause, locationTicket.capturedAt, locationTicket.source),
+				{ allowDuringPreflight: true, requirePending: true }
+			)
+		}
 	}
 	function selectCustomer(customer) {
 		if (!editable() || step.value !== 1) return false
@@ -364,6 +500,8 @@ export function usePdaNativeSale() {
 			busy.value = false
 		}
 		sale.setForeground(false)
+		locationSession++
+		markPendingLocationsFailed(PDA_LOCATION_ERROR_INTERRUPTED_BACKGROUND, '定位未完成（页面已切后台）')
 		printer.close(); active.value = false; lifecycle++; invalidate(); sale.persistDraft()
 		stopping = Promise.allSettled([stopping, scale.stop(), leaveBarcodeSession({ page: 'pda-native-sale', reason: 'page-hidden' })])
 		await stopping

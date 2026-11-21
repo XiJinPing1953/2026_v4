@@ -122,7 +122,8 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 	let online = true
 	let unreadableDraft = false
 	const draftStatus = ref({ available: false, restored: false, state: 'ready', message: '' })
-	const submissionLocked = computed(() => unreadableDraft || submitting.value || Boolean(frozenSubmission.value) || draftStatus.value.available)
+	const submissionFrozen = computed(() => Boolean(frozenSubmission.value))
+	const submissionLocked = computed(() => unreadableDraft || submitting.value || submissionFrozen.value || draftStatus.value.available)
 	let availableDraft = null
 	let replacingDraft = false
 	let revalidationCandidate = null
@@ -218,7 +219,17 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		defaultsAtStart = availableDraft.defaultsAtStart || defaultsAtStart
 		form.value = cloneMobileSale(availableDraft.form)
 		for (const rows of [form.value.outItems, form.value.backItems]) {
-			for (const row of rows || []) row.rowId ||= createMobileSaleId('row')
+			for (const row of rows || []) {
+				row.rowId ||= createMobileSaleId('row')
+				if (row.scanLocation?.status === 'pending') {
+					row.scanLocation = normalizePdaScanLocation({
+						...row.scanLocation,
+						status: 'failed',
+						errorCode: 'interrupted_background',
+						errorMessage: '定位未完成（页面中断或切后台）'
+					})
+				}
+			}
 		}
 		selectedCustomer.value = availableDraft.customer || null
 		customerKeyword.value = form.value.customerName || ''
@@ -569,11 +580,16 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		return list[index]
 	}
 
-	function attachBottleScanLocation(type, index, location) {
-		if (!canEdit()) return null
+	function attachBottleScanLocation(type, index, location, options = {}) {
+		const allowed = options.allowDuringPreflight
+			? (ownerMatches() && !unreadableDraft && !draftStatus.value.available && !frozenSubmission.value)
+			: canEdit()
+		if (!allowed) return null
 		const list = type === 'back' ? form.value.backItems : form.value.outItems
 		const row = list[index]
 		if (!row) return null
+		if (row.scanLocation?.status === 'ok') return row
+		if (options.requirePending && row.scanLocation?.status !== 'pending') return row
 		row.scanLocation = normalizePdaScanLocation(location)
 		return row
 	}
@@ -694,6 +710,9 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 	}
 
 	function isOffline() { return typeof navigator !== 'undefined' && navigator.onLine === false }
+	function formBusinessSignature(value) {
+		return JSON.stringify(value, (key, item) => (key === 'scanLocation' || key === 'scan_location' ? undefined : item))
+	}
 
 	async function revalidateBeforeSubmit() {
 		const user = getUser() || {}
@@ -703,14 +722,14 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 			if (!normalizeText(defaults.vehicle_id) || !normalizeText(defaults.vehicle_no)) return { code: 409, msg: '账号尚未绑定车辆，请联系管理员' }
 			if (normalizeText(form.value.vehicleNo) !== normalizeText(defaults.vehicle_no)) return { code: 409, msg: '销售车辆与账号绑定车辆不一致，请使用本车录单' }
 		}
-		const signature = JSON.stringify(form.value)
+		const signature = formBusinessSignature(form.value)
 		const snapshot = cloneMobileSale(form.value)
 		const rows = [...snapshot.outItems, ...snapshot.backItems].filter((r) => r.bottleNo)
 		const [customerRes, depositRes, ...bottleResults] = await Promise.all([
 			printing ? watchMobileSaleContext(snapshot.customerId, '', () => ownerMatches() && !disposed) : getPdaCustomerById(snapshot.customerId), previewPdaDepositRows(snapshot),
 			...rows.map((row) => findPdaBottleByNo(row.bottleNo, { fresh: true }))
 		])
-		if (disposed || !ownerMatches() || signature !== JSON.stringify(form.value)) return { code: 409, msg: '录单内容或账号已变化，请重新核对' }
+		if (disposed || !ownerMatches() || signature !== formBusinessSignature(form.value)) return { code: 409, msg: '录单内容或账号已变化，请重新核对' }
 		if (depositRes?.code !== 0) return { code: depositRes?.code || 503, msg: '暂时无法准备销售单，已保留本次称重，请稍后再保存。' }
 		for (const result of [customerRes, ...bottleResults]) {
 			if (result?.code !== 0) return result || { code: 503, msg: '档案复核失败，请联网后重试' }
@@ -741,7 +760,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 		}
 		if (!Array.isArray(depositRes.data?.depositRows)) return { code: 503, msg: '暂时无法准备销售单，请稍后再保存。' }
 		if (changes.length) {
-			revalidationCandidate = { signature: JSON.stringify(form.value), customer: latestCustomer, deposit: depositRes.data, bottles }
+			revalidationCandidate = { signature: formBusinessSignature(form.value), customer: latestCustomer, deposit: depositRes.data, bottles }
 			return { code: 409, error_code: 'MOBILE_SALE_REVALIDATION_CHANGED', msg: '现场开单资料有变化，请核对后保存', data: { changes } }
 		}
 		revalidationCandidate = null
@@ -750,7 +769,7 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 
 	function applyRevalidationChanges() {
 		const candidate = revalidationCandidate
-		if (!canEdit() || !candidate || candidate.signature !== JSON.stringify(form.value)) return false
+		if (!canEdit() || !candidate || candidate.signature !== formBusinessSignature(form.value)) return false
 		applySelectedCustomer(candidate.customer)
 		for (const { rowId, bottle } of candidate.bottles) {
 			for (const [type, rows] of [['out', form.value.outItems], ['back', form.value.backItems]]) {
@@ -893,10 +912,12 @@ export function usePdaSaleForm(initialValues = {}, printing = null) {
 	return {
 		crewNotice, crewSyncing, contextIssue, vehicleRevoked, termsNotice, vehicleNotice, boundVehicleOnly, claimVehicle, releaseVehicle, restartContext, setForeground,
 		invalidateAsyncWork,
+		getDraftId: () => draftId,
 		pdaStep,
 		draftStep,
 		draftStatus,
 		receipt,
+		submissionFrozen,
 		submissionLocked,
 		persistDraft,
 		restoreDraft,

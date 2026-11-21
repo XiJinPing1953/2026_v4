@@ -138,28 +138,20 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.85",
+      "version": "1.0.88",
       "output": "release/pda",
-      "acceptance": "手机销售核对实物出回瓶，原单落库即可打印及开下一单。后台流转告警由办公室查看。",
+      "acceptance": "出瓶、回瓶扫码或手输均按瓶定位；定位慢时可继续交单。",
       "deploymentScope": {
-        "baseCommit": "fe20d78615c62f5219ecd70ef8be070d751babf0",
+        "baseCommit": "82bed288b03e4f4b5b60a34260552864cd0ecd73",
         "sourceFiles": [
-          "src/components/domain/pda/PdaBottleInput.vue",
-          "src/components/domain/pda/PdaBottleSuggestField.vue",
-          "src/components/domain/pda/PdaNativeSaleView.vue",
-          "src/components/domain/pda/PdaSaleCreateView.vue",
-          "src/components/domain/pda/PdaSaleRecordsView.vue",
-          "src/components/domain/sale/SaleDetailView.vue",
           "src/composables/pda/usePdaNativeSale.js",
           "src/composables/pda/usePdaSaleForm.js",
-          "src/composables/pda/usePdaSalePrinter.js",
           "src/manifest.json",
-          "src/services/pda/driverSaleFeedback.js",
-          "src/services/pda/printerSelection.js",
-          "src/services/pda/sale.js"
+          "src/services/models/sale.js",
+          "src/services/pda/location.js"
         ],
-        "databaseFiles": [],
-        "functions": []
+        "functions": [],
+        "databaseFiles": []
       },
       "integrityScope": "deployment",
       "artifactType": "wgt"

@@ -123,35 +123,58 @@ function toNumber(value, fallback = null) {
 	return num
 }
 
+function toFiniteLocationNumber(value) {
+	if (typeof value === 'number') return Number.isFinite(value) ? value : null
+	if (typeof value === 'string') {
+		const text = value.trim()
+		if (!text) return null
+		const num = Number(text)
+		return Number.isFinite(num) ? num : null
+	}
+	return null
+}
+
 function normalizeScanLocation(value) {
 	if (!value || typeof value !== 'object') return null
 	const status = normalizeString(value.status || (value.latitude != null && value.longitude != null ? 'ok' : 'failed')) || 'failed'
-	const capturedAt = toNumber(value.capturedAt ?? value.captured_at, null)
+	const rawCapturedAt = toFiniteLocationNumber(value.capturedAt ?? value.captured_at)
+	const capturedAt = rawCapturedAt != null && rawCapturedAt > 0 ? rawCapturedAt : Date.now()
 	const coordinateType = normalizeString(value.coordinateType || value.coordinate_type) || 'wgs84'
 	const source = normalizeString(value.source) || 'pda_bottle_scan'
 	const base = {
 		status,
 		coordinate_type: coordinateType,
-		captured_at: capturedAt || Date.now(),
+		captured_at: capturedAt,
 		source
 	}
+	if (status === 'pending') {
+		return {
+			...base,
+			status: 'failed',
+			error_code: 'pending_at_submit',
+			error_message: '提交时定位尚未返回'
+		}
+	}
 	if (status === 'ok') {
-		const latitude = toNumber(value.latitude, null)
-		const longitude = toNumber(value.longitude, null)
-		if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+		const latitude = toFiniteLocationNumber(value.latitude)
+		const longitude = toFiniteLocationNumber(value.longitude)
+		if (
+			latitude == null || longitude == null
+			|| Math.abs(latitude) > 90 || Math.abs(longitude) > 180
+		) {
 			return {
 				...base,
 				status: 'failed',
 				error_code: 'invalid_location',
-				error_message: '定位结果缺少经纬度'
+				error_message: '定位坐标无效'
 			}
 		}
-		const accuracy = toNumber(value.accuracy, null)
+		const rawAccuracy = toFiniteLocationNumber(value.accuracy)
 		return {
 			...base,
 			latitude,
 			longitude,
-			accuracy: Number.isFinite(accuracy) ? accuracy : null
+			accuracy: rawAccuracy != null && rawAccuracy >= 0 ? rawAccuracy : null
 		}
 	}
 	return {
