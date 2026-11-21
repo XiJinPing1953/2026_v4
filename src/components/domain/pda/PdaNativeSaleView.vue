@@ -34,11 +34,11 @@
 		</view>
 		<text v-if="error && (receipt?.sourceSaved !== true) && step !== 2 && step !== 3" class="error" role="alert">{{ driverSaleFeedback(error) }}</text>
 		<view v-if="!draftStatus.available && receipt?.sourceSaved !== true" :class="['sale-content', locked && 'sale-content--locked']" :inert="locked || undefined">
-			<view v-if="supportsNetworkLocation && !locationChoice && step < 4" class="notice">
-				<text class="strong">瓶号定位</text>
+			<view v-if="supportsNetworkLocation && !locationConsent && step < 4" class="notice">
+				<text class="strong">出回瓶定位授权</text>
 				<text>{{ locationDisclosure }}</text>
 				<AppButton kind="ghost" @click="openLocationPolicy">高德定位隐私说明</AppButton>
-				<view class="buttons"><AppButton @click="setLocationChoice('amap')">同意使用高德</AppButton><AppButton kind="outline" @click="setLocationChoice('system')">用系统定位</AppButton></view>
+				<view class="buttons"><AppButton @click="setLocationConsent('amap')">同意定位</AppButton><AppButton kind="outline" @click="setLocationConsent('declined')">暂不授权</AppButton></view>
 			</view>
 			<template v-if="step === 1">
 				<AppSection title="选客户">
@@ -54,8 +54,8 @@
 				</AppSection>
 				<AppButton kind="outline" :disabled="busy || locked" @click="otherOpen = !otherOpen">其他信息 {{ otherOpen ? '收起' : '展开' }}</AppButton>
 				<view v-if="otherOpen" class="details">
-					<AppButton v-if="supportsNetworkLocation && locationChoice" kind="outline" @click="changeLocationChoice">定位方式 · {{ locationChoice === 'amap' ? '高德网络定位' : '系统定位' }}</AppButton>
-					<AppButton v-if="supportsNetworkLocation && locationChoice" kind="ghost" @click="openLocationPolicy">高德定位隐私说明</AppButton>
+					<AppButton v-if="supportsNetworkLocation && locationConsent" kind="outline" @click="manageLocationConsent">{{ locationConsent === 'amap' ? '撤回定位授权' : '授权出回瓶定位' }}</AppButton>
+					<AppButton v-if="supportsNetworkLocation && locationConsent" kind="ghost" @click="openLocationPolicy">高德定位隐私说明</AppButton>
 					<text>销售日期</text>
 					<picker mode="date" :value="form.date" :disabled="busy || locked" @change="form.date = $event.detail.value"><view class="date-field">{{ form.date }}</view></picker>
 					<PdaLookupSuggestField v-for="slot in ['delivery1', 'delivery2']" :key="slot" v-model="form[slot]" :label="slot === 'delivery1' ? '配送员一' : '配送员二'" :disabled="busy || locked" :fetcher="searchDeliveries" :map-item="mapDelivery" @select="sale.applyDeliverySelection(slot, $event)" />
@@ -123,35 +123,41 @@ import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import PdaLookupSuggestField from './PdaLookupSuggestField.vue'
 import PdaBottleSuggestField from './PdaBottleSuggestField.vue'
-import { createSaleLocationSession, readSaleLocationChoice, saveSaleLocationChoice } from '@/services/pda/amapSaleLocation'
+import { createSaleLocationSession, readSaleLocationConsent, saveSaleLocationConsent } from '@/services/pda/amapSaleLocation'
+import { getPdaBottleScanLocation } from '@/services/pda/location'
 import { getUser } from '@/services/auth'
 import { usePdaNativeSale } from '@/composables/pda/usePdaNativeSale'
 import { listPdaCustomers, resolvePdaCustomerPricing } from '@/services/pda/customer'
 import { listPdaDeliveries } from '@/services/pda/delivery'
 import { listPdaVehicles } from '@/services/pda/vehicle'
 
-const supportsNetworkLocation = typeof plus !== 'undefined' && plus.os?.name === 'Android'
+const iosSale = uni.getSystemInfoSync().platform === 'ios'
+const supportsNetworkLocation = !iosSale
 const accountId = () => String(getUser()?._id || getUser()?.id || '')
 const locationOwner = accountId()
-const locationChoice = ref(readSaleLocationChoice(locationOwner))
-const locationDisclosure = '登记出瓶和回瓶时，高德会使用附近 Wi-Fi、可用基站、设备及位置信息估算瓶子的位置。可在“其他信息”更改。'
-const locationSession = createSaleLocationSession(() => supportsNetworkLocation && Boolean(locationOwner) && accountId() === locationOwner && locationChoice.value === 'amap')
+const locationConsent = ref(readSaleLocationConsent(locationOwner))
+const locationDisclosure = '登记出瓶和回瓶时，高德会使用附近 Wi-Fi、可用基站、设备及位置信息估算瓶子的位置。授权后每只瓶自动记录，可在“其他信息”撤回授权。'
+const locationSession = createSaleLocationSession(() => supportsNetworkLocation && Boolean(locationOwner) && accountId() === locationOwner && locationConsent.value === 'amap')
 function openLocationPolicy() {
 	plus.runtime.openURL('https://lbs.amap.com/pages/privacy/')
 }
-function setLocationChoice(choice) {
+function setLocationConsent(choice) {
 	if (!locationOwner || accountId() !== locationOwner) return
-	try { saveSaleLocationChoice(locationOwner, choice) }
-	catch { uni.showToast({ title: '定位选择未保存，请重试', icon: 'none' }); return }
-	locationChoice.value = choice
+	try { saveSaleLocationConsent(locationOwner, choice) }
+	catch { uni.showToast({ title: '定位授权未保存，请重试', icon: 'none' }); return }
+	locationConsent.value = choice
 	if (choice !== 'amap') locationSession.cancel()
 }
-function changeLocationChoice() {
-	uni.showModal({ title: '瓶号定位', content: locationDisclosure, confirmText: '使用高德', cancelText: '用系统定位',
-		success: result => setLocationChoice(result.confirm ? 'amap' : 'system') })
+function manageLocationConsent() {
+	if (locationConsent.value === 'amap') {
+		setLocationConsent('declined')
+		return
+	}
+	uni.showModal({ title: '出回瓶定位授权', content: locationDisclosure, confirmText: '同意定位', cancelText: '暂不授权',
+		success: result => { if (result.confirm) setLocationConsent('amap') } })
 }
 const { printer, captureMinimum, sale, step, direction, outRows, backRows, rows, current, currentId, snapshot, busy, locked, error, message, changes, weighed,
-	chooseBottle, selectCustomer, go, connect, disconnect, reweigh, remove, save, query, restore, discard, nextSale, applyChanges, activate, deactivate } = usePdaNativeSale({ locate: locationSession.locate, stopLocation: locationSession.cancel })
+	chooseBottle, selectCustomer, go, connect, disconnect, reweigh, remove, save, query, restore, discard, nextSale, applyChanges, activate, deactivate } = usePdaNativeSale({ locate: iosSale ? getPdaBottleScanLocation : locationSession.locate, stopLocation: locationSession.cancel })
 const { form, selectedCustomer, customerKeyword, draftStatus, receipt, submissionLocked, submitting } = sale
 const titles = ['客户', '出瓶', '回瓶', '确认']
 const manualOpen = ref(false), recordsOpen = ref(false)

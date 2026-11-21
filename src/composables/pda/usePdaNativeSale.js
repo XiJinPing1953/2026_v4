@@ -19,7 +19,6 @@ import {
 	PDA_SCAN_LOCATION_SOURCE,
 	createPdaScanLocationFailure,
 	createPdaScanLocationPending,
-	getPdaBottleScanLocation,
 	normalizePdaScanLocation
 } from '@/services/pda/location'
 import { validatePdaBottleSaleForm } from '@/services/pda/sale'
@@ -33,7 +32,7 @@ export function isNativeSaleRowWeighed(row, type) {
 		&& Math.abs(Number(row.gross) - Number(row.tare) - Number(row.net)) < 0.001)
 }
 
-export function usePdaNativeSale({ locate = getPdaBottleScanLocation, stopLocation } = {}) {
+export function usePdaNativeSale({ locate, stopLocation }) {
 	const active = ref(false)
 	const printer = usePdaSalePrinter(() => active.value)
 	const sale = usePdaSaleForm({}, printer)
