@@ -8,64 +8,25 @@
     "web": {
       "version": "2026.11.21-sale-location.1",
       "output": "dist/build/web",
-      "acceptance": "五车调度整批保存、账号预检、权限隔离和新单同步；正式账号验收不造业务单。",
+      "acceptance": "销售详情逐瓶显示定位；办公室编辑保留原瓶坐标。",
       "deploymentScope": {
-        "baseCommit": "de1c97e830812d7ffec02032e82c28c46449bc5a",
+        "baseCommit": "4ee048126953dab5e3c161758ca281716f17aa9c",
         "sourceFiles": [
-          "src/components/domain/dashboard/DashboardHome.vue",
-          "src/components/domain/dispatch/FleetDispatchView.vue",
-          "src/components/domain/pda/PdaNativeSaleView.vue",
-          "src/components/domain/pda/PdaSaleCreateView.vue",
+          "src/components/domain/sale/SaleBottleLinesCard.vue",
+          "src/components/domain/sale/SaleDetailView.vue",
+          "src/components/domain/sale/SaleEditView.vue",
           "src/composables/pda/usePdaNativeSale.js",
           "src/composables/pda/usePdaSaleForm.js",
           "src/manifest.json",
-          "src/pages.json",
-          "src/pages/vehicle/dispatch.vue",
-          "src/services/api/fleetDispatch.js",
-          "src/services/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/common/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-auth/pageAclRegistryLocal.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/fleetDispatch.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistry.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/pageAclRegistryLocal.js"
+          "src/services/models/sale.js",
+          "src/services/pda/location.js",
+          "src/services/sale.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js"
+        ],
+        "functions": [
+          "crm-sale"
         ],
         "databaseFiles": [],
-        "functions": [
-          "crm-auth",
-          "crm-user"
-        ]
-      },
-      "integrityScope": "deployment",
-      "publishedSourceCommit": "caef890a1e5ab846ed3241eab546ce7e09091749"
-    },
-    "cloud": {
-      "version": "2026.11.20-live-mobile-sale.1",
-      "output": "release/cloud",
-      "acceptance": "PDA 有效价格、结算与车辆同步，原单保存和确认未保存互斥。",
-      "integrityScope": "deployment",
-      "deploymentScope": {
-        "baseCommit": "159baa2cc0206051a7e6a087c243d4e3e5722c58",
-        "sourceFiles": [
-          "uniCloud-alipay/cloudfunctions/crm-sale/index.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleContext.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleCreate.js",
-          "uniCloud-alipay/cloudfunctions/crm-sale/mobileSaleMasters.js",
-          "uniCloud-alipay/cloudfunctions/crm-user/index.js",
-          "uniCloud-alipay/database/crm_mobile_sale_operations.schema.json",
-          "uniCloud-alipay/database/crm_users.schema.json",
-          "uniCloud-alipay/database/schema/crm_mobile_sale_operations.schema.json",
-          "uniCloud-alipay/database/schema/crm_users.schema.json"
-        ],
-        "functions": [
-          "crm-sale",
-          "crm-user"
-        ],
-        "databaseFiles": [
-          "crm_users.schema.json",
-          "crm_mobile_sale_operations.schema.json"
-        ],
         "aclCanonicalRevisions": {
           "crm-sale": {
             "helper": {
@@ -79,7 +40,46 @@
           }
         }
       },
-      "publishedSourceCommit": "1fbbd605f060e5e9693cc1f6d7f8b152d58c83b8"
+      "integrityScope": "deployment",
+      "publishedSourceCommit": "c356927a47c2e2ce7069d3f5d52d82b69944559f"
+    },
+    "cloud": {
+      "version": "2026.11.21-sale-location.1",
+      "output": "release/cloud",
+      "acceptance": "网页编辑保留原瓶和流转的现场定位，换瓶换车后不沿用。",
+      "integrityScope": "deployment",
+      "deploymentScope": {
+        "baseCommit": "4ee048126953dab5e3c161758ca281716f17aa9c",
+        "sourceFiles": [
+          "src/components/domain/sale/SaleBottleLinesCard.vue",
+          "src/components/domain/sale/SaleDetailView.vue",
+          "src/components/domain/sale/SaleEditView.vue",
+          "src/composables/pda/usePdaNativeSale.js",
+          "src/composables/pda/usePdaSaleForm.js",
+          "src/manifest.json",
+          "src/services/models/sale.js",
+          "src/services/pda/location.js",
+          "src/services/sale.js",
+          "uniCloud-alipay/cloudfunctions/crm-sale/index.js"
+        ],
+        "functions": [
+          "crm-sale"
+        ],
+        "databaseFiles": [],
+        "aclCanonicalRevisions": {
+          "crm-sale": {
+            "helper": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "2b7c980403ffb09218bd751f43999e12e82d8e263e060bfa47c4266a70ce0edb"
+            },
+            "registry": {
+              "commit": "e162288e34345b0bf223a46d5c898c303feb16dd",
+              "sha256": "c5414274da0b0eab175341df8e9ecfa3c219e61860df64613aff1599dd7dd641"
+            }
+          }
+        }
+      },
+      "publishedSourceCommit": "3d8914cfae6e8992ad2ca2301881870f68a80dd8"
     },
     "tank-gateway": {
       "version": "1.0.3",
@@ -129,16 +129,12 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.87",
+      "version": "1.0.88",
       "output": "release/pda",
-      "acceptance": "客户输入可查找并点选档案，手输瓶号自动唤起数字键盘；页面及键盘确认共用校验。",
+      "acceptance": "出瓶、回瓶扫码或手输均按瓶定位；定位慢时可继续交单。",
       "deploymentScope": {
-        "baseCommit": "e30ec45437182171e292590c0fb23c4d0bd9244a",
+        "baseCommit": "3765a5a439dd6110fe532d6d460ab4dd92859994",
         "sourceFiles": [
-          "src/components/domain/pda/PdaBottleSuggestField.vue",
-          "src/components/domain/pda/PdaLookupSuggestField.vue",
-          "src/components/domain/pda/PdaNativeSaleView.vue",
-          "src/components/domain/pda/PdaSuggestList.vue",
           "src/manifest.json"
         ],
         "functions": [],
@@ -146,7 +142,7 @@
       },
       "integrityScope": "deployment",
       "artifactType": "wgt",
-      "publishedSourceCommit": "82bed288b03e4f4b5b60a34260552864cd0ecd73"
+      "publishedSourceCommit": "15a1b73445e8ca8cc57c971b828eaae46fda01b8"
     }
   }
 }
