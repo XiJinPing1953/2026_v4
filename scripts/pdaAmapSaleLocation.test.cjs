@@ -7,7 +7,7 @@ const source = readFileSync('src/services/pda/amapSaleLocation.js', 'utf8').repl
 function setup() {
 	const now = Date.now()
 	const fix = { getErrorCode: 0, getLocationType: 5, getTime: now - 1000, getCoordType: 'GCJ-02', getLatitude: 36, getLongitude: 115, getAccuracy: 30 }
-	let permission, listener, starts = 0, stops = 0, system = 0, consent = false
+	let permission, listener, fireTimeout, starts = 0, stops = 0, system = 0, consent = false
 	const android = {
 		requestPermissions(_, reply) { permission = reply },
 		runtimeMainActivity: () => ({}),
@@ -21,23 +21,24 @@ function setup() {
 		}
 	}
 	const helpers = vm.runInNewContext(source + '\n;({createSaleLocationSession,readAmapFix})', {
-		plus: { android }, Date, setTimeout, clearTimeout, normalizePdaScanLocation: x => x,
+		plus: { android }, Date, setTimeout(fn) { fireTimeout = fn; return 1 }, clearTimeout() {}, normalizePdaScanLocation: x => x,
 		createPdaScanLocationFailure: error => ({ status: 'failed', errorCode: error.code }),
 		getPdaBottleScanLocation: async () => { system++; return { coordinateType: 'wgs84' } }
 	})
 	return {
 		session: helpers.createSaleLocationSession(() => consent), enable() { consent = true },
 		permit() { permission({ granted: ['android.permission.ACCESS_FINE_LOCATION'] }) },
+		timeout() { fireTimeout() },
 		deny() { permission({ granted: [] }) },
 		respond(changes = {}) { listener.onLocationChanged({ ...fix, ...changes }) }, check: changes => helpers.readAmapFix(android, { ...fix, ...changes }, now),
 		counts: () => [starts, stops, system]
 	}
 }
 
-test('no consent uses system positioning and never starts a vendor request', async () => {
+test('a sale without consent makes zero location requests', async () => {
 	const h = setup()
-	assert.equal((await h.session.locate({})).coordinateType, 'wgs84')
-	assert.deepEqual(h.counts(), [0, 0, 1])
+	assert.equal((await h.session.locate({})).errorCode, 'amap_consent_required')
+	assert.deepEqual(h.counts(), [0, 0, 0])
 })
 
 test('concurrent bottle requests retain independent sources and use a fresh session after completion', async () => {
@@ -75,11 +76,36 @@ test('rejects SDK errors, mock, stale, cached, invalid or unlabelled fixes', () 
 })
 
 
-test('vendor failure falls back to system GPS, denied OS access does not prompt again', async () => {
+test('AMap failure, timeout and denied permission never trigger system positioning', async () => {
 	const h = setup(); h.enable()
 	const faulty = h.session.locate({}); h.permit(); h.respond({ getErrorCode: 7 })
-	assert.equal((await faulty).coordinateType, 'wgs84')
+	assert.equal((await faulty).errorCode, 'amap_no_fix')
+	const slow = h.session.locate({}); h.permit(); h.timeout(); h.respond()
+	assert.equal((await slow).errorCode, 'amap_timeout')
 	const denied = h.session.locate({}); h.deny()
 	assert.equal((await denied).errorCode, 'permission_denied')
-	assert.deepEqual(h.counts(), [1, 1, 1])
+	assert.deepEqual(h.counts(), [2, 2, 0])
+})
+
+
+test('previous AMap consent survives upgrades and the retired system option never grants consent', () => {
+	const store = new Map()
+	const uni = { getStorageSync: key => store.get(key), setStorageSync: (key, v) => store.set(key, v) }
+	const { readSaleLocationConsent: read, saveSaleLocationConsent: save } = vm.runInNewContext(
+		source + '\n;({readSaleLocationConsent,saveSaleLocationConsent})', { uni })
+	store.set('pda.sale.amap.choice.v1.old', 'system')
+	assert.equal(read('old'), '')
+	save('old', 'declined')
+	save('other', 'amap')
+	assert.equal(read('old'), 'declined')
+	assert.equal(read('other'), 'amap')
+	assert.equal(read('new'), '')
+})
+
+test('the Android sale entry binds only the AMap session and offers no provider switch', () => {
+	const page = readFileSync('src/components/domain/pda/PdaNativeSaleView.vue', 'utf8')
+	const template = page.split('</template>\n\n<script')[0]
+	assert.match(page, /locate: iosSale \? getPdaBottleScanLocation : locationSession\.locate/)
+	assert.doesNotMatch(template, /系统定位|定位方式/)
+	assert.doesNotMatch(source, /getPdaBottleScanLocation|uni\.getLocation/)
 })

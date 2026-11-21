@@ -1,4 +1,4 @@
-import { normalizePdaScanLocation, getPdaBottleScanLocation, createPdaScanLocationFailure } from './location'
+import { normalizePdaScanLocation, createPdaScanLocationFailure } from './location'
 
 const CLIENT = 'com.amap.api.location.AMapLocationClient'
 const OPTIONS = 'com.amap.api.location.AMapLocationClientOption'
@@ -6,17 +6,18 @@ const FINE_LOCATION = 'android.permission.ACCESS_FINE_LOCATION'
 const MAX_FIX_AGE_MS = 30000
 const REQUEST_TIMEOUT_MS = 23000
 
-export function readSaleLocationChoice(owner) {
+export function readSaleLocationConsent(owner) {
 	if (!owner) return ''
 	try {
-		return uni.getStorageSync('pda.sale.amap.choice.v1.' + owner) || ''
+		const stored = uni.getStorageSync('pda.sale.amap.choice.v1.' + owner)
+		return ['amap', 'declined'].includes(stored) ? stored : ''
 	} catch {
 		return ''
 	}
 }
 
-export function saveSaleLocationChoice(owner, choice) {
-	if (!owner || !['amap', 'system'].includes(choice)) return
+export function saveSaleLocationConsent(owner, choice) {
+	if (!owner || !['amap', 'declined'].includes(choice)) return
 	uni.setStorageSync('pda.sale.amap.choice.v1.' + owner, choice)
 }
 
@@ -99,11 +100,11 @@ export function createSaleLocationSession(mayUseAmap) {
 			} catch { finish(null) }
 		}
 
-		timer = setTimeout(() => finish(null), REQUEST_TIMEOUT_MS)
+		timer = setTimeout(() => finish({ error: { code: 'amap_timeout', message: '高德定位超时' } }), REQUEST_TIMEOUT_MS)
 		try {
 			android.requestPermissions([FINE_LOCATION], result => {
 				if (result?.granted?.includes(FINE_LOCATION)) start()
-				else finish({ permissionDenied: true })
+				else finish({ error: { code: 'permission_denied', message: '系统未授权定位' } })
 			}, () => finish(null))
 		} catch { finish(null) }
 		return promise
@@ -112,14 +113,16 @@ export function createSaleLocationSession(mayUseAmap) {
 	async function locate(options) {
 		const canContinue = () => !options.shouldContinue || options.shouldContinue()
 		if (!canContinue()) return null
-		if (mayUseAmap() && typeof plus !== 'undefined' && plus.android) {
-			const ticket = generation
-			const fix = await requestNetworkFix(canContinue)
-			if (ticket !== generation || !canContinue()) return null
-			if (fix?.permissionDenied) return createPdaScanLocationFailure({ code: 'permission_denied', message: '系统未授权定位' }, options.capturedAt, options.source)
-			if (fix && mayUseAmap()) return normalizePdaScanLocation({ ...fix, source: options.source })
-		}
-		return getPdaBottleScanLocation(options)
+		const failure = (code, message) => createPdaScanLocationFailure({ code, message }, options.capturedAt, options.source)
+		if (!mayUseAmap()) return failure('amap_consent_required', '未授权高德定位')
+		if (typeof plus === 'undefined' || !plus.android) return failure('amap_unavailable', '高德定位服务不可用')
+		const ticket = generation
+		const fix = await requestNetworkFix(canContinue)
+		if (ticket !== generation || !canContinue()) return null
+		if (!mayUseAmap()) return failure('amap_consent_required', '未授权高德定位')
+		if (fix?.error) return failure(fix.error.code, fix.error.message)
+		if (!fix) return failure('amap_no_fix', '高德未取得有效位置')
+		return normalizePdaScanLocation({ ...fix, source: options.source })
 	}
 
 	return { locate, cancel }

@@ -138,11 +138,11 @@
       "integrityScope": "deployment"
     },
     "pda": {
-      "version": "1.0.89",
+      "version": "1.0.90",
       "output": "release/pda",
-      "acceptance": "正式签名和高德 Android 配置回读，逐瓶网络定位同意、关闭和系统定位回退。",
+      "acceptance": "安卓出回瓶仅使用高德。未授权、无坐标和超时均不再发起系统定位。",
       "deploymentScope": {
-        "baseCommit": "15a1b73445e8ca8cc57c971b828eaae46fda01b8",
+        "baseCommit": "e88dfc8c1d95a7635ff975e043968158878526f3",
         "sourceFiles": [
           "src/components/domain/pda/PdaNativeSaleView.vue",
           "src/composables/pda/usePdaNativeSale.js",

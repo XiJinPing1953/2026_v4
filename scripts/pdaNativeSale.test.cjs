@@ -103,7 +103,7 @@ async function harness(t, options = {}) {
 	Object.assign(runtime, load('src/composables/pda/usePdaSaleForm.js', ['usePdaSaleForm'], runtime))
 	const module = load('src/composables/pda/usePdaNativeSale.js', ['usePdaNativeSale', 'isNativeSaleRowWeighed'], runtime)
 	const scope = vue.effectScope()
-	const panel = scope.run(() => module.usePdaNativeSale())
+	const panel = scope.run(() => module.usePdaNativeSale({ locate: runtime.getPdaBottleScanLocation }))
 	t.after(() => { panel.sale.setForeground(false); scope.stop() })
 	await panel.activate()
 	async function start(step = 2) { panel.selectCustomer(customer); await panel.go(2); if (step === 3) await panel.go(3); await panel.connect() }
