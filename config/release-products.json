@@ -41,12 +41,12 @@
       "publishedSourceCommit": "caef890a1e5ab846ed3241eab546ce7e09091749"
     },
     "cloud": {
-      "version": "2026.11.20-mobile-sale-reg-receipt.1",
+      "version": "2026.11.21-sale-location.1",
       "output": "release/cloud",
-      "acceptance": "手机新建销售等候原监管入队回执，延迟成功、真实失败、原号重试分别验收。",
+      "acceptance": "网页编辑保留原瓶和流转的现场定位，换瓶换车后不沿用。",
       "integrityScope": "deployment",
       "deploymentScope": {
-        "baseCommit": "1f7b2b3eca34c8ddaf75b9c86f07abb96493d3aa",
+        "baseCommit": "1fbbd605f060e5e9693cc1f6d7f8b152d58c83b8",
         "sourceFiles": [
           "uniCloud-alipay/cloudfunctions/crm-sale/index.js"
         ],
@@ -66,8 +66,7 @@
             }
           }
         }
-      },
-      "publishedSourceCommit": "45d1d447ba41a6d4d7e02627e9e35dd999c38b2a"
+      }
     },
     "tank-gateway": {
       "version": "1.0.3",
